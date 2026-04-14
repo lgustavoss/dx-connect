@@ -15,9 +15,14 @@ const BASE = apiBaseUrl()
 export const API_VERSION_PREFIX = '/v1'
 
 const TOKEN_KEY = 'token'
+const REFRESH_TOKEN_KEY = 'refresh_token'
 
 function getToken(): string | null {
   return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
+}
+
+function getRefreshToken(): string | null {
+  return sessionStorage.getItem(REFRESH_TOKEN_KEY) || localStorage.getItem(REFRESH_TOKEN_KEY)
 }
 
 export function getAuthToken(): string | null {
@@ -27,6 +32,45 @@ export function getAuthToken(): string | null {
 export function clearAuthToken(): void {
   sessionStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(TOKEN_KEY)
+  sessionStorage.removeItem(REFRESH_TOKEN_KEY)
+  localStorage.removeItem(REFRESH_TOKEN_KEY)
+}
+
+function setTokens(tokens: { access_token: string; refresh_token?: string | null }, lembrarMe = true) {
+  const store = lembrarMe ? localStorage : sessionStorage
+  store.setItem(TOKEN_KEY, tokens.access_token)
+  if (tokens.refresh_token) store.setItem(REFRESH_TOKEN_KEY, tokens.refresh_token)
+}
+
+let refreshInFlight: Promise<{ access_token: string; refresh_token?: string | null; must_change_password?: boolean } | null> | null =
+  null
+
+async function refreshAccessToken(): Promise<{ access_token: string; refresh_token?: string | null; must_change_password?: boolean } | null> {
+  if (refreshInFlight) return refreshInFlight
+  const refresh_token = getRefreshToken()
+  if (!refresh_token) return null
+  refreshInFlight = (async () => {
+    try {
+      const res = await api<{ access_token: string; refresh_token?: string | null; must_change_password?: boolean }>(
+        '/auth/refresh',
+        {
+          method: 'POST',
+          body: JSON.stringify({ refresh_token }),
+          // evita loop: api() trata 401, então no refresh não podemos cair no retry.
+          headers: { 'X-DX-Skip-Refresh': '1' },
+        },
+      )
+      // persiste sempre no mesmo storage onde já estava o refresh
+      const lembrarMe = Boolean(localStorage.getItem(REFRESH_TOKEN_KEY))
+      setTokens(res, lembrarMe)
+      return res
+    } catch {
+      return null
+    } finally {
+      refreshInFlight = null
+    }
+  })()
+  return refreshInFlight
 }
 
 export async function api<T>(
@@ -54,8 +98,19 @@ export async function api<T>(
 
   if (res.status === 401) {
     const err = await res.json().catch(() => ({}));
-    clearAuthToken();
-    window.location.href = '/login';
+    // Se já estamos no fluxo de refresh, não tenta de novo.
+    const skipRefresh = typeof headers === 'object' && headers != null && 'X-DX-Skip-Refresh' in (headers as any)
+    if (!skipRefresh && !path.startsWith('/auth/refresh')) {
+      const refreshed = await refreshAccessToken()
+      if (refreshed?.access_token) {
+        // retry 1x com o novo access token
+        return api<T>(path, options)
+      }
+    }
+
+    clearAuthToken()
+    const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`
+    window.location.href = `/login?returnTo=${encodeURIComponent(returnTo)}`
     throw new Error(mensagemErroApi(err, 401));
   }
 
@@ -69,7 +124,7 @@ export async function api<T>(
 
 export const auth = {
   login: (email: string, senha: string) =>
-    api<{ access_token: string; must_change_password?: boolean }>('/auth/login', {
+    api<{ access_token: string; refresh_token?: string | null; must_change_password?: boolean }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, senha }),
     }),
