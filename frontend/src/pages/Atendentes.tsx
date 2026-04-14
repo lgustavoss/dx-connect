@@ -241,22 +241,25 @@ export function Atendentes() {
                   { value: 'admin', label: 'Administrador' },
                 ]}
               />
-              {role === 'atendente' && (
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Setores</label>
-                  <div className="flex flex-wrap gap-2">
-                    {setoresList.map((s) => (
-                      <CheckboxField
-                        key={s.id}
-                        checked={setorIds.includes(s.id)}
-                        onChange={() => toggleSetor(s.id)}
-                      >
-                        {s.nome}
-                      </CheckboxField>
-                    ))}
-                  </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Setores</label>
+                {role === 'admin' && (
+                  <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                    Opcional, mas recomendado: vincule administradores a setores para poderem ser responsáveis em tickets do setor.
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  {setoresList.map((s) => (
+                    <CheckboxField
+                      key={s.id}
+                      checked={setorIds.includes(s.id)}
+                      onChange={() => toggleSetor(s.id)}
+                    >
+                      {s.nome}
+                    </CheckboxField>
+                  ))}
                 </div>
-              )}
+              </div>
               <Switch
                 checked={ativo}
                 onCheckedChange={setAtivo}
