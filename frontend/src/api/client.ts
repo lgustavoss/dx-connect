@@ -385,6 +385,34 @@ export const dashboard = {
   get: () => api<Dashboard.Response>('/dashboard'),
 };
 
+export namespace Notificacoes {
+  export interface Resumo {
+    sem_responsavel_count: number;
+    nao_lidas_count: number;
+    total_pendencias: number;
+  }
+  export interface Item {
+    tipo: 'fila_sem_responsavel' | 'mensagens_nao_lidas';
+    ticket_id: number | null;
+    titulo: string;
+    descricao: string;
+    count: number;
+    href: string;
+    created_at?: string | null;
+  }
+  export interface ItensResponse {
+    itens: Item[];
+  }
+}
+
+export const notificacoes = {
+  resumo: () => api<Notificacoes.Resumo>('/notificacoes/resumo'),
+  itens: (params?: { limit?: number }) =>
+    api<Notificacoes.ItensResponse>(withParams('/notificacoes/itens', params)),
+  marcarVisto: (ticketId: number) =>
+    api<void>(`/notificacoes/tickets/${ticketId}/visto`, { method: 'POST' }),
+};
+
 export namespace Dashboard {
   export interface StatusCount {
     status_id: number;

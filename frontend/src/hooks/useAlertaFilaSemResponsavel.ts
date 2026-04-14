@@ -1,18 +1,25 @@
 import { useEffect, useState } from 'react'
-import { tickets } from '../api/client'
+import { notificacoes, type Notificacoes } from '../api/client'
 
 const LS_KEY_SOUND = 'dxconnect.alerta_fila_sem_responsavel.som'
 const LS_KEY_LAST_COUNT = 'dxconnect.alerta_fila_sem_responsavel.last_count'
 const DEFAULT_SOUND_ENABLED = true
 const POLL_MS = 30_000
 
-type Listener = (state: { count: number }) => void
+type ListenerFila = (state: { count: number }) => void
+type ListenerResumo = (state: Notificacoes.Resumo) => void
 
 let started = false
 let inFlight = false
 let currentCount = 0
+let currentResumo: Notificacoes.Resumo = {
+  sem_responsavel_count: 0,
+  nao_lidas_count: 0,
+  total_pendencias: 0,
+}
 let prevCount: number | null = null
-const listeners = new Set<Listener>()
+const listenersFila = new Set<ListenerFila>()
+const listenersResumo = new Set<ListenerResumo>()
 
 function getSoundEnabled(): boolean {
   try {
@@ -98,46 +105,81 @@ async function trySetAppBadge(count: number) {
   }
 }
 
+function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean) {
+  currentResumo = r
+  const sem = r.sem_responsavel_count
+  currentCount = sem
+  for (const l of listenersFila) l({ count: sem })
+  for (const l of listenersResumo) l(r)
+
+  if (atualizarSom) {
+    const prev = prevCount
+    prevCount = sem
+    setLastCount(sem)
+    if (getSoundEnabled() && prev != null && sem > prev) {
+      playBeep()
+    }
+  }
+
+  const total = r.total_pendencias
+  const base = (typeof document !== 'undefined' ? document.title : 'DX Connect').replace(/^\(\d+\)\s+/, '')
+  if (typeof document !== 'undefined') {
+    document.title = total > 0 ? `(${total}) ${base}` : base
+  }
+  void trySetAppBadge(total)
+}
+
+async function poll() {
+  if (inFlight) return
+  inFlight = true
+  try {
+    const r = await notificacoes.resumo()
+    applyResumo(r, true)
+  } catch {
+    // ignore
+  } finally {
+    inFlight = false
+  }
+}
+
+/** Atualiza contadores na UI (ex.: após marcar ticket como visto). Não dispara som de fila. */
+export async function refetchPendenciasResumo() {
+  if (inFlight) return
+  inFlight = true
+  try {
+    const r = await notificacoes.resumo()
+    applyResumo(r, false)
+  } catch {
+    // ignore
+  } finally {
+    inFlight = false
+  }
+}
+
 function ensureStarted() {
   if (started) return
   started = true
   prevCount = getLastCount()
 
-  const poll = async () => {
-    if (inFlight) return
-    inFlight = true
-    try {
-      const { total } = await tickets.list({
-        sem_responsavel: true,
-        offset: 0,
-        limit: 1,
-      })
-
-      currentCount = total
-      for (const l of listeners) l({ count: currentCount })
-
-      const prev = prevCount
-      prevCount = total
-      setLastCount(total)
-
-      if (getSoundEnabled() && prev != null && total > prev) {
-        playBeep()
-      }
-
-      const base = (typeof document !== 'undefined' ? document.title : 'DX Connect').replace(/^\(\d+\)\s+/, '')
-      if (typeof document !== 'undefined') {
-        document.title = total > 0 ? `(${total}) ${base}` : base
-      }
-      void trySetAppBadge(total)
-    } catch {
-      // ignore
-    } finally {
-      inFlight = false
-    }
-  }
-
   void poll()
-  window.setInterval(poll, POLL_MS)
+  window.setInterval(() => void poll(), POLL_MS)
+}
+
+export function usePendenciasResumo(enabled: boolean): Notificacoes.Resumo {
+  const [resumo, setResumo] = useState<Notificacoes.Resumo>(currentResumo)
+
+  useEffect(() => {
+    if (!enabled) return
+    ensureStarted()
+    const listener: ListenerResumo = (r) => setResumo(r)
+    listenersResumo.add(listener)
+    setResumo(currentResumo)
+    return () => {
+      listenersResumo.delete(listener)
+    }
+  }, [enabled])
+
+  return resumo
 }
 
 export function useAlertaFilaSemResponsavel(enabled: boolean) {
@@ -151,13 +193,11 @@ export function useAlertaFilaSemResponsavel(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return
     ensureStarted()
-    const listener: Listener = ({ count }) => setCount(count)
-    listeners.add(listener)
-    // estado inicial imediato
+    const listener: ListenerFila = ({ count: c }) => setCount(c)
+    listenersFila.add(listener)
     setCount(currentCount)
     return () => {
-      listeners.delete(listener)
-      // Mantém o poll ativo globalmente enquanto houver user logado.
+      listenersFila.delete(listener)
     }
   }, [enabled])
 
@@ -167,4 +207,3 @@ export function useAlertaFilaSemResponsavel(enabled: boolean) {
     setSoundEnabled: setSoundEnabledState,
   }
 }
-

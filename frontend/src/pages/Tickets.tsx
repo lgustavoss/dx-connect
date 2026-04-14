@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useId } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   tickets,
   statusTicket,
@@ -40,6 +40,7 @@ const searchIcon = (
 
 export function Tickets() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const toast = useToast()
   const { isAdmin, user } = useAuth()
   const { soundEnabled, setSoundEnabled, count: filaCount } = useAlertaFilaSemResponsavel(Boolean(user))
@@ -58,7 +59,10 @@ export function Tickets() {
   const [setoresOpt, setSetoresOpt] = useState<Setores.Setor[]>([])
   const [atendentesOpt, setAtendentesOpt] = useState<Atendentes.Atendente[]>([])
   /** '' | 'sem_responsavel' | 'meus' — fila do setor vs. atribuídos a mim */
-  const [filtroFila, setFiltroFila] = useState<'' | 'sem_responsavel' | 'meus'>('')
+  const [filtroFila, setFiltroFila] = useState<'' | 'sem_responsavel' | 'meus'>(() => {
+    const sr = searchParams.get('sem_responsavel')
+    return sr === '1' || sr === 'true' ? 'sem_responsavel' : ''
+  })
   const [filtroAtendente, setFiltroAtendente] = useState<number | ''>('')
   const [maisFiltrosAberto, setMaisFiltrosAberto] = useState(false)
   const painelFiltrosId = useId()
@@ -112,6 +116,21 @@ export function Tickets() {
     (filtroSetor !== '' ? 1 : 0) +
     (filtroStatus !== '' ? 1 : 0) +
     (isAdmin && filtroAtendente !== '' ? 1 : 0)
+
+  useEffect(() => {
+    const sr = searchParams.get('sem_responsavel')
+    if (sr === '1' || sr === 'true') {
+      setFiltroFila('sem_responsavel')
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev)
+          next.delete('sem_responsavel')
+          return next
+        },
+        { replace: true },
+      )
+    }
+  }, [searchParams, setSearchParams])
 
   useEffect(() => {
     coletarTodasPaginas<StatusTicket.Status>((o, l) =>
