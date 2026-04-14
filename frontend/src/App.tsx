@@ -13,6 +13,7 @@ import { RedeForm } from './pages/RedeForm'
 import { Empresas } from './pages/Empresas'
 import { EmpresaDetalhe } from './pages/EmpresaDetalhe'
 import { Setores } from './pages/Setores'
+import { SetorDetalhe } from './pages/SetorDetalhe'
 import { Atendentes } from './pages/Atendentes'
 import { FuncionariosRede } from './pages/FuncionariosRede'
 import { FuncionarioRedeDetalhe } from './pages/FuncionarioRedeDetalhe'
@@ -128,6 +129,14 @@ function AppRoutes() {
           element={
             <AdminRoute>
               <Setores />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="setores/:id"
+          element={
+            <AdminRoute>
+              <SetorDetalhe />
             </AdminRoute>
           }
         />
