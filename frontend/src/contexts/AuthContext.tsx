@@ -44,8 +44,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearAuthToken()
     if (lembrarMe) {
       localStorage.setItem('token', res.access_token)
+      if (res.refresh_token) localStorage.setItem('refresh_token', res.refresh_token)
     } else {
       sessionStorage.setItem('token', res.access_token)
+      if (res.refresh_token) sessionStorage.setItem('refresh_token', res.refresh_token)
     }
     await refreshUser()
   }, [refreshUser])

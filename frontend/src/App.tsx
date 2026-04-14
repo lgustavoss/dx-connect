@@ -9,12 +9,15 @@ import { TicketNovo } from './pages/TicketNovo'
 import { TicketDetalhe } from './pages/TicketDetalhe'
 import { Redes } from './pages/Redes'
 import { RedeDetalhe } from './pages/RedeDetalhe'
+import { RedeForm } from './pages/RedeForm'
 import { Empresas } from './pages/Empresas'
 import { EmpresaDetalhe } from './pages/EmpresaDetalhe'
 import { Setores } from './pages/Setores'
+import { SetorDetalhe } from './pages/SetorDetalhe'
 import { Atendentes } from './pages/Atendentes'
 import { FuncionariosRede } from './pages/FuncionariosRede'
 import { FuncionarioRedeDetalhe } from './pages/FuncionarioRedeDetalhe'
+import { FuncionarioRedeForm } from './pages/FuncionarioRedeForm'
 import { StatusTicketPage } from './pages/StatusTicket'
 import { Auditoria } from './pages/Auditoria'
 import { TiposNegocio } from './pages/TiposNegocio'
@@ -82,6 +85,22 @@ function AppRoutes() {
           }
         />
         <Route
+          path="redes/novo"
+          element={
+            <AdminRoute>
+              <RedeForm />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="redes/:id/editar"
+          element={
+            <AdminRoute>
+              <RedeForm />
+            </AdminRoute>
+          }
+        />
+        <Route
           path="redes"
           element={
             <AdminRoute>
@@ -114,6 +133,14 @@ function AppRoutes() {
           }
         />
         <Route
+          path="setores/:id"
+          element={
+            <AdminRoute>
+              <SetorDetalhe />
+            </AdminRoute>
+          }
+        />
+        <Route
           path="atendentes"
           element={
             <AdminRoute>
@@ -126,6 +153,22 @@ function AppRoutes() {
           element={
             <AdminRoute>
               <FuncionarioRedeDetalhe />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="funcionarios-rede/novo"
+          element={
+            <AdminRoute>
+              <FuncionarioRedeForm />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="funcionarios-rede/:id/editar"
+          element={
+            <AdminRoute>
+              <FuncionarioRedeForm />
             </AdminRoute>
           }
         />

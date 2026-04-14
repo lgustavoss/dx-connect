@@ -9,7 +9,7 @@ export interface SwitchProps extends OmitBase {
   description?: string
   /** Sem caixa; só rótulo + interruptor */
   bare?: boolean
-  /** Selo textual (ex.: Ativa / Inativa) e trilha verde quando ligado — bom para status claro. */
+  /** Selo textual (ex.: Ativo / Inativo) — recomendado para não depender só de cor. */
   showStatusPill?: boolean
   statusOnText?: string
   statusOffText?: string
@@ -26,8 +26,8 @@ export function Switch({
   disabled,
   bare = false,
   showStatusPill = false,
-  statusOnText = 'Ativa',
-  statusOffText = 'Inativa',
+  statusOnText = 'Ativo',
+  statusOffText = 'Inativo',
   className = '',
   id: idProp,
   ...rest
@@ -61,7 +61,7 @@ export function Switch({
             className={`min-w-[4.25rem] rounded-full px-2.5 py-1 text-center text-xs font-semibold tabular-nums transition-colors ${
               checked
                 ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-600/15 dark:bg-emerald-950/55 dark:text-emerald-300 dark:ring-emerald-500/25'
-                : 'bg-slate-200/90 text-slate-600 ring-1 ring-slate-400/20 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-600/40'
+                : 'bg-rose-50 text-rose-700 ring-1 ring-rose-600/15 dark:bg-rose-950/35 dark:text-rose-200 dark:ring-rose-500/25'
             }`}
           >
             {checked ? statusOnText : statusOffText}
@@ -81,9 +81,7 @@ export function Switch({
           disabled:cursor-not-allowed disabled:opacity-45
           ${
             checked
-              ? showStatusPill
-                ? 'border-emerald-600 bg-emerald-600 dark:border-emerald-500 dark:bg-emerald-500'
-                : 'border-slate-700 bg-slate-800 dark:border-slate-500/40 dark:bg-slate-200'
+              ? 'border-emerald-600 bg-emerald-600 dark:border-emerald-500 dark:bg-emerald-500'
               : 'border-slate-300/60 bg-slate-200 dark:border-slate-600 dark:bg-slate-700/80'
           }
         `}
@@ -94,9 +92,7 @@ export function Switch({
             pointer-events-none absolute left-0.5 top-0.5 size-5 rounded-full shadow-sm ring-1 transition-transform duration-200 ease-out
             ${
               checked
-                ? showStatusPill
-                  ? 'translate-x-[22px] bg-white ring-emerald-900/10'
-                  : 'translate-x-[22px] bg-white ring-slate-900/10 dark:bg-slate-900 dark:ring-white/10'
+                ? 'translate-x-[22px] bg-white ring-emerald-900/10'
                 : 'translate-x-0 bg-white ring-slate-900/5 dark:bg-slate-300 dark:ring-slate-900/20'
             }
           `}

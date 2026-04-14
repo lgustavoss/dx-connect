@@ -46,8 +46,13 @@ class AtendenteLogin(BaseModel):
 
 class Token(BaseModel):
     access_token: str
+    refresh_token: str | None = None
     token_type: str = "bearer"
     must_change_password: bool = False
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
 
 
 class TrocaSenhaPropria(BaseModel):

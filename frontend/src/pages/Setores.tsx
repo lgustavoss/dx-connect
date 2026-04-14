@@ -11,11 +11,13 @@ import { useToast } from '../components/ui/Toast'
 import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { Switch } from '../components/ui/Switch'
+import { useNavigate } from 'react-router-dom'
 
 type ColunaSetor = 'nome' | 'slug' | 'ativo'
 
 export function Setores() {
   const toast = useToast()
+  const navigate = useNavigate()
   const { ordenarPor, ordem, aoOrdenarColuna, sortParams } = useOrdenacaoLista<ColunaSetor>()
   const [list, setList] = useState<Setores.Setor[]>([])
   const [total, setTotal] = useState(0)
@@ -148,11 +150,11 @@ export function Setores() {
                     key={s.id}
                     role="button"
                     tabIndex={0}
-                    onClick={() => openEdit(s)}
+                    onClick={() => navigate(`/setores/${s.id}`)}
                     onKeyDown={(ev) => {
                       if (ev.key === 'Enter' || ev.key === ' ') {
                         ev.preventDefault()
-                        openEdit(s)
+                        navigate(`/setores/${s.id}`)
                       }
                     }}
                     className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:outline-none focus-visible:bg-slate-100 dark:focus-visible:bg-slate-800/60"
@@ -170,7 +172,11 @@ export function Setores() {
                     </td>
                     <td className="px-4 py-3.5 text-right sm:px-6" onClick={(ev) => ev.stopPropagation()}>
                       <div className="inline-flex gap-1.5">
-                        <Button variant="ghost" onClick={() => openEdit(s)} aria-label="Editar setor">
+                        <Button
+                          variant="ghost"
+                          onClick={() => openEdit(s)}
+                          aria-label="Editar setor"
+                        >
                           <IconPencil ariaHidden={false} />
                         </Button>
                         <Button variant="ghost" onClick={() => handleDelete(s.id)} aria-label="Excluir setor">
@@ -193,7 +199,14 @@ export function Setores() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
               <Input label="Slug" value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="ex: suporte" required />
-              <Switch checked={ativo} onCheckedChange={setAtivo} label="Ativo" />
+              <Switch
+                checked={ativo}
+                onCheckedChange={setAtivo}
+                label="Status"
+                showStatusPill
+                statusOnText="Ativo"
+                statusOffText="Inativo"
+              />
               <div className="flex gap-2">
                 <Button type="submit" loading={saving}>Salvar</Button>
                 <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>Cancelar</Button>
