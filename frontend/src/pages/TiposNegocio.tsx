@@ -187,7 +187,14 @@ export function TiposNegocio() {
           <Card title={editingId ? 'Editar tipo' : 'Novo tipo de negócio'} className="w-full max-w-md">
             <form onSubmit={handleSubmit} className="space-y-4">
               <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
-              <Switch checked={ativo} onCheckedChange={setAtivo} label="Ativo" />
+              <Switch
+                checked={ativo}
+                onCheckedChange={setAtivo}
+                label="Status"
+                showStatusPill
+                statusOnText="Ativo"
+                statusOffText="Inativo"
+              />
               <div className="flex gap-2">
                 <Button type="submit" loading={saving}>Salvar</Button>
                 <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>Cancelar</Button>

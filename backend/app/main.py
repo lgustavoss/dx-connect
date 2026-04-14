@@ -103,6 +103,10 @@ async def lifespan(app: FastAPI):
                         conn.execute(text(f"ALTER TABLE empresas ADD COLUMN IF NOT EXISTS {col}"))
                     except Exception:
                         pass
+                try:
+                    conn.execute(text("ALTER TABLE redes ADD COLUMN IF NOT EXISTS login_retaguarda VARCHAR(120)"))
+                except Exception:
+                    pass
         except Exception:
             pass
 

@@ -1183,235 +1183,244 @@ export function RedeDetalhe() {
             </div>
           ) : (
             <form onSubmit={handleSubmitEmpresa} className="space-y-5 sm:space-y-6">
-              <FormSection title="Classificação">
-                <Select
-                  label="Tipo de negócio"
-                  value={tipoNegocioIdEmpresa}
-                  onChange={(v) => setTipoNegocioIdEmpresa(v === '' ? '' : Number(v))}
-                  options={tiposNegocioList.map((t) => ({ value: t.id, label: t.nome }))}
-                  includeEmpty
-                  emptyLabel="Selecione"
-                  placeholder="Selecione"
-                />
-              </FormSection>
-
-              <FormSection title="Documento e nomes" description={EMPRESA_SECAO_DOCUMENTO_NOMES}>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end lg:gap-5">
-                  <Input
-                    id="rede-empresa-cnpj"
-                    label="CNPJ / CPF"
-                    inputMode="numeric"
-                    placeholder="00.000.000/0001-00"
-                    value={cnpjCpfEmpresa}
-                    onChange={(e) => setCnpjCpfEmpresa(maskCnpjCpf(e.target.value))}
-                    endAdornment={
-                      <button
-                        type="button"
-                        onClick={handleConsultarCnpjEmpresa}
-                        disabled={loadingCnpjEmpresa}
-                        className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:pointer-events-none disabled:opacity-45 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-                        aria-label="Consultar CNPJ na Receita"
-                      >
-                        {loadingCnpjEmpresa ? (
-                          <span
-                            className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent"
-                            aria-hidden
-                          />
-                        ) : (
-                          <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                          </svg>
-                        )}
-                      </button>
-                    }
-                  />
-                  <Input
-                    label="Inscrição estadual"
-                    value={inscricaoEstadualEmpresa}
-                    onChange={(e) =>
-                      setInscricaoEstadualEmpresa(maskInscricaoEstadual(e.target.value))
-                    }
-                  />
-                </div>
-                <Input
-                  label="Razão social"
-                  value={razaoSocialEmpresa}
-                  onChange={(e) => setRazaoSocialEmpresa(e.target.value)}
-                />
-                <Input
-                  label="Nome fantasia"
-                  value={nomeFantasiaEmpresa}
-                  onChange={(e) => setNomeFantasiaEmpresa(e.target.value)}
-                />
-              </FormSection>
-
-              <FormSection title="Endereço">
-                <Input label="Logradouro" value={enderecoEmpresa} onChange={(e) => setEnderecoEmpresa(e.target.value)} />
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  <Input label="Número" value={numeroEmpresa} onChange={(e) => setNumeroEmpresa(e.target.value)} />
-                  <Input label="Complemento" value={complementoEmpresa} onChange={(e) => setComplementoEmpresa(e.target.value)} />
-                  <Input label="Bairro" value={bairroEmpresa} onChange={(e) => setBairroEmpresa(e.target.value)} />
-                </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  <SelectUf
-                    label="UF"
-                    id="rede-empresa-uf"
-                    value={estadoEmpresa}
-                    onChange={(uf) => {
-                      setEstadoEmpresa(uf)
-                      setCidadeEmpresa('')
-                    }}
-                  />
-                  <SelectCidadeUf
-                    label="Cidade"
-                    id="rede-empresa-cidade"
-                    uf={estadoEmpresa}
-                    value={cidadeEmpresa}
-                    onChange={setCidadeEmpresa}
-                  />
-                  <InputCepComBusca
-                    id="rede-empresa-cep"
-                    label="CEP"
-                    value={cepEmpresa}
-                    onChange={setCepEmpresa}
-                    onEnderecoCompleto={(r) => {
-                      setEnderecoEmpresa(r.logradouro || '')
-                      setBairroEmpresa(r.bairro || '')
-                      setCidadeEmpresa(r.localidade || '')
-                      setEstadoEmpresa((r.uf || '').toUpperCase().slice(0, 2))
-                      if (r.complemento) setComplementoEmpresa(r.complemento)
-                    }}
-                  />
-                </div>
-              </FormSection>
-
-              <FormSection title="Contato">
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
-                  <Input label="E-mail" type="email" value={emailEmpresa} onChange={(e) => setEmailEmpresa(e.target.value)} />
-                  <Input
-                    label="Telefone"
-                    inputMode="tel"
-                    value={telefoneEmpresa}
-                    maxLength={15}
-                    onChange={(e) => setTelefoneEmpresa(maskTelefoneBr(e.target.value))}
-                  />
-                </div>
-              </FormSection>
-
-              <FormSection title="Responsável legal" description={EMPRESA_SECAO_RESPONSAVEL_LEGAL}>
-                <Input label="Nome completo" value={respLegalNome} onChange={(e) => setRespLegalNome(e.target.value)} />
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-5">
-                  <Input
-                    label="CPF"
-                    inputMode="numeric"
-                    placeholder="000.000.000-00"
-                    maxLength={14}
-                    value={respLegalCpf}
-                    onChange={(e) => setRespLegalCpf(maskCnpjCpf(e.target.value))}
-                  />
-                  <Input label="RG" value={respLegalRg} onChange={(e) => setRespLegalRg(e.target.value)} />
-                </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-5">
-                  <Input
-                    label="Órgão emissor"
-                    placeholder="Ex.: SSP/SP"
-                    value={respLegalOrgaoEmissor}
-                    onChange={(e) => setRespLegalOrgaoEmissor(e.target.value)}
-                  />
-                  <Input
-                    label="Nacionalidade"
-                    placeholder="Ex.: Brasileira"
-                    value={respLegalNacionalidade}
-                    onChange={(e) => setRespLegalNacionalidade(e.target.value)}
-                  />
-                </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-5">
+              <div className="space-y-5 pb-24 sm:space-y-6">
+                <FormSection title="Classificação">
                   <Select
-                    label="Estado civil"
-                    value={respLegalEstadoCivil}
-                    onChange={(v) => setRespLegalEstadoCivil(v === '' ? '' : String(v))}
-                    options={opcoesEstadoCivilEmpresa}
+                    label="Tipo de negócio"
+                    value={tipoNegocioIdEmpresa}
+                    onChange={(v) => setTipoNegocioIdEmpresa(v === '' ? '' : Number(v))}
+                    options={tiposNegocioList.map((t) => ({ value: t.id, label: t.nome }))}
                     includeEmpty
                     emptyLabel="Selecione"
                     placeholder="Selecione"
                   />
-                  <Input
-                    label="Cargo na empresa"
-                    placeholder="Ex.: Sócio administrador"
-                    value={respLegalCargo}
-                    onChange={(e) => setRespLegalCargo(e.target.value)}
-                  />
-                </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-5">
-                  <Input label="E-mail" type="email" value={respLegalEmail} onChange={(e) => setRespLegalEmail(e.target.value)} />
-                  <Input
-                    label="Telefone"
-                    inputMode="tel"
-                    value={respLegalTelefone}
-                    maxLength={15}
-                    onChange={(e) => setRespLegalTelefone(maskTelefoneBr(e.target.value))}
-                  />
-                </div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Endereço residencial
-                </p>
-                <Input label="Logradouro" value={respLegalEndereco} onChange={(e) => setRespLegalEndereco(e.target.value)} />
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  <Input label="Número" value={respLegalNumero} onChange={(e) => setRespLegalNumero(e.target.value)} />
-                  <Input label="Complemento" value={respLegalComplemento} onChange={(e) => setRespLegalComplemento(e.target.value)} />
-                  <Input label="Bairro" value={respLegalBairro} onChange={(e) => setRespLegalBairro(e.target.value)} />
-                </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  <SelectUf
-                    label="UF"
-                    id="rede-empresa-resp-uf"
-                    value={respLegalEstado}
-                    onChange={(uf) => {
-                      setRespLegalEstado(uf)
-                      setRespLegalCidade('')
-                    }}
-                  />
-                  <SelectCidadeUf
-                    label="Cidade"
-                    id="rede-empresa-resp-cidade"
-                    uf={respLegalEstado}
-                    value={respLegalCidade}
-                    onChange={setRespLegalCidade}
-                  />
-                  <InputCepComBusca
-                    id="rede-empresa-resp-cep"
-                    label="CEP"
-                    value={respLegalCep}
-                    onChange={setRespLegalCep}
-                    onEnderecoCompleto={(r) => {
-                      setRespLegalEndereco(r.logradouro || '')
-                      setRespLegalBairro(r.bairro || '')
-                      setRespLegalCidade(r.localidade || '')
-                      setRespLegalEstado((r.uf || '').toUpperCase().slice(0, 2))
-                      if (r.complemento) setRespLegalComplemento(r.complemento)
-                    }}
-                  />
-                </div>
-              </FormSection>
+                </FormSection>
 
-              <FormSection title="Situação no sistema">
-                <Switch
-                  bare
-                  showStatusPill
-                  checked={ativoEmpresa}
-                  onCheckedChange={setAtivoEmpresa}
-                  label="Empresa ativa"
-                  description={EMPRESA_HINT_ATIVA}
-                />
-              </FormSection>
+                <FormSection title="Documento e nomes" description={EMPRESA_SECAO_DOCUMENTO_NOMES}>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end lg:gap-5">
+                    <Input
+                      id="rede-empresa-cnpj"
+                      label="CNPJ / CPF"
+                      inputMode="numeric"
+                      placeholder="00.000.000/0001-00"
+                      value={cnpjCpfEmpresa}
+                      onChange={(e) => setCnpjCpfEmpresa(maskCnpjCpf(e.target.value))}
+                      endAdornment={
+                        <button
+                          type="button"
+                          onClick={handleConsultarCnpjEmpresa}
+                          disabled={loadingCnpjEmpresa}
+                          className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:pointer-events-none disabled:opacity-45 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                          aria-label="Consultar CNPJ na Receita"
+                        >
+                          {loadingCnpjEmpresa ? (
+                            <span
+                              className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                              aria-hidden
+                            />
+                          ) : (
+                            <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                          )}
+                        </button>
+                      }
+                    />
+                    <Input
+                      label="Inscrição estadual"
+                      value={inscricaoEstadualEmpresa}
+                      onChange={(e) =>
+                        setInscricaoEstadualEmpresa(maskInscricaoEstadual(e.target.value))
+                      }
+                    />
+                  </div>
+                  <Input
+                    label="Razão social"
+                    value={razaoSocialEmpresa}
+                    onChange={(e) => setRazaoSocialEmpresa(e.target.value)}
+                  />
+                  <Input
+                    label="Nome fantasia"
+                    value={nomeFantasiaEmpresa}
+                    onChange={(e) => setNomeFantasiaEmpresa(e.target.value)}
+                  />
+                </FormSection>
 
-              <div className="flex flex-col-reverse gap-2 border-t border-slate-200 pt-4 dark:border-slate-700 sm:flex-row sm:justify-end sm:pt-5">
-                <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => setModalEmpresa(false)}>
-                  Cancelar
-                </Button>
-                <Button type="submit" loading={savingEmpresa} className="w-full sm:w-auto">
-                  Salvar
-                </Button>
+                <FormSection title="Endereço">
+                  <Input label="Logradouro" value={enderecoEmpresa} onChange={(e) => setEnderecoEmpresa(e.target.value)} />
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    <Input label="Número" value={numeroEmpresa} onChange={(e) => setNumeroEmpresa(e.target.value)} />
+                    <Input label="Complemento" value={complementoEmpresa} onChange={(e) => setComplementoEmpresa(e.target.value)} />
+                    <Input label="Bairro" value={bairroEmpresa} onChange={(e) => setBairroEmpresa(e.target.value)} />
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    <SelectUf
+                      label="UF"
+                      id="rede-empresa-uf"
+                      value={estadoEmpresa}
+                      onChange={(uf) => {
+                        setEstadoEmpresa(uf)
+                        setCidadeEmpresa('')
+                      }}
+                    />
+                    <SelectCidadeUf
+                      label="Cidade"
+                      id="rede-empresa-cidade"
+                      uf={estadoEmpresa}
+                      value={cidadeEmpresa}
+                      onChange={setCidadeEmpresa}
+                    />
+                    <InputCepComBusca
+                      id="rede-empresa-cep"
+                      label="CEP"
+                      value={cepEmpresa}
+                      onChange={setCepEmpresa}
+                      onEnderecoCompleto={(r) => {
+                        setEnderecoEmpresa(r.logradouro || '')
+                        setBairroEmpresa(r.bairro || '')
+                        setCidadeEmpresa(r.localidade || '')
+                        setEstadoEmpresa((r.uf || '').toUpperCase().slice(0, 2))
+                        if (r.complemento) setComplementoEmpresa(r.complemento)
+                      }}
+                    />
+                  </div>
+                </FormSection>
+
+                <FormSection title="Contato">
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
+                    <Input label="E-mail" type="email" value={emailEmpresa} onChange={(e) => setEmailEmpresa(e.target.value)} />
+                    <Input
+                      label="Telefone"
+                      inputMode="tel"
+                      value={telefoneEmpresa}
+                      maxLength={15}
+                      onChange={(e) => setTelefoneEmpresa(maskTelefoneBr(e.target.value))}
+                    />
+                  </div>
+                </FormSection>
+
+                <FormSection title="Responsável legal" description={EMPRESA_SECAO_RESPONSAVEL_LEGAL}>
+                  <Input label="Nome completo" value={respLegalNome} onChange={(e) => setRespLegalNome(e.target.value)} />
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-5">
+                    <Input
+                      label="CPF"
+                      inputMode="numeric"
+                      placeholder="000.000.000-00"
+                      maxLength={14}
+                      value={respLegalCpf}
+                      onChange={(e) => setRespLegalCpf(maskCnpjCpf(e.target.value))}
+                    />
+                    <Input label="RG" value={respLegalRg} onChange={(e) => setRespLegalRg(e.target.value)} />
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-5">
+                    <Input
+                      label="Órgão emissor"
+                      placeholder="Ex.: SSP/SP"
+                      value={respLegalOrgaoEmissor}
+                      onChange={(e) => setRespLegalOrgaoEmissor(e.target.value)}
+                    />
+                    <Input
+                      label="Nacionalidade"
+                      placeholder="Ex.: Brasileira"
+                      value={respLegalNacionalidade}
+                      onChange={(e) => setRespLegalNacionalidade(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-5">
+                    <Select
+                      label="Estado civil"
+                      value={respLegalEstadoCivil}
+                      onChange={(v) => setRespLegalEstadoCivil(v === '' ? '' : String(v))}
+                      options={opcoesEstadoCivilEmpresa}
+                      includeEmpty
+                      emptyLabel="Selecione"
+                      placeholder="Selecione"
+                    />
+                    <Input
+                      label="Cargo na empresa"
+                      placeholder="Ex.: Sócio administrador"
+                      value={respLegalCargo}
+                      onChange={(e) => setRespLegalCargo(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-5">
+                    <Input label="E-mail" type="email" value={respLegalEmail} onChange={(e) => setRespLegalEmail(e.target.value)} />
+                    <Input
+                      label="Telefone"
+                      inputMode="tel"
+                      value={respLegalTelefone}
+                      maxLength={15}
+                      onChange={(e) => setRespLegalTelefone(maskTelefoneBr(e.target.value))}
+                    />
+                  </div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Endereço residencial
+                  </p>
+                  <Input label="Logradouro" value={respLegalEndereco} onChange={(e) => setRespLegalEndereco(e.target.value)} />
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    <Input label="Número" value={respLegalNumero} onChange={(e) => setRespLegalNumero(e.target.value)} />
+                    <Input label="Complemento" value={respLegalComplemento} onChange={(e) => setRespLegalComplemento(e.target.value)} />
+                    <Input label="Bairro" value={respLegalBairro} onChange={(e) => setRespLegalBairro(e.target.value)} />
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    <SelectUf
+                      label="UF"
+                      id="rede-empresa-resp-uf"
+                      value={respLegalEstado}
+                      onChange={(uf) => {
+                        setRespLegalEstado(uf)
+                        setRespLegalCidade('')
+                      }}
+                    />
+                    <SelectCidadeUf
+                      label="Cidade"
+                      id="rede-empresa-resp-cidade"
+                      uf={respLegalEstado}
+                      value={respLegalCidade}
+                      onChange={setRespLegalCidade}
+                    />
+                    <InputCepComBusca
+                      id="rede-empresa-resp-cep"
+                      label="CEP"
+                      value={respLegalCep}
+                      onChange={setRespLegalCep}
+                      onEnderecoCompleto={(r) => {
+                        setRespLegalEndereco(r.logradouro || '')
+                        setRespLegalBairro(r.bairro || '')
+                        setRespLegalCidade(r.localidade || '')
+                        setRespLegalEstado((r.uf || '').toUpperCase().slice(0, 2))
+                        if (r.complemento) setRespLegalComplemento(r.complemento)
+                      }}
+                    />
+                  </div>
+                </FormSection>
+
+                <FormSection title="Situação no sistema">
+                  <Switch
+                    bare
+                    showStatusPill
+                    checked={ativoEmpresa}
+                    onCheckedChange={setAtivoEmpresa}
+                    label="Empresa ativa"
+                    description={EMPRESA_HINT_ATIVA}
+                  />
+                </FormSection>
+              </div>
+
+              <div className="sticky bottom-0 -mx-6 border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full sm:w-auto"
+                    onClick={() => setModalEmpresa(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button type="submit" loading={savingEmpresa} className="w-full sm:w-auto">
+                    Salvar
+                  </Button>
+                </div>
               </div>
             </form>
           )}
@@ -1612,7 +1621,14 @@ export function RedeDetalhe() {
                     )}
                   </div>
                 )}
-                <Switch checked={ativoFuncionario} onCheckedChange={setAtivoFuncionario} label="Ativo" />
+                <Switch
+                  checked={ativoFuncionario}
+                  onCheckedChange={setAtivoFuncionario}
+                  label="Status"
+                  showStatusPill
+                  statusOnText="Ativo"
+                  statusOffText="Inativo"
+                />
                 <div className="flex gap-2 border-t border-slate-200 pt-2">
                   <Button type="submit" loading={savingFuncionario}>
                     Salvar

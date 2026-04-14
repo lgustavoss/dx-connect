@@ -4,6 +4,7 @@ from datetime import datetime
 
 class RedeBase(BaseModel):
     nome: str
+    login_retaguarda: str | None = None
     ativo: bool = True
 
 
@@ -13,6 +14,7 @@ class RedeCreate(RedeBase):
 
 class RedeUpdate(BaseModel):
     nome: str | None = None
+    login_retaguarda: str | None = None
     ativo: bool | None = None
 
 
