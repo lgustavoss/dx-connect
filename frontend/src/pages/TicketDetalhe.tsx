@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
-import { tickets, statusTicket, atendentes, setores, type StatusTicket, type Atendentes, type Setores, type Tickets } from '../api/client'
+import { tickets, notificacoes, statusTicket, atendentes, setores, type StatusTicket, type Atendentes, type Setores, type Tickets } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Select } from '../components/ui/Select'
@@ -8,6 +8,7 @@ import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../contexts/AuthContext'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
+import { refetchPendenciasResumo } from '../hooks/useAlertaFilaSemResponsavel'
 
 const ROTULO_CAMPO: Record<string, string> = {
   status_id: 'Status',
@@ -292,6 +293,10 @@ export function TicketDetalhe() {
         setEditSetor(t.setor_id)
         setEditStatus(t.status_id)
         setEditAtendente(t.atendente_id ?? '')
+        void notificacoes
+          .marcarVisto(numId)
+          .then(() => refetchPendenciasResumo())
+          .catch(() => {})
       })
       .catch(() => {
         if (!cancelled) {

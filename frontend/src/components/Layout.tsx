@@ -3,6 +3,7 @@ import { Outlet, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Sidebar } from './Sidebar'
 import { ThemeToggle } from './ThemeToggle'
+import { NavbarNotificacoes } from './NavbarNotificacoes'
 import { useAlertaFilaSemResponsavel } from '../hooks/useAlertaFilaSemResponsavel'
 
 const menuIcon = (
@@ -83,6 +84,7 @@ export function Layout() {
             </div>
             
             <div className="min-w-0 flex-1" />
+            <NavbarNotificacoes enabled={Boolean(user)} />
             <ThemeToggle />
             <div className="hidden min-w-0 text-right sm:block">
               <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{user?.nome}</p>
