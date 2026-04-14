@@ -83,6 +83,15 @@ export function Empresas() {
   const [loadingCnpj, setLoadingCnpj] = useState(false)
 
   useEffect(() => {
+    if (!modalOpen) return
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prevOverflow
+    }
+  }, [modalOpen])
+
+  useEffect(() => {
     const t = setTimeout(() => setDebouncedBusca(busca.trim()), 400)
     return () => clearTimeout(t)
   }, [busca])
@@ -330,43 +339,46 @@ export function Empresas() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between">
-        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Empresas</h1>
-        <Button onClick={openCreate} disabled={modalOpen}>Nova empresa</Button>
-      </div>
+      {!modalOpen && (
+        <div className="flex justify-between">
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Empresas</h1>
+          <Button onClick={openCreate} disabled={modalOpen}>Nova empresa</Button>
+        </div>
+      )}
 
       {modalOpen && (
-        <div className="fixed inset-0 z-20 flex items-end justify-center overflow-y-auto bg-black/50 p-0 sm:items-center sm:p-4">
+        <div className="fixed inset-y-0 left-0 right-0 z-20 flex items-start justify-center bg-black/85 px-4 pb-6 pt-16 sm:px-6 md:left-[var(--sidebar-w)]">
           <Card
             title={editingId ? 'Editar empresa' : 'Nova empresa'}
-            className="max-h-[min(92vh,56rem)] w-full max-w-3xl overflow-y-auto rounded-none rounded-t-2xl sm:rounded-2xl"
+            className="max-h-[min(92vh,56rem)] w-full max-w-6xl overflow-y-auto rounded-2xl bg-white dark:bg-slate-900"
           >
             <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
-              <FormSection title="Classificação">
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
-                  <SelectComPesquisa
-                    id="empresa-rede"
-                    label="Rede"
-                    value={redeId}
-                    onChange={(id) => setRedeId(id)}
-                    required
-                    items={redesList.map((r) => ({
-                      id: r.id,
-                      label: r.nome,
-                      createdAt: r.created_at,
-                    }))}
-                  />
-                  <Select
-                    label="Tipo de negócio"
-                    value={tipoNegocioId}
-                    onChange={(v) => setTipoNegocioId(v === '' ? '' : Number(v))}
-                    options={tiposList.map((t) => ({ value: t.id, label: t.nome }))}
-                    includeEmpty
-                    emptyLabel="Selecione"
-                    placeholder="Selecione"
-                  />
-                </div>
-              </FormSection>
+              <div className="space-y-5 pb-24 sm:space-y-6">
+                <FormSection title="Classificação">
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
+                    <SelectComPesquisa
+                      id="empresa-rede"
+                      label="Rede"
+                      value={redeId}
+                      onChange={(id) => setRedeId(id)}
+                      required
+                      items={redesList.map((r) => ({
+                        id: r.id,
+                        label: r.nome,
+                        createdAt: r.created_at,
+                      }))}
+                    />
+                    <Select
+                      label="Tipo de negócio"
+                      value={tipoNegocioId}
+                      onChange={(v) => setTipoNegocioId(v === '' ? '' : Number(v))}
+                      options={tiposList.map((t) => ({ value: t.id, label: t.nome }))}
+                      includeEmpty
+                      emptyLabel="Selecione"
+                      placeholder="Selecione"
+                    />
+                  </div>
+                </FormSection>
 
               <FormSection title="Documento e nomes" description={EMPRESA_SECAO_DOCUMENTO_NOMES}>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end lg:gap-5">
@@ -564,14 +576,22 @@ export function Empresas() {
                   description={EMPRESA_HINT_ATIVA}
                 />
               </FormSection>
+              </div>
 
-              <div className="flex flex-col-reverse gap-2 border-t border-slate-200 pt-4 dark:border-slate-700 sm:flex-row sm:justify-end sm:pt-5">
-                <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => setModalOpen(false)}>
-                  Cancelar
-                </Button>
-                <Button type="submit" loading={saving} className="w-full sm:w-auto">
-                  Salvar
-                </Button>
+              <div className="sticky bottom-0 -mx-6 border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full sm:w-auto"
+                    onClick={() => setModalOpen(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button type="submit" loading={saving} className="w-full sm:w-auto">
+                    Salvar
+                  </Button>
+                </div>
               </div>
             </form>
           </Card>

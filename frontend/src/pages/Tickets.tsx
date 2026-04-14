@@ -14,13 +14,14 @@ import {
 } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Button } from '../components/ui/Button'
-import { IconEye } from '../components/ui/IconEye'
 import { Select } from '../components/ui/Select'
 import { PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { useToast } from '../components/ui/Toast'
 import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { useAuth } from '../contexts/AuthContext'
+import { useAlertaFilaSemResponsavel } from '../hooks/useAlertaFilaSemResponsavel'
+import { Switch } from '../components/ui/Switch'
 
 type ColunaOrdenacao =
   | 'protocolo'
@@ -41,6 +42,7 @@ export function Tickets() {
   const navigate = useNavigate()
   const toast = useToast()
   const { isAdmin, user } = useAuth()
+  const { soundEnabled, setSoundEnabled, count: filaCount } = useAlertaFilaSemResponsavel(Boolean(user))
 
   const [list, setList] = useState<Tickets.Ticket[]>([])
   const [total, setTotal] = useState(0)
@@ -210,9 +212,18 @@ export function Tickets() {
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Tickets</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Acompanhe e filtre as demandas do suporte.</p>
         </div>
-        <Link to="/tickets/novo">
-          <Button>Novo ticket</Button>
-        </Link>
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <Switch
+            bare
+            checked={soundEnabled}
+            onCheckedChange={setSoundEnabled}
+            label="Som de fila"
+            description={filaCount > 0 ? `${filaCount} na fila sem responsável` : 'Desligue se não quiser alerta'}
+          />
+          <Link to="/tickets/novo">
+            <Button>Novo ticket</Button>
+          </Link>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-700/80 dark:bg-slate-900/40">
@@ -435,8 +446,8 @@ export function Tickets() {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
+          <div className="overflow-hidden">
+            <table className="w-full table-auto text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
                   <CabecalhoOrdenavel
@@ -445,6 +456,7 @@ export function Tickets() {
                     ordenarPor={ordenarPor}
                     ordem={ordem}
                     aoOrdenar={aoOrdenarColuna}
+                    className="whitespace-nowrap px-4 py-3 sm:px-6"
                   />
                   <CabecalhoOrdenavel
                     coluna="rede"
@@ -452,6 +464,7 @@ export function Tickets() {
                     ordenarPor={ordenarPor}
                     ordem={ordem}
                     aoOrdenar={aoOrdenarColuna}
+                    className="hidden px-4 py-3 lg:table-cell sm:px-6"
                   />
                   <CabecalhoOrdenavel
                     coluna="empresa"
@@ -459,6 +472,7 @@ export function Tickets() {
                     ordenarPor={ordenarPor}
                     ordem={ordem}
                     aoOrdenar={aoOrdenarColuna}
+                    className="px-4 py-3 sm:px-6"
                   />
                   <CabecalhoOrdenavel
                     coluna="setor"
@@ -466,6 +480,7 @@ export function Tickets() {
                     ordenarPor={ordenarPor}
                     ordem={ordem}
                     aoOrdenar={aoOrdenarColuna}
+                    className="hidden px-4 py-3 xl:table-cell sm:px-6"
                   />
                   <CabecalhoOrdenavel
                     coluna="assunto"
@@ -473,7 +488,7 @@ export function Tickets() {
                     ordenarPor={ordenarPor}
                     ordem={ordem}
                     aoOrdenar={aoOrdenarColuna}
-                    className="min-w-[8rem]"
+                    className="hidden px-4 py-3 md:table-cell sm:px-6"
                   />
                   <CabecalhoOrdenavel
                     coluna="status"
@@ -481,6 +496,7 @@ export function Tickets() {
                     ordenarPor={ordenarPor}
                     ordem={ordem}
                     aoOrdenar={aoOrdenarColuna}
+                    className="whitespace-nowrap px-4 py-3 sm:px-6"
                   />
                   <CabecalhoOrdenavel
                     coluna="responsavel"
@@ -488,10 +504,8 @@ export function Tickets() {
                     ordenarPor={ordenarPor}
                     ordem={ordem}
                     aoOrdenar={aoOrdenarColuna}
+                    className="hidden px-4 py-3 lg:table-cell sm:px-6"
                   />
-                  <th className="w-px whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 sm:px-6 dark:text-slate-400">
-                    <span className="sr-only">Abrir ticket</span>
-                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -509,46 +523,43 @@ export function Tickets() {
                     }}
                     className="cursor-pointer transition-colors hover:bg-slate-50/90 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-slate-800/50 dark:focus-visible:bg-slate-800/60"
                   >
-                    <td className="whitespace-nowrap px-4 py-3.5 font-mono text-sm text-slate-900 sm:px-6 dark:text-slate-100">
+                    <td className="whitespace-nowrap px-4 py-3.5 align-top font-mono text-sm text-slate-900 sm:px-6 dark:text-slate-100">
                       {t.protocolo}
                     </td>
                     <td
-                      className="max-w-[8rem] truncate px-4 py-3.5 text-slate-600 sm:max-w-[10rem] sm:px-6 dark:text-slate-400"
+                      className="hidden px-4 py-3.5 align-top text-slate-600 lg:table-cell sm:px-6 dark:text-slate-400"
                       title={t.rede_nome}
                     >
-                      {t.rede_nome ?? '—'}
+                      <span className="block break-words whitespace-normal leading-snug">{t.rede_nome ?? '—'}</span>
                     </td>
                     <td
-                      className="max-w-[10rem] truncate px-4 py-3.5 text-slate-700 sm:max-w-[12rem] sm:px-6 dark:text-slate-300"
+                      className="min-w-0 px-4 py-3.5 align-top sm:px-6"
                       title={t.empresa_nome}
                     >
-                      {t.empresa_nome ?? t.empresa_id}
+                      <div className="min-w-0">
+                        <p className="break-words whitespace-normal font-medium leading-snug text-slate-900 dark:text-slate-100">
+                          {t.empresa_nome ?? String(t.empresa_id)}
+                        </p>
+                        <p className="mt-0.5 break-words whitespace-normal text-xs leading-snug text-slate-500 dark:text-slate-400 md:hidden">
+                          {t.assunto}
+                        </p>
+                      </div>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3.5 text-slate-600 sm:px-6 dark:text-slate-400">
-                      {t.setor_nome ?? t.setor_id}
+                    <td className="hidden px-4 py-3.5 align-top text-slate-600 xl:table-cell sm:px-6 dark:text-slate-400">
+                      <span className="block break-words whitespace-normal leading-snug">{t.setor_nome ?? String(t.setor_id)}</span>
                     </td>
-                    <td className="max-w-xs truncate px-4 py-3.5 font-medium text-slate-900 sm:px-6 dark:text-slate-100" title={t.assunto}>
-                      {t.assunto}
+                    <td className="hidden px-4 py-3.5 align-top font-medium text-slate-900 md:table-cell sm:px-6 dark:text-slate-100" title={t.assunto}>
+                      <span className="block break-words whitespace-normal leading-snug">{t.assunto}</span>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3.5 sm:px-6">
+                    <td className="whitespace-nowrap px-4 py-3.5 align-top sm:px-6">
                       <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                         {t.status_nome ?? t.status_id}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3.5 text-slate-600 sm:px-6 dark:text-slate-400">
-                      {t.atendente_nome ?? (
-                        <span className="italic text-slate-400 dark:text-slate-500">Na fila</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3.5 text-right sm:px-6" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        className="inline-flex size-9 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-                        onClick={() => navigate(`/tickets/${t.id}`)}
-                        aria-label={`Abrir ticket ${t.protocolo}`}
-                      >
-                        <IconEye className="size-[18px] shrink-0 opacity-80" ariaHidden={false} />
-                      </button>
+                    <td className="hidden px-4 py-3.5 align-top text-slate-600 lg:table-cell sm:px-6 dark:text-slate-400">
+                      <span className="block break-words whitespace-normal leading-snug">
+                        {t.atendente_nome ?? 'Na fila'}
+                      </span>
                     </td>
                   </tr>
                 ))}

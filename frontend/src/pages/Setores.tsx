@@ -193,7 +193,14 @@ export function Setores() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
               <Input label="Slug" value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="ex: suporte" required />
-              <Switch checked={ativo} onCheckedChange={setAtivo} label="Ativo" />
+              <Switch
+                checked={ativo}
+                onCheckedChange={setAtivo}
+                label="Status"
+                showStatusPill
+                statusOnText="Ativo"
+                statusOffText="Inativo"
+              />
               <div className="flex gap-2">
                 <Button type="submit" loading={saving}>Salvar</Button>
                 <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>Cancelar</Button>

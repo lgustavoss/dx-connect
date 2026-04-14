@@ -3,6 +3,7 @@ import { Outlet, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Sidebar } from './Sidebar'
 import { ThemeToggle } from './ThemeToggle'
+import { useAlertaFilaSemResponsavel } from '../hooks/useAlertaFilaSemResponsavel'
 
 const menuIcon = (
   <svg className="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -15,6 +16,8 @@ export function Layout() {
   const location = useLocation()
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false)
+
+  useAlertaFilaSemResponsavel(Boolean(user))
 
   if (user?.must_change_password && location.pathname !== '/alterar-senha') {
     return <Navigate to="/alterar-senha" replace />
@@ -37,6 +40,12 @@ export function Layout() {
         className={`min-h-screen transition-[margin-left] duration-200 ease-out ${
           sidebarExpanded ? 'md:ml-[280px]' : 'md:ml-[72px]'
         }`}
+        style={
+          {
+            // Usado por overlays/modais para respeitar o menu no desktop.
+            ['--sidebar-w' as never]: sidebarExpanded ? '280px' : '72px',
+          } as React.CSSProperties
+        }
       >
           {/* Top bar: mobile-first, área de toque generosa */}
           <header className="sticky top-0 z-30 flex h-14 min-h-[56px] items-center gap-2 border-b border-slate-200/90 bg-white/95 px-4 shadow-sm backdrop-blur-sm dark:border-slate-800/90 dark:bg-slate-950/90 md:gap-3 md:px-6">

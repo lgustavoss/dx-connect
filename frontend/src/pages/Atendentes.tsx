@@ -257,7 +257,15 @@ export function Atendentes() {
                   </div>
                 </div>
               )}
-              <Switch checked={ativo} onCheckedChange={setAtivo} label="Usuário ativo" description="Inativos não acessam o sistema." />
+              <Switch
+                checked={ativo}
+                onCheckedChange={setAtivo}
+                label="Status"
+                description="Inativos não acessam o sistema."
+                showStatusPill
+                statusOnText="Ativo"
+                statusOffText="Inativo"
+              />
               <div className="flex gap-2">
                 <Button type="submit" loading={saving}>Salvar</Button>
                 <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>Cancelar</Button>

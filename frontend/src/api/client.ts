@@ -351,6 +351,7 @@ export namespace Redes {
   export interface Rede {
     id: number;
     nome: string;
+    login_retaguarda?: string | null;
     ativo: boolean;
     created_at?: string | null;
     updated_at?: string | null;
@@ -360,10 +361,12 @@ export namespace Redes {
   }
   export interface Create {
     nome: string;
+    login_retaguarda?: string | null;
     ativo?: boolean;
   }
   export interface Update {
     nome?: string;
+    login_retaguarda?: string | null;
     ativo?: boolean;
   }
 }

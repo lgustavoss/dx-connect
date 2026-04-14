@@ -148,7 +148,7 @@ export function FuncionarioRedeDetalhe() {
 
   function abrirEdicao() {
     if (!f) return
-    navigate('/funcionarios-rede', { state: { editId: f.id } })
+    navigate(`/funcionarios-rede/${f.id}/editar`)
   }
 
   async function handleExcluir() {
