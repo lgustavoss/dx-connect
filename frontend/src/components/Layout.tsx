@@ -55,6 +55,24 @@ export function Layout() {
             >
               {menuIcon}
             </button>
+            
+            {/* Logo DX Connect visível apenas no mobile */}
+            <div className="flex items-center overflow-hidden rounded-lg gap-2 md:hidden">
+              <img
+                src="/dx-connect-mark.png"
+                alt=""
+                width={32}
+                height={32}
+                className="size-8 shrink-0 object-contain dark:brightness-0 dark:invert dark:opacity-95"
+                decoding="async"
+                aria-hidden
+              />
+              <span className="truncate text-sm font-semibold leading-tight">
+                <span className="bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text font-bold text-transparent">DX</span>
+                <span className="font-medium text-slate-700 dark:text-slate-200"> Connect</span>
+              </span>
+            </div>
+            
             <div className="min-w-0 flex-1" />
             <ThemeToggle />
             <div className="hidden min-w-0 text-right sm:block">
