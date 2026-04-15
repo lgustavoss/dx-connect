@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   redes,
@@ -255,7 +255,7 @@ export function RedeDetalhe() {
     if (!modalEmpresa) setAbaModalEmpresa('geral')
   }, [modalEmpresa])
 
-  function loadFuncionarios(override?: { busca?: string; page?: number }) {
+  const loadFuncionarios = useCallback((override?: { busca?: string; page?: number }) => {
     if (!redeId || isNaN(redeId)) return
     const buscaEff = override?.busca !== undefined ? override.busca : debouncedBuscaFuncionarios
     const pageEff = override?.page !== undefined ? override.page : pageFuncionarios
@@ -273,7 +273,7 @@ export function RedeDetalhe() {
         setFuncionariosTotal(total)
       })
       .finally(() => setLoadingFuncionarios(false))
-  }
+  }, [debouncedBuscaFuncionarios, incluirInativos, pageFuncionarios, redeId, sortFuncParams])
 
   useEffect(() => {
     if (aba !== 'tickets' || !redeId || Number.isNaN(redeId)) return
@@ -419,7 +419,7 @@ export function RedeDetalhe() {
 
   useEffect(() => {
     loadFuncionarios()
-  }, [redeId, incluirInativos, pageFuncionarios, debouncedBuscaFuncionarios, ordemColFunc, dirFunc])
+  }, [loadFuncionarios])
 
   useEffect(() => {
     if (id && !isNaN(redeId)) return
@@ -801,7 +801,7 @@ export function RedeDetalhe() {
     tipoNegocioIdEmpresa === '' ? '' : tiposNegocioList.find((t) => t.id === Number(tipoNegocioIdEmpresa))?.nome ?? ''
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 pb-10">
       <div className="flex flex-wrap items-center gap-3">
         <nav aria-label="breadcrumb" className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
           {linkRedes}

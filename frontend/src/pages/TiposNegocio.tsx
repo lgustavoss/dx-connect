@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { tiposNegocio, type TiposNegocio } from '../api/client'
@@ -49,7 +49,7 @@ export function TiposNegocio() {
     setPage(1)
   }, [debouncedBusca, incluirInativos, ordenarPor, ordem])
 
-  function load() {
+  const load = useCallback(() => {
     setLoading(true)
     tiposNegocio
       .list({
@@ -64,11 +64,11 @@ export function TiposNegocio() {
         setTotal(t)
       })
       .finally(() => setLoading(false))
-  }
+  }, [debouncedBusca, incluirInativos, page, sortParams])
 
   useEffect(() => {
     load()
-  }, [page, debouncedBusca, incluirInativos, ordenarPor, ordem])
+  }, [load])
 
   function openCreate() {
     setEditingId(null)
@@ -115,7 +115,7 @@ export function TiposNegocio() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 pb-10">
       <div className="flex justify-between">
         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Tipos de negócio</h1>
         <Button onClick={openCreate}>Novo tipo</Button>

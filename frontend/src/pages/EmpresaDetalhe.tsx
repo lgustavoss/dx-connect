@@ -112,14 +112,6 @@ export function EmpresaDetalhe() {
   }, [buscaF])
 
   useEffect(() => {
-    setPageT(1)
-  }, [debouncedBuscaT, empresaId])
-
-  useEffect(() => {
-    setPageF(1)
-  }, [debouncedBuscaF, empresaId])
-
-  useEffect(() => {
     if (aba !== 'tickets' || !empresaId || Number.isNaN(empresaId)) return
     let cancelled = false
     setLoadingT(true)
@@ -194,7 +186,7 @@ export function EmpresaDetalhe() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6 pb-10">
         <div className="h-4 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
         <div className="h-9 w-2/3 max-w-md animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
         <div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/50" />
@@ -236,7 +228,7 @@ export function EmpresaDetalhe() {
   )
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8 pb-10">
+    <div className="mx-auto max-w-6xl space-y-8 pb-10">
       <div>
         <button
           type="button"
@@ -289,7 +281,7 @@ export function EmpresaDetalhe() {
       </header>
 
       {aba === 'geral' && (
-        <>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
             <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
               Vínculos
@@ -318,6 +310,16 @@ export function EmpresaDetalhe() {
 
           <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
             <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              Contato
+            </h2>
+            <dl>
+              <DetailRow label="E-mail" value={empresa.email} />
+              <DetailRow label="Telefone" value={telefoneFmt} />
+            </dl>
+          </section>
+
+          <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
+            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
               Dados cadastrais
             </h2>
             <dl>
@@ -339,24 +341,14 @@ export function EmpresaDetalhe() {
             </dl>
           </section>
 
-          <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
-            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              Contato
-            </h2>
-            <dl>
-              <DetailRow label="E-mail" value={empresa.email} />
-              <DetailRow label="Telefone" value={telefoneFmt} />
-            </dl>
-          </section>
-
-          <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
+          <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7 lg:col-span-2">
             <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
               Responsável legal
             </h2>
             <p className="mb-4 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
               Dados para identificação em contratos de prestação de serviço e documentos correlatos.
             </p>
-            <dl>
+            <dl className="grid grid-cols-1 gap-x-8 lg:grid-cols-2">
               <DetailRow label="Nome completo" value={empresa.resp_legal_nome} />
               <DetailRow label="CPF" value={respLegalCpfFmt} />
               <DetailRow label="RG" value={empresa.resp_legal_rg} />
@@ -372,7 +364,7 @@ export function EmpresaDetalhe() {
               <DetailRow label="CEP" value={respLegalCepFmt} />
             </dl>
           </section>
-        </>
+        </div>
       )}
 
       {aba === 'tickets' && (
@@ -382,7 +374,10 @@ export function EmpresaDetalhe() {
           </p>
           <BarraBuscaPaginacao
             busca={buscaT}
-            onBuscaChange={setBuscaT}
+            onBuscaChange={(v) => {
+              setBuscaT(v)
+              setPageT(1)
+            }}
             placeholder="Protocolo ou assunto..."
             page={pageT}
             total={ticketsTotal}
@@ -410,7 +405,10 @@ export function EmpresaDetalhe() {
           </p>
           <BarraBuscaPaginacao
             busca={buscaF}
-            onBuscaChange={setBuscaF}
+            onBuscaChange={(v) => {
+              setBuscaF(v)
+              setPageF(1)
+            }}
             placeholder="Nome ou e-mail..."
             page={pageF}
             total={funcTotal}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   funcionariosRede,
@@ -34,11 +34,7 @@ export function FuncionariosRede() {
     return () => clearTimeout(t)
   }, [busca])
 
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedBusca, incluirInativos, ordenarPor, ordem])
-
-  function load(override?: { busca?: string; page?: number }) {
+  const load = useCallback((override?: { busca?: string; page?: number }) => {
     setLoading(true)
     const buscaEff = override?.busca !== undefined ? override.busca : debouncedBusca
     const pageEff = override?.page !== undefined ? override.page : page
@@ -55,11 +51,11 @@ export function FuncionariosRede() {
         setTotal(t)
       })
       .finally(() => setLoading(false))
-  }
+  }, [debouncedBusca, incluirInativos, page, sortParams])
 
   useEffect(() => {
     load()
-  }, [page, debouncedBusca, incluirInativos, ordenarPor, ordem])
+  }, [load])
 
   async function handleDelete(id: number) {
     if (!confirm('Excluir este funcionário?')) return
@@ -74,7 +70,7 @@ export function FuncionariosRede() {
   const tipoLabel = { socio: 'Sócio', supervisor: 'Supervisor', colaborador: 'Colaborador' }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 pb-10">
       <div className="flex justify-between">
         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Funcionários da rede</h1>
         <Button onClick={() => navigate('/funcionarios-rede/novo')}>
@@ -84,13 +80,24 @@ export function FuncionariosRede() {
       <Card>
         <BarraBuscaPaginacao
           busca={busca}
-          onBuscaChange={setBusca}
+          onBuscaChange={(v) => {
+            setBusca(v)
+            setPage(1)
+          }}
           placeholder="Buscar por nome ou e-mail"
           page={page}
           total={total}
           onPageChange={setPage}
           disabled={loading}
-          extra={<FiltroInativos incluirInativos={incluirInativos} onChange={setIncluirInativos} />}
+          extra={
+            <FiltroInativos
+              incluirInativos={incluirInativos}
+              onChange={(v) => {
+                setIncluirInativos(v)
+                setPage(1)
+              }}
+            />
+          }
         />
         {loading ? (
           <p className="text-slate-500 dark:text-slate-400">Carregando...</p>
@@ -101,9 +108,36 @@ export function FuncionariosRede() {
             <table className="w-full min-w-[720px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
-                  <CabecalhoOrdenavel coluna="nome" rotulo="Nome" ordenarPor={ordenarPor} ordem={ordem} aoOrdenar={aoOrdenarColuna} />
-                  <CabecalhoOrdenavel coluna="email" rotulo="E-mail" ordenarPor={ordenarPor} ordem={ordem} aoOrdenar={aoOrdenarColuna} />
-                  <CabecalhoOrdenavel coluna="tipo" rotulo="Tipo" ordenarPor={ordenarPor} ordem={ordem} aoOrdenar={aoOrdenarColuna} />
+                  <CabecalhoOrdenavel
+                    coluna="nome"
+                    rotulo="Nome"
+                    ordenarPor={ordenarPor}
+                    ordem={ordem}
+                    aoOrdenar={(c) => {
+                      setPage(1)
+                      aoOrdenarColuna(c)
+                    }}
+                  />
+                  <CabecalhoOrdenavel
+                    coluna="email"
+                    rotulo="E-mail"
+                    ordenarPor={ordenarPor}
+                    ordem={ordem}
+                    aoOrdenar={(c) => {
+                      setPage(1)
+                      aoOrdenarColuna(c)
+                    }}
+                  />
+                  <CabecalhoOrdenavel
+                    coluna="tipo"
+                    rotulo="Tipo"
+                    ordenarPor={ordenarPor}
+                    ordem={ordem}
+                    aoOrdenar={(c) => {
+                      setPage(1)
+                      aoOrdenarColuna(c)
+                    }}
+                  />
                   <th className="w-px px-4 py-3 text-right text-xs font-semibold uppercase text-slate-500 sm:px-6 dark:text-slate-400">
                     <span className="sr-only">Ações</span>
                   </th>

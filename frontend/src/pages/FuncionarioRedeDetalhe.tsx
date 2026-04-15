@@ -166,7 +166,7 @@ export function FuncionarioRedeDetalhe() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6 pb-10">
         <div className="h-4 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
         <div className="h-9 w-2/3 max-w-md animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
         <div className="h-48 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/50" />
@@ -185,7 +185,7 @@ export function FuncionarioRedeDetalhe() {
       : null
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8 pb-10">
+    <div className="mx-auto max-w-6xl space-y-8 pb-10">
       <div>
         <button
           type="button"
@@ -226,34 +226,36 @@ export function FuncionarioRedeDetalhe() {
         </div>
       </header>
 
-      <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-7 dark:border-slate-800/90 dark:bg-slate-900/60">
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Vínculos</h2>
-        <dl>
-          <div className="grid grid-cols-1 gap-0.5 border-b border-slate-100 py-3 sm:grid-cols-[minmax(0,10rem)_1fr] sm:gap-6 sm:py-3.5">
-            <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Rede</dt>
-            <dd className="text-sm">
-              {f.rede_id != null && redeNome && redeNome !== '—' ? (
-                <Link
-                  to={`/redes/${f.rede_id}`}
-                  className="font-medium text-slate-800 underline decoration-slate-300 underline-offset-2 transition-colors hover:text-slate-950 hover:decoration-slate-500 dark:text-slate-100 dark:decoration-slate-700 dark:hover:decoration-slate-500"
-                >
-                  {redeNome}
-                </Link>
-              ) : (
-                <span className="text-slate-800 dark:text-slate-100">—</span>
-              )}
-            </dd>
-          </div>
-        </dl>
-        {vinculoExtra ? <div className="mt-4 border-t border-slate-100 pt-4 dark:border-slate-800">{vinculoExtra}</div> : null}
-      </section>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-7 dark:border-slate-800/90 dark:bg-slate-900/60">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Vínculos</h2>
+          <dl>
+            <div className="grid grid-cols-1 gap-0.5 border-b border-slate-100 py-3 sm:grid-cols-[minmax(0,10rem)_1fr] sm:gap-6 sm:py-3.5">
+              <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Rede</dt>
+              <dd className="text-sm">
+                {f.rede_id != null && redeNome && redeNome !== '—' ? (
+                  <Link
+                    to={`/redes/${f.rede_id}`}
+                    className="font-medium text-slate-800 underline decoration-slate-300 underline-offset-2 transition-colors hover:text-slate-950 hover:decoration-slate-500 dark:text-slate-100 dark:decoration-slate-700 dark:hover:decoration-slate-500"
+                  >
+                    {redeNome}
+                  </Link>
+                ) : (
+                  <span className="text-slate-800 dark:text-slate-100">—</span>
+                )}
+              </dd>
+            </div>
+          </dl>
+          {vinculoExtra ? <div className="mt-4 border-t border-slate-100 pt-4 dark:border-slate-800">{vinculoExtra}</div> : null}
+        </section>
 
-      <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-7 dark:border-slate-800/90 dark:bg-slate-900/60">
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Registro</h2>
-        <dl>
-          <DetailRow label="Cadastrado em" value={createdFmt} />
-        </dl>
-      </section>
+        <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-7 dark:border-slate-800/90 dark:bg-slate-900/60">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Registro</h2>
+          <dl>
+            <DetailRow label="Cadastrado em" value={createdFmt} />
+          </dl>
+        </section>
+      </div>
     </div>
   )
 }

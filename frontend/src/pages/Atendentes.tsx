@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { atendentes, setores, type Atendentes, type Setores } from '../api/client'
@@ -58,7 +58,7 @@ export function Atendentes() {
     setPage(1)
   }, [debouncedBusca, incluirInativos, ordenarPor, ordem])
 
-  function load() {
+  const load = useCallback(() => {
     setLoading(true)
     atendentes
       .list({
@@ -78,11 +78,11 @@ export function Atendentes() {
         toast.showError(err instanceof Error ? err.message : 'Erro ao carregar atendentes')
       })
       .finally(() => setLoading(false))
-  }
+  }, [debouncedBusca, incluirInativos, page, sortParams, toast])
 
   useEffect(() => {
     load()
-  }, [page, debouncedBusca, incluirInativos, ordenarPor, ordem])
+  }, [load])
 
   useEffect(() => {
     coletarTodasPaginas<Setores.Setor>((o, l) =>
@@ -151,7 +151,7 @@ export function Atendentes() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 pb-10">
       <div className="flex justify-between">
         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Atendentes</h1>
         <Button onClick={openCreate}>Novo atendente</Button>

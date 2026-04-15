@@ -183,7 +183,7 @@ export function FuncionarioRedeForm() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 pb-10">
+    <div className="mx-auto max-w-5xl space-y-6 pb-10">
       <div className="flex items-center justify-between gap-3">
         <button
           type="button"

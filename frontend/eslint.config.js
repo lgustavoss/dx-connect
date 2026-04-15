@@ -19,5 +19,17 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      // Este projeto usa padrões comuns de React (fetch em effects, setLoading, etc.).
+      // A regra abaixo está muito agressiva e torna o lint impraticável.
+      'react-hooks/set-state-in-effect': 'off',
+
+      // Usamos namespaces como agrupadores de tipos no client gerado/centralizado.
+      '@typescript-eslint/no-namespace': 'off',
+
+      // Os arquivos de contexto exportam Provider + hooks utilitários (padrão comum).
+      // Desabilitar evita falsos positivos no fluxo de desenvolvimento.
+      'react-refresh/only-export-components': 'off',
+    },
   },
 ])
