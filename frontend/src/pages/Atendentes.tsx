@@ -13,6 +13,7 @@ import { Switch } from '../components/ui/Switch'
 import { CheckboxField } from '../components/ui/CheckboxField'
 import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
+import { FormSection } from '../components/ui/FormSection'
 
 type ColunaAtendente = 'nome' | 'email' | 'role'
 
@@ -38,6 +39,15 @@ export function Atendentes() {
   const [ativo, setAtivo] = useState(true)
   const [setorIds, setSetorIds] = useState<number[]>([])
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!modalOpen) return
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prevOverflow
+    }
+  }, [modalOpen])
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedBusca(busca.trim()), 400)
@@ -220,58 +230,75 @@ export function Atendentes() {
       )}
 
       {modalOpen && (
-        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-y-0 left-0 right-0 z-20 flex items-start justify-center bg-black/85 px-4 pb-6 pt-16 sm:px-6 md:left-[var(--sidebar-w)]">
           <Card title={editingId ? 'Editar atendente' : 'Novo atendente'} className="w-full max-w-md">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <Input label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-              <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
-              <Input
-                label={editingId ? 'Nova senha (deixe em branco para manter)' : 'Senha'}
-                type="password"
-                value={senha}
-                onChange={(e) => setSenha(e.target.value)}
-                required={!editingId}
-              />
-              <Select
-                label="Perfil"
-                value={role}
-                onChange={(v) => setRole(v === 'admin' ? 'admin' : 'atendente')}
-                options={[
-                  { value: 'atendente', label: 'Atendente' },
-                  { value: 'admin', label: 'Administrador' },
-                ]}
-              />
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Setores</label>
-                {role === 'admin' && (
-                  <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-                    Opcional, mas recomendado: vincule administradores a setores para poderem ser responsáveis em tickets do setor.
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  {setoresList.map((s) => (
-                    <CheckboxField
-                      key={s.id}
-                      checked={setorIds.includes(s.id)}
-                      onChange={() => toggleSetor(s.id)}
-                    >
-                      {s.nome}
-                    </CheckboxField>
-                  ))}
-                </div>
+            <form onSubmit={handleSubmit}>
+              <div className="space-y-6">
+                <FormSection title="Dados do atendente">
+                  <Input label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                  <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
+                  <Input
+                    label={editingId ? 'Nova senha (deixe em branco para manter)' : 'Senha'}
+                    type="password"
+                    value={senha}
+                    onChange={(e) => setSenha(e.target.value)}
+                    required={!editingId}
+                  />
+                  <Select
+                    label="Perfil"
+                    value={role}
+                    onChange={(v) => setRole(v === 'admin' ? 'admin' : 'atendente')}
+                    options={[
+                      { value: 'atendente', label: 'Atendente' },
+                      { value: 'admin', label: 'Administrador' },
+                    ]}
+                  />
+                </FormSection>
+
+                <FormSection title="Setores">
+                  {role === 'admin' && (
+                    <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                      Opcional, mas recomendado: vincule administradores a setores para poderem ser responsáveis em tickets do setor.
+                    </p>
+                  )}
+                  <div className="max-h-44 overflow-auto rounded-lg border border-slate-200 p-3 dark:border-slate-700/80">
+                    <div className="flex flex-wrap gap-2">
+                      {setoresList.map((s) => (
+                        <CheckboxField
+                          key={s.id}
+                          checked={setorIds.includes(s.id)}
+                          onChange={() => toggleSetor(s.id)}
+                        >
+                          {s.nome}
+                        </CheckboxField>
+                      ))}
+                    </div>
+                  </div>
+                </FormSection>
+
+                <FormSection title="Situação no sistema">
+                  <Switch
+                    bare
+                    checked={ativo}
+                    onCheckedChange={setAtivo}
+                    label="Atendente ativo"
+                    description="Inativos não acessam o sistema."
+                    showStatusPill
+                    statusOnText="Ativo"
+                    statusOffText="Inativo"
+                  />
+                </FormSection>
               </div>
-              <Switch
-                checked={ativo}
-                onCheckedChange={setAtivo}
-                label="Status"
-                description="Inativos não acessam o sistema."
-                showStatusPill
-                statusOnText="Ativo"
-                statusOffText="Inativo"
-              />
-              <div className="flex gap-2">
-                <Button type="submit" loading={saving}>Salvar</Button>
-                <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>Cancelar</Button>
+
+              <div className="sticky bottom-0 -mx-6 mt-6 border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => setModalOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit" loading={saving} className="w-full sm:w-auto">
+                    Salvar
+                  </Button>
+                </div>
               </div>
             </form>
           </Card>

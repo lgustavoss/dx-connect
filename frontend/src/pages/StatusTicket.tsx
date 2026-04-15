@@ -10,6 +10,7 @@ import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { Switch } from '../components/ui/Switch'
 import { useToast } from '../components/ui/Toast'
+import { FormSection } from '../components/ui/FormSection'
 
 type ColunaStatus = 'nome' | 'slug' | 'ordem' | 'ativo'
 
@@ -30,6 +31,15 @@ export function StatusTicketPage() {
   const [ordem, setOrdem] = useState(0)
   const [ativo, setAtivo] = useState(true)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!modalOpen) return
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prevOverflow
+    }
+  }, [modalOpen])
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedBusca(busca.trim()), 400)
@@ -177,23 +187,44 @@ export function StatusTicketPage() {
       )}
 
       {modalOpen && (
-        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-y-0 left-0 right-0 z-20 flex items-start justify-center bg-black/85 px-4 pb-6 pt-16 sm:px-6 md:left-[var(--sidebar-w)]">
           <Card title={editingId ? 'Editar status' : 'Novo status'} className="w-full max-w-md">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
-              <Input label="Slug" value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="ex: aberto" required />
-              <Input label="Ordem" type="number" value={ordem} onChange={(e) => setOrdem(Number(e.target.value))} />
-              <Switch
-                checked={ativo}
-                onCheckedChange={setAtivo}
-                label="Status"
-                showStatusPill
-                statusOnText="Ativo"
-                statusOffText="Inativo"
-              />
-              <div className="flex gap-2">
-                <Button type="submit" loading={saving}>Salvar</Button>
-                <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>Cancelar</Button>
+            <form onSubmit={handleSubmit}>
+              <div className="space-y-6">
+                <FormSection title="Dados do status">
+                  <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
+                  <Input
+                    label="Slug"
+                    value={slug}
+                    onChange={(e) => setSlug(e.target.value)}
+                    placeholder="ex: aguardando_atendimento"
+                    required
+                  />
+                  <Input label="Ordem" type="number" value={ordem} onChange={(e) => setOrdem(Number(e.target.value))} />
+                </FormSection>
+
+                <FormSection title="Situação no sistema">
+                  <Switch
+                    bare
+                    checked={ativo}
+                    onCheckedChange={setAtivo}
+                    label="Status ativo"
+                    showStatusPill
+                    statusOnText="Ativo"
+                    statusOffText="Inativo"
+                  />
+                </FormSection>
+              </div>
+
+              <div className="sticky bottom-0 -mx-6 mt-6 border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => setModalOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit" loading={saving} className="w-full sm:w-auto">
+                    Salvar
+                  </Button>
+                </div>
               </div>
             </form>
           </Card>

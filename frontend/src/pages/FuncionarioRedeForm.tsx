@@ -11,6 +11,7 @@ import { Switch } from '../components/ui/Switch'
 import { CheckboxField } from '../components/ui/CheckboxField'
 import { useToast } from '../components/ui/Toast'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
+import { FormSection } from '../components/ui/FormSection'
 
 type Tipo = 'socio' | 'supervisor' | 'colaborador'
 
@@ -194,83 +195,99 @@ export function FuncionarioRedeForm() {
       </div>
 
       <Card title={isEdit ? 'Editar funcionário' : 'Novo funcionário'}>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
-          <Input label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          <Select
-            label="Tipo"
-            value={tipo}
-            onChange={(v) => {
-              const t = v as Tipo
-              setTipo(t)
-              setEmpresaId('')
-              setEmpresaIds([])
-              if (t === 'socio' && !redeId) setRedeId(redePadraoRecente(redesList))
-            }}
-            options={[
-              { value: 'socio', label: 'Sócio' },
-              { value: 'supervisor', label: 'Supervisor' },
-              { value: 'colaborador', label: 'Colaborador' },
-            ]}
-          />
-          <SelectComPesquisa
-            id="funcionario-rede-form"
-            label="Rede"
-            value={redeId}
-            onChange={(id) => {
-              setRedeId(id)
-              setEmpresaId('')
-              setEmpresaIds([])
-            }}
-            required
-            items={redesList.map((r) => ({ id: r.id, label: r.nome, createdAt: r.created_at }))}
-            hint="Últimas redes cadastradas. Digite para buscar outras."
-          />
-          {tipo === 'colaborador' && (
-            <SelectComPesquisa
-              id="funcionario-empresa-form"
-              label="Empresa desta rede"
-              value={empresaId}
-              onChange={(id) => setEmpresaId(id)}
-              required
-              disabled={!redeId}
-              items={empresasDaRede.map((x) => ({ id: x.id, label: x.nome, createdAt: x.created_at }))}
-              hint={!redeId ? 'Selecione a rede primeiro.' : 'Últimas empresas desta rede. Digite para buscar.'}
-            />
-          )}
-          {tipo === 'supervisor' && (
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Empresas desta rede</label>
-              {!redeId ? (
-                <p className="text-sm text-slate-500 dark:text-slate-400">Selecione a rede primeiro.</p>
-              ) : empresasDaRede.length === 0 ? (
-                <p className="text-sm text-slate-500 dark:text-slate-400">Nenhuma empresa ativa nesta rede.</p>
-              ) : (
-                <div className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-slate-50/40 p-3 dark:border-slate-700 dark:bg-slate-800/40">
-                  {empresasDaRede.map((e) => (
-                    <CheckboxField key={e.id} checked={empresaIds.includes(e.id)} onChange={() => toggleEmpresa(e.id)}>
-                      {e.nome}
-                    </CheckboxField>
-                  ))}
-                </div>
-              )}
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-6">
+            <FormSection title="Dados do funcionário">
+              <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
+              <Input label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Select
+                label="Tipo"
+                value={tipo}
+                onChange={(v) => {
+                  const t = v as Tipo
+                  setTipo(t)
+                  setEmpresaId('')
+                  setEmpresaIds([])
+                  if (t === 'socio' && !redeId) setRedeId(redePadraoRecente(redesList))
+                }}
+                options={[
+                  { value: 'socio', label: 'Sócio' },
+                  { value: 'supervisor', label: 'Supervisor' },
+                  { value: 'colaborador', label: 'Colaborador' },
+                ]}
+              />
+              <SelectComPesquisa
+                id="funcionario-rede-form"
+                label="Rede"
+                value={redeId}
+                onChange={(id) => {
+                  setRedeId(id)
+                  setEmpresaId('')
+                  setEmpresaIds([])
+                }}
+                required
+                items={redesList.map((r) => ({ id: r.id, label: r.nome, createdAt: r.created_at }))}
+                hint="Últimas redes cadastradas. Digite para buscar outras."
+              />
+            </FormSection>
+
+            {tipo !== 'socio' && (
+              <FormSection title="Vínculo">
+                {tipo === 'colaborador' && (
+                  <SelectComPesquisa
+                    id="funcionario-empresa-form"
+                    label="Empresa desta rede"
+                    value={empresaId}
+                    onChange={(id) => setEmpresaId(id)}
+                    required
+                    disabled={!redeId}
+                    items={empresasDaRede.map((x) => ({ id: x.id, label: x.nome, createdAt: x.created_at }))}
+                    hint={!redeId ? 'Selecione a rede primeiro.' : 'Últimas empresas desta rede. Digite para buscar.'}
+                  />
+                )}
+                {tipo === 'supervisor' && (
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Empresas desta rede</label>
+                    {!redeId ? (
+                      <p className="text-sm text-slate-500 dark:text-slate-400">Selecione a rede primeiro.</p>
+                    ) : empresasDaRede.length === 0 ? (
+                      <p className="text-sm text-slate-500 dark:text-slate-400">Nenhuma empresa ativa nesta rede.</p>
+                    ) : (
+                      <div className="flex max-h-44 flex-wrap gap-2 overflow-auto rounded-xl border border-slate-200 bg-slate-50/40 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+                        {empresasDaRede.map((e) => (
+                          <CheckboxField key={e.id} checked={empresaIds.includes(e.id)} onChange={() => toggleEmpresa(e.id)}>
+                            {e.nome}
+                          </CheckboxField>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </FormSection>
+            )}
+
+            <FormSection title="Situação no sistema">
+              <Switch
+                bare
+                checked={ativo}
+                onCheckedChange={setAtivo}
+                label="Funcionário ativo"
+                showStatusPill
+                statusOnText="Ativo"
+                statusOffText="Inativo"
+              />
+            </FormSection>
+          </div>
+
+          <div className="sticky bottom-0 -mx-6 mt-6 border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="secondary" onClick={voltarAnterior} className="w-full sm:w-auto">
+                Cancelar
+              </Button>
+              <Button type="submit" loading={saving} className="w-full sm:w-auto">
+                Salvar
+              </Button>
             </div>
-          )}
-          <Switch
-            checked={ativo}
-            onCheckedChange={setAtivo}
-            label="Status"
-            showStatusPill
-            statusOnText="Ativo"
-            statusOffText="Inativo"
-          />
-          <div className="flex flex-col-reverse gap-2 border-t border-slate-200 pt-3 dark:border-slate-700 sm:flex-row sm:justify-end">
-            <Button type="button" variant="secondary" onClick={voltarAnterior} className="w-full sm:w-auto">
-              Cancelar
-            </Button>
-            <Button type="submit" loading={saving} className="w-full sm:w-auto">
-              Salvar
-            </Button>
           </div>
         </form>
       </Card>
