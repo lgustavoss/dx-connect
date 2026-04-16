@@ -34,6 +34,12 @@ class OrdenarTicketsPor(str, Enum):
     assunto = "assunto"
     status = "status"
     responsavel = "responsavel"
+    fechado_em = "fechado_em"
+
+class SituacaoTicket(str, Enum):
+    abertos = "abertos"
+    fechados = "fechados"
+    todos = "todos"
 
 
 def _gerar_protocolo(db: Session) -> str:
@@ -98,6 +104,10 @@ def listar(
         None,
         description="Filtrar por responsável (apenas administradores)",
     ),
+    situacao: SituacaoTicket = Query(
+        SituacaoTicket.abertos,
+        description="abertos = fechado_em vazio; fechados = fechado_em preenchido; todos = sem filtro",
+    ),
     offset: int = Query(0, ge=0),
     limit: int = Query(_DEFAULT_PAGE, ge=1, le=_MAX_PAGE),
     ordenar_por: OrdenarTicketsPor | None = Query(
@@ -134,6 +144,11 @@ def listar(
         q = q.filter(Ticket.atendente_id == atendente.id)
     if sem_responsavel:
         q = q.filter(Ticket.atendente_id.is_(None))
+
+    if situacao == SituacaoTicket.abertos:
+        q = q.filter(Ticket.fechado_em.is_(None))
+    elif situacao == SituacaoTicket.fechados:
+        q = q.filter(Ticket.fechado_em.is_not(None))
     if protocolo and protocolo.strip():
         q = q.filter(Ticket.protocolo.ilike(f"%{protocolo.strip()}%"))
     if busca and busca.strip():
@@ -148,7 +163,11 @@ def listar(
     total = q.count()
 
     if ordenar_por is None:
-        order_cols = [Ticket.created_at.desc(), Ticket.id.desc()]
+        # Em finalizados, o mais útil é ordenar por data de fechamento (mais recentes primeiro).
+        if situacao == SituacaoTicket.fechados:
+            order_cols = [Ticket.fechado_em.desc().nullslast(), Ticket.id.desc()]
+        else:
+            order_cols = [Ticket.created_at.desc(), Ticket.id.desc()]
     else:
         if ordenar_por == OrdenarTicketsPor.responsavel:
             q = q.outerjoin(Ticket.atendente)
@@ -167,6 +186,8 @@ def listar(
             primary = expr_ordem(Ticket.assunto, ordem)
         elif ordenar_por == OrdenarTicketsPor.status:
             primary = expr_ordem(StatusTicket.nome, ordem)
+        elif ordenar_por == OrdenarTicketsPor.fechado_em:
+            primary = nullslast(expr_ordem(Ticket.fechado_em, ordem))
         else:
             primary = nullslast(expr_ordem(Atendente.nome, ordem))
         tie = expr_ordem(Ticket.id, ordem)
@@ -345,6 +366,11 @@ def criar_mensagem(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
     if not _pode_ver_ticket(db, atendente, ticket):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
+    if ticket.fechado_em is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ticket fechado. Reabra o ticket para enviar novas mensagens.",
+        )
     if data.tipo == "publico" and not _pode_enviar_mensagem_publica(atendente, ticket):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -383,6 +409,46 @@ def _registrar_historico(db: Session, ticket_id: int, atendente_id: int | None, 
     ))
 
 
+@router.post("/{ticket_id}/reabrir", response_model=TicketRead)
+def reabrir(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    if atendente.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Apenas administradores podem reabrir tickets")
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
+    if ticket.fechado_em is None:
+        return _ticket_para_read(ticket)
+
+    # Status para retorno: primeiro status ativo que não seja "fechado"
+    status_reaberto = (
+        db.query(StatusTicket)
+        .filter(StatusTicket.ativo.is_(True))
+        .order_by(StatusTicket.ordem.asc(), StatusTicket.id.asc())
+        .all()
+    )
+    novo_status = None
+    for st in status_reaberto:
+        if (st.slug or "").lower() != "fechado":
+            novo_status = st
+            break
+    if not novo_status:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cadastre um status não-final para reabrir")
+
+    _registrar_historico(db, ticket.id, atendente.id, "fechado_em", str(ticket.fechado_em), "")
+    if ticket.status_id != novo_status.id:
+        _registrar_historico(db, ticket.id, atendente.id, "status_id", str(ticket.status_id), str(novo_status.id))
+
+    ticket.fechado_em = None
+    ticket.status_id = novo_status.id
+    db.commit()
+    db.refresh(ticket)
+    return _ticket_para_read(ticket)
+
+
 @router.patch("/{ticket_id}", response_model=TicketRead)
 def atualizar(
     ticket_id: int,
@@ -395,6 +461,11 @@ def atualizar(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
     if not _pode_ver_ticket(db, atendente, ticket):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
+    if ticket.fechado_em is not None and atendente.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Ticket fechado. Apenas administradores podem reabrir ou alterar este ticket.",
+        )
     update = data.model_dump(exclude_unset=True)
 
     if "setor_id" in update:
