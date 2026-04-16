@@ -9,10 +9,11 @@ O `docker-compose.yml` compila o backend com **`INSTALL_DEV=1`**, instalando `re
 ```bash
 # Na raiz do repositório
 docker compose build backend
-docker compose run --rm backend pytest -q
+docker compose run --rm -v ./backend:/app backend pytest -q
 ```
 
 - `pytest` substitui o comando padrão (`uvicorn`) só nesta execução.
+- O bind mount (`-v ./backend:/app`) garante que **os testes do seu workspace** sejam executados (inclusive novos arquivos em `backend/tests/`).
 - Se a imagem já existia de antes da issue #46, faça **`build`** de novo para incluir as dev deps.
 
 ## Sem Docker (máquina local)
