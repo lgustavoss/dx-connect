@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from datetime import datetime
 
 
@@ -33,8 +33,7 @@ class AtendenteRead(AtendenteBase):
     setor_ids: list[int] = []
     must_change_password: bool = False
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AtendenteLogin(BaseModel):

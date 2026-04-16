@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 
 
@@ -44,8 +44,7 @@ class TicketRead(BaseModel):
     status_nome: str | None = None
     atendente_nome: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TicketMensagemCreate(BaseModel):
@@ -62,8 +61,7 @@ class TicketMensagemRead(BaseModel):
     corpo: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TicketHistoricoRead(BaseModel):
@@ -76,5 +74,4 @@ class TicketHistoricoRead(BaseModel):
     valor_novo: str | None = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

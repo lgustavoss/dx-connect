@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 
 
@@ -83,8 +83,7 @@ class EmpresaRead(EmpresaBase):
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RedeListaResumo(BaseModel):
@@ -93,8 +92,7 @@ class RedeListaResumo(BaseModel):
     id: int
     nome: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class EmpresaListaResumo(BaseModel):
@@ -105,8 +103,7 @@ class EmpresaListaResumo(BaseModel):
     ativo: bool
     rede: RedeListaResumo
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ConsultaCNPJResponse(BaseModel):
