@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { audit, type Audit } from '../api/client'
@@ -37,11 +37,7 @@ export function Auditoria() {
     return () => clearTimeout(t)
   }, [busca])
 
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedBusca, filtroTipo, ordenarPor, ordem])
-
-  function load() {
+  const load = useCallback(() => {
     setLoading(true)
     audit
       .list({
@@ -60,14 +56,14 @@ export function Auditoria() {
         setTotal(0)
       })
       .finally(() => setLoading(false))
-  }
+  }, [debouncedBusca, filtroTipo, page, sortParams])
 
   useEffect(() => {
     load()
-  }, [page, debouncedBusca, filtroTipo, ordenarPor, ordem])
+  }, [load])
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 pb-10">
       <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Auditoria</h1>
       <p className="text-sm text-slate-600 dark:text-slate-400">
         Registro de cadastros e alterações: quem fez e quando.
@@ -75,7 +71,10 @@ export function Auditoria() {
       <Card>
         <BarraBuscaPaginacao
           busca={busca}
-          onBuscaChange={setBusca}
+          onBuscaChange={(v) => {
+            setBusca(v)
+            setPage(1)
+          }}
           placeholder="Buscar por tipo ou nome do atendente"
           page={page}
           total={total}
@@ -86,7 +85,10 @@ export function Auditoria() {
               <Select
                 label="Tipo"
                 value={filtroTipo}
-                onChange={(v) => setFiltroTipo(typeof v === 'string' ? v : String(v))}
+                onChange={(v) => {
+                  setFiltroTipo(typeof v === 'string' ? v : String(v))
+                  setPage(1)
+                }}
                 options={Object.entries(entityTypeLabel).map(([k, v]) => ({ value: k, label: v }))}
                 includeEmpty
                 emptyLabel="Todos"
@@ -109,7 +111,10 @@ export function Auditoria() {
                     rotulo="Data/Hora"
                     ordenarPor={ordenarPor}
                     ordem={ordem}
-                    aoOrdenar={aoOrdenarColuna}
+                    aoOrdenar={(c) => {
+                      setPage(1)
+                      aoOrdenarColuna(c)
+                    }}
                     className="pb-2 pr-4 font-medium normal-case"
                   />
                   <CabecalhoOrdenavel
@@ -117,7 +122,10 @@ export function Auditoria() {
                     rotulo="Tipo"
                     ordenarPor={ordenarPor}
                     ordem={ordem}
-                    aoOrdenar={aoOrdenarColuna}
+                    aoOrdenar={(c) => {
+                      setPage(1)
+                      aoOrdenarColuna(c)
+                    }}
                     className="pb-2 pr-4 font-medium normal-case"
                   />
                   <CabecalhoOrdenavel
@@ -125,7 +133,10 @@ export function Auditoria() {
                     rotulo="ID"
                     ordenarPor={ordenarPor}
                     ordem={ordem}
-                    aoOrdenar={aoOrdenarColuna}
+                    aoOrdenar={(c) => {
+                      setPage(1)
+                      aoOrdenarColuna(c)
+                    }}
                     className="pb-2 pr-4 font-medium normal-case"
                   />
                   <CabecalhoOrdenavel
@@ -133,7 +144,10 @@ export function Auditoria() {
                     rotulo="Ação"
                     ordenarPor={ordenarPor}
                     ordem={ordem}
-                    aoOrdenar={aoOrdenarColuna}
+                    aoOrdenar={(c) => {
+                      setPage(1)
+                      aoOrdenarColuna(c)
+                    }}
                     className="pb-2 pr-4 font-medium normal-case"
                   />
                   <CabecalhoOrdenavel
@@ -141,7 +155,10 @@ export function Auditoria() {
                     rotulo="Quem"
                     ordenarPor={ordenarPor}
                     ordem={ordem}
-                    aoOrdenar={aoOrdenarColuna}
+                    aoOrdenar={(c) => {
+                      setPage(1)
+                      aoOrdenarColuna(c)
+                    }}
                     className="pb-2 pr-4 font-medium normal-case"
                   />
                 </tr>

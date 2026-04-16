@@ -10,6 +10,7 @@ import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../contexts/AuthContext'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
+import { FormSection } from '../components/ui/FormSection'
 
 export function TicketNovo() {
   const { isAdmin, user } = useAuth()
@@ -95,7 +96,7 @@ export function TicketNovo() {
   const semSetorPermitido = !isAdmin && setoresFiltrados.length === 0
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-3xl space-y-6 pb-10">
       <nav aria-label="breadcrumb" className="flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
         <button
           type="button"
@@ -124,65 +125,74 @@ export function TicketNovo() {
           O ticket entra na <strong>fila do setor</strong> (sem responsável). Qualquer atendente do setor pode abrir o chamado e usar{' '}
           <strong>Atribuir a mim</strong> para assumir o atendimento.
         </p>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <SelectComPesquisa
-            id="ticket-empresa"
-            label="Empresa *"
-            value={empresaId}
-            onChange={(id) => setEmpresaId(id)}
-            items={empresaItems}
-            placeholder="Buscar empresa..."
-            required
-            disabled={semSetorPermitido}
-            recentCount={10}
-          />
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-6">
+            <FormSection title="Identificação">
+              <SelectComPesquisa
+                id="ticket-empresa"
+                label="Empresa *"
+                value={empresaId}
+                onChange={(id) => setEmpresaId(id)}
+                items={empresaItems}
+                placeholder="Buscar empresa..."
+                required
+                disabled={semSetorPermitido}
+                recentCount={10}
+              />
 
-          <div>
-            <Select
-              id="ticket-setor"
-              label="Setor *"
-              value={setorId}
-              onChange={(v) => setSetorId(v === '' ? '' : Number(v))}
-              options={setoresFiltrados.map((s) => ({ value: s.id, label: s.nome }))}
-              includeEmpty
-              emptyLabel="Selecione"
-              placeholder="Selecione"
-              disabled={semSetorPermitido}
-            />
-            {!isAdmin && setoresFiltrados.length > 0 && (
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Somente setores aos quais você está vinculado.</p>
-            )}
+              <div>
+                <Select
+                  id="ticket-setor"
+                  label="Setor *"
+                  value={setorId}
+                  onChange={(v) => setSetorId(v === '' ? '' : Number(v))}
+                  options={setoresFiltrados.map((s) => ({ value: s.id, label: s.nome }))}
+                  includeEmpty
+                  emptyLabel="Selecione"
+                  placeholder="Selecione"
+                  disabled={semSetorPermitido}
+                />
+                {!isAdmin && setoresFiltrados.length > 0 && (
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Somente setores aos quais você está vinculado.</p>
+                )}
+              </div>
+            </FormSection>
+
+            <FormSection title="Solicitação">
+              <Input
+                label="Assunto (resumo) *"
+                value={assunto}
+                onChange={(e) => setAssunto(e.target.value)}
+                required
+                disabled={semSetorPermitido}
+              />
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Relato do problema *</label>
+                <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                  Este texto entra como primeira mensagem do ticket (solicitação inicial).
+                </p>
+                <textarea
+                  value={descricao}
+                  onChange={(e) => setDescricao(e.target.value)}
+                  spellCheck={false}
+                  rows={5}
+                  required
+                  disabled={semSetorPermitido}
+                  className="w-full rounded-xl border-0 bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-slate-200/90 focus:outline-none focus:ring-2 focus:ring-slate-400/35 dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-700"
+                />
+              </div>
+            </FormSection>
           </div>
 
-          <Input
-            label="Assunto (resumo) *"
-            value={assunto}
-            onChange={(e) => setAssunto(e.target.value)}
-            required
-            disabled={semSetorPermitido}
-          />
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Relato do problema *</label>
-            <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-              Este texto entra como primeira mensagem do ticket (solicitação inicial).
-            </p>
-            <textarea
-              value={descricao}
-              onChange={(e) => setDescricao(e.target.value)}
-              spellCheck={false}
-              rows={5}
-              required
-              disabled={semSetorPermitido}
-              className="w-full rounded-xl border-0 bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-slate-200/90 focus:outline-none focus:ring-2 focus:ring-slate-400/35 dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-700"
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button type="submit" loading={loading} disabled={semSetorPermitido}>
-              Criar ticket
-            </Button>
-            <Button type="button" variant="secondary" onClick={voltarAnterior}>
-              Cancelar
-            </Button>
+          <div className="sticky bottom-0 -mx-6 mt-6 border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="secondary" onClick={voltarAnterior} className="w-full sm:w-auto">
+                Cancelar
+              </Button>
+              <Button type="submit" loading={loading} disabled={semSetorPermitido} className="w-full sm:w-auto">
+                Criar ticket
+              </Button>
+            </div>
           </div>
         </form>
       </Card>

@@ -99,7 +99,10 @@ export async function api<T>(
   if (res.status === 401) {
     const err = await res.json().catch(() => ({}));
     // Se já estamos no fluxo de refresh, não tenta de novo.
-    const skipRefresh = typeof headers === 'object' && headers != null && 'X-DX-Skip-Refresh' in (headers as any)
+    const skipRefresh =
+      headers instanceof Headers
+        ? headers.has('X-DX-Skip-Refresh')
+        : typeof headers === 'object' && headers != null && 'X-DX-Skip-Refresh' in (headers as Record<string, unknown>)
     if (!skipRefresh && !path.startsWith('/auth/refresh')) {
       const refreshed = await refreshAccessToken()
       if (refreshed?.access_token) {
@@ -361,13 +364,14 @@ export const tickets = {
     rede_id?: number;
     setor_id?: number;
     status_id?: number;
+    situacao?: 'abertos' | 'fechados' | 'todos';
     protocolo?: string;
     busca?: string;
     sem_responsavel?: boolean;
     meus?: boolean;
     atendente_id?: number;
     /** Coluna para ordenar (omitir = mais recentes primeiro). */
-    ordenar_por?: 'protocolo' | 'rede' | 'empresa' | 'setor' | 'assunto' | 'status' | 'responsavel';
+    ordenar_por?: 'protocolo' | 'rede' | 'empresa' | 'setor' | 'assunto' | 'status' | 'responsavel' | 'fechado_em';
     ordem?: 'asc' | 'desc';
     offset?: number;
     limit?: number;
@@ -377,6 +381,7 @@ export const tickets = {
   listMensagens: (id: number) => api<Tickets.Mensagem[]>(`/tickets/${id}/mensagens`),
   addMensagem: (id: number, data: Tickets.MensagemCreate) =>
     api<Tickets.Mensagem>(`/tickets/${id}/mensagens`, { method: 'POST', body: JSON.stringify(data) }),
+  reabrir: (id: number) => api<Tickets.Ticket>(`/tickets/${id}/reabrir`, { method: 'POST' }),
   create: (data: Tickets.Create) => api<Tickets.Ticket>('/tickets', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: number, data: Tickets.Update) => api<Tickets.Ticket>(`/tickets/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 };

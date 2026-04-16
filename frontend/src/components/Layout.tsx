@@ -39,12 +39,12 @@ export function Layout() {
       {/* Área principal: no mobile ocupa 100%; no desktop margem = largura do sidebar */}
       <div
         className={`min-h-screen transition-[margin-left] duration-200 ease-out ${
-          sidebarExpanded ? 'md:ml-[280px]' : 'md:ml-[72px]'
+          sidebarExpanded ? 'md:ml-[280px]' : 'md:ml-[80px]'
         }`}
         style={
           {
             // Usado por overlays/modais para respeitar o menu no desktop.
-            ['--sidebar-w' as never]: sidebarExpanded ? '280px' : '72px',
+            ['--sidebar-w' as never]: sidebarExpanded ? '280px' : '80px',
           } as React.CSSProperties
         }
       >

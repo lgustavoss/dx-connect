@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { useNavigate } from 'react-router-dom'
@@ -30,11 +30,7 @@ export function Redes() {
     return () => clearTimeout(t)
   }, [busca])
 
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedBusca, incluirInativos, ordenarPor, ordem])
-
-  function load() {
+  const load = useCallback(() => {
     setLoading(true)
     redes
       .list({
@@ -49,11 +45,11 @@ export function Redes() {
         setTotal(t)
       })
       .finally(() => setLoading(false))
-  }
+  }, [debouncedBusca, incluirInativos, page, sortParams])
 
   useEffect(() => {
     load()
-  }, [page, debouncedBusca, incluirInativos, ordenarPor, ordem])
+  }, [load])
 
   async function handleDelete(id: number) {
     if (!confirm('Excluir esta rede?')) return
@@ -66,7 +62,7 @@ export function Redes() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 pb-10">
       <div className="flex justify-between">
         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Redes</h1>
         <Button onClick={() => navigate('/redes/novo')}>Nova rede</Button>
@@ -74,13 +70,24 @@ export function Redes() {
       <Card>
         <BarraBuscaPaginacao
           busca={busca}
-          onBuscaChange={setBusca}
+          onBuscaChange={(v) => {
+            setBusca(v)
+            setPage(1)
+          }}
           placeholder="Buscar por nome da rede"
           page={page}
           total={total}
           onPageChange={setPage}
           disabled={loading}
-          extra={<FiltroInativos incluirInativos={incluirInativos} onChange={setIncluirInativos} />}
+          extra={
+            <FiltroInativos
+              incluirInativos={incluirInativos}
+              onChange={(v) => {
+                setIncluirInativos(v)
+                setPage(1)
+              }}
+            />
+          }
         />
         {loading ? (
           <p className="text-slate-500 dark:text-slate-400">Carregando...</p>
@@ -91,11 +98,29 @@ export function Redes() {
             <table className="w-full min-w-[520px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
-                  <CabecalhoOrdenavel coluna="nome" rotulo="Nome" ordenarPor={ordenarPor} ordem={ordem} aoOrdenar={aoOrdenarColuna} />
+                  <CabecalhoOrdenavel
+                    coluna="nome"
+                    rotulo="Nome"
+                    ordenarPor={ordenarPor}
+                    ordem={ordem}
+                    aoOrdenar={(c) => {
+                      setPage(1)
+                      aoOrdenarColuna(c)
+                    }}
+                  />
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 sm:px-6 dark:text-slate-400">
                     Retaguarda
                   </th>
-                  <CabecalhoOrdenavel coluna="ativo" rotulo="Situação" ordenarPor={ordenarPor} ordem={ordem} aoOrdenar={aoOrdenarColuna} />
+                  <CabecalhoOrdenavel
+                    coluna="ativo"
+                    rotulo="Situação"
+                    ordenarPor={ordenarPor}
+                    ordem={ordem}
+                    aoOrdenar={(c) => {
+                      setPage(1)
+                      aoOrdenarColuna(c)
+                    }}
+                  />
                   <th className="w-px whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 sm:px-6 dark:text-slate-400">
                     <span className="sr-only">Ações</span>
                   </th>
