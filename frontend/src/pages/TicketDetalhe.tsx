@@ -453,7 +453,7 @@ export function TicketDetalhe() {
 
   if (notFound || !ticket) {
     return (
-      <div className="space-y-4">
+      <div className="mx-auto max-w-6xl space-y-4 pb-10">
         <p className="text-slate-600 dark:text-slate-400">Ticket não encontrado ou sem permissão.</p>
         <button
           type="button"
@@ -467,7 +467,7 @@ export function TicketDetalhe() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 pb-10">
       <nav aria-label="breadcrumb" className="flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
         <button
           type="button"

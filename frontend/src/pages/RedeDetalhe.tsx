@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   redes,
@@ -255,7 +255,7 @@ export function RedeDetalhe() {
     if (!modalEmpresa) setAbaModalEmpresa('geral')
   }, [modalEmpresa])
 
-  function loadFuncionarios(override?: { busca?: string; page?: number }) {
+  const loadFuncionarios = useCallback((override?: { busca?: string; page?: number }) => {
     if (!redeId || isNaN(redeId)) return
     const buscaEff = override?.busca !== undefined ? override.busca : debouncedBuscaFuncionarios
     const pageEff = override?.page !== undefined ? override.page : pageFuncionarios
@@ -273,7 +273,7 @@ export function RedeDetalhe() {
         setFuncionariosTotal(total)
       })
       .finally(() => setLoadingFuncionarios(false))
-  }
+  }, [debouncedBuscaFuncionarios, incluirInativos, pageFuncionarios, redeId, sortFuncParams])
 
   useEffect(() => {
     if (aba !== 'tickets' || !redeId || Number.isNaN(redeId)) return
@@ -419,7 +419,7 @@ export function RedeDetalhe() {
 
   useEffect(() => {
     loadFuncionarios()
-  }, [redeId, incluirInativos, pageFuncionarios, debouncedBuscaFuncionarios, ordemColFunc, dirFunc])
+  }, [loadFuncionarios])
 
   useEffect(() => {
     if (id && !isNaN(redeId)) return
@@ -801,7 +801,7 @@ export function RedeDetalhe() {
     tipoNegocioIdEmpresa === '' ? '' : tiposNegocioList.find((t) => t.id === Number(tipoNegocioIdEmpresa))?.nome ?? ''
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 pb-10">
       <div className="flex flex-wrap items-center gap-3">
         <nav aria-label="breadcrumb" className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
           {linkRedes}
@@ -1557,85 +1557,101 @@ export function RedeDetalhe() {
               <p className="mb-4 text-sm text-slate-600">
                 Rede: <span className="font-medium text-slate-800">{rede.nome}</span> — o vínculo será apenas com empresas desta rede.
               </p>
-              <form onSubmit={handleSubmitFuncionario} className="space-y-4">
-                <Input
-                  label="Nome *"
-                  value={nomeFuncionario}
-                  onChange={(e) => setNomeFuncionario(e.target.value)}
-                  required
-                />
-                <Input
-                  label="E-mail *"
-                  type="email"
-                  value={emailFuncionario}
-                  onChange={(e) => setEmailFuncionario(e.target.value)}
-                  required
-                />
-                <Select
-                  label="Tipo"
-                  value={tipoFuncionario}
-                  onChange={(v) => {
-                    const t = v as TipoFuncionario
-                    setTipoFuncionario(t)
-                    setEmpresaIdFuncionario('')
-                    setEmpresaIdsFuncionario([])
-                  }}
-                  options={[
-                    { value: 'socio', label: 'Sócio' },
-                    { value: 'supervisor', label: 'Supervisor' },
-                    { value: 'colaborador', label: 'Colaborador' },
-                  ]}
-                />
-                {tipoFuncionario === 'colaborador' && (
-                  <SelectComPesquisa
-                    id="rede-detalhe-func-empresa"
-                    label="Empresa desta rede *"
-                    value={empresaIdFuncionario}
-                    onChange={(id) => setEmpresaIdFuncionario(id)}
-                    required
-                    items={empresasDaRedeParaVinculo.map((x) => ({
-                      id: x.id,
-                      label: x.nome,
-                      createdAt: x.created_at,
-                    }))}
-                    hint="Últimas empresas desta rede. Digite para buscar."
-                  />
-                )}
-                {tipoFuncionario === 'supervisor' && (
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">Empresas desta rede</label>
-                    {empresasDaRedeParaVinculo.length === 0 ? (
-                      <p className="text-sm text-slate-500">Nenhuma empresa ativa nesta rede.</p>
-                    ) : (
-                      <div className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-slate-50/40 p-3">
-                        {empresasDaRedeParaVinculo.map((e) => (
-                          <CheckboxField
-                            key={e.id}
-                            checked={empresaIdsFuncionario.includes(e.id)}
-                            onChange={() => toggleEmpresaFuncionario(e.id)}
-                          >
-                            {e.nome}
-                          </CheckboxField>
-                        ))}
-                      </div>
-                    )}
+              <form onSubmit={handleSubmitFuncionario}>
+                <div className="space-y-6">
+                  <FormSection title="Dados do funcionário">
+                    <Input
+                      label="Nome *"
+                      value={nomeFuncionario}
+                      onChange={(e) => setNomeFuncionario(e.target.value)}
+                      required
+                    />
+                    <Input
+                      label="E-mail *"
+                      type="email"
+                      value={emailFuncionario}
+                      onChange={(e) => setEmailFuncionario(e.target.value)}
+                      required
+                    />
+                    <Select
+                      label="Tipo"
+                      value={tipoFuncionario}
+                      onChange={(v) => {
+                        const t = v as TipoFuncionario
+                        setTipoFuncionario(t)
+                        setEmpresaIdFuncionario('')
+                        setEmpresaIdsFuncionario([])
+                      }}
+                      options={[
+                        { value: 'socio', label: 'Sócio' },
+                        { value: 'supervisor', label: 'Supervisor' },
+                        { value: 'colaborador', label: 'Colaborador' },
+                      ]}
+                    />
+                  </FormSection>
+
+                  {tipoFuncionario !== 'socio' && (
+                    <FormSection title="Vínculo">
+                      {tipoFuncionario === 'colaborador' && (
+                        <SelectComPesquisa
+                          id="rede-detalhe-func-empresa"
+                          label="Empresa desta rede *"
+                          value={empresaIdFuncionario}
+                          onChange={(id) => setEmpresaIdFuncionario(id)}
+                          required
+                          items={empresasDaRedeParaVinculo.map((x) => ({
+                            id: x.id,
+                            label: x.nome,
+                            createdAt: x.created_at,
+                          }))}
+                          hint="Últimas empresas desta rede. Digite para buscar."
+                        />
+                      )}
+                      {tipoFuncionario === 'supervisor' && (
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Empresas desta rede</label>
+                          {empresasDaRedeParaVinculo.length === 0 ? (
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Nenhuma empresa ativa nesta rede.</p>
+                          ) : (
+                            <div className="flex max-h-44 flex-wrap gap-2 overflow-auto rounded-xl border border-slate-200 bg-slate-50/40 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+                              {empresasDaRedeParaVinculo.map((e) => (
+                                <CheckboxField
+                                  key={e.id}
+                                  checked={empresaIdsFuncionario.includes(e.id)}
+                                  onChange={() => toggleEmpresaFuncionario(e.id)}
+                                >
+                                  {e.nome}
+                                </CheckboxField>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </FormSection>
+                  )}
+
+                  <FormSection title="Situação no sistema">
+                    <Switch
+                      bare
+                      checked={ativoFuncionario}
+                      onCheckedChange={setAtivoFuncionario}
+                      label="Funcionário ativo"
+                      showStatusPill
+                      statusOnText="Ativo"
+                      statusOffText="Inativo"
+                    />
+                  </FormSection>
+                </div>
+
+                <div className="sticky bottom-0 -mx-6 mt-6 border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-700 dark:bg-slate-900">
+                  <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                    <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => fecharModalFuncionario()}>
+                      Cancelar
+                    </Button>
+                    <Button type="submit" loading={savingFuncionario} className="w-full sm:w-auto">
+                      Salvar
+                    </Button>
                   </div>
-                )}
-                <Switch
-                  checked={ativoFuncionario}
-                  onCheckedChange={setAtivoFuncionario}
-                  label="Status"
-                  showStatusPill
-                  statusOnText="Ativo"
-                  statusOffText="Inativo"
-                />
-                <div className="flex gap-2 border-t border-slate-200 pt-2">
-                  <Button type="submit" loading={savingFuncionario}>
-                    Salvar
-                  </Button>
-                  <Button type="button" variant="secondary" onClick={() => fecharModalFuncionario()}>
-                    Cancelar
-                  </Button>
                 </div>
               </form>
           </>

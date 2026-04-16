@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useId } from 'react'
+import { useState, useEffect, useMemo, useId, useCallback } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   tickets,
@@ -21,7 +21,6 @@ import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { useAuth } from '../contexts/AuthContext'
 import { useAlertaFilaSemResponsavel } from '../hooks/useAlertaFilaSemResponsavel'
-import { Switch } from '../components/ui/Switch'
 
 type ColunaOrdenacao =
   | 'protocolo'
@@ -43,7 +42,7 @@ export function Tickets() {
   const [searchParams, setSearchParams] = useSearchParams()
   const toast = useToast()
   const { isAdmin, user } = useAuth()
-  const { soundEnabled, setSoundEnabled, count: filaCount } = useAlertaFilaSemResponsavel(Boolean(user))
+  useAlertaFilaSemResponsavel(Boolean(user))
 
   const [list, setList] = useState<Tickets.Ticket[]>([])
   const [total, setTotal] = useState(0)
@@ -67,6 +66,8 @@ export function Tickets() {
   const [maisFiltrosAberto, setMaisFiltrosAberto] = useState(false)
   const painelFiltrosId = useId()
   const { ordenarPor, ordem, aoOrdenarColuna, sortParams } = useOrdenacaoLista<ColunaOrdenacao>()
+
+  const resetarPagina = useCallback(() => setPage(1), [])
 
   const setoresFiltro = useMemo(() => {
     const ativos = setoresOpt.filter((s) => s.ativo)
@@ -148,21 +149,18 @@ export function Tickets() {
     if (!isAdmin) {
       setAtendentesOpt([])
       setFiltroAtendente('')
+      resetarPagina()
       return
     }
     coletarTodasPaginas<Atendentes.Atendente>((o, l) =>
       atendentes.list({ incluir_inativos: false, offset: o, limit: l }),
     ).then(setAtendentesOpt)
-  }, [isAdmin])
+  }, [isAdmin, resetarPagina])
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedBusca(busca.trim()), 400)
     return () => clearTimeout(t)
   }, [busca])
-
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedBusca, filtroStatus, filtroEmpresa, filtroSetor, filtroFila, filtroAtendente, ordenarPor, ordem])
 
   useEffect(() => {
     if (filtroSetor !== '' && !setoresFiltro.some((s) => s.id === filtroSetor)) {
@@ -211,6 +209,8 @@ export function Tickets() {
     isAdmin,
     ordenarPor,
     ordem,
+    sortParams,
+    toast,
   ])
 
   function limparFiltros() {
@@ -225,20 +225,13 @@ export function Tickets() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="mx-auto max-w-6xl space-y-8 pb-10">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Tickets</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Acompanhe e filtre as demandas do suporte.</p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-3">
-          <Switch
-            bare
-            checked={soundEnabled}
-            onCheckedChange={setSoundEnabled}
-            label="Som de fila"
-            description={filaCount > 0 ? `${filaCount} na fila sem responsável` : 'Desligue se não quiser alerta'}
-          />
           <Link to="/tickets/novo">
             <Button>Novo ticket</Button>
           </Link>
@@ -253,7 +246,10 @@ export function Tickets() {
               <input
                 type="search"
                 value={busca}
-                onChange={(e) => setBusca(e.target.value)}
+                onChange={(e) => {
+                  setBusca(e.target.value)
+                  resetarPagina()
+                }}
                 placeholder="Buscar por protocolo, assunto ou empresa…"
                 disabled={loading}
                 className="w-full rounded-xl border-0 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-900 shadow-inner ring-1 ring-slate-200/80 transition-shadow placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-400/25 dark:bg-slate-900/60 dark:text-slate-100 dark:ring-slate-700 dark:placeholder:text-slate-500 dark:focus:bg-slate-900"
@@ -295,6 +291,7 @@ export function Tickets() {
                     onClick={() => {
                       setFiltroFila(id)
                       if (id !== '') setFiltroAtendente('')
+                      resetarPagina()
                     }}
                     className={`min-h-[2.25rem] flex-1 rounded-xl px-3 py-2 text-center text-xs font-medium transition-all duration-200 sm:flex-none sm:px-4 sm:text-sm ${
                       ativo
@@ -357,7 +354,10 @@ export function Tickets() {
                   labelStyle="overline"
                   className="min-w-0"
                   value={filtroEmpresa}
-                  onChange={(v) => setFiltroEmpresa(v === '' ? '' : Number(v))}
+                  onChange={(v) => {
+                    setFiltroEmpresa(v === '' ? '' : Number(v))
+                    resetarPagina()
+                  }}
                   options={opcoesEmpresaFiltro}
                   includeEmpty
                   emptyLabel="Todas"
@@ -368,7 +368,10 @@ export function Tickets() {
                   labelStyle="overline"
                   className="min-w-0"
                   value={filtroSetor}
-                  onChange={(v) => setFiltroSetor(v === '' ? '' : Number(v))}
+                  onChange={(v) => {
+                    setFiltroSetor(v === '' ? '' : Number(v))
+                    resetarPagina()
+                  }}
                   options={opcoesSetorFiltro}
                   includeEmpty
                   emptyLabel="Todos"
@@ -379,7 +382,10 @@ export function Tickets() {
                   labelStyle="overline"
                   className="min-w-0"
                   value={filtroStatus}
-                  onChange={(v) => setFiltroStatus(v === '' ? '' : Number(v))}
+                  onChange={(v) => {
+                    setFiltroStatus(v === '' ? '' : Number(v))
+                    resetarPagina()
+                  }}
                   options={opcoesStatusFiltro}
                   includeEmpty
                   emptyLabel="Todos"
@@ -394,6 +400,7 @@ export function Tickets() {
                     onChange={(v) => {
                       setFiltroAtendente(v === '' ? '' : Number(v))
                       if (v !== '') setFiltroFila('')
+                      resetarPagina()
                     }}
                     options={opcoesAtendenteFiltro}
                     includeEmpty
@@ -474,7 +481,10 @@ export function Tickets() {
                     rotulo="Protocolo"
                     ordenarPor={ordenarPor}
                     ordem={ordem}
-                    aoOrdenar={aoOrdenarColuna}
+                    aoOrdenar={(c) => {
+                      resetarPagina()
+                      aoOrdenarColuna(c)
+                    }}
                     className="whitespace-nowrap px-4 py-3 sm:px-6"
                   />
                   <CabecalhoOrdenavel
@@ -482,7 +492,10 @@ export function Tickets() {
                     rotulo="Rede"
                     ordenarPor={ordenarPor}
                     ordem={ordem}
-                    aoOrdenar={aoOrdenarColuna}
+                    aoOrdenar={(c) => {
+                      resetarPagina()
+                      aoOrdenarColuna(c)
+                    }}
                     className="hidden px-4 py-3 lg:table-cell sm:px-6"
                   />
                   <CabecalhoOrdenavel
@@ -490,7 +503,10 @@ export function Tickets() {
                     rotulo="Empresa"
                     ordenarPor={ordenarPor}
                     ordem={ordem}
-                    aoOrdenar={aoOrdenarColuna}
+                    aoOrdenar={(c) => {
+                      resetarPagina()
+                      aoOrdenarColuna(c)
+                    }}
                     className="px-4 py-3 sm:px-6"
                   />
                   <CabecalhoOrdenavel
@@ -498,7 +514,10 @@ export function Tickets() {
                     rotulo="Setor"
                     ordenarPor={ordenarPor}
                     ordem={ordem}
-                    aoOrdenar={aoOrdenarColuna}
+                    aoOrdenar={(c) => {
+                      resetarPagina()
+                      aoOrdenarColuna(c)
+                    }}
                     className="hidden px-4 py-3 xl:table-cell sm:px-6"
                   />
                   <CabecalhoOrdenavel
@@ -506,7 +525,10 @@ export function Tickets() {
                     rotulo="Assunto"
                     ordenarPor={ordenarPor}
                     ordem={ordem}
-                    aoOrdenar={aoOrdenarColuna}
+                    aoOrdenar={(c) => {
+                      resetarPagina()
+                      aoOrdenarColuna(c)
+                    }}
                     className="hidden px-4 py-3 md:table-cell sm:px-6"
                   />
                   <CabecalhoOrdenavel
@@ -514,7 +536,10 @@ export function Tickets() {
                     rotulo="Status"
                     ordenarPor={ordenarPor}
                     ordem={ordem}
-                    aoOrdenar={aoOrdenarColuna}
+                    aoOrdenar={(c) => {
+                      resetarPagina()
+                      aoOrdenarColuna(c)
+                    }}
                     className="whitespace-nowrap px-4 py-3 sm:px-6"
                   />
                   <CabecalhoOrdenavel
@@ -522,7 +547,10 @@ export function Tickets() {
                     rotulo="Responsável"
                     ordenarPor={ordenarPor}
                     ordem={ordem}
-                    aoOrdenar={aoOrdenarColuna}
+                    aoOrdenar={(c) => {
+                      resetarPagina()
+                      aoOrdenarColuna(c)
+                    }}
                     className="hidden px-4 py-3 lg:table-cell sm:px-6"
                   />
                 </tr>

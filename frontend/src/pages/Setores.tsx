@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { setores, type Setores } from '../api/client'
@@ -12,6 +12,7 @@ import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { Switch } from '../components/ui/Switch'
 import { useNavigate } from 'react-router-dom'
+import { FormSection } from '../components/ui/FormSection'
 
 type ColunaSetor = 'nome' | 'slug' | 'ativo'
 
@@ -34,6 +35,15 @@ export function Setores() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
+    if (!modalOpen) return
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prevOverflow
+    }
+  }, [modalOpen])
+
+  useEffect(() => {
     const t = setTimeout(() => setDebouncedBusca(busca.trim()), 400)
     return () => clearTimeout(t)
   }, [busca])
@@ -42,7 +52,7 @@ export function Setores() {
     setPage(1)
   }, [debouncedBusca, incluirInativos, ordenarPor, ordem])
 
-  function load() {
+  const load = useCallback(() => {
     setLoading(true)
     setores
       .list({
@@ -57,11 +67,11 @@ export function Setores() {
         setTotal(t)
       })
       .finally(() => setLoading(false))
-  }
+  }, [debouncedBusca, incluirInativos, page, sortParams])
 
   useEffect(() => {
     load()
-  }, [page, debouncedBusca, incluirInativos, ordenarPor, ordem])
+  }, [load])
 
   function openCreate() {
     setEditingId(null)
@@ -110,7 +120,7 @@ export function Setores() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 pb-10">
       <div className="flex justify-between">
         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Setores</h1>
         <Button onClick={openCreate}>Novo setor</Button>
@@ -194,22 +204,43 @@ export function Setores() {
       )}
 
       {modalOpen && (
-        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-y-0 left-0 right-0 z-20 flex items-start justify-center bg-black/85 px-4 pb-6 pt-16 sm:px-6 md:left-[var(--sidebar-w)]">
           <Card title={editingId ? 'Editar setor' : 'Novo setor'} className="w-full max-w-md">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
-              <Input label="Slug" value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="ex: suporte" required />
-              <Switch
-                checked={ativo}
-                onCheckedChange={setAtivo}
-                label="Status"
-                showStatusPill
-                statusOnText="Ativo"
-                statusOffText="Inativo"
-              />
-              <div className="flex gap-2">
-                <Button type="submit" loading={saving}>Salvar</Button>
-                <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>Cancelar</Button>
+            <form onSubmit={handleSubmit}>
+              <div className="space-y-6">
+                <FormSection title="Dados do setor">
+                  <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
+                  <Input
+                    label="Slug"
+                    value={slug}
+                    onChange={(e) => setSlug(e.target.value)}
+                    placeholder="ex: suporte"
+                    required
+                  />
+                </FormSection>
+
+                <FormSection title="Situação no sistema">
+                  <Switch
+                    bare
+                    checked={ativo}
+                    onCheckedChange={setAtivo}
+                    label="Setor ativo"
+                    showStatusPill
+                    statusOnText="Ativo"
+                    statusOffText="Inativo"
+                  />
+                </FormSection>
+              </div>
+
+              <div className="sticky bottom-0 -mx-6 mt-6 border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => setModalOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit" loading={saving} className="w-full sm:w-auto">
+                    Salvar
+                  </Button>
+                </div>
               </div>
             </form>
           </Card>

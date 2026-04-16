@@ -99,7 +99,10 @@ export async function api<T>(
   if (res.status === 401) {
     const err = await res.json().catch(() => ({}));
     // Se já estamos no fluxo de refresh, não tenta de novo.
-    const skipRefresh = typeof headers === 'object' && headers != null && 'X-DX-Skip-Refresh' in (headers as any)
+    const skipRefresh =
+      headers instanceof Headers
+        ? headers.has('X-DX-Skip-Refresh')
+        : typeof headers === 'object' && headers != null && 'X-DX-Skip-Refresh' in (headers as Record<string, unknown>)
     if (!skipRefresh && !path.startsWith('/auth/refresh')) {
       const refreshed = await refreshAccessToken()
       if (refreshed?.access_token) {

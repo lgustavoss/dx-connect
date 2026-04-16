@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { notificacoes, type Notificacoes } from '../api/client'
 import { usePendenciasResumo } from '../hooks/useAlertaFilaSemResponsavel'
@@ -30,7 +30,7 @@ export function NavbarNotificacoes({ enabled }: { enabled: boolean }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const menuId = useId()
 
-  async function carregarItens() {
+  const carregarItens = useCallback(async () => {
     if (!enabled) return
     setLoadingItens(true)
     try {
@@ -41,14 +41,14 @@ export function NavbarNotificacoes({ enabled }: { enabled: boolean }) {
     } finally {
       setLoadingItens(false)
     }
-  }
+  }, [enabled])
 
   useEffect(() => {
     if (!aberto || !enabled) return
     void carregarItens()
     const id = window.setInterval(() => void carregarItens(), POLL_ITENS_MS)
     return () => window.clearInterval(id)
-  }, [aberto, enabled])
+  }, [aberto, enabled, carregarItens])
 
   useEffect(() => {
     if (!aberto) return

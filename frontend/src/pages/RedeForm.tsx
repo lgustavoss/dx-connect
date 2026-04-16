@@ -7,6 +7,7 @@ import { Input } from '../components/ui/Input'
 import { Switch } from '../components/ui/Switch'
 import { useToast } from '../components/ui/Toast'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
+import { FormSection } from '../components/ui/FormSection'
 
 export function RedeForm() {
   const { id } = useParams<{ id?: string }>()
@@ -90,7 +91,7 @@ export function RedeForm() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 pb-10">
+    <div className="mx-auto max-w-5xl space-y-6 pb-10">
       <div className="flex items-center justify-between gap-3">
         <button
           type="button"
@@ -102,30 +103,41 @@ export function RedeForm() {
       </div>
 
       <Card title={isEdit ? 'Editar rede' : 'Nova rede'}>
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
-          <Input
-            label="Login do retaguarda"
-            value={loginRetaguarda}
-            onChange={(e) => setLoginRetaguarda(e.target.value)}
-            placeholder="Ex.: duplex_admin"
-          />
-          <Switch
-            checked={ativo}
-            onCheckedChange={setAtivo}
-            label="Status"
-            description="Inativos ficam ocultos nas listagens padrão."
-            showStatusPill
-            statusOnText="Ativo"
-            statusOffText="Inativo"
-          />
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button type="button" variant="secondary" onClick={voltarAnterior} className="w-full sm:w-auto">
-              Cancelar
-            </Button>
-            <Button type="submit" loading={saving} className="w-full sm:w-auto">
-              Salvar
-            </Button>
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-6">
+            <FormSection title="Dados da rede">
+              <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
+              <Input
+                label="Login do retaguarda"
+                value={loginRetaguarda}
+                onChange={(e) => setLoginRetaguarda(e.target.value)}
+                placeholder="Ex.: duplex_admin"
+              />
+            </FormSection>
+
+            <FormSection title="Situação no sistema">
+              <Switch
+                bare
+                checked={ativo}
+                onCheckedChange={setAtivo}
+                label="Rede ativa"
+                description="Inativos ficam ocultos nas listagens padrão."
+                showStatusPill
+                statusOnText="Ativo"
+                statusOffText="Inativo"
+              />
+            </FormSection>
+          </div>
+
+          <div className="sticky bottom-0 -mx-6 mt-6 border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="secondary" onClick={voltarAnterior} className="w-full sm:w-auto">
+                Cancelar
+              </Button>
+              <Button type="submit" loading={saving} className="w-full sm:w-auto">
+                Salvar
+              </Button>
+            </div>
           </div>
         </form>
       </Card>

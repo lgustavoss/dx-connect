@@ -33,7 +33,7 @@ export function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- recarrega só quando reloadKey muda
   }, [reloadKey])
 
-  const ultimos_tickets = data?.ultimos_tickets ?? []
+  const ultimos_tickets = useMemo(() => data?.ultimos_tickets ?? [], [data?.ultimos_tickets])
 
   const ultimosOrdenados = useMemo(() => {
     if (!ordenarPor) return ultimos_tickets
@@ -76,7 +76,7 @@ export function Dashboard() {
   const { resumo } = data
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 pb-10">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Dashboard</h1>
         <Link to="/tickets/novo">
