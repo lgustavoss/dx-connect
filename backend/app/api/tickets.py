@@ -18,7 +18,11 @@ from app.schemas.ticket import (
 from app.schemas.lista_paginada import ListaPaginada
 from app.core.auth import obter_atendente_atual
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
-from app.core.setor_scope import ids_setores_visiveis_atendente, atendente_atende_algum_id_setor
+from app.core.setor_scope import (
+    atendente_atende_algum_id_setor,
+    ids_setores_visiveis_atendente,
+    responsavel_elegivel_para_setor_do_ticket,
+)
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
@@ -482,17 +486,30 @@ def atualizar(
 
     setor_final = update["setor_id"] if "setor_id" in update else ticket.setor_id
 
-    if "atendente_id" in update and update["atendente_id"] is not None:
-        if not atendente_atende_algum_id_setor(db, update["atendente_id"], setor_final):
+    if "atendente_id" in update and atendente.role != "admin":
+        novo_at = update["atendente_id"]
+        if novo_at is not None and novo_at != atendente.id:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="O responsável indicado não está vinculado ao setor do ticket.",
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Somente administradores podem definir outro responsável.",
             )
 
-    # Transferência: se o responsável atual não atende o setor de destino, volta à fila (sem responsável).
+    if "atendente_id" in update and update["atendente_id"] is not None:
+        if not responsavel_elegivel_para_setor_do_ticket(db, update["atendente_id"], setor_final):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="O responsável indicado não pode ser atribuído a este setor.",
+            )
+
+    # Transferência de setor: se o responsável atual não atende o setor de destino, volta à fila.
+    # Administradores permanecem responsáveis mesmo sem vínculo ao setor (#38).
     if "setor_id" in update and update["setor_id"] != ticket.setor_id and "atendente_id" not in update:
-        if ticket.atendente_id is not None and not atendente_atende_algum_id_setor(db, ticket.atendente_id, update["setor_id"]):
-            update["atendente_id"] = None
+        if ticket.atendente_id is not None:
+            atual_resp = db.query(Atendente).filter(Atendente.id == ticket.atendente_id).first()
+            if atual_resp and atual_resp.role == "admin":
+                pass
+            elif not atendente_atende_algum_id_setor(db, ticket.atendente_id, update["setor_id"]):
+                update["atendente_id"] = None
 
     if "status_id" in update:
         antigo = str(ticket.status_id)

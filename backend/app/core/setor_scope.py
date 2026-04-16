@@ -43,3 +43,22 @@ def atendente_atende_algum_id_setor(db: Session, atendente_id: int, setor_id: in
         return False
     atend_ids = {s.id for s in a.setores}
     return bool(atend_ids & ids_alvo)
+
+
+def responsavel_elegivel_para_setor_do_ticket(db: Session, responsavel_id: int, setor_id: int) -> bool:
+    """True se o usuário pode ser responsável por um ticket neste setor.
+
+    - `admin`: sempre elegível (operam sem vínculo obrigatório ao setor do ticket; issue #38).
+    - demais: devem atender o setor (incluindo homônimos).
+    """
+    alvo = (
+        db.query(Atendente)
+        .options(joinedload(Atendente.setores))
+        .filter(Atendente.id == responsavel_id)
+        .first()
+    )
+    if not alvo:
+        return False
+    if alvo.role == "admin":
+        return True
+    return atendente_atende_algum_id_setor(db, responsavel_id, setor_id)

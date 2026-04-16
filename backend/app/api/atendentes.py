@@ -138,7 +138,7 @@ def listar_atendentes_por_setor(
     db: Session = Depends(get_db),
     atendente_logado: Atendente = Depends(obter_atendente_atual),
 ):
-    """Atendentes vinculados ao setor (e duplicatas de mesmo nome). Qualquer usuário autenticado com acesso ao setor."""
+    """Atendentes vinculados ao setor (e homônimos) + administradores (elegíveis como responsáveis sem vínculo ao setor; #38)."""
     if not db.query(Setor).filter(Setor.id == setor_id).first():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor não encontrado")
     if atendente_logado.role != "admin":
@@ -155,7 +155,19 @@ def listar_atendentes_por_setor(
     if not incluir_inativos:
         q = q.filter(Atendente.ativo.is_(True))
     rows = q.order_by(Atendente.nome).all()
-    return [_atendente_para_read(a) for a in rows]
+    by_id = {a.id: a for a in rows}
+    q_admins = (
+        db.query(Atendente)
+        .options(joinedload(Atendente.setores))
+        .filter(Atendente.role == "admin")
+    )
+    if not incluir_inativos:
+        q_admins = q_admins.filter(Atendente.ativo.is_(True))
+    for a in q_admins.order_by(Atendente.nome).all():
+        if a.id not in by_id:
+            by_id[a.id] = a
+    merged = sorted(by_id.values(), key=lambda x: ((x.nome or "").lower(), x.id))
+    return [_atendente_para_read(a) for a in merged]
 
 
 @router.get("/{atendente_id}", response_model=AtendenteRead)
