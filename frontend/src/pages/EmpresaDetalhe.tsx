@@ -118,6 +118,7 @@ export function EmpresaDetalhe() {
     tickets
       .list({
         empresa_id: empresaId,
+        situacao: 'todos',
         offset: (pageT - 1) * PAGE_SIZE_PADRAO,
         limit: PAGE_SIZE_PADRAO,
         busca: debouncedBuscaT || undefined,

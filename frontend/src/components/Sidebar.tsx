@@ -182,22 +182,30 @@ export function Sidebar({
     }
   }, [location.pathname, isAdmin])
 
+  // No drawer mobile usamos acordeão (não flyout); evita estado do flyout “preso”
+  useEffect(() => {
+    if (mobileOpen) setOpenFlyout(null)
+  }, [mobileOpen])
+
   const linkClass = (to: string, base = '') =>
     `${base} flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors touch-manipulation min-h-[44px] ${
       location.pathname === to || (to !== '/' && location.pathname.startsWith(to))
         ? 'bg-cyan-50 text-slate-900 ring-1 ring-cyan-200/60 dark:bg-cyan-950/35 dark:text-slate-100 dark:ring-cyan-800/50'
         : 'text-slate-600 hover:bg-slate-100 active:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:active:bg-slate-800'
-    } ${!expanded ? 'md:justify-center md:px-0 md:gap-0' : ''}`
+    } ${!expanded ? 'md:justify-center md:gap-0 md:px-2' : ''}`
 
   const isGroupOpen = (id: string) => openGroup === id
   const isFlyoutOpen = (id: string) => openFlyout === id
 
   const sidebarContent = (
     <>
-      <div className={`flex h-14 shrink-0 items-center justify-center border-b border-slate-200 dark:border-slate-800 ${expanded ? 'px-3' : 'md:px-0'}`}>
+      <div
+        className={`flex h-14 shrink-0 items-center justify-center border-b border-slate-200 dark:border-slate-800 ${expanded ? 'px-3' : 'md:px-2'}`}
+      >
         <Link
           to="/"
           onClick={onMobileClose}
+          title="Início"
           className={`flex items-center overflow-hidden rounded-lg ${expanded ? 'min-w-0 flex-1 gap-2.5' : 'md:w-full md:justify-center md:gap-0'}`}
         >
           <img
@@ -211,7 +219,7 @@ export function Sidebar({
           />
           <span
             className={`min-w-0 truncate text-[0.95rem] font-semibold leading-tight transition-all duration-200 ${
-              expanded ? 'opacity-100 w-auto' : 'md:opacity-0 md:w-0 md:overflow-hidden md:max-w-0'
+              expanded ? 'opacity-100 w-auto' : 'md:hidden'
             }`}
           >
             <span className="bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text font-bold text-transparent">DX</span>
@@ -220,22 +228,28 @@ export function Sidebar({
         </Link>
       </div>
 
-      <nav className={`flex-1 overflow-y-auto py-3 px-2 ${!expanded ? 'md:px-0' : ''}`} aria-label="Menu principal">
-        <ul className={`space-y-0.5 px-2 ${!expanded ? 'md:px-0' : ''}`}>
+      <nav
+        className={`min-w-0 flex-1 overflow-y-auto py-3 px-2 max-md:overflow-x-hidden ${!expanded ? 'md:px-2' : ''}`}
+        aria-label="Menu principal"
+      >
+        <ul className={`min-w-0 space-y-0.5 px-2 ${!expanded ? 'md:px-0' : ''}`}>
           {items.map((item) => {
             if (item.type === 'link') {
               return (
-                <li key={item.to} className="w-full">
+                <li key={item.to} className="w-full min-w-0">
                   <Link
                     to={item.to}
                     onClick={onMobileClose}
+                    title={item.label}
                     className={linkClass(item.to)}
                   >
                     {icons[item.icon]}
                     <span
-                      className={`truncate transition-all duration-200 ${
-                        expanded ? 'opacity-100 w-auto' : 'md:opacity-0 md:w-0 md:overflow-hidden'
-                      }`}
+                      className={
+                        expanded
+                          ? 'min-w-0 truncate transition-all duration-200'
+                          : 'min-w-0 truncate transition-all duration-200 md:hidden'
+                      }
                     >
                       {item.label}
                     </span>
@@ -249,10 +263,12 @@ export function Sidebar({
             const open = isGroupOpen(group.id)
             const active = isPathInGroup(location.pathname, group.children)
 
+            const menuExpandido = expanded || mobileOpen
+
             return (
-              <li key={group.id} className="w-full">
-                {/* Desktop expandido: botão que expande/recolhe e mostra filhos abaixo */}
-                {expanded ? (
+              <li key={group.id} className="w-full min-w-0">
+                {/* Mobile (drawer) ou desktop com menu largo: filhos abaixo. Desktop ícone: flyout à direita */}
+                {menuExpandido ? (
                   <>
                     <button
                       type="button"
@@ -273,11 +289,11 @@ export function Sidebar({
                     </button>
                     <ul
                       id={`nav-group-${group.id}`}
-                      className={`overflow-hidden transition-all duration-200 ${open ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}
+                      className={`min-w-0 overflow-hidden transition-all duration-200 ${open ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}
                       role="group"
                     >
                       {group.children.map((child) => (
-                        <li key={child.to} className="pl-4">
+                        <li key={child.to} className="min-w-0 pl-4">
                           <Link
                             to={child.to}
                             onClick={onMobileClose}
@@ -291,11 +307,12 @@ export function Sidebar({
                     </ul>
                   </>
                 ) : (
-                  /* Desktop recolhido: ícone do grupo; ao clicar abre flyout */
-                  <div className="relative w-full">
+                  /* Desktop recolhido (md+): flyout à direita do ícone */
+                  <div className="relative w-full min-w-0">
                     <button
                       type="button"
                       onClick={() => setOpenFlyout(isFlyoutOpen(group.id) ? null : group.id)}
+                      title={group.label}
                       className={`flex w-full items-center justify-center rounded-lg py-2.5 text-slate-600 hover:bg-slate-100 min-h-[44px] px-2 dark:text-slate-400 dark:hover:bg-slate-800/80 md:px-0 ${
                         active ? 'bg-cyan-50 text-slate-900 ring-1 ring-cyan-200/60 dark:bg-cyan-950/35 dark:text-slate-100 dark:ring-cyan-800/50' : ''
                       }`}
@@ -308,7 +325,7 @@ export function Sidebar({
                       <>
                         <div
                           role="presentation"
-                          className="fixed inset-0 z-40 md:left-[72px]"
+                          className="fixed inset-0 z-40 md:left-[80px]"
                           onClick={() => setOpenFlyout(null)}
                         />
                         <ul
@@ -342,10 +359,10 @@ export function Sidebar({
         </ul>
       </nav>
 
-      <div className={`border-t border-slate-200 p-2 dark:border-slate-800 ${!expanded ? 'md:px-0' : ''}`}>
+      <div className={`border-t border-slate-200 p-2 dark:border-slate-800 ${!expanded ? 'md:px-2' : ''}`}>
         <div
           className={`flex items-center gap-3 px-3 py-2 text-slate-600 dark:text-slate-400 ${
-            expanded ? 'opacity-100' : 'md:opacity-0 md:overflow-hidden md:w-0 md:px-0'
+            expanded ? 'opacity-100' : 'md:hidden'
           }`}
         >
           <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 text-xs font-semibold text-white shadow-sm shadow-cyan-500/25">
@@ -362,15 +379,18 @@ export function Sidebar({
             onMobileClose()
             onLogout()
           }}
+          title="Sair"
           className={`mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-600 hover:bg-slate-100 active:bg-slate-200 touch-manipulation min-h-[44px] dark:text-slate-400 dark:hover:bg-slate-800 dark:active:bg-slate-700 ${
-            expanded ? '' : 'md:justify-center md:px-0'
+            expanded ? '' : 'md:justify-center md:px-2'
           }`}
         >
           {icons.logout}
           <span
-            className={`truncate transition-all duration-200 ${
-              expanded ? 'opacity-100 w-auto' : 'md:opacity-0 md:w-0 md:overflow-hidden'
-            }`}
+            className={
+              expanded
+                ? 'min-w-0 truncate transition-all duration-200'
+                : 'min-w-0 truncate transition-all duration-200 md:hidden'
+            }
           >
             Sair
           </span>
@@ -381,25 +401,33 @@ export function Sidebar({
 
   return (
     <>
-      {/* Overlay mobile: fecha ao tocar fora */}
+      {/* Overlay mobile: bloqueia fundo (fullscreen) */}
       <div
-        role="button"
-        tabIndex={0}
-        aria-label="Fechar menu"
-        onClick={onMobileClose}
-        onKeyDown={(e) => e.key === 'Enter' && onMobileClose()}
         className={`fixed inset-0 z-40 bg-black/50 transition-opacity duration-200 md:hidden ${
           mobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
         }`}
+        aria-hidden
       />
 
       {/* Sidebar: drawer no mobile, fixo no desktop */}
       <aside
-        className={`fixed top-0 left-0 z-50 flex h-full w-[280px] flex-col bg-white shadow-xl transition-[transform,width] duration-200 ease-out dark:bg-slate-950 md:translate-x-0 md:shadow-none md:dark:shadow-[inset_-1px_0_0_0_rgb(30_41_59_/_0.6)] ${
+        className={`fixed inset-0 z-50 flex h-full min-w-0 max-w-[100vw] flex-col overflow-x-hidden bg-white shadow-xl transition-[transform,width] duration-200 ease-out dark:bg-slate-950 md:inset-auto md:top-0 md:left-0 md:h-full md:max-w-none md:w-auto md:translate-x-0 md:overflow-x-visible md:shadow-none md:dark:shadow-[inset_-1px_0_0_0_rgb(30_41_59_/_0.6)] ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
-        } ${expanded ? 'md:w-[280px]' : 'md:w-[72px]'}`}
+        } ${expanded ? 'md:w-[280px]' : 'md:w-[80px]'}`}
         aria-label="Menu lateral"
       >
+        {/* Mobile header com "voltar/fechar" */}
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200/90 bg-white/95 px-4 shadow-sm backdrop-blur-sm dark:border-slate-800/90 dark:bg-slate-950/90 md:hidden">
+          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Menu</span>
+          <button
+            type="button"
+            onClick={onMobileClose}
+            className="inline-flex size-10 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 active:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800 dark:active:bg-slate-700"
+            aria-label="Fechar menu"
+          >
+            ×
+          </button>
+        </div>
         {sidebarContent}
       </aside>
     </>

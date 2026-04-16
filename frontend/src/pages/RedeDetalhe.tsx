@@ -282,6 +282,7 @@ export function RedeDetalhe() {
     tickets
       .list({
         rede_id: redeId,
+        situacao: 'todos',
         offset: (pageTicketsRede - 1) * PAGE_SIZE_PADRAO,
         limit: PAGE_SIZE_PADRAO,
         busca: debouncedBuscaTicketsRede || undefined,
@@ -307,6 +308,7 @@ export function RedeDetalhe() {
     tickets
       .list({
         empresa_id: editingEmpresaId,
+        situacao: 'todos',
         offset: (pageTicketsEmpModal - 1) * PAGE_SIZE_PADRAO,
         limit: PAGE_SIZE_PADRAO,
         busca: debouncedBuscaTicketsEmpModal || undefined,

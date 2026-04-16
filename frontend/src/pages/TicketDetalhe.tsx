@@ -92,6 +92,7 @@ export function TicketDetalhe() {
   const toast = useToast()
   const { isAdmin, user } = useAuth()
   const [atribuindo, setAtribuindo] = useState(false)
+  const [fechando, setFechando] = useState(false)
 
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -189,6 +190,10 @@ export function TicketDetalhe() {
       },
     ]
   }, [statusList, ticket])
+
+  const statusFechado = useMemo(() => {
+    return statusList.find((s) => (s.slug || '').toLowerCase() === 'fechado') ?? null
+  }, [statusList])
 
   /** Mensagem “da equipe” (público no fluxo): admin, responsável ou ticket ainda sem responsável. */
   const podeMensagemPublica = useMemo(() => {
@@ -423,6 +428,10 @@ export function TicketDetalhe() {
 
   async function handleEnviarMensagem() {
     if (!ticket) return
+    if (ticket.fechado_em) {
+      toast.showWarning('Ticket fechado. Apenas admin pode reabrir para enviar mensagens.')
+      return
+    }
     const texto = novaMensagemTexto.trim()
     if (!texto) {
       toast.showWarning('Escreva uma mensagem antes de enviar.')
@@ -501,7 +510,13 @@ export function TicketDetalhe() {
           <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Ações rápidas do ticket">
             <button
               type="button"
-              onClick={() => abrirModalGerir('setor')}
+              onClick={() => {
+                if (ticket.fechado_em && !isAdmin) {
+                  toast.showWarning('Ticket fechado — apenas admin pode alterar.')
+                  return
+                }
+                abrirModalGerir('setor')
+              }}
               className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200/90 bg-slate-50/80 px-3 py-1.5 text-left text-xs shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-100/90 dark:border-slate-600 dark:bg-slate-800/70 dark:hover:border-slate-500 dark:hover:bg-slate-800"
             >
               <span className="shrink-0 font-medium text-slate-500 dark:text-slate-400">Setor</span>
@@ -511,7 +526,13 @@ export function TicketDetalhe() {
             </button>
             <button
               type="button"
-              onClick={() => abrirModalGerir('status')}
+              onClick={() => {
+                if (ticket.fechado_em && !isAdmin) {
+                  toast.showWarning('Ticket fechado — apenas admin pode alterar.')
+                  return
+                }
+                abrirModalGerir('status')
+              }}
               className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200/90 bg-slate-50/80 px-3 py-1.5 text-left text-xs shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-100/90 dark:border-slate-600 dark:bg-slate-800/70 dark:hover:border-slate-500 dark:hover:bg-slate-800"
             >
               <span className="shrink-0 font-medium text-slate-500 dark:text-slate-400">Status</span>
@@ -521,7 +542,13 @@ export function TicketDetalhe() {
             </button>
             <button
               type="button"
-              onClick={() => abrirModalGerir('atendente')}
+              onClick={() => {
+                if (ticket.fechado_em && !isAdmin) {
+                  toast.showWarning('Ticket fechado — apenas admin pode alterar.')
+                  return
+                }
+                abrirModalGerir('atendente')
+              }}
               className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200/90 bg-slate-50/80 px-3 py-1.5 text-left text-xs shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-100/90 dark:border-slate-600 dark:bg-slate-800/70 dark:hover:border-slate-500 dark:hover:bg-slate-800"
             >
               <span className="shrink-0 font-medium text-slate-500 dark:text-slate-400">Responsável</span>
@@ -542,12 +569,75 @@ export function TicketDetalhe() {
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {podeAtribuirAMim && (
+          {isAdmin && ticket.fechado_em && (
+            <Button
+              type="button"
+              onClick={async () => {
+                try {
+                  const updated = await tickets.reabrir(ticket.id)
+                  setTicket(updated)
+                  setEditStatus(updated.status_id)
+                  setEditAtendente(updated.atendente_id ?? '')
+                  const hist = await tickets.getHistorico(updated.id)
+                  setHistorico(hist)
+                  toast.showSuccess('Ticket reaberto.')
+                } catch (err) {
+                  toast.showWarning(err instanceof Error ? err.message : 'Não foi possível reabrir.')
+                }
+              }}
+            >
+              Reabrir
+            </Button>
+          )}
+          {podeAtribuirAMim && !ticket.fechado_em && (
             <Button type="button" onClick={handleAtribuirAMim} loading={atribuindo}>
               Atribuir a mim
             </Button>
           )}
-          <Button type="button" variant="secondary" onClick={() => abrirModalGerir('geral')}>
+          {!ticket.fechado_em && (
+            <Button
+              type="button"
+              variant="secondary"
+              loading={fechando}
+              onClick={async () => {
+                if (!ticket) return
+                if (!statusFechado) {
+                  toast.showWarning('Não existe um status com slug "fechado". Cadastre/ajuste em Status de ticket.')
+                  return
+                }
+                if (!confirm('Fechar este ticket? Ele sairá da lista de abertos e não permitirá novas mensagens.')) return
+                setFechando(true)
+                try {
+                  const updated = await tickets.update(ticket.id, { status_id: statusFechado.id })
+                  setTicket(updated)
+                  setEditStatus(updated.status_id)
+                  setEditAtendente(updated.atendente_id ?? '')
+                  const hist = await tickets.getHistorico(updated.id)
+                  setHistorico(hist)
+                  toast.showSuccess('Ticket fechado.')
+                  void refetchPendenciasResumo()
+                } catch (err) {
+                  toast.showWarning(err instanceof Error ? err.message : 'Não foi possível fechar.')
+                } finally {
+                  setFechando(false)
+                }
+              }}
+            >
+              Fechar ticket
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={Boolean(ticket.fechado_em) && !isAdmin}
+            onClick={() => {
+              if (ticket.fechado_em && !isAdmin) {
+                toast.showWarning('Ticket fechado — apenas admin pode alterar.')
+                return
+              }
+              abrirModalGerir('geral')
+            }}
+          >
             Gerir ticket
           </Button>
           <Button variant="secondary" onClick={voltarAnterior}>
@@ -616,6 +706,20 @@ export function TicketDetalhe() {
 
           <div className="border-t border-slate-200 pt-4 dark:border-slate-700/90">
             <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">Nova mensagem</p>
+            {ticket.fechado_em ? (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-800/60 dark:bg-emerald-950/25 dark:text-emerald-100">
+                Ticket fechado — não é possível enviar novas mensagens.
+                {isAdmin ? (
+                  <span className="mt-1 block text-xs text-emerald-800/80 dark:text-emerald-200/80">
+                    Use o botão <span className="font-semibold">Reabrir</span> acima para voltar a responder.
+                  </span>
+                ) : (
+                  <span className="mt-1 block text-xs text-emerald-800/80 dark:text-emerald-200/80">
+                    Apenas um administrador pode reabrir este ticket.
+                  </span>
+                )}
+              </div>
+            ) : null}
             <div className="mb-3 inline-flex rounded-xl bg-slate-100 p-1 ring-1 ring-slate-200/80 dark:bg-slate-800/90 dark:ring-slate-600/80">
               {podeMensagemPublica && (
                 <button
@@ -647,15 +751,16 @@ export function TicketDetalhe() {
               onChange={(e) => setNovaMensagemTexto(e.target.value)}
               spellCheck={false}
               rows={4}
+              disabled={Boolean(ticket.fechado_em)}
               placeholder={
                 tipoNovaMensagem === 'interno'
                   ? 'Anotação visível apenas para atendentes…'
                   : 'Descreva o que foi feito, testado ou o que falta…'
               }
-              className="w-full rounded-xl border-0 bg-slate-50 px-3 py-2 text-sm text-slate-900 shadow-inner ring-1 ring-slate-200/90 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-400/35 dark:bg-slate-900/80 dark:text-slate-100 dark:ring-slate-600 dark:placeholder:text-slate-500 dark:focus:bg-slate-900 dark:focus:ring-slate-500/50"
+              className="w-full rounded-xl border-0 bg-slate-50 px-3 py-2 text-sm text-slate-900 shadow-inner ring-1 ring-slate-200/90 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-400/35 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-900/80 dark:text-slate-100 dark:ring-slate-600 dark:placeholder:text-slate-500 dark:focus:bg-slate-900 dark:focus:ring-slate-500/50"
             />
             <div className="mt-2">
-              <Button type="button" onClick={handleEnviarMensagem} loading={enviandoMensagem}>
+              <Button type="button" onClick={handleEnviarMensagem} loading={enviandoMensagem} disabled={Boolean(ticket.fechado_em)}>
                 Enviar
               </Button>
             </div>
