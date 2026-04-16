@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react'
 import { notificacoes, type Notificacoes } from '../api/client'
 
-const LS_KEY_SOUND = 'dxconnect.alerta_fila_sem_responsavel.som'
 const LS_KEY_LAST_COUNT = 'dxconnect.alerta_fila_sem_responsavel.last_count'
 const LS_KEY_LAST_TOTAL = 'dxconnect.notificacoes.last_total'
 const LS_KEY_LAST_NAO_LIDAS = 'dxconnect.notificacoes.last_nao_lidas'
-const DEFAULT_SOUND_ENABLED = true
 const POLL_MS = 30_000
 
 type ListenerFila = (state: { count: number }) => void
@@ -24,24 +22,6 @@ let prevTotal: number | null = null
 let prevNaoLidas: number | null = null
 const listenersFila = new Set<ListenerFila>()
 const listenersResumo = new Set<ListenerResumo>()
-
-function getSoundEnabled(): boolean {
-  try {
-    const raw = localStorage.getItem(LS_KEY_SOUND)
-    if (raw == null) return DEFAULT_SOUND_ENABLED
-    return raw === '1'
-  } catch {
-    return DEFAULT_SOUND_ENABLED
-  }
-}
-
-function setSoundEnabled(v: boolean) {
-  try {
-    localStorage.setItem(LS_KEY_SOUND, v ? '1' : '0')
-  } catch {
-    // ignore
-  }
-}
 
 function getLastCount(): number | null {
   try {
@@ -172,7 +152,7 @@ function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean) {
       (prevNao != null && r.nao_lidas_count > prevNao) ||
       (prevSem != null && sem > prevSem)
 
-    if (getSoundEnabled() && hasIncrease) {
+    if (hasIncrease) {
       playBeep()
     }
   }
@@ -242,11 +222,6 @@ export function usePendenciasResumo(enabled: boolean): Notificacoes.Resumo {
 
 export function useAlertaFilaSemResponsavel(enabled: boolean) {
   const [count, setCount] = useState(0)
-  const [soundEnabled, setSoundEnabledState] = useState(getSoundEnabled)
-
-  useEffect(() => {
-    setSoundEnabled(soundEnabled)
-  }, [soundEnabled])
 
   useEffect(() => {
     if (!enabled) return
@@ -261,7 +236,5 @@ export function useAlertaFilaSemResponsavel(enabled: boolean) {
 
   return {
     count,
-    soundEnabled,
-    setSoundEnabled: setSoundEnabledState,
   }
 }

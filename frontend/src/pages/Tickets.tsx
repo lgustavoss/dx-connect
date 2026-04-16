@@ -20,8 +20,7 @@ import { useToast } from '../components/ui/Toast'
 import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { useAuth } from '../contexts/AuthContext'
-import { useAlertaFilaSemResponsavel, usePendenciasResumo } from '../hooks/useAlertaFilaSemResponsavel'
-import { Switch } from '../components/ui/Switch'
+import { useAlertaFilaSemResponsavel } from '../hooks/useAlertaFilaSemResponsavel'
 
 type ColunaOrdenacao =
   | 'protocolo'
@@ -43,8 +42,7 @@ export function Tickets() {
   const [searchParams, setSearchParams] = useSearchParams()
   const toast = useToast()
   const { isAdmin, user } = useAuth()
-  const { soundEnabled, setSoundEnabled, count: filaCount } = useAlertaFilaSemResponsavel(Boolean(user))
-  const resumoPendencias = usePendenciasResumo(Boolean(user))
+  useAlertaFilaSemResponsavel(Boolean(user))
 
   const [list, setList] = useState<Tickets.Ticket[]>([])
   const [total, setTotal] = useState(0)
@@ -234,17 +232,6 @@ export function Tickets() {
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Acompanhe e filtre as demandas do suporte.</p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-3">
-          <Switch
-            bare
-            checked={soundEnabled}
-            onCheckedChange={setSoundEnabled}
-            label="Som de notificações"
-            description={
-              resumoPendencias.total_pendencias > 0
-                ? `${resumoPendencias.total_pendencias} pendência(s) · fila: ${filaCount} · não lidas: ${resumoPendencias.nao_lidas_count}`
-                : 'Ative para receber alerta sonoro quando chegar uma nova pendência'
-            }
-          />
           <Link to="/tickets/novo">
             <Button>Novo ticket</Button>
           </Link>
