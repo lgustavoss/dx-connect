@@ -3,6 +3,8 @@ import { notificacoes, type Notificacoes } from '../api/client'
 
 const LS_KEY_SOUND = 'dxconnect.alerta_fila_sem_responsavel.som'
 const LS_KEY_LAST_COUNT = 'dxconnect.alerta_fila_sem_responsavel.last_count'
+const LS_KEY_LAST_TOTAL = 'dxconnect.notificacoes.last_total'
+const LS_KEY_LAST_NAO_LIDAS = 'dxconnect.notificacoes.last_nao_lidas'
 const DEFAULT_SOUND_ENABLED = true
 const POLL_MS = 30_000
 
@@ -18,6 +20,8 @@ let currentResumo: Notificacoes.Resumo = {
   total_pendencias: 0,
 }
 let prevCount: number | null = null
+let prevTotal: number | null = null
+let prevNaoLidas: number | null = null
 const listenersFila = new Set<ListenerFila>()
 const listenersResumo = new Set<ListenerResumo>()
 
@@ -53,6 +57,44 @@ function getLastCount(): number | null {
 function setLastCount(n: number) {
   try {
     localStorage.setItem(LS_KEY_LAST_COUNT, String(n))
+  } catch {
+    // ignore
+  }
+}
+
+function getLastTotal(): number | null {
+  try {
+    const raw = localStorage.getItem(LS_KEY_LAST_TOTAL)
+    if (raw == null) return null
+    const n = Number(raw)
+    return Number.isFinite(n) ? n : null
+  } catch {
+    return null
+  }
+}
+
+function setLastTotal(n: number) {
+  try {
+    localStorage.setItem(LS_KEY_LAST_TOTAL, String(n))
+  } catch {
+    // ignore
+  }
+}
+
+function getLastNaoLidas(): number | null {
+  try {
+    const raw = localStorage.getItem(LS_KEY_LAST_NAO_LIDAS)
+    if (raw == null) return null
+    const n = Number(raw)
+    return Number.isFinite(n) ? n : null
+  } catch {
+    return null
+  }
+}
+
+function setLastNaoLidas(n: number) {
+  try {
+    localStorage.setItem(LS_KEY_LAST_NAO_LIDAS, String(n))
   } catch {
     // ignore
   }
@@ -113,10 +155,24 @@ function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean) {
   for (const l of listenersResumo) l(r)
 
   if (atualizarSom) {
-    const prev = prevCount
+    const prevSem = prevCount
+    const prevT = prevTotal
+    const prevNao = prevNaoLidas
+
     prevCount = sem
+    prevTotal = r.total_pendencias
+    prevNaoLidas = r.nao_lidas_count
+
     setLastCount(sem)
-    if (getSoundEnabled() && prev != null && sem > prev) {
+    setLastTotal(r.total_pendencias)
+    setLastNaoLidas(r.nao_lidas_count)
+
+    const hasIncrease =
+      (prevT != null && r.total_pendencias > prevT) ||
+      (prevNao != null && r.nao_lidas_count > prevNao) ||
+      (prevSem != null && sem > prevSem)
+
+    if (getSoundEnabled() && hasIncrease) {
       playBeep()
     }
   }
@@ -160,6 +216,8 @@ function ensureStarted() {
   if (started) return
   started = true
   prevCount = getLastCount()
+  prevTotal = getLastTotal()
+  prevNaoLidas = getLastNaoLidas()
 
   void poll()
   window.setInterval(() => void poll(), POLL_MS)
