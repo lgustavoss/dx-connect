@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { atendentes, setores, type Atendentes, type Setores } from '../api/client'
+import { ApiError, atendentes, setores, type Atendentes, type Setores } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { SelectComPesquisa } from '../components/ui/SelectComPesquisa'
 import { useToast } from '../components/ui/Toast'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
+import { SemPermissao } from './SemPermissao'
 
 /** Mesmo nome de setor = mesmo “setor lógico” (vários IDs no banco). */
 function idsSetoresMesmoNome(setoresList: Setores.Setor[], setorId: number): Set<number> {
@@ -26,6 +27,7 @@ export function SetorDetalhe() {
   const [loading, setLoading] = useState(true)
   const [setor, setSetor] = useState<Setores.Setor | null>(null)
   const [setoresList, setSetoresList] = useState<Setores.Setor[]>([])
+  const [forbidden, setForbidden] = useState(false)
 
   const [vinculados, setVinculados] = useState<Atendentes.Atendente[]>([])
   const [todosAtendentes, setTodosAtendentes] = useState<Atendentes.Atendente[]>([])
@@ -60,6 +62,7 @@ export function SetorDetalhe() {
       return
     }
     setLoading(true)
+    setForbidden(false)
     try {
       const [s, setoresAll, todos] = await Promise.all([
         setores.get(setorId),
@@ -75,6 +78,12 @@ export function SetorDetalhe() {
       const vinculadosDoGrupo = await atendentes.listPorSetor(setorId, { incluir_inativos: true })
       setVinculados(vinculadosDoGrupo)
     } catch (err) {
+      if (err instanceof ApiError && err.status === 403) {
+        setForbidden(true)
+        setSetor(null)
+        setVinculados([])
+        return
+      }
       setSetor(null)
       setVinculados([])
       toast.showError(err instanceof Error ? err.message : 'Erro ao carregar setor')
@@ -133,6 +142,19 @@ export function SetorDetalhe() {
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-slate-500 dark:text-slate-400">
         Carregando setor…
+      </div>
+    )
+  }
+
+  if (forbidden) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+        <SemPermissao
+          title="Você não tem permissão para acessar este setor."
+          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
+          voltarPara="/setores"
+          voltarLabel="Voltar para Setores"
+        />
       </div>
     )
   }

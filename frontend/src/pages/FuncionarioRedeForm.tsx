@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { funcionariosRede, redes, empresas, type FuncionariosRede, type Redes, type Empresas } from '../api/client'
+import { ApiError, funcionariosRede, redes, empresas, type FuncionariosRede, type Redes, type Empresas } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -12,6 +12,7 @@ import { CheckboxField } from '../components/ui/CheckboxField'
 import { useToast } from '../components/ui/Toast'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { FormSection } from '../components/ui/FormSection'
+import { SemPermissao } from './SemPermissao'
 
 type Tipo = 'socio' | 'supervisor' | 'colaborador'
 
@@ -31,6 +32,8 @@ export function FuncionarioRedeForm() {
 
   const [loading, setLoading] = useState(isEdit)
   const [saving, setSaving] = useState(false)
+  const [forbidden, setForbidden] = useState(false)
+  const [notFound, setNotFound] = useState(false)
 
   const [redesList, setRedesList] = useState<Redes.Rede[]>([])
   const [empresasList, setEmpresasList] = useState<Empresas.Empresa[]>([])
@@ -67,6 +70,8 @@ export function FuncionarioRedeForm() {
     }
     let cancelled = false
     setLoading(true)
+    setForbidden(false)
+    setNotFound(false)
     funcionariosRede
       .get(funcionarioId)
       .then((item) => {
@@ -88,10 +93,17 @@ export function FuncionarioRedeForm() {
         setEmpresaId(item.empresa_id ?? '')
         setEmpresaIds(item.empresa_ids ?? [])
       })
-      .catch(() => {
+      .catch((err) => {
         if (!cancelled) {
-          toast.showWarning('Funcionário não encontrado.')
-          voltarAnterior()
+          if (err instanceof ApiError && err.status === 403) {
+            setForbidden(true)
+            return
+          }
+          if (err instanceof ApiError && err.status === 404) {
+            setNotFound(true)
+            return
+          }
+          toast.showWarning(err instanceof Error ? err.message : 'Erro ao carregar funcionário.')
         }
       })
       .finally(() => {
@@ -178,6 +190,34 @@ export function FuncionarioRedeForm() {
       <div className="mx-auto max-w-3xl space-y-6">
         <div className="h-9 w-56 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
         <div className="h-72 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/50" />
+      </div>
+    )
+  }
+
+  if (forbidden) {
+    return (
+      <div className="mx-auto max-w-5xl space-y-6 pb-10">
+        <SemPermissao
+          title="Você não tem permissão para editar este funcionário."
+          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
+          voltarPara="/funcionarios-rede"
+          voltarLabel="Voltar para Funcionários"
+        />
+      </div>
+    )
+  }
+
+  if (notFound) {
+    return (
+      <div className="mx-auto max-w-5xl space-y-4 pb-10">
+        <p className="text-slate-600 dark:text-slate-400">Funcionário não encontrado.</p>
+        <button
+          type="button"
+          onClick={voltarAnterior}
+          className="font-medium text-slate-800 underline decoration-slate-400 underline-offset-2 hover:text-slate-950 dark:text-slate-200 dark:hover:text-white"
+        >
+          Voltar
+        </button>
       </div>
     )
   }

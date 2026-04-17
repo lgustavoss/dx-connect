@@ -1,9 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { funcionariosRede, redes, empresas, type FuncionariosRede } from '../api/client'
+import { ApiError, funcionariosRede, redes, empresas, type FuncionariosRede } from '../api/client'
 import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
+import { SemPermissao } from './SemPermissao'
 
 const tipoLabel: Record<string, string> = {
   socio: 'Sócio',
@@ -33,6 +34,7 @@ export function FuncionarioRedeDetalhe() {
   const [vinculoExtra, setVinculoExtra] = useState<ReactNode>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
+  const [forbidden, setForbidden] = useState(false)
 
   useEffect(() => {
     if (!id || isNaN(funcionarioId)) {
@@ -43,6 +45,7 @@ export function FuncionarioRedeDetalhe() {
     let cancelled = false
     setLoading(true)
     setLoadError(false)
+    setForbidden(false)
     setVinculoExtra(null)
 
     funcionariosRede
@@ -127,8 +130,13 @@ export function FuncionarioRedeDetalhe() {
           setVinculoExtra(null)
         }
       })
-      .catch(() => {
+      .catch((err) => {
         if (!cancelled) {
+          if (err instanceof ApiError && err.status === 403) {
+            setForbidden(true)
+            setF(null)
+            return
+          }
           setLoadError(true)
           setF(null)
         }
@@ -141,12 +149,6 @@ export function FuncionarioRedeDetalhe() {
       cancelled = true
     }
   }, [id, funcionarioId])
-
-  useEffect(() => {
-    if (!loadError || loading) return
-    toast.showWarning('Funcionário não encontrado.')
-    voltarAnterior()
-  }, [loadError, loading, toast, voltarAnterior])
 
   function abrirEdicao() {
     if (!f) return
@@ -170,6 +172,34 @@ export function FuncionarioRedeDetalhe() {
         <div className="h-4 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
         <div className="h-9 w-2/3 max-w-md animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
         <div className="h-48 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/50" />
+      </div>
+    )
+  }
+
+  if (forbidden) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+        <SemPermissao
+          title="Você não tem permissão para acessar este funcionário."
+          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
+          voltarPara="/funcionarios-rede"
+          voltarLabel="Voltar para Funcionários"
+        />
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-4 pb-10">
+        <p className="text-slate-600 dark:text-slate-400">Funcionário não encontrado.</p>
+        <button
+          type="button"
+          onClick={voltarAnterior}
+          className="font-medium text-slate-800 underline decoration-slate-400 underline-offset-2 hover:text-slate-950 dark:text-slate-200 dark:hover:text-white"
+        >
+          Voltar
+        </button>
       </div>
     )
   }

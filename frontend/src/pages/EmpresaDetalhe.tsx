@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
+  ApiError,
   empresas as apiEmpresas,
   redes,
   tiposNegocio,
@@ -18,6 +19,7 @@ import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBus
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { TicketsTabelaContexto } from '../components/TicketsTabelaContexto'
 import { FuncionariosEmpresaLista } from '../components/FuncionariosEmpresaLista'
+import { SemPermissao } from './SemPermissao'
 type Aba = 'geral' | 'tickets' | 'funcionarios'
 
 function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
@@ -42,6 +44,7 @@ export function EmpresaDetalhe() {
   const [tipoNegocioNome, setTipoNegocioNome] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
+  const [forbidden, setForbidden] = useState(false)
   const [aba, setAba] = useState<Aba>('geral')
 
   const [pageT, setPageT] = useState(1)
@@ -67,6 +70,7 @@ export function EmpresaDetalhe() {
     let cancelled = false
     setLoading(true)
     setLoadError(false)
+    setForbidden(false)
     apiEmpresas
       .get(empresaId)
       .then(async (e) => {
@@ -87,8 +91,13 @@ export function EmpresaDetalhe() {
           }
         } else if (!cancelled) setTipoNegocioNome('')
       })
-      .catch(() => {
+      .catch((err) => {
         if (!cancelled) {
+          if (err instanceof ApiError && err.status === 403) {
+            setForbidden(true)
+            setEmpresa(null)
+            return
+          }
           setLoadError(true)
           setEmpresa(null)
         }
@@ -163,12 +172,6 @@ export function EmpresaDetalhe() {
     }
   }, [aba, empresaId, pageF, debouncedBuscaF])
 
-  useEffect(() => {
-    if (!loadError || loading) return
-    toast.showWarning('Empresa não encontrada.')
-    navigate('/empresas', { replace: true })
-  }, [loadError, loading, navigate, toast])
-
   function abrirEdicao() {
     if (!empresa) return
     navigate('/empresas', { state: { empresaEditId: empresa.id } })
@@ -191,6 +194,34 @@ export function EmpresaDetalhe() {
         <div className="h-4 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
         <div className="h-9 w-2/3 max-w-md animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
         <div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/50" />
+      </div>
+    )
+  }
+
+  if (forbidden) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+        <SemPermissao
+          title="Você não tem permissão para acessar esta empresa."
+          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
+          voltarPara="/empresas"
+          voltarLabel="Voltar para Empresas"
+        />
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-4 pb-10">
+        <p className="text-slate-600 dark:text-slate-400">Empresa não encontrada.</p>
+        <button
+          type="button"
+          onClick={voltarAnterior}
+          className="font-medium text-slate-800 underline decoration-slate-400 underline-offset-2 hover:text-slate-950 dark:text-slate-200 dark:hover:text-white"
+        >
+          Voltar
+        </button>
       </div>
     )
   }
