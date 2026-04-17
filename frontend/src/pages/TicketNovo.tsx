@@ -12,6 +12,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { FormSection } from '../components/ui/FormSection'
 import { SemPermissao } from './SemPermissao'
+import { mensagemFalhaParaToast } from '../api/errorMessage'
 
 export function TicketNovo() {
   const { isAdmin } = useAuth()
@@ -49,28 +50,26 @@ export function TicketNovo() {
     coletarTodasPaginas<Empresas.EmpresaListaItem>((o, l) => empresas.list({ offset: o, limit: l }))
       .then(setEmpresasList)
       .catch((err) => {
-        const msg =
-          err instanceof ApiError && err.status === 403
-            ? 'Você não tem permissão para listar empresas.'
-            : err instanceof Error
-              ? err.message
-              : 'Erro ao carregar empresas'
-        toast.showWarning(msg)
+        if (err instanceof ApiError && err.status === 403) {
+          toast.showWarning('Você não tem permissão para listar empresas.')
+          setEmpresasList([])
+          setForbidden(true)
+          return
+        }
+        toast.showWarning(mensagemFalhaParaToast(err, 'Não encontramos empresas para abrir o chamado.'))
         setEmpresasList([])
-        if (err instanceof ApiError && err.status === 403) setForbidden(true)
       })
     coletarTodasPaginas<Setores.Setor>((o, l) => setores.list({ incluir_inativos: true, offset: o, limit: l }))
       .then(setSetoresList)
       .catch((err) => {
-        const msg =
-          err instanceof ApiError && err.status === 403
-            ? 'Você não tem permissão para listar setores.'
-            : err instanceof Error
-              ? err.message
-              : 'Erro ao carregar setores'
-        toast.showWarning(msg)
+        if (err instanceof ApiError && err.status === 403) {
+          toast.showWarning('Você não tem permissão para listar setores.')
+          setSetoresList([])
+          setForbidden(true)
+          return
+        }
+        toast.showWarning(mensagemFalhaParaToast(err))
         setSetoresList([])
-        if (err instanceof ApiError && err.status === 403) setForbidden(true)
       })
   }, [])
 
@@ -98,8 +97,7 @@ export function TicketNovo() {
       toast.showSuccess('Ticket criado.')
       navigate(`/tickets/${created.id}`)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Erro ao criar ticket'
-      toast.showError(msg)
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível localizar os dados para criar o ticket.'))
     } finally {
       setLoading(false)
     }

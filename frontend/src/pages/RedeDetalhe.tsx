@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
+  ApiError,
   redes,
   empresas,
   funcionariosRede,
@@ -48,6 +49,9 @@ import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { Switch } from '../components/ui/Switch'
 import { CheckboxField } from '../components/ui/CheckboxField'
+import { SemPermissao } from './SemPermissao'
+import { interpretarFalhaCarregamento } from '../api/errorMessage'
+import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 
 type Aba = 'empresas' | 'funcionarios' | 'tickets'
 type AbaModalEmpresa = 'geral' | 'tickets' | 'funcionarios'
@@ -88,8 +92,8 @@ export function RedeDetalhe() {
   const [debouncedBuscaEmpresas, setDebouncedBuscaEmpresas] = useState('')
   const [pageEmpresas, setPageEmpresas] = useState(1)
   const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState(false)
-  const toastShownForInvalidIdRef = useRef(false)
+  const [loadFailure, setLoadFailure] = useState<{ titulo: string; detalhe?: string } | null>(null)
+  const [forbidden, setForbidden] = useState(false)
   const [aba, setAba] = useState<Aba>('empresas')
   const [abaModalEmpresa, setAbaModalEmpresa] = useState<AbaModalEmpresa>('geral')
   const [incluirInativos, setIncluirInativos] = useState(false)
@@ -381,9 +385,14 @@ export function RedeDetalhe() {
         setEmpresasList(e)
       })
       .catch((err) => {
-        toast.showWarning(
-          err instanceof Error ? err.message : 'Não foi possível atualizar os dados da rede.',
-        )
+        if (err instanceof ApiError && err.status === 403) {
+          setForbidden(true)
+          setRede(null)
+          setEmpresasList([])
+          return
+        }
+        const msg = interpretarFalhaCarregamento(err, 'Rede não encontrada.')
+        toast.showWarning([msg.titulo, msg.detalhe].filter(Boolean).join(' '))
       })
   }
 
@@ -391,7 +400,8 @@ export function RedeDetalhe() {
     if (!redeId || isNaN(redeId)) return
     let cancelled = false
     setLoading(true)
-    setLoadError(false)
+    setLoadFailure(null)
+    setForbidden(false)
     Promise.all([
       redes.get(redeId),
       coletarTodasPaginas<Empresas.Empresa>((o, l) =>
@@ -405,11 +415,15 @@ export function RedeDetalhe() {
       })
       .catch((err) => {
         if (cancelled) return
-        const detalhe =
-          err instanceof Error ? err.message : 'Tente novamente em alguns instantes.'
-        toast.showWarning(`Não foi possível abrir esta rede. ${detalhe}`)
-        setLoadError(true)
-        navigate('/redes')
+        if (err instanceof ApiError && err.status === 403) {
+          setForbidden(true)
+          setRede(null)
+          setEmpresasList([])
+          return
+        }
+        setLoadFailure(interpretarFalhaCarregamento(err, 'Rede não encontrada.'))
+        setRede(null)
+        setEmpresasList([])
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -417,19 +431,11 @@ export function RedeDetalhe() {
     return () => {
       cancelled = true
     }
-  }, [redeId, navigate, toast])
+  }, [redeId, toast])
 
   useEffect(() => {
     loadFuncionarios()
   }, [loadFuncionarios])
-
-  useEffect(() => {
-    if (id && !isNaN(redeId)) return
-    if (toastShownForInvalidIdRef.current) return
-    toastShownForInvalidIdRef.current = true
-    toast.showWarning('Rede inválida.')
-    navigate('/redes')
-  }, [id, redeId, navigate, toast])
 
   useEffect(() => {
     coletarTodasPaginas<TiposNegocio.Tipo>((o, l) =>
@@ -768,15 +774,46 @@ export function RedeDetalhe() {
   }
 
   if (!id || isNaN(redeId)) {
-    return null
+    return (
+      <CarregamentoFalhou
+        titulo="Rede não encontrada."
+        detalhe="O identificador na URL é inválido."
+        onVoltar={voltarAnterior}
+      />
+    )
   }
 
-  if (loading && !rede && !loadError) {
-    return <p className="text-slate-500">Carregando...</p>
+  if (forbidden) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+        <SemPermissao
+          title="Você não tem permissão para acessar esta rede."
+          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
+          voltarPara="/redes"
+          voltarLabel="Voltar para Redes"
+        />
+      </div>
+    )
   }
 
-  if (loadError || (!rede && !loading)) {
-    return null
+  if (loading && !rede && !loadFailure) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+        <div className="h-4 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+        <div className="h-9 w-2/3 max-w-md animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
+        <div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/50" />
+      </div>
+    )
+  }
+
+  if (loadFailure) {
+    return <CarregamentoFalhou titulo={loadFailure.titulo} detalhe={loadFailure.detalhe} onVoltar={voltarAnterior} />
+  }
+
+  if (!rede && !loading) {
+    return (
+      <CarregamentoFalhou titulo="Rede não encontrada." onVoltar={voltarAnterior} />
+    )
   }
 
   if (!rede) {

@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
-import { audit, type Audit } from '../api/client'
+import { ApiError, audit, type Audit } from '../api/client'
 import { Card } from '../components/ui/Card'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { Select } from '../components/ui/Select'
+import { useToast } from '../components/ui/Toast'
+import { SemPermissao } from './SemPermissao'
+import { mensagemFalhaParaToast } from '../api/errorMessage'
 
 const entityTypeLabel: Record<string, string> = {
   rede: 'Rede',
@@ -23,6 +26,7 @@ const actionLabel: Record<string, string> = {
 type ColunaAudit = 'created_at' | 'entity_type' | 'entity_id' | 'action' | 'atendente'
 
 export function Auditoria() {
+  const toast = useToast()
   const { ordenarPor, ordem, aoOrdenarColuna, sortParams } = useOrdenacaoLista<ColunaAudit>()
   const [list, setList] = useState<Audit.AuditLogEntry[]>([])
   const [total, setTotal] = useState(0)
@@ -31,6 +35,7 @@ export function Auditoria() {
   const [debouncedBusca, setDebouncedBusca] = useState('')
   const [loading, setLoading] = useState(true)
   const [filtroTipo, setFiltroTipo] = useState<string>('')
+  const [forbidden, setForbidden] = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedBusca(busca.trim()), 400)
@@ -39,6 +44,7 @@ export function Auditoria() {
 
   const load = useCallback(() => {
     setLoading(true)
+    setForbidden(false)
     audit
       .list({
         entity_type: filtroTipo || undefined,
@@ -51,16 +57,34 @@ export function Auditoria() {
         setList(items)
         setTotal(t)
       })
-      .catch(() => {
+      .catch((err) => {
         setList([])
         setTotal(0)
+        if (err instanceof ApiError && err.status === 403) {
+          setForbidden(true)
+          return
+        }
+        toast.showWarning(mensagemFalhaParaToast(err, 'Não encontramos registros de auditoria.'))
       })
       .finally(() => setLoading(false))
-  }, [debouncedBusca, filtroTipo, page, sortParams])
+  }, [debouncedBusca, filtroTipo, page, sortParams, toast])
 
   useEffect(() => {
     load()
   }, [load])
+
+  if (forbidden) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+        <SemPermissao
+          title="Você não tem permissão para acessar a auditoria."
+          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
+          voltarPara="/"
+          voltarLabel="Voltar para o Dashboard"
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-10">

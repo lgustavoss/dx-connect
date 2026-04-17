@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { useNavigate } from 'react-router-dom'
-import { redes, type Redes } from '../api/client'
+import { ApiError, redes, type Redes } from '../api/client'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { IconPencil } from '../components/ui/IconPencil'
@@ -10,6 +10,8 @@ import { IconTrash } from '../components/ui/IconTrash'
 import { useToast } from '../components/ui/Toast'
 import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
+import { SemPermissao } from './SemPermissao'
+import { mensagemFalhaParaToast } from '../api/errorMessage'
 
 type ColunaRede = 'nome' | 'ativo'
 
@@ -24,6 +26,7 @@ export function Redes() {
   const [debouncedBusca, setDebouncedBusca] = useState('')
   const [loading, setLoading] = useState(true)
   const [incluirInativos, setIncluirInativos] = useState(false)
+  const [forbidden, setForbidden] = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedBusca(busca.trim()), 400)
@@ -32,6 +35,7 @@ export function Redes() {
 
   const load = useCallback(() => {
     setLoading(true)
+    setForbidden(false)
     redes
       .list({
         incluir_inativos: incluirInativos,
@@ -44,8 +48,19 @@ export function Redes() {
         setList(items)
         setTotal(t)
       })
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 403) {
+          setForbidden(true)
+          setList([])
+          setTotal(0)
+          return
+        }
+        toast.showWarning(mensagemFalhaParaToast(err, 'Não encontramos a lista de redes.'))
+        setList([])
+        setTotal(0)
+      })
       .finally(() => setLoading(false))
-  }, [debouncedBusca, incluirInativos, page, sortParams])
+  }, [debouncedBusca, incluirInativos, page, sortParams, toast])
 
   useEffect(() => {
     load()
@@ -59,6 +74,19 @@ export function Redes() {
     } catch (err) {
       toast.showWarning(err instanceof Error ? err.message : 'Erro ao excluir')
     }
+  }
+
+  if (forbidden) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+        <SemPermissao
+          title="Você não tem permissão para listar redes."
+          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
+          voltarPara="/"
+          voltarLabel="Voltar para o Dashboard"
+        />
+      </div>
+    )
   }
 
   return (

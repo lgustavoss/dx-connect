@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
+  ApiError,
   funcionariosRede,
   type FuncionariosRede as FuncionarioRedeTipo,
 } from '../api/client'
@@ -13,6 +14,8 @@ import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
+import { SemPermissao } from './SemPermissao'
+import { mensagemFalhaParaToast } from '../api/errorMessage'
 
 type Tipo = 'socio' | 'supervisor' | 'colaborador'
 type ColunaFuncionario = 'nome' | 'email' | 'tipo'
@@ -28,6 +31,7 @@ export function FuncionariosRede() {
   const [debouncedBusca, setDebouncedBusca] = useState('')
   const [loading, setLoading] = useState(true)
   const [incluirInativos, setIncluirInativos] = useState(false)
+  const [forbidden, setForbidden] = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedBusca(busca.trim()), 400)
@@ -36,6 +40,7 @@ export function FuncionariosRede() {
 
   const load = useCallback((override?: { busca?: string; page?: number }) => {
     setLoading(true)
+    setForbidden(false)
     const buscaEff = override?.busca !== undefined ? override.busca : debouncedBusca
     const pageEff = override?.page !== undefined ? override.page : page
     funcionariosRede
@@ -50,8 +55,19 @@ export function FuncionariosRede() {
         setList(items)
         setTotal(t)
       })
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 403) {
+          setForbidden(true)
+          setList([])
+          setTotal(0)
+          return
+        }
+        toast.showWarning(mensagemFalhaParaToast(err, 'Não encontramos a lista de funcionários da rede.'))
+        setList([])
+        setTotal(0)
+      })
       .finally(() => setLoading(false))
-  }, [debouncedBusca, incluirInativos, page, sortParams])
+  }, [debouncedBusca, incluirInativos, page, sortParams, toast])
 
   useEffect(() => {
     load()
@@ -68,6 +84,19 @@ export function FuncionariosRede() {
   }
 
   const tipoLabel = { socio: 'Sócio', supervisor: 'Supervisor', colaborador: 'Colaborador' }
+
+  if (forbidden) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+        <SemPermissao
+          title="Você não tem permissão para listar funcionários da rede."
+          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
+          voltarPara="/"
+          voltarLabel="Voltar para o Dashboard"
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-10">

@@ -10,6 +10,8 @@ import { useAuth } from '../contexts/AuthContext'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { refetchPendenciasResumo } from '../hooks/useAlertaFilaSemResponsavel'
 import { SemPermissao } from './SemPermissao'
+import { interpretarFalhaCarregamento } from '../api/errorMessage'
+import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 
 const ROTULO_CAMPO: Record<string, string> = {
   status_id: 'Status',
@@ -96,7 +98,7 @@ export function TicketDetalhe() {
   const [fechando, setFechando] = useState(false)
 
   const [loading, setLoading] = useState(true)
-  const [notFound, setNotFound] = useState(false)
+  const [carregamentoFalhou, setCarregamentoFalhou] = useState<{ titulo: string; detalhe?: string } | null>(null)
   const [forbidden, setForbidden] = useState(false)
   const [ticket, setTicket] = useState<Tickets.Ticket | null>(null)
   const [historico, setHistorico] = useState<Tickets.Historico[]>([])
@@ -298,16 +300,22 @@ export function TicketDetalhe() {
   }, [modalGerirAberto, setorAlvoModal])
 
   useEffect(() => {
-    if (!id) return
+    if (!id) {
+      setLoading(false)
+      return
+    }
     const numId = Number(id)
     if (Number.isNaN(numId)) {
-      setNotFound(true)
+      setCarregamentoFalhou({
+        titulo: 'Ticket não encontrado.',
+        detalhe: 'O identificador na URL é inválido.',
+      })
       setLoading(false)
       return
     }
     let cancelled = false
     setLoading(true)
-    setNotFound(false)
+    setCarregamentoFalhou(null)
     setForbidden(false)
     Promise.all([tickets.get(numId), tickets.getHistorico(numId), tickets.listMensagens(numId)])
       .then(([t, h, m]) => {
@@ -328,13 +336,13 @@ export function TicketDetalhe() {
           if (err instanceof ApiError && err.status === 403) {
             setForbidden(true)
             toast.showWarning(err.message || 'Sem permissão para este ticket.')
-            setNotFound(false)
+            setCarregamentoFalhou(null)
             return
           }
           setTicket(null)
           setHistorico([])
           setMensagens([])
-          setNotFound(true)
+          setCarregamentoFalhou(interpretarFalhaCarregamento(err, 'Ticket não encontrado.'))
         }
       })
       .finally(() => {
@@ -491,19 +499,14 @@ export function TicketDetalhe() {
     )
   }
 
-  if (notFound || !ticket) {
+  if (carregamentoFalhou) {
     return (
-      <div className="mx-auto max-w-6xl space-y-4 pb-10">
-        <p className="text-slate-600 dark:text-slate-400">Ticket não encontrado.</p>
-        <button
-          type="button"
-          onClick={voltarAnterior}
-          className="font-medium text-slate-800 underline decoration-slate-400 underline-offset-2 hover:text-slate-950 dark:text-slate-200 dark:hover:text-white"
-        >
-          Voltar
-        </button>
-      </div>
+      <CarregamentoFalhou titulo={carregamentoFalhou.titulo} detalhe={carregamentoFalhou.detalhe} onVoltar={voltarAnterior} />
     )
+  }
+
+  if (!ticket) {
+    return null
   }
 
   return (

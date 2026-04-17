@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
-import { atendentes, setores, type Atendentes, type Setores } from '../api/client'
+import { ApiError, atendentes, setores, type Atendentes, type Setores } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -15,6 +15,8 @@ import { CheckboxField } from '../components/ui/CheckboxField'
 import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
 import { FormSection } from '../components/ui/FormSection'
+import { SemPermissao } from './SemPermissao'
+import { mensagemFalhaParaToast } from '../api/errorMessage'
 
 type ColunaAtendente = 'nome' | 'email' | 'role'
 
@@ -41,6 +43,7 @@ export function Atendentes() {
   const [ativo, setAtivo] = useState(true)
   const [setorIds, setSetorIds] = useState<number[]>([])
   const [saving, setSaving] = useState(false)
+  const [forbidden, setForbidden] = useState(false)
 
   useEffect(() => {
     if (!modalOpen) return
@@ -62,6 +65,7 @@ export function Atendentes() {
 
   const load = useCallback(() => {
     setLoading(true)
+    setForbidden(false)
     atendentes
       .list({
         incluir_inativos: incluirInativos,
@@ -77,7 +81,11 @@ export function Atendentes() {
       .catch((err) => {
         setList([])
         setTotal(0)
-        toast.showError(err instanceof Error ? err.message : 'Erro ao carregar atendentes')
+        if (err instanceof ApiError && err.status === 403) {
+          setForbidden(true)
+          return
+        }
+        toast.showError(mensagemFalhaParaToast(err, 'Não encontramos a lista de atendentes.'))
       })
       .finally(() => setLoading(false))
   }, [debouncedBusca, incluirInativos, page, sortParams, toast])
@@ -152,6 +160,19 @@ export function Atendentes() {
     } finally {
       setSaving(false)
     }
+  }
+
+  if (forbidden) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+        <SemPermissao
+          title="Você não tem permissão para listar atendentes."
+          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
+          voltarPara="/"
+          voltarLabel="Voltar para o Dashboard"
+        />
+      </div>
+    )
   }
 
   return (

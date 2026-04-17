@@ -5,6 +5,8 @@ import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { SemPermissao } from './SemPermissao'
+import { interpretarFalhaCarregamento } from '../api/errorMessage'
+import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 
 const tipoLabel: Record<string, string> = {
   socio: 'Sócio',
@@ -33,18 +35,21 @@ export function FuncionarioRedeDetalhe() {
   const [redeNome, setRedeNome] = useState('')
   const [vinculoExtra, setVinculoExtra] = useState<ReactNode>(null)
   const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState(false)
+  const [loadFailure, setLoadFailure] = useState<{ titulo: string; detalhe?: string } | null>(null)
   const [forbidden, setForbidden] = useState(false)
 
   useEffect(() => {
     if (!id || isNaN(funcionarioId)) {
       setLoading(false)
-      setLoadError(true)
+      setLoadFailure({
+        titulo: 'Funcionário não encontrado.',
+        detalhe: 'O identificador na URL é inválido.',
+      })
       return
     }
     let cancelled = false
     setLoading(true)
-    setLoadError(false)
+    setLoadFailure(null)
     setForbidden(false)
     setVinculoExtra(null)
 
@@ -137,7 +142,7 @@ export function FuncionarioRedeDetalhe() {
             setF(null)
             return
           }
-          setLoadError(true)
+          setLoadFailure(interpretarFalhaCarregamento(err, 'Funcionário não encontrado.'))
           setF(null)
         }
       })
@@ -189,18 +194,9 @@ export function FuncionarioRedeDetalhe() {
     )
   }
 
-  if (loadError) {
+  if (loadFailure) {
     return (
-      <div className="mx-auto max-w-6xl space-y-4 pb-10">
-        <p className="text-slate-600 dark:text-slate-400">Funcionário não encontrado.</p>
-        <button
-          type="button"
-          onClick={voltarAnterior}
-          className="font-medium text-slate-800 underline decoration-slate-400 underline-offset-2 hover:text-slate-950 dark:text-slate-200 dark:hover:text-white"
-        >
-          Voltar
-        </button>
-      </div>
+      <CarregamentoFalhou titulo={loadFailure.titulo} detalhe={loadFailure.detalhe} onVoltar={voltarAnterior} />
     )
   }
 
