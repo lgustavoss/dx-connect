@@ -24,7 +24,8 @@ export function Layout() {
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false)
 
-  useAlertaFilaSemResponsavel(Boolean(user))
+  const notificacoesEnabled = Boolean(user && !user.must_change_password)
+  useAlertaFilaSemResponsavel(notificacoesEnabled)
 
   if (user?.must_change_password && location.pathname !== '/alterar-senha') {
     return <Navigate to="/alterar-senha" replace />
@@ -90,7 +91,7 @@ export function Layout() {
             </div>
             
             <div className="min-w-0 flex-1" />
-            <NavbarNotificacoes enabled={Boolean(user)} />
+            <NavbarNotificacoes enabled={notificacoesEnabled} />
             <ThemeToggle />
             <div className="hidden min-w-0 text-right sm:block">
               <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{user?.nome}</p>
