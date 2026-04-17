@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { tickets, empresas, setores, type Empresas, type Setores } from '../api/client'
+import { ApiError, tickets, empresas, setores, type Empresas, type Setores } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -11,12 +11,14 @@ import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../contexts/AuthContext'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { FormSection } from '../components/ui/FormSection'
+import { SemPermissao } from './SemPermissao'
 
 export function TicketNovo() {
-  const { isAdmin, user } = useAuth()
+  const { isAdmin } = useAuth()
   const toast = useToast()
   const navigate = useNavigate()
   const voltarAnterior = useVoltarAnterior('/tickets')
+  const [forbidden, setForbidden] = useState(false)
 
   const [empresasList, setEmpresasList] = useState<Empresas.EmpresaListaItem[]>([])
   const [setoresList, setSetoresList] = useState<Setores.Setor[]>([])
@@ -26,18 +28,11 @@ export function TicketNovo() {
   const [descricao, setDescricao] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const setorIdsPermitidos = useMemo(() => {
-    if (isAdmin) return null
-    return new Set(user?.setor_ids ?? [])
-  }, [isAdmin, user?.setor_ids])
-
+  /** Setores já vêm filtrados pelo backend (#38); não restringir por `user.setor_ids` no cliente (evita perder homônimos). */
   const setoresFiltrados = useMemo(() => {
     const ativos = setoresList.filter((s) => s.ativo)
-    if (!setorIdsPermitidos) return ativos.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-    return ativos
-      .filter((s) => setorIdsPermitidos.has(s.id))
-      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-  }, [setoresList, setorIdsPermitidos])
+    return [...ativos].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  }, [setoresList])
 
   const empresaItems = useMemo(
     () =>
@@ -50,12 +45,33 @@ export function TicketNovo() {
   )
 
   useEffect(() => {
-    coletarTodasPaginas<Empresas.EmpresaListaItem>((o, l) => empresas.list({ offset: o, limit: l })).then(
-      setEmpresasList,
-    )
-    coletarTodasPaginas<Setores.Setor>((o, l) =>
-      setores.list({ incluir_inativos: true, offset: o, limit: l }),
-    ).then(setSetoresList)
+    setForbidden(false)
+    coletarTodasPaginas<Empresas.EmpresaListaItem>((o, l) => empresas.list({ offset: o, limit: l }))
+      .then(setEmpresasList)
+      .catch((err) => {
+        const msg =
+          err instanceof ApiError && err.status === 403
+            ? 'Você não tem permissão para listar empresas.'
+            : err instanceof Error
+              ? err.message
+              : 'Erro ao carregar empresas'
+        toast.showWarning(msg)
+        setEmpresasList([])
+        if (err instanceof ApiError && err.status === 403) setForbidden(true)
+      })
+    coletarTodasPaginas<Setores.Setor>((o, l) => setores.list({ incluir_inativos: true, offset: o, limit: l }))
+      .then(setSetoresList)
+      .catch((err) => {
+        const msg =
+          err instanceof ApiError && err.status === 403
+            ? 'Você não tem permissão para listar setores.'
+            : err instanceof Error
+              ? err.message
+              : 'Erro ao carregar setores'
+        toast.showWarning(msg)
+        setSetoresList([])
+        if (err instanceof ApiError && err.status === 403) setForbidden(true)
+      })
   }, [])
 
   useEffect(() => {
@@ -69,10 +85,6 @@ export function TicketNovo() {
     e.preventDefault()
     if (!empresaId || !setorId || !assunto.trim() || !descricao.trim()) {
       toast.showWarning('Preencha empresa, setor, assunto e o relato do problema.')
-      return
-    }
-    if (!isAdmin && !setorIdsPermitidos?.has(Number(setorId))) {
-      toast.showWarning('Selecione um setor ao qual você tenha acesso.')
       return
     }
     setLoading(true)
@@ -94,6 +106,20 @@ export function TicketNovo() {
   }
 
   const semSetorPermitido = !isAdmin && setoresFiltrados.length === 0
+  const semEmpresasNoEscopo = !isAdmin && !semSetorPermitido && empresasList.length === 0
+
+  if (forbidden) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-6 pb-10">
+        <SemPermissao
+          title="Você não tem permissão para abrir tickets."
+          detail="Seu usuário não conseguiu carregar setores/empresas necessários para criar um chamado. Peça ao administrador para ajustar seu perfil e vínculos de setor."
+          voltarPara="/tickets"
+          voltarLabel="Voltar para Tickets"
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 pb-10">
@@ -120,6 +146,14 @@ export function TicketNovo() {
         </div>
       )}
 
+      {semEmpresasNoEscopo && (
+        <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-100">
+          Ainda não há empresas listáveis no seu escopo: a API só mostra clientes de redes que já tiveram ticket nos setores
+          que você atende. Peça a um administrador para registrar o primeiro chamado dessa rede (ou ajustar cadastro), ou
+          use uma empresa que já apareça na lista de tickets.
+        </div>
+      )}
+
       <Card title="Abrir ticket">
         <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
           O ticket entra na <strong>fila do setor</strong> (sem responsável). Qualquer atendente do setor pode abrir o chamado e usar{' '}
@@ -136,7 +170,7 @@ export function TicketNovo() {
                 items={empresaItems}
                 placeholder="Buscar empresa..."
                 required
-                disabled={semSetorPermitido}
+                disabled={semSetorPermitido || semEmpresasNoEscopo}
                 recentCount={10}
               />
 
@@ -150,10 +184,12 @@ export function TicketNovo() {
                   includeEmpty
                   emptyLabel="Selecione"
                   placeholder="Selecione"
-                  disabled={semSetorPermitido}
+                  disabled={semSetorPermitido || semEmpresasNoEscopo}
                 />
                 {!isAdmin && setoresFiltrados.length > 0 && (
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Somente setores aos quais você está vinculado.</p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Lista conforme os setores que você atende no sistema (inclui homônimos no cadastro).
+                  </p>
                 )}
               </div>
             </FormSection>
@@ -164,7 +200,7 @@ export function TicketNovo() {
                 value={assunto}
                 onChange={(e) => setAssunto(e.target.value)}
                 required
-                disabled={semSetorPermitido}
+                disabled={semSetorPermitido || semEmpresasNoEscopo}
               />
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Relato do problema *</label>
@@ -177,7 +213,7 @@ export function TicketNovo() {
                   spellCheck={false}
                   rows={5}
                   required
-                  disabled={semSetorPermitido}
+                  disabled={semSetorPermitido || semEmpresasNoEscopo}
                   className="w-full rounded-xl border-0 bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-slate-200/90 focus:outline-none focus:ring-2 focus:ring-slate-400/35 dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-700"
                 />
               </div>
@@ -189,7 +225,12 @@ export function TicketNovo() {
               <Button type="button" variant="secondary" onClick={voltarAnterior} className="w-full sm:w-auto">
                 Cancelar
               </Button>
-              <Button type="submit" loading={loading} disabled={semSetorPermitido} className="w-full sm:w-auto">
+              <Button
+                type="submit"
+                loading={loading}
+                disabled={semSetorPermitido || semEmpresasNoEscopo}
+                className="w-full sm:w-auto"
+              >
                 Criar ticket
               </Button>
             </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
-import { tickets, notificacoes, statusTicket, atendentes, setores, type StatusTicket, type Atendentes, type Setores, type Tickets } from '../api/client'
+import { ApiError, tickets, notificacoes, statusTicket, atendentes, setores, type StatusTicket, type Atendentes, type Setores, type Tickets } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Select } from '../components/ui/Select'
@@ -9,6 +9,7 @@ import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../contexts/AuthContext'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { refetchPendenciasResumo } from '../hooks/useAlertaFilaSemResponsavel'
+import { SemPermissao } from './SemPermissao'
 
 const ROTULO_CAMPO: Record<string, string> = {
   status_id: 'Status',
@@ -96,6 +97,7 @@ export function TicketDetalhe() {
 
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [forbidden, setForbidden] = useState(false)
   const [ticket, setTicket] = useState<Tickets.Ticket | null>(null)
   const [historico, setHistorico] = useState<Tickets.Historico[]>([])
   const [mensagens, setMensagens] = useState<Tickets.Mensagem[]>([])
@@ -118,14 +120,9 @@ export function TicketDetalhe() {
   const [modalGerirFoco, setModalGerirFoco] = useState<'geral' | 'setor' | 'status' | 'atendente'>('geral')
   const [historicoAberto, setHistoricoAberto] = useState(false)
 
-  const setorIdsPermitidos = useMemo(() => {
-    if (isAdmin) return null
-    return new Set(user?.setor_ids ?? [])
-  }, [isAdmin, user?.setor_ids])
-
   const setoresParaSelect = useMemo(() => {
     const ativos = setoresList.filter((s) => s.ativo)
-    let base = !setorIdsPermitidos ? ativos : ativos.filter((s) => setorIdsPermitidos.has(s.id))
+    let base = ativos
     if (ticket) {
       const cur = setoresList.find((s) => s.id === ticket.setor_id)
       if (cur && !base.some((s) => s.id === cur.id)) {
@@ -133,7 +130,7 @@ export function TicketDetalhe() {
       }
     }
     return [...base].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-  }, [setoresList, setorIdsPermitidos, ticket])
+  }, [setoresList, ticket])
 
   /** Setor em edição no modal (ou do ticket); usado para priorizar atendentes vinculados a esse setor. */
   const setorAlvoModal = useMemo(() => {
@@ -221,10 +218,32 @@ export function TicketDetalhe() {
   useEffect(() => {
     coletarTodasPaginas<StatusTicket.Status>((o, l) =>
       statusTicket.list({ incluir_inativos: false, offset: o, limit: l }),
-    ).then(setStatusList)
+    )
+      .then(setStatusList)
+      .catch((err) => {
+        const msg =
+          err instanceof ApiError && err.status === 403
+            ? 'Você não tem permissão para listar status de ticket.'
+            : err instanceof Error
+              ? err.message
+              : 'Erro ao carregar status'
+        toast.showWarning(msg)
+        setStatusList([])
+      })
     coletarTodasPaginas<Setores.Setor>((o, l) =>
       setores.list({ incluir_inativos: true, offset: o, limit: l }),
-    ).then(setSetoresList)
+    )
+      .then(setSetoresList)
+      .catch((err) => {
+        const msg =
+          err instanceof ApiError && err.status === 403
+            ? 'Você não tem permissão para listar setores.'
+            : err instanceof Error
+              ? err.message
+              : 'Erro ao carregar setores'
+        toast.showWarning(msg)
+        setSetoresList([])
+      })
   }, [])
 
   /** Só administradores podem listar atendentes; depende de `user` para não rodar antes do /me. */
@@ -289,6 +308,7 @@ export function TicketDetalhe() {
     let cancelled = false
     setLoading(true)
     setNotFound(false)
+    setForbidden(false)
     Promise.all([tickets.get(numId), tickets.getHistorico(numId), tickets.listMensagens(numId)])
       .then(([t, h, m]) => {
         if (cancelled) return
@@ -303,8 +323,14 @@ export function TicketDetalhe() {
           .then(() => refetchPendenciasResumo())
           .catch(() => {})
       })
-      .catch(() => {
+      .catch((err) => {
         if (!cancelled) {
+          if (err instanceof ApiError && err.status === 403) {
+            setForbidden(true)
+            toast.showWarning(err.message || 'Sem permissão para este ticket.')
+            setNotFound(false)
+            return
+          }
           setTicket(null)
           setHistorico([])
           setMensagens([])
@@ -387,17 +413,9 @@ export function TicketDetalhe() {
     }
   }
 
-  const idsTicketSetorNome = useMemo(() => {
-    if (!ticket || setoresList.length === 0) return null
-    return idsSetoresMesmoNome(setoresList, ticket.setor_id)
-  }, [ticket, setoresList])
-
-  const podeAtribuirAMim =
-    !!ticket &&
-    !ticket.atendente_id &&
-    !!user &&
-    (isAdmin ||
-      (idsTicketSetorNome != null && (user.setor_ids ?? []).some((sid) => idsTicketSetorNome.has(sid))))
+  // Se o usuário conseguiu carregar o ticket, o backend já validou o escopo de setor.
+  // Aqui só bloqueamos o botão quando já existe responsável.
+  const podeAtribuirAMim = !!ticket && !ticket.atendente_id && !!user
 
   async function handleAtribuirAMim() {
     if (!ticket || !user || !podeAtribuirAMim) return
@@ -460,10 +478,23 @@ export function TicketDetalhe() {
     )
   }
 
+  if (forbidden) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+        <SemPermissao
+          title="Você não tem permissão para acessar este ticket."
+          detail="Este chamado pertence a um setor fora do seu escopo. Se precisar, peça ao administrador para ajustar seus vínculos de setor."
+          voltarPara="/tickets"
+          voltarLabel="Voltar para Tickets"
+        />
+      </div>
+    )
+  }
+
   if (notFound || !ticket) {
     return (
       <div className="mx-auto max-w-6xl space-y-4 pb-10">
-        <p className="text-slate-600 dark:text-slate-400">Ticket não encontrado ou sem permissão.</p>
+        <p className="text-slate-600 dark:text-slate-400">Ticket não encontrado.</p>
         <button
           type="button"
           onClick={voltarAnterior}

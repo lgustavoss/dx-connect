@@ -23,6 +23,7 @@ from app.schemas.empresa import (
 from app.schemas.lista_paginada import ListaPaginada
 from app.core.auth import exigir_admin, obter_atendente_atual
 from app.core.audit import registrar_audit
+from app.core.setor_scope import ids_setores_visiveis_atendente, select_rede_ids_com_ticket_nos_setores
 
 router = APIRouter(prefix="/empresas", tags=["empresas"])
 
@@ -50,9 +51,12 @@ def listar_empresas(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    """Admin: modelo completo. Atendente: apenas id, nome, rede e ativo (minimização de PII)."""
+    """Admin: modelo completo. Atendente: resumo (PII mínima) só de redes que já tiveram ticket nos setores que ele atende."""
     admin = atendente.role == "admin"
     q = db.query(Empresa)
+    if not admin:
+        vis = ids_setores_visiveis_atendente(db, atendente)
+        q = q.filter(Empresa.rede_id.in_(select_rede_ids_com_ticket_nos_setores(vis)))
     if rede_id is not None:
         q = q.filter(Empresa.rede_id == rede_id)
     if not incluir_inativos:

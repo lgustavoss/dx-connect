@@ -1,10 +1,22 @@
 """Alcance de setor: trata duplicatas no cadastro (mesmo nome, IDs diferentes)."""
 
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
-
-from app.models import Setor
+from app.models import Empresa, Setor, Ticket
 from app.models.atendente import Atendente
+
+
+def select_rede_ids_com_ticket_nos_setores(setor_ids: set[int]):
+    """Subconsulta: `rede_id` distintos onde existe ticket da empresa nalgum dos setores indicados.
+
+    Usado para limitar listagens de cadastro (ex.: empresas) ao contexto operacional do atendente.
+    """
+    return (
+        select(Empresa.rede_id)
+        .join(Ticket, Ticket.empresa_id == Empresa.id)
+        .where(Ticket.setor_id.in_(setor_ids))
+        .distinct()
+    )
 
 
 def ids_setores_mesmo_nome(db: Session, setor_id: int) -> set[int]:

@@ -4,17 +4,17 @@ O `conftest.py` define `DX_CONNECT_TESTING=1`, `DATABASE_URL` em **SQLite em mem
 
 ## Com Docker (recomendado no projeto)
 
-O `docker-compose.yml` compila o backend com **`INSTALL_DEV=1`**, instalando `requirements-dev.txt` (pytest, httpx) na imagem.
+O `docker-compose.yml` compila o backend com **`INSTALL_DEV=1`**, instalando `requirements-dev.txt` (pytest, httpx) na imagem, e monta **`./backend` em `/app`**, para que alterações em `tests/` e em `app/` entrem no container **sem rebuild**.
 
 ```bash
-# Na raiz do repositório
-docker compose build backend
-docker compose run --rm -v ./backend:/app backend pytest -q
+# Na raiz do repositório (onde está docker-compose.yml)
+docker compose build backend   # primeira vez ou após mudar requirements / Dockerfile
+docker compose run --rm --no-deps backend pytest -q
 ```
 
 - `pytest` substitui o comando padrão (`uvicorn`) só nesta execução.
-- O bind mount (`-v ./backend:/app`) garante que **os testes do seu workspace** sejam executados (inclusive novos arquivos em `backend/tests/`).
-- Se a imagem já existia de antes da issue #46, faça **`build`** de novo para incluir as dev deps.
+- **`--no-deps`**: não sobe o Postgres; o `conftest.py` força SQLite em memória para os testes.
+- **Rebuild** só é necessário quando mudam `requirements*.txt`, `Dockerfile` ou outras dependências da imagem — não por cada alteração em `.py` de testes ou da app.
 
 ## Sem Docker (máquina local)
 
@@ -28,6 +28,6 @@ pytest
 
 O merge do PR deve passar no job **Pytest** do GitHub Actions. Se quiser **só mergear depois de ver verde**, rode o comando Docker acima antes de aprovar.
 
-## Próximo passo
+## Documentação de RBAC
 
-Casos de RBAC / tickets na issue **#47** (depende desta infra).
+Resumo das rotas v1 e perfis: [`../../docs/BACKEND_RBAC.md`](../../docs/BACKEND_RBAC.md).

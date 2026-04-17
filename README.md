@@ -95,12 +95,14 @@ O frontend ficará acessível em `http://localhost:5173`.
 
 ### Scripts úteis
 
-No **backend** (a partir da pasta `backend`):
+No **backend** (com API já a subir via Docker, na raiz do repositório):
 
-- Aplicar seed manualmente:
+- Rodar testes (pytest na imagem; não precisa de Python local): `docker compose run --rm --no-deps backend pytest -q` na raiz do repo — ver [`backend/tests/README.md`](backend/tests/README.md).
+
+- Aplicar seed manualmente (com `docker compose up -d` em curso):
 
 ```bash
-python -m app.seed
+docker compose exec backend python -m app.seed
 ```
 
 No **frontend** (a partir da pasta `frontend`):
@@ -170,7 +172,22 @@ npm run dev
 - App: http://localhost:5173  
 - As requisições para `/api/*` são proxy para `http://localhost:8000`.
 
-### 3. Ordem sugerida de uso
+### 3. Testes do backend (pytest via Docker)
+
+Não é necessário instalar Python localmente: use a imagem do Compose (com dev deps).
+
+```bash
+# Na raiz do repositório
+docker compose build backend
+docker compose run --rm --no-deps backend pytest -q
+```
+
+- **`--no-deps`**: os testes usam SQLite em memória (`backend/tests/conftest.py`); o serviço `db` não precisa de estar a correr.
+- O volume `./backend:/app` no `docker-compose.yml` sincroniza código e `tests/`; alterações nos arquivos refletem-se de imediato no container (rebuild só após mudanças em `requirements` ou `Dockerfile`).
+
+Detalhes: [`backend/tests/README.md`](backend/tests/README.md). Matriz de rotas e perfis: [`docs/BACKEND_RBAC.md`](docs/BACKEND_RBAC.md).
+
+### 4. Ordem sugerida de uso
 
 1. Fazer login com o admin.
 2. Cadastrar **Redes** e **Empresas** (uma empresa pertence a uma rede).
