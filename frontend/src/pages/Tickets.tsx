@@ -23,6 +23,7 @@ import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { useAuth } from '../contexts/AuthContext'
 import { useAlertaFilaSemResponsavel } from '../hooks/useAlertaFilaSemResponsavel'
 import { SemPermissao } from './SemPermissao'
+import { mensagemFalhaParaToast } from '../api/errorMessage'
 
 type ColunaOrdenacao =
   | 'protocolo'
@@ -219,7 +220,7 @@ export function Tickets() {
           setTotal(0)
           return
         }
-        toast.showWarning('Não foi possível carregar os tickets.')
+        toast.showWarning(mensagemFalhaParaToast(err, 'Não encontramos os tickets solicitados.'))
         setList([])
         setTotal(0)
       })

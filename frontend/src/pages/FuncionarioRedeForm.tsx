@@ -13,6 +13,8 @@ import { useToast } from '../components/ui/Toast'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { FormSection } from '../components/ui/FormSection'
 import { SemPermissao } from './SemPermissao'
+import { interpretarFalhaCarregamento } from '../api/errorMessage'
+import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 
 type Tipo = 'socio' | 'supervisor' | 'colaborador'
 
@@ -33,7 +35,7 @@ export function FuncionarioRedeForm() {
   const [loading, setLoading] = useState(isEdit)
   const [saving, setSaving] = useState(false)
   const [forbidden, setForbidden] = useState(false)
-  const [notFound, setNotFound] = useState(false)
+  const [funcionarioInexistente, setFuncionarioInexistente] = useState<{ detalhe?: string } | null>(null)
 
   const [redesList, setRedesList] = useState<Redes.Rede[]>([])
   const [empresasList, setEmpresasList] = useState<Empresas.Empresa[]>([])
@@ -64,14 +66,14 @@ export function FuncionarioRedeForm() {
   useEffect(() => {
     if (!isEdit) return
     if (!id || Number.isNaN(funcionarioId)) {
-      toast.showWarning('Funcionário inválido.')
-      voltarAnterior()
+      setFuncionarioInexistente({ detalhe: 'O identificador na URL é inválido.' })
+      setLoading(false)
       return
     }
     let cancelled = false
     setLoading(true)
     setForbidden(false)
-    setNotFound(false)
+    setFuncionarioInexistente(null)
     funcionariosRede
       .get(funcionarioId)
       .then((item) => {
@@ -100,10 +102,11 @@ export function FuncionarioRedeForm() {
             return
           }
           if (err instanceof ApiError && err.status === 404) {
-            setNotFound(true)
+            setFuncionarioInexistente({})
             return
           }
-          toast.showWarning(err instanceof Error ? err.message : 'Erro ao carregar funcionário.')
+          const m = interpretarFalhaCarregamento(err, 'Funcionário não encontrado.')
+          toast.showWarning([m.titulo, m.detalhe].filter(Boolean).join(' '))
         }
       })
       .finally(() => {
@@ -112,7 +115,7 @@ export function FuncionarioRedeForm() {
     return () => {
       cancelled = true
     }
-  }, [id, isEdit, funcionarioId, toast, voltarAnterior, empresasList])
+  }, [id, isEdit, funcionarioId, toast, empresasList])
 
   const empresasDaRede = useMemo(
     () => empresasList.filter((em) => em.rede_id === Number(redeId) && (em.ativo || em.id === empresaId || empresaIds.includes(em.id))),
@@ -207,18 +210,14 @@ export function FuncionarioRedeForm() {
     )
   }
 
-  if (notFound) {
+  if (funcionarioInexistente) {
     return (
-      <div className="mx-auto max-w-5xl space-y-4 pb-10">
-        <p className="text-slate-600 dark:text-slate-400">Funcionário não encontrado.</p>
-        <button
-          type="button"
-          onClick={voltarAnterior}
-          className="font-medium text-slate-800 underline decoration-slate-400 underline-offset-2 hover:text-slate-950 dark:text-slate-200 dark:hover:text-white"
-        >
-          Voltar
-        </button>
-      </div>
+      <CarregamentoFalhou
+        className="mx-auto max-w-5xl space-y-4 pb-10"
+        titulo="Funcionário não encontrado."
+        detalhe={funcionarioInexistente.detalhe}
+        onVoltar={voltarAnterior}
+      />
     )
   }
 

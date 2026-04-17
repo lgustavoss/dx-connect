@@ -15,6 +15,8 @@ import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
 import { maskCnpjCpf } from '../utils/maskCnpjCpf'
 import { maskCep, formatTelefoneBrExibicao } from '../utils/masks'
+import { interpretarFalhaCarregamento } from '../api/errorMessage'
+import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { TicketsTabelaContexto } from '../components/TicketsTabelaContexto'
@@ -43,7 +45,7 @@ export function EmpresaDetalhe() {
   const [redeNome, setRedeNome] = useState<string>('')
   const [tipoNegocioNome, setTipoNegocioNome] = useState<string>('')
   const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState(false)
+  const [loadFailure, setLoadFailure] = useState<{ titulo: string; detalhe?: string } | null>(null)
   const [forbidden, setForbidden] = useState(false)
   const [aba, setAba] = useState<Aba>('geral')
 
@@ -64,12 +66,15 @@ export function EmpresaDetalhe() {
   useEffect(() => {
     if (!id || isNaN(empresaId)) {
       setLoading(false)
-      setLoadError(true)
+      setLoadFailure({
+        titulo: 'Empresa não encontrada.',
+        detalhe: 'O identificador na URL é inválido.',
+      })
       return
     }
     let cancelled = false
     setLoading(true)
-    setLoadError(false)
+    setLoadFailure(null)
     setForbidden(false)
     apiEmpresas
       .get(empresaId)
@@ -98,7 +103,7 @@ export function EmpresaDetalhe() {
             setEmpresa(null)
             return
           }
-          setLoadError(true)
+          setLoadFailure(interpretarFalhaCarregamento(err, 'Empresa não encontrada.'))
           setEmpresa(null)
         }
       })
@@ -211,18 +216,9 @@ export function EmpresaDetalhe() {
     )
   }
 
-  if (loadError) {
+  if (loadFailure) {
     return (
-      <div className="mx-auto max-w-6xl space-y-4 pb-10">
-        <p className="text-slate-600 dark:text-slate-400">Empresa não encontrada.</p>
-        <button
-          type="button"
-          onClick={voltarAnterior}
-          className="font-medium text-slate-800 underline decoration-slate-400 underline-offset-2 hover:text-slate-950 dark:text-slate-200 dark:hover:text-white"
-        >
-          Voltar
-        </button>
-      </div>
+      <CarregamentoFalhou titulo={loadFailure.titulo} detalhe={loadFailure.detalhe} onVoltar={voltarAnterior} />
     )
   }
 

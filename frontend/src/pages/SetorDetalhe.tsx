@@ -8,6 +8,8 @@ import { SelectComPesquisa } from '../components/ui/SelectComPesquisa'
 import { useToast } from '../components/ui/Toast'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { SemPermissao } from './SemPermissao'
+import { interpretarFalhaCarregamento } from '../api/errorMessage'
+import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 
 /** Mesmo nome de setor = mesmo “setor lógico” (vários IDs no banco). */
 function idsSetoresMesmoNome(setoresList: Setores.Setor[], setorId: number): Set<number> {
@@ -28,6 +30,7 @@ export function SetorDetalhe() {
   const [setor, setSetor] = useState<Setores.Setor | null>(null)
   const [setoresList, setSetoresList] = useState<Setores.Setor[]>([])
   const [forbidden, setForbidden] = useState(false)
+  const [carregamentoFalhou, setCarregamentoFalhou] = useState<{ titulo: string; detalhe?: string } | null>(null)
 
   const [vinculados, setVinculados] = useState<Atendentes.Atendente[]>([])
   const [todosAtendentes, setTodosAtendentes] = useState<Atendentes.Atendente[]>([])
@@ -58,11 +61,17 @@ export function SetorDetalhe() {
   async function reload() {
     if (!Number.isFinite(setorId) || setorId <= 0) {
       setSetor(null)
+      setVinculados([])
+      setCarregamentoFalhou({
+        titulo: 'Setor não encontrado.',
+        detalhe: 'O identificador na URL é inválido.',
+      })
       setLoading(false)
       return
     }
     setLoading(true)
     setForbidden(false)
+    setCarregamentoFalhou(null)
     try {
       const [s, setoresAll, todos] = await Promise.all([
         setores.get(setorId),
@@ -82,11 +91,12 @@ export function SetorDetalhe() {
         setForbidden(true)
         setSetor(null)
         setVinculados([])
+        setCarregamentoFalhou(null)
         return
       }
       setSetor(null)
       setVinculados([])
-      toast.showError(err instanceof Error ? err.message : 'Erro ao carregar setor')
+      setCarregamentoFalhou(interpretarFalhaCarregamento(err, 'Setor não encontrado.'))
     } finally {
       setLoading(false)
     }
@@ -159,19 +169,14 @@ export function SetorDetalhe() {
     )
   }
 
-  if (!setor) {
+  if (carregamentoFalhou) {
     return (
-      <div className="space-y-4">
-        <p className="text-slate-600 dark:text-slate-400">Setor não encontrado.</p>
-        <button
-          type="button"
-          onClick={voltarAnterior}
-          className="font-medium text-slate-800 underline decoration-slate-400 underline-offset-2 hover:text-slate-950 dark:text-slate-200 dark:hover:text-white"
-        >
-          Voltar
-        </button>
-      </div>
+      <CarregamentoFalhou titulo={carregamentoFalhou.titulo} detalhe={carregamentoFalhou.detalhe} onVoltar={voltarAnterior} />
     )
+  }
+
+  if (!setor) {
+    return null
   }
 
   return (
