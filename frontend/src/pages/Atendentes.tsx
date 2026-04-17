@@ -6,6 +6,7 @@ import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
+import { IconEye, IconEyeOff } from '../components/ui/IconEye'
 import { IconPencil } from '../components/ui/IconPencil'
 import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
@@ -35,6 +36,7 @@ export function Atendentes() {
   const [email, setEmail] = useState('')
   const [nome, setNome] = useState('')
   const [senha, setSenha] = useState('')
+  const [mostrarSenha, setMostrarSenha] = useState(false)
   const [role, setRole] = useState<'admin' | 'atendente'>('atendente')
   const [ativo, setAtivo] = useState(true)
   const [setorIds, setSetorIds] = useState<number[]>([])
@@ -95,6 +97,7 @@ export function Atendentes() {
     setEmail('')
     setNome('')
     setSenha('')
+    setMostrarSenha(false)
     setRole('atendente')
     setAtivo(true)
     setSetorIds([])
@@ -106,6 +109,7 @@ export function Atendentes() {
     setEmail(item.email)
     setNome(item.nome)
     setSenha('')
+    setMostrarSenha(false)
     setRole((item.role as 'admin') || 'atendente')
     setAtivo(item.ativo)
     setSetorIds(item.setor_ids ?? [])
@@ -239,10 +243,21 @@ export function Atendentes() {
                   <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
                   <Input
                     label={editingId ? 'Nova senha (deixe em branco para manter)' : 'Senha'}
-                    type="password"
+                    type={mostrarSenha ? 'text' : 'password'}
                     value={senha}
                     onChange={(e) => setSenha(e.target.value)}
                     required={!editingId}
+                    endAdornment={
+                      <button
+                        type="button"
+                        onClick={() => setMostrarSenha((v) => !v)}
+                        className="inline-flex size-9 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/30 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-200"
+                        aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
+                        aria-pressed={mostrarSenha}
+                      >
+                        {mostrarSenha ? <IconEyeOff ariaHidden={false} /> : <IconEye ariaHidden={false} />}
+                      </button>
+                    }
                   />
                   <Select
                     label="Perfil"
