@@ -42,7 +42,8 @@ services:
       db:
         condition: service_healthy
     volumes:
-      - ./backend/app:/app/app
+      # Código + tests + pytest.ini do host (evita rebuild só por alteração em tests/).
+      - ./backend:/app
 
 volumes:
   postgres_data:

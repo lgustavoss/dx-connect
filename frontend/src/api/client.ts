@@ -14,6 +14,18 @@ const BASE = apiBaseUrl()
 /** Prefixo de versão da API (ex.: dev: `/api` + `/v1` + `/auth/login` → `/v1/auth/login` no backend). */
 export const API_VERSION_PREFIX = '/v1'
 
+export class ApiError extends Error {
+  status: number
+  body: unknown
+
+  constructor(message: string, status: number, body: unknown) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.body = body
+  }
+}
+
 const TOKEN_KEY = 'token'
 const REFRESH_TOKEN_KEY = 'refresh_token'
 
@@ -93,7 +105,7 @@ export async function api<T>(
     const err = await res.json().catch(() => ({}));
     let msg = mensagemErroApi(err, 401);
     if (msg.startsWith('Não foi possível concluir')) msg = 'E-mail ou senha inválidos.';
-    throw new Error(msg);
+    throw new ApiError(msg, 401, err);
   }
 
   if (res.status === 401) {
@@ -114,12 +126,12 @@ export async function api<T>(
     clearAuthToken()
     const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`
     window.location.href = `/login?returnTo=${encodeURIComponent(returnTo)}`
-    throw new Error(mensagemErroApi(err, 401));
+    throw new ApiError(mensagemErroApi(err, 401), 401, err);
   }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(mensagemErroApi(err, res.status));
+    throw new ApiError(mensagemErroApi(err, res.status), res.status, err);
   }
   if (res.status === 204) return undefined as T;
   return res.json();
