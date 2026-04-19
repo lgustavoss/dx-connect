@@ -32,6 +32,8 @@ class Ticket(Base):
         back_populates="ticket",
         order_by="TicketMensagem.created_at",
     )
+    whatsapp_conversations = relationship("WhatsAppConversation", back_populates="linked_ticket")
+    whatsapp_messages = relationship("WhatsAppMessage", back_populates="ticket")
 
 
 class TicketMensagem(Base):

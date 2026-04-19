@@ -37,6 +37,14 @@ class Settings(BaseSettings):
     # Hostnames permitidos no header Host (TrustedHostMiddleware). Em produção não use "*".
     # Ex.: api.seudominio.com,127.0.0.1
     ALLOWED_HOSTS: str = "*"
+    OPENAI_API_KEY: str | None = None
+    OPENAI_CHAT_MODEL: str = "gpt-5.2"
+    OPENAI_BASE_URL: str = "https://api.openai.com/v1"
+    WHATSAPP_VERIFY_TOKEN: str | None = None
+    WHATSAPP_ACCESS_TOKEN: str | None = None
+    WHATSAPP_PHONE_NUMBER_ID: str | None = None
+    WHATSAPP_BUSINESS_PHONE: str | None = None
+    WHATSAPP_API_VERSION: str = "v23.0"
 
     @field_validator("SEED_ADMIN_EMAIL", mode="before")
     @classmethod

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { enableDemoMode, isDemoModeEnabled } from '../api/mockApi'
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
@@ -60,6 +61,7 @@ function LoginMeshBg() {
 }
 
 export function Login() {
+  const demoMode = isDemoModeEnabled()
   const [email, setEmail] = useState(readRememberedEmail)
   const [senha, setSenha] = useState('')
   const [lembrarMe, setLembrarMe] = useState(() => !!readRememberedEmail())
@@ -95,6 +97,21 @@ export function Login() {
       navigate('/', { replace: true })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Falha no login'
+      showError(message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleDemoLogin() {
+    setLoading(true)
+    try {
+      enableDemoMode()
+      await login('admin@demo.local', 'demo', true)
+      showSuccess('Modo demo ativado. Redirecionando...')
+      navigate('/', { replace: true })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Falha ao entrar no modo demo'
       showError(message)
     } finally {
       setLoading(false)
@@ -213,12 +230,26 @@ export function Login() {
               >
                 Entrar
               </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-3 text-base font-semibold text-slate-100 hover:bg-white/[0.08]"
+                onClick={handleDemoLogin}
+                disabled={loading}
+              >
+                Entrar em modo demo
+              </Button>
             </form>
           </div>
 
           <p className="text-center text-xs leading-relaxed text-slate-500 lg:text-left">
             Use o usuário cadastrado pelo administrador. Problemas para acessar? Contate o suporte interno.
           </p>
+          {demoMode ? (
+            <p className="text-center text-xs leading-relaxed text-cyan-300/80 lg:text-left">
+              Modo demo disponivel: use qualquer e-mail/senha ou o botao acima para abrir o frontend sem API.
+            </p>
+          ) : null}
         </div>
       </main>
     </div>

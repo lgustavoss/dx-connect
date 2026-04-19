@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { Layout } from './components/Layout'
 import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
+import { AtendimentoChat } from './pages/AtendimentoChat'
 import { Tickets } from './pages/Tickets'
 import { TicketNovo } from './pages/TicketNovo'
 import { TicketDetalhe } from './pages/TicketDetalhe'
@@ -69,6 +70,7 @@ function AppRoutes() {
         }
       >
         <Route index element={<Dashboard />} />
+        <Route path="atendimento" element={<AtendimentoChat />} />
         <Route path="alterar-senha" element={<AlterarSenha />} />
         <Route path="tickets" element={<Tickets />} />
         <Route path="tickets/novo" element={<TicketNovo />} />

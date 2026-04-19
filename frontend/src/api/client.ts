@@ -1,4 +1,5 @@
 import { mensagemErroApi } from './errorMessage'
+import { isDemoModeEnabled, mockApi } from './mockApi'
 
 function apiBaseUrl(): string {
   if (import.meta.env.DEV) return '/api'
@@ -33,6 +34,9 @@ export async function api<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
+  if (isDemoModeEnabled()) {
+    return mockApi(path, options) as Promise<T>
+  }
   const token = getToken();
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -329,6 +333,38 @@ export const tickets = {
 export const dashboard = {
   get: () => api<Dashboard.Response>('/dashboard'),
 };
+
+export const chatAssistant = {
+  respond: (data: ChatAssistant.SuggestRequest) =>
+    api<ChatAssistant.SuggestResponse>('/chat-assistant/respond', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+}
+
+export const whatsapp = {
+  listConversations: (params?: {
+    busca?: string
+    offset?: number
+    limit?: number
+  }) => listPaginated<WhatsApp.Conversation>('/whatsapp/conversations', params),
+  getConversation: (id: number) => api<WhatsApp.Conversation>(`/whatsapp/conversations/${id}`),
+  updateConversation: (id: number, data: WhatsApp.ConversationUpdate) =>
+    api<WhatsApp.Conversation>(`/whatsapp/conversations/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  sendMessage: (id: number, data: WhatsApp.OutboundMessageCreate) =>
+    api<WhatsApp.Conversation>(`/whatsapp/conversations/${id}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  assist: (id: number, data: WhatsApp.AiAssistRequest) =>
+    api<WhatsApp.AiAssistResponse>(`/whatsapp/conversations/${id}/assist`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+}
 
 export namespace Dashboard {
   export interface StatusCount {
@@ -662,7 +698,7 @@ export namespace Tickets {
     descricao?: string;
     aberto_por_id?: number;
   }
-  export type MensagemTipo = 'abertura' | 'publico' | 'interno';
+  export type MensagemTipo = 'abertura' | 'publico' | 'interno' | 'cliente';
 
   export interface Mensagem {
     id: number;
@@ -695,5 +731,97 @@ export namespace Audit {
     atendente_id: number | null;
     atendente_nome: string | null;
     created_at: string;
+  }
+}
+
+export namespace ChatAssistant {
+  export type MessageRole = 'customer' | 'agent' | 'internal'
+
+  export interface MessageInput {
+    role: MessageRole
+    content: string
+    created_at?: string
+  }
+
+  export interface TicketContext {
+    protocolo: string
+    assunto: string
+    empresa_nome?: string
+    setor_nome?: string
+    status_nome?: string
+  }
+
+  export interface SuggestRequest {
+    ticket: TicketContext
+    conversation: MessageInput[]
+    objective?: string
+    tone?: 'acolhedor' | 'consultivo' | 'agil'
+  }
+
+  export interface SuggestResponse {
+    reply: string
+    model: string
+    provider: 'openai'
+  }
+}
+
+export namespace WhatsApp {
+  export interface Message {
+    id: number
+    conversation_id: number
+    ticket_id?: number | null
+    wa_message_id?: string | null
+    direction: 'inbound' | 'outbound' | 'system' | string
+    sender_phone?: string | null
+    recipient_phone?: string | null
+    message_type: string
+    body?: string | null
+    media_url?: string | null
+    mime_type?: string | null
+    filename?: string | null
+    status?: string | null
+    created_at: string
+  }
+
+  export interface Conversation {
+    id: number
+    wa_id: string
+    profile_name?: string | null
+    phone_number: string
+    status: 'open' | 'pending' | 'resolved' | string
+    ai_enabled: boolean
+    ai_mode: 'assist' | 'copilot' | string
+    last_message_at?: string | null
+    linked_ticket_id?: number | null
+    created_at?: string | null
+    updated_at?: string | null
+    linked_ticket_protocolo?: string | null
+    linked_ticket_assunto?: string | null
+    linked_ticket_empresa_nome?: string | null
+    messages: Message[]
+  }
+
+  export interface ConversationUpdate {
+    linked_ticket_id?: number | null
+    ai_enabled?: boolean
+    ai_mode?: 'assist' | 'copilot'
+    status?: 'open' | 'pending' | 'resolved'
+    profile_name?: string | null
+  }
+
+  export interface OutboundMessageCreate {
+    body: string
+    auto_generated?: boolean
+  }
+
+  export interface AiAssistRequest {
+    objective?: string
+    auto_send?: boolean
+  }
+
+  export interface AiAssistResponse {
+    reply: string
+    sent: boolean
+    source: 'openai' | 'fallback'
   }
 }

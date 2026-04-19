@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from app.api import auth, redes, empresas, setores, atendentes, funcionarios_rede, status_ticket, tickets, dashboard, audit, tipo_negocio, cadastro_aux
+from app.api import auth, redes, empresas, setores, atendentes, funcionarios_rede, status_ticket, tickets, dashboard, audit, tipo_negocio, cadastro_aux, chat_assistant, whatsapp
 from app.config import settings
 from app.core.lifecycle import dev_create_all_tables, production_require_alembic
 from app.database import Base, engine
@@ -192,6 +192,8 @@ app.include_router(dashboard.router, prefix=API_V1_PREFIX)
 app.include_router(audit.router, prefix=API_V1_PREFIX)
 app.include_router(tipo_negocio.router, prefix=API_V1_PREFIX)
 app.include_router(cadastro_aux.router, prefix=API_V1_PREFIX)
+app.include_router(chat_assistant.router, prefix=API_V1_PREFIX)
+app.include_router(whatsapp.router, prefix=API_V1_PREFIX)
 
 
 @app.get("/health")

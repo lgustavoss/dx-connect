@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { tickets, statusTicket, atendentes, setores, type StatusTicket, type Atendentes, type Setores, type Tickets } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
-import { Card } from '../components/ui/Card'
+import { TicketChatWorkspace } from '../components/chat/TicketChatWorkspace'
 import { Select } from '../components/ui/Select'
 import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
@@ -36,13 +36,6 @@ function resolverValorHistorico(
   }
   const t = (valor || '').trim()
   return t || '—'
-}
-
-function tituloTipoMensagem(tipo: string): string {
-  if (tipo === 'abertura') return 'Solicitação inicial'
-  if (tipo === 'publico') return 'Mensagem da equipe'
-  if (tipo === 'interno') return 'Comentário interno'
-  return tipo
 }
 
 /** Mesmo nome de setor = mesmo “setor lógico” (vários IDs no banco). */
@@ -108,9 +101,7 @@ export function TicketDetalhe() {
   const [editStatus, setEditStatus] = useState<number | ''>('')
   const [editAtendente, setEditAtendente] = useState<number | ''>('')
   const [saving, setSaving] = useState(false)
-  const [novaMensagemTexto, setNovaMensagemTexto] = useState('')
-  const [tipoNovaMensagem, setTipoNovaMensagem] = useState<'publico' | 'interno'>('publico')
-  const [enviandoMensagem, setEnviandoMensagem] = useState(false)
+  const [, setEnviandoMensagem] = useState(false)
   const [modalGerirAberto, setModalGerirAberto] = useState(false)
   /** Qual bloco do modal recebe destaque ao abrir (chips no cabeçalho). */
   const [modalGerirFoco, setModalGerirFoco] = useState<'geral' | 'setor' | 'status' | 'atendente'>('geral')
@@ -410,29 +401,21 @@ export function TicketDetalhe() {
     }
   }
 
-  useEffect(() => {
-    if (!podeMensagemPublica && tipoNovaMensagem === 'publico') {
-      setTipoNovaMensagem('interno')
-    }
-  }, [podeMensagemPublica, tipoNovaMensagem])
-
-  async function handleEnviarMensagem() {
+  async function handleEnviarMensagem(payload: Tickets.MensagemCreate) {
     if (!ticket) return
-    const texto = novaMensagemTexto.trim()
+    const texto = payload.corpo.trim()
     if (!texto) {
-      toast.showWarning('Escreva uma mensagem antes de enviar.')
-      return
+      throw new Error('Escreva uma mensagem antes de enviar.')
     }
-    const tipo = podeMensagemPublica ? tipoNovaMensagem : 'interno'
+    const tipo = payload.tipo === 'publico' && !podeMensagemPublica ? 'interno' : payload.tipo
     setEnviandoMensagem(true)
     try {
       await tickets.addMensagem(ticket.id, { corpo: texto, tipo })
       const m = await tickets.listMensagens(ticket.id)
       setMensagens(m)
-      setNovaMensagemTexto('')
-      toast.showSuccess(tipo === 'interno' ? 'Comentário interno registrado.' : 'Mensagem enviada.')
     } catch (err) {
       toast.showWarning(err instanceof Error ? err.message : 'Erro ao enviar')
+      throw err instanceof Error ? err : new Error('Erro ao enviar')
     } finally {
       setEnviandoMensagem(false)
     }
@@ -551,112 +534,14 @@ export function TicketDetalhe() {
         </div>
       </div>
 
-      <Card title="Conversa">
-        <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
-          Mensagens da equipe para o andamento; comentários internos só para atendentes.
-          {!podeMensagemPublica && (
-            <span className="mt-1 block text-amber-800/90 dark:text-amber-200/90">
-              Você não é o responsável por este chamado: pode registrar apenas comentários internos para colaborar com o
-              setor.
-            </span>
-          )}
-        </p>
-        <div className="space-y-4">
-          {mensagens.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400">Nenhuma mensagem ainda.</p>
-          ) : (
-            <ul className="space-y-3">
-              {mensagens.map((msg) => {
-                const isAbertura = msg.tipo === 'abertura'
-                const isInterno = msg.tipo === 'interno'
-                const autor =
-                  msg.atendente_nome ??
-                  (isAbertura ? 'Registro legado / sistema' : '—')
-                return (
-                  <li
-                    key={msg.id}
-                    className={`rounded-xl border px-4 py-3 text-sm ${
-                      isInterno
-                        ? 'border-amber-200/90 bg-amber-50/60 dark:border-amber-800/50 dark:bg-amber-950/25'
-                        : isAbertura
-                          ? 'border border-slate-200 border-l-4 border-l-slate-500 bg-slate-50/90 dark:border-slate-600 dark:border-l-slate-400 dark:bg-slate-800/50'
-                          : 'border border-slate-200/90 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800/45 dark:shadow-none'
-                    }`}
-                  >
-                    <div
-                      className={`flex flex-wrap items-center justify-between gap-2 border-b pb-2 text-xs dark:border-slate-600/80 ${
-                        isInterno ? 'border-amber-200/50 dark:border-amber-800/40' : 'border-slate-200/60'
-                      }`}
-                    >
-                      <span className="font-semibold text-slate-800 dark:text-slate-100">
-                        {tituloTipoMensagem(msg.tipo)}
-                      </span>
-                      {isInterno && (
-                        <span className="rounded-md bg-amber-100/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900 dark:bg-amber-900/50 dark:text-amber-100">
-                          Só equipe interna
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-2 whitespace-pre-wrap text-slate-800 dark:text-slate-200">{msg.corpo}</p>
-                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                      {autor}
-                      <span className="text-slate-400 dark:text-slate-500"> · </span>
-                      {new Date(msg.created_at).toLocaleString('pt-BR')}
-                    </p>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-
-          <div className="border-t border-slate-200 pt-4 dark:border-slate-700/90">
-            <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">Nova mensagem</p>
-            <div className="mb-3 inline-flex rounded-xl bg-slate-100 p-1 ring-1 ring-slate-200/80 dark:bg-slate-800/90 dark:ring-slate-600/80">
-              {podeMensagemPublica && (
-                <button
-                  type="button"
-                  onClick={() => setTipoNovaMensagem('publico')}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                    tipoNovaMensagem === 'publico'
-                      ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100 dark:shadow-none dark:ring-1 dark:ring-slate-500/30'
-                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
-                  }`}
-                >
-                  Mensagem da equipe
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setTipoNovaMensagem('interno')}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                  tipoNovaMensagem === 'interno' || !podeMensagemPublica
-                    ? 'bg-white text-amber-950 shadow-sm dark:bg-amber-950/55 dark:text-amber-100 dark:shadow-none dark:ring-1 dark:ring-amber-700/40'
-                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
-                }`}
-              >
-                Comentário interno
-              </button>
-            </div>
-            <textarea
-              value={novaMensagemTexto}
-              onChange={(e) => setNovaMensagemTexto(e.target.value)}
-              spellCheck={false}
-              rows={4}
-              placeholder={
-                tipoNovaMensagem === 'interno'
-                  ? 'Anotação visível apenas para atendentes…'
-                  : 'Descreva o que foi feito, testado ou o que falta…'
-              }
-              className="w-full rounded-xl border-0 bg-slate-50 px-3 py-2 text-sm text-slate-900 shadow-inner ring-1 ring-slate-200/90 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-400/35 dark:bg-slate-900/80 dark:text-slate-100 dark:ring-slate-600 dark:placeholder:text-slate-500 dark:focus:bg-slate-900 dark:focus:ring-slate-500/50"
-            />
-            <div className="mt-2">
-              <Button type="button" onClick={handleEnviarMensagem} loading={enviandoMensagem}>
-                Enviar
-              </Button>
-            </div>
-          </div>
-        </div>
-      </Card>
+      <TicketChatWorkspace
+        ticket={ticket}
+        messages={mensagens}
+        canSendPublicMessage={podeMensagemPublica}
+        lockLinkedTicket
+        onOpenManager={() => abrirModalGerir('geral')}
+        onSendMessage={handleEnviarMensagem}
+      />
 
       {historico.length > 0 && (
         <div className="rounded-xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none dark:ring-1 dark:ring-white/5">
