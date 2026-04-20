@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 revision = "005_rede_login_retaguarda"
-down_revision = "004_atendente_must_change_password"
+down_revision = "004_must_pwd"
 branch_labels = None
 depends_on = None
 
