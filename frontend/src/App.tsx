@@ -21,6 +21,12 @@ import { FuncionarioRedeForm } from './pages/FuncionarioRedeForm'
 import { StatusTicketPage } from './pages/StatusTicket'
 import { Auditoria } from './pages/Auditoria'
 import { TiposNegocio } from './pages/TiposNegocio'
+import { ConfigWhatsapp } from './pages/ConfigWhatsapp'
+import { WhatsappLayout } from './pages/whatsapp/WhatsappLayout'
+import { WhatsappFila } from './pages/whatsapp/WhatsappFila'
+import { WhatsappMeus } from './pages/whatsapp/WhatsappMeus'
+import { WhatsappHistorico } from './pages/whatsapp/WhatsappHistorico'
+import { WhatsappConversa } from './pages/whatsapp/WhatsappConversa'
 import { AlterarSenha } from './pages/AlterarSenha'
 import { AcessoNegado } from './pages/AcessoNegado'
 import { ToastProvider } from './components/ui/Toast'
@@ -76,6 +82,13 @@ function AppRoutes() {
         <Route path="tickets" element={<Tickets />} />
         <Route path="tickets/novo" element={<TicketNovo />} />
         <Route path="tickets/:id" element={<TicketDetalhe />} />
+        <Route path="whatsapp" element={<WhatsappLayout />}>
+          <Route index element={<Navigate to="fila" replace />} />
+          <Route path="fila" element={<WhatsappFila />} />
+          <Route path="meus" element={<WhatsappMeus />} />
+          <Route path="historico" element={<WhatsappHistorico />} />
+          <Route path="c/:chatId" element={<WhatsappConversa />} />
+        </Route>
         <Route
           path="redes/:id"
           element={
@@ -201,6 +214,14 @@ function AppRoutes() {
           element={
             <AdminRoute>
               <TiposNegocio />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="configuracoes/whatsapp"
+          element={
+            <AdminRoute>
+              <ConfigWhatsapp />
             </AdminRoute>
           }
         />

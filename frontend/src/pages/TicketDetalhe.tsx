@@ -1,6 +1,19 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useParams } from 'react-router-dom'
-import { ApiError, tickets, notificacoes, statusTicket, atendentes, setores, type StatusTicket, type Atendentes, type Setores, type Tickets } from '../api/client'
+import { Link, useParams } from 'react-router-dom'
+import {
+  ApiError,
+  tickets,
+  notificacoes,
+  statusTicket,
+  atendentes,
+  setores,
+  whatsappChats,
+  type StatusTicket,
+  type Atendentes,
+  type Setores,
+  type Tickets,
+  type WhatsappChats,
+} from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Select } from '../components/ui/Select'
@@ -109,6 +122,7 @@ export function TicketDetalhe() {
   const [atendentesModal, setAtendentesModal] = useState<Atendentes.Atendente[]>([])
   const [atendentesModalLoading, setAtendentesModalLoading] = useState(false)
   const [setoresList, setSetoresList] = useState<Setores.Setor[]>([])
+  const [chatsWhatsapp, setChatsWhatsapp] = useState<WhatsappChats.Chat[]>([])
 
   const [editSetor, setEditSetor] = useState<number | ''>('')
   const [editStatus, setEditStatus] = useState<number | ''>('')
@@ -352,6 +366,25 @@ export function TicketDetalhe() {
       cancelled = true
     }
   }, [id])
+
+  useEffect(() => {
+    if (!ticket?.id) {
+      setChatsWhatsapp([])
+      return
+    }
+    let cancelled = false
+    whatsappChats
+      .porTicket(ticket.id)
+      .then((rows) => {
+        if (!cancelled) setChatsWhatsapp(rows)
+      })
+      .catch(() => {
+        if (!cancelled) setChatsWhatsapp([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [ticket?.id])
 
   useEffect(() => {
     if (!modalGerirAberto || !ticket) return
@@ -601,6 +634,26 @@ export function TicketDetalhe() {
               </span>
             )}
           </div>
+          {chatsWhatsapp.length > 0 && (
+            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-900/40">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Chats WhatsApp vinculados
+              </p>
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {chatsWhatsapp.map((c) => (
+                  <li key={c.id}>
+                    <Link
+                      to={`/whatsapp/c/${c.id}`}
+                      className="text-sm font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                    >
+                      {c.protocolo}
+                      {c.estado === 'encerrado' ? ' (encerrado)' : ''}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           {isAdmin && ticket.fechado_em && (

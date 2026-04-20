@@ -10,6 +10,7 @@ from app.models.ticket_read import TicketRead
 from app.models.audit_log import AuditLog
 from app.models.ibge_municipio import IbgeMunicipio
 from app.models.app_cache_meta import AppCacheMeta
+from app.models.whatsapp_chat import WhatsappChat, WhatsappChatTicket, WhatsappMensagem, WhatsappSettings
 
 __all__ = [
     "Rede",
@@ -28,4 +29,8 @@ __all__ = [
     "AuditLog",
     "IbgeMunicipio",
     "AppCacheMeta",
+    "WhatsappSettings",
+    "WhatsappChat",
+    "WhatsappMensagem",
+    "WhatsappChatTicket",
 ]

@@ -107,6 +107,7 @@ type NavItem = NavItemLink | NavGroup
 const navStructure: NavItem[] = [
   { type: 'link', to: '/', label: 'Dashboard', icon: 'dashboard' },
   { type: 'link', to: '/tickets', label: 'Tickets', icon: 'tickets' },
+  { type: 'link', to: '/whatsapp', label: 'Chats WhatsApp', icon: 'tickets' },
   {
     type: 'group',
     id: 'clientes',
@@ -130,6 +131,7 @@ const navStructure: NavItem[] = [
       { to: '/atendentes', label: 'Atendentes', icon: 'atendentes' },
       { to: '/tipos-negocio', label: 'Tipos de negócio', icon: 'configuracoes' },
       { to: '/status-ticket', label: 'Status de ticket', icon: 'status' },
+      { to: '/configuracoes/whatsapp', label: 'WhatsApp (Evolution)', icon: 'configuracoes' },
       { to: '/auditoria', label: 'Auditoria', icon: 'configuracoes' },
     ],
   },
