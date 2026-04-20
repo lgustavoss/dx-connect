@@ -23,8 +23,7 @@ import { Auditoria } from './pages/Auditoria'
 import { TiposNegocio } from './pages/TiposNegocio'
 import { ConfigWhatsapp } from './pages/ConfigWhatsapp'
 import { WhatsappLayout } from './pages/whatsapp/WhatsappLayout'
-import { WhatsappFila } from './pages/whatsapp/WhatsappFila'
-import { WhatsappMeus } from './pages/whatsapp/WhatsappMeus'
+import { WhatsappAtendendo } from './pages/whatsapp/WhatsappAtendendo'
 import { WhatsappHistorico } from './pages/whatsapp/WhatsappHistorico'
 import { WhatsappConversa } from './pages/whatsapp/WhatsappConversa'
 import { AlterarSenha } from './pages/AlterarSenha'
@@ -83,10 +82,11 @@ function AppRoutes() {
         <Route path="tickets/novo" element={<TicketNovo />} />
         <Route path="tickets/:id" element={<TicketDetalhe />} />
         <Route path="whatsapp" element={<WhatsappLayout />}>
-          <Route index element={<Navigate to="fila" replace />} />
-          <Route path="fila" element={<WhatsappFila />} />
-          <Route path="meus" element={<WhatsappMeus />} />
+          <Route index element={<Navigate to="atendendo" replace />} />
+          <Route path="atendendo" element={<WhatsappAtendendo />} />
           <Route path="historico" element={<WhatsappHistorico />} />
+          <Route path="fila" element={<Navigate to="/whatsapp/atendendo" replace />} />
+          <Route path="meus" element={<Navigate to="/whatsapp/atendendo" replace />} />
           <Route path="c/:chatId" element={<WhatsappConversa />} />
         </Route>
         <Route

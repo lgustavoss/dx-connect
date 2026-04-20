@@ -2,6 +2,21 @@
 
 Este documento descreve como o **DX Connect** integra com a [Evolution API](https://doc.evolution-api.com/) na v1 do módulo de chats.
 
+**Não existe cadastro obrigatório** num site da Evolution: o projeto é [open source](https://github.com/EvolutionAPI/evolution-api) e a API corre no teu ambiente (ex.: Docker). Os links oficiais ([introdução v2](https://doc.evolution-api.com/v2/pt/get-started/introduction), [GitHub](https://github.com/EvolutionAPI/evolution-api)) servem para documentação e instalação, não para “ativar” uma conta.
+
+## Início rápido (Docker Compose do repositório)
+
+O `docker-compose.yml` na raiz já inclui **Evolution API** (`evolution-api`), **Redis** e **PostgreSQL** dedicados à Evolution, além do **backend** com variáveis para o modo embutido.
+
+1. Na raiz do projeto: `docker compose up -d --build` (sobe `db`, `evolution-*`, `backend`).
+2. A API Evolution fica em `http://localhost:8080` (útil para diagnóstico).
+3. No DX Connect, como **admin**: **Configurações → WhatsApp (Evolution)**.
+4. Em **Configurações → WhatsApp · Evolution API**, clique em **Preparar e mostrar QR Code**. O sistema cria a instância, regista o webhook em `http://backend:8000/v1/webhooks/evolution` (rede Docker) e mostra o QR.
+5. No telemóvel: **WhatsApp → Aparelhos ligados → Ligar um aparelho** e leia o QR.
+6. Mensagens de teste devem aparecer em **Chats WhatsApp**.
+
+**Produção:** altere `AUTHENTICATION_API_KEY` da Evolution e as passwords do Postgres da Evolution; defina `DX_CONNECT_WEBHOOK_BASE_URL` com a URL **interna ou pública** que a Evolution consiga chamar (ex.: URL da API atrás do reverse proxy). O modo simples assume a mesma API key global na Evolution e no backend (`EVOLUTION_GLOBAL_API_KEY` no compose). O compose do repositório define `AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=true` para o endpoint `fetchInstances` poder devolver a `apikey` por instância quando a resposta do `create` não incluir `hash`; se estiver `false`, o DX Connect usa a mesma API key global nas chamadas `connect` / envio, que a Evolution aceita quando a autenticação é por `apikey`.
+
 ## Decisão
 
 - **Provedor:** Evolution API (instância própria ou gerida pelo time).

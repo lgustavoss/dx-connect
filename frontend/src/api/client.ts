@@ -376,6 +376,14 @@ export namespace WhatsappSettings {
     evolution_instance_name: string | null
     has_api_key: boolean
     has_webhook_secret: boolean
+    evolution_embutida_disponivel: boolean
+  }
+  export interface ProvisionEmbutidoResult {
+    instance: string
+    webhook_url: string
+    qrcode?: Record<string, unknown> | null
+    connect_http_status?: number | null
+    connect_erro?: string | null
   }
   export interface Update {
     evolution_base_url?: string | null
@@ -397,6 +405,11 @@ export const whatsappSettings = {
     api<WhatsappSettings.TesteResult>('/settings/whatsapp/testar-conexao', {
       method: 'POST',
     }),
+  provisionarEmbutido: () =>
+    api<WhatsappSettings.ProvisionEmbutidoResult>('/settings/whatsapp/provisao-embutida', { method: 'POST' }),
+  qrCode: () => api<Record<string, unknown>>('/settings/whatsapp/qr-code'),
+  estadoEmbutido: () => api<Record<string, unknown>>('/settings/whatsapp/estado-embutido'),
+  reporEmbutido: () => api<void>('/settings/whatsapp/repor-embutido', { method: 'POST' }),
 }
 
 export namespace WhatsappChats {

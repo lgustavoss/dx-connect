@@ -183,7 +183,7 @@ export function WhatsappConversa() {
     <div className="mx-auto max-w-3xl space-y-4 pb-10">
       <div className="flex flex-wrap items-center gap-3">
         <Link
-          to="/whatsapp/fila"
+          to="/whatsapp/atendendo"
           className="text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
         >
           ← Voltar aos chats
@@ -283,7 +283,7 @@ export function WhatsappConversa() {
         )}
         {chat.estado === 'aguardando_atendente' && !encerrado && (
           <p className="mt-4 text-sm text-amber-800 dark:text-amber-200">
-            Este chat ainda está na fila. Assuma-o na aba <Link to="/whatsapp/fila">Fila</Link> para poder responder.
+            Este chat ainda está na fila. Assuma-o em <Link to="/whatsapp/atendendo">Atendendo</Link> para poder responder.
           </p>
         )}
       </Card>

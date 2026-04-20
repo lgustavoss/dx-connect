@@ -1,14 +1,42 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.models.whatsapp_chat import WhatsappSettings
-from app.schemas.whatsapp_settings import WhatsappSettingsRead, WhatsappSettingsUpdate, WhatsappTesteConexaoResultado
+from app.schemas.whatsapp_settings import (
+    WhatsappProvisionEmbutidoResponse,
+    WhatsappSettingsRead,
+    WhatsappSettingsUpdate,
+    WhatsappTesteConexaoResultado,
+)
 from app.core.auth import exigir_admin
 from app.models.atendente import Atendente
 from app.services import evolution_api
+from app.services import evolution_embedded
 
 router = APIRouter(prefix="/settings/whatsapp", tags=["settings-whatsapp"])
+
+
+def _read_out(row: WhatsappSettings | None) -> WhatsappSettingsRead:
+    emb = settings.evolution_embutida_disponivel
+    if not row:
+        return WhatsappSettingsRead(
+            evolution_base_url=None,
+            evolution_instance_name=None,
+            has_api_key=False,
+            has_webhook_secret=False,
+            evolution_embutida_disponivel=emb,
+        )
+    return WhatsappSettingsRead(
+        evolution_base_url=row.evolution_base_url,
+        evolution_instance_name=row.evolution_instance_name,
+        has_api_key=bool(row.evolution_api_key and row.evolution_api_key.strip()),
+        has_webhook_secret=bool(row.webhook_secret and row.webhook_secret.strip()),
+        evolution_embutida_disponivel=emb,
+    )
 
 
 def _get_row(db: Session) -> WhatsappSettings | None:
@@ -31,20 +59,7 @@ def obter(
     db: Session = Depends(get_db),
     _: Atendente = Depends(exigir_admin),
 ):
-    row = _get_row(db)
-    if not row:
-        return WhatsappSettingsRead(
-            evolution_base_url=None,
-            evolution_instance_name=None,
-            has_api_key=False,
-            has_webhook_secret=False,
-        )
-    return WhatsappSettingsRead(
-        evolution_base_url=row.evolution_base_url,
-        evolution_instance_name=row.evolution_instance_name,
-        has_api_key=bool(row.evolution_api_key and row.evolution_api_key.strip()),
-        has_webhook_secret=bool(row.webhook_secret and row.webhook_secret.strip()),
-    )
+    return _read_out(_get_row(db))
 
 
 @router.patch("", response_model=WhatsappSettingsRead)
@@ -73,12 +88,7 @@ def atualizar(
             row.webhook_secret = None
     db.commit()
     db.refresh(row)
-    return WhatsappSettingsRead(
-        evolution_base_url=row.evolution_base_url,
-        evolution_instance_name=row.evolution_instance_name,
-        has_api_key=bool(row.evolution_api_key and row.evolution_api_key.strip()),
-        has_webhook_secret=bool(row.webhook_secret and row.webhook_secret.strip()),
-    )
+    return _read_out(row)
 
 
 @router.post("/testar-conexao", response_model=WhatsappTesteConexaoResultado)
@@ -98,3 +108,43 @@ def testar_conexao(
         row.evolution_api_key,
     )
     return WhatsappTesteConexaoResultado(ok=ok, detalhe=err)
+
+
+@router.post("/provisao-embutida", response_model=WhatsappProvisionEmbutidoResponse)
+def provisionar_embutido(
+    db: Session = Depends(get_db),
+    _: Atendente = Depends(exigir_admin),
+):
+    row = _get_or_create(db)
+    out = evolution_embedded.provisionar_e_ligar_webhook(db, row)
+    return WhatsappProvisionEmbutidoResponse(**out)
+
+
+@router.get("/qr-code")
+def obter_qr_code(
+    db: Session = Depends(get_db),
+    _: Atendente = Depends(exigir_admin),
+) -> dict[str, Any]:
+    row = _get_or_create(db)
+    return evolution_embedded.obter_qrcode(db, row)
+
+
+@router.get("/estado-embutido")
+def estado_embutido(
+    db: Session = Depends(get_db),
+    _: Atendente = Depends(exigir_admin),
+) -> dict[str, Any]:
+    row = _get_row(db)
+    if not row:
+        return {"configurado": False, "state": None}
+    return evolution_embedded.estado_conexao(db, row)
+
+
+@router.post("/repor-embutido", status_code=status.HTTP_204_NO_CONTENT)
+def repor_embutido(
+    db: Session = Depends(get_db),
+    _: Atendente = Depends(exigir_admin),
+):
+    row = _get_or_create(db)
+    evolution_embedded.repor_instancia(db, row)
+    return None
