@@ -8,6 +8,10 @@ class WhatsappMensagemRead(BaseModel):
     chat_id: int
     direcao: str
     corpo: str
+    tipo_midia: str | None = None
+    mimetype: str | None = None
+    midia_disponivel: bool = False
+    evento_sistema: str | None = None
     wa_message_id: str | None = None
     atendente_id: int | None = None
     atendente_nome: str | None = None
@@ -22,6 +26,8 @@ class WhatsappChatRead(BaseModel):
     wa_id: str
     cliente_nome: str | None = None
     estado: str
+    setor_id: int | None = None
+    setor_nome: str | None = None
     atendente_id: int | None = None
     atendente_nome: str | None = None
     created_at: datetime | None = None
@@ -36,6 +42,10 @@ class WhatsappChatMensagemCreate(BaseModel):
     texto: str = Field(..., min_length=1, max_length=4000)
 
 
+class WhatsappChatComentarioInternoCreate(BaseModel):
+    texto: str = Field(..., min_length=1, max_length=4000)
+
+
 class WhatsappVincularTicketBody(BaseModel):
     ticket_id: int
 
@@ -45,3 +55,8 @@ class WhatsappAbrirTicketBody(BaseModel):
     setor_id: int
     assunto: str = Field(..., min_length=1, max_length=500)
     descricao: str | None = None
+
+
+class WhatsappTransferirChatBody(BaseModel):
+    setor_id: int
+    atendente_id: int | None = None

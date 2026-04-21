@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { empresas, setores, tickets, whatsappChats, type Empresas, type Setores, type WhatsappChats } from '../../api/client'
+import {
+  empresas,
+  setores,
+  atendentes,
+  tickets,
+  whatsappChats,
+  fetchWhatsAppMidiaBlob,
+  type Empresas,
+  type Setores,
+  type Atendentes,
+  type WhatsappChats,
+} from '../../api/client'
 import { coletarTodasPaginas } from '../../api/collectPages'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -8,11 +19,129 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
+import { useAuth } from '../../contexts/AuthContext'
+
+const ROTULO_SEM_LEGENDA = /^\[(Imagem|Áudio|Vídeo|Documento|Figurinha)\]$/
+
+function ConteudoMensagemWhatsApp({ chatId, m }: { chatId: number; m: WhatsappChats.Mensagem }) {
+  const tipo = (m.tipo_midia || 'texto').toLowerCase()
+  const [url, setUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState(false)
+
+  useEffect(() => {
+    if (!m.midia_disponivel || tipo === 'texto') {
+      setUrl(null)
+      return
+    }
+    let objectUrl: string | null = null
+    let cancelled = false
+    setUrl(null)
+    setLoading(true)
+    setErr(false)
+    fetchWhatsAppMidiaBlob(chatId, m.id)
+      .then((blob) => {
+        if (cancelled) return
+        const u = URL.createObjectURL(blob)
+        if (cancelled) {
+          URL.revokeObjectURL(u)
+          return
+        }
+        objectUrl = u
+        setUrl(u)
+      })
+      .catch(() => {
+        if (!cancelled) setErr(true)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [chatId, m.id, m.midia_disponivel, tipo])
+
+  const legenda =
+    m.corpo && !ROTULO_SEM_LEGENDA.test(m.corpo.trim()) ? m.corpo : null
+
+  if (tipo === 'texto' || !m.tipo_midia) {
+    return <p className="whitespace-pre-wrap">{m.corpo}</p>
+  }
+
+  if (!m.midia_disponivel) {
+    return (
+      <div>
+        <p className="whitespace-pre-wrap text-amber-800 dark:text-amber-200/90">{m.corpo}</p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Pré-visualização indisponível (ficheiro não obtido da Evolution ou limite de tamanho).
+        </p>
+      </div>
+    )
+  }
+
+  if (err) {
+    return <p className="whitespace-pre-wrap text-amber-800 dark:text-amber-200/90">{m.corpo}</p>
+  }
+
+  if (loading || !url) {
+    return <p className="text-xs text-slate-500 dark:text-slate-400">A carregar mídia…</p>
+  }
+
+  if (tipo === 'imagem' || tipo === 'figurinha') {
+    return (
+      <div className="space-y-1">
+        <img
+          src={url}
+          alt=""
+          className="max-h-80 max-w-full rounded-md border border-slate-200 dark:border-slate-600"
+        />
+        {legenda && <p className="text-xs text-slate-600 dark:text-slate-300">{legenda}</p>}
+      </div>
+    )
+  }
+
+  if (tipo === 'audio') {
+    return (
+      <div className="space-y-1">
+        <audio controls src={url} className="w-full max-w-sm" />
+        {legenda && <p className="text-xs text-slate-600 dark:text-slate-300">{legenda}</p>}
+      </div>
+    )
+  }
+
+  if (tipo === 'video') {
+    return (
+      <div className="space-y-1">
+        <video controls src={url} className="max-h-64 max-w-full rounded-md" />
+        {legenda && <p className="text-xs text-slate-600 dark:text-slate-300">{legenda}</p>}
+      </div>
+    )
+  }
+
+  if (tipo === 'documento') {
+    return (
+      <div className="space-y-1">
+        <a
+          href={url}
+          download={`documento-${m.id}`}
+          className="inline-flex font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400"
+        >
+          Descarregar documento
+        </a>
+        {legenda && <p className="text-xs text-slate-600 dark:text-slate-300">{legenda}</p>}
+      </div>
+    )
+  }
+
+  return <p className="whitespace-pre-wrap">{m.corpo}</p>
+}
 
 export function WhatsappConversa() {
   const { chatId } = useParams<{ chatId: string }>()
   const id = Number(chatId)
   const toast = useToast()
+  const { user } = useAuth()
 
   const [chat, setChat] = useState<WhatsappChats.Chat | null>(null)
   const [msgs, setMsgs] = useState<WhatsappChats.Mensagem[]>([])
@@ -20,6 +149,13 @@ export function WhatsappConversa() {
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [encerrando, setEncerrando] = useState(false)
+  const [assumindo, setAssumindo] = useState(false)
+  const [modalTransferir, setModalTransferir] = useState(false)
+  const [transferSetorId, setTransferSetorId] = useState<number | ''>('')
+  const [transferAtendenteId, setTransferAtendenteId] = useState<number | ''>('')
+  const [transferindo, setTransferindo] = useState(false)
+  const [atendentesDestino, setAtendentesDestino] = useState<Atendentes.Atendente[]>([])
+  const [erroAtendentesDestino, setErroAtendentesDestino] = useState<string | null>(null)
 
   const [modalVinc, setModalVinc] = useState(false)
   const [ticketVincId, setTicketVincId] = useState('')
@@ -48,6 +184,9 @@ export function WhatsappConversa() {
       setLoading(true)
       try {
         await carregar()
+        // Ao abrir o chat, marca como visto para limpar pendências de "resposta do cliente".
+        // (Falha silenciosa: não deve bloquear a tela.)
+        await whatsappChats.marcarVisto(id).catch(() => {})
       } catch (err) {
         if (!cancelled) {
           toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar o chat.'))
@@ -80,6 +219,44 @@ export function WhatsappConversa() {
       .catch(() => setSetoresList([]))
   }, [modalAbrir])
 
+  useEffect(() => {
+    if (!modalTransferir) return
+    // Setores para transferência: para atendente, não usar /setores (é filtrado por permissão).
+    whatsappChats
+      .setoresParaTransferencia()
+      .then((rows) =>
+        setSetoresList(
+          rows.map((s) => ({
+            id: s.id,
+            nome: s.nome,
+            slug: '',
+            ativo: true,
+          })) as unknown as Setores.Setor[],
+        ),
+      )
+      .catch(() => setSetoresList([]))
+    setAtendentesDestino([])
+    setErroAtendentesDestino(null)
+  }, [modalTransferir])
+
+  useEffect(() => {
+    const sid = transferSetorId === '' ? null : Number(transferSetorId)
+    if (!modalTransferir || !sid) return
+    setAtendentesDestino([])
+    setErroAtendentesDestino(null)
+    atendentes
+      .listPorSetor(sid, { incluir_inativos: true })
+      .then((rows) => {
+        setAtendentesDestino(rows)
+        setErroAtendentesDestino(null)
+      })
+      .catch((err) => {
+        setAtendentesDestino([])
+        // Sem permissão para ver atendentes do setor destino: ainda pode transferir para fila.
+        setErroAtendentesDestino(mensagemFalhaParaToast(err))
+      })
+  }, [modalTransferir, transferSetorId])
+
   async function enviar() {
     if (!chat) return
     const t = texto.trim()
@@ -111,6 +288,43 @@ export function WhatsappConversa() {
       toast.showWarning(mensagemFalhaParaToast(err))
     } finally {
       setEncerrando(false)
+    }
+  }
+
+  async function assumirChat() {
+    if (!chat) return
+    setAssumindo(true)
+    try {
+      await whatsappChats.assumir(chat.id)
+      await carregar()
+      toast.showSuccess('Chat assumido.')
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível assumir o chat.'))
+    } finally {
+      setAssumindo(false)
+    }
+  }
+
+  async function transferirChat() {
+    if (!chat) return
+    if (!transferSetorId) {
+      toast.showWarning('Selecione o setor de destino.')
+      return
+    }
+    const setor_id = Number(transferSetorId)
+    const atendente_id = transferAtendenteId ? Number(transferAtendenteId) : null
+    setTransferindo(true)
+    try {
+      await whatsappChats.transferir(chat.id, { setor_id, atendente_id })
+      setModalTransferir(false)
+      setTransferSetorId('')
+      setTransferAtendenteId('')
+      await carregar()
+      toast.showSuccess('Chat transferido.')
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível transferir o chat.'))
+    } finally {
+      setTransferindo(false)
     }
   }
 
@@ -177,7 +391,14 @@ export function WhatsappConversa() {
   }
 
   const encerrado = chat.estado === 'encerrado'
-  const podeEnviar = chat.estado === 'em_atendimento' && !encerrado
+  const isResponsavel =
+    user?.role === 'admin' || (Boolean(chat.atendente_id) && Boolean(user?.id) && chat.atendente_id === user?.id)
+  const podeEnviarCliente = chat.estado === 'em_atendimento' && !encerrado && isResponsavel
+  const podeComentarInterno = !encerrado && Boolean(user)
+  const podeAssumir = chat.estado === 'aguardando_atendente' && !encerrado
+  const podeTransferir = !encerrado && (chat.estado === 'em_atendimento' || chat.estado === 'aguardando_atendente')
+
+  const podeEscolherResponsavel = Boolean(transferSetorId) && atendentesDestino.length > 0 && !erroAtendentesDestino
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 pb-10">
@@ -204,13 +425,23 @@ export function WhatsappConversa() {
           </div>
           {!encerrado && (
             <div className="flex flex-wrap gap-2">
+              {podeAssumir && (
+                <Button type="button" loading={assumindo} onClick={() => void assumirChat()}>
+                  Assumir chat
+                </Button>
+              )}
+              {podeTransferir && (
+                <Button type="button" variant="secondary" onClick={() => setModalTransferir(true)}>
+                  Transferir
+                </Button>
+              )}
               <Button type="button" variant="secondary" onClick={() => setModalVinc(true)}>
                 Vincular ticket
               </Button>
               <Button type="button" variant="secondary" onClick={() => setModalAbrir(true)}>
                 Abrir ticket
               </Button>
-              {podeEnviar && (
+              {podeEnviarCliente && (
                 <Button type="button" variant="danger" loading={encerrando} onClick={() => void encerrar()}>
                   Encerrar chat
                 </Button>
@@ -249,7 +480,12 @@ export function WhatsappConversa() {
                   : 'ml-8 mr-0 bg-cyan-50 text-slate-900 dark:bg-cyan-950/40 dark:text-slate-100'
               }`}
             >
-              <p className="whitespace-pre-wrap">{m.corpo}</p>
+              {m.evento_sistema === 'comentario_interno' && (
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                  Comentário interno
+                </p>
+              )}
+              <ConteudoMensagemWhatsApp chatId={chat.id} m={m} />
               <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
                 {m.direcao === 'outbound' ? m.atendente_nome || 'Equipe' : 'Cliente'} ·{' '}
                 {m.created_at ? new Date(m.created_at).toLocaleString('pt-BR') : '—'}
@@ -258,7 +494,7 @@ export function WhatsappConversa() {
           ))}
         </ul>
 
-        {podeEnviar && (
+        {podeEnviarCliente && (
           <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700">
             <label className="sr-only" htmlFor="wa-msg">
               Nova mensagem
@@ -278,12 +514,60 @@ export function WhatsappConversa() {
             </div>
           </div>
         )}
+        {!podeEnviarCliente && podeComentarInterno && (
+          <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700">
+            <label className="sr-only" htmlFor="wa-interno">
+              Comentário interno
+            </label>
+            <textarea
+              id="wa-interno"
+              rows={3}
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+              placeholder="Escreva um comentário interno (não será enviado ao cliente)…"
+            />
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Você não é o responsável por este chat. Este texto ficará visível apenas no DX Connect.
+              </p>
+              <Button
+                type="button"
+                loading={enviando}
+                onClick={() => {
+                  if (!chat) return
+                  const t = texto.trim()
+                  if (!t) {
+                    toast.showWarning('Escreva um comentário.')
+                    return
+                  }
+                  setEnviando(true)
+                  whatsappChats
+                    .comentarInterno(chat.id, t)
+                    .then(async () => {
+                      setTexto('')
+                      await carregar()
+                      toast.showSuccess('Comentário adicionado.')
+                    })
+                    .catch((err) => toast.showError(mensagemFalhaParaToast(err, 'Falha ao comentar.')))
+                    .finally(() => setEnviando(false))
+                }}
+              >
+                Adicionar comentário
+              </Button>
+            </div>
+          </div>
+        )}
         {encerrado && (
           <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">Conversa encerrada (somente leitura).</p>
         )}
         {chat.estado === 'aguardando_atendente' && !encerrado && (
           <p className="mt-4 text-sm text-amber-800 dark:text-amber-200">
-            Este chat ainda está na fila. Assuma-o em <Link to="/whatsapp/atendendo">Atendendo</Link> para poder responder.
+            Este chat ainda está na fila. Clique em <span className="font-semibold">Assumir chat</span> acima para poder responder (ou use{' '}
+            <Link to="/whatsapp/atendendo" className="underline">
+              Atendendo
+            </Link>
+            ).
           </p>
         )}
       </Card>
@@ -357,6 +641,59 @@ export function WhatsappConversa() {
               </Button>
               <Button type="button" loading={salvandoTicket} onClick={() => void abrirTicket()}>
                 Criar ticket
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {modalTransferir && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog">
+          <Card className="w-full max-w-lg p-4 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Transferir chat</h3>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+              Escolha o setor de destino. Opcionalmente, selecione um atendente desse setor para já atribuir o chat.
+            </p>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Setor</label>
+                <Select
+                  value={transferSetorId === '' ? '' : transferSetorId}
+                  onChange={(v) => {
+                    const n = v === '' ? '' : Number(v)
+                    setTransferSetorId(n)
+                    setTransferAtendenteId('')
+                  }}
+                  includeEmpty
+                  emptyLabel="Selecione…"
+                  options={setoresList.filter((s) => s.ativo).map((s) => ({ value: s.id, label: s.nome }))}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Atendente (opcional)</label>
+                <Select
+                  value={transferAtendenteId === '' ? '' : transferAtendenteId}
+                  onChange={(v) => setTransferAtendenteId(v === '' ? '' : Number(v))}
+                  includeEmpty
+                  emptyLabel="Deixar na fila do setor"
+                  disabled={!podeEscolherResponsavel}
+                  options={atendentesDestino
+                    .filter((a) => a.ativo)
+                    .map((a) => ({ value: a.id, label: `${a.nome} (${a.role})` }))}
+                />
+                {erroAtendentesDestino && (
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Você pode transferir para a fila do setor, mas não tem permissão para selecionar um atendente específico deste setor.
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => setModalTransferir(false)}>
+                Cancelar
+              </Button>
+              <Button type="button" loading={transferindo} onClick={() => void transferirChat()}>
+                Transferir
               </Button>
             </div>
           </Card>

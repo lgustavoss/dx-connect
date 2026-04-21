@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 
@@ -11,23 +12,37 @@ from app.models.status_ticket import StatusTicket
 from app.models.empresa import Empresa
 from app.models.setor import Setor
 from app.models.whatsapp_chat import WhatsappChat, WhatsappChatTicket, WhatsappMensagem, WhatsappSettings
+from app.models.whatsapp_chat_read import WhatsappChatRead
 from app.schemas.lista_paginada import ListaPaginada
 from app.schemas.whatsapp_chat import (
     WhatsappAbrirTicketBody,
+    WhatsappChatComentarioInternoCreate,
     WhatsappChatMensagemCreate,
     WhatsappChatRead,
     WhatsappMensagemRead,
+    WhatsappTransferirChatBody,
     WhatsappVincularTicketBody,
 )
 from app.core.auth import obter_atendente_atual
 from app.api.tickets import _gerar_protocolo, _pode_ver_ticket
 from app.core.setor_scope import ids_setores_visiveis_atendente
 from app.services import evolution_api
+from app.services.whatsapp_media_storage import caminho_absoluto_arquivo
 
 router = APIRouter(prefix="/whatsapp/chats", tags=["whatsapp-chats"])
 
 _MAX_PAGE = 100
 _DEFAULT_PAGE = 20
+
+
+@router.get("/transfer/setores", response_model=list[dict])
+def listar_setores_para_transferencia(
+    db: Session = Depends(get_db),
+    _: Atendente = Depends(obter_atendente_atual),
+):
+    """Lista TODOS os setores ativos para transferência (não implica permissão de visualização de chats)."""
+    rows = db.query(Setor).filter(Setor.ativo.is_(True)).order_by(Setor.nome.asc(), Setor.id.asc()).all()
+    return [{"id": s.id, "nome": s.nome} for s in rows]
 
 
 def _settings_envio(db: Session) -> WhatsappSettings:
@@ -38,6 +53,90 @@ def _settings_envio(db: Session) -> WhatsappSettings:
             detail="Integração WhatsApp incompleta. Administrador deve preencher URL, instância e API key.",
         )
     return row
+
+
+def _render_template(
+    template: str,
+    *,
+    chat: WhatsappChat,
+    atendente: Atendente | None = None,
+    st: WhatsappSettings | None = None,
+    atendente_nome: str | None = None,
+) -> str:
+    t = (template or "").strip()
+    if not t:
+        return ""
+    nome = (chat.cliente_nome or "").strip() or "Cliente"
+    nome_atendente = (atendente_nome or "").strip() or (atendente.nome if atendente else "").strip() or "BOT"
+    nome_empresa = ((getattr(st, "nome_empresa_exibicao", None) or "").strip() if st else "") or "nossa empresa"
+    return (
+        t.replace("{nome}", nome)
+        .replace("{atendente}", nome_atendente)
+        .replace("{protocolo}", chat.protocolo)
+        .replace("{telefone}", chat.wa_id)
+        .replace("{{nome_cliente}}", nome)
+        .replace("{{atendente}}", nome_atendente)
+        .replace("{{protocolo}}", chat.protocolo)
+        .replace("{{telefone}}", chat.wa_id)
+        .replace("{{nome_empresa}}", nome_empresa)
+    )
+
+
+def _enviar_texto_whatsapp(
+    db: Session,
+    *,
+    chat: WhatsappChat,
+    texto: str,
+    atendente: Atendente | None,
+    evento_sistema: str | None,
+) -> WhatsappMensagem:
+    texto_eff = (texto or "").strip()
+    if not texto_eff:
+        raise HTTPException(status_code=400, detail="Mensagem vazia")
+    # Quando o atendente envia manualmente pelo DX Connect, prefixa o nome no texto
+    # para ficar visível no WhatsApp do cliente (padrão: "[ Nome ]: mensagem").
+    # Mensagens automáticas (evento_sistema != None) não recebem este prefixo.
+    if atendente is not None and evento_sistema is None:
+        nome = (atendente.nome or "").strip()
+        if nome:
+            texto_eff = f"[ {nome} ]: {texto_eff}"
+    # Mensagens automáticas devem deixar claro que são do BOT.
+    if evento_sistema is not None:
+        if not texto_eff.startswith("["):
+            texto_eff = f"[ BOT ]: {texto_eff}"
+    if evento_sistema:
+        exist = (
+            db.query(WhatsappMensagem)
+            .filter(WhatsappMensagem.chat_id == chat.id, WhatsappMensagem.evento_sistema == evento_sistema)
+            .first()
+        )
+        if exist:
+            return exist
+    st = _settings_envio(db)
+    ok, err = evolution_api.evolution_send_text(
+        st.evolution_base_url,
+        st.evolution_instance_name,
+        st.evolution_api_key,
+        chat.wa_id,
+        texto_eff,
+    )
+    if not ok:
+        raise HTTPException(status_code=502, detail=err or "Falha ao enviar pela Evolution API")
+    m = WhatsappMensagem(
+        chat_id=chat.id,
+        direcao="outbound",
+        corpo=texto_eff,
+        tipo_midia="texto",
+        mimetype=None,
+        midia_nome_arquivo=None,
+        wa_message_id=None,
+        atendente_id=atendente.id if atendente else None,
+        evento_sistema=evento_sistema,
+    )
+    db.add(m)
+    db.commit()
+    db.refresh(m)
+    return m
 
 
 def _ticket_ids(db: Session, chat_id: int) -> list[int]:
@@ -51,6 +150,8 @@ def _chat_read(db: Session, c: WhatsappChat) -> WhatsappChatRead:
         wa_id=c.wa_id,
         cliente_nome=c.cliente_nome,
         estado=c.estado,
+        setor_id=getattr(c, "setor_id", None),
+        setor_nome=c.setor.nome if getattr(c, "setor", None) else None,
         atendente_id=c.atendente_id,
         atendente_nome=c.atendente.nome if c.atendente else None,
         created_at=c.created_at,
@@ -61,11 +162,16 @@ def _chat_read(db: Session, c: WhatsappChat) -> WhatsappChatRead:
 
 
 def _mensagem_read(m: WhatsappMensagem) -> WhatsappMensagemRead:
+    midia_ok = bool(m.midia_nome_arquivo and str(m.midia_nome_arquivo).strip())
     return WhatsappMensagemRead(
         id=m.id,
         chat_id=m.chat_id,
         direcao=m.direcao,
         corpo=m.corpo,
+        tipo_midia=m.tipo_midia,
+        mimetype=m.mimetype,
+        midia_disponivel=midia_ok,
+        evento_sistema=getattr(m, "evento_sistema", None),
         wa_message_id=m.wa_message_id,
         atendente_id=m.atendente_id,
         atendente_nome=m.atendente.nome if m.atendente else None,
@@ -78,13 +184,13 @@ def listar_fila(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    rows = (
-        db.query(WhatsappChat)
-        .options(joinedload(WhatsappChat.atendente))
-        .filter(WhatsappChat.estado == "aguardando_atendente")
-        .order_by(WhatsappChat.created_at.asc())
-        .all()
+    q = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente), joinedload(WhatsappChat.setor)).filter(
+        WhatsappChat.estado == "aguardando_atendente"
     )
+    if atendente.role != "admin":
+        vis = ids_setores_visiveis_atendente(db, atendente)
+        q = q.filter((WhatsappChat.setor_id.is_(None)) | (WhatsappChat.setor_id.in_(vis)))
+    rows = q.order_by(WhatsappChat.created_at.asc()).all()
     return [_chat_read(db, c) for c in rows]
 
 
@@ -93,7 +199,11 @@ def listar_meus_ativos(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    q = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente)).filter(WhatsappChat.estado == "em_atendimento")
+    q = (
+        db.query(WhatsappChat)
+        .options(joinedload(WhatsappChat.atendente), joinedload(WhatsappChat.setor))
+        .filter(WhatsappChat.estado == "em_atendimento")
+    )
     if atendente.role != "admin":
         q = q.filter(WhatsappChat.atendente_id == atendente.id)
     rows = q.order_by(WhatsappChat.atendimento_inicio_at.desc().nullslast()).all()
@@ -143,10 +253,40 @@ def obter(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    c = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente)).filter(WhatsappChat.id == chat_id).first()
+    c = (
+        db.query(WhatsappChat)
+        .options(joinedload(WhatsappChat.atendente), joinedload(WhatsappChat.setor))
+        .filter(WhatsappChat.id == chat_id)
+        .first()
+    )
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
     return _chat_read(db, c)
+
+
+@router.get("/{chat_id}/mensagens/{mensagem_id}/midia")
+def obter_midia_da_mensagem(
+    chat_id: int,
+    mensagem_id: int,
+    db: Session = Depends(get_db),
+    _: Atendente = Depends(obter_atendente_atual),
+):
+    """Devolve o ficheiro binário guardado para mensagens inbound com mídia."""
+    c = db.query(WhatsappChat).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    m = (
+        db.query(WhatsappMensagem)
+        .filter(WhatsappMensagem.chat_id == chat_id, WhatsappMensagem.id == mensagem_id)
+        .first()
+    )
+    if not m or not m.midia_nome_arquivo:
+        raise HTTPException(status_code=404, detail="Mídia não encontrada")
+    path = caminho_absoluto_arquivo(m.midia_nome_arquivo)
+    if not path:
+        raise HTTPException(status_code=404, detail="Ficheiro não encontrado em disco")
+    media_type = m.mimetype or "application/octet-stream"
+    return FileResponse(path, media_type=media_type, filename=path.name)
 
 
 @router.get("/{chat_id}/mensagens", response_model=list[WhatsappMensagemRead])
@@ -177,6 +317,10 @@ def assumir(
     c = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente)).filter(WhatsappChat.id == chat_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if atendente.role != "admin" and c.setor_id is not None:
+        vis = ids_setores_visiveis_atendente(db, atendente)
+        if c.setor_id not in vis:
+            raise HTTPException(status_code=403, detail="Sem permissão para este setor")
     if c.estado != "aguardando_atendente":
         raise HTTPException(status_code=400, detail="Só é possível assumir chats na fila de espera")
     c.estado = "em_atendimento"
@@ -184,6 +328,18 @@ def assumir(
     c.atendimento_inicio_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(c)
+    st_auto = db.query(WhatsappSettings).order_by(WhatsappSettings.id.asc()).first()
+    if st_auto and bool(getattr(st_auto, "auto_msg_assumido_ativa", True)):
+        txt = _render_template(
+            getattr(st_auto, "auto_msg_assumido_texto", "") or "",
+            chat=c,
+            atendente=atendente,
+            st=st_auto,
+            # Mensagem é automática (prefixo [ BOT ]), mas o conteúdo pode citar o atendente real.
+            atendente_nome=(atendente.nome or "").strip() or "BOT",
+        )
+        if txt:
+            _enviar_texto_whatsapp(db, chat=c, texto=txt, atendente=atendente, evento_sistema="auto_assumido")
     c = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente)).filter(WhatsappChat.id == chat_id).first()
     assert c is not None
     return _chat_read(db, c)
@@ -198,6 +354,10 @@ def encerrar(
     c = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente)).filter(WhatsappChat.id == chat_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if atendente.role != "admin" and c.setor_id is not None:
+        vis = ids_setores_visiveis_atendente(db, atendente)
+        if c.setor_id not in vis:
+            raise HTTPException(status_code=403, detail="Sem permissão para este setor")
     if c.estado == "encerrado":
         return _chat_read(db, c)
     if c.estado != "em_atendimento":
@@ -208,6 +368,17 @@ def encerrar(
     c.encerramento_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(c)
+    st_auto = db.query(WhatsappSettings).order_by(WhatsappSettings.id.asc()).first()
+    if st_auto and bool(getattr(st_auto, "auto_msg_encerrado_ativa", True)):
+        txt = _render_template(
+            getattr(st_auto, "auto_msg_encerrado_texto", "") or "",
+            chat=c,
+            atendente=atendente,
+            st=st_auto,
+            atendente_nome="BOT",
+        )
+        if txt:
+            _enviar_texto_whatsapp(db, chat=c, texto=txt, atendente=atendente, evento_sistema="auto_encerrado")
     c = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente)).filter(WhatsappChat.id == chat_id).first()
     assert c is not None
     return _chat_read(db, c)
@@ -223,36 +394,91 @@ def enviar_mensagem(
     c = db.query(WhatsappChat).filter(WhatsappChat.id == chat_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if atendente.role != "admin" and c.setor_id is not None:
+        vis = ids_setores_visiveis_atendente(db, atendente)
+        if c.setor_id not in vis:
+            raise HTTPException(status_code=403, detail="Sem permissão para este setor")
     if c.estado != "em_atendimento":
         raise HTTPException(status_code=400, detail="Só é possível enviar mensagens em chats ativos")
     if atendente.role != "admin" and c.atendente_id != atendente.id:
         raise HTTPException(status_code=403, detail="Apenas o atendente responsável pode enviar mensagens")
-    st = _settings_envio(db)
     texto = data.texto.strip()
-    if not texto:
-        raise HTTPException(status_code=400, detail="Mensagem vazia")
-    ok, err = evolution_api.evolution_send_text(
-        st.evolution_base_url,
-        st.evolution_instance_name,
-        st.evolution_api_key,
-        c.wa_id,
-        texto,
-    )
-    if not ok:
-        raise HTTPException(status_code=502, detail=err or "Falha ao enviar pela Evolution API")
-    m = WhatsappMensagem(
-        chat_id=chat_id,
-        direcao="outbound",
-        corpo=texto,
-        wa_message_id=None,
-        atendente_id=atendente.id,
-    )
-    db.add(m)
-    db.commit()
-    db.refresh(m)
+    m = _enviar_texto_whatsapp(db, chat=c, texto=texto, atendente=atendente, evento_sistema=None)
     m = db.query(WhatsappMensagem).options(joinedload(WhatsappMensagem.atendente)).filter(WhatsappMensagem.id == m.id).first()
     assert m is not None
     return _mensagem_read(m)
+
+
+@router.post("/{chat_id}/comentarios-internos", response_model=WhatsappMensagemRead, status_code=201)
+def comentar_interno(
+    chat_id: int,
+    data: WhatsappChatComentarioInternoCreate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    c = db.query(WhatsappChat).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if atendente.role != "admin" and c.setor_id is not None:
+        vis = ids_setores_visiveis_atendente(db, atendente)
+        if c.setor_id not in vis:
+            raise HTTPException(status_code=403, detail="Sem permissão para este setor")
+    if c.estado == "encerrado":
+        raise HTTPException(status_code=400, detail="Chat encerrado (somente leitura)")
+    texto = data.texto.strip()
+    if not texto:
+        raise HTTPException(status_code=400, detail="Comentário vazio")
+    nome = (atendente.nome or "").strip() or "Equipe"
+    corpo = f"[ INTERNO / {nome} ]: {texto}"
+    m = WhatsappMensagem(
+        chat_id=c.id,
+        direcao="outbound",
+        corpo=corpo,
+        tipo_midia="texto",
+        mimetype=None,
+        midia_nome_arquivo=None,
+        wa_message_id=None,
+        atendente_id=atendente.id,
+        evento_sistema="comentario_interno",
+    )
+    db.add(m)
+    db.commit()
+    m2 = (
+        db.query(WhatsappMensagem)
+        .options(joinedload(WhatsappMensagem.atendente))
+        .filter(WhatsappMensagem.id == m.id)
+        .first()
+    )
+    assert m2 is not None
+    return _mensagem_read(m2)
+
+
+@router.post("/{chat_id}/visto", status_code=204)
+def marcar_chat_visto(
+    chat_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    c = db.query(WhatsappChat).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if atendente.role != "admin" and c.setor_id is not None:
+        vis = ids_setores_visiveis_atendente(db, atendente)
+        if c.setor_id not in vis:
+            raise HTTPException(status_code=403, detail="Sem permissão para este setor")
+
+    now = datetime.now(timezone.utc)
+    row = (
+        db.query(WhatsappChatRead)
+        .filter(WhatsappChatRead.chat_id == chat_id, WhatsappChatRead.atendente_id == atendente.id)
+        .first()
+    )
+    if row:
+        row.last_seen_at = now
+    else:
+        db.add(WhatsappChatRead(chat_id=chat_id, atendente_id=atendente.id, last_seen_at=now))
+    db.commit()
+    return None
 
 
 @router.post("/{chat_id}/vincular-ticket", response_model=WhatsappChatRead)
@@ -331,5 +557,73 @@ def abrir_ticket(
     db.add(WhatsappChatTicket(chat_id=chat_id, ticket_id=ticket.id, atendente_id=atendente.id))
     db.commit()
     c2 = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente)).filter(WhatsappChat.id == chat_id).first()
+    assert c2 is not None
+    return _chat_read(db, c2)
+
+
+@router.post("/{chat_id}/transferir", response_model=WhatsappChatRead)
+def transferir(
+    chat_id: int,
+    data: WhatsappTransferirChatBody,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    c = (
+        db.query(WhatsappChat)
+        .options(joinedload(WhatsappChat.atendente), joinedload(WhatsappChat.setor))
+        .filter(WhatsappChat.id == chat_id)
+        .first()
+    )
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if c.estado == "encerrado":
+        raise HTTPException(status_code=400, detail="Chat encerrado não pode ser transferido")
+    # Permissão: admin ou atendente responsável atual
+    if atendente.role != "admin" and c.atendente_id not in (None, atendente.id):
+        raise HTTPException(status_code=403, detail="Apenas o atendente responsável pode transferir este chat")
+
+    setor = db.query(Setor).filter(Setor.id == data.setor_id, Setor.ativo.is_(True)).first()
+    if not setor:
+        raise HTTPException(status_code=404, detail="Setor não encontrado ou inativo")
+
+    # Atendente pode transferir para qualquer setor.
+    # Porém, só pode escolher um responsável (atendente_id) se tiver acesso ao setor destino (ou for admin).
+    vis_destino_ok = True
+    if atendente.role != "admin":
+        vis = ids_setores_visiveis_atendente(db, atendente)
+        vis_destino_ok = data.setor_id in vis
+
+    destino: Atendente | None = None
+    if data.atendente_id is not None:
+        if not vis_destino_ok:
+            raise HTTPException(
+                status_code=403,
+                detail="Sem permissão para atribuir responsável no setor destino. Transfira sem atendente para cair na fila do setor.",
+            )
+        destino = db.query(Atendente).filter(Atendente.id == data.atendente_id, Atendente.ativo.is_(True)).first()
+        if not destino:
+            raise HTTPException(status_code=404, detail="Atendente não encontrado ou inativo")
+        # destino deve pertencer ao setor escolhido (a menos que seja admin)
+        if destino.role != "admin":
+            setor_ids = {s.id for s in destino.setores}
+            if data.setor_id not in setor_ids:
+                raise HTTPException(status_code=400, detail="Atendente selecionado não pertence ao setor escolhido")
+
+    c.setor_id = data.setor_id
+    c.atendente_id = destino.id if destino else None
+    if destino:
+        c.estado = "em_atendimento"
+        c.atendimento_inicio_at = c.atendimento_inicio_at or datetime.now(timezone.utc)
+    else:
+        c.estado = "aguardando_atendente"
+        c.atendimento_inicio_at = None
+    db.commit()
+    db.refresh(c)
+    c2 = (
+        db.query(WhatsappChat)
+        .options(joinedload(WhatsappChat.atendente), joinedload(WhatsappChat.setor))
+        .filter(WhatsappChat.id == chat_id)
+        .first()
+    )
     assert c2 is not None
     return _chat_read(db, c2)

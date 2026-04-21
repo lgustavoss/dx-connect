@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -15,6 +15,26 @@ class WhatsappSettings(Base):
     evolution_instance_name = Column(String(120), nullable=True)
     evolution_api_key = Column(String(500), nullable=True)
     webhook_secret = Column(String(255), nullable=True)
+    # Templates de mensagens automáticas (opcional; texto vazio = não envia).
+    auto_msg_espera_ativa = Column(Boolean, nullable=False, default=True)
+    auto_msg_espera_texto = Column(Text, nullable=True)
+    auto_msg_assumido_ativa = Column(Boolean, nullable=False, default=True)
+    auto_msg_assumido_texto = Column(Text, nullable=True)
+    auto_msg_encerrado_ativa = Column(Boolean, nullable=False, default=True)
+    auto_msg_encerrado_texto = Column(Text, nullable=True)
+    # Fora do horário
+    auto_msg_fora_horario_ativa = Column(Boolean, nullable=False, default=True)
+    auto_msg_fora_horario_texto = Column(Text, nullable=True)
+    # Horário de atendimento: HH:MM (local timezone)
+    horario_inicio = Column(String(5), nullable=True)
+    horario_fim = Column(String(5), nullable=True)
+    horario_timezone = Column(String(64), nullable=False, default="America/Sao_Paulo")
+    # Horário por dia da semana (JSON): substitui horario_inicio/horario_fim quando presente.
+    horario_semana_json = Column(Text, nullable=True)
+    # Se True, considera feriados nacionais (Brasil) como "fechado o dia todo".
+    usar_feriados_nacionais = Column(Boolean, nullable=False, default=False)
+    # Nome amigável da empresa para templates (ex.: "DX Connect" ou nome do cliente/negócio).
+    nome_empresa_exibicao = Column(String(255), nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
 
@@ -26,12 +46,14 @@ class WhatsappChat(Base):
     wa_id = Column(String(64), nullable=False, index=True)
     cliente_nome = Column(String(255), nullable=True)
     estado = Column(String(40), nullable=False, index=True)
+    setor_id = Column(Integer, ForeignKey("setores.id", ondelete="SET NULL"), nullable=True, index=True)
     atendente_id = Column(Integer, ForeignKey("atendentes.id", ondelete="SET NULL"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     atendimento_inicio_at = Column(DateTime(timezone=True), nullable=True)
     encerramento_at = Column(DateTime(timezone=True), nullable=True)
 
     atendente = relationship("Atendente", backref="whatsapp_chats_atendidos")
+    setor = relationship("Setor", backref="whatsapp_chats")
     mensagens = relationship(
         "WhatsappMensagem",
         back_populates="chat",
@@ -47,6 +69,13 @@ class WhatsappMensagem(Base):
     chat_id = Column(Integer, ForeignKey("whatsapp_chats.id", ondelete="CASCADE"), nullable=False, index=True)
     direcao = Column(String(20), nullable=False)
     corpo = Column(Text, nullable=False)
+    # texto | imagem | audio | video | documento | figurinha — None = legado (tratar como texto)
+    tipo_midia = Column(String(24), nullable=True)
+    mimetype = Column(String(128), nullable=True)
+    # Nome do ficheiro dentro de WHATSAPP_MEDIA_DIR (apenas inbound com mídia obtida da Evolution)
+    midia_nome_arquivo = Column(String(500), nullable=True)
+    # Identifica mensagens automáticas disparadas pelo sistema (evita duplicação e ajuda auditoria).
+    evento_sistema = Column(String(40), nullable=True, index=True)
     wa_message_id = Column(String(128), nullable=True, index=True)
     atendente_id = Column(Integer, ForeignKey("atendentes.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

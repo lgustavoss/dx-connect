@@ -41,7 +41,7 @@ Campos persistidos em `whatsapp_settings` (via **Configurações → WhatsApp**,
 
 2. Eventos tratados na v1 (extensível depois):
 
-   - `messages.upsert` — mensagens recebidas/enviadas; o backend **persiste apenas mensagens recebidas do cliente** (`fromMe === false`), texto simples (`conversation` ou `extendedTextMessage.text`).
+   - `messages.upsert` — mensagens recebidas/enviadas; o backend **persiste apenas mensagens recebidas do cliente** (`fromMe === false`). **Texto** (`conversation` / `extendedTextMessage`) e **mídia** (imagem, áudio, vídeo, documento, figurinha): o ficheiro é obtido via `POST /chat/getBase64FromMediaMessage/{instance}` na Evolution e guardado em disco (`WHATSAPP_MEDIA_DIR`); a UI do DX Connect pré-visualiza ou permite descarregar.
 
 3. **Idempotência:** uso do identificador da mensagem na origem (`key.id` no payload Baileys-like) na coluna `wa_message_id` (único).
 
@@ -61,9 +61,10 @@ Campos persistidos em `whatsapp_settings` (via **Configurações → WhatsApp**,
 
 ## Riscos e limitações
 
-- Comportamento e payloads podem variar entre **versões** da Evolution; ajustar o parser em `app/api/whatsapp_webhook.py` se necessário.
+- Comportamento e payloads podem variar entre **versões** da Evolution; ajustar o parser em `app/services/evolution_inbound.py` ou a chamada a `getBase64FromMediaMessage` se necessário.
 - Políticas e limitações do **WhatsApp** aplicam-se ao número conectado na Evolution.
-- Mídia, localização e templates não fazem parte da v1 descrita aqui.
+- **Localização** e **templates** não são tratados nesta versão.
+- Ficheiros muito grandes respeitam `WHATSAPP_MEDIA_MAX_BYTES` (por defeito 25 MB); mensagens de contacto / localização não são mapeadas.
 
 ## Referências úteis
 

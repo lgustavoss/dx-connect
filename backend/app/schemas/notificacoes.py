@@ -10,11 +10,16 @@ class NotificacaoResumo(BaseModel):
         ge=0,
         description="Quantidade de tickets com mensagens não lidas (com responsável)",
     )
+    wpp_fila_count: int = Field(ge=0, description="Quantidade de chats WhatsApp aguardando atendimento")
+    wpp_respostas_count: int = Field(
+        ge=0,
+        description="Quantidade de chats WhatsApp em atendimento do usuário com resposta do cliente pendente",
+    )
     total_pendencias: int = Field(ge=0, description="Soma usada no badge (sem duplicar fila vs. não lidas)")
 
 
 class NotificacaoItem(BaseModel):
-    tipo: Literal["fila_sem_responsavel", "mensagens_nao_lidas"]
+    tipo: Literal["fila_sem_responsavel", "mensagens_nao_lidas", "wpp_chats_na_fila", "wpp_chats_com_resposta"]
     ticket_id: int | None = None
     titulo: str
     descricao: str

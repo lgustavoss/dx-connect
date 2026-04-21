@@ -16,6 +16,12 @@ depends_on = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    # Em desenvolvimento o SQLAlchemy create_all pode já ter criado o schema antes do Alembic alcançar 007.
+    if insp.has_table("whatsapp_settings"):
+        return
+
     op.create_table(
         "whatsapp_settings",
         sa.Column("id", sa.Integer(), nullable=False),

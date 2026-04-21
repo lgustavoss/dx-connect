@@ -110,3 +110,48 @@ def evolution_send_text(
     if err:
         return False, err[:800]
     return False, f"HTTP {code}"
+
+
+def _extrair_base64_resposta(data: Any) -> str | None:
+    if isinstance(data, str) and len(data) > 80 and not data.strip().startswith("{"):
+        return data.strip()
+    if not isinstance(data, dict):
+        return None
+    for k in ("base64", "Base64"):
+        v = data.get(k)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    for wrap in ("data", "response", "Data", "Response"):
+        inner = data.get(wrap)
+        got = _extrair_base64_resposta(inner)
+        if got:
+            return got
+    return None
+
+
+def evolution_get_base64_from_media_message(
+    base_url: str,
+    instance: str,
+    api_key: str,
+    message_envelope: dict[str, Any],
+    *,
+    convert_to_mp4: bool = False,
+    timeout: int = 90,
+) -> tuple[bool, str | None, str | None]:
+    """
+    POST /chat/getBase64FromMediaMessage/{instance}
+    `message_envelope` costuma ser o objeto completo da mensagem no webhook (key, message, …).
+    """
+    base = base_url.rstrip("/")
+    url = f"{base}/chat/getBase64FromMediaMessage/{instance}"
+    headers = {"apikey": api_key, "Content-Type": "application/json", "Accept": "application/json"}
+    body: dict[str, Any] = {"message": message_envelope, "convertToMp4": convert_to_mp4}
+    code, data, err = _request_json("POST", url, headers=headers, body=body, timeout=timeout)
+    if code in (200, 201):
+        b64 = _extrair_base64_resposta(data)
+        if b64:
+            return True, b64, None
+        return False, None, "Evolution não devolveu base64 no formato esperado"
+    if err:
+        return False, None, err[:1200]
+    return False, None, f"HTTP {code}"

@@ -377,6 +377,20 @@ export namespace WhatsappSettings {
     has_api_key: boolean
     has_webhook_secret: boolean
     evolution_embutida_disponivel: boolean
+    auto_msg_espera_ativa: boolean
+    auto_msg_espera_texto: string | null
+    auto_msg_assumido_ativa: boolean
+    auto_msg_assumido_texto: string | null
+    auto_msg_encerrado_ativa: boolean
+    auto_msg_encerrado_texto: string | null
+    auto_msg_fora_horario_ativa: boolean
+    auto_msg_fora_horario_texto: string | null
+    horario_inicio: string | null
+    horario_fim: string | null
+    horario_timezone: string
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null
+    usar_feriados_nacionais?: boolean
+    nome_empresa_exibicao?: string | null
   }
   export interface ProvisionEmbutidoResult {
     instance: string
@@ -390,6 +404,20 @@ export namespace WhatsappSettings {
     evolution_instance_name?: string | null
     evolution_api_key?: string | null
     webhook_secret?: string | null
+    auto_msg_espera_ativa?: boolean | null
+    auto_msg_espera_texto?: string | null
+    auto_msg_assumido_ativa?: boolean | null
+    auto_msg_assumido_texto?: string | null
+    auto_msg_encerrado_ativa?: boolean | null
+    auto_msg_encerrado_texto?: string | null
+    auto_msg_fora_horario_ativa?: boolean | null
+    auto_msg_fora_horario_texto?: string | null
+    horario_inicio?: string | null
+    horario_fim?: string | null
+    horario_timezone?: string | null
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null
+    usar_feriados_nacionais?: boolean | null
+    nome_empresa_exibicao?: string | null
   }
   export interface TesteResult {
     ok: boolean
@@ -419,6 +447,8 @@ export namespace WhatsappChats {
     wa_id: string
     cliente_nome?: string | null
     estado: string
+    setor_id?: number | null
+    setor_nome?: string | null
     atendente_id?: number | null
     atendente_nome?: string | null
     created_at?: string | null
@@ -431,11 +461,31 @@ export namespace WhatsappChats {
     chat_id: number
     direcao: string
     corpo: string
+    tipo_midia?: string | null
+    mimetype?: string | null
+    midia_disponivel?: boolean
+    evento_sistema?: string | null
     wa_message_id?: string | null
     atendente_id?: number | null
     atendente_nome?: string | null
     created_at?: string | null
   }
+}
+
+/** Obtém o binário de uma mensagem com mídia (requer JWT; não usar em `src` de img direto). */
+export async function fetchWhatsAppMidiaBlob(chatId: number, mensagemId: number): Promise<Blob> {
+  const token = getAuthToken()
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(
+    `${BASE}${API_VERSION_PREFIX}/whatsapp/chats/${chatId}/mensagens/${mensagemId}/midia`,
+    { headers },
+  )
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+  }
+  return res.blob()
 }
 
 export const whatsappChats = {
@@ -447,11 +497,19 @@ export const whatsappChats = {
   mensagens: (id: number) => api<WhatsappChats.Mensagem[]>(`/whatsapp/chats/${id}/mensagens`),
   assumir: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/assumir`, { method: 'POST' }),
   encerrar: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/encerrar`, { method: 'POST' }),
+  transferir: (id: number, data: { setor_id: number; atendente_id?: number | null }) =>
+    api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/transferir`, { method: 'POST', body: JSON.stringify(data) }),
   enviar: (id: number, texto: string) =>
     api<WhatsappChats.Mensagem>(`/whatsapp/chats/${id}/mensagens`, {
       method: 'POST',
       body: JSON.stringify({ texto }),
     }),
+  comentarInterno: (id: number, texto: string) =>
+    api<WhatsappChats.Mensagem>(`/whatsapp/chats/${id}/comentarios-internos`, {
+      method: 'POST',
+      body: JSON.stringify({ texto }),
+    }),
+  marcarVisto: (id: number) => api<void>(`/whatsapp/chats/${id}/visto`, { method: 'POST' }),
   vincularTicket: (id: number, ticketId: number) =>
     api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/vincular-ticket`, {
       method: 'POST',
@@ -466,6 +524,7 @@ export const whatsappChats = {
       body: JSON.stringify(data),
     }),
   porTicket: (ticketId: number) => api<WhatsappChats.Chat[]>(`/whatsapp/chats/por-ticket/${ticketId}`),
+  setoresParaTransferencia: () => api<Array<{ id: number; nome: string }>>('/whatsapp/chats/transfer/setores'),
 }
 
 export const tickets = {
@@ -504,10 +563,12 @@ export namespace Notificacoes {
   export interface Resumo {
     sem_responsavel_count: number;
     nao_lidas_count: number;
+    wpp_fila_count: number;
+    wpp_respostas_count: number;
     total_pendencias: number;
   }
   export interface Item {
-    tipo: 'fila_sem_responsavel' | 'mensagens_nao_lidas';
+    tipo: 'fila_sem_responsavel' | 'mensagens_nao_lidas' | 'wpp_chats_na_fila' | 'wpp_chats_com_resposta';
     ticket_id: number | null;
     titulo: string;
     descricao: string;

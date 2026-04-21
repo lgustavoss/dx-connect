@@ -1,5 +1,7 @@
 from typing import Any
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -29,13 +31,48 @@ def _read_out(row: WhatsappSettings | None) -> WhatsappSettingsRead:
             has_api_key=False,
             has_webhook_secret=False,
             evolution_embutida_disponivel=emb,
+            auto_msg_espera_ativa=True,
+            auto_msg_espera_texto=None,
+            auto_msg_assumido_ativa=True,
+            auto_msg_assumido_texto=None,
+            auto_msg_encerrado_ativa=True,
+            auto_msg_encerrado_texto=None,
+            auto_msg_fora_horario_ativa=True,
+            auto_msg_fora_horario_texto=None,
+            horario_inicio=None,
+            horario_fim=None,
+            horario_timezone="America/Sao_Paulo",
+            horario_semana=None,
+            usar_feriados_nacionais=False,
+            nome_empresa_exibicao=None,
         )
+    horario_semana = None
+    raw = getattr(row, "horario_semana_json", None)
+    if raw and str(raw).strip():
+        try:
+            horario_semana = json.loads(str(raw))
+        except Exception:
+            horario_semana = None
     return WhatsappSettingsRead(
         evolution_base_url=row.evolution_base_url,
         evolution_instance_name=row.evolution_instance_name,
         has_api_key=bool(row.evolution_api_key and row.evolution_api_key.strip()),
         has_webhook_secret=bool(row.webhook_secret and row.webhook_secret.strip()),
         evolution_embutida_disponivel=emb,
+        auto_msg_espera_ativa=bool(getattr(row, "auto_msg_espera_ativa", True)),
+        auto_msg_espera_texto=getattr(row, "auto_msg_espera_texto", None),
+        auto_msg_assumido_ativa=bool(getattr(row, "auto_msg_assumido_ativa", True)),
+        auto_msg_assumido_texto=getattr(row, "auto_msg_assumido_texto", None),
+        auto_msg_encerrado_ativa=bool(getattr(row, "auto_msg_encerrado_ativa", True)),
+        auto_msg_encerrado_texto=getattr(row, "auto_msg_encerrado_texto", None),
+        auto_msg_fora_horario_ativa=bool(getattr(row, "auto_msg_fora_horario_ativa", True)),
+        auto_msg_fora_horario_texto=getattr(row, "auto_msg_fora_horario_texto", None),
+        horario_inicio=getattr(row, "horario_inicio", None),
+        horario_fim=getattr(row, "horario_fim", None),
+        horario_timezone=getattr(row, "horario_timezone", "America/Sao_Paulo") or "America/Sao_Paulo",
+        horario_semana=horario_semana if isinstance(horario_semana, dict) else None,
+        usar_feriados_nacionais=bool(getattr(row, "usar_feriados_nacionais", False)),
+        nome_empresa_exibicao=getattr(row, "nome_empresa_exibicao", None),
     )
 
 
@@ -86,6 +123,30 @@ def atualizar(
             row.webhook_secret = v.strip()
         elif v is not None:
             row.webhook_secret = None
+    # mensagens automáticas
+    for k in (
+        "auto_msg_espera_ativa",
+        "auto_msg_espera_texto",
+        "auto_msg_assumido_ativa",
+        "auto_msg_assumido_texto",
+        "auto_msg_encerrado_ativa",
+        "auto_msg_encerrado_texto",
+        "auto_msg_fora_horario_ativa",
+        "auto_msg_fora_horario_texto",
+        "horario_inicio",
+        "horario_fim",
+        "horario_timezone",
+        "usar_feriados_nacionais",
+        "nome_empresa_exibicao",
+    ):
+        if k in payload:
+            setattr(row, k, payload[k])
+    if "horario_semana" in payload:
+        hs = payload["horario_semana"]
+        if hs is None:
+            row.horario_semana_json = None
+        elif isinstance(hs, dict):
+            row.horario_semana_json = json.dumps(hs, ensure_ascii=False)
     db.commit()
     db.refresh(row)
     return _read_out(row)
