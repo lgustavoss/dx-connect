@@ -401,135 +401,174 @@ export function WhatsappConversa() {
   const podeEscolherResponsavel = Boolean(transferSetorId) && atendentesDestino.length > 0 && !erroAtendentesDestino
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4 pb-10">
-      <div className="flex flex-wrap items-center gap-3">
-        <Link
-          to="/whatsapp/atendendo"
-          className="text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-        >
-          ← Voltar aos chats
-        </Link>
-      </div>
+  <div className="mx-auto flex h-full max-w-4xl flex-col space-y-6 pb-10 animate-in fade-in duration-500">
+    {/* Header de Navegação */}
+    <div className="flex items-center justify-between">
+      <Link
+        to="/whatsapp/atendendo"
+        className="group flex items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-cyan-600 dark:text-slate-400 dark:hover:text-cyan-400"
+      >
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 group-hover:bg-cyan-50 dark:bg-slate-800 dark:group-hover:bg-cyan-950/30">
+          ←
+        </span>
+        Voltar aos chats
+      </Link>
+      
+      {!encerrado && (
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+          </span>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Atendimento Ativo</span>
+        </div>
+      )}
+    </div>
 
-      <Card className="p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="font-mono text-lg font-semibold text-cyan-700 dark:text-cyan-400">{chat.protocolo}</p>
-            <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
-              {chat.cliente_nome || 'Cliente'} · <span className="font-mono text-xs">{chat.wa_id}</span>
+    {/* Card Principal de Info e Ações */}
+    <Card className="overflow-hidden border-none shadow-xl shadow-slate-200/50 ring-1 ring-slate-200 dark:shadow-none dark:ring-slate-800">
+      <div className="bg-gradient-to-r from-white to-slate-50/50 p-6 dark:from-slate-900 dark:to-slate-900/50">
+        <div className="flex flex-wrap items-start justify-between gap-6">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <h1 className="font-mono text-2xl font-bold tracking-tight text-cyan-700 dark:text-cyan-400">
+                {chat.protocolo}
+              </h1>
+              <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                {chat.estado.replace(/_/g, ' ')}
+              </span>
+            </div>
+            <p className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+              <span className="font-bold">{chat.cliente_nome || 'Cliente'}</span>
+              <span className="text-slate-300 dark:text-slate-600">•</span>
+              <span className="font-mono text-sm text-slate-500">{chat.wa_id}</span>
             </p>
-            <p className="mt-2 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              Estado: <span className="font-semibold">{chat.estado.replace(/_/g, ' ')}</span>
-              {chat.atendente_nome && <> · Atendente: {chat.atendente_nome}</>}
-            </p>
+            {chat.atendente_nome && (
+              <p className="text-xs text-slate-500">
+                Responsável: <span className="font-medium text-slate-700 dark:text-slate-300">{chat.atendente_nome}</span>
+              </p>
+            )}
           </div>
+
           {!encerrado && (
             <div className="flex flex-wrap gap-2">
               {podeAssumir && (
-                <Button type="button" loading={assumindo} onClick={() => void assumirChat()}>
+                <Button type="button" loading={assumindo} onClick={() => void assumirChat()} className="bg-cyan-600 shadow-lg shadow-cyan-600/20 hover:bg-cyan-700">
                   Assumir chat
                 </Button>
               )}
-              {podeTransferir && (
-                <Button type="button" variant="secondary" onClick={() => setModalTransferir(true)}>
-                  Transferir
+              <div className="flex items-center gap-2 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
+                {podeTransferir && (
+                  <Button type="button" variant="ghost"  onClick={() => setModalTransferir(true)} className="text-xs">
+                    Transferir
+                  </Button>
+                )}
+                <Button type="button" variant="ghost"  onClick={() => setModalVinc(true)} className="text-xs">
+                  Vincular ticket
                 </Button>
-              )}
-              <Button type="button" variant="secondary" onClick={() => setModalVinc(true)}>
-                Vincular ticket
-              </Button>
-              <Button type="button" variant="secondary" onClick={() => setModalAbrir(true)}>
-                Abrir ticket
-              </Button>
+                <Button type="button" variant="ghost"  onClick={() => setModalAbrir(true)} className="text-xs">
+                  Abrir ticket
+                </Button>
+              </div>
               {podeEnviarCliente && (
-                <Button type="button" variant="danger" loading={encerrando} onClick={() => void encerrar()}>
-                  Encerrar chat
+                <Button type="button" variant="danger"  loading={encerrando} onClick={() => void encerrar()} className="ml-2">
+                  Encerrar
                 </Button>
               )}
             </div>
           )}
         </div>
+
+        {/* Tickets Vinculados */}
         {chat.ticket_ids.length > 0 && (
-          <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-700">
-            <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Tickets vinculados</p>
-            <ul className="mt-1 flex flex-wrap gap-2">
+          <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Tickets vinculados</span>
+            <div className="flex flex-wrap gap-2">
               {chat.ticket_ids.map((tid) => (
-                <li key={tid}>
-                  <Link
-                    to={`/tickets/${tid}`}
-                    className="text-sm font-medium text-cyan-700 underline hover:text-cyan-800 dark:text-cyan-400"
-                  >
-                    Ticket #{tid}
-                  </Link>
-                </li>
+                <Link
+                  key={tid}
+                  to={`/tickets/${tid}`}
+                  className="group flex items-center gap-1 rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-700 transition-all hover:bg-cyan-100 dark:bg-cyan-950/30 dark:text-cyan-400"
+                >
+                  Ticket #{tid}
+                  <span className="opacity-40 transition-all group-hover:translate-x-0.5 group-hover:opacity-100">↗</span>
+                </Link>
               ))}
-            </ul>
+            </div>
           </div>
         )}
-      </Card>
+      </div>
+    </Card>
 
-      <Card className="p-4">
-        <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Mensagens</h2>
-        <ul className="mt-3 max-h-[420px] space-y-3 overflow-y-auto pr-1">
-          {msgs.map((m) => (
-            <li
-              key={m.id}
-              className={`rounded-lg px-3 py-2 text-sm ${
-                m.direcao === 'inbound'
-                  ? 'ml-0 mr-8 bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
-                  : 'ml-8 mr-0 bg-cyan-50 text-slate-900 dark:bg-cyan-950/40 dark:text-slate-100'
-              }`}
-            >
-              {m.evento_sistema === 'comentario_interno' && (
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
-                  Comentário interno
+    {/* Histórico de Mensagens */}
+    <Card className="flex flex-col border-none shadow-xl ring-1 ring-slate-200 dark:ring-slate-800">
+      <div className="border-b border-slate-50 bg-slate-50/30 px-6 py-3 dark:border-slate-800 dark:bg-slate-900/30">
+        <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500">Mensagens</h2>
+      </div>
+      
+      <ul className="mt-3 max-h-[420px] space-y-4 overflow-y-auto px-6 py-4">
+        {msgs.map((m) => {
+          const isSystem = m.evento_sistema === 'comentario_interno';
+          const isInbound = m.direcao === 'inbound';
+          
+          return (
+            <li key={m.id} className={`flex w-full flex-col ${isInbound ? 'items-start' : 'items-end'}`}>
+              {isSystem && (
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                  🔒 Comentário interno
                 </p>
               )}
-              <ConteudoMensagemWhatsApp chatId={chat.id} m={m} />
-              <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+              <div className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm shadow-sm ${
+                isSystem 
+                  ? 'border border-amber-100 bg-amber-50 text-amber-900 dark:border-amber-900/30 dark:bg-amber-950/20 dark:text-amber-100'
+                  : isInbound
+                    ? 'rounded-tl-none bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
+                    : 'rounded-tr-none bg-cyan-600 text-white dark:bg-cyan-700'
+              }`}>
+                <ConteudoMensagemWhatsApp chatId={chat.id} m={m} />
+              </div>
+              <p className="mt-1 text-[10px] font-medium text-slate-500 dark:text-slate-400">
                 {m.direcao === 'outbound' ? m.atendente_nome || 'Equipe' : 'Cliente'} ·{' '}
                 {m.created_at ? new Date(m.created_at).toLocaleString('pt-BR') : '—'}
               </p>
             </li>
-          ))}
-        </ul>
+          );
+        })}
+      </ul>
 
+      {/* Footer com Input Condicional */}
+      <div className="border-t border-slate-100 p-4 dark:border-slate-800">
         {podeEnviarCliente && (
-          <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700">
-            <label className="sr-only" htmlFor="wa-msg">
-              Nova mensagem
-            </label>
+          <div className="space-y-3">
             <textarea
               id="wa-msg"
               rows={3}
               value={texto}
               onChange={(e) => setTexto(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+              className="w-full resize-none rounded-xl border-none bg-slate-50 p-4 text-sm focus:ring-2 focus:ring-cyan-500 dark:bg-slate-900/50 dark:text-slate-100"
               placeholder="Digite a mensagem para o cliente…"
             />
-            <div className="mt-2 flex justify-end">
-              <Button type="button" loading={enviando} onClick={() => void enviar()}>
-                Enviar
+            <div className="flex justify-end">
+              <Button type="button" loading={enviando} onClick={() => void enviar()} className="bg-cyan-600 hover:bg-cyan-700">
+                Enviar Mensagem
               </Button>
             </div>
           </div>
         )}
+
         {!podeEnviarCliente && podeComentarInterno && (
-          <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700">
-            <label className="sr-only" htmlFor="wa-interno">
-              Comentário interno
-            </label>
+          <div className="space-y-3">
             <textarea
               id="wa-interno"
               rows={3}
               value={texto}
               onChange={(e) => setTexto(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+              className="w-full resize-none rounded-xl border-none bg-amber-50/50 p-4 text-sm italic focus:ring-2 focus:ring-amber-500 dark:bg-amber-950/10 dark:text-amber-100"
               placeholder="Escreva um comentário interno (não será enviado ao cliente)…"
             />
-            <div className="mt-2 flex items-center justify-between gap-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Você não é o responsável por este chat. Este texto ficará visível apenas no DX Connect.
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                Você não é o responsável por este chat. Este texto ficará visível apenas internamente.
               </p>
               <Button
                 type="button"
@@ -552,153 +591,140 @@ export function WhatsappConversa() {
                     .catch((err) => toast.showError(mensagemFalhaParaToast(err, 'Falha ao comentar.')))
                     .finally(() => setEnviando(false))
                 }}
+                className="bg-amber-600 hover:bg-amber-700"
               >
                 Adicionar comentário
               </Button>
             </div>
           </div>
         )}
+
         {encerrado && (
-          <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">Conversa encerrada (somente leitura).</p>
+          <p className="py-4 text-center text-sm font-medium text-slate-400">Conversa encerrada (somente leitura).</p>
         )}
+        
         {chat.estado === 'aguardando_atendente' && !encerrado && (
-          <p className="mt-4 text-sm text-amber-800 dark:text-amber-200">
-            Este chat ainda está na fila. Clique em <span className="font-semibold">Assumir chat</span> acima para poder responder (ou use{' '}
-            <Link to="/whatsapp/atendendo" className="underline">
-              Atendendo
-            </Link>
-            ).
-          </p>
+          <div className="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/20 dark:text-amber-300">
+            Este chat ainda está na fila. Clique em <span className="font-bold underline cursor-pointer" onClick={() => void assumirChat()}>Assumir chat</span> acima para responder.
+          </div>
         )}
-      </Card>
+      </div>
+    </Card>
 
-      {modalVinc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog">
-          <Card className="w-full max-w-md p-4 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Vincular a ticket existente</h3>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Informe o ID interno do ticket (número da URL).</p>
-            <Input
-              className="mt-3"
-              type="number"
-              value={ticketVincId}
-              onChange={(e) => setTicketVincId(e.target.value)}
-              placeholder="Ex.: 42"
-            />
-            <div className="mt-4 flex justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={() => setModalVinc(false)}>
-                Cancelar
-              </Button>
-              <Button type="button" onClick={() => void vincular()}>
-                Vincular
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
+    {/* Modais com Estilo Refinado (Backdrop Blur) */}
+    {modalVinc && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" role="dialog">
+        <Card className="w-full max-w-md border-none p-6 shadow-2xl ring-1 ring-slate-200 dark:ring-slate-800 animate-in zoom-in-95 duration-200">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Vincular ticket existente</h3>
+          <p className="mt-1 text-sm text-slate-500">Informe o número do ticket para associar a esta conversa.</p>
+          <Input
+            className="mt-4"
+            type="number"
+            value={ticketVincId}
+            onChange={(e) => setTicketVincId(e.target.value)}
+            placeholder="Ex.: 42"
+          />
+          <div className="mt-6 flex justify-end gap-3">
+            <Button type="button" variant="secondary" onClick={() => setModalVinc(false)}>Cancelar</Button>
+            <Button type="button" onClick={() => void vincular()} className="bg-cyan-600">Vincular</Button>
+          </div>
+        </Card>
+      </div>
+    )}
 
-      {modalAbrir && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog">
-          <Card className="max-h-[90vh] w-full max-w-lg overflow-y-auto p-4 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Abrir ticket a partir do chat</h3>
-            <div className="mt-4 space-y-3">
-              <div>
-                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Empresa</label>
-                <Select
-                  value={empresaId === '' ? '' : empresaId}
-                  onChange={(v) => setEmpresaId(v === '' ? '' : Number(v))}
-                  includeEmpty
-                  emptyLabel="Selecione…"
-                  options={empresasList.map((e) => ({ value: e.id, label: e.nome }))}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Setor</label>
-                <Select
-                  value={setorId === '' ? '' : setorId}
-                  onChange={(v) => setSetorId(v === '' ? '' : Number(v))}
-                  includeEmpty
-                  emptyLabel="Selecione…"
-                  options={setoresList.filter((s) => s.ativo).map((s) => ({ value: s.id, label: s.nome }))}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Assunto</label>
-                <Input value={assunto} onChange={(e) => setAssunto(e.target.value)} placeholder="Resumo do problema" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Descrição (opcional)</label>
-                <textarea
-                  value={descTicket}
-                  onChange={(e) => setDescTicket(e.target.value)}
-                  rows={3}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900"
-                />
-              </div>
+    {modalAbrir && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" role="dialog">
+        <Card className="max-h-[90vh] w-full max-w-lg overflow-y-auto border-none p-6 shadow-2xl ring-1 ring-slate-200 dark:ring-slate-800 animate-in zoom-in-95">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Abrir novo ticket</h3>
+          <div className="mt-4 space-y-4">
+            <div className="grid gap-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Empresa</label>
+              <Select
+                value={empresaId === '' ? '' : empresaId}
+                onChange={(v) => setEmpresaId(v === '' ? '' : Number(v))}
+                includeEmpty
+                emptyLabel="Selecione uma empresa…"
+                options={empresasList.map((e) => ({ value: e.id, label: e.nome }))}
+              />
             </div>
-            <div className="mt-4 flex justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={() => setModalAbrir(false)}>
-                Cancelar
-              </Button>
-              <Button type="button" loading={salvandoTicket} onClick={() => void abrirTicket()}>
-                Criar ticket
-              </Button>
+            <div className="grid gap-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Setor</label>
+              <Select
+                value={setorId === '' ? '' : setorId}
+                onChange={(v) => setSetorId(v === '' ? '' : Number(v))}
+                includeEmpty
+                emptyLabel="Selecione um setor…"
+                options={setoresList.filter((s) => s.ativo).map((s) => ({ value: s.id, label: s.nome }))}
+              />
             </div>
-          </Card>
-        </div>
-      )}
+            <div className="grid gap-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Assunto</label>
+              <Input value={assunto} onChange={(e) => setAssunto(e.target.value)} placeholder="Título do atendimento" />
+            </div>
+            <div className="grid gap-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Descrição (opcional)</label>
+              <textarea
+                value={descTicket}
+                onChange={(e) => setDescTicket(e.target.value)}
+                rows={3}
+                className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm focus:ring-2 focus:ring-cyan-500 dark:border-slate-700 dark:bg-slate-900"
+              />
+            </div>
+          </div>
+          <div className="mt-8 flex justify-end gap-3 border-t pt-4">
+            <Button type="button" variant="secondary" onClick={() => setModalAbrir(false)}>Cancelar</Button>
+            <Button type="button" loading={salvandoTicket} onClick={() => void abrirTicket()} className="bg-cyan-600">Criar Ticket</Button>
+          </div>
+        </Card>
+      </div>
+    )}
 
-      {modalTransferir && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog">
-          <Card className="w-full max-w-lg p-4 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Transferir chat</h3>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-              Escolha o setor de destino. Opcionalmente, selecione um atendente desse setor para já atribuir o chat.
-            </p>
-            <div className="mt-4 space-y-3">
-              <div>
-                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Setor</label>
-                <Select
-                  value={transferSetorId === '' ? '' : transferSetorId}
-                  onChange={(v) => {
-                    const n = v === '' ? '' : Number(v)
-                    setTransferSetorId(n)
-                    setTransferAtendenteId('')
-                  }}
-                  includeEmpty
-                  emptyLabel="Selecione…"
-                  options={setoresList.filter((s) => s.ativo).map((s) => ({ value: s.id, label: s.nome }))}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Atendente (opcional)</label>
-                <Select
-                  value={transferAtendenteId === '' ? '' : transferAtendenteId}
-                  onChange={(v) => setTransferAtendenteId(v === '' ? '' : Number(v))}
-                  includeEmpty
-                  emptyLabel="Deixar na fila do setor"
-                  disabled={!podeEscolherResponsavel}
-                  options={atendentesDestino
-                    .filter((a) => a.ativo)
-                    .map((a) => ({ value: a.id, label: `${a.nome} (${a.role})` }))}
-                />
-                {erroAtendentesDestino && (
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    Você pode transferir para a fila do setor, mas não tem permissão para selecionar um atendente específico deste setor.
-                  </p>
-                )}
-              </div>
+    {modalTransferir && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" role="dialog">
+        <Card className="w-full max-w-lg border-none p-6 shadow-2xl ring-1 ring-slate-200 dark:ring-slate-800 animate-in zoom-in-95">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Transferir chat</h3>
+          <p className="mt-1 text-sm text-slate-500">Mova este atendimento para outro setor ou colega.</p>
+          <div className="mt-6 space-y-4">
+            <div className="grid gap-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Setor de Destino</label>
+              <Select
+                value={transferSetorId === '' ? '' : transferSetorId}
+                onChange={(v) => {
+                  const n = v === '' ? '' : Number(v)
+                  setTransferSetorId(n)
+                  setTransferAtendenteId('')
+                }}
+                includeEmpty
+                emptyLabel="Escolha o setor…"
+                options={setoresList.filter((s) => s.ativo).map((s) => ({ value: s.id, label: s.nome }))}
+              />
             </div>
-            <div className="mt-4 flex justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={() => setModalTransferir(false)}>
-                Cancelar
-              </Button>
-              <Button type="button" loading={transferindo} onClick={() => void transferirChat()}>
-                Transferir
-              </Button>
+            <div className="grid gap-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Atendente (opcional)</label>
+              <Select
+                value={transferAtendenteId === '' ? '' : transferAtendenteId}
+                onChange={(v) => setTransferAtendenteId(v === '' ? '' : Number(v))}
+                includeEmpty
+                emptyLabel="Deixar na fila do setor"
+                disabled={!podeEscolherResponsavel}
+                options={atendentesDestino
+                  .filter((a) => a.ativo)
+                  .map((a) => ({ value: a.id, label: `${a.nome} (${a.role})` }))}
+              />
+              {erroAtendentesDestino && (
+                <p className="text-[11px] text-amber-600 font-medium">
+                  Você não tem permissão para escolher um atendente específico neste setor.
+                </p>
+              )}
             </div>
-          </Card>
-        </div>
-      )}
-    </div>
-  )
+          </div>
+          <div className="mt-8 flex justify-end gap-3 border-t pt-4">
+            <Button type="button" variant="secondary" onClick={() => setModalTransferir(false)}>Cancelar</Button>
+            <Button type="button" loading={transferindo} onClick={() => void transferirChat()} className="bg-cyan-600">Transferir Agora</Button>
+          </div>
+        </Card>
+      </div>
+    )}
+  </div>
+)
 }
