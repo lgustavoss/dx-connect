@@ -1,12 +1,16 @@
 # Deploy com GitHub Actions (SSH + Docker Compose)
 
+Documentação relacionada: checklist geral [`docs/PRE_DEPLOY_CHECKLIST.md`](../docs/PRE_DEPLOY_CHECKLIST.md), índice [`docs/README.md`](../docs/README.md), Nginx [`deploy/nginx/README.md`](./nginx/README.md).
+
 O workflow [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) faz:
 
-1. **Build do frontend** no runner (usa `VITE_API_URL` dos secrets).
+1. **Build do frontend** no runner (usa o secret `VITE_API_URL` — mesma ideia que `frontend/.env.production`).
 2. **`rsync`** da pasta `frontend/dist/` para o caminho no VPS (`DEPLOY_FRONTEND_DIST`).
-3. **SSH** no servidor: `git pull`, `alembic upgrade head`, `docker compose -f docker-compose.prod.yml up -d --build`.
+3. **SSH** no servidor: `git fetch` / `checkout` / `pull` na ref configurada, **`docker compose -f docker-compose.prod.yml run --rm backend alembic upgrade head`** (salvo opção “skip migrations”), depois **`docker compose -f docker-compose.prod.yml up -d --build`**.
 
-Disparo automático em **push** para `main` quando mudam `backend/`, `frontend/`, `docker-compose.prod.yml` ou o próprio workflow. Também pode rodar manualmente em **Actions → Deploy → Run workflow**.
+**Disparo automático:** **push** para a branch **`staging`** quando mudam `backend/`, `frontend/`, `docker-compose.prod.yml` ou o próprio workflow (ver `on.push` no YAML). Para usar **`main`** (ou outra), altere `branches` em `.github/workflows/deploy.yml`.
+
+**Execução manual:** **Actions → Deploy → Run workflow** (em qualquer branch do repositório no GitHub; no servidor, o `git pull` usa `DEPLOY_GIT_REF`, por defeito **`main`**).
 
 ## Secrets no GitHub
 
@@ -26,7 +30,7 @@ Opcionais:
 | Secret | Descrição |
 |--------|-----------|
 | `DEPLOY_SSH_PORT` | Porta SSH se não for 22 |
-| `DEPLOY_GIT_REF` | Branch a fazer checkout/pull (padrão `main` se omitido) |
+| `DEPLOY_GIT_REF` | Branch no **servidor** após o SSH (`git checkout` + `git pull`). Padrão **`main`** se omitido. *Não* altera o branch que dispara o workflow no GitHub (hoje: **`staging`** no `push`). |
 
 ### Environment `production` (opcional)
 
@@ -43,7 +47,7 @@ Se quiser **aprovação manual** ou secrets separados, crie um **Environment** c
    cd dx-connect
    ```
 
-2. **`backend/.env` de produção** no servidor (não vai para o Git): copie de `backend/.env.example` e preencha. Veja também `docs/PRE_DEPLOY_CHECKLIST.md`.
+2. **`backend/.env` de produção** no servidor (não vai para o Git): copie de `backend/.env.example` e preencha. Antes do primeiro `up`, aplique migrações (`alembic upgrade head`) — o arranque em produção **exige** `alembic_version` (ver comentários em `.env.example` e [`docs/PRE_DEPLOY_CHECKLIST.md`](../docs/PRE_DEPLOY_CHECKLIST.md)).
 
 3. **Docker**: usuário do deploy no grupo `docker` (`sudo usermod -aG docker "$USER"`) ou use `sudo` no workflow (não recomendado).
 
@@ -81,7 +85,9 @@ O servidor precisa conseguir `git pull`. Opções:
 
 ## Migrações
 
-Em cada deploy o workflow executa `alembic upgrade head` antes do `up --build`. No **Run workflow** manual pode marcar **skip migrations** só em situações excepcionais.
+Em cada deploy o workflow executa `docker compose -f docker-compose.prod.yml run --rm backend alembic upgrade head` **no servidor** antes do `up --build`, alinhado ao [`docs/PRE_DEPLOY_CHECKLIST.md`](../docs/PRE_DEPLOY_CHECKLIST.md) (produção sem `create_all`).
+
+Na execução manual (**Run workflow**), pode marcar **skip migrations** (booleano) só em situações excepcionais; em **push** o valor é sempre falso (migrations correm).
 
 ## Troubleshooting
 

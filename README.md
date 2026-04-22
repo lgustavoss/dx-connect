@@ -200,7 +200,7 @@ Detalhes: [`backend/tests/README.md`](backend/tests/README.md). Índice da pasta
 
 Checklist alinhado ao deploy (o que já está no código vs o que validar no servidor): [`docs/PRE_DEPLOY_CHECKLIST.md`](docs/PRE_DEPLOY_CHECKLIST.md).  
 Exemplos **Nginx** (HTTP, domínio → backend / estático) e checklist de **HSTS/CSP/limit_req**: [`deploy/nginx/README.md`](deploy/nginx/README.md).  
-**Deploy automático** (GitHub Actions → SSH → `rsync` do frontend + `git pull` + Alembic + Docker Compose): [`deploy/github-actions.md`](deploy/github-actions.md).
+**Deploy automático** (GitHub Actions → SSH → `rsync` do frontend + `git pull` + Alembic + Docker Compose; disparo em **push** para **`staging`** por defeito): [`deploy/github-actions.md`](deploy/github-actions.md).
 
 **Backend (Docker, PostgreSQL externo)**  
 - Configure `backend/.env` (veja `backend/.env.example`): `DATABASE_URL` com `sslmode=require` (ou equivalente), `SECRET_KEY` (32+ caracteres), `CORS_ORIGINS`, `ALLOWED_HOSTS` (hostnames da API, sem `*`), `ACCESS_TOKEN_EXPIRE_MINUTES` entre **1 e 30** em produção, `ENVIRONMENT=production`. Opcional: `GUNICORN_FORWARDED_ALLOW_IPS` se o reverse proxy não for `127.0.0.1`. Para o primeiro admin após `python -m app.seed`, defina `SEED_ADMIN_PASSWORD` (mín. 8 caracteres); sem isso o seed em produção não cria usuário admin padrão.  

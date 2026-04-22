@@ -51,6 +51,14 @@ Legenda: **OK** atendido no repositório | **Você** validação manual no servi
 | CORS correto | **Você** — `CORS_ORIGINS` com a origem HTTPS exata do site (com/sem `www`). |
 | Login + fluxo principal | **Você** — testar em HTTPS após deploy. |
 
+## Deploy automático (GitHub Actions)
+
+| Item | Status |
+|------|--------|
+| Pipeline (build, rsync, Alembic no VPS, Compose) | **OK** — descrito em [`deploy/github-actions.md`](../deploy/github-actions.md); implementação em [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml). |
+| Ramo que dispara em `push` | **OK** — por defeito **`staging`** (e `paths` em `backend/`, `frontend/`, `docker-compose.prod.yml`, workflow). Alinhe com a política do repositório (`main` vs `staging`). |
+| Secrets e preparação do VPS | **Você** — tabela no `github-actions.md`; primeiro deploy continua a exigir `.env`, Postgres e `alembic upgrade head` como nas secções acima. |
+
 ## Segurança mínima
 
 | Item | Status |
@@ -68,4 +76,4 @@ Legenda: **OK** atendido no repositório | **Você** validação manual no servi
 
 ---
 
-Antes de contratar o VPS, o mínimo **a fazer na sua máquina**: build do frontend com `VITE_API_URL`, `docker build` do backend (Linux), e um teste de login contra uma API já validada (pode ser staging).
+Antes de contratar o VPS, o mínimo **a fazer na sua máquina**: build do frontend com `VITE_API_URL`, `docker build` do backend (Linux), e um teste de login contra uma API já validada (pode ser staging). Se usar o deploy por Actions, siga também [`deploy/github-actions.md`](../deploy/github-actions.md) (secrets, SSH e ordem Alembic + `up`).
