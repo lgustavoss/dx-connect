@@ -53,6 +53,50 @@ def _detect_media(inner: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
     return None
 
 
+_SUBCOM_KEYS = (
+    "extendedTextMessage",
+    "ExtendedTextMessage",
+    "imageMessage",
+    "ImageMessage",
+    "videoMessage",
+    "VideoMessage",
+    "audioMessage",
+    "AudioMessage",
+    "documentMessage",
+    "DocumentMessage",
+    "stickerMessage",
+    "StickerMessage",
+)
+
+
+def quoted_reply_from_inner(inner: dict[str, Any]) -> tuple[str | None, str | None]:
+    """Extrai resposta citada: id da mensagem original (stanzaId) e texto de pré-visualização."""
+    for sub_key in _SUBCOM_KEYS:
+        sub = inner.get(sub_key)
+        if not isinstance(sub, dict):
+            continue
+        ctx = sub.get("contextInfo") or sub.get("ContextInfo")
+        if not isinstance(ctx, dict):
+            continue
+        sid = ctx.get("stanzaId") or ctx.get("StanzaId")
+        if not sid:
+            continue
+        wid = str(sid).strip()
+        if not wid:
+            continue
+        preview: str | None = None
+        qm = ctx.get("quotedMessage") or ctx.get("QuotedMessage")
+        if isinstance(qm, dict):
+            preview = _text_from_inner(qm)
+            if not preview:
+                md = _detect_media(qm)
+                if md:
+                    kind, _ = md
+                    preview = _ROTULO_TIPO.get(kind, "[Mídia]")
+        return wid, preview
+    return None, None
+
+
 def _mimetype_de_obj_midia(obj: dict[str, Any]) -> str | None:
     for k in ("mimetype", "mimeType", "Mimetype"):
         v = obj.get(k)
@@ -95,6 +139,7 @@ def iter_inbound_whatsapp_messages(webhook_body: dict[str, Any]) -> Iterator[dic
     - corpo: texto ou legenda ou rótulo [Imagem] etc.
     - mimetype: opcional
     - raw_envelope: objeto completo da mensagem (para POST getBase64FromMediaMessage), só se tipo != texto
+    - quoted_wa_message_id, quoted_corpo_preview: se o cliente responde citando outra mensagem
     """
     event = webhook_body.get("event") or webhook_body.get("Event") or ""
     ev = str(event).lower()
@@ -123,6 +168,10 @@ def iter_inbound_whatsapp_messages(webhook_body: dict[str, Any]) -> Iterator[dic
         if not isinstance(inner, dict):
             continue
 
+        q_wid, q_prev = quoted_reply_from_inner(inner)
+        if q_prev and len(q_prev) > 500:
+            q_prev = q_prev[:500]
+
         media = _detect_media(inner)
         if media:
             kind, obj = media
@@ -137,6 +186,8 @@ def iter_inbound_whatsapp_messages(webhook_body: dict[str, Any]) -> Iterator[dic
                 "corpo": corpo,
                 "mimetype": mime,
                 "raw_envelope": m,
+                "quoted_wa_message_id": q_wid,
+                "quoted_corpo_preview": q_prev,
             }
             continue
 
@@ -151,6 +202,8 @@ def iter_inbound_whatsapp_messages(webhook_body: dict[str, Any]) -> Iterator[dic
             "corpo": text,
             "mimetype": None,
             "raw_envelope": None,
+            "quoted_wa_message_id": q_wid,
+            "quoted_corpo_preview": q_prev,
         }
 
 

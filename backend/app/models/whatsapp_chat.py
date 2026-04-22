@@ -77,6 +77,9 @@ class WhatsappMensagem(Base):
     # Identifica mensagens automáticas disparadas pelo sistema (evita duplicação e ajuda auditoria).
     evento_sistema = Column(String(40), nullable=True, index=True)
     wa_message_id = Column(String(128), nullable=True, index=True)
+    # Mensagem citada (reply do WhatsApp): id da mensagem na origem + texto de pré-visualização
+    quoted_wa_message_id = Column(String(128), nullable=True)
+    quoted_corpo_preview = Column(String(500), nullable=True)
     atendente_id = Column(Integer, ForeignKey("atendentes.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

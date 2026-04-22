@@ -466,6 +466,9 @@ export namespace WhatsappChats {
     midia_disponivel?: boolean
     evento_sistema?: string | null
     wa_message_id?: string | null
+    /** Id WhatsApp da mensagem citada (reply). */
+    quoted_wa_message_id?: string | null
+    quoted_corpo_preview?: string | null
     atendente_id?: number | null
     atendente_nome?: string | null
     created_at?: string | null
@@ -488,6 +491,26 @@ export async function fetchWhatsAppMidiaBlob(chatId: number, mensagemId: number)
   return res.blob()
 }
 
+/** Envia ficheiro como mídia (multipart). `mediatipo`: imagem | video | audio | documento */
+export async function uploadWhatsAppMidia(
+  chatId: number,
+  form: FormData,
+): Promise<WhatsappChats.Mensagem> {
+  const token = getAuthToken()
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(`${BASE}${API_VERSION_PREFIX}/whatsapp/chats/${chatId}/mensagens/midia`, {
+    method: 'POST',
+    headers,
+    body: form,
+  })
+  const data = await res.json().catch(() => null)
+  if (!res.ok) {
+    throw new ApiError(mensagemErroApi(data ?? {}, res.status), res.status, data)
+  }
+  return data as WhatsappChats.Mensagem
+}
+
 export const whatsappChats = {
   fila: () => api<WhatsappChats.Chat[]>('/whatsapp/chats/fila'),
   meus: () => api<WhatsappChats.Chat[]>('/whatsapp/chats/meus'),
@@ -499,10 +522,13 @@ export const whatsappChats = {
   encerrar: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/encerrar`, { method: 'POST' }),
   transferir: (id: number, data: { setor_id: number; atendente_id?: number | null }) =>
     api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/transferir`, { method: 'POST', body: JSON.stringify(data) }),
-  enviar: (id: number, texto: string) =>
+  enviar: (id: number, body: { texto: string; quoted_wa_message_id?: string | null }) =>
     api<WhatsappChats.Mensagem>(`/whatsapp/chats/${id}/mensagens`, {
       method: 'POST',
-      body: JSON.stringify({ texto }),
+      body: JSON.stringify({
+        texto: body.texto,
+        ...(body.quoted_wa_message_id ? { quoted_wa_message_id: body.quoted_wa_message_id } : {}),
+      }),
     }),
   comentarInterno: (id: number, texto: string) =>
     api<WhatsappChats.Mensagem>(`/whatsapp/chats/${id}/comentarios-internos`, {

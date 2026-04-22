@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   empresas,
@@ -7,6 +7,7 @@ import {
   tickets,
   whatsappChats,
   fetchWhatsAppMidiaBlob,
+  uploadWhatsAppMidia,
   type Empresas,
   type Setores,
   type Atendentes,
@@ -22,6 +23,26 @@ import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { useAuth } from '../../contexts/AuthContext'
 
 const ROTULO_SEM_LEGENDA = /^\[(Imagem|Áudio|Vídeo|Documento|Figurinha)\]$/
+
+function textoCitacaoResumido(m: WhatsappChats.Mensagem, todas: WhatsappChats.Mensagem[]): string {
+  const prev = (m.quoted_corpo_preview || '').trim()
+  if (prev) return prev.length > 240 ? `${prev.slice(0, 240)}…` : prev
+  const ref = todas.find(
+    (x) => Boolean(x.wa_message_id && m.quoted_wa_message_id && x.wa_message_id === m.quoted_wa_message_id),
+  )
+  if (ref) {
+    const t = ref.corpo.trim()
+    return t.length > 240 ? `${t.slice(0, 240)}…` : t
+  }
+  return 'Mensagem'
+}
+
+function mediatipoDoFicheiro(f: File): string {
+  if (f.type.startsWith('image/')) return 'imagem'
+  if (f.type.startsWith('video/')) return 'video'
+  if (f.type.startsWith('audio/')) return 'audio'
+  return 'documento'
+}
 
 function ConteudoMensagemWhatsApp({ chatId, m }: { chatId: number; m: WhatsappChats.Mensagem }) {
   const tipo = (m.tipo_midia || 'texto').toLowerCase()
@@ -147,7 +168,9 @@ export function WhatsappConversa() {
   const [msgs, setMsgs] = useState<WhatsappChats.Mensagem[]>([])
   const [loading, setLoading] = useState(true)
   const [texto, setTexto] = useState('')
+  const [citando, setCitando] = useState<WhatsappChats.Mensagem | null>(null)
   const [enviando, setEnviando] = useState(false)
+  const fileMidiaRef = useRef<HTMLInputElement>(null)
   const [encerrando, setEncerrando] = useState(false)
   const [assumindo, setAssumindo] = useState(false)
   const [modalTransferir, setModalTransferir] = useState(false)
@@ -266,12 +289,45 @@ export function WhatsappConversa() {
     }
     setEnviando(true)
     try {
-      await whatsappChats.enviar(chat.id, t)
+      await whatsappChats.enviar(chat.id, {
+        texto: t,
+        quoted_wa_message_id: citando?.wa_message_id ?? undefined,
+      })
       setTexto('')
+      setCitando(null)
       await carregar()
       toast.showSuccess('Mensagem enviada.')
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Falha ao enviar.'))
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  async function onEscolherFicheiroMidia(ev: React.ChangeEvent<HTMLInputElement>) {
+    const f = ev.target.files?.[0]
+    ev.target.value = ''
+    if (!f || !chat) return
+    const responsavel =
+      user?.role === 'admin' ||
+      (Boolean(chat.atendente_id) && Boolean(user?.id) && chat.atendente_id === user?.id)
+    if (chat.estado !== 'em_atendimento' || !responsavel) {
+      toast.showWarning('Só é possível enviar ficheiros enquanto atende o chat ativo.')
+      return
+    }
+    const fd = new FormData()
+    fd.append('file', f)
+    fd.append('mediatipo', mediatipoDoFicheiro(f))
+    fd.append('caption', '')
+    if (citando?.wa_message_id) fd.append('quoted_wa_message_id', citando.wa_message_id)
+    setEnviando(true)
+    try {
+      await uploadWhatsAppMidia(chat.id, fd)
+      setCitando(null)
+      await carregar()
+      toast.showSuccess('Mídia enviada.')
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Falha ao enviar ficheiro.'))
     } finally {
       setEnviando(false)
     }
@@ -485,7 +541,24 @@ export function WhatsappConversa() {
                   Comentário interno
                 </p>
               )}
+              {(m.quoted_wa_message_id || m.quoted_corpo_preview) && (
+                <div className="mb-2 border-l-2 border-cyan-600/50 pl-2 text-xs text-slate-600 dark:border-cyan-400/50 dark:text-slate-400">
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">Em resposta a</span>
+                  <p className="mt-0.5 line-clamp-4 whitespace-pre-wrap">{textoCitacaoResumido(m, msgs)}</p>
+                </div>
+              )}
               <ConteudoMensagemWhatsApp chatId={chat.id} m={m} />
+              {podeEnviarCliente && m.wa_message_id && (
+                <div className="mt-1 flex justify-end">
+                  <button
+                    type="button"
+                    className="text-[11px] font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                    onClick={() => setCitando(m)}
+                  >
+                    Citar esta mensagem
+                  </button>
+                </div>
+              )}
               <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
                 {m.direcao === 'outbound' ? m.atendente_nome || 'Equipe' : 'Cliente'} ·{' '}
                 {m.created_at ? new Date(m.created_at).toLocaleString('pt-BR') : '—'}
@@ -496,6 +569,27 @@ export function WhatsappConversa() {
 
         {podeEnviarCliente && (
           <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700">
+            <input
+              ref={fileMidiaRef}
+              type="file"
+              className="hidden"
+              accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
+              onChange={(e) => void onEscolherFicheiroMidia(e)}
+            />
+            {citando && (
+              <div className="mb-3 flex items-start justify-between gap-2 rounded-lg border border-cyan-200 bg-cyan-50/80 px-3 py-2 text-xs text-slate-800 dark:border-cyan-900/50 dark:bg-cyan-950/30 dark:text-slate-200">
+                <p>
+                  A responder citando uma mensagem do WhatsApp. O envio (texto ou ficheiro) incluirá esta citação.
+                </p>
+                <button
+                  type="button"
+                  className="shrink-0 font-medium text-cyan-800 underline dark:text-cyan-300"
+                  onClick={() => setCitando(null)}
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
             <label className="sr-only" htmlFor="wa-msg">
               Nova mensagem
             </label>
@@ -507,7 +601,10 @@ export function WhatsappConversa() {
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
               placeholder="Digite a mensagem para o cliente…"
             />
-            <div className="mt-2 flex justify-end">
+            <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+              <Button type="button" variant="secondary" disabled={enviando} onClick={() => fileMidiaRef.current?.click()}>
+                Enviar ficheiro
+              </Button>
               <Button type="button" loading={enviando} onClick={() => void enviar()}>
                 Enviar
               </Button>

@@ -67,6 +67,48 @@ def test_fila_e_assumir(client, seed_base, auth_headers):
     assert client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json() == []
 
 
+def test_webhook_guarda_citacao_em_mensagem(client, seed_base, auth_headers):
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "cit"},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "cit"}
+    body = {
+        "event": "messages.upsert",
+        "data": {
+            "messages": [
+                {
+                    "key": {
+                        "remoteJid": "5511333444555@s.whatsapp.net",
+                        "fromMe": False,
+                        "id": "reply-msg-1",
+                    },
+                    "message": {
+                        "extendedTextMessage": {
+                            "text": "Resposta citando",
+                            "contextInfo": {
+                                "stanzaId": "orig-msg-1",
+                                "quotedMessage": {"conversation": "Texto original"},
+                            },
+                        }
+                    },
+                }
+            ]
+        },
+    }
+    r = client.post("/v1/webhooks/evolution", json=body, headers=h)
+    assert r.status_code == 200
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+    r_msgs = client.get(f"/v1/whatsapp/chats/{cid}/mensagens", headers=auth_headers["a1"])
+    assert r_msgs.status_code == 200
+    rows = r_msgs.json()
+    assert len(rows) >= 1
+    last = rows[-1]
+    assert last.get("quoted_wa_message_id") == "orig-msg-1"
+    assert "original" in (last.get("quoted_corpo_preview") or "").lower()
+
+
 def test_abrir_ticket_vincula(client, seed_base, auth_headers):
     client.patch(
         "/v1/settings/whatsapp",

@@ -59,6 +59,22 @@ def diretorio_midia() -> Path:
     return p
 
 
+def gravar_bytes_em_disco(data: bytes, mimetype: str | None) -> str | None:
+    """Grava bytes brutos (ex.: upload outbound). Devolve basename ou None."""
+    if len(data) > settings.WHATSAPP_MEDIA_MAX_BYTES:
+        return None
+    if len(data) == 0:
+        return None
+    ext = extensao_para_mimetype(mimetype)
+    name = f"{uuid.uuid4().hex}{ext}"
+    path = diretorio_midia() / name
+    try:
+        path.write_bytes(data)
+    except OSError:
+        return None
+    return name
+
+
 def gravar_base64_em_disco(b64: str, mimetype: str | None) -> str | None:
     """
     Grava bytes em disco. Devolve apenas o nome do ficheiro (basename) ou None se falhar/limite.
