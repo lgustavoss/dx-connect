@@ -5,7 +5,7 @@
 - **`requirements.txt`** mantém versões fixas; antes de deploy relevante:
   - `pip install pip-audit` e `pip-audit -r requirements.txt`
   - Ou confiar no job **CI** (GitHub Actions) que executa o mesmo.
-- **Dependabot** (`.github/dependabot.yml`) abre PRs semanais para o backend; revise changelog e testes antes de mergear.
+- **Dependabot** (`.github/dependabot.yml`): atualizações semanais **pip** (`/backend`) e **npm** (`/frontend`); também **Docker** (`/backend`) e **GitHub Actions** (`/`) com intervalo mensal — revise changelog e testes antes de mergear.
 
 ## Dependências Node
 
@@ -14,7 +14,7 @@
 
 ## CI
 
-- Workflow `.github/workflows/ci.yml`: `pip-audit`, `npm audit`, `compileall`, build do frontend.
+- Workflow `.github/workflows/ci.yml`: `pip-audit`, **`pytest`**, `python -m compileall -q app` (sintaxe sob `backend/app`), `npm audit --audit-level=high`, build do frontend (`VITE_API_URL` fictício).
 - Não substitui revisão de código nem ferramentas SAST avançadas; pode-se acrescentar CodeQL ou análise estática no GitHub conforme a política da equipa.
 
 ## Credenciais de desenvolvimento

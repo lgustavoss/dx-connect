@@ -21,8 +21,9 @@ Legenda: **OK** atendido no repositório | **Você** validação manual no servi
 | Item | Status |
 |------|--------|
 | PostgreSQL em todos os ambientes | **OK** — não há SQLite no caminho principal. |
-| Migrations versionadas (Alembic) | **Parcial** — existe pasta `alembic/versions/`, mas o startup ainda usa `create_all` + scripts ad hoc; ideal evoluir para `alembic upgrade head` como fonte única do schema em produção. |
-| Subir banco do zero e rodar app | **Você** — primeiro deploy: criar DB/usuário no provedor; API cria tabelas no startup. |
+| Migrations versionadas (Alembic) | **OK** — pasta `alembic/versions/`; com **`ENVIRONMENT=production`** o arranque **exige** tabela `alembic_version` (`production_require_alembic` em `app/core/lifecycle.py`) e **não** corre `create_all`. |
+| Primeiro deploy (produção) | **Você** — criar DB/usuário no provedor; executar **`alembic upgrade head`** (ex.: `docker compose -f docker-compose.prod.yml run --rm backend alembic upgrade head`) **antes** da API subir; sem revisão Alembic a API encerra com erro explícito. |
+| Desenvolvimento local | **Parcial** — fora de produção o lifespan pode executar `create_all` + seed (`app/main.py`); para espelhar produção/CI, preferir também `alembic upgrade head` no Postgres de dev. |
 | Persistência após reinício | **Você** — dados ficam no PostgreSQL do provedor; reiniciar só o container não apaga o DB. |
 
 ## Frontend

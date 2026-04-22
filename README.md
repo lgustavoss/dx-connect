@@ -121,7 +121,7 @@ npm run build
 
 ### CI e rotina de segurança
 
-- Com repositório no **GitHub**: workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) (`pip-audit`, `npm audit`, `compileall`, build do frontend) e [Dependabot](.github/dependabot.yml) para `pip`/`npm`/Docker/actions.
+- Com repositório no **GitHub**: workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) (`pip-audit`, `pytest`, `compileall` em `app/`, `npm audit`, build do frontend) e [Dependabot](.github/dependabot.yml) para `pip`/`npm`/Docker/actions.
 - Localmente (antes de releases): `pip install pip-audit` e `pip-audit -r requirements.txt` na pasta `backend`; `npm audit` na pasta `frontend`.
 - Guia curto: [`docs/SECURITY_MAINTENANCE.md`](docs/SECURITY_MAINTENANCE.md).
 
@@ -155,7 +155,7 @@ docker compose up -d
 - API: http://localhost:8000  
 - Docs: http://localhost:8000/docs
 
-No primeiro start, a API cria as tabelas e o seed: status de ticket e usuário admin.
+No primeiro start **em desenvolvimento**, a API corre `create_all` e o seed: status de ticket e utilizador admin (em **produção** o schema vem só do **Alembic** — ver checklist e `backend/.env.example`).
 
 **Login padrão (após seed em desenvolvimento):**
 - E-mail: `admin@email.com`
@@ -185,7 +185,7 @@ docker compose run --rm --no-deps backend pytest -q
 - **`--no-deps`**: os testes usam SQLite em memória (`backend/tests/conftest.py`); o serviço `db` não precisa de estar a correr.
 - O volume `./backend:/app` no `docker-compose.yml` sincroniza código e `tests/`; alterações nos arquivos refletem-se de imediato no container (rebuild só após mudanças em `requirements` ou `Dockerfile`).
 
-Detalhes: [`backend/tests/README.md`](backend/tests/README.md). Matriz de rotas e perfis: [`docs/BACKEND_RBAC.md`](docs/BACKEND_RBAC.md).
+Detalhes: [`backend/tests/README.md`](backend/tests/README.md). Índice da pasta **docs/**: [`docs/README.md`](docs/README.md). Matriz de rotas e perfis: [`docs/BACKEND_RBAC.md`](docs/BACKEND_RBAC.md).
 
 ### 4. Ordem sugerida de uso
 
