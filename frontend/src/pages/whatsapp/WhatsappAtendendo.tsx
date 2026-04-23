@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, whatsappChats, type WhatsappChats } from '../../api/client'
 import { Card } from '../../components/ui/Card'
@@ -6,163 +6,194 @@ import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 
+// Componente para cálculo de tempo de espera
+function TempoEspera({ data }: { data?: string }) {
+  const [minutos, setMinutos] = useState(0)
+
+  useEffect(() => {
+    if (!data) return
+    const atualizar = () => {
+      const diff = Math.floor((new Date().getTime() - new Date(data).getTime()) / 60000)
+      setMinutos(diff)
+    }
+    atualizar()
+    const interval = setInterval(atualizar, 30000)
+    return () => clearInterval(interval)
+  }, [data])
+
+  return (
+    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+      minutos > 10 ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-slate-100 text-slate-500 dark:bg-slate-800'
+    }`}>
+      {minutos === 0 ? 'Agora' : `${minutos} min`}
+    </span>
+  )
+}
+
 export function WhatsappAtendendo() {
   const toast = useToast()
   const [fila, setFila] = useState<WhatsappChats.Chat[]>([])
   const [meus, setMeus] = useState<WhatsappChats.Chat[]>([])
   const [loading, setLoading] = useState(true)
+  const isFirstLoad = useRef(true)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
-      const [rowsFila, rowsMeus] = await Promise.all([whatsappChats.fila(), whatsappChats.meus()])
+      const [rowsFila, rowsMeus] = await Promise.all([
+        whatsappChats.fila(), 
+        whatsappChats.meus()
+      ])
       setFila(rowsFila)
       setMeus(rowsMeus)
     } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar os chats.'))
-      setFila([])
-      setMeus([])
+      if (!silent) toast.showError(mensagemFalhaParaToast(err, 'Erro ao sincronizar dados.'))
     } finally {
       setLoading(false)
+      isFirstLoad.current = false
     }
   }, [toast])
 
+  // Refresh automático a cada 10 segundos
   useEffect(() => {
-    void load()
+    void load() 
+    const timer = setInterval(() => void load(true), 10000)
+    return () => clearInterval(timer)
   }, [load])
 
   async function assumir(id: number) {
     try {
       await whatsappChats.assumir(id)
-      toast.showSuccess('Chat assumido.')
-      await load()
+      toast.showSuccess('Chat assumido com sucesso!')
+      await load(true)
     } catch (err) {
-      const msg =
-        err instanceof ApiError && err.status === 400
-          ? (err.body as { detail?: string })?.detail || 'Não foi possível assumir.'
+      const msg = err instanceof ApiError && err.status === 400
+          ? (err.body as { detail?: string })?.detail || 'Erro ao assumir.'
           : mensagemFalhaParaToast(err)
       toast.showWarning(msg)
     }
   }
 
-  if (loading) {
-    return (
-      <div className="space-y-8 animate-pulse">
-        <div className="h-4 w-32 bg-slate-200 dark:bg-slate-800 rounded" />
-        <div className="space-y-3">
-          <div className="h-20 bg-slate-100 dark:bg-slate-800/50 rounded-xl" />
-          <div className="h-20 bg-slate-100 dark:bg-slate-800/50 rounded-xl" />
-        </div>
-      </div>
-    )
+  if (loading && isFirstLoad.current) {
+    return <div className="flex h-64 items-center justify-center text-sm font-medium text-slate-400 animate-pulse">Carregando central de atendimento...</div>
   }
 
   return (
-    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+    <div className="flex flex-col space-y-8 animate-in fade-in duration-500">
       
-      {/* Seção: Na Fila */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-2">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500">Na Fila</h2>
-            {fila.length > 0 && (
-              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                {fila.length}
-              </span>
+      {/* Header */}
+      <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-6 dark:border-slate-800">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Fila de Atendimento</h1>
+          <p className="text-sm text-slate-500">Monitore a fila e gerencie seus chats em tempo real.</p>
+        </div>
+        <div className="flex gap-6">
+          <div className="text-right">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Na Fila</p>
+            <p className={`text-xl font-mono font-bold ${fila.length > 0 ? 'text-amber-500' : 'text-slate-300'}`}>{fila.length}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Meus Chats</p>
+            <p className="text-xl font-mono font-bold text-cyan-600">{meus.length}</p>
+          </div>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+        
+        {/* Coluna da Fila */}
+        <section className="lg:col-span-5 space-y-4">
+          <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-500">
+            Aguardando ({fila.length})
+          </h2>
+
+          <div className="space-y-3">
+            {fila.length === 0 ? (
+              <Card className="border-dashed border-2 bg-transparent p-8 text-center">
+                <p className="text-sm text-slate-400">Fila vazia. Bom trabalho!</p>
+              </Card>
+            ) : (
+              fila.map((c) => (
+                <Card key={c.id} className="border-none p-4 shadow-sm ring-1 ring-slate-200 dark:ring-slate-800">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-start justify-between">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-mono text-[10px] font-bold text-cyan-600">{c.protocolo}</span>
+                          <TempoEspera data={c.created_at} />
+                        </div>
+                        <h3 className="truncate font-bold text-slate-900 dark:text-slate-100">{c.cliente_nome || 'Cliente'}</h3>
+                        <p className="font-mono text-xs text-slate-500">{c.wa_id}</p>
+                      </div>
+                      <div className="h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]" />
+                    </div>
+
+                    {/* Grupo de Botões da Fila */}
+                    <div className="flex items-center gap-2 border-t pt-3 dark:border-slate-800">
+                      <Link 
+                        to={`/whatsapp/c/${c.id}`}
+                        className="flex-1 text-center rounded-lg bg-slate-100 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 transition-colors dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                      >
+                        Visualizar
+                      </Link>
+                      <Button 
+                        size="sm"
+                        onClick={() => void assumir(c.id)}
+                        className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"
+                      >
+                        Atender
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))
             )}
           </div>
-          <Button variant="ghost" onClick={() => void load()} className="text-[10px] uppercase tracking-tighter opacity-50 hover:opacity-100">
-            Atualizar fila
-          </Button>
-        </div>
+        </section>
 
-        {fila.length === 0 ? (
-          <Card className="flex flex-col items-center justify-center border-none bg-slate-50/50 py-10 text-center dark:bg-slate-900/20">
-            <p className="text-sm font-medium text-slate-500">Tudo limpo! Nenhum chat aguardando.</p>
-          </Card>
-        ) : (
-          <ul className="grid gap-3">
-            {fila.map((c) => (
-              <li key={c.id}>
-                <Card className="group flex flex-col gap-4 border-none p-4 shadow-sm ring-1 ring-slate-200 transition-all hover:ring-amber-200 dark:ring-slate-800 dark:hover:ring-amber-900/50 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-start gap-4">
-                    <div className="mt-1 flex h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-500" />
-                    <div className="min-w-0">
-                      <p className="font-mono text-xs font-bold text-cyan-700 dark:text-cyan-400">{c.protocolo}</p>
-                      <p className="mt-0.5 truncate font-semibold text-slate-900 dark:text-slate-100">
-                        {c.cliente_nome || 'Cliente'} <span className="mx-1 text-slate-300 dark:text-slate-700">•</span> 
-                        <span className="font-mono text-xs font-normal text-slate-500">{c.wa_id}</span>
-                      </p>
-                      <p className="mt-1 text-[10px] text-slate-400 uppercase font-medium">
-                        Aguardando desde {c.created_at ? new Date(c.created_at).toLocaleTimeString('pt-BR') : '—'}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <Link
-                      to={`/whatsapp/c/${c.id}`}
-                      className="rounded-lg px-3 py-1.5 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-                    >
-                      Visualizar
-                    </Link>
-                    <Button 
-                      type="button" 
-                      onClick={() => assumir(c.id)}
-                      className="bg-amber-600 shadow-md shadow-amber-600/10 hover:bg-amber-700 dark:bg-amber-700 dark:hover:bg-amber-600"
-                    >
-                      Assumir chat
-                    </Button>
-                  </div>
-                </Card>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+        {/* Coluna de Ativos */}
+        <section className="lg:col-span-7 space-y-4">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500">
+            Em atendimento comigo ({meus.length})
+          </h2>
 
-      {/* Seção: Meus Atendimentos */}
-      <section className="space-y-4">
-        <div className="flex items-center gap-2 px-1">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500">Meus Atendimentos</h2>
-          {meus.length > 0 && (
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-cyan-100 px-1.5 text-[10px] font-bold text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400">
-              {meus.length}
-            </span>
-          )}
-        </div>
-
-        {meus.length === 0 ? (
-          <Card className="flex flex-col items-center justify-center border-dashed border-2 py-10 text-center">
-            <p className="text-sm font-medium text-slate-400 italic">Você não tem chats ativos no momento.</p>
-          </Card>
-        ) : (
           <div className="grid gap-4 md:grid-cols-2">
-            {meus.map((c) => (
-              <li key={c.id} className="list-none">
-                <Card className="group relative flex flex-col justify-between overflow-hidden border-none p-5 shadow-sm ring-1 ring-slate-200 transition-all hover:shadow-lg hover:ring-cyan-500 dark:ring-slate-800 dark:hover:ring-cyan-700">
-                  <div className="mb-4">
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-[10px] font-bold text-cyan-600 dark:text-cyan-400">{c.protocolo}</span>
-                      <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
+            {meus.length === 0 ? (
+              <div className="md:col-span-2 rounded-xl border-2 border-dashed p-12 text-center">
+                <p className="text-sm text-slate-400 italic">Você não tem atendimentos em curso.</p>
+              </div>
+            ) : (
+              meus.map((c) => (
+                <Link key={c.id} to={`/whatsapp/c/${c.id}`} className="group">
+                  <Card className="h-full border-none p-5 shadow-sm ring-1 ring-slate-200 transition-all group-hover:ring-cyan-500 dark:ring-slate-800">
+                    <div className="flex flex-col h-full justify-between gap-4">
+                      <div>
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="text-[10px] font-bold text-cyan-600 uppercase">{c.protocolo}</span>
+                          <span className="relative flex h-2 w-2">
+                            <span className="absolute h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative h-2 w-2 rounded-full bg-emerald-500"></span>
+                          </span>
+                        </div>
+                        <h3 className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-cyan-600 transition-colors">
+                          {c.cliente_nome || 'Cliente'}
+                        </h3>
+                        <p className="text-xs text-slate-400 font-mono mt-1">{c.wa_id}</p>
+                      </div>
+                      
+                      <div className="flex items-center justify-end border-t pt-3 dark:border-slate-800">
+                         <span className="text-xs font-bold text-cyan-600">
+                           Continuar →
+                         </span>
+                      </div>
                     </div>
-                    <h3 className="mt-1 font-bold text-slate-900 dark:text-slate-100">{c.cliente_nome || 'Cliente'}</h3>
-                    <p className="font-mono text-xs text-slate-500">{c.wa_id}</p>
-                  </div>
-
-                  <Link
-                    to={`/whatsapp/c/${c.id}`}
-                    className="flex items-center justify-center gap-2 rounded-xl bg-cyan-50 py-2.5 text-sm font-bold text-cyan-700 transition-all group-hover:bg-cyan-600 group-hover:text-white dark:bg-cyan-950/30 dark:text-cyan-400 dark:group-hover:bg-cyan-700"
-                  >
-                    Continuar Atendimento
-                    <span className="transition-transform group-hover:translate-x-1">→</span>
-                  </Link>
-                </Card>
-              </li>
-            ))}
+                  </Card>
+                </Link>
+              ))
+            )}
           </div>
-        )}
-      </section>
+        </section>
+      </div>
     </div>
   )
 }
