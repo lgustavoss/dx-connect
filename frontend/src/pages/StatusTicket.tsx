@@ -118,7 +118,7 @@ export function StatusTicketPage() {
       setModalOpen(false)
       load()
     } catch (err) {
-      toast.showError(err instanceof Error ? err.message : 'Erro')
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar o status de ticket.'))
     } finally {
       setSaving(false)
     }

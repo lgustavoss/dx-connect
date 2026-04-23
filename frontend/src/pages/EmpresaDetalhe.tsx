@@ -15,7 +15,7 @@ import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
 import { maskCnpjCpf } from '../utils/maskCnpjCpf'
 import { maskCep, formatTelefoneBrExibicao } from '../utils/masks'
-import { interpretarFalhaCarregamento } from '../api/errorMessage'
+import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
@@ -189,7 +189,7 @@ export function EmpresaDetalhe() {
       toast.showSuccess('Empresa excluída.')
       navigate('/empresas', { replace: true })
     } catch (err) {
-      toast.showWarning(err instanceof Error ? err.message : 'Não foi possível excluir.')
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível excluir a empresa.'))
     }
   }
 

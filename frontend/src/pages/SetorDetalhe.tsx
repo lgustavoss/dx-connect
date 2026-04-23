@@ -8,7 +8,7 @@ import { SelectComPesquisa } from '../components/ui/SelectComPesquisa'
 import { useToast } from '../components/ui/Toast'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { SemPermissao } from './SemPermissao'
-import { interpretarFalhaCarregamento } from '../api/errorMessage'
+import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 
 /** Mesmo nome de setor = mesmo “setor lógico” (vários IDs no banco). */
@@ -124,7 +124,7 @@ export function SetorDetalhe() {
       setAddingId('')
       await reload()
     } catch (err) {
-      toast.showError(err instanceof Error ? err.message : 'Erro ao vincular atendente')
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível vincular o atendente.'))
     } finally {
       setSaving(false)
     }
@@ -142,7 +142,7 @@ export function SetorDetalhe() {
       toast.showSuccess('Vínculo removido.')
       await reload()
     } catch (err) {
-      toast.showError(err instanceof Error ? err.message : 'Erro ao remover vínculo')
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível remover o vínculo.'))
     } finally {
       setSaving(false)
     }

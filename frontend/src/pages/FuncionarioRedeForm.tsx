@@ -13,7 +13,7 @@ import { useToast } from '../components/ui/Toast'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { FormSection } from '../components/ui/FormSection'
 import { SemPermissao } from './SemPermissao'
-import { interpretarFalhaCarregamento } from '../api/errorMessage'
+import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 
 type Tipo = 'socio' | 'supervisor' | 'colaborador'
@@ -182,7 +182,7 @@ export function FuncionarioRedeForm() {
       }
       navigate(`/funcionarios-rede/${saved.id}`, { replace: true })
     } catch (err) {
-      toast.showError(err instanceof Error ? err.message : 'Erro')
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar o funcionário.'))
     } finally {
       setSaving(false)
     }

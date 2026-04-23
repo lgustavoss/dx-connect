@@ -10,7 +10,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { refetchPendenciasResumo } from '../hooks/useAlertaFilaSemResponsavel'
 import { SemPermissao } from './SemPermissao'
-import { interpretarFalhaCarregamento } from '../api/errorMessage'
+import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 
 const ROTULO_CAMPO: Record<string, string> = {
@@ -616,7 +616,13 @@ export function TicketDetalhe() {
                   setHistorico(hist)
                   toast.showSuccess('Ticket reaberto.')
                 } catch (err) {
-                  toast.showWarning(err instanceof Error ? err.message : 'Não foi possível reabrir.')
+                  if (err instanceof ApiError && err.status === 404) {
+                    toast.showWarning(
+                      'Função de reabrir indisponível no servidor. Atualize a página ou contate o suporte.',
+                    )
+                    return
+                  }
+                  toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível reabrir.'))
                 }
               }}
             >

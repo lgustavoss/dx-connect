@@ -118,7 +118,7 @@ export function Setores() {
       setModalOpen(false)
       load()
     } catch (err) {
-      toast.showError(err instanceof Error ? err.message : 'Erro')
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar o setor.'))
     } finally {
       setSaving(false)
     }
@@ -130,7 +130,7 @@ export function Setores() {
       await setores.delete(id)
       load()
     } catch (err) {
-      toast.showWarning(err instanceof Error ? err.message : 'Erro ao excluir')
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível excluir o setor.'))
     }
   }
 

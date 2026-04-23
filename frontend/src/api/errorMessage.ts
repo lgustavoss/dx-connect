@@ -6,7 +6,12 @@ export function mensagemErroApi(body: unknown, status: number): string {
     const o = body as Record<string, unknown>
     const detail = o.detail
 
-    if (typeof detail === 'string' && detail.trim()) return detail.trim()
+    if (typeof detail === 'string' && detail.trim()) {
+      const d = detail.trim()
+      // Alguns proxies/backends retornam mensagens genéricas ("Not Found") que não ajudam o usuário
+      // e podem vazar detalhes técnicos. Para esses casos, preferimos o fallback por status.
+      if (!/^not found$/i.test(d) && !/^404\b/i.test(d)) return d
+    }
 
     if (Array.isArray(detail)) {
       const linhas: string[] = []
