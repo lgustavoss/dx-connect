@@ -7,7 +7,7 @@ import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 
 // Componente para cálculo de tempo de espera
-function TempoEspera({ data }: { data?: string }) {
+function TempoEspera({ data }: { data?: string | null }) {
   const [minutos, setMinutos] = useState(0)
 
   useEffect(() => {
@@ -137,7 +137,6 @@ export function WhatsappAtendendo() {
                         Visualizar
                       </Link>
                       <Button 
-                        size="sm"
                         onClick={() => void assumir(c.id)}
                         className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"
                       >
