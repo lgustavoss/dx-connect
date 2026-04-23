@@ -35,6 +35,14 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Testes (pytest): schema mínimo sem seed, backfill nem thread IBGE — ver tests/conftest.py (#46).
+    import os
+
+    if os.environ.get("DX_CONNECT_TESTING") == "1":
+        dev_create_all_tables(engine, Base.metadata)
+        yield
+        return
+
     if settings.is_production:
         production_require_alembic(engine)
     else:

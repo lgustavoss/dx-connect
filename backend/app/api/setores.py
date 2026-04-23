@@ -11,6 +11,7 @@ from app.schemas.setor import SetorCreate, SetorUpdate, SetorRead
 from app.schemas.lista_paginada import ListaPaginada
 from app.core.auth import obter_atendente_atual, exigir_admin
 from app.core.audit import registrar_audit
+from app.core.setor_scope import ids_setores_visiveis_atendente
 
 router = APIRouter(prefix="/setores", tags=["setores"])
 
@@ -33,9 +34,12 @@ def listar_setores(
     ordenar_por: OrdenarSetoresPor | None = Query(None),
     ordem: OrdemLista = Query(OrdemLista.asc),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(obter_atendente_atual),
+    atendente: Atendente = Depends(obter_atendente_atual),
 ):
     q = db.query(Setor)
+    if atendente.role != "admin":
+        vis = ids_setores_visiveis_atendente(db, atendente)
+        q = q.filter(Setor.id.in_(vis))
     if not incluir_inativos:
         q = q.filter(Setor.ativo.is_(True))
     if busca and busca.strip():

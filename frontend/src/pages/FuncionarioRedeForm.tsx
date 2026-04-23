@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { funcionariosRede, redes, empresas, type FuncionariosRede, type Redes, type Empresas } from '../api/client'
+import { ApiError, funcionariosRede, redes, empresas, type FuncionariosRede, type Redes, type Empresas } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -12,6 +12,9 @@ import { CheckboxField } from '../components/ui/CheckboxField'
 import { useToast } from '../components/ui/Toast'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { FormSection } from '../components/ui/FormSection'
+import { SemPermissao } from './SemPermissao'
+import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
+import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 
 type Tipo = 'socio' | 'supervisor' | 'colaborador'
 
@@ -31,6 +34,8 @@ export function FuncionarioRedeForm() {
 
   const [loading, setLoading] = useState(isEdit)
   const [saving, setSaving] = useState(false)
+  const [forbidden, setForbidden] = useState(false)
+  const [funcionarioInexistente, setFuncionarioInexistente] = useState<{ detalhe?: string } | null>(null)
 
   const [redesList, setRedesList] = useState<Redes.Rede[]>([])
   const [empresasList, setEmpresasList] = useState<Empresas.Empresa[]>([])
@@ -61,12 +66,14 @@ export function FuncionarioRedeForm() {
   useEffect(() => {
     if (!isEdit) return
     if (!id || Number.isNaN(funcionarioId)) {
-      toast.showWarning('Funcionário inválido.')
-      voltarAnterior()
+      setFuncionarioInexistente({ detalhe: 'O identificador na URL é inválido.' })
+      setLoading(false)
       return
     }
     let cancelled = false
     setLoading(true)
+    setForbidden(false)
+    setFuncionarioInexistente(null)
     funcionariosRede
       .get(funcionarioId)
       .then((item) => {
@@ -88,10 +95,18 @@ export function FuncionarioRedeForm() {
         setEmpresaId(item.empresa_id ?? '')
         setEmpresaIds(item.empresa_ids ?? [])
       })
-      .catch(() => {
+      .catch((err) => {
         if (!cancelled) {
-          toast.showWarning('Funcionário não encontrado.')
-          voltarAnterior()
+          if (err instanceof ApiError && err.status === 403) {
+            setForbidden(true)
+            return
+          }
+          if (err instanceof ApiError && err.status === 404) {
+            setFuncionarioInexistente({})
+            return
+          }
+          const m = interpretarFalhaCarregamento(err, 'Funcionário não encontrado.')
+          toast.showWarning([m.titulo, m.detalhe].filter(Boolean).join(' '))
         }
       })
       .finally(() => {
@@ -100,7 +115,7 @@ export function FuncionarioRedeForm() {
     return () => {
       cancelled = true
     }
-  }, [id, isEdit, funcionarioId, toast, voltarAnterior, empresasList])
+  }, [id, isEdit, funcionarioId, toast, empresasList])
 
   const empresasDaRede = useMemo(
     () => empresasList.filter((em) => em.rede_id === Number(redeId) && (em.ativo || em.id === empresaId || empresaIds.includes(em.id))),
@@ -167,7 +182,7 @@ export function FuncionarioRedeForm() {
       }
       navigate(`/funcionarios-rede/${saved.id}`, { replace: true })
     } catch (err) {
-      toast.showError(err instanceof Error ? err.message : 'Erro')
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar o funcionário.'))
     } finally {
       setSaving(false)
     }
@@ -179,6 +194,30 @@ export function FuncionarioRedeForm() {
         <div className="h-9 w-56 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
         <div className="h-72 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/50" />
       </div>
+    )
+  }
+
+  if (forbidden) {
+    return (
+      <div className="mx-auto max-w-5xl space-y-6 pb-10">
+        <SemPermissao
+          title="Você não tem permissão para editar este funcionário."
+          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
+          voltarPara="/funcionarios-rede"
+          voltarLabel="Voltar para Funcionários"
+        />
+      </div>
+    )
+  }
+
+  if (funcionarioInexistente) {
+    return (
+      <CarregamentoFalhou
+        className="mx-auto max-w-5xl space-y-4 pb-10"
+        titulo="Funcionário não encontrado."
+        detalhe={funcionarioInexistente.detalhe}
+        onVoltar={voltarAnterior}
+      />
     )
   }
 

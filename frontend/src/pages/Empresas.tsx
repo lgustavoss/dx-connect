@@ -2,7 +2,15 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { empresas as apiEmpresas, redes, tiposNegocio, type Empresas, type Redes, type TiposNegocio } from '../api/client'
+import {
+  ApiError,
+  empresas as apiEmpresas,
+  redes,
+  tiposNegocio,
+  type Empresas,
+  type Redes,
+  type TiposNegocio,
+} from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -28,6 +36,8 @@ import { digitsOnly, maskCep, maskTelefoneBr, maskInscricaoEstadual } from '../u
 import { ESTADOS_CIVIS_BR, type EstadoCivilBr } from '../constants/estadosCivis'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { Switch } from '../components/ui/Switch'
+import { SemPermissao } from './SemPermissao'
+import { mensagemFalhaParaToast } from '../api/errorMessage'
 
 type ColunaEmpresa = 'nome' | 'cnpj_cpf' | 'rede'
 
@@ -81,6 +91,7 @@ export function Empresas() {
   const [ativo, setAtivo] = useState(true)
   const [saving, setSaving] = useState(false)
   const [loadingCnpj, setLoadingCnpj] = useState(false)
+  const [forbidden, setForbidden] = useState(false)
 
   useEffect(() => {
     if (!modalOpen) return
@@ -102,6 +113,7 @@ export function Empresas() {
 
   const load = useCallback(() => {
     setLoading(true)
+    setForbidden(false)
     apiEmpresas
       .list<Empresas.Empresa>({
         incluir_inativos: incluirInativos,
@@ -114,8 +126,19 @@ export function Empresas() {
         setList(items)
         setTotal(t)
       })
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 403) {
+          setForbidden(true)
+          setList([])
+          setTotal(0)
+          return
+        }
+        toast.showWarning(mensagemFalhaParaToast(err, 'Não encontramos a lista de empresas.'))
+        setList([])
+        setTotal(0)
+      })
       .finally(() => setLoading(false))
-  }, [debouncedBusca, incluirInativos, page, sortParams])
+  }, [debouncedBusca, incluirInativos, page, sortParams, toast])
 
   useEffect(() => {
     load()
@@ -214,7 +237,17 @@ export function Empresas() {
     apiEmpresas
       .get(editId)
       .then((emp) => openEdit(emp))
-      .catch(() => toast.showWarning('Empresa não encontrada.'))
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 403) {
+          setForbidden(true)
+          return
+        }
+        if (err instanceof ApiError && err.status === 404) {
+          toast.showWarning('Empresa não encontrada.')
+          return
+        }
+        toast.showWarning(mensagemFalhaParaToast(err, 'Empresa não encontrada.'))
+      })
   // eslint-disable-next-line react-hooks/exhaustive-deps -- abre edição ao retornar da tela de detalhe com state
   }, [location.state])
 
@@ -244,7 +277,7 @@ export function Empresas() {
       setTelefone(data.telefone ? maskTelefoneBr(data.telefone) : '')
       toast.showSuccess('Dados preenchidos com sucesso.')
     } catch (err) {
-      toast.showError(err instanceof Error ? err.message : 'Erro ao consultar CNPJ')
+      toast.showError(mensagemFalhaParaToast(err, 'Erro ao consultar CNPJ.'))
     } finally {
       setLoadingCnpj(false)
     }
@@ -312,7 +345,7 @@ export function Empresas() {
         navigate(`/empresas/${criada.id}`, { replace: true })
       }
     } catch (err) {
-      toast.showError(err instanceof Error ? err.message : 'Erro')
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar a empresa.'))
     } finally {
       setSaving(false)
     }
@@ -333,8 +366,21 @@ export function Empresas() {
       await apiEmpresas.delete(id)
       load()
     } catch (err) {
-      toast.showWarning(err instanceof Error ? err.message : 'Erro ao excluir')
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível excluir a empresa.'))
     }
+  }
+
+  if (forbidden) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+        <SemPermissao
+          title="Você não tem permissão para listar empresas."
+          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
+          voltarPara="/"
+          voltarLabel="Voltar para o Dashboard"
+        />
+      </div>
+    )
   }
 
   return (

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
+  ApiError,
   empresas as apiEmpresas,
   redes,
   tiposNegocio,
@@ -14,10 +15,13 @@ import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
 import { maskCnpjCpf } from '../utils/maskCnpjCpf'
 import { maskCep, formatTelefoneBrExibicao } from '../utils/masks'
+import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
+import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { TicketsTabelaContexto } from '../components/TicketsTabelaContexto'
 import { FuncionariosEmpresaLista } from '../components/FuncionariosEmpresaLista'
+import { SemPermissao } from './SemPermissao'
 type Aba = 'geral' | 'tickets' | 'funcionarios'
 
 function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
@@ -41,7 +45,8 @@ export function EmpresaDetalhe() {
   const [redeNome, setRedeNome] = useState<string>('')
   const [tipoNegocioNome, setTipoNegocioNome] = useState<string>('')
   const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState(false)
+  const [loadFailure, setLoadFailure] = useState<{ titulo: string; detalhe?: string } | null>(null)
+  const [forbidden, setForbidden] = useState(false)
   const [aba, setAba] = useState<Aba>('geral')
 
   const [pageT, setPageT] = useState(1)
@@ -61,12 +66,16 @@ export function EmpresaDetalhe() {
   useEffect(() => {
     if (!id || isNaN(empresaId)) {
       setLoading(false)
-      setLoadError(true)
+      setLoadFailure({
+        titulo: 'Empresa não encontrada.',
+        detalhe: 'O identificador na URL é inválido.',
+      })
       return
     }
     let cancelled = false
     setLoading(true)
-    setLoadError(false)
+    setLoadFailure(null)
+    setForbidden(false)
     apiEmpresas
       .get(empresaId)
       .then(async (e) => {
@@ -87,9 +96,14 @@ export function EmpresaDetalhe() {
           }
         } else if (!cancelled) setTipoNegocioNome('')
       })
-      .catch(() => {
+      .catch((err) => {
         if (!cancelled) {
-          setLoadError(true)
+          if (err instanceof ApiError && err.status === 403) {
+            setForbidden(true)
+            setEmpresa(null)
+            return
+          }
+          setLoadFailure(interpretarFalhaCarregamento(err, 'Empresa não encontrada.'))
           setEmpresa(null)
         }
       })
@@ -163,12 +177,6 @@ export function EmpresaDetalhe() {
     }
   }, [aba, empresaId, pageF, debouncedBuscaF])
 
-  useEffect(() => {
-    if (!loadError || loading) return
-    toast.showWarning('Empresa não encontrada.')
-    navigate('/empresas', { replace: true })
-  }, [loadError, loading, navigate, toast])
-
   function abrirEdicao() {
     if (!empresa) return
     navigate('/empresas', { state: { empresaEditId: empresa.id } })
@@ -181,7 +189,7 @@ export function EmpresaDetalhe() {
       toast.showSuccess('Empresa excluída.')
       navigate('/empresas', { replace: true })
     } catch (err) {
-      toast.showWarning(err instanceof Error ? err.message : 'Não foi possível excluir.')
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível excluir a empresa.'))
     }
   }
 
@@ -192,6 +200,25 @@ export function EmpresaDetalhe() {
         <div className="h-9 w-2/3 max-w-md animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
         <div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/50" />
       </div>
+    )
+  }
+
+  if (forbidden) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+        <SemPermissao
+          title="Você não tem permissão para acessar esta empresa."
+          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
+          voltarPara="/empresas"
+          voltarLabel="Voltar para Empresas"
+        />
+      </div>
+    )
+  }
+
+  if (loadFailure) {
+    return (
+      <CarregamentoFalhou titulo={loadFailure.titulo} detalhe={loadFailure.detalhe} onVoltar={voltarAnterior} />
     )
   }
 

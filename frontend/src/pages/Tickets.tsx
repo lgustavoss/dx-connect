@@ -6,6 +6,7 @@ import {
   empresas,
   setores,
   atendentes,
+  ApiError,
   type Tickets,
   type StatusTicket,
   type Empresas,
@@ -21,6 +22,8 @@ import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { useAuth } from '../contexts/AuthContext'
 import { useAlertaFilaSemResponsavel } from '../hooks/useAlertaFilaSemResponsavel'
+import { SemPermissao } from './SemPermissao'
+import { mensagemFalhaParaToast } from '../api/errorMessage'
 
 type ColunaOrdenacao =
   | 'protocolo'
@@ -44,6 +47,7 @@ export function Tickets() {
   const toast = useToast()
   const { isAdmin, user } = useAuth()
   useAlertaFilaSemResponsavel(Boolean(user))
+  const [forbidden, setForbidden] = useState(false)
 
   const situacao = useMemo<'abertos' | 'fechados'>(() => {
     const s = searchParams.get('situacao')
@@ -75,13 +79,11 @@ export function Tickets() {
 
   const resetarPagina = useCallback(() => setPage(1), [])
 
+  /** Setores vêm filtrados pelo backend para atendentes; não recortar por `user.setor_ids` no cliente. */
   const setoresFiltro = useMemo(() => {
     const ativos = setoresOpt.filter((s) => s.ativo)
-    const sorted = [...ativos].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-    if (isAdmin) return sorted
-    const ids = new Set(user?.setor_ids ?? [])
-    return sorted.filter((s) => ids.has(s.id))
-  }, [isAdmin, user?.setor_ids, setoresOpt])
+    return [...ativos].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  }, [setoresOpt])
 
   const empresasOrdenadas = useMemo(
     () => [...empresasOpt].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
@@ -190,6 +192,7 @@ export function Tickets() {
 
   useEffect(() => {
     setLoading(true)
+    setForbidden(false)
     tickets
       .list({
         situacao,
@@ -209,8 +212,15 @@ export function Tickets() {
         setList(items)
         setTotal(t)
       })
-      .catch(() => {
-        toast.showWarning('Não foi possível carregar os tickets.')
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 403) {
+          setForbidden(true)
+          toast.showWarning(err.message || 'Você não tem permissão para ver estes tickets.')
+          setList([])
+          setTotal(0)
+          return
+        }
+        toast.showWarning(mensagemFalhaParaToast(err, 'Não encontramos os tickets solicitados.'))
         setList([])
         setTotal(0)
       })
@@ -230,6 +240,19 @@ export function Tickets() {
     sortParams,
     toast,
   ])
+
+  if (forbidden) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+        <SemPermissao
+          title="Você não tem permissão para listar tickets."
+          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil e seus vínculos de setor."
+          voltarPara="/"
+          voltarLabel="Voltar para o Dashboard"
+        />
+      </div>
+    )
+  }
 
   function limparFiltros() {
     setBusca('')
@@ -403,20 +426,28 @@ export function Tickets() {
               aria-labelledby={`${painelFiltrosId}-toggle`}
               className="mt-6 grid gap-4 border-t border-slate-200/70 pt-5 dark:border-slate-800 sm:grid-cols-2 lg:grid-cols-3"
             >
-              <Select
-                label="Empresa"
-                labelStyle="overline"
-                className="min-w-0"
-                value={filtroEmpresa}
-                onChange={(v) => {
-                  setFiltroEmpresa(v === '' ? '' : Number(v))
-                  resetarPagina()
-                }}
-                options={opcoesEmpresaFiltro}
-                includeEmpty
-                emptyLabel="Todas"
-                placeholder="Todas"
-              />
+              <div className="min-w-0 sm:col-span-2 lg:col-span-1">
+                <Select
+                  label="Empresa"
+                  labelStyle="overline"
+                  className="min-w-0"
+                  value={filtroEmpresa}
+                  onChange={(v) => {
+                    setFiltroEmpresa(v === '' ? '' : Number(v))
+                    resetarPagina()
+                  }}
+                  options={opcoesEmpresaFiltro}
+                  includeEmpty
+                  emptyLabel="Todas"
+                  placeholder="Todas"
+                />
+                {!isAdmin && empresasOpt.length === 0 && (
+                  <p className="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                    Empresas no filtro aparecem só para redes que já tiveram ticket nos setores que você atende. Até lá,
+                    use a busca por protocolo ou assunto.
+                  </p>
+                )}
+              </div>
               <Select
                 label="Setor"
                 labelStyle="overline"

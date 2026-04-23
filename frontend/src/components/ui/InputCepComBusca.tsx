@@ -3,6 +3,7 @@ import { Input } from './Input'
 import { useToast } from './Toast'
 import { cadastroAux, type CadastroAux } from '../../api/client'
 import { digitsOnly, maskCep } from '../../utils/masks'
+import { mensagemFalhaParaToast } from '../../api/errorMessage'
 
 type Props = {
   id?: string
@@ -31,7 +32,7 @@ export function InputCepComBusca({ id, label = 'CEP', value, onChange, onEnderec
       onEnderecoCompleto(r)
       toast.showSuccess('Endereço preenchido pelo CEP.')
     } catch (err) {
-      toast.showWarning(err instanceof Error ? err.message : 'Não foi possível consultar o CEP.')
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível consultar o CEP.'))
     } finally {
       setLoading(false)
     }

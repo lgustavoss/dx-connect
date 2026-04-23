@@ -20,6 +20,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        INSTALL_DEV: "1"
     container_name: dx-connect-api
     env_file:
       - ./backend/.env
@@ -40,7 +42,8 @@ services:
       db:
         condition: service_healthy
     volumes:
-      - ./backend/app:/app/app
+      # Código + tests + pytest.ini do host (evita rebuild só por alteração em tests/).
+      - ./backend:/app
 
 volumes:
   postgres_data:

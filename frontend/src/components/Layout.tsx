@@ -6,6 +6,12 @@ import { ThemeToggle } from './ThemeToggle'
 import { NavbarNotificacoes } from './NavbarNotificacoes'
 import { useAlertaFilaSemResponsavel } from '../hooks/useAlertaFilaSemResponsavel'
 
+function perfilExibicao(role: string | undefined): string {
+  if (role === 'admin') return 'Administrador'
+  if (role === 'atendente') return 'Atendente'
+  return role?.trim() || '—'
+}
+
 const menuIcon = (
   <svg className="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -18,7 +24,8 @@ export function Layout() {
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false)
 
-  useAlertaFilaSemResponsavel(Boolean(user))
+  const notificacoesEnabled = Boolean(user && !user.must_change_password)
+  useAlertaFilaSemResponsavel(notificacoesEnabled)
 
   if (user?.must_change_password && location.pathname !== '/alterar-senha') {
     return <Navigate to="/alterar-senha" replace />
@@ -32,7 +39,7 @@ export function Layout() {
         onMobileClose={() => setSidebarMobileOpen(false)}
         isAdmin={isAdmin ?? false}
         userNome={user?.nome ?? ''}
-        userRole={user?.role ?? ''}
+        userRole={perfilExibicao(user?.role)}
         onLogout={logout}
       />
 
@@ -84,11 +91,11 @@ export function Layout() {
             </div>
             
             <div className="min-w-0 flex-1" />
-            <NavbarNotificacoes enabled={Boolean(user)} />
+            <NavbarNotificacoes enabled={notificacoesEnabled} />
             <ThemeToggle />
             <div className="hidden min-w-0 text-right sm:block">
               <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{user?.nome}</p>
-              <p className="truncate text-xs text-slate-500 dark:text-slate-400">{user?.role}</p>
+              <p className="truncate text-xs text-slate-500 dark:text-slate-400">{perfilExibicao(user?.role)}</p>
             </div>
           </header>
 

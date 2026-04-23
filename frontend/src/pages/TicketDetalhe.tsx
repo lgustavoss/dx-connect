@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
-import { tickets, notificacoes, statusTicket, atendentes, setores, type StatusTicket, type Atendentes, type Setores, type Tickets } from '../api/client'
+import { ApiError, tickets, notificacoes, statusTicket, atendentes, setores, type StatusTicket, type Atendentes, type Setores, type Tickets } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Select } from '../components/ui/Select'
@@ -9,6 +9,9 @@ import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../contexts/AuthContext'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { refetchPendenciasResumo } from '../hooks/useAlertaFilaSemResponsavel'
+import { SemPermissao } from './SemPermissao'
+import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
+import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 
 const ROTULO_CAMPO: Record<string, string> = {
   status_id: 'Status',
@@ -95,7 +98,8 @@ export function TicketDetalhe() {
   const [fechando, setFechando] = useState(false)
 
   const [loading, setLoading] = useState(true)
-  const [notFound, setNotFound] = useState(false)
+  const [carregamentoFalhou, setCarregamentoFalhou] = useState<{ titulo: string; detalhe?: string } | null>(null)
+  const [forbidden, setForbidden] = useState(false)
   const [ticket, setTicket] = useState<Tickets.Ticket | null>(null)
   const [historico, setHistorico] = useState<Tickets.Historico[]>([])
   const [mensagens, setMensagens] = useState<Tickets.Mensagem[]>([])
@@ -114,18 +118,14 @@ export function TicketDetalhe() {
   const [tipoNovaMensagem, setTipoNovaMensagem] = useState<'publico' | 'interno'>('publico')
   const [enviandoMensagem, setEnviandoMensagem] = useState(false)
   const [modalGerirAberto, setModalGerirAberto] = useState(false)
+  const [modalFecharAberto, setModalFecharAberto] = useState(false)
   /** Qual bloco do modal recebe destaque ao abrir (chips no cabeçalho). */
   const [modalGerirFoco, setModalGerirFoco] = useState<'geral' | 'setor' | 'status' | 'atendente'>('geral')
   const [historicoAberto, setHistoricoAberto] = useState(false)
 
-  const setorIdsPermitidos = useMemo(() => {
-    if (isAdmin) return null
-    return new Set(user?.setor_ids ?? [])
-  }, [isAdmin, user?.setor_ids])
-
   const setoresParaSelect = useMemo(() => {
     const ativos = setoresList.filter((s) => s.ativo)
-    let base = !setorIdsPermitidos ? ativos : ativos.filter((s) => setorIdsPermitidos.has(s.id))
+    let base = ativos
     if (ticket) {
       const cur = setoresList.find((s) => s.id === ticket.setor_id)
       if (cur && !base.some((s) => s.id === cur.id)) {
@@ -133,7 +133,7 @@ export function TicketDetalhe() {
       }
     }
     return [...base].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-  }, [setoresList, setorIdsPermitidos, ticket])
+  }, [setoresList, ticket])
 
   /** Setor em edição no modal (ou do ticket); usado para priorizar atendentes vinculados a esse setor. */
   const setorAlvoModal = useMemo(() => {
@@ -221,10 +221,32 @@ export function TicketDetalhe() {
   useEffect(() => {
     coletarTodasPaginas<StatusTicket.Status>((o, l) =>
       statusTicket.list({ incluir_inativos: false, offset: o, limit: l }),
-    ).then(setStatusList)
+    )
+      .then(setStatusList)
+      .catch((err) => {
+        const msg =
+          err instanceof ApiError && err.status === 403
+            ? 'Você não tem permissão para listar status de ticket.'
+            : err instanceof Error
+              ? err.message
+              : 'Erro ao carregar status'
+        toast.showWarning(msg)
+        setStatusList([])
+      })
     coletarTodasPaginas<Setores.Setor>((o, l) =>
       setores.list({ incluir_inativos: true, offset: o, limit: l }),
-    ).then(setSetoresList)
+    )
+      .then(setSetoresList)
+      .catch((err) => {
+        const msg =
+          err instanceof ApiError && err.status === 403
+            ? 'Você não tem permissão para listar setores.'
+            : err instanceof Error
+              ? err.message
+              : 'Erro ao carregar setores'
+        toast.showWarning(msg)
+        setSetoresList([])
+      })
   }, [])
 
   /** Só administradores podem listar atendentes; depende de `user` para não rodar antes do /me. */
@@ -279,16 +301,23 @@ export function TicketDetalhe() {
   }, [modalGerirAberto, setorAlvoModal])
 
   useEffect(() => {
-    if (!id) return
+    if (!id) {
+      setLoading(false)
+      return
+    }
     const numId = Number(id)
     if (Number.isNaN(numId)) {
-      setNotFound(true)
+      setCarregamentoFalhou({
+        titulo: 'Ticket não encontrado.',
+        detalhe: 'O identificador na URL é inválido.',
+      })
       setLoading(false)
       return
     }
     let cancelled = false
     setLoading(true)
-    setNotFound(false)
+    setCarregamentoFalhou(null)
+    setForbidden(false)
     Promise.all([tickets.get(numId), tickets.getHistorico(numId), tickets.listMensagens(numId)])
       .then(([t, h, m]) => {
         if (cancelled) return
@@ -303,12 +332,18 @@ export function TicketDetalhe() {
           .then(() => refetchPendenciasResumo())
           .catch(() => {})
       })
-      .catch(() => {
+      .catch((err) => {
         if (!cancelled) {
+          if (err instanceof ApiError && err.status === 403) {
+            setForbidden(true)
+            toast.showWarning(err.message || 'Sem permissão para este ticket.')
+            setCarregamentoFalhou(null)
+            return
+          }
           setTicket(null)
           setHistorico([])
           setMensagens([])
-          setNotFound(true)
+          setCarregamentoFalhou(interpretarFalhaCarregamento(err, 'Ticket não encontrado.'))
         }
       })
       .finally(() => {
@@ -381,23 +416,39 @@ export function TicketDetalhe() {
         toast.showSuccess('Alterações aplicadas.')
       }
     } catch (err) {
-      toast.showWarning(err instanceof Error ? err.message : 'Erro ao salvar')
+      toast.showWarning(mensagemFalhaParaToast(err, 'Erro ao salvar.'))
     } finally {
       setSaving(false)
     }
   }
 
-  const idsTicketSetorNome = useMemo(() => {
-    if (!ticket || setoresList.length === 0) return null
-    return idsSetoresMesmoNome(setoresList, ticket.setor_id)
-  }, [ticket, setoresList])
+  async function fecharTicketConfirmado() {
+    if (!ticket) return
+    if (!statusFechado) {
+      toast.showWarning('Não existe um status com slug "fechado". Cadastre/ajuste em Status de ticket.')
+      return
+    }
+    setFechando(true)
+    try {
+      const updated = await tickets.update(ticket.id, { status_id: statusFechado.id })
+      setTicket(updated)
+      setEditStatus(updated.status_id)
+      setEditAtendente(updated.atendente_id ?? '')
+      const hist = await tickets.getHistorico(updated.id)
+      setHistorico(hist)
+      toast.showSuccess('Ticket fechado.')
+      void refetchPendenciasResumo()
+      setModalFecharAberto(false)
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível fechar.'))
+    } finally {
+      setFechando(false)
+    }
+  }
 
-  const podeAtribuirAMim =
-    !!ticket &&
-    !ticket.atendente_id &&
-    !!user &&
-    (isAdmin ||
-      (idsTicketSetorNome != null && (user.setor_ids ?? []).some((sid) => idsTicketSetorNome.has(sid))))
+  // Se o usuário conseguiu carregar o ticket, o backend já validou o escopo de setor.
+  // Aqui só bloqueamos o botão quando já existe responsável.
+  const podeAtribuirAMim = !!ticket && !ticket.atendente_id && !!user
 
   async function handleAtribuirAMim() {
     if (!ticket || !user || !podeAtribuirAMim) return
@@ -460,19 +511,27 @@ export function TicketDetalhe() {
     )
   }
 
-  if (notFound || !ticket) {
+  if (forbidden) {
     return (
-      <div className="mx-auto max-w-6xl space-y-4 pb-10">
-        <p className="text-slate-600 dark:text-slate-400">Ticket não encontrado ou sem permissão.</p>
-        <button
-          type="button"
-          onClick={voltarAnterior}
-          className="font-medium text-slate-800 underline decoration-slate-400 underline-offset-2 hover:text-slate-950 dark:text-slate-200 dark:hover:text-white"
-        >
-          Voltar
-        </button>
+      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+        <SemPermissao
+          title="Você não tem permissão para acessar este ticket."
+          detail="Este chamado pertence a um setor fora do seu escopo. Se precisar, peça ao administrador para ajustar seus vínculos de setor."
+          voltarPara="/tickets"
+          voltarLabel="Voltar para Tickets"
+        />
       </div>
     )
+  }
+
+  if (carregamentoFalhou) {
+    return (
+      <CarregamentoFalhou titulo={carregamentoFalhou.titulo} detalhe={carregamentoFalhou.detalhe} onVoltar={voltarAnterior} />
+    )
+  }
+
+  if (!ticket) {
+    return null
   }
 
   return (
@@ -582,7 +641,13 @@ export function TicketDetalhe() {
                   setHistorico(hist)
                   toast.showSuccess('Ticket reaberto.')
                 } catch (err) {
-                  toast.showWarning(err instanceof Error ? err.message : 'Não foi possível reabrir.')
+                  if (err instanceof ApiError && err.status === 404) {
+                    toast.showWarning(
+                      'Função de reabrir indisponível no servidor. Atualize a página ou contate o suporte.',
+                    )
+                    return
+                  }
+                  toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível reabrir.'))
                 }
               }}
             >
@@ -605,22 +670,7 @@ export function TicketDetalhe() {
                   toast.showWarning('Não existe um status com slug "fechado". Cadastre/ajuste em Status de ticket.')
                   return
                 }
-                if (!confirm('Fechar este ticket? Ele sairá da lista de abertos e não permitirá novas mensagens.')) return
-                setFechando(true)
-                try {
-                  const updated = await tickets.update(ticket.id, { status_id: statusFechado.id })
-                  setTicket(updated)
-                  setEditStatus(updated.status_id)
-                  setEditAtendente(updated.atendente_id ?? '')
-                  const hist = await tickets.getHistorico(updated.id)
-                  setHistorico(hist)
-                  toast.showSuccess('Ticket fechado.')
-                  void refetchPendenciasResumo()
-                } catch (err) {
-                  toast.showWarning(err instanceof Error ? err.message : 'Não foi possível fechar.')
-                } finally {
-                  setFechando(false)
-                }
+                setModalFecharAberto(true)
               }}
             >
               Fechar ticket
@@ -906,6 +956,45 @@ export function TicketDetalhe() {
               </Button>
               <Button type="button" onClick={handleSalvar} loading={saving}>
                 {modalApenasUmCampo ? 'Salvar' : 'Aplicar'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalFecharAberto && (
+        <div
+          className="fixed inset-0 z-[520] flex items-end justify-center bg-slate-950/60 p-4 backdrop-blur-[2px] sm:items-center dark:bg-slate-950/70"
+          role="presentation"
+          onClick={() => {
+            if (fechando) return
+            setModalFecharAberto(false)
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ticket-fechar-titulo"
+            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-600 dark:bg-slate-900 dark:shadow-2xl dark:ring-1 dark:ring-white/10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="ticket-fechar-titulo" className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+              Fechar ticket
+            </h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Ao fechar, o ticket sairá da lista de abertos e não permitirá novas mensagens.
+            </p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setModalFecharAberto(false)}
+                disabled={fechando}
+              >
+                Cancelar
+              </Button>
+              <Button type="button" variant="danger" onClick={fecharTicketConfirmado} loading={fechando}>
+                Fechar ticket
               </Button>
             </div>
           </div>

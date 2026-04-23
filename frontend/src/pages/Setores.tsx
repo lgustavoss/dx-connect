@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
-import { setores, type Setores } from '../api/client'
+import { ApiError, setores, type Setores } from '../api/client'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -13,6 +13,8 @@ import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBus
 import { Switch } from '../components/ui/Switch'
 import { useNavigate } from 'react-router-dom'
 import { FormSection } from '../components/ui/FormSection'
+import { SemPermissao } from './SemPermissao'
+import { mensagemFalhaParaToast } from '../api/errorMessage'
 
 type ColunaSetor = 'nome' | 'slug' | 'ativo'
 
@@ -33,6 +35,7 @@ export function Setores() {
   const [slug, setSlug] = useState('')
   const [ativo, setAtivo] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [forbidden, setForbidden] = useState(false)
 
   useEffect(() => {
     if (!modalOpen) return
@@ -54,6 +57,7 @@ export function Setores() {
 
   const load = useCallback(() => {
     setLoading(true)
+    setForbidden(false)
     setores
       .list({
         incluir_inativos: incluirInativos,
@@ -66,8 +70,19 @@ export function Setores() {
         setList(items)
         setTotal(t)
       })
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 403) {
+          setForbidden(true)
+          setList([])
+          setTotal(0)
+          return
+        }
+        toast.showWarning(mensagemFalhaParaToast(err, 'Não encontramos a lista de setores.'))
+        setList([])
+        setTotal(0)
+      })
       .finally(() => setLoading(false))
-  }, [debouncedBusca, incluirInativos, page, sortParams])
+  }, [debouncedBusca, incluirInativos, page, sortParams, toast])
 
   useEffect(() => {
     load()
@@ -103,7 +118,7 @@ export function Setores() {
       setModalOpen(false)
       load()
     } catch (err) {
-      toast.showError(err instanceof Error ? err.message : 'Erro')
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar o setor.'))
     } finally {
       setSaving(false)
     }
@@ -115,8 +130,21 @@ export function Setores() {
       await setores.delete(id)
       load()
     } catch (err) {
-      toast.showWarning(err instanceof Error ? err.message : 'Erro ao excluir')
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível excluir o setor.'))
     }
+  }
+
+  if (forbidden) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+        <SemPermissao
+          title="Você não tem permissão para listar setores."
+          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
+          voltarPara="/"
+          voltarLabel="Voltar para o Dashboard"
+        />
+      </div>
+    )
   }
 
   return (

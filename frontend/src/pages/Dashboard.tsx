@@ -2,11 +2,13 @@ import { useState, useEffect, useMemo } from 'react'
 import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { Link } from 'react-router-dom'
-import { dashboard } from '../api/client'
+import { ApiError, dashboard } from '../api/client'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { IconEye } from '../components/ui/IconEye'
 import { useToast } from '../components/ui/Toast'
+import { SemPermissao } from './SemPermissao'
+import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 
 type ColunaUltimos = 'protocolo' | 'empresa' | 'assunto' | 'status'
 
@@ -17,17 +19,25 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [forbidden, setForbidden] = useState(false)
 
   useEffect(() => {
     setLoading(true)
     setError(null)
+    setForbidden(false)
     dashboard
       .get()
       .then(setData)
       .catch((err) => {
-        const msg = err instanceof Error ? err.message : 'Erro ao carregar'
+        if (err instanceof ApiError && err.status === 403) {
+          setForbidden(true)
+          toast.showWarning(err.message || 'Você não tem permissão para ver o dashboard.')
+          return
+        }
+        const m = interpretarFalhaCarregamento(err, 'Não encontramos os dados do dashboard.')
+        const msg = [m.titulo, m.detalhe].filter(Boolean).join(' ')
         setError(msg)
-        toast.showError(msg)
+        toast.showError(mensagemFalhaParaToast(err, msg))
       })
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps -- recarrega só quando reloadKey muda
@@ -56,6 +66,19 @@ export function Dashboard() {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
         <span className="text-slate-500 dark:text-slate-400">Carregando dashboard...</span>
+      </div>
+    )
+  }
+
+  if (forbidden) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+        <SemPermissao
+          title="Você não tem permissão para acessar o dashboard."
+          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil e vínculos de setor."
+          voltarPara="/tickets"
+          voltarLabel="Ir para Tickets"
+        />
       </div>
     )
   }

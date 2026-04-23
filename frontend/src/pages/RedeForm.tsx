@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { redes, type Redes } from '../api/client'
+import { ApiError, redes, type Redes } from '../api/client'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -8,6 +8,9 @@ import { Switch } from '../components/ui/Switch'
 import { useToast } from '../components/ui/Toast'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { FormSection } from '../components/ui/FormSection'
+import { SemPermissao } from './SemPermissao'
+import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
+import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 
 export function RedeForm() {
   const { id } = useParams<{ id?: string }>()
@@ -20,6 +23,9 @@ export function RedeForm() {
 
   const [loading, setLoading] = useState(isEdit)
   const [saving, setSaving] = useState(false)
+  const [forbidden, setForbidden] = useState(false)
+  /** Ausência da rede: URL inválida (detalhe) ou 404 da API (sem detalhe). */
+  const [redeInexistente, setRedeInexistente] = useState<{ detalhe?: string } | null>(null)
   const [nome, setNome] = useState('')
   const [loginRetaguarda, setLoginRetaguarda] = useState('')
   const [ativo, setAtivo] = useState(true)
@@ -27,12 +33,14 @@ export function RedeForm() {
   useEffect(() => {
     if (!isEdit) return
     if (!id || Number.isNaN(redeId)) {
-      toast.showWarning('Rede inválida.')
-      voltarAnterior()
+      setRedeInexistente({ detalhe: 'O identificador na URL é inválido.' })
+      setLoading(false)
       return
     }
     let cancelled = false
     setLoading(true)
+    setForbidden(false)
+    setRedeInexistente(null)
     redes
       .get(redeId)
       .then((r) => {
@@ -41,10 +49,18 @@ export function RedeForm() {
         setLoginRetaguarda(r.login_retaguarda ?? '')
         setAtivo(r.ativo)
       })
-      .catch(() => {
+      .catch((err) => {
         if (!cancelled) {
-          toast.showWarning('Rede não encontrada.')
-          voltarAnterior()
+          if (err instanceof ApiError && err.status === 403) {
+            setForbidden(true)
+            return
+          }
+          if (err instanceof ApiError && err.status === 404) {
+            setRedeInexistente({})
+            return
+          }
+          const m = interpretarFalhaCarregamento(err, 'Rede não encontrada.')
+          toast.showWarning([m.titulo, m.detalhe].filter(Boolean).join(' '))
         }
       })
       .finally(() => {
@@ -53,7 +69,7 @@ export function RedeForm() {
     return () => {
       cancelled = true
     }
-  }, [id, isEdit, redeId, toast, voltarAnterior])
+  }, [id, isEdit, redeId, toast])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -75,7 +91,7 @@ export function RedeForm() {
       }
       navigate(`/redes/${r.id}`, { replace: true })
     } catch (err) {
-      toast.showError(err instanceof Error ? err.message : 'Erro')
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar a rede.'))
     } finally {
       setSaving(false)
     }
@@ -87,6 +103,30 @@ export function RedeForm() {
         <div className="h-9 w-56 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
         <div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/50" />
       </div>
+    )
+  }
+
+  if (forbidden) {
+    return (
+      <div className="mx-auto max-w-5xl space-y-6 pb-10">
+        <SemPermissao
+          title="Você não tem permissão para editar esta rede."
+          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
+          voltarPara="/redes"
+          voltarLabel="Voltar para Redes"
+        />
+      </div>
+    )
+  }
+
+  if (redeInexistente) {
+    return (
+      <CarregamentoFalhou
+        className="mx-auto max-w-5xl space-y-4 pb-10"
+        titulo="Rede não encontrada."
+        detalhe={redeInexistente.detalhe}
+        onVoltar={voltarAnterior}
+      />
     )
   }
 
