@@ -4,19 +4,14 @@ import { Link, useParams } from 'react-router-dom'
 
 import {
 
-  empresas,
-
-  setores,
 
   atendentes,
 
-  tickets,
 
   whatsappChats,
 
   fetchWhatsAppMidiaBlob,
 
-  type Empresas,
 
   type Setores,
 
@@ -25,8 +20,6 @@ import {
   type WhatsappChats,
 
 } from '../../api/client'
-
-import { coletarTodasPaginas } from '../../api/collectPages'
 
 import { Card } from '../../components/ui/Card'
 
