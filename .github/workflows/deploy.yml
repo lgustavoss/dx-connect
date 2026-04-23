@@ -48,6 +48,7 @@ jobs:
       VITE_API_URL: ${{ secrets.VITE_API_URL }}
       SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
       DEPLOY_GIT_REF: ${{ secrets.DEPLOY_GIT_REF }}
+      EVENT_REF: ${{ github.ref_name }}
       DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
       # workflow_dispatch: checkbox; push: primeiro termo é false (short-circuit, não avalia inputs)
       SKIP_MIGRATIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_migrations == true || false }}
@@ -94,7 +95,9 @@ jobs:
 
       - name: Git pull + Alembic + Docker Compose
         run: |
-          REF="${DEPLOY_GIT_REF:-main}"
+          # Por padrão, faz deploy da branch que disparou o workflow (ex.: push em staging).
+          # Ainda permite override via secret DEPLOY_GIT_REF quando necessário.
+          REF="${DEPLOY_GIT_REF:-${EVENT_REF:-main}}"
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -p "${SSH_PORT}" \
             "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s << EOF
           set -e
@@ -103,7 +106,8 @@ jobs:
           git checkout "${REF}"
           git pull origin "${REF}"
           if [ "${SKIP_MIGRATIONS}" != "true" ]; then
-            docker compose -f docker-compose.prod.yml run --rm backend alembic upgrade head
+            # Garante que migrations rodem com a imagem do código recém-puxado.
+            docker compose -f docker-compose.prod.yml run --rm --build backend alembic upgrade head
           fi
           docker compose -f docker-compose.prod.yml up -d --build
           EOF
