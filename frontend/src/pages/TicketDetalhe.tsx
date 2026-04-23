@@ -118,6 +118,7 @@ export function TicketDetalhe() {
   const [tipoNovaMensagem, setTipoNovaMensagem] = useState<'publico' | 'interno'>('publico')
   const [enviandoMensagem, setEnviandoMensagem] = useState(false)
   const [modalGerirAberto, setModalGerirAberto] = useState(false)
+  const [modalFecharAberto, setModalFecharAberto] = useState(false)
   /** Qual bloco do modal recebe destaque ao abrir (chips no cabeçalho). */
   const [modalGerirFoco, setModalGerirFoco] = useState<'geral' | 'setor' | 'status' | 'atendente'>('geral')
   const [historicoAberto, setHistoricoAberto] = useState(false)
@@ -415,9 +416,33 @@ export function TicketDetalhe() {
         toast.showSuccess('Alterações aplicadas.')
       }
     } catch (err) {
-      toast.showWarning(err instanceof Error ? err.message : 'Erro ao salvar')
+      toast.showWarning(mensagemFalhaParaToast(err, 'Erro ao salvar.'))
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function fecharTicketConfirmado() {
+    if (!ticket) return
+    if (!statusFechado) {
+      toast.showWarning('Não existe um status com slug "fechado". Cadastre/ajuste em Status de ticket.')
+      return
+    }
+    setFechando(true)
+    try {
+      const updated = await tickets.update(ticket.id, { status_id: statusFechado.id })
+      setTicket(updated)
+      setEditStatus(updated.status_id)
+      setEditAtendente(updated.atendente_id ?? '')
+      const hist = await tickets.getHistorico(updated.id)
+      setHistorico(hist)
+      toast.showSuccess('Ticket fechado.')
+      void refetchPendenciasResumo()
+      setModalFecharAberto(false)
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível fechar.'))
+    } finally {
+      setFechando(false)
     }
   }
 
@@ -645,22 +670,7 @@ export function TicketDetalhe() {
                   toast.showWarning('Não existe um status com slug "fechado". Cadastre/ajuste em Status de ticket.')
                   return
                 }
-                if (!confirm('Fechar este ticket? Ele sairá da lista de abertos e não permitirá novas mensagens.')) return
-                setFechando(true)
-                try {
-                  const updated = await tickets.update(ticket.id, { status_id: statusFechado.id })
-                  setTicket(updated)
-                  setEditStatus(updated.status_id)
-                  setEditAtendente(updated.atendente_id ?? '')
-                  const hist = await tickets.getHistorico(updated.id)
-                  setHistorico(hist)
-                  toast.showSuccess('Ticket fechado.')
-                  void refetchPendenciasResumo()
-                } catch (err) {
-                  toast.showWarning(err instanceof Error ? err.message : 'Não foi possível fechar.')
-                } finally {
-                  setFechando(false)
-                }
+                setModalFecharAberto(true)
               }}
             >
               Fechar ticket
@@ -946,6 +956,45 @@ export function TicketDetalhe() {
               </Button>
               <Button type="button" onClick={handleSalvar} loading={saving}>
                 {modalApenasUmCampo ? 'Salvar' : 'Aplicar'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalFecharAberto && (
+        <div
+          className="fixed inset-0 z-[520] flex items-end justify-center bg-slate-950/60 p-4 backdrop-blur-[2px] sm:items-center dark:bg-slate-950/70"
+          role="presentation"
+          onClick={() => {
+            if (fechando) return
+            setModalFecharAberto(false)
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ticket-fechar-titulo"
+            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-600 dark:bg-slate-900 dark:shadow-2xl dark:ring-1 dark:ring-white/10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="ticket-fechar-titulo" className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+              Fechar ticket
+            </h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Ao fechar, o ticket sairá da lista de abertos e não permitirá novas mensagens.
+            </p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setModalFecharAberto(false)}
+                disabled={fechando}
+              >
+                Cancelar
+              </Button>
+              <Button type="button" variant="danger" onClick={fecharTicketConfirmado} loading={fechando}>
+                Fechar ticket
               </Button>
             </div>
           </div>
