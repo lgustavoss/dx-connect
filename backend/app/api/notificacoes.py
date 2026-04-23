@@ -3,12 +3,14 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import exists, func, select
+from sqlalchemy import exists, func, select, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.models import Ticket, TicketMensagem, Atendente
 from app.models.ticket_read import TicketRead
+from app.models.whatsapp_chat_read import WhatsappChatRead
+from app.models.whatsapp_chat import WhatsappChat, WhatsappMensagem
 from app.schemas.notificacoes import NotificacaoResumo, NotificacaoItem, NotificacaoItensResponse
 from app.core.auth import obter_atendente_atual
 from app.core.setor_scope import ids_setores_visiveis_atendente
@@ -91,6 +93,77 @@ def _unread_count_for_ticket(db: Session, ticket: Ticket, atendente_id: int) -> 
     return int(n or 0)
 
 
+def _count_wpp_fila(db: Session, atendente: Atendente) -> int:
+    stmt = (
+        select(func.count())
+        .select_from(WhatsappChat)
+        .where(
+            WhatsappChat.estado == "aguardando_atendente",
+        )
+    )
+    if atendente.role != "admin":
+        vis = ids_setores_visiveis_atendente(db, atendente)
+        stmt = stmt.where(or_(WhatsappChat.setor_id.is_(None), WhatsappChat.setor_id.in_(vis)))
+    return int(db.execute(stmt).scalar_one())
+
+
+def _count_wpp_respostas_pendentes(db: Session, atendente: Atendente) -> int:
+    # Resposta pendente: existe inbound após o último "visto" do atendente no chat.
+    seen_at = (
+        select(WhatsappChatRead.last_seen_at)
+        .where(
+            WhatsappChatRead.chat_id == WhatsappChat.id,
+            WhatsappChatRead.atendente_id == atendente.id,
+        )
+        .limit(1)
+        .scalar_subquery()
+    )
+    inbound_last = (
+        select(func.max(WhatsappMensagem.created_at))
+        .where(
+            WhatsappMensagem.chat_id == WhatsappChat.id,
+            WhatsappMensagem.direcao == "inbound",
+        )
+        .scalar_subquery()
+    )
+    stmt = (
+        select(func.count())
+        .select_from(WhatsappChat)
+        .where(
+            WhatsappChat.estado == "em_atendimento",
+            WhatsappChat.atendente_id == atendente.id,
+            inbound_last.isnot(None),
+            func.coalesce(seen_at, WhatsappChat.atendimento_inicio_at, WhatsappChat.created_at) < inbound_last,
+        )
+    )
+    if atendente.role != "admin":
+        vis = ids_setores_visiveis_atendente(db, atendente)
+        stmt = stmt.where(or_(WhatsappChat.setor_id.is_(None), WhatsappChat.setor_id.in_(vis)))
+    return int(db.execute(stmt).scalar_one())
+
+
+def _wpp_unread_count_for_chat(db: Session, chat_id: int, atendente_id: int) -> int:
+    c = db.query(WhatsappChat.id, WhatsappChat.created_at, WhatsappChat.atendimento_inicio_at).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        return 0
+    ls = (
+        db.query(WhatsappChatRead.last_seen_at)
+        .filter(WhatsappChatRead.chat_id == chat_id, WhatsappChatRead.atendente_id == atendente_id)
+        .scalar()
+    )
+    eff = ls if ls is not None else (c.atendimento_inicio_at or c.created_at)
+    n = (
+        db.query(func.count(WhatsappMensagem.id))
+        .filter(
+            WhatsappMensagem.chat_id == chat_id,
+            WhatsappMensagem.direcao == "inbound",
+            WhatsappMensagem.created_at > eff,
+        )
+        .scalar()
+    )
+    return int(n or 0)
+
+
 @router.get("/resumo", response_model=NotificacaoResumo)
 def resumo(
     db: Session = Depends(get_db),
@@ -98,10 +171,14 @@ def resumo(
 ):
     sem = _count_sem_responsavel(db, atendente)
     nao = _count_tickets_com_nao_lidas(db, atendente)
+    wpp_fila = _count_wpp_fila(db, atendente)
+    wpp_resp = _count_wpp_respostas_pendentes(db, atendente)
     return NotificacaoResumo(
         sem_responsavel_count=sem,
         nao_lidas_count=nao,
-        total_pendencias=sem + nao,
+        wpp_fila_count=wpp_fila,
+        wpp_respostas_count=wpp_resp,
+        total_pendencias=sem + nao + wpp_fila + wpp_resp,
     )
 
 
@@ -123,6 +200,52 @@ def itens(
                 descricao="Sem responsável — em aberto",
                 count=sem,
                 href="/tickets?sem_responsavel=1",
+                created_at=datetime.now(timezone.utc),
+            )
+        )
+
+    wpp_fila = _count_wpp_fila(db, atendente)
+    if wpp_fila > 0:
+        out.append(
+            NotificacaoItem(
+                tipo="wpp_chats_na_fila",
+                ticket_id=None,
+                titulo="Chats na fila",
+                descricao="WhatsApp — aguardando atendimento",
+                count=wpp_fila,
+                href="/whatsapp/atendendo",
+                created_at=datetime.now(timezone.utc),
+            )
+        )
+
+    # Itens de WhatsApp com resposta: listar chats (até `limit`) com contagem por chat.
+    # Isso dá clareza ao atendente e permite navegar direto para o chat.
+    stmt_wpp = (
+        select(WhatsappChat)
+        .where(
+            WhatsappChat.estado == "em_atendimento",
+            WhatsappChat.atendente_id == atendente.id,
+        )
+        .order_by(WhatsappChat.id.desc())
+        .limit(limit)
+    )
+    if atendente.role != "admin":
+        vis = ids_setores_visiveis_atendente(db, atendente)
+        stmt_wpp = stmt_wpp.where(or_(WhatsappChat.setor_id.is_(None), WhatsappChat.setor_id.in_(vis)))
+    chats = db.execute(stmt_wpp).scalars().all()
+    for c in chats:
+        uc = _wpp_unread_count_for_chat(db, c.id, atendente.id)
+        if uc <= 0:
+            continue
+        nome = (c.cliente_nome or "").strip() or c.wa_id
+        out.append(
+            NotificacaoItem(
+                tipo="wpp_chats_com_resposta",
+                ticket_id=None,
+                titulo=f"{c.protocolo} — {nome}",
+                descricao="WhatsApp — cliente respondeu",
+                count=uc,
+                href=f"/whatsapp/c/{c.id}",
                 created_at=datetime.now(timezone.utc),
             )
         )
