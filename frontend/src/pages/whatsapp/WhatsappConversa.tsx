@@ -502,7 +502,6 @@ useEffect(() => {
 
             variant="ghost"
 
-            size="sm"
 
             onClick={() => setSidebarAberta(!sidebarAberta)}
 

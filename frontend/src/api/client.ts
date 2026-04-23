@@ -525,6 +525,18 @@ export const whatsappChats = {
     }),
   porTicket: (ticketId: number) => api<WhatsappChats.Chat[]>(`/whatsapp/chats/por-ticket/${ticketId}`),
   setoresParaTransferencia: () => api<Array<{ id: number; nome: string }>>('/whatsapp/chats/transfer/setores'),
+    enviarMidia: (id: number, file: File) => {
+    const formData = new FormData()
+    formData.append('file', file) // Verifique se o seu backend espera a chave 'file'
+
+    return api<WhatsappChats.Mensagem>(`/whatsapp/chats/${id}/mensagens-midia`, {
+      method: 'POST',
+      body: formData,
+      // Se a sua função 'api' injeta automaticamente headers de JSON, 
+      // você pode precisar passar um parâmetro para ignorar ou sobrescrever
+      // o Content-Type para undefined, deixando o browser definir o Boundary.
+    })
+  }
 }
 
 export const tickets = {
