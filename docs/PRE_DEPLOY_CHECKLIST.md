@@ -22,6 +22,7 @@ Legenda: **OK** atendido no repositório | **Você** validação manual no servi
 |------|--------|
 | PostgreSQL em todos os ambientes | **OK** — não há SQLite no caminho principal. |
 | Migrations versionadas (Alembic) | **Parcial** — existe pasta `alembic/versions/`, mas o startup ainda usa `create_all` + scripts ad hoc; ideal evoluir para `alembic upgrade head` como fonte única do schema em produção. |
+| Cadeia de migrations consistente (`revision`/`down_revision`) | **OK** — ver `docs/ALEMBIC_MIGRATIONS.md` (evita quebra de deploy com `KeyError`/`Revision ... is not present`). |
 | Subir banco do zero e rodar app | **Você** — primeiro deploy: criar DB/usuário no provedor; API cria tabelas no startup. |
 | Persistência após reinício | **Você** — dados ficam no PostgreSQL do provedor; reiniciar só o container não apaga o DB. |
 

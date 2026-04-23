@@ -1,7 +1,7 @@
 """Rede: adicionar login_retaguarda.
 
 Revision ID: 005_rede_login_retaguarda
-Revises: 004_atendente_must_change_password
+Revises: 004_must_pwd
 Create Date: 2026-04-14
 """
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 revision = "005_rede_login_retaguarda"
-down_revision = "004_atendente_must_change_password"
+down_revision = "004_must_pwd"
 branch_labels = None
 depends_on = None
 
