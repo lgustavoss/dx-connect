@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
 import { IconEye, IconEyeOff } from '../components/ui/IconEye'
+import { mensagemFalhaParaToast } from '../api/errorMessage'
 
 const fieldClass =
   'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-[0.9375rem] text-slate-900 shadow-inner placeholder:text-slate-400 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-400/25 dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-100 dark:placeholder:text-slate-500'
@@ -38,8 +39,7 @@ export function AlterarSenha() {
       toast.showSuccess('Senha alterada com sucesso.')
       navigate('/', { replace: true })
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Não foi possível alterar a senha.'
-      toast.showError(message)
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível alterar a senha.'))
     } finally {
       setLoading(false)
     }

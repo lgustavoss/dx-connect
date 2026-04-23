@@ -5,7 +5,7 @@ import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { SemPermissao } from './SemPermissao'
-import { interpretarFalhaCarregamento } from '../api/errorMessage'
+import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 
 const tipoLabel: Record<string, string> = {
@@ -167,7 +167,7 @@ export function FuncionarioRedeDetalhe() {
       toast.showSuccess('Funcionário excluído.')
       voltarAnterior()
     } catch (err) {
-      toast.showWarning(err instanceof Error ? err.message : 'Não foi possível excluir.')
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível excluir o funcionário.'))
     }
   }
 

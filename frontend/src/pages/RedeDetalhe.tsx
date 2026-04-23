@@ -50,7 +50,7 @@ import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { Switch } from '../components/ui/Switch'
 import { CheckboxField } from '../components/ui/CheckboxField'
 import { SemPermissao } from './SemPermissao'
-import { interpretarFalhaCarregamento } from '../api/errorMessage'
+import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 
 type Aba = 'empresas' | 'funcionarios' | 'tickets'
@@ -579,7 +579,7 @@ export function RedeDetalhe() {
       setTelefoneEmpresa(maskTelefoneBr(data.telefone ?? ''))
       toast.showSuccess('Dados preenchidos.')
     } catch (err) {
-      toast.showError(err instanceof Error ? err.message : 'Erro ao consultar CNPJ')
+      toast.showError(mensagemFalhaParaToast(err, 'Erro ao consultar CNPJ.'))
     } finally {
       setLoadingCnpjEmpresa(false)
     }
@@ -640,7 +640,7 @@ export function RedeDetalhe() {
       loadRedeEEmpresas()
       loadFuncionarios()
     } catch (err) {
-      toast.showError(err instanceof Error ? err.message : 'Erro')
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar a empresa.'))
     } finally {
       setSavingEmpresa(false)
     }
@@ -653,7 +653,7 @@ export function RedeDetalhe() {
       loadRedeEEmpresas()
       loadFuncionarios()
     } catch (err) {
-      toast.showWarning(err instanceof Error ? err.message : 'Erro ao excluir')
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível excluir a empresa.'))
     }
   }
 
@@ -756,7 +756,7 @@ export function RedeDetalhe() {
       }
       navigate(`/funcionarios-rede/${idDetalhe}`)
     } catch (err) {
-      toast.showError(err instanceof Error ? err.message : 'Erro ao salvar')
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar o funcionário.'))
     } finally {
       setSavingFuncionario(false)
     }
@@ -769,7 +769,7 @@ export function RedeDetalhe() {
       loadRedeEEmpresas()
       loadFuncionarios()
     } catch (err) {
-      toast.showWarning(err instanceof Error ? err.message : 'Erro ao excluir')
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível excluir o funcionário.'))
     }
   }
 

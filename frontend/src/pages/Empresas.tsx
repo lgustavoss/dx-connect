@@ -277,7 +277,7 @@ export function Empresas() {
       setTelefone(data.telefone ? maskTelefoneBr(data.telefone) : '')
       toast.showSuccess('Dados preenchidos com sucesso.')
     } catch (err) {
-      toast.showError(err instanceof Error ? err.message : 'Erro ao consultar CNPJ')
+      toast.showError(mensagemFalhaParaToast(err, 'Erro ao consultar CNPJ.'))
     } finally {
       setLoadingCnpj(false)
     }
@@ -345,7 +345,7 @@ export function Empresas() {
         navigate(`/empresas/${criada.id}`, { replace: true })
       }
     } catch (err) {
-      toast.showError(err instanceof Error ? err.message : 'Erro')
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar a empresa.'))
     } finally {
       setSaving(false)
     }
@@ -366,7 +366,7 @@ export function Empresas() {
       await apiEmpresas.delete(id)
       load()
     } catch (err) {
-      toast.showWarning(err instanceof Error ? err.message : 'Erro ao excluir')
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível excluir a empresa.'))
     }
   }
 

@@ -79,7 +79,7 @@ export function FuncionariosRede() {
       await funcionariosRede.delete(id)
       load()
     } catch (err) {
-      toast.showWarning(err instanceof Error ? err.message : 'Erro ao excluir')
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível excluir o funcionário.'))
     }
   }
 

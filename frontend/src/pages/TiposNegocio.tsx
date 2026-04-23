@@ -113,7 +113,7 @@ export function TiposNegocio() {
       setModalOpen(false)
       load()
     } catch (err) {
-      toast.showError(err instanceof Error ? err.message : 'Erro')
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar o tipo de negócio.'))
     } finally {
       setSaving(false)
     }
@@ -125,7 +125,7 @@ export function TiposNegocio() {
       await tiposNegocio.delete(id)
       load()
     } catch (err) {
-      toast.showWarning(err instanceof Error ? err.message : 'Erro ao excluir')
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível excluir o tipo de negócio.'))
     }
   }
 

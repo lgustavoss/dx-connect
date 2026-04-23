@@ -8,7 +8,7 @@ import { Button } from '../components/ui/Button'
 import { IconEye } from '../components/ui/IconEye'
 import { useToast } from '../components/ui/Toast'
 import { SemPermissao } from './SemPermissao'
-import { interpretarFalhaCarregamento } from '../api/errorMessage'
+import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 
 type ColunaUltimos = 'protocolo' | 'empresa' | 'assunto' | 'status'
 
@@ -37,7 +37,7 @@ export function Dashboard() {
         const m = interpretarFalhaCarregamento(err, 'Não encontramos os dados do dashboard.')
         const msg = [m.titulo, m.detalhe].filter(Boolean).join(' ')
         setError(msg)
-        toast.showError(msg)
+        toast.showError(mensagemFalhaParaToast(err, msg))
       })
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps -- recarrega só quando reloadKey muda

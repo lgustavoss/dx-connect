@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
+import { mensagemFalhaParaToast } from '../api/errorMessage'
 
 const REMEMBER_EMAIL_KEY = 'dx-connect-login-email'
 
@@ -94,8 +95,7 @@ export function Login() {
       showSuccess('Login realizado com sucesso. Redirecionando...')
       navigate('/', { replace: true })
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Falha no login'
-      showError(message)
+      showError(mensagemFalhaParaToast(err, 'Falha no login. Verifique suas credenciais e tente novamente.'))
     } finally {
       setLoading(false)
     }
