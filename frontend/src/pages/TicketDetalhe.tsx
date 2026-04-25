@@ -136,6 +136,7 @@ export function TicketDetalhe() {
   const [anexosSelecionados, setAnexosSelecionados] = useState<File[]>([])
   const [enviandoAnexos, setEnviandoAnexos] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [modalGerirAberto, setModalGerirAberto] = useState(false)
   const [modalFecharAberto, setModalFecharAberto] = useState(false)
   /** Qual bloco do modal recebe destaque ao abrir (chips no cabeçalho). */
@@ -387,7 +388,14 @@ export function TicketDetalhe() {
           a.content_type?.startsWith('text/'),
       )
       if (viewable) {
-        window.open(url, '_blank', 'noopener,noreferrer')
+        // `window.open` pode ser bloqueado por pop-up blocker; usa link com target=_blank.
+        const link = document.createElement('a')
+        link.href = url
+        link.target = '_blank'
+        link.rel = 'noopener noreferrer'
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
         setTimeout(() => URL.revokeObjectURL(url), 60_000)
         return
       }
@@ -540,10 +548,16 @@ export function TicketDetalhe() {
   }
 
   useEffect(() => {
-    if (!podeMensagemPublica && tipoNovaMensagem === 'publico') {
-      setTipoNovaMensagem('interno')
+    if (!ticket || !user) return
+    // Regra de UX:
+    // - Se o ticket está atribuído a mim → default "publico"
+    // - Caso contrário → default "interno" (evita enviar mensagem pública sem querer)
+    if (ticket.atendente_id != null && ticket.atendente_id === user.id) {
+      setTipoNovaMensagem('publico')
+      return
     }
-  }, [podeMensagemPublica, tipoNovaMensagem])
+    setTipoNovaMensagem('interno')
+  }, [ticket?.id, ticket?.atendente_id, user?.id])
 
   async function handleEnviarMensagem() {
     if (!ticket) return
@@ -583,6 +597,41 @@ export function TicketDetalhe() {
     } finally {
       setEnviandoMensagem(false)
     }
+  }
+
+  function handlePasteNoCampoMensagem(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const items = Array.from(e.clipboardData?.items ?? [])
+    const files = items
+      .filter((i) => i.kind === 'file')
+      .map((i) => i.getAsFile())
+      .filter((f): f is File => Boolean(f))
+
+    if (files.length === 0) return
+
+    // Evita colar binário como texto; transforma em anexos e deixa um marcador no texto.
+    e.preventDefault()
+
+    setAnexosSelecionados((cur) => [...cur, ...files])
+
+    const ta = textareaRef.current
+    if (!ta) return
+    const start = ta.selectionStart ?? novaMensagemTexto.length
+    const end = ta.selectionEnd ?? novaMensagemTexto.length
+    const markers = files
+      .map((f) => `[Anexo: ${(f.name || 'imagem').trim() || 'imagem'}]`)
+      .join('\n')
+    const insert = (novaMensagemTexto ? '\n' : '') + markers + '\n'
+    const next = novaMensagemTexto.slice(0, start) + insert + novaMensagemTexto.slice(end)
+    setNovaMensagemTexto(next)
+    // Move cursor para depois dos marcadores (próximo tick do React).
+    setTimeout(() => {
+      try {
+        const pos = start + insert.length
+        ta.setSelectionRange(pos, pos)
+      } catch {
+        // noop
+      }
+    }, 0)
   }
 
   if (loading) {
@@ -935,7 +984,7 @@ export function TicketDetalhe() {
                       : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
                   }`}
                 >
-                  Mensagem da equipe
+                  Mensagem ao cliente
                 </button>
               )}
               <button
@@ -951,8 +1000,10 @@ export function TicketDetalhe() {
               </button>
             </div>
             <textarea
+              ref={textareaRef}
               value={novaMensagemTexto}
               onChange={(e) => setNovaMensagemTexto(e.target.value)}
+              onPaste={handlePasteNoCampoMensagem}
               spellCheck={false}
               rows={4}
               disabled={Boolean(ticket.fechado_em)}
@@ -961,7 +1012,11 @@ export function TicketDetalhe() {
                   ? 'Anotação visível apenas para atendentes…'
                   : 'Descreva o que foi feito, testado ou o que falta…'
               }
-              className="w-full rounded-xl border-0 bg-slate-50 px-3 py-2 text-sm text-slate-900 shadow-inner ring-1 ring-slate-200/90 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-400/35 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-900/80 dark:text-slate-100 dark:ring-slate-600 dark:placeholder:text-slate-500 dark:focus:bg-slate-900 dark:focus:ring-slate-500/50"
+              className={`w-full rounded-xl border-0 px-3 py-2 text-sm text-slate-900 shadow-inner ring-1 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-100 dark:placeholder:text-slate-500 ${
+                tipoNovaMensagem === 'interno' || !podeMensagemPublica
+                  ? 'bg-amber-50 ring-amber-200/90 focus:bg-amber-50 focus:ring-amber-400/30 dark:bg-amber-950/25 dark:ring-amber-800/60 dark:focus:bg-amber-950/25 dark:focus:ring-amber-700/35'
+                  : 'bg-slate-50 ring-slate-200/90 focus:bg-white focus:ring-slate-400/35 dark:bg-slate-900/80 dark:ring-slate-600 dark:focus:bg-slate-900 dark:focus:ring-slate-500/50'
+              }`}
             />
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2">
