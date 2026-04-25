@@ -90,10 +90,12 @@ export async function api<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = getToken();
+  const isFormData =
+    typeof FormData !== 'undefined' && options.body != null && options.body instanceof FormData
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options.headers as object),
-  };
+  }
   if (token) {
     (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
   }
@@ -565,6 +567,13 @@ export const tickets = {
   reabrir: (id: number) => api<Tickets.Ticket>(`/tickets/${id}/reabrir`, { method: 'POST' }),
   create: (data: Tickets.Create) => api<Tickets.Ticket>('/tickets', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: number, data: Tickets.Update) => api<Tickets.Ticket>(`/tickets/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  anexosList: (id: number) => api<Tickets.Anexo[]>(`/tickets/${id}/anexos`),
+  uploadAnexo: (id: number, file: File, mensagemId?: number | null) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    if (mensagemId != null) fd.append('mensagem_id', String(mensagemId))
+    return api<Tickets.AnexoUploadResponse>(`/tickets/${id}/anexos`, { method: 'POST', body: fd })
+  },
 };
 
 export const dashboard = {
@@ -957,6 +966,26 @@ export namespace Tickets {
     setor_id?: number;
     status_id?: number;
     atendente_id?: number | null;
+  }
+
+  export type AnexoVisibilidade = 'publico' | 'interno'
+
+  export interface Anexo {
+    id: number
+    ticket_id: number
+    mensagem_id?: number | null
+    atendente_id?: number | null
+    atendente_nome?: string | null
+    visibilidade: AnexoVisibilidade
+    nome_original: string
+    content_type?: string | null
+    tamanho_bytes: number
+    created_at: string
+  }
+
+  export interface AnexoUploadResponse {
+    anexo: Anexo
+    download_url: string
   }
 }
 

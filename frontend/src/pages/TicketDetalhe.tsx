@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useRef, useState, useEffect, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   ApiError,
@@ -131,6 +131,9 @@ export function TicketDetalhe() {
   const [novaMensagemTexto, setNovaMensagemTexto] = useState('')
   const [tipoNovaMensagem, setTipoNovaMensagem] = useState<'publico' | 'interno'>('publico')
   const [enviandoMensagem, setEnviandoMensagem] = useState(false)
+  const [anexosSelecionados, setAnexosSelecionados] = useState<File[]>([])
+  const [enviandoAnexos, setEnviandoAnexos] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [modalGerirAberto, setModalGerirAberto] = useState(false)
   const [modalFecharAberto, setModalFecharAberto] = useState(false)
   /** Qual bloco do modal recebe destaque ao abrir (chips no cabeçalho). */
@@ -517,17 +520,29 @@ export function TicketDetalhe() {
       return
     }
     const texto = novaMensagemTexto.trim()
-    if (!texto) {
-      toast.showWarning('Escreva uma mensagem antes de enviar.')
+    if (!texto && anexosSelecionados.length === 0) {
+      toast.showWarning('Escreva uma mensagem ou selecione anexos.')
       return
     }
     const tipo = podeMensagemPublica ? tipoNovaMensagem : 'interno'
     setEnviandoMensagem(true)
     try {
-      await tickets.addMensagem(ticket.id, { corpo: texto, tipo })
+      const msg = texto ? await tickets.addMensagem(ticket.id, { corpo: texto, tipo }) : null
+      if (anexosSelecionados.length > 0) {
+        setEnviandoAnexos(true)
+        try {
+          for (const f of anexosSelecionados) {
+            await tickets.uploadAnexo(ticket.id, f, msg?.id ?? null)
+          }
+        } finally {
+          setEnviandoAnexos(false)
+        }
+      }
       const m = await tickets.listMensagens(ticket.id)
       setMensagens(m)
       setNovaMensagemTexto('')
+      setAnexosSelecionados([])
+      if (fileInputRef.current) fileInputRef.current.value = ''
       toast.showSuccess(tipo === 'interno' ? 'Comentário interno registrado.' : 'Mensagem enviada.')
     } catch (err) {
       toast.showWarning(err instanceof Error ? err.message : 'Erro ao enviar')
@@ -568,7 +583,8 @@ export function TicketDetalhe() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-10">
+    <div className="mx-auto max-w-6xl pb-10">
+      <div className="sticky top-0 z-30 -mx-3 border-b border-slate-200/70 bg-white/90 px-3 py-4 backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/70 sm:mx-0 sm:rounded-2xl sm:border sm:px-5 sm:py-5">
       <nav aria-label="breadcrumb" className="flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
         <button
           type="button"
@@ -748,7 +764,9 @@ export function TicketDetalhe() {
           </Button>
         </div>
       </div>
+      </div>
 
+      <div className="mt-6">
       <Card title="Conversa">
         <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
           Mensagens da equipe para o andamento; comentários internos só para atendentes.
@@ -763,7 +781,7 @@ export function TicketDetalhe() {
           {mensagens.length === 0 ? (
             <p className="text-sm text-slate-500 dark:text-slate-400">Nenhuma mensagem ainda.</p>
           ) : (
-            <ul className="space-y-3">
+            <ul className="max-h-[55vh] space-y-3 overflow-y-auto pr-1">
               {mensagens.map((msg) => {
                 const isAbertura = msg.tipo === 'abertura'
                 const isInterno = msg.tipo === 'interno'
@@ -862,17 +880,48 @@ export function TicketDetalhe() {
               }
               className="w-full rounded-xl border-0 bg-slate-50 px-3 py-2 text-sm text-slate-900 shadow-inner ring-1 ring-slate-200/90 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-400/35 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-900/80 dark:text-slate-100 dark:ring-slate-600 dark:placeholder:text-slate-500 dark:focus:bg-slate-900 dark:focus:ring-slate-500/50"
             />
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const files = e.target.files ? Array.from(e.target.files) : []
+                  setAnexosSelecionados(files)
+                }}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={Boolean(ticket.fechado_em)}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Anexar arquivos
+              </Button>
+              {anexosSelecionados.length > 0 && (
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  {anexosSelecionados.length} arquivo(s) selecionado(s)
+                </span>
+              )}
+            </div>
             <div className="mt-2">
-              <Button type="button" onClick={handleEnviarMensagem} loading={enviandoMensagem} disabled={Boolean(ticket.fechado_em)}>
+              <Button
+                type="button"
+                onClick={handleEnviarMensagem}
+                loading={enviandoMensagem || enviandoAnexos}
+                disabled={Boolean(ticket.fechado_em)}
+              >
                 Enviar
               </Button>
             </div>
           </div>
         </div>
       </Card>
+      </div>
 
       {historico.length > 0 && (
-        <div className="rounded-xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none dark:ring-1 dark:ring-white/5">
+        <div className="mt-6 rounded-xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none dark:ring-1 dark:ring-white/5">
           <button
             type="button"
             onClick={() => setHistoricoAberto((o) => !o)}
