@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useRef, useState, useEffect, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   ApiError,
@@ -8,6 +8,7 @@ import {
   atendentes,
   setores,
   whatsappChats,
+  fetchTicketAnexoBlob,
   type StatusTicket,
   type Atendentes,
   type Setores,
@@ -116,6 +117,12 @@ export function TicketDetalhe() {
   const [ticket, setTicket] = useState<Tickets.Ticket | null>(null)
   const [historico, setHistorico] = useState<Tickets.Historico[]>([])
   const [mensagens, setMensagens] = useState<Tickets.Mensagem[]>([])
+  const [anexos, setAnexos] = useState<Tickets.Anexo[]>([])
+  const [previewAnexo, setPreviewAnexo] = useState<{
+    nome: string
+    url: string
+    contentType: string
+  } | null>(null)
   const [statusList, setStatusList] = useState<StatusTicket.Status[]>([])
   const [atendentesList, setAtendentesList] = useState<Atendentes.Atendente[]>([])
   /** Atendentes elegíveis no modal (carga direta por setor no backend). */
@@ -131,6 +138,10 @@ export function TicketDetalhe() {
   const [novaMensagemTexto, setNovaMensagemTexto] = useState('')
   const [tipoNovaMensagem, setTipoNovaMensagem] = useState<'publico' | 'interno'>('publico')
   const [enviandoMensagem, setEnviandoMensagem] = useState(false)
+  const [anexosSelecionados, setAnexosSelecionados] = useState<File[]>([])
+  const [enviandoAnexos, setEnviandoAnexos] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [modalGerirAberto, setModalGerirAberto] = useState(false)
   const [modalFecharAberto, setModalFecharAberto] = useState(false)
   /** Qual bloco do modal recebe destaque ao abrir (chips no cabeçalho). */
@@ -332,12 +343,13 @@ export function TicketDetalhe() {
     setLoading(true)
     setCarregamentoFalhou(null)
     setForbidden(false)
-    Promise.all([tickets.get(numId), tickets.getHistorico(numId), tickets.listMensagens(numId)])
-      .then(([t, h, m]) => {
+    Promise.all([tickets.get(numId), tickets.getHistorico(numId), tickets.listMensagens(numId), tickets.anexosList(numId)])
+      .then(([t, h, m, a]) => {
         if (cancelled) return
         setTicket(t)
         setHistorico(h)
         setMensagens(m)
+        setAnexos(a)
         setEditSetor(t.setor_id)
         setEditStatus(t.status_id)
         setEditAtendente(t.atendente_id ?? '')
@@ -357,6 +369,7 @@ export function TicketDetalhe() {
           setTicket(null)
           setHistorico([])
           setMensagens([])
+          setAnexos([])
           setCarregamentoFalhou(interpretarFalhaCarregamento(err, 'Ticket não encontrado.'))
         }
       })
@@ -367,6 +380,38 @@ export function TicketDetalhe() {
       cancelled = true
     }
   }, [id])
+
+  async function baixarOuVisualizarAnexo(a: Tickets.Anexo) {
+    if (!ticket) return
+    try {
+      const blob = await fetchTicketAnexoBlob(ticket.id, a.id)
+      const fixed = new Blob([blob], { type: a.content_type || 'application/octet-stream' })
+      const url = URL.createObjectURL(fixed)
+      const viewable = Boolean(
+        a.content_type?.startsWith('image/') ||
+          a.content_type === 'application/pdf' ||
+          a.content_type?.startsWith('text/'),
+      )
+      if (viewable) {
+        // Evita abrir `blob:` em nova aba (pode disparar search/popup blockers). Pré-visualiza no app.
+        setPreviewAnexo({
+          nome: a.nome_original || `anexo-${a.id}`,
+          url,
+          contentType: a.content_type || 'application/octet-stream',
+        })
+        return
+      }
+      const link = document.createElement('a')
+      link.href = url
+      link.download = a.nome_original || `anexo-${a.id}`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível baixar o anexo.'))
+    }
+  }
 
   useEffect(() => {
     if (!ticket?.id) {
@@ -505,10 +550,16 @@ export function TicketDetalhe() {
   }
 
   useEffect(() => {
-    if (!podeMensagemPublica && tipoNovaMensagem === 'publico') {
-      setTipoNovaMensagem('interno')
+    if (!ticket || !user) return
+    // Regra de UX:
+    // - Se o ticket está atribuído a mim → default "publico"
+    // - Caso contrário → default "interno" (evita enviar mensagem pública sem querer)
+    if (ticket.atendente_id != null && ticket.atendente_id === user.id) {
+      setTipoNovaMensagem('publico')
+      return
     }
-  }, [podeMensagemPublica, tipoNovaMensagem])
+    setTipoNovaMensagem('interno')
+  }, [ticket?.id, ticket?.atendente_id, user?.id])
 
   async function handleEnviarMensagem() {
     if (!ticket) return
@@ -517,23 +568,72 @@ export function TicketDetalhe() {
       return
     }
     const texto = novaMensagemTexto.trim()
-    if (!texto) {
-      toast.showWarning('Escreva uma mensagem antes de enviar.')
+    if (!texto && anexosSelecionados.length === 0) {
+      toast.showWarning('Escreva uma mensagem ou selecione anexos.')
       return
     }
     const tipo = podeMensagemPublica ? tipoNovaMensagem : 'interno'
     setEnviandoMensagem(true)
     try {
-      await tickets.addMensagem(ticket.id, { corpo: texto, tipo })
+      const msg = texto ? await tickets.addMensagem(ticket.id, { corpo: texto, tipo }) : null
+      if (anexosSelecionados.length > 0) {
+        setEnviandoAnexos(true)
+        try {
+          for (const f of anexosSelecionados) {
+            await tickets.uploadAnexo(ticket.id, f, msg?.id ?? null)
+          }
+        } finally {
+          setEnviandoAnexos(false)
+        }
+      }
       const m = await tickets.listMensagens(ticket.id)
       setMensagens(m)
+      const a = await tickets.anexosList(ticket.id)
+      setAnexos(a)
       setNovaMensagemTexto('')
+      setAnexosSelecionados([])
+      if (fileInputRef.current) fileInputRef.current.value = ''
       toast.showSuccess(tipo === 'interno' ? 'Comentário interno registrado.' : 'Mensagem enviada.')
     } catch (err) {
       toast.showWarning(err instanceof Error ? err.message : 'Erro ao enviar')
     } finally {
       setEnviandoMensagem(false)
     }
+  }
+
+  function handlePasteNoCampoMensagem(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const items = Array.from(e.clipboardData?.items ?? [])
+    const files = items
+      .filter((i) => i.kind === 'file')
+      .map((i) => i.getAsFile())
+      .filter((f): f is File => Boolean(f))
+
+    if (files.length === 0) return
+
+    // Evita colar binário como texto; transforma em anexos e deixa um marcador no texto.
+    e.preventDefault()
+
+    setAnexosSelecionados((cur) => [...cur, ...files])
+
+    const ta = textareaRef.current
+    if (!ta) return
+    const start = ta.selectionStart ?? novaMensagemTexto.length
+    const end = ta.selectionEnd ?? novaMensagemTexto.length
+    const markers = files
+      .map((f) => `[Anexo: ${(f.name || 'imagem').trim() || 'imagem'}]`)
+      .join('\n')
+    const insert = (novaMensagemTexto ? '\n' : '') + markers + '\n'
+    const next = novaMensagemTexto.slice(0, start) + insert + novaMensagemTexto.slice(end)
+    setNovaMensagemTexto(next)
+    // Move cursor para depois dos marcadores (próximo tick do React).
+    setTimeout(() => {
+      try {
+        const pos = start + insert.length
+        ta.setSelectionRange(pos, pos)
+      } catch {
+        // noop
+      }
+    }, 0)
   }
 
   if (loading) {
@@ -568,7 +668,8 @@ export function TicketDetalhe() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-10">
+    <div className="mx-auto max-w-6xl pb-10">
+      <div className="sticky top-14 z-10 -mx-3 border-b border-slate-200/70 bg-white/90 px-3 py-4 backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/70 sm:mx-0 sm:rounded-2xl sm:border sm:px-5 sm:py-5">
       <nav aria-label="breadcrumb" className="flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
         <button
           type="button"
@@ -748,7 +849,9 @@ export function TicketDetalhe() {
           </Button>
         </div>
       </div>
+      </div>
 
+      <div className="mt-6">
       <Card title="Conversa">
         <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
           Mensagens da equipe para o andamento; comentários internos só para atendentes.
@@ -760,6 +863,31 @@ export function TicketDetalhe() {
           )}
         </p>
         <div className="space-y-4">
+          {anexos.some((a) => a.mensagem_id == null) && (
+            <div className="rounded-xl border border-slate-200/90 bg-slate-50/70 px-4 py-3 text-sm dark:border-slate-700/70 dark:bg-slate-900/30">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Anexos do ticket
+              </p>
+              <ul className="mt-2 space-y-2">
+                {anexos
+                  .filter((a) => a.mensagem_id == null)
+                  .map((a) => (
+                    <li key={a.id} className="flex flex-wrap items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => baixarOuVisualizarAnexo(a)}
+                        className="text-left text-sm font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                      >
+                        {a.nome_original}
+                      </button>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        {(a.tamanho_bytes / 1024).toFixed(1)} KB
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          )}
           {mensagens.length === 0 ? (
             <p className="text-sm text-slate-500 dark:text-slate-400">Nenhuma mensagem ainda.</p>
           ) : (
@@ -770,6 +898,7 @@ export function TicketDetalhe() {
                 const autor =
                   msg.atendente_nome ??
                   (isAbertura ? 'Registro legado / sistema' : '—')
+                const anexosDaMsg = anexos.filter((a) => a.mensagem_id === msg.id)
                 return (
                   <li
                     key={msg.id}
@@ -796,6 +925,29 @@ export function TicketDetalhe() {
                       )}
                     </div>
                     <p className="mt-2 whitespace-pre-wrap text-slate-800 dark:text-slate-200">{msg.corpo}</p>
+                    {anexosDaMsg.length > 0 && (
+                      <div className="mt-3 rounded-lg border border-slate-200/80 bg-slate-50/70 px-3 py-2 dark:border-slate-700/70 dark:bg-slate-900/30">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          Anexos
+                        </p>
+                        <ul className="mt-2 space-y-1">
+                          {anexosDaMsg.map((a) => (
+                            <li key={a.id} className="flex flex-wrap items-center justify-between gap-2">
+                              <button
+                                type="button"
+                                onClick={() => baixarOuVisualizarAnexo(a)}
+                                className="text-left text-xs font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                              >
+                                {a.nome_original}
+                              </button>
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                                {(a.tamanho_bytes / 1024).toFixed(1)} KB
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                     <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                       {autor}
                       <span className="text-slate-400 dark:text-slate-500"> · </span>
@@ -834,7 +986,7 @@ export function TicketDetalhe() {
                       : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
                   }`}
                 >
-                  Mensagem da equipe
+                  Mensagem ao cliente
                 </button>
               )}
               <button
@@ -850,8 +1002,10 @@ export function TicketDetalhe() {
               </button>
             </div>
             <textarea
+              ref={textareaRef}
               value={novaMensagemTexto}
               onChange={(e) => setNovaMensagemTexto(e.target.value)}
+              onPaste={handlePasteNoCampoMensagem}
               spellCheck={false}
               rows={4}
               disabled={Boolean(ticket.fechado_em)}
@@ -860,19 +1014,106 @@ export function TicketDetalhe() {
                   ? 'Anotação visível apenas para atendentes…'
                   : 'Descreva o que foi feito, testado ou o que falta…'
               }
-              className="w-full rounded-xl border-0 bg-slate-50 px-3 py-2 text-sm text-slate-900 shadow-inner ring-1 ring-slate-200/90 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-400/35 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-900/80 dark:text-slate-100 dark:ring-slate-600 dark:placeholder:text-slate-500 dark:focus:bg-slate-900 dark:focus:ring-slate-500/50"
+              className={`w-full rounded-xl border-0 px-3 py-2 text-sm text-slate-900 shadow-inner ring-1 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-100 dark:placeholder:text-slate-500 ${
+                tipoNovaMensagem === 'interno' || !podeMensagemPublica
+                  ? 'bg-amber-50 ring-amber-200/90 focus:bg-amber-50 focus:ring-amber-400/30 dark:bg-amber-950/25 dark:ring-amber-800/60 dark:focus:bg-amber-950/25 dark:focus:ring-amber-700/35'
+                  : 'bg-slate-50 ring-slate-200/90 focus:bg-white focus:ring-slate-400/35 dark:bg-slate-900/80 dark:ring-slate-600 dark:focus:bg-slate-900 dark:focus:ring-slate-500/50'
+              }`}
             />
-            <div className="mt-2">
-              <Button type="button" onClick={handleEnviarMensagem} loading={enviandoMensagem} disabled={Boolean(ticket.fechado_em)}>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = e.target.files ? Array.from(e.target.files) : []
+                    setAnexosSelecionados(files)
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={Boolean(ticket.fechado_em)}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Anexar arquivos
+                </Button>
+                {anexosSelecionados.length > 0 && (
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    {anexosSelecionados.length} arquivo(s) selecionado(s)
+                  </span>
+                )}
+              </div>
+              <Button
+                type="button"
+                onClick={handleEnviarMensagem}
+                loading={enviandoMensagem || enviandoAnexos}
+                disabled={Boolean(ticket.fechado_em)}
+              >
                 Enviar
               </Button>
             </div>
           </div>
         </div>
       </Card>
+      </div>
+
+      {previewAnexo && (
+        <div
+          className="fixed inset-0 z-[600] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-[2px]"
+          role="presentation"
+          onClick={() => {
+            URL.revokeObjectURL(previewAnexo.url)
+            setPreviewAnexo(null)
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-950"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  {previewAnexo.nome}
+                </div>
+                <div className="truncate text-xs text-slate-500 dark:text-slate-400">{previewAnexo.contentType}</div>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  URL.revokeObjectURL(previewAnexo.url)
+                  setPreviewAnexo(null)
+                }}
+              >
+                Fechar
+              </Button>
+            </div>
+            <div className="flex-1 overflow-auto bg-slate-50 p-3 dark:bg-slate-900/40">
+              {previewAnexo.contentType.startsWith('image/') ? (
+                <img
+                  src={previewAnexo.url}
+                  alt={previewAnexo.nome}
+                  className="mx-auto max-h-[80vh] max-w-full rounded-lg border border-slate-200 dark:border-slate-700"
+                />
+              ) : previewAnexo.contentType === 'application/pdf' ? (
+                <iframe title={previewAnexo.nome} src={previewAnexo.url} className="h-[80vh] w-full rounded-lg" />
+              ) : (
+                <div className="text-sm text-slate-600 dark:text-slate-300">
+                  Pré-visualização indisponível para este tipo. Use o download.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {historico.length > 0 && (
-        <div className="rounded-xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none dark:ring-1 dark:ring-white/5">
+        <div className="mt-6 rounded-xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none dark:ring-1 dark:ring-white/5">
           <button
             type="button"
             onClick={() => setHistoricoAberto((o) => !o)}

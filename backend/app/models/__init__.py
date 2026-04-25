@@ -6,6 +6,7 @@ from app.models.setor import Setor
 from app.models.funcionario_rede import FuncionarioRede, FuncionarioRedeEmpresa
 from app.models.status_ticket import StatusTicket
 from app.models.ticket import Ticket, TicketHistorico, TicketMensagem
+from app.models.ticket_anexo import TicketAnexo
 from app.models.ticket_read import TicketRead
 from app.models.whatsapp_chat_read import WhatsappChatRead
 from app.models.audit_log import AuditLog
@@ -26,6 +27,7 @@ __all__ = [
     "Ticket",
     "TicketHistorico",
     "TicketMensagem",
+    "TicketAnexo",
     "TicketRead",
     "WhatsappChatRead",
     "AuditLog",

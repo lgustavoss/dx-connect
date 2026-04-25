@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     # Tamanho máximo (bytes) ao descodificar base64 da Evolution antes de gravar em disco.
     WHATSAPP_MEDIA_MAX_BYTES: int = 25 * 1024 * 1024
 
+    # Diretório para anexos de tickets (caminho relativo ao cwd ou absoluto). Em Docker: mapear volume em /app/data.
+    TICKET_ANEXOS_DIR: str = "data/ticket_anexos"
+    # Tamanho máximo (bytes) para cada anexo de ticket.
+    TICKET_ANEXOS_MAX_BYTES: int = 25 * 1024 * 1024
+
     @property
     def evolution_embutida_disponivel(self) -> bool:
         return bool(
