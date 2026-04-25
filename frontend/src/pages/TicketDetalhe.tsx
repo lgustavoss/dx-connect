@@ -8,6 +8,7 @@ import {
   atendentes,
   setores,
   whatsappChats,
+  fetchTicketAnexoBlob,
   type StatusTicket,
   type Atendentes,
   type Setores,
@@ -116,6 +117,7 @@ export function TicketDetalhe() {
   const [ticket, setTicket] = useState<Tickets.Ticket | null>(null)
   const [historico, setHistorico] = useState<Tickets.Historico[]>([])
   const [mensagens, setMensagens] = useState<Tickets.Mensagem[]>([])
+  const [anexos, setAnexos] = useState<Tickets.Anexo[]>([])
   const [statusList, setStatusList] = useState<StatusTicket.Status[]>([])
   const [atendentesList, setAtendentesList] = useState<Atendentes.Atendente[]>([])
   /** Atendentes elegíveis no modal (carga direta por setor no backend). */
@@ -335,12 +337,13 @@ export function TicketDetalhe() {
     setLoading(true)
     setCarregamentoFalhou(null)
     setForbidden(false)
-    Promise.all([tickets.get(numId), tickets.getHistorico(numId), tickets.listMensagens(numId)])
-      .then(([t, h, m]) => {
+    Promise.all([tickets.get(numId), tickets.getHistorico(numId), tickets.listMensagens(numId), tickets.anexosList(numId)])
+      .then(([t, h, m, a]) => {
         if (cancelled) return
         setTicket(t)
         setHistorico(h)
         setMensagens(m)
+        setAnexos(a)
         setEditSetor(t.setor_id)
         setEditStatus(t.status_id)
         setEditAtendente(t.atendente_id ?? '')
@@ -360,6 +363,7 @@ export function TicketDetalhe() {
           setTicket(null)
           setHistorico([])
           setMensagens([])
+          setAnexos([])
           setCarregamentoFalhou(interpretarFalhaCarregamento(err, 'Ticket não encontrado.'))
         }
       })
@@ -370,6 +374,34 @@ export function TicketDetalhe() {
       cancelled = true
     }
   }, [id])
+
+  async function baixarOuVisualizarAnexo(a: Tickets.Anexo) {
+    if (!ticket) return
+    try {
+      const blob = await fetchTicketAnexoBlob(ticket.id, a.id)
+      const fixed = new Blob([blob], { type: a.content_type || 'application/octet-stream' })
+      const url = URL.createObjectURL(fixed)
+      const viewable = Boolean(
+        a.content_type?.startsWith('image/') ||
+          a.content_type === 'application/pdf' ||
+          a.content_type?.startsWith('text/'),
+      )
+      if (viewable) {
+        window.open(url, '_blank', 'noopener,noreferrer')
+        setTimeout(() => URL.revokeObjectURL(url), 60_000)
+        return
+      }
+      const link = document.createElement('a')
+      link.href = url
+      link.download = a.nome_original || `anexo-${a.id}`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível baixar o anexo.'))
+    }
+  }
 
   useEffect(() => {
     if (!ticket?.id) {
@@ -540,6 +572,8 @@ export function TicketDetalhe() {
       }
       const m = await tickets.listMensagens(ticket.id)
       setMensagens(m)
+      const a = await tickets.anexosList(ticket.id)
+      setAnexos(a)
       setNovaMensagemTexto('')
       setAnexosSelecionados([])
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -778,6 +812,31 @@ export function TicketDetalhe() {
           )}
         </p>
         <div className="space-y-4">
+          {anexos.some((a) => a.mensagem_id == null) && (
+            <div className="rounded-xl border border-slate-200/90 bg-slate-50/70 px-4 py-3 text-sm dark:border-slate-700/70 dark:bg-slate-900/30">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Anexos do ticket
+              </p>
+              <ul className="mt-2 space-y-2">
+                {anexos
+                  .filter((a) => a.mensagem_id == null)
+                  .map((a) => (
+                    <li key={a.id} className="flex flex-wrap items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => baixarOuVisualizarAnexo(a)}
+                        className="text-left text-sm font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                      >
+                        {a.nome_original}
+                      </button>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        {(a.tamanho_bytes / 1024).toFixed(1)} KB
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          )}
           {mensagens.length === 0 ? (
             <p className="text-sm text-slate-500 dark:text-slate-400">Nenhuma mensagem ainda.</p>
           ) : (
@@ -788,6 +847,7 @@ export function TicketDetalhe() {
                 const autor =
                   msg.atendente_nome ??
                   (isAbertura ? 'Registro legado / sistema' : '—')
+                const anexosDaMsg = anexos.filter((a) => a.mensagem_id === msg.id)
                 return (
                   <li
                     key={msg.id}
@@ -814,6 +874,29 @@ export function TicketDetalhe() {
                       )}
                     </div>
                     <p className="mt-2 whitespace-pre-wrap text-slate-800 dark:text-slate-200">{msg.corpo}</p>
+                    {anexosDaMsg.length > 0 && (
+                      <div className="mt-3 rounded-lg border border-slate-200/80 bg-slate-50/70 px-3 py-2 dark:border-slate-700/70 dark:bg-slate-900/30">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          Anexos
+                        </p>
+                        <ul className="mt-2 space-y-1">
+                          {anexosDaMsg.map((a) => (
+                            <li key={a.id} className="flex flex-wrap items-center justify-between gap-2">
+                              <button
+                                type="button"
+                                onClick={() => baixarOuVisualizarAnexo(a)}
+                                className="text-left text-xs font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                              >
+                                {a.nome_original}
+                              </button>
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                                {(a.tamanho_bytes / 1024).toFixed(1)} KB
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                     <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                       {autor}
                       <span className="text-slate-400 dark:text-slate-500"> · </span>

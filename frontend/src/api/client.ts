@@ -490,6 +490,21 @@ export async function fetchWhatsAppMidiaBlob(chatId: number, mensagemId: number)
   return res.blob()
 }
 
+export async function fetchTicketAnexoBlob(ticketId: number, anexoId: number): Promise<Blob> {
+  const token = getAuthToken()
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(
+    `${BASE}${API_VERSION_PREFIX}/tickets/${ticketId}/anexos/${anexoId}/download`,
+    { headers },
+  )
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+  }
+  return res.blob()
+}
+
 export const whatsappChats = {
   fila: () => api<WhatsappChats.Chat[]>('/whatsapp/chats/fila'),
   meus: () => api<WhatsappChats.Chat[]>('/whatsapp/chats/meus'),
