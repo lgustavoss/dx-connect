@@ -584,7 +584,7 @@ export function TicketDetalhe() {
 
   return (
     <div className="mx-auto max-w-6xl pb-10">
-      <div className="sticky top-0 z-30 -mx-3 border-b border-slate-200/70 bg-white/90 px-3 py-4 backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/70 sm:mx-0 sm:rounded-2xl sm:border sm:px-5 sm:py-5">
+      <div className="sticky top-14 z-10 -mx-3 border-b border-slate-200/70 bg-white/90 px-3 py-4 backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/70 sm:mx-0 sm:rounded-2xl sm:border sm:px-5 sm:py-5">
       <nav aria-label="breadcrumb" className="flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
         <button
           type="button"
@@ -880,32 +880,32 @@ export function TicketDetalhe() {
               }
               className="w-full rounded-xl border-0 bg-slate-50 px-3 py-2 text-sm text-slate-900 shadow-inner ring-1 ring-slate-200/90 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-400/35 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-900/80 dark:text-slate-100 dark:ring-slate-600 dark:placeholder:text-slate-500 dark:focus:bg-slate-900 dark:focus:ring-slate-500/50"
             />
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                  const files = e.target.files ? Array.from(e.target.files) : []
-                  setAnexosSelecionados(files)
-                }}
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={Boolean(ticket.fechado_em)}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                Anexar arquivos
-              </Button>
-              {anexosSelecionados.length > 0 && (
-                <span className="text-xs text-slate-500 dark:text-slate-400">
-                  {anexosSelecionados.length} arquivo(s) selecionado(s)
-                </span>
-              )}
-            </div>
-            <div className="mt-2">
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = e.target.files ? Array.from(e.target.files) : []
+                    setAnexosSelecionados(files)
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={Boolean(ticket.fechado_em)}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Anexar arquivos
+                </Button>
+                {anexosSelecionados.length > 0 && (
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    {anexosSelecionados.length} arquivo(s) selecionado(s)
+                  </span>
+                )}
+              </div>
               <Button
                 type="button"
                 onClick={handleEnviarMensagem}
