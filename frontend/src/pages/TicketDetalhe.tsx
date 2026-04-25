@@ -118,6 +118,11 @@ export function TicketDetalhe() {
   const [historico, setHistorico] = useState<Tickets.Historico[]>([])
   const [mensagens, setMensagens] = useState<Tickets.Mensagem[]>([])
   const [anexos, setAnexos] = useState<Tickets.Anexo[]>([])
+  const [previewAnexo, setPreviewAnexo] = useState<{
+    nome: string
+    url: string
+    contentType: string
+  } | null>(null)
   const [statusList, setStatusList] = useState<StatusTicket.Status[]>([])
   const [atendentesList, setAtendentesList] = useState<Atendentes.Atendente[]>([])
   /** Atendentes elegíveis no modal (carga direta por setor no backend). */
@@ -388,15 +393,12 @@ export function TicketDetalhe() {
           a.content_type?.startsWith('text/'),
       )
       if (viewable) {
-        // `window.open` pode ser bloqueado por pop-up blocker; usa link com target=_blank.
-        const link = document.createElement('a')
-        link.href = url
-        link.target = '_blank'
-        link.rel = 'noopener noreferrer'
-        document.body.appendChild(link)
-        link.click()
-        link.remove()
-        setTimeout(() => URL.revokeObjectURL(url), 60_000)
+        // Evita abrir `blob:` em nova aba (pode disparar search/popup blockers). Pré-visualiza no app.
+        setPreviewAnexo({
+          nome: a.nome_original || `anexo-${a.id}`,
+          url,
+          contentType: a.content_type || 'application/octet-stream',
+        })
         return
       }
       const link = document.createElement('a')
@@ -889,7 +891,7 @@ export function TicketDetalhe() {
           {mensagens.length === 0 ? (
             <p className="text-sm text-slate-500 dark:text-slate-400">Nenhuma mensagem ainda.</p>
           ) : (
-            <ul className="max-h-[55vh] space-y-3 overflow-y-auto pr-1">
+            <ul className="space-y-3">
               {mensagens.map((msg) => {
                 const isAbertura = msg.tipo === 'abertura'
                 const isInterno = msg.tipo === 'interno'
@@ -1057,6 +1059,58 @@ export function TicketDetalhe() {
         </div>
       </Card>
       </div>
+
+      {previewAnexo && (
+        <div
+          className="fixed inset-0 z-[600] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-[2px]"
+          role="presentation"
+          onClick={() => {
+            URL.revokeObjectURL(previewAnexo.url)
+            setPreviewAnexo(null)
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-950"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  {previewAnexo.nome}
+                </div>
+                <div className="truncate text-xs text-slate-500 dark:text-slate-400">{previewAnexo.contentType}</div>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  URL.revokeObjectURL(previewAnexo.url)
+                  setPreviewAnexo(null)
+                }}
+              >
+                Fechar
+              </Button>
+            </div>
+            <div className="flex-1 overflow-auto bg-slate-50 p-3 dark:bg-slate-900/40">
+              {previewAnexo.contentType.startsWith('image/') ? (
+                <img
+                  src={previewAnexo.url}
+                  alt={previewAnexo.nome}
+                  className="mx-auto max-h-[80vh] max-w-full rounded-lg border border-slate-200 dark:border-slate-700"
+                />
+              ) : previewAnexo.contentType === 'application/pdf' ? (
+                <iframe title={previewAnexo.nome} src={previewAnexo.url} className="h-[80vh] w-full rounded-lg" />
+              ) : (
+                <div className="text-sm text-slate-600 dark:text-slate-300">
+                  Pré-visualização indisponível para este tipo. Use o download.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {historico.length > 0 && (
         <div className="mt-6 rounded-xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none dark:ring-1 dark:ring-white/5">
