@@ -394,6 +394,9 @@ def evolution_webhook(
                 except Exception:
                     logger.exception("Falha ao enviar mensagem automática fora do horário (chat=%s)", chat.protocolo)
 
+        q_prev = item.get("quoted_corpo_preview")
+        if q_prev is not None and len(str(q_prev)) > 500:
+            q_prev = str(q_prev)[:500]
         msg = WhatsappMensagem(
             chat_id=chat.id,
             direcao="inbound",
@@ -402,6 +405,8 @@ def evolution_webhook(
             mimetype=mimetype_val,
             midia_nome_arquivo=midia_nome,
             wa_message_id=wa_mid,
+            quoted_wa_message_id=item.get("quoted_wa_message_id"),
+            quoted_corpo_preview=str(q_prev).strip()[:500] if q_prev else None,
             atendente_id=None,
         )
         db.add(msg)
