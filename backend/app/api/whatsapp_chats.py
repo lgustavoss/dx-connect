@@ -1,6 +1,7 @@
+import base64
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
@@ -26,8 +27,9 @@ from app.schemas.whatsapp_chat import (
 from app.core.auth import obter_atendente_atual
 from app.api.tickets import _gerar_protocolo, _pode_ver_ticket
 from app.core.setor_scope import ids_setores_visiveis_atendente
+from app.config import settings
 from app.services import evolution_api
-from app.services.whatsapp_media_storage import caminho_absoluto_arquivo
+from app.services.whatsapp_media_storage import caminho_absoluto_arquivo, gravar_bytes_em_disco
 
 router = APIRouter(prefix="/whatsapp/chats", tags=["whatsapp-chats"])
 
@@ -53,6 +55,68 @@ def _settings_envio(db: Session) -> WhatsappSettings:
             detail="Integração WhatsApp incompleta. Administrador deve preencher URL, instância e API key.",
         )
     return row
+
+
+def _quoted_evolution_payload(db: Session, chat_id: int, quoted_wa_message_id: str) -> dict:
+    q = (quoted_wa_message_id or "").strip()
+    if not q:
+        raise HTTPException(status_code=400, detail="Citação inválida.")
+    ref = (
+        db.query(WhatsappMensagem)
+        .filter(WhatsappMensagem.chat_id == chat_id, WhatsappMensagem.wa_message_id == q)
+        .first()
+    )
+    if not ref:
+        raise HTTPException(
+            status_code=400,
+            detail="Mensagem citada não encontrada neste chat (use o id da mensagem no WhatsApp, "
+            "campo wa_message_id na listagem de mensagens).",
+        )
+    pv = ((ref.corpo or "").strip()[:2000] or " ")
+    return {"key": {"id": q}, "message": {"conversation": pv}}
+
+
+def _preview_citacao(ref: WhatsappMensagem) -> str | None:
+    s = (ref.corpo or "").strip()[:500]
+    return s or None
+
+
+def _mediatype_evolution(slug: str) -> str:
+    s = (slug or "").strip().lower()
+    return {
+        "imagem": "image",
+        "image": "image",
+        "video": "video",
+        "audio": "audio",
+        "documento": "document",
+        "document": "document",
+    }.get(s, "document")
+
+
+def _tipo_midia_db(slug: str) -> str:
+    s = (slug or "").strip().lower()
+    if s in ("imagem", "image"):
+        return "imagem"
+    if s == "video":
+        return "video"
+    if s == "audio":
+        return "audio"
+    return "documento"
+
+
+def _rotulo_midia_outbound(tipo_db: str) -> str:
+    return {
+        "imagem": "[Imagem enviada]",
+        "video": "[Vídeo enviado]",
+        "audio": "[Áudio enviado]",
+        "documento": "[Documento enviado]",
+    }.get(tipo_db, "[Ficheiro enviado]")
+
+
+def _sanitizar_nome_ficheiro(name: str | None, fallback: str) -> str:
+    raw = (name or fallback or "file").strip() or "file"
+    safe = "".join(ch for ch in raw if ch.isalnum() or ch in "._- ")
+    return (safe.strip() or fallback)[:200]
 
 
 def _render_template(
@@ -89,6 +153,7 @@ def _enviar_texto_whatsapp(
     texto: str,
     atendente: Atendente | None,
     evento_sistema: str | None,
+    quoted_wa_message_id: str | None = None,
 ) -> WhatsappMensagem:
     texto_eff = (texto or "").strip()
     if not texto_eff:
@@ -113,12 +178,25 @@ def _enviar_texto_whatsapp(
         if exist:
             return exist
     st = _settings_envio(db)
+    quoted_payload = None
+    q_wa: str | None = None
+    q_prev: str | None = None
+    if quoted_wa_message_id and str(quoted_wa_message_id).strip() and evento_sistema is None:
+        q_wa = str(quoted_wa_message_id).strip()
+        quoted_payload = _quoted_evolution_payload(db, chat.id, q_wa)
+        ref = (
+            db.query(WhatsappMensagem)
+            .filter(WhatsappMensagem.chat_id == chat.id, WhatsappMensagem.wa_message_id == q_wa)
+            .first()
+        )
+        q_prev = _preview_citacao(ref) if ref else None
     ok, err = evolution_api.evolution_send_text(
         st.evolution_base_url,
         st.evolution_instance_name,
         st.evolution_api_key,
         chat.wa_id,
         texto_eff,
+        quoted=quoted_payload,
     )
     if not ok:
         raise HTTPException(status_code=502, detail=err or "Falha ao enviar pela Evolution API")
@@ -130,6 +208,8 @@ def _enviar_texto_whatsapp(
         mimetype=None,
         midia_nome_arquivo=None,
         wa_message_id=None,
+        quoted_wa_message_id=q_wa,
+        quoted_corpo_preview=q_prev,
         atendente_id=atendente.id if atendente else None,
         evento_sistema=evento_sistema,
     )
@@ -173,6 +253,8 @@ def _mensagem_read(m: WhatsappMensagem) -> WhatsappMensagemRead:
         midia_disponivel=midia_ok,
         evento_sistema=getattr(m, "evento_sistema", None),
         wa_message_id=m.wa_message_id,
+        quoted_wa_message_id=getattr(m, "quoted_wa_message_id", None),
+        quoted_corpo_preview=getattr(m, "quoted_corpo_preview", None),
         atendente_id=m.atendente_id,
         atendente_nome=m.atendente.nome if m.atendente else None,
         created_at=m.created_at,
@@ -403,10 +485,116 @@ def enviar_mensagem(
     if atendente.role != "admin" and c.atendente_id != atendente.id:
         raise HTTPException(status_code=403, detail="Apenas o atendente responsável pode enviar mensagens")
     texto = data.texto.strip()
-    m = _enviar_texto_whatsapp(db, chat=c, texto=texto, atendente=atendente, evento_sistema=None)
+    m = _enviar_texto_whatsapp(
+        db,
+        chat=c,
+        texto=texto,
+        atendente=atendente,
+        evento_sistema=None,
+        quoted_wa_message_id=data.quoted_wa_message_id,
+    )
     m = db.query(WhatsappMensagem).options(joinedload(WhatsappMensagem.atendente)).filter(WhatsappMensagem.id == m.id).first()
     assert m is not None
     return _mensagem_read(m)
+
+
+@router.post("/{chat_id}/mensagens/midia", response_model=WhatsappMensagemRead, status_code=201)
+async def enviar_mensagem_midia(
+    chat_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+    file: UploadFile = File(...),
+    mediatipo: str = Form(..., description="imagem | video | audio | documento"),
+    caption: str = Form(""),
+    quoted_wa_message_id: str | None = Form(None),
+):
+    """Envia mídia para o cliente via Evolution API (base64). Opcionalmente cita uma mensagem anterior."""
+    c = db.query(WhatsappChat).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if atendente.role != "admin" and c.setor_id is not None:
+        vis = ids_setores_visiveis_atendente(db, atendente)
+        if c.setor_id not in vis:
+            raise HTTPException(status_code=403, detail="Sem permissão para este setor")
+    if c.estado != "em_atendimento":
+        raise HTTPException(status_code=400, detail="Só é possível enviar mensagens em chats ativos")
+    if atendente.role != "admin" and c.atendente_id != atendente.id:
+        raise HTTPException(status_code=403, detail="Apenas o atendente responsável pode enviar mensagens")
+
+    data = await file.read()
+    if len(data) > settings.WHATSAPP_MEDIA_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="Ficheiro excede o tamanho máximo permitido.")
+    if len(data) == 0:
+        raise HTTPException(status_code=400, detail="Ficheiro vazio.")
+
+    mime = (file.content_type or "application/octet-stream").split(";")[0].strip()
+    tipo_db = _tipo_midia_db(mediatipo)
+    nome_guardado = gravar_bytes_em_disco(data, mime)
+    if not nome_guardado:
+        raise HTTPException(status_code=500, detail="Não foi possível guardar o ficheiro em disco.")
+
+    cap = (caption or "").strip()
+    base_legenda = cap if cap else _rotulo_midia_outbound(tipo_db)
+    nome_atend = (atendente.nome or "").strip()
+    legenda_whatsapp = f"[ {nome_atend} ]: {base_legenda}" if nome_atend else base_legenda
+    corpo_eff = legenda_whatsapp
+
+    b64 = base64.b64encode(data).decode("ascii")
+    st = _settings_envio(db)
+    ev_mt = _mediatype_evolution(mediatipo)
+    fname = _sanitizar_nome_ficheiro(file.filename, f"envio.{tipo_db}")
+
+    quoted_payload = None
+    q_wa: str | None = None
+    q_prev: str | None = None
+    if quoted_wa_message_id and str(quoted_wa_message_id).strip():
+        q_wa = str(quoted_wa_message_id).strip()
+        quoted_payload = _quoted_evolution_payload(db, chat_id, q_wa)
+        ref = (
+            db.query(WhatsappMensagem)
+            .filter(WhatsappMensagem.chat_id == chat_id, WhatsappMensagem.wa_message_id == q_wa)
+            .first()
+        )
+        q_prev = _preview_citacao(ref) if ref else None
+
+    ok, err = evolution_api.evolution_send_media(
+        st.evolution_base_url,
+        st.evolution_instance_name,
+        st.evolution_api_key,
+        c.wa_id,
+        mediatype=ev_mt,
+        mimetype=mime,
+        caption=legenda_whatsapp,
+        media_base64=b64,
+        file_name=fname,
+        quoted=quoted_payload,
+    )
+    if not ok:
+        raise HTTPException(status_code=502, detail=err or "Falha ao enviar mídia pela Evolution API")
+
+    m = WhatsappMensagem(
+        chat_id=c.id,
+        direcao="outbound",
+        corpo=corpo_eff,
+        tipo_midia=tipo_db,
+        mimetype=mime,
+        midia_nome_arquivo=nome_guardado,
+        wa_message_id=None,
+        quoted_wa_message_id=q_wa,
+        quoted_corpo_preview=q_prev,
+        atendente_id=atendente.id,
+        evento_sistema=None,
+    )
+    db.add(m)
+    db.commit()
+    m2 = (
+        db.query(WhatsappMensagem)
+        .options(joinedload(WhatsappMensagem.atendente))
+        .filter(WhatsappMensagem.id == m.id)
+        .first()
+    )
+    assert m2 is not None
+    return _mensagem_read(m2)
 
 
 @router.post("/{chat_id}/comentarios-internos", response_model=WhatsappMensagemRead, status_code=201)

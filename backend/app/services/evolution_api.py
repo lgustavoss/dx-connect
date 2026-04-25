@@ -94,21 +94,61 @@ def evolution_send_text(
     api_key: str,
     number_digits: str,
     text: str,
+    *,
+    quoted: dict[str, Any] | None = None,
 ) -> tuple[bool, str | None]:
     base = base_url.rstrip("/")
     path = f"/message/sendText/{instance}"
     url = base + path
     headers = {"apikey": api_key, "Content-Type": "application/json", "Accept": "application/json"}
+    body: dict[str, Any] = {"number": number_digits, "text": text}
+    if quoted:
+        body["quoted"] = quoted
     code, _data, err = _request_json(
         "POST",
         url,
         headers=headers,
-        body={"number": number_digits, "text": text},
+        body=body,
     )
     if code in (200, 201):
         return True, None
     if err:
         return False, err[:800]
+    return False, f"HTTP {code}"
+
+
+def evolution_send_media(
+    base_url: str,
+    instance: str,
+    api_key: str,
+    number_digits: str,
+    *,
+    mediatype: str,
+    mimetype: str,
+    caption: str,
+    media_base64: str,
+    file_name: str,
+    quoted: dict[str, Any] | None = None,
+) -> tuple[bool, str | None]:
+    """POST /message/sendMedia/{instance} — mediatype típico: image | video | audio | document."""
+    base = base_url.rstrip("/")
+    url = f"{base}/message/sendMedia/{instance}"
+    headers = {"apikey": api_key, "Content-Type": "application/json", "Accept": "application/json"}
+    body: dict[str, Any] = {
+        "number": number_digits,
+        "mediatype": mediatype,
+        "mimetype": mimetype,
+        "caption": caption or "",
+        "media": media_base64,
+        "fileName": file_name or "file",
+    }
+    if quoted:
+        body["quoted"] = quoted
+    code, _data, err = _request_json("POST", url, headers=headers, body=body, timeout=120)
+    if code in (200, 201):
+        return True, None
+    if err:
+        return False, err[:1200]
     return False, f"HTTP {code}"
 
 
