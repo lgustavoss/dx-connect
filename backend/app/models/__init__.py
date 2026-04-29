@@ -13,6 +13,8 @@ from app.models.audit_log import AuditLog
 from app.models.ibge_municipio import IbgeMunicipio
 from app.models.app_cache_meta import AppCacheMeta
 from app.models.whatsapp_chat import WhatsappChat, WhatsappChatTicket, WhatsappMensagem, WhatsappSettings
+from app.models.empresa_sistema import EmpresaSistema
+from app.models.email_settings import EmailSettings
 
 __all__ = [
     "Rede",
@@ -37,4 +39,6 @@ __all__ = [
     "WhatsappChat",
     "WhatsappMensagem",
     "WhatsappChatTicket",
+    "EmpresaSistema",
+    "EmailSettings",
 ]

@@ -26,6 +26,7 @@ from app.api import (
     whatsapp_settings,
     whatsapp_chats,
     whatsapp_webhook,
+    system_settings,
 )
 from app.config import settings
 from app.core.lifecycle import dev_create_all_tables, production_require_alembic
@@ -225,6 +226,7 @@ app.include_router(notificacoes.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_settings.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_chats.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_webhook.router, prefix=API_V1_PREFIX)
+app.include_router(system_settings.router, prefix=API_V1_PREFIX)
 
 
 @app.get("/health")

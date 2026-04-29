@@ -1,0 +1,28 @@
+from sqlalchemy import Boolean, Column, DateTime, Integer, String
+from sqlalchemy.sql import func
+
+from app.database import Base
+
+
+class EmpresaSistema(Base):
+    """
+    Singleton (1 linha) com dados da empresa do sistema.
+    Regras de unicidade são aplicadas pela API (primeira linha é a "empresa do sistema").
+    """
+
+    __tablename__ = "empresa_sistema"
+
+    id = Column(Integer, primary_key=True, index=True)
+    cnpj = Column(String(18), nullable=True, index=True)
+    nome = Column(String(255), nullable=True)
+    razao_social = Column(String(255), nullable=True)
+    nome_fantasia = Column(String(255), nullable=True)
+    email = Column(String(255), nullable=True)
+    telefone = Column(String(20), nullable=True)
+    endereco = Column(String(255), nullable=True)
+    logo_filename = Column(String(255), nullable=True)
+    logo_mimetype = Column(String(100), nullable=True)
+    ativo = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+

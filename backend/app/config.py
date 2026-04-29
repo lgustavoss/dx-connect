@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     # Tamanho máximo (bytes) para cada anexo de ticket.
     TICKET_ANEXOS_MAX_BYTES: int = 25 * 1024 * 1024
 
+    # Diretório para logo da empresa do sistema (caminho relativo ao cwd ou absoluto).
+    SYSTEM_LOGO_DIR: str = "data/system_logo"
+    # Tamanho máximo (bytes) para upload de logo (2MB).
+    SYSTEM_LOGO_MAX_BYTES: int = 2 * 1024 * 1024
+
     @property
     def evolution_embutida_disponivel(self) -> bool:
         return bool(

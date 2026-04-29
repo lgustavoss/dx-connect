@@ -185,7 +185,7 @@ docker compose run --rm --no-deps backend pytest -q
 - **`--no-deps`**: os testes usam SQLite em memória (`backend/tests/conftest.py`); o serviço `db` não precisa de estar a correr.
 - O volume `./backend:/app` no `docker-compose.yml` sincroniza código e `tests/`; alterações nos arquivos refletem-se de imediato no container (rebuild só após mudanças em `requirements` ou `Dockerfile`).
 
-Detalhes: [`backend/tests/README.md`](backend/tests/README.md). Matriz de rotas e perfis: [`docs/BACKEND_RBAC.md`](docs/BACKEND_RBAC.md).
+Detalhes: [`backend/tests/README.md`](backend/tests/README.md). Matriz de rotas e perfis: [`docs/BACKEND_RBAC.md`](docs/BACKEND_RBAC.md). Configurações de e-mail + empresa do sistema: [`docs/EMAIL_SETTINGS.md`](docs/EMAIL_SETTINGS.md).
 
 ### 4. Ordem sugerida de uso
 

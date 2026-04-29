@@ -442,6 +442,106 @@ export const whatsappSettings = {
   reporEmbutido: () => api<void>('/settings/whatsapp/repor-embutido', { method: 'POST' }),
 }
 
+export namespace SystemSettings {
+  export interface EmpresaSistema {
+    cnpj?: string | null
+    nome?: string | null
+    razao_social?: string | null
+    nome_fantasia?: string | null
+    email?: string | null
+    telefone?: string | null
+    endereco?: string | null
+    logo_url?: string | null
+    ativo?: boolean
+  }
+
+  export interface EmpresaSistemaUpdate {
+    cnpj?: string | null
+    nome?: string | null
+    razao_social?: string | null
+    nome_fantasia?: string | null
+    email?: string | null
+    telefone?: string | null
+    endereco?: string | null
+    ativo?: boolean | null
+  }
+
+  export interface EmailSettingsRead {
+    smtp_host?: string | null
+    smtp_port?: number | null
+    smtp_user?: string | null
+    has_smtp_password?: boolean
+    smtp_use_starttls?: boolean
+    smtp_from_email?: string | null
+    smtp_from_name?: string | null
+    imap_host?: string | null
+    imap_port?: number | null
+    imap_user?: string | null
+    has_imap_password?: boolean
+    imap_use_ssl?: boolean
+    imap_folder?: string | null
+  }
+
+  export interface EmailSettingsUpdate {
+    smtp_host?: string | null
+    smtp_port?: number | null
+    smtp_user?: string | null
+    smtp_password?: string | null
+    smtp_use_starttls?: boolean | null
+    smtp_from_email?: string | null
+    smtp_from_name?: string | null
+    imap_host?: string | null
+    imap_port?: number | null
+    imap_user?: string | null
+    imap_password?: string | null
+    imap_use_ssl?: boolean | null
+    imap_folder?: string | null
+  }
+
+  export interface EmailTestResult {
+    ok: boolean
+    detail?: string | null
+  }
+}
+
+export const systemSettings = {
+  getEmpresaSistema: () => api<SystemSettings.EmpresaSistema>('/settings/empresa-sistema'),
+  putEmpresaSistema: (data: SystemSettings.EmpresaSistemaUpdate) =>
+    api<SystemSettings.EmpresaSistema>('/settings/empresa-sistema', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  uploadEmpresaLogo: (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api<SystemSettings.EmpresaSistema>('/settings/empresa-sistema/logo', { method: 'POST', body: fd })
+  },
+  deleteEmpresaLogo: () => api<SystemSettings.EmpresaSistema>('/settings/empresa-sistema/logo', { method: 'DELETE' }),
+  getEmail: () => api<SystemSettings.EmailSettingsRead>('/settings/email'),
+  putEmail: (data: SystemSettings.EmailSettingsUpdate) =>
+    api<SystemSettings.EmailSettingsRead>('/settings/email', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  testEmailSmtp: () =>
+    api<SystemSettings.EmailTestResult>('/settings/email/test-smtp', { method: 'POST' }),
+  testEmailImap: () =>
+    api<SystemSettings.EmailTestResult>('/settings/email/test-imap', { method: 'POST' }),
+}
+
+export async function fetchEmpresaSistemaLogoBlob(): Promise<Blob | null> {
+  const token = getAuthToken()
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(`${BASE}${API_VERSION_PREFIX}/settings/empresa-sistema/logo`, { headers })
+  if (res.status === 404) return null
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+  }
+  return res.blob()
+}
+
 export namespace WhatsappChats {
   export interface Chat {
     id: number
