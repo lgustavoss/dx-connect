@@ -138,3 +138,50 @@ def test_endpoints_sao_admin_only(client, auth_headers):
     r3 = client.post("/v1/settings/email/test-smtp", headers=auth_headers["a1"])
     assert r3.status_code == 403
 
+
+def test_smtp_runtime_from_row_exige_host_e_porta_validos(db_session):
+    from app.models.email_settings import EmailSettings
+    from app.services.system_email_config import smtp_runtime_from_row
+
+    assert smtp_runtime_from_row(None) is None
+    r = EmailSettings(smtp_host="", smtp_port=587)
+    db_session.add(r)
+    db_session.commit()
+    db_session.refresh(r)
+    assert smtp_runtime_from_row(r) is None
+
+    r.smtp_host = "smtp.example.com"
+    r.smtp_port = 0
+    db_session.commit()
+    assert smtp_runtime_from_row(r) is None
+
+    r.smtp_port = 587
+    db_session.commit()
+    cfg = smtp_runtime_from_row(r)
+    assert cfg is not None
+    assert cfg.host == "smtp.example.com"
+    assert cfg.port == 587
+    assert cfg.password is None
+
+
+def test_imap_runtime_from_row_exige_credenciais(db_session):
+    from app.models.email_settings import EmailSettings
+    from app.services.system_email_config import imap_runtime_from_row
+
+    r = EmailSettings(imap_host="imap.example.com", imap_port=993, imap_user="u", imap_use_ssl=True)
+    db_session.add(r)
+    db_session.commit()
+    db_session.refresh(r)
+    assert imap_runtime_from_row(r) is None
+
+    r.imap_password_enc = "dummy"
+    db_session.commit()
+    from unittest.mock import patch
+
+    with patch("app.services.system_email_config.decrypt_str", return_value="secret"):
+        cfg = imap_runtime_from_row(r)
+    assert cfg is not None
+    assert cfg.user == "u"
+    assert cfg.password == "secret"
+    assert cfg.folder == "INBOX"
+

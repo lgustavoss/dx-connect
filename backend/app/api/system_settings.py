@@ -10,7 +10,12 @@ from app.models.empresa_sistema import EmpresaSistema
 from app.schemas.email_settings import EmailSettingsRead, EmailSettingsUpdate, EmailTestResult
 from app.schemas.system_company import EmpresaSistemaRead, EmpresaSistemaUpdate
 from app.services import email_probe
-from app.services.secret_box import decrypt_str, encrypt_str
+from app.services.secret_box import encrypt_str
+from app.services.system_email_config import (
+    get_singleton_email_settings,
+    imap_runtime_from_row,
+    smtp_runtime_from_row,
+)
 from app.services.system_logo_storage import apagar_logo, caminho_absoluto_logo, gravar_logo_bytes
 
 router = APIRouter(prefix="/settings", tags=["settings-system"])
@@ -50,12 +55,8 @@ def _company_out(row: EmpresaSistema | None) -> EmpresaSistemaRead:
     )
 
 
-def _get_email_row(db: Session) -> EmailSettings | None:
-    return db.query(EmailSettings).order_by(EmailSettings.id.asc()).first()
-
-
 def _get_or_create_email(db: Session) -> EmailSettings:
-    row = _get_email_row(db)
+    row = get_singleton_email_settings(db)
     if row:
         return row
     row = EmailSettings()
@@ -187,7 +188,7 @@ def get_email_settings(
     db: Session = Depends(get_db),
     _: Atendente = Depends(exigir_admin),
 ):
-    return _email_out(_get_email_row(db))
+    return _email_out(get_singleton_email_settings(db))
 
 
 @router.put("/email", response_model=EmailSettingsRead)
@@ -248,19 +249,17 @@ def test_smtp(
     db: Session = Depends(get_db),
     _: Atendente = Depends(exigir_admin),
 ):
-    row = _get_email_row(db)
-    if not row:
+    row = get_singleton_email_settings(db)
+    cfg = smtp_runtime_from_row(row)
+    if not cfg:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Configurações de e-mail não definidas.")
-    pwd = None
-    if row.smtp_password_enc and row.smtp_password_enc.strip():
-        pwd = decrypt_str(row.smtp_password_enc)
     try:
         email_probe.testar_smtp(
-            host=row.smtp_host or "",
-            port=int(row.smtp_port or 0),
-            user=row.smtp_user,
-            password=pwd,
-            use_starttls=bool(row.smtp_use_starttls),
+            host=cfg.host,
+            port=cfg.port,
+            user=cfg.user,
+            password=cfg.password,
+            use_starttls=cfg.use_starttls,
         )
         return EmailTestResult(ok=True, detail="SMTP OK")
     except Exception as e:
@@ -272,20 +271,18 @@ def test_imap(
     db: Session = Depends(get_db),
     _: Atendente = Depends(exigir_admin),
 ):
-    row = _get_email_row(db)
-    if not row:
+    row = get_singleton_email_settings(db)
+    cfg = imap_runtime_from_row(row)
+    if not cfg:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Configurações de e-mail não definidas.")
-    pwd = None
-    if row.imap_password_enc and row.imap_password_enc.strip():
-        pwd = decrypt_str(row.imap_password_enc)
     try:
         email_probe.testar_imap(
-            host=row.imap_host or "",
-            port=int(row.imap_port or 0),
-            user=row.imap_user,
-            password=pwd,
-            use_ssl=bool(row.imap_use_ssl),
-            folder=row.imap_folder,
+            host=cfg.host,
+            port=cfg.port,
+            user=cfg.user,
+            password=cfg.password,
+            use_ssl=cfg.use_ssl,
+            folder=cfg.folder,
         )
         return EmailTestResult(ok=True, detail="IMAP OK")
     except Exception as e:
