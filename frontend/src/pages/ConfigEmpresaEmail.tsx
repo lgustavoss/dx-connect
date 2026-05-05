@@ -488,7 +488,11 @@ export function ConfigEmpresaEmail() {
                   />
                   <button
                     type="button"
-                    onClick={() => void consultarCnpj()}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      void consultarCnpj()
+                    }}
                     disabled={loadingCnpj || !isCnpj(cnpj)}
                     className="absolute right-1.5 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:pointer-events-none disabled:opacity-45 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-200"
                     aria-label="Consultar CNPJ"
