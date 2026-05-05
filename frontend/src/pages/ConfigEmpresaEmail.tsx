@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { cadastroAux, empresas, fetchEmpresaSistemaLogoBlob, systemSettings, type SystemSettings } from '../api/client'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
 import { SelectCidadeUf } from '../components/ui/SelectCidadeUf'
 import { SelectUf } from '../components/ui/SelectUf'
 import { Switch } from '../components/ui/Switch'
@@ -581,33 +580,36 @@ export function ConfigEmpresaEmail() {
 
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div className="sm:col-span-2">
-                  <Input
-                    id="ce-cnpj"
-                    label={cnpjImutavel ? 'CNPJ' : 'CNPJ *'}
-                    inputMode="numeric"
-                    placeholder="00.000.000/0001-00"
-                    value={cnpj}
-                    onChange={(e) => setCnpj(maskCnpjCpf(e.target.value))}
-                    disabled={cnpjImutavel}
-                    autoComplete="organization"
-                    endAdornment={
-                      <button
-                        type="button"
-                        onClick={consultarCnpj}
-                        disabled={loadingCnpj}
-                        className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:pointer-events-none disabled:opacity-45 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-                        aria-label="Consultar CNPJ"
-                      >
-                        {loadingCnpj ? (
-                          <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden />
-                        ) : (
-                          <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                          </svg>
-                        )}
-                      </button>
-                    }
-                  />
+                  <label htmlFor="ce-cnpj" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    {cnpjImutavel ? 'CNPJ' : 'CNPJ *'}
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="ce-cnpj"
+                      inputMode="numeric"
+                      placeholder="00.000.000/0001-00"
+                      value={cnpj}
+                      onChange={(e) => setCnpj(maskCnpjCpf(e.target.value))}
+                      disabled={cnpjImutavel}
+                      autoComplete="organization"
+                      className={`${fieldClass} pr-12 disabled:cursor-not-allowed disabled:opacity-70`}
+                    />
+                    <button
+                      type="button"
+                      onClick={consultarCnpj}
+                      disabled={loadingCnpj}
+                      className="absolute right-1.5 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:pointer-events-none disabled:opacity-45 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-200"
+                      aria-label="Consultar CNPJ"
+                    >
+                      {loadingCnpj ? (
+                        <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden />
+                      ) : (
+                        <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label htmlFor="ce-rs" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -725,8 +727,15 @@ export function ConfigEmpresaEmail() {
                       setEnderecoUf(uf)
                       setEnderecoCidade('')
                     }}
+                    triggerClassName={`${fieldClass} flex items-center justify-between text-left`}
                   />
-                  <SelectCidadeUf id="ce-end-cidade" uf={enderecoUf} value={enderecoCidade} onChange={setEnderecoCidade} />
+                  <SelectCidadeUf
+                    id="ce-end-cidade"
+                    uf={enderecoUf}
+                    value={enderecoCidade}
+                    onChange={setEnderecoCidade}
+                    triggerClassName={`${fieldClass} flex items-center justify-between text-left`}
+                  />
                 </div>
               </div>
             </div>

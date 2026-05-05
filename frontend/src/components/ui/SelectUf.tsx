@@ -10,6 +10,7 @@ type Props = {
   onChange: (sigla: string) => void
   required?: boolean
   disabled?: boolean
+  triggerClassName?: string
 }
 
 export function SelectUf({
@@ -19,6 +20,7 @@ export function SelectUf({
   onChange,
   required,
   disabled,
+  triggerClassName,
 }: Props) {
   const [items, setItems] = useState<ItemStringPesquisa[]>(UFS_BRASIL_OPTIONS)
   const [loading, setLoading] = useState(true)
@@ -59,6 +61,7 @@ export function SelectUf({
       loading={loading}
       hint="Lista obtida no servidor (IBGE)."
       recentCount={9}
+      triggerClassName={triggerClassName}
     />
   )
 }
