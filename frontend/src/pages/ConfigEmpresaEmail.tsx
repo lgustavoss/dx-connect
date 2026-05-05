@@ -16,6 +16,8 @@ type EmailPreset = 'custom' | 'gmail' | 'outlook'
 
 const fieldClass =
   'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-[0.9375rem] text-slate-900 shadow-inner placeholder:text-slate-400 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-400/25 dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-100 dark:placeholder:text-slate-500'
+const controlHeightClass = 'h-[46px]'
+const secondaryHelpClass = 'mt-1 min-h-[1rem] text-xs text-slate-500 dark:text-slate-400'
 
 function parseEnderecoFromStored(raw: string): {
   logradouro: string
@@ -914,7 +916,7 @@ export function ConfigEmpresaEmail() {
                     emptyPlaceholder="Selecione…"
                     recentCount={3}
                     hint="Selecione o provedor para aplicar padrões."
-                    triggerClassName={`${fieldClass} flex items-center justify-between text-left`}
+                    triggerClassName={`${fieldClass} ${controlHeightClass} flex items-center justify-between text-left`}
                   />
                 </div>
                 <div className="flex items-end">
@@ -923,7 +925,7 @@ export function ConfigEmpresaEmail() {
                     variant="secondary"
                     onClick={() => aplicarPresetEmail(emailPreset)}
                     disabled={emailPreset === 'custom'}
-                    className="w-full"
+                    className={`w-full ${controlHeightClass}`}
                   >
                     Aplicar
                   </Button>
@@ -949,7 +951,7 @@ export function ConfigEmpresaEmail() {
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="mt-4 grid gap-4 sm:grid-cols-2 sm:items-end">
                 <div>
                   <label htmlFor="ce-sh" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                     Servidor SMTP
@@ -958,10 +960,11 @@ export function ConfigEmpresaEmail() {
                     id="ce-sh"
                     value={smtpHost}
                     onChange={(e) => setSmtpHost(e.target.value)}
-                    className={fieldClass}
+                    className={`${fieldClass} ${controlHeightClass}`}
                     placeholder="smtp.seudominio.com"
                     autoComplete="off"
                   />
+                  <p className={secondaryHelpClass}>Ex.: `smtp.gmail.com`</p>
                 </div>
                 <div>
                   <label htmlFor="ce-su" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -971,10 +974,11 @@ export function ConfigEmpresaEmail() {
                     id="ce-su"
                     value={smtpUser}
                     onChange={(e) => setSmtpUser(e.target.value)}
-                    className={fieldClass}
+                    className={`${fieldClass} ${controlHeightClass}`}
                     placeholder="email@seudominio.com"
                     autoComplete="off"
                   />
+                  <p className={secondaryHelpClass}>Normalmente é o e-mail completo.</p>
                 </div>
                 <PasswordField
                   id="ce-spw"
@@ -1002,12 +1006,10 @@ export function ConfigEmpresaEmail() {
                     type="email"
                     value={smtpFromEmail}
                     onChange={(e) => setSmtpFromEmail(e.target.value)}
-                    className={fieldClass}
+                    className={`${fieldClass} ${controlHeightClass}`}
                     placeholder="email@seudominio.com"
                   />
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    Se ficar vazio, alguns servidores usam o próprio usuário.
-                  </p>
+                  <p className={secondaryHelpClass}>Se ficar vazio, geralmente usa o próprio usuário.</p>
                 </div>
               </div>
 
@@ -1020,14 +1022,20 @@ export function ConfigEmpresaEmail() {
                   {mostrarAvancadoSmtp ? 'Ocultar opções avançadas' : 'Mostrar opções avançadas'}
                 </button>
                 <div className="flex flex-wrap gap-3">
-                  <Button type="button" variant="secondary" onClick={() => void testarSmtp()} disabled={testandoSmtp}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => void testarSmtp()}
+                    disabled={testandoSmtp}
+                    className={controlHeightClass}
+                  >
                     {testandoSmtp ? 'Testando…' : 'Testar SMTP'}
                   </Button>
                 </div>
               </div>
 
               {mostrarAvancadoSmtp ? (
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 sm:items-end">
                   <div>
                     <label htmlFor="ce-sp" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                       Porta SMTP
@@ -1036,10 +1044,11 @@ export function ConfigEmpresaEmail() {
                       id="ce-sp"
                       value={smtpPort}
                       onChange={(e) => setSmtpPort(e.target.value)}
-                      className={fieldClass}
+                      className={`${fieldClass} ${controlHeightClass}`}
                       inputMode="numeric"
                       placeholder={smtpStarttls ? '587' : '465'}
                     />
+                    <p className={secondaryHelpClass}>{smtpStarttls ? 'Padrão: 587 (STARTTLS)' : 'Padrão: 465 (TLS)'}</p>
                   </div>
                   <div>
                     <label htmlFor="ce-sfn" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -1049,9 +1058,10 @@ export function ConfigEmpresaEmail() {
                       id="ce-sfn"
                       value={smtpFromName}
                       onChange={(e) => setSmtpFromName(e.target.value)}
-                      className={fieldClass}
+                      className={`${fieldClass} ${controlHeightClass}`}
                       placeholder="DX Connect"
                     />
+                    <p className={secondaryHelpClass}>Aparece no nome “De:” do e-mail.</p>
                   </div>
                   <div className="sm:col-span-2">
                     <Switch
@@ -1079,7 +1089,7 @@ export function ConfigEmpresaEmail() {
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="mt-4 grid gap-4 sm:grid-cols-2 sm:items-end">
                 <div>
                   <label htmlFor="ce-ih" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                     Servidor IMAP
@@ -1088,10 +1098,11 @@ export function ConfigEmpresaEmail() {
                     id="ce-ih"
                     value={imapHost}
                     onChange={(e) => setImapHost(e.target.value)}
-                    className={fieldClass}
+                    className={`${fieldClass} ${controlHeightClass}`}
                     placeholder="imap.seudominio.com"
                     autoComplete="off"
                   />
+                  <p className={secondaryHelpClass}>Ex.: `imap.gmail.com`</p>
                 </div>
                 <div>
                   <label htmlFor="ce-iu" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -1101,10 +1112,11 @@ export function ConfigEmpresaEmail() {
                     id="ce-iu"
                     value={imapUser}
                     onChange={(e) => setImapUser(e.target.value)}
-                    className={fieldClass}
+                    className={`${fieldClass} ${controlHeightClass}`}
                     placeholder="email@seudominio.com"
                     autoComplete="off"
                   />
+                  <p className={secondaryHelpClass}>Normalmente é o e-mail completo.</p>
                 </div>
                 <PasswordField
                   id="ce-ipw"
@@ -1134,14 +1146,20 @@ export function ConfigEmpresaEmail() {
                   {mostrarAvancadoImap ? 'Ocultar opções avançadas' : 'Mostrar opções avançadas'}
                 </button>
                 <div className="flex flex-wrap gap-3">
-                  <Button type="button" variant="secondary" onClick={() => void testarImap()} disabled={testandoImap}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => void testarImap()}
+                    disabled={testandoImap}
+                    className={controlHeightClass}
+                  >
                     {testandoImap ? 'Testando…' : 'Testar IMAP'}
                   </Button>
                 </div>
               </div>
 
               {mostrarAvancadoImap ? (
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 sm:items-end">
                   <div>
                     <label htmlFor="ce-ip" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                       Porta IMAP
@@ -1150,10 +1168,11 @@ export function ConfigEmpresaEmail() {
                       id="ce-ip"
                       value={imapPort}
                       onChange={(e) => setImapPort(e.target.value)}
-                      className={fieldClass}
+                      className={`${fieldClass} ${controlHeightClass}`}
                       inputMode="numeric"
                       placeholder={imapSsl ? '993' : '143'}
                     />
+                    <p className={secondaryHelpClass}>{imapSsl ? 'Padrão: 993 (SSL)' : 'Padrão: 143 (sem SSL)'}</p>
                   </div>
                   <div>
                     <label htmlFor="ce-if" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -1163,9 +1182,10 @@ export function ConfigEmpresaEmail() {
                       id="ce-if"
                       value={imapFolder}
                       onChange={(e) => setImapFolder(e.target.value)}
-                      className={fieldClass}
+                      className={`${fieldClass} ${controlHeightClass}`}
                       placeholder="INBOX"
                     />
+                    <p className={secondaryHelpClass}>Deixe `INBOX` na maioria dos casos.</p>
                   </div>
                   <div className="sm:col-span-2">
                     <Switch checked={imapSsl} onCheckedChange={setImapSsl} label="Usar SSL/TLS" description="Comum na porta 993." bare />
