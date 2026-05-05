@@ -3,11 +3,14 @@ import { empresas, fetchEmpresaSistemaLogoBlob, systemSettings, type SystemSetti
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
+import { InputCepComBusca } from '../components/ui/InputCepComBusca'
+import { SelectCidadeUf } from '../components/ui/SelectCidadeUf'
+import { SelectUf } from '../components/ui/SelectUf'
 import { Switch } from '../components/ui/Switch'
 import { useToast } from '../components/ui/Toast'
 import { IconEye, IconEyeOff } from '../components/ui/IconEye'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
-import { digitsOnly, isCnpj, maskCnpjCpf, maskTelefoneBr } from '../utils/masks'
+import { digitsOnly, isCnpj, maskCep, maskCnpjCpf, maskTelefoneBr } from '../utils/masks'
 
 type Aba = 'empresa' | 'email'
 
@@ -73,7 +76,13 @@ export function ConfigEmpresaEmail() {
   const [nomeFantasia, setNomeFantasia] = useState('')
   const [emailEmpresa, setEmailEmpresa] = useState('')
   const [telefone, setTelefone] = useState('')
-  const [endereco, setEndereco] = useState('')
+  const [enderecoLogradouro, setEnderecoLogradouro] = useState('')
+  const [enderecoNumero, setEnderecoNumero] = useState('')
+  const [enderecoComplemento, setEnderecoComplemento] = useState('')
+  const [enderecoBairro, setEnderecoBairro] = useState('')
+  const [enderecoCidade, setEnderecoCidade] = useState('')
+  const [enderecoUf, setEnderecoUf] = useState('')
+  const [enderecoCep, setEnderecoCep] = useState('')
   const [empresaAtiva, setEmpresaAtiva] = useState(true)
   const [salvandoEmpresa, setSalvandoEmpresa] = useState(false)
   const [logoBlobUrl, setLogoBlobUrl] = useState<string | null>(null)
@@ -124,7 +133,16 @@ export function ConfigEmpresaEmail() {
       setNomeFantasia((emp.nome_fantasia ?? '').trim())
       setEmailEmpresa((emp.email ?? '').trim())
       setTelefone((emp.telefone ?? '').trim())
-      setEndereco((emp.endereco ?? '').trim())
+      // endereço: backend guarda em string única; aqui mostramos campos organizados.
+      // Estratégia: se não for possível “parsear”, coloca tudo em logradouro para não perder informação.
+      const endRaw = (emp.endereco ?? '').trim()
+      setEnderecoLogradouro(endRaw)
+      setEnderecoNumero('')
+      setEnderecoComplemento('')
+      setEnderecoBairro('')
+      setEnderecoCidade('')
+      setEnderecoUf('')
+      setEnderecoCep('')
       setEmpresaAtiva(emp.ativo !== false)
 
       // logo: precisa de fetch autenticado (não dá pra usar <img src> direto).
@@ -199,12 +217,26 @@ export function ConfigEmpresaEmail() {
     }
     setSalvandoEmpresa(true)
     try {
+      const parts1 = [enderecoLogradouro.trim()].filter(Boolean)
+      const num = enderecoNumero.trim()
+      const comp = enderecoComplemento.trim()
+      const numComp = [num, comp].filter(Boolean).join(' ')
+      if (numComp) parts1.push(numComp)
+      const linha1 = parts1.join(', ')
+      const linha2 = [enderecoBairro.trim()].filter(Boolean).join('')
+      const cidade = enderecoCidade.trim()
+      const uf = enderecoUf.trim().toUpperCase()
+      const cidadeUf = [cidade, uf].filter(Boolean).join('/')
+      const cep = digitsOnly(enderecoCep)
+      const linha3 = [cidadeUf, cep ? `CEP ${maskCep(cep)}` : ''].filter(Boolean).join(' - ')
+      const enderecoUnico = [linha1, linha2, linha3].filter(Boolean).join(' - ') || null
+
       const payload: SystemSettings.EmpresaSistemaUpdate = {
         razao_social: razaoSocial.trim() || null,
         nome_fantasia: nomeFantasia.trim() || null,
         email: emailEmpresa.trim() || null,
         telefone: telefone.trim() || null,
-        endereco: endereco.trim() || null,
+        endereco: enderecoUnico,
         ativo: empresaAtiva,
       }
       if (!cnpjImutavel) {
@@ -275,20 +307,13 @@ export function ConfigEmpresaEmail() {
       setRazaoSocial((data.razao_social ?? '').trim())
       setNomeFantasia((data.nome_fantasia ?? '').trim())
 
-      const enderecoParts: string[] = []
-      const log = (data.endereco ?? '').trim()
-      if (log) enderecoParts.push(log)
-      const num = (data.numero ?? '').trim()
-      const comp = (data.complemento ?? '').trim()
-      const numComp = [num, comp].filter(Boolean).join(' ')
-      if (numComp) enderecoParts.push(numComp)
-      const bairro = (data.bairro ?? '').trim()
-      if (bairro) enderecoParts.push(bairro)
-      const cid = (data.cidade ?? '').trim()
-      const uf = (data.estado ?? '').trim()
-      const cidadeUf = [cid, uf ? `/${uf}` : ''].join('').trim()
-      if (cidadeUf) enderecoParts.push(cidadeUf)
-      setEndereco(enderecoParts.join(' - '))
+      setEnderecoLogradouro((data.endereco ?? '').trim())
+      setEnderecoNumero((data.numero ?? '').trim())
+      setEnderecoComplemento((data.complemento ?? '').trim())
+      setEnderecoBairro((data.bairro ?? '').trim())
+      setEnderecoCidade((data.cidade ?? '').trim())
+      setEnderecoUf((data.estado ?? '').trim().toUpperCase())
+      setEnderecoCep(data.cep ? maskCep(String(data.cep)) : '')
 
       setEmailEmpresa((data.email ?? '').trim())
       setTelefone(data.telefone ? maskTelefoneBr(data.telefone) : '')
@@ -536,17 +561,78 @@ export function ConfigEmpresaEmail() {
                 </label>
                 <input id="ce-tel" value={telefone} onChange={(e) => setTelefone(e.target.value)} className={fieldClass} />
               </div>
-              <div className="sm:col-span-2">
-                <label htmlFor="ce-end" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Endereço
-                </label>
-                <textarea
-                  id="ce-end"
-                  value={endereco}
-                  onChange={(e) => setEndereco(e.target.value)}
-                  rows={3}
-                  className={fieldClass}
-                />
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Endereço</h3>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Campos organizados; o backend guarda em um único texto por compatibilidade.
+              </p>
+
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label htmlFor="ce-end-log" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Logradouro
+                  </label>
+                  <input
+                    id="ce-end-log"
+                    value={enderecoLogradouro}
+                    onChange={(e) => setEnderecoLogradouro(e.target.value)}
+                    className={fieldClass}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="ce-end-num" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Número
+                  </label>
+                  <input
+                    id="ce-end-num"
+                    value={enderecoNumero}
+                    onChange={(e) => setEnderecoNumero(e.target.value)}
+                    className={fieldClass}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="ce-end-comp" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Complemento
+                  </label>
+                  <input
+                    id="ce-end-comp"
+                    value={enderecoComplemento}
+                    onChange={(e) => setEnderecoComplemento(e.target.value)}
+                    className={fieldClass}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="ce-end-bairro" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Bairro
+                  </label>
+                  <input
+                    id="ce-end-bairro"
+                    value={enderecoBairro}
+                    onChange={(e) => setEnderecoBairro(e.target.value)}
+                    className={fieldClass}
+                  />
+                </div>
+                <div>
+                  <InputCepComBusca
+                    id="ce-end-cep"
+                    value={enderecoCep}
+                    onChange={setEnderecoCep}
+                    onEnderecoCompleto={(d) => {
+                      setEnderecoLogradouro((d.logradouro ?? '').trim() || enderecoLogradouro)
+                      setEnderecoBairro((d.bairro ?? '').trim() || enderecoBairro)
+                      setEnderecoCidade((d.localidade ?? '').trim() || enderecoCidade)
+                      setEnderecoUf((d.uf ?? '').trim().toUpperCase() || enderecoUf)
+                    }}
+                  />
+                </div>
+                <div>
+                  <SelectUf id="ce-end-uf" value={enderecoUf} onChange={(uf) => { setEnderecoUf(uf); setEnderecoCidade('') }} />
+                </div>
+                <div className="sm:col-span-2">
+                  <SelectCidadeUf id="ce-end-cidade" uf={enderecoUf} value={enderecoCidade} onChange={setEnderecoCidade} />
+                </div>
               </div>
             </div>
             <Switch checked={empresaAtiva} onCheckedChange={setEmpresaAtiva} label="Empresa ativa" bare className="pt-1" />
