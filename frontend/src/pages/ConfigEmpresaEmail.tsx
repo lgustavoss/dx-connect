@@ -452,114 +452,135 @@ export function ConfigEmpresaEmail() {
             <div className="rounded-lg border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
               O CNPJ é obrigatório no primeiro cadastro. Depois de salvo, <strong>não pode ser alterado</strong>.
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Logo</label>
-                <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-inner dark:border-white/10 dark:bg-white/[0.04]">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="h-14 w-14 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-slate-900">
-                      {logoLoading ? (
-                        <div className="flex h-full w-full items-center justify-center text-xs text-slate-500 dark:text-slate-400">
-                          Carregando…
-                        </div>
-                      ) : logoPreviewUrl ? (
-                        <img src={logoPreviewUrl} alt="Prévia do logo" className="h-full w-full object-contain" />
-                      ) : logoBlobUrl ? (
-                        <img src={logoBlobUrl} alt="Logo atual" className="h-full w-full object-contain" />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-xs text-slate-500 dark:text-slate-400">
-                          —
-                        </div>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm text-slate-700 dark:text-slate-300">
-                        Envie uma imagem (PNG/JPG/WEBP). O sistema usa esse logo nas telas e relatórios.
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Tamanho recomendado: até 2MB.</p>
-                    </div>
-                  </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Logo</h3>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Envie uma imagem (PNG/JPG/WEBP). Tamanho recomendado: até 2MB.
+              </p>
 
-                  <div className="flex flex-wrap items-center gap-3">
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0] ?? null
-                        setLogoFile(f)
-                        if (logoPreviewUrl) URL.revokeObjectURL(logoPreviewUrl)
-                        setLogoPreviewUrl(f ? URL.createObjectURL(f) : null)
-                      }}
-                      className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-medium file:text-slate-800 hover:file:bg-slate-200 dark:text-slate-300 dark:file:bg-slate-800 dark:file:text-slate-100 dark:hover:file:bg-slate-700 sm:w-auto"
-                    />
-                    <Button type="button" variant="secondary" onClick={() => void uploadLogo()} disabled={!logoFile || logoUploading}>
-                      {logoUploading ? 'Enviando…' : 'Enviar logo'}
-                    </Button>
-                    <Button type="button" variant="ghost" onClick={() => void removerLogo()} disabled={logoDeleting || (!logoBlobUrl && !logoLoading)}>
-                      {logoDeleting ? 'Removendo…' : 'Remover logo'}
-                    </Button>
+              <div className="mt-4 flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="h-14 w-14 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-slate-900">
+                    {logoLoading ? (
+                      <div className="flex h-full w-full items-center justify-center text-xs text-slate-500 dark:text-slate-400">
+                        Carregando…
+                      </div>
+                    ) : logoPreviewUrl ? (
+                      <img src={logoPreviewUrl} alt="Prévia do logo" className="h-full w-full object-contain" />
+                    ) : logoBlobUrl ? (
+                      <img src={logoBlobUrl} alt="Logo atual" className="h-full w-full object-contain" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-xs text-slate-500 dark:text-slate-400">
+                        —
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-slate-700 dark:text-slate-300">
+                      O sistema usa esse logo nas telas e relatórios.
+                    </p>
                   </div>
                 </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null
+                      setLogoFile(f)
+                      if (logoPreviewUrl) URL.revokeObjectURL(logoPreviewUrl)
+                      setLogoPreviewUrl(f ? URL.createObjectURL(f) : null)
+                    }}
+                    className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-medium file:text-slate-800 hover:file:bg-slate-200 dark:text-slate-300 dark:file:bg-slate-800 dark:file:text-slate-100 dark:hover:file:bg-slate-700 sm:w-auto"
+                  />
+                  <Button type="button" variant="secondary" onClick={() => void uploadLogo()} disabled={!logoFile || logoUploading}>
+                    {logoUploading ? 'Enviando…' : 'Enviar logo'}
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => void removerLogo()} disabled={logoDeleting || (!logoBlobUrl && !logoLoading)}>
+                    {logoDeleting ? 'Removendo…' : 'Remover logo'}
+                  </Button>
+                </div>
               </div>
-              <div className="sm:col-span-2">
-                <Input
-                  id="ce-cnpj"
-                  label={cnpjImutavel ? 'CNPJ' : 'CNPJ *'}
-                  inputMode="numeric"
-                  placeholder="00.000.000/0001-00"
-                  value={cnpj}
-                  onChange={(e) => setCnpj(maskCnpjCpf(e.target.value))}
-                  disabled={cnpjImutavel}
-                  autoComplete="organization"
-                  endAdornment={
-                    <button
-                      type="button"
-                      onClick={consultarCnpj}
-                      disabled={loadingCnpj}
-                      className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:pointer-events-none disabled:opacity-45 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-                      aria-label="Consultar CNPJ"
-                    >
-                      {loadingCnpj ? (
-                        <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden />
-                      ) : (
-                        <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                      )}
-                    </button>
-                  }
-                />
-              </div>
-              <div>
-                <label htmlFor="ce-rs" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Razão social
-                </label>
-                <input id="ce-rs" value={razaoSocial} onChange={(e) => setRazaoSocial(e.target.value)} className={fieldClass} />
-              </div>
-              <div>
-                <label htmlFor="ce-nf" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Nome fantasia
-                </label>
-                <input id="ce-nf" value={nomeFantasia} onChange={(e) => setNomeFantasia(e.target.value)} className={fieldClass} />
-              </div>
-              <div>
-                <label htmlFor="ce-mail" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  E-mail
-                </label>
-                <input
-                  id="ce-mail"
-                  type="email"
-                  value={emailEmpresa}
-                  onChange={(e) => setEmailEmpresa(e.target.value)}
-                  className={fieldClass}
-                  autoComplete="email"
-                />
-              </div>
-              <div>
-                <label htmlFor="ce-tel" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Telefone
-                </label>
-                <input id="ce-tel" value={telefone} onChange={(e) => setTelefone(e.target.value)} className={fieldClass} />
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Identificação</h3>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Dados obtidos pelo CNPJ podem preencher os campos automaticamente.
+              </p>
+
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <Input
+                    id="ce-cnpj"
+                    label={cnpjImutavel ? 'CNPJ' : 'CNPJ *'}
+                    inputMode="numeric"
+                    placeholder="00.000.000/0001-00"
+                    value={cnpj}
+                    onChange={(e) => setCnpj(maskCnpjCpf(e.target.value))}
+                    disabled={cnpjImutavel}
+                    autoComplete="organization"
+                    endAdornment={
+                      <button
+                        type="button"
+                        onClick={consultarCnpj}
+                        disabled={loadingCnpj}
+                        className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:pointer-events-none disabled:opacity-45 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                        aria-label="Consultar CNPJ"
+                      >
+                        {loadingCnpj ? (
+                          <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden />
+                        ) : (
+                          <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                          </svg>
+                        )}
+                      </button>
+                    }
+                  />
+                </div>
+                <div>
+                  <label htmlFor="ce-rs" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Razão social
+                  </label>
+                  <input
+                    id="ce-rs"
+                    value={razaoSocial}
+                    onChange={(e) => setRazaoSocial(e.target.value)}
+                    className={fieldClass}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="ce-nf" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Nome fantasia
+                  </label>
+                  <input
+                    id="ce-nf"
+                    value={nomeFantasia}
+                    onChange={(e) => setNomeFantasia(e.target.value)}
+                    className={fieldClass}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="ce-mail" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    E-mail
+                  </label>
+                  <input
+                    id="ce-mail"
+                    type="email"
+                    value={emailEmpresa}
+                    onChange={(e) => setEmailEmpresa(e.target.value)}
+                    className={fieldClass}
+                    autoComplete="email"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="ce-tel" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Telefone
+                  </label>
+                  <input id="ce-tel" value={telefone} onChange={(e) => setTelefone(e.target.value)} className={fieldClass} />
+                </div>
               </div>
             </div>
 
