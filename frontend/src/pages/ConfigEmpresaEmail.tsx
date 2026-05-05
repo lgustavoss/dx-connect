@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { empresas, fetchEmpresaSistemaLogoBlob, systemSettings, type SystemSettings } from '../api/client'
+import { cadastroAux, empresas, fetchEmpresaSistemaLogoBlob, systemSettings, type SystemSettings } from '../api/client'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
-import { InputCepComBusca } from '../components/ui/InputCepComBusca'
 import { SelectCidadeUf } from '../components/ui/SelectCidadeUf'
 import { SelectUf } from '../components/ui/SelectUf'
 import { Switch } from '../components/ui/Switch'
@@ -59,6 +58,69 @@ function PasswordField({
         </button>
       </div>
     </div>
+  )
+}
+
+function CepField({
+  value,
+  onChange,
+  onEnderecoCompleto,
+  disabled,
+}: {
+  value: string
+  onChange: (v: string) => void
+  onEnderecoCompleto: (d: { logradouro?: string; complemento?: string; bairro?: string; localidade?: string; uf?: string }) => void
+  disabled?: boolean
+}) {
+  const toast = useToast()
+  const [loading, setLoading] = useState(false)
+
+  async function buscar() {
+    const d = digitsOnly(value)
+    if (d.length !== 8) {
+      toast.showWarning('Informe o CEP com 8 dígitos para consultar.')
+      return
+    }
+    setLoading(true)
+    try {
+      const r = await cadastroAux.consultarCep(d)
+      onChange(maskCep(d))
+      onEnderecoCompleto(r)
+      toast.showSuccess('Endereço preenchido pelo CEP.')
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível consultar o CEP.'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Input
+      id="ce-end-cep"
+      label="CEP"
+      inputMode="numeric"
+      placeholder="00000-000"
+      value={value}
+      onChange={(e) => onChange(maskCep(e.target.value))}
+      disabled={disabled}
+      endAdornment={
+        <button
+          type="button"
+          onClick={buscar}
+          disabled={disabled || loading}
+          className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:pointer-events-none disabled:opacity-45 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+          aria-label="Buscar endereço pelo CEP"
+        >
+          {loading ? (
+            <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden />
+          ) : (
+            <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          )}
+        </button>
+      }
+    />
   )
 }
 
@@ -636,8 +698,7 @@ export function ConfigEmpresaEmail() {
                   />
                 </div>
                 <div>
-                  <InputCepComBusca
-                    id="ce-end-cep"
+                  <CepField
                     value={enderecoCep}
                     onChange={setEnderecoCep}
                     onEnderecoCompleto={(d) => {
@@ -648,10 +709,15 @@ export function ConfigEmpresaEmail() {
                     }}
                   />
                 </div>
-                <div>
-                  <SelectUf id="ce-end-uf" value={enderecoUf} onChange={(uf) => { setEnderecoUf(uf); setEnderecoCidade('') }} />
-                </div>
-                <div className="sm:col-span-2">
+                <div className="grid gap-4 sm:grid-cols-2 sm:gap-4 sm:col-span-2">
+                  <SelectUf
+                    id="ce-end-uf"
+                    value={enderecoUf}
+                    onChange={(uf) => {
+                      setEnderecoUf(uf)
+                      setEnderecoCidade('')
+                    }}
+                  />
                   <SelectCidadeUf id="ce-end-cidade" uf={enderecoUf} value={enderecoCidade} onChange={setEnderecoCidade} />
                 </div>
               </div>
