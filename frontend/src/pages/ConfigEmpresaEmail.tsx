@@ -64,6 +64,7 @@ export function ConfigEmpresaEmail() {
   const [loading, setLoading] = useState(true)
   const [aba, setAba] = useState<Aba>('empresa')
   const loadSeqRef = useRef(0)
+  const logoBlobUrlRef = useRef<string | null>(null)
 
   const [cnpj, setCnpj] = useState('')
   const [cnpjImutavel, setCnpjImutavel] = useState(false)
@@ -129,14 +130,19 @@ export function ConfigEmpresaEmail() {
       setEmpresaAtiva(emp.ativo !== false)
 
       // logo: precisa de fetch autenticado (não dá pra usar <img src> direto).
-      if (logoBlobUrl) URL.revokeObjectURL(logoBlobUrl)
+      if (logoBlobUrlRef.current) URL.revokeObjectURL(logoBlobUrlRef.current)
+      logoBlobUrlRef.current = null
       setLogoBlobUrl(null)
       if (emp.logo_url) {
         setLogoLoading(true)
         try {
           const b = await fetchEmpresaSistemaLogoBlob()
           if (seq !== loadSeqRef.current) return
-          if (b) setLogoBlobUrl(URL.createObjectURL(b))
+          if (b) {
+            const u = URL.createObjectURL(b)
+            logoBlobUrlRef.current = u
+            setLogoBlobUrl(u)
+          }
         } finally {
           setLogoLoading(false)
         }
@@ -169,11 +175,12 @@ export function ConfigEmpresaEmail() {
     } finally {
       if (seq === loadSeqRef.current) setLoading(false)
     }
-  }, [toast, logoBlobUrl])
+  }, [toast])
 
   useEffect(() => {
     void carregar()
-  }, [carregar])
+    // carregar é estável (deps só de toast), então roda apenas no mount.
+  }, [])
 
   useEffect(() => {
     if (logoPreviewUrl) return () => URL.revokeObjectURL(logoPreviewUrl)
@@ -181,10 +188,10 @@ export function ConfigEmpresaEmail() {
 
   useEffect(() => {
     return () => {
-      if (logoBlobUrl) URL.revokeObjectURL(logoBlobUrl)
+      if (logoBlobUrlRef.current) URL.revokeObjectURL(logoBlobUrlRef.current)
       if (logoPreviewUrl) URL.revokeObjectURL(logoPreviewUrl)
     }
-  }, [logoBlobUrl, logoPreviewUrl])
+  }, [logoPreviewUrl])
 
   async function salvarEmpresa() {
     const cnpjTrim = cnpj.trim()
