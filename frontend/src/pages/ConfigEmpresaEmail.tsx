@@ -69,7 +69,6 @@ export function ConfigEmpresaEmail() {
   const [cnpj, setCnpj] = useState('')
   const [cnpjImutavel, setCnpjImutavel] = useState(false)
   const [loadingCnpj, setLoadingCnpj] = useState(false)
-  const [nome, setNome] = useState('')
   const [razaoSocial, setRazaoSocial] = useState('')
   const [nomeFantasia, setNomeFantasia] = useState('')
   const [emailEmpresa, setEmailEmpresa] = useState('')
@@ -121,7 +120,6 @@ export function ConfigEmpresaEmail() {
       const cj = (emp.cnpj ?? '').trim()
       setCnpj(cj)
       setCnpjImutavel(Boolean(cj))
-      setNome((emp.nome ?? '').trim())
       setRazaoSocial((emp.razao_social ?? '').trim())
       setNomeFantasia((emp.nome_fantasia ?? '').trim())
       setEmailEmpresa((emp.email ?? '').trim())
@@ -202,7 +200,6 @@ export function ConfigEmpresaEmail() {
     setSalvandoEmpresa(true)
     try {
       const payload: SystemSettings.EmpresaSistemaUpdate = {
-        nome: nome.trim() || null,
         razao_social: razaoSocial.trim() || null,
         nome_fantasia: nomeFantasia.trim() || null,
         email: emailEmpresa.trim() || null,
@@ -507,12 +504,6 @@ export function ConfigEmpresaEmail() {
                     </button>
                   }
                 />
-              </div>
-              <div>
-                <label htmlFor="ce-nome" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Nome
-                </label>
-                <input id="ce-nome" value={nome} onChange={(e) => setNome(e.target.value)} className={fieldClass} />
               </div>
               <div>
                 <label htmlFor="ce-rs" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
