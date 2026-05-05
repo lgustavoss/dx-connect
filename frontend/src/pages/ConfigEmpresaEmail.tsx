@@ -186,8 +186,7 @@ export function ConfigEmpresaEmail() {
     }
   }, [logoBlobUrl, logoPreviewUrl])
 
-  async function salvarEmpresa(e: React.FormEvent) {
-    e.preventDefault()
+  async function salvarEmpresa() {
     const cnpjTrim = cnpj.trim()
     if (!cnpjImutavel && !cnpjTrim) {
       toast.showError('Informe o CNPJ da empresa do sistema.')
@@ -321,8 +320,7 @@ export function ConfigEmpresaEmail() {
     return p
   }
 
-  async function salvarEmail(e: React.FormEvent) {
-    e.preventDefault()
+  async function salvarEmail() {
     if (smtpPort.trim() && Number.isNaN(Number.parseInt(smtpPort.trim(), 10))) {
       toast.showError('Porta SMTP inválida.')
       return
@@ -421,7 +419,7 @@ export function ConfigEmpresaEmail() {
         </div>
 
         {aba === 'empresa' ? (
-          <form onSubmit={salvarEmpresa} className="mt-6 space-y-4">
+          <div className="mt-6 space-y-4">
             <div className="rounded-lg border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
               O CNPJ é obrigatório no primeiro cadastro. Depois de salvo, <strong>não pode ser alterado</strong>.
             </div>
@@ -555,13 +553,13 @@ export function ConfigEmpresaEmail() {
             </div>
             <Switch checked={empresaAtiva} onCheckedChange={setEmpresaAtiva} label="Empresa ativa" bare className="pt-1" />
             <div className="flex flex-wrap gap-3 pt-2">
-              <Button type="submit" disabled={salvandoEmpresa}>
+              <Button type="button" disabled={salvandoEmpresa} onClick={() => void salvarEmpresa()}>
                 {salvandoEmpresa ? 'Salvando…' : 'Salvar empresa'}
               </Button>
             </div>
-          </form>
+          </div>
         ) : (
-          <form onSubmit={salvarEmail} className="mt-6 space-y-8">
+          <div className="mt-6 space-y-8">
             <section className="space-y-4">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">SMTP (envio)</h3>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -692,11 +690,11 @@ export function ConfigEmpresaEmail() {
             </section>
 
             <div className="flex flex-wrap gap-3 border-t border-slate-200 pt-4 dark:border-slate-700/80">
-              <Button type="submit" disabled={salvandoEmail}>
+              <Button type="button" disabled={salvandoEmail} onClick={() => void salvarEmail()}>
                 {salvandoEmail ? 'Salvando…' : 'Salvar e-mail'}
               </Button>
             </div>
-          </form>
+          </div>
         )}
       </Card>
     </div>
