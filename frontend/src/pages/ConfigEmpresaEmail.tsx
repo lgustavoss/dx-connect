@@ -11,9 +11,85 @@ import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { digitsOnly, isCnpj, maskCep, maskCnpjCpf, maskTelefoneBr } from '../utils/masks'
 
 type Aba = 'empresa' | 'email'
+type EmailPreset = 'custom' | 'gmail' | 'outlook'
 
 const fieldClass =
   'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-[0.9375rem] text-slate-900 shadow-inner placeholder:text-slate-400 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-400/25 dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-100 dark:placeholder:text-slate-500'
+
+function parseEnderecoFromStored(raw: string): {
+  logradouro: string
+  numero: string
+  complemento: string
+  bairro: string
+  cidade: string
+  uf: string
+  cep: string
+} {
+  const out = {
+    logradouro: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    uf: '',
+    cep: '',
+  }
+  const s = (raw || '').trim()
+  if (!s) return out
+
+  // Formato novo (salvo por nós): 3 linhas
+  // 1) Logradouro, Número Complemento
+  // 2) Bairro
+  // 3) Cidade/UF - CEP 00000-000
+  if (s.includes('\n')) {
+    const lines = s
+      .split(/\r?\n/g)
+      .map((l) => l.trim())
+      .filter(Boolean)
+    const l1 = lines[0] ?? ''
+    const l2 = lines[1] ?? ''
+    const l3 = lines[2] ?? ''
+
+    // l1: "<logradouro>, <numero> <complemento>"
+    if (l1) {
+      const parts = l1.split(',').map((p) => p.trim())
+      out.logradouro = parts[0] ?? l1
+      const rest = parts.slice(1).join(', ').trim()
+      if (rest) {
+        const tokens = rest.split(/\s+/).filter(Boolean)
+        out.numero = tokens[0] ?? ''
+        out.complemento = tokens.slice(1).join(' ')
+      }
+    }
+    out.bairro = l2
+    if (l3) {
+      const mCep = l3.match(/\bCEP\s+(\d{5}-?\d{3})\b/i)
+      if (mCep?.[1]) out.cep = maskCep(mCep[1])
+      const before = l3.replace(/\bCEP\s+\d{5}-?\d{3}\b/i, '').replace(/\s+-\s+$/, '').trim()
+      const [cidadeUf] = before.split(/\s+-\s+/)
+      const cu = (cidadeUf || '').trim()
+      const mUf = cu.match(/^(.*?)[/ -]([A-Za-z]{2})$/)
+      if (mUf) {
+        out.cidade = (mUf[1] || '').trim()
+        out.uf = (mUf[2] || '').trim().toUpperCase()
+      } else {
+        out.cidade = cu
+      }
+    }
+    return out
+  }
+
+  // Formato antigo: string única — tenta extrair ao menos cidade/UF e CEP.
+  out.logradouro = s
+  const mCep = s.match(/\bCEP\s*(\d{5}-?\d{3})\b/i)
+  if (mCep?.[1]) out.cep = maskCep(mCep[1])
+  const mCidadeUf = s.match(/-\s*([A-Za-zÀ-ÿ .'-]+)\/([A-Za-z]{2})\b/)
+  if (mCidadeUf) {
+    out.cidade = (mCidadeUf[1] || '').trim()
+    out.uf = (mCidadeUf[2] || '').trim().toUpperCase()
+  }
+  return out
+}
 
 function PasswordField({
   id,
@@ -184,6 +260,7 @@ export function ConfigEmpresaEmail() {
   const [testandoImap, setTestandoImap] = useState(false)
   const [mostrarAvancadoSmtp, setMostrarAvancadoSmtp] = useState(false)
   const [mostrarAvancadoImap, setMostrarAvancadoImap] = useState(false)
+  const [emailPreset, setEmailPreset] = useState<EmailPreset>('custom')
 
   const carregar = useCallback(async () => {
     const seq = ++loadSeqRef.current
@@ -206,13 +283,14 @@ export function ConfigEmpresaEmail() {
       // endereço: backend guarda em string única; aqui mostramos campos organizados.
       // Estratégia: se não for possível “parsear”, coloca tudo em logradouro para não perder informação.
       const endRaw = (emp.endereco ?? '').trim()
-      setEnderecoLogradouro(endRaw)
-      setEnderecoNumero('')
-      setEnderecoComplemento('')
-      setEnderecoBairro('')
-      setEnderecoCidade('')
-      setEnderecoUf('')
-      setEnderecoCep('')
+      const parsed = parseEnderecoFromStored(endRaw)
+      setEnderecoLogradouro(parsed.logradouro)
+      setEnderecoNumero(parsed.numero)
+      setEnderecoComplemento(parsed.complemento)
+      setEnderecoBairro(parsed.bairro)
+      setEnderecoCidade(parsed.cidade)
+      setEnderecoUf(parsed.uf)
+      setEnderecoCep(parsed.cep)
       setEmpresaAtiva(emp.ativo !== false)
 
       // logo: precisa de fetch autenticado (não dá pra usar <img src> direto).
@@ -316,13 +394,17 @@ export function ConfigEmpresaEmail() {
       const numComp = [num, comp].filter(Boolean).join(' ')
       if (numComp) parts1.push(numComp)
       const linha1 = parts1.join(', ')
-      const linha2 = [enderecoBairro.trim()].filter(Boolean).join('')
+      const linha2 = enderecoBairro.trim()
       const cidade = enderecoCidade.trim()
       const uf = enderecoUf.trim().toUpperCase()
       const cidadeUf = [cidade, uf].filter(Boolean).join('/')
       const cep = digitsOnly(enderecoCep)
       const linha3 = [cidadeUf, cep ? `CEP ${maskCep(cep)}` : ''].filter(Boolean).join(' - ')
-      const enderecoUnico = [linha1, linha2, linha3].filter(Boolean).join(' - ') || null
+      // Salva em linhas para conseguirmos rehidratar os campos ao abrir novamente.
+      const enderecoUnico =
+        [linha1, linha2, linha3].filter(Boolean).join('\n') ||
+        // fallback (sem campos): mantém ao menos o logradouro se existir
+        (enderecoLogradouro.trim() ? enderecoLogradouro.trim() : null)
 
       const payload: SystemSettings.EmpresaSistemaUpdate = {
         razao_social: razaoSocial.trim() || null,
@@ -416,6 +498,34 @@ export function ConfigEmpresaEmail() {
       toast.showError(mensagemFalhaParaToast(err, 'Erro ao consultar CNPJ.'))
     } finally {
       setLoadingCnpj(false)
+    }
+  }
+
+  function aplicarPresetEmail(preset: EmailPreset) {
+    if (preset === 'custom') return
+
+    // Não obriga IMAP; apenas sugere. Usuário pode apagar depois.
+    if (preset === 'gmail') {
+      setSmtpHost('smtp.gmail.com')
+      setSmtpStarttls(true)
+      setSmtpPort('587')
+      setImapHost('imap.gmail.com')
+      setImapSsl(true)
+      setImapPort('993')
+      setImapFolder('INBOX')
+      toast.showSuccess('Padrões do Gmail aplicados. Use senha de app (recomendado).')
+      return
+    }
+    if (preset === 'outlook') {
+      setSmtpHost('smtp.office365.com')
+      setSmtpStarttls(true)
+      setSmtpPort('587')
+      setImapHost('outlook.office365.com')
+      setImapSsl(true)
+      setImapPort('993')
+      setImapFolder('INBOX')
+      toast.showSuccess('Padrões do Outlook/Office 365 aplicados.')
+      return
     }
   }
 
@@ -780,6 +890,49 @@ export function ConfigEmpresaEmail() {
                 <li>Preencha <strong>IMAP</strong> apenas se o sistema for receber e-mails (porta comum: <strong>993</strong> com SSL).</li>
                 <li>Depois clique em <strong>Salvar</strong> e use <strong>Testar</strong> para validar a conexão.</li>
               </ul>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Provedor</h3>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Selecione Gmail ou Outlook/Office 365 para preencher automaticamente servidor e portas. Você pode ajustar depois.
+              </p>
+              <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                <div className="sm:col-span-2">
+                  <label htmlFor="ce-email-preset" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Tipo de conta
+                  </label>
+                  <select
+                    id="ce-email-preset"
+                    value={emailPreset}
+                    onChange={(e) => {
+                      const v = (e.target.value as EmailPreset) || 'custom'
+                      setEmailPreset(v)
+                    }}
+                    className={fieldClass}
+                  >
+                    <option value="custom">Personalizado</option>
+                    <option value="gmail">Gmail</option>
+                    <option value="outlook">Outlook / Office 365</option>
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => aplicarPresetEmail(emailPreset)}
+                    disabled={emailPreset === 'custom'}
+                    className="w-full"
+                  >
+                    Aplicar
+                  </Button>
+                </div>
+              </div>
+              {emailPreset === 'gmail' ? (
+                <div className="mt-3 rounded-lg border border-amber-200/80 bg-amber-50/90 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
+                  No Gmail, normalmente é necessário usar <strong>senha de app</strong> (ou liberar acesso conforme a política da conta).
+                </div>
+              ) : null}
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
