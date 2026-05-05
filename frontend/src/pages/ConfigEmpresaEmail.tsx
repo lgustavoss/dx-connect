@@ -66,11 +66,13 @@ function CepField({
   onChange,
   onEnderecoCompleto,
   disabled,
+  fieldClass,
 }: {
   value: string
   onChange: (v: string) => void
   onEnderecoCompleto: (d: { logradouro?: string; complemento?: string; bairro?: string; localidade?: string; uf?: string }) => void
   disabled?: boolean
+  fieldClass: string
 }) {
   const toast = useToast()
   const [loading, setLoading] = useState(false)
@@ -95,20 +97,25 @@ function CepField({
   }
 
   return (
-    <Input
-      id="ce-end-cep"
-      label="CEP"
-      inputMode="numeric"
-      placeholder="00000-000"
-      value={value}
-      onChange={(e) => onChange(maskCep(e.target.value))}
-      disabled={disabled}
-      endAdornment={
+    <div className="w-full">
+      <label htmlFor="ce-end-cep" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+        CEP
+      </label>
+      <div className="relative">
+        <input
+          id="ce-end-cep"
+          inputMode="numeric"
+          placeholder="00000-000"
+          value={value}
+          onChange={(e) => onChange(maskCep(e.target.value))}
+          disabled={disabled}
+          className={`${fieldClass} pr-12 disabled:cursor-not-allowed disabled:opacity-70`}
+        />
         <button
           type="button"
           onClick={buscar}
           disabled={disabled || loading}
-          className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:pointer-events-none disabled:opacity-45 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+          className="absolute right-1.5 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:pointer-events-none disabled:opacity-45 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-200"
           aria-label="Buscar endereço pelo CEP"
         >
           {loading ? (
@@ -119,8 +126,8 @@ function CepField({
             </svg>
           )}
         </button>
-      }
-    />
+      </div>
+    </div>
   )
 }
 
@@ -707,6 +714,7 @@ export function ConfigEmpresaEmail() {
                       setEnderecoCidade((d.localidade ?? '').trim() || enderecoCidade)
                       setEnderecoUf((d.uf ?? '').trim().toUpperCase() || enderecoUf)
                     }}
+                    fieldClass={fieldClass}
                   />
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2 sm:gap-4 sm:col-span-2">
