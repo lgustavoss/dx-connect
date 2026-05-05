@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { empresas, fetchEmpresaSistemaLogoBlob, systemSettings, type SystemSettings } from '../api/client'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -62,6 +62,7 @@ export function ConfigEmpresaEmail() {
   const toast = useToast()
   const [loading, setLoading] = useState(true)
   const [aba, setAba] = useState<Aba>('empresa')
+  const loadSeqRef = useRef(0)
 
   const [cnpj, setCnpj] = useState('')
   const [cnpjImutavel, setCnpjImutavel] = useState(false)
@@ -105,12 +106,15 @@ export function ConfigEmpresaEmail() {
   const [testandoImap, setTestandoImap] = useState(false)
 
   const carregar = useCallback(async () => {
+    const seq = ++loadSeqRef.current
     setLoading(true)
     try {
       const [emp, mail] = await Promise.all([
         systemSettings.getEmpresaSistema(),
         systemSettings.getEmail(),
       ])
+
+      if (seq !== loadSeqRef.current) return
 
       const cj = (emp.cnpj ?? '').trim()
       setCnpj(cj)
@@ -130,11 +134,14 @@ export function ConfigEmpresaEmail() {
         setLogoLoading(true)
         try {
           const b = await fetchEmpresaSistemaLogoBlob()
+          if (seq !== loadSeqRef.current) return
           if (b) setLogoBlobUrl(URL.createObjectURL(b))
         } finally {
           setLogoLoading(false)
         }
       }
+
+      if (seq !== loadSeqRef.current) return
 
       setSmtpHost((mail.smtp_host ?? '').trim())
       setSmtpPort(mail.smtp_port != null ? String(mail.smtp_port) : '')
@@ -155,9 +162,11 @@ export function ConfigEmpresaEmail() {
       setImapSsl(mail.imap_use_ssl !== false)
       setImapFolder((mail.imap_folder ?? '').trim())
     } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar as configurações.'))
+      if (seq === loadSeqRef.current) {
+        toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar as configurações.'))
+      }
     } finally {
-      setLoading(false)
+      if (seq === loadSeqRef.current) setLoading(false)
     }
   }, [toast, logoBlobUrl])
 
@@ -248,6 +257,8 @@ export function ConfigEmpresaEmail() {
   }
 
   async function consultarCnpj() {
+    // invalida qualquer load em andamento para não sobrescrever o state preenchido pela consulta
+    loadSeqRef.current += 1
     const d = digitsOnly(cnpj)
     if (!isCnpj(cnpj)) {
       toast.showWarning('Informe um CNPJ com 14 dígitos para consultar.')
