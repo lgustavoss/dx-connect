@@ -18,6 +18,21 @@ const fieldClass =
   'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-[0.9375rem] text-slate-900 shadow-inner placeholder:text-slate-400 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-400/25 dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-100 dark:placeholder:text-slate-500'
 const controlHeightClass = 'h-[46px]'
 const secondaryHelpClass = 'mt-1 min-h-[1rem] text-xs text-slate-500 dark:text-slate-400'
+const helperSlotClass = 'mb-1.5 min-h-[1rem] text-xs text-slate-500 dark:text-slate-400'
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      className={`size-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      aria-hidden
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+    </svg>
+  )
+}
 
 function parseEnderecoFromStored(raw: string): {
   logradouro: string
@@ -115,7 +130,7 @@ function PasswordField({
       <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
         {label}
       </label>
-      {hint ? <p className="mb-1.5 text-xs text-slate-500 dark:text-slate-400">{hint}</p> : null}
+      <p className={helperSlotClass}>{hint ?? '\u00A0'}</p>
       <div className="relative">
         <input
           id={id}
@@ -1017,9 +1032,11 @@ export function ConfigEmpresaEmail() {
                 <button
                   type="button"
                   onClick={() => setMostrarAvancadoSmtp((v) => !v)}
-                  className="text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                  className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                  aria-expanded={mostrarAvancadoSmtp}
                 >
                   {mostrarAvancadoSmtp ? 'Ocultar opções avançadas' : 'Mostrar opções avançadas'}
+                  <Chevron open={mostrarAvancadoSmtp} />
                 </button>
                 <div className="flex flex-wrap gap-3">
                   <Button
@@ -1141,9 +1158,11 @@ export function ConfigEmpresaEmail() {
                 <button
                   type="button"
                   onClick={() => setMostrarAvancadoImap((v) => !v)}
-                  className="text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                  className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                  aria-expanded={mostrarAvancadoImap}
                 >
                   {mostrarAvancadoImap ? 'Ocultar opções avançadas' : 'Mostrar opções avançadas'}
+                  <Chevron open={mostrarAvancadoImap} />
                 </button>
                 <div className="flex flex-wrap gap-3">
                   <Button
