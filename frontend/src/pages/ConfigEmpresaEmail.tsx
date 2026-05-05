@@ -182,6 +182,8 @@ export function ConfigEmpresaEmail() {
   const [salvandoEmail, setSalvandoEmail] = useState(false)
   const [testandoSmtp, setTestandoSmtp] = useState(false)
   const [testandoImap, setTestandoImap] = useState(false)
+  const [mostrarAvancadoSmtp, setMostrarAvancadoSmtp] = useState(false)
+  const [mostrarAvancadoImap, setMostrarAvancadoImap] = useState(false)
 
   const carregar = useCallback(async () => {
     const seq = ++loadSeqRef.current
@@ -265,6 +267,29 @@ export function ConfigEmpresaEmail() {
     void carregar()
     // carregar é estável (deps só de toast), então roda apenas no mount.
   }, [])
+
+  useEffect(() => {
+    // Sugestão de portas padrão para simplificar o setup.
+    if (smtpHost.trim() && !smtpPort.trim()) setSmtpPort(smtpStarttls ? '587' : '465')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [smtpHost])
+
+  useEffect(() => {
+    if (!smtpHost.trim() || smtpPort.trim()) return
+    setSmtpPort(smtpStarttls ? '587' : '465')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [smtpStarttls])
+
+  useEffect(() => {
+    if (imapHost.trim() && !imapPort.trim()) setImapPort(imapSsl ? '993' : '143')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imapHost])
+
+  useEffect(() => {
+    if (!imapHost.trim() || imapPort.trim()) return
+    setImapPort(imapSsl ? '993' : '143')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imapSsl])
 
   useEffect(() => {
     if (logoPreviewUrl) return () => URL.revokeObjectURL(logoPreviewUrl)
@@ -747,27 +772,55 @@ export function ConfigEmpresaEmail() {
             </div>
           </div>
         ) : (
-          <div className="mt-6 space-y-8">
-            <section className="space-y-4">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">SMTP (envio)</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
+          <div className="mt-6 space-y-6">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Como configurar</h3>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600 dark:text-slate-400">
+                <li>Preencha <strong>SMTP</strong> para enviar e-mails (porta comum: <strong>587</strong> com STARTTLS).</li>
+                <li>Preencha <strong>IMAP</strong> apenas se o sistema for receber e-mails (porta comum: <strong>993</strong> com SSL).</li>
+                <li>Depois clique em <strong>Salvar</strong> e use <strong>Testar</strong> para validar a conexão.</li>
+              </ul>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">SMTP (envio)</h3>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Dados do servidor de saída (envio). Geralmente são fornecidos pelo provedor de e-mail.
+                  </p>
+                </div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  Senha salva: <strong>{hadSmtpPassword ? 'sim' : 'não'}</strong>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div>
                   <label htmlFor="ce-sh" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Servidor
+                    Servidor SMTP
                   </label>
-                  <input id="ce-sh" value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} className={fieldClass} />
-                </div>
-                <div>
-                  <label htmlFor="ce-sp" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Porta
-                  </label>
-                  <input id="ce-sp" value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} className={fieldClass} inputMode="numeric" />
+                  <input
+                    id="ce-sh"
+                    value={smtpHost}
+                    onChange={(e) => setSmtpHost(e.target.value)}
+                    className={fieldClass}
+                    placeholder="smtp.seudominio.com"
+                    autoComplete="off"
+                  />
                 </div>
                 <div>
                   <label htmlFor="ce-su" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                     Usuário
                   </label>
-                  <input id="ce-su" value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} className={fieldClass} autoComplete="off" />
+                  <input
+                    id="ce-su"
+                    value={smtpUser}
+                    onChange={(e) => setSmtpUser(e.target.value)}
+                    className={fieldClass}
+                    placeholder="email@seudominio.com"
+                    autoComplete="off"
+                  />
                 </div>
                 <PasswordField
                   id="ce-spw"
@@ -780,15 +833,15 @@ export function ConfigEmpresaEmail() {
                   autoComplete="new-password"
                   hint={
                     hadSmtpPassword && !smtpPasswordTouched
-                      ? 'Já existe uma senha salva. Deixe em branco para manter; digite para substituir; salve com o campo vazio para remover.'
+                      ? 'Já existe uma senha salva. Deixe em branco para manter; digite para substituir; salve vazio para remover.'
                       : hadSmtpPassword
-                        ? 'Vazio ao salvar remove a senha salva.'
-                        : undefined
+                        ? 'Salvar com o campo vazio remove a senha.'
+                        : 'A senha não é exibida após salvar.'
                   }
                 />
                 <div>
                   <label htmlFor="ce-sfe" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    E-mail remetente (From)
+                    Remetente (From)
                   </label>
                   <input
                     id="ce-sfe"
@@ -796,49 +849,108 @@ export function ConfigEmpresaEmail() {
                     value={smtpFromEmail}
                     onChange={(e) => setSmtpFromEmail(e.target.value)}
                     className={fieldClass}
+                    placeholder="email@seudominio.com"
                   />
-                </div>
-                <div>
-                  <label htmlFor="ce-sfn" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Nome remetente
-                  </label>
-                  <input id="ce-sfn" value={smtpFromName} onChange={(e) => setSmtpFromName(e.target.value)} className={fieldClass} />
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Se ficar vazio, alguns servidores usam o próprio usuário.
+                  </p>
                 </div>
               </div>
-              <Switch
-                checked={smtpStarttls}
-                onCheckedChange={setSmtpStarttls}
-                label="STARTTLS"
-                description="Ative se o servidor exigir TLS na porta (ex.: 587)."
-                bare
-              />
-              <div className="flex flex-wrap gap-3">
-                <Button type="button" variant="secondary" onClick={() => void testarSmtp()} disabled={testandoSmtp}>
-                  {testandoSmtp ? 'Testando…' : 'Testar SMTP'}
-                </Button>
-              </div>
-            </section>
 
-            <section className="space-y-4 border-t border-slate-200 pt-6 dark:border-slate-700/80">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">IMAP (recepção)</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setMostrarAvancadoSmtp((v) => !v)}
+                  className="text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                >
+                  {mostrarAvancadoSmtp ? 'Ocultar opções avançadas' : 'Mostrar opções avançadas'}
+                </button>
+                <div className="flex flex-wrap gap-3">
+                  <Button type="button" variant="secondary" onClick={() => void testarSmtp()} disabled={testandoSmtp}>
+                    {testandoSmtp ? 'Testando…' : 'Testar SMTP'}
+                  </Button>
+                </div>
+              </div>
+
+              {mostrarAvancadoSmtp ? (
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="ce-sp" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Porta SMTP
+                    </label>
+                    <input
+                      id="ce-sp"
+                      value={smtpPort}
+                      onChange={(e) => setSmtpPort(e.target.value)}
+                      className={fieldClass}
+                      inputMode="numeric"
+                      placeholder={smtpStarttls ? '587' : '465'}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="ce-sfn" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Nome do remetente (opcional)
+                    </label>
+                    <input
+                      id="ce-sfn"
+                      value={smtpFromName}
+                      onChange={(e) => setSmtpFromName(e.target.value)}
+                      className={fieldClass}
+                      placeholder="DX Connect"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Switch
+                      checked={smtpStarttls}
+                      onCheckedChange={setSmtpStarttls}
+                      label="Usar STARTTLS"
+                      description="Ative se o servidor exigir TLS na porta (ex.: 587)."
+                      bare
+                    />
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">IMAP (recepção)</h3>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Opcional. Use para ler e-mails na caixa de entrada (quando aplicável).
+                  </p>
+                </div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  Senha salva: <strong>{hadImapPassword ? 'sim' : 'não'}</strong>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div>
                   <label htmlFor="ce-ih" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Servidor
+                    Servidor IMAP
                   </label>
-                  <input id="ce-ih" value={imapHost} onChange={(e) => setImapHost(e.target.value)} className={fieldClass} />
-                </div>
-                <div>
-                  <label htmlFor="ce-ip" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Porta
-                  </label>
-                  <input id="ce-ip" value={imapPort} onChange={(e) => setImapPort(e.target.value)} className={fieldClass} inputMode="numeric" />
+                  <input
+                    id="ce-ih"
+                    value={imapHost}
+                    onChange={(e) => setImapHost(e.target.value)}
+                    className={fieldClass}
+                    placeholder="imap.seudominio.com"
+                    autoComplete="off"
+                  />
                 </div>
                 <div>
                   <label htmlFor="ce-iu" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                     Usuário
                   </label>
-                  <input id="ce-iu" value={imapUser} onChange={(e) => setImapUser(e.target.value)} className={fieldClass} autoComplete="off" />
+                  <input
+                    id="ce-iu"
+                    value={imapUser}
+                    onChange={(e) => setImapUser(e.target.value)}
+                    className={fieldClass}
+                    placeholder="email@seudominio.com"
+                    autoComplete="off"
+                  />
                 </div>
                 <PasswordField
                   id="ce-ipw"
@@ -851,35 +963,66 @@ export function ConfigEmpresaEmail() {
                   autoComplete="new-password"
                   hint={
                     hadImapPassword && !imapPasswordTouched
-                      ? 'Já existe uma senha salva. Deixe em branco para manter; digite para substituir; salve com o campo vazio para remover.'
+                      ? 'Já existe uma senha salva. Deixe em branco para manter; digite para substituir; salve vazio para remover.'
                       : hadImapPassword
-                        ? 'Vazio ao salvar remove a senha salva.'
-                        : undefined
+                        ? 'Salvar com o campo vazio remove a senha.'
+                        : 'A senha não é exibida após salvar.'
                   }
                 />
-                <div className="sm:col-span-2">
-                  <label htmlFor="ce-if" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Pasta (opcional)
-                  </label>
-                  <input id="ce-if" value={imapFolder} onChange={(e) => setImapFolder(e.target.value)} className={fieldClass} />
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setMostrarAvancadoImap((v) => !v)}
+                  className="text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                >
+                  {mostrarAvancadoImap ? 'Ocultar opções avançadas' : 'Mostrar opções avançadas'}
+                </button>
+                <div className="flex flex-wrap gap-3">
+                  <Button type="button" variant="secondary" onClick={() => void testarImap()} disabled={testandoImap}>
+                    {testandoImap ? 'Testando…' : 'Testar IMAP'}
+                  </Button>
                 </div>
               </div>
-              <Switch
-                checked={imapSsl}
-                onCheckedChange={setImapSsl}
-                label="SSL/TLS (porta típica 993)"
-                bare
-              />
-              <div className="flex flex-wrap gap-3">
-                <Button type="button" variant="secondary" onClick={() => void testarImap()} disabled={testandoImap}>
-                  {testandoImap ? 'Testando…' : 'Testar IMAP'}
-                </Button>
-              </div>
-            </section>
 
-            <div className="flex flex-wrap gap-3 border-t border-slate-200 pt-4 dark:border-slate-700/80">
+              {mostrarAvancadoImap ? (
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="ce-ip" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Porta IMAP
+                    </label>
+                    <input
+                      id="ce-ip"
+                      value={imapPort}
+                      onChange={(e) => setImapPort(e.target.value)}
+                      className={fieldClass}
+                      inputMode="numeric"
+                      placeholder={imapSsl ? '993' : '143'}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="ce-if" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Pasta (opcional)
+                    </label>
+                    <input
+                      id="ce-if"
+                      value={imapFolder}
+                      onChange={(e) => setImapFolder(e.target.value)}
+                      className={fieldClass}
+                      placeholder="INBOX"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Switch checked={imapSsl} onCheckedChange={setImapSsl} label="Usar SSL/TLS" description="Comum na porta 993." bare />
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex flex-wrap gap-3">
               <Button type="button" disabled={salvandoEmail} onClick={() => void salvarEmail()}>
-                {salvandoEmail ? 'Salvando…' : 'Salvar e-mail'}
+                {salvandoEmail ? 'Salvando…' : 'Salvar configurações de e-mail'}
               </Button>
             </div>
           </div>
