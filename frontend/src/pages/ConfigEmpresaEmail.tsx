@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import { fetchEmpresaSistemaLogoBlob, systemSettings, type SystemSettings } from '../api/client'
+import { empresas, fetchEmpresaSistemaLogoBlob, systemSettings, type SystemSettings } from '../api/client'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Switch } from '../components/ui/Switch'
 import { useToast } from '../components/ui/Toast'
 import { IconEye, IconEyeOff } from '../components/ui/IconEye'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
+import { digitsOnly, isCnpj, maskCnpjCpf, maskTelefoneBr } from '../utils/masks'
 
 type Aba = 'empresa' | 'email'
 
@@ -64,6 +65,7 @@ export function ConfigEmpresaEmail() {
 
   const [cnpj, setCnpj] = useState('')
   const [cnpjImutavel, setCnpjImutavel] = useState(false)
+  const [loadingCnpj, setLoadingCnpj] = useState(false)
   const [nome, setNome] = useState('')
   const [razaoSocial, setRazaoSocial] = useState('')
   const [nomeFantasia, setNomeFantasia] = useState('')
@@ -242,6 +244,45 @@ export function ConfigEmpresaEmail() {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível remover o logo.'))
     } finally {
       setLogoDeleting(false)
+    }
+  }
+
+  async function consultarCnpj() {
+    const d = digitsOnly(cnpj)
+    if (!isCnpj(cnpj)) {
+      toast.showWarning('Informe um CNPJ com 14 dígitos para consultar.')
+      return
+    }
+    setLoadingCnpj(true)
+    try {
+      const data = await empresas.consultarCnpj(d)
+      setCnpj(maskCnpjCpf(d))
+      setRazaoSocial((data.razao_social ?? '').trim())
+      setNomeFantasia((data.nome_fantasia ?? '').trim())
+
+      const enderecoParts: string[] = []
+      const log = (data.endereco ?? '').trim()
+      if (log) enderecoParts.push(log)
+      const num = (data.numero ?? '').trim()
+      const comp = (data.complemento ?? '').trim()
+      const numComp = [num, comp].filter(Boolean).join(' ')
+      if (numComp) enderecoParts.push(numComp)
+      const bairro = (data.bairro ?? '').trim()
+      if (bairro) enderecoParts.push(bairro)
+      const cid = (data.cidade ?? '').trim()
+      const uf = (data.estado ?? '').trim()
+      const cidadeUf = [cid, uf ? `/${uf}` : ''].join('').trim()
+      if (cidadeUf) enderecoParts.push(cidadeUf)
+      setEndereco(enderecoParts.join(' - '))
+
+      setEmailEmpresa((data.email ?? '').trim())
+      setTelefone(data.telefone ? maskTelefoneBr(data.telefone) : '')
+
+      toast.showSuccess('Dados preenchidos com sucesso.')
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Erro ao consultar CNPJ.'))
+    } finally {
+      setLoadingCnpj(false)
     }
   }
 
@@ -425,14 +466,39 @@ export function ConfigEmpresaEmail() {
                 <label htmlFor="ce-cnpj" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   CNPJ {cnpjImutavel ? '' : <span className="text-red-600 dark:text-red-400">*</span>}
                 </label>
-                <input
-                  id="ce-cnpj"
-                  value={cnpj}
-                  onChange={(e) => setCnpj(e.target.value)}
-                  disabled={cnpjImutavel}
-                  className={`${fieldClass} disabled:cursor-not-allowed disabled:opacity-70`}
-                  autoComplete="organization"
-                />
+                <div className="relative">
+                  <input
+                    id="ce-cnpj"
+                    value={cnpj}
+                    onChange={(e) => setCnpj(maskCnpjCpf(e.target.value))}
+                    disabled={cnpjImutavel}
+                    className={`${fieldClass} pr-12 disabled:cursor-not-allowed disabled:opacity-70`}
+                    autoComplete="organization"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void consultarCnpj()}
+                    disabled={loadingCnpj || !isCnpj(cnpj)}
+                    className="absolute right-1.5 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:pointer-events-none disabled:opacity-45 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-200"
+                    aria-label="Consultar CNPJ"
+                  >
+                    {loadingCnpj ? (
+                      <span
+                        className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                        aria-hidden
+                      />
+                    ) : (
+                      <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                        />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </div>
               <div>
                 <label htmlFor="ce-nome" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
