@@ -4,6 +4,7 @@ import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { SelectCidadeUf } from '../components/ui/SelectCidadeUf'
 import { SelectUf } from '../components/ui/SelectUf'
+import { SelectStringComPesquisa } from '../components/ui/SelectStringComPesquisa'
 import { Switch } from '../components/ui/Switch'
 import { useToast } from '../components/ui/Toast'
 import { IconEye, IconEyeOff } from '../components/ui/IconEye'
@@ -899,22 +900,22 @@ export function ConfigEmpresaEmail() {
               </p>
               <div className="mt-4 grid gap-4 sm:grid-cols-3">
                 <div className="sm:col-span-2">
-                  <label htmlFor="ce-email-preset" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Tipo de conta
-                  </label>
-                  <select
+                  <SelectStringComPesquisa
                     id="ce-email-preset"
+                    label="Tipo de conta"
                     value={emailPreset}
-                    onChange={(e) => {
-                      const v = (e.target.value as EmailPreset) || 'custom'
-                      setEmailPreset(v)
-                    }}
-                    className={fieldClass}
-                  >
-                    <option value="custom">Personalizado</option>
-                    <option value="gmail">Gmail</option>
-                    <option value="outlook">Outlook / Office 365</option>
-                  </select>
+                    onChange={(v) => setEmailPreset((v as EmailPreset) || 'custom')}
+                    items={[
+                      { value: 'custom', label: 'Personalizado' },
+                      { value: 'gmail', label: 'Gmail' },
+                      { value: 'outlook', label: 'Outlook / Office 365' },
+                    ]}
+                    placeholder="Selecione…"
+                    emptyPlaceholder="Selecione…"
+                    recentCount={3}
+                    hint="Selecione o provedor para aplicar padrões."
+                    triggerClassName={`${fieldClass} flex items-center justify-between text-left`}
+                  />
                 </div>
                 <div className="flex items-end">
                   <Button
