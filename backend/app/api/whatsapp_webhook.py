@@ -2,12 +2,12 @@ import logging
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.whatsapp_chat import WhatsappChat, WhatsappMensagem, WhatsappSettings
 from app.services import evolution_api
+from app.services.protocolo_mensal import gerar_protocolo_chat
 from app.services.evolution_inbound import iter_inbound_whatsapp_messages
 from app.services.whatsapp_media_storage import gravar_base64_em_disco
 from datetime import date, datetime, timedelta
@@ -32,11 +32,6 @@ def _webhook_autorizado(request: Request, secret: str | None) -> bool:
 
 def _get_settings(db: Session) -> WhatsappSettings | None:
     return db.query(WhatsappSettings).order_by(WhatsappSettings.id.asc()).first()
-
-
-def _protocolo_proximo_chat(db: Session) -> str:
-    r = db.query(func.max(WhatsappChat.id)).scalar() or 0
-    return f"WCH-{20000 + int(r) + 1}"
 
 
 def _chat_aberto_por_wa_id(db: Session, wa_id: str) -> WhatsappChat | None:
@@ -368,7 +363,7 @@ def evolution_webhook(
         chat = _chat_aberto_por_wa_id(db, wa_id)
         if not chat:
             chat = WhatsappChat(
-                protocolo=_protocolo_proximo_chat(db),
+                protocolo=gerar_protocolo_chat(db),
                 wa_id=wa_id,
                 cliente_nome=push,
                 estado="aguardando_atendente",

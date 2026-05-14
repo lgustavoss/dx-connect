@@ -26,6 +26,7 @@ import { refetchPendenciasResumo } from '../hooks/useAlertaFilaSemResponsavel'
 import { SemPermissao } from './SemPermissao'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
+import { exibirProtocolo } from '../lib/exibirProtocolo'
 
 const ROTULO_CAMPO: Record<string, string> = {
   status_id: 'Status',
@@ -681,7 +682,12 @@ export function TicketDetalhe() {
         <span aria-hidden className="text-slate-300 dark:text-slate-600">
           /
         </span>
-        <span className="font-semibold text-slate-800 dark:text-slate-100">#{ticket.protocolo}</span>
+        <span
+          className="min-w-0 truncate font-semibold text-slate-800 dark:text-slate-100"
+          title={exibirProtocolo(ticket.protocolo)}
+        >
+          {exibirProtocolo(ticket.protocolo)}
+        </span>
       </nav>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -772,7 +778,7 @@ export function TicketDetalhe() {
                       to={`/whatsapp/c/${c.id}`}
                       className="text-sm font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
                     >
-                      {c.protocolo}
+                      {exibirProtocolo(c.protocolo)}
                       {c.estado === 'encerrado' ? ' (encerrado)' : ''}
                     </Link>
                   </li>

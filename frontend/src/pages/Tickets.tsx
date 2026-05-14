@@ -24,6 +24,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useAlertaFilaSemResponsavel } from '../hooks/useAlertaFilaSemResponsavel'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
+import { exibirProtocolo } from '../lib/exibirProtocolo'
 
 type ColunaOrdenacao =
   | 'protocolo'
@@ -330,7 +331,7 @@ export function Tickets() {
                   setBusca(e.target.value)
                   resetarPagina()
                 }}
-                placeholder="Buscar por protocolo, assunto ou empresa…"
+                placeholder="Buscar por protocolo (ex.: #T2026-04-0001), assunto ou empresa…"
                 disabled={loading}
                 className="w-full rounded-xl border-0 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-900 shadow-inner ring-1 ring-slate-200/80 transition-shadow placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-400/25 dark:bg-slate-900/60 dark:text-slate-100 dark:ring-slate-700 dark:placeholder:text-slate-500 dark:focus:bg-slate-900"
                 aria-label="Buscar tickets"
@@ -444,7 +445,7 @@ export function Tickets() {
                 {!isAdmin && empresasOpt.length === 0 && (
                   <p className="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
                     Empresas no filtro aparecem só para redes que já tiveram ticket nos setores que você atende. Até lá,
-                    use a busca por protocolo ou assunto.
+                    use a busca por protocolo (inclui # e hífen), assunto ou empresa.
                   </p>
                 )}
               </div>
@@ -572,7 +573,12 @@ export function Tickets() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="font-mono text-xs text-slate-500 dark:text-slate-400">#{t.protocolo}</p>
+                        <p
+                          className="min-w-0 truncate font-mono text-xs text-slate-500 dark:text-slate-400"
+                          title={exibirProtocolo(t.protocolo)}
+                        >
+                          {exibirProtocolo(t.protocolo)}
+                        </p>
                         <p className="mt-1 truncate font-semibold text-slate-900 dark:text-slate-100">
                           {t.empresa_nome ?? String(t.empresa_id)}
                         </p>
@@ -727,8 +733,11 @@ export function Tickets() {
                     }}
                     className="cursor-pointer transition-colors hover:bg-slate-50/90 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-slate-800/50 dark:focus-visible:bg-slate-800/60"
                   >
-                    <td className="whitespace-nowrap px-4 py-3.5 align-top font-mono text-sm text-slate-900 sm:px-6 dark:text-slate-100">
-                      {t.protocolo}
+                    <td
+                      className="max-w-[10rem] truncate px-4 py-3.5 align-top font-mono text-sm text-slate-900 sm:max-w-[12rem] sm:px-6 dark:text-slate-100"
+                      title={exibirProtocolo(t.protocolo)}
+                    >
+                      {exibirProtocolo(t.protocolo)}
                     </td>
                     <td
                       className="hidden px-4 py-3.5 align-top text-slate-600 lg:table-cell sm:px-6 dark:text-slate-400"

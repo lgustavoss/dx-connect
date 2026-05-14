@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
+import { exibirProtocolo } from '../../lib/exibirProtocolo'
 
 const PAGE_SIZE = 15 // Reduzi para 15 para melhorar o fôlego da página em listas longas
 
@@ -56,7 +57,7 @@ export function WhatsappHistorico() {
         <div className="flex flex-1 max-w-md gap-2">
           <div className="relative flex-1">
             <Input 
-              placeholder="Buscar por nome ou protocolo..." 
+              placeholder="Buscar por nome, telefone ou protocolo (ex.: #C2026-04-0001)…" 
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               className="pl-10"
@@ -100,7 +101,12 @@ export function WhatsappHistorico() {
                         <h3 className="truncate font-bold text-slate-900 dark:text-slate-100">{c.cliente_nome || 'Cliente'}</h3>
                         <span className="font-mono text-[10px] font-bold text-slate-400">{c.wa_id}</span>
                       </div>
-                      <p className="font-mono text-xs font-bold text-cyan-600 dark:text-cyan-400">{c.protocolo}</p>
+                      <p
+                        className="truncate font-mono text-xs font-bold text-cyan-600 dark:text-cyan-400"
+                        title={exibirProtocolo(c.protocolo)}
+                      >
+                        {exibirProtocolo(c.protocolo)}
+                      </p>
                     </div>
                   </div>
 
