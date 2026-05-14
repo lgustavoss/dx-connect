@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useMemo } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ApiError,
   tickets,
@@ -17,6 +17,7 @@ import {
 } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
+import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
@@ -34,6 +35,7 @@ const ROTULO_CAMPO: Record<string, string> = {
   atendente_id: 'Responsável',
   assunto: 'Assunto',
   descricao: 'Descrição',
+  parent_ticket_id: 'Ticket pai',
 }
 
 function resolverValorHistorico(
@@ -106,6 +108,7 @@ function dedupeAtendentesMesmoNome(
 
 export function TicketDetalhe() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const voltarAnterior = useVoltarAnterior('/tickets')
   const toast = useToast()
   const { isAdmin, user } = useAuth()
@@ -148,6 +151,10 @@ export function TicketDetalhe() {
   /** Qual bloco do modal recebe destaque ao abrir (chips no cabeçalho). */
   const [modalGerirFoco, setModalGerirFoco] = useState<'geral' | 'setor' | 'status' | 'atendente'>('geral')
   const [historicoAberto, setHistoricoAberto] = useState(false)
+
+  const [idFilhoParaVincular, setIdFilhoParaVincular] = useState('')
+  const [vinculandoFilho, setVinculandoFilho] = useState(false)
+  const [desvinculandoHierarquia, setDesvinculandoHierarquia] = useState(false)
 
   const setoresParaSelect = useMemo(() => {
     const ativos = setoresList.filter((s) => s.ativo)
@@ -220,6 +227,14 @@ export function TicketDetalhe() {
   const statusFechado = useMemo(() => {
     return statusList.find((s) => (s.slug || '').toLowerCase() === 'fechado') ?? null
   }, [statusList])
+
+  const filhosAbertosCount = useMemo(() => {
+    const ch = ticket?.children
+    if (!ch?.length) return 0
+    return ch.filter((c) => !c.fechado_em).length
+  }, [ticket?.children])
+
+  const podeEditarHierarquia = !!ticket && (!ticket.fechado_em || isAdmin)
 
   /** Mensagem “da equipe” (público no fluxo): admin, responsável ou ticket ainda sem responsável. */
   const podeMensagemPublica = useMemo(() => {
@@ -522,6 +537,56 @@ export function TicketDetalhe() {
       toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível fechar.'))
     } finally {
       setFechando(false)
+    }
+  }
+
+  async function handleVincularFilhoExistente() {
+    if (!ticket) return
+    const id = Number(idFilhoParaVincular.trim())
+    if (!Number.isFinite(id) || id < 1 || id === ticket.id) {
+      toast.showWarning('Informe o número de outro ticket (filho) válido, diferente deste.')
+      return
+    }
+    setVinculandoFilho(true)
+    try {
+      await tickets.update(id, { parent_ticket_id: ticket.id })
+      const atualizado = await tickets.get(ticket.id)
+      setTicket(atualizado)
+      setIdFilhoParaVincular('')
+      toast.showSuccess('Ticket vinculado como filho.')
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível vincular o ticket.'))
+    } finally {
+      setVinculandoFilho(false)
+    }
+  }
+
+  async function handleDesvincularDoPai() {
+    if (!ticket?.parent_ticket_id) return
+    setDesvinculandoHierarquia(true)
+    try {
+      const atualizado = await tickets.update(ticket.id, { parent_ticket_id: null })
+      setTicket(atualizado)
+      toast.showSuccess('Vínculo com o ticket pai removido.')
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível desvincular do pai.'))
+    } finally {
+      setDesvinculandoHierarquia(false)
+    }
+  }
+
+  async function handleDesvincularFilho(childId: number) {
+    if (!ticket) return
+    setDesvinculandoHierarquia(true)
+    try {
+      await tickets.update(childId, { parent_ticket_id: null })
+      const atualizado = await tickets.get(ticket.id)
+      setTicket(atualizado)
+      toast.showSuccess('Filho desvinculado.')
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível desvincular o filho.'))
+    } finally {
+      setDesvinculandoHierarquia(false)
     }
   }
 
@@ -857,7 +922,120 @@ export function TicketDetalhe() {
       </div>
       </div>
 
-      <div className="mt-6">
+      <div className="mt-6 space-y-6">
+      <Card title="Hierarquia de tickets">
+        <div className="space-y-4 text-sm text-slate-700 dark:text-slate-200">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Ticket pai</p>
+            {ticket.parent_ticket_id == null && <p className="mt-1 text-slate-500 dark:text-slate-400">Nenhum.</p>}
+            {ticket.parent_ticket_id != null && (
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <Link
+                  to={`/tickets/${ticket.parent_ticket_id}`}
+                  className="font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                >
+                  {ticket.parent
+                    ? `${exibirProtocolo(ticket.parent.protocolo)} — ${ticket.parent.assunto}`
+                    : `Ticket #${ticket.parent_ticket_id}`}
+                </Link>
+                {podeEditarHierarquia && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    loading={desvinculandoHierarquia}
+                    onClick={handleDesvincularDoPai}
+                  >
+                    Desvincular do pai
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Tickets filhos
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={!podeEditarHierarquia}
+                  onClick={() => navigate(`/tickets/novo?pai=${ticket.id}`)}
+                >
+                  Abrir ticket filho
+                </Button>
+              </div>
+            </div>
+            {(!ticket.children || ticket.children.length === 0) && (
+              <p className="mt-2 text-slate-500 dark:text-slate-400">Nenhum filho vinculado.</p>
+            )}
+            {ticket.children && ticket.children.length > 0 && (
+              <ul className="mt-2 divide-y divide-slate-200 rounded-lg border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
+                {ticket.children.map((c) => (
+                  <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                    <div className="min-w-0">
+                      <Link
+                        to={`/tickets/${c.id}`}
+                        className="font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                      >
+                        {exibirProtocolo(c.protocolo)}
+                      </Link>
+                      <span className="text-slate-600 dark:text-slate-300"> — {c.assunto}</span>
+                      <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
+                        {c.status_nome ?? '—'}
+                        {c.fechado_em ? ' · fechado' : ' · aberto'}
+                      </span>
+                    </div>
+                    {podeEditarHierarquia && !c.fechado_em && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        loading={desvinculandoHierarquia}
+                        onClick={() => handleDesvincularFilho(c.id)}
+                      >
+                        Desvincular
+                      </Button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {podeEditarHierarquia && (
+            <div className="rounded-xl border border-slate-200/90 bg-slate-50/70 px-3 py-3 dark:border-slate-700/70 dark:bg-slate-900/30">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Vincular ticket existente como filho deste
+              </p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Informe o ID do ticket que passará a ser filho (mesma rede; você precisa ter acesso a ele).
+              </p>
+              <div className="mt-3 flex max-w-md flex-wrap items-end gap-2">
+                <Input
+                  id="ticket-vincular-filho-id"
+                  label="ID do ticket"
+                  type="number"
+                  min={1}
+                  value={idFilhoParaVincular}
+                  onChange={(e) => setIdFilhoParaVincular(e.target.value)}
+                  disabled={vinculandoFilho || desvinculandoHierarquia}
+                />
+                <Button
+                  type="button"
+                  onClick={handleVincularFilhoExistente}
+                  loading={vinculandoFilho}
+                  disabled={desvinculandoHierarquia}
+                >
+                  Vincular
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
+
       <Card title="Conversa">
         <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
           Mensagens da equipe para o andamento; comentários internos só para atendentes.
@@ -1293,6 +1471,12 @@ export function TicketDetalhe() {
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Ao fechar, o ticket sairá da lista de abertos e não permitirá novas mensagens.
             </p>
+            {filhosAbertosCount > 0 && (
+              <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-100">
+                Este ticket tem {filhosAbertosCount} filho(s) direto(s) ainda em aberto. O sistema bloqueia o fecho até
+                encerrá-los ou desvinculá-los.
+              </p>
+            )}
             <div className="mt-5 flex flex-wrap justify-end gap-2">
               <Button
                 type="button"

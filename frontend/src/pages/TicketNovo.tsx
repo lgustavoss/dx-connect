@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ApiError, tickets, empresas, setores, type Empresas, type Setores } from '../api/client'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { ApiError, tickets, empresas, setores, type Empresas, type Setores, type Tickets } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -21,8 +21,11 @@ export function TicketNovo() {
   const { isAdmin } = useAuth()
   const toast = useToast()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const voltarAnterior = useVoltarAnterior('/tickets')
   const [forbidden, setForbidden] = useState(false)
+  const [paiResumo, setPaiResumo] = useState<Tickets.Ticket | null>(null)
+  const [paiCarregando, setPaiCarregando] = useState(false)
 
   const [empresasList, setEmpresasList] = useState<Empresas.EmpresaListaItem[]>([])
   const [setoresList, setSetoresList] = useState<Setores.Setor[]>([])
@@ -79,6 +82,41 @@ export function TicketNovo() {
   }, [])
 
   useEffect(() => {
+    const raw = searchParams.get('pai')
+    if (!raw) {
+      setPaiResumo(null)
+      return
+    }
+    const id = Number(raw)
+    if (!Number.isFinite(id) || id < 1) {
+      setPaiResumo(null)
+      return
+    }
+    let cancelled = false
+    setPaiCarregando(true)
+    tickets
+      .get(id)
+      .then((p) => {
+        if (!cancelled) {
+          setPaiResumo(p)
+          setEmpresaId(p.empresa_id)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPaiResumo(null)
+          toast.showWarning('Não foi possível carregar o ticket pai indicado na URL.')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPaiCarregando(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [searchParams])
+
+  useEffect(() => {
     if (setorId === '') return
     if (!setoresFiltrados.some((s) => s.id === setorId)) {
       setSetorId('')
@@ -128,6 +166,7 @@ export function TicketNovo() {
         setor_id: Number(setorId),
         assunto: assunto.trim(),
         descricao: descricao.trim(),
+        ...(paiResumo ? { parent_ticket_id: paiResumo.id } : {}),
       })
       if (anexosSelecionados.length > 0) {
         let ok = 0
@@ -185,6 +224,20 @@ export function TicketNovo() {
 
       <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Novo ticket</h1>
 
+      {paiCarregando && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-200">
+          Carregando dados do ticket pai…
+        </div>
+      )}
+      {!paiCarregando && paiResumo && (
+        <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-100">
+          Este chamado será aberto como <strong>filho</strong> do ticket{' '}
+          <span className="font-mono font-semibold">{paiResumo.protocolo}</span>
+          {paiResumo.assunto ? ` — ${paiResumo.assunto}` : ''}. A empresa foi pré-preenchida para manter a mesma rede do
+          pai.
+        </div>
+      )}
+
       {semSetorPermitido && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100">
           Você não está vinculado a nenhum setor ativo. Peça a um administrador para associar setores ao seu usuário
@@ -216,7 +269,7 @@ export function TicketNovo() {
                 items={empresaItems}
                 placeholder="Buscar empresa..."
                 required
-                disabled={semSetorPermitido || semEmpresasNoEscopo}
+                disabled={semSetorPermitido || semEmpresasNoEscopo || Boolean(paiResumo)}
                 recentCount={10}
               />
 

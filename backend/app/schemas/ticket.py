@@ -13,7 +13,7 @@ class TicketBase(BaseModel):
 
 
 class TicketCreate(TicketBase):
-    pass
+    parent_ticket_id: int | None = None
 
 
 class TicketUpdate(BaseModel):
@@ -22,6 +22,28 @@ class TicketUpdate(BaseModel):
     setor_id: int | None = None
     status_id: int | None = None
     atendente_id: int | None = None
+    parent_ticket_id: int | None = None
+
+
+class TicketParentBrief(BaseModel):
+    id: int
+    protocolo: str
+    assunto: str
+    status_nome: str | None = None
+    fechado_em: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TicketChildBrief(BaseModel):
+    id: int
+    protocolo: str
+    assunto: str
+    status_nome: str | None = None
+    atendente_nome: str | None = None
+    fechado_em: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TicketRead(BaseModel):
@@ -43,6 +65,9 @@ class TicketRead(BaseModel):
     setor_nome: str | None = None
     status_nome: str | None = None
     atendente_nome: str | None = None
+    parent_ticket_id: int | None = None
+    parent: TicketParentBrief | None = None
+    children: list[TicketChildBrief] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
