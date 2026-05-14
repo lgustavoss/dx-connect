@@ -33,6 +33,8 @@ import { useToast } from '../../components/ui/Toast'
 
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 
+import { exibirProtocolo } from '../../lib/exibirProtocolo'
+
 import { useAuth } from '../../contexts/AuthContext'
 
 
@@ -544,7 +546,9 @@ useEffect(() => {
 
                   </div>
 
-                  <p className="truncate text-[10px] font-mono text-slate-400">{c.protocolo}</p>
+                  <p className="truncate text-[10px] font-mono text-slate-400" title={exibirProtocolo(c.protocolo)}>
+                    {exibirProtocolo(c.protocolo)}
+                  </p>
 
                 </div>
 
@@ -578,7 +582,9 @@ useEffect(() => {
 
               <div className="flex items-center gap-2 text-[10px]">
 
-                <span className="font-mono text-cyan-600 uppercase font-bold">{chat?.protocolo}</span>
+                <span className="min-w-0 truncate font-mono font-bold text-cyan-600" title={exibirProtocolo(chat?.protocolo)}>
+                  {exibirProtocolo(chat?.protocolo)}
+                </span>
 
                 <span className="text-slate-300">•</span>
 

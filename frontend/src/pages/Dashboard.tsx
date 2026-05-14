@@ -9,6 +9,7 @@ import { IconEye } from '../components/ui/IconEye'
 import { useToast } from '../components/ui/Toast'
 import { SemPermissao } from './SemPermissao'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
+import { exibirProtocolo } from '../lib/exibirProtocolo'
 
 type ColunaUltimos = 'protocolo' | 'empresa' | 'assunto' | 'status'
 
@@ -181,7 +182,12 @@ export function Dashboard() {
               <tbody>
                 {ultimosOrdenados.map((t) => (
                   <tr key={t.id} className="border-b border-slate-100 dark:border-slate-700/60">
-                    <td className="py-3 pr-4 font-mono text-slate-800 dark:text-slate-100">{t.protocolo}</td>
+                    <td
+                      className="max-w-[10rem] truncate py-3 pr-4 font-mono text-slate-800 dark:text-slate-100"
+                      title={exibirProtocolo(t.protocolo)}
+                    >
+                      {exibirProtocolo(t.protocolo)}
+                    </td>
                     <td className="py-3 pr-4">{t.empresa_nome ?? t.empresa_id}</td>
                     <td className="py-3 pr-4">{t.assunto}</td>
                     <td className="py-3 pr-4">{t.status_nome ?? t.status_id}</td>

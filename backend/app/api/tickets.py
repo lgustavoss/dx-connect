@@ -27,6 +27,7 @@ from app.core.setor_scope import (
     responsavel_elegivel_para_setor_do_ticket,
 )
 from app.services import ticket_anexo_storage
+from app.services.protocolo_mensal import gerar_protocolo_ticket
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
@@ -51,10 +52,8 @@ class SituacaoTicket(str, Enum):
 
 
 def _gerar_protocolo(db: Session) -> str:
-    """Gera próximo número de protocolo único (sequencial global)."""
-    from sqlalchemy import func
-    r = db.query(func.max(Ticket.id)).scalar() or 0
-    return str(10000 + r + 1)
+    """Próximo protocolo de ticket no formato #TYYYYMM-NNNN (mensal, America/Sao_Paulo)."""
+    return gerar_protocolo_ticket(db)
 
 
 def _ticket_para_read(t: Ticket) -> TicketRead:
@@ -101,7 +100,7 @@ def listar(
     rede_id: int | None = Query(None, description="Tickets de empresas desta rede"),
     setor_id: int | None = Query(None),
     status_id: int | None = Query(None),
-    protocolo: str | None = Query(None, description="Legado: use busca"),
+    protocolo: str | None = Query(None, description="Filtra por trecho do protocolo (ex.: #T202605-0001)"),
     busca: str | None = Query(None, description="Protocolo, assunto ou nome da empresa"),
     sem_responsavel: bool = Query(
         False,

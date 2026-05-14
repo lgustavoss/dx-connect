@@ -13,6 +13,7 @@ from app.models.audit_log import AuditLog
 from app.models.ibge_municipio import IbgeMunicipio
 from app.models.app_cache_meta import AppCacheMeta
 from app.models.whatsapp_chat import WhatsappChat, WhatsappChatTicket, WhatsappMensagem, WhatsappSettings
+from app.models.protocol_sequence import ProtocolSequence
 
 __all__ = [
     "Rede",
@@ -37,4 +38,5 @@ __all__ = [
     "WhatsappChat",
     "WhatsappMensagem",
     "WhatsappChatTicket",
+    "ProtocolSequence",
 ]
