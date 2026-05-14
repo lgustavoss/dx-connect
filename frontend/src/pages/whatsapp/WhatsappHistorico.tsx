@@ -57,7 +57,7 @@ export function WhatsappHistorico() {
         <div className="flex flex-1 max-w-md gap-2">
           <div className="relative flex-1">
             <Input 
-              placeholder="Buscar por nome, telefone ou protocolo (ex.: #C2026-04-0001)…" 
+              placeholder="Buscar por nome, telefone ou protocolo (ex.: #C202604-0001)…" 
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               className="pl-10"

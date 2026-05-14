@@ -9,5 +9,5 @@ class ProtocolSequence(Base):
     __tablename__ = "protocol_sequences"
 
     kind = Column(String(1), primary_key=True)  # "T" | "C"
-    ano_mes = Column(String(7), primary_key=True)  # YYYY-MM (America/Sao_Paulo)
+    ano_mes = Column(String(6), primary_key=True)  # YYYYMM (America/Sao_Paulo)
     last_value = Column(Integer, nullable=False, default=0)

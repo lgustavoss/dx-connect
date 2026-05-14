@@ -54,7 +54,7 @@ Campos persistidos em `whatsapp_settings` (via **Configurações → WhatsApp**,
 
 ## Ciclo de vida do chat
 
-1. Primeira mensagem inbound de um `wa_id` → cria **chat** em `aguardando_atendente` com protocolo `#CAAAA-MM-NNNN` (mensal, distinto dos tickets `#T…`; chats antigos podem manter `WCH-*`).
+1. Primeira mensagem inbound de um `wa_id` → cria **chat** em `aguardando_atendente` com protocolo `#CYYYYMM-NNNN` (mensal, distinto dos tickets `#T…`; chats antigos podem manter `WCH-*`).
 2. Atendente **assume** → `em_atendimento`, `atendimento_inicio_at`.
 3. **Encerrar** → `encerrado`, `encerramento_at`.
 4. Nova mensagem do mesmo cliente **após encerramento** → **novo** chat e novo protocolo.

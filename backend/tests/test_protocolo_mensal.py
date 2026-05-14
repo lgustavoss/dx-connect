@@ -15,8 +15,8 @@ def test_protocolo_ticket_formato_e_sequencia(db_session, seed_base):
         ref = datetime(2026, 1, 15, 12, 0, tzinfo=PROTOCOL_TZ)
         p1 = gerar_protocolo_ticket(db, ref=ref)
         p2 = gerar_protocolo_ticket(db, ref=ref)
-        assert p1 == "#T2026-01-0001"
-        assert p2 == "#T2026-01-0002"
+        assert p1 == "#T202601-0001"
+        assert p2 == "#T202601-0002"
         db.commit()
     finally:
         db.close()
@@ -31,9 +31,9 @@ def test_protocolo_chat_independente_do_ticket(db_session, seed_base):
         c1 = gerar_protocolo_chat(db, ref=ref)
         t1 = gerar_protocolo_ticket(db, ref=ref)
         c2 = gerar_protocolo_chat(db, ref=ref)
-        assert c1 == "#C2026-02-0001"
-        assert t1 == "#T2026-02-0001"
-        assert c2 == "#C2026-02-0002"
+        assert c1 == "#C202602-0001"
+        assert t1 == "#T202602-0001"
+        assert c2 == "#C202602-0002"
         db.commit()
     finally:
         db.close()
@@ -46,8 +46,8 @@ def test_protocolo_troca_de_mes(db_session, seed_base):
     try:
         p_abril = gerar_protocolo_ticket(db, ref=datetime(2026, 4, 30, 23, 0, tzinfo=PROTOCOL_TZ))
         p_maio = gerar_protocolo_ticket(db, ref=datetime(2026, 5, 1, 1, 0, tzinfo=PROTOCOL_TZ))
-        assert "2026-04" in p_abril
-        assert "2026-05" in p_maio
+        assert "202604" in p_abril
+        assert "202605" in p_maio
         assert p_maio.endswith("-0001")
         db.commit()
     finally:
@@ -68,7 +68,7 @@ def test_post_ticket_retorna_protocolo_novo(client, seed_base, auth_headers):
     assert t.status_code == 201, t.text
     body = t.json()
     assert body["protocolo"].startswith("#T")
-    assert body["protocolo"].count("-") >= 2
+    assert body["protocolo"].count("-") == 1
 
 
 def test_webhook_chat_protocolo_novo(client, seed_base, auth_headers):

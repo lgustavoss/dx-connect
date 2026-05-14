@@ -331,7 +331,7 @@ export function Tickets() {
                   setBusca(e.target.value)
                   resetarPagina()
                 }}
-                placeholder="Buscar por protocolo (ex.: #T2026-04-0001), assunto ou empresa…"
+                placeholder="Buscar por protocolo (ex.: #T202605-0001), assunto ou empresa…"
                 disabled={loading}
                 className="w-full rounded-xl border-0 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-900 shadow-inner ring-1 ring-slate-200/80 transition-shadow placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-400/25 dark:bg-slate-900/60 dark:text-slate-100 dark:ring-slate-700 dark:placeholder:text-slate-500 dark:focus:bg-slate-900"
                 aria-label="Buscar tickets"
