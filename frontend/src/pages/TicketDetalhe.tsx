@@ -26,6 +26,7 @@ import { refetchPendenciasResumo } from '../hooks/useAlertaFilaSemResponsavel'
 import { SemPermissao } from './SemPermissao'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
+import { exibirProtocolo } from '../lib/exibirProtocolo'
 
 const ROTULO_CAMPO: Record<string, string> = {
   status_id: 'Status',
@@ -681,7 +682,12 @@ export function TicketDetalhe() {
         <span aria-hidden className="text-slate-300 dark:text-slate-600">
           /
         </span>
-        <span className="font-semibold text-slate-800 dark:text-slate-100">#{ticket.protocolo}</span>
+        <span
+          className="min-w-0 truncate font-semibold text-slate-800 dark:text-slate-100"
+          title={exibirProtocolo(ticket.protocolo)}
+        >
+          {exibirProtocolo(ticket.protocolo)}
+        </span>
       </nav>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -772,7 +778,7 @@ export function TicketDetalhe() {
                       to={`/whatsapp/c/${c.id}`}
                       className="text-sm font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
                     >
-                      {c.protocolo}
+                      {exibirProtocolo(c.protocolo)}
                       {c.estado === 'encerrado' ? ' (encerrado)' : ''}
                     </Link>
                   </li>
@@ -1037,7 +1043,16 @@ export function TicketDetalhe() {
                   variant="secondary"
                   disabled={Boolean(ticket.fechado_em)}
                   onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-2"
                 >
+                  <svg className="size-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+                    />
+                  </svg>
                   Anexar arquivos
                 </Button>
                 {anexosSelecionados.length > 0 && (

@@ -65,7 +65,7 @@ function rotuloEstadoConexao(estadoRaw: string | null): {
 }
 
 const DEFAULT_MSG_ESPERA =
-  'Olá, {{nome_cliente}}, Seja Bem-Vindo(a) a {{nome_empresa}}.\n\n✅protocolo de atendimento: *#{{protocolo}}*\n\nAbertura: *{{data_abertura}}*\n'
+  'Olá, {{nome_cliente}}, Seja Bem-Vindo(a) a {{nome_empresa}}.\n\n✅protocolo de atendimento: *{{protocolo}}*\n\nAbertura: *{{data_abertura}}*\n'
 const DEFAULT_MSG_ASSUMIDO =
   'Olá, {nome}! Sou o {atendente} atendente responsável pelo seu atendimento. Como posso ajudar?'
 const DEFAULT_MSG_ENCERRADO =

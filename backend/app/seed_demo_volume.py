@@ -29,6 +29,7 @@ import bcrypt
 
 from app.database import SessionLocal
 from app.seed import run_seed
+from app.services.protocolo_mensal import gerar_protocolo_ticket
 from app.models import (
     Rede,
     Empresa,
@@ -49,11 +50,6 @@ def _hash_senha(senha: str) -> str:
 
 def _city_abbrev(cidade: str) -> str:
     return "".join(w[0] for w in cidade.split() if w)[:4].upper()
-
-
-def _gerar_protocolo(db) -> str:
-    r = db.query(func.max(Ticket.id)).scalar() or 0
-    return str(10000 + r + 1)
 
 
 def _ensure_setores(db) -> dict[str, Setor]:
@@ -263,7 +259,7 @@ def run_demo_volume(force: bool = False) -> None:
             if status.slug == "fechado":
                 fechado_em = datetime.now(timezone.utc)
 
-            protocolo = _gerar_protocolo(db)
+            protocolo = gerar_protocolo_ticket(db)
             ticket = Ticket(
                 protocolo=protocolo,
                 empresa_id=emp.id,

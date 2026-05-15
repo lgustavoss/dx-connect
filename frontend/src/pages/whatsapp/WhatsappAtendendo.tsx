@@ -5,6 +5,7 @@ import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
+import { exibirProtocolo } from '../../lib/exibirProtocolo'
 
 // Componente para cálculo de tempo de espera
 function TempoEspera({ data }: { data?: string | null }) {
@@ -119,7 +120,12 @@ export function WhatsappAtendendo() {
                     <div className="flex items-start justify-between">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-mono text-[10px] font-bold text-cyan-600">{c.protocolo}</span>
+                          <span
+                            className="min-w-0 truncate font-mono text-[10px] font-bold text-cyan-600"
+                            title={exibirProtocolo(c.protocolo)}
+                          >
+                            {exibirProtocolo(c.protocolo)}
+                          </span>
                           <TempoEspera data={c.created_at} />
                         </div>
                         <h3 className="truncate font-bold text-slate-900 dark:text-slate-100">{c.cliente_nome || 'Cliente'}</h3>
@@ -168,7 +174,12 @@ export function WhatsappAtendendo() {
                     <div className="flex flex-col h-full justify-between gap-4">
                       <div>
                         <div className="flex justify-between items-start mb-2">
-                          <span className="text-[10px] font-bold text-cyan-600 uppercase">{c.protocolo}</span>
+                          <span
+                            className="min-w-0 truncate text-[10px] font-bold text-cyan-600"
+                            title={exibirProtocolo(c.protocolo)}
+                          >
+                            {exibirProtocolo(c.protocolo)}
+                          </span>
                           <span className="relative flex h-2 w-2">
                             <span className="absolute h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
                             <span className="relative h-2 w-2 rounded-full bg-emerald-500"></span>

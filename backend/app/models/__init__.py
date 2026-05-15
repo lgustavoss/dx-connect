@@ -15,6 +15,7 @@ from app.models.app_cache_meta import AppCacheMeta
 from app.models.whatsapp_chat import WhatsappChat, WhatsappChatTicket, WhatsappMensagem, WhatsappSettings
 from app.models.empresa_sistema import EmpresaSistema
 from app.models.email_settings import EmailSettings
+from app.models.protocol_sequence import ProtocolSequence
 
 __all__ = [
     "Rede",
@@ -41,4 +42,5 @@ __all__ = [
     "WhatsappChatTicket",
     "EmpresaSistema",
     "EmailSettings",
+    "ProtocolSequence",
 ]
