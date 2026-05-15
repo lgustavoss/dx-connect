@@ -50,6 +50,10 @@ class TicketRead(BaseModel):
 class TicketMensagemCreate(BaseModel):
     corpo: str = Field(..., min_length=1, max_length=20000)
     tipo: Literal["publico", "interno"]
+    notificar_cliente_por_email: bool = Field(
+        default=False,
+        description="Se true e tipo=publico, envia e-mail SMTP ao último remetente do ticket (ingestão) e regista Message-ID (#165).",
+    )
 
 
 class TicketMensagemRead(BaseModel):
@@ -60,6 +64,7 @@ class TicketMensagemRead(BaseModel):
     tipo: str
     corpo: str
     created_at: datetime
+    cliente_notificado_por_email: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 

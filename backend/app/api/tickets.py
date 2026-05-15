@@ -28,6 +28,8 @@ from app.core.setor_scope import (
 )
 from app.services import ticket_anexo_storage
 from app.services.protocolo_mensal import gerar_protocolo_ticket
+from app.services.ticket_client_email import enviar_resposta_equipa_por_email
+from app.services.ticket_email_index import registar_message_id_para_ticket
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
@@ -79,6 +81,8 @@ def _ticket_para_read(t: Ticket) -> TicketRead:
 
 
 def _pode_ver_ticket(db: Session, atendente: Atendente, ticket: Ticket) -> bool:
+    if ticket.tenant_id != atendente.tenant_id:
+        return False
     if atendente.role == "admin":
         return True
     vis = ids_setores_visiveis_atendente(db, atendente)
@@ -128,7 +132,13 @@ def listar(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    q = db.query(Ticket).join(Ticket.empresa).join(Ticket.setor).join(Ticket.status)
+    q = (
+        db.query(Ticket)
+        .join(Ticket.empresa)
+        .join(Ticket.setor)
+        .join(Ticket.status)
+        .filter(Ticket.tenant_id == atendente.tenant_id)
+    )
     if atendente.role != "admin":
         vis = ids_setores_visiveis_atendente(db, atendente)
         q = q.filter(Ticket.setor_id.in_(vis))
@@ -226,10 +236,18 @@ def criar(
         vis = ids_setores_visiveis_atendente(db, atendente)
         if data.setor_id not in vis:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este setor")
-    empresa = db.query(Empresa).filter(Empresa.id == data.empresa_id).first()
+    empresa = (
+        db.query(Empresa)
+        .filter(Empresa.id == data.empresa_id, Empresa.tenant_id == atendente.tenant_id)
+        .first()
+    )
     if not empresa:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empresa não encontrada")
-    setor = db.query(Setor).filter(Setor.id == data.setor_id).first()
+    setor = (
+        db.query(Setor)
+        .filter(Setor.id == data.setor_id, Setor.tenant_id == atendente.tenant_id)
+        .first()
+    )
     if not setor:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor não encontrado")
     # Status inicial: primeiro status ativo por ordem (ex.: «Aguardando atendimento» na fila do setor)
@@ -238,6 +256,7 @@ def criar(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cadastre ao menos um status de ticket")
     protocolo = _gerar_protocolo(db)
     ticket = Ticket(
+        tenant_id=atendente.tenant_id,
         protocolo=protocolo,
         empresa_id=data.empresa_id,
         setor_id=data.setor_id,
@@ -328,7 +347,7 @@ def historico(
     ]
 
 
-def _mensagem_para_read(m: TicketMensagem) -> TicketMensagemRead:
+def _mensagem_para_read(m: TicketMensagem, *, cliente_notificado_por_email: bool = False) -> TicketMensagemRead:
     return TicketMensagemRead(
         id=m.id,
         ticket_id=m.ticket_id,
@@ -337,6 +356,7 @@ def _mensagem_para_read(m: TicketMensagem) -> TicketMensagemRead:
         tipo=m.tipo,
         corpo=m.corpo,
         created_at=m.created_at,
+        cliente_notificado_por_email=cliente_notificado_por_email,
     )
 
 
@@ -384,9 +404,22 @@ def criar_mensagem(
             detail="Apenas o responsável pelo chamado ou um administrador pode enviar mensagem da equipe. "
             "Colaboradores do mesmo setor podem usar comentário interno.",
         )
+    if data.notificar_cliente_por_email and data.tipo != "publico":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A notificação por e-mail só está disponível para mensagens públicas.",
+        )
     corpo = data.corpo.strip()
     if not corpo:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Mensagem vazia")
+
+    out_mid: str | None = None
+    if data.notificar_cliente_por_email:
+        try:
+            out_mid = enviar_resposta_equipa_por_email(db, ticket=ticket, corpo=corpo)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
     m = TicketMensagem(
         ticket_id=ticket_id,
         atendente_id=atendente.id,
@@ -394,6 +427,9 @@ def criar_mensagem(
         corpo=corpo,
     )
     db.add(m)
+    db.flush()
+    if out_mid:
+        registar_message_id_para_ticket(db, ticket_id=ticket.id, message_id=out_mid, source="outbound")
     db.commit()
     db.refresh(m)
     m = (
@@ -403,7 +439,7 @@ def criar_mensagem(
         .first()
     )
     assert m is not None
-    return _mensagem_para_read(m)
+    return _mensagem_para_read(m, cliente_notificado_por_email=bool(out_mid))
 
 
 def _registrar_historico(db: Session, ticket_id: int, atendente_id: int | None, campo: str, valor_antigo: str | None, valor_novo: str | None):

@@ -9,6 +9,7 @@ class Ticket(Base):
     __tablename__ = "tickets"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False, index=True)
     protocolo = Column(String(32), unique=True, nullable=False, index=True)  # #TYYYYMM-NNNN (legado: numérico)
     empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False)
     setor_id = Column(Integer, ForeignKey("setores.id"), nullable=False)

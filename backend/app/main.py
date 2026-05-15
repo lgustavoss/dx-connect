@@ -5,6 +5,7 @@ import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -26,9 +27,12 @@ from app.api import (
     whatsapp_settings,
     whatsapp_chats,
     whatsapp_webhook,
+    email_inbound_webhook,
     system_settings,
+    tenant,
 )
 from app.config import settings
+from app.core.tenant_context import parse_tenant_id_from_host, set_request_tenant_id
 from app.core.lifecycle import dev_create_all_tables, production_require_alembic
 from app.database import Base, engine
 import app.models  # noqa: F401 — registra mapeamentos ORM / metadata
@@ -185,6 +189,28 @@ if _th != ["*"]:
 
 
 @app.middleware("http")
+async def tenant_context_middleware(request: Request, call_next):
+    """Define ``request.state.tenant_id`` (subdomínio, cabeçalho ou default). Webhooks ficam isentos."""
+    path = request.url.path
+    if path.startswith("/v1/webhooks/") or path in ("/", "/health", "/docs", "/redoc", "/openapi.json"):
+        return await call_next(request)
+    tid = parse_tenant_id_from_host(request.headers.get("host"))
+    if tid is None:
+        hdr = (request.headers.get("x-dx-tenant-id") or "").strip()
+        if hdr.isdigit():
+            tid = int(hdr)
+    if tid is None and settings.DEFAULT_TENANT_ID is not None:
+        tid = int(settings.DEFAULT_TENANT_ID)
+    if tid is None:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Tenant não identificado (subdomínio {id}.domínio ou X-Dx-Tenant-Id)."},
+        )
+    set_request_tenant_id(request, tid)
+    return await call_next(request)
+
+
+@app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
     """Cabeçalhos básicos na API; em produção complemente no Nginx/CDN (HSTS, CSP no HTML estático)."""
     response = await call_next(request)
@@ -226,7 +252,9 @@ app.include_router(notificacoes.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_settings.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_chats.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_webhook.router, prefix=API_V1_PREFIX)
+app.include_router(email_inbound_webhook.router, prefix=API_V1_PREFIX)
 app.include_router(system_settings.router, prefix=API_V1_PREFIX)
+app.include_router(tenant.router, prefix=API_V1_PREFIX)
 
 
 @app.get("/health")

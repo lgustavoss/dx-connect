@@ -1,4 +1,5 @@
 import { mensagemErroApi } from './errorMessage'
+import { resolveTenantIdFromHostname } from '../lib/tenant'
 
 function apiBaseUrl(): string {
   if (import.meta.env.DEV) return '/api'
@@ -13,6 +14,11 @@ const BASE = apiBaseUrl()
 
 /** Prefixo de versão da API (ex.: dev: `/api` + `/v1` + `/auth/login` → `/v1/auth/login` no backend). */
 export const API_VERSION_PREFIX = '/v1'
+
+/** URL base da API (sem barra final). Útil para montar URLs mostradas ao administrador (ex.: webhook). */
+export function resolvedApiBaseUrl(): string {
+  return apiBaseUrl()
+}
 
 export class ApiError extends Error {
   status: number
@@ -46,6 +52,14 @@ export function clearAuthToken(): void {
   localStorage.removeItem(TOKEN_KEY)
   sessionStorage.removeItem(REFRESH_TOKEN_KEY)
   localStorage.removeItem(REFRESH_TOKEN_KEY)
+}
+
+/** Invalida sessão e força novo login (evita voltar com «Back» para páginas autenticadas). */
+export function invalidateSessionAndRedirectToLogin(): void {
+  clearAuthToken()
+  const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`
+  const qs = returnTo && returnTo !== '/login' ? `?returnTo=${encodeURIComponent(returnTo)}` : ''
+  window.location.replace(`/login${qs}`)
 }
 
 function setTokens(tokens: { access_token: string; refresh_token?: string | null }, lembrarMe = true) {
@@ -99,6 +113,7 @@ export async function api<T>(
   if (token) {
     (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
   }
+  ;(headers as Record<string, string>)['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
   const res = await fetch(`${BASE}${API_VERSION_PREFIX}${path}`, { ...options, headers });
 
   // Tratamento especial para login: não redirecionar nem recarregar a página,
@@ -125,9 +140,7 @@ export async function api<T>(
       }
     }
 
-    clearAuthToken()
-    const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`
-    window.location.href = `/login?returnTo=${encodeURIComponent(returnTo)}`
+    invalidateSessionAndRedirectToLogin()
     throw new ApiError(mensagemErroApi(err, 401), 401, err);
   }
 
@@ -451,8 +464,13 @@ export namespace SystemSettings {
     email?: string | null
     telefone?: string | null
     endereco?: string | null
+    numero?: string | null
+    complemento?: string | null
+    bairro?: string | null
+    cidade?: string | null
+    estado?: string | null
+    cep?: string | null
     logo_url?: string | null
-    ativo?: boolean
   }
 
   export interface EmpresaSistemaUpdate {
@@ -463,39 +481,24 @@ export namespace SystemSettings {
     email?: string | null
     telefone?: string | null
     endereco?: string | null
-    ativo?: boolean | null
+    numero?: string | null
+    complemento?: string | null
+    bairro?: string | null
+    cidade?: string | null
+    estado?: string | null
+    cep?: string | null
   }
 
   export interface EmailSettingsRead {
-    smtp_host?: string | null
-    smtp_port?: number | null
-    smtp_user?: string | null
-    has_smtp_password?: boolean
-    smtp_use_starttls?: boolean
-    smtp_from_email?: string | null
-    smtp_from_name?: string | null
-    imap_host?: string | null
-    imap_port?: number | null
-    imap_user?: string | null
-    has_imap_password?: boolean
-    imap_use_ssl?: boolean
-    imap_folder?: string | null
+    transactional_from_email?: string | null
+    transactional_from_name?: string | null
+    has_transactional_api_key?: boolean
   }
 
   export interface EmailSettingsUpdate {
-    smtp_host?: string | null
-    smtp_port?: number | null
-    smtp_user?: string | null
-    smtp_password?: string | null
-    smtp_use_starttls?: boolean | null
-    smtp_from_email?: string | null
-    smtp_from_name?: string | null
-    imap_host?: string | null
-    imap_port?: number | null
-    imap_user?: string | null
-    imap_password?: string | null
-    imap_use_ssl?: boolean | null
-    imap_folder?: string | null
+    transactional_api_key?: string | null
+    transactional_from_email?: string | null
+    transactional_from_name?: string | null
   }
 
   export interface EmailTestResult {
@@ -523,18 +526,60 @@ export const systemSettings = {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
-  testEmailSmtp: () =>
-    api<SystemSettings.EmailTestResult>('/settings/email/test-smtp', { method: 'POST' }),
-  testEmailImap: () =>
-    api<SystemSettings.EmailTestResult>('/settings/email/test-imap', { method: 'POST' }),
+  testEmailTransactional: () =>
+    api<SystemSettings.EmailTestResult>('/settings/email/test-transactional', { method: 'POST' }),
+}
+
+export namespace TenantApi {
+  export interface TenantRead {
+    id: number
+    nome: string
+    ativo: boolean
+    app_host?: string | null
+  }
+
+  export interface InboundAddressRead {
+    id: number
+    tenant_id: number
+    local_part: string
+    full_address: string
+    label?: string | null
+    setor_id: number
+    setor_nome?: string | null
+    default_empresa_id?: number | null
+    ativo: boolean
+  }
+
+  export interface InboundAddressCreate {
+    local_part: string
+    label?: string | null
+    setor_id: number
+    default_empresa_id?: number | null
+  }
+}
+
+export const tenantApi = {
+  getAtual: () => api<TenantApi.TenantRead>('/tenant/atual'),
+  listInboundAddresses: () => api<TenantApi.InboundAddressRead[]>('/tenant/inbound-addresses'),
+  createInboundAddress: (data: TenantApi.InboundAddressCreate) =>
+    api<TenantApi.InboundAddressRead>('/tenant/inbound-addresses', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 }
 
 export async function fetchEmpresaSistemaLogoBlob(): Promise<Blob | null> {
   const token = getAuthToken()
-  const headers: Record<string, string> = {}
+  const headers: Record<string, string> = {
+    'X-Dx-Tenant-Id': String(resolveTenantIdFromHostname()),
+  }
   if (token) headers.Authorization = `Bearer ${token}`
   const res = await fetch(`${BASE}${API_VERSION_PREFIX}/settings/empresa-sistema/logo`, { headers })
   if (res.status === 404) return null
+  if (res.status === 401) {
+    invalidateSessionAndRedirectToLogin()
+    throw new ApiError('Sessão expirada ou inválida.', 401, {})
+  }
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({}))
     throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
@@ -583,6 +628,10 @@ export async function fetchWhatsAppMidiaBlob(chatId: number, mensagemId: number)
     `${BASE}${API_VERSION_PREFIX}/whatsapp/chats/${chatId}/mensagens/${mensagemId}/midia`,
     { headers },
   )
+  if (res.status === 401) {
+    invalidateSessionAndRedirectToLogin()
+    throw new ApiError('Sessão expirada ou inválida.', 401, {})
+  }
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({}))
     throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
@@ -598,6 +647,10 @@ export async function fetchTicketAnexoBlob(ticketId: number, anexoId: number): P
     `${BASE}${API_VERSION_PREFIX}/tickets/${ticketId}/anexos/${anexoId}/download`,
     { headers },
   )
+  if (res.status === 401) {
+    invalidateSessionAndRedirectToLogin()
+    throw new ApiError('Sessão expirada ou inválida.', 401, {})
+  }
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({}))
     throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
@@ -1070,11 +1123,13 @@ export namespace Tickets {
     tipo: MensagemTipo | string;
     corpo: string;
     created_at: string;
+    cliente_notificado_por_email?: boolean;
   }
 
   export interface MensagemCreate {
     corpo: string;
     tipo: 'publico' | 'interno';
+    notificar_cliente_por_email?: boolean;
   }
 
   export interface Update {

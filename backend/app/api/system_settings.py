@@ -9,13 +9,9 @@ from app.models.email_settings import EmailSettings
 from app.models.empresa_sistema import EmpresaSistema
 from app.schemas.email_settings import EmailSettingsRead, EmailSettingsUpdate, EmailTestResult
 from app.schemas.system_company import EmpresaSistemaRead, EmpresaSistemaUpdate
-from app.services import email_probe
+from app.services.email_send_sistema import enviar_mensagem_texto_sistema
 from app.services.secret_box import encrypt_str
-from app.services.system_email_config import (
-    get_singleton_email_settings,
-    imap_runtime_from_row,
-    smtp_runtime_from_row,
-)
+from app.services.system_email_config import get_singleton_email_settings
 from app.services.system_logo_storage import apagar_logo, caminho_absoluto_logo, gravar_logo_bytes
 
 router = APIRouter(prefix="/settings", tags=["settings-system"])
@@ -50,8 +46,13 @@ def _company_out(row: EmpresaSistema | None) -> EmpresaSistemaRead:
         email=row.email,
         telefone=row.telefone,
         endereco=row.endereco,
+        numero=row.numero,
+        complemento=row.complemento,
+        bairro=row.bairro,
+        cidade=row.cidade,
+        estado=row.estado,
+        cep=row.cep,
         logo_url=logo_url,
-        ativo=bool(row.ativo),
     )
 
 
@@ -70,19 +71,9 @@ def _email_out(row: EmailSettings | None) -> EmailSettingsRead:
     if not row:
         return EmailSettingsRead()
     return EmailSettingsRead(
-        smtp_host=row.smtp_host,
-        smtp_port=row.smtp_port,
-        smtp_user=row.smtp_user,
-        has_smtp_password=bool(row.smtp_password_enc and row.smtp_password_enc.strip()),
-        smtp_use_starttls=bool(row.smtp_use_starttls),
-        smtp_from_email=row.smtp_from_email,
-        smtp_from_name=row.smtp_from_name,
-        imap_host=row.imap_host,
-        imap_port=row.imap_port,
-        imap_user=row.imap_user,
-        has_imap_password=bool(row.imap_password_enc and row.imap_password_enc.strip()),
-        imap_use_ssl=bool(row.imap_use_ssl),
-        imap_folder=row.imap_folder,
+        transactional_from_email=row.transactional_from_email,
+        transactional_from_name=row.transactional_from_name,
+        has_transactional_api_key=bool(row.transactional_api_key_enc and str(row.transactional_api_key_enc).strip()),
     )
 
 
@@ -112,12 +103,31 @@ def put_empresa_sistema(
         else:
             row.cnpj = (incoming or None) if incoming is None else (str(incoming).strip() or None)
 
-    for k in ("nome", "razao_social", "nome_fantasia", "email", "telefone", "endereco"):
+    for k in (
+        "nome",
+        "razao_social",
+        "nome_fantasia",
+        "email",
+        "telefone",
+        "endereco",
+        "numero",
+        "complemento",
+        "bairro",
+        "cidade",
+        "cep",
+    ):
         if k in payload:
             v = payload[k]
             setattr(row, k, (v.strip() if isinstance(v, str) else v) or None)
-    if "ativo" in payload and payload["ativo"] is not None:
-        row.ativo = bool(payload["ativo"])
+    if "estado" in payload:
+        v = payload["estado"]
+        if v is None:
+            row.estado = None
+        elif isinstance(v, str):
+            u = v.strip().upper()[:2]
+            row.estado = u or None
+        else:
+            row.estado = None
 
     db.commit()
     db.refresh(row)
@@ -200,91 +210,47 @@ def put_email_settings(
     row = _get_or_create_email(db)
     payload = data.model_dump(exclude_unset=True)
 
-    for k in (
-        "smtp_host",
-        "smtp_port",
-        "smtp_user",
-        "smtp_use_starttls",
-        "smtp_from_email",
-        "smtp_from_name",
-        "imap_host",
-        "imap_port",
-        "imap_user",
-        "imap_use_ssl",
-        "imap_folder",
-    ):
+    for k in ("transactional_from_email", "transactional_from_name"):
         if k in payload:
             v = payload[k]
-            if isinstance(v, str):
-                v2 = v.strip()
-                setattr(row, k, v2 or None)
+            if v is None:
+                setattr(row, k, None)
             else:
-                setattr(row, k, v)
+                s = str(v).strip()
+                setattr(row, k, s or None)
 
-    if "smtp_password" in payload:
-        v = payload["smtp_password"]
+    if "transactional_api_key" in payload:
+        v = payload["transactional_api_key"]
         if v is None:
             pass
         elif str(v).strip() == "":
-            row.smtp_password_enc = None
+            row.transactional_api_key_enc = None
         else:
-            row.smtp_password_enc = encrypt_str(str(v))
-
-    if "imap_password" in payload:
-        v = payload["imap_password"]
-        if v is None:
-            pass
-        elif str(v).strip() == "":
-            row.imap_password_enc = None
-        else:
-            row.imap_password_enc = encrypt_str(str(v))
+            row.transactional_api_key_enc = encrypt_str(str(v))
 
     db.commit()
     db.refresh(row)
     return _email_out(row)
 
 
-@router.post("/email/test-smtp", response_model=EmailTestResult)
-def test_smtp(
+@router.post("/email/test-transactional", response_model=EmailTestResult)
+def test_transactional_email(
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_admin),
 ):
-    row = get_singleton_email_settings(db)
-    cfg = smtp_runtime_from_row(row)
-    if not cfg:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Configurações de e-mail não definidas.")
+    dest = (admin.email or "").strip()
+    if not dest:
+        return EmailTestResult(ok=False, detail="E-mail do administrador em sessão inválido.")
     try:
-        email_probe.testar_smtp(
-            host=cfg.host,
-            port=cfg.port,
-            user=cfg.user,
-            password=cfg.password,
-            use_starttls=cfg.use_starttls,
+        enviar_mensagem_texto_sistema(
+            db,
+            to_addr=dest,
+            subject="DX Connect — teste de envio (Resend)",
+            body="Se recebeu esta mensagem, a configuração de e-mail transaccional está correcta.",
         )
-        return EmailTestResult(ok=True, detail="SMTP OK")
+        return EmailTestResult(ok=True, detail="E-mail de teste enviado.")
+    except ValueError as e:
+        return EmailTestResult(ok=False, detail=str(e))
     except Exception as e:
-        return EmailTestResult(ok=False, detail=str(e) or "Falha SMTP")
-
-
-@router.post("/email/test-imap", response_model=EmailTestResult)
-def test_imap(
-    db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
-):
-    row = get_singleton_email_settings(db)
-    cfg = imap_runtime_from_row(row)
-    if not cfg:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Configurações de e-mail não definidas.")
-    try:
-        email_probe.testar_imap(
-            host=cfg.host,
-            port=cfg.port,
-            user=cfg.user,
-            password=cfg.password,
-            use_ssl=cfg.use_ssl,
-            folder=cfg.folder,
-        )
-        return EmailTestResult(ok=True, detail="IMAP OK")
-    except Exception as e:
-        return EmailTestResult(ok=False, detail=str(e) or "Falha IMAP")
+        return EmailTestResult(ok=False, detail=str(e)[:500])
 

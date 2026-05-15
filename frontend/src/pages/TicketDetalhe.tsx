@@ -61,6 +61,7 @@ function tituloTipoMensagem(tipo: string): string {
   if (tipo === 'abertura') return 'Solicitação inicial'
   if (tipo === 'publico') return 'Mensagem da equipe'
   if (tipo === 'interno') return 'Comentário interno'
+  if (tipo === 'email_cliente') return 'Resposta do cliente (e-mail)'
   return tipo
 }
 
@@ -138,6 +139,7 @@ export function TicketDetalhe() {
   const [saving, setSaving] = useState(false)
   const [novaMensagemTexto, setNovaMensagemTexto] = useState('')
   const [tipoNovaMensagem, setTipoNovaMensagem] = useState<'publico' | 'interno'>('publico')
+  const [notificarClienteEmail, setNotificarClienteEmail] = useState(false)
   const [enviandoMensagem, setEnviandoMensagem] = useState(false)
   const [anexosSelecionados, setAnexosSelecionados] = useState<File[]>([])
   const [enviandoAnexos, setEnviandoAnexos] = useState(false)
@@ -562,6 +564,10 @@ export function TicketDetalhe() {
     setTipoNovaMensagem('interno')
   }, [ticket?.id, ticket?.atendente_id, user?.id])
 
+  useEffect(() => {
+    if (tipoNovaMensagem === 'interno') setNotificarClienteEmail(false)
+  }, [tipoNovaMensagem])
+
   async function handleEnviarMensagem() {
     if (!ticket) return
     if (ticket.fechado_em) {
@@ -576,7 +582,11 @@ export function TicketDetalhe() {
     const tipo = podeMensagemPublica ? tipoNovaMensagem : 'interno'
     setEnviandoMensagem(true)
     try {
-      const msg = texto ? await tickets.addMensagem(ticket.id, { corpo: texto, tipo }) : null
+      const payload: Tickets.MensagemCreate = { corpo: texto, tipo }
+      if (tipo === 'publico' && notificarClienteEmail) {
+        payload.notificar_cliente_por_email = true
+      }
+      const msg = texto ? await tickets.addMensagem(ticket.id, payload) : null
       if (anexosSelecionados.length > 0) {
         setEnviandoAnexos(true)
         try {
@@ -593,8 +603,15 @@ export function TicketDetalhe() {
       setAnexos(a)
       setNovaMensagemTexto('')
       setAnexosSelecionados([])
+      setNotificarClienteEmail(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
-      toast.showSuccess(tipo === 'interno' ? 'Comentário interno registrado.' : 'Mensagem enviada.')
+      if (tipo === 'interno') {
+        toast.showSuccess('Comentário interno registrado.')
+      } else if (msg?.cliente_notificado_por_email) {
+        toast.showSuccess('Mensagem registada e cliente notificado por e-mail.')
+      } else {
+        toast.showSuccess('Mensagem enviada.')
+      }
     } catch (err) {
       toast.showWarning(err instanceof Error ? err.message : 'Erro ao enviar')
     } finally {
@@ -901,9 +918,10 @@ export function TicketDetalhe() {
               {mensagens.map((msg) => {
                 const isAbertura = msg.tipo === 'abertura'
                 const isInterno = msg.tipo === 'interno'
+                const isEmailCliente = msg.tipo === 'email_cliente'
                 const autor =
                   msg.atendente_nome ??
-                  (isAbertura ? 'Registro legado / sistema' : '—')
+                  (isAbertura ? 'Registro legado / sistema' : isEmailCliente ? 'Cliente (e-mail)' : '—')
                 const anexosDaMsg = anexos.filter((a) => a.mensagem_id === msg.id)
                 return (
                   <li
@@ -913,7 +931,9 @@ export function TicketDetalhe() {
                         ? 'border-amber-200/90 bg-amber-50/60 dark:border-amber-800/50 dark:bg-amber-950/25'
                         : isAbertura
                           ? 'border border-slate-200 border-l-4 border-l-slate-500 bg-slate-50/90 dark:border-slate-600 dark:border-l-slate-400 dark:bg-slate-800/50'
-                          : 'border border-slate-200/90 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800/45 dark:shadow-none'
+                          : isEmailCliente
+                            ? 'border border-slate-200 border-l-4 border-l-cyan-500 bg-cyan-50/40 dark:border-slate-600 dark:border-l-cyan-400 dark:bg-cyan-950/20'
+                            : 'border border-slate-200/90 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800/45 dark:shadow-none'
                     }`}
                   >
                     <div
@@ -1026,6 +1046,20 @@ export function TicketDetalhe() {
                   : 'bg-slate-50 ring-slate-200/90 focus:bg-white focus:ring-slate-400/35 dark:bg-slate-900/80 dark:ring-slate-600 dark:focus:bg-slate-900 dark:focus:ring-slate-500/50'
               }`}
             />
+            {podeMensagemPublica && tipoNovaMensagem === 'publico' ? (
+              <label className="mt-2 flex cursor-pointer items-start gap-2 text-xs text-slate-600 dark:text-slate-400">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-4 shrink-0 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500/40 dark:border-slate-600 dark:bg-slate-900"
+                  checked={notificarClienteEmail}
+                  onChange={(e) => setNotificarClienteEmail(e.target.checked)}
+                />
+                <span>
+                  Enviar também por e-mail ao cliente (último remetente do ticket via webhook; requer SMTP
+                  configurado).
+                </span>
+              </label>
+            ) : null}
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2">
                 <input

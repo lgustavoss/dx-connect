@@ -1,8 +1,8 @@
 """
 Configuração de e-mail do sistema (singleton `email_settings`).
 
-Expõe leitura descriptografada para uso interno (envio IMAP/SMTP, jobs, #21/#20),
-sem passar pelo schema da API (que mascara segredos).
+Envio transaccional via **Resend API** (HTTP). Colunas SMTP/IMAP mantêm-se na BD por compatibilidade
+migratória, mas o fluxo activo de tickets usa apenas a configuração transaccional.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
+from app.config import settings as app_settings
 from app.models.email_settings import EmailSettings
 from app.services.secret_box import decrypt_str
 
@@ -83,3 +84,37 @@ def imap_runtime_from_row(row: EmailSettings | None) -> ImapRuntimeConfig | None
         use_ssl=bool(row.imap_use_ssl),
         folder=folder,
     )
+
+
+@dataclass(frozen=True)
+class TransactionalEmailConfig:
+    api_key: str
+    from_email: str
+    from_name: str | None
+
+
+def transactional_config_from_row(row: EmailSettings | None) -> TransactionalEmailConfig | None:
+    """API Key: coluna cifrada na BD ou ``RESEND_API_KEY`` no ambiente. Remetente: BD ou env."""
+    key = ""
+    if row and row.transactional_api_key_enc and str(row.transactional_api_key_enc).strip():
+        key = decrypt_str(row.transactional_api_key_enc) or ""
+    key = (key or "").strip() or (app_settings.RESEND_API_KEY or "").strip()
+    if not key:
+        return None
+
+    from_email = ""
+    if row and (row.transactional_from_email or "").strip():
+        from_email = str(row.transactional_from_email).strip()
+    if not from_email:
+        from_email = (app_settings.TRANSACTIONAL_FROM_EMAIL or "").strip()
+    if not from_email:
+        return None
+
+    from_name = None
+    if row and (row.transactional_from_name or "").strip():
+        from_name = str(row.transactional_from_name).strip()
+    if not from_name:
+        fn = (app_settings.TRANSACTIONAL_FROM_NAME or "").strip()
+        from_name = fn or None
+
+    return TransactionalEmailConfig(api_key=key, from_email=from_email, from_name=from_name)

@@ -1,61 +1,33 @@
-import { useCallback, useEffect, useState } from 'react'
-import { fetchEmpresaSistemaLogoBlob, systemSettings, type SystemSettings } from '../api/client'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  API_VERSION_PREFIX,
+  empresas,
+  fetchEmpresaSistemaLogoBlob,
+  resolvedApiBaseUrl,
+  setores,
+  systemSettings,
+  tenantApi,
+  type CadastroAux,
+  type SystemSettings,
+  type TenantApi,
+} from '../api/client'
+import { resolveTenantIdFromHostname, tenantAppOrigin } from '../lib/tenant'
+import { nomeParaApiEmpresa } from '../components/empresa/empresaFormCopy'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
-import { Switch } from '../components/ui/Switch'
+import { InputCepComBusca } from '../components/ui/InputCepComBusca'
+import { SelectCidadeUf } from '../components/ui/SelectCidadeUf'
+import { SelectUf } from '../components/ui/SelectUf'
 import { useToast } from '../components/ui/Toast'
 import { IconEye, IconEyeOff } from '../components/ui/IconEye'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
+import { isCnpj, maskCnpjCpf } from '../utils/maskCnpjCpf'
+import { digitsOnly, formatTelefoneBrExibicao, maskCep, maskTelefoneBr } from '../utils/masks'
 
 type Aba = 'empresa' | 'email'
 
 const fieldClass =
   'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-[0.9375rem] text-slate-900 shadow-inner placeholder:text-slate-400 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-400/25 dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-100 dark:placeholder:text-slate-500'
-
-function PasswordField({
-  id,
-  label,
-  value,
-  onChange,
-  autoComplete,
-  hint,
-}: {
-  id: string
-  label: string
-  value: string
-  onChange: (v: string) => void
-  autoComplete: string
-  hint?: string
-}) {
-  const [show, setShow] = useState(false)
-  return (
-    <div>
-      <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-        {label}
-      </label>
-      {hint ? <p className="mb-1.5 text-xs text-slate-500 dark:text-slate-400">{hint}</p> : null}
-      <div className="relative">
-        <input
-          id={id}
-          type={show ? 'text' : 'password'}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          autoComplete={autoComplete}
-          className={`${fieldClass} pr-12`}
-        />
-        <button
-          type="button"
-          onClick={() => setShow((v) => !v)}
-          className="absolute right-1.5 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/30 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-200"
-          aria-label={show ? 'Ocultar' : 'Mostrar'}
-          aria-pressed={show}
-        >
-          {show ? <IconEyeOff ariaHidden={false} /> : <IconEye ariaHidden={false} />}
-        </button>
-      </div>
-    </div>
-  )
-}
 
 export function ConfigEmpresaEmail() {
   const toast = useToast()
@@ -64,65 +36,88 @@ export function ConfigEmpresaEmail() {
 
   const [cnpj, setCnpj] = useState('')
   const [cnpjImutavel, setCnpjImutavel] = useState(false)
-  const [nome, setNome] = useState('')
   const [razaoSocial, setRazaoSocial] = useState('')
   const [nomeFantasia, setNomeFantasia] = useState('')
   const [emailEmpresa, setEmailEmpresa] = useState('')
   const [telefone, setTelefone] = useState('')
   const [endereco, setEndereco] = useState('')
-  const [empresaAtiva, setEmpresaAtiva] = useState(true)
+  const [numero, setNumero] = useState('')
+  const [complemento, setComplemento] = useState('')
+  const [bairro, setBairro] = useState('')
+  const [cidade, setCidade] = useState('')
+  const [estado, setEstado] = useState('')
+  const [cep, setCep] = useState('')
   const [salvandoEmpresa, setSalvandoEmpresa] = useState(false)
+  const [loadingCnpjConsulta, setLoadingCnpjConsulta] = useState(false)
   const [logoBlobUrl, setLogoBlobUrl] = useState<string | null>(null)
+  const logoBlobUrlRef = useRef<string | null>(null)
   const [logoLoading, setLogoLoading] = useState(false)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null)
   const [logoUploading, setLogoUploading] = useState(false)
   const [logoDeleting, setLogoDeleting] = useState(false)
 
-  const [smtpHost, setSmtpHost] = useState('')
-  const [smtpPort, setSmtpPort] = useState('')
-  const [smtpUser, setSmtpUser] = useState('')
-  const [smtpPassword, setSmtpPassword] = useState('')
-  const [smtpPasswordTouched, setSmtpPasswordTouched] = useState(false)
-  const [hadSmtpPassword, setHadSmtpPassword] = useState(false)
-  const [smtpStarttls, setSmtpStarttls] = useState(true)
-  const [smtpFromEmail, setSmtpFromEmail] = useState('')
-  const [smtpFromName, setSmtpFromName] = useState('')
-
-  const [imapHost, setImapHost] = useState('')
-  const [imapPort, setImapPort] = useState('')
-  const [imapUser, setImapUser] = useState('')
-  const [imapPassword, setImapPassword] = useState('')
-  const [imapPasswordTouched, setImapPasswordTouched] = useState(false)
-  const [hadImapPassword, setHadImapPassword] = useState(false)
-  const [imapSsl, setImapSsl] = useState(true)
-  const [imapFolder, setImapFolder] = useState('')
+  const [transactionalFromEmail, setTransactionalFromEmail] = useState('')
+  const [transactionalFromName, setTransactionalFromName] = useState('')
+  const [resendApiKey, setResendApiKey] = useState('')
+  const [resendApiKeyTouched, setResendApiKeyTouched] = useState(false)
+  const [hadResendApiKey, setHadResendApiKey] = useState(false)
+  const [resendApiKeyCampoVisivel, setResendApiKeyCampoVisivel] = useState(true)
+  const [showResendKey, setShowResendKey] = useState(false)
 
   const [salvandoEmail, setSalvandoEmail] = useState(false)
-  const [testandoSmtp, setTestandoSmtp] = useState(false)
-  const [testandoImap, setTestandoImap] = useState(false)
+  const [testandoTransactional, setTestandoTransactional] = useState(false)
+
+  const tenantId = resolveTenantIdFromHostname()
+  const [tenantInfo, setTenantInfo] = useState<TenantApi.TenantRead | null>(null)
+  const [inboundAddresses, setInboundAddresses] = useState<TenantApi.InboundAddressRead[]>([])
+  const [setoresLista, setSetoresLista] = useState<Array<{ id: number; nome: string }>>([])
+  const [inboundLocalPart, setInboundLocalPart] = useState(`${tenantId}_suporte`)
+  const [inboundLabel, setInboundLabel] = useState('Suporte')
+  const [inboundSetorId, setInboundSetorId] = useState<number | ''>('')
+  const [criandoInbound, setCriandoInbound] = useState(false)
+
+  useEffect(() => {
+    logoBlobUrlRef.current = logoBlobUrl
+  }, [logoBlobUrl])
 
   const carregar = useCallback(async () => {
     setLoading(true)
     try {
-      const [emp, mail] = await Promise.all([
+      const [emp, mail, tenantAtual, inbound, setoresPag] = await Promise.all([
         systemSettings.getEmpresaSistema(),
         systemSettings.getEmail(),
+        tenantApi.getAtual().catch(() => null),
+        tenantApi.listInboundAddresses().catch(() => [] as TenantApi.InboundAddressRead[]),
+        setores.list({ limit: 100 }).catch(() => ({ items: [] as Array<{ id: number; nome: string }> })),
       ])
+      setTenantInfo(tenantAtual)
+      setInboundAddresses(inbound)
+      const setorItems = setoresPag.items ?? []
+      setSetoresLista(setorItems.map((s) => ({ id: s.id, nome: s.nome })))
+      if (setorItems.length && inboundSetorId === '') {
+        setInboundSetorId(setorItems[0].id)
+      }
 
       const cj = (emp.cnpj ?? '').trim()
-      setCnpj(cj)
+      setCnpj(cj ? maskCnpjCpf(cj) : '')
       setCnpjImutavel(Boolean(cj))
-      setNome((emp.nome ?? '').trim())
       setRazaoSocial((emp.razao_social ?? '').trim())
       setNomeFantasia((emp.nome_fantasia ?? '').trim())
       setEmailEmpresa((emp.email ?? '').trim())
-      setTelefone((emp.telefone ?? '').trim())
+      setTelefone(formatTelefoneBrExibicao(emp.telefone))
       setEndereco((emp.endereco ?? '').trim())
-      setEmpresaAtiva(emp.ativo !== false)
+      setNumero((emp.numero ?? '').trim())
+      setComplemento((emp.complemento ?? '').trim())
+      setBairro((emp.bairro ?? '').trim())
+      setCidade((emp.cidade ?? '').trim())
+      setEstado((emp.estado ?? '').trim().toUpperCase().slice(0, 2))
+      setCep(emp.cep ? maskCep(digitsOnly(emp.cep)) : '')
 
       // logo: precisa de fetch autenticado (não dá pra usar <img src> direto).
-      if (logoBlobUrl) URL.revokeObjectURL(logoBlobUrl)
+      const prevBlob = logoBlobUrlRef.current
+      if (prevBlob) URL.revokeObjectURL(prevBlob)
+      logoBlobUrlRef.current = null
       setLogoBlobUrl(null)
       if (emp.logo_url) {
         setLogoLoading(true)
@@ -134,30 +129,19 @@ export function ConfigEmpresaEmail() {
         }
       }
 
-      setSmtpHost((mail.smtp_host ?? '').trim())
-      setSmtpPort(mail.smtp_port != null ? String(mail.smtp_port) : '')
-      setSmtpUser((mail.smtp_user ?? '').trim())
-      setSmtpPassword('')
-      setSmtpPasswordTouched(false)
-      setHadSmtpPassword(Boolean(mail.has_smtp_password))
-      setSmtpStarttls(mail.smtp_use_starttls !== false)
-      setSmtpFromEmail((mail.smtp_from_email ?? '').trim())
-      setSmtpFromName((mail.smtp_from_name ?? '').trim())
-
-      setImapHost((mail.imap_host ?? '').trim())
-      setImapPort(mail.imap_port != null ? String(mail.imap_port) : '')
-      setImapUser((mail.imap_user ?? '').trim())
-      setImapPassword('')
-      setImapPasswordTouched(false)
-      setHadImapPassword(Boolean(mail.has_imap_password))
-      setImapSsl(mail.imap_use_ssl !== false)
-      setImapFolder((mail.imap_folder ?? '').trim())
+      setTransactionalFromEmail((mail.transactional_from_email ?? '').trim())
+      setTransactionalFromName((mail.transactional_from_name ?? '').trim())
+      setResendApiKey('')
+      setResendApiKeyTouched(false)
+      const temKey = Boolean(mail.has_transactional_api_key)
+      setHadResendApiKey(temKey)
+      setResendApiKeyCampoVisivel(!temKey)
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar as configurações.'))
     } finally {
       setLoading(false)
     }
-  }, [toast, logoBlobUrl])
+  }, [toast])
 
   useEffect(() => {
     void carregar()
@@ -174,6 +158,34 @@ export function ConfigEmpresaEmail() {
     }
   }, [logoBlobUrl, logoPreviewUrl])
 
+  async function consultarCnpjReceita() {
+    if (!isCnpj(cnpj)) {
+      toast.showWarning('Informe um CNPJ com 14 dígitos para consultar.')
+      return
+    }
+    setLoadingCnpjConsulta(true)
+    try {
+      const data = await empresas.consultarCnpj(digitsOnly(cnpj))
+      setRazaoSocial((data.razao_social ?? '').trim())
+      setNomeFantasia((data.nome_fantasia ?? '').trim())
+      setEmailEmpresa((data.email ?? '').trim())
+      setTelefone(data.telefone ? maskTelefoneBr(data.telefone) : '')
+      setEndereco((data.endereco ?? '').trim())
+      setNumero((data.numero ?? '').trim())
+      setComplemento((data.complemento ?? '').trim())
+      setBairro((data.bairro ?? '').trim())
+      setCidade((data.cidade ?? '').trim())
+      setEstado((data.estado ?? '').trim().toUpperCase().slice(0, 2))
+      setCep(data.cep ? maskCep(digitsOnly(data.cep)) : '')
+      setCnpj(maskCnpjCpf(digitsOnly(cnpj)))
+      toast.showSuccess('Dados preenchidos a partir da Receita Federal.')
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Erro ao consultar CNPJ.'))
+    } finally {
+      setLoadingCnpjConsulta(false)
+    }
+  }
+
   async function salvarEmpresa(e: React.FormEvent) {
     e.preventDefault()
     const cnpjTrim = cnpj.trim()
@@ -181,16 +193,26 @@ export function ConfigEmpresaEmail() {
       toast.showError('Informe o CNPJ da empresa do sistema.')
       return
     }
+    const nomeGravado = nomeParaApiEmpresa(nomeFantasia, razaoSocial)
+    if (!nomeGravado) {
+      toast.showWarning('Informe o nome fantasia ou a razão social.')
+      return
+    }
     setSalvandoEmpresa(true)
     try {
       const payload: SystemSettings.EmpresaSistemaUpdate = {
-        nome: nome.trim() || null,
+        nome: nomeGravado,
         razao_social: razaoSocial.trim() || null,
         nome_fantasia: nomeFantasia.trim() || null,
         email: emailEmpresa.trim() || null,
-        telefone: telefone.trim() || null,
+        telefone: digitsOnly(telefone) || null,
         endereco: endereco.trim() || null,
-        ativo: empresaAtiva,
+        numero: numero.trim() || null,
+        complemento: complemento.trim() || null,
+        bairro: bairro.trim() || null,
+        cidade: cidade.trim() || null,
+        estado: estado.trim() || null,
+        cep: digitsOnly(cep) || null,
       }
       if (!cnpjImutavel) {
         payload.cnpj = cnpjTrim
@@ -247,46 +269,25 @@ export function ConfigEmpresaEmail() {
 
   function montarPayloadEmail(): SystemSettings.EmailSettingsUpdate {
     const p: SystemSettings.EmailSettingsUpdate = {
-      smtp_host: smtpHost.trim() || null,
-      smtp_port: smtpPort.trim() ? Number.parseInt(smtpPort.trim(), 10) : null,
-      smtp_user: smtpUser.trim() || null,
-      smtp_use_starttls: smtpStarttls,
-      smtp_from_email: smtpFromEmail.trim() || null,
-      smtp_from_name: smtpFromName.trim() || null,
-      imap_host: imapHost.trim() || null,
-      imap_port: imapPort.trim() ? Number.parseInt(imapPort.trim(), 10) : null,
-      imap_user: imapUser.trim() || null,
-      imap_use_ssl: imapSsl,
-      imap_folder: imapFolder.trim() || null,
+      transactional_from_email: transactionalFromEmail.trim() || null,
+      transactional_from_name: transactionalFromName.trim() || null,
     }
-    if (smtpPasswordTouched) {
-      p.smtp_password = smtpPassword.trim() === '' ? '' : smtpPassword
-    }
-    if (imapPasswordTouched) {
-      p.imap_password = imapPassword.trim() === '' ? '' : imapPassword
+    if (resendApiKeyTouched) {
+      p.transactional_api_key = resendApiKey.trim() === '' ? '' : resendApiKey.trim()
     }
     return p
   }
 
   async function salvarEmail(e: React.FormEvent) {
     e.preventDefault()
-    if (smtpPort.trim() && Number.isNaN(Number.parseInt(smtpPort.trim(), 10))) {
-      toast.showError('Porta SMTP inválida.')
-      return
-    }
-    if (imapPort.trim() && Number.isNaN(Number.parseInt(imapPort.trim(), 10))) {
-      toast.showError('Porta IMAP inválida.')
-      return
-    }
     setSalvandoEmail(true)
     try {
       const mail = await systemSettings.putEmail(montarPayloadEmail())
-      setHadSmtpPassword(Boolean(mail.has_smtp_password))
-      setHadImapPassword(Boolean(mail.has_imap_password))
-      setSmtpPassword('')
-      setImapPassword('')
-      setSmtpPasswordTouched(false)
-      setImapPasswordTouched(false)
+      const temKey = Boolean(mail.has_transactional_api_key)
+      setHadResendApiKey(temKey)
+      setResendApiKeyCampoVisivel(!temKey)
+      setResendApiKey('')
+      setResendApiKeyTouched(false)
       toast.showSuccess('Configuração de e-mail salva.')
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar o e-mail.'))
@@ -295,38 +296,43 @@ export function ConfigEmpresaEmail() {
     }
   }
 
-  async function testarSmtp() {
-    setTestandoSmtp(true)
+  async function criarEnderecoInbound(e: React.FormEvent) {
+    e.preventDefault()
+    if (!inboundSetorId) {
+      toast.showWarning('Selecione o setor de destino.')
+      return
+    }
+    setCriandoInbound(true)
     try {
-      const r = await systemSettings.testEmailSmtp()
-      if (r.ok) {
-        toast.showSuccess(r.detail?.trim() || 'SMTP OK.')
-      } else {
-        toast.showError(r.detail?.trim() || 'Falha ao testar SMTP.')
-      }
+      const row = await tenantApi.createInboundAddress({
+        local_part: inboundLocalPart.trim(),
+        label: inboundLabel.trim() || null,
+        setor_id: Number(inboundSetorId),
+      })
+      setInboundAddresses((prev) => [...prev, row].sort((a, b) => a.local_part.localeCompare(b.local_part)))
+      toast.showSuccess('Endereço de encaminhamento criado.')
     } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível testar SMTP.'))
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível criar o endereço.'))
     } finally {
-      setTestandoSmtp(false)
+      setCriandoInbound(false)
     }
   }
 
-  async function testarImap() {
-    setTestandoImap(true)
+  async function testarTransactional() {
+    setTestandoTransactional(true)
     try {
-      const r = await systemSettings.testEmailImap()
+      const r = await systemSettings.testEmailTransactional()
       if (r.ok) {
-        toast.showSuccess(r.detail?.trim() || 'IMAP OK.')
+        toast.showSuccess(r.detail?.trim() || 'E-mail de teste enviado.')
       } else {
-        toast.showError(r.detail?.trim() || 'Falha ao testar IMAP.')
+        toast.showError(r.detail?.trim() || 'Falha no teste de envio.')
       }
     } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível testar IMAP.'))
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível enviar o teste.'))
     } finally {
-      setTestandoImap(false)
+      setTestandoTransactional(false)
     }
   }
-
   if (loading) {
     return <p className="text-slate-500 dark:text-slate-400">Carregando…</p>
   }
@@ -335,7 +341,8 @@ export function ConfigEmpresaEmail() {
     <div className="mx-auto max-w-6xl space-y-6 pb-10">
       <Card title="Empresa do sistema e e-mail">
         <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-          Dados institucionais da instalação e credenciais SMTP/IMAP usadas pelo sistema (apenas administradores).
+          Dados institucionais da instalação e envio transaccional (Resend) para tickets e mensagens do sistema
+          (apenas administradores).
         </p>
 
         <div className="mt-5 border-b border-slate-200 dark:border-slate-700/80">
@@ -425,20 +432,43 @@ export function ConfigEmpresaEmail() {
                 <label htmlFor="ce-cnpj" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   CNPJ {cnpjImutavel ? '' : <span className="text-red-600 dark:text-red-400">*</span>}
                 </label>
-                <input
-                  id="ce-cnpj"
-                  value={cnpj}
-                  onChange={(e) => setCnpj(e.target.value)}
-                  disabled={cnpjImutavel}
-                  className={`${fieldClass} disabled:cursor-not-allowed disabled:opacity-70`}
-                  autoComplete="organization"
-                />
-              </div>
-              <div>
-                <label htmlFor="ce-nome" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Nome
-                </label>
-                <input id="ce-nome" value={nome} onChange={(e) => setNome(e.target.value)} className={fieldClass} />
+                <div className="relative">
+                  <input
+                    id="ce-cnpj"
+                    value={cnpj}
+                    onChange={(e) => setCnpj(maskCnpjCpf(e.target.value))}
+                    disabled={cnpjImutavel}
+                    inputMode="numeric"
+                    placeholder="00.000.000/0001-00"
+                    className={`${fieldClass} disabled:cursor-not-allowed disabled:opacity-70 ${!cnpjImutavel ? 'pr-12' : ''}`}
+                    autoComplete="organization"
+                  />
+                  {!cnpjImutavel ? (
+                    <button
+                      type="button"
+                      onClick={() => void consultarCnpjReceita()}
+                      disabled={loadingCnpjConsulta}
+                      className="absolute right-1.5 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/30 disabled:pointer-events-none disabled:opacity-45 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-200"
+                      aria-label="Consultar CNPJ na Receita Federal"
+                    >
+                      {loadingCnpjConsulta ? (
+                        <span
+                          className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                          aria-hidden
+                        />
+                      ) : (
+                        <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                  ) : null}
+                </div>
               </div>
               <div>
                 <label htmlFor="ce-rs" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -452,6 +482,9 @@ export function ConfigEmpresaEmail() {
                 </label>
                 <input id="ce-nf" value={nomeFantasia} onChange={(e) => setNomeFantasia(e.target.value)} className={fieldClass} />
               </div>
+              <p className="sm:col-span-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                O nome exibido no sistema usa o nome fantasia; se estiver vazio, usa a razão social.
+              </p>
               <div>
                 <label htmlFor="ce-mail" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   E-mail
@@ -469,22 +502,76 @@ export function ConfigEmpresaEmail() {
                 <label htmlFor="ce-tel" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   Telefone
                 </label>
-                <input id="ce-tel" value={telefone} onChange={(e) => setTelefone(e.target.value)} className={fieldClass} />
-              </div>
-              <div className="sm:col-span-2">
-                <label htmlFor="ce-end" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Endereço
-                </label>
-                <textarea
-                  id="ce-end"
-                  value={endereco}
-                  onChange={(e) => setEndereco(e.target.value)}
-                  rows={3}
+                <input
+                  id="ce-tel"
+                  value={telefone}
+                  onChange={(e) => setTelefone(maskTelefoneBr(e.target.value))}
                   className={fieldClass}
+                  inputMode="tel"
+                  placeholder="(00) 00000-0000"
                 />
               </div>
+              <div className="sm:col-span-2">
+                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Endereço
+                </h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <label htmlFor="ce-end" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Logradouro
+                    </label>
+                    <input id="ce-end" value={endereco} onChange={(e) => setEndereco(e.target.value)} className={fieldClass} />
+                  </div>
+                  <div>
+                    <label htmlFor="ce-num" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Número
+                    </label>
+                    <input id="ce-num" value={numero} onChange={(e) => setNumero(e.target.value)} className={fieldClass} />
+                  </div>
+                  <div>
+                    <label htmlFor="ce-comp" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Complemento
+                    </label>
+                    <input id="ce-comp" value={complemento} onChange={(e) => setComplemento(e.target.value)} className={fieldClass} />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label htmlFor="ce-bairro" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Bairro
+                    </label>
+                    <input id="ce-bairro" value={bairro} onChange={(e) => setBairro(e.target.value)} className={fieldClass} />
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:col-span-2 lg:grid-cols-3">
+                    <div className="min-w-0">
+                      <SelectUf
+                        id="ce-uf"
+                        value={estado}
+                        onChange={(uf) => {
+                          setEstado(uf)
+                          setCidade('')
+                        }}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <SelectCidadeUf id="ce-cidade" uf={estado} value={cidade} onChange={setCidade} />
+                    </div>
+                    <div className="min-w-0">
+                      <InputCepComBusca
+                        id="ce-cep"
+                        value={cep}
+                        onChange={setCep}
+                        onEnderecoCompleto={(d: CadastroAux.CepEndereco) => {
+                          setEndereco(d.logradouro)
+                          setBairro(d.bairro)
+                          setCidade(d.localidade)
+                          setEstado(d.uf)
+                          if (d.complemento) setComplemento(d.complemento)
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <Switch checked={empresaAtiva} onCheckedChange={setEmpresaAtiva} label="Empresa ativa" bare className="pt-1" />
             <div className="flex flex-wrap gap-3 pt-2">
               <Button type="submit" disabled={salvandoEmpresa}>
                 {salvandoEmpresa ? 'Salvando…' : 'Salvar empresa'}
@@ -493,132 +580,195 @@ export function ConfigEmpresaEmail() {
           </form>
         ) : (
           <form onSubmit={salvarEmail} className="mt-6 space-y-8">
-            <section className="space-y-4">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">SMTP (envio)</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="ce-sh" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Servidor
-                  </label>
-                  <input id="ce-sh" value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} className={fieldClass} />
-                </div>
-                <div>
-                  <label htmlFor="ce-sp" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Porta
-                  </label>
-                  <input id="ce-sp" value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} className={fieldClass} inputMode="numeric" />
-                </div>
-                <div>
-                  <label htmlFor="ce-su" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Usuário
-                  </label>
-                  <input id="ce-su" value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} className={fieldClass} autoComplete="off" />
-                </div>
-                <PasswordField
-                  id="ce-spw"
-                  label="Senha SMTP"
-                  value={smtpPassword}
-                  onChange={(v) => {
-                    setSmtpPassword(v)
-                    setSmtpPasswordTouched(true)
-                  }}
-                  autoComplete="new-password"
-                  hint={
-                    hadSmtpPassword && !smtpPasswordTouched
-                      ? 'Já existe uma senha salva. Deixe em branco para manter; digite para substituir; salve com o campo vazio para remover.'
-                      : hadSmtpPassword
-                        ? 'Vazio ao salvar remove a senha salva.'
-                        : undefined
-                  }
+            <p className="max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+              O envio de e-mails (respostas da equipa, auto-respostas e testes) usa a API{' '}
+              <a
+                href="https://resend.com/docs"
+                className="text-sky-600 underline decoration-sky-500/40 underline-offset-2 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Resend
+              </a>
+              . Crie uma API key no painel da Resend, verifique o domínio ou use o remetente de teste indicado por eles,
+              e guarde os dados abaixo.
+            </p>
+
+            <div className="max-w-3xl space-y-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-relaxed text-slate-700 dark:border-white/10 dark:bg-slate-900/40 dark:text-slate-300">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Acesso por tenant</h3>
+              <p className="text-xs">
+                Tenant <span className="font-mono font-semibold">{tenantInfo?.id ?? tenantId}</span>
+                {tenantInfo?.nome ? ` — ${tenantInfo.nome}` : ''}. URL:{' '}
+                <span className="font-mono">{tenantAppOrigin(tenantInfo?.id ?? tenantId) ?? '—'}</span>
+              </p>
+            </div>
+
+            <section className="max-w-3xl space-y-4 rounded-xl border border-slate-200 p-4 dark:border-white/10">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Encaminhamento de e-mail</h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Endereço por canal (ex. <span className="font-mono">{tenantId}_comercial</span>). Encaminhe a caixa do
+                cliente para esse endereço. Identificador deve começar por <span className="font-mono">{tenantId}_</span>.
+              </p>
+              {inboundAddresses.map((a) => (
+                <p key={a.id} className="font-mono text-sm">
+                  {a.full_address} <span className="text-slate-500">({a.label || a.setor_nome})</span>
+                </p>
+              ))}
+              <form onSubmit={criarEnderecoInbound} className="grid gap-3 sm:grid-cols-2">
+                <input
+                  value={inboundLocalPart}
+                  onChange={(e) => setInboundLocalPart(e.target.value)}
+                  className={fieldClass}
+                  placeholder={`${tenantId}_suporte`}
                 />
-                <div>
-                  <label htmlFor="ce-sfe" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    E-mail remetente (From)
-                  </label>
-                  <input
-                    id="ce-sfe"
-                    type="email"
-                    value={smtpFromEmail}
-                    onChange={(e) => setSmtpFromEmail(e.target.value)}
-                    className={fieldClass}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="ce-sfn" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Nome remetente
-                  </label>
-                  <input id="ce-sfn" value={smtpFromName} onChange={(e) => setSmtpFromName(e.target.value)} className={fieldClass} />
-                </div>
-              </div>
-              <Switch
-                checked={smtpStarttls}
-                onCheckedChange={setSmtpStarttls}
-                label="STARTTLS"
-                description="Ative se o servidor exigir TLS na porta (ex.: 587)."
-                bare
-              />
-              <div className="flex flex-wrap gap-3">
-                <Button type="button" variant="secondary" onClick={() => void testarSmtp()} disabled={testandoSmtp}>
-                  {testandoSmtp ? 'Testando…' : 'Testar SMTP'}
+                <input value={inboundLabel} onChange={(e) => setInboundLabel(e.target.value)} className={fieldClass} placeholder="Rótulo" />
+                <select
+                  value={inboundSetorId === '' ? '' : String(inboundSetorId)}
+                  onChange={(e) => setInboundSetorId(e.target.value ? Number(e.target.value) : '')}
+                  className={`${fieldClass} sm:col-span-2`}
+                >
+                  <option value="">Setor…</option>
+                  {setoresLista.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nome}
+                    </option>
+                  ))}
+                </select>
+                <Button type="submit" variant="secondary" disabled={criandoInbound} className="sm:col-span-2">
+                  {criandoInbound ? 'A criar…' : 'Adicionar endereço'}
                 </Button>
-              </div>
+              </form>
             </section>
 
-            <section className="space-y-4 border-t border-slate-200 pt-6 dark:border-slate-700/80">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">IMAP (recepção)</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="ce-ih" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Servidor
-                  </label>
-                  <input id="ce-ih" value={imapHost} onChange={(e) => setImapHost(e.target.value)} className={fieldClass} />
-                </div>
-                <div>
-                  <label htmlFor="ce-ip" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Porta
-                  </label>
-                  <input id="ce-ip" value={imapPort} onChange={(e) => setImapPort(e.target.value)} className={fieldClass} inputMode="numeric" />
-                </div>
-                <div>
-                  <label htmlFor="ce-iu" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Usuário
-                  </label>
-                  <input id="ce-iu" value={imapUser} onChange={(e) => setImapUser(e.target.value)} className={fieldClass} autoComplete="off" />
-                </div>
-                <PasswordField
-                  id="ce-ipw"
-                  label="Senha IMAP"
-                  value={imapPassword}
-                  onChange={(v) => {
-                    setImapPassword(v)
-                    setImapPasswordTouched(true)
-                  }}
-                  autoComplete="new-password"
-                  hint={
-                    hadImapPassword && !imapPasswordTouched
-                      ? 'Já existe uma senha salva. Deixe em branco para manter; digite para substituir; salve com o campo vazio para remover.'
-                      : hadImapPassword
-                        ? 'Vazio ao salvar remove a senha salva.'
-                        : undefined
-                  }
-                />
-                <div className="sm:col-span-2">
-                  <label htmlFor="ce-if" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Pasta (opcional)
-                  </label>
-                  <input id="ce-if" value={imapFolder} onChange={(e) => setImapFolder(e.target.value)} className={fieldClass} />
-                </div>
+            <div className="max-w-3xl space-y-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-relaxed text-slate-700 dark:border-white/10 dark:bg-slate-900/40 dark:text-slate-300">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Ingestão por webhook (tickets)</h3>
+              <p>
+                O destinatário (<span className="font-mono">local@inbound…</span>) define tenant e setor quando
+                configurado acima.
+              </p>
+              <p className="font-mono text-xs text-slate-800 dark:text-slate-200">
+                POST {resolvedApiBaseUrl()}
+                {API_VERSION_PREFIX}/webhooks/email-inbound
+              </p>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                Cabeçalho obrigatório: <span className="font-mono text-slate-800 dark:text-slate-200">X-Dx-Email-Webhook-Secret</span>.
+                A Resend configurada aqui é usada para o envio ao cliente (respostas da equipa e e-mail automático quando
+                a thread continua mas o chamado original já estiver encerrado).
+              </p>
+              <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Campos úteis na resposta JSON:</p>
+              <ul className="list-inside list-disc space-y-1 text-xs text-slate-600 dark:text-slate-400">
+                <li>
+                  <span className="font-mono text-slate-800 dark:text-slate-200">duplicate</span> — reenvio do mesmo
+                  Message-ID.
+                </li>
+                <li>
+                  <span className="font-mono text-slate-800 dark:text-slate-200">threaded</span> — mensagem ligada a um
+                  ticket <strong>aberto</strong> (mesma thread).
+                </li>
+                <li>
+                  <span className="font-mono text-slate-800 dark:text-slate-200">after_close_new_ticket</span> — criado
+                  ticket de triagem porque a thread apontava para um chamado já fechado.
+                </li>
+                <li>
+                  <span className="font-mono text-slate-800 dark:text-slate-200">auto_reply_sent</span> — enviada
+                  resposta automática ao remetente (se Resend estiver configurada).
+                </li>
+              </ul>
+            </div>
+
+            <section className="max-w-xl space-y-4">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Resend (envio transaccional)
+              </h3>
+              <div>
+                <label htmlFor="ce-resend-key" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  API Key
+                </label>
+                {hadResendApiKey && !resendApiKeyTouched && resendApiKey === '' && !resendApiKeyCampoVisivel ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      A chave está guardada no servidor (não é mostrada). Use o botão abaixo só para substituir ou remover.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <div
+                        className={`${fieldClass} flex min-h-[2.75rem] flex-1 items-center text-slate-500 dark:text-slate-400`}
+                        role="status"
+                      >
+                        <span className="select-none tracking-[0.35em]" aria-hidden>
+                          ••••••••••
+                        </span>
+                      </div>
+                      <Button type="button" variant="secondary" onClick={() => setResendApiKeyCampoVisivel(true)}>
+                        Substituir ou remover
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <input
+                      id="ce-resend-key"
+                      type={showResendKey ? 'text' : 'password'}
+                      value={resendApiKey}
+                      onChange={(e) => {
+                        setResendApiKey(e.target.value)
+                        setResendApiKeyTouched(true)
+                      }}
+                      autoComplete="new-password"
+                      className={`${fieldClass} pr-12`}
+                      placeholder="re_…"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowResendKey((v) => !v)}
+                      className="absolute right-1.5 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/30 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-200"
+                      aria-label={showResendKey ? 'Ocultar' : 'Mostrar'}
+                      aria-pressed={showResendKey}
+                    >
+                      {showResendKey ? <IconEyeOff ariaHidden={false} /> : <IconEye ariaHidden={false} />}
+                    </button>
+                  </div>
+                )}
+                {hadResendApiKey && resendApiKeyCampoVisivel ? (
+                  <button
+                    type="button"
+                    className="mt-1.5 text-left text-xs text-slate-500 underline decoration-slate-400/80 underline-offset-2 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                    onClick={() => {
+                      setResendApiKeyCampoVisivel(false)
+                      setResendApiKey('')
+                      setResendApiKeyTouched(false)
+                    }}
+                  >
+                    Manter a chave guardada e voltar ao resumo
+                  </button>
+                ) : null}
+                <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                  Também pode definir <span className="font-mono">RESEND_API_KEY</span> no servidor em vez de gravar aqui.
+                </p>
               </div>
-              <Switch
-                checked={imapSsl}
-                onCheckedChange={setImapSsl}
-                label="SSL/TLS (porta típica 993)"
-                bare
-              />
-              <div className="flex flex-wrap gap-3">
-                <Button type="button" variant="secondary" onClick={() => void testarImap()} disabled={testandoImap}>
-                  {testandoImap ? 'Testando…' : 'Testar IMAP'}
-                </Button>
+              <div>
+                <label htmlFor="ce-from-email" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  E-mail remetente (From)
+                </label>
+                <input
+                  id="ce-from-email"
+                  type="email"
+                  value={transactionalFromEmail}
+                  onChange={(e) => setTransactionalFromEmail(e.target.value)}
+                  className={fieldClass}
+                  placeholder="onboarding@resend.dev ou o seu domínio verificado"
+                />
+              </div>
+              <div>
+                <label htmlFor="ce-from-name" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Nome remetente (opcional)
+                </label>
+                <input
+                  id="ce-from-name"
+                  value={transactionalFromName}
+                  onChange={(e) => setTransactionalFromName(e.target.value)}
+                  className={fieldClass}
+                  placeholder="Suporte DX Connect"
+                />
               </div>
             </section>
 
@@ -626,7 +776,19 @@ export function ConfigEmpresaEmail() {
               <Button type="submit" disabled={salvandoEmail}>
                 {salvandoEmail ? 'Salvando…' : 'Salvar e-mail'}
               </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => void testarTransactional()}
+                disabled={testandoTransactional}
+              >
+                {testandoTransactional ? 'Enviando…' : 'Enviar teste para o meu e-mail'}
+              </Button>
             </div>
+            <p className="max-w-xl text-xs text-slate-500 dark:text-slate-400">
+              O teste usa o endereço do utilizador administrador em sessão. Confirme que esse utilizador tem e-mail
+              válido no cadastro.
+            </p>
           </form>
         )}
       </Card>

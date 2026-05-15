@@ -9,8 +9,13 @@ class EmpresaSistemaRead(BaseModel):
     email: str | None = None
     telefone: str | None = None
     endereco: str | None = None
+    numero: str | None = None
+    complemento: str | None = None
+    bairro: str | None = None
+    cidade: str | None = None
+    estado: str | None = None
+    cep: str | None = None
     logo_url: str | None = None
-    ativo: bool = True
 
 
 class EmpresaSistemaUpdate(BaseModel):
@@ -21,5 +26,9 @@ class EmpresaSistemaUpdate(BaseModel):
     email: str | None = None
     telefone: str | None = None
     endereco: str | None = None
-    ativo: bool | None = None
-
+    numero: str | None = None
+    complemento: str | None = None
+    bairro: str | None = None
+    cidade: str | None = None
+    estado: str | None = None
+    cep: str | None = None
