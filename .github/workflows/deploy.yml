@@ -101,12 +101,14 @@ jobs:
             "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s << EOF
           set -e
           cd "${DEPLOY_PATH}"
+          echo "==> Deploy branch/ref: ${REF}"
           git fetch origin
           git checkout "${REF}"
           git pull origin "${REF}"
+          git rev-parse --short HEAD
           if [ "${SKIP_MIGRATIONS}" != "true" ]; then
-            # Garante que migrations rodem com a imagem do código recém-puxado.
-            docker compose -f docker-compose.prod.yml run --rm --build backend alembic upgrade head
+            docker compose -f docker-compose.prod.yml build backend
+            docker compose -f docker-compose.prod.yml run --rm backend alembic upgrade head
           fi
-          docker compose -f docker-compose.prod.yml up -d --build
+          docker compose -f docker-compose.prod.yml up -d --build --force-recreate backend
           EOF
