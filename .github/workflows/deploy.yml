@@ -95,9 +95,8 @@ jobs:
 
       - name: Git pull + Alembic + Docker Compose
         run: |
-          # Por padrão, faz deploy da branch que disparou o workflow (ex.: push em staging).
-          # Ainda permite override via secret DEPLOY_GIT_REF quando necessário.
-          REF="${DEPLOY_GIT_REF:-${EVENT_REF:-main}}"
+          # Branch do evento (push em staging/main) tem prioridade; DEPLOY_GIT_REF só se o evento não trouxer ref.
+          REF="${EVENT_REF:-${DEPLOY_GIT_REF:-main}}"
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -p "${SSH_PORT}" \
             "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s << EOF
           set -e
