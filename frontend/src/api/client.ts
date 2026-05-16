@@ -546,26 +546,15 @@ export namespace TenantApi {
     label?: string | null
     setor_id: number
     setor_nome?: string | null
+    setor_slug?: string | null
     default_empresa_id?: number | null
     ativo: boolean
-  }
-
-  export interface InboundAddressCreate {
-    local_part: string
-    label?: string | null
-    setor_id: number
-    default_empresa_id?: number | null
   }
 }
 
 export const tenantApi = {
   getAtual: () => api<TenantApi.TenantRead>('/tenant/atual'),
   listInboundAddresses: () => api<TenantApi.InboundAddressRead[]>('/tenant/inbound-addresses'),
-  createInboundAddress: (data: TenantApi.InboundAddressCreate) =>
-    api<TenantApi.InboundAddressRead>('/tenant/inbound-addresses', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
 }
 
 export async function fetchEmpresaSistemaLogoBlob(): Promise<Blob | null> {

@@ -18,7 +18,8 @@ from app.schemas.tenant import (
     TenantInboundAddressUpdate,
     TenantRead,
 )
-from app.services.tenant_inbound import format_inbound_address, normalize_local_part
+from app.services.tenant_inbound import format_inbound_address
+from app.services.tenant_inbound_sync import sync_inbound_addresses_for_tenant
 
 router = APIRouter(prefix="/tenant", tags=["tenant"])
 
@@ -39,6 +40,7 @@ def _inbound_to_read(row: TenantInboundAddress) -> TenantInboundAddressRead:
         label=row.label,
         setor_id=row.setor_id,
         setor_nome=row.setor.nome if row.setor else None,
+        setor_slug=row.setor.slug if row.setor else None,
         default_empresa_id=row.default_empresa_id,
         ativo=row.ativo,
     )
@@ -67,11 +69,16 @@ def list_inbound_addresses(
     db: Session = Depends(get_db),
     _: Atendente = Depends(exigir_admin),
 ):
+    sync_inbound_addresses_for_tenant(db, tenant_id)
     rows = (
         db.query(TenantInboundAddress)
         .options(joinedload(TenantInboundAddress.setor))
-        .filter(TenantInboundAddress.tenant_id == tenant_id)
-        .order_by(TenantInboundAddress.local_part.asc())
+        .filter(
+            TenantInboundAddress.tenant_id == tenant_id,
+            TenantInboundAddress.ativo.is_(True),
+        )
+        .join(Setor, TenantInboundAddress.setor_id == Setor.id)
+        .order_by(Setor.nome.asc())
         .all()
     )
     return [_inbound_to_read(r) for r in rows]
@@ -84,42 +91,10 @@ def create_inbound_address(
     db: Session = Depends(get_db),
     _: Atendente = Depends(exigir_admin),
 ):
-    lp = normalize_local_part(data.local_part)
-    prefix = f"{tenant_id}_"
-    if not lp.startswith(prefix) and lp != str(tenant_id):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"O identificador deve começar por «{prefix}» (ex.: {tenant_id}_comercial).",
-        )
-    setor = (
-        db.query(Setor)
-        .filter(Setor.id == data.setor_id, Setor.tenant_id == tenant_id, Setor.ativo.is_(True))
-        .first()
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="Endereços são criados automaticamente para cada setor ativo. Consulte GET /tenant/inbound-addresses.",
     )
-    if not setor:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Setor inválido para este tenant.")
-    if data.default_empresa_id is not None:
-        emp = (
-            db.query(Empresa)
-            .filter(Empresa.id == data.default_empresa_id, Empresa.tenant_id == tenant_id)
-            .first()
-        )
-        if not emp:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empresa inválida para este tenant.")
-    if db.query(TenantInboundAddress).filter(TenantInboundAddress.local_part == lp).first():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Este endereço de encaminhamento já existe.")
-    row = TenantInboundAddress(
-        tenant_id=tenant_id,
-        local_part=lp,
-        label=(data.label or "").strip() or None,
-        setor_id=data.setor_id,
-        default_empresa_id=data.default_empresa_id,
-        ativo=True,
-    )
-    db.add(row)
-    db.commit()
-    db.refresh(row)
-    return _inbound_to_read(row)
 
 
 @router.put("/inbound-addresses/{address_id}", response_model=TenantInboundAddressRead)

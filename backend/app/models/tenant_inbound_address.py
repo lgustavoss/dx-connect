@@ -9,7 +9,7 @@ class TenantInboundAddress(Base):
     """
     Endereço de encaminhamento ``{local_part}@{INBOUND_EMAIL_DOMAIN}``.
 
-    Convenção sugerida: ``{tenant_id}_{canal}`` (ex.: ``1_comercial``, ``1_suporte``).
+    Convenção: ``{setor_slug}.t{tenant_id}`` (ex.: ``suporte.t1``, ``financeiro.t1``).
     """
 
     __tablename__ = "tenant_inbound_addresses"

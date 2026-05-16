@@ -18,6 +18,7 @@ class TenantInboundAddressRead(BaseModel):
     label: str | None = None
     setor_id: int
     setor_nome: str | None = None
+    setor_slug: str | None = None
     default_empresa_id: int | None = None
     ativo: bool
 

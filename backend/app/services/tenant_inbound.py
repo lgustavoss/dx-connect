@@ -7,9 +7,11 @@ import re
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.models.setor import Setor
 from app.models.tenant_inbound_address import TenantInboundAddress
 
-_LOCAL_PART_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,126}$", re.IGNORECASE)
+_LOCAL_PART_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,126}$", re.IGNORECASE)
+_LEGACY_LP_RE = re.compile(r"^(\d+)_([a-z0-9_-]+)$", re.IGNORECASE)
 
 
 def inbound_email_domain() -> str:
@@ -28,7 +30,7 @@ def normalize_local_part(raw: str) -> str:
     s = (raw or "").strip().lower()
     if not s or not _LOCAL_PART_RE.fullmatch(s):
         raise ValueError(
-            "Identificador inválido. Use letras, números, hífen ou sublinhado (ex.: 1_comercial, 1_suporte)."
+            "Identificador inválido. Use letras, números, ponto, hífen ou sublinhado (ex.: suporte.t1, financeiro.t2)."
         )
     return s
 
@@ -48,10 +50,27 @@ def extract_local_part_from_email(addr: str) -> str | None:
 
 def lookup_inbound_address(db: Session, *, local_part: str) -> TenantInboundAddress | None:
     lp = normalize_local_part(local_part)
-    return (
+    row = (
         db.query(TenantInboundAddress)
         .filter(
             TenantInboundAddress.local_part == lp,
+            TenantInboundAddress.ativo.is_(True),
+        )
+        .first()
+    )
+    if row:
+        return row
+    legacy = _LEGACY_LP_RE.fullmatch(lp)
+    if not legacy:
+        return None
+    tenant_id = int(legacy.group(1))
+    slug = legacy.group(2).lower()
+    return (
+        db.query(TenantInboundAddress)
+        .join(Setor, TenantInboundAddress.setor_id == Setor.id)
+        .filter(
+            TenantInboundAddress.tenant_id == tenant_id,
+            Setor.slug == slug,
             TenantInboundAddress.ativo.is_(True),
         )
         .first()

@@ -4,7 +4,6 @@ import {
   empresas,
   fetchEmpresaSistemaLogoBlob,
   resolvedApiBaseUrl,
-  setores,
   systemSettings,
   tenantApi,
   type CadastroAux,
@@ -71,11 +70,7 @@ export function ConfigEmpresaEmail() {
   const tenantId = resolveTenantIdFromHostname()
   const [tenantInfo, setTenantInfo] = useState<TenantApi.TenantRead | null>(null)
   const [inboundAddresses, setInboundAddresses] = useState<TenantApi.InboundAddressRead[]>([])
-  const [setoresLista, setSetoresLista] = useState<Array<{ id: number; nome: string }>>([])
-  const [inboundLocalPart, setInboundLocalPart] = useState(`${tenantId}_suporte`)
-  const [inboundLabel, setInboundLabel] = useState('Suporte')
-  const [inboundSetorId, setInboundSetorId] = useState<number | ''>('')
-  const [criandoInbound, setCriandoInbound] = useState(false)
+  const [carregandoInbound, setCarregandoInbound] = useState(false)
 
   useEffect(() => {
     logoBlobUrlRef.current = logoBlobUrl
@@ -84,20 +79,14 @@ export function ConfigEmpresaEmail() {
   const carregar = useCallback(async () => {
     setLoading(true)
     try {
-      const [emp, mail, tenantAtual, inbound, setoresPag] = await Promise.all([
+      const [emp, mail, tenantAtual, inbound] = await Promise.all([
         systemSettings.getEmpresaSistema(),
         systemSettings.getEmail(),
         tenantApi.getAtual().catch(() => null),
         tenantApi.listInboundAddresses().catch(() => [] as TenantApi.InboundAddressRead[]),
-        setores.list({ limit: 100 }).catch(() => ({ items: [] as Array<{ id: number; nome: string }> })),
       ])
       setTenantInfo(tenantAtual)
       setInboundAddresses(inbound)
-      const setorItems = setoresPag.items ?? []
-      setSetoresLista(setorItems.map((s) => ({ id: s.id, nome: s.nome })))
-      if (setorItems.length && inboundSetorId === '') {
-        setInboundSetorId(setorItems[0].id)
-      }
 
       const cj = (emp.cnpj ?? '').trim()
       setCnpj(cj ? maskCnpjCpf(cj) : '')
@@ -296,25 +285,29 @@ export function ConfigEmpresaEmail() {
     }
   }
 
-  async function criarEnderecoInbound(e: React.FormEvent) {
-    e.preventDefault()
-    if (!inboundSetorId) {
-      toast.showWarning('Selecione o setor de destino.')
-      return
-    }
-    setCriandoInbound(true)
+  const recarregarInbound = useCallback(async () => {
+    setCarregandoInbound(true)
     try {
-      const row = await tenantApi.createInboundAddress({
-        local_part: inboundLocalPart.trim(),
-        label: inboundLabel.trim() || null,
-        setor_id: Number(inboundSetorId),
-      })
-      setInboundAddresses((prev) => [...prev, row].sort((a, b) => a.local_part.localeCompare(b.local_part)))
-      toast.showSuccess('Endereço de encaminhamento criado.')
+      const inbound = await tenantApi.listInboundAddresses()
+      setInboundAddresses(inbound)
     } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível criar o endereço.'))
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar os endereços por setor.'))
     } finally {
-      setCriandoInbound(false)
+      setCarregandoInbound(false)
+    }
+  }, [toast])
+
+  useEffect(() => {
+    if (aba !== 'email' || loading) return
+    void recarregarInbound()
+  }, [aba, loading, recarregarInbound])
+
+  async function copiarEndereco(email: string) {
+    try {
+      await navigator.clipboard.writeText(email)
+      toast.showSuccess('Endereço copiado.')
+    } catch {
+      toast.showError('Não foi possível copiar. Selecione o texto manualmente.')
     }
   }
 
@@ -604,40 +597,93 @@ export function ConfigEmpresaEmail() {
             </div>
 
             <section className="max-w-3xl space-y-4 rounded-xl border border-slate-200 p-4 dark:border-white/10">
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Encaminhamento de e-mail</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                Endereço por canal (ex. <span className="font-mono">{tenantId}_comercial</span>). Encaminhe a caixa do
-                cliente para esse endereço. Identificador deve começar por <span className="font-mono">{tenantId}_</span>.
-              </p>
-              {inboundAddresses.map((a) => (
-                <p key={a.id} className="font-mono text-sm">
-                  {a.full_address} <span className="text-slate-500">({a.label || a.setor_nome})</span>
-                </p>
-              ))}
-              <form onSubmit={criarEnderecoInbound} className="grid gap-3 sm:grid-cols-2">
-                <input
-                  value={inboundLocalPart}
-                  onChange={(e) => setInboundLocalPart(e.target.value)}
-                  className={fieldClass}
-                  placeholder={`${tenantId}_suporte`}
-                />
-                <input value={inboundLabel} onChange={(e) => setInboundLabel(e.target.value)} className={fieldClass} placeholder="Rótulo" />
-                <select
-                  value={inboundSetorId === '' ? '' : String(inboundSetorId)}
-                  onChange={(e) => setInboundSetorId(e.target.value ? Number(e.target.value) : '')}
-                  className={`${fieldClass} sm:col-span-2`}
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    E-mails por departamento (encaminhamento)
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                    Cada setor ativo recebe automaticamente um endereço no formato{' '}
+                    <span className="font-mono">
+                      &lt;setor&gt;.t{tenantId}@…
+                    </span>
+                    . Configure o encaminhamento da caixa do cliente para o endereço correspondente.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={carregandoInbound}
+                  onClick={() => void recarregarInbound()}
                 >
-                  <option value="">Setor…</option>
-                  {setoresLista.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.nome}
-                    </option>
-                  ))}
-                </select>
-                <Button type="submit" variant="secondary" disabled={criandoInbound} className="sm:col-span-2">
-                  {criandoInbound ? 'A criar…' : 'Adicionar endereço'}
+                  {carregandoInbound ? 'A atualizar…' : 'Atualizar lista'}
                 </Button>
-              </form>
+              </div>
+
+              {inboundAddresses.length === 0 ? (
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Nenhum setor ativo com endereço gerado. Cadastre setores em Configurações → Setores e volte aqui.
+                </p>
+              ) : null}
+
+              {inboundAddresses.length > 0 ? (
+                <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-white/10">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900/60 dark:text-slate-400">
+                      <tr>
+                        <th className="px-3 py-2 font-semibold">Setor</th>
+                        <th className="px-3 py-2 font-semibold">E-mail para encaminhamento</th>
+                        <th className="px-3 py-2 font-semibold w-24" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-white/10">
+                      {inboundAddresses.map((a) => (
+                        <tr key={a.id}>
+                          <td className="px-3 py-2.5 font-medium text-slate-900 dark:text-slate-100">
+                            {a.setor_nome ?? a.label ?? '—'}
+                          </td>
+                          <td className="px-3 py-2.5 font-mono text-xs sm:text-sm text-slate-800 dark:text-slate-200">
+                            {a.full_address}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <Button type="button" variant="secondary" onClick={() => void copiarEndereco(a.full_address)}>
+                              Copiar
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+
+              <div className="rounded-lg border border-sky-200/80 bg-sky-50/90 px-4 py-3 text-sm leading-relaxed text-sky-950 dark:border-sky-900/50 dark:bg-sky-950/25 dark:text-sky-100">
+                <h4 className="font-semibold text-sky-950 dark:text-sky-50">O que o cliente deve fazer</h4>
+                <ol className="mt-2 list-decimal space-y-2 pl-5">
+                  <li>
+                    Para cada departamento da tabela, abra as configurações da caixa de e-mail usada por essa equipa (ex.{' '}
+                    <span className="font-mono">suporte@empresa.com.br</span>).
+                  </li>
+                  <li>
+                    Ative <strong>encaminhamento automático</strong> ou <strong>reenvio</strong> (Gmail: Configurações →
+                    Encaminhamento; Outlook: Regras → Encaminhar para).
+                  </li>
+                  <li>
+                    Adicione o endereço DX Connect do setor (botão <strong>Copiar</strong>) como destino do encaminhamento.
+                    Mantenha uma cópia na caixa original se a ferramenta permitir.
+                  </li>
+                  <li>
+                    Guarde e envie um e-mail de teste para a caixa do cliente; o ticket deve aparecer no setor correto no
+                    painel.
+                  </li>
+                  <li>Repita para todos os departamentos listados acima.</li>
+                </ol>
+                <p className="mt-3 text-xs text-sky-900/90 dark:text-sky-200/80">
+                  Não é necessário criar endereços manualmente: ao cadastrar um setor ativo, o sistema gera o e-mail{' '}
+                  <span className="font-mono">slug-do-setor.t{tenantId}</span>{' '}
+                  na próxima atualização desta lista.
+                </p>
+              </div>
             </section>
 
             <div className="max-w-3xl space-y-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-relaxed text-slate-700 dark:border-white/10 dark:bg-slate-900/40 dark:text-slate-300">
