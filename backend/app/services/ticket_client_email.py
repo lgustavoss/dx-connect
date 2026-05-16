@@ -72,7 +72,9 @@ def enviar_resposta_equipa_por_email(db: Session, *, ticket: Ticket, corpo: str)
 
     settings_row = get_singleton_email_settings(db)
     if not transactional_config_from_row(settings_row):
-        raise ValueError("Envio de e-mail não configurado (Resend). Configure no painel admin ou no servidor.")
+        raise ValueError(
+            "Envio de e-mail não configurado na plataforma. Contacte o administrador da instalação."
+        )
 
     base = (ticket.assunto or "Chamado").strip()[:200]
     low = base.lower()
@@ -87,4 +89,4 @@ def enviar_resposta_equipa_por_email(db: Session, *, ticket: Ticket, corpo: str)
         )
     except Exception as e:
         logger.warning("Falha ao enviar resposta da equipa por e-mail (ticket %s): %s", ticket.id, e)
-        raise ValueError("Falha ao enviar e-mail. Verifique a configuração Resend e tente novamente.") from e
+        raise ValueError("Falha ao enviar e-mail. Verifique a configuração de envio da plataforma.") from e

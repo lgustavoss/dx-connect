@@ -29,6 +29,7 @@ def test_email_settings_nao_expoe_segredos(client, auth_headers):
     r1 = client.get("/v1/settings/email", headers=auth_headers["admin"])
     assert r1.status_code == 200
     assert r1.json()["has_transactional_api_key"] is False
+    assert r1.json()["outbound_configured"] is False
 
     r2 = client.put(
         "/v1/settings/email",
@@ -42,6 +43,7 @@ def test_email_settings_nao_expoe_segredos(client, auth_headers):
     assert r2.status_code == 200
     j = r2.json()
     assert j["has_transactional_api_key"] is True
+    assert j["outbound_configured"] is True
     assert j["transactional_from_email"] == "onboarding@resend.dev"
     assert j["transactional_from_name"] == "DX Connect"
     assert "transactional_api_key" not in j
@@ -70,6 +72,19 @@ def test_endpoints_sao_admin_only(client, auth_headers):
     assert r2.status_code == 403
     r3 = client.post("/v1/settings/email/test-transactional", headers=auth_headers["a1"])
     assert r3.status_code == 403
+
+
+def test_get_email_outbound_configured_via_env(client, auth_headers, monkeypatch):
+    monkeypatch.setattr("app.config.settings.RESEND_API_KEY", "re_env_only")
+    monkeypatch.setattr("app.config.settings.TRANSACTIONAL_FROM_EMAIL", "noreply@platform.test")
+    monkeypatch.setattr("app.config.settings.TRANSACTIONAL_FROM_NAME", "DX Connect")
+
+    r = client.get("/v1/settings/email", headers=auth_headers["admin"])
+    assert r.status_code == 200
+    j = r.json()
+    assert j["outbound_configured"] is True
+    assert j["transactional_from_email"] == "noreply@platform.test"
+    assert j["has_transactional_api_key"] is False
 
 
 def test_transactional_config_from_row_exige_api_key_e_remetente(db_session, monkeypatch):

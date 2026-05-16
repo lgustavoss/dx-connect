@@ -2,9 +2,15 @@ from pydantic import BaseModel, Field
 
 
 class EmailSettingsRead(BaseModel):
+    """Estado do envio transaccional (sem expor segredos). Configuração efectiva: variáveis de ambiente no servidor."""
+
     transactional_from_email: str | None = None
     transactional_from_name: str | None = None
-    has_transactional_api_key: bool = False
+    outbound_configured: bool = False
+    has_transactional_api_key: bool = Field(
+        default=False,
+        description="Legado: API key gravada na BD (preferir RESEND_API_KEY no servidor).",
+    )
 
 
 class EmailSettingsUpdate(BaseModel):

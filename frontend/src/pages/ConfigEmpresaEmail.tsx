@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  API_VERSION_PREFIX,
   empresas,
   fetchEmpresaSistemaLogoBlob,
-  resolvedApiBaseUrl,
   systemSettings,
   tenantApi,
   type CadastroAux,
@@ -18,7 +16,6 @@ import { InputCepComBusca } from '../components/ui/InputCepComBusca'
 import { SelectCidadeUf } from '../components/ui/SelectCidadeUf'
 import { SelectUf } from '../components/ui/SelectUf'
 import { useToast } from '../components/ui/Toast'
-import { IconEye, IconEyeOff } from '../components/ui/IconEye'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { isCnpj, maskCnpjCpf } from '../utils/maskCnpjCpf'
 import { digitsOnly, formatTelefoneBrExibicao, maskCep, maskTelefoneBr } from '../utils/masks'
@@ -56,15 +53,7 @@ export function ConfigEmpresaEmail() {
   const [logoUploading, setLogoUploading] = useState(false)
   const [logoDeleting, setLogoDeleting] = useState(false)
 
-  const [transactionalFromEmail, setTransactionalFromEmail] = useState('')
-  const [transactionalFromName, setTransactionalFromName] = useState('')
-  const [resendApiKey, setResendApiKey] = useState('')
-  const [resendApiKeyTouched, setResendApiKeyTouched] = useState(false)
-  const [hadResendApiKey, setHadResendApiKey] = useState(false)
-  const [resendApiKeyCampoVisivel, setResendApiKeyCampoVisivel] = useState(true)
-  const [showResendKey, setShowResendKey] = useState(false)
-
-  const [salvandoEmail, setSalvandoEmail] = useState(false)
+  const [emailOutbound, setEmailOutbound] = useState<SystemSettings.EmailSettingsRead | null>(null)
   const [testandoTransactional, setTestandoTransactional] = useState(false)
 
   const tenantId = resolveTenantIdFromHostname()
@@ -118,13 +107,7 @@ export function ConfigEmpresaEmail() {
         }
       }
 
-      setTransactionalFromEmail((mail.transactional_from_email ?? '').trim())
-      setTransactionalFromName((mail.transactional_from_name ?? '').trim())
-      setResendApiKey('')
-      setResendApiKeyTouched(false)
-      const temKey = Boolean(mail.has_transactional_api_key)
-      setHadResendApiKey(temKey)
-      setResendApiKeyCampoVisivel(!temKey)
+      setEmailOutbound(mail)
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar as configurações.'))
     } finally {
@@ -256,35 +239,6 @@ export function ConfigEmpresaEmail() {
     }
   }
 
-  function montarPayloadEmail(): SystemSettings.EmailSettingsUpdate {
-    const p: SystemSettings.EmailSettingsUpdate = {
-      transactional_from_email: transactionalFromEmail.trim() || null,
-      transactional_from_name: transactionalFromName.trim() || null,
-    }
-    if (resendApiKeyTouched) {
-      p.transactional_api_key = resendApiKey.trim() === '' ? '' : resendApiKey.trim()
-    }
-    return p
-  }
-
-  async function salvarEmail(e: React.FormEvent) {
-    e.preventDefault()
-    setSalvandoEmail(true)
-    try {
-      const mail = await systemSettings.putEmail(montarPayloadEmail())
-      const temKey = Boolean(mail.has_transactional_api_key)
-      setHadResendApiKey(temKey)
-      setResendApiKeyCampoVisivel(!temKey)
-      setResendApiKey('')
-      setResendApiKeyTouched(false)
-      toast.showSuccess('Configuração de e-mail salva.')
-    } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar o e-mail.'))
-    } finally {
-      setSalvandoEmail(false)
-    }
-  }
-
   const recarregarInbound = useCallback(async () => {
     setCarregandoInbound(true)
     try {
@@ -334,8 +288,8 @@ export function ConfigEmpresaEmail() {
     <div className="mx-auto max-w-6xl space-y-6 pb-10">
       <Card title="Empresa do sistema e e-mail">
         <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-          Dados institucionais da instalação e envio transaccional (Resend) para tickets e mensagens do sistema
-          (apenas administradores).
+          Dados institucionais da instalação e endereços de encaminhamento por setor para tickets por e-mail (apenas
+          administradores).
         </p>
 
         <div className="mt-5 border-b border-slate-200 dark:border-slate-700/80">
@@ -572,20 +526,52 @@ export function ConfigEmpresaEmail() {
             </div>
           </form>
         ) : (
-          <form onSubmit={salvarEmail} className="mt-6 space-y-8">
+          <div className="mt-6 space-y-8">
             <p className="max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-              O envio de e-mails (respostas da equipa, auto-respostas e testes) usa a API{' '}
-              <a
-                href="https://resend.com/docs"
-                className="text-sky-600 underline decoration-sky-500/40 underline-offset-2 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Resend
-              </a>
-              . Crie uma API key no painel da Resend, verifique o domínio ou use o remetente de teste indicado por eles,
-              e guarde os dados abaixo.
+              Configure o <strong>encaminhamento</strong> por departamento (entrada de tickets). As{' '}
+              <strong>respostas por e-mail</strong> são enviadas pela infraestrutura DX Connect — não é necessário criar
+              conta Resend nem configurar SMTP na sua organização.
             </p>
+
+            <div
+              className={
+                emailOutbound?.outbound_configured
+                  ? 'max-w-3xl rounded-xl border border-emerald-200/80 bg-emerald-50/90 px-4 py-3 text-sm text-emerald-950 dark:border-emerald-900/50 dark:bg-emerald-950/25 dark:text-emerald-100'
+                  : 'max-w-3xl rounded-xl border border-amber-200/80 bg-amber-50/90 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/25 dark:text-amber-100'
+              }
+            >
+              <h3 className="font-semibold">Envio de respostas (plataforma)</h3>
+              {emailOutbound?.outbound_configured ? (
+                <p className="mt-1.5">
+                  Ativo. Remetente:{' '}
+                  <span className="font-mono">
+                    {emailOutbound.transactional_from_name
+                      ? `${emailOutbound.transactional_from_name} <${emailOutbound.transactional_from_email}>`
+                      : emailOutbound.transactional_from_email}
+                  </span>
+                </p>
+              ) : (
+                <p className="mt-1.5">
+                  Indisponível neste servidor. A equipa de operação deve definir{' '}
+                  <span className="font-mono">RESEND_API_KEY</span> e{' '}
+                  <span className="font-mono">TRANSACTIONAL_FROM_EMAIL</span> no ambiente (VPS). Enquanto isso, os
+                  tickets por encaminhamento funcionam; respostas ao cliente pelo painel não saem por e-mail.
+                </p>
+              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => void testarTransactional()}
+                  disabled={testandoTransactional || !emailOutbound?.outbound_configured}
+                >
+                  {testandoTransactional ? 'Enviando…' : 'Enviar teste para o meu e-mail'}
+                </Button>
+              </div>
+              <p className="mt-2 text-xs opacity-90">
+                O teste usa o e-mail do administrador em sessão.
+              </p>
+            </div>
 
             <div className="max-w-3xl space-y-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-relaxed text-slate-700 dark:border-white/10 dark:bg-slate-900/40 dark:text-slate-300">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Acesso por tenant</h3>
@@ -686,156 +672,7 @@ export function ConfigEmpresaEmail() {
               </div>
             </section>
 
-            <div className="max-w-3xl space-y-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-relaxed text-slate-700 dark:border-white/10 dark:bg-slate-900/40 dark:text-slate-300">
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Ingestão por webhook (tickets)</h3>
-              <p>
-                O destinatário (<span className="font-mono">local@inbound…</span>) define tenant e setor quando
-                configurado acima.
-              </p>
-              <p className="font-mono text-xs text-slate-800 dark:text-slate-200">
-                POST {resolvedApiBaseUrl()}
-                {API_VERSION_PREFIX}/webhooks/email-inbound
-              </p>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                Cabeçalho obrigatório: <span className="font-mono text-slate-800 dark:text-slate-200">X-Dx-Email-Webhook-Secret</span>.
-                A Resend configurada aqui é usada para o envio ao cliente (respostas da equipa e e-mail automático quando
-                a thread continua mas o chamado original já estiver encerrado).
-              </p>
-              <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Campos úteis na resposta JSON:</p>
-              <ul className="list-inside list-disc space-y-1 text-xs text-slate-600 dark:text-slate-400">
-                <li>
-                  <span className="font-mono text-slate-800 dark:text-slate-200">duplicate</span> — reenvio do mesmo
-                  Message-ID.
-                </li>
-                <li>
-                  <span className="font-mono text-slate-800 dark:text-slate-200">threaded</span> — mensagem ligada a um
-                  ticket <strong>aberto</strong> (mesma thread).
-                </li>
-                <li>
-                  <span className="font-mono text-slate-800 dark:text-slate-200">after_close_new_ticket</span> — criado
-                  ticket de triagem porque a thread apontava para um chamado já fechado.
-                </li>
-                <li>
-                  <span className="font-mono text-slate-800 dark:text-slate-200">auto_reply_sent</span> — enviada
-                  resposta automática ao remetente (se Resend estiver configurada).
-                </li>
-              </ul>
-            </div>
-
-            <section className="max-w-xl space-y-4">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Resend (envio transaccional)
-              </h3>
-              <div>
-                <label htmlFor="ce-resend-key" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  API Key
-                </label>
-                {hadResendApiKey && !resendApiKeyTouched && resendApiKey === '' && !resendApiKeyCampoVisivel ? (
-                  <div className="space-y-2">
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      A chave está guardada no servidor (não é mostrada). Use o botão abaixo só para substituir ou remover.
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <div
-                        className={`${fieldClass} flex min-h-[2.75rem] flex-1 items-center text-slate-500 dark:text-slate-400`}
-                        role="status"
-                      >
-                        <span className="select-none tracking-[0.35em]" aria-hidden>
-                          ••••••••••
-                        </span>
-                      </div>
-                      <Button type="button" variant="secondary" onClick={() => setResendApiKeyCampoVisivel(true)}>
-                        Substituir ou remover
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="relative">
-                    <input
-                      id="ce-resend-key"
-                      type={showResendKey ? 'text' : 'password'}
-                      value={resendApiKey}
-                      onChange={(e) => {
-                        setResendApiKey(e.target.value)
-                        setResendApiKeyTouched(true)
-                      }}
-                      autoComplete="new-password"
-                      className={`${fieldClass} pr-12`}
-                      placeholder="re_…"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowResendKey((v) => !v)}
-                      className="absolute right-1.5 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/30 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-200"
-                      aria-label={showResendKey ? 'Ocultar' : 'Mostrar'}
-                      aria-pressed={showResendKey}
-                    >
-                      {showResendKey ? <IconEyeOff ariaHidden={false} /> : <IconEye ariaHidden={false} />}
-                    </button>
-                  </div>
-                )}
-                {hadResendApiKey && resendApiKeyCampoVisivel ? (
-                  <button
-                    type="button"
-                    className="mt-1.5 text-left text-xs text-slate-500 underline decoration-slate-400/80 underline-offset-2 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                    onClick={() => {
-                      setResendApiKeyCampoVisivel(false)
-                      setResendApiKey('')
-                      setResendApiKeyTouched(false)
-                    }}
-                  >
-                    Manter a chave guardada e voltar ao resumo
-                  </button>
-                ) : null}
-                <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-                  Também pode definir <span className="font-mono">RESEND_API_KEY</span> no servidor em vez de gravar aqui.
-                </p>
-              </div>
-              <div>
-                <label htmlFor="ce-from-email" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  E-mail remetente (From)
-                </label>
-                <input
-                  id="ce-from-email"
-                  type="email"
-                  value={transactionalFromEmail}
-                  onChange={(e) => setTransactionalFromEmail(e.target.value)}
-                  className={fieldClass}
-                  placeholder="onboarding@resend.dev ou o seu domínio verificado"
-                />
-              </div>
-              <div>
-                <label htmlFor="ce-from-name" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Nome remetente (opcional)
-                </label>
-                <input
-                  id="ce-from-name"
-                  value={transactionalFromName}
-                  onChange={(e) => setTransactionalFromName(e.target.value)}
-                  className={fieldClass}
-                  placeholder="Suporte DX Connect"
-                />
-              </div>
-            </section>
-
-            <div className="flex flex-wrap gap-3 border-t border-slate-200 pt-4 dark:border-slate-700/80">
-              <Button type="submit" disabled={salvandoEmail}>
-                {salvandoEmail ? 'Salvando…' : 'Salvar e-mail'}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => void testarTransactional()}
-                disabled={testandoTransactional}
-              >
-                {testandoTransactional ? 'Enviando…' : 'Enviar teste para o meu e-mail'}
-              </Button>
-            </div>
-            <p className="max-w-xl text-xs text-slate-500 dark:text-slate-400">
-              O teste usa o endereço do utilizador administrador em sessão. Confirme que esse utilizador tem e-mail
-              válido no cadastro.
-            </p>
-          </form>
+          </div>
         )}
       </Card>
     </div>

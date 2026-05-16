@@ -26,8 +26,8 @@ def enviar_mensagem_texto_sistema(
     cfg = transactional_config_from_row(row)
     if not cfg:
         raise ValueError(
-            "Envio de e-mail não configurado. Defina a API Key da Resend e o remetente em "
-            "Configurações → E-mail (admin) ou as variáveis RESEND_API_KEY e TRANSACTIONAL_FROM_EMAIL no servidor."
+            "Envio de e-mail não configurado na plataforma. Defina RESEND_API_KEY e "
+            "TRANSACTIONAL_FROM_EMAIL no servidor (ver documentação de deploy)."
         )
     return enviar_via_resend(
         cfg,

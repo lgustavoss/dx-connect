@@ -11,7 +11,7 @@ from app.schemas.email_settings import EmailSettingsRead, EmailSettingsUpdate, E
 from app.schemas.system_company import EmpresaSistemaRead, EmpresaSistemaUpdate
 from app.services.email_send_sistema import enviar_mensagem_texto_sistema
 from app.services.secret_box import encrypt_str
-from app.services.system_email_config import get_singleton_email_settings
+from app.services.system_email_config import get_singleton_email_settings, transactional_config_from_row
 from app.services.system_logo_storage import apagar_logo, caminho_absoluto_logo, gravar_logo_bytes
 
 router = APIRouter(prefix="/settings", tags=["settings-system"])
@@ -68,12 +68,18 @@ def _get_or_create_email(db: Session) -> EmailSettings:
 
 
 def _email_out(row: EmailSettings | None) -> EmailSettingsRead:
-    if not row:
-        return EmailSettingsRead()
+    cfg = transactional_config_from_row(row)
+    from_email = cfg.from_email if cfg else None
+    from_name = cfg.from_name if cfg else None
+    if not from_email and row and (row.transactional_from_email or "").strip():
+        from_email = str(row.transactional_from_email).strip()
+    if not from_name and row and (row.transactional_from_name or "").strip():
+        from_name = str(row.transactional_from_name).strip()
     return EmailSettingsRead(
-        transactional_from_email=row.transactional_from_email,
-        transactional_from_name=row.transactional_from_name,
-        has_transactional_api_key=bool(row.transactional_api_key_enc and str(row.transactional_api_key_enc).strip()),
+        transactional_from_email=from_email,
+        transactional_from_name=from_name,
+        outbound_configured=bool(cfg),
+        has_transactional_api_key=bool(row and row.transactional_api_key_enc and str(row.transactional_api_key_enc).strip()),
     )
 
 
@@ -245,8 +251,8 @@ def test_transactional_email(
         enviar_mensagem_texto_sistema(
             db,
             to_addr=dest,
-            subject="DX Connect — teste de envio (Resend)",
-            body="Se recebeu esta mensagem, a configuração de e-mail transaccional está correcta.",
+            subject="DX Connect — teste de envio",
+            body="Se recebeu esta mensagem, o envio transaccional da plataforma está configurado.",
         )
         return EmailTestResult(ok=True, detail="E-mail de teste enviado.")
     except ValueError as e:

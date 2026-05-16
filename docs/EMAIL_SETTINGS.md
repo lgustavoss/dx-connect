@@ -41,7 +41,19 @@ O modelo **mais usado** por produtos como Zendesk, Freshdesk, octadesk, sistemas
 | Idempotência | Cabeçalho **`Message-ID`** na mensagem MIME ou no campo `headers` (formato SendGrid). Reenvio com o mesmo ID devolve **200** com `"duplicate": true`. |
 | Corpo | JSON `{"rfc822": "..."}` (MIME completo) **ou** formulário `from`, `subject`, `text`/`html`, `headers`, opcionalmente `email` (RFC822). |
 
-Resposta: `ticket_id`, `protocolo`, `duplicate`, `threaded` (`true` quando a mensagem foi anexada a um ticket **ainda aberto** via `In-Reply-To` / `References`), `after_close_new_ticket` (`true` quando a thread apontava para um ticket **já encerrado** — abre-se um **novo ticket de triagem** em vez de reabrir a conversa no fechado), `auto_reply_sent` (`true` quando foi enviado o e-mail automático ao cliente a explicar o encerramento; depende de SMTP configurado).
+Resposta: `ticket_id`, `protocolo`, `duplicate`, `threaded` (`true` quando a mensagem foi anexada a um ticket **ainda aberto** via `In-Reply-To` / `References`), `after_close_new_ticket` (`true` quando a thread apontava para um ticket **já encerrado** — abre-se um **novo ticket de triagem** em vez de reabrir a conversa no fechado), `auto_reply_sent` (`true` quando foi enviado o e-mail automático ao cliente a explicar o encerramento; depende do envio transaccional da plataforma).
+
+### Envio de respostas (plataforma — sem SMTP no painel)
+
+O **cliente final** não cria conta Resend nem grava API key na UI. O envio (respostas da equipa, auto-resposta, teste no painel admin) usa credenciais **só no servidor**:
+
+| Variável | Função |
+|----------|--------|
+| `RESEND_API_KEY` | API key da conta Resend da operação (Duplexsoft / DX Connect) |
+| `TRANSACTIONAL_FROM_EMAIL` | Remetente verificado nessa conta (ex.: `noreply@notify.duplexsoft.com.br`) |
+| `TRANSACTIONAL_FROM_NAME` | Nome exibido (opcional) |
+
+`GET /v1/settings/email` devolve `outbound_configured: true` quando key + remetente estão disponíveis (ambiente ou, em legado, BD). O painel **Empresa → E-mail** mostra o estado e permite **testar envio**; não expõe campos para API key.
 
 ---
 

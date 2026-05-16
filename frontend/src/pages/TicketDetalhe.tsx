@@ -1055,8 +1055,8 @@ export function TicketDetalhe() {
                   onChange={(e) => setNotificarClienteEmail(e.target.checked)}
                 />
                 <span>
-                  Enviar também por e-mail ao cliente (último remetente do ticket via webhook; requer SMTP
-                  configurado).
+                  Enviar também por e-mail ao cliente (último remetente do ticket via encaminhamento; requer envio
+                  configurado na plataforma).
                 </span>
               </label>
             ) : null}
