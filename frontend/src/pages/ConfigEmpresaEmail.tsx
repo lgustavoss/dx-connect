@@ -655,8 +655,9 @@ export function ConfigEmpresaEmail() {
                     Encaminhamento; Outlook: Regras → Encaminhar para).
                   </li>
                   <li>
-                    Adicione o endereço DX Connect do setor (botão <strong>Copiar</strong>) como destino do encaminhamento.
-                    Mantenha uma cópia na caixa original se a ferramenta permitir.
+                    Adicione o endereço DX Connect do setor (botão <strong>Copiar</strong>) como destino do encaminhamento —
+                    use o valor <strong>exacto</strong> da coluna da tabela. Mantenha uma cópia na caixa original se a
+                    ferramenta permitir.
                   </li>
                   <li>
                     Guarde e envie um e-mail de teste para a caixa do cliente; o ticket deve aparecer no setor correto no

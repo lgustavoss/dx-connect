@@ -16,10 +16,8 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.schemas.email_inbound import EmailInboundWebhookResponse
+from app.services.email_inbound_dispatch import dispatch_parsed_inbound
 from app.services.email_inbound_parse import parse_from_rfc822_bytes, parse_from_sendgrid_like_form
-from app.models.tenant import Tenant
-from app.services.tenant_inbound import resolve_routing_from_recipients
-from app.services.ticket_from_inbound_email import processar_email_inbound
 
 logger = logging.getLogger(__name__)
 
@@ -38,33 +36,6 @@ def _check_secret(request: Request) -> None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Não autorizado.")
     if not secrets.compare_digest(hdr, secret):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Não autorizado.")
-
-
-def _defaults_empresa_setor() -> tuple[int, int]:
-    eid = settings.EMAIL_INBOUND_DEFAULT_EMPRESA_ID
-    sid = settings.EMAIL_INBOUND_DEFAULT_SETOR_ID
-    if eid is None or sid is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Configure EMAIL_INBOUND_DEFAULT_EMPRESA_ID e EMAIL_INBOUND_DEFAULT_SETOR_ID "
-            "ou um endereço de encaminhamento em Configurações → E-mail.",
-        )
-    return int(eid), int(sid)
-
-
-def _resolve_routing(db: Session, parsed) -> tuple[int, int, int | None]:
-    """(tenant_id, empresa_id, setor_id)."""
-    cfg, _lp = resolve_routing_from_recipients(db, list(parsed.to_recipients))
-    if cfg:
-        tenant = db.query(Tenant).filter(Tenant.id == cfg.tenant_id, Tenant.ativo.is_(True)).first()
-        if not tenant:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Tenant inativo.")
-        eid = cfg.default_empresa_id
-        if eid is None:
-            eid, _ = _defaults_empresa_setor()
-        return cfg.tenant_id, int(eid), cfg.setor_id
-    empresa_id, setor_id = _defaults_empresa_setor()
-    return int(settings.DEFAULT_TENANT_ID), empresa_id, setor_id
 
 
 async def _form_dict(request: Request) -> dict[str, str]:
@@ -114,30 +85,10 @@ async def post_email_inbound(request: Request, db: Session = Depends(get_db)):
             detail="Não foi possível interpretar a mensagem (formato inválido).",
         ) from e
 
-    if not parsed.message_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Message-ID ausente ou inválido. Inclua o cabeçalho Message-ID na mensagem ou em `headers`.",
-        )
-
-    _tenant_id, empresa_id, setor_id = _resolve_routing(db, parsed)
-
     try:
-        res = processar_email_inbound(
-            db,
-            empresa_id=empresa_id,
-            setor_id=setor_id,
-            parsed=parsed,
-            tenant_id=_tenant_id,
-        )
+        return dispatch_parsed_inbound(db, parsed)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
-
-    return EmailInboundWebhookResponse(
-        ticket_id=res.ticket.id,
-        protocolo=res.ticket.protocolo,
-        duplicate=res.duplicate,
-        threaded=res.threaded,
-        after_close_new_ticket=res.after_close_new_ticket,
-        auto_reply_sent=res.auto_reply_sent,
-    )
+        detail = str(e)
+        if "Configure EMAIL_INBOUND" in detail:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=detail) from e
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail) from e

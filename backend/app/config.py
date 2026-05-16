@@ -55,7 +55,8 @@ class Settings(BaseSettings):
 
     # Multi-tenant: subdomínio {tenant_id}.CONNECT_APP_BASE_DOMAIN e endereços {local}@INBOUND_EMAIL_DOMAIN
     CONNECT_APP_BASE_DOMAIN: str = "connect.duplexsoft.com.br"
-    INBOUND_EMAIL_DOMAIN: str = "inbound.duplexsoft.com.br"
+    # Domínio Resend com Receiving (ex.: notify.duplexsoft.com.br). Endereços: {setor}.t{tenant}@domínio.
+    INBOUND_EMAIL_DOMAIN: str = "notify.duplexsoft.com.br"
     # Host sem subdomínio (ex.: connect.duplexsoft.com.br) ou dev local sem header.
     DEFAULT_TENANT_ID: int = 1
 
@@ -67,6 +68,8 @@ class Settings(BaseSettings):
 
     # Resend (envio transaccional HTTP). Opcional: sobrepõe ausência de API key na BD (útil em dev/CI).
     RESEND_API_KEY: str | None = None
+    # Segredo Svix do webhook Resend (evento email.received → /v1/webhooks/resend-inbound).
+    RESEND_WEBHOOK_SECRET: str | None = None
     TRANSACTIONAL_FROM_EMAIL: str | None = None
     TRANSACTIONAL_FROM_NAME: str | None = None
 

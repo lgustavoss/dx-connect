@@ -43,6 +43,32 @@ O modelo **mais usado** por produtos como Zendesk, Freshdesk, octadesk, sistemas
 
 Resposta: `ticket_id`, `protocolo`, `duplicate`, `threaded` (`true` quando a mensagem foi anexada a um ticket **ainda aberto** via `In-Reply-To` / `References`), `after_close_new_ticket` (`true` quando a thread apontava para um ticket **já encerrado** — abre-se um **novo ticket de triagem** em vez de reabrir a conversa no fechado), `auto_reply_sent` (`true` quando foi enviado o e-mail automático ao cliente a explicar o encerramento; depende do envio transaccional da plataforma).
 
+### Recepção via Resend (produção Duplexsoft — passos 1 e 2)
+
+Fluxo: caixa do cliente (`suporte@duplexsoft.com.br`) → **encaminhamento** → `{setor}.t{tenant}@notify.duplexsoft.com.br` → Resend Receiving → webhook → ticket.
+
+| Passo | Onde | Detalhe |
+|-------|------|---------|
+| 1 | Resend → Domains | Domínio **`notify.duplexsoft.com.br`** com **Enable Receiving** e MX **Verified** |
+| 2 | Painel Connect | **Empresa → E-mail** → **Atualizar lista** → copiar ex.: `suporte.t1@notify.duplexsoft.com.br` |
+| 3 | Outlook / M365 | Encaminhar `suporte@` para o endereço da tabela (não o antigo `@inbound...`) |
+| 4 | Resend → Webhooks | Evento **`email.received`**, URL `POST https://api.connect.duplexsoft.com.br/v1/webhooks/resend-inbound` |
+| 5 | VPS `backend/.env` | Ver variáveis abaixo + rebuild do container API |
+
+Variáveis no servidor:
+
+```env
+INBOUND_EMAIL_DOMAIN=notify.duplexsoft.com.br
+RESEND_API_KEY=re_...
+RESEND_WEBHOOK_SECRET=whsec_...
+EMAIL_INBOUND_DEFAULT_EMPRESA_ID=1
+EMAIL_INBOUND_DEFAULT_SETOR_ID=<id do setor Suporte>
+```
+
+`EMAIL_INBOUND_WEBHOOK_SECRET` só é necessário para o endpoint legado `/v1/webhooks/email-inbound` (MIME manual / SendGrid). O webhook Resend usa **`RESEND_WEBHOOK_SECRET`** (assinatura Svix).
+
+Teste: enviar e-mail para `suporte@` → em Resend **Emails → Receiving** deve aparecer o destino `suporte.t1@notify...` → no Connect, novo ticket ou mensagem na thread.
+
 ### Envio de respostas (plataforma — sem SMTP no painel)
 
 O **cliente final** não cria conta Resend nem grava API key na UI. O envio (respostas da equipa, auto-resposta, teste no painel admin) usa credenciais **só no servidor**:
