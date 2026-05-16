@@ -12,6 +12,8 @@ os.environ["DX_CONNECT_TESTING"] = "1"
 os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
 os.environ["SECRET_KEY"] = "01234567890123456789012345678901"
 os.environ["ENVIRONMENT"] = "development"
+os.environ["DEFAULT_TENANT_ID"] = "1"
+os.environ["INBOUND_EMAIL_DOMAIN"] = "inbound.dx.test"
 
 import pytest
 from starlette.testclient import TestClient
@@ -57,18 +59,22 @@ def _clean_db(db_session):
 def seed_base(db_session):
     """Dados mínimos para testes de RBAC/tickets (sem depender de seed automático)."""
     from app.core.security import hash_senha
-    from app.models import Atendente, Empresa, Rede, Setor, StatusTicket
+    from app.models import Atendente, Empresa, Rede, Setor, StatusTicket, Tenant
+
+    t = Tenant(id=1, nome="Teste", ativo=True)
+    db_session.add(t)
+    db_session.flush()
 
     # Setores
-    s1 = Setor(nome="Suporte", slug="suporte", ativo=True)
-    s2 = Setor(nome="Financeiro", slug="financeiro", ativo=True)
+    s1 = Setor(tenant_id=1, nome="Suporte", slug="suporte", ativo=True)
+    s2 = Setor(tenant_id=1, nome="Financeiro", slug="financeiro", ativo=True)
     db_session.add_all([s1, s2])
 
     # Rede/Empresa (Ticket exige empresa_id)
-    r = Rede(nome="Rede Teste", ativo=True)
+    r = Rede(tenant_id=1, nome="Rede Teste", ativo=True)
     db_session.add(r)
     db_session.flush()
-    e = Empresa(rede_id=r.id, nome="Empresa Teste", ativo=True)
+    e = Empresa(tenant_id=1, rede_id=r.id, nome="Empresa Teste", ativo=True)
     db_session.add(e)
 
     # Status inicial (Ticket.create exige ao menos um status ativo)
@@ -77,6 +83,7 @@ def seed_base(db_session):
 
     # Usuários
     admin = Atendente(
+        tenant_id=1,
         email="admin@test.local",
         nome="Admin",
         senha_hash=hash_senha("admin123"),
@@ -85,6 +92,7 @@ def seed_base(db_session):
         must_change_password=False,
     )
     a1 = Atendente(
+        tenant_id=1,
         email="atendente1@test.local",
         nome="Atendente 1",
         senha_hash=hash_senha("at123"),
@@ -93,6 +101,7 @@ def seed_base(db_session):
         must_change_password=False,
     )
     a2 = Atendente(
+        tenant_id=1,
         email="atendente2@test.local",
         nome="Atendente 2",
         senha_hash=hash_senha("at123"),
@@ -108,7 +117,17 @@ def seed_base(db_session):
     a2.setores.append(s2)
 
     db_session.commit()
-    return {"setor1": s1, "setor2": s2, "rede": r, "empresa": e, "status": st, "admin": admin, "a1": a1, "a2": a2}
+    return {
+        "tenant": t,
+        "setor1": s1,
+        "setor2": s2,
+        "rede": r,
+        "empresa": e,
+        "status": st,
+        "admin": admin,
+        "a1": a1,
+        "a2": a2,
+    }
 
 
 @pytest.fixture
@@ -117,8 +136,11 @@ def auth_headers(seed_base):
     from app.core.security import criar_access_token
 
     def headers_for(email: str) -> dict[str, str]:
-        tok = criar_access_token({"sub": email})
-        return {"Authorization": f"Bearer {tok}"}
+        tok = criar_access_token({"sub": email, "tid": 1})
+        return {
+            "Authorization": f"Bearer {tok}",
+            "X-Dx-Tenant-Id": "1",
+        }
 
     return {
         "admin": headers_for(seed_base["admin"].email),

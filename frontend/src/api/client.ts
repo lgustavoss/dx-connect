@@ -1,4 +1,5 @@
 import { mensagemErroApi } from './errorMessage'
+import { resolveTenantIdFromHostname } from '../lib/tenant'
 
 function apiBaseUrl(): string {
   if (import.meta.env.DEV) return '/api'
@@ -13,6 +14,11 @@ const BASE = apiBaseUrl()
 
 /** Prefixo de versão da API (ex.: dev: `/api` + `/v1` + `/auth/login` → `/v1/auth/login` no backend). */
 export const API_VERSION_PREFIX = '/v1'
+
+/** URL base da API (sem barra final). Útil para montar URLs mostradas ao administrador (ex.: webhook). */
+export function resolvedApiBaseUrl(): string {
+  return apiBaseUrl()
+}
 
 export class ApiError extends Error {
   status: number
@@ -46,6 +52,14 @@ export function clearAuthToken(): void {
   localStorage.removeItem(TOKEN_KEY)
   sessionStorage.removeItem(REFRESH_TOKEN_KEY)
   localStorage.removeItem(REFRESH_TOKEN_KEY)
+}
+
+/** Invalida sessão e força novo login (evita voltar com «Back» para páginas autenticadas). */
+export function invalidateSessionAndRedirectToLogin(): void {
+  clearAuthToken()
+  const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`
+  const qs = returnTo && returnTo !== '/login' ? `?returnTo=${encodeURIComponent(returnTo)}` : ''
+  window.location.replace(`/login${qs}`)
 }
 
 function setTokens(tokens: { access_token: string; refresh_token?: string | null }, lembrarMe = true) {
@@ -90,13 +104,16 @@ export async function api<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = getToken();
+  const isFormData =
+    typeof FormData !== 'undefined' && options.body != null && options.body instanceof FormData
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options.headers as object),
-  };
+  }
   if (token) {
     (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
   }
+  ;(headers as Record<string, string>)['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
   const res = await fetch(`${BASE}${API_VERSION_PREFIX}${path}`, { ...options, headers });
 
   // Tratamento especial para login: não redirecionar nem recarregar a página,
@@ -123,9 +140,7 @@ export async function api<T>(
       }
     }
 
-    clearAuthToken()
-    const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`
-    window.location.href = `/login?returnTo=${encodeURIComponent(returnTo)}`
+    invalidateSessionAndRedirectToLogin()
     throw new ApiError(mensagemErroApi(err, 401), 401, err);
   }
 
@@ -370,6 +385,330 @@ export const audit = {
   }) => listPaginated<Audit.AuditLogEntry>('/audit', params),
 };
 
+export namespace WhatsappSettings {
+  export interface Read {
+    evolution_base_url: string | null
+    evolution_instance_name: string | null
+    has_api_key: boolean
+    has_webhook_secret: boolean
+    evolution_embutida_disponivel: boolean
+    auto_msg_espera_ativa: boolean
+    auto_msg_espera_texto: string | null
+    auto_msg_assumido_ativa: boolean
+    auto_msg_assumido_texto: string | null
+    auto_msg_encerrado_ativa: boolean
+    auto_msg_encerrado_texto: string | null
+    auto_msg_fora_horario_ativa: boolean
+    auto_msg_fora_horario_texto: string | null
+    horario_inicio: string | null
+    horario_fim: string | null
+    horario_timezone: string
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null
+    usar_feriados_nacionais?: boolean
+    nome_empresa_exibicao?: string | null
+  }
+  export interface ProvisionEmbutidoResult {
+    instance: string
+    webhook_url: string
+    qrcode?: Record<string, unknown> | null
+    connect_http_status?: number | null
+    connect_erro?: string | null
+  }
+  export interface Update {
+    evolution_base_url?: string | null
+    evolution_instance_name?: string | null
+    evolution_api_key?: string | null
+    webhook_secret?: string | null
+    auto_msg_espera_ativa?: boolean | null
+    auto_msg_espera_texto?: string | null
+    auto_msg_assumido_ativa?: boolean | null
+    auto_msg_assumido_texto?: string | null
+    auto_msg_encerrado_ativa?: boolean | null
+    auto_msg_encerrado_texto?: string | null
+    auto_msg_fora_horario_ativa?: boolean | null
+    auto_msg_fora_horario_texto?: string | null
+    horario_inicio?: string | null
+    horario_fim?: string | null
+    horario_timezone?: string | null
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null
+    usar_feriados_nacionais?: boolean | null
+    nome_empresa_exibicao?: string | null
+  }
+  export interface TesteResult {
+    ok: boolean
+    detalhe?: string | null
+  }
+}
+
+export const whatsappSettings = {
+  get: () => api<WhatsappSettings.Read>('/settings/whatsapp'),
+  patch: (data: WhatsappSettings.Update) =>
+    api<WhatsappSettings.Read>('/settings/whatsapp', { method: 'PATCH', body: JSON.stringify(data) }),
+  testar: () =>
+    api<WhatsappSettings.TesteResult>('/settings/whatsapp/testar-conexao', {
+      method: 'POST',
+    }),
+  provisionarEmbutido: () =>
+    api<WhatsappSettings.ProvisionEmbutidoResult>('/settings/whatsapp/provisao-embutida', { method: 'POST' }),
+  qrCode: () => api<Record<string, unknown>>('/settings/whatsapp/qr-code'),
+  estadoEmbutido: () => api<Record<string, unknown>>('/settings/whatsapp/estado-embutido'),
+  reporEmbutido: () => api<void>('/settings/whatsapp/repor-embutido', { method: 'POST' }),
+}
+
+export namespace SystemSettings {
+  export interface EmpresaSistema {
+    cnpj?: string | null
+    nome?: string | null
+    razao_social?: string | null
+    nome_fantasia?: string | null
+    email?: string | null
+    telefone?: string | null
+    endereco?: string | null
+    numero?: string | null
+    complemento?: string | null
+    bairro?: string | null
+    cidade?: string | null
+    estado?: string | null
+    cep?: string | null
+    logo_url?: string | null
+  }
+
+  export interface EmpresaSistemaUpdate {
+    cnpj?: string | null
+    nome?: string | null
+    razao_social?: string | null
+    nome_fantasia?: string | null
+    email?: string | null
+    telefone?: string | null
+    endereco?: string | null
+    numero?: string | null
+    complemento?: string | null
+    bairro?: string | null
+    cidade?: string | null
+    estado?: string | null
+    cep?: string | null
+  }
+
+  export interface EmailSettingsRead {
+    transactional_from_email?: string | null
+    transactional_from_name?: string | null
+    has_transactional_api_key?: boolean
+  }
+
+  export interface EmailSettingsUpdate {
+    transactional_api_key?: string | null
+    transactional_from_email?: string | null
+    transactional_from_name?: string | null
+  }
+
+  export interface EmailTestResult {
+    ok: boolean
+    detail?: string | null
+  }
+}
+
+export const systemSettings = {
+  getEmpresaSistema: () => api<SystemSettings.EmpresaSistema>('/settings/empresa-sistema'),
+  putEmpresaSistema: (data: SystemSettings.EmpresaSistemaUpdate) =>
+    api<SystemSettings.EmpresaSistema>('/settings/empresa-sistema', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  uploadEmpresaLogo: (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api<SystemSettings.EmpresaSistema>('/settings/empresa-sistema/logo', { method: 'POST', body: fd })
+  },
+  deleteEmpresaLogo: () => api<SystemSettings.EmpresaSistema>('/settings/empresa-sistema/logo', { method: 'DELETE' }),
+  getEmail: () => api<SystemSettings.EmailSettingsRead>('/settings/email'),
+  putEmail: (data: SystemSettings.EmailSettingsUpdate) =>
+    api<SystemSettings.EmailSettingsRead>('/settings/email', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  testEmailTransactional: () =>
+    api<SystemSettings.EmailTestResult>('/settings/email/test-transactional', { method: 'POST' }),
+}
+
+export namespace TenantApi {
+  export interface TenantRead {
+    id: number
+    nome: string
+    ativo: boolean
+    app_host?: string | null
+  }
+
+  export interface InboundAddressRead {
+    id: number
+    tenant_id: number
+    local_part: string
+    full_address: string
+    label?: string | null
+    setor_id: number
+    setor_nome?: string | null
+    default_empresa_id?: number | null
+    ativo: boolean
+  }
+
+  export interface InboundAddressCreate {
+    local_part: string
+    label?: string | null
+    setor_id: number
+    default_empresa_id?: number | null
+  }
+}
+
+export const tenantApi = {
+  getAtual: () => api<TenantApi.TenantRead>('/tenant/atual'),
+  listInboundAddresses: () => api<TenantApi.InboundAddressRead[]>('/tenant/inbound-addresses'),
+  createInboundAddress: (data: TenantApi.InboundAddressCreate) =>
+    api<TenantApi.InboundAddressRead>('/tenant/inbound-addresses', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+}
+
+export async function fetchEmpresaSistemaLogoBlob(): Promise<Blob | null> {
+  const token = getAuthToken()
+  const headers: Record<string, string> = {
+    'X-Dx-Tenant-Id': String(resolveTenantIdFromHostname()),
+  }
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(`${BASE}${API_VERSION_PREFIX}/settings/empresa-sistema/logo`, { headers })
+  if (res.status === 404) return null
+  if (res.status === 401) {
+    invalidateSessionAndRedirectToLogin()
+    throw new ApiError('Sessão expirada ou inválida.', 401, {})
+  }
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+  }
+  return res.blob()
+}
+
+export namespace WhatsappChats {
+  export interface Chat {
+    id: number
+    protocolo: string
+    wa_id: string
+    cliente_nome?: string | null
+    estado: string
+    setor_id?: number | null
+    setor_nome?: string | null
+    atendente_id?: number | null
+    atendente_nome?: string | null
+    created_at?: string | null
+    atendimento_inicio_at?: string | null
+    encerramento_at?: string | null
+    ticket_ids: number[]
+  }
+  export interface Mensagem {
+    id: number
+    chat_id: number
+    direcao: string
+    corpo: string
+    tipo_midia?: string | null
+    mimetype?: string | null
+    midia_disponivel?: boolean
+    evento_sistema?: string | null
+    wa_message_id?: string | null
+    atendente_id?: number | null
+    atendente_nome?: string | null
+    created_at?: string | null
+  }
+}
+
+/** Obtém o binário de uma mensagem com mídia (requer JWT; não usar em `src` de img direto). */
+export async function fetchWhatsAppMidiaBlob(chatId: number, mensagemId: number): Promise<Blob> {
+  const token = getAuthToken()
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(
+    `${BASE}${API_VERSION_PREFIX}/whatsapp/chats/${chatId}/mensagens/${mensagemId}/midia`,
+    { headers },
+  )
+  if (res.status === 401) {
+    invalidateSessionAndRedirectToLogin()
+    throw new ApiError('Sessão expirada ou inválida.', 401, {})
+  }
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+  }
+  return res.blob()
+}
+
+export async function fetchTicketAnexoBlob(ticketId: number, anexoId: number): Promise<Blob> {
+  const token = getAuthToken()
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(
+    `${BASE}${API_VERSION_PREFIX}/tickets/${ticketId}/anexos/${anexoId}/download`,
+    { headers },
+  )
+  if (res.status === 401) {
+    invalidateSessionAndRedirectToLogin()
+    throw new ApiError('Sessão expirada ou inválida.', 401, {})
+  }
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+  }
+  return res.blob()
+}
+
+export const whatsappChats = {
+  fila: () => api<WhatsappChats.Chat[]>('/whatsapp/chats/fila'),
+  meus: () => api<WhatsappChats.Chat[]>('/whatsapp/chats/meus'),
+  encerrados: (params?: { offset?: number; limit?: number }) =>
+    listPaginated<WhatsappChats.Chat>('/whatsapp/chats/encerrados', params),
+  get: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}`),
+  mensagens: (id: number) => api<WhatsappChats.Mensagem[]>(`/whatsapp/chats/${id}/mensagens`),
+  assumir: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/assumir`, { method: 'POST' }),
+  encerrar: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/encerrar`, { method: 'POST' }),
+  transferir: (id: number, data: { setor_id: number; atendente_id?: number | null }) =>
+    api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/transferir`, { method: 'POST', body: JSON.stringify(data) }),
+  enviar: (id: number, texto: string) =>
+    api<WhatsappChats.Mensagem>(`/whatsapp/chats/${id}/mensagens`, {
+      method: 'POST',
+      body: JSON.stringify({ texto }),
+    }),
+  comentarInterno: (id: number, texto: string) =>
+    api<WhatsappChats.Mensagem>(`/whatsapp/chats/${id}/comentarios-internos`, {
+      method: 'POST',
+      body: JSON.stringify({ texto }),
+    }),
+  marcarVisto: (id: number) => api<void>(`/whatsapp/chats/${id}/visto`, { method: 'POST' }),
+  vincularTicket: (id: number, ticketId: number) =>
+    api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/vincular-ticket`, {
+      method: 'POST',
+      body: JSON.stringify({ ticket_id: ticketId }),
+    }),
+  abrirTicket: (
+    id: number,
+    data: { empresa_id: number; setor_id: number; assunto: string; descricao?: string | null },
+  ) =>
+    api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/abrir-ticket`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  porTicket: (ticketId: number) => api<WhatsappChats.Chat[]>(`/whatsapp/chats/por-ticket/${ticketId}`),
+  setoresParaTransferencia: () => api<Array<{ id: number; nome: string }>>('/whatsapp/chats/transfer/setores'),
+    enviarMidia: (id: number, file: File) => {
+    const formData = new FormData()
+    formData.append('file', file) // Verifique se o seu backend espera a chave 'file'
+
+    return api<WhatsappChats.Mensagem>(`/whatsapp/chats/${id}/mensagens-midia`, {
+      method: 'POST',
+      body: formData,
+      // Se a sua função 'api' injeta automaticamente headers de JSON, 
+      // você pode precisar passar um parâmetro para ignorar ou sobrescrever
+      // o Content-Type para undefined, deixando o browser definir o Boundary.
+    })
+  }
+}
+
 export const tickets = {
   list: (params?: {
     empresa_id?: number;
@@ -396,6 +735,13 @@ export const tickets = {
   reabrir: (id: number) => api<Tickets.Ticket>(`/tickets/${id}/reabrir`, { method: 'POST' }),
   create: (data: Tickets.Create) => api<Tickets.Ticket>('/tickets', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: number, data: Tickets.Update) => api<Tickets.Ticket>(`/tickets/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  anexosList: (id: number) => api<Tickets.Anexo[]>(`/tickets/${id}/anexos`),
+  uploadAnexo: (id: number, file: File, mensagemId?: number | null) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    if (mensagemId != null) fd.append('mensagem_id', String(mensagemId))
+    return api<Tickets.AnexoUploadResponse>(`/tickets/${id}/anexos`, { method: 'POST', body: fd })
+  },
 };
 
 export const dashboard = {
@@ -406,10 +752,12 @@ export namespace Notificacoes {
   export interface Resumo {
     sem_responsavel_count: number;
     nao_lidas_count: number;
+    wpp_fila_count: number;
+    wpp_respostas_count: number;
     total_pendencias: number;
   }
   export interface Item {
-    tipo: 'fila_sem_responsavel' | 'mensagens_nao_lidas';
+    tipo: 'fila_sem_responsavel' | 'mensagens_nao_lidas' | 'wpp_chats_na_fila' | 'wpp_chats_com_resposta';
     ticket_id: number | null;
     titulo: string;
     descricao: string;
@@ -775,17 +1123,39 @@ export namespace Tickets {
     tipo: MensagemTipo | string;
     corpo: string;
     created_at: string;
+    cliente_notificado_por_email?: boolean;
   }
 
   export interface MensagemCreate {
     corpo: string;
     tipo: 'publico' | 'interno';
+    notificar_cliente_por_email?: boolean;
   }
 
   export interface Update {
     setor_id?: number;
     status_id?: number;
     atendente_id?: number | null;
+  }
+
+  export type AnexoVisibilidade = 'publico' | 'interno'
+
+  export interface Anexo {
+    id: number
+    ticket_id: number
+    mensagem_id?: number | null
+    atendente_id?: number | null
+    atendente_nome?: string | null
+    visibilidade: AnexoVisibilidade
+    nome_original: string
+    content_type?: string | null
+    tamanho_bytes: number
+    created_at: string
+  }
+
+  export interface AnexoUploadResponse {
+    anexo: Anexo
+    download_url: string
   }
 }
 

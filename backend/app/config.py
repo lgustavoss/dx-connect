@@ -37,6 +37,50 @@ class Settings(BaseSettings):
     # Hostnames permitidos no header Host (TrustedHostMiddleware). Em produção não use "*".
     # Ex.: api.seudominio.com,127.0.0.1
     ALLOWED_HOSTS: str = "*"
+    # Evolution API no mesmo Docker Compose (opcional): o backend cria instância + webhook e expõe QR no painel.
+    EVOLUTION_INTERNAL_BASE_URL: str | None = None
+    EVOLUTION_GLOBAL_API_KEY: str | None = None
+    WHATSAPP_EMBEDDED_INSTANCE_NAME: str = "dxconnect"
+    # URL base que a Evolution deve usar para POST no webhook do DX Connect (hostname Docker = nome do serviço).
+    DX_CONNECT_WEBHOOK_BASE_URL: str | None = None
+    # Diretório para ficheiros de mídia WhatsApp (caminho relativo ao cwd ou absoluto). Em Docker: mapear volume em /app/data.
+    WHATSAPP_MEDIA_DIR: str = "data/whatsapp_media"
+    # Tamanho máximo (bytes) ao descodificar base64 da Evolution antes de gravar em disco.
+    WHATSAPP_MEDIA_MAX_BYTES: int = 25 * 1024 * 1024
+
+    # Diretório para anexos de tickets (caminho relativo ao cwd ou absoluto). Em Docker: mapear volume em /app/data.
+    TICKET_ANEXOS_DIR: str = "data/ticket_anexos"
+    # Tamanho máximo (bytes) para cada anexo de ticket.
+    TICKET_ANEXOS_MAX_BYTES: int = 25 * 1024 * 1024
+
+    # Multi-tenant: subdomínio {tenant_id}.CONNECT_APP_BASE_DOMAIN e endereços {local}@INBOUND_EMAIL_DOMAIN
+    CONNECT_APP_BASE_DOMAIN: str = "connect.duplexsoft.com.br"
+    INBOUND_EMAIL_DOMAIN: str = "inbound.duplexsoft.com.br"
+    # Host sem subdomínio (ex.: connect.duplexsoft.com.br) ou dev local sem header.
+    DEFAULT_TENANT_ID: int = 1
+
+    # Webhook de ingestão de e-mail (padrão SaaS). Sem segredo, o endpoint responde 503.
+    EMAIL_INBOUND_WEBHOOK_SECRET: str | None = None
+    # Fallback se o destinatário não corresponder a tenant_inbound_addresses (legado).
+    EMAIL_INBOUND_DEFAULT_EMPRESA_ID: int | None = None
+    EMAIL_INBOUND_DEFAULT_SETOR_ID: int | None = None
+
+    # Resend (envio transaccional HTTP). Opcional: sobrepõe ausência de API key na BD (útil em dev/CI).
+    RESEND_API_KEY: str | None = None
+    TRANSACTIONAL_FROM_EMAIL: str | None = None
+    TRANSACTIONAL_FROM_NAME: str | None = None
+
+    # Diretório para logo da empresa do sistema (caminho relativo ao cwd ou absoluto).
+    SYSTEM_LOGO_DIR: str = "data/system_logo"
+    # Tamanho máximo (bytes) para upload de logo (2MB).
+    SYSTEM_LOGO_MAX_BYTES: int = 2 * 1024 * 1024
+
+    @property
+    def evolution_embutida_disponivel(self) -> bool:
+        return bool(
+            (self.EVOLUTION_INTERNAL_BASE_URL or "").strip()
+            and (self.EVOLUTION_GLOBAL_API_KEY or "").strip()
+        )
 
     @field_validator("SEED_ADMIN_EMAIL", mode="before")
     @classmethod

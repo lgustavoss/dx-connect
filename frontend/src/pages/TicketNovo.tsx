@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiError, tickets, empresas, setores, type Empresas, type Setores } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
@@ -13,6 +13,8 @@ import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { FormSection } from '../components/ui/FormSection'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
+const MAX_ANEXO_BYTES = 25 * 1024 * 1024
+const MAX_ANEXOS_COUNT = 10
 
 export function TicketNovo() {
   const { isAdmin } = useAuth()
@@ -27,7 +29,9 @@ export function TicketNovo() {
   const [setorId, setSetorId] = useState<number | ''>('')
   const [assunto, setAssunto] = useState('')
   const [descricao, setDescricao] = useState('')
+  const [anexosSelecionados, setAnexosSelecionados] = useState<File[]>([])
   const [loading, setLoading] = useState(false)
+  const anexosInputRef = useRef<HTMLInputElement>(null)
 
   /** Setores já vêm filtrados pelo backend (#38); não restringir por `user.setor_ids` no cliente (evita perder homônimos). */
   const setoresFiltrados = useMemo(() => {
@@ -80,6 +84,36 @@ export function TicketNovo() {
     }
   }, [setoresFiltrados, setorId])
 
+  function onSelecionarAnexos(ev: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(ev.target.files ?? [])
+    ev.target.value = ''
+    if (files.length === 0) return
+
+    const ok: File[] = []
+    for (const f of files) {
+      if (f.size <= 0) continue
+      if (f.size > MAX_ANEXO_BYTES) {
+        toast.showWarning(`O arquivo \"${f.name}\" excede 25 MB e foi ignorado.`)
+        continue
+      }
+      ok.push(f)
+    }
+    if (ok.length === 0) return
+
+    setAnexosSelecionados((prev) => {
+      const next = [...prev, ...ok]
+      if (next.length > MAX_ANEXOS_COUNT) {
+        toast.showWarning(`Máximo de ${MAX_ANEXOS_COUNT} anexos por abertura. Alguns arquivos foram ignorados.`)
+        return next.slice(0, MAX_ANEXOS_COUNT)
+      }
+      return next
+    })
+  }
+
+  function removerAnexo(idx: number) {
+    setAnexosSelecionados((prev) => prev.filter((_, i) => i !== idx))
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!empresaId || !setorId || !assunto.trim() || !descricao.trim()) {
@@ -94,7 +128,20 @@ export function TicketNovo() {
         assunto: assunto.trim(),
         descricao: descricao.trim(),
       })
-      toast.showSuccess('Ticket criado.')
+      if (anexosSelecionados.length > 0) {
+        let ok = 0
+        for (const f of anexosSelecionados) {
+          try {
+            await tickets.uploadAnexo(created.id, f)
+            ok += 1
+          } catch (err) {
+            toast.showWarning(mensagemFalhaParaToast(err, `Falha ao enviar anexo \"${f.name}\".`))
+          }
+        }
+        toast.showSuccess(ok > 0 ? `Ticket criado com ${ok} anexo(s).` : 'Ticket criado.')
+      } else {
+        toast.showSuccess('Ticket criado.')
+      }
       navigate(`/tickets/${created.id}`)
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível localizar os dados para criar o ticket.'))
@@ -214,6 +261,79 @@ export function TicketNovo() {
                   disabled={semSetorPermitido || semEmpresasNoEscopo}
                   className="w-full rounded-xl border-0 bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-slate-200/90 focus:outline-none focus:ring-2 focus:ring-slate-400/35 dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-700"
                 />
+              </div>
+
+              <div className="mt-4">
+                <label
+                  htmlFor="ticket-novo-anexos"
+                  className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
+                >
+                  Anexos (opcional)
+                </label>
+                <div className="flex flex-wrap items-center gap-3">
+                  <input
+                    ref={anexosInputRef}
+                    id="ticket-novo-anexos"
+                    type="file"
+                    multiple
+                    className="sr-only"
+                    onChange={onSelecionarAnexos}
+                    disabled={semSetorPermitido || semEmpresasNoEscopo || loading}
+                    aria-label="Selecionar arquivos para anexar ao ticket"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={semSetorPermitido || semEmpresasNoEscopo || loading}
+                    onClick={() => anexosInputRef.current?.click()}
+                    className="inline-flex items-center gap-2"
+                  >
+                    <svg className="size-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+                      />
+                    </svg>
+                    Adicionar arquivos
+                  </Button>
+                  {anexosSelecionados.length > 0 ? (
+                    <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                      {anexosSelecionados.length} arquivo(s) na fila
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-500 dark:text-slate-400">Nenhum arquivo selecionado</span>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Até {MAX_ANEXOS_COUNT} arquivo(s), no máximo 25 MB cada. Alguns tipos podem ser bloqueados por segurança.
+                </p>
+
+                {anexosSelecionados.length > 0 && (
+                  <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-100">
+                    <div className="mb-2 font-medium">Arquivos selecionados</div>
+                    <ul className="space-y-2">
+                      {anexosSelecionados.map((f, idx) => (
+                        <li key={`${f.name}-${f.size}-${idx}`} className="flex items-center justify-between gap-3">
+                          <span className="min-w-0 truncate">
+                            {f.name}{' '}
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                              ({Math.ceil(f.size / 1024)} KB)
+                            </span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removerAnexo(idx)}
+                            className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-slate-100"
+                          >
+                            Remover
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </FormSection>
           </div>

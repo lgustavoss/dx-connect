@@ -9,6 +9,7 @@ class Empresa(Base):
     __tablename__ = "empresas"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False, index=True)
     rede_id = Column(Integer, ForeignKey("redes.id"), nullable=False)
     tipo_negocio_id = Column(Integer, ForeignKey("tipos_negocio.id"), nullable=True)
     nome = Column(String(255), nullable=False)

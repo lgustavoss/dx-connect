@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { Tickets } from '../api/client'
+import { exibirProtocolo } from '../lib/exibirProtocolo'
 import { Button } from './ui/Button'
 import { IconEye } from './ui/IconEye'
 
@@ -45,8 +46,11 @@ export function TicketsTabelaContexto({
               key={t.id}
               className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
             >
-              <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-800 dark:text-slate-100 sm:px-6">
-                {t.protocolo}
+              <td
+                className="max-w-[11rem] truncate px-4 py-3 font-mono text-xs text-slate-800 dark:text-slate-100 sm:px-6"
+                title={exibirProtocolo(t.protocolo)}
+              >
+                {exibirProtocolo(t.protocolo)}
               </td>
               {showEmpresaColumn ? (
                 <td
@@ -76,7 +80,7 @@ export function TicketsTabelaContexto({
                 {t.atendente_nome ?? '—'}
               </td>
               <td className="px-4 py-3 text-right sm:px-6">
-                <Link to={`/tickets/${t.id}`} aria-label={`Ver ticket ${t.protocolo}`}>
+                <Link to={`/tickets/${t.id}`} aria-label={`Ver ticket ${exibirProtocolo(t.protocolo)}`}>
                   <Button
                     type="button"
                     variant="ghost"

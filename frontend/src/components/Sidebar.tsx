@@ -12,6 +12,61 @@ const icons: Record<string, React.ReactNode> = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
     </svg>
   ),
+  chat: (
+    <svg className="size-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+      />
+    </svg>
+  ),
+  chatInbox: (
+    <svg className="size-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M20 13V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6m16 0v3a2 2 0 01-2 2H6a2 2 0 01-2-2v-3m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
+      />
+    </svg>
+  ),
+  chatHistory: (
+    <svg className="size-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  ),
+  whatsapp: (
+    <svg className="size-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+      />
+    </svg>
+  ),
+  auditoria: (
+    <svg className="size-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+      />
+    </svg>
+  ),
+  tiposNegocio: (
+    <svg className="size-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+      />
+    </svg>
+  ),
   clientes: (
     <svg className="size-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -92,6 +147,8 @@ interface NavGroup {
   label: string
   icon: string
   adminOnly?: boolean
+  /** Ex.: conversa aberta `/whatsapp/c/:id` mantém o grupo Chat ativo */
+  extraActivePrefixes?: string[]
   children: NavLink[]
 }
 
@@ -107,6 +164,17 @@ type NavItem = NavItemLink | NavGroup
 const navStructure: NavItem[] = [
   { type: 'link', to: '/', label: 'Dashboard', icon: 'dashboard' },
   { type: 'link', to: '/tickets', label: 'Tickets', icon: 'tickets' },
+  {
+    type: 'group',
+    id: 'chat',
+    label: 'Chat',
+    icon: 'chat',
+    extraActivePrefixes: ['/whatsapp/c/'],
+    children: [
+      { to: '/whatsapp/atendendo', label: 'Atendendo', icon: 'chatInbox' },
+      { to: '/whatsapp/historico', label: 'Histórico', icon: 'chatHistory' },
+    ],
+  },
   {
     type: 'group',
     id: 'clientes',
@@ -128,17 +196,22 @@ const navStructure: NavItem[] = [
     children: [
       { to: '/setores', label: 'Setores', icon: 'setores' },
       { to: '/atendentes', label: 'Atendentes', icon: 'atendentes' },
-      { to: '/tipos-negocio', label: 'Tipos de negócio', icon: 'configuracoes' },
+      { to: '/tipos-negocio', label: 'Tipos de negócio', icon: 'tiposNegocio' },
       { to: '/status-ticket', label: 'Status de ticket', icon: 'status' },
-      { to: '/auditoria', label: 'Auditoria', icon: 'configuracoes' },
+      { to: '/configuracoes/empresa-email', label: 'Empresa & e-mail', icon: 'empresas' },
+      { to: '/configuracoes/whatsapp', label: 'WhatsApp (Evolution)', icon: 'whatsapp' },
+      { to: '/auditoria', label: 'Auditoria', icon: 'auditoria' },
     ],
   },
 ]
 
-function isPathInGroup(pathname: string, children: NavLink[]): boolean {
-  return children.some(
-    (c) => pathname === c.to || (c.to !== '/' && pathname.startsWith(c.to))
-  )
+function navGroupMatchesPath(pathname: string, group: NavGroup): boolean {
+  if (
+    group.children.some((c) => pathname === c.to || (c.to !== '/' && pathname.startsWith(c.to)))
+  ) {
+    return true
+  }
+  return group.extraActivePrefixes?.some((prefix) => pathname.startsWith(prefix)) ?? false
 }
 
 interface SidebarProps {
@@ -173,7 +246,7 @@ export function Sidebar({
     for (const item of navStructure) {
       if (item.type === 'group') {
         if (!item.adminOnly || isAdmin) {
-          if (isPathInGroup(location.pathname, item.children)) {
+          if (navGroupMatchesPath(location.pathname, item)) {
             setOpenGroup(item.id)
             return
           }
@@ -261,7 +334,7 @@ export function Sidebar({
             // Group
             const group = item
             const open = isGroupOpen(group.id)
-            const active = isPathInGroup(location.pathname, group.children)
+            const active = navGroupMatchesPath(location.pathname, group)
 
             const menuExpandido = expanded || mobileOpen
 

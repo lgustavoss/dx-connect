@@ -34,6 +34,7 @@ def test_admin_pode_atribuir_admin_sem_vinculo_setor(client, seed_base, auth_hea
     from app.models import Atendente
 
     admin2 = Atendente(
+        tenant_id=1,
         email="admin2@test.local",
         nome="Admin 2",
         senha_hash=hash_senha("admin123"),
@@ -73,6 +74,7 @@ def test_listar_atendentes_por_setor_inclui_admins(client, seed_base, auth_heade
 
     # Outro admin para garantir que vem no endpoint
     admin2 = Atendente(
+        tenant_id=1,
         email="admin3@test.local",
         nome="Admin 3",
         senha_hash=hash_senha("admin123"),

@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { notificacoes, type Notificacoes } from '../api/client'
 
 const LS_KEY_LAST_COUNT = 'dxconnect.alerta_fila_sem_responsavel.last_count'
-const LS_KEY_LAST_TOTAL = 'dxconnect.notificacoes.last_total'
-const LS_KEY_LAST_NAO_LIDAS = 'dxconnect.notificacoes.last_nao_lidas'
+const LS_KEY_LAST_WPP_FILA = 'dxconnect.notificacoes.last_wpp_fila'
+const LS_KEY_LAST_WPP_RESP = 'dxconnect.notificacoes.last_wpp_resp'
 const POLL_MS = 30_000
 
 type ListenerFila = (state: { count: number }) => void
@@ -15,13 +15,16 @@ let currentCount = 0
 let currentResumo: Notificacoes.Resumo = {
   sem_responsavel_count: 0,
   nao_lidas_count: 0,
+  wpp_fila_count: 0,
+  wpp_respostas_count: 0,
   total_pendencias: 0,
 }
 let prevCount: number | null = null
-let prevTotal: number | null = null
-let prevNaoLidas: number | null = null
+let prevWppResp: number | null = null
 const listenersFila = new Set<ListenerFila>()
 const listenersResumo = new Set<ListenerResumo>()
+
+let wppBeepInterval: number | null = null
 
 function getLastCount(): number | null {
   try {
@@ -42,9 +45,9 @@ function setLastCount(n: number) {
   }
 }
 
-function getLastTotal(): number | null {
+function getLastWppFila(): number | null {
   try {
-    const raw = localStorage.getItem(LS_KEY_LAST_TOTAL)
+    const raw = localStorage.getItem(LS_KEY_LAST_WPP_FILA)
     if (raw == null) return null
     const n = Number(raw)
     return Number.isFinite(n) ? n : null
@@ -53,17 +56,17 @@ function getLastTotal(): number | null {
   }
 }
 
-function setLastTotal(n: number) {
+function setLastWppFila(n: number) {
   try {
-    localStorage.setItem(LS_KEY_LAST_TOTAL, String(n))
+    localStorage.setItem(LS_KEY_LAST_WPP_FILA, String(n))
   } catch {
     // ignore
   }
 }
 
-function getLastNaoLidas(): number | null {
+function getLastWppResp(): number | null {
   try {
-    const raw = localStorage.getItem(LS_KEY_LAST_NAO_LIDAS)
+    const raw = localStorage.getItem(LS_KEY_LAST_WPP_RESP)
     if (raw == null) return null
     const n = Number(raw)
     return Number.isFinite(n) ? n : null
@@ -72,9 +75,9 @@ function getLastNaoLidas(): number | null {
   }
 }
 
-function setLastNaoLidas(n: number) {
+function setLastWppResp(n: number) {
   try {
-    localStorage.setItem(LS_KEY_LAST_NAO_LIDAS, String(n))
+    localStorage.setItem(LS_KEY_LAST_WPP_RESP, String(n))
   } catch {
     // ignore
   }
@@ -114,6 +117,23 @@ function playBeep() {
   }
 }
 
+function stopWppContinuousBeep() {
+  if (wppBeepInterval != null) {
+    window.clearInterval(wppBeepInterval)
+    wppBeepInterval = null
+  }
+}
+
+function ensureWppContinuousBeep() {
+  if (wppBeepInterval != null) return
+  // Beep curto e contínuo até a fila de WhatsApp zerar.
+  wppBeepInterval = window.setInterval(() => {
+    playBeep()
+  }, 4500)
+  // dispara um logo no início
+  playBeep()
+}
+
 async function trySetAppBadge(count: number) {
   try {
     const nav = navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> }
@@ -136,23 +156,29 @@ function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean) {
 
   if (atualizarSom) {
     const prevSem = prevCount
-    const prevT = prevTotal
-    const prevNao = prevNaoLidas
+    const prevWR = prevWppResp
 
     prevCount = sem
-    prevTotal = r.total_pendencias
-    prevNaoLidas = r.nao_lidas_count
+    prevWppResp = r.wpp_respostas_count
 
     setLastCount(sem)
-    setLastTotal(r.total_pendencias)
-    setLastNaoLidas(r.nao_lidas_count)
+    setLastWppFila(r.wpp_fila_count)
+    setLastWppResp(r.wpp_respostas_count)
 
-    const hasIncrease =
-      (prevT != null && r.total_pendencias > prevT) ||
-      (prevNao != null && r.nao_lidas_count > prevNao) ||
-      (prevSem != null && sem > prevSem)
+    // Som: tickets na fila => 1 beep quando aumentar.
+    if (prevSem != null && sem > prevSem) {
+      playBeep()
+    }
 
-    if (hasIncrease) {
+    // Som: chats na fila => beep contínuo enquanto houver chats na fila.
+    if (r.wpp_fila_count > 0) {
+      ensureWppContinuousBeep()
+    } else {
+      stopWppContinuousBeep()
+    }
+
+    // Resposta em chat do atendente => 1 beep quando aumentar.
+    if (prevWR != null && r.wpp_respostas_count > prevWR) {
       playBeep()
     }
   }
@@ -196,8 +222,10 @@ function ensureStarted() {
   if (started) return
   started = true
   prevCount = getLastCount()
-  prevTotal = getLastTotal()
-  prevNaoLidas = getLastNaoLidas()
+  // Só precisamos do "último valor" para evitar beep duplicado por refresh.
+  // (wpp_fila é contínuo e não depende de delta)
+  void getLastWppFila()
+  prevWppResp = getLastWppResp()
 
   void poll()
   window.setInterval(() => void poll(), POLL_MS)

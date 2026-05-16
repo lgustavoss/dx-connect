@@ -1,13 +1,14 @@
-# python-multipart não é necessário: rotas usam JSON (Body), não Form()/upload.
-# Se no futuro houver formulários ou upload de ficheiros, adicionar: python-multipart==...
-fastapi==0.136.0
-starlette==0.49.1
-uvicorn[standard]==0.32.1
+# Necessário para `Form()` / `UploadFile` (envio de mídia WhatsApp, etc.).
+python-multipart==0.0.27
+fastapi==0.136.1
+starlette==1.0.0
+uvicorn[standard]==0.46.0
 gunicorn==25.3.0
 sqlalchemy==2.0.36
-psycopg2-binary==2.9.11
+psycopg2-binary==2.9.12
 alembic==1.14.0
-pydantic[email]==2.13.2
-pydantic-settings==2.6.1
+pydantic[email]==2.13.3
+pydantic-settings==2.14.0
 PyJWT[crypto]==2.12.0
-bcrypt>=4.0,<6
+cryptography>=42.0.0
+bcrypt>=5.0.0,<6

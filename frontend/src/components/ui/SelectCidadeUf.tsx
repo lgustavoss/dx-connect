@@ -10,6 +10,7 @@ type Props = {
   onChange: (cidade: string) => void
   required?: boolean
   disabled?: boolean
+  triggerClassName?: string
 }
 
 export function SelectCidadeUf({
@@ -20,6 +21,7 @@ export function SelectCidadeUf({
   onChange,
   required,
   disabled,
+  triggerClassName,
 }: Props) {
   const [nomes, setNomes] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
@@ -84,6 +86,7 @@ export function SelectCidadeUf({
       loading={loading}
       hint="Lista em cache no servidor (atualização periódica IBGE)."
       recentCount={12}
+      triggerClassName={triggerClassName}
     />
   )
 }

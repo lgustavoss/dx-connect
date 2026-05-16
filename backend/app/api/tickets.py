@@ -1,12 +1,14 @@
 from datetime import datetime, timezone
 from enum import Enum
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, asc, desc, nullslast
 
 from app.database import get_db
 from app.models import Ticket, TicketHistorico, TicketMensagem, Empresa, Setor, StatusTicket, Atendente, Rede
+from app.models.ticket_anexo import TicketAnexo
 from app.schemas.ticket import (
     TicketCreate,
     TicketUpdate,
@@ -15,6 +17,7 @@ from app.schemas.ticket import (
     TicketMensagemCreate,
     TicketMensagemRead,
 )
+from app.schemas.ticket_anexo import TicketAnexoCreateResponse, TicketAnexoRead
 from app.schemas.lista_paginada import ListaPaginada
 from app.core.auth import obter_atendente_atual
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
@@ -23,6 +26,10 @@ from app.core.setor_scope import (
     ids_setores_visiveis_atendente,
     responsavel_elegivel_para_setor_do_ticket,
 )
+from app.services import ticket_anexo_storage
+from app.services.protocolo_mensal import gerar_protocolo_ticket
+from app.services.ticket_client_email import enviar_resposta_equipa_por_email
+from app.services.ticket_email_index import registar_message_id_para_ticket
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
@@ -47,10 +54,8 @@ class SituacaoTicket(str, Enum):
 
 
 def _gerar_protocolo(db: Session) -> str:
-    """Gera próximo número de protocolo único (sequencial global)."""
-    from sqlalchemy import func
-    r = db.query(func.max(Ticket.id)).scalar() or 0
-    return str(10000 + r + 1)
+    """Próximo protocolo de ticket no formato #TYYYYMM-NNNN (mensal, America/Sao_Paulo)."""
+    return gerar_protocolo_ticket(db)
 
 
 def _ticket_para_read(t: Ticket) -> TicketRead:
@@ -76,6 +81,8 @@ def _ticket_para_read(t: Ticket) -> TicketRead:
 
 
 def _pode_ver_ticket(db: Session, atendente: Atendente, ticket: Ticket) -> bool:
+    if ticket.tenant_id != atendente.tenant_id:
+        return False
     if atendente.role == "admin":
         return True
     vis = ids_setores_visiveis_atendente(db, atendente)
@@ -97,7 +104,7 @@ def listar(
     rede_id: int | None = Query(None, description="Tickets de empresas desta rede"),
     setor_id: int | None = Query(None),
     status_id: int | None = Query(None),
-    protocolo: str | None = Query(None, description="Legado: use busca"),
+    protocolo: str | None = Query(None, description="Filtra por trecho do protocolo (ex.: #T202605-0001)"),
     busca: str | None = Query(None, description="Protocolo, assunto ou nome da empresa"),
     sem_responsavel: bool = Query(
         False,
@@ -125,7 +132,13 @@ def listar(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    q = db.query(Ticket).join(Ticket.empresa).join(Ticket.setor).join(Ticket.status)
+    q = (
+        db.query(Ticket)
+        .join(Ticket.empresa)
+        .join(Ticket.setor)
+        .join(Ticket.status)
+        .filter(Ticket.tenant_id == atendente.tenant_id)
+    )
     if atendente.role != "admin":
         vis = ids_setores_visiveis_atendente(db, atendente)
         q = q.filter(Ticket.setor_id.in_(vis))
@@ -223,10 +236,18 @@ def criar(
         vis = ids_setores_visiveis_atendente(db, atendente)
         if data.setor_id not in vis:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este setor")
-    empresa = db.query(Empresa).filter(Empresa.id == data.empresa_id).first()
+    empresa = (
+        db.query(Empresa)
+        .filter(Empresa.id == data.empresa_id, Empresa.tenant_id == atendente.tenant_id)
+        .first()
+    )
     if not empresa:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empresa não encontrada")
-    setor = db.query(Setor).filter(Setor.id == data.setor_id).first()
+    setor = (
+        db.query(Setor)
+        .filter(Setor.id == data.setor_id, Setor.tenant_id == atendente.tenant_id)
+        .first()
+    )
     if not setor:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor não encontrado")
     # Status inicial: primeiro status ativo por ordem (ex.: «Aguardando atendimento» na fila do setor)
@@ -235,6 +256,7 @@ def criar(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cadastre ao menos um status de ticket")
     protocolo = _gerar_protocolo(db)
     ticket = Ticket(
+        tenant_id=atendente.tenant_id,
         protocolo=protocolo,
         empresa_id=data.empresa_id,
         setor_id=data.setor_id,
@@ -325,7 +347,7 @@ def historico(
     ]
 
 
-def _mensagem_para_read(m: TicketMensagem) -> TicketMensagemRead:
+def _mensagem_para_read(m: TicketMensagem, *, cliente_notificado_por_email: bool = False) -> TicketMensagemRead:
     return TicketMensagemRead(
         id=m.id,
         ticket_id=m.ticket_id,
@@ -334,6 +356,7 @@ def _mensagem_para_read(m: TicketMensagem) -> TicketMensagemRead:
         tipo=m.tipo,
         corpo=m.corpo,
         created_at=m.created_at,
+        cliente_notificado_por_email=cliente_notificado_por_email,
     )
 
 
@@ -381,9 +404,22 @@ def criar_mensagem(
             detail="Apenas o responsável pelo chamado ou um administrador pode enviar mensagem da equipe. "
             "Colaboradores do mesmo setor podem usar comentário interno.",
         )
+    if data.notificar_cliente_por_email and data.tipo != "publico":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A notificação por e-mail só está disponível para mensagens públicas.",
+        )
     corpo = data.corpo.strip()
     if not corpo:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Mensagem vazia")
+
+    out_mid: str | None = None
+    if data.notificar_cliente_por_email:
+        try:
+            out_mid = enviar_resposta_equipa_por_email(db, ticket=ticket, corpo=corpo)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
     m = TicketMensagem(
         ticket_id=ticket_id,
         atendente_id=atendente.id,
@@ -391,6 +427,9 @@ def criar_mensagem(
         corpo=corpo,
     )
     db.add(m)
+    db.flush()
+    if out_mid:
+        registar_message_id_para_ticket(db, ticket_id=ticket.id, message_id=out_mid, source="outbound")
     db.commit()
     db.refresh(m)
     m = (
@@ -400,7 +439,7 @@ def criar_mensagem(
         .first()
     )
     assert m is not None
-    return _mensagem_para_read(m)
+    return _mensagem_para_read(m, cliente_notificado_por_email=bool(out_mid))
 
 
 def _registrar_historico(db: Session, ticket_id: int, atendente_id: int | None, campo: str, valor_antigo: str | None, valor_novo: str | None):
@@ -411,6 +450,141 @@ def _registrar_historico(db: Session, ticket_id: int, atendente_id: int | None, 
         valor_antigo=valor_antigo,
         valor_novo=valor_novo,
     ))
+
+
+def _anexo_para_read(a: TicketAnexo) -> TicketAnexoRead:
+    return TicketAnexoRead(
+        id=a.id,
+        ticket_id=a.ticket_id,
+        mensagem_id=a.mensagem_id,
+        atendente_id=a.atendente_id,
+        atendente_nome=a.atendente.nome if a.atendente else None,
+        visibilidade=(a.visibilidade or "publico"),  # type: ignore[arg-type]
+        nome_original=a.nome_original,
+        content_type=a.content_type,
+        tamanho_bytes=a.tamanho_bytes,
+        created_at=a.created_at,
+    )
+
+
+@router.get("/{ticket_id}/anexos", response_model=list[TicketAnexoRead])
+def listar_anexos(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
+    if not _pode_ver_ticket(db, atendente, ticket):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
+    rows = (
+        db.query(TicketAnexo)
+        .options(joinedload(TicketAnexo.atendente))
+        .filter(TicketAnexo.ticket_id == ticket_id)
+        .order_by(TicketAnexo.created_at.asc(), TicketAnexo.id.asc())
+        .all()
+    )
+    return [_anexo_para_read(a) for a in rows]
+
+
+@router.get("/{ticket_id}/anexos/{anexo_id}/download")
+def download_anexo(
+    ticket_id: int,
+    anexo_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
+    if not _pode_ver_ticket(db, atendente, ticket):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
+
+    a = (
+        db.query(TicketAnexo)
+        .filter(TicketAnexo.id == anexo_id, TicketAnexo.ticket_id == ticket_id)
+        .first()
+    )
+    if not a:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Anexo não encontrado")
+    p = ticket_anexo_storage.caminho_absoluto_arquivo(a.storage_key)
+    if not p:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Arquivo não encontrado no storage")
+
+    # Força download (evita execução inline de tipos perigosos).
+    return FileResponse(
+        path=str(p),
+        filename=a.nome_original,
+        media_type="application/octet-stream",
+    )
+
+
+@router.post("/{ticket_id}/anexos", response_model=TicketAnexoCreateResponse, status_code=201)
+def upload_anexo(
+    ticket_id: int,
+    file: UploadFile = File(...),
+    mensagem_id: int | None = Form(None, description="Opcional: associa o anexo a uma mensagem do ticket"),
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
+    if not _pode_ver_ticket(db, atendente, ticket):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
+    if ticket.fechado_em is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ticket fechado. Reabra o ticket para enviar anexos.",
+        )
+
+    msg: TicketMensagem | None = None
+    vis = "publico"
+    if mensagem_id is not None:
+        msg = (
+            db.query(TicketMensagem)
+            .filter(TicketMensagem.id == mensagem_id, TicketMensagem.ticket_id == ticket_id)
+            .first()
+        )
+        if not msg:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Mensagem inválida para este ticket")
+        if msg.tipo == "interno":
+            vis = "interno"
+
+    data = file.file.read()
+    try:
+        nome_original, mime = ticket_anexo_storage.validar_upload(file.filename, file.content_type, len(data))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    try:
+        storage_key = ticket_anexo_storage.gravar_bytes_em_disco(data, mimetype=mime, nome_original=nome_original)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except OSError:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Falha ao gravar arquivo")
+
+    a = TicketAnexo(
+        ticket_id=ticket_id,
+        mensagem_id=msg.id if msg else None,
+        atendente_id=atendente.id,
+        visibilidade=vis,
+        nome_original=nome_original,
+        content_type=mime,
+        tamanho_bytes=len(data),
+        storage_key=storage_key,
+    )
+    db.add(a)
+    db.flush()
+    _registrar_historico(db, ticket_id, atendente.id, "anexo", "", f"{a.id}")
+    db.commit()
+    db.refresh(a)
+
+    return TicketAnexoCreateResponse(
+        anexo=_anexo_para_read(a),
+        download_url=f"/v1/tickets/{ticket_id}/anexos/{a.id}/download",
+    )
 
 
 @router.post("/{ticket_id}/reabrir", response_model=TicketRead)
