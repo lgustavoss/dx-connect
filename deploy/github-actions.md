@@ -91,3 +91,4 @@ Em cada deploy o workflow executa `alembic upgrade head` antes do `up --build`. 
 - **`rsync` falha**: permissões em `DEPLOY_FRONTEND_DIST` e caminho absoluto correto.
 - **`docker: permission denied`**: usuário no grupo `docker` ou reiniciar sessão SSH após `usermod`.
 - **Build do frontend errado**: `VITE_API_URL` nos secrets deve ser a URL **pública** que o browser usa para chamar a API.
+- **404 em `/v1/settings/*` ou `/v1/tenant/*` com frontend novo**: o SPA foi atualizado mas o **container da API** ainda está na `main` antiga. Remova o secret `DEPLOY_GIT_REF=main` (deixe o workflow usar a branch do push, ex. `staging`). No VPS: `bash deploy/scripts/redeploy-staging-backend.sh`. Confirme: `curl -s https://SUA-API/health` deve incluir `"capabilities":{"settings_empresa_sistema":true,...}`.

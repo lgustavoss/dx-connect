@@ -95,20 +95,45 @@ jobs:
 
       - name: Git pull + Alembic + Docker Compose
         run: |
-          # Branch do evento (push em staging/main) tem prioridade; DEPLOY_GIT_REF só se o evento não trouxer ref.
-          REF="${EVENT_REF:-${DEPLOY_GIT_REF:-main}}"
+          REF="${EVENT_REF:-${DEPLOY_GIT_REF:-staging}}"
+          echo "Deploy ref no VPS: ${REF}"
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -p "${SSH_PORT}" \
-            "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s << EOF
-          set -e
-          cd "${DEPLOY_PATH}"
-          echo "==> Deploy branch/ref: ${REF}"
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "REF='${REF}' DEPLOY_PATH='${DEPLOY_PATH}' SKIP_MIGRATIONS='${SKIP_MIGRATIONS}' bash -s" << 'REMOTE_SCRIPT'
+          set -ex
+          cd "$DEPLOY_PATH"
+          echo "==> Deploy branch/ref: $REF"
           git fetch origin
-          git checkout "${REF}"
-          git pull origin "${REF}"
-          git rev-parse --short HEAD
-          if [ "${SKIP_MIGRATIONS}" != "true" ]; then
-            docker compose -f docker-compose.prod.yml build backend
+          git checkout "$REF"
+          git pull origin "$REF"
+          export DX_CONNECT_GIT_SHA="$(git rev-parse --short HEAD)"
+          echo "==> Commit: $DX_CONNECT_GIT_SHA"
+          if [ "$SKIP_MIGRATIONS" != "true" ]; then
+            docker compose -f docker-compose.prod.yml build --no-cache backend
             docker compose -f docker-compose.prod.yml run --rm backend alembic upgrade head
           fi
-          docker compose -f docker-compose.prod.yml up -d --build --force-recreate backend
-          EOF
+          docker compose -f docker-compose.prod.yml up -d --force-recreate backend
+          sleep 3
+          curl -sf "http://127.0.0.1:8000/health" || true
+          REMOTE_SCRIPT
+
+      - name: Verificar rotas da API (health)
+        run: |
+          API_BASE="${VITE_API_URL%/}"
+          echo "GET ${API_BASE}/health"
+          export HEALTH_JSON="$(curl -sf "${API_BASE}/health")"
+          echo "$HEALTH_JSON"
+          python3 <<'PY'
+          import json, os, sys
+          body = json.loads(os.environ["HEALTH_JSON"])
+          caps = body.get("capabilities") or {}
+          need = ("settings_empresa_sistema", "tenant_atual", "settings_email")
+          missing = [k for k in need if not caps.get(k)]
+          if missing:
+              print(
+                  f"::error::API sem rotas novas (backend antigo?): faltam {missing}. git_sha={body.get('git_sha')!r}",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+          print("OK: capabilities", caps, "git_sha", body.get("git_sha"))
+          PY

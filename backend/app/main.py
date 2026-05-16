@@ -257,6 +257,21 @@ app.include_router(system_settings.router, prefix=API_V1_PREFIX)
 app.include_router(tenant.router, prefix=API_V1_PREFIX)
 
 
+def _app_capabilities() -> dict[str, bool]:
+    paths = {getattr(r, "path", "") for r in app.routes}
+    return {
+        "settings_empresa_sistema": "/v1/settings/empresa-sistema" in paths,
+        "settings_email": "/v1/settings/email" in paths,
+        "tenant_atual": "/v1/tenant/atual" in paths,
+    }
+
+
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    import os
+
+    return {
+        "status": "ok",
+        "git_sha": (os.environ.get("DX_CONNECT_GIT_SHA") or "").strip() or None,
+        "capabilities": _app_capabilities(),
+    }
