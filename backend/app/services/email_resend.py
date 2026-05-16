@@ -14,6 +14,7 @@ from app.services.system_email_config import TransactionalEmailConfig
 logger = logging.getLogger(__name__)
 
 RESEND_API_URL = "https://api.resend.com/emails"
+DX_CONNECT_USER_AGENT = "DX-Connect/1.0 (transactional-email)"
 
 
 def _header_message_id_value(mid: str | None) -> str:
@@ -69,7 +70,11 @@ def enviar_via_resend(
         RESEND_API_URL,
         data=raw_body,
         method="POST",
-        headers={"Authorization": f"Bearer {cfg.api_key}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {cfg.api_key}",
+            "Content-Type": "application/json",
+            "User-Agent": DX_CONNECT_USER_AGENT,
+        },
     )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
@@ -77,7 +82,10 @@ def enviar_via_resend(
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", errors="replace")
         logger.warning("Resend HTTP %s: %s", e.code, detail[:500])
-        raise ValueError(f"Resend rejeitou o envio (HTTP {e.code}). Verifique domínio/API key.") from e
+        hint = " Verifique domínio/API key."
+        if "1010" in detail:
+            hint = " (código 1010: falta User-Agent na requisição — atualize o backend)."
+        raise ValueError(f"Resend rejeitou o envio (HTTP {e.code}).{hint}") from e
 
     try:
         out = json.loads(raw) if raw.strip() else {}
