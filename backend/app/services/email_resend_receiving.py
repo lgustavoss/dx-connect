@@ -11,6 +11,8 @@ import urllib.request
 from dataclasses import replace
 from email.utils import getaddresses, parseaddr
 
+from sqlalchemy.orm import Session
+
 from app.config import settings
 from app.services.email_inbound_parse import (
     ParsedInboundEmail,
@@ -18,6 +20,7 @@ from app.services.email_inbound_parse import (
     parse_from_rfc822_bytes,
 )
 from app.services.email_resend import DX_CONNECT_USER_AGENT
+from app.services.system_email_config import get_singleton_email_settings, transactional_config_from_row
 
 logger = logging.getLogger(__name__)
 
