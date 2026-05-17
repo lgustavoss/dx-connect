@@ -748,7 +748,7 @@ export function Tickets() {
                     </td>
                     <td
                       className="min-w-0 px-4 py-3.5 align-top sm:px-6"
-                      title={t.empresa_nome}
+                      title={t.empresa_nome ?? undefined}
                     >
                       <div className="min-w-0">
                         <p className="break-words whitespace-normal font-medium leading-snug text-slate-900 dark:text-slate-100">
