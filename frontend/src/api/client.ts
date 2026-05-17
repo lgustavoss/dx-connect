@@ -1070,7 +1070,7 @@ export namespace Tickets {
   export interface Ticket {
     id: number;
     protocolo: string;
-    empresa_id: number;
+    empresa_id: number | null;
     setor_id: number;
     status_id: number;
     atendente_id?: number;
@@ -1080,7 +1080,7 @@ export namespace Tickets {
     fechado_em?: string;
     created_at?: string;
     updated_at?: string;
-    empresa_nome?: string;
+    empresa_nome?: string | null;
     rede_nome?: string;
     setor_nome?: string;
     status_nome?: string;

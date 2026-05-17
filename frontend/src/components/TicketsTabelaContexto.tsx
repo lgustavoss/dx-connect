@@ -57,7 +57,8 @@ export function TicketsTabelaContexto({
                   className="max-w-[11rem] truncate px-4 py-3 text-slate-700 dark:text-slate-200 sm:px-6"
                   title={t.empresa_nome ?? undefined}
                 >
-                  {t.empresa_nome ?? `#${t.empresa_id}`}
+                  {t.empresa_nome ??
+                    (t.empresa_id != null ? `#${t.empresa_id}` : 'A definir na triagem')}
                 </td>
               ) : null}
               <td

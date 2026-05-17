@@ -134,7 +134,7 @@ def listar(
 ):
     q = (
         db.query(Ticket)
-        .join(Ticket.empresa)
+        .outerjoin(Ticket.empresa)
         .join(Ticket.setor)
         .join(Ticket.status)
         .filter(Ticket.tenant_id == atendente.tenant_id)
@@ -189,7 +189,7 @@ def listar(
         if ordenar_por == OrdenarTicketsPor.responsavel:
             q = q.outerjoin(Ticket.atendente)
         elif ordenar_por == OrdenarTicketsPor.rede:
-            q = q.join(Empresa.rede)
+            q = q.outerjoin(Empresa.rede)
 
         if ordenar_por == OrdenarTicketsPor.protocolo:
             primary = expr_ordem(Ticket.protocolo, ordem)
