@@ -72,6 +72,7 @@ def _ticket_para_read(t: Ticket) -> TicketRead:
         fechado_em=t.fechado_em,
         created_at=t.created_at,
         updated_at=t.updated_at,
+        rede_id=t.empresa.rede_id if t.empresa else None,
         empresa_nome=t.empresa.nome if t.empresa else None,
         rede_nome=t.empresa.rede.nome if t.empresa and t.empresa.rede else None,
         setor_nome=t.setor.nome if t.setor else None,
@@ -353,6 +354,7 @@ def _mensagem_para_read(m: TicketMensagem, *, cliente_notificado_por_email: bool
         ticket_id=m.ticket_id,
         atendente_id=m.atendente_id,
         atendente_nome=m.atendente.nome if m.atendente else None,
+        autor_externo=getattr(m, "autor_externo", None),
         tipo=m.tipo,
         corpo=m.corpo,
         created_at=m.created_at,
@@ -698,6 +700,19 @@ def atualizar(
         antigo = str(ticket.setor_id)
         novo = str(update["setor_id"])
         _registrar_historico(db, ticket.id, atendente.id, "setor_id", antigo, novo)
+    if "empresa_id" in update:
+        novo_eid = update["empresa_id"]
+        if novo_eid is not None:
+            empresa = (
+                db.query(Empresa)
+                .filter(Empresa.id == novo_eid, Empresa.tenant_id == ticket.tenant_id)
+                .first()
+            )
+            if not empresa:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empresa não encontrada")
+        antigo = str(ticket.empresa_id) if ticket.empresa_id is not None else ""
+        novo = str(novo_eid) if novo_eid is not None else ""
+        _registrar_historico(db, ticket.id, atendente.id, "empresa_id", antigo, novo)
 
     for k, v in update.items():
         setattr(ticket, k, v)
@@ -711,5 +726,15 @@ def atualizar(
             ticket.fechado_em = None
 
     db.commit()
-    db.refresh(ticket)
+    ticket = (
+        db.query(Ticket)
+        .options(
+            joinedload(Ticket.empresa).joinedload(Empresa.rede),
+            joinedload(Ticket.setor),
+            joinedload(Ticket.status),
+            joinedload(Ticket.atendente),
+        )
+        .filter(Ticket.id == ticket_id)
+        .first()
+    )
     return _ticket_para_read(ticket)

@@ -7,11 +7,15 @@ import {
   statusTicket,
   atendentes,
   setores,
+  redes,
+  empresas,
   whatsappChats,
   fetchTicketAnexoBlob,
   type StatusTicket,
   type Atendentes,
   type Setores,
+  type Redes,
+  type Empresas,
   type Tickets,
   type WhatsappChats,
 } from '../api/client'
@@ -27,11 +31,13 @@ import { SemPermissao } from './SemPermissao'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 import { exibirProtocolo } from '../lib/exibirProtocolo'
+import { autorRodapeMensagem, corpoMensagemEmailVisivel } from '../lib/ticketMensagemEmail'
 
 const ROTULO_CAMPO: Record<string, string> = {
   status_id: 'Status',
   setor_id: 'Setor',
   atendente_id: 'Responsável',
+  empresa_id: 'Empresa',
   assunto: 'Assunto',
   descricao: 'Descrição',
 }
@@ -43,14 +49,21 @@ function resolverValorHistorico(
     status: Map<number, string>
     setor: Map<number, string>
     atendente: Map<number, string>
+    empresa: Map<number, string>
   },
 ): string {
   if (valor == null || valor === '') return '—'
-  if (campo === 'status_id' || campo === 'setor_id' || campo === 'atendente_id') {
+  if (campo === 'status_id' || campo === 'setor_id' || campo === 'atendente_id' || campo === 'empresa_id') {
     const id = Number(valor)
     if (Number.isNaN(id)) return valor
     const m =
-      campo === 'status_id' ? maps.status : campo === 'setor_id' ? maps.setor : maps.atendente
+      campo === 'status_id'
+        ? maps.status
+        : campo === 'setor_id'
+          ? maps.setor
+          : campo === 'empresa_id'
+            ? maps.empresa
+            : maps.atendente
     return m.get(id) ?? `#${id}`
   }
   const t = (valor || '').trim()
@@ -136,6 +149,10 @@ export function TicketDetalhe() {
   const [editSetor, setEditSetor] = useState<number | ''>('')
   const [editStatus, setEditStatus] = useState<number | ''>('')
   const [editAtendente, setEditAtendente] = useState<number | ''>('')
+  const [editRede, setEditRede] = useState<number | ''>('')
+  const [editEmpresa, setEditEmpresa] = useState<number | ''>('')
+  const [redesList, setRedesList] = useState<Redes.Rede[]>([])
+  const [empresasModalList, setEmpresasModalList] = useState<Empresas.EmpresaListaItem[]>([])
   const [saving, setSaving] = useState(false)
   const [novaMensagemTexto, setNovaMensagemTexto] = useState('')
   const [tipoNovaMensagem, setTipoNovaMensagem] = useState<'publico' | 'interno'>('publico')
@@ -243,8 +260,13 @@ export function TicketDetalhe() {
     if (ticket?.atendente_nome && ticket.atendente_id != null) {
       atendente.set(ticket.atendente_id, ticket.atendente_nome)
     }
-    return { status, setor, atendente }
-  }, [statusList, setoresList, atendentesList, ticket])
+    const empresa = new Map<number, string>()
+    empresasModalList.forEach((e) => empresa.set(e.id, e.nome))
+    if (ticket?.empresa_nome && ticket.empresa_id != null) {
+      empresa.set(ticket.empresa_id, ticket.empresa_nome)
+    }
+    return { status, setor, atendente, empresa }
+  }, [statusList, setoresList, atendentesList, empresasModalList, ticket])
 
   useEffect(() => {
     coletarTodasPaginas<StatusTicket.Status>((o, l) =>
@@ -461,9 +483,36 @@ export function TicketDetalhe() {
     setEditSetor(ticket.setor_id)
     setEditStatus(ticket.status_id)
     setEditAtendente(ticket.atendente_id ?? '')
+    setEditRede(ticket.rede_id ?? '')
+    setEditEmpresa(ticket.empresa_id ?? '')
     setModalGerirFoco(foco)
     setModalGerirAberto(true)
   }
+
+  useEffect(() => {
+    if (!modalGerirAberto) return
+    coletarTodasPaginas<Redes.Rede>((o, l) => redes.list({ incluir_inativos: true, offset: o, limit: l }))
+      .then(setRedesList)
+      .catch(() => setRedesList([]))
+  }, [modalGerirAberto])
+
+  useEffect(() => {
+    if (!modalGerirAberto) return
+    if (editRede === '') {
+      setEmpresasModalList([])
+      return
+    }
+    coletarTodasPaginas<Empresas.EmpresaListaItem>((o, l) =>
+      empresas.list({ rede_id: Number(editRede), incluir_inativos: true, offset: o, limit: l }),
+    )
+      .then((list) => {
+        setEmpresasModalList(list)
+        if (editEmpresa !== '' && !list.some((e) => e.id === editEmpresa)) {
+          setEditEmpresa('')
+        }
+      })
+      .catch(() => setEmpresasModalList([]))
+  }, [modalGerirAberto, editRede, editEmpresa])
 
   const modalApenasUmCampo = modalGerirFoco !== 'geral'
 
@@ -475,6 +524,10 @@ export function TicketDetalhe() {
     const atendAtual = ticket.atendente_id
     const atendNovo = editAtendente === '' ? null : Number(editAtendente)
     if (atendNovo !== atendAtual) patch.atendente_id = atendNovo
+    if (modalGerirFoco === 'geral' && editEmpresa !== '') {
+      const novoEmpresa = Number(editEmpresa)
+      if (novoEmpresa !== ticket.empresa_id) patch.empresa_id = novoEmpresa
+    }
 
     if (Object.keys(patch).length === 0) {
       toast.showWarning('Nenhuma alteração para salvar.')
@@ -713,12 +766,19 @@ export function TicketDetalhe() {
           <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">
             {ticket.assunto}
           </h1>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-            <span className="font-medium text-slate-800 dark:text-slate-200">
-              {ticket.empresa_nome ??
-                (ticket.empresa_id != null ? `Empresa #${ticket.empresa_id}` : 'A definir na triagem')}
-            </span>
-          </p>
+          {(ticket.empresa_nome || ticket.rede_nome) && (
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+              {ticket.rede_nome && (
+                <span className="text-slate-500 dark:text-slate-400">{ticket.rede_nome}</span>
+              )}
+              {ticket.rede_nome && ticket.empresa_nome && (
+                <span className="mx-1.5 text-slate-400 dark:text-slate-500">·</span>
+              )}
+              {ticket.empresa_nome && (
+                <span className="font-medium text-slate-800 dark:text-slate-200">{ticket.empresa_nome}</span>
+              )}
+            </p>
+          )}
           {podeAtribuirAMim && (
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
               Este ticket está na fila do setor sem responsável. Atribua a você para dar andamento.
@@ -920,9 +980,9 @@ export function TicketDetalhe() {
                 const isAbertura = msg.tipo === 'abertura'
                 const isInterno = msg.tipo === 'interno'
                 const isEmailCliente = msg.tipo === 'email_cliente'
-                const autor =
-                  msg.atendente_nome ??
-                  (isAbertura ? 'Registro legado / sistema' : isEmailCliente ? 'Cliente (e-mail)' : '—')
+                const corpoVisivel =
+                  isAbertura || isEmailCliente ? corpoMensagemEmailVisivel(msg.corpo) : msg.corpo
+                const autor = autorRodapeMensagem(msg)
                 const anexosDaMsg = anexos.filter((a) => a.mensagem_id === msg.id)
                 return (
                   <li
@@ -951,7 +1011,7 @@ export function TicketDetalhe() {
                         </span>
                       )}
                     </div>
-                    <p className="mt-2 whitespace-pre-wrap text-slate-800 dark:text-slate-200">{msg.corpo}</p>
+                    <p className="mt-2 whitespace-pre-wrap text-slate-800 dark:text-slate-200">{corpoVisivel}</p>
                     {anexosDaMsg.length > 0 && (
                       <div className="mt-3 rounded-lg border border-slate-200/80 bg-slate-50/70 px-3 py-2 dark:border-slate-700/70 dark:bg-slate-900/30">
                         <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -1229,12 +1289,50 @@ export function TicketDetalhe() {
                     : 'Gerir ticket'}
             </h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              {modalGerirFoco === 'geral' && 'Transfira de setor, altere o status ou atribua a outro atendente.'}
+              {modalGerirFoco === 'geral' &&
+                'Vincule rede e empresa, transfira de setor, altere o status ou atribua a outro atendente.'}
               {modalGerirFoco === 'setor' && 'Escolha o setor que passará a tratar este ticket.'}
               {modalGerirFoco === 'status' && 'Atualize o status conforme o andamento do atendimento.'}
               {modalGerirFoco === 'atendente' && 'Defina quem é o responsável pelo ticket (ou deixe sem responsável).'}
             </p>
             <div className="mt-5 space-y-4">
+              {modalGerirFoco === 'geral' && (
+                <>
+                  <Select
+                    label="Rede"
+                    value={editRede}
+                    onChange={(v) => {
+                      setEditRede(v === '' ? '' : Number(v))
+                      setEditEmpresa('')
+                    }}
+                    options={redesList.map((r) => ({
+                      value: r.id,
+                      label: `${r.nome}${!r.ativo ? ' (inativa)' : ''}`,
+                    }))}
+                    includeEmpty
+                    emptyLabel="— Selecione a rede —"
+                    placeholder="Rede"
+                  />
+                  <Select
+                    label="Empresa"
+                    value={editEmpresa}
+                    onChange={(v) => setEditEmpresa(v === '' ? '' : Number(v))}
+                    options={empresasModalList.map((e) => ({
+                      value: e.id,
+                      label: `${e.nome}${!e.ativo ? ' (inativa)' : ''}`,
+                    }))}
+                    includeEmpty
+                    emptyLabel="— Selecione a empresa —"
+                    placeholder="Empresa"
+                    disabled={editRede === ''}
+                  />
+                  {editRede === '' && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Selecione a rede para listar as empresas vinculadas.
+                    </p>
+                  )}
+                </>
+              )}
               {(modalGerirFoco === 'geral' || modalGerirFoco === 'setor') && (
                 <>
                   <Select

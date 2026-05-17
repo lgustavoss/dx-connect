@@ -34,12 +34,12 @@ class EmailInboundProcessResult:
 
 
 def _corpo_mensagem(parsed: ParsedInboundEmail, mid: str) -> str:
-    return (
-        f"Mensagem recebida por e-mail.\n\n"
-        f"Remetente: {parsed.from_display}\n"
-        f"Message-ID: {mid}\n\n"
-        f"{parsed.body_text}"
-    ).strip()
+    """Corpo visível no ticket (sem metadados técnicos de e-mail)."""
+    _ = mid
+    body = (parsed.body_text or "").strip()
+    if body.startswith("(Mensagem recebida por e-mail"):
+        return body
+    return body or "(sem conteúdo)"
 
 
 def _find_ticket_by_thread(db: Session, parsed: ParsedInboundEmail) -> Ticket | None:
@@ -128,8 +128,9 @@ def _criar_ticket_triagem_pos_fecho(
         TicketMensagem(
             ticket_id=ticket.id,
             atendente_id=None,
-            tipo="abertura",
+            tipo="email_cliente",
             corpo=corpo,
+            autor_externo=(parsed.from_display or parsed.from_email or "")[:512] or None,
         )
     )
     db.add(
@@ -214,6 +215,7 @@ def processar_email_inbound(
                 atendente_id=None,
                 tipo="email_cliente",
                 corpo=corpo,
+                autor_externo=(parsed.from_display or parsed.from_email or "")[:512] or None,
             )
         )
         db.add(
@@ -250,8 +252,9 @@ def processar_email_inbound(
         TicketMensagem(
             ticket_id=ticket.id,
             atendente_id=None,
-            tipo="abertura",
+            tipo="email_cliente",
             corpo=corpo,
+            autor_externo=(parsed.from_display or parsed.from_email or "")[:512] or None,
         )
     )
     db.add(

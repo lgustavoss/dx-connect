@@ -1080,6 +1080,7 @@ export namespace Tickets {
     fechado_em?: string;
     created_at?: string;
     updated_at?: string;
+    rede_id?: number | null;
     empresa_nome?: string | null;
     rede_nome?: string;
     setor_nome?: string;
@@ -1110,6 +1111,7 @@ export namespace Tickets {
     ticket_id: number;
     atendente_id?: number | null;
     atendente_nome?: string | null;
+    autor_externo?: string | null;
     tipo: MensagemTipo | string;
     corpo: string;
     created_at: string;
@@ -1123,6 +1125,7 @@ export namespace Tickets {
   }
 
   export interface Update {
+    empresa_id?: number | null;
     setor_id?: number;
     status_id?: number;
     atendente_id?: number | null;

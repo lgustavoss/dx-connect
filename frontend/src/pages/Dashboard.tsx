@@ -190,7 +190,7 @@ export function Dashboard() {
                     </td>
                     <td className="py-3 pr-4">
                       {t.empresa_nome ??
-                        (t.empresa_id != null ? String(t.empresa_id) : 'A definir na triagem')}
+                        (t.empresa_nome ?? (t.empresa_id != null ? String(t.empresa_id) : '—'))}
                     </td>
                     <td className="py-3 pr-4">{t.assunto}</td>
                     <td className="py-3 pr-4">{t.status_nome ?? t.status_id}</td>

@@ -58,7 +58,7 @@ export function TicketsTabelaContexto({
                   title={t.empresa_nome ?? undefined}
                 >
                   {t.empresa_nome ??
-                    (t.empresa_id != null ? `#${t.empresa_id}` : 'A definir na triagem')}
+                    (t.empresa_nome ?? (t.empresa_id != null ? `#${t.empresa_id}` : '—'))}
                 </td>
               ) : null}
               <td

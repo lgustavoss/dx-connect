@@ -19,6 +19,7 @@ class TicketCreate(TicketBase):
 class TicketUpdate(BaseModel):
     """Assunto e descrição não são editáveis aqui — use mensagens no ticket."""
 
+    empresa_id: int | None = None
     setor_id: int | None = None
     status_id: int | None = None
     atendente_id: int | None = None
@@ -38,6 +39,7 @@ class TicketRead(BaseModel):
     created_at: datetime | None = None
     updated_at: datetime | None = None
     # opcional: nomes para exibição
+    rede_id: int | None = None
     empresa_nome: str | None = None
     rede_nome: str | None = None
     setor_nome: str | None = None
@@ -61,6 +63,7 @@ class TicketMensagemRead(BaseModel):
     ticket_id: int
     atendente_id: int | None = None
     atendente_nome: str | None = None
+    autor_externo: str | None = None
     tipo: str
     corpo: str
     created_at: datetime

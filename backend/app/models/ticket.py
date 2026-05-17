@@ -46,6 +46,7 @@ class TicketMensagem(Base):
     # abertura = texto inicial; publico = atualização visível à equipe; interno = só atendentes
     tipo = Column(String(20), nullable=False)
     corpo = Column(Text, nullable=False)
+    autor_externo = Column(String(512), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     ticket = relationship("Ticket", back_populates="mensagens")

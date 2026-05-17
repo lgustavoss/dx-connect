@@ -581,7 +581,7 @@ export function Tickets() {
                         </p>
                         <p className="mt-1 truncate font-semibold text-slate-900 dark:text-slate-100">
                           {t.empresa_nome ??
-                            (t.empresa_id != null ? String(t.empresa_id) : 'A definir na triagem')}
+                            (t.empresa_nome ?? (t.empresa_id != null ? String(t.empresa_id) : '—'))}
                         </p>
                         <p className="mt-0.5 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">
                           {t.assunto}
@@ -753,7 +753,7 @@ export function Tickets() {
                       <div className="min-w-0">
                         <p className="break-words whitespace-normal font-medium leading-snug text-slate-900 dark:text-slate-100">
                           {t.empresa_nome ??
-                            (t.empresa_id != null ? String(t.empresa_id) : 'A definir na triagem')}
+                            (t.empresa_nome ?? (t.empresa_id != null ? String(t.empresa_id) : '—'))}
                         </p>
                         <p className="mt-0.5 break-words whitespace-normal text-xs leading-snug text-slate-500 dark:text-slate-400 md:hidden">
                           {t.assunto}
