@@ -89,6 +89,6 @@ async def post_email_inbound(request: Request, db: Session = Depends(get_db)):
         return dispatch_parsed_inbound(db, parsed)
     except ValueError as e:
         detail = str(e)
-        if "Configure EMAIL_INBOUND" in detail:
+        if "Configure EMAIL_INBOUND_DEFAULT_SETOR_ID" in detail:
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=detail) from e
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail) from e

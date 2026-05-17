@@ -715,7 +715,8 @@ export function TicketDetalhe() {
           </h1>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
             <span className="font-medium text-slate-800 dark:text-slate-200">
-              {ticket.empresa_nome ?? `Empresa #${ticket.empresa_id}`}
+              {ticket.empresa_nome ??
+                (ticket.empresa_id != null ? `Empresa #${ticket.empresa_id}` : 'A definir na triagem')}
             </span>
           </p>
           {podeAtribuirAMim && (

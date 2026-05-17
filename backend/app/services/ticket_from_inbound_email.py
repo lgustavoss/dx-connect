@@ -93,7 +93,7 @@ def _criar_ticket_triagem_pos_fecho(
     db: Session,
     *,
     tenant_id: int,
-    empresa_id: int,
+    empresa_id: int | None,
     setor_id: int,
     status_inicial: StatusTicket,
     parsed: ParsedInboundEmail,
@@ -148,7 +148,7 @@ def processar_email_inbound(
     db: Session,
     *,
     tenant_id: int,
-    empresa_id: int,
+    empresa_id: int | None,
     setor_id: int,
     parsed: ParsedInboundEmail,
 ) -> EmailInboundProcessResult:
@@ -169,9 +169,10 @@ def processar_email_inbound(
         db.delete(row)
         db.flush()
 
-    empresa = db.query(Empresa).filter(Empresa.id == empresa_id, Empresa.tenant_id == tenant_id).first()
-    if not empresa:
-        raise ValueError("Empresa não encontrada.")
+    if empresa_id is not None:
+        empresa = db.query(Empresa).filter(Empresa.id == empresa_id, Empresa.tenant_id == tenant_id).first()
+        if not empresa:
+            raise ValueError("Empresa não encontrada.")
     setor = db.query(Setor).filter(Setor.id == setor_id, Setor.tenant_id == tenant_id).first()
     if not setor:
         raise ValueError("Setor não encontrado.")
@@ -271,7 +272,7 @@ def criar_ou_obter_ticket_por_message_id(
     db: Session,
     *,
     tenant_id: int,
-    empresa_id: int,
+    empresa_id: int | None,
     setor_id: int,
     parsed: ParsedInboundEmail,
 ) -> tuple[Ticket, bool]:

@@ -27,7 +27,7 @@ class TicketUpdate(BaseModel):
 class TicketRead(BaseModel):
     id: int
     protocolo: str
-    empresa_id: int
+    empresa_id: int | None = None
     setor_id: int
     status_id: int
     atendente_id: int | None = None

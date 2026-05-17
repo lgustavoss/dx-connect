@@ -11,7 +11,7 @@ class Ticket(Base):
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False, index=True)
     protocolo = Column(String(32), unique=True, nullable=False, index=True)  # #TYYYYMM-NNNN (legado: numérico)
-    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=True)
     setor_id = Column(Integer, ForeignKey("setores.id"), nullable=False)
     status_id = Column(Integer, ForeignKey("status_ticket.id"), nullable=False)
     atendente_id = Column(Integer, ForeignKey("atendentes.id"), nullable=True)  # responsável

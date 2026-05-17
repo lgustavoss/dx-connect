@@ -37,7 +37,8 @@ O modelo **mais usado** por produtos como Zendesk, Freshdesk, octadesk, sistemas
 | Requisito | Variável / detalhe |
 |-----------|-------------------|
 | Segredo | `EMAIL_INBOUND_WEBHOOK_SECRET` — enviar cabeçalho **`X-Dx-Email-Webhook-Secret`** com o mesmo valor. Se não estiver definido → **503**. |
-| Empresa / setor do ticket | `EMAIL_INBOUND_DEFAULT_EMPRESA_ID` e `EMAIL_INBOUND_DEFAULT_SETOR_ID` (v1 por ambiente; evoluir para persistência/UI). Se faltar algum → **503**. |
+| Setor do ticket | `EMAIL_INBOUND_DEFAULT_SETOR_ID` (obrigatório se o destino não estiver na tabela de encaminhamento). |
+| Empresa do ticket | `EMAIL_INBOUND_DEFAULT_EMPRESA_ID` **opcional** — se omitido, o ticket abre **sem empresa** (`A definir na triagem`). |
 | Idempotência | Cabeçalho **`Message-ID`** na mensagem MIME ou no campo `headers` (formato SendGrid). Reenvio com o mesmo ID devolve **200** com `"duplicate": true`. |
 | Corpo | JSON `{"rfc822": "..."}` (MIME completo) **ou** formulário `from`, `subject`, `text`/`html`, `headers`, opcionalmente `email` (RFC822). |
 
