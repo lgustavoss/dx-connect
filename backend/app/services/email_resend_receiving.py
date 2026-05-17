@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 import urllib.error
 import urllib.request
 from dataclasses import replace
@@ -45,7 +46,14 @@ def _resend_json_request(api_key: str, email_id: str) -> dict:
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", errors="replace")
         logger.warning("Resend receiving HTTP %s: %s", e.code, detail[:500])
-        raise ValueError(f"Resend receiving falhou (HTTP {e.code}).") from e
+        msg = detail[:300]
+        try:
+            err = json.loads(detail)
+            if isinstance(err, dict):
+                msg = str(err.get("message") or err.get("detail") or msg)
+        except json.JSONDecodeError:
+            pass
+        raise ValueError(f"Resend receiving falhou (HTTP {e.code}): {msg}") from e
     try:
         out = json.loads(raw) if raw.strip() else {}
     except json.JSONDecodeError as e:
@@ -61,6 +69,56 @@ def fetch_received_email(email_id: str, *, api_key: str | None = None) -> dict:
     if not eid:
         raise ValueError("email_id vazio.")
     return _resend_json_request(key, eid)
+
+
+def fetch_received_email_with_retry(
+    email_id: str,
+    *,
+    api_key: str | None = None,
+    attempts: int = 4,
+) -> dict:
+    """GET /emails/receiving/{id} com espera breve (o webhook pode chegar antes do índice)."""
+    last: ValueError | None = None
+    for i in range(max(1, attempts)):
+        try:
+            return fetch_received_email(email_id, api_key=api_key)
+        except ValueError as e:
+            last = e
+            err = str(e)
+            if i < attempts - 1 and ("HTTP 400" in err or "HTTP 404" in err):
+                time.sleep(0.5 * (2**i))
+                continue
+            raise
+    if last:
+        raise last
+    raise ValueError("Resend receiving falhou.")
+
+
+def parsed_from_resend_webhook_data(data: dict, *, fallback_email_id: str) -> ParsedInboundEmail:
+    """
+    Monta ingestão a partir do payload do webhook (sem corpo completo).
+    Usado quando a API GET receiving falha ou ainda não indexou o e-mail.
+    """
+    mid = normalize_message_id(data.get("message_id"))
+    if not mid:
+        mid = normalize_message_id(f"{fallback_email_id}@resend-inbound.dx-connect.local")
+
+    from_raw = (data.get("from") or "").strip()
+    name, addr = parseaddr(from_raw)
+    display = (f"{name} <{addr}>" if name else from_raw).strip() or addr or "(sem remetente)"
+    subj = (data.get("subject") or "").strip() or "(sem assunto)"
+    to_list = _addresses_lower(data.get("to"))
+
+    return ParsedInboundEmail(
+        message_id=mid,
+        in_reply_to=None,
+        references=None,
+        from_display=display[:512],
+        from_email=(addr.strip() or None),
+        subject=subj[:500],
+        body_text="(Mensagem recebida por e-mail; corpo não obtido da API Resend no momento do webhook.)",
+        to_recipients=to_list,
+    )
 
 
 def _download_bytes(url: str) -> bytes:

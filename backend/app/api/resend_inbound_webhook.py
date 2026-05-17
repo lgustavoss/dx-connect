@@ -20,8 +20,9 @@ from app.database import get_db
 from app.schemas.email_inbound import EmailInboundWebhookResponse
 from app.services.email_inbound_dispatch import dispatch_parsed_inbound
 from app.services.email_resend_receiving import (
-    fetch_received_email,
+    fetch_received_email_with_retry,
     parsed_from_resend_received,
+    parsed_from_resend_webhook_data,
     resend_api_key,
 )
 
@@ -94,8 +95,17 @@ async def post_resend_inbound(request: Request, db: Session = Depends(get_db)):
 
     try:
         api_key = resend_api_key()
-        received = fetch_received_email(email_id, api_key=api_key)
-        parsed = parsed_from_resend_received(received, fallback_email_id=email_id)
+        parsed = None
+        try:
+            received = fetch_received_email_with_retry(email_id, api_key=api_key)
+            parsed = parsed_from_resend_received(received, fallback_email_id=email_id)
+        except ValueError as fetch_err:
+            logger.warning(
+                "GET Resend receiving para %s falhou (%s); usa payload do webhook.",
+                email_id,
+                fetch_err,
+            )
+            parsed = parsed_from_resend_webhook_data(data, fallback_email_id=email_id)
         return dispatch_parsed_inbound(db, parsed)
     except ValueError as e:
         detail = str(e)
