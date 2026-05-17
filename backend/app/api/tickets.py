@@ -349,6 +349,11 @@ def historico(
 
 
 def _mensagem_para_read(m: TicketMensagem, *, cliente_notificado_por_email: bool = False) -> TicketMensagemRead:
+    from app.services.email_body_sanitize import sanitize_inbound_email_body
+
+    corpo = m.corpo
+    if m.tipo in ("abertura", "email_cliente"):
+        corpo = sanitize_inbound_email_body(corpo)
     return TicketMensagemRead(
         id=m.id,
         ticket_id=m.ticket_id,
@@ -356,7 +361,7 @@ def _mensagem_para_read(m: TicketMensagem, *, cliente_notificado_por_email: bool
         atendente_nome=m.atendente.nome if m.atendente else None,
         autor_externo=getattr(m, "autor_externo", None),
         tipo=m.tipo,
-        corpo=m.corpo,
+        corpo=corpo,
         created_at=m.created_at,
         cliente_notificado_por_email=cliente_notificado_por_email,
     )

@@ -19,6 +19,7 @@ from app.services.email_send_sistema import enviar_mensagem_texto_sistema
 from app.services.email_inbound_parse import ParsedInboundEmail, thread_lookup_message_ids
 from app.services.system_email_config import get_singleton_email_settings, transactional_config_from_row
 from app.services.protocolo_mensal import gerar_protocolo_ticket
+from app.services.email_body_sanitize import sanitize_inbound_email_body
 from app.services.ticket_email_index import registar_message_id_para_ticket
 
 logger = logging.getLogger(__name__)
@@ -36,10 +37,7 @@ class EmailInboundProcessResult:
 def _corpo_mensagem(parsed: ParsedInboundEmail, mid: str) -> str:
     """Corpo visível no ticket (sem metadados técnicos de e-mail)."""
     _ = mid
-    body = (parsed.body_text or "").strip()
-    if body.startswith("(Mensagem recebida por e-mail"):
-        return body
-    return body or "(sem conteúdo)"
+    return sanitize_inbound_email_body(parsed.body_text)
 
 
 def _find_ticket_by_thread(db: Session, parsed: ParsedInboundEmail) -> Ticket | None:
