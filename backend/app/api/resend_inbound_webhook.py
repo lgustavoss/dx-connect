@@ -23,7 +23,7 @@ from app.services.email_resend_receiving import (
     fetch_received_email_with_retry,
     parsed_from_resend_received,
     parsed_from_resend_webhook_data,
-    resend_api_key,
+    resend_api_key_for_db,
 )
 
 logger = logging.getLogger(__name__)
@@ -94,7 +94,7 @@ async def post_resend_inbound(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="email_id ausente no evento.")
 
     try:
-        api_key = resend_api_key()
+        api_key = resend_api_key_for_db(db)
         parsed = None
         try:
             received = fetch_received_email_with_retry(email_id, api_key=api_key)

@@ -34,6 +34,15 @@ def resend_api_key() -> str:
     return key
 
 
+def resend_api_key_for_db(db: Session) -> str:
+    """Mesma origem da key que o envio transaccional (BD cifrada ou ``RESEND_API_KEY`` no env)."""
+    row = get_singleton_email_settings(db)
+    cfg = transactional_config_from_row(row)
+    if cfg and (cfg.api_key or "").strip():
+        return cfg.api_key.strip()
+    return resend_api_key()
+
+
 def _resend_json_request(api_key: str, email_id: str) -> dict:
     req = urllib.request.Request(
         f"{RESEND_RECEIVING_API}/{email_id}",
