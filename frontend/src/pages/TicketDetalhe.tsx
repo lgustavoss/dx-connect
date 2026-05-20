@@ -496,8 +496,27 @@ export function TicketDetalhe() {
       .catch(() => setRedesList([]))
   }, [modalGerirAberto])
 
+  const triagemInbound = ticket?.triagem_inbound
+  const empresasVinculoSugeridas = triagemInbound?.empresas_vinculo_sugeridas ?? []
+  const requerCadastroFuncionario = triagemInbound?.requer_cadastro_funcionario === true
+  const redeTriagemFixa = empresasVinculoSugeridas.length > 0 && ticket?.rede_id != null
+
+  const empresasOpcoesModal = useMemo(() => {
+    if (empresasVinculoSugeridas.length > 0) {
+      return empresasVinculoSugeridas.map((e) => ({ id: e.id, nome: e.nome, ativo: true, rede_id: ticket?.rede_id ?? 0 }))
+    }
+    return empresasModalList
+  }, [empresasVinculoSugeridas, empresasModalList, ticket?.rede_id])
+
+  const linkCadastroFuncionario = useMemo(() => {
+    const em = triagemInbound?.remetente_email?.trim()
+    if (!em) return '/funcionarios-rede/novo'
+    return `/funcionarios-rede/novo?email=${encodeURIComponent(em)}`
+  }, [triagemInbound?.remetente_email])
+
   useEffect(() => {
     if (!modalGerirAberto) return
+    if (empresasVinculoSugeridas.length > 0) return
     if (editRede === '') {
       setEmpresasModalList([])
       return
@@ -512,7 +531,7 @@ export function TicketDetalhe() {
         }
       })
       .catch(() => setEmpresasModalList([]))
-  }, [modalGerirAberto, editRede, editEmpresa])
+  }, [modalGerirAberto, editRede, editEmpresa, empresasVinculoSugeridas.length])
 
   const modalApenasUmCampo = modalGerirFoco !== 'geral'
 
@@ -778,6 +797,49 @@ export function TicketDetalhe() {
                 <span className="font-medium text-slate-800 dark:text-slate-200">{ticket.empresa_nome}</span>
               )}
             </p>
+          )}
+          {triagemInbound && (
+            <div
+              className={`mt-3 rounded-lg border px-3 py-2.5 text-sm ${
+                requerCadastroFuncionario
+                  ? 'border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100'
+                  : 'border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-100'
+              }`}
+            >
+              {requerCadastroFuncionario ? (
+                <>
+                  <p className="font-medium">Remetente sem cadastro de funcionário</p>
+                  <p className="mt-1 text-xs opacity-90">
+                    {triagemInbound.conflito_multiplas_redes
+                      ? 'O e-mail está associado a mais de uma rede — corrija o cadastro antes de vincular o ticket.'
+                      : `E-mail ${triagemInbound.remetente_email || 'desconhecido'}: cadastre o funcionário numa rede e empresa para os próximos e-mails abrirem já vinculados.`}
+                  </p>
+                  {isAdmin && (
+                    <Link
+                      to={linkCadastroFuncionario}
+                      className="mt-2 inline-block text-xs font-semibold underline underline-offset-2"
+                    >
+                      Cadastrar funcionário
+                    </Link>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="font-medium">Defina a empresa do ticket</p>
+                  <p className="mt-1 text-xs opacity-90">
+                    O remetente está em mais de uma empresa da rede
+                    {ticket.rede_nome ? ` ${ticket.rede_nome}` : ''}. Escolha a empresa em Gerir ticket.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => abrirModalGerir('geral')}
+                    className="mt-2 text-xs font-semibold underline underline-offset-2"
+                  >
+                    Gerir ticket
+                  </button>
+                </>
+              )}
+            </div>
           )}
           {podeAtribuirAMim && (
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
@@ -1312,23 +1374,29 @@ export function TicketDetalhe() {
                     includeEmpty
                     emptyLabel="— Selecione a rede —"
                     placeholder="Rede"
+                    disabled={redeTriagemFixa}
                   />
                   <Select
                     label="Empresa"
                     value={editEmpresa}
                     onChange={(v) => setEditEmpresa(v === '' ? '' : Number(v))}
-                    options={empresasModalList.map((e) => ({
+                    options={empresasOpcoesModal.map((e) => ({
                       value: e.id,
                       label: `${e.nome}${!e.ativo ? ' (inativa)' : ''}`,
                     }))}
                     includeEmpty
                     emptyLabel="— Selecione a empresa —"
                     placeholder="Empresa"
-                    disabled={editRede === ''}
+                    disabled={editRede === '' && empresasVinculoSugeridas.length === 0}
                   />
-                  {editRede === '' && (
+                  {editRede === '' && empresasVinculoSugeridas.length === 0 && (
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       Selecione a rede para listar as empresas vinculadas.
+                    </p>
+                  )}
+                  {empresasVinculoSugeridas.length > 0 && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Apenas empresas em que o remetente do e-mail está cadastrado.
                     </p>
                   )}
                 </>
@@ -1445,3 +1513,4 @@ export function TicketDetalhe() {
     </div>
   )
 }
+

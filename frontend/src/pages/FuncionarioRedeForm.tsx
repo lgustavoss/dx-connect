@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ApiError, funcionariosRede, redes, empresas, type FuncionariosRede, type Redes, type Empresas } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
@@ -25,6 +25,7 @@ function redePadraoRecente(list: Redes.Rede[]) {
 
 export function FuncionarioRedeForm() {
   const { id } = useParams<{ id?: string }>()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const toast = useToast()
   const voltarAnterior = useVoltarAnterior('/funcionarios-rede')
@@ -62,6 +63,12 @@ export function FuncionarioRedeForm() {
     if (redeId !== '' || redesList.length === 0) return
     setRedeId(redePadraoRecente(redesList))
   }, [isEdit, redeId, redesList])
+
+  useEffect(() => {
+    if (isEdit) return
+    const em = searchParams.get('email')?.trim()
+    if (em) setEmail(em)
+  }, [isEdit, searchParams])
 
   useEffect(() => {
     if (!isEdit) return

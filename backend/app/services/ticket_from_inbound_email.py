@@ -150,6 +150,7 @@ def processar_email_inbound(
     empresa_id: int | None,
     setor_id: int,
     parsed: ParsedInboundEmail,
+    aberto_por_id: int | None = None,
 ) -> EmailInboundProcessResult:
     """
     Idempotente por ``parsed.message_id``.
@@ -241,7 +242,7 @@ def processar_email_inbound(
         status_id=status_inicial.id,
         assunto=assunto,
         descricao=corpo,
-        aberto_por_id=None,
+        aberto_por_id=aberto_por_id,
     )
     db.add(ticket)
     db.flush()

@@ -39,3 +39,18 @@ class FuncionarioRedeRead(FuncionarioRedeBase):
 class FuncionarioRedeComVinculo(FuncionarioRedeRead):
     """Funcionário com texto 'vinculado a' (para exibição na tela da rede)."""
     vinculado_a: str = ""
+
+
+class EmpresaOpcaoRead(BaseModel):
+    id: int
+    nome: str
+
+
+class RemetenteFuncionarioResolveRead(BaseModel):
+    email: str
+    requer_cadastro: bool
+    conflito_multiplas_redes: bool = False
+    funcionario_id: int | None = None
+    rede_id: int | None = None
+    empresa_id: int | None = None
+    empresas_opcao: list[EmpresaOpcaoRead] = []

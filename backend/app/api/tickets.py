@@ -8,14 +8,18 @@ from sqlalchemy import or_, asc, desc, nullslast
 
 from app.database import get_db
 from app.models import Ticket, TicketHistorico, TicketMensagem, Empresa, Setor, StatusTicket, Atendente, Rede
+from app.models.email_inbound_received import EmailInboundReceived
+from app.models.funcionario_rede import FuncionarioRede
 from app.models.ticket_anexo import TicketAnexo
 from app.schemas.ticket import (
+    EmpresaVinculoSugerida,
     TicketCreate,
-    TicketUpdate,
-    TicketRead,
     TicketHistoricoRead,
     TicketMensagemCreate,
     TicketMensagemRead,
+    TicketRead,
+    TicketTriagemInbound,
+    TicketUpdate,
 )
 from app.schemas.ticket_anexo import TicketAnexoCreateResponse, TicketAnexoRead
 from app.schemas.lista_paginada import ListaPaginada
@@ -28,7 +32,8 @@ from app.core.setor_scope import (
 )
 from app.services import ticket_anexo_storage
 from app.services.protocolo_mensal import gerar_protocolo_ticket
-from app.services.ticket_client_email import enviar_resposta_equipa_por_email
+from app.services.funcionario_rede_resolver import resolver_remetente_por_email
+from app.services.ticket_client_email import enviar_resposta_equipa_por_email, extrair_email_de_from_address
 from app.services.ticket_email_index import registar_message_id_para_ticket
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
@@ -58,7 +63,47 @@ def _gerar_protocolo(db: Session) -> str:
     return gerar_protocolo_ticket(db)
 
 
-def _ticket_para_read(t: Ticket) -> TicketRead:
+def _triagem_inbound_para_ticket(db: Session, t: Ticket) -> TicketTriagemInbound | None:
+    row = (
+        db.query(EmailInboundReceived)
+        .filter(EmailInboundReceived.ticket_id == t.id)
+        .order_by(EmailInboundReceived.id.desc())
+        .first()
+    )
+    if not row:
+        return None
+    email = extrair_email_de_from_address(row.from_address)
+    if not email and t.aberto_por_id:
+        f = db.query(FuncionarioRede).filter(FuncionarioRede.id == t.aberto_por_id).first()
+        email = (f.email or "").strip().lower() if f else None
+    rem = resolver_remetente_por_email(db, email)
+    if t.empresa_id is not None and not rem.requer_cadastro and len(rem.empresa_ids_opcao) <= 1:
+        return None
+    empresas: list[EmpresaVinculoSugerida] = []
+    for eid in rem.empresa_ids_opcao:
+        emp = db.query(Empresa).filter(Empresa.id == eid).first()
+        if emp:
+            empresas.append(EmpresaVinculoSugerida(id=emp.id, nome=emp.nome))
+    if not rem.requer_cadastro and not empresas and t.empresa_id is not None:
+        return None
+    return TicketTriagemInbound(
+        requer_cadastro_funcionario=rem.requer_cadastro,
+        remetente_email=rem.email or email,
+        conflito_multiplas_redes=rem.conflito_multiplas_redes,
+        empresas_vinculo_sugeridas=empresas,
+    )
+
+
+def _ticket_para_read(t: Ticket, db: Session | None = None) -> TicketRead:
+    triagem = _triagem_inbound_para_ticket(db, t) if db is not None else None
+    rede_id = t.empresa.rede_id if t.empresa else None
+    rede_nome = t.empresa.rede.nome if t.empresa and t.empresa.rede else None
+    if db and triagem and triagem.requer_cadastro is False and rede_id is None and t.aberto_por_id:
+        f = db.query(FuncionarioRede).filter(FuncionarioRede.id == t.aberto_por_id).first()
+        if f and f.rede_id:
+            rede_id = f.rede_id
+            r = db.query(Rede).filter(Rede.id == f.rede_id).first()
+            rede_nome = r.nome if r else None
     return TicketRead(
         id=t.id,
         protocolo=t.protocolo,
@@ -72,12 +117,13 @@ def _ticket_para_read(t: Ticket) -> TicketRead:
         fechado_em=t.fechado_em,
         created_at=t.created_at,
         updated_at=t.updated_at,
-        rede_id=t.empresa.rede_id if t.empresa else None,
+        rede_id=rede_id,
         empresa_nome=t.empresa.nome if t.empresa else None,
-        rede_nome=t.empresa.rede.nome if t.empresa and t.empresa.rede else None,
+        rede_nome=rede_nome,
         setor_nome=t.setor.nome if t.setor else None,
         status_nome=t.status.nome if t.status else None,
         atendente_nome=t.atendente.nome if t.atendente else None,
+        triagem_inbound=triagem,
     )
 
 
@@ -223,7 +269,7 @@ def listar(
         .limit(limit)
         .all()
     )
-    return ListaPaginada(items=[_ticket_para_read(t) for t in rows], total=total)
+    return ListaPaginada(items=[_ticket_para_read(t, db) for t in rows], total=total)
 
 
 @router.post("", response_model=TicketRead, status_code=201)
@@ -279,7 +325,18 @@ def criar(
         )
     )
     db.commit()
-    return _ticket_para_read(ticket)
+    ticket = (
+        db.query(Ticket)
+        .options(
+            joinedload(Ticket.empresa).joinedload(Empresa.rede),
+            joinedload(Ticket.setor),
+            joinedload(Ticket.status),
+            joinedload(Ticket.atendente),
+        )
+        .filter(Ticket.id == ticket.id)
+        .first()
+    )
+    return _ticket_para_read(ticket, db)
 
 
 @router.delete("/{ticket_id}")
@@ -312,7 +369,7 @@ def obter(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
     if not _pode_ver_ticket(db, atendente, ticket):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
-    return _ticket_para_read(ticket)
+    return _ticket_para_read(ticket, db)
 
 
 @router.get("/{ticket_id}/historico", response_model=list[TicketHistoricoRead])
@@ -606,7 +663,7 @@ def reabrir(
     if not ticket:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
     if ticket.fechado_em is None:
-        return _ticket_para_read(ticket)
+        return _ticket_para_read(ticket, db)
 
     # Status para retorno: primeiro status ativo que não seja "fechado"
     status_reaberto = (
@@ -631,7 +688,7 @@ def reabrir(
     ticket.status_id = novo_status.id
     db.commit()
     db.refresh(ticket)
-    return _ticket_para_read(ticket)
+    return _ticket_para_read(ticket, db)
 
 
 @router.patch("/{ticket_id}", response_model=TicketRead)
@@ -715,6 +772,25 @@ def atualizar(
             )
             if not empresa:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empresa não encontrada")
+            email_rem = None
+            if ticket.aberto_por_id:
+                f_ab = db.query(FuncionarioRede).filter(FuncionarioRede.id == ticket.aberto_por_id).first()
+                email_rem = (f_ab.email or "").strip() if f_ab else None
+            if not email_rem:
+                row_in = (
+                    db.query(EmailInboundReceived)
+                    .filter(EmailInboundReceived.ticket_id == ticket.id)
+                    .order_by(EmailInboundReceived.id.desc())
+                    .first()
+                )
+                if row_in:
+                    email_rem = extrair_email_de_from_address(row_in.from_address)
+            rem = resolver_remetente_por_email(db, email_rem)
+            if rem.empresa_ids_opcao and int(novo_eid) not in rem.empresa_ids_opcao:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Esta empresa não está vinculada ao funcionário remetente do e-mail.",
+                )
         antigo = str(ticket.empresa_id) if ticket.empresa_id is not None else ""
         novo = str(novo_eid) if novo_eid is not None else ""
         _registrar_historico(db, ticket.id, atendente.id, "empresa_id", antigo, novo)
@@ -742,4 +818,4 @@ def atualizar(
         .filter(Ticket.id == ticket_id)
         .first()
     )
-    return _ticket_para_read(ticket)
+    return _ticket_para_read(ticket, db)

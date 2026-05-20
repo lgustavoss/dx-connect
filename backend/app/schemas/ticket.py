@@ -25,6 +25,18 @@ class TicketUpdate(BaseModel):
     atendente_id: int | None = None
 
 
+class EmpresaVinculoSugerida(BaseModel):
+    id: int
+    nome: str
+
+
+class TicketTriagemInbound(BaseModel):
+    requer_cadastro_funcionario: bool = False
+    remetente_email: str | None = None
+    conflito_multiplas_redes: bool = False
+    empresas_vinculo_sugeridas: list[EmpresaVinculoSugerida] = []
+
+
 class TicketRead(BaseModel):
     id: int
     protocolo: str
@@ -45,6 +57,7 @@ class TicketRead(BaseModel):
     setor_nome: str | None = None
     status_nome: str | None = None
     atendente_nome: str | None = None
+    triagem_inbound: TicketTriagemInbound | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

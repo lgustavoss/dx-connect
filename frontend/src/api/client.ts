@@ -1068,6 +1068,16 @@ export namespace StatusTicket {
 }
 
 export namespace Tickets {
+  export interface EmpresaVinculoSugerida {
+    id: number;
+    nome: string;
+  }
+  export interface TriagemInbound {
+    requer_cadastro_funcionario: boolean;
+    remetente_email?: string | null;
+    conflito_multiplas_redes?: boolean;
+    empresas_vinculo_sugeridas?: EmpresaVinculoSugerida[];
+  }
   export interface Ticket {
     id: number;
     protocolo: string;
@@ -1087,6 +1097,7 @@ export namespace Tickets {
     setor_nome?: string;
     status_nome?: string;
     atendente_nome?: string;
+    triagem_inbound?: TriagemInbound | null;
   }
   export interface Historico {
     id: number;
