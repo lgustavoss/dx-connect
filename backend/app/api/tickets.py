@@ -98,7 +98,7 @@ def _ticket_para_read(t: Ticket, db: Session | None = None) -> TicketRead:
     triagem = _triagem_inbound_para_ticket(db, t) if db is not None else None
     rede_id = t.empresa.rede_id if t.empresa else None
     rede_nome = t.empresa.rede.nome if t.empresa and t.empresa.rede else None
-    if db and triagem and triagem.requer_cadastro is False and rede_id is None and t.aberto_por_id:
+    if db and triagem and triagem.requer_cadastro_funcionario is False and rede_id is None and t.aberto_por_id:
         f = db.query(FuncionarioRede).filter(FuncionarioRede.id == t.aberto_por_id).first()
         if f and f.rede_id:
             rede_id = f.rede_id
