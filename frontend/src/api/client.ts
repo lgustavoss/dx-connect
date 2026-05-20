@@ -492,6 +492,7 @@ export namespace SystemSettings {
   export interface EmailSettingsRead {
     transactional_from_email?: string | null
     transactional_from_name?: string | null
+    transactional_reply_to_email?: string | null
     outbound_configured?: boolean
     has_transactional_api_key?: boolean
   }

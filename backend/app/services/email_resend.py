@@ -65,6 +65,10 @@ def enviar_via_resend(
     if hdrs:
         payload["headers"] = hdrs
 
+    reply_to = (cfg.reply_to or "").strip()
+    if reply_to:
+        payload["reply_to"] = [reply_to]
+
     raw_body = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         RESEND_API_URL,

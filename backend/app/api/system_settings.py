@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 from starlette.responses import FileResponse
 
+from app.config import settings as app_settings
 from app.core.auth import exigir_admin
 from app.database import get_db
 from app.models.atendente import Atendente
@@ -75,9 +76,14 @@ def _email_out(row: EmailSettings | None) -> EmailSettingsRead:
         from_email = str(row.transactional_from_email).strip()
     if not from_name and row and (row.transactional_from_name or "").strip():
         from_name = str(row.transactional_from_name).strip()
+    reply_to = cfg.reply_to if cfg else None
+    if not reply_to:
+        reply_to = (app_settings.SUPPORT_REPLY_TO_EMAIL or "").strip() or None
+
     return EmailSettingsRead(
         transactional_from_email=from_email,
         transactional_from_name=from_name,
+        transactional_reply_to_email=reply_to,
         outbound_configured=bool(cfg),
         has_transactional_api_key=bool(row and row.transactional_api_key_enc and str(row.transactional_api_key_enc).strip()),
     )

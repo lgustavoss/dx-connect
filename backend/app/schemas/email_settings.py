@@ -6,6 +6,7 @@ class EmailSettingsRead(BaseModel):
 
     transactional_from_email: str | None = None
     transactional_from_name: str | None = None
+    transactional_reply_to_email: str | None = None
     outbound_configured: bool = False
     has_transactional_api_key: bool = Field(
         default=False,

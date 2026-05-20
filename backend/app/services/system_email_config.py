@@ -91,6 +91,7 @@ class TransactionalEmailConfig:
     api_key: str
     from_email: str
     from_name: str | None
+    reply_to: str | None = None
 
 
 def transactional_config_from_row(row: EmailSettings | None) -> TransactionalEmailConfig | None:
@@ -117,4 +118,11 @@ def transactional_config_from_row(row: EmailSettings | None) -> TransactionalEma
         fn = (app_settings.TRANSACTIONAL_FROM_NAME or "").strip()
         from_name = fn or None
 
-    return TransactionalEmailConfig(api_key=key, from_email=from_email, from_name=from_name)
+    reply_to = (app_settings.SUPPORT_REPLY_TO_EMAIL or "").strip() or None
+
+    return TransactionalEmailConfig(
+        api_key=key,
+        from_email=from_email,
+        from_name=from_name,
+        reply_to=reply_to,
+    )

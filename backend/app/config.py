@@ -72,6 +72,8 @@ class Settings(BaseSettings):
     RESEND_WEBHOOK_SECRET: str | None = None
     TRANSACTIONAL_FROM_EMAIL: str | None = None
     TRANSACTIONAL_FROM_NAME: str | None = None
+    # Respostas ao cliente: Reply-To público (ex. suporte@duplexsoft.com.br) enquanto From usa @notify na Resend.
+    SUPPORT_REPLY_TO_EMAIL: str | None = None
 
     # Diretório para logo da empresa do sistema (caminho relativo ao cwd ou absoluto).
     SYSTEM_LOGO_DIR: str = "data/system_logo"

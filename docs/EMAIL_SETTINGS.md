@@ -79,6 +79,7 @@ O **cliente final** não cria conta Resend nem grava API key na UI. O envio (res
 | `RESEND_API_KEY` | API key da conta Resend da operação (Duplexsoft / DX Connect) |
 | `TRANSACTIONAL_FROM_EMAIL` | Remetente verificado nessa conta (ex.: `noreply@notify.duplexsoft.com.br`) |
 | `TRANSACTIONAL_FROM_NAME` | Nome exibido (opcional) |
+| `SUPPORT_REPLY_TO_EMAIL` | Endereço público de resposta (ex.: `suporte@duplexsoft.com.br`) — o cliente usa **Responder** para esta caixa enquanto o From pode ser `@notify` |
 
 `GET /v1/settings/email` devolve `outbound_configured: true` quando key + remetente estão disponíveis (ambiente ou, em legado, BD). O painel **Empresa → E-mail** mostra o estado e permite **testar envio**; não expõe campos para API key.
 

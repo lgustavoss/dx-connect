@@ -542,14 +542,29 @@ export function ConfigEmpresaEmail() {
             >
               <h3 className="font-semibold">Envio de respostas (plataforma)</h3>
               {emailOutbound?.outbound_configured ? (
-                <p className="mt-1.5">
-                  Ativo. Remetente:{' '}
-                  <span className="font-mono">
-                    {emailOutbound.transactional_from_name
-                      ? `${emailOutbound.transactional_from_name} <${emailOutbound.transactional_from_email}>`
-                      : emailOutbound.transactional_from_email}
-                  </span>
-                </p>
+                <div className="mt-1.5 space-y-1">
+                  <p>
+                    Ativo. Remetente (From):{' '}
+                    <span className="font-mono">
+                      {emailOutbound.transactional_from_name
+                        ? `${emailOutbound.transactional_from_name} <${emailOutbound.transactional_from_email}>`
+                        : emailOutbound.transactional_from_email}
+                    </span>
+                  </p>
+                  {emailOutbound.transactional_reply_to_email ? (
+                    <p>
+                      Responder para (Reply-To):{' '}
+                      <span className="font-mono">{emailOutbound.transactional_reply_to_email}</span>
+                    </p>
+                  ) : (
+                    <p className="text-xs opacity-90">
+                      Reply-To não definido — defina{' '}
+                      <span className="font-mono">SUPPORT_REPLY_TO_EMAIL</span> no servidor (ex.{' '}
+                      <span className="font-mono">suporte@duplexsoft.com.br</span>) para as respostas do cliente
+                      voltarem à caixa de suporte.
+                    </p>
+                  )}
+                </div>
               ) : (
                 <p className="mt-1.5">
                   Indisponível neste servidor. A equipa de operação deve definir{' '}
