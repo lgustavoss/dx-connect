@@ -36,7 +36,7 @@ def test_atendente_lista_empresas_somente_redes_com_ticket_no_escopo(client, see
     assert r1.json()["total"] == 1
 
     # Outra empresa na mesma rede: aparece para quem já enxerga a rede via tickets no setor
-    e2 = Empresa(rede_id=seed_base["rede"].id, nome="Empresa 2", ativo=True)
+    e2 = Empresa(tenant_id=1, rede_id=seed_base["rede"].id, nome="Empresa 2", ativo=True)
     db_session.add(e2)
     db_session.commit()
 
@@ -59,7 +59,7 @@ def test_atendente_lista_empresas_apos_ticket_no_seu_setor(client, seed_base, au
     assert r_a2.status_code == 200
     assert r_a2.json()["total"] == 1
 
-    db_session.add(Empresa(rede_id=seed_base["rede"].id, nome="Empresa S2", ativo=True))
+    db_session.add(Empresa(tenant_id=1, rede_id=seed_base["rede"].id, nome="Empresa S2", ativo=True))
     db_session.commit()
 
     r2 = client.get("/v1/empresas", headers=auth_headers["a2"])

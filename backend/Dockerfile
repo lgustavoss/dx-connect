@@ -3,6 +3,8 @@ FROM python:3.12-slim
 WORKDIR /app
 
 ARG INSTALL_DEV=0
+ARG DX_CONNECT_GIT_SHA=unknown
+ENV DX_CONNECT_GIT_SHA=${DX_CONNECT_GIT_SHA}
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \

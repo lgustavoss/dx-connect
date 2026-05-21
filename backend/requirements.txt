@@ -10,4 +10,6 @@ alembic==1.14.0
 pydantic[email]==2.13.3
 pydantic-settings==2.14.0
 PyJWT[crypto]==2.12.0
+cryptography>=42.0.0
 bcrypt>=5.0.0,<6
+svix>=1.40.0

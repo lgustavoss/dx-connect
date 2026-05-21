@@ -17,6 +17,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        DX_CONNECT_GIT_SHA: ${DX_CONNECT_GIT_SHA:-unknown}
     container_name: dx-connect-api
     env_file:
       - ./backend/.env

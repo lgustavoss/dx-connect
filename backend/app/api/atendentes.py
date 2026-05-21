@@ -50,9 +50,9 @@ def listar_atendentes(
     ordenar_por: OrdenarAtendentesPor | None = Query(None),
     ordem: OrdemLista = Query(OrdemLista.asc),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    atendente_logado: Atendente = Depends(exigir_admin),
 ):
-    q = db.query(Atendente)
+    q = db.query(Atendente).filter(Atendente.tenant_id == atendente_logado.tenant_id)
     if not incluir_inativos:
         q = q.filter(Atendente.ativo.is_(True))
     if busca and busca.strip():
@@ -85,9 +85,14 @@ def criar_atendente(
     db: Session = Depends(get_db),
     atendente_logado: Atendente = Depends(exigir_admin),
 ):
-    if db.query(Atendente).filter(Atendente.email == data.email).first():
+    if (
+        db.query(Atendente)
+        .filter(Atendente.tenant_id == atendente_logado.tenant_id, Atendente.email == data.email)
+        .first()
+    ):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="E-mail já cadastrado")
     atendente = Atendente(
+        tenant_id=atendente_logado.tenant_id,
         email=data.email,
         nome=data.nome,
         senha_hash=hash_senha(data.senha),
