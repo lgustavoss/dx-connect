@@ -1,15 +1,15 @@
 # Necessário para `Form()` / `UploadFile` (envio de mídia WhatsApp, etc.).
-python-multipart==0.0.27
+python-multipart==0.0.28
 fastapi==0.136.1
 starlette==1.0.1
-uvicorn[standard]==0.46.0
+uvicorn[standard]==0.48.0
 gunicorn==25.3.0
 sqlalchemy==2.0.36
 psycopg2-binary==2.9.12
 alembic==1.14.0
-pydantic[email]==2.13.3
-pydantic-settings==2.14.0
-PyJWT[crypto]==2.12.0
+pydantic[email]==2.13.4
+pydantic-settings==2.14.1
+PyJWT[crypto]==2.12.1
 cryptography>=42.0.0
 bcrypt>=5.0.0,<6
 svix>=1.40.0
