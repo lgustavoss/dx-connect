@@ -53,7 +53,7 @@ def listar_empresas(
 ):
     """Admin: modelo completo. Atendente: resumo (PII mínima) só de redes que já tiveram ticket nos setores que ele atende."""
     admin = atendente.role == "admin"
-    q = db.query(Empresa)
+    q = db.query(Empresa).filter(Empresa.tenant_id == atendente.tenant_id)
     if not admin:
         vis = ids_setores_visiveis_atendente(db, atendente)
         q = q.filter(Empresa.rede_id.in_(select_rede_ids_com_ticket_nos_setores(vis)))
@@ -191,11 +191,15 @@ def criar_empresa(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(exigir_admin),
 ):
-    rede = db.query(Rede).filter(Rede.id == data.rede_id).first()
+    rede = (
+        db.query(Rede)
+        .filter(Rede.id == data.rede_id, Rede.tenant_id == atendente.tenant_id)
+        .first()
+    )
     if not rede:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rede não encontrada")
     payload = data.model_dump()
-    empresa = Empresa(**payload)
+    empresa = Empresa(**payload, tenant_id=atendente.tenant_id)
     db.add(empresa)
     db.flush()
     registrar_audit(db, "empresa", empresa.id, "create", atendente.id)

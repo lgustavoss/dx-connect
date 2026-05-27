@@ -53,6 +53,33 @@ class Settings(BaseSettings):
     # Tamanho máximo (bytes) para cada anexo de ticket.
     TICKET_ANEXOS_MAX_BYTES: int = 25 * 1024 * 1024
 
+    # Multi-tenant: subdomínio {tenant_id}.CONNECT_APP_BASE_DOMAIN e endereços {local}@INBOUND_EMAIL_DOMAIN
+    CONNECT_APP_BASE_DOMAIN: str = "connect.duplexsoft.com.br"
+    # Domínio Resend com Receiving (ex.: notify.duplexsoft.com.br). Endereços: {setor}.t{tenant}@domínio.
+    INBOUND_EMAIL_DOMAIN: str = "notify.duplexsoft.com.br"
+    # Host sem subdomínio (ex.: connect.duplexsoft.com.br) ou dev local sem header.
+    DEFAULT_TENANT_ID: int = 1
+
+    # Webhook de ingestão de e-mail (padrão SaaS). Sem segredo, o endpoint responde 503.
+    EMAIL_INBOUND_WEBHOOK_SECRET: str | None = None
+    # Fallback se o destinatário não corresponder a tenant_inbound_addresses (legado).
+    EMAIL_INBOUND_DEFAULT_EMPRESA_ID: int | None = None
+    EMAIL_INBOUND_DEFAULT_SETOR_ID: int | None = None
+
+    # Resend (envio transaccional HTTP). Opcional: sobrepõe ausência de API key na BD (útil em dev/CI).
+    RESEND_API_KEY: str | None = None
+    # Segredo Svix do webhook Resend (evento email.received → /v1/webhooks/resend-inbound).
+    RESEND_WEBHOOK_SECRET: str | None = None
+    TRANSACTIONAL_FROM_EMAIL: str | None = None
+    TRANSACTIONAL_FROM_NAME: str | None = None
+    # Respostas ao cliente: Reply-To público (ex. suporte@duplexsoft.com.br) enquanto From usa @notify na Resend.
+    SUPPORT_REPLY_TO_EMAIL: str | None = None
+
+    # Diretório para logo da empresa do sistema (caminho relativo ao cwd ou absoluto).
+    SYSTEM_LOGO_DIR: str = "data/system_logo"
+    # Tamanho máximo (bytes) para upload de logo (2MB).
+    SYSTEM_LOGO_MAX_BYTES: int = 2 * 1024 * 1024
+
     @property
     def evolution_embutida_disponivel(self) -> bool:
         return bool(

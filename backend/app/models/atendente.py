@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Table, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Table, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -17,9 +17,11 @@ class Atendente(Base):
     """Usuário interno: admin ou atendente. Atendente vê apenas tickets do(s) seu(s) setor(es)."""
 
     __tablename__ = "atendentes"
+    __table_args__ = (UniqueConstraint("tenant_id", "email", name="uq_atendentes_tenant_email"),)
 
     id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), unique=True, nullable=False, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False, index=True)
+    email = Column(String(255), nullable=False, index=True)
     senha_hash = Column(String(255), nullable=False)
     nome = Column(String(255), nullable=False)
     role = Column(String(20), nullable=False, default="atendente")  # admin | atendente

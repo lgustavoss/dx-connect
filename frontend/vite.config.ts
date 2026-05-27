@@ -18,7 +18,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss()],
     resolve: {
-      // Evita falha de resolução/pré-bundle do pacote (exports condicionais) em alguns ambientes Windows/Vite.
+      // react e react-dom devem ser a mesma versão exata (erro React #527 se divergirem).
+      dedupe: ['react', 'react-dom'],
       alias: {
         'qrcode.react': path.resolve(__dirname, 'node_modules/qrcode.react/lib/esm/index.js'),
       },

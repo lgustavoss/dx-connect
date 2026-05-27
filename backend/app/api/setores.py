@@ -36,7 +36,7 @@ def listar_setores(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    q = db.query(Setor)
+    q = db.query(Setor).filter(Setor.tenant_id == atendente.tenant_id)
     if atendente.role != "admin":
         vis = ids_setores_visiveis_atendente(db, atendente)
         q = q.filter(Setor.id.in_(vis))
@@ -64,9 +64,13 @@ def criar_setor(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(exigir_admin),
 ):
-    if db.query(Setor).filter(Setor.slug == data.slug).first():
+    if (
+        db.query(Setor)
+        .filter(Setor.tenant_id == atendente.tenant_id, Setor.slug == data.slug)
+        .first()
+    ):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Slug já existe")
-    setor = Setor(**data.model_dump())
+    setor = Setor(**data.model_dump(), tenant_id=atendente.tenant_id)
     db.add(setor)
     db.flush()
     registrar_audit(db, "setor", setor.id, "create", atendente.id)

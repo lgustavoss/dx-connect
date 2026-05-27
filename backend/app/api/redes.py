@@ -35,9 +35,9 @@ def listar_redes(
     ordenar_por: OrdenarRedesPor | None = Query(None),
     ordem: OrdemLista = Query(OrdemLista.asc),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_admin),
 ):
-    q = db.query(Rede)
+    q = db.query(Rede).filter(Rede.tenant_id == atendente.tenant_id)
     if not incluir_inativos:
         q = q.filter(Rede.ativo.is_(True))
     if busca and busca.strip():
@@ -64,7 +64,7 @@ def criar_rede(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(exigir_admin),
 ):
-    rede = Rede(**data.model_dump())
+    rede = Rede(**data.model_dump(), tenant_id=atendente.tenant_id)
     db.add(rede)
     db.flush()
     registrar_audit(db, "rede", rede.id, "create", atendente.id)

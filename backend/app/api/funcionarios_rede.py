@@ -8,7 +8,14 @@ from app.database import get_db
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
 from app.models import FuncionarioRede, FuncionarioRedeEmpresa, Ticket, Empresa
 from app.models.atendente import Atendente
-from app.schemas.funcionario_rede import FuncionarioRedeCreate, FuncionarioRedeUpdate, FuncionarioRedeRead
+from app.schemas.funcionario_rede import (
+    EmpresaOpcaoRead,
+    FuncionarioRedeCreate,
+    FuncionarioRedeRead,
+    FuncionarioRedeUpdate,
+    RemetenteFuncionarioResolveRead,
+)
+from app.services.funcionario_rede_resolver import assert_email_unico_por_rede, resolver_remetente_por_email
 from app.schemas.lista_paginada import ListaPaginada
 from app.core.auth import exigir_admin
 from app.core.audit import registrar_audit
@@ -93,6 +100,29 @@ def listar(
     return ListaPaginada(items=[_para_read(f) for f in rows], total=total)
 
 
+@router.get("/resolver-por-email", response_model=RemetenteFuncionarioResolveRead)
+def resolver_por_email(
+    email: str = Query(..., min_length=3, max_length=255),
+    db: Session = Depends(get_db),
+    _: Atendente = Depends(exigir_admin),
+):
+    rem = resolver_remetente_por_email(db, email)
+    empresas = []
+    for eid in rem.empresa_ids_opcao:
+        emp = db.query(Empresa).filter(Empresa.id == eid).first()
+        if emp:
+            empresas.append(EmpresaOpcaoRead(id=emp.id, nome=emp.nome))
+    return RemetenteFuncionarioResolveRead(
+        email=rem.email,
+        requer_cadastro=rem.requer_cadastro,
+        conflito_multiplas_redes=rem.conflito_multiplas_redes,
+        funcionario_id=rem.funcionario_id,
+        rede_id=rem.rede_id,
+        empresa_id=rem.empresa_id,
+        empresas_opcao=empresas,
+    )
+
+
 @router.post("", response_model=FuncionarioRedeRead, status_code=201)
 def criar(
     data: FuncionarioRedeCreate,
@@ -122,6 +152,12 @@ def criar(
         if not emp:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empresa não encontrada")
         rede_id_final = emp.rede_id
+    if rede_id_final is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="rede_id não definido para o vínculo.")
+    try:
+        assert_email_unico_por_rede(db, email=str(data.email), rede_id=int(rede_id_final))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     f = FuncionarioRede(
         nome=data.nome,
         email=data.email,
@@ -186,6 +222,16 @@ def atualizar(
         emp = db.query(Empresa).filter(Empresa.id == f.empresa_id).first()
         if emp:
             f.rede_id = emp.rede_id
+    if f.rede_id is not None:
+        try:
+            assert_email_unico_por_rede(
+                db,
+                email=str(f.email),
+                rede_id=int(f.rede_id),
+                ignorar_funcionario_id=f.id,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     registrar_audit(db, "funcionario_rede", funcionario_id, "update", atendente.id)
     db.commit()
     db.refresh(f)

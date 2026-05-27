@@ -13,7 +13,13 @@ from app.models.audit_log import AuditLog
 from app.models.ibge_municipio import IbgeMunicipio
 from app.models.app_cache_meta import AppCacheMeta
 from app.models.whatsapp_chat import WhatsappChat, WhatsappChatTicket, WhatsappMensagem, WhatsappSettings
+from app.models.empresa_sistema import EmpresaSistema
+from app.models.email_settings import EmailSettings
 from app.models.protocol_sequence import ProtocolSequence
+from app.models.email_inbound_received import EmailInboundReceived
+from app.models.ticket_email_message_id import TicketEmailMessageId
+from app.models.tenant import Tenant
+from app.models.tenant_inbound_address import TenantInboundAddress
 
 __all__ = [
     "Rede",
@@ -38,5 +44,11 @@ __all__ = [
     "WhatsappChat",
     "WhatsappMensagem",
     "WhatsappChatTicket",
+    "EmpresaSistema",
+    "EmailSettings",
     "ProtocolSequence",
+    "EmailInboundReceived",
+    "TicketEmailMessageId",
+    "Tenant",
+    "TenantInboundAddress",
 ]

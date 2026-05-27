@@ -13,7 +13,6 @@ import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { FormSection } from '../components/ui/FormSection'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
-
 const MAX_ANEXO_BYTES = 25 * 1024 * 1024
 const MAX_ANEXOS_COUNT = 10
 
@@ -99,7 +98,7 @@ export function TicketNovo() {
       .then((p) => {
         if (!cancelled) {
           setPaiResumo(p)
-          setEmpresaId(p.empresa_id)
+          setEmpresaId(p.empresa_id ?? '')
         }
       })
       .catch(() => {

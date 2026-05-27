@@ -66,7 +66,7 @@ def obter_dashboard(
     # Últimos tickets
     q_ultimos = (
         db.query(Ticket)
-        .join(Ticket.empresa)
+        .outerjoin(Ticket.empresa)
         .join(Ticket.setor)
         .join(Ticket.status)
         .outerjoin(Ticket.atendente)

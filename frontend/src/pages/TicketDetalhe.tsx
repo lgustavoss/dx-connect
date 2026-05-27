@@ -7,11 +7,15 @@ import {
   statusTicket,
   atendentes,
   setores,
+  redes,
+  empresas,
   whatsappChats,
   fetchTicketAnexoBlob,
   type StatusTicket,
   type Atendentes,
   type Setores,
+  type Redes,
+  type Empresas,
   type Tickets,
   type WhatsappChats,
 } from '../api/client'
@@ -29,11 +33,13 @@ import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/err
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 import { exibirProtocolo } from '../lib/exibirProtocolo'
 import { MODAL_PANEL_COMPACT, MODAL_PANEL_SCROLLABLE } from '../lib/modalPanel'
+import { autorRodapeMensagem, corpoMensagemEmailVisivel } from '../lib/ticketMensagemEmail'
 
 const ROTULO_CAMPO: Record<string, string> = {
   status_id: 'Status',
   setor_id: 'Setor',
   atendente_id: 'Responsável',
+  empresa_id: 'Empresa',
   assunto: 'Assunto',
   descricao: 'Descrição',
   parent_ticket_id: 'Ticket pai',
@@ -46,14 +52,21 @@ function resolverValorHistorico(
     status: Map<number, string>
     setor: Map<number, string>
     atendente: Map<number, string>
+    empresa: Map<number, string>
   },
 ): string {
   if (valor == null || valor === '') return '—'
-  if (campo === 'status_id' || campo === 'setor_id' || campo === 'atendente_id') {
+  if (campo === 'status_id' || campo === 'setor_id' || campo === 'atendente_id' || campo === 'empresa_id') {
     const id = Number(valor)
     if (Number.isNaN(id)) return valor
     const m =
-      campo === 'status_id' ? maps.status : campo === 'setor_id' ? maps.setor : maps.atendente
+      campo === 'status_id'
+        ? maps.status
+        : campo === 'setor_id'
+          ? maps.setor
+          : campo === 'empresa_id'
+            ? maps.empresa
+            : maps.atendente
     return m.get(id) ?? `#${id}`
   }
   const t = (valor || '').trim()
@@ -64,6 +77,7 @@ function tituloTipoMensagem(tipo: string): string {
   if (tipo === 'abertura') return 'Solicitação inicial'
   if (tipo === 'publico') return 'Mensagem da equipe'
   if (tipo === 'interno') return 'Comentário interno'
+  if (tipo === 'email_cliente') return 'Resposta do cliente (e-mail)'
   return tipo
 }
 
@@ -153,9 +167,14 @@ export function TicketDetalhe() {
   const [editSetor, setEditSetor] = useState<number | ''>('')
   const [editStatus, setEditStatus] = useState<number | ''>('')
   const [editAtendente, setEditAtendente] = useState<number | ''>('')
+  const [editRede, setEditRede] = useState<number | ''>('')
+  const [editEmpresa, setEditEmpresa] = useState<number | ''>('')
+  const [redesList, setRedesList] = useState<Redes.Rede[]>([])
+  const [empresasModalList, setEmpresasModalList] = useState<Empresas.EmpresaListaItem[]>([])
   const [saving, setSaving] = useState(false)
   const [novaMensagemTexto, setNovaMensagemTexto] = useState('')
   const [tipoNovaMensagem, setTipoNovaMensagem] = useState<'publico' | 'interno'>('publico')
+  const [notificarClienteEmail, setNotificarClienteEmail] = useState(false)
   const [enviandoMensagem, setEnviandoMensagem] = useState(false)
   const [anexosSelecionados, setAnexosSelecionados] = useState<File[]>([])
   const [enviandoAnexos, setEnviandoAnexos] = useState(false)
@@ -291,8 +310,13 @@ export function TicketDetalhe() {
     if (ticket?.atendente_nome && ticket.atendente_id != null) {
       atendente.set(ticket.atendente_id, ticket.atendente_nome)
     }
-    return { status, setor, atendente }
-  }, [statusList, setoresList, atendentesList, ticket])
+    const empresa = new Map<number, string>()
+    empresasModalList.forEach((e) => empresa.set(e.id, e.nome))
+    if (ticket?.empresa_nome && ticket.empresa_id != null) {
+      empresa.set(ticket.empresa_id, ticket.empresa_nome)
+    }
+    return { status, setor, atendente, empresa }
+  }, [statusList, setoresList, atendentesList, empresasModalList, ticket])
 
   useEffect(() => {
     coletarTodasPaginas<StatusTicket.Status>((o, l) =>
@@ -573,6 +597,8 @@ export function TicketDetalhe() {
     setEditSetor(ticket.setor_id)
     setEditStatus(ticket.status_id)
     setEditAtendente(ticket.atendente_id ?? '')
+    setEditRede(ticket.rede_id ?? '')
+    setEditEmpresa(ticket.empresa_id ?? '')
     setModalGerirFoco(foco)
     setModalGerirAberto(true)
     if (foco === 'hierarquia') {
@@ -580,6 +606,50 @@ export function TicketDetalhe() {
       setIdPaiParaVincular('')
     }
   }
+
+  useEffect(() => {
+    if (!modalGerirAberto) return
+    coletarTodasPaginas<Redes.Rede>((o, l) => redes.list({ incluir_inativos: true, offset: o, limit: l }))
+      .then(setRedesList)
+      .catch(() => setRedesList([]))
+  }, [modalGerirAberto])
+
+  const triagemInbound = ticket?.triagem_inbound
+  const empresasVinculoSugeridas = triagemInbound?.empresas_vinculo_sugeridas ?? []
+  const requerCadastroFuncionario = triagemInbound?.requer_cadastro_funcionario === true
+  const redeTriagemFixa = empresasVinculoSugeridas.length > 0 && ticket?.rede_id != null
+
+  const empresasOpcoesModal = useMemo(() => {
+    if (empresasVinculoSugeridas.length > 0) {
+      return empresasVinculoSugeridas.map((e) => ({ id: e.id, nome: e.nome, ativo: true, rede_id: ticket?.rede_id ?? 0 }))
+    }
+    return empresasModalList
+  }, [empresasVinculoSugeridas, empresasModalList, ticket?.rede_id])
+
+  const linkCadastroFuncionario = useMemo(() => {
+    const em = triagemInbound?.remetente_email?.trim()
+    if (!em) return '/funcionarios-rede/novo'
+    return `/funcionarios-rede/novo?email=${encodeURIComponent(em)}`
+  }, [triagemInbound?.remetente_email])
+
+  useEffect(() => {
+    if (!modalGerirAberto) return
+    if (empresasVinculoSugeridas.length > 0) return
+    if (editRede === '') {
+      setEmpresasModalList([])
+      return
+    }
+    coletarTodasPaginas<Empresas.EmpresaListaItem>((o, l) =>
+      empresas.list({ rede_id: Number(editRede), incluir_inativos: true, offset: o, limit: l }),
+    )
+      .then((list) => {
+        setEmpresasModalList(list)
+        if (editEmpresa !== '' && !list.some((e) => e.id === editEmpresa)) {
+          setEditEmpresa('')
+        }
+      })
+      .catch(() => setEmpresasModalList([]))
+  }, [modalGerirAberto, editRede, editEmpresa, empresasVinculoSugeridas.length])
 
   const modalApenasUmCampo = modalGerirFoco !== 'geral' && modalGerirFoco !== 'hierarquia'
 
@@ -591,6 +661,10 @@ export function TicketDetalhe() {
     const atendAtual = ticket.atendente_id
     const atendNovo = editAtendente === '' ? null : Number(editAtendente)
     if (atendNovo !== atendAtual) patch.atendente_id = atendNovo
+    if (modalGerirFoco === 'geral' && editEmpresa !== '') {
+      const novoEmpresa = Number(editEmpresa)
+      if (novoEmpresa !== ticket.empresa_id) patch.empresa_id = novoEmpresa
+    }
 
     if (Object.keys(patch).length === 0) {
       toast.showWarning('Nenhuma alteração para salvar.')
@@ -750,6 +824,10 @@ export function TicketDetalhe() {
     setTipoNovaMensagem('interno')
   }, [ticket?.id, ticket?.atendente_id, user?.id])
 
+  useEffect(() => {
+    if (tipoNovaMensagem === 'interno') setNotificarClienteEmail(false)
+  }, [tipoNovaMensagem])
+
   async function handleEnviarMensagem() {
     if (!ticket) return
     if (ticket.fechado_em) {
@@ -764,7 +842,11 @@ export function TicketDetalhe() {
     const tipo = podeMensagemPublica ? tipoNovaMensagem : 'interno'
     setEnviandoMensagem(true)
     try {
-      const msg = texto ? await tickets.addMensagem(ticket.id, { corpo: texto, tipo }) : null
+      const payload: Tickets.MensagemCreate = { corpo: texto, tipo }
+      if (tipo === 'publico' && notificarClienteEmail) {
+        payload.notificar_cliente_por_email = true
+      }
+      const msg = texto ? await tickets.addMensagem(ticket.id, payload) : null
       if (anexosSelecionados.length > 0) {
         setEnviandoAnexos(true)
         try {
@@ -781,8 +863,15 @@ export function TicketDetalhe() {
       setAnexos(a)
       setNovaMensagemTexto('')
       setAnexosSelecionados([])
+      setNotificarClienteEmail(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
-      toast.showSuccess(tipo === 'interno' ? 'Comentário interno registrado.' : 'Mensagem enviada.')
+      if (tipo === 'interno') {
+        toast.showSuccess('Comentário interno registrado.')
+      } else if (msg?.cliente_notificado_por_email) {
+        toast.showSuccess('Mensagem registada e cliente notificado por e-mail.')
+      } else {
+        toast.showSuccess('Mensagem enviada.')
+      }
     } catch (err) {
       toast.showWarning(err instanceof Error ? err.message : 'Erro ao enviar')
     } finally {
@@ -884,11 +973,62 @@ export function TicketDetalhe() {
           <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">
             {ticket.assunto}
           </h1>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-            <span className="font-medium text-slate-800 dark:text-slate-200">
-              {ticket.empresa_nome ?? `Empresa #${ticket.empresa_id}`}
-            </span>
-          </p>
+          {(ticket.empresa_nome || ticket.rede_nome) && (
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+              {ticket.rede_nome && (
+                <span className="text-slate-500 dark:text-slate-400">{ticket.rede_nome}</span>
+              )}
+              {ticket.rede_nome && ticket.empresa_nome && (
+                <span className="mx-1.5 text-slate-400 dark:text-slate-500">·</span>
+              )}
+              {ticket.empresa_nome && (
+                <span className="font-medium text-slate-800 dark:text-slate-200">{ticket.empresa_nome}</span>
+              )}
+            </p>
+          )}
+          {triagemInbound && (
+            <div
+              className={`mt-3 rounded-lg border px-3 py-2.5 text-sm ${
+                requerCadastroFuncionario
+                  ? 'border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100'
+                  : 'border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-100'
+              }`}
+            >
+              {requerCadastroFuncionario ? (
+                <>
+                  <p className="font-medium">Remetente sem cadastro de funcionário</p>
+                  <p className="mt-1 text-xs opacity-90">
+                    {triagemInbound.conflito_multiplas_redes
+                      ? 'O e-mail está associado a mais de uma rede — corrija o cadastro antes de vincular o ticket.'
+                      : `E-mail ${triagemInbound.remetente_email || 'desconhecido'}: cadastre o funcionário numa rede e empresa para os próximos e-mails abrirem já vinculados.`}
+                  </p>
+                  {isAdmin && (
+                    <Link
+                      to={linkCadastroFuncionario}
+                      className="mt-2 inline-block text-xs font-semibold underline underline-offset-2"
+                    >
+                      Cadastrar funcionário
+                    </Link>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="font-medium">Defina a empresa do ticket</p>
+                  <p className="mt-1 text-xs opacity-90">
+                    O remetente está em mais de uma empresa da rede
+                    {ticket.rede_nome ? ` ${ticket.rede_nome}` : ''}. Escolha a empresa em Gerir ticket.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => abrirModalGerir('geral')}
+                    className="mt-2 text-xs font-semibold underline underline-offset-2"
+                  >
+                    Gerir ticket
+                  </button>
+                </>
+              )}
+            </div>
+          )}
           {podeAtribuirAMim && (
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
               Este ticket está na fila do setor sem responsável. Atribua a você para dar andamento.
@@ -1176,14 +1316,16 @@ export function TicketDetalhe() {
               {mensagens.map((msg) => {
                 const isAbertura = msg.tipo === 'abertura'
                 const isInterno = msg.tipo === 'interno'
-                const autor =
-                  msg.atendente_nome ??
-                  (isAbertura ? 'Registro legado / sistema' : '—')
+                const isEmailCliente = msg.tipo === 'email_cliente'
+                const autor = autorRodapeMensagem(msg)
                 const anexosDaMsg = anexos.filter((a) => a.mensagem_id === msg.id)
+                const corpoBase =
+                  isAbertura || isEmailCliente ? corpoMensagemEmailVisivel(msg.corpo) : msg.corpo
                 const corpoParaExibir =
-                  corpoExtraidoPorMensagemId[msg.id] && isCorpoVazioOuNaoTexto(msg.corpo)
+                  corpoExtraidoPorMensagemId[msg.id] &&
+                  (isCorpoVazioOuNaoTexto(msg.corpo) || !corpoBase.trim())
                     ? corpoExtraidoPorMensagemId[msg.id]
-                    : msg.corpo
+                    : corpoBase || '(corpo vazio ou não texto)'
                 return (
                   <li
                     key={msg.id}
@@ -1192,7 +1334,9 @@ export function TicketDetalhe() {
                         ? 'border-amber-200/90 bg-amber-50/60 dark:border-amber-800/50 dark:bg-amber-950/25'
                         : isAbertura
                           ? 'border border-slate-200 border-l-4 border-l-slate-500 bg-slate-50/90 dark:border-slate-600 dark:border-l-slate-400 dark:bg-slate-800/50'
-                          : 'border border-slate-200/90 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800/45 dark:shadow-none'
+                          : isEmailCliente
+                            ? 'border border-slate-200 border-l-4 border-l-cyan-500 bg-cyan-50/40 dark:border-slate-600 dark:border-l-cyan-400 dark:bg-cyan-950/20'
+                            : 'border border-slate-200/90 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800/45 dark:shadow-none'
                     }`}
                   >
                     <div
@@ -1305,6 +1449,20 @@ export function TicketDetalhe() {
                   : 'bg-slate-50 ring-slate-200/90 focus:bg-white focus:ring-slate-400/35 dark:bg-slate-900/80 dark:ring-slate-600 dark:focus:bg-slate-900 dark:focus:ring-slate-500/50'
               }`}
             />
+            {podeMensagemPublica && tipoNovaMensagem === 'publico' ? (
+              <label className="mt-2 flex cursor-pointer items-start gap-2 text-xs text-slate-600 dark:text-slate-400">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-4 shrink-0 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500/40 dark:border-slate-600 dark:bg-slate-900"
+                  checked={notificarClienteEmail}
+                  onChange={(e) => setNotificarClienteEmail(e.target.checked)}
+                />
+                <span>
+                  Enviar também por e-mail ao cliente (último remetente do ticket via encaminhamento; requer envio
+                  configurado na plataforma).
+                </span>
+              </label>
+            ) : null}
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2">
                 <input
@@ -1490,7 +1648,8 @@ export function TicketDetalhe() {
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               {modalGerirFoco === 'hierarquia' &&
                 'Crie um filho novo, vincule tickets existentes como filhos ou defina um ticket pai (mesma rede, com acesso).'}
-              {modalGerirFoco === 'geral' && 'Transfira de setor, altere o status ou atribua a outro atendente.'}
+              {modalGerirFoco === 'geral' &&
+                'Vincule rede e empresa, transfira de setor, altere o status ou atribua a outro atendente.'}
               {modalGerirFoco === 'setor' && 'Escolha o setor que passará a tratar este ticket.'}
               {modalGerirFoco === 'status' && 'Atualize o status conforme o andamento do atendimento.'}
               {modalGerirFoco === 'atendente' && 'Defina quem é o responsável pelo ticket (ou deixe sem responsável).'}
@@ -1658,6 +1817,49 @@ export function TicketDetalhe() {
 
             {modalGerirFoco !== 'hierarquia' && (
               <div className="mt-5 space-y-4">
+                {modalGerirFoco === 'geral' && (
+                  <>
+                    <Select
+                      label="Rede"
+                      value={editRede}
+                      onChange={(v) => {
+                        setEditRede(v === '' ? '' : Number(v))
+                        setEditEmpresa('')
+                      }}
+                      options={redesList.map((r) => ({
+                        value: r.id,
+                        label: `${r.nome}${!r.ativo ? ' (inativa)' : ''}`,
+                      }))}
+                      includeEmpty
+                      emptyLabel="— Selecione a rede —"
+                      placeholder="Rede"
+                      disabled={redeTriagemFixa}
+                    />
+                    <Select
+                      label="Empresa"
+                      value={editEmpresa}
+                      onChange={(v) => setEditEmpresa(v === '' ? '' : Number(v))}
+                      options={empresasOpcoesModal.map((e) => ({
+                        value: e.id,
+                        label: `${e.nome}${!e.ativo ? ' (inativa)' : ''}`,
+                      }))}
+                      includeEmpty
+                      emptyLabel="— Selecione a empresa —"
+                      placeholder="Empresa"
+                      disabled={editRede === '' && empresasVinculoSugeridas.length === 0}
+                    />
+                    {editRede === '' && empresasVinculoSugeridas.length === 0 && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Selecione a rede para listar as empresas vinculadas.
+                      </p>
+                    )}
+                    {empresasVinculoSugeridas.length > 0 && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Apenas empresas em que o remetente do e-mail está cadastrado.
+                      </p>
+                    )}
+                  </>
+                )}
                 {(modalGerirFoco === 'geral' || modalGerirFoco === 'setor') && (
                   <>
                     <Select
@@ -1821,3 +2023,4 @@ export function TicketDetalhe() {
     </div>
   )
 }
+

@@ -22,6 +22,8 @@ interface SelectStringComPesquisaProps {
   hint?: string
   id?: string
   loading?: boolean
+  /** Classe opcional para o botão trigger (padronização visual). */
+  triggerClassName?: string
 }
 
 export function SelectStringComPesquisa({
@@ -37,6 +39,7 @@ export function SelectStringComPesquisa({
   hint = 'Digite para filtrar a lista.',
   id: domId,
   loading,
+  triggerClassName,
 }: SelectStringComPesquisaProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -79,7 +82,11 @@ export function SelectStringComPesquisa({
         aria-expanded={open}
         aria-controls={listId}
         onClick={() => !(disabled || items.length === 0) && setOpen((o) => !o)}
-        className="flex w-full items-center justify-between rounded-xl border-0 bg-white px-3 py-2 text-left text-sm text-slate-800 shadow-sm ring-1 ring-slate-200/90 transition-[box-shadow,ring] hover:ring-slate-300/80 focus:outline-none focus:ring-2 focus:ring-slate-400/35 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-900/50 dark:text-slate-100 dark:ring-slate-600 dark:hover:ring-slate-500 dark:focus:ring-cyan-500/30"
+        className={
+          triggerClassName?.trim()
+            ? triggerClassName
+            : "flex w-full items-center justify-between rounded-xl border-0 bg-white px-3 py-2 text-left text-sm text-slate-800 shadow-sm ring-1 ring-slate-200/90 transition-[box-shadow,ring] hover:ring-slate-300/80 focus:outline-none focus:ring-2 focus:ring-slate-400/35 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-900/50 dark:text-slate-100 dark:ring-slate-600 dark:hover:ring-slate-500 dark:focus:ring-cyan-500/30"
+        }
       >
         <span className={!selectedLabel ? 'text-slate-400 dark:text-slate-500' : ''}>
           {loading ? 'Carregando…' : items.length === 0 ? emptyPlaceholder : selectedLabel || emptyPlaceholder}

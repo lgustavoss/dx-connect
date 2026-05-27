@@ -88,10 +88,11 @@ def test_rejeita_ciclo(client, seed_base, auth_headers):
 def test_rejeita_pai_outra_rede(client, seed_base, auth_headers, db_session):
     from app.models import Empresa, Rede
 
-    r2 = Rede(nome="Outra rede", ativo=True)
+    tid = seed_base["tenant"].id
+    r2 = Rede(tenant_id=tid, nome="Outra rede", ativo=True)
     db_session.add(r2)
     db_session.flush()
-    e2 = Empresa(rede_id=r2.id, nome="Empresa outra rede", ativo=True)
+    e2 = Empresa(tenant_id=tid, rede_id=r2.id, nome="Empresa outra rede", ativo=True)
     db_session.add(e2)
     db_session.commit()
     db_session.refresh(e2)

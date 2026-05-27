@@ -1,5 +1,5 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
-import { atendentes, clearAuthToken, getAuthToken, type Atendentes } from '../api/client'
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
+import { atendentes, clearAuthToken, getAuthToken, ApiError, type Atendentes } from '../api/client'
 
 interface AuthContextValue {
   user: Atendentes.Atendente | null
@@ -15,8 +15,10 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Atendentes.Atendente | null>(null)
   const [loading, setLoading] = useState(true)
+  const refreshSeq = useRef(0)
 
   const refreshUser = useCallback(async () => {
+    const seq = ++refreshSeq.current
     const token = getAuthToken()
     if (!token) {
       setUser(null)
@@ -25,12 +27,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     try {
       const me = await atendentes.me()
+      if (seq !== refreshSeq.current) return
       setUser(me)
-    } catch {
+    } catch (e) {
+      if (seq !== refreshSeq.current) return
       setUser(null)
-      clearAuthToken()
+      // 401 em /me: o api() já redireciona e limpa tokens; não limpar de novo evita corrida com Strict Mode.
+      if (e instanceof ApiError && e.status === 403) {
+        clearAuthToken()
+      }
     } finally {
-      setLoading(false)
+      if (seq === refreshSeq.current) {
+        setLoading(false)
+      }
     }
   }, [])
 

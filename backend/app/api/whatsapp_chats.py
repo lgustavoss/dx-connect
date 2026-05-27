@@ -711,9 +711,9 @@ def abrir_ticket(
         vis = ids_setores_visiveis_atendente(db, atendente)
         if data.setor_id not in vis:
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
-    if not db.query(Empresa).filter(Empresa.id == data.empresa_id).first():
+    if not db.query(Empresa).filter(Empresa.id == data.empresa_id, Empresa.tenant_id == atendente.tenant_id).first():
         raise HTTPException(status_code=404, detail="Empresa não encontrada")
-    if not db.query(Setor).filter(Setor.id == data.setor_id).first():
+    if not db.query(Setor).filter(Setor.id == data.setor_id, Setor.tenant_id == atendente.tenant_id).first():
         raise HTTPException(status_code=404, detail="Setor não encontrado")
     status_inicial = db.query(StatusTicket).filter(StatusTicket.ativo.is_(True)).order_by(StatusTicket.ordem).first()
     if not status_inicial:
@@ -723,6 +723,7 @@ def abrir_ticket(
     linha_chat = f"Vinculado ao chat WhatsApp {c.protocolo} (contato {c.wa_id})."
     descricao_final = f"{linha_chat}\n\n{desc}" if desc else linha_chat
     ticket = Ticket(
+        tenant_id=atendente.tenant_id,
         protocolo=protocolo,
         empresa_id=data.empresa_id,
         setor_id=data.setor_id,
