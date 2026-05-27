@@ -856,7 +856,7 @@ useEffect(() => {
 
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
 
-           <Card className="w-full max-w-sm p-6 animate-in zoom-in-95">
+           <Card className="w-full max-w-lg p-6 animate-in zoom-in-95">
 
               <h3 className="text-lg font-bold">Vincular Ticket</h3>
 
