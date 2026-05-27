@@ -5,7 +5,7 @@ import bcrypt
 
 from app.config import settings
 from app.database import SessionLocal
-from app.models import StatusTicket, Atendente
+from app.models import StatusTicket, Atendente, Tenant
 
 
 def _hash_senha(senha: str) -> str:
@@ -30,9 +30,16 @@ def _ensure_status_aguardando_atendimento(db):
     print("Status «Aguardando atendimento» adicionado (fila do setor).")
 
 
+def _ensure_default_tenant(db):
+    if not db.query(Tenant).filter(Tenant.id == 1).first():
+        db.add(Tenant(id=1, nome="Padrão", ativo=True))
+        db.commit()
+
+
 def run_seed():
     db = SessionLocal()
     try:
+        _ensure_default_tenant(db)
         if db.query(StatusTicket).count() == 0:
             for ordem, (nome, slug) in enumerate(
                 [
@@ -81,6 +88,7 @@ def run_seed():
         elif not db.query(Atendente).filter(func.lower(Atendente.email) == "admin@email.com").first():
             db.add(
                 Atendente(
+                    tenant_id=1,
                     email="admin@email.com",
                     nome="Administrador",
                     senha_hash=_hash_senha("admin123"),

@@ -4,18 +4,24 @@ from enum import Enum
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_, asc, desc, nullslast
+from sqlalchemy import or_, asc, desc, nullslast, inspect as sa_inspect
 
 from app.database import get_db
 from app.models import Ticket, TicketHistorico, TicketMensagem, Empresa, Setor, StatusTicket, Atendente, Rede
+from app.models.email_inbound_received import EmailInboundReceived
+from app.models.funcionario_rede import FuncionarioRede
 from app.models.ticket_anexo import TicketAnexo
 from app.schemas.ticket import (
+    EmpresaVinculoSugerida,
+    TicketChildBrief,
     TicketCreate,
-    TicketUpdate,
-    TicketRead,
     TicketHistoricoRead,
     TicketMensagemCreate,
     TicketMensagemRead,
+    TicketParentBrief,
+    TicketRead,
+    TicketTriagemInbound,
+    TicketUpdate,
 )
 from app.schemas.ticket_anexo import TicketAnexoCreateResponse, TicketAnexoRead
 from app.schemas.lista_paginada import ListaPaginada
@@ -28,6 +34,9 @@ from app.core.setor_scope import (
 )
 from app.services import ticket_anexo_storage
 from app.services.protocolo_mensal import gerar_protocolo_ticket
+from app.services.funcionario_rede_resolver import resolver_remetente_por_email
+from app.services.ticket_client_email import enviar_resposta_equipa_por_email, extrair_email_de_from_address
+from app.services.ticket_email_index import registar_message_id_para_ticket
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
@@ -56,7 +65,136 @@ def _gerar_protocolo(db: Session) -> str:
     return gerar_protocolo_ticket(db)
 
 
-def _ticket_para_read(t: Ticket) -> TicketRead:
+def _attr_relacionamento_carregado(ticket: Ticket, nome: str) -> bool:
+    """True se o relacionamento `nome` foi carregado (evita lazy-load na listagem)."""
+    return nome not in sa_inspect(ticket).unloaded
+
+
+def _rede_id_empresa(db: Session, empresa_id: int) -> int | None:
+    return db.query(Empresa.rede_id).filter(Empresa.id == empresa_id).scalar()
+
+
+def _ancestral_contem_ticket_id(db: Session, parent_id: int, proibido_id: int) -> bool:
+    """Sobe a partir de `parent_id` pelos pais; se encontrar `proibido_id`, há ciclo."""
+    cur: int | None = parent_id
+    visto: set[int] = set()
+    for _ in range(600):
+        if cur is None:
+            return False
+        if cur == proibido_id:
+            return True
+        if cur in visto:
+            return True
+        visto.add(cur)
+        cur = db.query(Ticket.parent_ticket_id).filter(Ticket.id == cur).scalar()
+    return True
+
+
+def _assert_parent_valido(
+    db: Session,
+    atendente: Atendente,
+    *,
+    filho_empresa_id: int,
+    filho_ticket_id: int | None,
+    parent_id: int,
+) -> None:
+    if filho_ticket_id is not None and parent_id == filho_ticket_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Um ticket não pode ser pai de si mesmo.")
+    parent = db.query(Ticket).filter(Ticket.id == parent_id).first()
+    if not parent:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket pai não encontrado")
+    if not _pode_ver_ticket(db, atendente, parent):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para vincular a este ticket pai")
+    r_filho = _rede_id_empresa(db, filho_empresa_id)
+    r_pai = _rede_id_empresa(db, parent.empresa_id)
+    if r_filho is None or r_pai is None or r_filho != r_pai:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="O ticket filho deve ser de uma empresa da mesma rede do ticket pai.",
+        )
+    if filho_ticket_id is not None and _ancestral_contem_ticket_id(db, parent_id, filho_ticket_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Vínculo inválido: esse vínculo formaria um ciclo entre tickets.",
+        )
+
+
+def _opcoes_carregamento_ticket_detalhe():
+    return (
+        joinedload(Ticket.empresa).joinedload(Empresa.rede),
+        joinedload(Ticket.setor),
+        joinedload(Ticket.status),
+        joinedload(Ticket.atendente),
+        joinedload(Ticket.parent).joinedload(Ticket.status),
+        joinedload(Ticket.children).joinedload(Ticket.status),
+        joinedload(Ticket.children).joinedload(Ticket.atendente),
+    )
+
+
+def _triagem_inbound_para_ticket(db: Session, t: Ticket) -> TicketTriagemInbound | None:
+    row = (
+        db.query(EmailInboundReceived)
+        .filter(EmailInboundReceived.ticket_id == t.id)
+        .order_by(EmailInboundReceived.id.desc())
+        .first()
+    )
+    if not row:
+        return None
+    email = extrair_email_de_from_address(row.from_address)
+    if not email and t.aberto_por_id:
+        f = db.query(FuncionarioRede).filter(FuncionarioRede.id == t.aberto_por_id).first()
+        email = (f.email or "").strip().lower() if f else None
+    rem = resolver_remetente_por_email(db, email)
+    if t.empresa_id is not None and not rem.requer_cadastro and len(rem.empresa_ids_opcao) <= 1:
+        return None
+    empresas: list[EmpresaVinculoSugerida] = []
+    for eid in rem.empresa_ids_opcao:
+        emp = db.query(Empresa).filter(Empresa.id == eid).first()
+        if emp:
+            empresas.append(EmpresaVinculoSugerida(id=emp.id, nome=emp.nome))
+    if not rem.requer_cadastro and not empresas and t.empresa_id is not None:
+        return None
+    return TicketTriagemInbound(
+        requer_cadastro_funcionario=rem.requer_cadastro,
+        remetente_email=rem.email or email,
+        conflito_multiplas_redes=rem.conflito_multiplas_redes,
+        empresas_vinculo_sugeridas=empresas,
+    )
+
+
+def _ticket_para_read(t: Ticket, db: Session | None = None) -> TicketRead:
+    parent_brief = None
+    if t.parent_ticket_id and _attr_relacionamento_carregado(t, "parent") and t.parent is not None:
+        p = t.parent
+        parent_brief = TicketParentBrief(
+            id=p.id,
+            protocolo=p.protocolo,
+            assunto=p.assunto,
+            status_nome=p.status.nome if p.status else None,
+            fechado_em=p.fechado_em,
+        )
+    children_out: list[TicketChildBrief] = []
+    if _attr_relacionamento_carregado(t, "children") and t.children is not None:
+        for c in sorted(t.children, key=lambda x: x.id):
+            children_out.append(
+                TicketChildBrief(
+                    id=c.id,
+                    protocolo=c.protocolo,
+                    assunto=c.assunto,
+                    status_nome=c.status.nome if c.status else None,
+                    atendente_nome=c.atendente.nome if c.atendente else None,
+                    fechado_em=c.fechado_em,
+                )
+            )
+    triagem = _triagem_inbound_para_ticket(db, t) if db is not None else None
+    rede_id = t.empresa.rede_id if t.empresa else None
+    rede_nome = t.empresa.rede.nome if t.empresa and t.empresa.rede else None
+    if db and triagem and triagem.requer_cadastro_funcionario is False and rede_id is None and t.aberto_por_id:
+        f = db.query(FuncionarioRede).filter(FuncionarioRede.id == t.aberto_por_id).first()
+        if f and f.rede_id:
+            rede_id = f.rede_id
+            r = db.query(Rede).filter(Rede.id == f.rede_id).first()
+            rede_nome = r.nome if r else None
     return TicketRead(
         id=t.id,
         protocolo=t.protocolo,
@@ -70,15 +208,22 @@ def _ticket_para_read(t: Ticket) -> TicketRead:
         fechado_em=t.fechado_em,
         created_at=t.created_at,
         updated_at=t.updated_at,
+        rede_id=rede_id,
         empresa_nome=t.empresa.nome if t.empresa else None,
-        rede_nome=t.empresa.rede.nome if t.empresa and t.empresa.rede else None,
+        rede_nome=rede_nome,
         setor_nome=t.setor.nome if t.setor else None,
         status_nome=t.status.nome if t.status else None,
         atendente_nome=t.atendente.nome if t.atendente else None,
+        parent_ticket_id=t.parent_ticket_id,
+        parent=parent_brief,
+        children=children_out,
+        triagem_inbound=triagem,
     )
 
 
 def _pode_ver_ticket(db: Session, atendente: Atendente, ticket: Ticket) -> bool:
+    if ticket.tenant_id != atendente.tenant_id:
+        return False
     if atendente.role == "admin":
         return True
     vis = ids_setores_visiveis_atendente(db, atendente)
@@ -128,7 +273,13 @@ def listar(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    q = db.query(Ticket).join(Ticket.empresa).join(Ticket.setor).join(Ticket.status)
+    q = (
+        db.query(Ticket)
+        .outerjoin(Ticket.empresa)
+        .join(Ticket.setor)
+        .join(Ticket.status)
+        .filter(Ticket.tenant_id == atendente.tenant_id)
+    )
     if atendente.role != "admin":
         vis = ids_setores_visiveis_atendente(db, atendente)
         q = q.filter(Ticket.setor_id.in_(vis))
@@ -179,7 +330,7 @@ def listar(
         if ordenar_por == OrdenarTicketsPor.responsavel:
             q = q.outerjoin(Ticket.atendente)
         elif ordenar_por == OrdenarTicketsPor.rede:
-            q = q.join(Empresa.rede)
+            q = q.outerjoin(Empresa.rede)
 
         if ordenar_por == OrdenarTicketsPor.protocolo:
             primary = expr_ordem(Ticket.protocolo, ordem)
@@ -212,7 +363,7 @@ def listar(
         .limit(limit)
         .all()
     )
-    return ListaPaginada(items=[_ticket_para_read(t) for t in rows], total=total)
+    return ListaPaginada(items=[_ticket_para_read(t, db) for t in rows], total=total)
 
 
 @router.post("", response_model=TicketRead, status_code=201)
@@ -226,18 +377,35 @@ def criar(
         vis = ids_setores_visiveis_atendente(db, atendente)
         if data.setor_id not in vis:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este setor")
-    empresa = db.query(Empresa).filter(Empresa.id == data.empresa_id).first()
+    empresa = (
+        db.query(Empresa)
+        .filter(Empresa.id == data.empresa_id, Empresa.tenant_id == atendente.tenant_id)
+        .first()
+    )
     if not empresa:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empresa não encontrada")
-    setor = db.query(Setor).filter(Setor.id == data.setor_id).first()
+    setor = (
+        db.query(Setor)
+        .filter(Setor.id == data.setor_id, Setor.tenant_id == atendente.tenant_id)
+        .first()
+    )
     if not setor:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor não encontrado")
+    if data.parent_ticket_id is not None:
+        _assert_parent_valido(
+            db,
+            atendente,
+            filho_empresa_id=data.empresa_id,
+            filho_ticket_id=None,
+            parent_id=data.parent_ticket_id,
+        )
     # Status inicial: primeiro status ativo por ordem (ex.: «Aguardando atendimento» na fila do setor)
     status_inicial = db.query(StatusTicket).filter(StatusTicket.ativo.is_(True)).order_by(StatusTicket.ordem).first()
     if not status_inicial:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cadastre ao menos um status de ticket")
     protocolo = _gerar_protocolo(db)
     ticket = Ticket(
+        tenant_id=atendente.tenant_id,
         protocolo=protocolo,
         empresa_id=data.empresa_id,
         setor_id=data.setor_id,
@@ -245,6 +413,7 @@ def criar(
         assunto=data.assunto,
         descricao=data.descricao,
         aberto_por_id=data.aberto_por_id,
+        parent_ticket_id=data.parent_ticket_id,
     )
     db.add(ticket)
     db.commit()
@@ -259,7 +428,13 @@ def criar(
         )
     )
     db.commit()
-    return _ticket_para_read(ticket)
+    ticket_out = (
+        db.query(Ticket)
+        .options(*_opcoes_carregamento_ticket_detalhe())
+        .filter(Ticket.id == ticket.id)
+        .first()
+    )
+    return _ticket_para_read(ticket_out or ticket, db)
 
 
 @router.delete("/{ticket_id}")
@@ -279,12 +454,7 @@ def obter(
 ):
     ticket = (
         db.query(Ticket)
-        .options(
-            joinedload(Ticket.empresa).joinedload(Empresa.rede),
-            joinedload(Ticket.setor),
-            joinedload(Ticket.status),
-            joinedload(Ticket.atendente),
-        )
+        .options(*_opcoes_carregamento_ticket_detalhe())
         .filter(Ticket.id == ticket_id)
         .first()
     )
@@ -292,7 +462,7 @@ def obter(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
     if not _pode_ver_ticket(db, atendente, ticket):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
-    return _ticket_para_read(ticket)
+    return _ticket_para_read(ticket, db)
 
 
 @router.get("/{ticket_id}/historico", response_model=list[TicketHistoricoRead])
@@ -328,15 +498,22 @@ def historico(
     ]
 
 
-def _mensagem_para_read(m: TicketMensagem) -> TicketMensagemRead:
+def _mensagem_para_read(m: TicketMensagem, *, cliente_notificado_por_email: bool = False) -> TicketMensagemRead:
+    from app.services.email_body_sanitize import sanitize_inbound_email_body
+
+    corpo = m.corpo
+    if m.tipo in ("abertura", "email_cliente"):
+        corpo = sanitize_inbound_email_body(corpo)
     return TicketMensagemRead(
         id=m.id,
         ticket_id=m.ticket_id,
         atendente_id=m.atendente_id,
         atendente_nome=m.atendente.nome if m.atendente else None,
+        autor_externo=getattr(m, "autor_externo", None),
         tipo=m.tipo,
-        corpo=m.corpo,
+        corpo=corpo,
         created_at=m.created_at,
+        cliente_notificado_por_email=cliente_notificado_por_email,
     )
 
 
@@ -384,9 +561,22 @@ def criar_mensagem(
             detail="Apenas o responsável pelo chamado ou um administrador pode enviar mensagem da equipe. "
             "Colaboradores do mesmo setor podem usar comentário interno.",
         )
+    if data.notificar_cliente_por_email and data.tipo != "publico":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A notificação por e-mail só está disponível para mensagens públicas.",
+        )
     corpo = data.corpo.strip()
     if not corpo:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Mensagem vazia")
+
+    out_mid: str | None = None
+    if data.notificar_cliente_por_email:
+        try:
+            out_mid = enviar_resposta_equipa_por_email(db, ticket=ticket, corpo=corpo)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
     m = TicketMensagem(
         ticket_id=ticket_id,
         atendente_id=atendente.id,
@@ -394,6 +584,9 @@ def criar_mensagem(
         corpo=corpo,
     )
     db.add(m)
+    db.flush()
+    if out_mid:
+        registar_message_id_para_ticket(db, ticket_id=ticket.id, message_id=out_mid, source="outbound")
     db.commit()
     db.refresh(m)
     m = (
@@ -403,7 +596,7 @@ def criar_mensagem(
         .first()
     )
     assert m is not None
-    return _mensagem_para_read(m)
+    return _mensagem_para_read(m, cliente_notificado_por_email=bool(out_mid))
 
 
 def _registrar_historico(db: Session, ticket_id: int, atendente_id: int | None, campo: str, valor_antigo: str | None, valor_novo: str | None):
@@ -563,7 +756,7 @@ def reabrir(
     if not ticket:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
     if ticket.fechado_em is None:
-        return _ticket_para_read(ticket)
+        return _ticket_para_read(ticket, db)
 
     # Status para retorno: primeiro status ativo que não seja "fechado"
     status_reaberto = (
@@ -588,7 +781,7 @@ def reabrir(
     ticket.status_id = novo_status.id
     db.commit()
     db.refresh(ticket)
-    return _ticket_para_read(ticket)
+    return _ticket_para_read(ticket, db)
 
 
 @router.patch("/{ticket_id}", response_model=TicketRead)
@@ -609,6 +802,41 @@ def atualizar(
             detail="Ticket fechado. Apenas administradores podem reabrir ou alterar este ticket.",
         )
     update = data.model_dump(exclude_unset=True)
+
+    if "status_id" in update:
+        st_novo = db.query(StatusTicket).filter(StatusTicket.id == update["status_id"]).first()
+        if st_novo and (st_novo.slug or "").lower() == "fechado":
+            filho_aberto = (
+                db.query(Ticket.id)
+                .filter(Ticket.parent_ticket_id == ticket.id, Ticket.fechado_em.is_(None))
+                .first()
+            )
+            if filho_aberto is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Não é possível fechar este ticket enquanto existir ticket filho direto ainda em aberto.",
+                )
+
+    if "parent_ticket_id" in update:
+        novo_p = update["parent_ticket_id"]
+        if novo_p != ticket.parent_ticket_id:
+            if novo_p is not None:
+                _assert_parent_valido(
+                    db,
+                    atendente,
+                    filho_empresa_id=ticket.empresa_id,
+                    filho_ticket_id=ticket.id,
+                    parent_id=novo_p,
+                )
+            antigo_pid = ticket.parent_ticket_id
+            _registrar_historico(
+                db,
+                ticket.id,
+                atendente.id,
+                "parent_ticket_id",
+                str(antigo_pid) if antigo_pid is not None else "",
+                str(novo_p) if novo_p is not None else "",
+            )
 
     if "setor_id" in update:
         if atendente.role != "admin":
@@ -662,6 +890,38 @@ def atualizar(
         antigo = str(ticket.setor_id)
         novo = str(update["setor_id"])
         _registrar_historico(db, ticket.id, atendente.id, "setor_id", antigo, novo)
+    if "empresa_id" in update:
+        novo_eid = update["empresa_id"]
+        if novo_eid is not None:
+            empresa = (
+                db.query(Empresa)
+                .filter(Empresa.id == novo_eid, Empresa.tenant_id == ticket.tenant_id)
+                .first()
+            )
+            if not empresa:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empresa não encontrada")
+            email_rem = None
+            if ticket.aberto_por_id:
+                f_ab = db.query(FuncionarioRede).filter(FuncionarioRede.id == ticket.aberto_por_id).first()
+                email_rem = (f_ab.email or "").strip() if f_ab else None
+            if not email_rem:
+                row_in = (
+                    db.query(EmailInboundReceived)
+                    .filter(EmailInboundReceived.ticket_id == ticket.id)
+                    .order_by(EmailInboundReceived.id.desc())
+                    .first()
+                )
+                if row_in:
+                    email_rem = extrair_email_de_from_address(row_in.from_address)
+            rem = resolver_remetente_por_email(db, email_rem)
+            if rem.empresa_ids_opcao and int(novo_eid) not in rem.empresa_ids_opcao:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Esta empresa não está vinculada ao funcionário remetente do e-mail.",
+                )
+        antigo = str(ticket.empresa_id) if ticket.empresa_id is not None else ""
+        novo = str(novo_eid) if novo_eid is not None else ""
+        _registrar_historico(db, ticket.id, atendente.id, "empresa_id", antigo, novo)
 
     for k, v in update.items():
         setattr(ticket, k, v)
@@ -675,5 +935,10 @@ def atualizar(
             ticket.fechado_em = None
 
     db.commit()
-    db.refresh(ticket)
-    return _ticket_para_read(ticket)
+    ticket_out = (
+        db.query(Ticket)
+        .options(*_opcoes_carregamento_ticket_detalhe())
+        .filter(Ticket.id == ticket_id)
+        .first()
+    )
+    return _ticket_para_read(ticket_out or ticket, db)

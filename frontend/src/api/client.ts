@@ -1,4 +1,5 @@
 import { mensagemErroApi } from './errorMessage'
+import { resolveTenantIdFromHostname } from '../lib/tenant'
 
 function apiBaseUrl(): string {
   if (import.meta.env.DEV) return '/api'
@@ -13,6 +14,11 @@ const BASE = apiBaseUrl()
 
 /** Prefixo de versão da API (ex.: dev: `/api` + `/v1` + `/auth/login` → `/v1/auth/login` no backend). */
 export const API_VERSION_PREFIX = '/v1'
+
+/** URL base da API (sem barra final). Útil para montar URLs mostradas ao administrador (ex.: webhook). */
+export function resolvedApiBaseUrl(): string {
+  return apiBaseUrl()
+}
 
 export class ApiError extends Error {
   status: number
@@ -46,6 +52,14 @@ export function clearAuthToken(): void {
   localStorage.removeItem(TOKEN_KEY)
   sessionStorage.removeItem(REFRESH_TOKEN_KEY)
   localStorage.removeItem(REFRESH_TOKEN_KEY)
+}
+
+/** Invalida sessão e força novo login (evita voltar com «Back» para páginas autenticadas). */
+export function invalidateSessionAndRedirectToLogin(): void {
+  clearAuthToken()
+  const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`
+  const qs = returnTo && returnTo !== '/login' ? `?returnTo=${encodeURIComponent(returnTo)}` : ''
+  window.location.replace(`/login${qs}`)
 }
 
 function setTokens(tokens: { access_token: string; refresh_token?: string | null }, lembrarMe = true) {
@@ -99,6 +113,7 @@ export async function api<T>(
   if (token) {
     (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
   }
+  ;(headers as Record<string, string>)['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
   const res = await fetch(`${BASE}${API_VERSION_PREFIX}${path}`, { ...options, headers });
 
   // Tratamento especial para login: não redirecionar nem recarregar a página,
@@ -125,9 +140,7 @@ export async function api<T>(
       }
     }
 
-    clearAuthToken()
-    const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`
-    window.location.href = `/login?returnTo=${encodeURIComponent(returnTo)}`
+    invalidateSessionAndRedirectToLogin()
     throw new ApiError(mensagemErroApi(err, 401), 401, err);
   }
 
@@ -442,6 +455,129 @@ export const whatsappSettings = {
   reporEmbutido: () => api<void>('/settings/whatsapp/repor-embutido', { method: 'POST' }),
 }
 
+export namespace SystemSettings {
+  export interface EmpresaSistema {
+    cnpj?: string | null
+    nome?: string | null
+    razao_social?: string | null
+    nome_fantasia?: string | null
+    email?: string | null
+    telefone?: string | null
+    endereco?: string | null
+    numero?: string | null
+    complemento?: string | null
+    bairro?: string | null
+    cidade?: string | null
+    estado?: string | null
+    cep?: string | null
+    logo_url?: string | null
+  }
+
+  export interface EmpresaSistemaUpdate {
+    cnpj?: string | null
+    nome?: string | null
+    razao_social?: string | null
+    nome_fantasia?: string | null
+    email?: string | null
+    telefone?: string | null
+    endereco?: string | null
+    numero?: string | null
+    complemento?: string | null
+    bairro?: string | null
+    cidade?: string | null
+    estado?: string | null
+    cep?: string | null
+  }
+
+  export interface EmailSettingsRead {
+    transactional_from_email?: string | null
+    transactional_from_name?: string | null
+    transactional_reply_to_email?: string | null
+    outbound_configured?: boolean
+    has_transactional_api_key?: boolean
+  }
+
+  export interface EmailSettingsUpdate {
+    transactional_api_key?: string | null
+    transactional_from_email?: string | null
+    transactional_from_name?: string | null
+  }
+
+  export interface EmailTestResult {
+    ok: boolean
+    detail?: string | null
+  }
+}
+
+export const systemSettings = {
+  getEmpresaSistema: () => api<SystemSettings.EmpresaSistema>('/settings/empresa-sistema'),
+  putEmpresaSistema: (data: SystemSettings.EmpresaSistemaUpdate) =>
+    api<SystemSettings.EmpresaSistema>('/settings/empresa-sistema', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  uploadEmpresaLogo: (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api<SystemSettings.EmpresaSistema>('/settings/empresa-sistema/logo', { method: 'POST', body: fd })
+  },
+  deleteEmpresaLogo: () => api<SystemSettings.EmpresaSistema>('/settings/empresa-sistema/logo', { method: 'DELETE' }),
+  getEmail: () => api<SystemSettings.EmailSettingsRead>('/settings/email'),
+  putEmail: (data: SystemSettings.EmailSettingsUpdate) =>
+    api<SystemSettings.EmailSettingsRead>('/settings/email', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  testEmailTransactional: () =>
+    api<SystemSettings.EmailTestResult>('/settings/email/test-transactional', { method: 'POST' }),
+}
+
+export namespace TenantApi {
+  export interface TenantRead {
+    id: number
+    nome: string
+    ativo: boolean
+    app_host?: string | null
+  }
+
+  export interface InboundAddressRead {
+    id: number
+    tenant_id: number
+    local_part: string
+    full_address: string
+    label?: string | null
+    setor_id: number
+    setor_nome?: string | null
+    setor_slug?: string | null
+    default_empresa_id?: number | null
+    ativo: boolean
+  }
+}
+
+export const tenantApi = {
+  getAtual: () => api<TenantApi.TenantRead>('/tenant/atual'),
+  listInboundAddresses: () => api<TenantApi.InboundAddressRead[]>('/tenant/inbound-addresses'),
+}
+
+export async function fetchEmpresaSistemaLogoBlob(): Promise<Blob | null> {
+  const token = getAuthToken()
+  const headers: Record<string, string> = {
+    'X-Dx-Tenant-Id': String(resolveTenantIdFromHostname()),
+  }
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(`${BASE}${API_VERSION_PREFIX}/settings/empresa-sistema/logo`, { headers })
+  if (res.status === 404) return null
+  if (res.status === 401) {
+    invalidateSessionAndRedirectToLogin()
+    throw new ApiError('Sessão expirada ou inválida.', 401, {})
+  }
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+  }
+  return res.blob()
+}
+
 export namespace WhatsappChats {
   export interface Chat {
     id: number
@@ -483,6 +619,10 @@ export async function fetchWhatsAppMidiaBlob(chatId: number, mensagemId: number)
     `${BASE}${API_VERSION_PREFIX}/whatsapp/chats/${chatId}/mensagens/${mensagemId}/midia`,
     { headers },
   )
+  if (res.status === 401) {
+    invalidateSessionAndRedirectToLogin()
+    throw new ApiError('Sessão expirada ou inválida.', 401, {})
+  }
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({}))
     throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
@@ -498,6 +638,10 @@ export async function fetchTicketAnexoBlob(ticketId: number, anexoId: number): P
     `${BASE}${API_VERSION_PREFIX}/tickets/${ticketId}/anexos/${anexoId}/download`,
     { headers },
   )
+  if (res.status === 401) {
+    invalidateSessionAndRedirectToLogin()
+    throw new ApiError('Sessão expirada ou inválida.', 401, {})
+  }
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({}))
     throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
@@ -924,10 +1068,35 @@ export namespace StatusTicket {
 }
 
 export namespace Tickets {
+  export interface TicketParentBrief {
+    id: number;
+    protocolo: string;
+    assunto: string;
+    status_nome?: string | null;
+    fechado_em?: string | null;
+  }
+  export interface TicketChildBrief {
+    id: number;
+    protocolo: string;
+    assunto: string;
+    status_nome?: string | null;
+    atendente_nome?: string | null;
+    fechado_em?: string | null;
+  }
+  export interface EmpresaVinculoSugerida {
+    id: number;
+    nome: string;
+  }
+  export interface TriagemInbound {
+    requer_cadastro_funcionario: boolean;
+    remetente_email?: string | null;
+    conflito_multiplas_redes?: boolean;
+    empresas_vinculo_sugeridas?: EmpresaVinculoSugerida[];
+  }
   export interface Ticket {
     id: number;
     protocolo: string;
-    empresa_id: number;
+    empresa_id: number | null;
     setor_id: number;
     status_id: number;
     atendente_id?: number;
@@ -937,11 +1106,16 @@ export namespace Tickets {
     fechado_em?: string;
     created_at?: string;
     updated_at?: string;
-    empresa_nome?: string;
+    rede_id?: number | null;
+    empresa_nome?: string | null;
     rede_nome?: string;
     setor_nome?: string;
     status_nome?: string;
     atendente_nome?: string;
+    parent_ticket_id?: number | null;
+    parent?: TicketParentBrief | null;
+    children?: TicketChildBrief[];
+    triagem_inbound?: TriagemInbound | null;
   }
   export interface Historico {
     id: number;
@@ -959,6 +1133,7 @@ export namespace Tickets {
     assunto: string;
     descricao?: string;
     aberto_por_id?: number;
+    parent_ticket_id?: number | null;
   }
   export type MensagemTipo = 'abertura' | 'publico' | 'interno';
 
@@ -967,20 +1142,25 @@ export namespace Tickets {
     ticket_id: number;
     atendente_id?: number | null;
     atendente_nome?: string | null;
+    autor_externo?: string | null;
     tipo: MensagemTipo | string;
     corpo: string;
     created_at: string;
+    cliente_notificado_por_email?: boolean;
   }
 
   export interface MensagemCreate {
     corpo: string;
     tipo: 'publico' | 'interno';
+    notificar_cliente_por_email?: boolean;
   }
 
   export interface Update {
+    empresa_id?: number | null;
     setor_id?: number;
     status_id?: number;
     atendente_id?: number | null;
+    parent_ticket_id?: number | null;
   }
 
   export type AnexoVisibilidade = 'publico' | 'interno'

@@ -216,7 +216,7 @@ export function StatusTicketPage() {
 
       {modalOpen && (
         <div className="fixed inset-y-0 left-0 right-0 z-20 flex items-start justify-center bg-black/85 px-4 pb-6 pt-16 sm:px-6 md:left-[var(--sidebar-w)]">
-          <Card title={editingId ? 'Editar status' : 'Novo status'} className="w-full max-w-md">
+          <Card title={editingId ? 'Editar status' : 'Novo status'} className="w-full max-w-lg">
             <form onSubmit={handleSubmit}>
               <div className="space-y-6">
                 <FormSection title="Dados do status">

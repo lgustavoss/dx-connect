@@ -22,6 +22,7 @@ import { StatusTicketPage } from './pages/StatusTicket'
 import { Auditoria } from './pages/Auditoria'
 import { TiposNegocio } from './pages/TiposNegocio'
 import { ConfigWhatsapp } from './pages/ConfigWhatsapp'
+import { ConfigEmpresaEmail } from './pages/ConfigEmpresaEmail'
 import { WhatsappLayout } from './pages/whatsapp/WhatsappLayout'
 import { WhatsappAtendendo } from './pages/whatsapp/WhatsappAtendendo'
 import { WhatsappHistorico } from './pages/whatsapp/WhatsappHistorico'
@@ -222,6 +223,14 @@ function AppRoutes() {
           element={
             <AdminRoute>
               <ConfigWhatsapp />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="configuracoes/empresa-email"
+          element={
+            <AdminRoute>
+              <ConfigEmpresaEmail />
             </AdminRoute>
           }
         />

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.atendente import Atendente
 from app.core.security import decodificar_token
+from app.core.tenant_context import get_request_tenant_id
 
 security = HTTPBearer(auto_error=False)
 
@@ -26,7 +27,23 @@ def obter_atendente_atual(
             detail="Token inválido ou expirado",
         )
     email = payload["sub"]
-    atendente = db.query(Atendente).filter(Atendente.email == email, Atendente.ativo.is_(True)).first()
+    token_tid = payload.get("tid")
+    host_tid = get_request_tenant_id(request)
+    if token_tid is not None and host_tid is not None and int(token_tid) != int(host_tid):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Sessão não corresponde a este tenant.",
+        )
+    tenant_id = int(host_tid if host_tid is not None else token_tid or 0)
+    atendente = (
+        db.query(Atendente)
+        .filter(
+            Atendente.tenant_id == tenant_id,
+            Atendente.email == email,
+            Atendente.ativo.is_(True),
+        )
+        .first()
+    )
     if not atendente:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

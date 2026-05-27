@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useMemo } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ApiError,
   tickets,
@@ -7,16 +7,21 @@ import {
   statusTicket,
   atendentes,
   setores,
+  redes,
+  empresas,
   whatsappChats,
   fetchTicketAnexoBlob,
   type StatusTicket,
   type Atendentes,
   type Setores,
+  type Redes,
+  type Empresas,
   type Tickets,
   type WhatsappChats,
 } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
+import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
@@ -27,13 +32,17 @@ import { SemPermissao } from './SemPermissao'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 import { exibirProtocolo } from '../lib/exibirProtocolo'
+import { MODAL_PANEL_COMPACT, MODAL_PANEL_SCROLLABLE } from '../lib/modalPanel'
+import { autorRodapeMensagem, corpoMensagemEmailVisivel } from '../lib/ticketMensagemEmail'
 
 const ROTULO_CAMPO: Record<string, string> = {
   status_id: 'Status',
   setor_id: 'Setor',
   atendente_id: 'Responsável',
+  empresa_id: 'Empresa',
   assunto: 'Assunto',
   descricao: 'Descrição',
+  parent_ticket_id: 'Ticket pai',
 }
 
 function resolverValorHistorico(
@@ -43,14 +52,21 @@ function resolverValorHistorico(
     status: Map<number, string>
     setor: Map<number, string>
     atendente: Map<number, string>
+    empresa: Map<number, string>
   },
 ): string {
   if (valor == null || valor === '') return '—'
-  if (campo === 'status_id' || campo === 'setor_id' || campo === 'atendente_id') {
+  if (campo === 'status_id' || campo === 'setor_id' || campo === 'atendente_id' || campo === 'empresa_id') {
     const id = Number(valor)
     if (Number.isNaN(id)) return valor
     const m =
-      campo === 'status_id' ? maps.status : campo === 'setor_id' ? maps.setor : maps.atendente
+      campo === 'status_id'
+        ? maps.status
+        : campo === 'setor_id'
+          ? maps.setor
+          : campo === 'empresa_id'
+            ? maps.empresa
+            : maps.atendente
     return m.get(id) ?? `#${id}`
   }
   const t = (valor || '').trim()
@@ -61,7 +77,20 @@ function tituloTipoMensagem(tipo: string): string {
   if (tipo === 'abertura') return 'Solicitação inicial'
   if (tipo === 'publico') return 'Mensagem da equipe'
   if (tipo === 'interno') return 'Comentário interno'
+  if (tipo === 'email_cliente') return 'Resposta do cliente (e-mail)'
   return tipo
+}
+
+function isCorpoVazioOuNaoTexto(corpo: string | null | undefined): boolean {
+  const t = (corpo ?? '').trim().toLowerCase()
+  if (!t) return true
+  // Placeholder usado quando o inbound não conseguiu extrair texto do e-mail.
+  return (
+    t === '(corpo vazio ou não texto)' ||
+    t.includes('corpo vazio') ||
+    t.includes('não texto') ||
+    t.includes('nao texto')
+  )
 }
 
 /** Mesmo nome de setor = mesmo “setor lógico” (vários IDs no banco). */
@@ -106,6 +135,7 @@ function dedupeAtendentesMesmoNome(
 
 export function TicketDetalhe() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const voltarAnterior = useVoltarAnterior('/tickets')
   const toast = useToast()
   const { isAdmin, user } = useAuth()
@@ -124,6 +154,8 @@ export function TicketDetalhe() {
     url: string
     contentType: string
   } | null>(null)
+  const [previewAnexoTexto, setPreviewAnexoTexto] = useState<string | null>(null)
+  const [corpoExtraidoPorMensagemId, setCorpoExtraidoPorMensagemId] = useState<Record<number, string>>({})
   const [statusList, setStatusList] = useState<StatusTicket.Status[]>([])
   const [atendentesList, setAtendentesList] = useState<Atendentes.Atendente[]>([])
   /** Atendentes elegíveis no modal (carga direta por setor no backend). */
@@ -135,9 +167,14 @@ export function TicketDetalhe() {
   const [editSetor, setEditSetor] = useState<number | ''>('')
   const [editStatus, setEditStatus] = useState<number | ''>('')
   const [editAtendente, setEditAtendente] = useState<number | ''>('')
+  const [editRede, setEditRede] = useState<number | ''>('')
+  const [editEmpresa, setEditEmpresa] = useState<number | ''>('')
+  const [redesList, setRedesList] = useState<Redes.Rede[]>([])
+  const [empresasModalList, setEmpresasModalList] = useState<Empresas.EmpresaListaItem[]>([])
   const [saving, setSaving] = useState(false)
   const [novaMensagemTexto, setNovaMensagemTexto] = useState('')
   const [tipoNovaMensagem, setTipoNovaMensagem] = useState<'publico' | 'interno'>('publico')
+  const [notificarClienteEmail, setNotificarClienteEmail] = useState(false)
   const [enviandoMensagem, setEnviandoMensagem] = useState(false)
   const [anexosSelecionados, setAnexosSelecionados] = useState<File[]>([])
   const [enviandoAnexos, setEnviandoAnexos] = useState(false)
@@ -146,8 +183,16 @@ export function TicketDetalhe() {
   const [modalGerirAberto, setModalGerirAberto] = useState(false)
   const [modalFecharAberto, setModalFecharAberto] = useState(false)
   /** Qual bloco do modal recebe destaque ao abrir (chips no cabeçalho). */
-  const [modalGerirFoco, setModalGerirFoco] = useState<'geral' | 'setor' | 'status' | 'atendente'>('geral')
+  const [modalGerirFoco, setModalGerirFoco] = useState<
+    'geral' | 'setor' | 'status' | 'atendente' | 'hierarquia'
+  >('geral')
   const [historicoAberto, setHistoricoAberto] = useState(false)
+
+  const [idFilhoParaVincular, setIdFilhoParaVincular] = useState('')
+  const [idPaiParaVincular, setIdPaiParaVincular] = useState('')
+  const [vinculandoFilho, setVinculandoFilho] = useState(false)
+  const [vinculandoPai, setVinculandoPai] = useState(false)
+  const [desvinculandoHierarquia, setDesvinculandoHierarquia] = useState(false)
 
   const setoresParaSelect = useMemo(() => {
     const ativos = setoresList.filter((s) => s.ativo)
@@ -199,7 +244,7 @@ export function TicketDetalhe() {
     }
 
     return opts.sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'))
-  }, [modalGerirAberto, atendentesModal, atendentesList, ticket?.atendente_id, ticket?.atendente_nome])
+  }, [modalGerirAberto, atendentesModal, atendentesList, ticket])
 
   const statusParaSelect = useMemo(() => {
     const ativos = statusList.filter((s) => s.ativo)
@@ -221,6 +266,30 @@ export function TicketDetalhe() {
     return statusList.find((s) => (s.slug || '').toLowerCase() === 'fechado') ?? null
   }, [statusList])
 
+  const filhosAbertosCount = useMemo(() => {
+    const ch = ticket?.children
+    if (!ch?.length) return 0
+    return ch.filter((c) => !c.fechado_em).length
+  }, [ticket?.children])
+
+  const temVinculosHierarquia = useMemo(() => {
+    if (!ticket) return false
+    const nFilhos = ticket.children?.length ?? 0
+    return ticket.parent_ticket_id != null || nFilhos > 0
+  }, [ticket])
+
+  const rotuloChipHierarquia = useMemo(() => {
+    if (!ticket) return '—'
+    const n = ticket.children?.length ?? 0
+    const temPai = ticket.parent_ticket_id != null
+    if (!temPai && n === 0) return 'Sem vínculos'
+    if (temPai && n === 0) return 'Com pai'
+    if (!temPai && n > 0) return `${n} filho${n === 1 ? '' : 's'}`
+    return `Pai + ${n} filho${n === 1 ? '' : 's'}`
+  }, [ticket])
+
+  const podeEditarHierarquia = !!ticket && (!ticket.fechado_em || isAdmin)
+
   /** Mensagem “da equipe” (público no fluxo): admin, responsável ou ticket ainda sem responsável. */
   const podeMensagemPublica = useMemo(() => {
     if (!ticket || !user) return false
@@ -241,8 +310,13 @@ export function TicketDetalhe() {
     if (ticket?.atendente_nome && ticket.atendente_id != null) {
       atendente.set(ticket.atendente_id, ticket.atendente_nome)
     }
-    return { status, setor, atendente }
-  }, [statusList, setoresList, atendentesList, ticket])
+    const empresa = new Map<number, string>()
+    empresasModalList.forEach((e) => empresa.set(e.id, e.nome))
+    if (ticket?.empresa_nome && ticket.empresa_id != null) {
+      empresa.set(ticket.empresa_id, ticket.empresa_nome)
+    }
+    return { status, setor, atendente, empresa }
+  }, [statusList, setoresList, atendentesList, empresasModalList, ticket])
 
   useEffect(() => {
     coletarTodasPaginas<StatusTicket.Status>((o, l) =>
@@ -400,6 +474,15 @@ export function TicketDetalhe() {
           url,
           contentType: a.content_type || 'application/octet-stream',
         })
+        setPreviewAnexoTexto(null)
+        if (a.content_type?.startsWith('text/')) {
+          try {
+            const text = await fixed.text()
+            setPreviewAnexoTexto(text)
+          } catch {
+            setPreviewAnexoTexto(null)
+          }
+        }
         return
       }
       const link = document.createElement('a')
@@ -413,6 +496,61 @@ export function TicketDetalhe() {
       toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível baixar o anexo.'))
     }
   }
+
+  useEffect(() => {
+    if (!ticket?.id) return
+    if (mensagens.length === 0 || anexos.length === 0) return
+    const ticketId = ticket.id
+    let cancelled = false
+
+    async function run() {
+      const updates: Array<{ msgId: number; text: string }> = []
+      for (const msg of mensagens) {
+        if (!isCorpoVazioOuNaoTexto(msg.corpo)) continue
+        if (corpoExtraidoPorMensagemId[msg.id]) continue
+        const anexosDaMsg = anexos.filter((a) => a.mensagem_id === msg.id)
+        if (anexosDaMsg.length === 0) continue
+        const candidato =
+          anexosDaMsg.find((a) => (a.content_type || '').toLowerCase().startsWith('text/plain')) ||
+          anexosDaMsg.find((a) => (a.content_type || '').toLowerCase().startsWith('text/html')) ||
+          anexosDaMsg.find((a) => (a.content_type || '').toLowerCase().startsWith('text/'))
+        if (!candidato) continue
+        try {
+          const b = await fetchTicketAnexoBlob(ticketId, candidato.id)
+          const fixed = new Blob([b], { type: candidato.content_type || 'text/plain' })
+          const raw = await fixed.text()
+          const ct = (candidato.content_type || '').toLowerCase()
+          const extracted =
+            ct.startsWith('text/html') && typeof DOMParser !== 'undefined'
+              ? (() => {
+                  try {
+                    const doc = new DOMParser().parseFromString(raw, 'text/html')
+                    const text = (doc.body?.innerText ?? '').trim()
+                    return text || raw.trim()
+                  } catch {
+                    return raw.trim()
+                  }
+                })()
+              : raw.trim()
+          if (extracted) updates.push({ msgId: msg.id, text: extracted })
+        } catch {
+          // ignora: mantém placeholder
+        }
+      }
+      if (cancelled) return
+      if (updates.length === 0) return
+      setCorpoExtraidoPorMensagemId((cur) => {
+        const next = { ...cur }
+        for (const u of updates) next[u.msgId] = u.text
+        return next
+      })
+    }
+
+    void run()
+    return () => {
+      cancelled = true
+    }
+  }, [ticket?.id, mensagens, anexos, corpoExtraidoPorMensagemId])
 
   useEffect(() => {
     if (!ticket?.id) {
@@ -454,16 +592,66 @@ export function TicketDetalhe() {
     }
   }, [modalGerirAberto, editSetor, editAtendente, atendentesList, setoresList])
 
-  function abrirModalGerir(foco: 'geral' | 'setor' | 'status' | 'atendente' = 'geral') {
+  function abrirModalGerir(foco: 'geral' | 'setor' | 'status' | 'atendente' | 'hierarquia' = 'geral') {
     if (!ticket) return
     setEditSetor(ticket.setor_id)
     setEditStatus(ticket.status_id)
     setEditAtendente(ticket.atendente_id ?? '')
+    setEditRede(ticket.rede_id ?? '')
+    setEditEmpresa(ticket.empresa_id ?? '')
     setModalGerirFoco(foco)
     setModalGerirAberto(true)
+    if (foco === 'hierarquia') {
+      setIdFilhoParaVincular('')
+      setIdPaiParaVincular('')
+    }
   }
 
-  const modalApenasUmCampo = modalGerirFoco !== 'geral'
+  useEffect(() => {
+    if (!modalGerirAberto) return
+    coletarTodasPaginas<Redes.Rede>((o, l) => redes.list({ incluir_inativos: true, offset: o, limit: l }))
+      .then(setRedesList)
+      .catch(() => setRedesList([]))
+  }, [modalGerirAberto])
+
+  const triagemInbound = ticket?.triagem_inbound
+  const empresasVinculoSugeridas = triagemInbound?.empresas_vinculo_sugeridas ?? []
+  const requerCadastroFuncionario = triagemInbound?.requer_cadastro_funcionario === true
+  const redeTriagemFixa = empresasVinculoSugeridas.length > 0 && ticket?.rede_id != null
+
+  const empresasOpcoesModal = useMemo(() => {
+    if (empresasVinculoSugeridas.length > 0) {
+      return empresasVinculoSugeridas.map((e) => ({ id: e.id, nome: e.nome, ativo: true, rede_id: ticket?.rede_id ?? 0 }))
+    }
+    return empresasModalList
+  }, [empresasVinculoSugeridas, empresasModalList, ticket?.rede_id])
+
+  const linkCadastroFuncionario = useMemo(() => {
+    const em = triagemInbound?.remetente_email?.trim()
+    if (!em) return '/funcionarios-rede/novo'
+    return `/funcionarios-rede/novo?email=${encodeURIComponent(em)}`
+  }, [triagemInbound?.remetente_email])
+
+  useEffect(() => {
+    if (!modalGerirAberto) return
+    if (empresasVinculoSugeridas.length > 0) return
+    if (editRede === '') {
+      setEmpresasModalList([])
+      return
+    }
+    coletarTodasPaginas<Empresas.EmpresaListaItem>((o, l) =>
+      empresas.list({ rede_id: Number(editRede), incluir_inativos: true, offset: o, limit: l }),
+    )
+      .then((list) => {
+        setEmpresasModalList(list)
+        if (editEmpresa !== '' && !list.some((e) => e.id === editEmpresa)) {
+          setEditEmpresa('')
+        }
+      })
+      .catch(() => setEmpresasModalList([]))
+  }, [modalGerirAberto, editRede, editEmpresa, empresasVinculoSugeridas.length])
+
+  const modalApenasUmCampo = modalGerirFoco !== 'geral' && modalGerirFoco !== 'hierarquia'
 
   async function handleSalvar() {
     if (!ticket) return
@@ -473,6 +661,10 @@ export function TicketDetalhe() {
     const atendAtual = ticket.atendente_id
     const atendNovo = editAtendente === '' ? null : Number(editAtendente)
     if (atendNovo !== atendAtual) patch.atendente_id = atendNovo
+    if (modalGerirFoco === 'geral' && editEmpresa !== '') {
+      const novoEmpresa = Number(editEmpresa)
+      if (novoEmpresa !== ticket.empresa_id) patch.empresa_id = novoEmpresa
+    }
 
     if (Object.keys(patch).length === 0) {
       toast.showWarning('Nenhuma alteração para salvar.')
@@ -525,6 +717,76 @@ export function TicketDetalhe() {
     }
   }
 
+  async function handleVincularFilhoExistente() {
+    if (!ticket) return
+    const id = Number(idFilhoParaVincular.trim())
+    if (!Number.isFinite(id) || id < 1 || id === ticket.id) {
+      toast.showWarning('Informe o número de outro ticket (filho) válido, diferente deste.')
+      return
+    }
+    setVinculandoFilho(true)
+    try {
+      await tickets.update(id, { parent_ticket_id: ticket.id })
+      const atualizado = await tickets.get(ticket.id)
+      setTicket(atualizado)
+      setIdFilhoParaVincular('')
+      toast.showSuccess('Ticket vinculado como filho.')
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível vincular o ticket.'))
+    } finally {
+      setVinculandoFilho(false)
+    }
+  }
+
+  async function handleVincularAoPai() {
+    if (!ticket) return
+    const id = Number(idPaiParaVincular.trim())
+    if (!Number.isFinite(id) || id < 1 || id === ticket.id) {
+      toast.showWarning('Informe o número de um ticket pai válido, diferente deste.')
+      return
+    }
+    setVinculandoPai(true)
+    try {
+      const atualizado = await tickets.update(ticket.id, { parent_ticket_id: id })
+      setTicket(atualizado)
+      setIdPaiParaVincular('')
+      toast.showSuccess('Ticket vinculado ao pai indicado.')
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível vincular ao ticket pai.'))
+    } finally {
+      setVinculandoPai(false)
+    }
+  }
+
+  async function handleDesvincularDoPai() {
+    if (!ticket?.parent_ticket_id) return
+    setDesvinculandoHierarquia(true)
+    try {
+      const atualizado = await tickets.update(ticket.id, { parent_ticket_id: null })
+      setTicket(atualizado)
+      toast.showSuccess('Vínculo com o ticket pai removido.')
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível desvincular do pai.'))
+    } finally {
+      setDesvinculandoHierarquia(false)
+    }
+  }
+
+  async function handleDesvincularFilho(childId: number) {
+    if (!ticket) return
+    setDesvinculandoHierarquia(true)
+    try {
+      await tickets.update(childId, { parent_ticket_id: null })
+      const atualizado = await tickets.get(ticket.id)
+      setTicket(atualizado)
+      toast.showSuccess('Filho desvinculado.')
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível desvincular o filho.'))
+    } finally {
+      setDesvinculandoHierarquia(false)
+    }
+  }
+
   // Se o usuário conseguiu carregar o ticket, o backend já validou o escopo de setor.
   // Aqui só bloqueamos o botão quando já existe responsável.
   const podeAtribuirAMim = !!ticket && !ticket.atendente_id && !!user
@@ -562,6 +824,10 @@ export function TicketDetalhe() {
     setTipoNovaMensagem('interno')
   }, [ticket?.id, ticket?.atendente_id, user?.id])
 
+  useEffect(() => {
+    if (tipoNovaMensagem === 'interno') setNotificarClienteEmail(false)
+  }, [tipoNovaMensagem])
+
   async function handleEnviarMensagem() {
     if (!ticket) return
     if (ticket.fechado_em) {
@@ -576,7 +842,11 @@ export function TicketDetalhe() {
     const tipo = podeMensagemPublica ? tipoNovaMensagem : 'interno'
     setEnviandoMensagem(true)
     try {
-      const msg = texto ? await tickets.addMensagem(ticket.id, { corpo: texto, tipo }) : null
+      const payload: Tickets.MensagemCreate = { corpo: texto, tipo }
+      if (tipo === 'publico' && notificarClienteEmail) {
+        payload.notificar_cliente_por_email = true
+      }
+      const msg = texto ? await tickets.addMensagem(ticket.id, payload) : null
       if (anexosSelecionados.length > 0) {
         setEnviandoAnexos(true)
         try {
@@ -593,8 +863,15 @@ export function TicketDetalhe() {
       setAnexos(a)
       setNovaMensagemTexto('')
       setAnexosSelecionados([])
+      setNotificarClienteEmail(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
-      toast.showSuccess(tipo === 'interno' ? 'Comentário interno registrado.' : 'Mensagem enviada.')
+      if (tipo === 'interno') {
+        toast.showSuccess('Comentário interno registrado.')
+      } else if (msg?.cliente_notificado_por_email) {
+        toast.showSuccess('Mensagem registada e cliente notificado por e-mail.')
+      } else {
+        toast.showSuccess('Mensagem enviada.')
+      }
     } catch (err) {
       toast.showWarning(err instanceof Error ? err.message : 'Erro ao enviar')
     } finally {
@@ -696,11 +973,62 @@ export function TicketDetalhe() {
           <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">
             {ticket.assunto}
           </h1>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-            <span className="font-medium text-slate-800 dark:text-slate-200">
-              {ticket.empresa_nome ?? `Empresa #${ticket.empresa_id}`}
-            </span>
-          </p>
+          {(ticket.empresa_nome || ticket.rede_nome) && (
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+              {ticket.rede_nome && (
+                <span className="text-slate-500 dark:text-slate-400">{ticket.rede_nome}</span>
+              )}
+              {ticket.rede_nome && ticket.empresa_nome && (
+                <span className="mx-1.5 text-slate-400 dark:text-slate-500">·</span>
+              )}
+              {ticket.empresa_nome && (
+                <span className="font-medium text-slate-800 dark:text-slate-200">{ticket.empresa_nome}</span>
+              )}
+            </p>
+          )}
+          {triagemInbound && (
+            <div
+              className={`mt-3 rounded-lg border px-3 py-2.5 text-sm ${
+                requerCadastroFuncionario
+                  ? 'border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100'
+                  : 'border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-100'
+              }`}
+            >
+              {requerCadastroFuncionario ? (
+                <>
+                  <p className="font-medium">Remetente sem cadastro de funcionário</p>
+                  <p className="mt-1 text-xs opacity-90">
+                    {triagemInbound.conflito_multiplas_redes
+                      ? 'O e-mail está associado a mais de uma rede — corrija o cadastro antes de vincular o ticket.'
+                      : `E-mail ${triagemInbound.remetente_email || 'desconhecido'}: cadastre o funcionário numa rede e empresa para os próximos e-mails abrirem já vinculados.`}
+                  </p>
+                  {isAdmin && (
+                    <Link
+                      to={linkCadastroFuncionario}
+                      className="mt-2 inline-block text-xs font-semibold underline underline-offset-2"
+                    >
+                      Cadastrar funcionário
+                    </Link>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="font-medium">Defina a empresa do ticket</p>
+                  <p className="mt-1 text-xs opacity-90">
+                    O remetente está em mais de uma empresa da rede
+                    {ticket.rede_nome ? ` ${ticket.rede_nome}` : ''}. Escolha a empresa em Gerir ticket.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => abrirModalGerir('geral')}
+                    className="mt-2 text-xs font-semibold underline underline-offset-2"
+                  >
+                    Gerir ticket
+                  </button>
+                </>
+              )}
+            </div>
+          )}
           {podeAtribuirAMim && (
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
               Este ticket está na fila do setor sem responsável. Atribua a você para dar andamento.
@@ -753,6 +1081,22 @@ export function TicketDetalhe() {
               <span className="shrink-0 font-medium text-slate-500 dark:text-slate-400">Responsável</span>
               <span className="min-w-0 truncate font-semibold text-slate-800 dark:text-slate-100">
                 {ticket.atendente_nome ?? '—'}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (ticket.fechado_em && !isAdmin) {
+                  toast.showWarning('Ticket fechado — apenas admin pode alterar.')
+                  return
+                }
+                abrirModalGerir('hierarquia')
+              }}
+              className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200/90 bg-slate-50/80 px-3 py-1.5 text-left text-xs shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-100/90 dark:border-slate-600 dark:bg-slate-800/70 dark:hover:border-slate-500 dark:hover:bg-slate-800"
+            >
+              <span className="shrink-0 font-medium text-slate-500 dark:text-slate-400">Hierarquia</span>
+              <span className="min-w-0 truncate font-semibold text-slate-800 dark:text-slate-100">
+                {rotuloChipHierarquia}
               </span>
             </button>
           </div>
@@ -857,7 +1201,78 @@ export function TicketDetalhe() {
       </div>
       </div>
 
-      <div className="mt-6">
+      <div className="mt-6 space-y-6">
+        {!temVinculosHierarquia ? (
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Este ticket não está vinculado a um ticket pai nem possui filhos vinculados.
+            {podeEditarHierarquia ? (
+              <>
+                {' '}
+                <button
+                  type="button"
+                  className="font-medium text-cyan-700 underline decoration-cyan-700/30 underline-offset-2 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                  onClick={() => abrirModalGerir('hierarquia')}
+                >
+                  Gerir vínculos
+                </button>
+              </>
+            ) : null}
+          </p>
+        ) : (
+          <div className="rounded-xl border border-slate-200/90 bg-slate-50/50 px-3 py-2.5 text-sm dark:border-slate-700/80 dark:bg-slate-900/35">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1 space-y-2 text-slate-700 dark:text-slate-200">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Ticket pai
+                  </p>
+                  {ticket.parent_ticket_id == null ? (
+                    <p className="mt-0.5 text-slate-500 dark:text-slate-400">Nenhum.</p>
+                  ) : (
+                    <Link
+                      to={`/tickets/${ticket.parent_ticket_id}`}
+                      className="mt-0.5 inline-block font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                    >
+                      {ticket.parent
+                        ? `${exibirProtocolo(ticket.parent.protocolo)} — ${ticket.parent.assunto}`
+                        : `Ticket #${ticket.parent_ticket_id}`}
+                    </Link>
+                  )}
+                </div>
+                {ticket.children && ticket.children.length > 0 && (
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      Tickets filhos
+                    </p>
+                    <ul className="mt-1 space-y-1">
+                      {ticket.children.map((c) => (
+                        <li key={c.id}>
+                          <Link
+                            to={`/tickets/${c.id}`}
+                            className="font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                          >
+                            {exibirProtocolo(c.protocolo)}
+                          </Link>
+                          <span className="text-slate-600 dark:text-slate-300"> — {c.assunto}</span>
+                          <span className="ml-1 text-xs text-slate-500 dark:text-slate-400">
+                            ({c.status_nome ?? '—'}
+                            {c.fechado_em ? ', fechado' : ', aberto'})
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+              {podeEditarHierarquia && (
+                <Button type="button" variant="secondary" className="shrink-0" onClick={() => abrirModalGerir('hierarquia')}>
+                  Gerir vínculos
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
       <Card title="Conversa">
         <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
           Mensagens da equipe para o andamento; comentários internos só para atendentes.
@@ -901,10 +1316,16 @@ export function TicketDetalhe() {
               {mensagens.map((msg) => {
                 const isAbertura = msg.tipo === 'abertura'
                 const isInterno = msg.tipo === 'interno'
-                const autor =
-                  msg.atendente_nome ??
-                  (isAbertura ? 'Registro legado / sistema' : '—')
+                const isEmailCliente = msg.tipo === 'email_cliente'
+                const autor = autorRodapeMensagem(msg)
                 const anexosDaMsg = anexos.filter((a) => a.mensagem_id === msg.id)
+                const corpoBase =
+                  isAbertura || isEmailCliente ? corpoMensagemEmailVisivel(msg.corpo) : msg.corpo
+                const corpoParaExibir =
+                  corpoExtraidoPorMensagemId[msg.id] &&
+                  (isCorpoVazioOuNaoTexto(msg.corpo) || !corpoBase.trim())
+                    ? corpoExtraidoPorMensagemId[msg.id]
+                    : corpoBase || '(corpo vazio ou não texto)'
                 return (
                   <li
                     key={msg.id}
@@ -913,7 +1334,9 @@ export function TicketDetalhe() {
                         ? 'border-amber-200/90 bg-amber-50/60 dark:border-amber-800/50 dark:bg-amber-950/25'
                         : isAbertura
                           ? 'border border-slate-200 border-l-4 border-l-slate-500 bg-slate-50/90 dark:border-slate-600 dark:border-l-slate-400 dark:bg-slate-800/50'
-                          : 'border border-slate-200/90 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800/45 dark:shadow-none'
+                          : isEmailCliente
+                            ? 'border border-slate-200 border-l-4 border-l-cyan-500 bg-cyan-50/40 dark:border-slate-600 dark:border-l-cyan-400 dark:bg-cyan-950/20'
+                            : 'border border-slate-200/90 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800/45 dark:shadow-none'
                     }`}
                   >
                     <div
@@ -930,7 +1353,7 @@ export function TicketDetalhe() {
                         </span>
                       )}
                     </div>
-                    <p className="mt-2 whitespace-pre-wrap text-slate-800 dark:text-slate-200">{msg.corpo}</p>
+                    <p className="mt-2 whitespace-pre-wrap text-slate-800 dark:text-slate-200">{corpoParaExibir}</p>
                     {anexosDaMsg.length > 0 && (
                       <div className="mt-3 rounded-lg border border-slate-200/80 bg-slate-50/70 px-3 py-2 dark:border-slate-700/70 dark:bg-slate-900/30">
                         <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -1026,6 +1449,20 @@ export function TicketDetalhe() {
                   : 'bg-slate-50 ring-slate-200/90 focus:bg-white focus:ring-slate-400/35 dark:bg-slate-900/80 dark:ring-slate-600 dark:focus:bg-slate-900 dark:focus:ring-slate-500/50'
               }`}
             />
+            {podeMensagemPublica && tipoNovaMensagem === 'publico' ? (
+              <label className="mt-2 flex cursor-pointer items-start gap-2 text-xs text-slate-600 dark:text-slate-400">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-4 shrink-0 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500/40 dark:border-slate-600 dark:bg-slate-900"
+                  checked={notificarClienteEmail}
+                  onChange={(e) => setNotificarClienteEmail(e.target.checked)}
+                />
+                <span>
+                  Enviar também por e-mail ao cliente (último remetente do ticket via encaminhamento; requer envio
+                  configurado na plataforma).
+                </span>
+              </label>
+            ) : null}
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2">
                 <input
@@ -1082,6 +1519,7 @@ export function TicketDetalhe() {
           onClick={() => {
             URL.revokeObjectURL(previewAnexo.url)
             setPreviewAnexo(null)
+            setPreviewAnexoTexto(null)
           }}
         >
           <div
@@ -1103,6 +1541,7 @@ export function TicketDetalhe() {
                 onClick={() => {
                   URL.revokeObjectURL(previewAnexo.url)
                   setPreviewAnexo(null)
+                  setPreviewAnexoTexto(null)
                 }}
               >
                 Fechar
@@ -1117,6 +1556,17 @@ export function TicketDetalhe() {
                 />
               ) : previewAnexo.contentType === 'application/pdf' ? (
                 <iframe title={previewAnexo.nome} src={previewAnexo.url} className="h-[80vh] w-full rounded-lg" />
+              ) : previewAnexo.contentType.startsWith('text/html') ? (
+                <iframe
+                  title={previewAnexo.nome}
+                  sandbox=""
+                  srcDoc={previewAnexoTexto ?? ''}
+                  className="h-[80vh] w-full rounded-lg bg-white"
+                />
+              ) : previewAnexo.contentType.startsWith('text/') ? (
+                <pre className="h-[80vh] w-full overflow-auto rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-900 whitespace-pre-wrap dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
+                  {previewAnexoTexto ?? ''}
+                </pre>
               ) : (
                 <div className="text-sm text-slate-600 dark:text-slate-300">
                   Pré-visualização indisponível para este tipo. Use o download.
@@ -1181,77 +1631,312 @@ export function TicketDetalhe() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="ticket-gerir-titulo"
-            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-600 dark:bg-slate-900 dark:shadow-2xl dark:ring-1 dark:ring-white/10"
+            className={MODAL_PANEL_SCROLLABLE}
             onClick={(e) => e.stopPropagation()}
           >
             <h2 id="ticket-gerir-titulo" className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-              {modalGerirFoco === 'setor'
-                ? 'Transferir de setor'
-                : modalGerirFoco === 'status'
-                  ? 'Alterar status'
-                  : modalGerirFoco === 'atendente'
-                    ? 'Transferir responsável'
-                    : 'Gerir ticket'}
+              {modalGerirFoco === 'hierarquia'
+                ? 'Hierarquia de tickets'
+                : modalGerirFoco === 'setor'
+                  ? 'Transferir de setor'
+                  : modalGerirFoco === 'status'
+                    ? 'Alterar status'
+                    : modalGerirFoco === 'atendente'
+                      ? 'Transferir responsável'
+                      : 'Gerir ticket'}
             </h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              {modalGerirFoco === 'geral' && 'Transfira de setor, altere o status ou atribua a outro atendente.'}
+              {modalGerirFoco === 'hierarquia' &&
+                'Crie um filho novo, vincule tickets existentes como filhos ou defina um ticket pai (mesma rede, com acesso).'}
+              {modalGerirFoco === 'geral' &&
+                'Vincule rede e empresa, transfira de setor, altere o status ou atribua a outro atendente.'}
               {modalGerirFoco === 'setor' && 'Escolha o setor que passará a tratar este ticket.'}
               {modalGerirFoco === 'status' && 'Atualize o status conforme o andamento do atendimento.'}
               {modalGerirFoco === 'atendente' && 'Defina quem é o responsável pelo ticket (ou deixe sem responsável).'}
             </p>
-            <div className="mt-5 space-y-4">
-              {(modalGerirFoco === 'geral' || modalGerirFoco === 'setor') && (
-                <>
-                  <Select
-                    label="Setor"
-                    value={editSetor}
-                    onChange={(v) => setEditSetor(v === '' ? '' : Number(v))}
-                    options={setoresParaSelect.map((s) => ({
-                      value: s.id,
-                      label: `${s.nome}${!s.ativo ? ' (inativo)' : ''} · ${s.slug}`,
-                    }))}
-                    placeholder="Setor"
-                  />
-                  {!isAdmin && setoresParaSelect.length === 0 && (
-                    <p className="text-xs text-amber-700 dark:text-amber-400">Nenhum setor vinculado ao seu usuário.</p>
-                  )}
-                </>
-              )}
-              {(modalGerirFoco === 'geral' || modalGerirFoco === 'status') && (
-                <Select
-                  label="Status"
-                  value={editStatus}
-                  onChange={(v) => setEditStatus(v === '' ? '' : Number(v))}
-                  options={statusParaSelect.map((s) => ({
-                    value: s.id,
-                    label: `${s.nome}${!s.ativo ? ' (inativo)' : ''}`,
-                  }))}
-                  placeholder="Status"
-                />
-              )}
-              {(modalGerirFoco === 'geral' || modalGerirFoco === 'atendente') && (
+
+            {modalGerirFoco === 'hierarquia' && ticket && (
+              <div className="mt-4 space-y-4 text-sm text-slate-700 dark:text-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setModalGerirFoco('geral')}
+                  className="text-sm font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                >
+                  ← Voltar a setor, status e responsável
+                </button>
+
                 <div>
-                  <Select
-                    label="Responsável"
-                    value={editAtendente}
-                    onChange={(v) => setEditAtendente(v === '' ? '' : Number(v))}
-                    options={opcoesResponsavelModal}
-                    includeEmpty
-                    emptyLabel="— Nenhum —"
-                    placeholder="Selecione o responsável"
-                    disabled={atendentesModalLoading}
-                  />
-                  {atendentesModalLoading && (
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Carregando atendentes do setor…</p>
-                  )}
-                  {!atendentesModalLoading && opcoesResponsavelModal.length === 0 && (
-                    <p className="mt-1 text-xs text-amber-800 dark:text-amber-200/90">
-                      Nenhum atendente vinculado a este setor. Configure vínculos em Configurações → Atendentes.
-                    </p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Ticket pai
+                  </p>
+                  {ticket.parent_ticket_id == null ? (
+                    <p className="mt-1 text-slate-500 dark:text-slate-400">Nenhum.</p>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <Link
+                        to={`/tickets/${ticket.parent_ticket_id}`}
+                        className="font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                        onClick={() => setModalGerirAberto(false)}
+                      >
+                        {ticket.parent
+                          ? `${exibirProtocolo(ticket.parent.protocolo)} — ${ticket.parent.assunto}`
+                          : `Ticket #${ticket.parent_ticket_id}`}
+                      </Link>
+                      {podeEditarHierarquia && (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          loading={desvinculandoHierarquia}
+                          onClick={handleDesvincularDoPai}
+                        >
+                          Desvincular do pai
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
+
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Tickets filhos
+                  </p>
+                  {(!ticket.children || ticket.children.length === 0) && (
+                    <p className="mt-1 text-slate-500 dark:text-slate-400">Nenhum filho vinculado.</p>
+                  )}
+                  {ticket.children && ticket.children.length > 0 && (
+                    <ul className="mt-2 divide-y divide-slate-200 rounded-lg border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
+                      {ticket.children.map((c) => (
+                        <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                          <div className="min-w-0">
+                            <Link
+                              to={`/tickets/${c.id}`}
+                              className="font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                              onClick={() => setModalGerirAberto(false)}
+                            >
+                              {exibirProtocolo(c.protocolo)}
+                            </Link>
+                            <span className="text-slate-600 dark:text-slate-300"> — {c.assunto}</span>
+                            <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
+                              {c.status_nome ?? '—'}
+                              {c.fechado_em ? ' · fechado' : ' · aberto'}
+                            </span>
+                          </div>
+                          {podeEditarHierarquia && !c.fechado_em && (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              loading={desvinculandoHierarquia}
+                              onClick={() => handleDesvincularFilho(c.id)}
+                            >
+                              Desvincular
+                            </Button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                {podeEditarHierarquia && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={desvinculandoHierarquia}
+                      onClick={() => {
+                        navigate(`/tickets/novo?pai=${ticket.id}`)
+                        setModalGerirAberto(false)
+                      }}
+                    >
+                      Abrir ticket filho
+                    </Button>
+                  </div>
+                )}
+
+                {podeEditarHierarquia && (
+                  <div className="rounded-lg border border-slate-200/90 bg-slate-50/70 p-3 dark:border-slate-700/70 dark:bg-slate-900/30">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      Vincular ticket existente como filho
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      ID do ticket que passará a ser filho deste (não pode ser o próprio).
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-end gap-2">
+                      <Input
+                        id="ticket-vincular-filho-id"
+                        label="ID do ticket (filho)"
+                        type="number"
+                        min={1}
+                        value={idFilhoParaVincular}
+                        onChange={(e) => setIdFilhoParaVincular(e.target.value)}
+                        disabled={vinculandoFilho || desvinculandoHierarquia || vinculandoPai}
+                      />
+                      <Button
+                        type="button"
+                        onClick={handleVincularFilhoExistente}
+                        loading={vinculandoFilho}
+                        disabled={desvinculandoHierarquia || vinculandoPai}
+                      >
+                        Vincular
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {podeEditarHierarquia && (
+                  <div className="rounded-lg border border-slate-200/90 bg-slate-50/70 p-3 dark:border-slate-700/70 dark:bg-slate-900/30">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      {ticket.parent_ticket_id != null ? 'Alterar ticket pai' : 'Vincular a um ticket pai'}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      ID do ticket que será o pai deste. Substitui o vínculo atual se já houver um pai.
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-end gap-2">
+                      <Input
+                        id="ticket-vincular-pai-id"
+                        label="ID do ticket (pai)"
+                        type="number"
+                        min={1}
+                        value={idPaiParaVincular}
+                        onChange={(e) => setIdPaiParaVincular(e.target.value)}
+                        disabled={vinculandoPai || desvinculandoHierarquia || vinculandoFilho}
+                      />
+                      <Button
+                        type="button"
+                        onClick={handleVincularAoPai}
+                        loading={vinculandoPai}
+                        disabled={desvinculandoHierarquia || vinculandoFilho}
+                      >
+                        Aplicar vínculo
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {modalGerirFoco !== 'hierarquia' && (
+              <div className="mt-5 space-y-4">
+                {modalGerirFoco === 'geral' && (
+                  <>
+                    <Select
+                      label="Rede"
+                      value={editRede}
+                      onChange={(v) => {
+                        setEditRede(v === '' ? '' : Number(v))
+                        setEditEmpresa('')
+                      }}
+                      options={redesList.map((r) => ({
+                        value: r.id,
+                        label: `${r.nome}${!r.ativo ? ' (inativa)' : ''}`,
+                      }))}
+                      includeEmpty
+                      emptyLabel="— Selecione a rede —"
+                      placeholder="Rede"
+                      disabled={redeTriagemFixa}
+                    />
+                    <Select
+                      label="Empresa"
+                      value={editEmpresa}
+                      onChange={(v) => setEditEmpresa(v === '' ? '' : Number(v))}
+                      options={empresasOpcoesModal.map((e) => ({
+                        value: e.id,
+                        label: `${e.nome}${!e.ativo ? ' (inativa)' : ''}`,
+                      }))}
+                      includeEmpty
+                      emptyLabel="— Selecione a empresa —"
+                      placeholder="Empresa"
+                      disabled={editRede === '' && empresasVinculoSugeridas.length === 0}
+                    />
+                    {editRede === '' && empresasVinculoSugeridas.length === 0 && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Selecione a rede para listar as empresas vinculadas.
+                      </p>
+                    )}
+                    {empresasVinculoSugeridas.length > 0 && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Apenas empresas em que o remetente do e-mail está cadastrado.
+                      </p>
+                    )}
+                  </>
+                )}
+                {(modalGerirFoco === 'geral' || modalGerirFoco === 'setor') && (
+                  <>
+                    <Select
+                      label="Setor"
+                      value={editSetor}
+                      onChange={(v) => setEditSetor(v === '' ? '' : Number(v))}
+                      options={setoresParaSelect.map((s) => ({
+                        value: s.id,
+                        label: `${s.nome}${!s.ativo ? ' (inativo)' : ''} · ${s.slug}`,
+                      }))}
+                      placeholder="Setor"
+                    />
+                    {!isAdmin && setoresParaSelect.length === 0 && (
+                      <p className="text-xs text-amber-700 dark:text-amber-400">Nenhum setor vinculado ao seu usuário.</p>
+                    )}
+                  </>
+                )}
+                {(modalGerirFoco === 'geral' || modalGerirFoco === 'status') && (
+                  <Select
+                    label="Status"
+                    value={editStatus}
+                    onChange={(v) => setEditStatus(v === '' ? '' : Number(v))}
+                    options={statusParaSelect.map((s) => ({
+                      value: s.id,
+                      label: `${s.nome}${!s.ativo ? ' (inativo)' : ''}`,
+                    }))}
+                    placeholder="Status"
+                  />
+                )}
+                {(modalGerirFoco === 'geral' || modalGerirFoco === 'atendente') && (
+                  <div>
+                    <Select
+                      label="Responsável"
+                      value={editAtendente}
+                      onChange={(v) => setEditAtendente(v === '' ? '' : Number(v))}
+                      options={opcoesResponsavelModal}
+                      includeEmpty
+                      emptyLabel="— Nenhum —"
+                      placeholder="Selecione o responsável"
+                      disabled={atendentesModalLoading}
+                    />
+                    {atendentesModalLoading && (
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Carregando atendentes do setor…</p>
+                    )}
+                    {!atendentesModalLoading && opcoesResponsavelModal.length === 0 && (
+                      <p className="mt-1 text-xs text-amber-800 dark:text-amber-200/90">
+                        Nenhum atendente vinculado a este setor. Configure vínculos em Configurações → Atendentes.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {modalGerirFoco === 'geral' && (
+              <div className="mt-5 rounded-lg border border-slate-200/90 bg-slate-50/60 p-3 dark:border-slate-700/70 dark:bg-slate-900/30">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Hierarquia de tickets
+                </p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Filhos, ticket pai e vínculos com chamados existentes.
+                </p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="mt-3"
+                  onClick={() => {
+                    setIdFilhoParaVincular('')
+                    setIdPaiParaVincular('')
+                    setModalGerirFoco('hierarquia')
+                  }}
+                >
+                  Gerir hierarquia…
+                </Button>
+              </div>
+            )}
+
             {(modalGerirFoco === 'geral' || modalGerirFoco === 'status') && (
               <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">
                 Status com slug{' '}
@@ -1259,14 +1944,23 @@ export function TicketDetalhe() {
                 data de fechamento.
               </p>
             )}
-            <div className="mt-6 flex flex-wrap justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={() => setModalGerirAberto(false)}>
-                Cancelar
-              </Button>
-              <Button type="button" onClick={handleSalvar} loading={saving}>
-                {modalApenasUmCampo ? 'Salvar' : 'Aplicar'}
-              </Button>
-            </div>
+
+            {modalGerirFoco !== 'hierarquia' ? (
+              <div className="mt-6 flex flex-wrap justify-end gap-2">
+                <Button type="button" variant="secondary" onClick={() => setModalGerirAberto(false)}>
+                  Cancelar
+                </Button>
+                <Button type="button" onClick={handleSalvar} loading={saving}>
+                  {modalApenasUmCampo ? 'Salvar' : 'Aplicar'}
+                </Button>
+              </div>
+            ) : (
+              <div className="mt-6 flex flex-wrap justify-end gap-2">
+                <Button type="button" variant="secondary" onClick={() => setModalGerirAberto(false)}>
+                  Fechar
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1284,7 +1978,7 @@ export function TicketDetalhe() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="ticket-fechar-titulo"
-            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-600 dark:bg-slate-900 dark:shadow-2xl dark:ring-1 dark:ring-white/10"
+            className={MODAL_PANEL_COMPACT}
             onClick={(e) => e.stopPropagation()}
           >
             <h2 id="ticket-fechar-titulo" className="text-lg font-semibold text-slate-900 dark:text-slate-100">
@@ -1293,6 +1987,12 @@ export function TicketDetalhe() {
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Ao fechar, o ticket sairá da lista de abertos e não permitirá novas mensagens.
             </p>
+            {filhosAbertosCount > 0 && (
+              <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-100">
+                Este ticket tem {filhosAbertosCount} filho(s) direto(s) ainda em aberto. O sistema bloqueia o fecho até
+                encerrá-los ou desvinculá-los.
+              </p>
+            )}
             <div className="mt-5 flex flex-wrap justify-end gap-2">
               <Button
                 type="button"
@@ -1302,7 +2002,18 @@ export function TicketDetalhe() {
               >
                 Cancelar
               </Button>
-              <Button type="button" variant="danger" onClick={fecharTicketConfirmado} loading={fechando}>
+              <Button
+                type="button"
+                variant="danger"
+                onClick={fecharTicketConfirmado}
+                loading={fechando}
+                disabled={fechando || filhosAbertosCount > 0}
+                title={
+                  filhosAbertosCount > 0
+                    ? 'Feche ou desvincule os tickets filhos em aberto antes de fechar este ticket.'
+                    : undefined
+                }
+              >
                 Fechar ticket
               </Button>
             </div>
@@ -1312,3 +2023,4 @@ export function TicketDetalhe() {
     </div>
   )
 }
+
