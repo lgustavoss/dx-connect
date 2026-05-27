@@ -4,7 +4,7 @@ from enum import Enum
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_, asc, desc, nullslast
+from sqlalchemy import or_, asc, desc, nullslast, inspect as sa_inspect
 
 from app.database import get_db
 from app.models import Ticket, TicketHistorico, TicketMensagem, Empresa, Setor, StatusTicket, Atendente, Rede
@@ -13,10 +13,12 @@ from app.models.funcionario_rede import FuncionarioRede
 from app.models.ticket_anexo import TicketAnexo
 from app.schemas.ticket import (
     EmpresaVinculoSugerida,
+    TicketChildBrief,
     TicketCreate,
     TicketHistoricoRead,
     TicketMensagemCreate,
     TicketMensagemRead,
+    TicketParentBrief,
     TicketRead,
     TicketTriagemInbound,
     TicketUpdate,
@@ -63,6 +65,72 @@ def _gerar_protocolo(db: Session) -> str:
     return gerar_protocolo_ticket(db)
 
 
+def _attr_relacionamento_carregado(ticket: Ticket, nome: str) -> bool:
+    """True se o relacionamento `nome` foi carregado (evita lazy-load na listagem)."""
+    return nome not in sa_inspect(ticket).unloaded
+
+
+def _rede_id_empresa(db: Session, empresa_id: int) -> int | None:
+    return db.query(Empresa.rede_id).filter(Empresa.id == empresa_id).scalar()
+
+
+def _ancestral_contem_ticket_id(db: Session, parent_id: int, proibido_id: int) -> bool:
+    """Sobe a partir de `parent_id` pelos pais; se encontrar `proibido_id`, há ciclo."""
+    cur: int | None = parent_id
+    visto: set[int] = set()
+    for _ in range(600):
+        if cur is None:
+            return False
+        if cur == proibido_id:
+            return True
+        if cur in visto:
+            return True
+        visto.add(cur)
+        cur = db.query(Ticket.parent_ticket_id).filter(Ticket.id == cur).scalar()
+    return True
+
+
+def _assert_parent_valido(
+    db: Session,
+    atendente: Atendente,
+    *,
+    filho_empresa_id: int,
+    filho_ticket_id: int | None,
+    parent_id: int,
+) -> None:
+    if filho_ticket_id is not None and parent_id == filho_ticket_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Um ticket não pode ser pai de si mesmo.")
+    parent = db.query(Ticket).filter(Ticket.id == parent_id).first()
+    if not parent:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket pai não encontrado")
+    if not _pode_ver_ticket(db, atendente, parent):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para vincular a este ticket pai")
+    r_filho = _rede_id_empresa(db, filho_empresa_id)
+    r_pai = _rede_id_empresa(db, parent.empresa_id)
+    if r_filho is None or r_pai is None or r_filho != r_pai:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="O ticket filho deve ser de uma empresa da mesma rede do ticket pai.",
+        )
+    if filho_ticket_id is not None and _ancestral_contem_ticket_id(db, parent_id, filho_ticket_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Vínculo inválido: esse vínculo formaria um ciclo entre tickets.",
+        )
+
+
+def _opcoes_carregamento_ticket_detalhe():
+    return (
+        joinedload(Ticket.empresa).joinedload(Empresa.rede),
+        joinedload(Ticket.setor),
+        joinedload(Ticket.status),
+        joinedload(Ticket.atendente),
+        joinedload(Ticket.parent).joinedload(Ticket.status),
+        joinedload(Ticket.children).joinedload(Ticket.status),
+        joinedload(Ticket.children).joinedload(Ticket.atendente),
+    )
+
+
 def _triagem_inbound_para_ticket(db: Session, t: Ticket) -> TicketTriagemInbound | None:
     row = (
         db.query(EmailInboundReceived)
@@ -95,6 +163,29 @@ def _triagem_inbound_para_ticket(db: Session, t: Ticket) -> TicketTriagemInbound
 
 
 def _ticket_para_read(t: Ticket, db: Session | None = None) -> TicketRead:
+    parent_brief = None
+    if t.parent_ticket_id and _attr_relacionamento_carregado(t, "parent") and t.parent is not None:
+        p = t.parent
+        parent_brief = TicketParentBrief(
+            id=p.id,
+            protocolo=p.protocolo,
+            assunto=p.assunto,
+            status_nome=p.status.nome if p.status else None,
+            fechado_em=p.fechado_em,
+        )
+    children_out: list[TicketChildBrief] = []
+    if _attr_relacionamento_carregado(t, "children") and t.children is not None:
+        for c in sorted(t.children, key=lambda x: x.id):
+            children_out.append(
+                TicketChildBrief(
+                    id=c.id,
+                    protocolo=c.protocolo,
+                    assunto=c.assunto,
+                    status_nome=c.status.nome if c.status else None,
+                    atendente_nome=c.atendente.nome if c.atendente else None,
+                    fechado_em=c.fechado_em,
+                )
+            )
     triagem = _triagem_inbound_para_ticket(db, t) if db is not None else None
     rede_id = t.empresa.rede_id if t.empresa else None
     rede_nome = t.empresa.rede.nome if t.empresa and t.empresa.rede else None
@@ -123,6 +214,9 @@ def _ticket_para_read(t: Ticket, db: Session | None = None) -> TicketRead:
         setor_nome=t.setor.nome if t.setor else None,
         status_nome=t.status.nome if t.status else None,
         atendente_nome=t.atendente.nome if t.atendente else None,
+        parent_ticket_id=t.parent_ticket_id,
+        parent=parent_brief,
+        children=children_out,
         triagem_inbound=triagem,
     )
 
@@ -297,6 +391,14 @@ def criar(
     )
     if not setor:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor não encontrado")
+    if data.parent_ticket_id is not None:
+        _assert_parent_valido(
+            db,
+            atendente,
+            filho_empresa_id=data.empresa_id,
+            filho_ticket_id=None,
+            parent_id=data.parent_ticket_id,
+        )
     # Status inicial: primeiro status ativo por ordem (ex.: «Aguardando atendimento» na fila do setor)
     status_inicial = db.query(StatusTicket).filter(StatusTicket.ativo.is_(True)).order_by(StatusTicket.ordem).first()
     if not status_inicial:
@@ -311,6 +413,7 @@ def criar(
         assunto=data.assunto,
         descricao=data.descricao,
         aberto_por_id=data.aberto_por_id,
+        parent_ticket_id=data.parent_ticket_id,
     )
     db.add(ticket)
     db.commit()
@@ -325,18 +428,13 @@ def criar(
         )
     )
     db.commit()
-    ticket = (
+    ticket_out = (
         db.query(Ticket)
-        .options(
-            joinedload(Ticket.empresa).joinedload(Empresa.rede),
-            joinedload(Ticket.setor),
-            joinedload(Ticket.status),
-            joinedload(Ticket.atendente),
-        )
+        .options(*_opcoes_carregamento_ticket_detalhe())
         .filter(Ticket.id == ticket.id)
         .first()
     )
-    return _ticket_para_read(ticket, db)
+    return _ticket_para_read(ticket_out or ticket, db)
 
 
 @router.delete("/{ticket_id}")
@@ -356,12 +454,7 @@ def obter(
 ):
     ticket = (
         db.query(Ticket)
-        .options(
-            joinedload(Ticket.empresa).joinedload(Empresa.rede),
-            joinedload(Ticket.setor),
-            joinedload(Ticket.status),
-            joinedload(Ticket.atendente),
-        )
+        .options(*_opcoes_carregamento_ticket_detalhe())
         .filter(Ticket.id == ticket_id)
         .first()
     )
@@ -710,6 +803,41 @@ def atualizar(
         )
     update = data.model_dump(exclude_unset=True)
 
+    if "status_id" in update:
+        st_novo = db.query(StatusTicket).filter(StatusTicket.id == update["status_id"]).first()
+        if st_novo and (st_novo.slug or "").lower() == "fechado":
+            filho_aberto = (
+                db.query(Ticket.id)
+                .filter(Ticket.parent_ticket_id == ticket.id, Ticket.fechado_em.is_(None))
+                .first()
+            )
+            if filho_aberto is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Não é possível fechar este ticket enquanto existir ticket filho direto ainda em aberto.",
+                )
+
+    if "parent_ticket_id" in update:
+        novo_p = update["parent_ticket_id"]
+        if novo_p != ticket.parent_ticket_id:
+            if novo_p is not None:
+                _assert_parent_valido(
+                    db,
+                    atendente,
+                    filho_empresa_id=ticket.empresa_id,
+                    filho_ticket_id=ticket.id,
+                    parent_id=novo_p,
+                )
+            antigo_pid = ticket.parent_ticket_id
+            _registrar_historico(
+                db,
+                ticket.id,
+                atendente.id,
+                "parent_ticket_id",
+                str(antigo_pid) if antigo_pid is not None else "",
+                str(novo_p) if novo_p is not None else "",
+            )
+
     if "setor_id" in update:
         if atendente.role != "admin":
             permitidos = ids_setores_visiveis_atendente(db, atendente)
@@ -807,15 +935,10 @@ def atualizar(
             ticket.fechado_em = None
 
     db.commit()
-    ticket = (
+    ticket_out = (
         db.query(Ticket)
-        .options(
-            joinedload(Ticket.empresa).joinedload(Empresa.rede),
-            joinedload(Ticket.setor),
-            joinedload(Ticket.status),
-            joinedload(Ticket.atendente),
-        )
+        .options(*_opcoes_carregamento_ticket_detalhe())
         .filter(Ticket.id == ticket_id)
         .first()
     )
-    return _ticket_para_read(ticket, db)
+    return _ticket_para_read(ticket_out or ticket, db)

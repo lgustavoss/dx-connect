@@ -39,7 +39,7 @@ def test_format_inbound_address(monkeypatch):
 
 
 def test_local_part_for_setor():
-    assert local_part_for_setor(1, "suporte") == "1_suporte"
+    assert local_part_for_setor(1, "suporte") == "suporte.t1"
 
 
 def test_sync_inbound_cria_um_por_setor_ativo(db_session, seed_base, monkeypatch):
