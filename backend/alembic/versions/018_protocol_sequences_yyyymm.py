@@ -21,7 +21,32 @@ def upgrade() -> None:
     insp = sa.inspect(bind)
     if not insp.has_table("protocol_sequences"):
         return
-    # Legado: chave era YYYY-MM; protocolo exibido #T2026-05-0001 → passa a #T202605-0001
+    # Legado: chave era YYYY-MM; protocolo exibido #T2026-05-0001 → passa a #T202605-0001.
+    # Se já existir linha YYYYMM e outra YYYY-MM para o mesmo kind, fundir last_value e apagar a legada.
+    op.execute(
+        text(
+            """
+        UPDATE protocol_sequences AS d
+        SET last_value = GREATEST(d.last_value, s.last_value)
+        FROM protocol_sequences AS s
+        WHERE s.ano_mes LIKE '%-%'
+          AND d.kind = s.kind
+          AND d.ano_mes = replace(s.ano_mes, '-', '')
+        """
+        )
+    )
+    op.execute(
+        text(
+            """
+        DELETE FROM protocol_sequences AS s
+        WHERE s.ano_mes LIKE '%-%'
+          AND EXISTS (
+            SELECT 1 FROM protocol_sequences AS d
+            WHERE d.kind = s.kind AND d.ano_mes = replace(s.ano_mes, '-', '')
+          )
+        """
+        )
+    )
     op.execute(
         text(
             """
