@@ -7,7 +7,7 @@ gunicorn==25.3.0
 sqlalchemy==2.0.36
 psycopg2-binary==2.9.12
 alembic==1.14.0
-pydantic[email]==2.13.3
+pydantic[email]==2.13.4
 pydantic-settings==2.14.0
 PyJWT[crypto]==2.12.1
 cryptography>=42.0.0
