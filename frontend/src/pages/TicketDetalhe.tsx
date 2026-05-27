@@ -28,6 +28,7 @@ import { SemPermissao } from './SemPermissao'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 import { exibirProtocolo } from '../lib/exibirProtocolo'
+import { MODAL_PANEL_COMPACT, MODAL_PANEL_SCROLLABLE } from '../lib/modalPanel'
 
 const ROTULO_CAMPO: Record<string, string> = {
   status_id: 'Status',
@@ -64,6 +65,18 @@ function tituloTipoMensagem(tipo: string): string {
   if (tipo === 'publico') return 'Mensagem da equipe'
   if (tipo === 'interno') return 'Comentário interno'
   return tipo
+}
+
+function isCorpoVazioOuNaoTexto(corpo: string | null | undefined): boolean {
+  const t = (corpo ?? '').trim().toLowerCase()
+  if (!t) return true
+  // Placeholder usado quando o inbound não conseguiu extrair texto do e-mail.
+  return (
+    t === '(corpo vazio ou não texto)' ||
+    t.includes('corpo vazio') ||
+    t.includes('não texto') ||
+    t.includes('nao texto')
+  )
 }
 
 /** Mesmo nome de setor = mesmo “setor lógico” (vários IDs no banco). */
@@ -127,6 +140,8 @@ export function TicketDetalhe() {
     url: string
     contentType: string
   } | null>(null)
+  const [previewAnexoTexto, setPreviewAnexoTexto] = useState<string | null>(null)
+  const [corpoExtraidoPorMensagemId, setCorpoExtraidoPorMensagemId] = useState<Record<number, string>>({})
   const [statusList, setStatusList] = useState<StatusTicket.Status[]>([])
   const [atendentesList, setAtendentesList] = useState<Atendentes.Atendente[]>([])
   /** Atendentes elegíveis no modal (carga direta por setor no backend). */
@@ -149,11 +164,15 @@ export function TicketDetalhe() {
   const [modalGerirAberto, setModalGerirAberto] = useState(false)
   const [modalFecharAberto, setModalFecharAberto] = useState(false)
   /** Qual bloco do modal recebe destaque ao abrir (chips no cabeçalho). */
-  const [modalGerirFoco, setModalGerirFoco] = useState<'geral' | 'setor' | 'status' | 'atendente'>('geral')
+  const [modalGerirFoco, setModalGerirFoco] = useState<
+    'geral' | 'setor' | 'status' | 'atendente' | 'hierarquia'
+  >('geral')
   const [historicoAberto, setHistoricoAberto] = useState(false)
 
   const [idFilhoParaVincular, setIdFilhoParaVincular] = useState('')
+  const [idPaiParaVincular, setIdPaiParaVincular] = useState('')
   const [vinculandoFilho, setVinculandoFilho] = useState(false)
+  const [vinculandoPai, setVinculandoPai] = useState(false)
   const [desvinculandoHierarquia, setDesvinculandoHierarquia] = useState(false)
 
   const setoresParaSelect = useMemo(() => {
@@ -206,7 +225,7 @@ export function TicketDetalhe() {
     }
 
     return opts.sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'))
-  }, [modalGerirAberto, atendentesModal, atendentesList, ticket?.atendente_id, ticket?.atendente_nome])
+  }, [modalGerirAberto, atendentesModal, atendentesList, ticket])
 
   const statusParaSelect = useMemo(() => {
     const ativos = statusList.filter((s) => s.ativo)
@@ -233,6 +252,22 @@ export function TicketDetalhe() {
     if (!ch?.length) return 0
     return ch.filter((c) => !c.fechado_em).length
   }, [ticket?.children])
+
+  const temVinculosHierarquia = useMemo(() => {
+    if (!ticket) return false
+    const nFilhos = ticket.children?.length ?? 0
+    return ticket.parent_ticket_id != null || nFilhos > 0
+  }, [ticket])
+
+  const rotuloChipHierarquia = useMemo(() => {
+    if (!ticket) return '—'
+    const n = ticket.children?.length ?? 0
+    const temPai = ticket.parent_ticket_id != null
+    if (!temPai && n === 0) return 'Sem vínculos'
+    if (temPai && n === 0) return 'Com pai'
+    if (!temPai && n > 0) return `${n} filho${n === 1 ? '' : 's'}`
+    return `Pai + ${n} filho${n === 1 ? '' : 's'}`
+  }, [ticket])
 
   const podeEditarHierarquia = !!ticket && (!ticket.fechado_em || isAdmin)
 
@@ -415,6 +450,15 @@ export function TicketDetalhe() {
           url,
           contentType: a.content_type || 'application/octet-stream',
         })
+        setPreviewAnexoTexto(null)
+        if (a.content_type?.startsWith('text/')) {
+          try {
+            const text = await fixed.text()
+            setPreviewAnexoTexto(text)
+          } catch {
+            setPreviewAnexoTexto(null)
+          }
+        }
         return
       }
       const link = document.createElement('a')
@@ -428,6 +472,61 @@ export function TicketDetalhe() {
       toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível baixar o anexo.'))
     }
   }
+
+  useEffect(() => {
+    if (!ticket?.id) return
+    if (mensagens.length === 0 || anexos.length === 0) return
+    const ticketId = ticket.id
+    let cancelled = false
+
+    async function run() {
+      const updates: Array<{ msgId: number; text: string }> = []
+      for (const msg of mensagens) {
+        if (!isCorpoVazioOuNaoTexto(msg.corpo)) continue
+        if (corpoExtraidoPorMensagemId[msg.id]) continue
+        const anexosDaMsg = anexos.filter((a) => a.mensagem_id === msg.id)
+        if (anexosDaMsg.length === 0) continue
+        const candidato =
+          anexosDaMsg.find((a) => (a.content_type || '').toLowerCase().startsWith('text/plain')) ||
+          anexosDaMsg.find((a) => (a.content_type || '').toLowerCase().startsWith('text/html')) ||
+          anexosDaMsg.find((a) => (a.content_type || '').toLowerCase().startsWith('text/'))
+        if (!candidato) continue
+        try {
+          const b = await fetchTicketAnexoBlob(ticketId, candidato.id)
+          const fixed = new Blob([b], { type: candidato.content_type || 'text/plain' })
+          const raw = await fixed.text()
+          const ct = (candidato.content_type || '').toLowerCase()
+          const extracted =
+            ct.startsWith('text/html') && typeof DOMParser !== 'undefined'
+              ? (() => {
+                  try {
+                    const doc = new DOMParser().parseFromString(raw, 'text/html')
+                    const text = (doc.body?.innerText ?? '').trim()
+                    return text || raw.trim()
+                  } catch {
+                    return raw.trim()
+                  }
+                })()
+              : raw.trim()
+          if (extracted) updates.push({ msgId: msg.id, text: extracted })
+        } catch {
+          // ignora: mantém placeholder
+        }
+      }
+      if (cancelled) return
+      if (updates.length === 0) return
+      setCorpoExtraidoPorMensagemId((cur) => {
+        const next = { ...cur }
+        for (const u of updates) next[u.msgId] = u.text
+        return next
+      })
+    }
+
+    void run()
+    return () => {
+      cancelled = true
+    }
+  }, [ticket?.id, mensagens, anexos, corpoExtraidoPorMensagemId])
 
   useEffect(() => {
     if (!ticket?.id) {
@@ -469,16 +568,20 @@ export function TicketDetalhe() {
     }
   }, [modalGerirAberto, editSetor, editAtendente, atendentesList, setoresList])
 
-  function abrirModalGerir(foco: 'geral' | 'setor' | 'status' | 'atendente' = 'geral') {
+  function abrirModalGerir(foco: 'geral' | 'setor' | 'status' | 'atendente' | 'hierarquia' = 'geral') {
     if (!ticket) return
     setEditSetor(ticket.setor_id)
     setEditStatus(ticket.status_id)
     setEditAtendente(ticket.atendente_id ?? '')
     setModalGerirFoco(foco)
     setModalGerirAberto(true)
+    if (foco === 'hierarquia') {
+      setIdFilhoParaVincular('')
+      setIdPaiParaVincular('')
+    }
   }
 
-  const modalApenasUmCampo = modalGerirFoco !== 'geral'
+  const modalApenasUmCampo = modalGerirFoco !== 'geral' && modalGerirFoco !== 'hierarquia'
 
   async function handleSalvar() {
     if (!ticket) return
@@ -558,6 +661,26 @@ export function TicketDetalhe() {
       toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível vincular o ticket.'))
     } finally {
       setVinculandoFilho(false)
+    }
+  }
+
+  async function handleVincularAoPai() {
+    if (!ticket) return
+    const id = Number(idPaiParaVincular.trim())
+    if (!Number.isFinite(id) || id < 1 || id === ticket.id) {
+      toast.showWarning('Informe o número de um ticket pai válido, diferente deste.')
+      return
+    }
+    setVinculandoPai(true)
+    try {
+      const atualizado = await tickets.update(ticket.id, { parent_ticket_id: id })
+      setTicket(atualizado)
+      setIdPaiParaVincular('')
+      toast.showSuccess('Ticket vinculado ao pai indicado.')
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível vincular ao ticket pai.'))
+    } finally {
+      setVinculandoPai(false)
     }
   }
 
@@ -820,6 +943,22 @@ export function TicketDetalhe() {
                 {ticket.atendente_nome ?? '—'}
               </span>
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (ticket.fechado_em && !isAdmin) {
+                  toast.showWarning('Ticket fechado — apenas admin pode alterar.')
+                  return
+                }
+                abrirModalGerir('hierarquia')
+              }}
+              className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200/90 bg-slate-50/80 px-3 py-1.5 text-left text-xs shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-100/90 dark:border-slate-600 dark:bg-slate-800/70 dark:hover:border-slate-500 dark:hover:bg-slate-800"
+            >
+              <span className="shrink-0 font-medium text-slate-500 dark:text-slate-400">Hierarquia</span>
+              <span className="min-w-0 truncate font-semibold text-slate-800 dark:text-slate-100">
+                {rotuloChipHierarquia}
+              </span>
+            </button>
           </div>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
             <span>
@@ -923,118 +1062,76 @@ export function TicketDetalhe() {
       </div>
 
       <div className="mt-6 space-y-6">
-      <Card title="Hierarquia de tickets">
-        <div className="space-y-4 text-sm text-slate-700 dark:text-slate-200">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Ticket pai</p>
-            {ticket.parent_ticket_id == null && <p className="mt-1 text-slate-500 dark:text-slate-400">Nenhum.</p>}
-            {ticket.parent_ticket_id != null && (
-              <div className="mt-2 flex flex-wrap items-center gap-3">
-                <Link
-                  to={`/tickets/${ticket.parent_ticket_id}`}
-                  className="font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+        {!temVinculosHierarquia ? (
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Este ticket não está vinculado a um ticket pai nem possui filhos vinculados.
+            {podeEditarHierarquia ? (
+              <>
+                {' '}
+                <button
+                  type="button"
+                  className="font-medium text-cyan-700 underline decoration-cyan-700/30 underline-offset-2 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                  onClick={() => abrirModalGerir('hierarquia')}
                 >
-                  {ticket.parent
-                    ? `${exibirProtocolo(ticket.parent.protocolo)} — ${ticket.parent.assunto}`
-                    : `Ticket #${ticket.parent_ticket_id}`}
-                </Link>
-                {podeEditarHierarquia && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    loading={desvinculandoHierarquia}
-                    onClick={handleDesvincularDoPai}
-                  >
-                    Desvincular do pai
-                  </Button>
+                  Gerir vínculos
+                </button>
+              </>
+            ) : null}
+          </p>
+        ) : (
+          <div className="rounded-xl border border-slate-200/90 bg-slate-50/50 px-3 py-2.5 text-sm dark:border-slate-700/80 dark:bg-slate-900/35">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1 space-y-2 text-slate-700 dark:text-slate-200">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Ticket pai
+                  </p>
+                  {ticket.parent_ticket_id == null ? (
+                    <p className="mt-0.5 text-slate-500 dark:text-slate-400">Nenhum.</p>
+                  ) : (
+                    <Link
+                      to={`/tickets/${ticket.parent_ticket_id}`}
+                      className="mt-0.5 inline-block font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                    >
+                      {ticket.parent
+                        ? `${exibirProtocolo(ticket.parent.protocolo)} — ${ticket.parent.assunto}`
+                        : `Ticket #${ticket.parent_ticket_id}`}
+                    </Link>
+                  )}
+                </div>
+                {ticket.children && ticket.children.length > 0 && (
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      Tickets filhos
+                    </p>
+                    <ul className="mt-1 space-y-1">
+                      {ticket.children.map((c) => (
+                        <li key={c.id}>
+                          <Link
+                            to={`/tickets/${c.id}`}
+                            className="font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                          >
+                            {exibirProtocolo(c.protocolo)}
+                          </Link>
+                          <span className="text-slate-600 dark:text-slate-300"> — {c.assunto}</span>
+                          <span className="ml-1 text-xs text-slate-500 dark:text-slate-400">
+                            ({c.status_nome ?? '—'}
+                            {c.fechado_em ? ', fechado' : ', aberto'})
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
               </div>
-            )}
-          </div>
-
-          <div>
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Tickets filhos
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={!podeEditarHierarquia}
-                  onClick={() => navigate(`/tickets/novo?pai=${ticket.id}`)}
-                >
-                  Abrir ticket filho
+              {podeEditarHierarquia && (
+                <Button type="button" variant="secondary" className="shrink-0" onClick={() => abrirModalGerir('hierarquia')}>
+                  Gerir vínculos
                 </Button>
-              </div>
+              )}
             </div>
-            {(!ticket.children || ticket.children.length === 0) && (
-              <p className="mt-2 text-slate-500 dark:text-slate-400">Nenhum filho vinculado.</p>
-            )}
-            {ticket.children && ticket.children.length > 0 && (
-              <ul className="mt-2 divide-y divide-slate-200 rounded-lg border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
-                {ticket.children.map((c) => (
-                  <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-                    <div className="min-w-0">
-                      <Link
-                        to={`/tickets/${c.id}`}
-                        className="font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
-                      >
-                        {exibirProtocolo(c.protocolo)}
-                      </Link>
-                      <span className="text-slate-600 dark:text-slate-300"> — {c.assunto}</span>
-                      <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
-                        {c.status_nome ?? '—'}
-                        {c.fechado_em ? ' · fechado' : ' · aberto'}
-                      </span>
-                    </div>
-                    {podeEditarHierarquia && !c.fechado_em && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        loading={desvinculandoHierarquia}
-                        onClick={() => handleDesvincularFilho(c.id)}
-                      >
-                        Desvincular
-                      </Button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
-
-          {podeEditarHierarquia && (
-            <div className="rounded-xl border border-slate-200/90 bg-slate-50/70 px-3 py-3 dark:border-slate-700/70 dark:bg-slate-900/30">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Vincular ticket existente como filho deste
-              </p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Informe o ID do ticket que passará a ser filho (mesma rede; você precisa ter acesso a ele).
-              </p>
-              <div className="mt-3 flex max-w-md flex-wrap items-end gap-2">
-                <Input
-                  id="ticket-vincular-filho-id"
-                  label="ID do ticket"
-                  type="number"
-                  min={1}
-                  value={idFilhoParaVincular}
-                  onChange={(e) => setIdFilhoParaVincular(e.target.value)}
-                  disabled={vinculandoFilho || desvinculandoHierarquia}
-                />
-                <Button
-                  type="button"
-                  onClick={handleVincularFilhoExistente}
-                  loading={vinculandoFilho}
-                  disabled={desvinculandoHierarquia}
-                >
-                  Vincular
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      </Card>
+        )}
 
       <Card title="Conversa">
         <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
@@ -1083,6 +1180,10 @@ export function TicketDetalhe() {
                   msg.atendente_nome ??
                   (isAbertura ? 'Registro legado / sistema' : '—')
                 const anexosDaMsg = anexos.filter((a) => a.mensagem_id === msg.id)
+                const corpoParaExibir =
+                  corpoExtraidoPorMensagemId[msg.id] && isCorpoVazioOuNaoTexto(msg.corpo)
+                    ? corpoExtraidoPorMensagemId[msg.id]
+                    : msg.corpo
                 return (
                   <li
                     key={msg.id}
@@ -1108,7 +1209,7 @@ export function TicketDetalhe() {
                         </span>
                       )}
                     </div>
-                    <p className="mt-2 whitespace-pre-wrap text-slate-800 dark:text-slate-200">{msg.corpo}</p>
+                    <p className="mt-2 whitespace-pre-wrap text-slate-800 dark:text-slate-200">{corpoParaExibir}</p>
                     {anexosDaMsg.length > 0 && (
                       <div className="mt-3 rounded-lg border border-slate-200/80 bg-slate-50/70 px-3 py-2 dark:border-slate-700/70 dark:bg-slate-900/30">
                         <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -1260,6 +1361,7 @@ export function TicketDetalhe() {
           onClick={() => {
             URL.revokeObjectURL(previewAnexo.url)
             setPreviewAnexo(null)
+            setPreviewAnexoTexto(null)
           }}
         >
           <div
@@ -1281,6 +1383,7 @@ export function TicketDetalhe() {
                 onClick={() => {
                   URL.revokeObjectURL(previewAnexo.url)
                   setPreviewAnexo(null)
+                  setPreviewAnexoTexto(null)
                 }}
               >
                 Fechar
@@ -1295,6 +1398,17 @@ export function TicketDetalhe() {
                 />
               ) : previewAnexo.contentType === 'application/pdf' ? (
                 <iframe title={previewAnexo.nome} src={previewAnexo.url} className="h-[80vh] w-full rounded-lg" />
+              ) : previewAnexo.contentType.startsWith('text/html') ? (
+                <iframe
+                  title={previewAnexo.nome}
+                  sandbox=""
+                  srcDoc={previewAnexoTexto ?? ''}
+                  className="h-[80vh] w-full rounded-lg bg-white"
+                />
+              ) : previewAnexo.contentType.startsWith('text/') ? (
+                <pre className="h-[80vh] w-full overflow-auto rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-900 whitespace-pre-wrap dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
+                  {previewAnexoTexto ?? ''}
+                </pre>
               ) : (
                 <div className="text-sm text-slate-600 dark:text-slate-300">
                   Pré-visualização indisponível para este tipo. Use o download.
@@ -1359,77 +1473,268 @@ export function TicketDetalhe() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="ticket-gerir-titulo"
-            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-600 dark:bg-slate-900 dark:shadow-2xl dark:ring-1 dark:ring-white/10"
+            className={MODAL_PANEL_SCROLLABLE}
             onClick={(e) => e.stopPropagation()}
           >
             <h2 id="ticket-gerir-titulo" className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-              {modalGerirFoco === 'setor'
-                ? 'Transferir de setor'
-                : modalGerirFoco === 'status'
-                  ? 'Alterar status'
-                  : modalGerirFoco === 'atendente'
-                    ? 'Transferir responsável'
-                    : 'Gerir ticket'}
+              {modalGerirFoco === 'hierarquia'
+                ? 'Hierarquia de tickets'
+                : modalGerirFoco === 'setor'
+                  ? 'Transferir de setor'
+                  : modalGerirFoco === 'status'
+                    ? 'Alterar status'
+                    : modalGerirFoco === 'atendente'
+                      ? 'Transferir responsável'
+                      : 'Gerir ticket'}
             </h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              {modalGerirFoco === 'hierarquia' &&
+                'Crie um filho novo, vincule tickets existentes como filhos ou defina um ticket pai (mesma rede, com acesso).'}
               {modalGerirFoco === 'geral' && 'Transfira de setor, altere o status ou atribua a outro atendente.'}
               {modalGerirFoco === 'setor' && 'Escolha o setor que passará a tratar este ticket.'}
               {modalGerirFoco === 'status' && 'Atualize o status conforme o andamento do atendimento.'}
               {modalGerirFoco === 'atendente' && 'Defina quem é o responsável pelo ticket (ou deixe sem responsável).'}
             </p>
-            <div className="mt-5 space-y-4">
-              {(modalGerirFoco === 'geral' || modalGerirFoco === 'setor') && (
-                <>
-                  <Select
-                    label="Setor"
-                    value={editSetor}
-                    onChange={(v) => setEditSetor(v === '' ? '' : Number(v))}
-                    options={setoresParaSelect.map((s) => ({
-                      value: s.id,
-                      label: `${s.nome}${!s.ativo ? ' (inativo)' : ''} · ${s.slug}`,
-                    }))}
-                    placeholder="Setor"
-                  />
-                  {!isAdmin && setoresParaSelect.length === 0 && (
-                    <p className="text-xs text-amber-700 dark:text-amber-400">Nenhum setor vinculado ao seu usuário.</p>
-                  )}
-                </>
-              )}
-              {(modalGerirFoco === 'geral' || modalGerirFoco === 'status') && (
-                <Select
-                  label="Status"
-                  value={editStatus}
-                  onChange={(v) => setEditStatus(v === '' ? '' : Number(v))}
-                  options={statusParaSelect.map((s) => ({
-                    value: s.id,
-                    label: `${s.nome}${!s.ativo ? ' (inativo)' : ''}`,
-                  }))}
-                  placeholder="Status"
-                />
-              )}
-              {(modalGerirFoco === 'geral' || modalGerirFoco === 'atendente') && (
+
+            {modalGerirFoco === 'hierarquia' && ticket && (
+              <div className="mt-4 space-y-4 text-sm text-slate-700 dark:text-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setModalGerirFoco('geral')}
+                  className="text-sm font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                >
+                  ← Voltar a setor, status e responsável
+                </button>
+
                 <div>
-                  <Select
-                    label="Responsável"
-                    value={editAtendente}
-                    onChange={(v) => setEditAtendente(v === '' ? '' : Number(v))}
-                    options={opcoesResponsavelModal}
-                    includeEmpty
-                    emptyLabel="— Nenhum —"
-                    placeholder="Selecione o responsável"
-                    disabled={atendentesModalLoading}
-                  />
-                  {atendentesModalLoading && (
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Carregando atendentes do setor…</p>
-                  )}
-                  {!atendentesModalLoading && opcoesResponsavelModal.length === 0 && (
-                    <p className="mt-1 text-xs text-amber-800 dark:text-amber-200/90">
-                      Nenhum atendente vinculado a este setor. Configure vínculos em Configurações → Atendentes.
-                    </p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Ticket pai
+                  </p>
+                  {ticket.parent_ticket_id == null ? (
+                    <p className="mt-1 text-slate-500 dark:text-slate-400">Nenhum.</p>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <Link
+                        to={`/tickets/${ticket.parent_ticket_id}`}
+                        className="font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                        onClick={() => setModalGerirAberto(false)}
+                      >
+                        {ticket.parent
+                          ? `${exibirProtocolo(ticket.parent.protocolo)} — ${ticket.parent.assunto}`
+                          : `Ticket #${ticket.parent_ticket_id}`}
+                      </Link>
+                      {podeEditarHierarquia && (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          loading={desvinculandoHierarquia}
+                          onClick={handleDesvincularDoPai}
+                        >
+                          Desvincular do pai
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
+
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Tickets filhos
+                  </p>
+                  {(!ticket.children || ticket.children.length === 0) && (
+                    <p className="mt-1 text-slate-500 dark:text-slate-400">Nenhum filho vinculado.</p>
+                  )}
+                  {ticket.children && ticket.children.length > 0 && (
+                    <ul className="mt-2 divide-y divide-slate-200 rounded-lg border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
+                      {ticket.children.map((c) => (
+                        <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                          <div className="min-w-0">
+                            <Link
+                              to={`/tickets/${c.id}`}
+                              className="font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                              onClick={() => setModalGerirAberto(false)}
+                            >
+                              {exibirProtocolo(c.protocolo)}
+                            </Link>
+                            <span className="text-slate-600 dark:text-slate-300"> — {c.assunto}</span>
+                            <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
+                              {c.status_nome ?? '—'}
+                              {c.fechado_em ? ' · fechado' : ' · aberto'}
+                            </span>
+                          </div>
+                          {podeEditarHierarquia && !c.fechado_em && (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              loading={desvinculandoHierarquia}
+                              onClick={() => handleDesvincularFilho(c.id)}
+                            >
+                              Desvincular
+                            </Button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                {podeEditarHierarquia && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={desvinculandoHierarquia}
+                      onClick={() => {
+                        navigate(`/tickets/novo?pai=${ticket.id}`)
+                        setModalGerirAberto(false)
+                      }}
+                    >
+                      Abrir ticket filho
+                    </Button>
+                  </div>
+                )}
+
+                {podeEditarHierarquia && (
+                  <div className="rounded-lg border border-slate-200/90 bg-slate-50/70 p-3 dark:border-slate-700/70 dark:bg-slate-900/30">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      Vincular ticket existente como filho
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      ID do ticket que passará a ser filho deste (não pode ser o próprio).
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-end gap-2">
+                      <Input
+                        id="ticket-vincular-filho-id"
+                        label="ID do ticket (filho)"
+                        type="number"
+                        min={1}
+                        value={idFilhoParaVincular}
+                        onChange={(e) => setIdFilhoParaVincular(e.target.value)}
+                        disabled={vinculandoFilho || desvinculandoHierarquia || vinculandoPai}
+                      />
+                      <Button
+                        type="button"
+                        onClick={handleVincularFilhoExistente}
+                        loading={vinculandoFilho}
+                        disabled={desvinculandoHierarquia || vinculandoPai}
+                      >
+                        Vincular
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {podeEditarHierarquia && (
+                  <div className="rounded-lg border border-slate-200/90 bg-slate-50/70 p-3 dark:border-slate-700/70 dark:bg-slate-900/30">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      {ticket.parent_ticket_id != null ? 'Alterar ticket pai' : 'Vincular a um ticket pai'}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      ID do ticket que será o pai deste. Substitui o vínculo atual se já houver um pai.
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-end gap-2">
+                      <Input
+                        id="ticket-vincular-pai-id"
+                        label="ID do ticket (pai)"
+                        type="number"
+                        min={1}
+                        value={idPaiParaVincular}
+                        onChange={(e) => setIdPaiParaVincular(e.target.value)}
+                        disabled={vinculandoPai || desvinculandoHierarquia || vinculandoFilho}
+                      />
+                      <Button
+                        type="button"
+                        onClick={handleVincularAoPai}
+                        loading={vinculandoPai}
+                        disabled={desvinculandoHierarquia || vinculandoFilho}
+                      >
+                        Aplicar vínculo
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {modalGerirFoco !== 'hierarquia' && (
+              <div className="mt-5 space-y-4">
+                {(modalGerirFoco === 'geral' || modalGerirFoco === 'setor') && (
+                  <>
+                    <Select
+                      label="Setor"
+                      value={editSetor}
+                      onChange={(v) => setEditSetor(v === '' ? '' : Number(v))}
+                      options={setoresParaSelect.map((s) => ({
+                        value: s.id,
+                        label: `${s.nome}${!s.ativo ? ' (inativo)' : ''} · ${s.slug}`,
+                      }))}
+                      placeholder="Setor"
+                    />
+                    {!isAdmin && setoresParaSelect.length === 0 && (
+                      <p className="text-xs text-amber-700 dark:text-amber-400">Nenhum setor vinculado ao seu usuário.</p>
+                    )}
+                  </>
+                )}
+                {(modalGerirFoco === 'geral' || modalGerirFoco === 'status') && (
+                  <Select
+                    label="Status"
+                    value={editStatus}
+                    onChange={(v) => setEditStatus(v === '' ? '' : Number(v))}
+                    options={statusParaSelect.map((s) => ({
+                      value: s.id,
+                      label: `${s.nome}${!s.ativo ? ' (inativo)' : ''}`,
+                    }))}
+                    placeholder="Status"
+                  />
+                )}
+                {(modalGerirFoco === 'geral' || modalGerirFoco === 'atendente') && (
+                  <div>
+                    <Select
+                      label="Responsável"
+                      value={editAtendente}
+                      onChange={(v) => setEditAtendente(v === '' ? '' : Number(v))}
+                      options={opcoesResponsavelModal}
+                      includeEmpty
+                      emptyLabel="— Nenhum —"
+                      placeholder="Selecione o responsável"
+                      disabled={atendentesModalLoading}
+                    />
+                    {atendentesModalLoading && (
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Carregando atendentes do setor…</p>
+                    )}
+                    {!atendentesModalLoading && opcoesResponsavelModal.length === 0 && (
+                      <p className="mt-1 text-xs text-amber-800 dark:text-amber-200/90">
+                        Nenhum atendente vinculado a este setor. Configure vínculos em Configurações → Atendentes.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {modalGerirFoco === 'geral' && (
+              <div className="mt-5 rounded-lg border border-slate-200/90 bg-slate-50/60 p-3 dark:border-slate-700/70 dark:bg-slate-900/30">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Hierarquia de tickets
+                </p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Filhos, ticket pai e vínculos com chamados existentes.
+                </p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="mt-3"
+                  onClick={() => {
+                    setIdFilhoParaVincular('')
+                    setIdPaiParaVincular('')
+                    setModalGerirFoco('hierarquia')
+                  }}
+                >
+                  Gerir hierarquia…
+                </Button>
+              </div>
+            )}
+
             {(modalGerirFoco === 'geral' || modalGerirFoco === 'status') && (
               <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">
                 Status com slug{' '}
@@ -1437,14 +1742,23 @@ export function TicketDetalhe() {
                 data de fechamento.
               </p>
             )}
-            <div className="mt-6 flex flex-wrap justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={() => setModalGerirAberto(false)}>
-                Cancelar
-              </Button>
-              <Button type="button" onClick={handleSalvar} loading={saving}>
-                {modalApenasUmCampo ? 'Salvar' : 'Aplicar'}
-              </Button>
-            </div>
+
+            {modalGerirFoco !== 'hierarquia' ? (
+              <div className="mt-6 flex flex-wrap justify-end gap-2">
+                <Button type="button" variant="secondary" onClick={() => setModalGerirAberto(false)}>
+                  Cancelar
+                </Button>
+                <Button type="button" onClick={handleSalvar} loading={saving}>
+                  {modalApenasUmCampo ? 'Salvar' : 'Aplicar'}
+                </Button>
+              </div>
+            ) : (
+              <div className="mt-6 flex flex-wrap justify-end gap-2">
+                <Button type="button" variant="secondary" onClick={() => setModalGerirAberto(false)}>
+                  Fechar
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1462,7 +1776,7 @@ export function TicketDetalhe() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="ticket-fechar-titulo"
-            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-600 dark:bg-slate-900 dark:shadow-2xl dark:ring-1 dark:ring-white/10"
+            className={MODAL_PANEL_COMPACT}
             onClick={(e) => e.stopPropagation()}
           >
             <h2 id="ticket-fechar-titulo" className="text-lg font-semibold text-slate-900 dark:text-slate-100">
@@ -1486,7 +1800,18 @@ export function TicketDetalhe() {
               >
                 Cancelar
               </Button>
-              <Button type="button" variant="danger" onClick={fecharTicketConfirmado} loading={fechando}>
+              <Button
+                type="button"
+                variant="danger"
+                onClick={fecharTicketConfirmado}
+                loading={fechando}
+                disabled={fechando || filhosAbertosCount > 0}
+                title={
+                  filhosAbertosCount > 0
+                    ? 'Feche ou desvincule os tickets filhos em aberto antes de fechar este ticket.'
+                    : undefined
+                }
+              >
                 Fechar ticket
               </Button>
             </div>
