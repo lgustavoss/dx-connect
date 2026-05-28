@@ -27,3 +27,5 @@ alembic history
 
 Se `history`/`heads` já falhar, há inconsistência de `revision`/`down_revision`.
 
+Se `alembic heads` listar **mais de uma** revision, `alembic upgrade head` falha no deploy. Crie uma migration de **merge** (sem DDL) com `down_revision` em tupla apontando para cada head — ver `029_merge_ticket_parent_and_outbox_heads.py`.
+
