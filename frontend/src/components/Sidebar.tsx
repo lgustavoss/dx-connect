@@ -273,7 +273,7 @@ export function Sidebar({
   const sidebarContent = (
     <>
       <div
-        className={`flex h-14 shrink-0 items-center justify-center border-b border-slate-200 dark:border-slate-800 ${expanded ? 'px-3' : 'md:px-2'}`}
+        className={`flex h-14 min-h-[56px] shrink-0 items-center justify-center border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${expanded ? 'px-3' : 'md:px-2'}`}
       >
         <Link
           to="/"
@@ -398,7 +398,7 @@ export function Sidebar({
                       <>
                         <div
                           role="presentation"
-                          className="fixed inset-0 z-40 md:left-[80px]"
+                          className="fixed inset-0 z-40 md:left-[var(--sidebar-w,80px)]"
                           onClick={() => setOpenFlyout(null)}
                         />
                         <ul
@@ -482,11 +482,11 @@ export function Sidebar({
         aria-hidden
       />
 
-      {/* Sidebar: drawer no mobile, fixo no desktop */}
+      {/* Sidebar: drawer no mobile; no desktop ocupa a 1ª coluna do grid (sem fixed) */}
       <aside
-        className={`fixed inset-0 z-50 flex h-full min-w-0 max-w-[100vw] flex-col overflow-x-hidden bg-white shadow-xl transition-[transform,width] duration-200 ease-out dark:bg-slate-950 md:inset-auto md:top-0 md:left-0 md:h-full md:max-w-none md:w-auto md:translate-x-0 md:overflow-x-visible md:shadow-none md:dark:shadow-[inset_-1px_0_0_0_rgb(30_41_59_/_0.6)] ${
-          mobileOpen ? 'translate-x-0' : '-translate-x-full'
-        } ${expanded ? 'md:w-[280px]' : 'md:w-[80px]'}`}
+        className={`fixed inset-0 z-50 flex h-full min-w-0 max-w-[100vw] flex-col overflow-x-hidden bg-white shadow-xl transition-[transform] duration-200 ease-out dark:bg-slate-950 max-md:transition-[transform,width] md:relative md:col-start-1 md:row-start-1 md:z-40 md:h-screen md:max-w-none md:w-full md:translate-x-0 md:overflow-x-hidden md:overflow-y-auto md:border-r md:border-slate-200 md:shadow-none md:dark:border-slate-800 ${
+          mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}
         aria-label="Menu lateral"
       >
         {/* Mobile header com "voltar/fechar" */}

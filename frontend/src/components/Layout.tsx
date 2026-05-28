@@ -31,8 +31,17 @@ export function Layout() {
     return <Navigate to="/alterar-senha" replace />
   }
 
+  const sidebarW = sidebarExpanded ? '280px' : '80px'
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100/90 dark:from-slate-950 dark:to-slate-900/95">
+    <div
+      className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100/90 dark:from-slate-950 dark:to-slate-900/95 md:grid md:min-h-screen md:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-200 md:ease-out"
+      style={
+        {
+          ['--sidebar-w' as never]: sidebarW,
+        } as React.CSSProperties
+      }
+    >
       <Sidebar
         expanded={sidebarExpanded}
         mobileOpen={sidebarMobileOpen}
@@ -43,20 +52,10 @@ export function Layout() {
         onLogout={logout}
       />
 
-      {/* Área principal: no mobile ocupa 100%; no desktop margem = largura do sidebar */}
-      <div
-        className={`min-h-screen transition-[margin-left] duration-200 ease-out ${
-          sidebarExpanded ? 'md:ml-[280px]' : 'md:ml-[80px]'
-        }`}
-        style={
-          {
-            // Usado por overlays/modais para respeitar o menu no desktop.
-            ['--sidebar-w' as never]: sidebarExpanded ? '280px' : '80px',
-          } as React.CSSProperties
-        }
-      >
+      {/* Coluna principal: no desktop alinhada à sidebar via grid (sem margin-left) */}
+      <div className="flex min-h-screen min-w-0 flex-col md:col-start-2 md:row-start-1">
           {/* Top bar: mobile-first, área de toque generosa */}
-          <header className="sticky top-0 z-30 flex h-14 min-h-[56px] items-center gap-2 border-b border-slate-200/90 bg-white/95 px-4 shadow-sm backdrop-blur-sm dark:border-slate-800/90 dark:bg-slate-950/90 md:gap-3 md:px-6">
+          <header className="sticky top-0 z-30 flex h-14 min-h-[56px] shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-4 shadow-sm dark:border-slate-800 dark:bg-slate-950 md:gap-3 md:px-6">
             <button
               type="button"
               onClick={() => {
