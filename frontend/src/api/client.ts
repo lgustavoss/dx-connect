@@ -1087,6 +1087,21 @@ export namespace StatusTicket {
 }
 
 export namespace Tickets {
+  export interface TicketParentBrief {
+    id: number;
+    protocolo: string;
+    assunto: string;
+    status_nome?: string | null;
+    fechado_em?: string | null;
+  }
+  export interface TicketChildBrief {
+    id: number;
+    protocolo: string;
+    assunto: string;
+    status_nome?: string | null;
+    atendente_nome?: string | null;
+    fechado_em?: string | null;
+  }
   export interface EmpresaVinculoSugerida {
     id: number;
     nome: string;
@@ -1116,6 +1131,9 @@ export namespace Tickets {
     setor_nome?: string;
     status_nome?: string;
     atendente_nome?: string;
+    parent_ticket_id?: number | null;
+    parent?: TicketParentBrief | null;
+    children?: TicketChildBrief[];
     triagem_inbound?: TriagemInbound | null;
   }
   export interface Historico {
@@ -1134,6 +1152,7 @@ export namespace Tickets {
     assunto: string;
     descricao?: string;
     aberto_por_id?: number;
+    parent_ticket_id?: number | null;
   }
   export type MensagemTipo = 'abertura' | 'publico' | 'interno';
 
@@ -1174,6 +1193,7 @@ export namespace Tickets {
     setor_id?: number;
     status_id?: number;
     atendente_id?: number | null;
+    parent_ticket_id?: number | null;
   }
 
   export type AnexoVisibilidade = 'publico' | 'interno'

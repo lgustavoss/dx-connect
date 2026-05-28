@@ -16,6 +16,7 @@ class Ticket(Base):
     status_id = Column(Integer, ForeignKey("status_ticket.id"), nullable=False)
     atendente_id = Column(Integer, ForeignKey("atendentes.id"), nullable=True)  # responsável
     aberto_por_id = Column(Integer, ForeignKey("funcionarios_rede.id"), nullable=True)  # quem abriu (portal futuro)
+    parent_ticket_id = Column(Integer, ForeignKey("tickets.id", ondelete="SET NULL"), nullable=True)
     assunto = Column(String(500), nullable=False)
     descricao = Column(Text, nullable=True)
     fechado_em = Column(DateTime(timezone=True), nullable=True)
@@ -27,6 +28,17 @@ class Ticket(Base):
     status = relationship("StatusTicket", back_populates="tickets")
     atendente = relationship("Atendente", back_populates="tickets_atendidos")
     aberto_por = relationship("FuncionarioRede", back_populates="tickets_abertos")
+    parent = relationship(
+        "Ticket",
+        remote_side=[id],
+        foreign_keys=[parent_ticket_id],
+        back_populates="children",
+    )
+    children = relationship(
+        "Ticket",
+        foreign_keys=[parent_ticket_id],
+        back_populates="parent",
+    )
     historicos = relationship("TicketHistorico", back_populates="ticket", order_by="TicketHistorico.created_at")
     mensagens = relationship(
         "TicketMensagem",
