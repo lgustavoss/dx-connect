@@ -448,6 +448,7 @@ def historico(
 
 def _mensagem_para_read(m: TicketMensagem) -> TicketMensagemRead:
     from app.services.email_body_sanitize import sanitize_inbound_email_body
+    from app.services.ticket_mensagem_email_outbox import _as_utc
 
     corpo = m.corpo
     if m.tipo in ("abertura", "email_cliente"):
@@ -463,9 +464,10 @@ def _mensagem_para_read(m: TicketMensagem) -> TicketMensagemRead:
         created_at=m.created_at,
         cliente_notificado_por_email=m.email_status == EMAIL_STATUS_ENVIADA,
         status=m.email_status,
-        scheduled_at=m.scheduled_at,
-        sent_at=m.sent_at,
-        updated_at=m.updated_at,
+        # Compat: alguns DBs/tests podem persistir datetimes sem tzinfo; a API sempre expõe em UTC.
+        scheduled_at=_as_utc(m.scheduled_at),
+        sent_at=_as_utc(m.sent_at),
+        updated_at=_as_utc(m.updated_at),
     )
 
 
