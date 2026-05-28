@@ -34,6 +34,8 @@ import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 import { exibirProtocolo } from '../lib/exibirProtocolo'
 import { MODAL_PANEL_COMPACT, MODAL_PANEL_SCROLLABLE } from '../lib/modalPanel'
 import { autorRodapeMensagem, corpoMensagemEmailVisivel } from '../lib/ticketMensagemEmail'
+import { mensagemEmFilaEmail } from '../lib/ticketMensagemEmailOutbox'
+import { TicketMensagemEmailOutbox } from '../components/TicketMensagemEmailOutbox'
 
 const ROTULO_CAMPO: Record<string, string> = {
   status_id: 'Status',
@@ -297,6 +299,29 @@ export function TicketDetalhe() {
     if (ticket.atendente_id == null) return true
     return ticket.atendente_id === user.id
   }, [ticket, user, isAdmin])
+
+  const temMensagemEmailNaFila = useMemo(
+    () => mensagens.some((m) => mensagemEmFilaEmail(m.status)),
+    [mensagens],
+  )
+
+  useEffect(() => {
+    if (!ticket || !temMensagemEmailNaFila) return
+    let cancelled = false
+    const poll = () => {
+      tickets
+        .listMensagens(ticket.id)
+        .then((m) => {
+          if (!cancelled) setMensagens(m)
+        })
+        .catch(() => {})
+    }
+    const id = window.setInterval(poll, 5000)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [ticket?.id, temMensagemEmailNaFila])
 
   const mapsHistorico = useMemo(() => {
     const status = new Map<number, string>()
@@ -867,6 +892,10 @@ export function TicketDetalhe() {
       if (fileInputRef.current) fileInputRef.current.value = ''
       if (tipo === 'interno') {
         toast.showSuccess('Comentário interno registrado.')
+      } else if (msg?.status === 'pendente_envio') {
+        toast.showSuccess(
+          'Mensagem registada. O e-mail ao cliente será enviado em breve — pode editar ou cancelar antes do envio.',
+        )
       } else if (msg?.cliente_notificado_por_email) {
         toast.showSuccess('Mensagem registada e cliente notificado por e-mail.')
       } else {
@@ -1319,6 +1348,9 @@ export function TicketDetalhe() {
                 const isEmailCliente = msg.tipo === 'email_cliente'
                 const autor = autorRodapeMensagem(msg)
                 const anexosDaMsg = anexos.filter((a) => a.mensagem_id === msg.id)
+                const podeGerirEmail =
+                  Boolean(user) &&
+                  (isAdmin || (msg.atendente_id != null && msg.atendente_id === user!.id))
                 const corpoBase =
                   isAbertura || isEmailCliente ? corpoMensagemEmailVisivel(msg.corpo) : msg.corpo
                 const corpoParaExibir =
@@ -1354,6 +1386,17 @@ export function TicketDetalhe() {
                       )}
                     </div>
                     <p className="mt-2 whitespace-pre-wrap text-slate-800 dark:text-slate-200">{corpoParaExibir}</p>
+                    {msg.status && msg.tipo === 'publico' && ticket ? (
+                      <TicketMensagemEmailOutbox
+                        ticketId={ticket.id}
+                        msg={msg}
+                        podeGerir={podeGerirEmail}
+                        onAtualizado={async () => {
+                          const m = await tickets.listMensagens(ticket.id)
+                          setMensagens(m)
+                        }}
+                      />
+                    ) : null}
                     {anexosDaMsg.length > 0 && (
                       <div className="mt-3 rounded-lg border border-slate-200/80 bg-slate-50/70 px-3 py-2 dark:border-slate-700/70 dark:bg-slate-900/30">
                         <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">

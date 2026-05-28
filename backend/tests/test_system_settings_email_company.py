@@ -25,6 +25,31 @@ def test_admin_pode_salvar_empresa_sistema_e_cnpj_imutavel(client, auth_headers)
     assert r2.status_code == 400
 
 
+def test_email_settings_grace_opcoes_e_validacao(client, auth_headers):
+    r1 = client.get("/v1/settings/email", headers=auth_headers["admin"])
+    assert r1.status_code == 200
+    opcoes = r1.json().get("opcoes_ticket_mensagem_email_grace") or []
+    assert len(opcoes) >= 2
+    segundos = {o["segundos"] for o in opcoes}
+    assert 0 in segundos
+    assert 120 in segundos
+
+    r2 = client.put(
+        "/v1/settings/email",
+        headers=auth_headers["admin"],
+        json={"ticket_mensagem_email_grace_seconds": 60},
+    )
+    assert r2.status_code == 200
+    assert r2.json()["ticket_mensagem_email_grace_seconds"] == 60
+
+    r3 = client.put(
+        "/v1/settings/email",
+        headers=auth_headers["admin"],
+        json={"ticket_mensagem_email_grace_seconds": 999},
+    )
+    assert r3.status_code == 400
+
+
 def test_email_settings_nao_expoe_segredos(client, auth_headers):
     r1 = client.get("/v1/settings/email", headers=auth_headers["admin"])
     assert r1.status_code == 200

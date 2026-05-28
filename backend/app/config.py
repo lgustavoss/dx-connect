@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     # Tamanho máximo (bytes) para cada anexo de ticket.
     TICKET_ANEXOS_MAX_BYTES: int = 25 * 1024 * 1024
 
+    # Mensagem pública com notificação por e-mail (#140): janela antes do envio e TTL do lock de edição.
+    TICKET_MENSAGEM_EMAIL_GRACE_SECONDS: int = 120
+    TICKET_MENSAGEM_EDIT_LOCK_TTL_SECONDS: int = 300
+    TICKET_MENSAGEM_EMAIL_WORKER_INTERVAL_SECONDS: int = 5
+
     # Multi-tenant: subdomínio {tenant_id}.CONNECT_APP_BASE_DOMAIN e endereços {local}@INBOUND_EMAIL_DOMAIN
     CONNECT_APP_BASE_DOMAIN: str = "connect.duplexsoft.com.br"
     # Domínio Resend com Receiving (ex.: notify.duplexsoft.com.br). Endereços: {setor}.t{tenant}@domínio.

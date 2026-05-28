@@ -8,7 +8,12 @@ from app.database import get_db
 from app.models.atendente import Atendente
 from app.models.email_settings import EmailSettings
 from app.models.empresa_sistema import EmpresaSistema
-from app.schemas.email_settings import EmailSettingsRead, EmailSettingsUpdate, EmailTestResult
+from app.schemas.email_settings import EmailSettingsRead, EmailSettingsUpdate, EmailTestResult, TicketEmailGraceOpcao
+from app.services.ticket_email_grace_config import (
+    grace_opcoes_dict,
+    resolver_grace_seconds,
+    validar_grace_seconds,
+)
 from app.schemas.system_company import EmpresaSistemaRead, EmpresaSistemaUpdate
 from app.services.email_send_sistema import enviar_mensagem_texto_sistema
 from app.services.secret_box import encrypt_str
@@ -68,7 +73,7 @@ def _get_or_create_email(db: Session) -> EmailSettings:
     return row
 
 
-def _email_out(row: EmailSettings | None) -> EmailSettingsRead:
+def _email_out(row: EmailSettings | None, db: Session) -> EmailSettingsRead:
     cfg = transactional_config_from_row(row)
     from_email = cfg.from_email if cfg else None
     from_name = cfg.from_name if cfg else None
@@ -86,6 +91,8 @@ def _email_out(row: EmailSettings | None) -> EmailSettingsRead:
         transactional_reply_to_email=reply_to,
         outbound_configured=bool(cfg),
         has_transactional_api_key=bool(row and row.transactional_api_key_enc and str(row.transactional_api_key_enc).strip()),
+        ticket_mensagem_email_grace_seconds=resolver_grace_seconds(db),
+        opcoes_ticket_mensagem_email_grace=[TicketEmailGraceOpcao(**o) for o in grace_opcoes_dict()],
     )
 
 
@@ -210,7 +217,7 @@ def get_email_settings(
     db: Session = Depends(get_db),
     _: Atendente = Depends(exigir_admin),
 ):
-    return _email_out(get_singleton_email_settings(db))
+    return _email_out(get_singleton_email_settings(db), db)
 
 
 @router.put("/email", response_model=EmailSettingsRead)
@@ -240,9 +247,19 @@ def put_email_settings(
         else:
             row.transactional_api_key_enc = encrypt_str(str(v))
 
+    if "ticket_mensagem_email_grace_seconds" in payload:
+        v = payload["ticket_mensagem_email_grace_seconds"]
+        if v is None:
+            row.ticket_mensagem_email_grace_seconds = None
+        else:
+            try:
+                row.ticket_mensagem_email_grace_seconds = validar_grace_seconds(int(v))
+            except ValueError as e:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
     db.commit()
     db.refresh(row)
-    return _email_out(row)
+    return _email_out(row, db)
 
 
 @router.post("/email/test-transactional", response_model=EmailTestResult)

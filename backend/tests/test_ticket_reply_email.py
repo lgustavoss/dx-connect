@@ -8,6 +8,7 @@ from app.models.ticket_email_message_id import TicketEmailMessageId
 from app.services.system_email_config import TransactionalEmailConfig
 from app.services.ticket_client_email import extrair_email_de_from_address
 from app.services.ticket_email_index import registar_message_id_para_ticket
+from app.services.ticket_mensagem_email_outbox import process_pending_ticket_mensagem_emails
 
 
 def _headers(secret: str) -> dict[str, str]:
@@ -25,6 +26,17 @@ def _minimal_rfc822(message_id: str = "<unique-test-msg@dx.local>") -> str:
         f"\r\n"
         f"Corpo do pedido de suporte.\r\n"
     )
+
+
+def _mock_resend(monkeypatch):
+    _cfg = TransactionalEmailConfig(
+        api_key="re_test",
+        from_email="noreply@test.local",
+        from_name="Suporte",
+    )
+    for mod in ("app.services.ticket_client_email", "app.services.system_email_config"):
+        monkeypatch.setattr(f"{mod}.get_singleton_email_settings", lambda db: object())
+        monkeypatch.setattr(f"{mod}.transactional_config_from_row", lambda row: _cfg)
 
 
 def _create_ticket_via_api(client, auth_headers, seed_base):
@@ -90,19 +102,8 @@ def test_notificar_email_webhook_grava_outbound_mid(client, seed_base, auth_head
     assert r0.status_code == 200
     tid = r0.json()["ticket_id"]
 
-    _cfg = TransactionalEmailConfig(
-        api_key="re_test",
-        from_email="noreply@test.local",
-        from_name="Suporte",
-    )
-    monkeypatch.setattr(
-        "app.services.ticket_client_email.get_singleton_email_settings",
-        lambda db: object(),
-    )
-    monkeypatch.setattr(
-        "app.services.ticket_client_email.transactional_config_from_row",
-        lambda row: _cfg,
-    )
+    _mock_resend(monkeypatch)
+    monkeypatch.setattr("app.config.settings.TICKET_MENSAGEM_EMAIL_GRACE_SECONDS", 0)
     monkeypatch.setattr(
         "app.services.ticket_client_email.enviar_mensagem_texto_sistema",
         lambda *a, **k: "outbound-team@dx.test",
@@ -119,7 +120,13 @@ def test_notificar_email_webhook_grava_outbound_mid(client, seed_base, auth_head
     )
     assert r1.status_code == 201, r1.text
     j = r1.json()
-    assert j["cliente_notificado_por_email"] is True
+    assert j["status"] == "pendente_envio"
+    assert j["cliente_notificado_por_email"] is False
+    assert j["scheduled_at"] is not None
+
+    n = process_pending_ticket_mensagem_emails(db_session, limit=10)
+    assert n == 1
+    db_session.commit()
 
     rows = (
         db_session.query(TicketEmailMessageId)
@@ -174,19 +181,8 @@ def test_cliente_responde_a_mid_outbound_equipa_fica_no_mesmo_ticket(
     tid = r0.json()["ticket_id"]
 
     out_mid = "reply-from-staff-mid@dx.test"
-    _cfg = TransactionalEmailConfig(
-        api_key="re_test",
-        from_email="noreply@test.local",
-        from_name="Suporte",
-    )
-    monkeypatch.setattr(
-        "app.services.ticket_client_email.get_singleton_email_settings",
-        lambda db: object(),
-    )
-    monkeypatch.setattr(
-        "app.services.ticket_client_email.transactional_config_from_row",
-        lambda row: _cfg,
-    )
+    _mock_resend(monkeypatch)
+    monkeypatch.setattr("app.config.settings.TICKET_MENSAGEM_EMAIL_GRACE_SECONDS", 0)
     monkeypatch.setattr(
         "app.services.ticket_client_email.enviar_mensagem_texto_sistema",
         lambda *a, **k: out_mid,
@@ -198,6 +194,8 @@ def test_cliente_responde_a_mid_outbound_equipa_fica_no_mesmo_ticket(
         json={"corpo": "Resposta da equipa.", "tipo": "publico", "notificar_cliente_por_email": True},
     )
     assert r_team.status_code == 201, r_team.text
+    process_pending_ticket_mensagem_emails(db_session, limit=10)
+    db_session.commit()
 
     db_session.expire_all()
     follow = _rfc822_reply(message_id="<client-followup@dx.test>", in_reply_to=f"<{out_mid}>")

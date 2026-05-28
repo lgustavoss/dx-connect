@@ -489,18 +489,26 @@ export namespace SystemSettings {
     cep?: string | null
   }
 
+  export interface TicketEmailGraceOpcao {
+    segundos: number
+    rotulo: string
+  }
+
   export interface EmailSettingsRead {
     transactional_from_email?: string | null
     transactional_from_name?: string | null
     transactional_reply_to_email?: string | null
     outbound_configured?: boolean
     has_transactional_api_key?: boolean
+    ticket_mensagem_email_grace_seconds?: number
+    opcoes_ticket_mensagem_email_grace?: TicketEmailGraceOpcao[]
   }
 
   export interface EmailSettingsUpdate {
     transactional_api_key?: string | null
     transactional_from_email?: string | null
     transactional_from_name?: string | null
+    ticket_mensagem_email_grace_seconds?: number | null
   }
 
   export interface EmailTestResult {
@@ -723,6 +731,17 @@ export const tickets = {
   listMensagens: (id: number) => api<Tickets.Mensagem[]>(`/tickets/${id}/mensagens`),
   addMensagem: (id: number, data: Tickets.MensagemCreate) =>
     api<Tickets.Mensagem>(`/tickets/${id}/mensagens`, { method: 'POST', body: JSON.stringify(data) }),
+  startEditMensagem: (ticketId: number, mensagemId: number) =>
+    api<Tickets.MensagemStartEdit>(`/tickets/${ticketId}/mensagens/${mensagemId}/start-edit`, { method: 'POST' }),
+  updateMensagem: (ticketId: number, mensagemId: number, data: Tickets.MensagemUpdate) =>
+    api<Tickets.Mensagem>(`/tickets/${ticketId}/mensagens/${mensagemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  cancelMensagemEmail: (ticketId: number, mensagemId: number) =>
+    api<Tickets.Mensagem>(`/tickets/${ticketId}/mensagens/${mensagemId}/cancel`, { method: 'POST' }),
+  sendNowMensagemEmail: (ticketId: number, mensagemId: number) =>
+    api<Tickets.Mensagem>(`/tickets/${ticketId}/mensagens/${mensagemId}/send-now`, { method: 'POST' }),
   reabrir: (id: number) => api<Tickets.Ticket>(`/tickets/${id}/reabrir`, { method: 'POST' }),
   create: (data: Tickets.Create) => api<Tickets.Ticket>('/tickets', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: number, data: Tickets.Update) => api<Tickets.Ticket>(`/tickets/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -1147,12 +1166,26 @@ export namespace Tickets {
     corpo: string;
     created_at: string;
     cliente_notificado_por_email?: boolean;
+    status?: string | null;
+    scheduled_at?: string | null;
+    sent_at?: string | null;
+    updated_at?: string | null;
   }
 
   export interface MensagemCreate {
     corpo: string;
     tipo: 'publico' | 'interno';
     notificar_cliente_por_email?: boolean;
+  }
+
+  export interface MensagemUpdate {
+    corpo: string;
+    edit_lock_token: string;
+  }
+
+  export interface MensagemStartEdit {
+    edit_lock_token: string;
+    mensagem: Mensagem;
   }
 
   export interface Update {
