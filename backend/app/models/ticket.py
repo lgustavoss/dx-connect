@@ -47,6 +47,13 @@ class TicketMensagem(Base):
     tipo = Column(String(20), nullable=False)
     corpo = Column(Text, nullable=False)
     autor_externo = Column(String(512), nullable=True)
+    # Fila de e-mail ao cliente (#140): só preenchido quando notificar_cliente_por_email na criação.
+    email_status = Column(String(32), nullable=True, index=True)
+    scheduled_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+    edit_lock_token = Column(String(64), nullable=True)
+    edit_lock_expires_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     ticket = relationship("Ticket", back_populates="mensagens")

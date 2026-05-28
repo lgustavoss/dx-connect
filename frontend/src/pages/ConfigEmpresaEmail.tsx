@@ -13,6 +13,7 @@ import { nomeParaApiEmpresa } from '../components/empresa/empresaFormCopy'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { InputCepComBusca } from '../components/ui/InputCepComBusca'
+import { Select } from '../components/ui/Select'
 import { SelectCidadeUf } from '../components/ui/SelectCidadeUf'
 import { SelectUf } from '../components/ui/SelectUf'
 import { useToast } from '../components/ui/Toast'
@@ -54,6 +55,8 @@ export function ConfigEmpresaEmail() {
   const [logoDeleting, setLogoDeleting] = useState(false)
 
   const [emailOutbound, setEmailOutbound] = useState<SystemSettings.EmailSettingsRead | null>(null)
+  const [graceSegundos, setGraceSegundos] = useState(120)
+  const [salvandoGrace, setSalvandoGrace] = useState(false)
   const [testandoTransactional, setTestandoTransactional] = useState(false)
 
   const tenantId = resolveTenantIdFromHostname()
@@ -108,6 +111,11 @@ export function ConfigEmpresaEmail() {
       }
 
       setEmailOutbound(mail)
+      setGraceSegundos(
+        typeof mail.ticket_mensagem_email_grace_seconds === 'number'
+          ? mail.ticket_mensagem_email_grace_seconds
+          : 120,
+      )
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar as configurações.'))
     } finally {
@@ -280,6 +288,23 @@ export function ConfigEmpresaEmail() {
       setTestandoTransactional(false)
     }
   }
+
+  async function salvarGraceEmail() {
+    setSalvandoGrace(true)
+    try {
+      const out = await systemSettings.putEmail({ ticket_mensagem_email_grace_seconds: graceSegundos })
+      setEmailOutbound(out)
+      setGraceSegundos(out.ticket_mensagem_email_grace_seconds ?? graceSegundos)
+      toast.showSuccess('Preferência de envio de respostas salva.')
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar a preferência.'))
+    } finally {
+      setSalvandoGrace(false)
+    }
+  }
+
+  const opcoesGrace = emailOutbound?.opcoes_ticket_mensagem_email_grace ?? []
+
   if (loading) {
     return <p className="text-slate-500 dark:text-slate-400">Carregando…</p>
   }
@@ -586,6 +611,45 @@ export function ConfigEmpresaEmail() {
               <p className="mt-2 text-xs opacity-90">
                 O teste usa o e-mail do administrador em sessão.
               </p>
+
+              <div className="mt-5 border-t border-current/15 pt-4">
+                <h4 className="text-sm font-semibold">Respostas ao cliente no ticket</h4>
+                <p className="mt-1 text-xs leading-relaxed opacity-90">
+                  Quando o atendente marca <strong>notificar o cliente por e-mail</strong> numa mensagem pública, o
+                  sistema aguarda o tempo abaixo antes de enviar (permite editar ou cancelar).{' '}
+                  <strong>Envio imediato</strong> dispara no próximo ciclo do servidor (alguns segundos).
+                </p>
+                <div className="mt-3">
+                  <Select
+                    id="ce-grace"
+                    label="Tempo de espera antes do envio"
+                    value={graceSegundos}
+                    onChange={(v) => setGraceSegundos(Number(v))}
+                    options={
+                      opcoesGrace.length > 0
+                        ? opcoesGrace.map((o) => ({ value: o.segundos, label: o.rotulo }))
+                        : [
+                            { value: 0, label: 'Envio imediato' },
+                            { value: 30, label: '30 segundos' },
+                            { value: 60, label: '1 minuto' },
+                            { value: 120, label: '2 minutos' },
+                            { value: 180, label: '3 minutos' },
+                            { value: 300, label: '5 minutos' },
+                          ]
+                    }
+                    className="max-w-md"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="mt-3"
+                  onClick={() => void salvarGraceEmail()}
+                  disabled={salvandoGrace}
+                >
+                  {salvandoGrace ? 'Salvando…' : 'Salvar tempo de espera'}
+                </Button>
+              </div>
             </div>
 
             <div className="max-w-3xl space-y-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-relaxed text-slate-700 dark:border-white/10 dark:bg-slate-900/40 dark:text-slate-300">

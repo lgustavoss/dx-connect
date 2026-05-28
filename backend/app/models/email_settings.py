@@ -33,6 +33,9 @@ class EmailSettings(Base):
     imap_use_ssl = Column(Boolean, default=True)
     imap_folder = Column(String(255), nullable=True)
 
+    # Segundos de espera antes de enviar resposta pública por e-mail (0 = imediato). #140
+    ticket_mensagem_email_grace_seconds = Column(Integer, nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

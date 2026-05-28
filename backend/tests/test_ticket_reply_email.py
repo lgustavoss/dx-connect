@@ -8,6 +8,7 @@ from app.models.ticket_email_message_id import TicketEmailMessageId
 from app.services.system_email_config import TransactionalEmailConfig
 from app.services.ticket_client_email import extrair_email_de_from_address
 from app.services.ticket_email_index import registar_message_id_para_ticket
+from app.services.ticket_mensagem_email_outbox import process_pending_ticket_mensagem_emails
 
 
 def _headers(secret: str) -> dict[str, str]:
@@ -119,7 +120,13 @@ def test_notificar_email_webhook_grava_outbound_mid(client, seed_base, auth_head
     )
     assert r1.status_code == 201, r1.text
     j = r1.json()
-    assert j["cliente_notificado_por_email"] is True
+    assert j["status"] == "pendente_envio"
+    assert j["cliente_notificado_por_email"] is False
+    assert j["scheduled_at"] is not None
+
+    n = process_pending_ticket_mensagem_emails(db_session, limit=10)
+    assert n == 1
+    db_session.commit()
 
     rows = (
         db_session.query(TicketEmailMessageId)
@@ -198,6 +205,8 @@ def test_cliente_responde_a_mid_outbound_equipa_fica_no_mesmo_ticket(
         json={"corpo": "Resposta da equipa.", "tipo": "publico", "notificar_cliente_por_email": True},
     )
     assert r_team.status_code == 201, r_team.text
+    process_pending_ticket_mensagem_emails(db_session, limit=10)
+    db_session.commit()
 
     db_session.expire_all()
     follow = _rfc822_reply(message_id="<client-followup@dx.test>", in_reply_to=f"<{out_mid}>")

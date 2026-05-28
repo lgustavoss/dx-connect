@@ -67,7 +67,7 @@ class TicketMensagemCreate(BaseModel):
     tipo: Literal["publico", "interno"]
     notificar_cliente_por_email: bool = Field(
         default=False,
-        description="Se true e tipo=publico, envia e-mail SMTP ao último remetente do ticket (ingestão) e regista Message-ID (#165).",
+        description="Se true e tipo=publico, agenda envio por e-mail ao último remetente (janela de edição #140) e regista Message-ID após envio (#165).",
     )
 
 
@@ -81,8 +81,25 @@ class TicketMensagemRead(BaseModel):
     corpo: str
     created_at: datetime
     cliente_notificado_por_email: bool = False
+    status: str | None = Field(
+        None,
+        description="Estado da fila de e-mail (#140): pendente_envio, em_edicao, enviada, cancelada, etc.",
+    )
+    scheduled_at: datetime | None = None
+    sent_at: datetime | None = None
+    updated_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class TicketMensagemUpdate(BaseModel):
+    corpo: str = Field(..., min_length=1, max_length=20000)
+    edit_lock_token: str = Field(..., min_length=1, max_length=64)
+
+
+class TicketMensagemStartEditRead(BaseModel):
+    edit_lock_token: str
+    mensagem: TicketMensagemRead
 
 
 class TicketHistoricoRead(BaseModel):

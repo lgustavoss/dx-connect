@@ -17,6 +17,8 @@ from app.schemas.ticket import (
     TicketHistoricoRead,
     TicketMensagemCreate,
     TicketMensagemRead,
+    TicketMensagemStartEditRead,
+    TicketMensagemUpdate,
     TicketRead,
     TicketTriagemInbound,
     TicketUpdate,
@@ -33,8 +35,18 @@ from app.core.setor_scope import (
 from app.services import ticket_anexo_storage
 from app.services.protocolo_mensal import gerar_protocolo_ticket
 from app.services.funcionario_rede_resolver import resolver_remetente_por_email
-from app.services.ticket_client_email import enviar_resposta_equipa_por_email, extrair_email_de_from_address
-from app.services.ticket_email_index import registar_message_id_para_ticket
+from app.services.ticket_client_email import extrair_email_de_from_address
+from app.services.ticket_mensagem_email_outbox import (
+    EMAIL_STATUS_ENVIADA,
+    agendar_envio_email,
+    cancelar_envio,
+    forcar_envio_agora,
+    iniciar_edicao,
+    process_pending_ticket_mensagem_emails,
+    salvar_edicao,
+    validar_lock,
+    validar_pode_agendar_email_cliente,
+)
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
@@ -143,6 +155,35 @@ def _pode_enviar_mensagem_publica(atendente: Atendente, ticket: Ticket) -> bool:
     if ticket.atendente_id is None:
         return True
     return ticket.atendente_id == atendente.id
+
+
+def _pode_editar_mensagem_email(atendente: Atendente, mensagem: TicketMensagem) -> bool:
+    if atendente.role == "admin":
+        return True
+    return mensagem.atendente_id == atendente.id
+
+
+def _obter_mensagem_ticket(
+    db: Session,
+    *,
+    ticket_id: int,
+    mensagem_id: int,
+    atendente: Atendente,
+) -> tuple[Ticket, TicketMensagem]:
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
+    if not _pode_ver_ticket(db, atendente, ticket):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
+    m = (
+        db.query(TicketMensagem)
+        .options(joinedload(TicketMensagem.atendente))
+        .filter(TicketMensagem.id == mensagem_id, TicketMensagem.ticket_id == ticket_id)
+        .first()
+    )
+    if not m:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mensagem não encontrada")
+    return ticket, m
 
 
 @router.get("", response_model=ListaPaginada[TicketRead])
@@ -405,7 +446,7 @@ def historico(
     ]
 
 
-def _mensagem_para_read(m: TicketMensagem, *, cliente_notificado_por_email: bool = False) -> TicketMensagemRead:
+def _mensagem_para_read(m: TicketMensagem) -> TicketMensagemRead:
     from app.services.email_body_sanitize import sanitize_inbound_email_body
 
     corpo = m.corpo
@@ -420,7 +461,11 @@ def _mensagem_para_read(m: TicketMensagem, *, cliente_notificado_por_email: bool
         tipo=m.tipo,
         corpo=corpo,
         created_at=m.created_at,
-        cliente_notificado_por_email=cliente_notificado_por_email,
+        cliente_notificado_por_email=m.email_status == EMAIL_STATUS_ENVIADA,
+        status=m.email_status,
+        scheduled_at=m.scheduled_at,
+        sent_at=m.sent_at,
+        updated_at=m.updated_at,
     )
 
 
@@ -477,10 +522,9 @@ def criar_mensagem(
     if not corpo:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Mensagem vazia")
 
-    out_mid: str | None = None
     if data.notificar_cliente_por_email:
         try:
-            out_mid = enviar_resposta_equipa_por_email(db, ticket=ticket, corpo=corpo)
+            validar_pode_agendar_email_cliente(db, ticket.id)
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
@@ -490,10 +534,10 @@ def criar_mensagem(
         tipo=data.tipo,
         corpo=corpo,
     )
+    if data.notificar_cliente_por_email:
+        agendar_envio_email(m, db)
     db.add(m)
     db.flush()
-    if out_mid:
-        registar_message_id_para_ticket(db, ticket_id=ticket.id, message_id=out_mid, source="outbound")
     db.commit()
     db.refresh(m)
     m = (
@@ -503,7 +547,130 @@ def criar_mensagem(
         .first()
     )
     assert m is not None
-    return _mensagem_para_read(m, cliente_notificado_por_email=bool(out_mid))
+    return _mensagem_para_read(m)
+
+
+@router.post(
+    "/{ticket_id}/mensagens/{mensagem_id}/start-edit",
+    response_model=TicketMensagemStartEditRead,
+)
+def iniciar_edicao_mensagem(
+    ticket_id: int,
+    mensagem_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    ticket, m = _obter_mensagem_ticket(db, ticket_id=ticket_id, mensagem_id=mensagem_id, atendente=atendente)
+    if ticket.fechado_em is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ticket fechado.")
+    if m.tipo != "publico" or not m.email_status:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Mensagem sem fila de e-mail.")
+    if not _pode_enviar_mensagem_publica(atendente, ticket):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão.")
+    if not _pode_editar_mensagem_email(atendente, m):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Só o autor ou admin pode editar.")
+    try:
+        token = iniciar_edicao(m)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    db.commit()
+    db.refresh(m)
+    m = (
+        db.query(TicketMensagem)
+        .options(joinedload(TicketMensagem.atendente))
+        .filter(TicketMensagem.id == m.id)
+        .first()
+    )
+    assert m is not None
+    return TicketMensagemStartEditRead(edit_lock_token=token, mensagem=_mensagem_para_read(m))
+
+
+@router.patch("/{ticket_id}/mensagens/{mensagem_id}", response_model=TicketMensagemRead)
+def atualizar_mensagem(
+    ticket_id: int,
+    mensagem_id: int,
+    data: TicketMensagemUpdate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    ticket, m = _obter_mensagem_ticket(db, ticket_id=ticket_id, mensagem_id=mensagem_id, atendente=atendente)
+    if ticket.fechado_em is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ticket fechado.")
+    if not _pode_editar_mensagem_email(atendente, m):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Só o autor ou admin pode editar.")
+    corpo = data.corpo.strip()
+    if not corpo:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Mensagem vazia")
+    try:
+        validar_lock(m, data.edit_lock_token.strip())
+        salvar_edicao(m, db, corpo=corpo)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    db.commit()
+    db.refresh(m)
+    m = (
+        db.query(TicketMensagem)
+        .options(joinedload(TicketMensagem.atendente))
+        .filter(TicketMensagem.id == m.id)
+        .first()
+    )
+    assert m is not None
+    return _mensagem_para_read(m)
+
+
+@router.post("/{ticket_id}/mensagens/{mensagem_id}/cancel", response_model=TicketMensagemRead)
+def cancelar_mensagem_email(
+    ticket_id: int,
+    mensagem_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    ticket, m = _obter_mensagem_ticket(db, ticket_id=ticket_id, mensagem_id=mensagem_id, atendente=atendente)
+    if not _pode_editar_mensagem_email(atendente, m):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Só o autor ou admin pode cancelar.")
+    try:
+        cancelar_envio(m)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    db.commit()
+    db.refresh(m)
+    m = (
+        db.query(TicketMensagem)
+        .options(joinedload(TicketMensagem.atendente))
+        .filter(TicketMensagem.id == m.id)
+        .first()
+    )
+    assert m is not None
+    return _mensagem_para_read(m)
+
+
+@router.post("/{ticket_id}/mensagens/{mensagem_id}/send-now", response_model=TicketMensagemRead)
+def enviar_mensagem_email_agora(
+    ticket_id: int,
+    mensagem_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    ticket, m = _obter_mensagem_ticket(db, ticket_id=ticket_id, mensagem_id=mensagem_id, atendente=atendente)
+    if not _pode_enviar_mensagem_publica(atendente, ticket):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão.")
+    if not _pode_editar_mensagem_email(atendente, m):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Só o autor ou admin pode enviar agora.")
+    try:
+        forcar_envio_agora(m)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    db.commit()
+    process_pending_ticket_mensagem_emails(db, limit=5)
+    db.commit()
+    m = (
+        db.query(TicketMensagem)
+        .options(joinedload(TicketMensagem.atendente))
+        .filter(TicketMensagem.id == m.id)
+        .first()
+    )
+    assert m is not None
+    return _mensagem_para_read(m)
 
 
 def _registrar_historico(db: Session, ticket_id: int, atendente_id: int | None, campo: str, valor_antigo: str | None, valor_novo: str | None):

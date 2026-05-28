@@ -160,6 +160,32 @@ async def lifespan(app: FastAPI):
 
     threading.Thread(target=ibge_municipios_sync_loop, daemon=True, name="ibge-municipios-sync").start()
 
+    def ticket_mensagem_email_outbox_loop() -> None:
+        from app.database import SessionLocal
+        from app.services.ticket_mensagem_email_outbox import process_pending_ticket_mensagem_emails
+
+        interval = max(2, settings.TICKET_MENSAGEM_EMAIL_WORKER_INTERVAL_SECONDS)
+        while True:
+            db = SessionLocal()
+            try:
+                n = process_pending_ticket_mensagem_emails(db, limit=30)
+                if n:
+                    db.commit()
+                else:
+                    db.rollback()
+            except Exception as e:
+                logger.warning("Worker e-mail de mensagens de ticket: %s", e)
+                db.rollback()
+            finally:
+                db.close()
+            time.sleep(interval)
+
+    threading.Thread(
+        target=ticket_mensagem_email_outbox_loop,
+        daemon=True,
+        name="ticket-mensagem-email-outbox",
+    ).start()
+
     yield
 
 
