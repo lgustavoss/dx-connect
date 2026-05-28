@@ -28,6 +28,17 @@ def _minimal_rfc822(message_id: str = "<unique-test-msg@dx.local>") -> str:
     )
 
 
+def _mock_resend(monkeypatch):
+    _cfg = TransactionalEmailConfig(
+        api_key="re_test",
+        from_email="noreply@test.local",
+        from_name="Suporte",
+    )
+    for mod in ("app.services.ticket_client_email", "app.services.system_email_config"):
+        monkeypatch.setattr(f"{mod}.get_singleton_email_settings", lambda db: object())
+        monkeypatch.setattr(f"{mod}.transactional_config_from_row", lambda row: _cfg)
+
+
 def _create_ticket_via_api(client, auth_headers, seed_base):
     r = client.post(
         "/v1/tickets",
@@ -91,19 +102,8 @@ def test_notificar_email_webhook_grava_outbound_mid(client, seed_base, auth_head
     assert r0.status_code == 200
     tid = r0.json()["ticket_id"]
 
-    _cfg = TransactionalEmailConfig(
-        api_key="re_test",
-        from_email="noreply@test.local",
-        from_name="Suporte",
-    )
-    monkeypatch.setattr(
-        "app.services.ticket_client_email.get_singleton_email_settings",
-        lambda db: object(),
-    )
-    monkeypatch.setattr(
-        "app.services.ticket_client_email.transactional_config_from_row",
-        lambda row: _cfg,
-    )
+    _mock_resend(monkeypatch)
+    monkeypatch.setattr("app.config.settings.TICKET_MENSAGEM_EMAIL_GRACE_SECONDS", 0)
     monkeypatch.setattr(
         "app.services.ticket_client_email.enviar_mensagem_texto_sistema",
         lambda *a, **k: "outbound-team@dx.test",
@@ -181,19 +181,8 @@ def test_cliente_responde_a_mid_outbound_equipa_fica_no_mesmo_ticket(
     tid = r0.json()["ticket_id"]
 
     out_mid = "reply-from-staff-mid@dx.test"
-    _cfg = TransactionalEmailConfig(
-        api_key="re_test",
-        from_email="noreply@test.local",
-        from_name="Suporte",
-    )
-    monkeypatch.setattr(
-        "app.services.ticket_client_email.get_singleton_email_settings",
-        lambda db: object(),
-    )
-    monkeypatch.setattr(
-        "app.services.ticket_client_email.transactional_config_from_row",
-        lambda row: _cfg,
-    )
+    _mock_resend(monkeypatch)
+    monkeypatch.setattr("app.config.settings.TICKET_MENSAGEM_EMAIL_GRACE_SECONDS", 0)
     monkeypatch.setattr(
         "app.services.ticket_client_email.enviar_mensagem_texto_sistema",
         lambda *a, **k: out_mid,
