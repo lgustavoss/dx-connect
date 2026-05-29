@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     # URL pública do painel em single-tenant (ex.: duplexsoft.connect.duplexsoft.com.br).
     # Se vazio, GET /tenant/atual usa {tenant_id}.CONNECT_APP_BASE_DOMAIN só em multi-tenant.
     CLIENT_APP_HOST: str | None = None
+    # Validade do link de redefinição de senha (#105).
+    PASSWORD_RESET_TOKEN_EXPIRE_HOURS: int = 1
 
     # Multi-tenant: subdomínio {tenant_id}.CONNECT_APP_BASE_DOMAIN e endereços {local}@INBOUND_EMAIL_DOMAIN
     CONNECT_APP_BASE_DOMAIN: str = "connect.duplexsoft.com.br"

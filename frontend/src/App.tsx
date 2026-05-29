@@ -3,6 +3,8 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { Layout } from './components/Layout'
 import { Login } from './pages/Login'
+import { EsqueciSenha } from './pages/EsqueciSenha'
+import { RedefinirSenha } from './pages/RedefinirSenha'
 import { Dashboard } from './pages/Dashboard'
 import { Tickets } from './pages/Tickets'
 import { TicketNovo } from './pages/TicketNovo'
@@ -69,6 +71,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/esqueci-senha" element={<EsqueciSenha />} />
+      <Route path="/redefinir-senha" element={<RedefinirSenha />} />
       <Route
         path="/"
         element={

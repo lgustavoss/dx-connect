@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
@@ -194,6 +194,15 @@ export function Login() {
                     )}
                   </button>
                 </div>
+              </div>
+
+              <div className="text-right">
+                <Link
+                  to="/esqueci-senha"
+                  className="text-sm text-cyan-400/90 transition-colors hover:text-cyan-300"
+                >
+                  Esqueci minha senha
+                </Link>
               </div>
 
               <label className="flex cursor-pointer items-start gap-3 text-sm text-slate-400">

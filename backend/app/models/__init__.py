@@ -20,6 +20,7 @@ from app.models.email_inbound_received import EmailInboundReceived
 from app.models.ticket_email_message_id import TicketEmailMessageId
 from app.models.tenant import Tenant
 from app.models.tenant_inbound_address import TenantInboundAddress
+from app.models.password_reset_token import PasswordResetToken
 
 __all__ = [
     "Rede",
@@ -51,4 +52,5 @@ __all__ = [
     "TicketEmailMessageId",
     "Tenant",
     "TenantInboundAddress",
+    "PasswordResetToken",
 ]
