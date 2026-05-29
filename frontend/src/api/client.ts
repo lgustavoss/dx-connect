@@ -160,6 +160,16 @@ export const auth = {
       method: 'POST',
       body: JSON.stringify({ email, senha }),
     }),
+  solicitarRedefinicaoSenha: (email: string) =>
+    api<{ detail: string }>('/auth/solicitar-redefinicao-senha', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  redefinirSenha: (token: string, senha_nova: string) =>
+    api<{ detail: string }>('/auth/redefinir-senha', {
+      method: 'POST',
+      body: JSON.stringify({ token, senha_nova }),
+    }),
 };
 
 function withParams(path: string, params?: Record<string, string | number | boolean | undefined>) {

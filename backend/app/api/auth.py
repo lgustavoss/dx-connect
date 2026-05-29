@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.atendente import Atendente
 from app.schemas.atendente import AtendenteLogin, RefreshTokenRequest, Token
+from app.schemas.password_reset import MensagemAuth, RedefinirSenhaComToken, SolicitarRedefinicaoSenha
+from app.services.password_reset import MSG_SOLICITACAO_OK, redefinir_senha_com_token, solicitar_redefinicao
 from app.core.security import criar_access_token, criar_refresh_token, decodificar_refresh_token, verificar_senha
 from app.core.login_protection import check_login_rate_limit, delay_on_auth_failure
 from app.core.tenant_context import (
@@ -77,3 +79,29 @@ async def refresh(
         refresh_token=data.refresh_token,
         must_change_password=bool(getattr(atendente, "must_change_password", False)),
     )
+
+
+@router.post("/solicitar-redefinicao-senha", response_model=MensagemAuth)
+async def solicitar_redefinicao_senha(
+    request: Request,
+    data: SolicitarRedefinicaoSenha,
+    db: Session = Depends(get_db),
+):
+    check_login_rate_limit(request)
+    msg = solicitar_redefinicao(db, data.email)
+    return MensagemAuth(detail=msg)
+
+
+@router.post("/redefinir-senha", response_model=MensagemAuth)
+async def redefinir_senha(
+    request: Request,
+    data: RedefinirSenhaComToken,
+    db: Session = Depends(get_db),
+):
+    check_login_rate_limit(request)
+    try:
+        redefinir_senha_com_token(db, data.token, data.senha_nova)
+    except ValueError as e:
+        await delay_on_auth_failure()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    return MensagemAuth(detail="Senha atualizada com sucesso. Faça login com a nova senha.")
