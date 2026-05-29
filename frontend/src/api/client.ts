@@ -1,5 +1,5 @@
 import { mensagemErroApi } from './errorMessage'
-import { resolveTenantIdFromHostname } from '../lib/tenant'
+import { isMultiTenantMode, resolveTenantIdFromHostname } from '../lib/tenant'
 
 function apiBaseUrl(): string {
   if (import.meta.env.DEV) return '/api'
@@ -113,7 +113,9 @@ export async function api<T>(
   if (token) {
     (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
   }
-  ;(headers as Record<string, string>)['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+  if (isMultiTenantMode()) {
+    ;(headers as Record<string, string>)['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+  }
   const res = await fetch(`${BASE}${API_VERSION_PREFIX}${path}`, { ...options, headers });
 
   // Tratamento especial para login: não redirecionar nem recarregar a página,
@@ -569,8 +571,9 @@ export const tenantApi = {
 
 export async function fetchEmpresaSistemaLogoBlob(): Promise<Blob | null> {
   const token = getAuthToken()
-  const headers: Record<string, string> = {
-    'X-Dx-Tenant-Id': String(resolveTenantIdFromHostname()),
+  const headers: Record<string, string> = {}
+  if (isMultiTenantMode()) {
+    headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
   }
   if (token) headers.Authorization = `Bearer ${token}`
   const res = await fetch(`${BASE}${API_VERSION_PREFIX}/settings/empresa-sistema/logo`, { headers })

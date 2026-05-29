@@ -5,7 +5,12 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.atendente import Atendente
 from app.core.security import decodificar_token
-from app.core.tenant_context import get_request_tenant_id
+from app.core.tenant_context import (
+    assert_token_tenant_matches_request,
+    effective_tenant_id,
+    get_request_tenant_id,
+    is_multi_tenant_mode,
+)
 
 security = HTTPBearer(auto_error=False)
 
@@ -28,13 +33,12 @@ def obter_atendente_atual(
         )
     email = payload["sub"]
     token_tid = payload.get("tid")
-    host_tid = get_request_tenant_id(request)
-    if token_tid is not None and host_tid is not None and int(token_tid) != int(host_tid):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Sessão não corresponde a este tenant.",
-        )
-    tenant_id = int(host_tid if host_tid is not None else token_tid or 0)
+    assert_token_tenant_matches_request(request, token_tid)
+    if is_multi_tenant_mode():
+        host_tid = get_request_tenant_id(request)
+        tenant_id = int(host_tid if host_tid is not None else token_tid or 0)
+    else:
+        tenant_id = effective_tenant_id()
     atendente = (
         db.query(Atendente)
         .filter(

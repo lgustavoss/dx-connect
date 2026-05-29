@@ -4,7 +4,7 @@ import threading
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -33,7 +33,7 @@ from app.api import (
     tenant,
 )
 from app.config import settings
-from app.core.tenant_context import parse_tenant_id_from_host, set_request_tenant_id
+from app.core.tenant_context import resolve_tenant_id, set_request_tenant_id
 from app.core.lifecycle import dev_create_all_tables, production_require_alembic
 from app.database import Base, engine
 import app.models  # noqa: F401 — registra mapeamentos ORM / metadata
@@ -217,22 +217,14 @@ if _th != ["*"]:
 
 @app.middleware("http")
 async def tenant_context_middleware(request: Request, call_next):
-    """Define ``request.state.tenant_id`` (subdomínio, cabeçalho ou default). Webhooks ficam isentos."""
+    """Define ``request.state.tenant_id``. Webhooks e health ficam isentos."""
     path = request.url.path
     if path.startswith("/v1/webhooks/") or path in ("/", "/health", "/docs", "/redoc", "/openapi.json"):
         return await call_next(request)
-    tid = parse_tenant_id_from_host(request.headers.get("host"))
-    if tid is None:
-        hdr = (request.headers.get("x-dx-tenant-id") or "").strip()
-        if hdr.isdigit():
-            tid = int(hdr)
-    if tid is None and settings.DEFAULT_TENANT_ID is not None:
-        tid = int(settings.DEFAULT_TENANT_ID)
-    if tid is None:
-        return JSONResponse(
-            status_code=400,
-            content={"detail": "Tenant não identificado (subdomínio {id}.domínio ou X-Dx-Tenant-Id)."},
-        )
+    try:
+        tid = resolve_tenant_id(request)
+    except HTTPException as exc:
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     set_request_tenant_id(request, tid)
     return await call_next(request)
 
@@ -291,6 +283,7 @@ def _app_capabilities() -> dict[str, bool]:
         "settings_empresa_sistema": "/v1/settings/empresa-sistema" in paths,
         "settings_email": "/v1/settings/email" in paths,
         "tenant_atual": "/v1/tenant/atual" in paths,
+        "multi_tenant_mode": settings.DX_CONNECT_MULTI_TENANT,
     }
 
 

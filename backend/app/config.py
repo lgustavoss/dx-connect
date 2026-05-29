@@ -58,6 +58,13 @@ class Settings(BaseSettings):
     TICKET_MENSAGEM_EDIT_LOCK_TTL_SECONDS: int = 300
     TICKET_MENSAGEM_EMAIL_WORKER_INTERVAL_SECONDS: int = 5
 
+    # Modo legado: vários clientes no mesmo Postgres (subdomínio numérico + coluna tenant_id).
+    # Produção comercial: manter False (um Postgres por cliente / deploy).
+    DX_CONNECT_MULTI_TENANT: bool = False
+    # URL pública do painel em single-tenant (ex.: duplexsoft.connect.duplexsoft.com.br).
+    # Se vazio, GET /tenant/atual usa {tenant_id}.CONNECT_APP_BASE_DOMAIN só em multi-tenant.
+    CLIENT_APP_HOST: str | None = None
+
     # Multi-tenant: subdomínio {tenant_id}.CONNECT_APP_BASE_DOMAIN e endereços {local}@INBOUND_EMAIL_DOMAIN
     CONNECT_APP_BASE_DOMAIN: str = "connect.duplexsoft.com.br"
     # Domínio Resend com Receiving (ex.: notify.duplexsoft.com.br). Endereços: {setor}.t{tenant}@domínio.
@@ -137,7 +144,16 @@ class Settings(BaseSettings):
                     "Em produção DATABASE_URL (PostgreSQL) deve exigir TLS "
                     "(ex.: ?sslmode=require ou sslmode=verify-full na URL)."
                 )
+            if self.DX_CONNECT_MULTI_TENANT:
+                raise ValueError(
+                    "DX_CONNECT_MULTI_TENANT não é suportado em produção. "
+                    "Use um deploy (Postgres + API) por cliente — ver docs/DEPLOYMENT_ARCHITECTURE.md."
+                )
         return self
+
+    @property
+    def single_tenant_mode(self) -> bool:
+        return not self.DX_CONNECT_MULTI_TENANT
 
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]

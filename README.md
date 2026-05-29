@@ -185,7 +185,7 @@ docker compose run --rm --no-deps backend pytest -q
 - **`--no-deps`**: os testes usam SQLite em memória (`backend/tests/conftest.py`); o serviço `db` não precisa de estar a correr.
 - O volume `./backend:/app` no `docker-compose.yml` sincroniza código e `tests/`; alterações nos arquivos refletem-se de imediato no container (rebuild só após mudanças em `requirements` ou `Dockerfile`).
 
-Detalhes: [`backend/tests/README.md`](backend/tests/README.md). Matriz de rotas e perfis: [`docs/BACKEND_RBAC.md`](docs/BACKEND_RBAC.md). Configurações de e-mail + empresa do sistema: [`docs/EMAIL_SETTINGS.md`](docs/EMAIL_SETTINGS.md).
+Detalhes: [`backend/tests/README.md`](backend/tests/README.md). Matriz de rotas e perfis: [`docs/BACKEND_RBAC.md`](docs/BACKEND_RBAC.md). Configurações de e-mail + empresa do sistema: [`docs/EMAIL_SETTINGS.md`](docs/EMAIL_SETTINGS.md). Arquitetura de deploy (um cliente = subdomínio + Postgres + container): [`docs/DEPLOYMENT_ARCHITECTURE.md`](docs/DEPLOYMENT_ARCHITECTURE.md).
 
 ### 4. Ordem sugerida de uso
 
@@ -197,6 +197,10 @@ Detalhes: [`backend/tests/README.md`](backend/tests/README.md). Matriz de rotas 
 6. Abrir e gerenciar **Tickets** (lista, filtros, detalhe, alterar status e atendente).
 
 ## Produção
+
+**Arquitetura comercial:** cada cliente pagante na mesma VPS com **subdomínio próprio**, **PostgreSQL dedicado** e **um container Docker da API** (sem partilhar um único banco entre clientes via `tenant_id`). O código atual com `tenant_id` é transitório para dev. Detalhes, diagrama de responsabilidades e runbook em evolução: [`docs/DEPLOYMENT_ARCHITECTURE.md`](docs/DEPLOYMENT_ARCHITECTURE.md) (issues **#170**, **#191**).
+
+**Vários clientes na mesma VPS:** um stack Docker por cliente (Postgres + API + Nginx): [`deploy/clients/README.md`](deploy/clients/README.md).
 
 Checklist alinhado ao deploy (o que já está no código vs o que validar no servidor): [`docs/PRE_DEPLOY_CHECKLIST.md`](docs/PRE_DEPLOY_CHECKLIST.md).  
 Exemplos **Nginx** (HTTP, domínio → backend / estático) e checklist de **HSTS/CSP/limit_req**: [`deploy/nginx/README.md`](deploy/nginx/README.md).  

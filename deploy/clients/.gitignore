@@ -1,0 +1,5 @@
+# Instâncias por cliente (geradas por deploy/scripts/provision-client.sh) — não commitar secrets
+/*
+!_template/
+!README.md
+!.gitignore

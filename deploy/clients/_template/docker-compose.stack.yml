@@ -1,0 +1,50 @@
+# Stack DX Connect — um cliente (PostgreSQL + API).
+# Gerado a partir de _template; não editar manualmente sem atualizar o template.
+#
+# Uso (na raiz do repositório):
+#   set -a && source deploy/clients/CLIENT_SLUG/client.env && set +a
+#   docker compose -f deploy/clients/CLIENT_SLUG/docker-compose.yml \
+#     --project-name dx-connect-CLIENT_SLUG up -d --build
+#
+# Migrações:
+#   docker compose -f deploy/clients/CLIENT_SLUG/docker-compose.yml \
+#     --project-name dx-connect-CLIENT_SLUG run --rm backend alembic upgrade head
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: dx-connect-db-${CLIENT_SLUG}
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ../../../backend
+      dockerfile: Dockerfile
+      args:
+        DX_CONNECT_GIT_SHA: ${DX_CONNECT_GIT_SHA:-unknown}
+    container_name: dx-connect-api-${CLIENT_SLUG}
+    env_file:
+      - client.env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    ports:
+      - "127.0.0.1:${CLIENT_API_PORT}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  db_data:
+    name: dx-connect-pgdata-${CLIENT_SLUG}
