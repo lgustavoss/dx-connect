@@ -385,6 +385,28 @@ export const statusTicket = {
   delete: (id: number) => api<void>(`/status-ticket/${id}`, { method: 'DELETE' }),
 };
 
+export const respostasProntas = {
+  list: (params?: {
+    incluir_inativos?: boolean;
+    busca?: string;
+    setor_id?: number;
+    ordenar_por?: 'titulo' | 'ordem' | 'ativo';
+    ordem?: 'asc' | 'desc';
+    offset?: number;
+    limit?: number;
+  }) => listPaginated<RespostasProntas.Resposta>('/respostas-prontas', params),
+  get: (id: number) => api<RespostasProntas.Resposta>(`/respostas-prontas/${id}`),
+  create: (data: RespostasProntas.Create) =>
+    api<RespostasProntas.Resposta>('/respostas-prontas', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: RespostasProntas.Update) =>
+    api<RespostasProntas.Resposta>(`/respostas-prontas/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id: number) => api<void>(`/respostas-prontas/${id}`, { method: 'DELETE' }),
+  disponiveis: (setorId: number, busca?: string) =>
+    api<RespostasProntas.Resposta[]>(
+      withParams('/respostas-prontas/disponiveis', { setor_id: setorId, busca: busca || undefined }),
+    ),
+};
+
 export const audit = {
   list: (params?: {
     entity_type?: string;
@@ -1094,6 +1116,32 @@ export namespace StatusTicket {
   export interface Update {
     nome?: string;
     slug?: string;
+    ordem?: number;
+    ativo?: boolean;
+  }
+}
+
+export namespace RespostasProntas {
+  export interface Resposta {
+    id: number;
+    titulo: string;
+    corpo: string;
+    setor_id: number | null;
+    setor_nome?: string | null;
+    ordem: number;
+    ativo: boolean;
+  }
+  export interface Create {
+    titulo: string;
+    corpo: string;
+    setor_id?: number | null;
+    ordem?: number;
+    ativo?: boolean;
+  }
+  export interface Update {
+    titulo?: string;
+    corpo?: string;
+    setor_id?: number | null;
     ordem?: number;
     ativo?: boolean;
   }

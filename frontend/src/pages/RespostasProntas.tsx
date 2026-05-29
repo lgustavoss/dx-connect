@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ApiError, respostasProntas, type RespostasProntas } from '../api/client'
 import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
-import { ApiError, tiposNegocio, type TiposNegocio } from '../api/client'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { ListaAcoesVerEditar } from '../components/ui/ListaAcoesVerEditar'
@@ -12,13 +12,13 @@ import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBus
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 
-type ColunaTipo = 'nome' | 'ativo'
+type Coluna = 'titulo' | 'ordem' | 'ativo'
 
-export function TiposNegocio() {
+export function RespostasProntasPage() {
   const navigate = useNavigate()
   const toast = useToast()
-  const { ordenarPor, ordem, aoOrdenarColuna, sortParams } = useOrdenacaoLista<ColunaTipo>()
-  const [list, setList] = useState<TiposNegocio.Tipo[]>([])
+  const { ordenarPor, ordem: ordemLista, aoOrdenarColuna, sortParams } = useOrdenacaoLista<Coluna>()
+  const [list, setList] = useState<RespostasProntas.Resposta[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [busca, setBusca] = useState('')
@@ -34,12 +34,12 @@ export function TiposNegocio() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedBusca, incluirInativos, ordenarPor, ordem])
+  }, [debouncedBusca, incluirInativos, ordenarPor, ordemLista])
 
   const load = useCallback(() => {
     setLoading(true)
     setForbidden(false)
-    tiposNegocio
+    respostasProntas
       .list({
         incluir_inativos: incluirInativos,
         busca: debouncedBusca || undefined,
@@ -58,7 +58,7 @@ export function TiposNegocio() {
           setTotal(0)
           return
         }
-        toast.showWarning(mensagemFalhaParaToast(err, 'Não encontramos a lista de tipos de negócio.'))
+        toast.showWarning(mensagemFalhaParaToast(err, 'Não encontramos a lista de respostas prontas.'))
         setList([])
         setTotal(0)
       })
@@ -70,40 +70,41 @@ export function TiposNegocio() {
   }, [load])
 
   async function handleDelete(id: number) {
-    if (!confirm('Excluir este tipo de negócio?')) return
+    if (!window.confirm('Excluir esta resposta pronta?')) return
     try {
-      await tiposNegocio.delete(id)
+      await respostasProntas.delete(id)
+      toast.showSuccess('Resposta pronta excluída.')
       load()
     } catch (err) {
-      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível excluir o tipo de negócio.'))
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível excluir.'))
     }
   }
 
   if (forbidden) {
     return (
-      <div className="mx-auto max-w-6xl space-y-6 pb-10">
-        <SemPermissao
-          title="Você não tem permissão para listar tipos de negócio."
-          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
-          voltarPara="/"
-          voltarLabel="Voltar para o Dashboard"
-        />
-      </div>
+      <SemPermissao
+        title="Você não tem permissão para gerenciar respostas prontas."
+        voltarPara="/"
+        voltarLabel="Voltar para o Dashboard"
+      />
     )
   }
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-10">
-      <div className="flex justify-between">
-        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Tipos de negócio</h1>
-        <Button onClick={() => navigate('/tipos-negocio/novo')}>Novo tipo</Button>
+      <div className="flex justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Respostas prontas</h1>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Macros reutilizáveis no ticket — globais ou por setor.</p>
+        </div>
+        <Button onClick={() => navigate('/respostas-prontas/novo')}>Nova resposta</Button>
       </div>
 
       <Card>
         <BarraBuscaPaginacao
           busca={busca}
           onBuscaChange={setBusca}
-          placeholder="Buscar por nome"
+          placeholder="Buscar por título ou texto"
           page={page}
           total={total}
           onPageChange={setPage}
@@ -111,53 +112,51 @@ export function TiposNegocio() {
           extra={<FiltroInativos incluirInativos={incluirInativos} onChange={setIncluirInativos} />}
         />
         {loading ? (
-          <p className="text-slate-500 dark:text-slate-400">Carregando...</p>
+          <p className="text-slate-500 dark:text-slate-400">Carregando…</p>
         ) : list.length === 0 ? (
-          <p className="text-slate-500 dark:text-slate-400">Nenhum tipo encontrado.</p>
+          <p className="text-slate-500 dark:text-slate-400">Nenhuma resposta cadastrada.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] text-left text-sm">
+            <table className="w-full min-w-[640px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
-                  <CabecalhoOrdenavel coluna="nome" rotulo="Nome" ordenarPor={ordenarPor} ordem={ordem} aoOrdenar={aoOrdenarColuna} />
-                  <CabecalhoOrdenavel coluna="ativo" rotulo="Situação" ordenarPor={ordenarPor} ordem={ordem} aoOrdenar={aoOrdenarColuna} />
+                  <CabecalhoOrdenavel coluna="titulo" rotulo="Título" ordenarPor={ordenarPor} ordem={ordemLista} aoOrdenar={aoOrdenarColuna} />
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Escopo</th>
+                  <CabecalhoOrdenavel coluna="ordem" rotulo="Ordem" ordenarPor={ordenarPor} ordem={ordemLista} aoOrdenar={aoOrdenarColuna} />
+                  <CabecalhoOrdenavel coluna="ativo" rotulo="Situação" ordenarPor={ordenarPor} ordem={ordemLista} aoOrdenar={aoOrdenarColuna} />
                   <th className="w-px px-4 py-3 text-right text-xs font-semibold uppercase text-slate-500 sm:px-6 dark:text-slate-400">
                     <span className="sr-only">Ações</span>
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {list.map((t) => (
+                {list.map((item) => (
                   <tr
-                    key={t.id}
+                    key={item.id}
                     role="button"
                     tabIndex={0}
-                    onClick={() => navigate(`/tipos-negocio/${t.id}`)}
+                    onClick={() => navigate(`/respostas-prontas/${item.id}`)}
                     onKeyDown={(ev) => {
                       if (ev.key === 'Enter' || ev.key === ' ') {
                         ev.preventDefault()
-                        navigate(`/tipos-negocio/${t.id}`)
+                        navigate(`/respostas-prontas/${item.id}`)
                       }
                     }}
                     className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:outline-none focus-visible:bg-slate-100/80 dark:focus-visible:bg-slate-800/60"
                   >
-                    <td className="px-4 py-3.5 sm:px-6">
-                      <span className={`font-medium ${t.ativo ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400'}`}>{t.nome}</span>
+                    <td className="px-4 py-3.5 font-medium text-slate-800 sm:px-6 dark:text-slate-100">{item.titulo}</td>
+                    <td className="px-4 py-3.5 text-slate-600 sm:px-6 dark:text-slate-400">
+                      {item.setor_nome ?? 'Global (todos os setores)'}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3.5 sm:px-6">
-                      {t.ativo ? (
-                        <span className="text-slate-600 dark:text-slate-400">Ativo</span>
-                      ) : (
-                        <span className="rounded bg-slate-200 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-700 dark:text-slate-400">Inativo</span>
-                      )}
-                    </td>
+                    <td className="px-4 py-3.5 tabular-nums text-slate-600 sm:px-6 dark:text-slate-400">{item.ordem}</td>
+                    <td className="px-4 py-3.5 sm:px-6">{item.ativo ? 'Ativo' : 'Inativo'}</td>
                     <td className="px-4 py-3.5 text-right sm:px-6" onClick={(ev) => ev.stopPropagation()}>
                       <ListaAcoesVerEditar
-                        onVer={() => navigate(`/tipos-negocio/${t.id}`)}
-                        onEditar={() => navigate(`/tipos-negocio/${t.id}/editar`)}
-                        onExcluir={() => handleDelete(t.id)}
-                        verLabel="Visualizar tipo"
-                        editarLabel="Editar tipo"
+                        onVer={() => navigate(`/respostas-prontas/${item.id}`)}
+                        onEditar={() => navigate(`/respostas-prontas/${item.id}/editar`)}
+                        onExcluir={() => handleDelete(item.id)}
+                        verLabel="Visualizar resposta"
+                        editarLabel="Editar resposta"
                       />
                     </td>
                   </tr>

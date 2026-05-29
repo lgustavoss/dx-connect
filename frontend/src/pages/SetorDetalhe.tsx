@@ -4,6 +4,8 @@ import { ApiError, atendentes, setores, type Atendentes, type Setores } from '..
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
+import { DetailRow } from '../components/ui/DetailRow'
+import { BadgeAtivo } from '../components/ui/BadgeAtivo'
 import { SelectComPesquisa } from '../components/ui/SelectComPesquisa'
 import { useToast } from '../components/ui/Toast'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
@@ -205,14 +207,24 @@ export function SetorDetalhe() {
         <span className="font-semibold text-slate-800 dark:text-slate-100">{setor.nome}</span>
       </nav>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{setor.nome}</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Slug: <span className="font-mono">{setor.slug}</span> • {setor.ativo ? 'Ativo' : 'Inativo'}
-          </p>
+          <div className="mt-2">
+            <BadgeAtivo ativo={setor.ativo} />
+          </div>
         </div>
+        <Button onClick={() => navigate(`/setores/${setor.id}/editar`)}>Editar</Button>
       </div>
+
+      <Card title="Dados do setor">
+        <dl>
+          <DetailRow label="ID" value={String(setor.id)} mono />
+          <DetailRow label="Nome" value={setor.nome} />
+          <DetailRow label="Slug" value={setor.slug} mono />
+          <DetailRow label="Situação" value={setor.ativo ? 'Ativo' : 'Inativo'} />
+        </dl>
+      </Card>
 
       <Card title="Atendentes vinculados">
         <div className="space-y-4">

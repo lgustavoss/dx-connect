@@ -4,15 +4,11 @@ import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { ApiError, setores, type Setores } from '../api/client'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
-import { IconPencil } from '../components/ui/IconPencil'
-import { IconTrash } from '../components/ui/IconTrash'
+import { ListaAcoesVerEditar } from '../components/ui/ListaAcoesVerEditar'
 import { useToast } from '../components/ui/Toast'
 import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
-import { Switch } from '../components/ui/Switch'
 import { useNavigate } from 'react-router-dom'
-import { FormSection } from '../components/ui/FormSection'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 
@@ -29,22 +25,7 @@ export function Setores() {
   const [debouncedBusca, setDebouncedBusca] = useState('')
   const [loading, setLoading] = useState(true)
   const [incluirInativos, setIncluirInativos] = useState(false)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
-  const [nome, setNome] = useState('')
-  const [slug, setSlug] = useState('')
-  const [ativo, setAtivo] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [forbidden, setForbidden] = useState(false)
-
-  useEffect(() => {
-    if (!modalOpen) return
-    const prevOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = prevOverflow
-    }
-  }, [modalOpen])
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedBusca(busca.trim()), 400)
@@ -88,42 +69,6 @@ export function Setores() {
     load()
   }, [load])
 
-  function openCreate() {
-    setEditingId(null)
-    setNome('')
-    setSlug('')
-    setAtivo(true)
-    setModalOpen(true)
-  }
-
-  function openEdit(item: { id: number; nome: string; slug: string; ativo: boolean }) {
-    setEditingId(item.id)
-    setNome(item.nome)
-    setSlug(item.slug)
-    setAtivo(item.ativo)
-    setModalOpen(true)
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setSaving(true)
-    try {
-      if (editingId) {
-        await setores.update(editingId, { nome: nome.trim(), slug: slug.trim(), ativo })
-        toast.showSuccess('Setor atualizado.')
-      } else {
-        await setores.create({ nome: nome.trim(), slug: slug.trim(), ativo })
-        toast.showSuccess('Setor cadastrado.')
-      }
-      setModalOpen(false)
-      load()
-    } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar o setor.'))
-    } finally {
-      setSaving(false)
-    }
-  }
-
   async function handleDelete(id: number) {
     if (!confirm('Excluir este setor?')) return
     try {
@@ -151,20 +96,20 @@ export function Setores() {
     <div className="mx-auto max-w-6xl space-y-6 pb-10">
       <div className="flex justify-between">
         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Setores</h1>
-        <Button onClick={openCreate}>Novo setor</Button>
+        <Button onClick={() => navigate('/setores/novo')}>Novo setor</Button>
       </div>
-      {!modalOpen && (
-        <Card>
-          <BarraBuscaPaginacao
-            busca={busca}
-            onBuscaChange={setBusca}
-            placeholder="Buscar por nome"
-            page={page}
-            total={total}
-            onPageChange={setPage}
-            disabled={loading}
-            extra={<FiltroInativos incluirInativos={incluirInativos} onChange={setIncluirInativos} />}
-          />
+
+      <Card>
+        <BarraBuscaPaginacao
+          busca={busca}
+          onBuscaChange={setBusca}
+          placeholder="Buscar por nome"
+          page={page}
+          total={total}
+          onPageChange={setPage}
+          disabled={loading}
+          extra={<FiltroInativos incluirInativos={incluirInativos} onChange={setIncluirInativos} />}
+        />
         {loading ? (
           <p className="text-slate-500 dark:text-slate-400">Carregando...</p>
         ) : list.length === 0 ? (
@@ -209,18 +154,13 @@ export function Setores() {
                       )}
                     </td>
                     <td className="px-4 py-3.5 text-right sm:px-6" onClick={(ev) => ev.stopPropagation()}>
-                      <div className="inline-flex gap-1.5">
-                        <Button
-                          variant="ghost"
-                          onClick={() => openEdit(s)}
-                          aria-label="Editar setor"
-                        >
-                          <IconPencil ariaHidden={false} />
-                        </Button>
-                        <Button variant="ghost" onClick={() => handleDelete(s.id)} aria-label="Excluir setor">
-                          <IconTrash ariaHidden={false} />
-                        </Button>
-                      </div>
+                      <ListaAcoesVerEditar
+                        onVer={() => navigate(`/setores/${s.id}`)}
+                        onEditar={() => navigate(`/setores/${s.id}/editar`)}
+                        onExcluir={() => handleDelete(s.id)}
+                        editarLabel="Editar setor"
+                        verLabel="Visualizar setor"
+                      />
                     </td>
                   </tr>
                 ))}
@@ -228,52 +168,7 @@ export function Setores() {
             </table>
           </div>
         )}
-        </Card>
-      )}
-
-      {modalOpen && (
-        <div className="fixed inset-y-0 left-0 right-0 z-20 flex items-start justify-center bg-black/85 px-4 pb-6 pt-16 sm:px-6 md:left-[var(--sidebar-w)]">
-          <Card title={editingId ? 'Editar setor' : 'Novo setor'} className="w-full max-w-lg">
-            <form onSubmit={handleSubmit}>
-              <div className="space-y-6">
-                <FormSection title="Dados do setor">
-                  <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
-                  <Input
-                    label="Slug"
-                    value={slug}
-                    onChange={(e) => setSlug(e.target.value)}
-                    placeholder="ex: suporte"
-                    required
-                  />
-                </FormSection>
-
-                <FormSection title="Situação no sistema">
-                  <Switch
-                    bare
-                    checked={ativo}
-                    onCheckedChange={setAtivo}
-                    label="Setor ativo"
-                    showStatusPill
-                    statusOnText="Ativo"
-                    statusOffText="Inativo"
-                  />
-                </FormSection>
-              </div>
-
-              <div className="sticky bottom-0 -mx-6 mt-6 border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-700 dark:bg-slate-900">
-                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                  <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => setModalOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button type="submit" loading={saving} className="w-full sm:w-auto">
-                    Salvar
-                  </Button>
-                </div>
-              </div>
-            </form>
-          </Card>
-        </div>
-      )}
+      </Card>
     </div>
   )
 }

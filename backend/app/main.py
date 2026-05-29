@@ -29,6 +29,7 @@ from app.api import (
     whatsapp_webhook,
     email_inbound_webhook,
     resend_inbound_webhook,
+    respostas_prontas,
     system_settings,
     tenant,
 )
@@ -273,6 +274,7 @@ app.include_router(whatsapp_chats.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_webhook.router, prefix=API_V1_PREFIX)
 app.include_router(email_inbound_webhook.router, prefix=API_V1_PREFIX)
 app.include_router(resend_inbound_webhook.router, prefix=API_V1_PREFIX)
+app.include_router(respostas_prontas.router, prefix=API_V1_PREFIX)
 app.include_router(system_settings.router, prefix=API_V1_PREFIX)
 app.include_router(tenant.router, prefix=API_V1_PREFIX)
 

@@ -13,16 +13,27 @@ import { Redes } from './pages/Redes'
 import { RedeDetalhe } from './pages/RedeDetalhe'
 import { RedeForm } from './pages/RedeForm'
 import { Empresas } from './pages/Empresas'
+import { EmpresaForm } from './pages/EmpresaForm'
 import { EmpresaDetalhe } from './pages/EmpresaDetalhe'
 import { Setores } from './pages/Setores'
+import { SetorForm } from './pages/SetorForm'
 import { SetorDetalhe } from './pages/SetorDetalhe'
 import { Atendentes } from './pages/Atendentes'
+import { AtendenteForm } from './pages/AtendenteForm'
+import { AtendenteDetalhe } from './pages/AtendenteDetalhe'
 import { FuncionariosRede } from './pages/FuncionariosRede'
 import { FuncionarioRedeDetalhe } from './pages/FuncionarioRedeDetalhe'
 import { FuncionarioRedeForm } from './pages/FuncionarioRedeForm'
 import { StatusTicketPage } from './pages/StatusTicket'
+import { StatusTicketForm } from './pages/StatusTicketForm'
+import { StatusTicketDetalhe } from './pages/StatusTicketDetalhe'
+import { RespostasProntasPage } from './pages/RespostasProntas'
+import { RespostaProntaForm } from './pages/RespostaProntaForm'
+import { RespostaProntaDetalhe } from './pages/RespostaProntaDetalhe'
 import { Auditoria } from './pages/Auditoria'
 import { TiposNegocio } from './pages/TiposNegocio'
+import { TipoNegocioForm } from './pages/TipoNegocioForm'
+import { TipoNegocioDetalhe } from './pages/TipoNegocioDetalhe'
 import { ConfigWhatsapp } from './pages/ConfigWhatsapp'
 import { ConfigEmpresaEmail } from './pages/ConfigEmpresaEmail'
 import { WhatsappLayout } from './pages/whatsapp/WhatsappLayout'
@@ -127,6 +138,22 @@ function AppRoutes() {
           }
         />
         <Route
+          path="empresas/novo"
+          element={
+            <AdminRoute>
+              <EmpresaForm />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="empresas/:id/editar"
+          element={
+            <AdminRoute>
+              <EmpresaForm />
+            </AdminRoute>
+          }
+        />
+        <Route
           path="empresas/:id"
           element={
             <AdminRoute>
@@ -143,6 +170,22 @@ function AppRoutes() {
           }
         />
         <Route
+          path="setores/novo"
+          element={
+            <AdminRoute>
+              <SetorForm />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="setores/:id/editar"
+          element={
+            <AdminRoute>
+              <SetorForm />
+            </AdminRoute>
+          }
+        />
+        <Route
           path="setores"
           element={
             <AdminRoute>
@@ -155,6 +198,30 @@ function AppRoutes() {
           element={
             <AdminRoute>
               <SetorDetalhe />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="atendentes/novo"
+          element={
+            <AdminRoute>
+              <AtendenteForm />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="atendentes/:id/editar"
+          element={
+            <AdminRoute>
+              <AtendenteForm />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="atendentes/:id"
+          element={
+            <AdminRoute>
+              <AtendenteDetalhe />
             </AdminRoute>
           }
         />
@@ -199,6 +266,62 @@ function AppRoutes() {
           }
         />
         <Route
+          path="respostas-prontas/novo"
+          element={
+            <AdminRoute>
+              <RespostaProntaForm />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="respostas-prontas/:id/editar"
+          element={
+            <AdminRoute>
+              <RespostaProntaForm />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="respostas-prontas/:id"
+          element={
+            <AdminRoute>
+              <RespostaProntaDetalhe />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="respostas-prontas"
+          element={
+            <AdminRoute>
+              <RespostasProntasPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="status-ticket/novo"
+          element={
+            <AdminRoute>
+              <StatusTicketForm />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="status-ticket/:id/editar"
+          element={
+            <AdminRoute>
+              <StatusTicketForm />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="status-ticket/:id"
+          element={
+            <AdminRoute>
+              <StatusTicketDetalhe />
+            </AdminRoute>
+          }
+        />
+        <Route
           path="status-ticket"
           element={
             <AdminRoute>
@@ -211,6 +334,30 @@ function AppRoutes() {
           element={
             <AdminRoute>
               <Auditoria />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="tipos-negocio/novo"
+          element={
+            <AdminRoute>
+              <TipoNegocioForm />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="tipos-negocio/:id/editar"
+          element={
+            <AdminRoute>
+              <TipoNegocioForm />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="tipos-negocio/:id"
+          element={
+            <AdminRoute>
+              <TipoNegocioDetalhe />
             </AdminRoute>
           }
         />
