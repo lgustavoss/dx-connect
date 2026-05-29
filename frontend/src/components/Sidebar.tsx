@@ -432,7 +432,7 @@ export function Sidebar({
         </ul>
       </nav>
 
-      <div className={`border-t border-slate-200 p-2 dark:border-slate-800 ${!expanded ? 'md:px-2' : ''}`}>
+      <div className={`shrink-0 border-t border-slate-200 p-2 dark:border-slate-800 ${!expanded ? 'md:px-2' : ''}`}>
         <div
           className={`flex items-center gap-3 px-3 py-2 text-slate-600 dark:text-slate-400 ${
             expanded ? 'opacity-100' : 'md:hidden'
@@ -482,9 +482,9 @@ export function Sidebar({
         aria-hidden
       />
 
-      {/* Sidebar: drawer no mobile; no desktop ocupa a 1ª coluna do grid (sem fixed) */}
+      {/* Sidebar: drawer no mobile; no desktop coluna fixa do grid (scroll só no nav interno) */}
       <aside
-        className={`fixed inset-0 z-50 flex h-full min-w-0 max-w-[100vw] flex-col overflow-x-hidden bg-white shadow-xl transition-[transform] duration-200 ease-out dark:bg-slate-950 max-md:transition-[transform,width] md:relative md:col-start-1 md:row-start-1 md:z-40 md:h-screen md:max-w-none md:w-full md:translate-x-0 md:overflow-x-hidden md:overflow-y-auto md:border-r md:border-slate-200 md:shadow-none md:dark:border-slate-800 ${
+        className={`fixed inset-0 z-50 flex h-full min-w-0 max-w-[100vw] flex-col overflow-x-hidden bg-white shadow-xl transition-[transform] duration-200 ease-out dark:bg-slate-950 max-md:transition-[transform,width] md:relative md:col-start-1 md:row-start-1 md:z-40 md:h-full md:min-h-0 md:max-h-full md:max-w-none md:w-full md:translate-x-0 md:overflow-hidden md:border-r md:border-slate-200 md:shadow-none md:dark:border-slate-800 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
         aria-label="Menu lateral"
