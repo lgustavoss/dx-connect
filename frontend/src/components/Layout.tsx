@@ -35,7 +35,7 @@ export function Layout() {
 
   return (
     <div
-      className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100/90 dark:from-slate-950 dark:to-slate-900/95 md:grid md:min-h-screen md:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-200 md:ease-out"
+      className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100/90 dark:from-slate-950 dark:to-slate-900/95 md:grid md:h-dvh md:max-h-dvh md:min-h-0 md:overflow-hidden md:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-200 md:ease-out"
       style={
         {
           ['--sidebar-w' as never]: sidebarW,
@@ -53,7 +53,7 @@ export function Layout() {
       />
 
       {/* Coluna principal: no desktop alinhada à sidebar via grid (sem margin-left) */}
-      <div className="flex min-h-screen min-w-0 flex-col md:col-start-2 md:row-start-1">
+      <div className="flex min-h-screen min-w-0 flex-col md:col-start-2 md:row-start-1 md:h-full md:min-h-0 md:overflow-hidden">
           {/* Top bar: mobile-first, área de toque generosa */}
           <header className="sticky top-0 z-30 flex h-14 min-h-[56px] shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-4 shadow-sm dark:border-slate-800 dark:bg-slate-950 md:gap-3 md:px-6">
             <button
@@ -98,7 +98,7 @@ export function Layout() {
             </div>
           </header>
 
-          <main className="p-4 md:p-6">
+          <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-6">
             <Outlet />
           </main>
       </div>
