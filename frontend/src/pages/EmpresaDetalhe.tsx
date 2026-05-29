@@ -179,7 +179,7 @@ export function EmpresaDetalhe() {
 
   function abrirEdicao() {
     if (!empresa) return
-    navigate('/empresas', { state: { empresaEditId: empresa.id } })
+    navigate(`/empresas/${empresa.id}/editar`)
   }
 
   async function handleExcluir() {

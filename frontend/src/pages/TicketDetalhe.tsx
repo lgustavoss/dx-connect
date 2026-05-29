@@ -36,6 +36,7 @@ import { MODAL_PANEL_COMPACT, MODAL_PANEL_SCROLLABLE } from '../lib/modalPanel'
 import { autorRodapeMensagem, corpoMensagemEmailVisivel } from '../lib/ticketMensagemEmail'
 import { mensagemEmFilaEmail } from '../lib/ticketMensagemEmailOutbox'
 import { TicketMensagemEmailOutbox } from '../components/TicketMensagemEmailOutbox'
+import { RespostasProntasPicker } from '../components/RespostasProntasPicker'
 
 const ROTULO_CAMPO: Record<string, string> = {
   status_id: 'Status',
@@ -943,6 +944,25 @@ export function TicketDetalhe() {
     }, 0)
   }
 
+  function inserirRespostaPronta(texto: string) {
+    const ta = textareaRef.current
+    const start = ta?.selectionStart ?? novaMensagemTexto.length
+    const end = ta?.selectionEnd ?? novaMensagemTexto.length
+    const sep = novaMensagemTexto && !novaMensagemTexto.endsWith('\n') ? '\n\n' : novaMensagemTexto ? '' : ''
+    const insert = sep + texto
+    const next = novaMensagemTexto.slice(0, start) + insert + novaMensagemTexto.slice(end)
+    setNovaMensagemTexto(next)
+    setTimeout(() => {
+      try {
+        const pos = start + insert.length
+        ta?.setSelectionRange(pos, pos)
+        ta?.focus()
+      } catch {
+        // noop
+      }
+    }, 0)
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-slate-500 dark:text-slate-400">
@@ -1508,6 +1528,11 @@ export function TicketDetalhe() {
             ) : null}
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2">
+                <RespostasProntasPicker
+                  setorId={ticket.setor_id}
+                  disabled={Boolean(ticket.fechado_em)}
+                  onInserir={inserirRespostaPronta}
+                />
                 <input
                   ref={fileInputRef}
                   type="file"
