@@ -42,6 +42,12 @@ Isto serve **desenvolvimento/staging** com vários “tenants” num Postgres lo
 
 Não será usada, por agora, uma única API com roteamento dinâmico entre várias bases (opção A).
 
+### Fase 1 — templates e runbook (implementado)
+
+- [`deploy/clients/README.md`](../deploy/clients/README.md) — stack por cliente (Postgres + API + porta dedicada)
+- `deploy/scripts/provision-client.sh` — gera `deploy/clients/<slug>/`
+- `deploy/scripts/stack-client.sh` — migrate, up, seed, health
+
 ## Relacionado
 
 - Épico deploy: **#170**

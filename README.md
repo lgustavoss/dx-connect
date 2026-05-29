@@ -200,6 +200,8 @@ Detalhes: [`backend/tests/README.md`](backend/tests/README.md). Matriz de rotas 
 
 **Arquitetura comercial:** cada cliente pagante na mesma VPS com **subdomínio próprio**, **PostgreSQL dedicado** e **um container Docker da API** (sem partilhar um único banco entre clientes via `tenant_id`). O código atual com `tenant_id` é transitório para dev. Detalhes, diagrama de responsabilidades e runbook em evolução: [`docs/DEPLOYMENT_ARCHITECTURE.md`](docs/DEPLOYMENT_ARCHITECTURE.md) (issues **#170**, **#191**).
 
+**Vários clientes na mesma VPS:** um stack Docker por cliente (Postgres + API + Nginx): [`deploy/clients/README.md`](deploy/clients/README.md).
+
 Checklist alinhado ao deploy (o que já está no código vs o que validar no servidor): [`docs/PRE_DEPLOY_CHECKLIST.md`](docs/PRE_DEPLOY_CHECKLIST.md).  
 Exemplos **Nginx** (HTTP, domínio → backend / estático) e checklist de **HSTS/CSP/limit_req**: [`deploy/nginx/README.md`](deploy/nginx/README.md).  
 **Deploy automático** (GitHub Actions → SSH → `rsync` do frontend + `git pull` + Alembic + Docker Compose): [`deploy/github-actions.md`](deploy/github-actions.md).
