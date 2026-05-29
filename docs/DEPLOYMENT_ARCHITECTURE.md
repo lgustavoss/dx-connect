@@ -48,6 +48,27 @@ Não será usada, por agora, uma única API com roteamento dinâmico entre vári
 - `deploy/scripts/provision-client.sh` — gera `deploy/clients/<slug>/`
 - `deploy/scripts/stack-client.sh` — migrate, up, seed, health
 
+### Fase 2 — modo single-tenant no código (implementado)
+
+Variáveis principais:
+
+| Variável | Onde | Padrão | Uso |
+|----------|------|--------|-----|
+| `DX_CONNECT_MULTI_TENANT` | backend | `false` | `true` só em dev legado (mesmo Postgres, subdomínio numérico) |
+| `CLIENT_APP_HOST` | backend | vazio | Host público do painel (`GET /v1/tenant/atual` → `app_host`) |
+| `DEFAULT_TENANT_ID` | backend | `1` | ID fixo da linha `tenants` na BD da instância |
+| `VITE_MULTI_TENANT` | frontend | `false` | Se `true`, envia `X-Dx-Tenant-Id` e resolve subdomínio numérico |
+| `VITE_CLIENT_APP_HOST` | frontend | vazio | URL sugerida na tela de configuração |
+
+Comportamento em **single-tenant** (`DX_CONNECT_MULTI_TENANT=false`, padrão):
+
+- Middleware e login usam sempre `DEFAULT_TENANT_ID` (ignoram subdomínio numérico e cabeçalho `X-Dx-Tenant-Id`).
+- Login por e-mail **sem** exigir `tenant_id` do host; refresh e rotas autenticadas não bloqueiam por divergência de subdomínio.
+- Em `ENVIRONMENT=production`, `DX_CONNECT_MULTI_TENANT=true` é **rejeitado** na validação de settings.
+- `GET /health` expõe `capabilities.multi_tenant_mode`.
+
+Legado multi-tenant: definir `DX_CONNECT_MULTI_TENANT=true` (e no front `VITE_MULTI_TENANT=true`) apenas em desenvolvimento/staging com Postgres partilhado.
+
 ## Relacionado
 
 - Épico deploy: **#170**

@@ -25,6 +25,11 @@ router = APIRouter(prefix="/tenant", tags=["tenant"])
 
 
 def _app_host_for_tenant(tenant_id: int) -> str | None:
+    client = (settings.CLIENT_APP_HOST or "").strip()
+    if client:
+        return client
+    if settings.single_tenant_mode:
+        return None
     base = (settings.CONNECT_APP_BASE_DOMAIN or "").strip()
     if not base:
         return None

@@ -7,7 +7,7 @@ Cada cliente pagante tem:
 - **Um container** da API (`dx-connect-api-{slug}`)
 - **Porta loopback** distinta (`127.0.0.1:8001`, `8002`, …) para o Nginx fazer proxy
 
-Direção de produto: [`docs/DEPLOYMENT_ARCHITECTURE.md`](../../docs/DEPLOYMENT_ARCHITECTURE.md) · Issue **#191** (Fase 1).
+Direção de produto: [`docs/DEPLOYMENT_ARCHITECTURE.md`](../../docs/DEPLOYMENT_ARCHITECTURE.md) · Issue **#191** (Fase 1 + Fase 2 single-tenant no código).
 
 ## Estrutura
 
@@ -41,6 +41,7 @@ Isto cria `deploy/clients/duplexsoft/` com `client.env` (senhas geradas), `docke
 Edite `deploy/clients/duplexsoft/client.env`:
 
 - `CORS_ORIGINS` / `ALLOWED_HOSTS` alinhados aos domínios reais
+- `DX_CONNECT_MULTI_TENANT=false` (padrão) e `CLIENT_APP_HOST={slug}.connect...`
 - `RESEND_API_KEY`, e-mail transaccional, webhooks
 - `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` para o primeiro admin
 
@@ -61,7 +62,7 @@ bash deploy/scripts/stack-client.sh duplexsoft health
 ### 3. Frontend
 
 ```bash
-# Ajuste VITE_API_URL em deploy/clients/duplexsoft/frontend.env.production.example
+# Ajuste VITE_API_URL e VITE_CLIENT_APP_HOST em deploy/clients/duplexsoft/frontend.env.production.example
 # ou copie para frontend/.env.production antes do build
 cd frontend && npm ci && npm run build
 sudo mkdir -p /var/www/dx-connect/clients/duplexsoft/dist

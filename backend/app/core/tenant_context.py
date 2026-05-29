@@ -1,5 +1,5 @@
 """
-Resolução do tenant a partir do Host (``{tenant_id}.connect.exemplo.com``) ou cabeçalho de desenvolvimento.
+Resolução do tenant: single-tenant por instância (produção) ou multi-tenant lógico (dev legado).
 """
 
 from __future__ import annotations
@@ -15,8 +15,16 @@ _TENANT_HEADER = "x-dx-tenant-id"
 _STATE_KEY = "tenant_id"
 
 
+def is_multi_tenant_mode() -> bool:
+    return bool(settings.DX_CONNECT_MULTI_TENANT)
+
+
+def effective_tenant_id() -> int:
+    return int(settings.DEFAULT_TENANT_ID)
+
+
 def parse_tenant_id_from_host(host: str | None) -> int | None:
-    """Extrai tenant numérico de ``{id}.{CONNECT_APP_BASE_DOMAIN}``."""
+    """Extrai tenant numérico de ``{id}.{CONNECT_APP_BASE_DOMAIN}`` (só modo multi-tenant)."""
     if not host:
         return None
     h = host.split(":")[0].strip().lower()
@@ -37,7 +45,13 @@ def parse_tenant_id_from_host(host: str | None) -> int | None:
 
 
 def resolve_tenant_id(request: Request) -> int:
-    """Ordem: subdomínio → cabeçalho (dev) → DEFAULT_TENANT_ID."""
+    """
+    Single-tenant: sempre ``DEFAULT_TENANT_ID`` (uma BD por deploy).
+    Multi-tenant: subdomínio → cabeçalho X-Dx-Tenant-Id → default.
+    """
+    if settings.single_tenant_mode:
+        return effective_tenant_id()
+
     tid = parse_tenant_id_from_host(request.headers.get("host"))
     if tid is not None:
         return tid
@@ -68,6 +82,18 @@ def obter_tenant_id_request(request: Request) -> int:
             detail="Contexto de tenant ausente.",
         )
     return tid
+
+
+def assert_token_tenant_matches_request(request: Request, token_tid: object) -> None:
+    """Em multi-tenant, valida JWT ``tid`` vs host/header. Em single-tenant, ignora divergência de subdomínio."""
+    if settings.single_tenant_mode:
+        return
+    host_tid = get_request_tenant_id(request)
+    if token_tid is not None and host_tid is not None and int(token_tid) != int(host_tid):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Sessão não corresponde a este tenant.",
+        )
 
 
 TenantIdDep = Annotated[int, Depends(obter_tenant_id_request)]
