@@ -483,9 +483,9 @@ export function Sidebar({
         aria-hidden
       />
 
-      {/* Sidebar: drawer no mobile; no desktop coluna fixa do grid (scroll só no nav interno) */}
+      {/* Sidebar: drawer no mobile; no desktop sticky no viewport; scroll só no nav (#188) */}
       <aside
-        className={`fixed inset-0 z-50 flex h-full min-w-0 max-w-[100vw] flex-col overflow-x-hidden bg-white shadow-xl transition-[transform] duration-200 ease-out dark:bg-slate-950 max-md:transition-[transform,width] md:relative md:col-start-1 md:row-start-1 md:z-40 md:h-full md:min-h-0 md:max-h-full md:max-w-none md:w-full md:translate-x-0 md:overflow-hidden md:border-r md:border-slate-200 md:shadow-none md:dark:border-slate-800 ${
+        className={`fixed inset-0 z-50 flex h-full min-w-0 max-w-[100vw] flex-col overflow-x-hidden bg-white shadow-xl transition-[transform] duration-200 ease-out dark:bg-slate-950 max-md:transition-[transform,width] md:sticky md:top-0 md:col-start-1 md:row-start-1 md:z-40 md:h-dvh md:max-h-dvh md:max-w-none md:w-full md:translate-x-0 md:self-start md:overflow-hidden md:border-r md:border-slate-200 md:shadow-none md:dark:border-slate-800 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
         aria-label="Menu lateral"
