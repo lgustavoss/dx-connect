@@ -83,7 +83,24 @@ function setLastWppResp(n: number) {
   }
 }
 
+let customAudio: HTMLAudioElement | null = null
+
 function playBeep() {
+  try {
+    if (!customAudio) {
+      customAudio = new Audio('/sons/alerta.mp3')
+    }
+    customAudio.currentTime = 0
+    customAudio.volume = 0.45
+    customAudio.play().catch(() => {
+      playSynthBeep()
+    })
+  } catch {
+    playSynthBeep()
+  }
+}
+
+function playSynthBeep() {
   try {
     const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
     if (!Ctx) return
