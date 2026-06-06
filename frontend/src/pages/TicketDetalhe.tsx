@@ -21,7 +21,6 @@ import {
 } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
-import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
@@ -1061,8 +1060,10 @@ export function TicketDetalhe() {
     return null
   }
 
+  const ticketAtual = ticket
+
   function tentarEditarTicket(acao: () => void) {
-    if (ticket.fechado_em && !isAdmin) {
+    if (ticketAtual.fechado_em && !isAdmin) {
       toast.showWarning('Ticket fechado — apenas admin pode alterar.')
       return
     }
@@ -2189,11 +2190,7 @@ export function TicketDetalhe() {
                   type="button"
                   variant="secondary"
                   className="mt-3"
-                  onClick={() => {
-                    setIdFilhoParaVincular('')
-                    setIdPaiParaVincular('')
-                    setModalGerirFoco('hierarquia')
-                  }}
+                  onClick={() => setModalGerirFoco('hierarquia')}
                 >
                   Gerir hierarquia…
                 </Button>
