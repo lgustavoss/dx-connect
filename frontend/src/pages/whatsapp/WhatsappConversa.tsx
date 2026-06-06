@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
 
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import {
 
@@ -10,12 +10,15 @@ import {
 
   whatsappChats,
 
+  funcionariosRede,
+
   fetchWhatsAppMidiaBlob,
 
 
   type Setores,
 
   type Atendentes,
+  type FuncionariosRede,
 
   type WhatsappChats,
 
@@ -36,6 +39,7 @@ import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
 
 import { useAuth } from '../../contexts/AuthContext'
+import { CustomAudioPlayer } from '../../components/CustomAudioPlayer'
 
 
 
@@ -45,7 +49,7 @@ const ROTULO_SEM_LEGENDA = /^\[(Imagem|Áudio|Vídeo|Documento|Figurinha)\]$/
 
 // --- Subcomponente de Renderização de Mídia ---
 
-function ConteudoMensagemWhatsApp({ chatId, m }: { chatId: number; m: WhatsappChats.Mensagem }) {
+function ConteudoMensagemWhatsApp({ chatId, m, onImageClick }: { chatId: number; m: WhatsappChats.Mensagem; onImageClick: (url: string, caption: string | null) => void }) {
 
   const tipo = (m.tipo_midia || 'texto').toLowerCase()
 
@@ -125,7 +129,17 @@ function ConteudoMensagemWhatsApp({ chatId, m }: { chatId: number; m: WhatsappCh
 
       <div className="space-y-1">
 
-        <img src={url} alt="" className={mediaClass} />
+        <img 
+
+          src={url} 
+
+          alt="" 
+
+          className={`${mediaClass} cursor-zoom-in transition-transform duration-200 hover:scale-[1.02]`} 
+
+          onClick={() => onImageClick(url, legenda)}
+
+        />
 
         {legenda && <p className="text-xs opacity-80 italic">{legenda}</p>}
 
@@ -135,7 +149,7 @@ function ConteudoMensagemWhatsApp({ chatId, m }: { chatId: number; m: WhatsappCh
 
   }
 
-  if (tipo === 'audio') return <audio controls src={url} className="h-8 max-w-[200px]" />
+  if (tipo === 'audio') return <CustomAudioPlayer src={url} />
 
   if (tipo === 'video') return <video controls src={url} className={mediaClass} />
 
@@ -196,14 +210,24 @@ export function WhatsappConversa() {
   const [texto, setTexto] = useState('')
 
   const [enviando, setEnviando] = useState(false)
-
   const [encerrando, setEncerrando] = useState(false)
+
+  // Estados de WhatsApp Clone (Citação e Zoom)
+  const [msgRespondida, setMsgRespondida] = useState<WhatsappChats.Mensagem | null>(null)
+  const [activeZoomImage, setActiveZoomImage] = useState<string | null>(null)
+  const [activeZoomImageCaption, setActiveZoomImageCaption] = useState<string | null>(null)
 
   // Transferência
   const [modalTransferir, setModalTransferir] = useState(false)
   const [transferSetorId, setTransferSetorId] = useState<number | ''>('')
   const [transferAtendenteId, setTransferAtendenteId] = useState<number | ''>('')
   const [transferindo, setTransferindo] = useState(false)
+  const [modalVincFuncionario, setModalVincFuncionario] = useState(false)
+  const [buscaFuncionario, setBuscaFuncionario] = useState('')
+  const [debouncedBuscaFuncionario, setDebouncedBuscaFuncionario] = useState('')
+  const [funcionariosResultados, setFuncionariosResultados] = useState<FuncionariosRede.Funcionario[]>([])
+  const [funcionariosLoading, setFuncionariosLoading] = useState(false)
+  const [funcionariosError, setFuncionariosError] = useState<string | null>(null)
 
   const [setoresList, setSetoresList] = useState<Setores.Setor[]>([])
   const [atendentesDestino, setAtendentesDestino] = useState<Atendentes.Atendente[]>([])
@@ -214,6 +238,7 @@ export function WhatsappConversa() {
   const [modalVinc, setModalVinc] = useState(false)
 
   const [ticketVincId, setTicketVincId] = useState('')
+  const navigate = useNavigate()
 
 
 
@@ -303,6 +328,33 @@ export function WhatsappConversa() {
 
   }, [chat, carregar])
 
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedBuscaFuncionario(buscaFuncionario.trim()), 400)
+    return () => clearTimeout(timer)
+  }, [buscaFuncionario])
+
+  useEffect(() => {
+    if (!modalVincFuncionario) return
+    if (!debouncedBuscaFuncionario) {
+      setFuncionariosResultados([])
+      setFuncionariosError(null)
+      return
+    }
+
+    setFuncionariosLoading(true)
+    setFuncionariosError(null)
+    funcionariosRede
+      .list({ busca: debouncedBuscaFuncionario, incluir_inativos: true, limit: 20 })
+      .then((data) => {
+        setFuncionariosResultados(data.items)
+      })
+      .catch((err) => {
+        setFuncionariosResultados([])
+        setFuncionariosError(mensagemFalhaParaToast(err, 'Não foi possível buscar funcionários.'))
+      })
+      .finally(() => setFuncionariosLoading(false))
+  }, [modalVincFuncionario, debouncedBuscaFuncionario])
+
 //transferencia de atendente
 useEffect(() => {
   if (!modalTransferir) return
@@ -355,9 +407,10 @@ useEffect(() => {
 
     try {
 
-      await whatsappChats.enviar(chat.id, texto.trim())
+      await whatsappChats.enviar(chat.id, texto.trim(), msgRespondida?.wa_message_id || null)
 
       setTexto('')
+      setMsgRespondida(null)
 
       await carregar()
 
@@ -417,9 +470,9 @@ useEffect(() => {
 
     try {
 
-      // Nota: Ajuste para a função real de upload da sua API
+      await whatsappChats.enviarMidia(chat.id, file, '', msgRespondida?.wa_message_id || null)
 
-      await whatsappChats.enviarMidia(chat.id, file)
+      setMsgRespondida(null)
 
       toast.showSuccess('Arquivo enviado!')
 
@@ -457,6 +510,18 @@ useEffect(() => {
 
     } finally { setEncerrando(false) }
 
+  }
+
+  function selecionarFuncionario(funcionario: FuncionariosRede.Funcionario) {
+    setModalVincFuncionario(false)
+    navigate(`/funcionarios-rede/${funcionario.id}`)
+  }
+
+  function criarFuncionarioNovo() {
+    setModalVincFuncionario(false)
+    const email = buscaFuncionario.trim()
+    const emailQuery = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? `?email=${encodeURIComponent(email)}` : ''
+    navigate(`/funcionarios-rede/novo${emailQuery}`)
   }
 
 
@@ -611,6 +676,13 @@ useEffect(() => {
 >
   Transferir
 </Button>
+              <Button
+                variant="ghost"
+                className="hidden sm:inline-flex text-xs h-8"
+                onClick={() => setModalVincFuncionario(true)}
+              >
+                Vincular funcionário
+              </Button>
 
                 <Button variant="ghost" className="hidden sm:inline-flex text-xs h-8" onClick={() => setModalVinc(true)}>Tickets</Button>
 
@@ -636,7 +708,11 @@ useEffect(() => {
 
           ref={scrollRef}
 
-          className="flex-1 overflow-y-auto bg-slate-50/50 p-4 space-y-4 dark:bg-slate-900/10"
+          className="flex-1 overflow-y-auto p-4 space-y-4 relative bg-[#efeae2] dark:bg-slate-900/60"
+          style={{
+            backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.03) 1px, transparent 1px)',
+            backgroundSize: '20px 20px',
+          }}
 
         >
 
@@ -650,7 +726,20 @@ useEffect(() => {
 
             return (
 
-              <div key={m.id} className={`flex w-full ${isInbound ? 'justify-start' : 'justify-end'}`}>
+              <div 
+                key={m.id} 
+                id={`msg-${m.wa_message_id || m.id}`}
+                className={`flex w-full group items-center gap-2 transition-all ${isInbound ? 'justify-start' : 'justify-end'}`}
+              >
+                {!isInbound && !isSystem && (
+                  <button
+                    onClick={() => setMsgRespondida(m)}
+                    className="opacity-25 group-hover:opacity-100 md:opacity-0 transition-opacity p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer shrink-0"
+                    title="Responder"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+                  </button>
+                )}
 
                 <div className={`max-w-[85%] sm:max-w-[70%] space-y-1 ${isInbound ? 'items-start' : 'items-end'}`}>
 
@@ -660,7 +749,7 @@ useEffect(() => {
 
                   <div className={`
 
-                    rounded-2xl px-4 py-2 text-sm shadow-sm
+                    rounded-2xl px-4 py-2 text-sm shadow-sm relative group/bubble
 
                     ${isSystem ? 'bg-amber-50 text-amber-900 border border-amber-100 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-900/50' :
 
@@ -670,7 +759,34 @@ useEffect(() => {
 
                   `}>
 
-                    <ConteudoMensagemWhatsApp chatId={id} m={m} />
+                    {m.quoted_wa_message_id && (
+                      <div 
+                        onClick={() => {
+                          const el = document.getElementById(`msg-${m.quoted_wa_message_id}`);
+                          if (el) {
+                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            el.classList.add('bg-cyan-100/50', 'dark:bg-cyan-950/30');
+                            setTimeout(() => {
+                              el.classList.remove('bg-cyan-100/50', 'dark:bg-cyan-950/30');
+                            }, 1500);
+                          }
+                        }}
+                        className={`mb-2 rounded border-l-4 p-2 text-xs cursor-pointer hover:bg-black/5 transition-colors
+                          ${isInbound 
+                            ? 'bg-slate-100 dark:bg-slate-900 border-cyan-600 text-slate-600 dark:text-slate-300' 
+                            : 'bg-black/10 border-white text-slate-100'}`}
+                      >
+                        <p className={`font-bold text-[10px] ${isInbound ? 'text-cyan-600 dark:text-cyan-400' : 'text-white'}`}>
+                          Mensagem Citada
+                        </p>
+                        <p className="truncate max-w-xs">{m.quoted_corpo_preview || 'Mídia'}</p>
+                      </div>
+                    )}
+
+                    <ConteudoMensagemWhatsApp chatId={id} m={m} onImageClick={(url, caption) => {
+                      setActiveZoomImage(url)
+                      setActiveZoomImageCaption(caption)
+                    }} />
 
                   </div>
 
@@ -686,6 +802,16 @@ useEffect(() => {
 
                 </div>
 
+                {isInbound && !isSystem && (
+                  <button
+                    onClick={() => setMsgRespondida(m)}
+                    className="opacity-25 group-hover:opacity-100 md:opacity-0 transition-opacity p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer shrink-0"
+                    title="Responder"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+                  </button>
+                )}
+
               </div>
 
             )
@@ -699,6 +825,27 @@ useEffect(() => {
         {/* Footer: Input & Mídia */}
 
         <footer className="p-4 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800">
+
+          {msgRespondida && (
+            <div className="flex items-center justify-between bg-slate-100 dark:bg-slate-900 border-l-4 border-cyan-600 px-4 py-2 rounded-t-xl mb-1 text-xs animate-in slide-in-from-bottom-2 duration-150">
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-cyan-600 dark:text-cyan-400">
+                  {msgRespondida.direcao === 'inbound' ? (chat?.cliente_nome || 'Cliente') : (msgRespondida.atendente_nome || 'Você')}
+                </p>
+                <p className="truncate text-slate-600 dark:text-slate-300">
+                  {msgRespondida.tipo_midia && msgRespondida.tipo_midia !== 'texto' 
+                    ? `📷 [${msgRespondida.tipo_midia.charAt(0).toUpperCase() + msgRespondida.tipo_midia.slice(1)}]` 
+                    : msgRespondida.corpo}
+                </p>
+              </div>
+              <button 
+                onClick={() => setMsgRespondida(null)} 
+                className="ml-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg font-bold w-6 h-6 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+          )}
 
           <div className="flex items-end gap-2 bg-slate-100 dark:bg-slate-900 p-2 rounded-2xl shadow-inner">
 
@@ -852,6 +999,76 @@ useEffect(() => {
   </div>
 )}
 
+        {modalVincFuncionario && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+            <Card className="w-full max-w-lg p-6 animate-in zoom-in-95">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-bold">Vincular funcionário</h3>
+                  <p className="mt-1 text-sm text-slate-500">Busque por nome ou e-mail e abra o cadastro do funcionário.</p>
+                </div>
+                <button
+                  type="button"
+                  className="text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+                  onClick={() => setModalVincFuncionario(false)}
+                >
+                  &times;
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-4">
+                <Input
+                  placeholder="Buscar funcionário por nome ou e-mail"
+                  value={buscaFuncionario}
+                  onChange={(e) => setBuscaFuncionario(e.target.value)}
+                />
+
+                {funcionariosError && (
+                  <p className="text-xs text-amber-500">{funcionariosError}</p>
+                )}
+
+                {funcionariosLoading ? (
+                  <p className="text-sm text-slate-500">Buscando...</p>
+                ) : debouncedBuscaFuncionario ? (
+                  funcionariosResultados.length > 0 ? (
+                    <div className="max-h-72 overflow-y-auto divide-y divide-slate-200 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-900">
+                      {funcionariosResultados.map((funcionario) => (
+                        <button
+                          key={funcionario.id}
+                          type="button"
+                          onClick={() => selecionarFuncionario(funcionario)}
+                          className="w-full text-left px-4 py-3 hover:bg-white dark:hover:bg-slate-800 transition-colors"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="font-semibold text-slate-900 dark:text-slate-100">{funcionario.nome}</p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">{funcionario.email}</p>
+                            </div>
+                            <span className="text-xs uppercase tracking-wide text-slate-400">{funcionario.tipo}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500">Nenhum funcionário encontrado.</p>
+                  )
+                ) : (
+                  <p className="text-sm text-slate-500">Digite um termo para buscar funcionários.</p>
+                )}
+              </div>
+
+              <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <Button variant="secondary" onClick={() => setModalVincFuncionario(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={criarFuncionarioNovo}>
+                  Novo funcionário
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
+
       {modalVinc && (
 
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
@@ -874,6 +1091,46 @@ useEffect(() => {
 
         </div>
 
+      )}
+
+      {/* Modal Zoom de Imagem */}
+      {activeZoomImage && (
+        <div 
+          className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          onClick={() => {
+            setActiveZoomImage(null)
+            setActiveZoomImageCaption(null)
+          }}
+        >
+          <button 
+            className="absolute top-4 right-4 text-white text-3xl font-bold bg-white/10 hover:bg-white/20 w-12 h-12 rounded-full flex items-center justify-center transition-colors touch-manipulation cursor-pointer"
+            onClick={() => {
+              setActiveZoomImage(null)
+              setActiveZoomImageCaption(null)
+            }}
+          >
+            &times;
+          </button>
+          <img 
+            src={activeZoomImage} 
+            alt="" 
+            className="max-h-[85vh] max-w-full rounded-lg shadow-2xl object-contain animate-in zoom-in-95 duration-200" 
+            onClick={(e) => e.stopPropagation()} 
+          />
+          {activeZoomImageCaption && (
+            <p className="mt-4 text-white text-sm max-w-2xl text-center bg-black/40 px-4 py-2 rounded-xl backdrop-blur-md">
+              {activeZoomImageCaption}
+            </p>
+          )}
+          <a 
+            href={activeZoomImage} 
+            download="whatsapp-imagem.jpg" 
+            className="absolute bottom-4 right-4 bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-lg shadow-cyan-600/30 transition-all hover:scale-105" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            📥 Baixar Imagem
+          </a>
+        </div>
       )}
       
     </div>

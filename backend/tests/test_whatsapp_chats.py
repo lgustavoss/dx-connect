@@ -67,6 +67,46 @@ def test_fila_e_assumir(client, seed_base, auth_headers):
     assert client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json() == []
 
 
+def test_listar_encerrados_filtra_e_respeita_rbac(client, seed_base, auth_headers):
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "rbac-1"},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "rbac-1"}
+
+    client.post("/v1/webhooks/evolution", json=_webhook_body(wa_id="5511999111122", msg_id="chat-a-1"), headers=h)
+    r_fila = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["admin"])
+    assert r_fila.status_code == 200
+    chat_a_id = r_fila.json()[0]["id"]
+    client.post(f"/v1/whatsapp/chats/{chat_a_id}/assumir", headers=auth_headers["a1"])
+    client.post(f"/v1/whatsapp/chats/{chat_a_id}/encerrar", headers=auth_headers["a1"])
+
+    client.post("/v1/webhooks/evolution", json=_webhook_body(wa_id="5511999222233", msg_id="chat-b-1"), headers=h)
+    r_fila = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["admin"])
+    assert r_fila.status_code == 200
+    chat_b_id = next(c["id"] for c in r_fila.json() if c["id"] != chat_a_id)
+    client.post(f"/v1/whatsapp/chats/{chat_b_id}/assumir", headers=auth_headers["a2"])
+    client.post(f"/v1/whatsapp/chats/{chat_b_id}/encerrar", headers=auth_headers["a2"])
+
+    admin_history = client.get("/v1/whatsapp/chats/encerrados", headers=auth_headers["admin"]).json()
+    assert admin_history["total"] >= 2
+    assert any(item["id"] == chat_a_id for item in admin_history["items"])
+    assert any(item["id"] == chat_b_id for item in admin_history["items"])
+
+    a1_history = client.get("/v1/whatsapp/chats/encerrados", headers=auth_headers["a1"]).json()
+    assert all(item["atendente_id"] == seed_base["a1"].id for item in a1_history["items"])
+    assert any(item["id"] == chat_a_id for item in a1_history["items"])
+    assert not any(item["id"] == chat_b_id for item in a1_history["items"])
+
+    admin_filter = client.get(f"/v1/whatsapp/chats/encerrados?busca=5511999222233", headers=auth_headers["admin"]).json()
+    assert len(admin_filter["items"]) == 1
+    assert admin_filter["items"][0]["id"] == chat_b_id
+
+    denied = client.get(f"/v1/whatsapp/chats/{chat_b_id}", headers=auth_headers["a1"])
+    assert denied.status_code == 403
+
+
 def test_webhook_guarda_citacao_em_mensagem(client, seed_base, auth_headers):
     client.patch(
         "/v1/settings/whatsapp",

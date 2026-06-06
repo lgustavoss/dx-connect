@@ -647,6 +647,8 @@ export namespace WhatsappChats {
     midia_disponivel?: boolean
     evento_sistema?: string | null
     wa_message_id?: string | null
+    quoted_wa_message_id?: string | null
+    quoted_corpo_preview?: string | null
     atendente_id?: number | null
     atendente_nome?: string | null
     created_at?: string | null
@@ -703,10 +705,10 @@ export const whatsappChats = {
   encerrar: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/encerrar`, { method: 'POST' }),
   transferir: (id: number, data: { setor_id: number; atendente_id?: number | null }) =>
     api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/transferir`, { method: 'POST', body: JSON.stringify(data) }),
-  enviar: (id: number, texto: string) =>
+  enviar: (id: number, texto: string, quotedWaMessageId?: string | null) =>
     api<WhatsappChats.Mensagem>(`/whatsapp/chats/${id}/mensagens`, {
       method: 'POST',
-      body: JSON.stringify({ texto }),
+      body: JSON.stringify({ texto, quoted_wa_message_id: quotedWaMessageId }),
     }),
   comentarInterno: (id: number, texto: string) =>
     api<WhatsappChats.Mensagem>(`/whatsapp/chats/${id}/comentarios-internos`, {
@@ -729,16 +731,29 @@ export const whatsappChats = {
     }),
   porTicket: (ticketId: number) => api<WhatsappChats.Chat[]>(`/whatsapp/chats/por-ticket/${ticketId}`),
   setoresParaTransferencia: () => api<Array<{ id: number; nome: string }>>('/whatsapp/chats/transfer/setores'),
-    enviarMidia: (id: number, file: File) => {
+  enviarMidia: (id: number, file: File, caption?: string, quotedWaMessageId?: string | null) => {
     const formData = new FormData()
-    formData.append('file', file) // Verifique se o seu backend espera a chave 'file'
+    formData.append('file', file)
 
-    return api<WhatsappChats.Mensagem>(`/whatsapp/chats/${id}/mensagens-midia`, {
+    // Infere o tipo de mídia
+    let mediatipo = 'documento'
+    if (file.type.startsWith('image/')) {
+      mediatipo = 'imagem'
+    } else if (file.type.startsWith('audio/')) {
+      mediatipo = 'audio'
+    } else if (file.type.startsWith('video/')) {
+      mediatipo = 'video'
+    }
+
+    formData.append('mediatipo', mediatipo)
+    formData.append('caption', caption || '')
+    if (quotedWaMessageId) {
+      formData.append('quoted_wa_message_id', quotedWaMessageId)
+    }
+
+    return api<WhatsappChats.Mensagem>(`/whatsapp/chats/${id}/mensagens/midia`, {
       method: 'POST',
       body: formData,
-      // Se a sua função 'api' injeta automaticamente headers de JSON, 
-      // você pode precisar passar um parâmetro para ignorar ou sobrescrever
-      // o Content-Type para undefined, deixando o browser definir o Boundary.
     })
   }
 }
