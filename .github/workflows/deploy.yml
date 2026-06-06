@@ -105,7 +105,7 @@ jobs:
           echo "==> Deploy branch/ref: $REF"
           git fetch origin
           git checkout "$REF"
-          git pull origin "$REF"
+          git reset --hard "origin/$REF"
           export DX_CONNECT_GIT_SHA="$(git rev-parse --short HEAD)"
           echo "==> Commit: $DX_CONNECT_GIT_SHA"
           COMPOSE="docker compose --env-file backend/.env -f docker-compose.prod.yml"
