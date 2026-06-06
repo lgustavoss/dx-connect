@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
 
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import {
 
@@ -10,12 +10,15 @@ import {
 
   whatsappChats,
 
+  funcionariosRede,
+
   fetchWhatsAppMidiaBlob,
 
 
   type Setores,
 
   type Atendentes,
+  type FuncionariosRede,
 
   type WhatsappChats,
 
@@ -219,6 +222,12 @@ export function WhatsappConversa() {
   const [transferSetorId, setTransferSetorId] = useState<number | ''>('')
   const [transferAtendenteId, setTransferAtendenteId] = useState<number | ''>('')
   const [transferindo, setTransferindo] = useState(false)
+  const [modalVincFuncionario, setModalVincFuncionario] = useState(false)
+  const [buscaFuncionario, setBuscaFuncionario] = useState('')
+  const [debouncedBuscaFuncionario, setDebouncedBuscaFuncionario] = useState('')
+  const [funcionariosResultados, setFuncionariosResultados] = useState<FuncionariosRede.Funcionario[]>([])
+  const [funcionariosLoading, setFuncionariosLoading] = useState(false)
+  const [funcionariosError, setFuncionariosError] = useState<string | null>(null)
 
   const [setoresList, setSetoresList] = useState<Setores.Setor[]>([])
   const [atendentesDestino, setAtendentesDestino] = useState<Atendentes.Atendente[]>([])
@@ -229,6 +238,7 @@ export function WhatsappConversa() {
   const [modalVinc, setModalVinc] = useState(false)
 
   const [ticketVincId, setTicketVincId] = useState('')
+  const navigate = useNavigate()
 
 
 
@@ -317,6 +327,33 @@ export function WhatsappConversa() {
     return () => clearInterval(t)
 
   }, [chat, carregar])
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedBuscaFuncionario(buscaFuncionario.trim()), 400)
+    return () => clearTimeout(timer)
+  }, [buscaFuncionario])
+
+  useEffect(() => {
+    if (!modalVincFuncionario) return
+    if (!debouncedBuscaFuncionario) {
+      setFuncionariosResultados([])
+      setFuncionariosError(null)
+      return
+    }
+
+    setFuncionariosLoading(true)
+    setFuncionariosError(null)
+    funcionariosRede
+      .list({ busca: debouncedBuscaFuncionario, incluir_inativos: true, limit: 20 })
+      .then((data) => {
+        setFuncionariosResultados(data.items)
+      })
+      .catch((err) => {
+        setFuncionariosResultados([])
+        setFuncionariosError(mensagemFalhaParaToast(err, 'Não foi possível buscar funcionários.'))
+      })
+      .finally(() => setFuncionariosLoading(false))
+  }, [modalVincFuncionario, debouncedBuscaFuncionario])
 
 //transferencia de atendente
 useEffect(() => {
@@ -475,6 +512,18 @@ useEffect(() => {
 
   }
 
+  function selecionarFuncionario(funcionario: FuncionariosRede.Funcionario) {
+    setModalVincFuncionario(false)
+    navigate(`/funcionarios-rede/${funcionario.id}`)
+  }
+
+  function criarFuncionarioNovo() {
+    setModalVincFuncionario(false)
+    const email = buscaFuncionario.trim()
+    const emailQuery = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? `?email=${encodeURIComponent(email)}` : ''
+    navigate(`/funcionarios-rede/novo${emailQuery}`)
+  }
+
 
 
   if (loading && !chat) return <div className="flex h-full items-center justify-center italic text-slate-400">Carregando workspace...</div>
@@ -627,6 +676,13 @@ useEffect(() => {
 >
   Transferir
 </Button>
+              <Button
+                variant="ghost"
+                className="hidden sm:inline-flex text-xs h-8"
+                onClick={() => setModalVincFuncionario(true)}
+              >
+                Vincular funcionário
+              </Button>
 
                 <Button variant="ghost" className="hidden sm:inline-flex text-xs h-8" onClick={() => setModalVinc(true)}>Tickets</Button>
 
@@ -942,6 +998,76 @@ useEffect(() => {
     </Card>
   </div>
 )}
+
+        {modalVincFuncionario && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+            <Card className="w-full max-w-lg p-6 animate-in zoom-in-95">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-bold">Vincular funcionário</h3>
+                  <p className="mt-1 text-sm text-slate-500">Busque por nome ou e-mail e abra o cadastro do funcionário.</p>
+                </div>
+                <button
+                  type="button"
+                  className="text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+                  onClick={() => setModalVincFuncionario(false)}
+                >
+                  &times;
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-4">
+                <Input
+                  placeholder="Buscar funcionário por nome ou e-mail"
+                  value={buscaFuncionario}
+                  onChange={(e) => setBuscaFuncionario(e.target.value)}
+                />
+
+                {funcionariosError && (
+                  <p className="text-xs text-amber-500">{funcionariosError}</p>
+                )}
+
+                {funcionariosLoading ? (
+                  <p className="text-sm text-slate-500">Buscando...</p>
+                ) : debouncedBuscaFuncionario ? (
+                  funcionariosResultados.length > 0 ? (
+                    <div className="max-h-72 overflow-y-auto divide-y divide-slate-200 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-900">
+                      {funcionariosResultados.map((funcionario) => (
+                        <button
+                          key={funcionario.id}
+                          type="button"
+                          onClick={() => selecionarFuncionario(funcionario)}
+                          className="w-full text-left px-4 py-3 hover:bg-white dark:hover:bg-slate-800 transition-colors"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="font-semibold text-slate-900 dark:text-slate-100">{funcionario.nome}</p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">{funcionario.email}</p>
+                            </div>
+                            <span className="text-xs uppercase tracking-wide text-slate-400">{funcionario.tipo}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500">Nenhum funcionário encontrado.</p>
+                  )
+                ) : (
+                  <p className="text-sm text-slate-500">Digite um termo para buscar funcionários.</p>
+                )}
+              </div>
+
+              <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <Button variant="secondary" onClick={() => setModalVincFuncionario(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={criarFuncionarioNovo}>
+                  Novo funcionário
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
 
       {modalVinc && (
 

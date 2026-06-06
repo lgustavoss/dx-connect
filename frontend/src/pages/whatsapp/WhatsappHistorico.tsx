@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { whatsappChats, type WhatsappChats } from '../../api/client'
+import { atendentes, whatsappChats, type WhatsappChats, type Atendentes } from '../../api/client'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
@@ -17,15 +17,23 @@ export function WhatsappHistorico() {
   const [offset, setOffset] = useState(0)
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
+  const [atendentesList, setAtendentesList] = useState<Atendentes.Atendente[]>([])
+  const [atendenteId, setAtendenteId] = useState<number | ''>('')
+  const [desde, setDesde] = useState('')
+  const [ate, setAte] = useState('')
 
   const load = useCallback(async (from: number) => {
     setLoading(true)
     try {
-      // Nota: Se seu backend suportar busca, você passaria o termo aqui
-      const { items: rows, total: t } = await whatsappChats.encerrados({ 
-        offset: from, 
-        limit: PAGE_SIZE 
-      })
+      const params: Record<string, string | number | undefined> = {
+        offset: from,
+        limit: PAGE_SIZE,
+      }
+      if (busca.trim()) params.busca = busca.trim()
+      if (atendenteId !== '') params.atendente_id = atendenteId
+      if (desde) params.encerramento_inicio = `${desde}T00:00:00`
+      if (ate) params.encerramento_fim = `${ate}T23:59:59`
+      const { items: rows, total: t } = await whatsappChats.encerrados(params)
       setItems(rows)
       setTotal(t)
       setOffset(from)
@@ -34,11 +42,30 @@ export function WhatsappHistorico() {
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [atendenteId, ate, busca, desde, toast])
 
   useEffect(() => {
     void load(0)
   }, [load])
+
+  useEffect(() => {
+    void atendentes
+      .list({ incluir_inativos: true, offset: 0, limit: 100 })
+      .then((result) => setAtendentesList(result.items))
+      .catch(() => setAtendentesList([]))
+  }, [])
+
+  const formatDuration = (chat: WhatsappChats.Chat) => {
+    if (!chat.atendimento_inicio_at || !chat.encerramento_at) return '—'
+    const start = new Date(chat.atendimento_inicio_at)
+    const end = new Date(chat.encerramento_at)
+    const diff = Math.max(0, Math.round((end.getTime() - start.getTime()) / 1000))
+    const minutes = Math.floor(diff / 60)
+    if (minutes < 60) return `${minutes} min`
+    const hours = Math.floor(minutes / 60)
+    const remain = minutes % 60
+    return `${hours}h ${remain}m`
+  }
 
   // Cálculo de páginas
   const paginaAtual = Math.floor(offset / PAGE_SIZE) + 1
@@ -54,10 +81,10 @@ export function WhatsappHistorico() {
           <p className="text-sm text-slate-500">Consulte atendimentos finalizados e protocolos antigos.</p>
         </div>
 
-        <div className="flex flex-1 max-w-md gap-2">
-          <div className="relative flex-1">
-            <Input 
-              placeholder="Buscar por nome, telefone ou protocolo (ex.: #C202604-0001)…" 
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between flex-1">
+          <div className="relative flex-1 min-w-0">
+            <Input
+              placeholder="Buscar por nome, telefone ou protocolo (ex.: #C202604-0001)…"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               className="pl-10"
@@ -65,6 +92,34 @@ export function WhatsappHistorico() {
             <span className="absolute left-3 top-2.5 text-slate-400">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             </span>
+          </div>
+          <div className="grid w-full max-w-xl grid-cols-1 gap-3 sm:grid-cols-3">
+            <Input
+              type="date"
+              label="De"
+              value={desde}
+              onChange={(e) => setDesde(e.target.value)}
+            />
+            <Input
+              type="date"
+              label="Até"
+              value={ate}
+              onChange={(e) => setAte(e.target.value)}
+            />
+            <div className="flex items-center gap-2">
+              <select
+                value={atendenteId}
+                onChange={(e) => setAtendenteId(e.target.value === '' ? '' : Number(e.target.value))}
+                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-cyan-400 dark:focus:ring-cyan-500/20"
+              >
+                <option value="">Atendente</option>
+                {atendentesList.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <Button variant="secondary" onClick={() => void load(0)}>Filtrar</Button>
         </div>
@@ -117,11 +172,23 @@ export function WhatsappHistorico() {
                       <p className="text-xs font-medium text-slate-700 dark:text-slate-300">{c.atendente_nome || 'Sistema'}</p>
                     </div>
                     
-                    <div className="text-right">
-                      <p className="text-[10px] font-bold uppercase tracking-tight text-slate-400">Finalizado em</p>
-                      <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                        {c.encerramento_at ? new Date(c.encerramento_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}
-                      </p>
+                    <div className="grid gap-2 text-right">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-tight text-slate-400">Início</p>
+                        <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                          {c.atendimento_inicio_at ? new Date(c.atendimento_inicio_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-tight text-slate-400">Finalizado em</p>
+                        <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                          {c.encerramento_at ? new Date(c.encerramento_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-tight text-slate-400">Duração</p>
+                        <p className="text-xs font-medium text-slate-700 dark:text-slate-300">{formatDuration(c)}</p>
+                      </div>
                     </div>
 
                     <Link
