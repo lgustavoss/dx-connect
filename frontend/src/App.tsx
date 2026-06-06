@@ -44,15 +44,12 @@ import { AlterarSenha } from './pages/AlterarSenha'
 import { AcessoNegado } from './pages/AcessoNegado'
 import { ToastProvider } from './components/ui/Toast'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { PageLoading } from './components/ui/PageLoading'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
-        <span className="text-slate-500 dark:text-slate-400">Carregando...</span>
-      </div>
-    )
+    return <PageLoading fullscreen label="Carregando sessão…" />
   }
   if (!user) {
     return <Navigate to="/login" replace />
@@ -63,11 +60,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
-        <span className="text-slate-500 dark:text-slate-400">Carregando...</span>
-      </div>
-    )
+    return <PageLoading fullscreen label="Carregando sessão…" />
   }
   if (!user) {
     return <Navigate to="/login" replace />

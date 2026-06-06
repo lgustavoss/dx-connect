@@ -103,7 +103,7 @@ export function Login() {
 
   return (
     <div
-      className="relative flex min-h-dvh flex-col bg-[#050810] font-[family-name:'Plus_Jakarta_Sans',system-ui,sans-serif] text-slate-100 antialiased lg:flex-row"
+      className="relative flex h-dvh max-h-dvh min-h-0 flex-col overflow-y-auto bg-[#050810] font-[family-name:'Plus_Jakarta_Sans',system-ui,sans-serif] text-slate-100 antialiased lg:flex-row"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       <LoginMeshBg />

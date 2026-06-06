@@ -795,6 +795,17 @@ export const tickets = {
   reabrir: (id: number) => api<Tickets.Ticket>(`/tickets/${id}/reabrir`, { method: 'POST' }),
   create: (data: Tickets.Create) => api<Tickets.Ticket>('/tickets', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: number, data: Tickets.Update) => api<Tickets.Ticket>(`/tickets/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  addVinculo: (ticketId: number, data: Tickets.VinculoCreate) =>
+    api<Tickets.TicketVinculo>(`/tickets/${ticketId}/vinculos`, { method: 'POST', body: JSON.stringify(data) }),
+  removeVinculo: (ticketId: number, vinculoId: number) =>
+    api<void>(`/tickets/${ticketId}/vinculos/${vinculoId}`, { method: 'DELETE' }),
+  filhosMassaOpcoes: (ticketId: number) =>
+    api<Tickets.FilhosMassaOpcoes>(`/tickets/${ticketId}/filhos-em-massa/opcoes`),
+  criarFilhosMassa: (ticketId: number, data: Tickets.FilhosMassaCreate) =>
+    api<Tickets.FilhosMassaResult>(`/tickets/${ticketId}/filhos-em-massa`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   anexosList: (id: number) => api<Tickets.Anexo[]>(`/tickets/${id}/anexos`),
   uploadAnexo: (id: number, file: File, mensagemId?: number | null) => {
     const fd = new FormData()
@@ -1204,13 +1215,63 @@ export namespace Tickets {
     rede_id?: number | null;
     empresa_nome?: string | null;
     rede_nome?: string;
+    coordenacao_rede?: boolean;
     setor_nome?: string;
     status_nome?: string;
     atendente_nome?: string;
     parent_ticket_id?: number | null;
     parent?: TicketParentBrief | null;
     children?: TicketChildBrief[];
+    vinculos?: TicketVinculo[];
     triagem_inbound?: TriagemInbound | null;
+  }
+  export type TicketVinculoTipo = 'duplicado_de' | 'relacionado_a';
+  export interface TicketVinculoOutro {
+    id: number;
+    protocolo: string;
+    assunto: string;
+    status_nome?: string | null;
+  }
+  export interface TicketVinculo {
+    id: number;
+    tipo: TicketVinculoTipo;
+    rotulo: string;
+    outro_ticket: TicketVinculoOutro;
+    duplicado_fechado?: boolean;
+  }
+  export interface VinculoCreate {
+    related_ticket_id: number;
+    tipo: TicketVinculoTipo;
+    fechar_como_duplicado?: boolean;
+  }
+  export interface FilhoMassaEmpresaOpcao {
+    id: number;
+    nome: string;
+    ja_tem_filho: boolean;
+  }
+  export interface FilhosMassaOpcoes {
+    rede_id: number;
+    rede_nome?: string | null;
+    assunto_padrao: string;
+    descricao_padrao?: string | null;
+    setor_id: number;
+    empresas: FilhoMassaEmpresaOpcao[];
+  }
+  export interface FilhosMassaCreate {
+    empresa_ids: number[];
+    assunto?: string | null;
+    descricao?: string | null;
+    setor_id?: number | null;
+  }
+  export interface FilhoMassaCriado {
+    id: number;
+    protocolo: string;
+    empresa_id: number;
+    empresa_nome: string;
+  }
+  export interface FilhosMassaResult {
+    criados: FilhoMassaCriado[];
+    total: number;
   }
   export interface Historico {
     id: number;
@@ -1223,7 +1284,8 @@ export namespace Tickets {
     created_at: string;
   }
   export interface Create {
-    empresa_id: number;
+    empresa_id?: number | null;
+    rede_id?: number | null;
     setor_id: number;
     assunto: string;
     descricao?: string;

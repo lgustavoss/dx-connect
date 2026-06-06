@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, asc, desc, nullslast, inspect as sa_inspect
 
@@ -11,6 +11,7 @@ from app.models import Ticket, TicketHistorico, TicketMensagem, Empresa, Setor, 
 from app.models.email_inbound_received import EmailInboundReceived
 from app.models.funcionario_rede import FuncionarioRede
 from app.models.ticket_anexo import TicketAnexo
+from app.models.ticket_vinculo import TIPO_DUPLICADO_DE, TicketVinculo
 from app.schemas.ticket import (
     EmpresaVinculoSugerida,
     TicketChildBrief,
@@ -24,6 +25,14 @@ from app.schemas.ticket import (
     TicketRead,
     TicketTriagemInbound,
     TicketUpdate,
+    TicketVinculoCreate,
+    TicketVinculoOutroBrief,
+    TicketVinculoRead,
+    TicketFilhosMassaCreate,
+    TicketFilhosMassaOpcoesRead,
+    TicketFilhosMassaRead,
+    TicketFilhoMassaCriado,
+    TicketFilhoMassaEmpresaOpcao,
 )
 from app.schemas.ticket_anexo import TicketAnexoCreateResponse, TicketAnexoRead
 from app.schemas.lista_paginada import ListaPaginada
@@ -36,6 +45,20 @@ from app.core.setor_scope import (
 )
 from app.services import ticket_anexo_storage
 from app.services.protocolo_mensal import gerar_protocolo_ticket
+from app.services.ticket_vinculos import (
+    criar_vinculo as criar_vinculo_ticket,
+    fechar_ticket_como_duplicado,
+    listar_vinculos,
+    outro_ticket_id,
+    rotulo_vinculo,
+)
+from app.services.ticket_filhos_massa import criar_filhos_em_massa, listar_opcoes_filhos_massa
+from app.services.ticket_escopo import (
+    rede_id_de_empresa,
+    rede_id_efetivo_ticket,
+    ticket_e_coordenacao_rede,
+    validar_escopo_criacao_manual,
+)
 from app.services.funcionario_rede_resolver import resolver_remetente_por_email
 from app.services.ticket_client_email import extrair_email_de_from_address
 from app.services.ticket_mensagem_email_outbox import (
@@ -112,13 +135,18 @@ def _assert_parent_valido(
 ) -> None:
     if filho_ticket_id is not None and parent_id == filho_ticket_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Um ticket não pode ser pai de si mesmo.")
-    parent = db.query(Ticket).filter(Ticket.id == parent_id).first()
+    parent = (
+        db.query(Ticket)
+        .options(joinedload(Ticket.rede), joinedload(Ticket.empresa))
+        .filter(Ticket.id == parent_id)
+        .first()
+    )
     if not parent:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket pai não encontrado")
     if not _pode_ver_ticket(db, atendente, parent):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para vincular a este ticket pai")
     r_filho = _rede_id_empresa(db, filho_empresa_id)
-    r_pai = _rede_id_empresa(db, parent.empresa_id)
+    r_pai = rede_id_efetivo_ticket(db, parent)
     if r_filho is None or r_pai is None or r_filho != r_pai:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -134,6 +162,7 @@ def _assert_parent_valido(
 def _opcoes_carregamento_ticket_detalhe():
     return (
         joinedload(Ticket.empresa).joinedload(Empresa.rede),
+        joinedload(Ticket.rede),
         joinedload(Ticket.setor),
         joinedload(Ticket.status),
         joinedload(Ticket.atendente),
@@ -174,6 +203,46 @@ def _triagem_inbound_para_ticket(db: Session, t: Ticket) -> TicketTriagemInbound
     )
 
 
+def _ticket_vinculo_brief(t: Ticket) -> TicketVinculoOutroBrief:
+    return TicketVinculoOutroBrief(
+        id=t.id,
+        protocolo=t.protocolo,
+        assunto=t.assunto,
+        status_nome=t.status.nome if t.status else None,
+    )
+
+
+def _vinculo_para_read(
+    v: TicketVinculo,
+    perspectiva_ticket_id: int,
+    db: Session,
+    *,
+    duplicado_fechado: bool = False,
+) -> TicketVinculoRead:
+    other_id = outro_ticket_id(v, perspectiva_ticket_id)
+    other = v.related_ticket if v.related_ticket_id == other_id else v.ticket
+    if other is None or other.id != other_id:
+        other = (
+            db.query(Ticket)
+            .options(joinedload(Ticket.status))
+            .filter(Ticket.id == other_id)
+            .first()
+        )
+    if other is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Ticket vinculado em falta")
+    return TicketVinculoRead(
+        id=v.id,
+        tipo=v.tipo,
+        rotulo=rotulo_vinculo(v, perspectiva_ticket_id),
+        outro_ticket=_ticket_vinculo_brief(other),
+        duplicado_fechado=duplicado_fechado,
+    )
+
+
+def _vinculos_para_read(db: Session, t: Ticket) -> list[TicketVinculoRead]:
+    return [_vinculo_para_read(v, t.id, db) for v in listar_vinculos(db, t.id)]
+
+
 def _ticket_para_read(t: Ticket, db: Session | None = None) -> TicketRead:
     parent_brief = None
     if t.parent_ticket_id and _attr_relacionamento_carregado(t, "parent") and t.parent is not None:
@@ -199,14 +268,17 @@ def _ticket_para_read(t: Ticket, db: Session | None = None) -> TicketRead:
                 )
             )
     triagem = _triagem_inbound_para_ticket(db, t) if db is not None else None
-    rede_id = t.empresa.rede_id if t.empresa else None
-    rede_nome = t.empresa.rede.nome if t.empresa and t.empresa.rede else None
-    if db and triagem and triagem.requer_cadastro_funcionario is False and rede_id is None and t.aberto_por_id:
+    rede_id_out = t.rede_id
+    rede_nome_out = t.rede.nome if t.rede is not None else None
+    if rede_id_out is None and t.empresa is not None:
+        rede_id_out = t.empresa.rede_id
+        rede_nome_out = t.empresa.rede.nome if t.empresa.rede else rede_nome_out
+    if db and triagem and triagem.requer_cadastro_funcionario is False and rede_id_out is None and t.aberto_por_id:
         f = db.query(FuncionarioRede).filter(FuncionarioRede.id == t.aberto_por_id).first()
         if f and f.rede_id:
-            rede_id = f.rede_id
+            rede_id_out = f.rede_id
             r = db.query(Rede).filter(Rede.id == f.rede_id).first()
-            rede_nome = r.nome if r else None
+            rede_nome_out = r.nome if r else rede_nome_out
     return TicketRead(
         id=t.id,
         protocolo=t.protocolo,
@@ -220,15 +292,17 @@ def _ticket_para_read(t: Ticket, db: Session | None = None) -> TicketRead:
         fechado_em=t.fechado_em,
         created_at=t.created_at,
         updated_at=t.updated_at,
-        rede_id=rede_id,
+        rede_id=rede_id_out,
         empresa_nome=t.empresa.nome if t.empresa else None,
-        rede_nome=rede_nome,
+        rede_nome=rede_nome_out,
+        coordenacao_rede=ticket_e_coordenacao_rede(t),
         setor_nome=t.setor.nome if t.setor else None,
         status_nome=t.status.nome if t.status else None,
         atendente_nome=t.atendente.nome if t.atendente else None,
         parent_ticket_id=t.parent_ticket_id,
         parent=parent_brief,
         children=children_out,
+        vinculos=_vinculos_para_read(db, t) if db is not None else [],
         triagem_inbound=triagem,
     )
 
@@ -327,7 +401,7 @@ def listar(
     if empresa_id is not None:
         q = q.filter(Ticket.empresa_id == empresa_id)
     if rede_id is not None:
-        q = q.filter(Empresa.rede_id == rede_id)
+        q = q.filter(or_(Ticket.rede_id == rede_id, Empresa.rede_id == rede_id))
     if setor_id is not None:
         q = q.filter(Ticket.setor_id == setor_id)
     if status_id is not None:
@@ -395,6 +469,7 @@ def listar(
     rows = (
         q.options(
             joinedload(Ticket.empresa).joinedload(Empresa.rede),
+            joinedload(Ticket.rede),
             joinedload(Ticket.setor),
             joinedload(Ticket.status),
             joinedload(Ticket.atendente),
@@ -418,13 +493,15 @@ def criar(
         vis = ids_setores_visiveis_atendente(db, atendente)
         if data.setor_id not in vis:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este setor")
-    empresa = (
-        db.query(Empresa)
-        .filter(Empresa.id == data.empresa_id, Empresa.tenant_id == atendente.tenant_id)
-        .first()
-    )
-    if not empresa:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empresa não encontrada")
+    try:
+        modo = validar_escopo_criacao_manual(
+            empresa_id=data.empresa_id,
+            rede_id=data.rede_id,
+            parent_ticket_id=data.parent_ticket_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
     setor = (
         db.query(Setor)
         .filter(Setor.id == data.setor_id, Setor.tenant_id == atendente.tenant_id)
@@ -432,6 +509,34 @@ def criar(
     )
     if not setor:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor não encontrado")
+
+    ticket_empresa_id: int | None
+    ticket_rede_id: int | None
+    if modo == "empresa":
+        empresa = (
+            db.query(Empresa)
+            .filter(Empresa.id == data.empresa_id, Empresa.tenant_id == atendente.tenant_id)
+            .first()
+        )
+        if not empresa:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empresa não encontrada")
+        if not empresa.ativo:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empresa inativa")
+        ticket_empresa_id = data.empresa_id
+        ticket_rede_id = empresa.rede_id
+    else:
+        rede = (
+            db.query(Rede)
+            .filter(Rede.id == data.rede_id, Rede.tenant_id == atendente.tenant_id)
+            .first()
+        )
+        if not rede:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rede não encontrada")
+        if not rede.ativo:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Rede inativa")
+        ticket_empresa_id = None
+        ticket_rede_id = rede.id
+
     if data.parent_ticket_id is not None:
         _assert_parent_valido(
             db,
@@ -448,7 +553,8 @@ def criar(
     ticket = Ticket(
         tenant_id=atendente.tenant_id,
         protocolo=protocolo,
-        empresa_id=data.empresa_id,
+        empresa_id=ticket_empresa_id,
+        rede_id=ticket_rede_id,
         setor_id=data.setor_id,
         status_id=status_inicial.id,
         assunto=data.assunto,
@@ -537,6 +643,211 @@ def historico(
         )
         for h in rows
     ]
+
+
+@router.post("/{ticket_id}/vinculos", response_model=TicketVinculoRead, status_code=status.HTTP_201_CREATED)
+def criar_vinculo(
+    ticket_id: int,
+    data: TicketVinculoCreate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
+    if not _pode_ver_ticket(db, atendente, ticket):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
+    related = db.query(Ticket).filter(Ticket.id == data.related_ticket_id).first()
+    if not related:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket relacionado não encontrado")
+    if not _pode_ver_ticket(db, atendente, related):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Sem permissão para vincular a este ticket",
+        )
+    try:
+        v = criar_vinculo_ticket(
+            db,
+            ticket=ticket,
+            related=related,
+            tipo=data.tipo,
+            atendente=atendente,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+    duplicado_fechado = False
+    if data.tipo == TIPO_DUPLICADO_DE and data.fechar_como_duplicado:
+        try:
+            status_antigo = ticket.status_id
+            if fechar_ticket_como_duplicado(db, duplicado=ticket, original=related, atendente=atendente):
+                duplicado_fechado = True
+                _registrar_historico(
+                    db,
+                    ticket.id,
+                    atendente.id,
+                    "status_id",
+                    str(status_antigo),
+                    str(ticket.status_id),
+                )
+                _registrar_historico(
+                    db,
+                    ticket.id,
+                    atendente.id,
+                    "fechado_em",
+                    "",
+                    ticket.fechado_em.isoformat() if ticket.fechado_em else "",
+                )
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+    _registrar_historico(
+        db,
+        ticket.id,
+        atendente.id,
+        "vinculo_ticket",
+        "",
+        f"{data.tipo}:{related.id}",
+    )
+    db.commit()
+    db.refresh(v)
+    return _vinculo_para_read(v, ticket.id, db, duplicado_fechado=duplicado_fechado)
+
+
+@router.delete("/{ticket_id}/vinculos/{vinculo_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remover_vinculo(
+    ticket_id: int,
+    vinculo_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
+    if not _pode_ver_ticket(db, atendente, ticket):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
+    v = db.query(TicketVinculo).filter(TicketVinculo.id == vinculo_id).first()
+    if not v:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vínculo não encontrado")
+    if ticket_id not in (v.ticket_id, v.related_ticket_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vínculo não encontrado neste ticket")
+    other_id = outro_ticket_id(v, ticket_id)
+    other = db.query(Ticket).filter(Ticket.id == other_id).first()
+    if other and not _pode_ver_ticket(db, atendente, other):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para remover este vínculo")
+    _registrar_historico(
+        db,
+        ticket.id,
+        atendente.id,
+        "vinculo_ticket",
+        f"{v.tipo}:{other_id}",
+        "",
+    )
+    db.delete(v)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/{ticket_id}/filhos-em-massa/opcoes", response_model=TicketFilhosMassaOpcoesRead)
+def opcoes_filhos_em_massa(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    ticket = (
+        db.query(Ticket)
+        .options(joinedload(Ticket.empresa).joinedload(Empresa.rede), joinedload(Ticket.rede))
+        .filter(Ticket.id == ticket_id)
+        .first()
+    )
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
+    if not _pode_ver_ticket(db, atendente, ticket):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
+    try:
+        rede_id, rede_nome, opcoes = listar_opcoes_filhos_massa(db, ticket)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    return TicketFilhosMassaOpcoesRead(
+        rede_id=rede_id,
+        rede_nome=rede_nome,
+        assunto_padrao=ticket.assunto,
+        descricao_padrao=ticket.descricao,
+        setor_id=ticket.setor_id,
+        empresas=[
+            TicketFilhoMassaEmpresaOpcao(id=o.id, nome=o.nome, ja_tem_filho=o.ja_tem_filho) for o in opcoes
+        ],
+    )
+
+
+@router.post("/{ticket_id}/filhos-em-massa", response_model=TicketFilhosMassaRead, status_code=status.HTTP_201_CREATED)
+def criar_filhos_em_massa_endpoint(
+    ticket_id: int,
+    data: TicketFilhosMassaCreate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
+    if not _pode_ver_ticket(db, atendente, ticket):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
+
+    setor_id = data.setor_id if data.setor_id is not None else ticket.setor_id
+    if atendente.role != "admin":
+        vis = ids_setores_visiveis_atendente(db, atendente)
+        if setor_id not in vis:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este setor")
+    setor = db.query(Setor).filter(Setor.id == setor_id, Setor.tenant_id == atendente.tenant_id).first()
+    if not setor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor não encontrado")
+
+    assunto = (data.assunto if data.assunto is not None else ticket.assunto).strip()
+    if not assunto:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Assunto é obrigatório")
+    descricao = data.descricao if data.descricao is not None else ticket.descricao
+
+    for empresa_id in data.empresa_ids:
+        _assert_parent_valido(
+            db,
+            atendente,
+            filho_empresa_id=empresa_id,
+            filho_ticket_id=None,
+            parent_id=ticket.id,
+        )
+
+    try:
+        criados = criar_filhos_em_massa(
+            db,
+            parent=ticket,
+            atendente=atendente,
+            empresa_ids=data.empresa_ids,
+            assunto=assunto,
+            descricao=descricao,
+            setor_id=setor_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+    _registrar_historico(db, ticket.id, atendente.id, "filhos_em_massa", "", str(len(criados)))
+    db.commit()
+
+    empresa_nomes = {
+        e.id: e.nome
+        for e in db.query(Empresa).filter(Empresa.id.in_([t.empresa_id for t in criados if t.empresa_id])).all()
+    }
+    return TicketFilhosMassaRead(
+        criados=[
+            TicketFilhoMassaCriado(
+                id=t.id,
+                protocolo=t.protocolo,
+                empresa_id=t.empresa_id,
+                empresa_nome=empresa_nomes.get(t.empresa_id, ""),
+            )
+            for t in criados
+        ],
+        total=len(criados),
+    )
 
 
 def _mensagem_para_read(m: TicketMensagem) -> TicketMensagemRead:
@@ -1088,6 +1399,7 @@ def atualizar(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Esta empresa não está vinculada ao funcionário remetente do e-mail.",
                 )
+            ticket.rede_id = empresa.rede_id
         antigo = str(ticket.empresa_id) if ticket.empresa_id is not None else ""
         novo = str(novo_eid) if novo_eid is not None else ""
         _registrar_historico(db, ticket.id, atendente.id, "empresa_id", antigo, novo)

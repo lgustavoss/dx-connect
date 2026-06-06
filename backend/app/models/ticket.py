@@ -12,6 +12,7 @@ class Ticket(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False, index=True)
     protocolo = Column(String(32), unique=True, nullable=False, index=True)  # #TYYYYMM-NNNN (legado: numérico)
     empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=True)
+    rede_id = Column(Integer, ForeignKey("redes.id"), nullable=True, index=True)
     setor_id = Column(Integer, ForeignKey("setores.id"), nullable=False)
     status_id = Column(Integer, ForeignKey("status_ticket.id"), nullable=False)
     atendente_id = Column(Integer, ForeignKey("atendentes.id"), nullable=True)  # responsável
@@ -24,6 +25,7 @@ class Ticket(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     empresa = relationship("Empresa", back_populates="tickets")
+    rede = relationship("Rede", back_populates="tickets")
     setor = relationship("Setor", back_populates="tickets")
     status = relationship("StatusTicket", back_populates="tickets")
     atendente = relationship("Atendente", back_populates="tickets_atendidos")
@@ -38,6 +40,16 @@ class Ticket(Base):
         "Ticket",
         foreign_keys=[parent_ticket_id],
         back_populates="parent",
+    )
+    vinculos_saida = relationship(
+        "TicketVinculo",
+        foreign_keys="TicketVinculo.ticket_id",
+        back_populates="ticket",
+    )
+    vinculos_entrada = relationship(
+        "TicketVinculo",
+        foreign_keys="TicketVinculo.related_ticket_id",
+        back_populates="related_ticket",
     )
     historicos = relationship("TicketHistorico", back_populates="ticket", order_by="TicketHistorico.created_at")
     mensagens = relationship(

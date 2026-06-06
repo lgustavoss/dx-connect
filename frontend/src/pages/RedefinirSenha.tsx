@@ -48,7 +48,7 @@ export function RedefinirSenha() {
 
   if (!token) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center bg-[#050810] px-4 text-center text-slate-100">
+      <div className="flex h-dvh max-h-dvh flex-col items-center justify-center overflow-y-auto bg-[#050810] px-4 text-center text-slate-100">
         <p className="mb-4 text-sm text-slate-400">Link inválido ou incompleto.</p>
         <Link to="/esqueci-senha" className="text-cyan-400/90 hover:text-cyan-300">
           Solicitar novo link
@@ -58,7 +58,7 @@ export function RedefinirSenha() {
   }
 
   return (
-    <div className="relative flex min-h-dvh flex-col justify-center bg-[#050810] px-4 py-10 font-[family-name:'Plus_Jakarta_Sans',system-ui,sans-serif] text-slate-100 antialiased">
+    <div className="relative flex h-dvh max-h-dvh min-h-0 flex-col overflow-y-auto bg-[#050810] px-4 py-10 font-[family-name:'Plus_Jakarta_Sans',system-ui,sans-serif] text-slate-100 antialiased">
       <div className="mx-auto w-full max-w-[400px] space-y-6">
         <header className="text-center">
           <h1 className="text-2xl font-semibold text-white">Nova senha</h1>
