@@ -17,4 +17,5 @@ class Rede(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     empresas = relationship("Empresa", back_populates="rede")
+    tickets = relationship("Ticket", back_populates="rede")
     socios = relationship("FuncionarioRede", back_populates="rede", foreign_keys="FuncionarioRede.rede_id")

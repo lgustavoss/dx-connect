@@ -34,7 +34,7 @@ export function EsqueciSenha() {
   }
 
   return (
-    <div className="relative flex min-h-dvh flex-col justify-center bg-[#050810] px-4 py-10 font-[family-name:'Plus_Jakarta_Sans',system-ui,sans-serif] text-slate-100 antialiased">
+    <div className="relative flex h-dvh max-h-dvh min-h-0 flex-col overflow-y-auto bg-[#050810] px-4 py-10 font-[family-name:'Plus_Jakarta_Sans',system-ui,sans-serif] text-slate-100 antialiased">
       <div className="mx-auto w-full max-w-[400px] space-y-6">
         <header className="text-center">
           <h1 className="text-2xl font-semibold text-white">Esqueci minha senha</h1>

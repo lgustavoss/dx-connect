@@ -19,6 +19,7 @@ from app.services.email_send_sistema import enviar_mensagem_texto_sistema
 from app.services.email_inbound_parse import ParsedInboundEmail, thread_lookup_message_ids
 from app.services.system_email_config import get_singleton_email_settings, transactional_config_from_row
 from app.services.protocolo_mensal import gerar_protocolo_ticket
+from app.services.ticket_escopo import rede_id_de_empresa
 from app.services.email_body_sanitize import sanitize_inbound_email_body
 from app.services.ticket_email_index import registar_message_id_para_ticket
 
@@ -113,6 +114,7 @@ def _criar_ticket_triagem_pos_fecho(
         tenant_id=tenant_id,
         protocolo=protocolo,
         empresa_id=empresa_id,
+        rede_id=rede_id_de_empresa(db, empresa_id, tenant_id=tenant_id) if empresa_id else None,
         setor_id=setor_id,
         status_id=status_inicial.id,
         assunto=assunto,
@@ -238,6 +240,7 @@ def processar_email_inbound(
         tenant_id=tenant_id,
         protocolo=protocolo,
         empresa_id=empresa_id,
+        rede_id=rede_id_de_empresa(db, empresa_id, tenant_id=tenant_id) if empresa_id else None,
         setor_id=setor_id,
         status_id=status_inicial.id,
         assunto=assunto,

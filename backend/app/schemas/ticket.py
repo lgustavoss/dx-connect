@@ -1,19 +1,28 @@
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from datetime import datetime
 
 
-class TicketBase(BaseModel):
-    empresa_id: int
+class TicketCreate(BaseModel):
+    empresa_id: int | None = None
+    rede_id: int | None = None
     setor_id: int
     assunto: str
     descricao: str | None = None
     aberto_por_id: int | None = None
-
-
-class TicketCreate(TicketBase):
     parent_ticket_id: int | None = None
+
+    @model_validator(mode="after")
+    def validar_escopo(self):
+        e, r = self.empresa_id, self.rede_id
+        if e is not None and r is not None:
+            raise ValueError("Informe a empresa ou a rede (coordenação), não ambos.")
+        if e is None and r is None:
+            raise ValueError("Informe a empresa ou a rede (ticket de coordenação).")
+        if self.parent_ticket_id is not None and e is None:
+            raise ValueError("Ticket filho exige empresa vinculada.")
+        return self
 
 
 class TicketUpdate(BaseModel):
@@ -47,6 +56,66 @@ class TicketChildBrief(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class TicketVinculoOutroBrief(BaseModel):
+    id: int
+    protocolo: str
+    assunto: str
+    status_nome: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TicketVinculoRead(BaseModel):
+    id: int
+    tipo: str
+    rotulo: str
+    outro_ticket: TicketVinculoOutroBrief
+    duplicado_fechado: bool = False
+
+
+class TicketVinculoCreate(BaseModel):
+    related_ticket_id: int
+    tipo: Literal["duplicado_de", "relacionado_a"]
+    fechar_como_duplicado: bool = Field(
+        default=True,
+        description="Se tipo=duplicado_de, encerra este ticket e registra mensagem pública apontando para o original.",
+    )
+
+
+class TicketFilhoMassaEmpresaOpcao(BaseModel):
+    id: int
+    nome: str
+    ja_tem_filho: bool
+
+
+class TicketFilhosMassaOpcoesRead(BaseModel):
+    rede_id: int
+    rede_nome: str | None = None
+    assunto_padrao: str
+    descricao_padrao: str | None = None
+    setor_id: int
+    empresas: list[TicketFilhoMassaEmpresaOpcao] = Field(default_factory=list)
+
+
+class TicketFilhosMassaCreate(BaseModel):
+    empresa_ids: list[int] = Field(..., min_length=1)
+    assunto: str | None = Field(None, max_length=500)
+    descricao: str | None = None
+    setor_id: int | None = None
+
+
+class TicketFilhoMassaCriado(BaseModel):
+    id: int
+    protocolo: str
+    empresa_id: int
+    empresa_nome: str
+
+
+class TicketFilhosMassaRead(BaseModel):
+    criados: list[TicketFilhoMassaCriado]
+    total: int
+
+
 class EmpresaVinculoSugerida(BaseModel):
     id: int
     nome: str
@@ -74,6 +143,7 @@ class TicketRead(BaseModel):
     updated_at: datetime | None = None
     # opcional: nomes para exibição
     rede_id: int | None = None
+    coordenacao_rede: bool = False
     empresa_nome: str | None = None
     rede_nome: str | None = None
     setor_nome: str | None = None
@@ -82,6 +152,7 @@ class TicketRead(BaseModel):
     parent_ticket_id: int | None = None
     parent: TicketParentBrief | None = None
     children: list[TicketChildBrief] = Field(default_factory=list)
+    vinculos: list[TicketVinculoRead] = Field(default_factory=list)
     triagem_inbound: TicketTriagemInbound | None = None
 
     model_config = ConfigDict(from_attributes=True)

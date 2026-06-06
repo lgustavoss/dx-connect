@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ApiError, tickets, empresas, setores, type Empresas, type Setores, type Tickets } from '../api/client'
+import { ApiError, tickets, empresas, setores, redes, type Empresas, type Setores, type Redes, type Tickets } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -11,6 +11,7 @@ import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../contexts/AuthContext'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { FormSection } from '../components/ui/FormSection'
+import { CheckboxField } from '../components/ui/CheckboxField'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 const MAX_ANEXO_BYTES = 25 * 1024 * 1024
@@ -27,8 +28,11 @@ export function TicketNovo() {
   const [paiCarregando, setPaiCarregando] = useState(false)
 
   const [empresasList, setEmpresasList] = useState<Empresas.EmpresaListaItem[]>([])
+  const [redesList, setRedesList] = useState<Redes.Rede[]>([])
   const [setoresList, setSetoresList] = useState<Setores.Setor[]>([])
+  const [modoCoordenacao, setModoCoordenacao] = useState(false)
   const [empresaId, setEmpresaId] = useState<number | ''>('')
+  const [redeId, setRedeId] = useState<number | ''>('')
   const [setorId, setSetorId] = useState<number | ''>('')
   const [assunto, setAssunto] = useState('')
   const [descricao, setDescricao] = useState('')
@@ -52,6 +56,14 @@ export function TicketNovo() {
     [empresasList],
   )
 
+  const redeItems = useMemo(
+    () =>
+      redesList
+        .filter((r) => r.ativo)
+        .map((r) => ({ id: r.id, label: r.nome })),
+    [redesList],
+  )
+
   useEffect(() => {
     setForbidden(false)
     coletarTodasPaginas<Empresas.EmpresaListaItem>((o, l) => empresas.list({ offset: o, limit: l }))
@@ -65,6 +77,16 @@ export function TicketNovo() {
         }
         toast.showWarning(mensagemFalhaParaToast(err, 'Não encontramos empresas para abrir o chamado.'))
         setEmpresasList([])
+      })
+    coletarTodasPaginas<Redes.Rede>((o, l) => redes.list({ incluir_inativos: true, offset: o, limit: l }))
+      .then(setRedesList)
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 403) {
+          setRedesList([])
+          return
+        }
+        toast.showWarning(mensagemFalhaParaToast(err, 'Não encontramos redes para abrir o chamado.'))
+        setRedesList([])
       })
     coletarTodasPaginas<Setores.Setor>((o, l) => setores.list({ incluir_inativos: true, offset: o, limit: l }))
       .then(setSetoresList)
@@ -98,7 +120,10 @@ export function TicketNovo() {
       .then((p) => {
         if (!cancelled) {
           setPaiResumo(p)
-          setEmpresaId(p.empresa_id ?? '')
+          if (p.empresa_id != null) setEmpresaId(p.empresa_id)
+          if (p.coordenacao_rede && p.rede_id != null) {
+            setModoCoordenacao(false)
+          }
         }
       })
       .catch(() => {
@@ -154,19 +179,33 @@ export function TicketNovo() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!empresaId || !setorId || !assunto.trim() || !descricao.trim()) {
-      toast.showWarning('Preencha empresa, setor, assunto e o relato do problema.')
+    if (!setorId || !assunto.trim() || !descricao.trim()) {
+      toast.showWarning('Preencha setor, assunto e o relato do problema.')
+      return
+    }
+    if (modoCoordenacao) {
+      if (!redeId) {
+        toast.showWarning('Selecione a rede para o ticket de coordenação.')
+        return
+      }
+    } else if (!empresaId) {
+      toast.showWarning('Selecione a empresa ou use o modo de coordenação de rede.')
       return
     }
     setLoading(true)
     try {
-      const created = await tickets.create({
-        empresa_id: Number(empresaId),
+      const payload: Tickets.Create = {
         setor_id: Number(setorId),
         assunto: assunto.trim(),
         descricao: descricao.trim(),
         ...(paiResumo ? { parent_ticket_id: paiResumo.id } : {}),
-      })
+      }
+      if (modoCoordenacao) {
+        payload.rede_id = Number(redeId)
+      } else {
+        payload.empresa_id = Number(empresaId)
+      }
+      const created = await tickets.create(payload)
       if (anexosSelecionados.length > 0) {
         let ok = 0
         for (const f of anexosSelecionados) {
@@ -191,10 +230,11 @@ export function TicketNovo() {
 
   const semSetorPermitido = !isAdmin && setoresFiltrados.length === 0
   const semEmpresasNoEscopo = !isAdmin && !semSetorPermitido && empresasList.length === 0
+  const formDesabilitado = semSetorPermitido || (!modoCoordenacao && !paiResumo && semEmpresasNoEscopo)
 
   if (forbidden) {
     return (
-      <div className="mx-auto max-w-3xl space-y-6 pb-10">
+      <div className="mx-auto max-w-3xl space-y-6">
         <SemPermissao
           title="Você não tem permissão para abrir tickets."
           detail="Seu usuário não conseguiu carregar setores/empresas necessários para criar um chamado. Peça ao administrador para ajustar seu perfil e vínculos de setor."
@@ -206,7 +246,13 @@ export function TicketNovo() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 pb-10">
+    <form
+      className="flex h-full min-h-0 flex-col"
+      onSubmit={handleSubmit}
+      noValidate
+    >
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="mx-auto max-w-3xl space-y-6 pb-4">
       <nav aria-label="breadcrumb" className="flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
         <button
           type="button"
@@ -232,8 +278,10 @@ export function TicketNovo() {
         <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-100">
           Este chamado será aberto como <strong>filho</strong> do ticket{' '}
           <span className="font-mono font-semibold">{paiResumo.protocolo}</span>
-          {paiResumo.assunto ? ` — ${paiResumo.assunto}` : ''}. A empresa foi pré-preenchida para manter a mesma rede do
-          pai.
+          {paiResumo.assunto ? ` — ${paiResumo.assunto}` : ''}.
+          {paiResumo.coordenacao_rede
+            ? ' Escolha a empresa deste filho (mesma rede do ticket pai).'
+            : ' A empresa foi pré-preenchida para manter a mesma rede do pai.'}
         </div>
       )}
 
@@ -244,11 +292,11 @@ export function TicketNovo() {
         </div>
       )}
 
-      {semEmpresasNoEscopo && (
+      {semEmpresasNoEscopo && !modoCoordenacao && !paiResumo && (
         <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-100">
           Ainda não há empresas listáveis no seu escopo: a API só mostra clientes de redes que já tiveram ticket nos setores
           que você atende. Peça a um administrador para registrar o primeiro chamado dessa rede (ou ajustar cadastro), ou
-          use uma empresa que já apareça na lista de tickets.
+          use uma empresa que já apareça na lista de tickets, ou marque <strong>Coordenação de rede</strong> abaixo.
         </div>
       )}
 
@@ -257,20 +305,48 @@ export function TicketNovo() {
           O ticket entra na <strong>fila do setor</strong> (sem responsável). Qualquer atendente do setor pode abrir o chamado e usar{' '}
           <strong>Atribuir a mim</strong> para assumir o atendimento.
         </p>
-        <form onSubmit={handleSubmit}>
           <div className="space-y-6">
             <FormSection title="Identificação">
-              <SelectComPesquisa
-                id="ticket-empresa"
-                label="Empresa *"
-                value={empresaId}
-                onChange={(id) => setEmpresaId(id)}
-                items={empresaItems}
-                placeholder="Buscar empresa..."
-                required
-                disabled={semSetorPermitido || semEmpresasNoEscopo || Boolean(paiResumo)}
-                recentCount={10}
-              />
+              {!paiResumo && (
+                <CheckboxField
+                  checked={modoCoordenacao}
+                  disabled={semSetorPermitido}
+                  onChange={(e) => {
+                    const next = e.target.checked
+                    setModoCoordenacao(next)
+                    if (next) setEmpresaId('')
+                    else setRedeId('')
+                  }}
+                >
+                  Coordenação de rede (sem empresa — ex.: rollout em várias lojas)
+                </CheckboxField>
+              )}
+
+              {modoCoordenacao && !paiResumo ? (
+                <SelectComPesquisa
+                  id="ticket-rede"
+                  label="Rede *"
+                  value={redeId}
+                  onChange={(id) => setRedeId(id)}
+                  items={redeItems}
+                  placeholder="Buscar rede..."
+                  required
+                  disabled={semSetorPermitido || redeItems.length === 0}
+                  recentCount={10}
+                />
+              ) : (
+                <SelectComPesquisa
+                  id="ticket-empresa"
+                  label="Empresa *"
+                  value={empresaId}
+                  onChange={(id) => setEmpresaId(id)}
+                  items={empresaItems}
+                  placeholder="Buscar empresa..."
+                  required
+                  disabled={semSetorPermitido || semEmpresasNoEscopo || Boolean(paiResumo && paiResumo.empresa_id != null)}
+                  recentCount={10}
+                />
+              )}
 
               <div>
                 <Select
@@ -282,7 +358,7 @@ export function TicketNovo() {
                   includeEmpty
                   emptyLabel="Selecione"
                   placeholder="Selecione"
-                  disabled={semSetorPermitido || semEmpresasNoEscopo}
+                  disabled={formDesabilitado}
                 />
                 {!isAdmin && setoresFiltrados.length > 0 && (
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -298,7 +374,7 @@ export function TicketNovo() {
                 value={assunto}
                 onChange={(e) => setAssunto(e.target.value)}
                 required
-                disabled={semSetorPermitido || semEmpresasNoEscopo}
+                disabled={formDesabilitado}
               />
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Relato do problema *</label>
@@ -311,7 +387,7 @@ export function TicketNovo() {
                   spellCheck={false}
                   rows={5}
                   required
-                  disabled={semSetorPermitido || semEmpresasNoEscopo}
+                  disabled={formDesabilitado}
                   className="w-full rounded-xl border-0 bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-slate-200/90 focus:outline-none focus:ring-2 focus:ring-slate-400/35 dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-700"
                 />
               </div>
@@ -331,13 +407,13 @@ export function TicketNovo() {
                     multiple
                     className="sr-only"
                     onChange={onSelecionarAnexos}
-                    disabled={semSetorPermitido || semEmpresasNoEscopo || loading}
+                    disabled={formDesabilitado || loading}
                     aria-label="Selecionar arquivos para anexar ao ticket"
                   />
                   <Button
                     type="button"
                     variant="secondary"
-                    disabled={semSetorPermitido || semEmpresasNoEscopo || loading}
+                    disabled={formDesabilitado || loading}
                     onClick={() => anexosInputRef.current?.click()}
                     className="inline-flex items-center gap-2"
                   >
@@ -390,24 +466,25 @@ export function TicketNovo() {
               </div>
             </FormSection>
           </div>
-
-          <div className="sticky bottom-0 -mx-6 mt-6 border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-700 dark:bg-slate-900">
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button type="button" variant="secondary" onClick={voltarAnterior} className="w-full sm:w-auto">
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                loading={loading}
-                disabled={semSetorPermitido || semEmpresasNoEscopo}
-                className="w-full sm:w-auto"
-              >
-                Criar ticket
-              </Button>
-            </div>
-          </div>
-        </form>
       </Card>
-    </div>
+        </div>
+      </div>
+
+      <div className="z-10 -mx-4 shrink-0 border-t border-slate-200 bg-white px-4 py-4 shadow-[0_-8px_24px_-4px_rgba(15,23,42,0.12)] dark:border-slate-700 dark:bg-slate-900 dark:shadow-[0_-8px_24px_-4px_rgba(0,0,0,0.45)] md:-mx-6 md:px-6">
+        <div className="mx-auto flex max-w-3xl flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button type="button" variant="secondary" onClick={voltarAnterior} className="w-full sm:w-auto">
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            loading={loading}
+            disabled={formDesabilitado}
+            className="w-full sm:w-auto"
+          >
+            Criar ticket
+          </Button>
+        </div>
+      </div>
+    </form>
   )
 }

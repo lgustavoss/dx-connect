@@ -37,6 +37,11 @@ import { autorRodapeMensagem, corpoMensagemEmailVisivel } from '../lib/ticketMen
 import { mensagemEmFilaEmail } from '../lib/ticketMensagemEmailOutbox'
 import { TicketMensagemEmailOutbox } from '../components/TicketMensagemEmailOutbox'
 import { RespostasProntasPicker } from '../components/RespostasProntasPicker'
+import { CheckboxField } from '../components/ui/CheckboxField'
+import { TicketBuscaPicker } from '../components/TicketBuscaPicker'
+import { TicketFilhosMassaPanel } from '../components/tickets/TicketFilhosMassaPanel'
+import { TicketMetaChip } from '../components/tickets/TicketMetaChip'
+import { TicketDetalheSkeleton } from '../components/tickets/TicketDetalheSkeleton'
 
 const ROTULO_CAMPO: Record<string, string> = {
   status_id: 'Status',
@@ -46,6 +51,8 @@ const ROTULO_CAMPO: Record<string, string> = {
   assunto: 'Assunto',
   descricao: 'Descrição',
   parent_ticket_id: 'Ticket pai',
+  filhos_em_massa: 'Tickets filhos em massa',
+  vinculo_ticket: 'Vínculo com ticket',
 }
 
 function resolverValorHistorico(
@@ -187,15 +194,26 @@ export function TicketDetalhe() {
   const [modalFecharAberto, setModalFecharAberto] = useState(false)
   /** Qual bloco do modal recebe destaque ao abrir (chips no cabeçalho). */
   const [modalGerirFoco, setModalGerirFoco] = useState<
-    'geral' | 'setor' | 'status' | 'atendente' | 'hierarquia'
+    'geral' | 'setor' | 'status' | 'atendente' | 'hierarquia' | 'relacionados'
   >('geral')
   const [historicoAberto, setHistoricoAberto] = useState(false)
 
-  const [idFilhoParaVincular, setIdFilhoParaVincular] = useState('')
-  const [idPaiParaVincular, setIdPaiParaVincular] = useState('')
+  const [tipoVinculoRelacionado, setTipoVinculoRelacionado] = useState<Tickets.TicketVinculoTipo>('relacionado_a')
+  const [fecharComoDuplicado, setFecharComoDuplicado] = useState(true)
+  const [vinculandoRelacionado, setVinculandoRelacionado] = useState(false)
+  const [removendoVinculoId, setRemovendoVinculoId] = useState<number | null>(null)
   const [vinculandoFilho, setVinculandoFilho] = useState(false)
   const [vinculandoPai, setVinculandoPai] = useState(false)
   const [desvinculandoHierarquia, setDesvinculandoHierarquia] = useState(false)
+
+  const idsTicketsExcluirBusca = useMemo(() => {
+    if (!ticket) return []
+    const ids = new Set<number>([ticket.id])
+    if (ticket.parent_ticket_id != null) ids.add(ticket.parent_ticket_id)
+    for (const c of ticket.children ?? []) ids.add(c.id)
+    for (const v of ticket.vinculos ?? []) ids.add(v.outro_ticket.id)
+    return [...ids]
+  }, [ticket])
 
   const setoresParaSelect = useMemo(() => {
     const ativos = setoresList.filter((s) => s.ativo)
@@ -289,6 +307,13 @@ export function TicketDetalhe() {
     if (temPai && n === 0) return 'Com pai'
     if (!temPai && n > 0) return `${n} filho${n === 1 ? '' : 's'}`
     return `Pai + ${n} filho${n === 1 ? '' : 's'}`
+  }, [ticket])
+
+  const rotuloChipRelacionados = useMemo(() => {
+    if (!ticket) return '—'
+    const n = ticket.vinculos?.length ?? 0
+    if (n === 0) return 'Sem vínculos'
+    return `${n} relacionado${n === 1 ? '' : 's'}`
   }, [ticket])
 
   const podeEditarHierarquia = !!ticket && (!ticket.fechado_em || isAdmin)
@@ -618,7 +643,9 @@ export function TicketDetalhe() {
     }
   }, [modalGerirAberto, editSetor, editAtendente, atendentesList, setoresList])
 
-  function abrirModalGerir(foco: 'geral' | 'setor' | 'status' | 'atendente' | 'hierarquia' = 'geral') {
+  function abrirModalGerir(
+    foco: 'geral' | 'setor' | 'status' | 'atendente' | 'hierarquia' | 'relacionados' = 'geral',
+  ) {
     if (!ticket) return
     setEditSetor(ticket.setor_id)
     setEditStatus(ticket.status_id)
@@ -627,10 +654,6 @@ export function TicketDetalhe() {
     setEditEmpresa(ticket.empresa_id ?? '')
     setModalGerirFoco(foco)
     setModalGerirAberto(true)
-    if (foco === 'hierarquia') {
-      setIdFilhoParaVincular('')
-      setIdPaiParaVincular('')
-    }
   }
 
   useEffect(() => {
@@ -677,7 +700,8 @@ export function TicketDetalhe() {
       .catch(() => setEmpresasModalList([]))
   }, [modalGerirAberto, editRede, editEmpresa, empresasVinculoSugeridas.length])
 
-  const modalApenasUmCampo = modalGerirFoco !== 'geral' && modalGerirFoco !== 'hierarquia'
+  const modalApenasUmCampo =
+    modalGerirFoco !== 'geral' && modalGerirFoco !== 'hierarquia' && modalGerirFoco !== 'relacionados'
 
   async function handleSalvar() {
     if (!ticket) return
@@ -743,20 +767,14 @@ export function TicketDetalhe() {
     }
   }
 
-  async function handleVincularFilhoExistente() {
-    if (!ticket) return
-    const id = Number(idFilhoParaVincular.trim())
-    if (!Number.isFinite(id) || id < 1 || id === ticket.id) {
-      toast.showWarning('Informe o número de outro ticket (filho) válido, diferente deste.')
-      return
-    }
+  async function handleVincularFilhoExistente(alvo: Tickets.Ticket) {
+    if (!ticket || alvo.id === ticket.id) return
     setVinculandoFilho(true)
     try {
-      await tickets.update(id, { parent_ticket_id: ticket.id })
+      await tickets.update(alvo.id, { parent_ticket_id: ticket.id })
       const atualizado = await tickets.get(ticket.id)
       setTicket(atualizado)
-      setIdFilhoParaVincular('')
-      toast.showSuccess('Ticket vinculado como filho.')
+      toast.showSuccess(`Ticket ${exibirProtocolo(alvo.protocolo)} vinculado como filho.`)
     } catch (err) {
       toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível vincular o ticket.'))
     } finally {
@@ -764,24 +782,24 @@ export function TicketDetalhe() {
     }
   }
 
-  async function handleVincularAoPai() {
-    if (!ticket) return
-    const id = Number(idPaiParaVincular.trim())
-    if (!Number.isFinite(id) || id < 1 || id === ticket.id) {
-      toast.showWarning('Informe o número de um ticket pai válido, diferente deste.')
-      return
-    }
+  async function handleVincularAoPai(alvo: Tickets.Ticket) {
+    if (!ticket || alvo.id === ticket.id) return
     setVinculandoPai(true)
     try {
-      const atualizado = await tickets.update(ticket.id, { parent_ticket_id: id })
+      const atualizado = await tickets.update(ticket.id, { parent_ticket_id: alvo.id })
       setTicket(atualizado)
-      setIdPaiParaVincular('')
-      toast.showSuccess('Ticket vinculado ao pai indicado.')
+      toast.showSuccess(`Vinculado ao ticket ${exibirProtocolo(alvo.protocolo)}.`)
     } catch (err) {
       toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível vincular ao ticket pai.'))
     } finally {
       setVinculandoPai(false)
     }
+  }
+
+  async function recarregarTicketAtual() {
+    if (!ticket) return
+    const atualizado = await tickets.get(ticket.id)
+    setTicket(atualizado)
   }
 
   async function handleDesvincularDoPai() {
@@ -810,6 +828,59 @@ export function TicketDetalhe() {
       toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível desvincular o filho.'))
     } finally {
       setDesvinculandoHierarquia(false)
+    }
+  }
+
+  async function handleAdicionarVinculoRelacionado(alvo: Tickets.Ticket) {
+    if (!ticket || alvo.id === ticket.id) return
+    setVinculandoRelacionado(true)
+    try {
+      const fechar =
+        tipoVinculoRelacionado === 'duplicado_de' ? fecharComoDuplicado : false
+      const resultado = await tickets.addVinculo(ticket.id, {
+        related_ticket_id: alvo.id,
+        tipo: tipoVinculoRelacionado,
+        fechar_como_duplicado: fechar,
+      })
+      const [atualizado, mensagensAtualizadas, historicoAtualizado] = await Promise.all([
+        tickets.get(ticket.id),
+        tickets.listMensagens(ticket.id),
+        tickets.getHistorico(ticket.id),
+      ])
+      setTicket(atualizado)
+      setMensagens(mensagensAtualizadas)
+      setHistorico(historicoAtualizado)
+      setEditStatus(atualizado.status_id)
+      if (resultado.duplicado_fechado) {
+        void refetchPendenciasResumo()
+        toast.showSuccess(
+          `Ticket fechado como duplicado de ${exibirProtocolo(alvo.protocolo)}. O atendimento continua no original.`,
+        )
+        setModalGerirAberto(false)
+      } else if (tipoVinculoRelacionado === 'duplicado_de') {
+        toast.showSuccess(`Vínculo de duplicado com ${exibirProtocolo(alvo.protocolo)} registrado (ticket mantido aberto).`)
+      } else {
+        toast.showSuccess(`Vínculo com ${exibirProtocolo(alvo.protocolo)} adicionado.`)
+      }
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível adicionar o vínculo.'))
+    } finally {
+      setVinculandoRelacionado(false)
+    }
+  }
+
+  async function handleRemoverVinculoRelacionado(vinculoId: number) {
+    if (!ticket) return
+    setRemovendoVinculoId(vinculoId)
+    try {
+      await tickets.removeVinculo(ticket.id, vinculoId)
+      const atualizado = await tickets.get(ticket.id)
+      setTicket(atualizado)
+      toast.showSuccess('Vínculo removido.')
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível remover o vínculo.'))
+    } finally {
+      setRemovendoVinculoId(null)
     }
   }
 
@@ -964,11 +1035,7 @@ export function TicketDetalhe() {
   }
 
   if (loading) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center text-slate-500 dark:text-slate-400">
-        Carregando ticket…
-      </div>
-    )
+    return <TicketDetalheSkeleton />
   }
 
   if (forbidden) {
@@ -994,280 +1061,286 @@ export function TicketDetalhe() {
     return null
   }
 
-  return (
-    <div className="mx-auto max-w-6xl pb-10">
-      <div className="sticky top-14 z-10 -mx-3 border-b border-slate-200/70 bg-white/90 px-3 py-4 backdrop-blur dark:border-slate-700/70 dark:bg-slate-950/70 sm:mx-0 sm:rounded-2xl sm:border sm:px-5 sm:py-5">
-      <nav aria-label="breadcrumb" className="flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-        <button
-          type="button"
-          onClick={voltarAnterior}
-          className="font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-        >
-          ← Voltar
-        </button>
-        <span aria-hidden className="text-slate-300 dark:text-slate-600">
-          /
-        </span>
-        <span
-          className="min-w-0 truncate font-semibold text-slate-800 dark:text-slate-100"
-          title={exibirProtocolo(ticket.protocolo)}
-        >
-          {exibirProtocolo(ticket.protocolo)}
-        </span>
-      </nav>
+  function tentarEditarTicket(acao: () => void) {
+    if (ticket.fechado_em && !isAdmin) {
+      toast.showWarning('Ticket fechado — apenas admin pode alterar.')
+      return
+    }
+    acao()
+  }
 
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Assunto</p>
-          <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">
-            {ticket.assunto}
-          </h1>
-          {(ticket.empresa_nome || ticket.rede_nome) && (
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-              {ticket.rede_nome && (
-                <span className="text-slate-500 dark:text-slate-400">{ticket.rede_nome}</span>
-              )}
-              {ticket.rede_nome && ticket.empresa_nome && (
-                <span className="mx-1.5 text-slate-400 dark:text-slate-500">·</span>
-              )}
-              {ticket.empresa_nome && (
-                <span className="font-medium text-slate-800 dark:text-slate-200">{ticket.empresa_nome}</span>
-              )}
-            </p>
-          )}
-          {triagemInbound && (
-            <div
-              className={`mt-3 rounded-lg border px-3 py-2.5 text-sm ${
-                requerCadastroFuncionario
-                  ? 'border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100'
-                  : 'border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-100'
-              }`}
-            >
-              {requerCadastroFuncionario ? (
-                <>
-                  <p className="font-medium">Remetente sem cadastro de funcionário</p>
-                  <p className="mt-1 text-xs opacity-90">
-                    {triagemInbound.conflito_multiplas_redes
-                      ? 'O e-mail está associado a mais de uma rede — corrija o cadastro antes de vincular o ticket.'
-                      : `E-mail ${triagemInbound.remetente_email || 'desconhecido'}: cadastre o funcionário numa rede e empresa para os próximos e-mails abrirem já vinculados.`}
-                  </p>
-                  {isAdmin && (
-                    <Link
-                      to={linkCadastroFuncionario}
-                      className="mt-2 inline-block text-xs font-semibold underline underline-offset-2"
-                    >
-                      Cadastrar funcionário
-                    </Link>
-                  )}
-                </>
-              ) : (
-                <>
-                  <p className="font-medium">Defina a empresa do ticket</p>
-                  <p className="mt-1 text-xs opacity-90">
-                    O remetente está em mais de uma empresa da rede
-                    {ticket.rede_nome ? ` ${ticket.rede_nome}` : ''}. Escolha a empresa em Gerir ticket.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => abrirModalGerir('geral')}
-                    className="mt-2 text-xs font-semibold underline underline-offset-2"
-                  >
-                    Gerir ticket
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-          {podeAtribuirAMim && (
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-              Este ticket está na fila do setor sem responsável. Atribua a você para dar andamento.
-            </p>
-          )}
-          <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Ações rápidas do ticket">
-            <button
-              type="button"
-              onClick={() => {
-                if (ticket.fechado_em && !isAdmin) {
-                  toast.showWarning('Ticket fechado — apenas admin pode alterar.')
-                  return
-                }
-                abrirModalGerir('setor')
-              }}
-              className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200/90 bg-slate-50/80 px-3 py-1.5 text-left text-xs shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-100/90 dark:border-slate-600 dark:bg-slate-800/70 dark:hover:border-slate-500 dark:hover:bg-slate-800"
-            >
-              <span className="shrink-0 font-medium text-slate-500 dark:text-slate-400">Setor</span>
-              <span className="min-w-0 truncate font-semibold text-slate-800 dark:text-slate-100">
-                {ticket.setor_nome ?? `Setor #${ticket.setor_id}`}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (ticket.fechado_em && !isAdmin) {
-                  toast.showWarning('Ticket fechado — apenas admin pode alterar.')
-                  return
-                }
-                abrirModalGerir('status')
-              }}
-              className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200/90 bg-slate-50/80 px-3 py-1.5 text-left text-xs shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-100/90 dark:border-slate-600 dark:bg-slate-800/70 dark:hover:border-slate-500 dark:hover:bg-slate-800"
-            >
-              <span className="shrink-0 font-medium text-slate-500 dark:text-slate-400">Status</span>
-              <span className="min-w-0 truncate font-semibold text-slate-800 dark:text-slate-100">
-                {ticket.status_nome ?? String(ticket.status_id)}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (ticket.fechado_em && !isAdmin) {
-                  toast.showWarning('Ticket fechado — apenas admin pode alterar.')
-                  return
-                }
-                abrirModalGerir('atendente')
-              }}
-              className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200/90 bg-slate-50/80 px-3 py-1.5 text-left text-xs shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-100/90 dark:border-slate-600 dark:bg-slate-800/70 dark:hover:border-slate-500 dark:hover:bg-slate-800"
-            >
-              <span className="shrink-0 font-medium text-slate-500 dark:text-slate-400">Responsável</span>
-              <span className="min-w-0 truncate font-semibold text-slate-800 dark:text-slate-100">
-                {ticket.atendente_nome ?? '—'}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (ticket.fechado_em && !isAdmin) {
-                  toast.showWarning('Ticket fechado — apenas admin pode alterar.')
-                  return
-                }
-                abrirModalGerir('hierarquia')
-              }}
-              className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200/90 bg-slate-50/80 px-3 py-1.5 text-left text-xs shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-100/90 dark:border-slate-600 dark:bg-slate-800/70 dark:hover:border-slate-500 dark:hover:bg-slate-800"
-            >
-              <span className="shrink-0 font-medium text-slate-500 dark:text-slate-400">Hierarquia</span>
-              <span className="min-w-0 truncate font-semibold text-slate-800 dark:text-slate-100">
-                {rotuloChipHierarquia}
-              </span>
-            </button>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-            <span>
-              Aberto em {ticket.created_at ? new Date(ticket.created_at).toLocaleString('pt-BR') : '—'}
-            </span>
-            {ticket.fechado_em && (
-              <span className="font-medium text-emerald-700 dark:text-emerald-400">
-                Fechado em {new Date(ticket.fechado_em).toLocaleString('pt-BR')}
-              </span>
-            )}
-          </div>
-          {chatsWhatsapp.length > 0 && (
-            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-900/40">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Chats vinculados (WhatsApp)
-              </p>
-              <ul className="mt-2 flex flex-wrap gap-2">
-                {chatsWhatsapp.map((c) => (
-                  <li key={c.id}>
-                    <Link
-                      to={`/whatsapp/c/${c.id}`}
-                      className="text-sm font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
-                    >
-                      {exibirProtocolo(c.protocolo)}
-                      {c.estado === 'encerrado' ? ' (encerrado)' : ''}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {isAdmin && ticket.fechado_em && (
-            <Button
-              type="button"
-              onClick={async () => {
-                try {
-                  const updated = await tickets.reabrir(ticket.id)
-                  setTicket(updated)
-                  setEditStatus(updated.status_id)
-                  setEditAtendente(updated.atendente_id ?? '')
-                  const hist = await tickets.getHistorico(updated.id)
-                  setHistorico(hist)
-                  toast.showSuccess('Ticket reaberto.')
-                } catch (err) {
-                  if (err instanceof ApiError && err.status === 404) {
-                    toast.showWarning(
-                      'Função de reabrir indisponível no servidor. Atualize a página ou contate o suporte.',
-                    )
-                    return
-                  }
-                  toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível reabrir.'))
-                }
-              }}
-            >
-              Reabrir
-            </Button>
-          )}
-          {podeAtribuirAMim && !ticket.fechado_em && (
-            <Button type="button" onClick={handleAtribuirAMim} loading={atribuindo}>
-              Atribuir a mim
-            </Button>
-          )}
-          {!ticket.fechado_em && (
-            <Button
-              type="button"
-              variant="secondary"
-              loading={fechando}
-              onClick={async () => {
-                if (!ticket) return
-                if (!statusFechado) {
-                  toast.showWarning('Não existe um status com slug "fechado". Cadastre/ajuste em Status de ticket.')
-                  return
-                }
-                setModalFecharAberto(true)
-              }}
-            >
-              Fechar ticket
-            </Button>
-          )}
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={Boolean(ticket.fechado_em) && !isAdmin}
-            onClick={() => {
-              if (ticket.fechado_em && !isAdmin) {
-                toast.showWarning('Ticket fechado — apenas admin pode alterar.')
+  const dataAberturaCurta = ticket.created_at
+    ? new Date(ticket.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : '—'
+
+  const classeBtnAcao = 'h-9 w-full px-3 text-xs lg:w-auto sm:h-auto sm:text-sm'
+
+  const linkVoltar = (
+    <button
+      type="button"
+      onClick={voltarAnterior}
+      className="-ml-1 mb-2 inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:hover:text-slate-100"
+      aria-label="Voltar"
+    >
+      <span aria-hidden className="text-base leading-none">
+        ←
+      </span>
+      Voltar
+    </button>
+  )
+
+  const botoesAcaoTicket = (
+    <>
+      {isAdmin && ticket.fechado_em && (
+        <Button
+          type="button"
+          variant="secondary"
+          className={`${classeBtnAcao} border border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-100 dark:hover:bg-emerald-950/60`}
+          onClick={async () => {
+            try {
+              const updated = await tickets.reabrir(ticket.id)
+              setTicket(updated)
+              setEditStatus(updated.status_id)
+              setEditAtendente(updated.atendente_id ?? '')
+              const hist = await tickets.getHistorico(updated.id)
+              setHistorico(hist)
+              toast.showSuccess('Ticket reaberto.')
+            } catch (err) {
+              if (err instanceof ApiError && err.status === 404) {
+                toast.showWarning(
+                  'Função de reabrir indisponível no servidor. Atualize a página ou contate o suporte.',
+                )
                 return
               }
-              abrirModalGerir('geral')
+              toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível reabrir.'))
+            }
+          }}
+        >
+          Reabrir
+        </Button>
+      )}
+      {podeAtribuirAMim && !ticket.fechado_em && (
+        <Button
+          type="button"
+          className={classeBtnAcao}
+          onClick={handleAtribuirAMim}
+          loading={atribuindo}
+        >
+          Atribuir a mim
+        </Button>
+      )}
+      <Button
+        type="button"
+        variant="secondary"
+        className={`${classeBtnAcao} border border-cyan-200/90 bg-cyan-50/90 text-cyan-950 hover:bg-cyan-100 dark:border-cyan-800/70 dark:bg-cyan-950/45 dark:text-cyan-100 dark:hover:bg-cyan-950/70`}
+        disabled={Boolean(ticket.fechado_em) && !isAdmin}
+        onClick={() => tentarEditarTicket(() => abrirModalGerir('geral'))}
+      >
+        Gerir
+      </Button>
+      {!ticket.fechado_em && (
+        <>
+          <span
+            className="hidden h-7 w-px shrink-0 bg-slate-200 dark:bg-slate-700 sm:inline-block"
+            aria-hidden
+          />
+          <Button
+            type="button"
+            variant="danger"
+            className={classeBtnAcao}
+            loading={fechando}
+            onClick={() => {
+              if (!statusFechado) {
+                toast.showWarning('Não existe um status com slug "fechado". Cadastre/ajuste em Status de ticket.')
+                return
+              }
+              setModalFecharAberto(true)
             }}
           >
-            Gerir ticket
+            Fechar
           </Button>
-          <Button variant="secondary" onClick={voltarAnterior}>
-            Voltar
-          </Button>
-        </div>
-      </div>
-      </div>
+        </>
+      )}
+    </>
+  )
 
-      <div className="mt-6 space-y-6">
-        {!temVinculosHierarquia ? (
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            Este ticket não está vinculado a um ticket pai nem possui filhos vinculados.
-            {podeEditarHierarquia ? (
-              <>
-                {' '}
-                <button
-                  type="button"
-                  className="font-medium text-cyan-700 underline decoration-cyan-700/30 underline-offset-2 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
-                  onClick={() => abrirModalGerir('hierarquia')}
-                >
-                  Gerir vínculos
-                </button>
-              </>
-            ) : null}
-          </p>
-        ) : (
+  const barraAcoesDesktop = (
+    <div className="hidden shrink-0 items-center gap-2 lg:flex">{botoesAcaoTicket}</div>
+  )
+
+  return (
+    <>
+      <div className="-m-4 flex h-full min-h-0 flex-col overflow-hidden md:-m-6">
+        <div className="relative z-20 shrink-0 border-b border-slate-200/70 bg-white shadow-sm dark:border-slate-700/70 dark:bg-slate-950 sm:rounded-b-2xl sm:border sm:border-t-0">
+          <div className="mx-auto max-w-6xl px-3 py-2.5 sm:px-5 sm:py-4 lg:py-5">
+            {linkVoltar}
+
+            <div className="flex items-start justify-between gap-3 lg:items-center">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                  <span
+                    className="font-mono text-xs font-bold tracking-tight text-cyan-800 sm:text-sm lg:text-lg xl:text-xl dark:text-cyan-300"
+                    title={exibirProtocolo(ticket.protocolo)}
+                  >
+                    {exibirProtocolo(ticket.protocolo)}
+                  </span>
+                  {ticket.fechado_em ? (
+                    <span className="inline-flex shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-800 lg:text-xs dark:bg-emerald-950/50 dark:text-emerald-200">
+                      Fechado
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              {barraAcoesDesktop}
+            </div>
+
+            <h1 className="mt-1.5 line-clamp-2 text-sm font-semibold leading-snug text-slate-900 sm:mt-2 sm:text-base md:text-lg lg:line-clamp-3 lg:text-xl dark:text-slate-100">
+              {ticket.assunto}
+            </h1>
+
+            {(ticket.coordenacao_rede || (!ticket.empresa_id && ticket.rede_id)) && (
+              <span className="mt-1 inline-flex rounded-md bg-violet-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-800 sm:text-[11px] dark:bg-violet-950/50 dark:text-violet-200">
+                Coordenação de rede
+              </span>
+            )}
+
+            {(ticket.empresa_nome || ticket.rede_nome) && (
+              <p className="mt-1 truncate text-[11px] text-slate-600 sm:text-xs md:text-sm dark:text-slate-400">
+                {ticket.rede_nome &&
+                  (ticket.rede_id != null ? (
+                    <Link
+                      to={`/redes/${ticket.rede_id}`}
+                      className="font-medium text-cyan-700 underline decoration-cyan-700/35 underline-offset-2 hover:text-cyan-900 dark:text-cyan-400 dark:decoration-cyan-400/35 dark:hover:text-cyan-300"
+                    >
+                      {ticket.rede_nome}
+                    </Link>
+                  ) : (
+                    <span className="text-slate-500 dark:text-slate-400">{ticket.rede_nome}</span>
+                  ))}
+                {ticket.rede_nome && ticket.empresa_nome && (
+                  <span className="mx-1 text-slate-400 dark:text-slate-500">·</span>
+                )}
+                {ticket.empresa_nome &&
+                  (ticket.empresa_id != null ? (
+                    <Link
+                      to={`/empresas/${ticket.empresa_id}`}
+                      className="font-medium text-cyan-700 underline decoration-cyan-700/35 underline-offset-2 hover:text-cyan-900 dark:text-cyan-400 dark:decoration-cyan-400/35 dark:hover:text-cyan-300"
+                    >
+                      {ticket.empresa_nome}
+                    </Link>
+                  ) : (
+                    <span className="font-medium text-slate-800 dark:text-slate-200">{ticket.empresa_nome}</span>
+                  ))}
+              </p>
+            )}
+
+            {triagemInbound && (
+              <div
+                className={`mt-2 rounded-lg border px-2.5 py-2 text-[11px] sm:px-3 sm:text-xs ${
+                  requerCadastroFuncionario
+                    ? 'border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100'
+                    : 'border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-100'
+                }`}
+              >
+                {requerCadastroFuncionario ? (
+                  <>
+                    <p className="font-medium">Remetente sem cadastro</p>
+                    {isAdmin && (
+                      <Link to={linkCadastroFuncionario} className="mt-1 inline-block font-semibold underline underline-offset-2">
+                        Cadastrar funcionário
+                      </Link>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium">Defina a empresa do ticket</p>
+                    <button
+                      type="button"
+                      onClick={() => abrirModalGerir('geral')}
+                      className="mt-1 font-semibold underline underline-offset-2"
+                    >
+                      Gerir ticket
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {podeAtribuirAMim && (
+              <p className="mt-1.5 hidden text-xs text-slate-500 sm:block dark:text-slate-400">
+                Na fila sem responsável — atribua a você para dar andamento.
+              </p>
+            )}
+
+            <div
+              className="mt-2 -mx-3 overflow-x-auto overscroll-x-contain px-3 [scrollbar-width:none] sm:mx-0 sm:mt-3 sm:px-0 [&::-webkit-scrollbar]:hidden"
+              role="group"
+              aria-label="Metadados do ticket"
+            >
+              <div className="flex w-max flex-nowrap gap-1.5 sm:w-auto sm:max-w-full sm:flex-wrap sm:gap-2">
+                <TicketMetaChip
+                  label="Setor"
+                  value={ticket.setor_nome ?? `#${ticket.setor_id}`}
+                  onClick={() => tentarEditarTicket(() => abrirModalGerir('setor'))}
+                />
+                <TicketMetaChip
+                  label="Status"
+                  value={ticket.status_nome ?? String(ticket.status_id)}
+                  onClick={() => tentarEditarTicket(() => abrirModalGerir('status'))}
+                />
+                <TicketMetaChip
+                  label="Resp."
+                  value={ticket.atendente_nome ?? '—'}
+                  onClick={() => tentarEditarTicket(() => abrirModalGerir('atendente'))}
+                />
+                <TicketMetaChip
+                  label="Hier."
+                  value={rotuloChipHierarquia}
+                  onClick={() => tentarEditarTicket(() => abrirModalGerir('hierarquia'))}
+                />
+                <TicketMetaChip
+                  label="Relacionados"
+                  value={rotuloChipRelacionados}
+                  onClick={() => tentarEditarTicket(() => abrirModalGerir('relacionados'))}
+                />
+              </div>
+            </div>
+
+            <p className="mt-1.5 text-[10px] text-slate-500 sm:text-xs dark:text-slate-400">
+              <span className="sm:hidden">Aberto {dataAberturaCurta}</span>
+              <span className="hidden sm:inline">
+                Aberto em {ticket.created_at ? new Date(ticket.created_at).toLocaleString('pt-BR') : '—'}
+              </span>
+              {ticket.fechado_em ? (
+                <span className="ml-2 font-medium text-emerald-700 dark:text-emerald-400">
+                  · Fechado {new Date(ticket.fechado_em).toLocaleDateString('pt-BR')}
+                </span>
+              ) : null}
+            </p>
+
+            {chatsWhatsapp.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {chatsWhatsapp.map((c) => (
+                  <Link
+                    key={c.id}
+                    to={`/whatsapp/c/${c.id}`}
+                    className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-cyan-700 sm:text-xs dark:border-slate-700 dark:bg-slate-900/40 dark:text-cyan-400"
+                  >
+                    WA {exibirProtocolo(c.protocolo)}
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-2 border-t border-slate-100 pt-2 sm:pt-3 lg:hidden dark:border-slate-800">
+              <div className="grid grid-cols-2 gap-1.5 sm:gap-2">{botoesAcaoTicket}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+          <div className="mx-auto max-w-6xl space-y-4 px-3 pb-8 pt-3 sm:space-y-6 sm:px-5 sm:pb-10 sm:pt-4 md:px-6">
+        {temVinculosHierarquia && (
           <div className="rounded-xl border border-slate-200/90 bg-slate-50/50 px-3 py-2.5 text-sm dark:border-slate-700/80 dark:bg-slate-900/35">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0 flex-1 space-y-2 text-slate-700 dark:text-slate-200">
@@ -1578,7 +1651,6 @@ export function TicketDetalhe() {
           </div>
         </div>
       </Card>
-      </div>
 
       {previewAnexo && (
         <div
@@ -1646,7 +1718,7 @@ export function TicketDetalhe() {
       )}
 
       {historico.length > 0 && (
-        <div className="mt-6 rounded-xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none dark:ring-1 dark:ring-white/5">
+        <div className="mt-4 rounded-xl border border-slate-200/90 bg-white shadow-sm sm:mt-6 dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none dark:ring-1 dark:ring-white/5">
           <button
             type="button"
             onClick={() => setHistoricoAberto((o) => !o)}
@@ -1689,6 +1761,10 @@ export function TicketDetalhe() {
         </div>
       )}
 
+          </div>
+        </div>
+      </div>
+
       {modalGerirAberto && (
         <div
           className="fixed inset-0 z-[500] flex items-end justify-center bg-slate-950/60 p-4 backdrop-blur-[2px] sm:items-center dark:bg-slate-950/70"
@@ -1705,17 +1781,21 @@ export function TicketDetalhe() {
             <h2 id="ticket-gerir-titulo" className="text-lg font-semibold text-slate-900 dark:text-slate-100">
               {modalGerirFoco === 'hierarquia'
                 ? 'Hierarquia de tickets'
-                : modalGerirFoco === 'setor'
-                  ? 'Transferir de setor'
-                  : modalGerirFoco === 'status'
-                    ? 'Alterar status'
-                    : modalGerirFoco === 'atendente'
-                      ? 'Transferir responsável'
-                      : 'Gerir ticket'}
+                : modalGerirFoco === 'relacionados'
+                  ? 'Tickets relacionados'
+                  : modalGerirFoco === 'setor'
+                    ? 'Transferir de setor'
+                    : modalGerirFoco === 'status'
+                      ? 'Alterar status'
+                      : modalGerirFoco === 'atendente'
+                        ? 'Transferir responsável'
+                        : 'Gerir ticket'}
             </h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               {modalGerirFoco === 'hierarquia' &&
                 'Crie um filho novo, vincule tickets existentes como filhos ou defina um ticket pai (mesma rede, com acesso).'}
+              {modalGerirFoco === 'relacionados' &&
+                'Duplicado encerra este ticket e aponta para o original. Relacionado apenas liga assuntos distintos, sem fechar.'}
               {modalGerirFoco === 'geral' &&
                 'Vincule rede e empresa, transfira de setor, altere o status ou atribua a outro atendente.'}
               {modalGerirFoco === 'setor' && 'Escolha o setor que passará a tratar este ticket.'}
@@ -1806,6 +1886,24 @@ export function TicketDetalhe() {
                 </div>
 
                 {podeEditarHierarquia && (
+                  <div className="rounded-lg border border-cyan-200/90 bg-cyan-50/50 p-3 dark:border-cyan-900/40 dark:bg-cyan-950/20">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-cyan-800 dark:text-cyan-300">
+                      Abrir filhos em massa (por empresa da rede)
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                      Cria um ticket filho para cada empresa selecionada — útil para rollouts ou tarefas iguais em toda a rede.
+                    </p>
+                    <div className="mt-3">
+                      <TicketFilhosMassaPanel
+                        ticketId={ticket.id}
+                        disabled={desvinculandoHierarquia || vinculandoFilho || vinculandoPai}
+                        onCriados={recarregarTicketAtual}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {podeEditarHierarquia && (
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
@@ -1827,26 +1925,17 @@ export function TicketDetalhe() {
                       Vincular ticket existente como filho
                     </p>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      ID do ticket que passará a ser filho deste (não pode ser o próprio).
+                      Escolha um ticket em aberto na lista; ele passará a ser filho deste.
                     </p>
-                    <div className="mt-3 flex flex-wrap items-end gap-2">
-                      <Input
-                        id="ticket-vincular-filho-id"
-                        label="ID do ticket (filho)"
-                        type="number"
-                        min={1}
-                        value={idFilhoParaVincular}
-                        onChange={(e) => setIdFilhoParaVincular(e.target.value)}
+                    <div className="mt-3">
+                      <TicketBuscaPicker
+                        ticketAtualId={ticket.id}
+                        excluirIds={idsTicketsExcluirBusca}
+                        label="Ticket filho"
                         disabled={vinculandoFilho || desvinculandoHierarquia || vinculandoPai}
+                        loadingExterno={vinculandoFilho}
+                        onSelecionar={(alvo) => void handleVincularFilhoExistente(alvo)}
                       />
-                      <Button
-                        type="button"
-                        onClick={handleVincularFilhoExistente}
-                        loading={vinculandoFilho}
-                        disabled={desvinculandoHierarquia || vinculandoPai}
-                      >
-                        Vincular
-                      </Button>
                     </div>
                   </div>
                 )}
@@ -1857,33 +1946,139 @@ export function TicketDetalhe() {
                       {ticket.parent_ticket_id != null ? 'Alterar ticket pai' : 'Vincular a um ticket pai'}
                     </p>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      ID do ticket que será o pai deste. Substitui o vínculo atual se já houver um pai.
+                      Escolha o ticket pai na lista (substitui o vínculo atual, se houver).
                     </p>
-                    <div className="mt-3 flex flex-wrap items-end gap-2">
-                      <Input
-                        id="ticket-vincular-pai-id"
-                        label="ID do ticket (pai)"
-                        type="number"
-                        min={1}
-                        value={idPaiParaVincular}
-                        onChange={(e) => setIdPaiParaVincular(e.target.value)}
+                    <div className="mt-3">
+                      <TicketBuscaPicker
+                        ticketAtualId={ticket.id}
+                        excluirIds={idsTicketsExcluirBusca}
+                        label="Ticket pai"
                         disabled={vinculandoPai || desvinculandoHierarquia || vinculandoFilho}
+                        loadingExterno={vinculandoPai}
+                        onSelecionar={(alvo) => void handleVincularAoPai(alvo)}
                       />
-                      <Button
-                        type="button"
-                        onClick={handleVincularAoPai}
-                        loading={vinculandoPai}
-                        disabled={desvinculandoHierarquia || vinculandoFilho}
-                      >
-                        Aplicar vínculo
-                      </Button>
                     </div>
                   </div>
                 )}
               </div>
             )}
 
-            {modalGerirFoco !== 'hierarquia' && (
+            {modalGerirFoco === 'relacionados' && ticket && (
+              <div className="mt-4 space-y-4 text-sm text-slate-700 dark:text-slate-200">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Vínculos atuais
+                  </p>
+                  {(ticket.vinculos?.length ?? 0) === 0 ? (
+                    <p className="mt-1 text-slate-500 dark:text-slate-400">Nenhum vínculo lateral.</p>
+                  ) : (
+                    <ul className="mt-2 divide-y divide-slate-200 rounded-lg border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
+                      {(ticket.vinculos ?? []).map((v) => (
+                        <li key={v.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                          <div className="min-w-0">
+                            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{v.rotulo}</span>
+                            <Link
+                              to={`/tickets/${v.outro_ticket.id}`}
+                              className="ml-2 font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
+                              onClick={() => setModalGerirAberto(false)}
+                            >
+                              {exibirProtocolo(v.outro_ticket.protocolo)} — {v.outro_ticket.assunto}
+                            </Link>
+                            {v.outro_ticket.status_nome ? (
+                              <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
+                                ({v.outro_ticket.status_nome})
+                              </span>
+                            ) : null}
+                          </div>
+                          {podeEditarHierarquia && (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              loading={removendoVinculoId === v.id}
+                              onClick={() => void handleRemoverVinculoRelacionado(v.id)}
+                            >
+                              Remover
+                            </Button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                {podeEditarHierarquia && (
+                  <div className="rounded-lg border border-slate-200/90 bg-slate-50/70 p-3 dark:border-slate-700/70 dark:bg-slate-900/30">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      Adicionar vínculo
+                    </p>
+                    <div className="mt-3 space-y-3">
+                      <Select
+                        label="Tipo de vínculo"
+                        value={tipoVinculoRelacionado}
+                        onChange={(v) => setTipoVinculoRelacionado(v as Tickets.TicketVinculoTipo)}
+                        options={[
+                          { value: 'relacionado_a', label: 'Relacionado a — assuntos ligados, ambos podem seguir abertos' },
+                          { value: 'duplicado_de', label: 'Duplicado de — mesma solicitação; encerra este ticket' },
+                        ]}
+                      />
+                      {tipoVinculoRelacionado === 'duplicado_de' ? (
+                        <div className="space-y-2">
+                          <p className="text-xs text-slate-600 dark:text-slate-400">
+                            Este ticket será tratado como cópia do original na{' '}
+                            <strong>mesma rede e empresa</strong>. O atendimento oficial fica no ticket que você
+                            escolher abaixo.
+                          </p>
+                          <CheckboxField
+                            checked={fecharComoDuplicado}
+                            onChange={(e) => setFecharComoDuplicado(e.target.checked)}
+                            disabled={vinculandoRelacionado || Boolean(ticket.fechado_em)}
+                          >
+                            Fechar este ticket e registrar mensagem pública apontando para o original
+                          </CheckboxField>
+                          {ticket.fechado_em ? (
+                            <p className="text-xs text-amber-700 dark:text-amber-400">
+                              Este ticket já está fechado — apenas o vínculo será registrado.
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                          Use quando os chamados são diferentes, mas você quer mantê-los visíveis um ao outro.
+                        </p>
+                      )}
+                      {tipoVinculoRelacionado === 'duplicado_de' && ticket.empresa_id == null ? (
+                        <p className="text-xs text-amber-700 dark:text-amber-400">
+                          Defina a empresa deste ticket (em Gerir) antes de marcar um duplicado — só chamados da mesma
+                          rede e empresa podem ser duplicados.
+                        </p>
+                      ) : (
+                        <TicketBuscaPicker
+                          ticketAtualId={ticket.id}
+                          excluirIds={idsTicketsExcluirBusca}
+                          filtroEmpresaId={
+                            tipoVinculoRelacionado === 'duplicado_de' ? ticket.empresa_id : undefined
+                          }
+                          filtroRedeId={tipoVinculoRelacionado === 'duplicado_de' ? ticket.rede_id : undefined}
+                          label="Buscar ticket em aberto"
+                          hint={
+                            tipoVinculoRelacionado === 'duplicado_de'
+                              ? `Somente tickets abertos da mesma rede e empresa${
+                                  ticket.empresa_nome ? ` (${ticket.empresa_nome})` : ''
+                                }.`
+                              : 'Clique em um ticket da lista para vincular.'
+                          }
+                          disabled={vinculandoRelacionado}
+                          loadingExterno={vinculandoRelacionado}
+                          onSelecionar={(alvo) => void handleAdicionarVinculoRelacionado(alvo)}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {modalGerirFoco !== 'hierarquia' && modalGerirFoco !== 'relacionados' && (
               <div className="mt-5 space-y-4">
                 {modalGerirFoco === 'geral' && (
                   <>
@@ -2013,7 +2208,7 @@ export function TicketDetalhe() {
               </p>
             )}
 
-            {modalGerirFoco !== 'hierarquia' ? (
+            {modalGerirFoco !== 'hierarquia' && modalGerirFoco !== 'relacionados' ? (
               <div className="mt-6 flex flex-wrap justify-end gap-2">
                 <Button type="button" variant="secondary" onClick={() => setModalGerirAberto(false)}>
                   Cancelar
@@ -2088,7 +2283,7 @@ export function TicketDetalhe() {
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
 
