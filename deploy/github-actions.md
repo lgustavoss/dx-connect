@@ -58,12 +58,14 @@ Se quiser **aprovação manual** ou secrets separados, crie um **Environment** c
 
    Ajuste o `root` do Nginx para esse diretório e use o mesmo caminho em `DEPLOY_FRONTEND_DIST`.
 
-5. **Primeira subida da API** (migrations e container):
+5. **Primeira subida da API** (migrations e containers — inclui Evolution API):
 
    ```bash
    cd /home/deploy/dx-connect
-   docker compose -f docker-compose.prod.yml run --rm backend alembic upgrade head
-   docker compose -f docker-compose.prod.yml up -d --build
+   # backend/.env: EVOLUTION_GLOBAL_API_KEY, EVOLUTION_POSTGRES_PASSWORD,
+   # EVOLUTION_INTERNAL_BASE_URL=http://127.0.0.1:8080, DX_CONNECT_WEBHOOK_BASE_URL=https://...
+   docker compose --env-file backend/.env -f docker-compose.prod.yml run --rm backend alembic upgrade head
+   docker compose --env-file backend/.env -f docker-compose.prod.yml up -d --build
    ```
 
 6. **Chave SSH para o GitHub**: no seu PC ou no VPS, gere um par só para deploy:

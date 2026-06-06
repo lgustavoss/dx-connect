@@ -15,9 +15,10 @@ git pull origin "$BRANCH"
 export DX_CONNECT_GIT_SHA="$(git rev-parse --short HEAD)"
 echo "==> Commit: $DX_CONNECT_GIT_SHA"
 
-docker compose -f docker-compose.prod.yml build --no-cache backend
-docker compose -f docker-compose.prod.yml run --rm backend alembic upgrade head
-docker compose -f docker-compose.prod.yml up -d --force-recreate backend
+COMPOSE="docker compose --env-file backend/.env -f docker-compose.prod.yml"
+$COMPOSE build --no-cache backend
+$COMPOSE run --rm backend alembic upgrade head
+$COMPOSE up -d --build --force-recreate
 
 sleep 3
 echo "==> Health local:"

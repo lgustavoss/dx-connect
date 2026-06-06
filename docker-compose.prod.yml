@@ -1,18 +1,75 @@
-# Backend apontando para PostgreSQL no MESMO host (ex.: Postgres instalado no VPS, não no Docker).
-# network_mode: host (Linux): o container usa a rede do host, assim DATABASE_URL com 127.0.0.1:5432
-# aponta para o Postgres do host. Sem isso, 127.0.0.1 dentro do container é o próprio container → connection refused.
-# GUNICORN_BIND=127.0.0.1:8000 mantém a API só em loopback (equivalente ao antigo ports: 127.0.0.1:8000:8000).
+# Produção: API (network_mode: host) + Evolution API embutida (Redis/Postgres dedicados).
 #
 # Uso: docker compose -f docker-compose.prod.yml up -d --build
-# Configure backend/.env: DATABASE_URL (?sslmode=require), SECRET_KEY (32+), CORS_ORIGINS, ALLOWED_HOSTS,
-# ACCESS_TOKEN_EXPIRE_MINUTES=30, ENVIRONMENT=production. Opcional: GUNICORN_FORWARDED_ALLOW_IPS se o proxy não for 127.0.0.1.
 #
-# Antes do primeiro up (ou após nova migration): aplicar schema no PostgreSQL, ex.:
+# backend/.env (mínimo Evolution):
+#   EVOLUTION_INTERNAL_BASE_URL=http://127.0.0.1:8080
+#   EVOLUTION_GLOBAL_API_KEY=<32+ chars, igual AUTHENTICATION_API_KEY da Evolution>
+#   DX_CONNECT_WEBHOOK_BASE_URL=https://api.seudominio.com   # URL pública da API (webhook)
+#   EVOLUTION_POSTGRES_PASSWORD=<senha forte>
+# Opcional: EVOLUTION_SERVER_URL (padrão http://127.0.0.1:8080)
+#
+# Antes do primeiro up (ou após nova migration):
 #   docker compose -f docker-compose.prod.yml run --rm backend alembic upgrade head
-# Seed / admin inicial (opcional): em produção defina SEED_ADMIN_EMAIL e SEED_ADMIN_PASSWORD (mín. 8) e:
-#   docker compose -f docker-compose.prod.yml exec backend python -m app.seed
 
 services:
+  evolution-redis:
+    image: redis:7-alpine
+    container_name: dx-connect-evolution-redis
+    networks:
+      - evolution
+    restart: unless-stopped
+
+  evolution-db:
+    image: postgres:16-alpine
+    container_name: dx-connect-evolution-db
+    networks:
+      - evolution
+    environment:
+      POSTGRES_USER: ${EVOLUTION_POSTGRES_USER:-evolution}
+      POSTGRES_PASSWORD: ${EVOLUTION_POSTGRES_PASSWORD:?Defina EVOLUTION_POSTGRES_PASSWORD no backend/.env}
+      POSTGRES_DB: ${EVOLUTION_POSTGRES_DB:-evolution}
+    volumes:
+      - evolution_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${EVOLUTION_POSTGRES_USER:-evolution} -d ${EVOLUTION_POSTGRES_DB:-evolution}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  evolution-api:
+    image: evoapicloud/evolution-api:latest
+    container_name: dx-connect-evolution-api
+    networks:
+      - evolution
+    depends_on:
+      evolution-db:
+        condition: service_healthy
+      evolution-redis:
+        condition: service_started
+    ports:
+      - "127.0.0.1:8080:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      SERVER_URL: ${EVOLUTION_SERVER_URL:-http://127.0.0.1:8080}
+      SERVER_PORT: "8080"
+      AUTHENTICATION_TYPE: apikey
+      AUTHENTICATION_API_KEY: ${EVOLUTION_GLOBAL_API_KEY:?Defina EVOLUTION_GLOBAL_API_KEY no backend/.env}
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://${EVOLUTION_POSTGRES_USER:-evolution}:${EVOLUTION_POSTGRES_PASSWORD}@evolution-db:5432/${EVOLUTION_POSTGRES_DB:-evolution}?schema=public
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://evolution-redis:6379/0
+      CACHE_REDIS_PREFIX_KEY: evo_dx
+      DEL_INSTANCE: "false"
+      CONFIG_SESSION_PHONE_NAME: Chrome
+      CONFIG_SESSION_PHONE_CLIENT: DX Connect
+    volumes:
+      - evolution_instances:/evolution/instances
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -26,4 +83,15 @@ services:
       ENVIRONMENT: production
       GUNICORN_BIND: "127.0.0.1:8000"
     network_mode: host
+    depends_on:
+      evolution-api:
+        condition: service_started
     restart: unless-stopped
+
+networks:
+  evolution:
+    driver: bridge
+
+volumes:
+  evolution_postgres_data:
+  evolution_instances:

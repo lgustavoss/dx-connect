@@ -108,13 +108,15 @@ jobs:
           git pull origin "$REF"
           export DX_CONNECT_GIT_SHA="$(git rev-parse --short HEAD)"
           echo "==> Commit: $DX_CONNECT_GIT_SHA"
+          COMPOSE="docker compose --env-file backend/.env -f docker-compose.prod.yml"
           if [ "$SKIP_MIGRATIONS" != "true" ]; then
-            docker compose -f docker-compose.prod.yml build --no-cache backend
-            docker compose -f docker-compose.prod.yml run --rm backend alembic upgrade head
+            $COMPOSE build --no-cache backend
+            $COMPOSE run --rm backend alembic upgrade head
           fi
-          docker compose -f docker-compose.prod.yml up -d --force-recreate backend
-          sleep 3
+          $COMPOSE up -d --build --force-recreate
+          sleep 5
           curl -sf "http://127.0.0.1:8000/health" || true
+          curl -sf "http://127.0.0.1:8080" >/dev/null && echo "Evolution API: OK (8080)" || echo "Evolution API: aguardar ou conferir backend/.env"
           REMOTE_SCRIPT
 
       - name: Verificar rotas da API (health)
