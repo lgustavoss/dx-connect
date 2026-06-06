@@ -1,0 +1,75 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.2, pytest-9.0.3, pluggy-1.6.0 -- C:\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\Filipe\Desktop\dx-connect\backend
+configfile: pytest.ini
+plugins: anyio-4.13.0
+collecting ... collected 6 items
+
+backend\tests\test_whatsapp_chats.py::test_webhook_requer_segredo_quando_configurado PASSED [ 16%]
+backend\tests\test_whatsapp_chats.py::test_webhook_idempotente_por_wa_message_id PASSED [ 33%]
+backend\tests\test_whatsapp_chats.py::test_fila_e_assumir PASSED         [ 50%]
+backend\tests\test_whatsapp_chats.py::test_listar_encerrados_filtra_e_respeita_rbac PASSED [ 66%]
+backend\tests\test_whatsapp_chats.py::test_webhook_guarda_citacao_em_mensagem FAILED [ 83%]
+backend\tests\test_whatsapp_chats.py::test_abrir_ticket_vincula PASSED   [100%]
+
+================================== FAILURES ===================================
+___________________ test_webhook_guarda_citacao_em_mensagem ___________________
+
+client = <starlette.testclient.TestClient object at 0x000002F009964D70>
+seed_base = {'a1': <app.models.atendente.Atendente object at 0x000002F009C9F3E0>, 'a2': <app.models.atendente.Atendente object at ...nte.Atendente object at 0x000002F009C9EF10>, 'empresa': <app.models.empresa.Empresa object at 0x000002F009FDEFD0>, ...}
+auth_headers = {'a1': {'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhdGVuZGVudGUxQHRlc3QubG9jYWwiLCJ0aWQi...joxLCJ0eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgwNzY5Nzc2fQ.W5oXeBqa3qbNxDQXmWaZnpDCu5jeA5iYSBrP4OjoWSE', 'X-Dx-Tenant-Id': '1'}}
+
+    def test_webhook_guarda_citacao_em_mensagem(client, seed_base, auth_headers):
+        client.patch(
+            "/v1/settings/whatsapp",
+            json={"webhook_secret": "cit"},
+            headers=auth_headers["admin"],
+        )
+        h = {"X-Dx-Webhook-Secret": "cit"}
+        body = {
+            "event": "messages.upsert",
+            "data": {
+                "messages": [
+                    {
+                        "key": {
+                            "remoteJid": "5511333444555@s.whatsapp.net",
+                            "fromMe": False,
+                            "id": "reply-msg-1",
+                        },
+                        "message": {
+                            "extendedTextMessage": {
+                                "text": "Resposta citando",
+                                "contextInfo": {
+                                    "stanzaId": "orig-msg-1",
+                                    "quotedMessage": {"conversation": "Texto original"},
+                                },
+                            }
+                        },
+                    }
+                ]
+            },
+        }
+        r = client.post("/v1/webhooks/evolution", json=body, headers=h)
+        assert r.status_code == 200
+        cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+        r_msgs = client.get(f"/v1/whatsapp/chats/{cid}/mensagens", headers=auth_headers["a1"])
+>       assert r_msgs.status_code == 200
+E       assert 403 == 200
+E        +  where 403 = <Response [403 Forbidden]>.status_code
+
+backend\tests\test_whatsapp_chats.py:144: AssertionError
+---------------------------- Captured stdout call -----------------------------
+2026-06-06T14:16:16 | INFO     | httpx | HTTP Request: PATCH http://testserver/v1/settings/whatsapp "HTTP/1.1 200 OK"
+2026-06-06T14:16:16 | INFO     | httpx | HTTP Request: POST http://testserver/v1/webhooks/evolution "HTTP/1.1 200 OK"
+2026-06-06T14:16:16 | INFO     | httpx | HTTP Request: GET http://testserver/v1/whatsapp/chats/fila "HTTP/1.1 200 OK"
+2026-06-06T14:16:16 | INFO     | httpx | HTTP Request: GET http://testserver/v1/whatsapp/chats/1/mensagens "HTTP/1.1 403 Forbidden"
+------------------------------ Captured log call ------------------------------
+INFO     httpx:_client.py:1025 HTTP Request: PATCH http://testserver/v1/settings/whatsapp "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1025 HTTP Request: POST http://testserver/v1/webhooks/evolution "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1025 HTTP Request: GET http://testserver/v1/whatsapp/chats/fila "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1025 HTTP Request: GET http://testserver/v1/whatsapp/chats/1/mensagens "HTTP/1.1 403 Forbidden"
+=========================== short test summary info ===========================
+FAILED backend\tests\test_whatsapp_chats.py::test_webhook_guarda_citacao_em_mensagem - assert 403 == 200
+ +  where 403 = <Response [403 Forbidden]>.status_code
+======================== 1 failed, 5 passed in 26.22s =========================

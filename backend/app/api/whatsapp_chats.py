@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import desc
+from sqlalchemy import desc, or_
 
 from app.database import get_db
 from app.models.atendente import Atendente
@@ -241,6 +241,21 @@ def _chat_read(db: Session, c: WhatsappChat) -> WhatsappChatRead:
     )
 
 
+def _pode_ver_chat(db: Session, atendente: Atendente, c: WhatsappChat) -> bool:
+    if atendente.role == "admin":
+        return True
+    if c.atendente_id == atendente.id:
+        return True
+    vis = ids_setores_visiveis_atendente(db, atendente)
+    # Chats without a setor_id are considered public (the queue). Allow
+    # visibility to attendants for queue items (so they can assume and
+    # view messages while waiting). For other states (e.g. encerrado)
+    # require either being the attendant or having the setor visible.
+    if c.setor_id is None:
+        return c.estado == "aguardando_atendente"
+    return c.setor_id in vis
+
+
 def _mensagem_read(m: WhatsappMensagem) -> WhatsappMensagemRead:
     midia_ok = bool(m.midia_nome_arquivo and str(m.midia_nome_arquivo).strip())
     return WhatsappMensagemRead(
@@ -294,12 +309,40 @@ def listar_meus_ativos(
 
 @router.get("/encerrados", response_model=ListaPaginada[WhatsappChatRead])
 def listar_encerrados(
+    busca: str | None = Query(None, description="Busca por protocolo, telefone ou contato"),
+    protocolo: str | None = Query(None, description="Filtro por protocolo"),
+    wa_id: str | None = Query(None, description="Filtro por número ou WhatsApp ID"),
+    atendente_id: int | None = Query(None, ge=1, description="Filtro por atendente que encerrou"),
+    encerramento_inicio: datetime | None = Query(None, description="Filtro por data de encerramento a partir de"),
+    encerramento_fim: datetime | None = Query(None, description="Filtro por data de encerramento até"),
     offset: int = Query(0, ge=0),
     limit: int = Query(_DEFAULT_PAGE, ge=1, le=_MAX_PAGE),
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
     q = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente)).filter(WhatsappChat.estado == "encerrado")
+    if protocolo:
+        q = q.filter(WhatsappChat.protocolo.ilike(f"%{protocolo}%"))
+    if wa_id:
+        q = q.filter(WhatsappChat.wa_id.ilike(f"%{wa_id}%"))
+    if busca:
+        term = f"%{busca.strip()}%"
+        q = q.filter(
+            or_(
+                WhatsappChat.protocolo.ilike(term),
+                WhatsappChat.wa_id.ilike(term),
+                WhatsappChat.cliente_nome.ilike(term),
+            )
+        )
+    if atendente_id:
+        q = q.filter(WhatsappChat.atendente_id == atendente_id)
+    if encerramento_inicio:
+        q = q.filter(WhatsappChat.encerramento_at >= encerramento_inicio)
+    if encerramento_fim:
+        q = q.filter(WhatsappChat.encerramento_at <= encerramento_fim)
+    if atendente.role != "admin":
+        vis = ids_setores_visiveis_atendente(db, atendente)
+        q = q.filter(or_(WhatsappChat.atendente_id == atendente.id, WhatsappChat.setor_id.in_(vis)))
     total = q.count()
     rows = q.order_by(desc(WhatsappChat.encerramento_at), desc(WhatsappChat.id)).offset(offset).limit(limit).all()
     return ListaPaginada(items=[_chat_read(db, c) for c in rows], total=total)
@@ -343,6 +386,8 @@ def obter(
     )
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not _pode_ver_chat(db, atendente, c):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este chat")
     return _chat_read(db, c)
 
 
@@ -351,12 +396,14 @@ def obter_midia_da_mensagem(
     chat_id: int,
     mensagem_id: int,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(obter_atendente_atual),
+    atendente: Atendente = Depends(obter_atendente_atual),
 ):
     """Devolve o ficheiro binário guardado para mensagens inbound com mídia."""
     c = db.query(WhatsappChat).filter(WhatsappChat.id == chat_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not _pode_ver_chat(db, atendente, c):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este chat")
     m = (
         db.query(WhatsappMensagem)
         .filter(WhatsappMensagem.chat_id == chat_id, WhatsappMensagem.id == mensagem_id)
@@ -380,6 +427,8 @@ def listar_mensagens(
     c = db.query(WhatsappChat).filter(WhatsappChat.id == chat_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not _pode_ver_chat(db, atendente, c):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este chat")
     rows = (
         db.query(WhatsappMensagem)
         .options(joinedload(WhatsappMensagem.atendente))
