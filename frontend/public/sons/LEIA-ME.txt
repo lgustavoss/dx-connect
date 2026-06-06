@@ -1,0 +1,2 @@
+Coloque o arquivo "alerta.mp3" nesta pasta para personalizar o som de alerta dos chamados abertos na fila.
+O sistema tentará carregar "/sons/alerta.mp3" e, se o arquivo não existir ou se a reprodução automática for bloqueada pelo navegador, haverá um fallback automático para o beep sintetizado original.
