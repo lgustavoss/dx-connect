@@ -27,7 +27,7 @@ services:
       - evolution
     environment:
       POSTGRES_USER: ${EVOLUTION_POSTGRES_USER:-evolution}
-      POSTGRES_PASSWORD: ${EVOLUTION_POSTGRES_PASSWORD:?Defina EVOLUTION_POSTGRES_PASSWORD no backend/.env}
+      POSTGRES_PASSWORD: ${EVOLUTION_POSTGRES_PASSWORD:-evolution_change_me}
       POSTGRES_DB: ${EVOLUTION_POSTGRES_DB:-evolution}
     volumes:
       - evolution_postgres_data:/var/lib/postgresql/data
@@ -56,7 +56,7 @@ services:
       SERVER_URL: ${EVOLUTION_SERVER_URL:-http://127.0.0.1:8080}
       SERVER_PORT: "8080"
       AUTHENTICATION_TYPE: apikey
-      AUTHENTICATION_API_KEY: ${EVOLUTION_GLOBAL_API_KEY:?Defina EVOLUTION_GLOBAL_API_KEY no backend/.env}
+      AUTHENTICATION_API_KEY: ${EVOLUTION_GLOBAL_API_KEY:-}
       AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "true"
       DATABASE_PROVIDER: postgresql
       DATABASE_CONNECTION_URI: postgresql://${EVOLUTION_POSTGRES_USER:-evolution}:${EVOLUTION_POSTGRES_PASSWORD}@evolution-db:5432/${EVOLUTION_POSTGRES_DB:-evolution}?schema=public

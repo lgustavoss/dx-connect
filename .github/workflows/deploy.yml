@@ -99,7 +99,7 @@ jobs:
           echo "Deploy ref no VPS: ${REF}"
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -p "${SSH_PORT}" \
             "${DEPLOY_USER}@${DEPLOY_HOST}" \
-            "REF='${REF}' DEPLOY_PATH='${DEPLOY_PATH}' SKIP_MIGRATIONS='${SKIP_MIGRATIONS}' bash -s" << 'REMOTE_SCRIPT'
+            "REF='${REF}' DEPLOY_PATH='${DEPLOY_PATH}' SKIP_MIGRATIONS='${SKIP_MIGRATIONS}' WEBHOOK_BASE_URL='${VITE_API_URL}' bash -s" << 'REMOTE_SCRIPT'
           set -ex
           cd "$DEPLOY_PATH"
           echo "==> Deploy branch/ref: $REF"
@@ -108,6 +108,7 @@ jobs:
           git reset --hard "origin/$REF"
           export DX_CONNECT_GIT_SHA="$(git rev-parse --short HEAD)"
           echo "==> Commit: $DX_CONNECT_GIT_SHA"
+          WEBHOOK_BASE_URL="${WEBHOOK_BASE_URL:-}" bash deploy/scripts/ensure-evolution-env.sh backend/.env
           COMPOSE="docker compose --env-file backend/.env -f docker-compose.prod.yml"
           if [ "$SKIP_MIGRATIONS" != "true" ]; then
             $COMPOSE build --no-cache backend

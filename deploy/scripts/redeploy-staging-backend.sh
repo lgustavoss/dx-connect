@@ -15,6 +15,7 @@ git pull origin "$BRANCH"
 export DX_CONNECT_GIT_SHA="$(git rev-parse --short HEAD)"
 echo "==> Commit: $DX_CONNECT_GIT_SHA"
 
+WEBHOOK_BASE_URL="${WEBHOOK_BASE_URL:-}" bash deploy/scripts/ensure-evolution-env.sh backend/.env
 COMPOSE="docker compose --env-file backend/.env -f docker-compose.prod.yml"
 $COMPOSE build --no-cache backend
 $COMPOSE run --rm backend alembic upgrade head
