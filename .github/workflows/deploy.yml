@@ -117,7 +117,11 @@ jobs:
           $COMPOSE up -d --build --force-recreate
           sleep 5
           curl -sf "http://127.0.0.1:8000/health" || true
-          curl -sf "http://127.0.0.1:8080" >/dev/null && echo "Evolution API: OK (8080)" || echo "Evolution API: aguardar ou conferir backend/.env"
+          for i in 1 2 3 4 5 6; do
+            curl -sf "http://127.0.0.1:8080" >/dev/null && { echo "Evolution API: OK (8080)"; break; }
+            sleep 5
+          done
+          curl -sf "http://127.0.0.1:8080" >/dev/null || echo "Evolution API: aguardar ou conferir logs (docker logs dx-connect-evolution-api)"
           REMOTE_SCRIPT
 
       - name: Verificar rotas da API (health)

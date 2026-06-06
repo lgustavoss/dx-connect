@@ -286,6 +286,7 @@ def _app_capabilities() -> dict[str, bool]:
         "settings_email": "/v1/settings/email" in paths,
         "tenant_atual": "/v1/tenant/atual" in paths,
         "multi_tenant_mode": settings.DX_CONNECT_MULTI_TENANT,
+        "evolution_embutida": settings.evolution_embutida_disponivel,
     }
 
 
