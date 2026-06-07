@@ -15,6 +15,7 @@ import {
 } from '../api/client'
 import { TicketsTabelaContexto } from '../components/TicketsTabelaContexto'
 import { FuncionariosEmpresaLista } from '../components/FuncionariosEmpresaLista'
+import { EmpresaPdvsPanel } from '../components/EmpresaPdvsPanel'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -54,7 +55,7 @@ import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/err
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 
 type Aba = 'empresas' | 'funcionarios' | 'tickets'
-type AbaModalEmpresa = 'geral' | 'tickets' | 'funcionarios'
+type AbaModalEmpresa = 'geral' | 'tickets' | 'funcionarios' | 'pdvs'
 type TipoFuncionario = 'socio' | 'supervisor' | 'colaborador'
 const tipoLabel: Record<string, string> = { socio: 'Sócio', supervisor: 'Supervisor', colaborador: 'Colaborador' }
 
@@ -965,6 +966,18 @@ export function RedeDetalhe() {
                   >
                     Funcionários
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setAbaModalEmpresa('pdvs')}
+                    aria-current={abaModalEmpresa === 'pdvs' ? 'page' : undefined}
+                    className={
+                      abaModalEmpresa === 'pdvs'
+                        ? 'border-b-2 border-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 dark:border-sky-400 dark:bg-slate-800/50 dark:text-white'
+                        : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/30 dark:hover:text-slate-200'
+                    }
+                  >
+                    PDVs
+                  </button>
                 </nav>
               </div>
 
@@ -1164,6 +1177,9 @@ export function RedeDetalhe() {
 
               {abaModalEmpresa === 'funcionarios' && editingEmpresaId != null && (
                 <>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Funcionários da rede associados a esta empresa (sócio, supervisor ou colaborador).
+                  </p>
                   <BarraBuscaPaginacao
                     busca={buscaFuncEmpModal}
                     onBuscaChange={setBuscaFuncEmpModal}
@@ -1172,13 +1188,32 @@ export function RedeDetalhe() {
                     total={funcEmpModalTotal}
                     onPageChange={setPageFuncEmpModal}
                     disabled={loadingFuncEmpModal}
+                    extra={
+                      <Link
+                        to={`/funcionarios-rede/novo?empresa_id=${editingEmpresaId}&rede_id=${redeId}`}
+                      >
+                        <Button type="button">Adicionar funcionário</Button>
+                      </Link>
+                    }
                   />
                   <FuncionariosEmpresaLista
                     items={funcEmpModalItems}
                     loading={loadingFuncEmpModal}
                     emptyMessage="Nenhum funcionário vinculado a esta empresa."
+                    emptyAction={
+                      <Link
+                        to={`/funcionarios-rede/novo?empresa_id=${editingEmpresaId}&rede_id=${redeId}`}
+                        className="mt-3 inline-block"
+                      >
+                        <Button type="button">Cadastrar ou vincular funcionário</Button>
+                      </Link>
+                    }
                   />
                 </>
+              )}
+
+              {abaModalEmpresa === 'pdvs' && editingEmpresaId != null && (
+                <EmpresaPdvsPanel empresaId={editingEmpresaId} />
               )}
 
               <div className="flex items-center justify-between border-t border-slate-200 pt-4 dark:border-slate-700">
