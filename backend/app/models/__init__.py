@@ -23,6 +23,7 @@ from app.models.tenant_inbound_address import TenantInboundAddress
 from app.models.password_reset_token import PasswordResetToken
 from app.models.resposta_pronta import RespostaPronta
 from app.models.ticket_vinculo import TicketVinculo
+from app.models.empresa_pdv import EmpresaPdv, PdvRotulo, PdvTipoAcessoRemoto
 
 __all__ = [
     "Rede",
@@ -57,4 +58,7 @@ __all__ = [
     "PasswordResetToken",
     "RespostaPronta",
     "TicketVinculo",
+    "PdvRotulo",
+    "PdvTipoAcessoRemoto",
+    "EmpresaPdv",
 ]

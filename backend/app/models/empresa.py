@@ -52,3 +52,4 @@ class Empresa(Base):
     tickets = relationship("Ticket", back_populates="empresa")
     colaboradores = relationship("FuncionarioRede", back_populates="empresa", foreign_keys="FuncionarioRede.empresa_id")
     empresas_supervisor = relationship("FuncionarioRedeEmpresa", back_populates="empresa", foreign_keys="FuncionarioRedeEmpresa.empresa_id")
+    pdvs = relationship("EmpresaPdv", back_populates="empresa", cascade="all, delete-orphan")

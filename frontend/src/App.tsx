@@ -35,6 +35,7 @@ import { TiposNegocio } from './pages/TiposNegocio'
 import { TipoNegocioForm } from './pages/TipoNegocioForm'
 import { TipoNegocioDetalhe } from './pages/TipoNegocioDetalhe'
 import { ConfigWhatsapp } from './pages/ConfigWhatsapp'
+import { ConfigPdvCatalogos } from './pages/ConfigPdvCatalogos'
 import { ConfigEmpresaEmail } from './pages/ConfigEmpresaEmail'
 import { WhatsappLayout } from './pages/whatsapp/WhatsappLayout'
 import { WhatsappAtendendo } from './pages/whatsapp/WhatsappAtendendo'
@@ -375,6 +376,14 @@ function AppRoutes() {
           element={
             <AdminRoute>
               <ConfigEmpresaEmail />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="configuracoes/pdv-catalogos"
+          element={
+            <AdminRoute>
+              <ConfigPdvCatalogos />
             </AdminRoute>
           }
         />
