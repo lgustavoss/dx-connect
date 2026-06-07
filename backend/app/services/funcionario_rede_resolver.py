@@ -13,7 +13,8 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from app.models.empresa import Empresa
-from app.models.funcionario_rede import FuncionarioRede, FuncionarioRedeEmpresa
+from app.models.funcionario_rede import FuncionarioRede
+from app.services.funcionario_escopo import empresa_ids_vinculados, escopo_efetivo, rede_id_efetiva
 
 
 @dataclass(frozen=True)
@@ -34,16 +35,7 @@ def _normalizar_email(raw: str | None) -> str | None:
 
 
 def _empresas_do_funcionario(db: Session, f: FuncionarioRede) -> set[int]:
-    if f.tipo == "colaborador" and f.empresa_id is not None:
-        return {int(f.empresa_id)}
-    if f.tipo == "supervisor":
-        rows = (
-            db.query(FuncionarioRedeEmpresa.empresa_id)
-            .filter(FuncionarioRedeEmpresa.funcionario_id == f.id)
-            .all()
-        )
-        return {int(r[0]) for r in rows}
-    return set()
+    return empresa_ids_vinculados(db, f)
 
 
 def resolver_remetente_por_email(db: Session, email_raw: str | None) -> RemetenteFuncionarioResolve:
@@ -83,7 +75,7 @@ def resolver_remetente_por_email(db: Session, email_raw: str | None) -> Remetent
             continue
         empresa_ids |= _empresas_do_funcionario(db, f)
 
-    if rede_id is not None and not empresa_ids and any(f.tipo == "socio" for f in rows):
+    if rede_id is not None and not empresa_ids and any(escopo_efetivo(f) == "all" for f in rows):
         ids_rede = (
             db.query(Empresa.id)
             .filter(Empresa.rede_id == rede_id, Empresa.ativo.is_(True))

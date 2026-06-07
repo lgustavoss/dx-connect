@@ -17,6 +17,7 @@ import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/err
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 
 type Tipo = 'socio' | 'supervisor' | 'colaborador'
+type Escopo = FuncionariosRede.EscopoEmpresas
 
 function redePadraoRecente(list: Redes.Rede[]) {
   const sorted = [...list].sort((a, b) => (Date.parse(b.created_at ?? '') || 0) - (Date.parse(a.created_at ?? '') || 0))
@@ -44,6 +45,7 @@ export function FuncionarioRedeForm() {
   const [nome, setNome] = useState('')
   const [email, setEmail] = useState('')
   const [tipo, setTipo] = useState<Tipo>('colaborador')
+  const [escopoEmpresas, setEscopoEmpresas] = useState<Escopo>('selected')
   const [ativo, setAtivo] = useState(true)
   const [redeId, setRedeId] = useState<number | ''>('')
   const [empresaId, setEmpresaId] = useState<number | ''>('')
@@ -68,6 +70,15 @@ export function FuncionarioRedeForm() {
     if (isEdit) return
     const em = searchParams.get('email')?.trim()
     if (em) setEmail(em)
+    const rid = searchParams.get('rede_id')
+    if (rid && !Number.isNaN(Number(rid))) setRedeId(Number(rid))
+    const eid = searchParams.get('empresa_id')
+    if (eid && !Number.isNaN(Number(eid))) {
+      const n = Number(eid)
+      setEmpresaId(n)
+      setEmpresaIds([n])
+      setEscopoEmpresas('selected')
+    }
   }, [isEdit, searchParams])
 
   useEffect(() => {
@@ -88,6 +99,7 @@ export function FuncionarioRedeForm() {
         setNome(item.nome)
         setEmail(item.email)
         setTipo(item.tipo as Tipo)
+        setEscopoEmpresas((item.escopo_empresas as Escopo) || (item.tipo === 'socio' ? 'all' : 'selected'))
         setAtivo(item.ativo)
         let r = item.rede_id ?? ('' as number | '')
         if (r === '' && item.tipo === 'colaborador' && item.empresa_id) {
@@ -141,21 +153,19 @@ export function FuncionarioRedeForm() {
     }
     const rid = Number(redeId)
     const empresasNaRede = empresasList.filter((em) => em.rede_id === rid)
-    if (tipo === 'colaborador') {
-      const em = empresasList.find((x) => x.id === empresaId)
-      if (!em || em.rede_id !== rid) {
-        toast.showWarning('Selecione uma empresa desta rede.')
+    const escopo = escopoEmpresas
+    let ids = [...empresaIds]
+    if (escopo === 'selected') {
+      if (tipo === 'colaborador' && empresaId) {
+        ids = [Number(empresaId)]
+      }
+      if (!ids.length) {
+        toast.showWarning('Marque ao menos uma empresa da rede ou escolha «Todas as empresas».')
         return
       }
-    }
-    if (tipo === 'supervisor') {
-      if (!empresaIds.length) {
-        toast.showWarning('Marque ao menos uma empresa da rede.')
-        return
-      }
-      const invalid = empresaIds.some((id) => !empresasNaRede.some((e) => e.id === id))
+      const invalid = ids.some((id) => !empresasNaRede.some((e) => e.id === id))
       if (invalid) {
-        toast.showWarning('Todas as empresas do supervisor devem ser da rede selecionada.')
+        toast.showWarning('Todas as empresas selecionadas devem pertencer à rede escolhida.')
         return
       }
     }
@@ -167,10 +177,11 @@ export function FuncionarioRedeForm() {
           nome: nome.trim(),
           email,
           tipo,
+          escopo_empresas: escopo,
           ativo,
-          rede_id: tipo === 'socio' ? rid : undefined,
-          empresa_id: tipo === 'colaborador' ? Number(empresaId) : undefined,
-          empresa_ids: tipo === 'supervisor' ? empresaIds : undefined,
+          rede_id: rid,
+          empresa_id: escopo === 'selected' && tipo === 'colaborador' && ids.length === 1 ? ids[0] : undefined,
+          empresa_ids: escopo === 'selected' ? ids : [],
         }
         saved = await funcionariosRede.update(funcionarioId, payload)
         toast.showSuccess('Funcionário atualizado.')
@@ -179,10 +190,11 @@ export function FuncionarioRedeForm() {
           nome: nome.trim(),
           email,
           tipo,
+          escopo_empresas: escopo,
           ativo,
-          rede_id: tipo === 'socio' ? rid : undefined,
-          empresa_id: tipo === 'colaborador' ? Number(empresaId) : undefined,
-          empresa_ids: tipo === 'supervisor' ? empresaIds : undefined,
+          rede_id: rid,
+          empresa_id: escopo === 'selected' && tipo === 'colaborador' && ids.length === 1 ? ids[0] : undefined,
+          empresa_ids: escopo === 'selected' ? ids : [],
         }
         saved = await funcionariosRede.create(payload)
         toast.showSuccess('Funcionário cadastrado.')
@@ -254,6 +266,7 @@ export function FuncionarioRedeForm() {
                   setTipo(t)
                   setEmpresaId('')
                   setEmpresaIds([])
+                  if (t === 'socio') setEscopoEmpresas('all')
                   if (t === 'socio' && !redeId) setRedeId(redePadraoRecente(redesList))
                 }}
                 options={[
@@ -277,40 +290,70 @@ export function FuncionarioRedeForm() {
               />
             </FormSection>
 
-            {tipo !== 'socio' && (
-              <FormSection title="Vínculo">
-                {tipo === 'colaborador' && (
-                  <SelectComPesquisa
-                    id="funcionario-empresa-form"
-                    label="Empresa desta rede"
-                    value={empresaId}
-                    onChange={(id) => setEmpresaId(id)}
-                    required
-                    disabled={!redeId}
-                    items={empresasDaRede.map((x) => ({ id: x.id, label: x.nome, createdAt: x.created_at }))}
-                    hint={!redeId ? 'Selecione a rede primeiro.' : 'Últimas empresas desta rede. Digite para buscar.'}
+            <FormSection title="Escopo de empresas">
+              <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                  <input
+                    type="radio"
+                    name="escopo-empresas"
+                    checked={escopoEmpresas === 'all'}
+                    onChange={() => {
+                      setEscopoEmpresas('all')
+                      setEmpresaId('')
+                      setEmpresaIds([])
+                    }}
                   />
-                )}
-                {tipo === 'supervisor' && (
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Empresas desta rede</label>
-                    {!redeId ? (
-                      <p className="text-sm text-slate-500 dark:text-slate-400">Selecione a rede primeiro.</p>
-                    ) : empresasDaRede.length === 0 ? (
-                      <p className="text-sm text-slate-500 dark:text-slate-400">Nenhuma empresa ativa nesta rede.</p>
-                    ) : (
-                      <div className="flex max-h-44 flex-wrap gap-2 overflow-auto rounded-xl border border-slate-200 bg-slate-50/40 p-3 dark:border-slate-700 dark:bg-slate-800/40">
-                        {empresasDaRede.map((e) => (
-                          <CheckboxField key={e.id} checked={empresaIds.includes(e.id)} onChange={() => toggleEmpresa(e.id)}>
-                            {e.nome}
-                          </CheckboxField>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </FormSection>
-            )}
+                  Todas as empresas da rede
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                  <input
+                    type="radio"
+                    name="escopo-empresas"
+                    checked={escopoEmpresas === 'selected'}
+                    onChange={() => setEscopoEmpresas('selected')}
+                  />
+                  Selecionar empresas
+                </label>
+              </div>
+              {escopoEmpresas === 'selected' && (
+                <div className="mt-3">
+                  {tipo === 'colaborador' ? (
+                    <SelectComPesquisa
+                      id="funcionario-empresa-form"
+                      label="Empresa desta rede"
+                      value={empresaId}
+                      onChange={(id) => {
+                        setEmpresaId(id)
+                        setEmpresaIds(id ? [id] : [])
+                      }}
+                      required
+                      disabled={!redeId}
+                      items={empresasDaRede.map((x) => ({ id: x.id, label: x.nome, createdAt: x.created_at }))}
+                      hint={!redeId ? 'Selecione a rede primeiro.' : 'Últimas empresas desta rede. Digite para buscar.'}
+                    />
+                  ) : (
+                    <>
+                      <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                        Empresas desta rede
+                      </label>
+                      {!redeId ? (
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Selecione a rede primeiro.</p>
+                      ) : empresasDaRede.length === 0 ? (
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Nenhuma empresa ativa nesta rede.</p>
+                      ) : (
+                        <div className="flex max-h-44 flex-wrap gap-2 overflow-auto rounded-xl border border-slate-200 bg-slate-50/40 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+                          {empresasDaRede.map((e) => (
+                            <CheckboxField key={e.id} checked={empresaIds.includes(e.id)} onChange={() => toggleEmpresa(e.id)}>
+                              {e.nome}
+                            </CheckboxField>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </FormSection>
 
             <FormSection title="Situação no sistema">
               <Switch

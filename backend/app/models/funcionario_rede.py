@@ -21,6 +21,7 @@ class FuncionarioRede(Base):
     nome = Column(String(255), nullable=False)
     email = Column(String(255), nullable=False, index=True)  # único por contexto (rede/empresa)
     tipo = Column(String(20), nullable=False)  # socio | supervisor | colaborador
+    escopo_empresas = Column(String(20), nullable=False, default="selected")  # all | selected
     ativo = Column(Boolean, default=True)
     # Sócio: preenchido rede_id
     rede_id = Column(Integer, ForeignKey("redes.id"), nullable=True)

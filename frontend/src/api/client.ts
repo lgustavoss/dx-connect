@@ -1093,11 +1093,13 @@ export namespace Atendentes {
 }
 
 export namespace FuncionariosRede {
+  export type EscopoEmpresas = 'all' | 'selected';
   export interface Funcionario {
     id: number;
     nome: string;
     email: string;
     tipo: string;
+    escopo_empresas: EscopoEmpresas;
     ativo: boolean;
     rede_id?: number;
     empresa_id?: number;
@@ -1109,6 +1111,7 @@ export namespace FuncionariosRede {
     nome: string;
     email: string;
     tipo: string;
+    escopo_empresas?: EscopoEmpresas;
     ativo?: boolean;
     rede_id?: number;
     empresa_id?: number;
@@ -1118,10 +1121,104 @@ export namespace FuncionariosRede {
     nome?: string;
     email?: string;
     tipo?: string;
+    escopo_empresas?: EscopoEmpresas;
     ativo?: boolean;
     rede_id?: number;
     empresa_id?: number;
     empresa_ids?: number[];
+  }
+}
+
+export const pdvRotulos = {
+  list: (params?: { incluir_inativos?: boolean; busca?: string; offset?: number; limit?: number }) =>
+    listPaginated<PdvCatalogo.Item>('/pdv-rotulos', params),
+  create: (data: PdvCatalogo.Create) => api<PdvCatalogo.Item>('/pdv-rotulos', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: PdvCatalogo.Update) =>
+    api<PdvCatalogo.Item>(`/pdv-rotulos/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+};
+
+export const pdvTiposAcessoRemoto = {
+  list: (params?: { incluir_inativos?: boolean; busca?: string; offset?: number; limit?: number }) =>
+    listPaginated<PdvCatalogo.Item>('/pdv-tipos-acesso-remoto', params),
+  create: (data: PdvCatalogo.Create) =>
+    api<PdvCatalogo.Item>('/pdv-tipos-acesso-remoto', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: PdvCatalogo.Update) =>
+    api<PdvCatalogo.Item>(`/pdv-tipos-acesso-remoto/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+};
+
+export const empresaPdvs = {
+  list: (empresaId: number, params?: { incluir_inativos?: boolean }) =>
+    listPaginated<EmpresaPdv.Item>(`/empresas/${empresaId}/pdvs`, params),
+  create: (empresaId: number, data: EmpresaPdv.Create) =>
+    api<EmpresaPdv.Item>(`/empresas/${empresaId}/pdvs`, { method: 'POST', body: JSON.stringify(data) }),
+  update: (empresaId: number, pdvId: number, data: EmpresaPdv.Update) =>
+    api<EmpresaPdv.Item>(`/empresas/${empresaId}/pdvs/${pdvId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  revelarCredencial: (empresaId: number, pdvId: number) =>
+    api<EmpresaPdv.Credencial>(`/empresas/${empresaId}/pdvs/${pdvId}/credencial`),
+};
+
+export namespace PdvCatalogo {
+  export interface Item {
+    id: number;
+    nome: string;
+    ativo: boolean;
+    ordem_exibicao: number;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+  export interface Create {
+    nome: string;
+    ativo?: boolean;
+    ordem_exibicao?: number;
+  }
+  export interface Update {
+    nome?: string;
+    ativo?: boolean;
+    ordem_exibicao?: number;
+  }
+}
+
+export namespace EmpresaPdv {
+  export interface Item {
+    id: number;
+    empresa_id: number;
+    codigo: string;
+    rotulo_id: number;
+    rotulo_nome?: string | null;
+    papel: 'principal' | 'auxiliar';
+    usa_tef: boolean;
+    tipo_acesso_remoto_id?: number | null;
+    tipo_acesso_remoto_nome?: string | null;
+    acesso_remoto_id?: string | null;
+    observacoes?: string | null;
+    ativo: boolean;
+    tem_senha_remota: boolean;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+  export interface Create {
+    codigo: string;
+    rotulo_id: number;
+    papel: 'principal' | 'auxiliar';
+    usa_tef?: boolean;
+    tipo_acesso_remoto_id?: number | null;
+    acesso_remoto_id?: string | null;
+    acesso_remoto_senha?: string | null;
+    observacoes?: string | null;
+    ativo?: boolean;
+  }
+  export interface Update {
+    rotulo_id?: number;
+    papel?: 'principal' | 'auxiliar';
+    usa_tef?: boolean;
+    tipo_acesso_remoto_id?: number | null;
+    acesso_remoto_id?: string | null;
+    acesso_remoto_senha?: string | null;
+    observacoes?: string | null;
+    ativo?: boolean;
+  }
+  export interface Credencial {
+    acesso_remoto_senha: string;
   }
 }
 

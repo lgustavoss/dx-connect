@@ -199,6 +199,7 @@ const navStructure: NavItem[] = [
       { to: '/tipos-negocio', label: 'Tipos de negócio', icon: 'tiposNegocio' },
       { to: '/status-ticket', label: 'Status de ticket', icon: 'status' },
       { to: '/respostas-prontas', label: 'Respostas prontas', icon: 'status' },
+      { to: '/configuracoes/pdv-catalogos', label: 'Catálogos PDV', icon: 'empresas' },
       { to: '/configuracoes/empresa-email', label: 'Empresa & e-mail', icon: 'empresas' },
       { to: '/configuracoes/whatsapp', label: 'WhatsApp (Evolution)', icon: 'whatsapp' },
       { to: '/auditoria', label: 'Auditoria', icon: 'auditoria' },
