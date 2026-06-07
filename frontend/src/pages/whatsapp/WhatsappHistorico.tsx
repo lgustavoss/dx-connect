@@ -4,6 +4,7 @@ import { atendentes, whatsappChats, type WhatsappChats, type Atendentes } from '
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
+import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
@@ -81,7 +82,7 @@ export function WhatsappHistorico() {
           <p className="text-sm text-slate-500">Consulte atendimentos finalizados e protocolos antigos.</p>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between flex-1">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between flex-1">
           <div className="relative flex-1 min-w-0">
             <Input
               placeholder="Buscar por nome, telefone ou protocolo (ex.: #C202604-0001)…"
@@ -93,7 +94,7 @@ export function WhatsappHistorico() {
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             </span>
           </div>
-          <div className="grid w-full max-w-xl grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid w-full max-w-full grid-cols-1 gap-3 sm:max-w-xl sm:grid-cols-3">
             <Input
               type="date"
               label="De"
@@ -106,22 +107,19 @@ export function WhatsappHistorico() {
               value={ate}
               onChange={(e) => setAte(e.target.value)}
             />
-            <div className="flex items-center gap-2">
-              <select
+            <div className="min-w-0">
+              <Select
+                label="Atendente"
                 value={atendenteId}
-                onChange={(e) => setAtendenteId(e.target.value === '' ? '' : Number(e.target.value))}
-                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-cyan-400 dark:focus:ring-cyan-500/20"
-              >
-                <option value="">Atendente</option>
-                {atendentesList.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.nome}
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => setAtendenteId(value === '' ? '' : Number(value))}
+                options={atendentesList.map((a) => ({ value: a.id, label: a.nome }))}
+                placeholder="Atendente"
+                includeEmpty
+                emptyLabel="Atendente"
+              />
             </div>
           </div>
-          <Button variant="secondary" onClick={() => void load(0)}>Filtrar</Button>
+          <Button className="sm:self-end" variant="secondary" onClick={() => void load(0)}>Filtrar</Button>
         </div>
       </header>
 
