@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import type { FuncionariosRede } from '../api/client'
 import { Button } from './ui/Button'
@@ -13,18 +14,25 @@ export type FuncionariosEmpresaListaProps = {
   items: FuncionariosRede.Funcionario[]
   loading: boolean
   emptyMessage?: string
+  emptyAction?: ReactNode
 }
 
 export function FuncionariosEmpresaLista({
   items,
   loading,
   emptyMessage = 'Nenhum funcionário vinculado a esta empresa.',
+  emptyAction,
 }: FuncionariosEmpresaListaProps) {
   if (loading && items.length === 0) {
     return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando funcionários...</p>
   }
   if (items.length === 0) {
-    return <p className="text-sm text-slate-500 dark:text-slate-400">{emptyMessage}</p>
+    return (
+      <div className="rounded-xl border border-dashed border-slate-300 px-4 py-6 text-center dark:border-slate-600">
+        <p className="text-sm text-slate-500 dark:text-slate-400">{emptyMessage}</p>
+        {emptyAction}
+      </div>
+    )
   }
 
   return (

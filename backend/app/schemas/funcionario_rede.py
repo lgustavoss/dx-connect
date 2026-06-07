@@ -6,19 +6,21 @@ class FuncionarioRedeBase(BaseModel):
     nome: str
     email: EmailStr
     tipo: str  # socio | supervisor | colaborador
+    escopo_empresas: str = "selected"  # all | selected
     ativo: bool = True
 
 
 class FuncionarioRedeCreate(FuncionarioRedeBase):
-    rede_id: int | None = None      # obrigatório se tipo == socio
-    empresa_id: int | None = None   # obrigatório se tipo == colaborador
-    empresa_ids: list[int] = []     # obrigatório se tipo == supervisor
+    rede_id: int | None = None
+    empresa_id: int | None = None  # legado colaborador (preferir empresa_ids)
+    empresa_ids: list[int] = []  # obrigatório se escopo_empresas == selected
 
 
 class FuncionarioRedeUpdate(BaseModel):
     nome: str | None = None
     email: EmailStr | None = None
     tipo: str | None = None
+    escopo_empresas: str | None = None
     ativo: bool | None = None
     rede_id: int | None = None
     empresa_id: int | None = None
@@ -29,7 +31,7 @@ class FuncionarioRedeRead(FuncionarioRedeBase):
     id: int
     rede_id: int | None = None
     empresa_id: int | None = None
-    empresa_ids: list[int] = []
+    empresa_ids: list[int] = []  # preenchido quando escopo_empresas == selected
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

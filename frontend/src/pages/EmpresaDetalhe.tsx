@@ -21,8 +21,9 @@ import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBus
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { TicketsTabelaContexto } from '../components/TicketsTabelaContexto'
 import { FuncionariosEmpresaLista } from '../components/FuncionariosEmpresaLista'
+import { EmpresaPdvsPanel } from '../components/EmpresaPdvsPanel'
 import { SemPermissao } from './SemPermissao'
-type Aba = 'geral' | 'tickets' | 'funcionarios'
+type Aba = 'geral' | 'tickets' | 'funcionarios' | 'pdvs'
 
 function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
   const v = value?.trim()
@@ -304,6 +305,7 @@ export function EmpresaDetalhe() {
             {tabBtn('geral', 'Geral')}
             {tabBtn('tickets', 'Tickets')}
             {tabBtn('funcionarios', 'Funcionários')}
+            {tabBtn('pdvs', 'PDVs')}
           </nav>
         </div>
       </header>
@@ -442,12 +444,33 @@ export function EmpresaDetalhe() {
             total={funcTotal}
             onPageChange={setPageF}
             disabled={loadingF}
+            extra={
+              <Link
+                to={`/funcionarios-rede/novo?empresa_id=${empresa.id}&rede_id=${empresa.rede_id}`}
+              >
+                <Button type="button">Adicionar funcionário</Button>
+              </Link>
+            }
           />
           <FuncionariosEmpresaLista
             items={funcItems}
             loading={loadingF}
             emptyMessage="Nenhum funcionário vinculado a esta empresa."
+            emptyAction={
+              <Link
+                to={`/funcionarios-rede/novo?empresa_id=${empresa.id}&rede_id=${empresa.rede_id}`}
+                className="mt-3 inline-block"
+              >
+                <Button type="button">Cadastrar ou vincular funcionário</Button>
+              </Link>
+            }
           />
+        </section>
+      )}
+
+      {aba === 'pdvs' && (
+        <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
+          <EmpresaPdvsPanel empresaId={empresa.id} />
         </section>
       )}
     </div>
