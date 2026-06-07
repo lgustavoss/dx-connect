@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   ApiError,
   empresas as apiEmpresas,
@@ -38,7 +38,16 @@ function DetailRow({ label, value }: { label: string; value: string | null | und
 export function EmpresaDetalhe() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const voltarAnterior = useVoltarAnterior('/empresas')
+  const location = useLocation()
+  const voltarParaRede = (location.state as { voltarPara?: string } | null)?.voltarPara
+  const voltarHistorico = useVoltarAnterior(voltarParaRede ?? '/empresas')
+  const voltar = useCallback(() => {
+    if (voltarParaRede) {
+      navigate(voltarParaRede)
+      return
+    }
+    voltarHistorico()
+  }, [navigate, voltarParaRede, voltarHistorico])
   const toast = useToast()
   const empresaId = id ? parseInt(id, 10) : NaN
 
@@ -188,7 +197,7 @@ export function EmpresaDetalhe() {
     try {
       await apiEmpresas.delete(empresa.id)
       toast.showSuccess('Empresa excluída.')
-      navigate('/empresas', { replace: true })
+      navigate(voltarParaRede ?? '/empresas', { replace: true })
     } catch (err) {
       toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível excluir a empresa.'))
     }
@@ -219,7 +228,7 @@ export function EmpresaDetalhe() {
 
   if (loadFailure) {
     return (
-      <CarregamentoFalhou titulo={loadFailure.titulo} detalhe={loadFailure.detalhe} onVoltar={voltarAnterior} />
+      <CarregamentoFalhou titulo={loadFailure.titulo} detalhe={loadFailure.detalhe} onVoltar={voltar} />
     )
   }
 
@@ -261,7 +270,7 @@ export function EmpresaDetalhe() {
       <div>
         <button
           type="button"
-          onClick={voltarAnterior}
+          onClick={voltar}
           className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
         >
           <span aria-hidden>←</span> Voltar
@@ -290,7 +299,7 @@ export function EmpresaDetalhe() {
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
-            <Button variant="secondary" onClick={voltarAnterior}>
+            <Button variant="secondary" onClick={voltar}>
               Voltar
             </Button>
             <Button onClick={abrirEdicao}>Editar</Button>
