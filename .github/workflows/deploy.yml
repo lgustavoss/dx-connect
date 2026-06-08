@@ -116,31 +116,23 @@ jobs:
           else
             $COMPOSE build --no-cache backend
           fi
-          $COMPOSE stop backend || true
-          $COMPOSE rm -f backend || true
-          if command -v fuser >/dev/null 2>&1; then
-            fuser -k 8000/tcp 2>/dev/null || true
-            sleep 2
-          fi
-          $COMPOSE up -d --build --force-recreate
-          sleep 10
-          docker ps --filter name=dx-connect-api --format '{{.Names}} {{.Status}}'
-          LOCAL_HEALTH="$(curl -sf http://127.0.0.1:8000/health)"
-          echo "Local health: ${LOCAL_HEALTH}"
-          echo "${LOCAL_HEALTH}" | DX_CONNECT_GIT_SHA="${DX_CONNECT_GIT_SHA}" python3 -c "
+          WEBHOOK_BASE_URL="${WEBHOOK_BASE_URL:-}" bash deploy/scripts/restart-backend-prod.sh "$DEPLOY_PATH"
+          PUBLIC_HEALTH="$(curl -sf "${WEBHOOK_BASE_URL%/}/health")"
+          echo "Health público (mesmo host): ${PUBLIC_HEALTH}"
+          echo "${PUBLIC_HEALTH}" | DX_CONNECT_GIT_SHA="${DX_CONNECT_GIT_SHA}" python3 -c "
           import json, os, sys
           body = json.load(sys.stdin)
           caps = body.get('capabilities') or {}
           missing = [k for k in ('pdv_catalogos', 'empresa_pdvs') if not caps.get(k)]
           if missing:
-              print(f'::error::Backend local sem rotas PDV após deploy: faltam {missing}', file=sys.stderr)
+              print(f'::error::URL pública sem rotas PDV: faltam {missing}', file=sys.stderr)
               sys.exit(1)
           expected = os.environ.get('DX_CONNECT_GIT_SHA', '')
           actual = (body.get('git_sha') or '') or ''
           if expected and actual and actual != expected:
-              print(f'::error::git_sha local {actual!r} != commit {expected!r}', file=sys.stderr)
+              print(f'::error::git_sha público {actual!r} != commit {expected!r}', file=sys.stderr)
               sys.exit(1)
-          print('OK: backend local', actual, caps)
+          print('OK: health público no VPS', actual, caps)
           "
           for i in 1 2 3 4 5 6; do
             curl -sf "http://127.0.0.1:8080" >/dev/null && { echo "Evolution API: OK (8080)"; break; }
