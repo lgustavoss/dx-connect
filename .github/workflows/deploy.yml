@@ -9,7 +9,7 @@
 #   VITE_API_URL          — URL HTTPS da API (sem barra final)
 # Opcional:
 #   DEPLOY_SSH_PORT       — porta SSH (padrão 22)
-#   DEPLOY_GIT_REF        — branch (padrão main)
+#   DEPLOY_GIT_REF        — branch no VPS (padrão staging; só usado se o workflow não tiver github.ref_name)
 #
 # Opcional: crie um Environment "production" com estes secrets e descomente "environment: production" abaixo.
 
@@ -24,7 +24,7 @@ on:
         default: false
         type: boolean
   push:
-    branches: [staging, main]
+    branches: [staging]
     paths:
       - "backend/**"
       - "frontend/**"
