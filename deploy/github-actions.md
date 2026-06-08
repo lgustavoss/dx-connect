@@ -28,7 +28,7 @@ Opcionais:
 | Secret | Descrição |
 |--------|-----------|
 | `DEPLOY_SSH_PORT` | Porta SSH se não for 22 |
-| `DEPLOY_GIT_REF` | Override opcional da branch no VPS (só usado se o workflow não tiver `github.ref_name`; em push para `staging`/`main` usa sempre a branch do push) |
+| `DEPLOY_GIT_REF` | Override opcional da branch no VPS (só usado se o workflow não tiver `github.ref_name`; em push para `staging` usa a branch do push) |
 
 ### Environment `production` (opcional)
 
