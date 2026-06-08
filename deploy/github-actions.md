@@ -64,7 +64,7 @@ Se quiser **aprovação manual** ou secrets separados, crie um **Environment** c
    cd /home/deploy/dx-connect
    # backend/.env: EVOLUTION_GLOBAL_API_KEY, EVOLUTION_POSTGRES_PASSWORD,
    # EVOLUTION_INTERNAL_BASE_URL=http://127.0.0.1:8080, DX_CONNECT_WEBHOOK_BASE_URL=https://...
-   docker compose --env-file backend/.env -f docker-compose.prod.yml run --rm backend alembic upgrade head
+   docker compose --env-file backend/.env -f docker-compose.prod.yml run --rm -T backend alembic upgrade head < /dev/null
    docker compose --env-file backend/.env -f docker-compose.prod.yml up -d --build
    ```
 
@@ -94,3 +94,4 @@ Em cada deploy o workflow executa `alembic upgrade head` antes do `up --build`. 
 - **`docker: permission denied`**: usuário no grupo `docker` ou reiniciar sessão SSH após `usermod`.
 - **Build do frontend errado**: `VITE_API_URL` nos secrets deve ser a URL **pública** que o browser usa para chamar a API.
 - **404 em `/v1/settings/*` ou `/v1/tenant/*` com frontend novo**: o SPA foi atualizado mas o **container da API** ainda está na `main` antiga. Remova o secret `DEPLOY_GIT_REF=main` (deixe o workflow usar a branch do push, ex. `staging`). No VPS: `bash deploy/scripts/redeploy-staging-backend.sh`. Confirme: `curl -s https://SUA-API/health` deve incluir `"capabilities":{"settings_empresa_sistema":true,...}`.
+- **Deploy SSH “passa” mas `/health` continua com `git_sha` antigo**: o `docker compose run` no script remoto (`bash -s` + heredoc) pode **consumir o stdin** e impedir o restart do backend. O workflow usa `run --rm -T ... < /dev/null` para evitar isso.

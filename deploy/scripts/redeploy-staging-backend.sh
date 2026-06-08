@@ -17,6 +17,6 @@ echo "==> Commit: $DX_CONNECT_GIT_SHA"
 
 COMPOSE="docker compose --env-file backend/.env -f docker-compose.prod.yml"
 $COMPOSE build --no-cache backend
-$COMPOSE run --rm backend alembic upgrade head
+$COMPOSE run --rm -T backend alembic upgrade head < /dev/null
 
 WEBHOOK_BASE_URL="${WEBHOOK_BASE_URL:-}" bash deploy/scripts/restart-backend-prod.sh "$REPO_DIR"
