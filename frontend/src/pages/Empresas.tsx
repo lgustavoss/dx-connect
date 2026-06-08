@@ -13,6 +13,7 @@ import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBus
 import { maskCnpjCpf } from '../utils/maskCnpjCpf'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
+import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 
 type ColunaEmpresa = 'nome' | 'cnpj_cpf' | 'rede'
 
@@ -90,23 +91,23 @@ export function Empresas() {
 
   if (forbidden) {
     return (
-      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+      <PageContainer>
         <SemPermissao
           title="Você não tem permissão para listar empresas."
           detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
           voltarPara="/"
           voltarLabel="Voltar para o Dashboard"
         />
-      </div>
+      </PageContainer>
     )
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-10">
-      <div className="flex justify-between">
-        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Empresas</h1>
-        <Button onClick={() => navigate('/empresas/novo')}>Nova empresa</Button>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Empresas"
+        actions={<Button onClick={() => navigate('/empresas/novo')}>Nova empresa</Button>}
+      />
 
       <Card>
         <BarraBuscaPaginacao
@@ -208,6 +209,6 @@ export function Empresas() {
           </div>
         )}
       </Card>
-    </div>
+    </PageContainer>
   )
 }

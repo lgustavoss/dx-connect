@@ -9,12 +9,13 @@ import { ListaAcoesVerEditar } from '../components/ui/ListaAcoesVerEditar'
 import { useToast } from '../components/ui/Toast'
 import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
+import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 
 type Coluna = 'titulo' | 'ordem' | 'ativo'
 
-export function RespostasProntasPage() {
+export function RespostasProntasPage({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate()
   const toast = useToast()
   const { ordenarPor, ordem: ordemLista, aoOrdenarColuna, sortParams } = useOrdenacaoLista<Coluna>()
@@ -80,26 +81,23 @@ export function RespostasProntasPage() {
     }
   }
 
-  if (forbidden) {
-    return (
-      <SemPermissao
-        title="Você não tem permissão para gerenciar respostas prontas."
-        voltarPara="/"
-        voltarLabel="Voltar para o Dashboard"
-      />
-    )
-  }
+  const denied = (
+    <SemPermissao
+      title="Você não tem permissão para gerenciar respostas prontas."
+      voltarPara="/"
+      voltarLabel="Voltar para o Dashboard"
+    />
+  )
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-10">
-      <div className="flex justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Respostas prontas</h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Macros reutilizáveis no ticket — globais ou por setor.</p>
-        </div>
-        <Button onClick={() => navigate('/respostas-prontas/novo')}>Nova resposta</Button>
-      </div>
-
+    <ConfigListPageShell
+      embedded={embedded}
+      forbidden={forbidden}
+      denied={denied}
+      title="Respostas prontas"
+      subtitle="Macros reutilizáveis no ticket — globais ou por setor."
+      actions={<Button onClick={() => navigate('/respostas-prontas/novo')}>Nova resposta</Button>}
+    >
       <Card>
         <BarraBuscaPaginacao
           busca={busca}
@@ -166,6 +164,6 @@ export function RespostasProntasPage() {
           </div>
         )}
       </Card>
-    </div>
+    </ConfigListPageShell>
   )
 }

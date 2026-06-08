@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { whatsappSettings } from '../api/client'
 import { Card } from '../components/ui/Card'
+import { PageContainer } from '../components/ui/PageContainer'
 import { Button } from '../components/ui/Button'
 import { Switch } from '../components/ui/Switch'
 import { useToast } from '../components/ui/Toast'
@@ -113,7 +114,7 @@ function renderQrPayload(data: Record<string, unknown> | null | undefined) {
   )
 }
 
-export function ConfigWhatsapp() {
+export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
   const toast = useToast()
   const [loading, setLoading] = useState(true)
   const [aba, setAba] = useState<Aba>('conexao')
@@ -263,14 +264,15 @@ export function ConfigWhatsapp() {
   const estadoUi = rotuloEstadoConexao(estadoStr)
   const conectado = estadoUi.tone === 'ok'
 
-  return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-10">
-      <Card title="WhatsApp (Evolution)">
+  const conteudo = (
+    <Card title={embedded ? undefined : 'WhatsApp (Evolution)'}>
+      {!embedded ? (
         <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
           Conecte um número via QR Code e configure mensagens automáticas para padronizar a experiência do cliente.
         </p>
+      ) : null}
 
-        <div className="mt-5 border-b border-slate-200 dark:border-slate-700/80">
+      <div className={embedded ? 'border-b border-slate-200 dark:border-slate-700/80' : 'mt-5 border-b border-slate-200 dark:border-slate-700/80'}>
           <nav className="flex gap-1 sm:gap-2" aria-label="Seções do WhatsApp">
             <button
               type="button"
@@ -604,6 +606,7 @@ export function ConfigWhatsapp() {
           </div>
         )}
       </Card>
-    </div>
   )
+
+  return embedded ? conteudo : <PageContainer>{conteudo}</PageContainer>
 }

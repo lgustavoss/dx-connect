@@ -16,6 +16,7 @@ import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
+import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 
 type Tipo = 'socio' | 'supervisor' | 'colaborador'
 type ColunaFuncionario = 'nome' | 'email' | 'tipo'
@@ -87,25 +88,23 @@ export function FuncionariosRede() {
 
   if (forbidden) {
     return (
-      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+      <PageContainer>
         <SemPermissao
           title="Você não tem permissão para listar funcionários da rede."
           detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
           voltarPara="/"
           voltarLabel="Voltar para o Dashboard"
         />
-      </div>
+      </PageContainer>
     )
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-10">
-      <div className="flex justify-between">
-        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Funcionários da rede</h1>
-        <Button onClick={() => navigate('/funcionarios-rede/novo')}>
-          Novo
-        </Button>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Funcionários da rede"
+        actions={<Button onClick={() => navigate('/funcionarios-rede/novo')}>Novo</Button>}
+      />
       <Card>
         <BarraBuscaPaginacao
           busca={busca}
@@ -220,6 +219,6 @@ export function FuncionariosRede() {
           </div>
         )}
       </Card>
-    </div>
+    </PageContainer>
   )
 }

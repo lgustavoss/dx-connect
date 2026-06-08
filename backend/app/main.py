@@ -289,6 +289,9 @@ def _app_capabilities() -> dict[str, bool]:
         "settings_empresa_sistema": "/v1/settings/empresa-sistema" in paths,
         "settings_email": "/v1/settings/email" in paths,
         "tenant_atual": "/v1/tenant/atual" in paths,
+        "pdv_catalogos": "/v1/pdv-rotulos" in paths,
+        "empresa_pdvs": "/v1/empresas/{empresa_id}/pdvs" in paths
+        or any(p.startswith("/v1/empresas/") and "/pdvs" in p for p in paths),
         "multi_tenant_mode": settings.DX_CONNECT_MULTI_TENANT,
         "evolution_embutida": settings.evolution_embutida_disponivel,
     }

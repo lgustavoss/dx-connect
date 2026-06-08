@@ -1,3 +1,5 @@
+import { PAGE_CONTAINER_CLASS } from './PageContainer'
+
 type Props = {
   titulo: string
   detalhe?: string
@@ -11,7 +13,7 @@ export function CarregamentoFalhou({
   detalhe,
   onVoltar,
   voltarLabel = 'Voltar',
-  className = 'mx-auto max-w-6xl space-y-4 pb-10',
+  className = PAGE_CONTAINER_CLASS,
 }: Props) {
   return (
     <div className={className}>

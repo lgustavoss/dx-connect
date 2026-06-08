@@ -82,6 +82,7 @@ services:
     environment:
       ENVIRONMENT: production
       GUNICORN_BIND: "127.0.0.1:8000"
+      DX_CONNECT_GIT_SHA: ${DX_CONNECT_GIT_SHA:-unknown}
     network_mode: host
     depends_on:
       evolution-api:

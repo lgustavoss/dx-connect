@@ -25,6 +25,7 @@ import { useAlertaFilaSemResponsavel } from '../hooks/useAlertaFilaSemResponsave
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { exibirProtocolo } from '../lib/exibirProtocolo'
+import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 
 type ColunaOrdenacao =
   | 'protocolo'
@@ -244,14 +245,14 @@ export function Tickets() {
 
   if (forbidden) {
     return (
-      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+      <PageContainer>
         <SemPermissao
           title="Você não tem permissão para listar tickets."
           detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil e seus vínculos de setor."
           voltarPara="/"
           voltarLabel="Voltar para o Dashboard"
         />
-      </div>
+      </PageContainer>
     )
   }
 
@@ -267,57 +268,57 @@ export function Tickets() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 pb-10">
-      <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Tickets</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Acompanhe e filtre as demandas do suporte.</p>
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-          <div
-            className="inline-flex w-full flex-wrap rounded-2xl bg-slate-100/90 p-1 ring-1 ring-slate-200/60 dark:bg-slate-800/60 dark:ring-slate-700/80 sm:w-auto"
-            role="group"
-            aria-label="Filtrar tickets por situação"
-          >
-            {(
-              [
-                { id: 'abertos' as const, label: 'Abertos' },
-                { id: 'fechados' as const, label: 'Finalizados' },
-              ] as const
-            ).map(({ id, label }) => {
-              const ativo = situacao === id
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => {
-                    setPage(1)
-                    setSearchParams(
-                      (prev) => {
-                        const next = new URLSearchParams(prev)
-                        if (id === 'abertos') next.delete('situacao')
-                        else next.set('situacao', 'fechados')
-                        return next
-                      },
-                      { replace: true },
-                    )
-                  }}
-                  className={`min-h-[2.25rem] flex-1 rounded-xl px-3 py-2 text-center text-xs font-medium transition-all duration-200 sm:flex-none sm:px-4 sm:text-sm ${
-                    ativo
-                      ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-700 dark:text-slate-50 dark:ring-slate-600/50'
-                      : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
-                  }`}
-                >
-                  {label}
-                </button>
-              )
-            })}
+    <PageContainer spacing="relaxed">
+      <PageHeader
+        title="Tickets"
+        subtitle="Acompanhe e filtre as demandas do suporte."
+        actions={
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+            <div
+              className="inline-flex w-full flex-wrap rounded-2xl bg-slate-100/90 p-1 ring-1 ring-slate-200/60 dark:bg-slate-800/60 dark:ring-slate-700/80 sm:w-auto"
+              role="group"
+              aria-label="Filtrar tickets por situação"
+            >
+              {(
+                [
+                  { id: 'abertos' as const, label: 'Abertos' },
+                  { id: 'fechados' as const, label: 'Finalizados' },
+                ] as const
+              ).map(({ id, label }) => {
+                const ativo = situacao === id
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => {
+                      setPage(1)
+                      setSearchParams(
+                        (prev) => {
+                          const next = new URLSearchParams(prev)
+                          if (id === 'abertos') next.delete('situacao')
+                          else next.set('situacao', 'fechados')
+                          return next
+                        },
+                        { replace: true },
+                      )
+                    }}
+                    className={`min-h-[2.25rem] flex-1 rounded-xl px-3 py-2 text-center text-xs font-medium transition-all duration-200 sm:flex-none sm:px-4 sm:text-sm ${
+                      ativo
+                        ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-700 dark:text-slate-50 dark:ring-slate-600/50'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+            <Link to="/tickets/novo">
+              <Button className="w-full sm:w-auto">Novo ticket</Button>
+            </Link>
           </div>
-          <Link to="/tickets/novo">
-            <Button className="w-full sm:w-auto">Novo ticket</Button>
-          </Link>
-        </div>
-      </div>
+        }
+      />
 
       <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-700/80 dark:bg-slate-900/40">
         <div className="border-b border-slate-100/90 px-4 py-5 sm:px-6 dark:border-slate-800">
@@ -790,6 +791,6 @@ export function Tickets() {
           </>
         )}
       </div>
-    </div>
+    </PageContainer>
   )
 }
