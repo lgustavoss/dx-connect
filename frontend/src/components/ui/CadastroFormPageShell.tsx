@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { PageContainer } from './PageContainer'
 
 type Props = {
   children: ReactNode
@@ -9,7 +10,7 @@ type Props = {
 
 export function CadastroFormPageShell({ children, onVoltar, wide }: Props) {
   return (
-    <div className={`mx-auto space-y-6 pb-10 ${wide ? 'max-w-6xl' : 'max-w-5xl'}`}>
+    <PageContainer maxWidth={wide ? '6xl' : '5xl'}>
       <div>
         <button
           type="button"
@@ -20,6 +21,6 @@ export function CadastroFormPageShell({ children, onVoltar, wide }: Props) {
         </button>
       </div>
       {children}
-    </div>
+    </PageContainer>
   )
 }

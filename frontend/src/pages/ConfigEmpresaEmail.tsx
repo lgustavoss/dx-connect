@@ -11,6 +11,7 @@ import {
 import { resolveTenantIdFromHostname, tenantAppOrigin } from '../lib/tenant'
 import { nomeParaApiEmpresa } from '../components/empresa/empresaFormCopy'
 import { Card } from '../components/ui/Card'
+import { PageContainer } from '../components/ui/PageContainer'
 import { Button } from '../components/ui/Button'
 import { InputCepComBusca } from '../components/ui/InputCepComBusca'
 import { Select } from '../components/ui/Select'
@@ -26,10 +27,18 @@ type Aba = 'empresa' | 'email'
 const fieldClass =
   'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-[0.9375rem] text-slate-900 shadow-inner placeholder:text-slate-400 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-400/25 dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-100 dark:placeholder:text-slate-500'
 
-export function ConfigEmpresaEmail() {
+type ConfigEmpresaEmailProps = {
+  embedded?: boolean
+  /** Quando definido, exibe só empresa ou e-mail (sem abas internas). */
+  section?: Aba
+}
+
+export function ConfigEmpresaEmail({ embedded = false, section }: ConfigEmpresaEmailProps) {
   const toast = useToast()
   const [loading, setLoading] = useState(true)
-  const [aba, setAba] = useState<Aba>('empresa')
+  const [abaInterna, setAbaInterna] = useState<Aba>('empresa')
+  const aba = section ?? abaInterna
+  const abasInternas = !embedded && section == null
 
   const [cnpj, setCnpj] = useState('')
   const [cnpjImutavel, setCnpjImutavel] = useState(false)
@@ -309,19 +318,21 @@ export function ConfigEmpresaEmail() {
     return <p className="text-slate-500 dark:text-slate-400">Carregando…</p>
   }
 
-  return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-10">
-      <Card title="Empresa do sistema e e-mail">
+  const conteudo = (
+    <Card title={embedded ? undefined : 'Empresa do sistema e e-mail'}>
+      {!embedded ? (
         <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
           Dados institucionais da instalação e endereços de encaminhamento por setor para tickets por e-mail (apenas
           administradores).
         </p>
+      ) : null}
 
+      {abasInternas ? (
         <div className="mt-5 border-b border-slate-200 dark:border-slate-700/80">
           <nav className="flex gap-1 sm:gap-2" aria-label="Seções">
             <button
               type="button"
-              onClick={() => setAba('empresa')}
+              onClick={() => setAbaInterna('empresa')}
               aria-current={aba === 'empresa' ? 'page' : undefined}
               className={
                 aba === 'empresa'
@@ -333,7 +344,7 @@ export function ConfigEmpresaEmail() {
             </button>
             <button
               type="button"
-              onClick={() => setAba('email')}
+              onClick={() => setAbaInterna('email')}
               aria-current={aba === 'email' ? 'page' : undefined}
               className={
                 aba === 'email'
@@ -345,6 +356,7 @@ export function ConfigEmpresaEmail() {
             </button>
           </nav>
         </div>
+      ) : null}
 
         {aba === 'empresa' ? (
           <form onSubmit={salvarEmpresa} className="mt-6 space-y-4">
@@ -687,7 +699,7 @@ export function ConfigEmpresaEmail() {
 
               {inboundAddresses.length === 0 ? (
                 <p className="text-sm text-slate-600 dark:text-slate-400">
-                  Nenhum setor ativo com endereço gerado. Cadastre setores em Configurações → Setores e volte aqui.
+                  Nenhum setor ativo com endereço gerado. Cadastre setores em Configurações → Atendimento → Setores e volte aqui.
                 </p>
               ) : null}
 
@@ -755,6 +767,7 @@ export function ConfigEmpresaEmail() {
           </div>
         )}
       </Card>
-    </div>
   )
+
+  return embedded ? conteudo : <PageContainer>{conteudo}</PageContainer>
 }

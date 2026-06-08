@@ -9,6 +9,7 @@ import { ListaAcoesVerEditar } from '../components/ui/ListaAcoesVerEditar'
 import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { useToast } from '../components/ui/Toast'
+import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 
@@ -16,7 +17,7 @@ type ColunaAtendente = 'nome' | 'email' | 'role'
 
 const roleLabel: Record<string, string> = { admin: 'Administrador', atendente: 'Atendente' }
 
-export function Atendentes() {
+export function Atendentes({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate()
   const toast = useToast()
   const { ordenarPor, ordem, aoOrdenarColuna, sortParams } = useOrdenacaoLista<ColunaAtendente>()
@@ -69,26 +70,23 @@ export function Atendentes() {
     load()
   }, [load])
 
-  if (forbidden) {
-    return (
-      <div className="mx-auto max-w-6xl space-y-6 pb-10">
-        <SemPermissao
-          title="Você não tem permissão para listar atendentes."
-          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
-          voltarPara="/"
-          voltarLabel="Voltar para o Dashboard"
-        />
-      </div>
-    )
-  }
+  const denied = (
+    <SemPermissao
+      title="Você não tem permissão para listar atendentes."
+      detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
+      voltarPara="/"
+      voltarLabel="Voltar para o Dashboard"
+    />
+  )
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-10">
-      <div className="flex justify-between">
-        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Atendentes</h1>
-        <Button onClick={() => navigate('/atendentes/novo')}>Novo atendente</Button>
-      </div>
-
+    <ConfigListPageShell
+      embedded={embedded}
+      forbidden={forbidden}
+      denied={denied}
+      title="Atendentes"
+      actions={<Button onClick={() => navigate('/atendentes/novo')}>Novo atendente</Button>}
+    >
       <Card>
         <BarraBuscaPaginacao
           busca={busca}
@@ -161,6 +159,6 @@ export function Atendentes() {
           </div>
         )}
       </Card>
-    </div>
+    </ConfigListPageShell>
   )
 }

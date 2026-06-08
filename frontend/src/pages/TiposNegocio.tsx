@@ -9,12 +9,13 @@ import { ListaAcoesVerEditar } from '../components/ui/ListaAcoesVerEditar'
 import { useToast } from '../components/ui/Toast'
 import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
+import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 
 type ColunaTipo = 'nome' | 'ativo'
 
-export function TiposNegocio() {
+export function TiposNegocio({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate()
   const toast = useToast()
   const { ordenarPor, ordem, aoOrdenarColuna, sortParams } = useOrdenacaoLista<ColunaTipo>()
@@ -79,26 +80,23 @@ export function TiposNegocio() {
     }
   }
 
-  if (forbidden) {
-    return (
-      <div className="mx-auto max-w-6xl space-y-6 pb-10">
-        <SemPermissao
-          title="Você não tem permissão para listar tipos de negócio."
-          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
-          voltarPara="/"
-          voltarLabel="Voltar para o Dashboard"
-        />
-      </div>
-    )
-  }
+  const denied = (
+    <SemPermissao
+      title="Você não tem permissão para listar tipos de negócio."
+      detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
+      voltarPara="/"
+      voltarLabel="Voltar para o Dashboard"
+    />
+  )
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-10">
-      <div className="flex justify-between">
-        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Tipos de negócio</h1>
-        <Button onClick={() => navigate('/tipos-negocio/novo')}>Novo tipo</Button>
-      </div>
-
+    <ConfigListPageShell
+      embedded={embedded}
+      forbidden={forbidden}
+      denied={denied}
+      title="Tipos de negócio"
+      actions={<Button onClick={() => navigate('/tipos-negocio/novo')}>Novo tipo</Button>}
+    >
       <Card>
         <BarraBuscaPaginacao
           busca={busca}
@@ -167,6 +165,6 @@ export function TiposNegocio() {
           </div>
         )}
       </Card>
-    </div>
+    </ConfigListPageShell>
   )
 }

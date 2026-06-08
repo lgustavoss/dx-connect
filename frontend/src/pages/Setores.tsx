@@ -9,12 +9,13 @@ import { useToast } from '../components/ui/Toast'
 import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { useNavigate } from 'react-router-dom'
+import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 
 type ColunaSetor = 'nome' | 'slug' | 'ativo'
 
-export function Setores() {
+export function Setores({ embedded = false }: { embedded?: boolean }) {
   const toast = useToast()
   const navigate = useNavigate()
   const { ordenarPor, ordem, aoOrdenarColuna, sortParams } = useOrdenacaoLista<ColunaSetor>()
@@ -79,26 +80,23 @@ export function Setores() {
     }
   }
 
-  if (forbidden) {
-    return (
-      <div className="mx-auto max-w-6xl space-y-6 pb-10">
-        <SemPermissao
-          title="Você não tem permissão para listar setores."
-          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
-          voltarPara="/"
-          voltarLabel="Voltar para o Dashboard"
-        />
-      </div>
-    )
-  }
+  const denied = (
+    <SemPermissao
+      title="Você não tem permissão para listar setores."
+      detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
+      voltarPara="/"
+      voltarLabel="Voltar para o Dashboard"
+    />
+  )
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-10">
-      <div className="flex justify-between">
-        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Setores</h1>
-        <Button onClick={() => navigate('/setores/novo')}>Novo setor</Button>
-      </div>
-
+    <ConfigListPageShell
+      embedded={embedded}
+      forbidden={forbidden}
+      denied={denied}
+      title="Setores"
+      actions={<Button onClick={() => navigate('/setores/novo')}>Novo setor</Button>}
+    >
       <Card>
         <BarraBuscaPaginacao
           busca={busca}
@@ -169,6 +167,6 @@ export function Setores() {
           </div>
         )}
       </Card>
-    </div>
+    </ConfigListPageShell>
   )
 }

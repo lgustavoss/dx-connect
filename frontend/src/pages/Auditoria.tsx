@@ -6,6 +6,7 @@ import { Card } from '../components/ui/Card'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
+import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 
@@ -25,7 +26,7 @@ const actionLabel: Record<string, string> = {
 
 type ColunaAudit = 'created_at' | 'entity_type' | 'entity_id' | 'action' | 'atendente'
 
-export function Auditoria() {
+export function Auditoria({ embedded = false }: { embedded?: boolean }) {
   const toast = useToast()
   const { ordenarPor, ordem, aoOrdenarColuna, sortParams } = useOrdenacaoLista<ColunaAudit>()
   const [list, setList] = useState<Audit.AuditLogEntry[]>([])
@@ -73,25 +74,23 @@ export function Auditoria() {
     load()
   }, [load])
 
-  if (forbidden) {
-    return (
-      <div className="mx-auto max-w-6xl space-y-6 pb-10">
-        <SemPermissao
-          title="Você não tem permissão para acessar a auditoria."
-          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
-          voltarPara="/"
-          voltarLabel="Voltar para o Dashboard"
-        />
-      </div>
-    )
-  }
+  const denied = (
+    <SemPermissao
+      title="Você não tem permissão para acessar a auditoria."
+      detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
+      voltarPara="/"
+      voltarLabel="Voltar para o Dashboard"
+    />
+  )
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-10">
-      <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Auditoria</h1>
-      <p className="text-sm text-slate-600 dark:text-slate-400">
-        Registro de cadastros e alterações: quem fez e quando.
-      </p>
+    <ConfigListPageShell
+      embedded={embedded}
+      forbidden={forbidden}
+      denied={denied}
+      title="Auditoria"
+      subtitle="Registro de cadastros e alterações: quem fez e quando."
+    >
       <Card>
         <BarraBuscaPaginacao
           busca={busca}
@@ -204,6 +203,6 @@ export function Auditoria() {
           </div>
         )}
       </Card>
-    </div>
+    </ConfigListPageShell>
   )
 }

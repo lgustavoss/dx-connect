@@ -10,6 +10,7 @@ import { useToast } from '../components/ui/Toast'
 import { SemPermissao } from './SemPermissao'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { exibirProtocolo } from '../lib/exibirProtocolo'
+import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 
 type ColunaUltimos = 'protocolo' | 'empresa' | 'assunto' | 'status'
 
@@ -73,14 +74,14 @@ export function Dashboard() {
 
   if (forbidden) {
     return (
-      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+      <PageContainer>
         <SemPermissao
           title="Você não tem permissão para acessar o dashboard."
           detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil e vínculos de setor."
           voltarPara="/tickets"
           voltarLabel="Ir para Tickets"
         />
-      </div>
+      </PageContainer>
     )
   }
 
@@ -100,13 +101,15 @@ export function Dashboard() {
   const { resumo } = data
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-10">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Dashboard</h1>
-        <Link to="/tickets/novo">
-          <Button>Novo ticket</Button>
-        </Link>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Dashboard"
+        actions={
+          <Link to="/tickets/novo">
+            <Button>Novo ticket</Button>
+          </Link>
+        }
+      />
 
       {/* Cards de resumo */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -221,6 +224,6 @@ export function Dashboard() {
           </Link>
         </div>
       </Card>
-    </div>
+    </PageContainer>
   )
 }
