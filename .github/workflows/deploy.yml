@@ -24,7 +24,7 @@ on:
         default: false
         type: boolean
   push:
-    branches: [staging]
+    branches: [staging, main]
     paths:
       - "backend/**"
       - "frontend/**"
@@ -113,9 +113,13 @@ jobs:
           if [ "$SKIP_MIGRATIONS" != "true" ]; then
             $COMPOSE build --no-cache backend
             $COMPOSE run --rm backend alembic upgrade head
+          else
+            $COMPOSE build --no-cache backend
           fi
+          $COMPOSE stop backend || true
+          $COMPOSE rm -f backend || true
           $COMPOSE up -d --build --force-recreate
-          sleep 5
+          sleep 8
           curl -sf "http://127.0.0.1:8000/health" || true
           for i in 1 2 3 4 5 6; do
             curl -sf "http://127.0.0.1:8080" >/dev/null && { echo "Evolution API: OK (8080)"; break; }
@@ -134,11 +138,26 @@ jobs:
           import json, os, sys
           body = json.loads(os.environ["HEALTH_JSON"])
           caps = body.get("capabilities") or {}
-          need = ("settings_empresa_sistema", "tenant_atual", "settings_email")
+          need = (
+              "settings_empresa_sistema",
+              "tenant_atual",
+              "settings_email",
+              "pdv_catalogos",
+              "empresa_pdvs",
+          )
           missing = [k for k in need if not caps.get(k)]
           if missing:
               print(
-                  f"::error::API sem rotas novas (backend antigo?): faltam {missing}. git_sha={body.get('git_sha')!r}",
+                  f"::error::API sem rotas esperadas (backend antigo?): faltam {missing}. git_sha={body.get('git_sha')!r}",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+          expected_sha = os.environ.get("GITHUB_SHA", "")[:7]
+          actual_sha = (body.get("git_sha") or "") or ""
+          if expected_sha and actual_sha and actual_sha != expected_sha:
+              print(
+                  f"::error::git_sha em produção ({actual_sha!r}) difere do commit deployado ({expected_sha!r}). "
+                  "Processo antigo pode ainda estar na porta 8000.",
                   file=sys.stderr,
               )
               sys.exit(1)
