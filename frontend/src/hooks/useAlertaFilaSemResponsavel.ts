@@ -25,6 +25,7 @@ let currentResumo: Notificacoes.Resumo = {
 let prevCount: number | null = null
 let prevNaoLidas: number | null = null
 let prevWppResp: number | null = null
+let prevWppFila: number | null = null
 const listenersFila = new Set<ListenerFila>()
 const listenersResumo = new Set<ListenerResumo>()
 
@@ -156,6 +157,7 @@ function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean) {
     prevCount = sem
     prevNaoLidas = r.nao_lidas_count
     prevWppResp = r.wpp_respostas_count
+    prevWppFila = r.wpp_fila_count
 
     setStoredNumber(LS_KEY_LAST_COUNT, sem)
     setStoredNumber(LS_KEY_LAST_NAO_LIDAS, r.nao_lidas_count)
@@ -163,8 +165,14 @@ function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean) {
     setStoredNumber(LS_KEY_LAST_WPP_RESP, r.wpp_respostas_count)
 
     // Som: tickets na fila => 1 beep quando aumentar.
+    // Tocar `alerta.mp3` somente quando o aumento for proveniente de chats (WhatsApp)
+    // sem atendimento — ou seja, quando `sem_responsavel_count` aumenta e
+    // `wpp_fila_count` também aumenta em relação ao último valor.
     if (prevSem != null && sem > prevSem) {
-      playOpenTicketAlert()
+      const wppIncreased = prevWppFila != null ? r.wpp_fila_count > prevWppFila : r.wpp_fila_count > 0
+      if (wppIncreased) {
+        playOpenTicketAlert()
+      }
     }
 
     // Som padrao do sistema: novas mensagens/novidades em tickets ja atribuidos.
@@ -226,8 +234,9 @@ function ensureStarted() {
   prevCount = getStoredNumber(LS_KEY_LAST_COUNT)
   prevNaoLidas = getStoredNumber(LS_KEY_LAST_NAO_LIDAS)
   // Só precisamos do "último valor" para evitar beep duplicado por refresh.
-  // (wpp_fila é contínuo e não depende de delta)
-  void getStoredNumber(LS_KEY_LAST_WPP_FILA)
+  // Carregamos o último valor conhecido da fila de WPP para detectar aumentos originados
+  // por chats (para tocar `alerta.mp3` apenas nesses casos).
+  prevWppFila = getStoredNumber(LS_KEY_LAST_WPP_FILA)
   prevWppResp = getStoredNumber(LS_KEY_LAST_WPP_RESP)
 
   void poll()
