@@ -6,7 +6,7 @@ O workflow [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) faz
 2. **`rsync`** da pasta `frontend/dist/` para o caminho no VPS (`DEPLOY_FRONTEND_DIST`).
 3. **SSH** no servidor: `git pull`, `alembic upgrade head`, `docker compose -f docker-compose.prod.yml up -d --build`.
 
-Disparo automático em **push** para **`staging`** (e, se configurado, `main`) quando mudam `backend/`, `frontend/`, `docker-compose.prod.yml` ou o próprio workflow. Também pode rodar manualmente em **Actions → Deploy → Run workflow**.
+Disparo automático em **push** para **`staging`** quando mudam `backend/`, `frontend/`, `docker-compose.prod.yml` ou o próprio workflow. A branch **`main`** não dispara deploy (integração/testes); use merge ou push em **`staging`** para produção. Também pode rodar manualmente em **Actions → Deploy → Run workflow**.
 
 **Importante:** não defina `DEPLOY_GIT_REF=main` nos secrets se o ambiente de produção simulada segue a branch **`staging`** — isso fazia o frontend atualizar e o backend continuar na `main` (rotas novas como `/v1/settings/empresa-sistema` respondiam 404).
 
@@ -28,7 +28,7 @@ Opcionais:
 | Secret | Descrição |
 |--------|-----------|
 | `DEPLOY_SSH_PORT` | Porta SSH se não for 22 |
-| `DEPLOY_GIT_REF` | Override opcional da branch no VPS (só usado se o workflow não tiver `github.ref_name`; em push para `staging`/`main` usa sempre a branch do push) |
+| `DEPLOY_GIT_REF` | Override opcional da branch no VPS (só usado se o workflow não tiver `github.ref_name`; em push para `staging` usa a branch do push) |
 
 ### Environment `production` (opcional)
 
