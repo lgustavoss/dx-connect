@@ -150,9 +150,9 @@ function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean) {
   for (const l of listenersResumo) l(r)
 
   if (atualizarSom) {
-    const prevSem = prevCount
     const prevNao = prevNaoLidas
     const prevWR = prevWppResp
+    const prevWppFilaValue = prevWppFila
 
     prevCount = sem
     prevNaoLidas = r.nao_lidas_count
@@ -164,15 +164,10 @@ function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean) {
     setStoredNumber(LS_KEY_LAST_WPP_FILA, r.wpp_fila_count)
     setStoredNumber(LS_KEY_LAST_WPP_RESP, r.wpp_respostas_count)
 
-    // Som: tickets na fila => 1 beep quando aumentar.
-    // Tocar `alerta.mp3` somente quando o aumento for proveniente de chats (WhatsApp)
-    // sem atendimento — ou seja, quando `sem_responsavel_count` aumenta e
-    // `wpp_fila_count` também aumenta em relação ao último valor.
-    if (prevSem != null && sem > prevSem) {
-      const wppIncreased = prevWppFila != null ? r.wpp_fila_count > prevWppFila : r.wpp_fila_count > 0
-      if (wppIncreased) {
-        playOpenTicketAlert()
-      }
+    // Som: chats na fila de WhatsApp => 1 beep quando a fila aumentar.
+    const wppFilaIncreased = prevWppFilaValue != null ? r.wpp_fila_count > prevWppFilaValue : false
+    if (wppFilaIncreased) {
+      playOpenTicketAlert()
     }
 
     // Som padrao do sistema: novas mensagens/novidades em tickets ja atribuidos.

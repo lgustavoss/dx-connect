@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, whatsappChats, type WhatsappChats } from '../../api/client'
+import { refetchPendenciasResumo } from '../../hooks/useAlertaFilaSemResponsavel'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
@@ -67,6 +68,7 @@ export function WhatsappAtendendo() {
       await whatsappChats.assumir(id)
       toast.showSuccess('Chat assumido com sucesso!')
       await load(true)
+      void refetchPendenciasResumo()
     } catch (err) {
       const msg = err instanceof ApiError && err.status === 400
           ? (err.body as { detail?: string })?.detail || 'Erro ao assumir.'

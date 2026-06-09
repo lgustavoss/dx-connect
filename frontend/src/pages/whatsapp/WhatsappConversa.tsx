@@ -39,6 +39,7 @@ import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
 
 import { useAuth } from '../../contexts/AuthContext'
+import { refetchPendenciasResumo } from '../../hooks/useAlertaFilaSemResponsavel'
 import { CustomAudioPlayer } from '../../components/CustomAudioPlayer'
 
 
@@ -155,12 +156,18 @@ function ConteudoMensagemWhatsApp({ chatId, m, onImageClick }: { chatId: number;
 
  
 
+  const downloadLabel = {
+    documento: '📄 Baixar Documento',
+    audio: '🔊 Baixar Áudio',
+    video: '🎬 Baixar Vídeo',
+    imagem: '📷 Baixar Imagem',
+    figurinha: '📷 Baixar Imagem',
+  }[tipo] || `📄 Baixar ${tipo || 'Ficheiro'}`
+
   return (
 
     <a href={url} download className="flex items-center gap-2 text-xs font-bold underline">
-
-      <span>📄</span> Baixar Documento
-
+      <span>{downloadLabel.split(' ')[0]}</span> {downloadLabel.replace(/^\S+\s*/, '')}
     </a>
 
   )
@@ -216,6 +223,7 @@ export function WhatsappConversa() {
   const [msgRespondida, setMsgRespondida] = useState<WhatsappChats.Mensagem | null>(null)
   const [activeZoomImage, setActiveZoomImage] = useState<string | null>(null)
   const [activeZoomImageCaption, setActiveZoomImageCaption] = useState<string | null>(null)
+  const [modoInterno, setModoInterno] = useState(false)
 
   // Transferência
   const [modalTransferir, setModalTransferir] = useState(false)
@@ -316,6 +324,16 @@ export function WhatsappConversa() {
 
 
 
+  useEffect(() => {
+    if (!chat) return
+    const isResponsavel = user?.role === 'admin' || chat.atendente_id === user?.id
+    if (!isResponsavel && chat.estado === 'em_atendimento') {
+      setModoInterno(true)
+    } else {
+      setModoInterno(false)
+    }
+  }, [chat, user?.role, user?.id])
+
   // Polling para novas mensagens (a cada 5s)
 
   useEffect(() => {
@@ -401,13 +419,18 @@ useEffect(() => {
 
   async function enviar() {
 
-    if (!chat || !texto.trim() || enviando) return
+    if (!chat || !texto.trim() || enviando || (!modoInterno && !podeEnviar)) return
 
     setEnviando(true)
 
     try {
-
-      await whatsappChats.enviar(chat.id, texto.trim(), msgRespondida?.wa_message_id || null)
+      if (modoInterno) {
+        await whatsappChats.comentarInterno(chat.id, texto.trim())
+        toast.showSuccess('Comentário interno registrado.')
+      } else {
+        await whatsappChats.enviar(chat.id, texto.trim(), msgRespondida?.wa_message_id || null)
+        toast.showSuccess('Mensagem enviada.')
+      }
 
       setTexto('')
       setMsgRespondida(null)
@@ -447,6 +470,7 @@ useEffect(() => {
     setTransferAtendenteId('')
 
     await carregar()
+    void refetchPendenciasResumo()
 
     toast.showSuccess('Chat transferido.')
   } catch (err) {
@@ -462,7 +486,7 @@ useEffect(() => {
 
     const file = e.target.files?.[0]
 
-    if (!file || !chat) return
+    if (!file || !chat || !podeEnviar) return
 
    
 
@@ -535,6 +559,7 @@ useEffect(() => {
   const isResponsavel = user?.role === 'admin' || (chat?.atendente_id === user?.id)
 
   const podeEnviar = chat?.estado === 'em_atendimento' && isResponsavel && !encerrado
+  const podeComentarInterno = Boolean(chat && !encerrado && chat.estado === 'em_atendimento')
 
 
 
@@ -847,6 +872,12 @@ useEffect(() => {
             </div>
           )}
 
+          {modoInterno && (
+            <p className="mb-2 text-sm text-amber-600">
+              Este chat pertence a outro atendente. A mensagem será registrada como comentário interno e não será enviada ao cliente.
+            </p>
+          )}
+
           <div className="flex items-end gap-2 bg-slate-100 dark:bg-slate-900 p-2 rounded-2xl shadow-inner">
 
            
@@ -875,7 +906,7 @@ useEffect(() => {
 
               onClick={() => fileInputRef.current?.click()}
 
-              disabled={enviando || encerrado}
+              disabled={enviando || encerrado || !podeEnviar}
 
               className="h-10 w-10 shrink-0 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
 
@@ -893,11 +924,19 @@ useEffect(() => {
 
               onChange={(e) => setTexto(e.target.value)}
 
-              placeholder={podeEnviar ? "Escreva uma mensagem..." : "Apenas leitura..."}
+              placeholder={
+                encerrado
+                  ? "Apenas leitura..."
+                  : modoInterno
+                    ? "Escreva um comentário interno..."
+                    : podeEnviar
+                      ? "Escreva uma mensagem..."
+                      : "Somente comentários internos são permitidos."
+              }
 
               rows={1}
 
-              disabled={encerrado}
+              disabled={encerrado || (!modoInterno && !podeEnviar)}
 
               className="flex-1 max-h-32 min-h-[40px] resize-none border-none bg-transparent p-2 text-sm focus:ring-0 dark:text-slate-100 placeholder:text-slate-400"
 
@@ -921,13 +960,15 @@ useEffect(() => {
 
               onClick={() => void enviar()}
 
-              disabled={enviando || !texto.trim() || encerrado}
+              disabled={
+                enviando || !texto.trim() || encerrado || (!modoInterno && !podeEnviar)
+              }
 
               className="h-10 w-10 shrink-0 rounded-xl bg-cyan-600 p-0 text-white shadow-lg shadow-cyan-600/30 hover:bg-cyan-700 disabled:opacity-50"
 
             >
 
-              {enviando ? '...' : '➤'}
+              {enviando ? '...' : modoInterno ? '✎' : '➤'}
 
             </Button>
 
