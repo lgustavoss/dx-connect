@@ -34,6 +34,7 @@ from app.services import evolution_api
 from app.services.whatsapp_auto_messages import (
     DEFAULT_AUTO_MSG_ASSUMIDO,
     DEFAULT_AUTO_MSG_ENCERRADO,
+    resolver_nome_empresa_para_template,
 )
 from app.services.whatsapp_media_storage import caminho_absoluto_arquivo, gravar_bytes_em_disco
 
@@ -168,6 +169,7 @@ def _sanitizar_nome_ficheiro(name: str | None, fallback: str) -> str:
 def _render_template(
     template: str,
     *,
+    db: Session,
     chat: WhatsappChat,
     atendente: Atendente | None = None,
     st: WhatsappSettings | None = None,
@@ -178,7 +180,7 @@ def _render_template(
         return ""
     nome = (chat.cliente_nome or "").strip() or "Cliente"
     nome_atendente = (atendente_nome or "").strip() or (atendente.nome if atendente else "").strip() or "BOT"
-    nome_empresa = ((getattr(st, "nome_empresa_exibicao", None) or "").strip() if st else "") or "nossa empresa"
+    nome_empresa = resolver_nome_empresa_para_template(db)
     return (
         t.replace("{nome}", nome)
         .replace("{atendente}", nome_atendente)
@@ -206,13 +208,12 @@ def _enviar_texto_whatsapp(
         raise HTTPException(status_code=400, detail="Mensagem vazia")
     # Quando o atendente envia manualmente pelo DX Connect, prefixa o nome no texto
     # para ficar visível no WhatsApp do cliente (padrão: "[ Nome ]: mensagem").
-    # Mensagens automáticas (evento_sistema != None) não recebem este prefixo.
-    if atendente is not None and evento_sistema is None:
+    # A saudação ao assumir o chat usa o mesmo prefixo do atendente (não BOT).
+    if atendente is not None and evento_sistema in (None, "auto_assumido"):
         nome = (atendente.nome or "").strip()
-        if nome:
+        if nome and not texto_eff.startswith("["):
             texto_eff = f"[ {nome} ]: {texto_eff}"
-    # Mensagens automáticas devem deixar claro que são do BOT.
-    if evento_sistema is not None:
+    elif evento_sistema is not None:
         if not texto_eff.startswith("["):
             texto_eff = f"[ BOT ]: {texto_eff}"
     if evento_sistema:
@@ -512,10 +513,11 @@ def assumir(
         raw = (getattr(st_auto, "auto_msg_assumido_texto", "") or "").strip() or DEFAULT_AUTO_MSG_ASSUMIDO
         txt = _render_template(
             raw,
+            db=db,
             chat=c,
             atendente=atendente,
             st=st_auto,
-            # Mensagem é automática (prefixo [ BOT ]), mas o conteúdo pode citar o atendente real.
+            # Conteúdo automático, mas assinatura no WhatsApp como o atendente responsável.
             atendente_nome=(atendente.nome or "").strip() or "BOT",
         )
         if txt:
@@ -556,6 +558,7 @@ def encerrar(
         raw = (getattr(st_auto, "auto_msg_encerrado_texto", "") or "").strip() or DEFAULT_AUTO_MSG_ENCERRADO
         txt = _render_template(
             raw,
+            db=db,
             chat=c,
             atendente=atendente,
             st=st_auto,

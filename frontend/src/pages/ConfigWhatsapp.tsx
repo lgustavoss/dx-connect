@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { whatsappSettings } from '../api/client'
+import { systemSettings, whatsappSettings } from '../api/client'
 import { Card } from '../components/ui/Card'
 import { PageContainer } from '../components/ui/PageContainer'
 import { Button } from '../components/ui/Button'
@@ -63,6 +63,19 @@ function rotuloEstadoConexao(estadoRaw: string | null): {
   if (s === 'connecting' || s === 'qr' || s === 'qrcode') return { label: 'Aguardando pareamento', tone: 'warn' }
   if (s === 'close' || s === 'closed' || s === 'disconnected') return { label: 'Desconectado', tone: 'warn' }
   return { label: `Em processamento (${s})`, tone: 'warn' }
+}
+
+function nomeEmpresaSistemaPadrao(emp: {
+  nome_fantasia?: string | null
+  razao_social?: string | null
+  nome?: string | null
+} | null | undefined): string {
+  if (!emp) return ''
+  return (
+    (emp.nome_fantasia ?? '').trim() ||
+    (emp.razao_social ?? '').trim() ||
+    (emp.nome ?? '').trim()
+  )
 }
 
 const DEFAULT_MSG_ESPERA =
@@ -134,7 +147,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
   const [msgEncerradoTexto, setMsgEncerradoTexto] = useState(DEFAULT_MSG_ENCERRADO)
   const [msgForaHorarioAtiva, setMsgForaHorarioAtiva] = useState(true)
   const [msgForaHorarioTexto, setMsgForaHorarioTexto] = useState(DEFAULT_MSG_FORA_HORARIO)
-  const [nomeEmpresaExibicao, setNomeEmpresaExibicao] = useState('DX Connect')
+  const [nomeEmpresaExibicao, setNomeEmpresaExibicao] = useState('')
   const [horarioTimezone, setHorarioTimezone] = useState<string>('America/Sao_Paulo')
   const [usarFeriadosNacionais, setUsarFeriadosNacionais] = useState(false)
   const [horarioSemana, setHorarioSemana] = useState<HorarioSemana>(horarioSemanaPadrao())
@@ -143,7 +156,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
   const carregar = useCallback(async () => {
     setLoading(true)
     try {
-      const r = await whatsappSettings.get()
+      const [r, emp] = await Promise.all([whatsappSettings.get(), systemSettings.getEmpresaSistema()])
       setFlags({
         evolution_embutida_disponivel: Boolean(r.evolution_embutida_disponivel),
       })
@@ -158,9 +171,10 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
         (r.auto_msg_fora_horario_texto ?? DEFAULT_MSG_FORA_HORARIO).trim() || DEFAULT_MSG_FORA_HORARIO,
       )
       setHorarioTimezone((r.horario_timezone ?? 'America/Sao_Paulo').trim() || 'America/Sao_Paulo')
-      setNomeEmpresaExibicao((String((r as any).nome_empresa_exibicao ?? 'DX Connect')).trim() || 'DX Connect')
-      setUsarFeriadosNacionais(Boolean((r as any).usar_feriados_nacionais))
-      const hs = (r as any).horario_semana as Record<string, any> | null | undefined
+      const identidadeSalva = (r.nome_empresa_exibicao ?? '').trim()
+      setNomeEmpresaExibicao(identidadeSalva || nomeEmpresaSistemaPadrao(emp))
+      setUsarFeriadosNacionais(Boolean(r.usar_feriados_nacionais))
+      const hs = r.horario_semana as Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null | undefined
       if (hs && typeof hs === 'object') {
         const base = horarioSemanaPadrao()
         for (const d of DIAS) {
@@ -386,8 +400,13 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
             <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-700 dark:border-slate-700/80 dark:bg-slate-800/20 dark:text-slate-200">
               <p className="font-medium">Como funciona</p>
               <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-                As mensagens abaixo são enviadas automaticamente em eventos do chat. Variáveis disponíveis: <span className="font-mono">{'{nome}'}</span>,{' '}
-                <span className="font-mono">{'{atendente}'}</span>, <span className="font-mono">{'{protocolo}'}</span>,{' '}
+                As mensagens abaixo são enviadas automaticamente em eventos do chat. Variáveis:{' '}
+                <span className="font-mono">{'{{nome_cliente}}'}</span>,{' '}
+                <span className="font-mono">{'{{nome_empresa}}'}</span>,{' '}
+                <span className="font-mono">{'{{protocolo}}'}</span>,{' '}
+                <span className="font-mono">{'{{data_abertura}}'}</span>,{' '}
+                <span className="font-mono">{'{nome}'}</span>,{' '}
+                <span className="font-mono">{'{atendente}'}</span>,{' '}
                 <span className="font-mono">{'{telefone}'}</span>.
               </p>
             </div>
@@ -395,13 +414,14 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
             <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700/80 dark:bg-slate-900/30">
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Identidade</p>
               <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                Usado em templates como <span className="font-mono">{'{{nome_empresa}}'}</span>.
+                Usado em templates como <span className="font-mono">{'{{nome_empresa}}'}</span>. Se vazio ao salvar,
+                usa o nome fantasia de Configurações → Sistema → Empresa.
               </p>
               <input
                 type="text"
                 value={nomeEmpresaExibicao}
                 onChange={(e) => setNomeEmpresaExibicao(e.target.value)}
-                placeholder="Ex.: DX Connect"
+                placeholder="Ex.: nome fantasia da empresa"
                 className="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
               />
             </div>

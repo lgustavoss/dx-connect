@@ -39,6 +39,7 @@ export function WhatsappAtendendo() {
   const [meus, setMeus] = useState<WhatsappChats.Chat[]>([])
   const [loading, setLoading] = useState(true)
   const isFirstLoad = useRef(true)
+  const prevFilaCount = useRef(0)
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -63,6 +64,15 @@ export function WhatsappAtendendo() {
     const timer = setInterval(() => void load(true), 10000)
     return () => clearInterval(timer)
   }, [load])
+
+  useEffect(() => {
+    if (fila.length > prevFilaCount.current) {
+      void refetchPendenciasResumo(true)
+    } else if (fila.length < prevFilaCount.current) {
+      void refetchPendenciasResumo()
+    }
+    prevFilaCount.current = fila.length
+  }, [fila.length])
 
   async function assumir(id: number) {
     try {

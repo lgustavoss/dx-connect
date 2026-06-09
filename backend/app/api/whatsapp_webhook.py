@@ -12,6 +12,7 @@ from app.services.evolution_inbound import iter_inbound_whatsapp_messages
 from app.services.whatsapp_auto_messages import (
     DEFAULT_AUTO_MSG_ESPERA,
     DEFAULT_AUTO_MSG_FORA_HORARIO,
+    resolver_nome_empresa_para_template,
 )
 from app.services.whatsapp_media_storage import gravar_base64_em_disco
 from datetime import date, datetime, timedelta
@@ -57,14 +58,21 @@ def _fmt_data_abertura(dt: datetime | None, tz: ZoneInfo) -> str:
     return local.strftime("%d/%m/%Y %H:%M")
 
 
-def _render_template(template: str, *, chat: WhatsappChat, st: WhatsappSettings | None, atendente_nome: str | None = None) -> str:
+def _render_template(
+    template: str,
+    *,
+    db: Session,
+    chat: WhatsappChat,
+    st: WhatsappSettings | None,
+    atendente_nome: str | None = None,
+) -> str:
     t = (template or "").strip()
     if not t:
         return ""
     nome = (chat.cliente_nome or "").strip() or "Cliente"
     # Para mensagens automáticas (webhook), por padrão assina como BOT
     nome_atendente = (atendente_nome or "").strip() or "BOT"
-    nome_empresa = ((getattr(st, "nome_empresa_exibicao", None) or "").strip() if st else "") or "nossa empresa"
+    nome_empresa = resolver_nome_empresa_para_template(db)
     tzname = (getattr(st, "horario_timezone", None) or "America/Sao_Paulo").strip() or "America/Sao_Paulo"
     try:
         tz = ZoneInfo(tzname)
@@ -94,6 +102,7 @@ def _try_auto_msg_espera(db: Session, st: WhatsappSettings | None, chat: Whatsap
         return
     txt = _render_template(
         (getattr(st, "auto_msg_espera_texto", "") or "").strip() or DEFAULT_AUTO_MSG_ESPERA,
+        db=db,
         chat=chat,
         st=st,
     )
@@ -269,6 +278,7 @@ def _try_auto_msg_fora_horario(db: Session, st: WhatsappSettings | None, chat: W
         return
     txt = _render_template(
         (getattr(st, "auto_msg_fora_horario_texto", "") or "").strip() or DEFAULT_AUTO_MSG_FORA_HORARIO,
+        db=db,
         chat=chat,
         st=st,
     )
