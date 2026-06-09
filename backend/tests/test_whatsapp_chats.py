@@ -172,6 +172,38 @@ def test_webhook_guarda_citacao_em_mensagem(client, seed_base, auth_headers):
     assert "original" in (last.get("quoted_corpo_preview") or "").lower()
 
 
+def test_webhook_guarda_citacao_formato_evolution(client, seed_base, auth_headers):
+    """Evolution prepareMessage coloca contextInfo no envelope, não dentro de extendedTextMessage."""
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "cit-ev"},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "cit-ev"}
+    body = {
+        "event": "messages.upsert",
+        "data": {
+            "key": {
+                "remoteJid": "5511444555666@s.whatsapp.net",
+                "fromMe": False,
+                "id": "reply-msg-ev-1",
+            },
+            "message": {"conversation": "Resposta citando (Evolution)"},
+            "contextInfo": {
+                "stanzaId": "orig-msg-ev-1",
+                "quotedMessage": {"conversation": "Texto original Evolution"},
+            },
+        },
+    }
+    r = client.post("/v1/webhooks/evolution", json=body, headers=h)
+    assert r.status_code == 200
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+    rows = client.get(f"/v1/whatsapp/chats/{cid}/mensagens", headers=auth_headers["a1"]).json()
+    last = rows[-1]
+    assert last.get("quoted_wa_message_id") == "orig-msg-ev-1"
+    assert "evolution" in (last.get("quoted_corpo_preview") or "").lower()
+
+
 def test_abrir_ticket_vincula(client, seed_base, auth_headers):
     client.patch(
         "/v1/settings/whatsapp",
@@ -191,3 +223,30 @@ def test_abrir_ticket_vincula(client, seed_base, auth_headers):
     )
     assert r.status_code == 200
     assert r.json()["ticket_ids"]
+
+
+def test_transferir_registra_mensagem_interna(client, seed_base, auth_headers):
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "tr-int"},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "tr-int"}
+    client.post("/v1/webhooks/evolution", json=_webhook_body(wa_id="5511999445566", msg_id="tr-1"), headers=h)
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+    client.post(f"/v1/whatsapp/chats/{cid}/assumir", headers=auth_headers["a1"])
+
+    r = client.post(
+        f"/v1/whatsapp/chats/{cid}/transferir",
+        json={"setor_id": seed_base["setor2"].id, "atendente_id": None},
+        headers=auth_headers["a1"],
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["estado"] == "aguardando_atendente"
+    assert body["setor_id"] == seed_base["setor2"].id
+
+    msgs = client.get(f"/v1/whatsapp/chats/{cid}/mensagens", headers=auth_headers["admin"]).json()
+    transfer_msgs = [m for m in msgs if m.get("evento_sistema") == "transferencia"]
+    assert len(transfer_msgs) == 1
+    assert "Financeiro" in transfer_msgs[0]["corpo"]

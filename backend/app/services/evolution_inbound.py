@@ -69,6 +69,40 @@ _SUBCOM_KEYS = (
 )
 
 
+def _quoted_from_context_info(ctx: dict[str, Any]) -> tuple[str | None, str | None]:
+    sid = ctx.get("stanzaId") or ctx.get("StanzaId")
+    if not sid:
+        return None, None
+    wid = str(sid).strip()
+    if not wid:
+        return None, None
+    preview: str | None = None
+    qm = ctx.get("quotedMessage") or ctx.get("QuotedMessage")
+    if isinstance(qm, dict):
+        preview = _text_from_inner(qm)
+        if not preview:
+            md = _detect_media(qm)
+            if md:
+                kind, _ = md
+                preview = _ROTULO_TIPO.get(kind, "[Mídia]")
+    return wid, preview
+
+
+def quoted_reply_from_envelope(envelope: dict[str, Any], inner: dict[str, Any]) -> tuple[str | None, str | None]:
+    """
+    Extrai citação do payload do webhook.
+
+    A Evolution API (prepareMessage) coloca contextInfo no envelope da mensagem,
+    não dentro de extendedTextMessage — formato diferente do Baileys bruto usado em testes.
+    """
+    ctx = envelope.get("contextInfo") or envelope.get("ContextInfo")
+    if isinstance(ctx, dict):
+        wid, prev = _quoted_from_context_info(ctx)
+        if wid:
+            return wid, prev
+    return quoted_reply_from_inner(inner)
+
+
 def quoted_reply_from_inner(inner: dict[str, Any]) -> tuple[str | None, str | None]:
     """Extrai resposta citada: id da mensagem original (stanzaId) e texto de pré-visualização."""
     for sub_key in _SUBCOM_KEYS:
@@ -76,24 +110,10 @@ def quoted_reply_from_inner(inner: dict[str, Any]) -> tuple[str | None, str | No
         if not isinstance(sub, dict):
             continue
         ctx = sub.get("contextInfo") or sub.get("ContextInfo")
-        if not isinstance(ctx, dict):
-            continue
-        sid = ctx.get("stanzaId") or ctx.get("StanzaId")
-        if not sid:
-            continue
-        wid = str(sid).strip()
-        if not wid:
-            continue
-        preview: str | None = None
-        qm = ctx.get("quotedMessage") or ctx.get("QuotedMessage")
-        if isinstance(qm, dict):
-            preview = _text_from_inner(qm)
-            if not preview:
-                md = _detect_media(qm)
-                if md:
-                    kind, _ = md
-                    preview = _ROTULO_TIPO.get(kind, "[Mídia]")
-        return wid, preview
+        if isinstance(ctx, dict):
+            wid, preview = _quoted_from_context_info(ctx)
+            if wid:
+                return wid, preview
     return None, None
 
 
@@ -168,7 +188,7 @@ def iter_inbound_whatsapp_messages(webhook_body: dict[str, Any]) -> Iterator[dic
         if not isinstance(inner, dict):
             continue
 
-        q_wid, q_prev = quoted_reply_from_inner(inner)
+        q_wid, q_prev = quoted_reply_from_envelope(m, inner)
         if q_prev and len(q_prev) > 500:
             q_prev = q_prev[:500]
 
