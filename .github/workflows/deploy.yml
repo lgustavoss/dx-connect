@@ -9,7 +9,7 @@
 #   VITE_API_URL          — URL HTTPS da API (sem barra final)
 # Opcional:
 #   DEPLOY_SSH_PORT       — porta SSH (padrão 22)
-#   DEPLOY_GIT_REF        — branch no VPS (padrão staging; só usado se o workflow não tiver github.ref_name)
+#   DEPLOY_GIT_REF        — branch no VPS (padrão main; só usado se o workflow não tiver github.ref_name)
 #
 # Opcional: crie um Environment "production" com estes secrets e descomente "environment: production" abaixo.
 
@@ -24,7 +24,7 @@ on:
         default: false
         type: boolean
   push:
-    branches: [staging]
+    branches: [main]
     paths:
       - "backend/**"
       - "frontend/**"
@@ -95,7 +95,7 @@ jobs:
 
       - name: Git pull + Alembic + Docker Compose
         run: |
-          REF="${EVENT_REF:-${DEPLOY_GIT_REF:-staging}}"
+          REF="${EVENT_REF:-${DEPLOY_GIT_REF:-main}}"
           echo "Deploy ref no VPS: ${REF}"
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -p "${SSH_PORT}" \
             "${DEPLOY_USER}@${DEPLOY_HOST}" \

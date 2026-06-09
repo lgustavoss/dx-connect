@@ -6,9 +6,15 @@ O workflow [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) faz
 2. **`rsync`** da pasta `frontend/dist/` para o caminho no VPS (`DEPLOY_FRONTEND_DIST`).
 3. **SSH** no servidor: `git pull`, `alembic upgrade head`, `docker compose -f docker-compose.prod.yml up -d --build`.
 
-Disparo automático em **push** para **`staging`** quando mudam `backend/`, `frontend/`, `docker-compose.prod.yml` ou o próprio workflow. A branch **`main`** não dispara deploy (integração/testes); use merge ou push em **`staging`** para produção. Também pode rodar manualmente em **Actions → Deploy → Run workflow**.
+Disparo automático em **push** para **`main`** quando mudam `backend/`, `frontend/`, `docker-compose.prod.yml` ou o próprio workflow. Após merge de um PR em **`main`**, o deploy roda sozinho (se os paths acima mudaram). Também pode rodar manualmente em **Actions → Deploy → Run workflow**.
 
-**Importante:** não defina `DEPLOY_GIT_REF=main` nos secrets se o ambiente de produção simulada segue a branch **`staging`** — isso fazia o frontend atualizar e o backend continuar na `main` (rotas novas como `/v1/settings/empresa-sistema` respondiam 404).
+### Por que não usar mais a branch `staging` no GitHub?
+
+Antes o fluxo era merge em `main` → PR `main → staging` → push em `staging` → deploy. Cada push em `staging` fazia o GitHub exibir o banner amarelo **“staging had recent pushes — Compare & pull request”** na aba Pull requests. Isso é comportamento nativo do GitHub (sugere abrir PR a partir da branch que recebeu push); **não há como desligar**. O botão apontava para `staging → main`, direção oposta ao release.
+
+Com deploy na **`main`**, esse passo extra e o banner deixam de ser necessários. A branch `staging` no remoto pode ser apagada quando quiser (opcional); no VPS o workflow faz `git checkout main` e `git reset --hard origin/main`.
+
+**Importante:** não defina `DEPLOY_GIT_REF` com uma branch diferente da que disparou o workflow — isso fazia o frontend atualizar e o backend continuar num commit antigo (rotas novas respondiam 404).
 
 ## Secrets no GitHub
 
@@ -93,5 +99,5 @@ Em cada deploy o workflow executa `alembic upgrade head` antes do `up --build`. 
 - **`rsync` falha**: permissões em `DEPLOY_FRONTEND_DIST` e caminho absoluto correto.
 - **`docker: permission denied`**: usuário no grupo `docker` ou reiniciar sessão SSH após `usermod`.
 - **Build do frontend errado**: `VITE_API_URL` nos secrets deve ser a URL **pública** que o browser usa para chamar a API.
-- **404 em `/v1/settings/*` ou `/v1/tenant/*` com frontend novo**: o SPA foi atualizado mas o **container da API** ainda está na `main` antiga. Remova o secret `DEPLOY_GIT_REF=main` (deixe o workflow usar a branch do push, ex. `staging`). No VPS: `bash deploy/scripts/redeploy-staging-backend.sh`. Confirme: `curl -s https://SUA-API/health` deve incluir `"capabilities":{"settings_empresa_sistema":true,...}`.
+- **404 em `/v1/settings/*` ou `/v1/tenant/*` com frontend novo**: o SPA foi atualizado mas o **container da API** ainda está num commit antigo. Remova qualquer secret `DEPLOY_GIT_REF` que aponte para outra branch. No VPS: `bash deploy/scripts/redeploy-staging-backend.sh` (aceita branch como 2º argumento, padrão `staging`; use `main` se o clone já seguir `main`). Confirme: `curl -s https://SUA-API/health` deve incluir `"capabilities":{"settings_empresa_sistema":true,...}`.
 - **Deploy SSH “passa” mas `/health` continua com `git_sha` antigo**: o `docker compose run` no script remoto (`bash -s` + heredoc) pode **consumir o stdin** e impedir o restart do backend. O workflow usa `run --rm -T ... < /dev/null` para evitar isso.
