@@ -253,7 +253,9 @@ def _pode_ver_chat(db: Session, atendente: Atendente, c: WhatsappChat) -> bool:
     # require either being the attendant or having the setor visible.
     if c.setor_id is None:
         return c.estado == "aguardando_atendente"
-    return c.setor_id in vis
+    if c.estado in ("aguardando_atendente", "encerrado"):
+        return c.setor_id in vis
+    return False
 
 
 def _mensagem_read(m: WhatsappMensagem) -> WhatsappMensagemRead:

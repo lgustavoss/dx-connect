@@ -107,6 +107,29 @@ def test_listar_encerrados_filtra_e_respeita_rbac(client, seed_base, auth_header
     assert denied.status_code == 403
 
 
+def test_nao_acessa_chat_em_atendimento_de_outro_atendente_mesmo_setor(client, seed_base, auth_headers):
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "rbac-2"},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "rbac-2"}
+
+    client.post("/v1/webhooks/evolution", json=_webhook_body(wa_id="5511999333344", msg_id="chat-c-1"), headers=h)
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+
+    client.post(
+        f"/v1/whatsapp/chats/{cid}/transferir",
+        json={"setor_id": seed_base["setor1"].id, "atendente_id": None},
+        headers=auth_headers["a1"],
+    )
+
+    client.post(f"/v1/whatsapp/chats/{cid}/assumir", headers=auth_headers["a1"])
+
+    denied = client.get(f"/v1/whatsapp/chats/{cid}", headers=auth_headers["a2"])
+    assert denied.status_code == 403
+
+
 def test_webhook_guarda_citacao_em_mensagem(client, seed_base, auth_headers):
     client.patch(
         "/v1/settings/whatsapp",

@@ -3,6 +3,8 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from datetime import datetime
 
+from app.core.ticket_prioridade import PrioridadeTicket
+
 
 class TicketCreate(BaseModel):
     empresa_id: int | None = None
@@ -12,6 +14,7 @@ class TicketCreate(BaseModel):
     descricao: str | None = None
     aberto_por_id: int | None = None
     parent_ticket_id: int | None = None
+    prioridade: PrioridadeTicket = PrioridadeTicket.normal
 
     @model_validator(mode="after")
     def validar_escopo(self):
@@ -33,6 +36,9 @@ class TicketUpdate(BaseModel):
     status_id: int | None = None
     atendente_id: int | None = None
     parent_ticket_id: int | None = None
+    prioridade: PrioridadeTicket | None = None
+    motivo_id: int | None = None
+    motivo_outro_texto: str | None = Field(None, max_length=255)
 
 
 class TicketParentBrief(BaseModel):
@@ -80,6 +86,8 @@ class TicketVinculoCreate(BaseModel):
         default=True,
         description="Se tipo=duplicado_de, encerra este ticket e registra mensagem pública apontando para o original.",
     )
+    motivo_id: int | None = None
+    motivo_outro_texto: str | None = Field(None, max_length=255)
 
 
 class TicketFilhoMassaEmpresaOpcao(BaseModel):
@@ -150,6 +158,12 @@ class TicketRead(BaseModel):
     status_nome: str | None = None
     atendente_nome: str | None = None
     parent_ticket_id: int | None = None
+    prioridade: PrioridadeTicket = PrioridadeTicket.normal
+    motivo_id: int | None = None
+    motivo_nome: str | None = None
+    motivo_outro_texto: str | None = None
+    natureza_id: int | None = None
+    natureza_nome: str | None = None
     parent: TicketParentBrief | None = None
     children: list[TicketChildBrief] = Field(default_factory=list)
     vinculos: list[TicketVinculoRead] = Field(default_factory=list)

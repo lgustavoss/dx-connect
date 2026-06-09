@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
 
 const icons: Record<string, React.ReactNode> = {
@@ -241,6 +242,24 @@ export function Sidebar({
   const location = useLocation()
   const [openGroup, setOpenGroup] = useState<string | null>(null)
   const [openFlyout, setOpenFlyout] = useState<string | null>(null)
+  const [flyoutTop, setFlyoutTop] = useState<number | null>(null)
+
+  const closeFlyout = useCallback(() => {
+    setOpenFlyout(null)
+    setFlyoutTop(null)
+  }, [])
+
+  const toggleFlyout = useCallback(
+    (groupId: string, anchorTop: number) => {
+      if (openFlyout === groupId) {
+        closeFlyout()
+        return
+      }
+      setOpenFlyout(groupId)
+      setFlyoutTop(anchorTop)
+    },
+    [closeFlyout, openFlyout]
+  )
 
   const items = navStructure.filter(
     (item) => item.type === 'link' || !('adminOnly' in item && item.adminOnly) || isAdmin
@@ -262,8 +281,19 @@ export function Sidebar({
 
   // No drawer mobile usamos acordeão (não flyout); evita estado do flyout “preso”
   useEffect(() => {
-    if (mobileOpen) setOpenFlyout(null)
-  }, [mobileOpen])
+    if (mobileOpen) closeFlyout()
+  }, [mobileOpen, closeFlyout])
+
+  useEffect(() => {
+    if (!openFlyout) return
+    const onViewportChange = () => closeFlyout()
+    window.addEventListener('resize', onViewportChange)
+    window.addEventListener('scroll', onViewportChange, true)
+    return () => {
+      window.removeEventListener('resize', onViewportChange)
+      window.removeEventListener('scroll', onViewportChange, true)
+    }
+  }, [closeFlyout, openFlyout])
 
   const linkClass = (to: string, base = '') =>
     `${base} flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors touch-manipulation min-h-[44px] ${
@@ -274,6 +304,49 @@ export function Sidebar({
 
   const isGroupOpen = (id: string) => openGroup === id
   const isFlyoutOpen = (id: string) => openFlyout === id
+
+  const openFlyoutGroup = openFlyout
+    ? items.find((item): item is NavGroup => item.type === 'group' && item.id === openFlyout)
+    : null
+
+  const flyoutPortal =
+    openFlyoutGroup && flyoutTop != null && typeof document !== 'undefined'
+      ? createPortal(
+          <>
+            <div
+              role="presentation"
+              className="fixed inset-0 z-40 md:left-[var(--sidebar-w,80px)]"
+              onClick={closeFlyout}
+            />
+            <ul
+              className="fixed z-50 min-w-[200px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+              style={{
+                left: 'calc(var(--sidebar-w, 80px) + 4px)',
+                top: flyoutTop,
+              }}
+              role="menu"
+            >
+              {openFlyoutGroup.children.map((child) => (
+                <li key={child.to} role="none">
+                  <Link
+                    to={child.to}
+                    onClick={() => {
+                      onMobileClose()
+                      closeFlyout()
+                    }}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                    role="menuitem"
+                  >
+                    {icons[child.icon]}
+                    {child.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </>,
+          document.body
+        )
+      : null
 
   const sidebarContent = (
     <>
@@ -307,7 +380,7 @@ export function Sidebar({
       </div>
 
       <nav
-        className={`min-w-0 flex-1 overflow-y-auto py-3 px-2 max-md:overflow-x-hidden ${!expanded ? 'md:px-2' : ''}`}
+        className={`min-w-0 flex-1 overflow-x-hidden overflow-y-auto py-3 px-2 ${!expanded ? 'md:px-2' : ''}`}
         aria-label="Menu principal"
       >
         <ul className={`min-w-0 space-y-0.5 px-2 ${!expanded ? 'md:px-0' : ''}`}>
@@ -386,10 +459,13 @@ export function Sidebar({
                   </>
                 ) : (
                   /* Desktop recolhido (md+): flyout à direita do ícone */
-                  <div className="relative w-full min-w-0">
+                  <div className="w-full min-w-0">
                     <button
                       type="button"
-                      onClick={() => setOpenFlyout(isFlyoutOpen(group.id) ? null : group.id)}
+                      onClick={(e) => {
+                        const top = e.currentTarget.getBoundingClientRect().top
+                        toggleFlyout(group.id, top)
+                      }}
                       title={group.label}
                       className={`flex w-full items-center justify-center rounded-lg py-2.5 text-slate-600 hover:bg-slate-100 min-h-[44px] px-2 dark:text-slate-400 dark:hover:bg-slate-800/80 md:px-0 ${
                         active ? 'bg-cyan-50 text-slate-900 ring-1 ring-cyan-200/60 dark:bg-cyan-950/35 dark:text-slate-100 dark:ring-cyan-800/50' : ''
@@ -399,36 +475,6 @@ export function Sidebar({
                     >
                       {icons[group.icon]}
                     </button>
-                    {isFlyoutOpen(group.id) && (
-                      <>
-                        <div
-                          role="presentation"
-                          className="fixed inset-0 z-40 md:left-[var(--sidebar-w,80px)]"
-                          onClick={() => setOpenFlyout(null)}
-                        />
-                        <ul
-                          className="absolute left-full top-0 z-50 ml-1 min-w-[200px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
-                          role="menu"
-                        >
-                          {group.children.map((child) => (
-                            <li key={child.to} role="none">
-                              <Link
-                                to={child.to}
-                                onClick={() => {
-                                  onMobileClose()
-                                  setOpenFlyout(null)
-                                }}
-                                className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                                role="menuitem"
-                              >
-                                {icons[child.icon]}
-                                {child.label}
-                              </Link>
-                            </li>
-                          ))}
-                        </ul>
-                      </>
-                    )}
                   </div>
                 )}
               </li>
@@ -507,6 +553,7 @@ export function Sidebar({
           </button>
         </div>
         {sidebarContent}
+        {flyoutPortal}
       </aside>
     </>
   )

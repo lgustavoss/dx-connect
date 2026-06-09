@@ -18,6 +18,8 @@ import {
   type Empresas,
   type Tickets,
   type WhatsappChats,
+  ticketClassificacao,
+  type TicketClassificacao,
 } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
@@ -41,6 +43,17 @@ import { TicketBuscaPicker } from '../components/TicketBuscaPicker'
 import { TicketFilhosMassaPanel } from '../components/tickets/TicketFilhosMassaPanel'
 import { TicketMetaChip } from '../components/tickets/TicketMetaChip'
 import { TicketDetalheSkeleton } from '../components/tickets/TicketDetalheSkeleton'
+import {
+  TicketClassificacaoFields,
+  classificacaoFromTicket,
+  patchClassificacaoFromForm,
+  type ClassificacaoFormValue,
+} from '../components/tickets/TicketClassificacaoFields'
+import {
+  PRIORIDADE_OPCOES,
+  rotuloPrioridade,
+  type PrioridadeTicket,
+} from '../lib/ticketPrioridade'
 
 const ROTULO_CAMPO: Record<string, string> = {
   status_id: 'Status',
@@ -52,6 +65,9 @@ const ROTULO_CAMPO: Record<string, string> = {
   parent_ticket_id: 'Ticket pai',
   filhos_em_massa: 'Tickets filhos em massa',
   vinculo_ticket: 'Vínculo com ticket',
+  prioridade: 'Prioridade',
+  motivo_id: 'Motivo',
+  motivo_outro_texto: 'Detalhe do motivo',
 }
 
 function resolverValorHistorico(
@@ -62,10 +78,16 @@ function resolverValorHistorico(
     setor: Map<number, string>
     atendente: Map<number, string>
     empresa: Map<number, string>
+    motivo: Map<number, string>
   },
 ): string {
   if (valor == null || valor === '') return '—'
-  if (campo === 'status_id' || campo === 'setor_id' || campo === 'atendente_id' || campo === 'empresa_id') {
+  if (campo === 'prioridade') return rotuloPrioridade(valor)
+  if (campo === 'motivo_outro_texto') {
+    const t = (valor || '').trim()
+    return t || '—'
+  }
+  if (campo === 'status_id' || campo === 'setor_id' || campo === 'atendente_id' || campo === 'empresa_id' || campo === 'motivo_id') {
     const id = Number(valor)
     if (Number.isNaN(id)) return valor
     const m =
@@ -75,7 +97,9 @@ function resolverValorHistorico(
           ? maps.setor
           : campo === 'empresa_id'
             ? maps.empresa
-            : maps.atendente
+            : campo === 'motivo_id'
+              ? maps.motivo
+              : maps.atendente
     return m.get(id) ?? `#${id}`
   }
   const t = (valor || '').trim()
@@ -178,6 +202,23 @@ export function TicketDetalhe() {
   const [editAtendente, setEditAtendente] = useState<number | ''>('')
   const [editRede, setEditRede] = useState<number | ''>('')
   const [editEmpresa, setEditEmpresa] = useState<number | ''>('')
+  const [editPrioridade, setEditPrioridade] = useState<PrioridadeTicket>('normal')
+  const [editClassificacao, setEditClassificacao] = useState<ClassificacaoFormValue>({
+    naturezaId: '',
+    motivoId: '',
+    motivoOutroTexto: '',
+  })
+  const [fecharClassificacao, setFecharClassificacao] = useState<ClassificacaoFormValue>({
+    naturezaId: '',
+    motivoId: '',
+    motivoOutroTexto: '',
+  })
+  const [vinculoClassificacao, setVinculoClassificacao] = useState<ClassificacaoFormValue>({
+    naturezaId: '',
+    motivoId: '',
+    motivoOutroTexto: '',
+  })
+  const [motivosHistorico, setMotivosHistorico] = useState<TicketClassificacao.Motivo[]>([])
   const [redesList, setRedesList] = useState<Redes.Rede[]>([])
   const [empresasModalList, setEmpresasModalList] = useState<Empresas.EmpresaListaItem[]>([])
   const [saving, setSaving] = useState(false)
@@ -193,7 +234,7 @@ export function TicketDetalhe() {
   const [modalFecharAberto, setModalFecharAberto] = useState(false)
   /** Qual bloco do modal recebe destaque ao abrir (chips no cabeçalho). */
   const [modalGerirFoco, setModalGerirFoco] = useState<
-    'geral' | 'setor' | 'status' | 'atendente' | 'hierarquia' | 'relacionados'
+    'geral' | 'setor' | 'status' | 'atendente' | 'hierarquia' | 'relacionados' | 'classificacao'
   >('geral')
   const [historicoAberto, setHistoricoAberto] = useState(false)
 
@@ -365,8 +406,21 @@ export function TicketDetalhe() {
     if (ticket?.empresa_nome && ticket.empresa_id != null) {
       empresa.set(ticket.empresa_id, ticket.empresa_nome)
     }
-    return { status, setor, atendente, empresa }
-  }, [statusList, setoresList, atendentesList, empresasModalList, ticket])
+    const motivo = new Map<number, string>()
+    motivosHistorico.forEach((m) => motivo.set(m.id, m.nome))
+    if (ticket?.motivo_nome && ticket.motivo_id != null) {
+      motivo.set(ticket.motivo_id, ticket.motivo_nome)
+    }
+    return { status, setor, atendente, empresa, motivo }
+  }, [statusList, setoresList, atendentesList, empresasModalList, motivosHistorico, ticket])
+
+  useEffect(() => {
+    coletarTodasPaginas<TicketClassificacao.Motivo>((o, l) =>
+      ticketClassificacao.listMotivos({ incluir_inativos: true, offset: o, limit: l }),
+    )
+      .then(setMotivosHistorico)
+      .catch(() => setMotivosHistorico([]))
+  }, [])
 
   useEffect(() => {
     coletarTodasPaginas<StatusTicket.Status>((o, l) =>
@@ -478,6 +532,11 @@ export function TicketDetalhe() {
         setEditSetor(t.setor_id)
         setEditStatus(t.status_id)
         setEditAtendente(t.atendente_id ?? '')
+        setEditPrioridade((t.prioridade as PrioridadeTicket) ?? 'normal')
+        const classificacao = classificacaoFromTicket(t)
+        setEditClassificacao(classificacao)
+        setFecharClassificacao(classificacao)
+        setVinculoClassificacao(classificacao)
         void notificacoes
           .marcarVisto(numId)
           .then(() => refetchPendenciasResumo())
@@ -643,7 +702,7 @@ export function TicketDetalhe() {
   }, [modalGerirAberto, editSetor, editAtendente, atendentesList, setoresList])
 
   function abrirModalGerir(
-    foco: 'geral' | 'setor' | 'status' | 'atendente' | 'hierarquia' | 'relacionados' = 'geral',
+    foco: 'geral' | 'setor' | 'status' | 'atendente' | 'hierarquia' | 'relacionados' | 'classificacao' = 'geral',
   ) {
     if (!ticket) return
     setEditSetor(ticket.setor_id)
@@ -651,6 +710,8 @@ export function TicketDetalhe() {
     setEditAtendente(ticket.atendente_id ?? '')
     setEditRede(ticket.rede_id ?? '')
     setEditEmpresa(ticket.empresa_id ?? '')
+    setEditPrioridade((ticket.prioridade as PrioridadeTicket) ?? 'normal')
+    setEditClassificacao(classificacaoFromTicket(ticket))
     setModalGerirFoco(foco)
     setModalGerirAberto(true)
   }
@@ -700,7 +761,10 @@ export function TicketDetalhe() {
   }, [modalGerirAberto, editRede, editEmpresa, empresasVinculoSugeridas.length])
 
   const modalApenasUmCampo =
-    modalGerirFoco !== 'geral' && modalGerirFoco !== 'hierarquia' && modalGerirFoco !== 'relacionados'
+    modalGerirFoco !== 'geral' &&
+    modalGerirFoco !== 'hierarquia' &&
+    modalGerirFoco !== 'relacionados' &&
+    modalGerirFoco !== 'classificacao'
 
   async function handleSalvar() {
     if (!ticket) return
@@ -713,6 +777,23 @@ export function TicketDetalhe() {
     if (modalGerirFoco === 'geral' && editEmpresa !== '') {
       const novoEmpresa = Number(editEmpresa)
       if (novoEmpresa !== ticket.empresa_id) patch.empresa_id = novoEmpresa
+    }
+    if (
+      (modalGerirFoco === 'geral' || modalGerirFoco === 'classificacao') &&
+      editPrioridade !== (ticket.prioridade ?? 'normal')
+    ) {
+      patch.prioridade = editPrioridade
+    }
+    if (modalGerirFoco === 'geral' || modalGerirFoco === 'classificacao') {
+      const classPatch = patchClassificacaoFromForm(editClassificacao)
+      const atualMotivo = ticket.motivo_id ?? null
+      const novoMotivo = classPatch?.motivo_id ?? null
+      const outroAtual = ticket.motivo_outro_texto ?? ''
+      const outroNovo = classPatch?.motivo_outro_texto ?? ''
+      if (classPatch && (novoMotivo !== atualMotivo || outroNovo !== outroAtual)) {
+        patch.motivo_id = classPatch.motivo_id
+        patch.motivo_outro_texto = classPatch.motivo_outro_texto ?? null
+      }
     }
 
     if (Object.keys(patch).length === 0) {
@@ -748,9 +829,17 @@ export function TicketDetalhe() {
       toast.showWarning('Não existe um status com slug "fechado". Cadastre/ajuste em Status de ticket.')
       return
     }
+    const classPatch = patchClassificacaoFromForm(fecharClassificacao)
+    if (!classPatch && !ticket.motivo_id) {
+      toast.showWarning('Informe natureza e motivo para encerrar o ticket.')
+      return
+    }
     setFechando(true)
     try {
-      const updated = await tickets.update(ticket.id, { status_id: statusFechado.id })
+      const updated = await tickets.update(ticket.id, {
+        status_id: statusFechado.id,
+        ...(classPatch ?? {}),
+      })
       setTicket(updated)
       setEditStatus(updated.status_id)
       setEditAtendente(updated.atendente_id ?? '')
@@ -836,10 +925,17 @@ export function TicketDetalhe() {
     try {
       const fechar =
         tipoVinculoRelacionado === 'duplicado_de' ? fecharComoDuplicado : false
+      const classPatch =
+        fechar && !ticket.fechado_em ? patchClassificacaoFromForm(vinculoClassificacao) : null
+      if (fechar && !ticket.fechado_em && !classPatch && !ticket.motivo_id) {
+        toast.showWarning('Informe natureza e motivo para encerrar o ticket duplicado.')
+        return
+      }
       const resultado = await tickets.addVinculo(ticket.id, {
         related_ticket_id: alvo.id,
         tipo: tipoVinculoRelacionado,
         fechar_como_duplicado: fechar,
+        ...(classPatch ?? {}),
       })
       const [atualizado, mensagensAtualizadas, historicoAtualizado] = await Promise.all([
         tickets.get(ticket.id),
@@ -1298,6 +1394,20 @@ export function TicketDetalhe() {
                   label="Hier."
                   value={rotuloChipHierarquia}
                   onClick={() => tentarEditarTicket(() => abrirModalGerir('hierarquia'))}
+                />
+                <TicketMetaChip
+                  label="Prior."
+                  value={rotuloPrioridade(ticket.prioridade)}
+                  onClick={() => tentarEditarTicket(() => abrirModalGerir('classificacao'))}
+                />
+                <TicketMetaChip
+                  label="Motivo"
+                  value={
+                    ticket.motivo_nome
+                      ? `${ticket.natureza_nome ? `${ticket.natureza_nome} · ` : ''}${ticket.motivo_nome}`
+                      : '—'
+                  }
+                  onClick={() => tentarEditarTicket(() => abrirModalGerir('classificacao'))}
                 />
                 <TicketMetaChip
                   label="Relacionados"
@@ -2036,6 +2146,13 @@ export function TicketDetalhe() {
                           >
                             Fechar este ticket e registrar mensagem pública apontando para o original
                           </CheckboxField>
+                          {fecharComoDuplicado && !ticket.fechado_em ? (
+                            <TicketClassificacaoFields
+                              value={vinculoClassificacao}
+                              onChange={setVinculoClassificacao}
+                              disabled={vinculandoRelacionado}
+                            />
+                          ) : null}
                           {ticket.fechado_em ? (
                             <p className="text-xs text-amber-700 dark:text-amber-400">
                               Este ticket já está fechado — apenas o vínculo será registrado.
@@ -2175,6 +2292,22 @@ export function TicketDetalhe() {
                     )}
                   </div>
                 )}
+                {(modalGerirFoco === 'geral' || modalGerirFoco === 'classificacao') && (
+                  <>
+                    <Select
+                      label="Prioridade"
+                      value={editPrioridade}
+                      onChange={(v) => setEditPrioridade(v as PrioridadeTicket)}
+                      options={PRIORIDADE_OPCOES.map((o) => ({ value: o.value, label: o.label }))}
+                      disabled={Boolean(ticket?.fechado_em) && !isAdmin}
+                    />
+                    <TicketClassificacaoFields
+                      value={editClassificacao}
+                      onChange={setEditClassificacao}
+                      disabled={Boolean(ticket?.fechado_em) && !isAdmin}
+                    />
+                  </>
+                )}
               </div>
             )}
 
@@ -2245,8 +2378,16 @@ export function TicketDetalhe() {
               Fechar ticket
             </h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Ao fechar, o ticket sairá da lista de abertos e não permitirá novas mensagens.
+              Ao fechar, o ticket sairá da lista de abertos e não permitirá novas mensagens. Informe a classificação do
+              atendimento.
             </p>
+            <div className="mt-4">
+              <TicketClassificacaoFields
+                value={fecharClassificacao}
+                onChange={setFecharClassificacao}
+                disabled={fechando}
+              />
+            </div>
             {filhosAbertosCount > 0 && (
               <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-100">
                 Este ticket tem {filhosAbertosCount} filho(s) direto(s) ainda em aberto. O sistema bloqueia o fecho até

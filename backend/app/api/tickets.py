@@ -12,6 +12,7 @@ from app.models.email_inbound_received import EmailInboundReceived
 from app.models.funcionario_rede import FuncionarioRede
 from app.models.ticket_anexo import TicketAnexo
 from app.models.ticket_vinculo import TIPO_DUPLICADO_DE, TicketVinculo
+from app.models.ticket_classificacao import TicketMotivo
 from app.schemas.ticket import (
     EmpresaVinculoSugerida,
     TicketChildBrief,
@@ -37,6 +38,12 @@ from app.schemas.ticket import (
 from app.schemas.ticket_anexo import TicketAnexoCreateResponse, TicketAnexoRead
 from app.schemas.lista_paginada import ListaPaginada
 from app.core.auth import obter_atendente_atual
+from app.core.ticket_prioridade import PrioridadeTicket
+from app.services.ticket_classificacao_rules import (
+    motivo_efetivo_no_ticket,
+    validar_classificacao,
+    validar_prioridade,
+)
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
 from app.core.setor_scope import (
     atendente_atende_algum_id_setor,
@@ -166,6 +173,7 @@ def _opcoes_carregamento_ticket_detalhe():
         joinedload(Ticket.setor),
         joinedload(Ticket.status),
         joinedload(Ticket.atendente),
+        joinedload(Ticket.motivo).joinedload(TicketMotivo.natureza),
         joinedload(Ticket.parent).joinedload(Ticket.status),
         joinedload(Ticket.children).joinedload(Ticket.status),
         joinedload(Ticket.children).joinedload(Ticket.atendente),
@@ -292,6 +300,12 @@ def _ticket_para_read(t: Ticket, db: Session | None = None) -> TicketRead:
         fechado_em=t.fechado_em,
         created_at=t.created_at,
         updated_at=t.updated_at,
+        prioridade=t.prioridade if isinstance(t.prioridade, PrioridadeTicket) else PrioridadeTicket(t.prioridade or "normal"),
+        motivo_id=t.motivo_id,
+        motivo_nome=t.motivo.nome if t.motivo else None,
+        motivo_outro_texto=t.motivo_outro_texto,
+        natureza_id=t.motivo.natureza_id if t.motivo else None,
+        natureza_nome=t.motivo.natureza.nome if t.motivo and t.motivo.natureza else None,
         rede_id=rede_id_out,
         empresa_nome=t.empresa.nome if t.empresa else None,
         rede_nome=rede_nome_out,
@@ -473,6 +487,7 @@ def listar(
             joinedload(Ticket.setor),
             joinedload(Ticket.status),
             joinedload(Ticket.atendente),
+            joinedload(Ticket.motivo).joinedload(TicketMotivo.natureza),
         )
         .order_by(*order_cols)
         .offset(offset)
@@ -550,6 +565,7 @@ def criar(
     if not status_inicial:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cadastre ao menos um status de ticket")
     protocolo = _gerar_protocolo(db)
+    prioridade = validar_prioridade(data.prioridade)
     ticket = Ticket(
         tenant_id=atendente.tenant_id,
         protocolo=protocolo,
@@ -557,6 +573,7 @@ def criar(
         rede_id=ticket_rede_id,
         setor_id=data.setor_id,
         status_id=status_inicial.id,
+        prioridade=prioridade,
         assunto=data.assunto,
         descricao=data.descricao,
         aberto_por_id=data.aberto_por_id,
@@ -678,6 +695,35 @@ def criar_vinculo(
 
     duplicado_fechado = False
     if data.tipo == TIPO_DUPLICADO_DE and data.fechar_como_duplicado:
+        vinc_class = {}
+        if data.motivo_id is not None:
+            vinc_class["motivo_id"] = data.motivo_id
+        if data.motivo_outro_texto is not None:
+            vinc_class["motivo_outro_texto"] = data.motivo_outro_texto
+        mid, outro = motivo_efetivo_no_ticket(ticket, vinc_class)
+        mid, outro = validar_classificacao(
+            db, motivo_id=mid, motivo_outro_texto=outro, obrigatorio=True
+        )
+        if ticket.motivo_id != mid:
+            _registrar_historico(
+                db,
+                ticket.id,
+                atendente.id,
+                "motivo_id",
+                str(ticket.motivo_id) if ticket.motivo_id is not None else "",
+                str(mid) if mid is not None else "",
+            )
+            ticket.motivo_id = mid
+        if (ticket.motivo_outro_texto or "") != (outro or ""):
+            _registrar_historico(
+                db,
+                ticket.id,
+                atendente.id,
+                "motivo_outro_texto",
+                ticket.motivo_outro_texto or "",
+                outro or "",
+            )
+            ticket.motivo_outro_texto = outro
         try:
             status_antigo = ticket.status_id
             if fechar_ticket_como_duplicado(db, duplicado=ticket, original=related, atendente=atendente):
@@ -1297,6 +1343,33 @@ def atualizar(
                     detail="Não é possível fechar este ticket enquanto existir ticket filho direto ainda em aberto.",
                 )
 
+    fechando = False
+    if "status_id" in update:
+        st_novo = db.query(StatusTicket).filter(StatusTicket.id == update["status_id"]).first()
+        if st_novo and (st_novo.slug or "").lower() == "fechado":
+            fechando = True
+
+    ticket_fechado = ticket.fechado_em is not None
+
+    if "prioridade" in update:
+        update["prioridade"] = validar_prioridade(update["prioridade"])
+
+    classificacao_mudando = "motivo_id" in update or "motivo_outro_texto" in update
+    if fechando or (ticket_fechado and classificacao_mudando):
+        mid, outro = motivo_efetivo_no_ticket(ticket, update)
+        mid, outro = validar_classificacao(
+            db, motivo_id=mid, motivo_outro_texto=outro, obrigatorio=True
+        )
+        update["motivo_id"] = mid
+        update["motivo_outro_texto"] = outro
+    elif classificacao_mudando:
+        mid, outro = motivo_efetivo_no_ticket(ticket, update)
+        mid, outro = validar_classificacao(
+            db, motivo_id=mid, motivo_outro_texto=outro, obrigatorio=False
+        )
+        update["motivo_id"] = mid
+        update["motivo_outro_texto"] = outro
+
     if "parent_ticket_id" in update:
         novo_p = update["parent_ticket_id"]
         if novo_p != ticket.parent_ticket_id:
@@ -1403,6 +1476,19 @@ def atualizar(
         antigo = str(ticket.empresa_id) if ticket.empresa_id is not None else ""
         novo = str(novo_eid) if novo_eid is not None else ""
         _registrar_historico(db, ticket.id, atendente.id, "empresa_id", antigo, novo)
+
+    if "prioridade" in update:
+        antigo_p = ticket.prioridade.value if isinstance(ticket.prioridade, PrioridadeTicket) else str(ticket.prioridade or "normal")
+        novo_p = update["prioridade"].value if isinstance(update["prioridade"], PrioridadeTicket) else str(update["prioridade"])
+        _registrar_historico(db, ticket.id, atendente.id, "prioridade", antigo_p, novo_p)
+    if "motivo_id" in update:
+        antigo_m = str(ticket.motivo_id) if ticket.motivo_id is not None else ""
+        novo_m = str(update["motivo_id"]) if update["motivo_id"] is not None else ""
+        _registrar_historico(db, ticket.id, atendente.id, "motivo_id", antigo_m, novo_m)
+    if "motivo_outro_texto" in update:
+        antigo_o = ticket.motivo_outro_texto or ""
+        novo_o = update["motivo_outro_texto"] or ""
+        _registrar_historico(db, ticket.id, atendente.id, "motivo_outro_texto", antigo_o, novo_o)
 
     for k, v in update.items():
         setattr(ticket, k, v)
