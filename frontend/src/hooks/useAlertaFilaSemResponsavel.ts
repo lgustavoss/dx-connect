@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { notificacoes, type Notificacoes } from '../api/client'
 
-const LS_KEY_LAST_COUNT = 'dxconnect.alerta_fila_sem_responsavel.last_count'
 const LS_KEY_LAST_NAO_LIDAS = 'dxconnect.notificacoes.last_nao_lidas'
 const LS_KEY_LAST_WPP_FILA = 'dxconnect.notificacoes.last_wpp_fila'
 const LS_KEY_LAST_WPP_RESP = 'dxconnect.notificacoes.last_wpp_resp'
@@ -22,7 +21,6 @@ let currentResumo: Notificacoes.Resumo = {
   wpp_respostas_count: 0,
   total_pendencias: 0,
 }
-let prevCount: number | null = null
 let prevNaoLidas: number | null = null
 let prevWppResp: number | null = null
 let prevWppFila: number | null = null
@@ -154,12 +152,10 @@ function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean) {
     const prevWR = prevWppResp
     const prevWppFilaValue = prevWppFila
 
-    prevCount = sem
     prevNaoLidas = r.nao_lidas_count
     prevWppResp = r.wpp_respostas_count
     prevWppFila = r.wpp_fila_count
 
-    setStoredNumber(LS_KEY_LAST_COUNT, sem)
     setStoredNumber(LS_KEY_LAST_NAO_LIDAS, r.nao_lidas_count)
     setStoredNumber(LS_KEY_LAST_WPP_FILA, r.wpp_fila_count)
     setStoredNumber(LS_KEY_LAST_WPP_RESP, r.wpp_respostas_count)
@@ -226,9 +222,7 @@ export async function refetchPendenciasResumo() {
 function ensureStarted() {
   if (started) return
   started = true
-  prevCount = getStoredNumber(LS_KEY_LAST_COUNT)
   prevNaoLidas = getStoredNumber(LS_KEY_LAST_NAO_LIDAS)
-  // Só precisamos do "último valor" para evitar beep duplicado por refresh.
   // Carregamos o último valor conhecido da fila de WPP para detectar aumentos originados
   // por chats (para tocar `alerta.mp3` apenas nesses casos).
   prevWppFila = getStoredNumber(LS_KEY_LAST_WPP_FILA)

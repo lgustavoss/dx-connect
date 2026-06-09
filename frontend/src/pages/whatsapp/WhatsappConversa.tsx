@@ -559,7 +559,6 @@ useEffect(() => {
   const isResponsavel = user?.role === 'admin' || (chat?.atendente_id === user?.id)
 
   const podeEnviar = chat?.estado === 'em_atendimento' && isResponsavel && !encerrado
-  const podeComentarInterno = Boolean(chat && !encerrado && chat.estado === 'em_atendimento')
 
 
 
