@@ -6,9 +6,13 @@ O workflow [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) faz
 2. **`rsync`** da pasta `frontend/dist/` para o caminho no VPS (`DEPLOY_FRONTEND_DIST`).
 3. **SSH** no servidor: `git pull`, `alembic upgrade head`, `docker compose -f docker-compose.prod.yml up -d --build`.
 
-Disparo automático em **push** para **`staging`** quando mudam `backend/`, `frontend/`, `docker-compose.prod.yml` ou o próprio workflow. A branch **`main`** não dispara deploy (integração/testes); use merge ou push em **`staging`** para produção. Também pode rodar manualmente em **Actions → Deploy → Run workflow**.
+Disparo automático em **push** para **`staging`** quando mudam `backend/`, `frontend/`, `docker-compose.prod.yml` ou o próprio workflow. A branch **`main`** não dispara deploy (último estágio de testes/integração); após validar em `main`, abra PR **`main → staging`**, merge e o deploy roda no VPS. Também pode rodar manualmente em **Actions → Deploy → Run workflow**.
 
-**Importante:** não defina `DEPLOY_GIT_REF=main` nos secrets se o ambiente de produção simulada segue a branch **`staging`** — isso fazia o frontend atualizar e o backend continuar na `main` (rotas novas como `/v1/settings/empresa-sistema` respondiam 404).
+**Importante:** não defina `DEPLOY_GIT_REF=main` nos secrets se o ambiente de produção segue a branch **`staging`** — isso fazia o frontend atualizar e o backend continuar na `main` (rotas novas como `/v1/settings/empresa-sistema` respondiam 404).
+
+### Banner “staging had recent pushes” na aba Pull requests
+
+Depois de mergear um release **`main → staging`**, o GitHub exibe um aviso amarelo sugerindo **Compare & pull request**. Isso é **comportamento nativo** (a branch `staging` acabou de receber push) e **não indica erro**. **Ignore o botão** — ele abriria PR na direção **`staging → main`**, oposta ao fluxo correto. Não há configuração no GitHub para desligar esse aviso enquanto o deploy continuar em push para `staging`.
 
 ## Secrets no GitHub
 
