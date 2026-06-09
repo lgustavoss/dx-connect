@@ -25,6 +25,7 @@ import { useAlertaFilaSemResponsavel } from '../hooks/useAlertaFilaSemResponsave
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { exibirProtocolo } from '../lib/exibirProtocolo'
+import { rotuloPrioridade, classeBadgePrioridade } from '../lib/ticketPrioridade'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 
 type ColunaOrdenacao =
@@ -610,6 +611,16 @@ export function Tickets() {
                         <span className="font-medium text-slate-600 dark:text-slate-300">Resp.:</span>{' '}
                         {t.atendente_nome ?? 'Na fila'}
                       </span>
+                      <span className="truncate">
+                        <span className="font-medium text-slate-600 dark:text-slate-300">Prior.:</span>{' '}
+                        {rotuloPrioridade(t.prioridade)}
+                      </span>
+                      {t.motivo_nome ? (
+                        <span className="truncate">
+                          <span className="font-medium text-slate-600 dark:text-slate-300">Motivo:</span>{' '}
+                          {t.motivo_nome}
+                        </span>
+                      ) : null}
                       {situacao === 'fechados' && (
                         <span className="truncate">
                           <span className="font-medium text-slate-600 dark:text-slate-300">Fechado em:</span>{' '}
@@ -682,6 +693,8 @@ export function Tickets() {
                     }}
                     className="hidden px-4 py-3 md:table-cell sm:px-6"
                   />
+                  <th className="hidden px-4 py-3 md:table-cell sm:px-6">Prioridade</th>
+                  <th className="hidden px-4 py-3 lg:table-cell sm:px-6">Motivo</th>
                   {situacao === 'fechados' ? (
                     <CabecalhoOrdenavel
                       coluna="fechado_em"
@@ -766,6 +779,26 @@ export function Tickets() {
                     </td>
                     <td className="hidden px-4 py-3.5 align-top font-medium text-slate-900 md:table-cell sm:px-6 dark:text-slate-100" title={t.assunto}>
                       <span className="block break-words whitespace-normal leading-snug">{t.assunto}</span>
+                    </td>
+                    <td className="hidden px-4 py-3.5 align-top md:table-cell sm:px-6">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${classeBadgePrioridade(t.prioridade)}`}
+                      >
+                        {rotuloPrioridade(t.prioridade)}
+                      </span>
+                    </td>
+                    <td
+                      className="hidden px-4 py-3.5 align-top text-slate-600 lg:table-cell sm:px-6 dark:text-slate-400"
+                      title={t.motivo_outro_texto ?? undefined}
+                    >
+                      <span className="block break-words whitespace-normal leading-snug">
+                        {t.motivo_nome ?? '—'}
+                        {t.motivo_outro_texto ? (
+                          <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
+                            {t.motivo_outro_texto}
+                          </span>
+                        ) : null}
+                      </span>
                     </td>
                     {situacao === 'fechados' ? (
                       <td className="whitespace-nowrap px-4 py-3.5 align-top text-slate-600 sm:px-6 dark:text-slate-400">

@@ -3,6 +3,22 @@
 from __future__ import annotations
 
 
+def _seed_motivo_fechamento(db_session):
+    from app.models.ticket_classificacao import TicketMotivo, TicketNatureza
+
+    n = TicketNatureza(nome="Dúvida", slug="duvida", ordem=20, ativo=True)
+    db_session.add(n)
+    db_session.flush()
+    m = TicketMotivo(natureza_id=n.id, nome="Operacional", slug="operacional", ordem=10, ativo=True)
+    db_session.add(m)
+    db_session.commit()
+    return m
+
+
+def _payload_duplicado(related_id: int, motivo_id: int, **extra):
+    return {"related_ticket_id": related_id, "tipo": "duplicado_de", "motivo_id": motivo_id, **extra}
+
+
 def _ensure_status_fechado(db_session):
     from sqlalchemy import func
 
@@ -37,6 +53,7 @@ def _create_ticket(client, auth_headers, seed_base, assunto: str = "Ticket base"
 
 def test_criar_vinculo_duplicado_e_relacionado(client, seed_base, auth_headers, db_session):
     _ensure_status_fechado(db_session)
+    motivo = _seed_motivo_fechamento(db_session)
     a = _create_ticket(client, auth_headers, seed_base, "Original")
     b = _create_ticket(client, auth_headers, seed_base, "Cópia")
     c = _create_ticket(client, auth_headers, seed_base, "Outro")
@@ -44,7 +61,7 @@ def test_criar_vinculo_duplicado_e_relacionado(client, seed_base, auth_headers, 
     r1 = client.post(
         f"/v1/tickets/{b['id']}/vinculos",
         headers=auth_headers["admin"],
-        json={"related_ticket_id": a["id"], "tipo": "duplicado_de"},
+        json=_payload_duplicado(a["id"], motivo.id),
     )
     assert r1.status_code == 201, r1.text
     j1 = r1.json()
@@ -92,9 +109,10 @@ def test_nao_vincula_a_si(client, seed_base, auth_headers):
 
 def test_vinculo_duplicado_rejeitado(client, seed_base, auth_headers, db_session):
     _ensure_status_fechado(db_session)
+    motivo = _seed_motivo_fechamento(db_session)
     a = _create_ticket(client, auth_headers, seed_base, "A")
     b = _create_ticket(client, auth_headers, seed_base, "B")
-    payload = {"related_ticket_id": a["id"], "tipo": "duplicado_de"}
+    payload = _payload_duplicado(a["id"], motivo.id)
     assert client.post(f"/v1/tickets/{b['id']}/vinculos", headers=auth_headers["admin"], json=payload).status_code == 201
     r2 = client.post(f"/v1/tickets/{b['id']}/vinculos", headers=auth_headers["admin"], json=payload)
     assert r2.status_code == 400

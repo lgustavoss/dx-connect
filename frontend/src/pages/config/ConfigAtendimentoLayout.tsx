@@ -6,6 +6,7 @@ const TABS = [
   { to: '/configuracoes/atendimento/setores', label: 'Setores' },
   { to: '/configuracoes/atendimento/atendentes', label: 'Atendentes' },
   { to: '/configuracoes/atendimento/status-ticket', label: 'Status de ticket' },
+  { to: '/configuracoes/atendimento/natureza-motivo', label: 'Natureza e motivo' },
   { to: '/configuracoes/atendimento/respostas-prontas', label: 'Respostas prontas' },
 ] as const
 
@@ -13,6 +14,7 @@ const TAB_HINTS: Record<string, string> = {
   setores: 'Áreas de atuação dos atendentes (suporte, financeiro, comercial…).',
   atendentes: 'Usuários internos que operam tickets e o chat.',
   'status-ticket': 'Etapas do fluxo de chamados (aberto, em atendimento, encerrado…).',
+  'natureza-motivo': 'Categorias (natureza) e itens específicos (motivo) usados ao encerrar tickets.',
   'respostas-prontas': 'Macros reutilizáveis ao responder tickets — globais ou por setor.',
 }
 
@@ -29,7 +31,7 @@ export function ConfigAtendimentoLayout() {
     <PageContainer>
       <PageHeader
         title="Atendimento"
-        subtitle="Setores, equipe, status de ticket e respostas prontas."
+        subtitle="Setores, equipe, status, classificação e respostas prontas."
       />
       <ConfigSectionTabs tabs={[...TABS]} ariaLabel="Seções de atendimento" />
       {hint ? <p className="text-sm text-slate-600 dark:text-slate-400">{hint}</p> : null}

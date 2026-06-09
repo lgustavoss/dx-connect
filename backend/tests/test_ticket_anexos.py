@@ -55,15 +55,25 @@ def test_anexo_respeita_rbac_ticket(client, seed_base, auth_headers):
 
 def test_nao_permite_upload_em_ticket_fechado(client, seed_base, auth_headers, db_session):
     from app.models import StatusTicket
+    from app.models.ticket_classificacao import TicketMotivo, TicketNatureza
 
     # Cria status Fechado.
     fechado = StatusTicket(nome="Fechado", slug="fechado", ordem=99, ativo=True)
     db_session.add(fechado)
+    n = TicketNatureza(nome="Dúvida", slug="duvida", ordem=20, ativo=True)
+    db_session.add(n)
+    db_session.flush()
+    m = TicketMotivo(natureza_id=n.id, nome="Operacional", slug="operacional", ordem=10, ativo=True)
+    db_session.add(m)
     db_session.commit()
     db_session.refresh(fechado)
 
     t = _create_ticket(client, auth_headers["admin"], seed_base["empresa"].id, seed_base["setor1"].id)
-    r = client.patch(f"/v1/tickets/{t['id']}", headers=auth_headers["admin"], json={"status_id": fechado.id})
+    r = client.patch(
+        f"/v1/tickets/{t['id']}",
+        headers=auth_headers["admin"],
+        json={"status_id": fechado.id, "motivo_id": m.id},
+    )
     assert r.status_code == 200, r.text
 
     up = client.post(

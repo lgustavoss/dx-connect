@@ -1129,6 +1129,83 @@ export namespace FuncionariosRede {
   }
 }
 
+export const ticketClassificacao = {
+  listNaturezas: (params?: {
+    incluir_inativos?: boolean
+    busca?: string
+    offset?: number
+    limit?: number
+    ordenar_por?: 'nome' | 'slug' | 'ordem' | 'ativo'
+    ordem?: 'asc' | 'desc'
+  }) => listPaginated<TicketClassificacao.Natureza>('/ticket-naturezas', params),
+  createNatureza: (data: TicketClassificacao.NaturezaCreate) =>
+    api<TicketClassificacao.Natureza>('/ticket-naturezas', { method: 'POST', body: JSON.stringify(data) }),
+  updateNatureza: (id: number, data: TicketClassificacao.NaturezaUpdate) =>
+    api<TicketClassificacao.Natureza>(`/ticket-naturezas/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  listMotivos: (params?: {
+    natureza_id?: number
+    incluir_inativos?: boolean
+    busca?: string
+    offset?: number
+    limit?: number
+    ordenar_por?: 'nome' | 'slug' | 'ordem' | 'ativo'
+    ordem?: 'asc' | 'desc'
+  }) => listPaginated<TicketClassificacao.Motivo>('/ticket-motivos', params),
+  createMotivo: (data: TicketClassificacao.MotivoCreate) =>
+    api<TicketClassificacao.Motivo>('/ticket-motivos', { method: 'POST', body: JSON.stringify(data) }),
+  updateMotivo: (id: number, data: TicketClassificacao.MotivoUpdate) =>
+    api<TicketClassificacao.Motivo>(`/ticket-motivos/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+}
+
+export namespace TicketClassificacao {
+  export interface Natureza {
+    id: number
+    nome: string
+    slug: string
+    ordem: number
+    ativo: boolean
+    created_at?: string | null
+    updated_at?: string | null
+  }
+  export interface NaturezaCreate {
+    nome: string
+    slug: string
+    ordem?: number
+    ativo?: boolean
+  }
+  export interface NaturezaUpdate {
+    nome?: string
+    slug?: string
+    ordem?: number
+    ativo?: boolean
+  }
+  export interface Motivo {
+    id: number
+    natureza_id: number
+    nome: string
+    slug: string
+    ordem: number
+    ativo: boolean
+    natureza_nome?: string | null
+    created_at?: string | null
+    updated_at?: string | null
+  }
+  export interface MotivoCreate {
+    natureza_id: number
+    nome: string
+    slug: string
+    ordem?: number
+    ativo?: boolean
+  }
+  export interface MotivoUpdate {
+    natureza_id?: number
+    nome?: string
+    slug?: string
+    ordem?: number
+    ativo?: boolean
+  }
+}
+
 export const pdvRotulos = {
   list: (params?: { incluir_inativos?: boolean; busca?: string; offset?: number; limit?: number }) =>
     listPaginated<PdvCatalogo.Item>('/pdv-rotulos', params),
@@ -1317,6 +1394,12 @@ export namespace Tickets {
     status_nome?: string;
     atendente_nome?: string;
     parent_ticket_id?: number | null;
+    prioridade?: import('../lib/ticketPrioridade').PrioridadeTicket;
+    motivo_id?: number | null;
+    motivo_nome?: string | null;
+    motivo_outro_texto?: string | null;
+    natureza_id?: number | null;
+    natureza_nome?: string | null;
     parent?: TicketParentBrief | null;
     children?: TicketChildBrief[];
     vinculos?: TicketVinculo[];
@@ -1340,6 +1423,8 @@ export namespace Tickets {
     related_ticket_id: number;
     tipo: TicketVinculoTipo;
     fechar_como_duplicado?: boolean;
+    motivo_id?: number | null;
+    motivo_outro_texto?: string | null;
   }
   export interface FilhoMassaEmpresaOpcao {
     id: number;
@@ -1388,6 +1473,7 @@ export namespace Tickets {
     descricao?: string;
     aberto_por_id?: number;
     parent_ticket_id?: number | null;
+    prioridade?: import('../lib/ticketPrioridade').PrioridadeTicket;
   }
   export type MensagemTipo = 'abertura' | 'publico' | 'interno';
 
@@ -1429,6 +1515,9 @@ export namespace Tickets {
     status_id?: number;
     atendente_id?: number | null;
     parent_ticket_id?: number | null;
+    prioridade?: import('../lib/ticketPrioridade').PrioridadeTicket;
+    motivo_id?: number | null;
+    motivo_outro_texto?: string | null;
   }
 
   export type AnexoVisibilidade = 'publico' | 'interno'
