@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
+import { rotuloResponsavelChat } from '../../lib/whatsappChatMeta'
 
 // Componente para cálculo de tempo de espera
 function TempoEspera({ data }: { data?: string | null }) {
@@ -132,6 +133,11 @@ export function WhatsappAtendendo() {
                         </div>
                         <h3 className="truncate font-bold text-slate-900 dark:text-slate-100">{c.cliente_nome || 'Cliente'}</h3>
                         <p className="font-mono text-xs text-slate-500">{c.wa_id}</p>
+                        {c.setor_nome && (
+                          <p className="mt-1 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                            Setor {c.setor_nome}
+                          </p>
+                        )}
                       </div>
                       <div className="h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]" />
                     </div>
@@ -191,6 +197,10 @@ export function WhatsappAtendendo() {
                           {c.cliente_nome || 'Cliente'}
                         </h3>
                         <p className="text-xs text-slate-400 font-mono mt-1">{c.wa_id}</p>
+                        <p className="mt-2 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                          {rotuloResponsavelChat(c)}
+                          {c.setor_nome ? ` • ${c.setor_nome}` : ''}
+                        </p>
                       </div>
                       
                       <div className="flex items-center justify-end border-t pt-3 dark:border-slate-800">

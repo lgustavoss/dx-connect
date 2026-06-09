@@ -9,6 +9,10 @@ from app.models.whatsapp_chat import WhatsappChat, WhatsappMensagem, WhatsappSet
 from app.services import evolution_api
 from app.services.protocolo_mensal import gerar_protocolo_chat
 from app.services.evolution_inbound import iter_inbound_whatsapp_messages
+from app.services.whatsapp_auto_messages import (
+    DEFAULT_AUTO_MSG_ESPERA,
+    DEFAULT_AUTO_MSG_FORA_HORARIO,
+)
 from app.services.whatsapp_media_storage import gravar_base64_em_disco
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -88,7 +92,11 @@ def _try_auto_msg_espera(db: Session, st: WhatsappSettings | None, chat: Whatsap
         return
     if not bool(getattr(st, "auto_msg_espera_ativa", True)):
         return
-    txt = _render_template(getattr(st, "auto_msg_espera_texto", "") or "", chat=chat, st=st)
+    txt = _render_template(
+        (getattr(st, "auto_msg_espera_texto", "") or "").strip() or DEFAULT_AUTO_MSG_ESPERA,
+        chat=chat,
+        st=st,
+    )
     if not txt:
         return
     if not txt.startswith("["):
@@ -101,8 +109,9 @@ def _try_auto_msg_espera(db: Session, st: WhatsappSettings | None, chat: Whatsap
     if exist:
         return
     if not st.evolution_base_url or not st.evolution_instance_name or not st.evolution_api_key:
+        logger.warning("Auto-msg espera ignorada: integração Evolution incompleta (wa_id=%s)", chat.wa_id)
         return
-    ok, err = evolution_api.evolution_send_text(
+    ok, err, sent_wa_id = evolution_api.evolution_send_text(
         st.evolution_base_url,
         st.evolution_instance_name,
         st.evolution_api_key,
@@ -120,7 +129,7 @@ def _try_auto_msg_espera(db: Session, st: WhatsappSettings | None, chat: Whatsap
             tipo_midia="texto",
             mimetype=None,
             midia_nome_arquivo=None,
-            wa_message_id=None,
+            wa_message_id=sent_wa_id,
             atendente_id=None,
             evento_sistema="auto_espera",
         )
@@ -258,7 +267,11 @@ def _try_auto_msg_fora_horario(db: Session, st: WhatsappSettings | None, chat: W
         return
     if _esta_no_horario(st):
         return
-    txt = _render_template(getattr(st, "auto_msg_fora_horario_texto", "") or "", chat=chat, st=st)
+    txt = _render_template(
+        (getattr(st, "auto_msg_fora_horario_texto", "") or "").strip() or DEFAULT_AUTO_MSG_FORA_HORARIO,
+        chat=chat,
+        st=st,
+    )
     if not txt:
         return
     if not txt.startswith("["):
@@ -271,8 +284,9 @@ def _try_auto_msg_fora_horario(db: Session, st: WhatsappSettings | None, chat: W
     if exist:
         return
     if not st.evolution_base_url or not st.evolution_instance_name or not st.evolution_api_key:
+        logger.warning("Auto-msg fora do horário ignorada: integração Evolution incompleta (wa_id=%s)", chat.wa_id)
         return
-    ok, err = evolution_api.evolution_send_text(
+    ok, err, sent_wa_id = evolution_api.evolution_send_text(
         st.evolution_base_url,
         st.evolution_instance_name,
         st.evolution_api_key,
@@ -290,7 +304,7 @@ def _try_auto_msg_fora_horario(db: Session, st: WhatsappSettings | None, chat: W
             tipo_midia="texto",
             mimetype=None,
             midia_nome_arquivo=None,
-            wa_message_id=None,
+            wa_message_id=sent_wa_id,
             atendente_id=None,
             evento_sistema="auto_fora_horario",
         )
