@@ -172,6 +172,50 @@ def test_webhook_guarda_citacao_em_mensagem(client, seed_base, auth_headers):
     assert "original" in (last.get("quoted_corpo_preview") or "").lower()
 
 
+def test_webhook_boas_vindas_usa_nome_empresa_exibicao(client, seed_base, auth_headers, monkeypatch):
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={
+            "webhook_secret": "emp-wpp",
+            "nome_empresa_exibicao": "DX Connect",
+            "evolution_base_url": "http://evolution.test",
+            "evolution_instance_name": "inst",
+            "evolution_api_key": "key-test",
+        },
+        headers=auth_headers["admin"],
+    )
+
+    sent: list[str] = []
+
+    def fake_send(_base, _inst, _key, number_digits, text, **_kw):
+        sent.append(text)
+        return True, None, "out-welcome-1"
+
+    monkeypatch.setattr("app.api.whatsapp_webhook.evolution_api.evolution_send_text", fake_send)
+
+    h = {"X-Dx-Webhook-Secret": "emp-wpp"}
+    body = {
+        "event": "messages.upsert",
+        "data": {
+            "messages": [
+                {
+                    "key": {
+                        "remoteJid": "5511777888999@s.whatsapp.net",
+                        "fromMe": False,
+                        "id": "welcome-emp-1",
+                    },
+                    "message": {"conversation": "Oi"},
+                }
+            ]
+        },
+    }
+    r = client.post("/v1/webhooks/evolution", json=body, headers=h)
+    assert r.status_code == 200
+    assert sent, "deveria enviar boas-vindas"
+    assert "DX Connect" in sent[0]
+    assert "nossa empresa" not in sent[0]
+
+
 def test_webhook_guarda_citacao_formato_evolution(client, seed_base, auth_headers):
     """Evolution prepareMessage coloca contextInfo no envelope, não dentro de extendedTextMessage."""
     client.patch(
