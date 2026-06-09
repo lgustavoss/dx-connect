@@ -25,6 +25,7 @@ import { FuncionariosRede } from './pages/FuncionariosRede'
 import { FuncionarioRedeDetalhe } from './pages/FuncionarioRedeDetalhe'
 import { FuncionarioRedeForm } from './pages/FuncionarioRedeForm'
 import { StatusTicketPage } from './pages/StatusTicket'
+import { TicketNaturezaMotivoPage } from './pages/TicketNaturezaMotivo'
 import { StatusTicketForm } from './pages/StatusTicketForm'
 import { StatusTicketDetalhe } from './pages/StatusTicketDetalhe'
 import { RespostasProntasPage } from './pages/RespostasProntas'
@@ -336,6 +337,7 @@ function AppRoutes() {
           <Route path="setores" element={<Setores embedded />} />
           <Route path="atendentes" element={<Atendentes embedded />} />
           <Route path="status-ticket" element={<StatusTicketPage embedded />} />
+          <Route path="natureza-motivo" element={<TicketNaturezaMotivoPage embedded />} />
           <Route path="respostas-prontas" element={<RespostasProntasPage embedded />} />
         </Route>
         <Route

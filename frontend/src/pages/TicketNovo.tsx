@@ -14,6 +14,7 @@ import { FormSection } from '../components/ui/FormSection'
 import { CheckboxField } from '../components/ui/CheckboxField'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
+import { PRIORIDADE_OPCOES, type PrioridadeTicket } from '../lib/ticketPrioridade'
 const MAX_ANEXO_BYTES = 25 * 1024 * 1024
 const MAX_ANEXOS_COUNT = 10
 
@@ -36,6 +37,7 @@ export function TicketNovo() {
   const [setorId, setSetorId] = useState<number | ''>('')
   const [assunto, setAssunto] = useState('')
   const [descricao, setDescricao] = useState('')
+  const [prioridade, setPrioridade] = useState<PrioridadeTicket>('normal')
   const [anexosSelecionados, setAnexosSelecionados] = useState<File[]>([])
   const [loading, setLoading] = useState(false)
   const anexosInputRef = useRef<HTMLInputElement>(null)
@@ -198,6 +200,7 @@ export function TicketNovo() {
         setor_id: Number(setorId),
         assunto: assunto.trim(),
         descricao: descricao.trim(),
+        prioridade,
         ...(paiResumo ? { parent_ticket_id: paiResumo.id } : {}),
       }
       if (modoCoordenacao) {
@@ -369,6 +372,13 @@ export function TicketNovo() {
             </FormSection>
 
             <FormSection title="Solicitação">
+              <Select
+                label="Prioridade"
+                value={prioridade}
+                onChange={(v) => setPrioridade(v as PrioridadeTicket)}
+                options={PRIORIDADE_OPCOES.map((o) => ({ value: o.value, label: o.label }))}
+                disabled={formDesabilitado}
+              />
               <Input
                 label="Assunto (resumo) *"
                 value={assunto}

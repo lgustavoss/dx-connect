@@ -31,6 +31,7 @@ from app.api import (
     resend_inbound_webhook,
     respostas_prontas,
     pdv_catalogos,
+    ticket_catalogos,
     empresa_pdvs,
     system_settings,
     tenant,
@@ -278,6 +279,7 @@ app.include_router(email_inbound_webhook.router, prefix=API_V1_PREFIX)
 app.include_router(resend_inbound_webhook.router, prefix=API_V1_PREFIX)
 app.include_router(respostas_prontas.router, prefix=API_V1_PREFIX)
 app.include_router(pdv_catalogos.router, prefix=API_V1_PREFIX)
+app.include_router(ticket_catalogos.router, prefix=API_V1_PREFIX)
 app.include_router(empresa_pdvs.router, prefix=API_V1_PREFIX)
 app.include_router(system_settings.router, prefix=API_V1_PREFIX)
 app.include_router(tenant.router, prefix=API_V1_PREFIX)
@@ -290,6 +292,7 @@ def _app_capabilities() -> dict[str, bool]:
         "settings_email": "/v1/settings/email" in paths,
         "tenant_atual": "/v1/tenant/atual" in paths,
         "pdv_catalogos": "/v1/pdv-rotulos" in paths,
+        "ticket_catalogos": "/v1/ticket-naturezas" in paths,
         "empresa_pdvs": "/v1/empresas/{empresa_id}/pdvs" in paths
         or any(p.startswith("/v1/empresas/") and "/pdvs" in p for p in paths),
         "multi_tenant_mode": settings.DX_CONNECT_MULTI_TENANT,

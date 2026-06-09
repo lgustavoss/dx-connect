@@ -1,7 +1,8 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum as SAEnum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
+from app.core.ticket_prioridade import PrioridadeTicket
 from app.database import Base
 
 
@@ -18,6 +19,13 @@ class Ticket(Base):
     atendente_id = Column(Integer, ForeignKey("atendentes.id"), nullable=True)  # responsável
     aberto_por_id = Column(Integer, ForeignKey("funcionarios_rede.id"), nullable=True)  # quem abriu (portal futuro)
     parent_ticket_id = Column(Integer, ForeignKey("tickets.id", ondelete="SET NULL"), nullable=True)
+    prioridade = Column(
+        SAEnum(PrioridadeTicket, name="ticket_prioridade", native_enum=False, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        server_default=PrioridadeTicket.normal.value,
+    )
+    motivo_id = Column(Integer, ForeignKey("ticket_motivos.id", ondelete="SET NULL"), nullable=True, index=True)
+    motivo_outro_texto = Column(String(255), nullable=True)
     assunto = Column(String(500), nullable=False)
     descricao = Column(Text, nullable=True)
     fechado_em = Column(DateTime(timezone=True), nullable=True)
@@ -28,6 +36,7 @@ class Ticket(Base):
     rede = relationship("Rede", back_populates="tickets")
     setor = relationship("Setor", back_populates="tickets")
     status = relationship("StatusTicket", back_populates="tickets")
+    motivo = relationship("TicketMotivo", back_populates="tickets")
     atendente = relationship("Atendente", back_populates="tickets_atendidos")
     aberto_por = relationship("FuncionarioRede", back_populates="tickets_abertos")
     parent = relationship(
