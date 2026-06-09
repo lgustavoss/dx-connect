@@ -88,6 +88,18 @@ def evolution_connection_state_json(
     return _request_json("GET", url, headers=headers)
 
 
+def _extract_wa_message_id(data: Any) -> str | None:
+    if not isinstance(data, dict):
+        return None
+    key = data.get("key") or data.get("Key")
+    if isinstance(key, dict):
+        mid = key.get("id") or key.get("Id")
+        if mid:
+            s = str(mid).strip()
+            return s or None
+    return None
+
+
 def evolution_send_text(
     base_url: str,
     instance: str,
@@ -96,7 +108,7 @@ def evolution_send_text(
     text: str,
     *,
     quoted: dict[str, Any] | None = None,
-) -> tuple[bool, str | None]:
+) -> tuple[bool, str | None, str | None]:
     base = base_url.rstrip("/")
     path = f"/message/sendText/{instance}"
     url = base + path
@@ -104,17 +116,17 @@ def evolution_send_text(
     body: dict[str, Any] = {"number": number_digits, "text": text}
     if quoted:
         body["quoted"] = quoted
-    code, _data, err = _request_json(
+    code, data, err = _request_json(
         "POST",
         url,
         headers=headers,
         body=body,
     )
     if code in (200, 201):
-        return True, None
+        return True, None, _extract_wa_message_id(data)
     if err:
-        return False, err[:800]
-    return False, f"HTTP {code}"
+        return False, err[:800], None
+    return False, f"HTTP {code}", None
 
 
 def evolution_send_media(
@@ -129,7 +141,7 @@ def evolution_send_media(
     media_base64: str,
     file_name: str,
     quoted: dict[str, Any] | None = None,
-) -> tuple[bool, str | None]:
+) -> tuple[bool, str | None, str | None]:
     """POST /message/sendMedia/{instance} — mediatype típico: image | video | audio | document."""
     base = base_url.rstrip("/")
     url = f"{base}/message/sendMedia/{instance}"
@@ -144,12 +156,12 @@ def evolution_send_media(
     }
     if quoted:
         body["quoted"] = quoted
-    code, _data, err = _request_json("POST", url, headers=headers, body=body, timeout=120)
+    code, data, err = _request_json("POST", url, headers=headers, body=body, timeout=120)
     if code in (200, 201):
-        return True, None
+        return True, None, _extract_wa_message_id(data)
     if err:
-        return False, err[:1200]
-    return False, f"HTTP {code}"
+        return False, err[:1200], None
+    return False, f"HTTP {code}", None
 
 
 def _extrair_base64_resposta(data: Any) -> str | None:

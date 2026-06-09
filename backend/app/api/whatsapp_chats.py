@@ -1,4 +1,6 @@
 import base64
+import logging
+import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
@@ -29,9 +31,15 @@ from app.api.tickets import _gerar_protocolo, _pode_ver_ticket
 from app.core.setor_scope import ids_setores_visiveis_atendente
 from app.config import settings
 from app.services import evolution_api
+from app.services.whatsapp_auto_messages import (
+    DEFAULT_AUTO_MSG_ASSUMIDO,
+    DEFAULT_AUTO_MSG_ENCERRADO,
+)
 from app.services.whatsapp_media_storage import caminho_absoluto_arquivo, gravar_bytes_em_disco
 
 router = APIRouter(prefix="/whatsapp/chats", tags=["whatsapp-chats"])
+
+logger = logging.getLogger(__name__)
 
 _MAX_PAGE = 100
 _DEFAULT_PAGE = 20
@@ -57,13 +65,43 @@ def _settings_envio(db: Session) -> WhatsappSettings:
     return row
 
 
-def _quoted_evolution_payload(db: Session, chat_id: int, quoted_wa_message_id: str) -> dict:
+def _evolution_configurada(st: WhatsappSettings | None) -> bool:
+    return bool(
+        st
+        and st.evolution_base_url
+        and st.evolution_instance_name
+        and st.evolution_api_key
+    )
+
+
+def _remote_jid_from_wa_id(wa_id: str) -> str:
+    digits = re.sub(r"\D", "", wa_id or "")
+    return f"{digits}@s.whatsapp.net" if digits else ""
+
+
+def _quoted_message_body(ref: WhatsappMensagem) -> dict:
+    corpo = (ref.corpo or "").strip()
+    tipo = (ref.tipo_midia or "texto").strip().lower()
+    if tipo in ("", "texto"):
+        return {"conversation": corpo[:2000] or " "}
+    if tipo == "imagem":
+        return {"imageMessage": {"caption": corpo[:200]}} if corpo else {"conversation": "[Imagem]"}
+    if tipo == "video":
+        return {"videoMessage": {"caption": corpo[:200]}} if corpo else {"conversation": "[Vídeo]"}
+    if tipo == "audio":
+        return {"conversation": "[Áudio]"}
+    if tipo == "figurinha":
+        return {"conversation": "[Figurinha]"}
+    return {"conversation": corpo[:200] or "[Documento]"}
+
+
+def _quoted_evolution_payload(db: Session, chat: WhatsappChat, quoted_wa_message_id: str) -> dict:
     q = (quoted_wa_message_id or "").strip()
     if not q:
         raise HTTPException(status_code=400, detail="Citação inválida.")
     ref = (
         db.query(WhatsappMensagem)
-        .filter(WhatsappMensagem.chat_id == chat_id, WhatsappMensagem.wa_message_id == q)
+        .filter(WhatsappMensagem.chat_id == chat.id, WhatsappMensagem.wa_message_id == q)
         .first()
     )
     if not ref:
@@ -72,8 +110,16 @@ def _quoted_evolution_payload(db: Session, chat_id: int, quoted_wa_message_id: s
             detail="Mensagem citada não encontrada neste chat (use o id da mensagem no WhatsApp, "
             "campo wa_message_id na listagem de mensagens).",
         )
-    pv = ((ref.corpo or "").strip()[:2000] or " ")
-    return {"key": {"id": q}, "message": {"conversation": pv}}
+    remote_jid = _remote_jid_from_wa_id(chat.wa_id)
+    from_me = ref.direcao == "outbound"
+    return {
+        "key": {
+            "id": q,
+            "remoteJid": remote_jid,
+            "fromMe": from_me,
+        },
+        "message": _quoted_message_body(ref),
+    }
 
 
 def _preview_citacao(ref: WhatsappMensagem) -> str | None:
@@ -183,14 +229,14 @@ def _enviar_texto_whatsapp(
     q_prev: str | None = None
     if quoted_wa_message_id and str(quoted_wa_message_id).strip() and evento_sistema is None:
         q_wa = str(quoted_wa_message_id).strip()
-        quoted_payload = _quoted_evolution_payload(db, chat.id, q_wa)
+        quoted_payload = _quoted_evolution_payload(db, chat, q_wa)
         ref = (
             db.query(WhatsappMensagem)
             .filter(WhatsappMensagem.chat_id == chat.id, WhatsappMensagem.wa_message_id == q_wa)
             .first()
         )
         q_prev = _preview_citacao(ref) if ref else None
-    ok, err = evolution_api.evolution_send_text(
+    ok, err, sent_wa_id = evolution_api.evolution_send_text(
         st.evolution_base_url,
         st.evolution_instance_name,
         st.evolution_api_key,
@@ -207,7 +253,7 @@ def _enviar_texto_whatsapp(
         tipo_midia="texto",
         mimetype=None,
         midia_nome_arquivo=None,
-        wa_message_id=None,
+        wa_message_id=sent_wa_id,
         quoted_wa_message_id=q_wa,
         quoted_corpo_preview=q_prev,
         atendente_id=atendente.id if atendente else None,
@@ -462,9 +508,10 @@ def assumir(
     db.commit()
     db.refresh(c)
     st_auto = db.query(WhatsappSettings).order_by(WhatsappSettings.id.asc()).first()
-    if st_auto and bool(getattr(st_auto, "auto_msg_assumido_ativa", True)):
+    if st_auto and bool(getattr(st_auto, "auto_msg_assumido_ativa", True)) and _evolution_configurada(st_auto):
+        raw = (getattr(st_auto, "auto_msg_assumido_texto", "") or "").strip() or DEFAULT_AUTO_MSG_ASSUMIDO
         txt = _render_template(
-            getattr(st_auto, "auto_msg_assumido_texto", "") or "",
+            raw,
             chat=c,
             atendente=atendente,
             st=st_auto,
@@ -472,7 +519,10 @@ def assumir(
             atendente_nome=(atendente.nome or "").strip() or "BOT",
         )
         if txt:
-            _enviar_texto_whatsapp(db, chat=c, texto=txt, atendente=atendente, evento_sistema="auto_assumido")
+            try:
+                _enviar_texto_whatsapp(db, chat=c, texto=txt, atendente=atendente, evento_sistema="auto_assumido")
+            except HTTPException as exc:
+                logger.warning("Auto-msg assumido falhou (chat=%s): %s", c.protocolo, exc.detail)
     c = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente)).filter(WhatsappChat.id == chat_id).first()
     assert c is not None
     return _chat_read(db, c)
@@ -502,16 +552,20 @@ def encerrar(
     db.commit()
     db.refresh(c)
     st_auto = db.query(WhatsappSettings).order_by(WhatsappSettings.id.asc()).first()
-    if st_auto and bool(getattr(st_auto, "auto_msg_encerrado_ativa", True)):
+    if st_auto and bool(getattr(st_auto, "auto_msg_encerrado_ativa", True)) and _evolution_configurada(st_auto):
+        raw = (getattr(st_auto, "auto_msg_encerrado_texto", "") or "").strip() or DEFAULT_AUTO_MSG_ENCERRADO
         txt = _render_template(
-            getattr(st_auto, "auto_msg_encerrado_texto", "") or "",
+            raw,
             chat=c,
             atendente=atendente,
             st=st_auto,
             atendente_nome="BOT",
         )
         if txt:
-            _enviar_texto_whatsapp(db, chat=c, texto=txt, atendente=atendente, evento_sistema="auto_encerrado")
+            try:
+                _enviar_texto_whatsapp(db, chat=c, texto=txt, atendente=atendente, evento_sistema="auto_encerrado")
+            except HTTPException as exc:
+                logger.warning("Auto-msg encerrado falhou (chat=%s): %s", c.protocolo, exc.detail)
     c = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente)).filter(WhatsappChat.id == chat_id).first()
     assert c is not None
     return _chat_read(db, c)
@@ -600,7 +654,7 @@ async def enviar_mensagem_midia(
     q_prev: str | None = None
     if quoted_wa_message_id and str(quoted_wa_message_id).strip():
         q_wa = str(quoted_wa_message_id).strip()
-        quoted_payload = _quoted_evolution_payload(db, chat_id, q_wa)
+        quoted_payload = _quoted_evolution_payload(db, c, q_wa)
         ref = (
             db.query(WhatsappMensagem)
             .filter(WhatsappMensagem.chat_id == chat_id, WhatsappMensagem.wa_message_id == q_wa)
@@ -608,7 +662,7 @@ async def enviar_mensagem_midia(
         )
         q_prev = _preview_citacao(ref) if ref else None
 
-    ok, err = evolution_api.evolution_send_media(
+    ok, err, sent_wa_id = evolution_api.evolution_send_media(
         st.evolution_base_url,
         st.evolution_instance_name,
         st.evolution_api_key,
@@ -630,7 +684,7 @@ async def enviar_mensagem_midia(
         tipo_midia=tipo_db,
         mimetype=mime,
         midia_nome_arquivo=nome_guardado,
-        wa_message_id=None,
+        wa_message_id=sent_wa_id,
         quoted_wa_message_id=q_wa,
         quoted_corpo_preview=q_prev,
         atendente_id=atendente.id,
@@ -857,6 +911,27 @@ def transferir(
     else:
         c.estado = "aguardando_atendente"
         c.atendimento_inicio_at = None
+
+    nome_origem = (atendente.nome or "").strip() or "Equipe"
+    if destino:
+        texto_transfer = (
+            f"Chat transferido por {nome_origem} para {destino.nome} (setor {setor.nome})."
+        )
+    else:
+        texto_transfer = f"Chat transferido por {nome_origem} para a fila do setor {setor.nome}."
+    db.add(
+        WhatsappMensagem(
+            chat_id=c.id,
+            direcao="outbound",
+            corpo=f"[ TRANSFERÊNCIA / {nome_origem} ]: {texto_transfer}",
+            tipo_midia="texto",
+            mimetype=None,
+            midia_nome_arquivo=None,
+            wa_message_id=None,
+            atendente_id=atendente.id,
+            evento_sistema="transferencia",
+        )
+    )
     db.commit()
     db.refresh(c)
     c2 = (

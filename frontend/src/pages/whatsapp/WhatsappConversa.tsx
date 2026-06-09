@@ -41,6 +41,11 @@ import { exibirProtocolo } from '../../lib/exibirProtocolo'
 import { useAuth } from '../../contexts/AuthContext'
 import { refetchPendenciasResumo } from '../../hooks/useAlertaFilaSemResponsavel'
 import { CustomAudioPlayer } from '../../components/CustomAudioPlayer'
+import {
+  mensagemTransferenciaSucesso,
+  rotuloEstadoChat,
+  rotuloResponsavelChat,
+} from '../../lib/whatsappChatMeta'
 
 
 
@@ -377,6 +382,13 @@ export function WhatsappConversa() {
 useEffect(() => {
   if (!modalTransferir) return
 
+  if (chat?.setor_id) {
+    setTransferSetorId(chat.setor_id)
+  } else {
+    setTransferSetorId('')
+  }
+  setTransferAtendenteId('')
+
   whatsappChats
     .setoresParaTransferencia()
     .then((rows) =>
@@ -393,7 +405,7 @@ useEffect(() => {
 
   setAtendentesDestino([])
   setErroAtendentesDestino(null)
-}, [modalTransferir])
+}, [modalTransferir, chat?.id, chat?.setor_id])
 
 //transferencia de setor
 useEffect(() => {
@@ -460,7 +472,7 @@ useEffect(() => {
 
   setTransferindo(true)
   try {
-    await whatsappChats.transferir(chat.id, {
+    const atualizado = await whatsappChats.transferir(chat.id, {
       setor_id,
       atendente_id,
     })
@@ -469,10 +481,17 @@ useEffect(() => {
     setTransferSetorId('')
     setTransferAtendenteId('')
 
-    await carregar()
+    setChat(atualizado)
+    await Promise.all([carregar(), carregarSidebar()])
     void refetchPendenciasResumo()
 
-    toast.showSuccess('Chat transferido.')
+    toast.showSuccess(mensagemTransferenciaSucesso(atualizado))
+
+    const aindaResponsavel =
+      user?.role === 'admin' || atualizado.atendente_id === user?.id
+    if (!aindaResponsavel && atualizado.estado === 'em_atendimento') {
+      navigate('/whatsapp/atendendo')
+    }
   } catch (err) {
     toast.showWarning(
       mensagemFalhaParaToast(err, 'Não foi possível transferir o chat.')
@@ -558,6 +577,8 @@ useEffect(() => {
 
   const isResponsavel = user?.role === 'admin' || (chat?.atendente_id === user?.id)
 
+  const podeTransferir = !encerrado && isResponsavel
+
   const podeEnviar = chat?.estado === 'em_atendimento' && isResponsavel && !encerrado
 
 
@@ -638,6 +659,9 @@ useEffect(() => {
                   <p className="truncate text-[10px] font-mono text-slate-400" title={exibirProtocolo(c.protocolo)}>
                     {exibirProtocolo(c.protocolo)}
                   </p>
+                  <p className="truncate text-[10px] text-slate-500 dark:text-slate-400">
+                    {rotuloResponsavelChat(c, user?.id)}
+                  </p>
 
                 </div>
 
@@ -669,7 +693,7 @@ useEffect(() => {
 
               <h1 className="truncate font-bold text-slate-900 dark:text-white">{chat?.cliente_nome || 'Atendimento'}</h1>
 
-              <div className="flex items-center gap-2 text-[10px]">
+              <div className="flex flex-wrap items-center gap-2 text-[10px]">
 
                 <span className="min-w-0 truncate font-mono font-bold text-cyan-600" title={exibirProtocolo(chat?.protocolo)}>
                   {exibirProtocolo(chat?.protocolo)}
@@ -677,7 +701,26 @@ useEffect(() => {
 
                 <span className="text-slate-300">•</span>
 
-                <span className={`capitalize ${encerrado ? 'text-red-500' : 'text-emerald-500'}`}>{chat?.estado.replace(/_/g, ' ')}</span>
+                <span className={`capitalize ${encerrado ? 'text-red-500' : 'text-emerald-500'}`}>
+                  {chat ? rotuloEstadoChat(chat.estado) : '—'}
+                </span>
+
+                {chat && (
+                  <>
+                    <span className="text-slate-300">•</span>
+                    <span className="truncate text-slate-600 dark:text-slate-300">
+                      Responsável: {rotuloResponsavelChat(chat, user?.id)}
+                    </span>
+                    {chat.setor_nome && (
+                      <>
+                        <span className="hidden sm:inline text-slate-300">•</span>
+                        <span className="hidden sm:inline truncate text-slate-500 dark:text-slate-400">
+                          {chat.setor_nome}
+                        </span>
+                      </>
+                    )}
+                  </>
+                )}
 
               </div>
 
@@ -693,6 +736,7 @@ useEffect(() => {
 
               <>
 
+              {podeTransferir && (
               <Button
   variant="primary"
   className="hidden sm:inline-flex text-xs h-8"
@@ -700,6 +744,7 @@ useEffect(() => {
 >
   Transferir
 </Button>
+              )}
               <Button
                 variant="ghost"
                 className="hidden sm:inline-flex text-xs h-8"
@@ -724,6 +769,13 @@ useEffect(() => {
 
         </header>
 
+        {!encerrado && chat?.estado === 'em_atendimento' && !isResponsavel && (
+          <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+            Este chat está com <strong>{chat.atendente_nome || 'outro atendente'}</strong>.
+            Você pode acompanhar em modo interno; mensagens ao cliente ficam bloqueadas.
+          </div>
+        )}
+
 
 
         {/* Mensagens (Feed) */}
@@ -744,7 +796,9 @@ useEffect(() => {
 
             const isInbound = m.direcao === 'inbound'
 
-            const isSystem = m.evento_sistema === 'comentario_interno'
+            const isSystem =
+              m.evento_sistema === 'comentario_interno' || m.evento_sistema === 'transferencia'
+            const isTransferencia = m.evento_sistema === 'transferencia'
 
            
 
@@ -767,7 +821,11 @@ useEffect(() => {
 
                 <div className={`max-w-[85%] sm:max-w-[70%] space-y-1 ${isInbound ? 'items-start' : 'items-end'}`}>
 
-                  {isSystem && <span className="text-[9px] font-bold text-amber-600 uppercase px-2">🔒 Interno</span>}
+                  {isSystem && (
+                    <span className="text-[9px] font-bold uppercase px-2 text-amber-600">
+                      {isTransferencia ? '↪ Transferência' : '🔒 Interno'}
+                    </span>
+                  )}
 
                  
 
@@ -985,6 +1043,12 @@ useEffect(() => {
   <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
     <Card className="w-full max-w-lg p-6">
       <h3 className="text-lg font-bold">Transferir Atendimento</h3>
+      {chat && (
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Responsável atual: <strong>{rotuloResponsavelChat(chat, user?.id)}</strong>
+          {chat.setor_nome ? ` • Setor ${chat.setor_nome}` : ''}
+        </p>
+      )}
 
       <div className="mt-4 space-y-4">
 
