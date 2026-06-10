@@ -35,6 +35,9 @@ class WhatsappChatRead(BaseModel):
     created_at: datetime | None = None
     atendimento_inicio_at: datetime | None = None
     encerramento_at: datetime | None = None
+    avaliacao_nota: int | None = None
+    avaliacao_respondida_at: datetime | None = None
+    avaliacao_solicitada: bool = False
     ticket_ids: list[int] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
@@ -67,3 +70,18 @@ class WhatsappAbrirTicketBody(BaseModel):
 class WhatsappTransferirChatBody(BaseModel):
     setor_id: int
     atendente_id: int | None = None
+
+
+class WhatsappAvaliacaoRead(BaseModel):
+    chat_id: int
+    protocolo: str
+    wa_id: str
+    cliente_nome: str | None = None
+    atendente_id: int | None = None
+    atendente_nome: str | None = None
+    setor_id: int | None = None
+    setor_nome: str | None = None
+    nota: int | None = None
+    avaliacao_respondida_at: datetime | None = None
+    encerramento_at: datetime | None = None
+    sem_avaliacao: bool = False

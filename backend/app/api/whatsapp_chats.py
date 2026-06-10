@@ -15,10 +15,11 @@ from app.models.status_ticket import StatusTicket
 from app.models.empresa import Empresa
 from app.models.setor import Setor
 from app.models.whatsapp_chat import WhatsappChat, WhatsappChatTicket, WhatsappMensagem, WhatsappSettings
-from app.models.whatsapp_chat_read import WhatsappChatRead
+from app.models.whatsapp_chat_read import WhatsappChatRead as WhatsappChatReadModel
 from app.schemas.lista_paginada import ListaPaginada
 from app.schemas.whatsapp_chat import (
     WhatsappAbrirTicketBody,
+    WhatsappAvaliacaoRead,
     WhatsappChatComentarioInternoCreate,
     WhatsappChatMensagemCreate,
     WhatsappChatRead,
@@ -26,7 +27,7 @@ from app.schemas.whatsapp_chat import (
     WhatsappTransferirChatBody,
     WhatsappVincularTicketBody,
 )
-from app.core.auth import obter_atendente_atual
+from app.core.auth import exigir_admin, obter_atendente_atual
 from app.api.tickets import _gerar_protocolo, _pode_ver_ticket
 from app.core.setor_scope import ids_setores_visiveis_atendente
 from app.config import settings
@@ -36,6 +37,7 @@ from app.services.whatsapp_auto_messages import (
     DEFAULT_AUTO_MSG_ENCERRADO,
     resolver_nome_empresa_para_template,
 )
+from app.services.whatsapp_avaliacao import mensagem_oculta_na_conversa
 from app.services.whatsapp_media_storage import caminho_absoluto_arquivo, gravar_bytes_em_disco
 
 router = APIRouter(prefix="/whatsapp/chats", tags=["whatsapp-chats"])
@@ -270,7 +272,10 @@ def _ticket_ids(db: Session, chat_id: int) -> list[int]:
     return [x[0] for x in db.query(WhatsappChatTicket.ticket_id).filter(WhatsappChatTicket.chat_id == chat_id).all()]
 
 
-def _chat_read(db: Session, c: WhatsappChat) -> WhatsappChatRead:
+def _chat_read(db: Session, c: WhatsappChat, *, revelar_avaliacao: bool = False) -> WhatsappChatRead:
+    nota = getattr(c, "avaliacao_nota", None) if revelar_avaliacao else None
+    respondida = getattr(c, "avaliacao_respondida_at", None) if revelar_avaliacao else None
+    solicitada = bool(getattr(c, "avaliacao_solicitada", False)) if revelar_avaliacao else False
     return WhatsappChatRead(
         id=c.id,
         protocolo=c.protocolo,
@@ -284,7 +289,29 @@ def _chat_read(db: Session, c: WhatsappChat) -> WhatsappChatRead:
         created_at=c.created_at,
         atendimento_inicio_at=c.atendimento_inicio_at,
         encerramento_at=c.encerramento_at,
+        avaliacao_nota=nota,
+        avaliacao_respondida_at=respondida,
+        avaliacao_solicitada=solicitada,
         ticket_ids=_ticket_ids(db, c.id),
+    )
+
+
+def _avaliacao_read(c: WhatsappChat) -> WhatsappAvaliacaoRead:
+    nota = getattr(c, "avaliacao_nota", None)
+    solicitada = bool(getattr(c, "avaliacao_solicitada", False))
+    return WhatsappAvaliacaoRead(
+        chat_id=c.id,
+        protocolo=c.protocolo,
+        wa_id=c.wa_id,
+        cliente_nome=c.cliente_nome,
+        atendente_id=c.atendente_id,
+        atendente_nome=c.atendente.nome if c.atendente else None,
+        setor_id=getattr(c, "setor_id", None),
+        setor_nome=c.setor.nome if getattr(c, "setor", None) else None,
+        nota=nota,
+        avaliacao_respondida_at=getattr(c, "avaliacao_respondida_at", None),
+        encerramento_at=c.encerramento_at,
+        sem_avaliacao=solicitada and nota is None,
     )
 
 
@@ -300,7 +327,7 @@ def _pode_ver_chat(db: Session, atendente: Atendente, c: WhatsappChat) -> bool:
     # require either being the attendant or having the setor visible.
     if c.setor_id is None:
         return c.estado == "aguardando_atendente"
-    if c.estado in ("aguardando_atendente", "encerrado"):
+    if c.estado in ("aguardando_atendente", "encerrado", "aguardando_avaliacao"):
         return c.setor_id in vis
     return False
 
@@ -394,7 +421,49 @@ def listar_encerrados(
         q = q.filter(or_(WhatsappChat.atendente_id == atendente.id, WhatsappChat.setor_id.in_(vis)))
     total = q.count()
     rows = q.order_by(desc(WhatsappChat.encerramento_at), desc(WhatsappChat.id)).offset(offset).limit(limit).all()
-    return ListaPaginada(items=[_chat_read(db, c) for c in rows], total=total)
+    return ListaPaginada(items=[_chat_read(db, c, revelar_avaliacao=True) for c in rows], total=total)
+
+
+@router.get("/avaliacoes", response_model=ListaPaginada[WhatsappAvaliacaoRead])
+def listar_avaliacoes(
+    busca: str | None = Query(None, description="Busca por protocolo, telefone ou contato"),
+    atendente_id: int | None = Query(None, ge=1),
+    nota_min: int | None = Query(None, ge=1, le=5),
+    nota_max: int | None = Query(None, ge=1, le=5),
+    encerramento_inicio: datetime | None = Query(None),
+    encerramento_fim: datetime | None = Query(None),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(_DEFAULT_PAGE, ge=1, le=_MAX_PAGE),
+    db: Session = Depends(get_db),
+    _: Atendente = Depends(exigir_admin),
+):
+    q = (
+        db.query(WhatsappChat)
+        .options(joinedload(WhatsappChat.atendente), joinedload(WhatsappChat.setor))
+        .filter(WhatsappChat.avaliacao_solicitada.is_(True))
+    )
+    if busca:
+        term = f"%{busca.strip()}%"
+        q = q.filter(
+            or_(
+                WhatsappChat.protocolo.ilike(term),
+                WhatsappChat.wa_id.ilike(term),
+                WhatsappChat.cliente_nome.ilike(term),
+            )
+        )
+    if atendente_id:
+        q = q.filter(WhatsappChat.atendente_id == atendente_id)
+    if nota_min is not None:
+        q = q.filter(WhatsappChat.avaliacao_nota >= nota_min)
+    if nota_max is not None:
+        q = q.filter(WhatsappChat.avaliacao_nota <= nota_max)
+    if encerramento_inicio:
+        q = q.filter(WhatsappChat.encerramento_at >= encerramento_inicio)
+    if encerramento_fim:
+        q = q.filter(WhatsappChat.encerramento_at <= encerramento_fim)
+    total = q.count()
+    rows = q.order_by(desc(WhatsappChat.encerramento_at), desc(WhatsappChat.id)).offset(offset).limit(limit).all()
+    return ListaPaginada(items=[_avaliacao_read(c) for c in rows], total=total)
 
 
 @router.get("/por-ticket/{ticket_id}", response_model=list[WhatsappChatRead])
@@ -485,7 +554,8 @@ def listar_mensagens(
         .order_by(WhatsappMensagem.created_at.asc())
         .all()
     )
-    return [_mensagem_read(m) for m in rows]
+    visiveis = [m for m in rows if not mensagem_oculta_na_conversa(getattr(m, "evento_sistema", None))]
+    return [_mensagem_read(m) for m in visiveis]
 
 
 @router.post("/{chat_id}/assumir", response_model=WhatsappChatRead)
@@ -545,30 +615,22 @@ def encerrar(
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
     if c.estado == "encerrado":
         return _chat_read(db, c)
+    if c.estado == "aguardando_avaliacao":
+        return _chat_read(db, c)
     if c.estado != "em_atendimento":
         raise HTTPException(status_code=400, detail="Encerre apenas chats em atendimento")
     if atendente.role != "admin" and c.atendente_id != atendente.id:
         raise HTTPException(status_code=403, detail="Apenas o atendente responsável pode encerrar este chat")
-    c.estado = "encerrado"
-    c.encerramento_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(c)
     st_auto = db.query(WhatsappSettings).order_by(WhatsappSettings.id.asc()).first()
-    if st_auto and bool(getattr(st_auto, "auto_msg_encerrado_ativa", True)) and _evolution_configurada(st_auto):
-        raw = (getattr(st_auto, "auto_msg_encerrado_texto", "") or "").strip() or DEFAULT_AUTO_MSG_ENCERRADO
-        txt = _render_template(
-            raw,
-            db=db,
-            chat=c,
-            atendente=atendente,
-            st=st_auto,
-            atendente_nome="BOT",
-        )
-        if txt:
-            try:
-                _enviar_texto_whatsapp(db, chat=c, texto=txt, atendente=atendente, evento_sistema="auto_encerrado")
-            except HTTPException as exc:
-                logger.warning("Auto-msg encerrado falhou (chat=%s): %s", c.protocolo, exc.detail)
+    from app.services.whatsapp_avaliacao import finalizar_atendimento_whatsapp
+
+    try:
+        finalizar_atendimento_whatsapp(db, c, st_auto, evento_encerrado="auto_encerrado")
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.warning("Encerramento WhatsApp falhou (chat=%s): %s", c.protocolo, exc)
+        raise HTTPException(status_code=502, detail="Falha ao encerrar o atendimento no WhatsApp") from exc
     c = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente)).filter(WhatsappChat.id == chat_id).first()
     assert c is not None
     return _chat_read(db, c)
@@ -719,7 +781,7 @@ def comentar_interno(
         vis = ids_setores_visiveis_atendente(db, atendente)
         if c.setor_id not in vis:
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
-    if c.estado == "encerrado":
+    if c.estado in ("encerrado", "aguardando_avaliacao"):
         raise HTTPException(status_code=400, detail="Chat encerrado (somente leitura)")
     texto = data.texto.strip()
     if not texto:
@@ -765,14 +827,14 @@ def marcar_chat_visto(
 
     now = datetime.now(timezone.utc)
     row = (
-        db.query(WhatsappChatRead)
-        .filter(WhatsappChatRead.chat_id == chat_id, WhatsappChatRead.atendente_id == atendente.id)
+        db.query(WhatsappChatReadModel)
+        .filter(WhatsappChatReadModel.chat_id == chat_id, WhatsappChatReadModel.atendente_id == atendente.id)
         .first()
     )
     if row:
         row.last_seen_at = now
     else:
-        db.add(WhatsappChatRead(chat_id=chat_id, atendente_id=atendente.id, last_seen_at=now))
+        db.add(WhatsappChatReadModel(chat_id=chat_id, atendente_id=atendente.id, last_seen_at=now))
     db.commit()
     return None
 
@@ -873,7 +935,7 @@ def transferir(
     )
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
-    if c.estado == "encerrado":
+    if c.estado in ("encerrado", "aguardando_avaliacao"):
         raise HTTPException(status_code=400, detail="Chat encerrado não pode ser transferido")
     # Permissão: admin ou atendente responsável atual
     if atendente.role != "admin" and c.atendente_id not in (None, atendente.id):

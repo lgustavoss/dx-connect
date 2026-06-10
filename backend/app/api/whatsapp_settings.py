@@ -45,6 +45,15 @@ def _read_out(row: WhatsappSettings | None) -> WhatsappSettingsRead:
             horario_semana=None,
             usar_feriados_nacionais=False,
             nome_empresa_exibicao=None,
+            inativ_encerramento_ativa=False,
+            inativ_aviso_minutos=None,
+            inativ_encerramento_apos_aviso_minutos=None,
+            auto_msg_inativ_aviso_ativa=True,
+            auto_msg_inativ_aviso_texto=None,
+            avaliacao_ativa=False,
+            auto_msg_avaliacao_ativa=True,
+            auto_msg_avaliacao_texto=None,
+            auto_msg_avaliacao_obrigado_texto=None,
         )
     horario_semana = None
     raw = getattr(row, "horario_semana_json", None)
@@ -73,6 +82,15 @@ def _read_out(row: WhatsappSettings | None) -> WhatsappSettingsRead:
         horario_semana=horario_semana if isinstance(horario_semana, dict) else None,
         usar_feriados_nacionais=bool(getattr(row, "usar_feriados_nacionais", False)),
         nome_empresa_exibicao=getattr(row, "nome_empresa_exibicao", None),
+        inativ_encerramento_ativa=bool(getattr(row, "inativ_encerramento_ativa", False)),
+        inativ_aviso_minutos=getattr(row, "inativ_aviso_minutos", None),
+        inativ_encerramento_apos_aviso_minutos=getattr(row, "inativ_encerramento_apos_aviso_minutos", None),
+        auto_msg_inativ_aviso_ativa=bool(getattr(row, "auto_msg_inativ_aviso_ativa", True)),
+        auto_msg_inativ_aviso_texto=getattr(row, "auto_msg_inativ_aviso_texto", None),
+        avaliacao_ativa=bool(getattr(row, "avaliacao_ativa", False)),
+        auto_msg_avaliacao_ativa=bool(getattr(row, "auto_msg_avaliacao_ativa", True)),
+        auto_msg_avaliacao_texto=getattr(row, "auto_msg_avaliacao_texto", None),
+        auto_msg_avaliacao_obrigado_texto=getattr(row, "auto_msg_avaliacao_obrigado_texto", None),
     )
 
 
@@ -133,14 +151,32 @@ def atualizar(
         "auto_msg_encerrado_texto",
         "auto_msg_fora_horario_ativa",
         "auto_msg_fora_horario_texto",
+        "auto_msg_inativ_aviso_ativa",
+        "auto_msg_inativ_aviso_texto",
         "horario_inicio",
         "horario_fim",
         "horario_timezone",
         "usar_feriados_nacionais",
         "nome_empresa_exibicao",
+        "inativ_encerramento_ativa",
+        "inativ_aviso_minutos",
+        "inativ_encerramento_apos_aviso_minutos",
+        "avaliacao_ativa",
+        "auto_msg_avaliacao_ativa",
+        "auto_msg_avaliacao_texto",
+        "auto_msg_avaliacao_obrigado_texto",
     ):
         if k in payload:
             setattr(row, k, payload[k])
+    ativa = bool(getattr(row, "inativ_encerramento_ativa", False))
+    if ativa:
+        aviso = getattr(row, "inativ_aviso_minutos", None)
+        pos = getattr(row, "inativ_encerramento_apos_aviso_minutos", None)
+        if not aviso or aviso < 1 or not pos or pos < 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Informe minutos válidos para aviso e encerramento após o aviso.",
+            )
     if "horario_semana" in payload:
         hs = payload["horario_semana"]
         if hs is None:
