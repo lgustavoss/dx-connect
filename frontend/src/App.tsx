@@ -44,6 +44,7 @@ import { ConfigSistemaLayout } from './pages/config/ConfigSistemaLayout'
 import { WhatsappLayout } from './pages/whatsapp/WhatsappLayout'
 import { WhatsappAtendendo } from './pages/whatsapp/WhatsappAtendendo'
 import { WhatsappHistorico } from './pages/whatsapp/WhatsappHistorico'
+import { WhatsappAvaliacoes } from './pages/whatsapp/WhatsappAvaliacoes'
 import { WhatsappConversa } from './pages/whatsapp/WhatsappConversa'
 import { AlterarSenha } from './pages/AlterarSenha'
 import { AcessoNegado } from './pages/AcessoNegado'
@@ -99,6 +100,14 @@ function AppRoutes() {
           <Route index element={<Navigate to="atendendo" replace />} />
           <Route path="atendendo" element={<WhatsappAtendendo />} />
           <Route path="historico" element={<WhatsappHistorico />} />
+          <Route
+            path="avaliacoes"
+            element={
+              <AdminRoute>
+                <WhatsappAvaliacoes />
+              </AdminRoute>
+            }
+          />
           <Route path="fila" element={<Navigate to="/whatsapp/atendendo" replace />} />
           <Route path="meus" element={<Navigate to="/whatsapp/atendendo" replace />} />
           <Route path="c/:chatId" element={<WhatsappConversa />} />
