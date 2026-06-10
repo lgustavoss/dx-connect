@@ -20,6 +20,34 @@ DEFAULT_AUTO_MSG_FORA_HORARIO = (
     "Olá, {nome}! No momento estamos fora do horário de atendimento. "
     "Assim que voltarmos, responderemos por aqui."
 )
+DEFAULT_AUTO_MSG_INATIV_AVISO = (
+    "Olá, {{nome_cliente}}! Você está há um tempo sem responder. "
+    "Se não houver retorno, encerraremos este atendimento em breve. "
+    "Responda aqui se ainda precisar de ajuda."
+)
+DEFAULT_AUTO_MSG_AVALIACAO = (
+    "Como você avalia o atendimento?\n\n"
+    "Responda com uma nota de *1* a *5*:\n"
+    "1 — Péssimo\n2 — Ruim\n3 — Regular\n4 — Bom\n5 — Excelente"
+)
+DEFAULT_AUTO_MSG_AVALIACAO_OBRIGADO = (
+    "Obrigado pela sua avaliação! Atendimento encerrado."
+)
+DEFAULT_AUTO_MSG_AVALIACAO_SEM_NOTA = (
+    "Não foi possível registrar sua avaliação. O atendimento foi encerrado. "
+    "Se precisar de algo mais, envie uma nova mensagem por aqui."
+)
+
+# Mensagens desta fase não aparecem na conversa do atendente (só no WhatsApp do cliente).
+EVENTOS_MENSAGEM_OCULTA_CONVERSA = frozenset(
+    {
+        "auto_avaliacao_solicitacao",
+        "auto_avaliacao_obrigado",
+        "auto_avaliacao_sem_nota",
+        "avaliacao_cliente_nota",
+        "avaliacao_cliente_invalida",
+    }
+)
 
 
 def resolver_nome_empresa_para_template(db: Session) -> str:

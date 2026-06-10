@@ -8,6 +8,7 @@ type ChatResumo = Pick<
 export function rotuloEstadoChat(estado: string): string {
   if (estado === 'em_atendimento') return 'Em atendimento'
   if (estado === 'aguardando_atendente') return 'Aguardando atendimento'
+  if (estado === 'aguardando_avaliacao') return 'Aguardando avaliação'
   if (estado === 'encerrado') return 'Encerrado'
   return estado.replace(/_/g, ' ')
 }
@@ -19,11 +20,26 @@ export function rotuloResponsavelChat(chat: ChatResumo, usuarioId?: number | nul
   if (chat.estado === 'encerrado') {
     return chat.atendente_nome ? `Encerrado por ${chat.atendente_nome}` : 'Encerrado'
   }
+  if (chat.estado === 'aguardando_avaliacao') {
+    return chat.atendente_nome ? `Aguardando avaliação • ${chat.atendente_nome}` : 'Aguardando avaliação'
+  }
   if (!chat.atendente_id) {
     return chat.setor_nome ? `Sem responsável • ${chat.setor_nome}` : 'Sem responsável'
   }
   if (usuarioId != null && chat.atendente_id === usuarioId) return 'Você'
   return chat.atendente_nome || `Atendente #${chat.atendente_id}`
+}
+
+export function rotuloAvaliacaoChat(chat: {
+  avaliacao_nota?: number | null
+  avaliacao_solicitada?: boolean
+  sem_avaliacao?: boolean
+  nota?: number | null
+}): string {
+  const nota = chat.avaliacao_nota ?? chat.nota
+  if (nota != null) return `${nota}/5`
+  if (chat.sem_avaliacao || (chat.avaliacao_solicitada && nota == null)) return 'Sem avaliação'
+  return '—'
 }
 
 export function mensagemTransferenciaSucesso(chat: ChatResumo): string {

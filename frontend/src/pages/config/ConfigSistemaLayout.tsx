@@ -12,7 +12,7 @@ const TABS = [
 const TAB_HINTS: Record<string, string> = {
   empresa: 'Dados institucionais da instalação — CNPJ, logo e endereço.',
   email: 'Encaminhamento por setor e envio de respostas aos clientes.',
-  whatsapp: 'Conexão Evolution API, mensagens automáticas e horários de atendimento.',
+  whatsapp: 'Conexão, mensagens automáticas, inatividade, avaliação e horários de atendimento.',
   auditoria: 'Histórico de alterações em cadastros e configurações.',
 }
 

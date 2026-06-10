@@ -190,6 +190,32 @@ async def lifespan(app: FastAPI):
         name="ticket-mensagem-email-outbox",
     ).start()
 
+    def whatsapp_inactivity_loop() -> None:
+        from app.database import SessionLocal
+        from app.services.whatsapp_inactivity_worker import process_whatsapp_inactivity_closures
+
+        interval = max(15, settings.WHATSAPP_INACTIVITY_WORKER_INTERVAL_SECONDS)
+        while True:
+            db = SessionLocal()
+            try:
+                n = process_whatsapp_inactivity_closures(db, limit=200)
+                if n:
+                    db.commit()
+                else:
+                    db.rollback()
+            except Exception as e:
+                logger.warning("Worker inatividade WhatsApp: %s", e)
+                db.rollback()
+            finally:
+                db.close()
+            time.sleep(interval)
+
+    threading.Thread(
+        target=whatsapp_inactivity_loop,
+        daemon=True,
+        name="whatsapp-inactivity",
+    ).start()
+
     yield
 
 

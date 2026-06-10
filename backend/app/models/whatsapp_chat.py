@@ -35,6 +35,16 @@ class WhatsappSettings(Base):
     usar_feriados_nacionais = Column(Boolean, nullable=False, default=False)
     # Nome amigável da empresa para templates (ex.: "DX Connect" ou nome do cliente/negócio).
     nome_empresa_exibicao = Column(String(255), nullable=True)
+    # Encerramento automático por inatividade do cliente (chat em atendimento).
+    inativ_encerramento_ativa = Column(Boolean, nullable=False, default=False)
+    inativ_aviso_minutos = Column(Integer, nullable=True)
+    inativ_encerramento_apos_aviso_minutos = Column(Integer, nullable=True)
+    auto_msg_inativ_aviso_ativa = Column(Boolean, nullable=False, default=True)
+    auto_msg_inativ_aviso_texto = Column(Text, nullable=True)
+    avaliacao_ativa = Column(Boolean, nullable=False, default=False)
+    auto_msg_avaliacao_ativa = Column(Boolean, nullable=False, default=True)
+    auto_msg_avaliacao_texto = Column(Text, nullable=True)
+    auto_msg_avaliacao_obrigado_texto = Column(Text, nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
 
@@ -51,6 +61,9 @@ class WhatsappChat(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     atendimento_inicio_at = Column(DateTime(timezone=True), nullable=True)
     encerramento_at = Column(DateTime(timezone=True), nullable=True)
+    avaliacao_nota = Column(Integer, nullable=True)
+    avaliacao_respondida_at = Column(DateTime(timezone=True), nullable=True)
+    avaliacao_solicitada = Column(Boolean, nullable=False, default=False)
 
     atendente = relationship("Atendente", backref="whatsapp_chats_atendidos")
     setor = relationship("Setor", backref="whatsapp_chats")

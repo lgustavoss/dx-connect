@@ -440,6 +440,15 @@ export namespace WhatsappSettings {
     horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null
     usar_feriados_nacionais?: boolean
     nome_empresa_exibicao?: string | null
+    inativ_encerramento_ativa?: boolean
+    inativ_aviso_minutos?: number | null
+    inativ_encerramento_apos_aviso_minutos?: number | null
+    auto_msg_inativ_aviso_ativa?: boolean
+    auto_msg_inativ_aviso_texto?: string | null
+    avaliacao_ativa?: boolean
+    auto_msg_avaliacao_ativa?: boolean
+    auto_msg_avaliacao_texto?: string | null
+    auto_msg_avaliacao_obrigado_texto?: string | null
   }
   export interface ProvisionEmbutidoResult {
     instance: string
@@ -467,6 +476,15 @@ export namespace WhatsappSettings {
     horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null
     usar_feriados_nacionais?: boolean | null
     nome_empresa_exibicao?: string | null
+    inativ_encerramento_ativa?: boolean | null
+    inativ_aviso_minutos?: number | null
+    inativ_encerramento_apos_aviso_minutos?: number | null
+    auto_msg_inativ_aviso_ativa?: boolean | null
+    auto_msg_inativ_aviso_texto?: string | null
+    avaliacao_ativa?: boolean | null
+    auto_msg_avaliacao_ativa?: boolean | null
+    auto_msg_avaliacao_texto?: string | null
+    auto_msg_avaliacao_obrigado_texto?: string | null
   }
   export interface TesteResult {
     ok: boolean
@@ -635,7 +653,24 @@ export namespace WhatsappChats {
     created_at?: string | null
     atendimento_inicio_at?: string | null
     encerramento_at?: string | null
+    avaliacao_nota?: number | null
+    avaliacao_respondida_at?: string | null
+    avaliacao_solicitada?: boolean
     ticket_ids: number[]
+  }
+  export interface Avaliacao {
+    chat_id: number
+    protocolo: string
+    wa_id: string
+    cliente_nome?: string | null
+    atendente_id?: number | null
+    atendente_nome?: string | null
+    setor_id?: number | null
+    setor_nome?: string | null
+    nota?: number | null
+    avaliacao_respondida_at?: string | null
+    encerramento_at?: string | null
+    sem_avaliacao: boolean
   }
   export interface Mensagem {
     id: number
@@ -697,8 +732,10 @@ export async function fetchTicketAnexoBlob(ticketId: number, anexoId: number): P
 export const whatsappChats = {
   fila: () => api<WhatsappChats.Chat[]>('/whatsapp/chats/fila'),
   meus: () => api<WhatsappChats.Chat[]>('/whatsapp/chats/meus'),
-  encerrados: (params?: { offset?: number; limit?: number }) =>
+  encerrados: (params?: Record<string, string | number | undefined>) =>
     listPaginated<WhatsappChats.Chat>('/whatsapp/chats/encerrados', params),
+  avaliacoes: (params?: Record<string, string | number | undefined>) =>
+    listPaginated<WhatsappChats.Avaliacao>('/whatsapp/chats/avaliacoes', params),
   get: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}`),
   mensagens: (id: number) => api<WhatsappChats.Mensagem[]>(`/whatsapp/chats/${id}/mensagens`),
   assumir: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/assumir`, { method: 'POST' }),

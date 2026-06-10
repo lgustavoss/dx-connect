@@ -343,7 +343,7 @@ export function WhatsappConversa() {
 
   useEffect(() => {
 
-    if (!chat || chat.estado === 'encerrado') return
+    if (!chat || chat.estado === 'encerrado' || chat.estado === 'aguardando_avaliacao') return
 
     const t = setInterval(() => void carregar().catch(() => {}), 5000)
 
@@ -545,11 +545,15 @@ useEffect(() => {
 
     try {
 
-      await whatsappChats.encerrar(chat.id)
+      const atualizado = await whatsappChats.encerrar(chat.id)
 
       await carregar()
 
-      toast.showSuccess('Atendimento encerrado.')
+      toast.showSuccess(
+        atualizado.estado === 'aguardando_avaliacao'
+          ? 'Atendimento encerrado. Aguardando avaliação do cliente.'
+          : 'Atendimento encerrado.',
+      )
 
     } finally { setEncerrando(false) }
 
@@ -573,7 +577,7 @@ useEffect(() => {
 
 
 
-  const encerrado = chat?.estado === 'encerrado'
+  const encerrado = chat?.estado === 'encerrado' || chat?.estado === 'aguardando_avaliacao'
 
   const isResponsavel = user?.role === 'admin' || (chat?.atendente_id === user?.id)
 

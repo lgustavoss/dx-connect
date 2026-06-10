@@ -349,6 +349,42 @@ def evolution_webhook(
         mimetype_val = item.get("mimetype")
         midia_nome: str | None = None
 
+        chat = _chat_aberto_por_wa_id(db, wa_id)
+        if chat and chat.estado == "aguardando_avaliacao":
+            q_prev = item.get("quoted_corpo_preview")
+            if q_prev is not None and len(str(q_prev)) > 500:
+                q_prev = str(q_prev)[:500]
+            msg = WhatsappMensagem(
+                chat_id=chat.id,
+                direcao="inbound",
+                corpo=corpo,
+                tipo_midia=tipo_midia,
+                mimetype=mimetype_val,
+                midia_nome_arquivo=midia_nome,
+                wa_message_id=wa_mid,
+                quoted_wa_message_id=item.get("quoted_wa_message_id"),
+                quoted_corpo_preview=str(q_prev).strip()[:500] if q_prev else None,
+                atendente_id=None,
+            )
+            db.add(msg)
+            if push and not chat.cliente_nome:
+                chat.cliente_nome = push
+            try:
+                from app.services.whatsapp_avaliacao import processar_resposta_avaliacao
+
+                processar_resposta_avaliacao(
+                    db, chat, st, corpo, tipo_midia=tipo or "texto", msg_inbound=msg
+                )
+                db.commit()
+                processados += 1
+            except IntegrityError:
+                db.rollback()
+                logger.info("Webhook Evolution: mensagem duplicada ignorada (wa_message_id=%s)", wa_mid)
+            except Exception:
+                db.rollback()
+                raise
+            continue
+
         if tipo != "texto":
             raw_env = item.get("raw_envelope")
             if (

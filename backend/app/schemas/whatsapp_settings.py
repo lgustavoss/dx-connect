@@ -23,6 +23,15 @@ class WhatsappSettingsRead(BaseModel):
     horario_semana: dict[str, Any] | None = None
     usar_feriados_nacionais: bool = False
     nome_empresa_exibicao: str | None = None
+    inativ_encerramento_ativa: bool = False
+    inativ_aviso_minutos: int | None = None
+    inativ_encerramento_apos_aviso_minutos: int | None = None
+    auto_msg_inativ_aviso_ativa: bool = True
+    auto_msg_inativ_aviso_texto: str | None = None
+    avaliacao_ativa: bool = False
+    auto_msg_avaliacao_ativa: bool = True
+    auto_msg_avaliacao_texto: str | None = None
+    auto_msg_avaliacao_obrigado_texto: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -46,6 +55,15 @@ class WhatsappSettingsUpdate(BaseModel):
     horario_semana: dict[str, Any] | None = None
     usar_feriados_nacionais: bool | None = None
     nome_empresa_exibicao: str | None = None
+    inativ_encerramento_ativa: bool | None = None
+    inativ_aviso_minutos: int | None = Field(None, ge=1, le=24 * 60)
+    inativ_encerramento_apos_aviso_minutos: int | None = Field(None, ge=1, le=24 * 60)
+    auto_msg_inativ_aviso_ativa: bool | None = None
+    auto_msg_inativ_aviso_texto: str | None = None
+    avaliacao_ativa: bool | None = None
+    auto_msg_avaliacao_ativa: bool | None = None
+    auto_msg_avaliacao_texto: str | None = None
+    auto_msg_avaliacao_obrigado_texto: str | None = None
 
     @field_validator("evolution_base_url", mode="before")
     @classmethod

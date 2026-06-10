@@ -14,7 +14,15 @@ type EstadoEvolution = {
   erro?: string | null
 }
 
-type Aba = 'conexao' | 'mensagens' | 'horarios'
+type Aba = 'conexao' | 'mensagens' | 'inatividade' | 'avaliacao' | 'horarios'
+
+const ABAS: Array<{ id: Aba; label: string }> = [
+  { id: 'conexao', label: 'Conexão' },
+  { id: 'mensagens', label: 'Mensagens automáticas' },
+  { id: 'inatividade', label: 'Inatividade' },
+  { id: 'avaliacao', label: 'Avaliação' },
+  { id: 'horarios', label: 'Horários' },
+]
 
 type DiaKey = 'seg' | 'ter' | 'qua' | 'qui' | 'sex' | 'sab' | 'dom'
 type HorarioDia = { ativo: boolean; inicio: string; fim: string }
@@ -86,6 +94,11 @@ const DEFAULT_MSG_ENCERRADO =
   'Atendimento encerrado. Se precisar de algo mais, é só enviar uma nova mensagem por aqui.'
 const DEFAULT_MSG_FORA_HORARIO =
   'Olá, {nome}! No momento estamos fora do horário de atendimento. Assim que voltarmos, responderemos por aqui.'
+const DEFAULT_MSG_INATIV_AVISO =
+  'Olá, {{nome_cliente}}! Você está há um tempo sem responder. Se não houver retorno, encerraremos este atendimento em breve. Responda aqui se ainda precisar de ajuda.'
+const DEFAULT_MSG_AVALIACAO =
+  'Como você avalia o atendimento?\n\nResponda com uma nota de *1* a *5*:\n1 — Péssimo\n2 — Ruim\n3 — Regular\n4 — Bom\n5 — Excelente'
+const DEFAULT_MSG_AVALIACAO_OBRIGADO = 'Obrigado pela sua avaliação! Atendimento encerrado.'
 
 function renderQrPayload(data: Record<string, unknown> | null | undefined) {
   if (!data || typeof data !== 'object') return null
@@ -138,6 +151,8 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
   const [qrPayload, setQrPayload] = useState<Record<string, unknown> | null>(null)
   const [provisionando, setProvisionando] = useState(false)
   const [salvandoMsgs, setSalvandoMsgs] = useState(false)
+  const [salvandoInatividade, setSalvandoInatividade] = useState(false)
+  const [salvandoAvaliacao, setSalvandoAvaliacao] = useState(false)
 
   const [msgEsperaAtiva, setMsgEsperaAtiva] = useState(true)
   const [msgEsperaTexto, setMsgEsperaTexto] = useState(DEFAULT_MSG_ESPERA)
@@ -147,6 +162,15 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
   const [msgEncerradoTexto, setMsgEncerradoTexto] = useState(DEFAULT_MSG_ENCERRADO)
   const [msgForaHorarioAtiva, setMsgForaHorarioAtiva] = useState(true)
   const [msgForaHorarioTexto, setMsgForaHorarioTexto] = useState(DEFAULT_MSG_FORA_HORARIO)
+  const [inativEncerramentoAtiva, setInativEncerramentoAtiva] = useState(false)
+  const [inativAvisoMinutos, setInativAvisoMinutos] = useState('15')
+  const [inativEncerramentoAposAvisoMinutos, setInativEncerramentoAposAvisoMinutos] = useState('5')
+  const [msgInativAvisoAtiva, setMsgInativAvisoAtiva] = useState(true)
+  const [msgInativAvisoTexto, setMsgInativAvisoTexto] = useState(DEFAULT_MSG_INATIV_AVISO)
+  const [avaliacaoAtiva, setAvaliacaoAtiva] = useState(false)
+  const [msgAvaliacaoAtiva, setMsgAvaliacaoAtiva] = useState(true)
+  const [msgAvaliacaoTexto, setMsgAvaliacaoTexto] = useState(DEFAULT_MSG_AVALIACAO)
+  const [msgAvaliacaoObrigadoTexto, setMsgAvaliacaoObrigadoTexto] = useState(DEFAULT_MSG_AVALIACAO_OBRIGADO)
   const [nomeEmpresaExibicao, setNomeEmpresaExibicao] = useState('')
   const [horarioTimezone, setHorarioTimezone] = useState<string>('America/Sao_Paulo')
   const [usarFeriadosNacionais, setUsarFeriadosNacionais] = useState(false)
@@ -169,6 +193,20 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
       setMsgForaHorarioAtiva(Boolean(r.auto_msg_fora_horario_ativa))
       setMsgForaHorarioTexto(
         (r.auto_msg_fora_horario_texto ?? DEFAULT_MSG_FORA_HORARIO).trim() || DEFAULT_MSG_FORA_HORARIO,
+      )
+      setInativEncerramentoAtiva(Boolean(r.inativ_encerramento_ativa))
+      setInativAvisoMinutos(String(r.inativ_aviso_minutos ?? 15))
+      setInativEncerramentoAposAvisoMinutos(String(r.inativ_encerramento_apos_aviso_minutos ?? 5))
+      setMsgInativAvisoAtiva(Boolean(r.auto_msg_inativ_aviso_ativa ?? true))
+      setMsgInativAvisoTexto(
+        (r.auto_msg_inativ_aviso_texto ?? DEFAULT_MSG_INATIV_AVISO).trim() || DEFAULT_MSG_INATIV_AVISO,
+      )
+      setAvaliacaoAtiva(Boolean(r.avaliacao_ativa))
+      setMsgAvaliacaoAtiva(Boolean(r.auto_msg_avaliacao_ativa ?? true))
+      setMsgAvaliacaoTexto((r.auto_msg_avaliacao_texto ?? DEFAULT_MSG_AVALIACAO).trim() || DEFAULT_MSG_AVALIACAO)
+      setMsgAvaliacaoObrigadoTexto(
+        (r.auto_msg_avaliacao_obrigado_texto ?? DEFAULT_MSG_AVALIACAO_OBRIGADO).trim() ||
+          DEFAULT_MSG_AVALIACAO_OBRIGADO,
       )
       setHorarioTimezone((r.horario_timezone ?? 'America/Sao_Paulo').trim() || 'America/Sao_Paulo')
       const identidadeSalva = (r.nome_empresa_exibicao ?? '').trim()
@@ -282,48 +320,27 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
     <Card title={embedded ? undefined : 'WhatsApp (Evolution)'}>
       {!embedded ? (
         <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-          Conecte um número via QR Code e configure mensagens automáticas para padronizar a experiência do cliente.
+          Conecte um número via QR Code e configure mensagens, inatividade, avaliação e horários de atendimento.
         </p>
       ) : null}
 
       <div className={embedded ? 'border-b border-slate-200 dark:border-slate-700/80' : 'mt-5 border-b border-slate-200 dark:border-slate-700/80'}>
-          <nav className="flex gap-1 sm:gap-2" aria-label="Seções do WhatsApp">
-            <button
-              type="button"
-              onClick={() => setAba('conexao')}
-              aria-current={aba === 'conexao' ? 'page' : undefined}
-              className={
-                aba === 'conexao'
-                  ? 'border-b-2 border-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 dark:border-sky-400 dark:bg-slate-800/50 dark:text-white'
-                  : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/30 dark:hover:text-slate-200'
-              }
-            >
-              Conexão
-            </button>
-            <button
-              type="button"
-              onClick={() => setAba('mensagens')}
-              aria-current={aba === 'mensagens' ? 'page' : undefined}
-              className={
-                aba === 'mensagens'
-                  ? 'border-b-2 border-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 dark:border-sky-400 dark:bg-slate-800/50 dark:text-white'
-                  : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/30 dark:hover:bg-slate-800/30 dark:hover:text-slate-200'
-              }
-            >
-              Mensagens automáticas
-            </button>
-            <button
-              type="button"
-              onClick={() => setAba('horarios')}
-              aria-current={aba === 'horarios' ? 'page' : undefined}
-              className={
-                aba === 'horarios'
-                  ? 'border-b-2 border-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 dark:border-sky-400 dark:bg-slate-800/50 dark:text-white'
-                  : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/30 dark:hover:text-slate-200'
-              }
-            >
-              Horários
-            </button>
+          <nav className="-mb-px flex gap-1 overflow-x-auto sm:gap-2" aria-label="Seções do WhatsApp">
+            {ABAS.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setAba(id)}
+                aria-current={aba === id ? 'page' : undefined}
+                className={
+                  aba === id
+                    ? 'shrink-0 border-b-2 border-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 dark:border-sky-400 dark:bg-slate-800/50 dark:text-white'
+                    : 'shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/30 dark:hover:text-slate-200'
+                }
+              >
+                {label}
+              </button>
+            ))}
           </nav>
         </div>
 
@@ -462,7 +479,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
               checked={msgEncerradoAtiva}
               onCheckedChange={setMsgEncerradoAtiva}
               label="Mensagem quando o chat é encerrado"
-              description="Enviada automaticamente quando o atendente encerra o chat."
+              description="Enviada ao finalizar o atendimento quando a avaliação (aba Avaliação) estiver desativada."
               showStatusPill
               statusOnText="Enviar"
               statusOffText="Não enviar"
@@ -514,6 +531,174 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
                 }}
               >
                 Salvar mensagens
+              </Button>
+            </div>
+          </div>
+        ) : aba === 'inatividade' ? (
+          <div className="mt-6 space-y-5">
+            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-700 dark:border-slate-700/80 dark:bg-slate-800/20 dark:text-slate-200">
+              <p className="font-medium">Encerramento por inatividade</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                Encerra chats em atendimento quando o cliente para de responder. O tempo conta desde a última mensagem
+                do cliente, depois que o atendente já respondeu.
+              </p>
+            </div>
+
+            <Switch
+              checked={inativEncerramentoAtiva}
+              onCheckedChange={setInativEncerramentoAtiva}
+              label="Encerramento automático por inatividade do cliente"
+              description="Novas mensagens do atendente não reiniciam o timer."
+              showStatusPill
+              statusOnText="Ativo"
+              statusOffText="Inativo"
+            />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                  Minutos sem resposta para enviar o aviso
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={1440}
+                  disabled={!inativEncerramentoAtiva}
+                  value={inativAvisoMinutos}
+                  onChange={(e) => setInativAvisoMinutos(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                  Minutos após o aviso para encerrar o chat
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={1440}
+                  disabled={!inativEncerramentoAtiva}
+                  value={inativEncerramentoAposAvisoMinutos}
+                  onChange={(e) => setInativEncerramentoAposAvisoMinutos(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                />
+              </div>
+            </div>
+            <Switch
+              checked={msgInativAvisoAtiva}
+              onCheckedChange={setMsgInativAvisoAtiva}
+              label="Mensagem de aviso antes do encerramento"
+              description="Enviada ao cliente quando o tempo de inatividade é atingido."
+              showStatusPill
+              statusOnText="Enviar"
+              statusOffText="Encerrar direto"
+            />
+            <textarea
+              value={msgInativAvisoTexto}
+              onChange={(e) => setMsgInativAvisoTexto(e.target.value)}
+              rows={4}
+              disabled={!inativEncerramentoAtiva || !msgInativAvisoAtiva}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+            />
+
+            <div className="flex justify-end pt-2">
+              <Button
+                type="button"
+                loading={salvandoInatividade}
+                onClick={() => {
+                  const avisoMin = Number.parseInt(inativAvisoMinutos, 10)
+                  const posMin = Number.parseInt(inativEncerramentoAposAvisoMinutos, 10)
+                  if (
+                    inativEncerramentoAtiva &&
+                    (!Number.isFinite(avisoMin) || avisoMin < 1 || !Number.isFinite(posMin) || posMin < 1)
+                  ) {
+                    toast.showError('Informe minutos válidos para aviso e encerramento após o aviso.')
+                    return
+                  }
+                  setSalvandoInatividade(true)
+                  whatsappSettings
+                    .patch({
+                      inativ_encerramento_ativa: inativEncerramentoAtiva,
+                      inativ_aviso_minutos: inativEncerramentoAtiva ? avisoMin : null,
+                      inativ_encerramento_apos_aviso_minutos: inativEncerramentoAtiva ? posMin : null,
+                      auto_msg_inativ_aviso_ativa: msgInativAvisoAtiva,
+                      auto_msg_inativ_aviso_texto: msgInativAvisoTexto,
+                    })
+                    .then(() => toast.showSuccess('Configurações de inatividade atualizadas.'))
+                    .catch((err) => toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar.')))
+                    .finally(() => setSalvandoInatividade(false))
+                }}
+              >
+                Salvar inatividade
+              </Button>
+            </div>
+          </div>
+        ) : aba === 'avaliacao' ? (
+          <div className="mt-6 space-y-5">
+            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-700 dark:border-slate-700/80 dark:bg-slate-800/20 dark:text-slate-200">
+              <p className="font-medium">Avaliação do atendimento</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                Ao encerrar o chat, o cliente recebe uma solicitação de nota de 1 a 5 antes do atendimento ser
+                finalizado. As notas aparecem no histórico de conversas.
+              </p>
+            </div>
+
+            <Switch
+              checked={avaliacaoAtiva}
+              onCheckedChange={setAvaliacaoAtiva}
+              label="Solicitar avaliação ao encerrar (notas 1 a 5)"
+              showStatusPill
+              statusOnText="Ativo"
+              statusOffText="Inativo"
+            />
+            <Switch
+              checked={msgAvaliacaoAtiva}
+              onCheckedChange={setMsgAvaliacaoAtiva}
+              label="Enviar mensagens de avaliação"
+              description="Solicitação da nota e agradecimento após a resposta."
+              showStatusPill
+              statusOnText="Enviar"
+              statusOffText="Encerrar direto"
+            />
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">
+              Mensagem solicitando a nota (1 a 5)
+            </label>
+            <textarea
+              value={msgAvaliacaoTexto}
+              onChange={(e) => setMsgAvaliacaoTexto(e.target.value)}
+              rows={4}
+              disabled={!avaliacaoAtiva || !msgAvaliacaoAtiva}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+            />
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">
+              Mensagem de agradecimento após a nota
+            </label>
+            <textarea
+              value={msgAvaliacaoObrigadoTexto}
+              onChange={(e) => setMsgAvaliacaoObrigadoTexto(e.target.value)}
+              rows={2}
+              disabled={!avaliacaoAtiva || !msgAvaliacaoAtiva}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+            />
+
+            <div className="flex justify-end pt-2">
+              <Button
+                type="button"
+                loading={salvandoAvaliacao}
+                onClick={() => {
+                  setSalvandoAvaliacao(true)
+                  whatsappSettings
+                    .patch({
+                      avaliacao_ativa: avaliacaoAtiva,
+                      auto_msg_avaliacao_ativa: msgAvaliacaoAtiva,
+                      auto_msg_avaliacao_texto: msgAvaliacaoTexto,
+                      auto_msg_avaliacao_obrigado_texto: msgAvaliacaoObrigadoTexto,
+                    })
+                    .then(() => toast.showSuccess('Configurações de avaliação atualizadas.'))
+                    .catch((err) => toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar.')))
+                    .finally(() => setSalvandoAvaliacao(false))
+                }}
+              >
+                Salvar avaliação
               </Button>
             </div>
           </div>
