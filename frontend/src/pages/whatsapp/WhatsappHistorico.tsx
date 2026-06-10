@@ -8,7 +8,7 @@ import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
-import { rotuloAvaliacaoChat } from '../../lib/whatsappChatMeta'
+import { AvaliacaoEstrelas } from '../../components/ui/AvaliacaoEstrelas'
 
 const PAGE_SIZE = 15 // Reduzi para 15 para melhorar o fôlego da página em listas longas
 
@@ -190,9 +190,9 @@ export function WhatsappHistorico() {
                       </div>
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-tight text-slate-400">Avaliação</p>
-                        <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                          {rotuloAvaliacaoChat(c)}
-                        </p>
+                        <div className="flex justify-end">
+                          <AvaliacaoEstrelas chat={c} size="sm" />
+                        </div>
                       </div>
                     </div>
 

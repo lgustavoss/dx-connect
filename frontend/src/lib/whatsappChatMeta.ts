@@ -30,15 +30,32 @@ export function rotuloResponsavelChat(chat: ChatResumo, usuarioId?: number | nul
   return chat.atendente_nome || `Atendente #${chat.atendente_id}`
 }
 
+export type AvaliacaoChatResolvida =
+  | { kind: 'nota'; nota: number }
+  | { kind: 'sem_avaliacao' }
+  | { kind: 'nao_solicitada' }
+
+export function resolveAvaliacaoChat(chat: {
+  avaliacao_nota?: number | null
+  avaliacao_solicitada?: boolean
+  sem_avaliacao?: boolean
+  nota?: number | null
+}): AvaliacaoChatResolvida {
+  const nota = chat.avaliacao_nota ?? chat.nota
+  if (nota != null) return { kind: 'nota', nota }
+  if (chat.sem_avaliacao || (chat.avaliacao_solicitada && nota == null)) return { kind: 'sem_avaliacao' }
+  return { kind: 'nao_solicitada' }
+}
+
 export function rotuloAvaliacaoChat(chat: {
   avaliacao_nota?: number | null
   avaliacao_solicitada?: boolean
   sem_avaliacao?: boolean
   nota?: number | null
 }): string {
-  const nota = chat.avaliacao_nota ?? chat.nota
-  if (nota != null) return `${nota}/5`
-  if (chat.sem_avaliacao || (chat.avaliacao_solicitada && nota == null)) return 'Sem avaliação'
+  const resolvida = resolveAvaliacaoChat(chat)
+  if (resolvida.kind === 'nota') return `${resolvida.nota}/5`
+  if (resolvida.kind === 'sem_avaliacao') return 'Sem avaliação'
   return '—'
 }
 
