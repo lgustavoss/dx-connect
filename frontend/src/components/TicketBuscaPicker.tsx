@@ -6,8 +6,8 @@ import { Input } from './ui/Input'
 import { useToast } from './ui/Toast'
 
 type Props = {
-  /** Ticket atual — nunca aparece na lista. */
-  ticketAtualId: number
+  /** Ticket atual — nunca aparece na lista (omitir em vínculo a partir do chat). */
+  ticketAtualId?: number
   /** IDs adicionais a omitir (já vinculados, filhos, etc.). */
   excluirIds?: number[]
   /** Restringe a listagem (ex.: duplicado = mesma rede e empresa). */
@@ -38,7 +38,7 @@ export function TicketBuscaPicker({
   const [loading, setLoading] = useState(false)
 
   const omitir = useCallback(
-    (id: number) => id === ticketAtualId || excluirIds.includes(id),
+    (id: number) => (ticketAtualId != null && id === ticketAtualId) || excluirIds.includes(id),
     [excluirIds, ticketAtualId],
   )
 

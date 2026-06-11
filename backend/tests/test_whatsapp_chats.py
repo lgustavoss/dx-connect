@@ -269,6 +269,42 @@ def test_abrir_ticket_vincula(client, seed_base, auth_headers):
     assert r.json()["ticket_ids"]
 
 
+def test_vincular_ticket_existente(client, seed_base, auth_headers):
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "vinc"},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "vinc"}
+    client.post("/v1/webhooks/evolution", json=_webhook_body(wa_id="5511999778899", msg_id="vinc-1"), headers=h)
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+    client.post(f"/v1/whatsapp/chats/{cid}/assumir", headers=auth_headers["a1"])
+
+    ticket = client.post(
+        "/v1/tickets",
+        headers=auth_headers["admin"],
+        json={
+            "empresa_id": seed_base["empresa"].id,
+            "setor_id": seed_base["setor1"].id,
+            "assunto": "Ticket para vincular",
+            "descricao": "Teste",
+        },
+    )
+    assert ticket.status_code == 201
+    tid = ticket.json()["id"]
+
+    r = client.post(
+        f"/v1/whatsapp/chats/{cid}/vincular-ticket",
+        json={"ticket_id": tid},
+        headers=auth_headers["a1"],
+    )
+    assert r.status_code == 200
+    assert tid in r.json()["ticket_ids"]
+
+    por_ticket = client.get(f"/v1/whatsapp/chats/por-ticket/{tid}", headers=auth_headers["admin"]).json()
+    assert any(c["id"] == cid for c in por_ticket)
+
+
 def test_transferir_registra_mensagem_interna(client, seed_base, auth_headers):
     client.patch(
         "/v1/settings/whatsapp",
