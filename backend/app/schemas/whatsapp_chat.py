@@ -39,8 +39,43 @@ class WhatsappChatRead(BaseModel):
     avaliacao_respondida_at: datetime | None = None
     avaliacao_solicitada: bool = False
     ticket_ids: list[int] = Field(default_factory=list)
+    funcionario_rede_id: int | None = None
+    funcionario_nome: str | None = None
+    funcionario_email: str | None = None
+    funcionario_tipo: str | None = None
+    empresa_id: int | None = None
+    empresa_nome: str | None = None
 
     model_config = {"from_attributes": True}
+
+
+class WhatsappEmpresaOpcaoRead(BaseModel):
+    id: int
+    nome: str
+
+
+class WhatsappEmpresaCatalogoRead(BaseModel):
+    id: int
+    nome: str
+    rede_id: int
+
+
+class WhatsappFuncionarioOpcaoRead(BaseModel):
+    id: int
+    nome: str
+    email: str
+    tipo: str
+    empresas: list[WhatsappEmpresaOpcaoRead] = Field(default_factory=list)
+
+
+class WhatsappRedeCatalogoRead(BaseModel):
+    id: int
+    nome: str
+
+
+class WhatsappFuncionarioCatalogoRead(BaseModel):
+    redes: list[WhatsappRedeCatalogoRead] = Field(default_factory=list)
+    empresas: list[WhatsappEmpresaCatalogoRead] = Field(default_factory=list)
 
 
 class WhatsappChatMensagemCreate(BaseModel):
@@ -58,6 +93,27 @@ class WhatsappChatComentarioInternoCreate(BaseModel):
 
 class WhatsappVincularTicketBody(BaseModel):
     ticket_id: int
+
+
+class WhatsappVincularFuncionarioBody(BaseModel):
+    funcionario_rede_id: int
+    empresa_id: int | None = Field(
+        None,
+        description="Obrigatório quando o funcionário está vinculado a mais de uma empresa.",
+    )
+
+
+class WhatsappCadastrarFuncionarioBody(BaseModel):
+    nome: str = Field(..., min_length=1, max_length=255)
+    email: str = Field(..., min_length=3, max_length=255)
+    rede_id: int
+    tipo: str = Field(default="colaborador", description="colaborador | supervisor")
+    escopo_empresas: str = Field(default="selected", description="all | selected")
+    empresa_ids: list[int] = Field(default_factory=list)
+    empresa_id: int | None = Field(
+        None,
+        description="Empresa exibida no chat quando o funcionário tem várias empresas.",
+    )
 
 
 class WhatsappAbrirTicketBody(BaseModel):

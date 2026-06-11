@@ -1,0 +1,496 @@
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { whatsappChats, type WhatsappChats } from '../../api/client'
+import { Card } from '../../components/ui/Card'
+import { Button } from '../../components/ui/Button'
+import { Input } from '../../components/ui/Input'
+import { Select } from '../../components/ui/Select'
+import { SelectComPesquisa } from '../../components/ui/SelectComPesquisa'
+import { CheckboxField } from '../../components/ui/CheckboxField'
+import { useToast } from '../../components/ui/Toast'
+import { mensagemFalhaParaToast } from '../../api/errorMessage'
+
+type Modo = 'vincular' | 'cadastrar'
+type TipoCadastro = 'colaborador' | 'supervisor'
+type EscopoCadastro = 'all' | 'selected'
+
+type Props = {
+  chat: WhatsappChats.Chat
+  open: boolean
+  onClose: () => void
+  onSuccess: (chat: WhatsappChats.Chat) => void
+}
+
+export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }: Props) {
+  const toast = useToast()
+  const [modo, setModo] = useState<Modo>('vincular')
+  const [salvando, setSalvando] = useState(false)
+
+  const [busca, setBusca] = useState('')
+  const [debouncedBusca, setDebouncedBusca] = useState('')
+  const [resultados, setResultados] = useState<WhatsappChats.FuncionarioOpcao[]>([])
+  const [loadingBusca, setLoadingBusca] = useState(false)
+  const [erroBusca, setErroBusca] = useState<string | null>(null)
+  const [selecionado, setSelecionado] = useState<WhatsappChats.FuncionarioOpcao | null>(null)
+  const [empresaVinculoId, setEmpresaVinculoId] = useState<number | ''>('')
+
+  const [catalogo, setCatalogo] = useState<WhatsappChats.FuncionarioCatalogo | null>(null)
+  const [catalogoLoading, setCatalogoLoading] = useState(false)
+
+  const [nomeCadastro, setNomeCadastro] = useState('')
+  const [emailCadastro, setEmailCadastro] = useState('')
+  const [tipoCadastro, setTipoCadastro] = useState<TipoCadastro>('colaborador')
+  const [escopoCadastro, setEscopoCadastro] = useState<EscopoCadastro>('selected')
+  const [redeIdCadastro, setRedeIdCadastro] = useState<number | ''>('')
+  const [empresaIdCadastro, setEmpresaIdCadastro] = useState<number | ''>('')
+  const [empresaIdsCadastro, setEmpresaIdsCadastro] = useState<number[]>([])
+  const [empresaContextoId, setEmpresaContextoId] = useState<number | ''>('')
+
+  const empresaItemsVincular = useMemo(
+    () => (selecionado?.empresas ?? []).map((e) => ({ id: e.id, label: e.nome })),
+    [selecionado],
+  )
+
+  const empresasDaRede = useMemo(
+    () =>
+      (catalogo?.empresas ?? []).filter(
+        (e) => redeIdCadastro !== '' && e.rede_id === Number(redeIdCadastro),
+      ),
+    [catalogo, redeIdCadastro],
+  )
+
+  const empresasContextoOpcoes = useMemo(() => {
+    if (escopoCadastro === 'all') return empresasDaRede
+    if (tipoCadastro === 'colaborador' && empresaIdCadastro !== '') {
+      const emp = empresasDaRede.find((e) => e.id === Number(empresaIdCadastro))
+      return emp ? [emp] : []
+    }
+    return empresasDaRede.filter((e) => empresaIdsCadastro.includes(e.id))
+  }, [empresaIdCadastro, empresaIdsCadastro, empresasDaRede, escopoCadastro, tipoCadastro])
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedBusca(busca.trim()), 400)
+    return () => clearTimeout(timer)
+  }, [busca])
+
+  useEffect(() => {
+    if (!open) return
+    setModo('vincular')
+    setBusca('')
+    setDebouncedBusca('')
+    setResultados([])
+    setErroBusca(null)
+    setSelecionado(null)
+    setEmpresaVinculoId('')
+    setNomeCadastro(chat.cliente_nome?.trim() || '')
+    setEmailCadastro('')
+    setTipoCadastro('colaborador')
+    setEscopoCadastro('selected')
+    setRedeIdCadastro('')
+    setEmpresaIdCadastro('')
+    setEmpresaIdsCadastro([])
+    setEmpresaContextoId('')
+    setCatalogoLoading(true)
+    whatsappChats
+      .catalogoFuncionarios()
+      .then((data) => {
+        setCatalogo(data)
+        if (data.redes.length === 1) setRedeIdCadastro(data.redes[0].id)
+      })
+      .catch((err) => {
+        toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível carregar redes e empresas.'))
+      })
+      .finally(() => setCatalogoLoading(false))
+  }, [chat.cliente_nome, chat.id, open, toast])
+
+  useEffect(() => {
+    if (!open || modo !== 'vincular' || !debouncedBusca) {
+      setResultados([])
+      setErroBusca(null)
+      return
+    }
+    setLoadingBusca(true)
+    setErroBusca(null)
+    whatsappChats
+      .buscarFuncionarios(debouncedBusca)
+      .then(setResultados)
+      .catch((err) => {
+        setResultados([])
+        setErroBusca(mensagemFalhaParaToast(err, 'Não foi possível buscar funcionários.'))
+      })
+      .finally(() => setLoadingBusca(false))
+  }, [debouncedBusca, modo, open])
+
+  useEffect(() => {
+    if (!selecionado) {
+      setEmpresaVinculoId('')
+      return
+    }
+    if (selecionado.empresas.length === 1) setEmpresaVinculoId(selecionado.empresas[0].id)
+    else setEmpresaVinculoId('')
+  }, [selecionado])
+
+  useEffect(() => {
+    setEmpresaIdCadastro('')
+    setEmpresaIdsCadastro([])
+    setEmpresaContextoId('')
+  }, [redeIdCadastro, tipoCadastro, escopoCadastro])
+
+  useEffect(() => {
+    if (empresasContextoOpcoes.length === 1) {
+      setEmpresaContextoId(empresasContextoOpcoes[0].id)
+    } else if (
+      empresaContextoId !== '' &&
+      !empresasContextoOpcoes.some((e) => e.id === Number(empresaContextoId))
+    ) {
+      setEmpresaContextoId('')
+    }
+  }, [empresaContextoId, empresasContextoOpcoes])
+
+  if (!open) return null
+
+  function toggleEmpresaCadastro(id: number) {
+    setEmpresaIdsCadastro((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
+
+  async function confirmarVinculo() {
+    if (!selecionado) {
+      toast.showWarning('Selecione um funcionário.')
+      return
+    }
+    if (selecionado.empresas.length > 1 && empresaVinculoId === '') {
+      toast.showWarning('Selecione a empresa do funcionário.')
+      return
+    }
+    setSalvando(true)
+    try {
+      const atualizado = await whatsappChats.vincularFuncionario(chat.id, {
+        funcionario_rede_id: selecionado.id,
+        empresa_id: empresaVinculoId === '' ? null : Number(empresaVinculoId),
+      })
+      toast.showSuccess('Funcionário vinculado ao contato.')
+      onSuccess(atualizado)
+      onClose()
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível vincular o funcionário.'))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  async function confirmarCadastro() {
+    if (!nomeCadastro.trim()) {
+      toast.showWarning('Informe o nome do funcionário.')
+      return
+    }
+    if (!emailCadastro.trim()) {
+      toast.showWarning('Informe o e-mail do funcionário.')
+      return
+    }
+    if (redeIdCadastro === '') {
+      toast.showWarning('Selecione a rede.')
+      return
+    }
+    let empresaIds: number[] = []
+    if (escopoCadastro === 'selected') {
+      if (tipoCadastro === 'colaborador') {
+        if (empresaIdCadastro === '') {
+          toast.showWarning('Selecione a empresa.')
+          return
+        }
+        empresaIds = [Number(empresaIdCadastro)]
+      } else if (empresaIdsCadastro.length === 0) {
+        toast.showWarning('Marque ao menos uma empresa.')
+        return
+      } else {
+        empresaIds = [...empresaIdsCadastro]
+      }
+    }
+    if (empresasContextoOpcoes.length > 1 && empresaContextoId === '') {
+      toast.showWarning('Selecione a empresa exibida no chat.')
+      return
+    }
+    setSalvando(true)
+    try {
+      const atualizado = await whatsappChats.cadastrarFuncionario(chat.id, {
+        nome: nomeCadastro.trim(),
+        email: emailCadastro.trim(),
+        rede_id: Number(redeIdCadastro),
+        tipo: tipoCadastro,
+        escopo_empresas: escopoCadastro,
+        empresa_ids: empresaIds,
+        empresa_id: empresaContextoId === '' ? null : Number(empresaContextoId),
+      })
+      toast.showSuccess('Funcionário cadastrado e vinculado ao contato.')
+      onSuccess(atualizado)
+      onClose()
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível cadastrar o funcionário.'))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  async function desvincular() {
+    setSalvando(true)
+    try {
+      const atualizado = await whatsappChats.desvincularFuncionario(chat.id)
+      toast.showSuccess('Vínculo com funcionário removido.')
+      onSuccess(atualizado)
+      onClose()
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível desvincular o funcionário.'))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+      <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 animate-in zoom-in-95">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-bold">Funcionário do contato</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Vincule um cadastro existente ou cadastre o contato como funcionário da rede.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+            onClick={onClose}
+          >
+            &times;
+          </button>
+        </div>
+
+        {chat.funcionario_rede_id && (
+          <div className="mt-4 rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm dark:border-cyan-900/50 dark:bg-cyan-950/30">
+            <p className="font-semibold text-cyan-900 dark:text-cyan-100">
+              Vínculo atual: {chat.funcionario_nome}
+            </p>
+            {chat.empresa_nome && (
+              <p className="mt-0.5 text-xs text-cyan-800/80 dark:text-cyan-200/80">{chat.empresa_nome}</p>
+            )}
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Link
+                to={`/funcionarios-rede/${chat.funcionario_rede_id}`}
+                className="text-xs font-medium text-cyan-700 underline dark:text-cyan-300"
+              >
+                Abrir cadastro
+              </Link>
+              <button
+                type="button"
+                className="text-xs font-medium text-red-600 underline"
+                onClick={() => void desvincular()}
+                disabled={salvando}
+              >
+                Remover vínculo
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-4 flex gap-2 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+          <button
+            type="button"
+            className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              modo === 'vincular'
+                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white'
+                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+            onClick={() => setModo('vincular')}
+          >
+            Vincular existente
+          </button>
+          <button
+            type="button"
+            className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              modo === 'cadastrar'
+                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white'
+                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+            onClick={() => setModo('cadastrar')}
+          >
+            Cadastrar novo
+          </button>
+        </div>
+
+        {modo === 'vincular' ? (
+          <div className="mt-4 space-y-4">
+            <Input
+              placeholder="Buscar por nome ou e-mail"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+            />
+            {erroBusca && <p className="text-xs text-amber-500">{erroBusca}</p>}
+            {loadingBusca ? (
+              <p className="text-sm text-slate-500">Buscando...</p>
+            ) : debouncedBusca ? (
+              resultados.length > 0 ? (
+                <div className="max-h-56 overflow-y-auto divide-y divide-slate-200 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-900">
+                  {resultados.map((funcionario) => (
+                    <button
+                      key={funcionario.id}
+                      type="button"
+                      onClick={() => setSelecionado(funcionario)}
+                      className={`w-full text-left px-4 py-3 transition-colors ${
+                        selecionado?.id === funcionario.id
+                          ? 'bg-cyan-100 dark:bg-cyan-950/50'
+                          : 'hover:bg-white dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-slate-900 dark:text-slate-100">{funcionario.nome}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">{funcionario.email}</p>
+                        </div>
+                        <span className="text-xs uppercase tracking-wide text-slate-400">{funcionario.tipo}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500">
+                  Nenhum funcionário encontrado. Use a aba <strong>Cadastrar novo</strong>.
+                </p>
+              )
+            ) : (
+              <p className="text-sm text-slate-500">Digite um termo para buscar funcionários.</p>
+            )}
+            {selecionado && selecionado.empresas.length > 1 && (
+              <SelectComPesquisa
+                label="Empresa no chat"
+                items={empresaItemsVincular}
+                value={empresaVinculoId}
+                onChange={(id) => setEmpresaVinculoId(id)}
+                placeholder="Selecione a empresa"
+              />
+            )}
+          </div>
+        ) : (
+          <div className="mt-4 space-y-4">
+            {catalogoLoading ? (
+              <p className="text-sm text-slate-500">Carregando redes e empresas...</p>
+            ) : (
+              <>
+                <Input
+                  label="Nome"
+                  value={nomeCadastro}
+                  onChange={(e) => setNomeCadastro(e.target.value)}
+                  required
+                />
+                <Input
+                  label="E-mail"
+                  type="email"
+                  value={emailCadastro}
+                  onChange={(e) => setEmailCadastro(e.target.value)}
+                  required
+                />
+                <p className="text-xs text-slate-500">
+                  WhatsApp do contato: <span className="font-mono">{chat.wa_id}</span>
+                </p>
+                <Select
+                  label="Tipo"
+                  value={tipoCadastro}
+                  onChange={(v) => {
+                    setTipoCadastro(v as TipoCadastro)
+                    setEscopoCadastro('selected')
+                  }}
+                  options={[
+                    { value: 'colaborador', label: 'Colaborador (uma empresa)' },
+                    { value: 'supervisor', label: 'Supervisor (várias empresas)' },
+                  ]}
+                />
+                <SelectComPesquisa
+                  label="Rede"
+                  value={redeIdCadastro}
+                  onChange={(id) => setRedeIdCadastro(id)}
+                  items={(catalogo?.redes ?? []).map((r) => ({ id: r.id, label: r.nome }))}
+                  placeholder="Selecione a rede"
+                  required
+                />
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Escopo de empresas</p>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      checked={escopoCadastro === 'selected'}
+                      onChange={() => setEscopoCadastro('selected')}
+                    />
+                    Selecionar empresa(s)
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      checked={escopoCadastro === 'all'}
+                      onChange={() => {
+                        setEscopoCadastro('all')
+                        setEmpresaIdCadastro('')
+                        setEmpresaIdsCadastro([])
+                      }}
+                    />
+                    Todas as empresas da rede
+                  </label>
+                </div>
+                {escopoCadastro === 'selected' && redeIdCadastro !== '' && (
+                  <>
+                    {tipoCadastro === 'colaborador' ? (
+                      <SelectComPesquisa
+                        label="Empresa"
+                        value={empresaIdCadastro}
+                        onChange={(id) => setEmpresaIdCadastro(id)}
+                        items={empresasDaRede.map((e) => ({ id: e.id, label: e.nome }))}
+                        placeholder="Selecione a empresa"
+                        required
+                      />
+                    ) : empresasDaRede.length > 0 ? (
+                      <div className="flex max-h-40 flex-wrap gap-2 overflow-auto rounded-xl border border-slate-200 bg-slate-50/40 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+                        {empresasDaRede.map((e) => (
+                          <CheckboxField
+                            key={e.id}
+                            checked={empresaIdsCadastro.includes(e.id)}
+                            onChange={() => toggleEmpresaCadastro(e.id)}
+                          >
+                            {e.nome}
+                          </CheckboxField>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500">Nenhuma empresa ativa nesta rede.</p>
+                    )}
+                  </>
+                )}
+                {empresasContextoOpcoes.length > 1 && (
+                  <SelectComPesquisa
+                    label="Empresa exibida no chat"
+                    value={empresaContextoId}
+                    onChange={(id) => setEmpresaContextoId(id)}
+                    items={empresasContextoOpcoes.map((e) => ({ id: e.id, label: e.nome }))}
+                    placeholder="Selecione a empresa de contexto"
+                    required
+                  />
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <Button variant="secondary" onClick={onClose} disabled={salvando}>
+            Cancelar
+          </Button>
+          {modo === 'vincular' ? (
+            <Button onClick={() => void confirmarVinculo()} loading={salvando} disabled={!selecionado}>
+              Vincular
+            </Button>
+          ) : (
+            <Button onClick={() => void confirmarCadastro()} loading={salvando} disabled={catalogoLoading}>
+              Cadastrar e vincular
+            </Button>
+          )}
+        </div>
+      </Card>
+    </div>
+  )
+}

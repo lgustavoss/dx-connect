@@ -657,6 +657,30 @@ export namespace WhatsappChats {
     avaliacao_respondida_at?: string | null
     avaliacao_solicitada?: boolean
     ticket_ids: number[]
+    funcionario_rede_id?: number | null
+    funcionario_nome?: string | null
+    funcionario_email?: string | null
+    funcionario_tipo?: string | null
+    empresa_id?: number | null
+    empresa_nome?: string | null
+  }
+  export interface EmpresaOpcao {
+    id: number
+    nome: string
+  }
+  export interface FuncionarioOpcao {
+    id: number
+    nome: string
+    email: string
+    tipo: string
+    empresas: EmpresaOpcao[]
+  }
+  export interface EmpresaCatalogo extends EmpresaOpcao {
+    rede_id: number
+  }
+  export interface FuncionarioCatalogo {
+    redes: Array<{ id: number; nome: string }>
+    empresas: EmpresaCatalogo[]
   }
   export interface Avaliacao {
     chat_id: number
@@ -757,6 +781,34 @@ export const whatsappChats = {
     api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/vincular-ticket`, {
       method: 'POST',
       body: JSON.stringify({ ticket_id: ticketId }),
+    }),
+  vincularFuncionario: (id: number, data: { funcionario_rede_id: number; empresa_id?: number | null }) =>
+    api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/vincular-funcionario`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  desvincularFuncionario: (id: number) =>
+    api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/desvincular-funcionario`, { method: 'POST' }),
+  buscarFuncionarios: (busca: string, limit = 20) =>
+    api<WhatsappChats.FuncionarioOpcao[]>(
+      `/whatsapp/chats/funcionarios?${new URLSearchParams({ busca, limit: String(limit) }).toString()}`,
+    ),
+  catalogoFuncionarios: () => api<WhatsappChats.FuncionarioCatalogo>('/whatsapp/chats/funcionarios/catalogo'),
+  cadastrarFuncionario: (
+    id: number,
+    data: {
+      nome: string
+      email: string
+      rede_id: number
+      tipo?: 'colaborador' | 'supervisor'
+      escopo_empresas?: 'all' | 'selected'
+      empresa_ids?: number[]
+      empresa_id?: number | null
+    },
+  ) =>
+    api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/cadastrar-funcionario`, {
+      method: 'POST',
+      body: JSON.stringify(data),
     }),
   abrirTicket: (
     id: number,
