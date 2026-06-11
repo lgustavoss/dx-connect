@@ -330,3 +330,106 @@ def test_transferir_registra_mensagem_interna(client, seed_base, auth_headers):
     transfer_msgs = [m for m in msgs if m.get("evento_sistema") == "transferencia"]
     assert len(transfer_msgs) == 1
     assert "Financeiro" in transfer_msgs[0]["corpo"]
+
+
+def _criar_funcionario_colaborador(db_session, seed_base, *, nome="João Cliente", email="joao.cliente@test.local"):
+    from app.models.funcionario_rede import FuncionarioRede, FuncionarioRedeEmpresa
+
+    emp = seed_base["empresa"]
+    f = FuncionarioRede(
+        nome=nome,
+        email=email,
+        tipo="colaborador",
+        escopo_empresas="selected",
+        ativo=True,
+        rede_id=emp.rede_id,
+        empresa_id=emp.id,
+    )
+    db_session.add(f)
+    db_session.flush()
+    db_session.add(FuncionarioRedeEmpresa(funcionario_id=f.id, empresa_id=emp.id))
+    db_session.commit()
+    db_session.refresh(f)
+    return {"id": f.id, "nome": f.nome, "email": f.email}
+
+
+def _chat_ativo(client, seed_base, auth_headers, wa_id="5511999334455", msg_id="func-1"):
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "func-vinc"},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "func-vinc"}
+    client.post("/v1/webhooks/evolution", json=_webhook_body(wa_id=wa_id, msg_id=msg_id), headers=h)
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+    client.post(f"/v1/whatsapp/chats/{cid}/assumir", headers=auth_headers["a1"])
+    return cid
+
+
+def test_vincular_funcionario_no_chat(client, seed_base, auth_headers, db_session):
+    func = _criar_funcionario_colaborador(db_session, seed_base)
+    cid = _chat_ativo(client, seed_base, auth_headers)
+
+    r = client.post(
+        f"/v1/whatsapp/chats/{cid}/vincular-funcionario",
+        json={"funcionario_rede_id": func["id"]},
+        headers=auth_headers["a1"],
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["funcionario_rede_id"] == func["id"]
+    assert body["funcionario_nome"] == func["nome"]
+    assert body["empresa_id"] == seed_base["empresa"].id
+    assert body["empresa_nome"]
+
+    get_r = client.get(f"/v1/whatsapp/chats/{cid}", headers=auth_headers["a1"])
+    assert get_r.status_code == 200
+    assert get_r.json()["funcionario_rede_id"] == func["id"]
+
+
+def test_buscar_funcionarios_whatsapp(client, seed_base, auth_headers, db_session):
+    func = _criar_funcionario_colaborador(db_session, seed_base, nome="Maria Silva", email="maria@test.local")
+    r = client.get("/v1/whatsapp/chats/funcionarios?busca=Maria", headers=auth_headers["a1"])
+    assert r.status_code == 200
+    ids = [x["id"] for x in r.json()]
+    assert func["id"] in ids
+
+
+def test_desvincular_funcionario_no_chat(client, seed_base, auth_headers, db_session):
+    func = _criar_funcionario_colaborador(db_session, seed_base, email="desv@test.local")
+    cid = _chat_ativo(client, seed_base, auth_headers, wa_id="5511999223344", msg_id="func-desv")
+    client.post(
+        f"/v1/whatsapp/chats/{cid}/vincular-funcionario",
+        json={"funcionario_rede_id": func["id"]},
+        headers=auth_headers["a1"],
+    )
+    r = client.post(f"/v1/whatsapp/chats/{cid}/desvincular-funcionario", headers=auth_headers["a1"])
+    assert r.status_code == 200
+    assert r.json()["funcionario_rede_id"] is None
+    assert r.json()["empresa_id"] is None
+
+
+def test_cadastrar_funcionario_no_chat(client, seed_base, auth_headers, db_session):
+    cid = _chat_ativo(client, seed_base, auth_headers, wa_id="5511999112233", msg_id="func-cad")
+    r = client.post(
+        f"/v1/whatsapp/chats/{cid}/cadastrar-funcionario",
+        json={
+            "nome": "Cliente Novo",
+            "email": "cliente.novo@test.local",
+            "rede_id": seed_base["rede"].id,
+            "tipo": "colaborador",
+            "escopo_empresas": "selected",
+            "empresa_ids": [seed_base["empresa"].id],
+        },
+        headers=auth_headers["a1"],
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["funcionario_nome"] == "Cliente Novo"
+    assert body["funcionario_email"] == "cliente.novo@test.local"
+    assert body["empresa_id"] == seed_base["empresa"].id
+
+    catalogo = client.get("/v1/whatsapp/chats/funcionarios/catalogo", headers=auth_headers["a1"])
+    assert catalogo.status_code == 200
+    assert any(re["id"] == seed_base["rede"].id for re in catalogo.json()["redes"])
+
