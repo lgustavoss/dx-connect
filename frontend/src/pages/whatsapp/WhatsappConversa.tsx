@@ -6,8 +6,7 @@ import {
 
 
   atendentes,
-
-
+  tickets,
   whatsappChats,
 
   funcionariosRede,
@@ -20,6 +19,7 @@ import {
   type Atendentes,
   type FuncionariosRede,
 
+  type Tickets,
   type WhatsappChats,
 
 } from '../../api/client'
@@ -46,8 +46,7 @@ import {
   rotuloEstadoChat,
   rotuloResponsavelChat,
 } from '../../lib/whatsappChatMeta'
-
-
+import { WhatsappTicketsModal } from './WhatsappTicketsModal'
 
 const ROTULO_SEM_LEGENDA = /^\[(Imagem|Áudio|Vídeo|Documento|Figurinha)\]$/
 
@@ -248,9 +247,8 @@ export function WhatsappConversa() {
 
   // Modais (Vincular/Transferir/Abrir)
 
-  const [modalVinc, setModalVinc] = useState(false)
-
-  const [ticketVincId, setTicketVincId] = useState('')
+  const [modalTickets, setModalTickets] = useState(false)
+  const [ticketsVinculados, setTicketsVinculados] = useState<Tickets.Ticket[]>([])
   const navigate = useNavigate()
 
 
@@ -350,6 +348,24 @@ export function WhatsappConversa() {
     return () => clearInterval(t)
 
   }, [chat, carregar])
+
+  useEffect(() => {
+    if (!chat?.ticket_ids?.length) {
+      setTicketsVinculados([])
+      return
+    }
+    let cancelled = false
+    Promise.all(chat.ticket_ids.map((tid) => tickets.get(tid)))
+      .then((rows) => {
+        if (!cancelled) setTicketsVinculados(rows)
+      })
+      .catch(() => {
+        if (!cancelled) setTicketsVinculados([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [chat?.ticket_ids])
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedBuscaFuncionario(buscaFuncionario.trim()), 400)
@@ -728,6 +744,21 @@ useEffect(() => {
 
               </div>
 
+              {ticketsVinculados.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {ticketsVinculados.map((t) => (
+                    <Link
+                      key={t.id}
+                      to={`/tickets/${t.id}`}
+                      className="inline-flex rounded-full border border-cyan-200/80 bg-cyan-50 px-2 py-0.5 text-[10px] font-medium text-cyan-800 dark:border-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300"
+                      title={t.assunto}
+                    >
+                      {exibirProtocolo(t.protocolo)}
+                    </Link>
+                  ))}
+                </div>
+              )}
+
             </div>
 
           </div>
@@ -757,7 +788,9 @@ useEffect(() => {
                 Vincular funcionário
               </Button>
 
-                <Button variant="ghost" className="hidden sm:inline-flex text-xs h-8" onClick={() => setModalVinc(true)}>Tickets</Button>
+                <Button variant="ghost" className="hidden sm:inline-flex text-xs h-8" onClick={() => setModalTickets(true)}>
+                  Tickets{ticketsVinculados.length > 0 ? ` (${ticketsVinculados.length})` : ''}
+                </Button>
 
                 {podeEnviar && (
 
@@ -1177,28 +1210,13 @@ useEffect(() => {
           </div>
         )}
 
-      {modalVinc && (
-
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
-
-           <Card className="w-full max-w-lg p-6 animate-in zoom-in-95">
-
-              <h3 className="text-lg font-bold">Vincular Ticket</h3>
-
-              <Input className="mt-4" type="number" value={ticketVincId} onChange={(e) => setTicketVincId(e.target.value)} placeholder="Número do Ticket" />
-
-              <div className="mt-6 flex justify-end gap-2">
-
-                <Button variant="secondary" onClick={() => setModalVinc(false)}>Cancelar</Button>
-
-                <Button onClick={() => {/* lógica vincular */ setModalVinc(false)}}>Vincular</Button>
-
-              </div>
-
-           </Card>
-
-        </div>
-
+      {chat && (
+        <WhatsappTicketsModal
+          chat={chat}
+          open={modalTickets}
+          onClose={() => setModalTickets(false)}
+          onSuccess={(atualizado) => setChat(atualizado)}
+        />
       )}
 
       {/* Modal Zoom de Imagem */}
