@@ -380,6 +380,10 @@ def listar(
         False,
         description="Somente tickets sem atendente atribuído (fila do setor)",
     ),
+    com_responsavel: bool = Query(
+        False,
+        description="Somente tickets com responsável atribuído (em atendimento)",
+    ),
     meus: bool = Query(False, description="Somente tickets em que você é o responsável"),
     atendente_id: int | None = Query(
         None,
@@ -429,7 +433,9 @@ def listar(
         q = q.filter(Ticket.atendente_id == atendente_id)
     elif meus:
         q = q.filter(Ticket.atendente_id == atendente.id)
-    if sem_responsavel:
+    elif com_responsavel:
+        q = q.filter(Ticket.atendente_id.isnot(None))
+    elif sem_responsavel:
         q = q.filter(Ticket.atendente_id.is_(None))
 
     if situacao == SituacaoTicket.abertos:

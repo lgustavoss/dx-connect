@@ -805,6 +805,7 @@ export const tickets = {
     protocolo?: string;
     busca?: string;
     sem_responsavel?: boolean;
+    com_responsavel?: boolean;
     meus?: boolean;
     atendente_id?: number;
     /** Coluna para ordenar (omitir = mais recentes primeiro). */

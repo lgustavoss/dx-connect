@@ -1430,7 +1430,9 @@ export function TicketDetalhe() {
             </p>
 
             {chatsWhatsapp.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-2">
+              <div className="mt-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Conversas vinculadas</p>
+                <div className="mt-1 flex flex-wrap gap-2">
                 {chatsWhatsapp.map((c) => (
                   <Link
                     key={c.id}
@@ -1440,6 +1442,7 @@ export function TicketDetalhe() {
                     WA {exibirProtocolo(c.protocolo)}
                   </Link>
                 ))}
+                </div>
               </div>
             )}
 
