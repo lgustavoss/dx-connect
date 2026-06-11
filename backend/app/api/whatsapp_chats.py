@@ -14,6 +14,8 @@ from app.models.ticket import Ticket, TicketMensagem
 from app.models.status_ticket import StatusTicket
 from app.models.empresa import Empresa
 from app.models.setor import Setor
+from app.models.rede import Rede
+from app.models.funcionario_rede import FuncionarioRede, FuncionarioRedeEmpresa
 from app.models.whatsapp_chat import WhatsappChat, WhatsappChatTicket, WhatsappMensagem, WhatsappSettings
 from app.models.whatsapp_chat_read import WhatsappChatRead as WhatsappChatReadModel
 from app.schemas.lista_paginada import ListaPaginada
@@ -25,8 +27,18 @@ from app.schemas.whatsapp_chat import (
     WhatsappChatRead,
     WhatsappMensagemRead,
     WhatsappTransferirChatBody,
+    WhatsappVincularFuncionarioBody,
+    WhatsappCadastrarFuncionarioBody,
     WhatsappVincularTicketBody,
+    WhatsappEmpresaOpcaoRead,
+    WhatsappFuncionarioOpcaoRead,
+    WhatsappFuncionarioCatalogoRead,
+    WhatsappRedeCatalogoRead,
+    WhatsappEmpresaCatalogoRead,
 )
+from app.services.funcionario_escopo import empresa_ids_vinculados, rede_id_efetiva, sincronizar_vinculos_empresas, validar_empresa_ids_na_rede
+from app.services.funcionario_rede_resolver import assert_email_unico_por_rede
+from app.core.audit import registrar_audit
 from app.core.auth import exigir_admin, obter_atendente_atual
 from app.api.tickets import _gerar_protocolo, _pode_ver_ticket
 from app.core.setor_scope import ids_setores_visiveis_atendente
@@ -46,6 +58,13 @@ logger = logging.getLogger(__name__)
 
 _MAX_PAGE = 100
 _DEFAULT_PAGE = 20
+
+_CHAT_LOAD_OPTIONS = (
+    joinedload(WhatsappChat.atendente),
+    joinedload(WhatsappChat.setor),
+    joinedload(WhatsappChat.funcionario_rede),
+    joinedload(WhatsappChat.empresa),
+)
 
 
 @router.get("/transfer/setores", response_model=list[dict])
@@ -272,10 +291,148 @@ def _ticket_ids(db: Session, chat_id: int) -> list[int]:
     return [x[0] for x in db.query(WhatsappChatTicket.ticket_id).filter(WhatsappChatTicket.chat_id == chat_id).all()]
 
 
+def _empresa_nome_exibicao(emp: Empresa | None) -> str | None:
+    if not emp:
+        return None
+    for raw in (emp.nome_fantasia, emp.nome, emp.razao_social):
+        if raw and str(raw).strip():
+            return str(raw).strip()
+    return None
+
+
+def _funcionario_no_tenant(db: Session, atendente: Atendente, funcionario_id: int) -> FuncionarioRede | None:
+    func = db.query(FuncionarioRede).filter(FuncionarioRede.id == funcionario_id).first()
+    if not func or not func.ativo:
+        return None
+    rede_id = rede_id_efetiva(db, func)
+    if rede_id is not None:
+        rede = db.query(Rede).filter(Rede.id == rede_id, Rede.tenant_id == atendente.tenant_id).first()
+        if rede:
+            return func
+    if func.empresa_id is not None:
+        emp = (
+            db.query(Empresa)
+            .filter(Empresa.id == func.empresa_id, Empresa.tenant_id == atendente.tenant_id)
+            .first()
+        )
+        if emp:
+            return func
+    vinculo = (
+        db.query(FuncionarioRedeEmpresa)
+        .join(Empresa, Empresa.id == FuncionarioRedeEmpresa.empresa_id)
+        .filter(
+            FuncionarioRedeEmpresa.funcionario_id == func.id,
+            Empresa.tenant_id == atendente.tenant_id,
+        )
+        .first()
+    )
+    return func if vinculo else None
+
+
+def _empresas_funcionario(db: Session, func: FuncionarioRede) -> list[WhatsappEmpresaOpcaoRead]:
+    ids = empresa_ids_vinculados(db, func, apenas_ativas=True)
+    if not ids:
+        return []
+    rows = db.query(Empresa).filter(Empresa.id.in_(ids)).order_by(Empresa.nome.asc(), Empresa.id.asc()).all()
+    return [WhatsappEmpresaOpcaoRead(id=e.id, nome=_empresa_nome_exibicao(e) or e.nome) for e in rows]
+
+
+def _resolver_empresa_vinculo(
+    db: Session,
+    atendente: Atendente,
+    func: FuncionarioRede,
+    empresa_id: int | None,
+) -> Empresa:
+    emp_ids = empresa_ids_vinculados(db, func, apenas_ativas=True)
+    if not emp_ids:
+        raise HTTPException(status_code=400, detail="Funcionário sem empresas vinculadas")
+    escolhida: int
+    if len(emp_ids) == 1:
+        escolhida = next(iter(emp_ids))
+    elif empresa_id is None:
+        raise HTTPException(status_code=400, detail="Selecione a empresa do funcionário")
+    elif int(empresa_id) not in emp_ids:
+        raise HTTPException(status_code=400, detail="Empresa inválida para este funcionário")
+    else:
+        escolhida = int(empresa_id)
+    emp = db.query(Empresa).filter(Empresa.id == escolhida, Empresa.tenant_id == atendente.tenant_id).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Empresa não encontrada")
+    return emp
+
+
+def _criar_funcionario_rede(
+    db: Session,
+    atendente: Atendente,
+    *,
+    nome: str,
+    email: str,
+    tipo: str,
+    escopo_empresas: str,
+    rede_id: int,
+    empresa_id: int | None,
+    empresa_ids: list[int],
+) -> FuncionarioRede:
+    tipo_eff = (tipo or "colaborador").strip().lower()
+    if tipo_eff not in ("colaborador", "supervisor", "socio"):
+        raise HTTPException(status_code=400, detail="Tipo de funcionário inválido")
+    escopo = (escopo_empresas or "selected").strip().lower()
+    if escopo not in ("all", "selected"):
+        raise HTTPException(status_code=400, detail="escopo_empresas deve ser all ou selected")
+    if tipo_eff == "socio" and escopo != "all":
+        escopo = "all"
+    ids = list(dict.fromkeys(empresa_ids or []))
+    if empresa_id and int(empresa_id) not in ids:
+        ids.insert(0, int(empresa_id))
+    rede = db.query(Rede).filter(Rede.id == rede_id, Rede.tenant_id == atendente.tenant_id).first()
+    if not rede:
+        raise HTTPException(status_code=404, detail="Rede não encontrada")
+    if escopo == "selected" and not ids:
+        raise HTTPException(status_code=400, detail="Selecione ao menos uma empresa da rede")
+    if escopo == "selected":
+        try:
+            validar_empresa_ids_na_rede(db, int(rede_id), ids)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        emps = db.query(Empresa).filter(Empresa.id.in_(ids)).all()
+        if any(int(e.tenant_id) != int(atendente.tenant_id) for e in emps):
+            raise HTTPException(status_code=400, detail="Empresa inválida para este tenant")
+    try:
+        assert_email_unico_por_rede(db, email=email.strip(), rede_id=int(rede_id))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    emp_colab_id: int | None = None
+    if escopo == "selected" and tipo_eff == "colaborador" and len(ids) == 1:
+        emp_colab_id = ids[0]
+    f = FuncionarioRede(
+        nome=nome.strip(),
+        email=email.strip(),
+        tipo=tipo_eff,
+        escopo_empresas=escopo,
+        ativo=True,
+        rede_id=int(rede_id),
+        empresa_id=emp_colab_id,
+    )
+    db.add(f)
+    db.flush()
+    registrar_audit(db, "funcionario_rede", f.id, "create", atendente.id)
+    sincronizar_vinculos_empresas(
+        db,
+        f,
+        escopo=escopo,
+        rede_id=int(rede_id),
+        empresa_ids=ids if escopo == "selected" else None,
+    )
+    db.refresh(f)
+    return f
+
+
 def _chat_read(db: Session, c: WhatsappChat, *, revelar_avaliacao: bool = False) -> WhatsappChatRead:
     nota = getattr(c, "avaliacao_nota", None) if revelar_avaliacao else None
     respondida = getattr(c, "avaliacao_respondida_at", None) if revelar_avaliacao else None
     solicitada = bool(getattr(c, "avaliacao_solicitada", False)) if revelar_avaliacao else False
+    func = getattr(c, "funcionario_rede", None)
+    emp = getattr(c, "empresa", None)
     return WhatsappChatRead(
         id=c.id,
         protocolo=c.protocolo,
@@ -293,6 +450,12 @@ def _chat_read(db: Session, c: WhatsappChat, *, revelar_avaliacao: bool = False)
         avaliacao_respondida_at=respondida,
         avaliacao_solicitada=solicitada,
         ticket_ids=_ticket_ids(db, c.id),
+        funcionario_rede_id=getattr(c, "funcionario_rede_id", None),
+        funcionario_nome=func.nome if func else None,
+        funcionario_email=func.email if func else None,
+        funcionario_tipo=func.tipo if func else None,
+        empresa_id=getattr(c, "empresa_id", None),
+        empresa_nome=_empresa_nome_exibicao(emp),
     )
 
 
@@ -357,7 +520,7 @@ def listar_fila(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    q = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente), joinedload(WhatsappChat.setor)).filter(
+    q = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(
         WhatsappChat.estado == "aguardando_atendente"
     )
     if atendente.role != "admin":
@@ -374,7 +537,7 @@ def listar_meus_ativos(
 ):
     q = (
         db.query(WhatsappChat)
-        .options(joinedload(WhatsappChat.atendente), joinedload(WhatsappChat.setor))
+        .options(*_CHAT_LOAD_OPTIONS)
         .filter(WhatsappChat.estado == "em_atendimento")
     )
     if atendente.role != "admin":
@@ -396,7 +559,7 @@ def listar_encerrados(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    q = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente)).filter(WhatsappChat.estado == "encerrado")
+    q = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.estado == "encerrado")
     if protocolo:
         q = q.filter(WhatsappChat.protocolo.ilike(f"%{protocolo}%"))
     if wa_id:
@@ -439,7 +602,7 @@ def listar_avaliacoes(
 ):
     q = (
         db.query(WhatsappChat)
-        .options(joinedload(WhatsappChat.atendente), joinedload(WhatsappChat.setor))
+        .options(*_CHAT_LOAD_OPTIONS)
         .filter(WhatsappChat.avaliacao_solicitada.is_(True))
     )
     if busca:
@@ -482,12 +645,89 @@ def listar_por_ticket(
         return []
     rows = (
         db.query(WhatsappChat)
-        .options(joinedload(WhatsappChat.atendente))
+        .options(*_CHAT_LOAD_OPTIONS)
         .filter(WhatsappChat.id.in_(chat_ids))
         .order_by(desc(WhatsappChat.id))
         .all()
     )
     return [_chat_read(db, c) for c in rows]
+
+
+@router.get("/funcionarios", response_model=list[WhatsappFuncionarioOpcaoRead])
+def buscar_funcionarios(
+    busca: str = Query(..., min_length=1, description="Nome ou e-mail do funcionário"),
+    limit: int = Query(20, ge=1, le=_MAX_PAGE),
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    term = f"%{busca.strip()}%"
+    rede_ids = [int(r[0]) for r in db.query(Rede.id).filter(Rede.tenant_id == atendente.tenant_id).all()]
+    empresa_ids = [int(r[0]) for r in db.query(Empresa.id).filter(Empresa.tenant_id == atendente.tenant_id).all()]
+    func_ids_junction = [
+        int(r[0])
+        for r in db.query(FuncionarioRedeEmpresa.funcionario_id)
+        .join(Empresa, Empresa.id == FuncionarioRedeEmpresa.empresa_id)
+        .filter(Empresa.tenant_id == atendente.tenant_id)
+        .distinct()
+        .all()
+    ]
+    filtros = []
+    if rede_ids:
+        filtros.append(FuncionarioRede.rede_id.in_(rede_ids))
+    if empresa_ids:
+        filtros.append(FuncionarioRede.empresa_id.in_(empresa_ids))
+    if func_ids_junction:
+        filtros.append(FuncionarioRede.id.in_(func_ids_junction))
+    if not filtros:
+        return []
+    q = (
+        db.query(FuncionarioRede)
+        .filter(
+            FuncionarioRede.ativo.is_(True),
+            or_(*filtros),
+            or_(FuncionarioRede.nome.ilike(term), FuncionarioRede.email.ilike(term)),
+        )
+        .order_by(FuncionarioRede.nome.asc(), FuncionarioRede.id.asc())
+        .limit(limit)
+    )
+    rows = q.all()
+    out: list[WhatsappFuncionarioOpcaoRead] = []
+    for func in rows:
+        if _funcionario_no_tenant(db, atendente, func.id) is None:
+            continue
+        out.append(
+            WhatsappFuncionarioOpcaoRead(
+                id=func.id,
+                nome=func.nome,
+                email=func.email,
+                tipo=func.tipo,
+                empresas=_empresas_funcionario(db, func),
+            )
+        )
+    return out
+
+
+@router.get("/funcionarios/catalogo", response_model=WhatsappFuncionarioCatalogoRead)
+def catalogo_funcionarios(
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    redes = (
+        db.query(Rede)
+        .filter(Rede.tenant_id == atendente.tenant_id, Rede.ativo.is_(True))
+        .order_by(Rede.nome.asc(), Rede.id.asc())
+        .all()
+    )
+    empresas = (
+        db.query(Empresa)
+        .filter(Empresa.tenant_id == atendente.tenant_id, Empresa.ativo.is_(True))
+        .order_by(Empresa.nome.asc(), Empresa.id.asc())
+        .all()
+    )
+    return WhatsappFuncionarioCatalogoRead(
+        redes=[WhatsappRedeCatalogoRead(id=r.id, nome=r.nome) for r in redes],
+        empresas=[WhatsappEmpresaCatalogoRead(id=e.id, nome=_empresa_nome_exibicao(e) or e.nome, rede_id=int(e.rede_id)) for e in empresas],
+    )
 
 
 @router.get("/{chat_id}", response_model=WhatsappChatRead)
@@ -498,7 +738,7 @@ def obter(
 ):
     c = (
         db.query(WhatsappChat)
-        .options(joinedload(WhatsappChat.atendente), joinedload(WhatsappChat.setor))
+        .options(*_CHAT_LOAD_OPTIONS)
         .filter(WhatsappChat.id == chat_id)
         .first()
     )
@@ -564,7 +804,7 @@ def assumir(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    c = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente)).filter(WhatsappChat.id == chat_id).first()
+    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
     if atendente.role != "admin" and c.setor_id is not None:
@@ -595,7 +835,7 @@ def assumir(
                 _enviar_texto_whatsapp(db, chat=c, texto=txt, atendente=atendente, evento_sistema="auto_assumido")
             except HTTPException as exc:
                 logger.warning("Auto-msg assumido falhou (chat=%s): %s", c.protocolo, exc.detail)
-    c = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente)).filter(WhatsappChat.id == chat_id).first()
+    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
     assert c is not None
     return _chat_read(db, c)
 
@@ -606,7 +846,7 @@ def encerrar(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    c = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente)).filter(WhatsappChat.id == chat_id).first()
+    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
     if atendente.role != "admin" and c.setor_id is not None:
@@ -631,7 +871,7 @@ def encerrar(
         db.rollback()
         logger.warning("Encerramento WhatsApp falhou (chat=%s): %s", c.protocolo, exc)
         raise HTTPException(status_code=502, detail="Falha ao encerrar o atendimento no WhatsApp") from exc
-    c = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente)).filter(WhatsappChat.id == chat_id).first()
+    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
     assert c is not None
     return _chat_read(db, c)
 
@@ -846,7 +1086,7 @@ def vincular_ticket(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    c = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente)).filter(WhatsappChat.id == chat_id).first()
+    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
     ticket = db.query(Ticket).filter(Ticket.id == data.ticket_id).first()
@@ -862,7 +1102,89 @@ def vincular_ticket(
     if not exist:
         db.add(WhatsappChatTicket(chat_id=chat_id, ticket_id=data.ticket_id, atendente_id=atendente.id))
         db.commit()
-    c2 = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente)).filter(WhatsappChat.id == chat_id).first()
+    c2 = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
+    assert c2 is not None
+    return _chat_read(db, c2)
+
+
+@router.post("/{chat_id}/vincular-funcionario", response_model=WhatsappChatRead)
+def vincular_funcionario(
+    chat_id: int,
+    data: WhatsappVincularFuncionarioBody,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not _pode_ver_chat(db, atendente, c):
+        raise HTTPException(status_code=403, detail="Sem permissão para este chat")
+    func = _funcionario_no_tenant(db, atendente, data.funcionario_rede_id)
+    if not func:
+        raise HTTPException(status_code=404, detail="Funcionário não encontrado")
+    emp = _resolver_empresa_vinculo(db, atendente, func, data.empresa_id)
+    c.funcionario_rede_id = func.id
+    c.empresa_id = emp.id
+    db.commit()
+    c2 = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
+    assert c2 is not None
+    return _chat_read(db, c2)
+
+
+@router.post("/{chat_id}/desvincular-funcionario", response_model=WhatsappChatRead)
+def desvincular_funcionario(
+    chat_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not _pode_ver_chat(db, atendente, c):
+        raise HTTPException(status_code=403, detail="Sem permissão para este chat")
+    c.funcionario_rede_id = None
+    c.empresa_id = None
+    db.commit()
+    c2 = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
+    assert c2 is not None
+    return _chat_read(db, c2)
+
+
+@router.post("/{chat_id}/cadastrar-funcionario", response_model=WhatsappChatRead)
+def cadastrar_funcionario(
+    chat_id: int,
+    data: WhatsappCadastrarFuncionarioBody,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not _pode_ver_chat(db, atendente, c):
+        raise HTTPException(status_code=403, detail="Sem permissão para este chat")
+    tipo = (data.tipo or "colaborador").strip().lower()
+    if tipo not in ("colaborador", "supervisor"):
+        raise HTTPException(status_code=400, detail="No chat, cadastre como colaborador ou supervisor")
+    escopo = (data.escopo_empresas or "selected").strip().lower()
+    empresa_ids = list(dict.fromkeys(data.empresa_ids or []))
+    if data.empresa_id and int(data.empresa_id) not in empresa_ids:
+        empresa_ids.insert(0, int(data.empresa_id))
+    func = _criar_funcionario_rede(
+        db,
+        atendente,
+        nome=data.nome,
+        email=data.email,
+        tipo=tipo,
+        escopo_empresas=escopo,
+        rede_id=data.rede_id,
+        empresa_id=data.empresa_id,
+        empresa_ids=empresa_ids,
+    )
+    emp = _resolver_empresa_vinculo(db, atendente, func, data.empresa_id)
+    c.funcionario_rede_id = func.id
+    c.empresa_id = emp.id
+    db.commit()
+    c2 = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
     assert c2 is not None
     return _chat_read(db, c2)
 
@@ -874,7 +1196,7 @@ def abrir_ticket(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    c = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente)).filter(WhatsappChat.id == chat_id).first()
+    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
     if atendente.role != "admin":
@@ -915,7 +1237,7 @@ def abrir_ticket(
     )
     db.add(WhatsappChatTicket(chat_id=chat_id, ticket_id=ticket.id, atendente_id=atendente.id))
     db.commit()
-    c2 = db.query(WhatsappChat).options(joinedload(WhatsappChat.atendente)).filter(WhatsappChat.id == chat_id).first()
+    c2 = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
     assert c2 is not None
     return _chat_read(db, c2)
 
@@ -929,7 +1251,7 @@ def transferir(
 ):
     c = (
         db.query(WhatsappChat)
-        .options(joinedload(WhatsappChat.atendente), joinedload(WhatsappChat.setor))
+        .options(*_CHAT_LOAD_OPTIONS)
         .filter(WhatsappChat.id == chat_id)
         .first()
     )
@@ -1001,7 +1323,7 @@ def transferir(
     db.refresh(c)
     c2 = (
         db.query(WhatsappChat)
-        .options(joinedload(WhatsappChat.atendente), joinedload(WhatsappChat.setor))
+        .options(*_CHAT_LOAD_OPTIONS)
         .filter(WhatsappChat.id == chat_id)
         .first()
     )

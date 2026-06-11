@@ -64,9 +64,15 @@ class WhatsappChat(Base):
     avaliacao_nota = Column(Integer, nullable=True)
     avaliacao_respondida_at = Column(DateTime(timezone=True), nullable=True)
     avaliacao_solicitada = Column(Boolean, nullable=False, default=False)
+    funcionario_rede_id = Column(
+        Integer, ForeignKey("funcionarios_rede.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    empresa_id = Column(Integer, ForeignKey("empresas.id", ondelete="SET NULL"), nullable=True, index=True)
 
     atendente = relationship("Atendente", backref="whatsapp_chats_atendidos")
     setor = relationship("Setor", backref="whatsapp_chats")
+    funcionario_rede = relationship("FuncionarioRede", backref="whatsapp_chats")
+    empresa = relationship("Empresa", backref="whatsapp_chats")
     mensagens = relationship(
         "WhatsappMensagem",
         back_populates="chat",
