@@ -13,6 +13,11 @@ import { interpretarFalhaCarregamento } from '../api/errorMessage'
 
 const roleLabel: Record<string, string> = { admin: 'Administrador', atendente: 'Atendente' }
 
+function fmtMediaAvaliacao(media: number | null): string {
+  if (media == null) return '—'
+  return media.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 export function AtendenteDetalhe() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -23,6 +28,7 @@ export function AtendenteDetalhe() {
   const [forbidden, setForbidden] = useState(false)
   const [falha, setFalha] = useState<{ titulo: string; detalhe?: string } | null>(null)
   const [atendente, setAtendente] = useState<Atendentes.Atendente | null>(null)
+  const [avaliacoes, setAvaliacoes] = useState<Atendentes.AvaliacoesResumo | null>(null)
   const [setoresList, setSetoresList] = useState<Setores.Setor[]>([])
 
   useEffect(() => {
@@ -37,11 +43,13 @@ export function AtendenteDetalhe() {
     setFalha(null)
     Promise.all([
       atendentes.get(atendenteId),
+      atendentes.avaliacoes(atendenteId),
       coletarTodasPaginas<Setores.Setor>((o, l) => setores.list({ incluir_inativos: true, offset: o, limit: l })),
     ])
-      .then(([a, setoresAll]) => {
+      .then(([a, av, setoresAll]) => {
         if (cancelled) return
         setAtendente(a)
+        setAvaliacoes(av)
         setSetoresList(setoresAll)
       })
       .catch((err) => {
@@ -125,6 +133,37 @@ export function AtendenteDetalhe() {
           ) : null}
         </dl>
       </Card>
+
+      {avaliacoes ? (
+        <Card title="Avaliações (CSAT)">
+          <dl className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Geral</dt>
+              <dd className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-50">
+                {fmtMediaAvaliacao(avaliacoes.geral.media)}
+              </dd>
+              <dd className="text-xs text-slate-500 dark:text-slate-400">{avaliacoes.geral.total} avaliação(ões)</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">WhatsApp</dt>
+              <dd className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-50">
+                {fmtMediaAvaliacao(avaliacoes.whatsapp.media)}
+              </dd>
+              <dd className="text-xs text-slate-500 dark:text-slate-400">{avaliacoes.whatsapp.total} avaliação(ões)</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Tickets</dt>
+              <dd className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-50">
+                {fmtMediaAvaliacao(avaliacoes.tickets.media)}
+              </dd>
+              <dd className="text-xs text-slate-500 dark:text-slate-400">{avaliacoes.tickets.total} avaliação(ões)</dd>
+            </div>
+          </dl>
+          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+            Média geral ponderada por quantidade de respostas (WhatsApp + tickets por e-mail).
+          </p>
+        </Card>
+      ) : null}
     </div>
   )
 }

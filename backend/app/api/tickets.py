@@ -37,7 +37,8 @@ from app.schemas.ticket import (
 )
 from app.schemas.ticket_anexo import TicketAnexoCreateResponse, TicketAnexoRead
 from app.schemas.lista_paginada import ListaPaginada
-from app.core.auth import obter_atendente_atual
+from app.core.auth import obter_atendente_atual, exigir_admin
+from app.config import settings
 from app.core.ticket_prioridade import PrioridadeTicket
 from app.services.ticket_classificacao_rules import (
     motivo_efetivo_no_ticket,
@@ -51,7 +52,8 @@ from app.core.setor_scope import (
     responsavel_elegivel_para_setor_do_ticket,
 )
 from app.services import ticket_anexo_storage
-from app.services.protocolo_mensal import gerar_protocolo_ticket
+from app.services.ticket_csat import csat_brief_para_ticket, criar_convite_csat, processar_convite_csat_ao_fechar
+from app.schemas.ticket_csat import TicketCsatDevLinkRead
 from app.services.ticket_vinculos import (
     criar_vinculo as criar_vinculo_ticket,
     fechar_ticket_como_duplicado,
@@ -68,6 +70,7 @@ from app.services.ticket_escopo import (
 )
 from app.services.funcionario_rede_resolver import resolver_remetente_por_email
 from app.services.ticket_client_email import extrair_email_de_from_address
+from app.services.protocolo_mensal import gerar_protocolo_ticket
 from app.services.ticket_mensagem_email_outbox import (
     EMAIL_STATUS_ENVIADA,
     agendar_envio_email,
@@ -287,6 +290,7 @@ def _ticket_para_read(t: Ticket, db: Session | None = None) -> TicketRead:
             rede_id_out = f.rede_id
             r = db.query(Rede).filter(Rede.id == f.rede_id).first()
             rede_nome_out = r.nome if r else rede_nome_out
+    csat = csat_brief_para_ticket(db, t.id) if db is not None else {}
     return TicketRead(
         id=t.id,
         protocolo=t.protocolo,
@@ -318,6 +322,7 @@ def _ticket_para_read(t: Ticket, db: Session | None = None) -> TicketRead:
         children=children_out,
         vinculos=_vinculos_para_read(db, t) if db is not None else [],
         triagem_inbound=triagem,
+        **csat,
     )
 
 
@@ -635,6 +640,39 @@ def obter(
     return _ticket_para_read(ticket, db)
 
 
+@router.post("/{ticket_id}/csat/link-dev", response_model=TicketCsatDevLinkRead)
+def gerar_link_csat_dev(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    _: Atendente = Depends(exigir_admin),
+):
+    """Desenvolvimento: gera link de avaliação sem enviar e-mail (não disponível em produção)."""
+    if settings.ENVIRONMENT != "development":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Não encontrado")
+
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
+    if ticket.fechado_em is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="O ticket precisa estar fechado para gerar o link de avaliação.",
+        )
+
+    result = criar_convite_csat(
+        db,
+        ticket_id,
+        enviar_email=False,
+        exigir_email_cliente=False,
+    )
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Não foi possível gerar o link (ticket já avaliado ou inválido).",
+        )
+    return TicketCsatDevLinkRead(**result)
+
+
 @router.get("/{ticket_id}/historico", response_model=list[TicketHistoricoRead])
 def historico(
     ticket_id: int,
@@ -762,6 +800,8 @@ def criar_vinculo(
         f"{data.tipo}:{related.id}",
     )
     db.commit()
+    if duplicado_fechado:
+        processar_convite_csat_ao_fechar(db, ticket.id)
     db.refresh(v)
     return _vinculo_para_read(v, ticket.id, db, duplicado_fechado=duplicado_fechado)
 
@@ -1499,15 +1539,20 @@ def atualizar(
     for k, v in update.items():
         setattr(ticket, k, v)
 
+    acabou_de_fechar = False
     if "status_id" in update:
         st = db.query(StatusTicket).filter(StatusTicket.id == ticket.status_id).first()
         slug = (st.slug or "").lower() if st else ""
         if slug == "fechado":
+            if ticket.fechado_em is None:
+                acabou_de_fechar = True
             ticket.fechado_em = datetime.now(timezone.utc)
         else:
             ticket.fechado_em = None
 
     db.commit()
+    if acabou_de_fechar:
+        processar_convite_csat_ao_fechar(db, ticket_id)
     ticket_out = (
         db.query(Ticket)
         .options(*_opcoes_carregamento_ticket_detalhe())

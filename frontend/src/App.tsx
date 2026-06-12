@@ -5,6 +5,7 @@ import { Layout } from './components/Layout'
 import { Login } from './pages/Login'
 import { EsqueciSenha } from './pages/EsqueciSenha'
 import { RedefinirSenha } from './pages/RedefinirSenha'
+import { AvaliarTicket } from './pages/AvaliarTicket'
 import { Dashboard } from './pages/Dashboard'
 import { Tickets } from './pages/Tickets'
 import { TicketNovo } from './pages/TicketNovo'
@@ -83,6 +84,7 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/esqueci-senha" element={<EsqueciSenha />} />
       <Route path="/redefinir-senha" element={<RedefinirSenha />} />
+      <Route path="/avaliar-ticket" element={<AvaliarTicket />} />
       <Route
         path="/"
         element={

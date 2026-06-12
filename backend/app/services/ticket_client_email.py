@@ -47,6 +47,14 @@ def ultima_mensagem_inbound(db: Session, ticket_id: int) -> EmailInboundReceived
     )
 
 
+def resolver_email_cliente_ticket(db: Session, ticket_id: int) -> str | None:
+    """Endereço do cliente a partir do último e-mail recebido na thread do ticket."""
+    row = ultima_mensagem_inbound(db, ticket_id)
+    if not row:
+        return None
+    return extrair_email_de_from_address(row.from_address)
+
+
 def enviar_resposta_equipa_por_email(db: Session, *, ticket: Ticket, corpo: str) -> str:
     """
     Envia e-mail ao último remetente conhecido (ingestão) e devolve o **Message-ID** normalizado do envio.
