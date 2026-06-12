@@ -48,6 +48,7 @@ import { WhatsappHistorico } from './pages/whatsapp/WhatsappHistorico'
 import { WhatsappAvaliacoes } from './pages/whatsapp/WhatsappAvaliacoes'
 import { WhatsappConversa } from './pages/whatsapp/WhatsappConversa'
 import { AlterarSenha } from './pages/AlterarSenha'
+import { NotificacoesPreferencias } from './pages/NotificacoesPreferencias'
 import { AcessoNegado } from './pages/AcessoNegado'
 import { ToastProvider } from './components/ui/Toast'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -95,6 +96,7 @@ function AppRoutes() {
       >
         <Route index element={<Dashboard />} />
         <Route path="alterar-senha" element={<AlterarSenha />} />
+        <Route path="notificacoes/preferencias" element={<NotificacoesPreferencias />} />
         <Route path="tickets" element={<Tickets />} />
         <Route path="tickets/novo" element={<TicketNovo />} />
         <Route path="tickets/:id" element={<TicketDetalhe />} />

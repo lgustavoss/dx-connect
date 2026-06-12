@@ -25,6 +25,7 @@ from app.models.resposta_pronta import RespostaPronta
 from app.models.ticket_vinculo import TicketVinculo
 from app.models.ticket_classificacao import TicketMotivo, TicketNatureza
 from app.models.ticket_avaliacao import TicketAvaliacao, TicketCsatInvite
+from app.models.atendente_notificacao import AtendenteNotificacaoPreferencias, NotificacaoEmailOutbox
 from app.models.empresa_pdv import EmpresaPdv, PdvRotulo, PdvTipoAcessoRemoto
 
 __all__ = [
@@ -64,6 +65,8 @@ __all__ = [
     "TicketMotivo",
     "TicketAvaliacao",
     "TicketCsatInvite",
+    "AtendenteNotificacaoPreferencias",
+    "NotificacaoEmailOutbox",
     "PdvRotulo",
     "PdvTipoAcessoRemoto",
     "EmpresaPdv",
