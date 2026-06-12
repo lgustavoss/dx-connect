@@ -35,6 +35,7 @@ from app.api import (
     empresa_pdvs,
     system_settings,
     tenant,
+    public_csat,
 )
 from app.config import settings
 from app.core.tenant_context import resolve_tenant_id, set_request_tenant_id
@@ -190,6 +191,29 @@ async def lifespan(app: FastAPI):
         name="ticket-mensagem-email-outbox",
     ).start()
 
+    def notificacao_email_outbox_loop() -> None:
+        from app.database import SessionLocal
+        from app.services.notificacao_atendente_email import process_pending_notificacao_emails
+
+        interval = max(5, settings.NOTIFICACAO_EMAIL_WORKER_INTERVAL_SECONDS)
+        while True:
+            db = SessionLocal()
+            try:
+                n = process_pending_notificacao_emails(db, limit=30)
+                db.commit()
+            except Exception as e:
+                logger.warning("Worker e-mail de notificações: %s", e)
+                db.rollback()
+            finally:
+                db.close()
+            time.sleep(interval)
+
+    threading.Thread(
+        target=notificacao_email_outbox_loop,
+        daemon=True,
+        name="notificacao-email-outbox",
+    ).start()
+
     def whatsapp_inactivity_loop() -> None:
         from app.database import SessionLocal
         from app.services.whatsapp_inactivity_worker import process_whatsapp_inactivity_closures
@@ -309,6 +333,7 @@ app.include_router(ticket_catalogos.router, prefix=API_V1_PREFIX)
 app.include_router(empresa_pdvs.router, prefix=API_V1_PREFIX)
 app.include_router(system_settings.router, prefix=API_V1_PREFIX)
 app.include_router(tenant.router, prefix=API_V1_PREFIX)
+app.include_router(public_csat.router, prefix=API_V1_PREFIX)
 
 
 def _app_capabilities() -> dict[str, bool]:

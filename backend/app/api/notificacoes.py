@@ -12,7 +12,13 @@ from app.models.ticket_read import TicketRead
 from app.models.whatsapp_chat_read import WhatsappChatRead
 from app.models.whatsapp_chat import WhatsappChat, WhatsappMensagem
 from app.schemas.notificacoes import NotificacaoResumo, NotificacaoItem, NotificacaoItensResponse
+from app.schemas.atendente_notificacao import NotificacaoPreferenciasRead, NotificacaoPreferenciasUpdate
 from app.core.auth import obter_atendente_atual
+from app.services.notificacao_atendente_email import (
+    atualizar_preferencias,
+    obter_ou_criar_preferencias,
+    preferencias_para_dict,
+)
 from app.core.setor_scope import ids_setores_visiveis_atendente
 from app.api.tickets import _pode_ver_ticket
 
@@ -324,3 +330,28 @@ def marcar_visto(
         )
     db.commit()
     return None
+
+
+@router.get("/preferencias", response_model=NotificacaoPreferenciasRead)
+def obter_preferencias(
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    prefs = obter_ou_criar_preferencias(db, atendente.id)
+    db.commit()
+    return NotificacaoPreferenciasRead(**preferencias_para_dict(prefs))
+
+
+@router.patch("/preferencias", response_model=NotificacaoPreferenciasRead)
+def atualizar_preferencias_endpoint(
+    data: NotificacaoPreferenciasUpdate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    payload = data.model_dump(exclude_unset=True)
+    if not payload:
+        prefs = obter_ou_criar_preferencias(db, atendente.id)
+        db.commit()
+        return NotificacaoPreferenciasRead(**preferencias_para_dict(prefs))
+    prefs = atualizar_preferencias(db, atendente.id, payload)
+    return NotificacaoPreferenciasRead(**preferencias_para_dict(prefs))

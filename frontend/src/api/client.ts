@@ -154,6 +154,41 @@ export async function api<T>(
   return res.json();
 }
 
+/** Chamadas públicas (sem token nem redirect em 401). */
+async function publicApi<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...(options.headers as object),
+  };
+  const res = await fetch(`${BASE}${API_VERSION_PREFIX}${path}`, { ...options, headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new ApiError(mensagemErroApi(err, res.status), res.status, err);
+  }
+  return res.json();
+}
+
+export const publicCsat = {
+  get: (token: string) =>
+    publicApi<PublicCsat.TicketCsat>(`/public/csat/tickets/${encodeURIComponent(token)}`),
+  submit: (token: string, data: { nota: number; comentario?: string | null }) =>
+    publicApi<PublicCsat.TicketCsat>(`/public/csat/tickets/${encodeURIComponent(token)}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+};
+
+export namespace PublicCsat {
+  export interface TicketCsat {
+    status: 'pendente' | 'respondido' | 'expirado' | 'invalido';
+    protocolo?: string | null;
+    assunto?: string | null;
+    nota?: number | null;
+    comentario?: string | null;
+    respondida_em?: string | null;
+  }
+}
+
 export const auth = {
   login: (email: string, senha: string) =>
     api<{ access_token: string; refresh_token?: string | null; must_change_password?: boolean }>('/auth/login', {
@@ -347,6 +382,7 @@ export const atendentes = {
     api<Atendentes.Atendente[]>(withParams(`/atendentes/por-setor/${setorId}`, params)),
   me: () => api<Atendentes.Atendente>('/atendentes/me'),
   get: (id: number) => api<Atendentes.Atendente>(`/atendentes/${id}`),
+  avaliacoes: (id: number) => api<Atendentes.AvaliacoesResumo>(`/atendentes/${id}/avaliacoes`),
   create: (data: Atendentes.Create) => api<Atendentes.Atendente>('/atendentes', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: number, data: Atendentes.Update) => api<Atendentes.Atendente>(`/atendentes/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: (id: number) => api<void>(`/atendentes/${id}`, { method: 'DELETE' }),
@@ -883,6 +919,9 @@ export const tickets = {
   sendNowMensagemEmail: (ticketId: number, mensagemId: number) =>
     api<Tickets.Mensagem>(`/tickets/${ticketId}/mensagens/${mensagemId}/send-now`, { method: 'POST' }),
   reabrir: (id: number) => api<Tickets.Ticket>(`/tickets/${id}/reabrir`, { method: 'POST' }),
+  /** Apenas desenvolvimento: gera link CSAT sem enviar e-mail. */
+  csatLinkDev: (id: number) =>
+    api<{ link: string; expires_at: string }>(`/tickets/${id}/csat/link-dev`, { method: 'POST' }),
   create: (data: Tickets.Create) => api<Tickets.Ticket>('/tickets', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: number, data: Tickets.Update) => api<Tickets.Ticket>(`/tickets/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   addVinculo: (ticketId: number, data: Tickets.VinculoCreate) =>
@@ -929,6 +968,11 @@ export namespace Notificacoes {
   export interface ItensResponse {
     itens: Item[];
   }
+  export interface Preferencias {
+    email_habilitado: boolean;
+    email_ticket_atribuido: boolean;
+    email_nova_mensagem: boolean;
+  }
 }
 
 export const notificacoes = {
@@ -937,6 +981,12 @@ export const notificacoes = {
     api<Notificacoes.ItensResponse>(withParams('/notificacoes/itens', params)),
   marcarVisto: (ticketId: number) =>
     api<void>(`/notificacoes/tickets/${ticketId}/visto`, { method: 'POST' }),
+  preferenciasGet: () => api<Notificacoes.Preferencias>('/notificacoes/preferencias'),
+  preferenciasUpdate: (data: Partial<Notificacoes.Preferencias>) =>
+    api<Notificacoes.Preferencias>('/notificacoes/preferencias', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
 };
 
 export namespace Dashboard {
@@ -1179,6 +1229,15 @@ export namespace Atendentes {
     role?: string;
     ativo?: boolean;
     setor_ids?: number[];
+  }
+  export interface AvaliacaoResumo {
+    media: number | null;
+    total: number;
+  }
+  export interface AvaliacoesResumo {
+    geral: AvaliacaoResumo;
+    whatsapp: AvaliacaoResumo;
+    tickets: AvaliacaoResumo;
   }
 }
 
@@ -1494,6 +1553,10 @@ export namespace Tickets {
     children?: TicketChildBrief[];
     vinculos?: TicketVinculo[];
     triagem_inbound?: TriagemInbound | null;
+    avaliacao_nota?: number | null;
+    avaliacao_comentario?: string | null;
+    avaliacao_respondida_em?: string | null;
+    csat_pendente?: boolean;
   }
   export type TicketVinculoTipo = 'duplicado_de' | 'relacionado_a';
   export interface TicketVinculoOutro {

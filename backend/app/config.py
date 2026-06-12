@@ -57,6 +57,8 @@ class Settings(BaseSettings):
     TICKET_MENSAGEM_EMAIL_GRACE_SECONDS: int = 120
     TICKET_MENSAGEM_EDIT_LOCK_TTL_SECONDS: int = 300
     TICKET_MENSAGEM_EMAIL_WORKER_INTERVAL_SECONDS: int = 5
+    NOTIFICACAO_EMAIL_DEBOUNCE_MINUTES: int = 5
+    NOTIFICACAO_EMAIL_WORKER_INTERVAL_SECONDS: int = 10
     WHATSAPP_INACTIVITY_WORKER_INTERVAL_SECONDS: int = 60
 
     # Modo legado: vários clientes no mesmo Postgres (subdomínio numérico + coluna tenant_id).

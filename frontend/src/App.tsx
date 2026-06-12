@@ -5,6 +5,7 @@ import { Layout } from './components/Layout'
 import { Login } from './pages/Login'
 import { EsqueciSenha } from './pages/EsqueciSenha'
 import { RedefinirSenha } from './pages/RedefinirSenha'
+import { AvaliarTicket } from './pages/AvaliarTicket'
 import { Dashboard } from './pages/Dashboard'
 import { Tickets } from './pages/Tickets'
 import { TicketNovo } from './pages/TicketNovo'
@@ -47,6 +48,7 @@ import { WhatsappHistorico } from './pages/whatsapp/WhatsappHistorico'
 import { WhatsappAvaliacoes } from './pages/whatsapp/WhatsappAvaliacoes'
 import { WhatsappConversa } from './pages/whatsapp/WhatsappConversa'
 import { AlterarSenha } from './pages/AlterarSenha'
+import { NotificacoesPreferencias } from './pages/NotificacoesPreferencias'
 import { AcessoNegado } from './pages/AcessoNegado'
 import { ToastProvider } from './components/ui/Toast'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -83,6 +85,7 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/esqueci-senha" element={<EsqueciSenha />} />
       <Route path="/redefinir-senha" element={<RedefinirSenha />} />
+      <Route path="/avaliar-ticket" element={<AvaliarTicket />} />
       <Route
         path="/"
         element={
@@ -93,6 +96,7 @@ function AppRoutes() {
       >
         <Route index element={<Dashboard />} />
         <Route path="alterar-senha" element={<AlterarSenha />} />
+        <Route path="notificacoes/preferencias" element={<NotificacoesPreferencias />} />
         <Route path="tickets" element={<Tickets />} />
         <Route path="tickets/novo" element={<TicketNovo />} />
         <Route path="tickets/:id" element={<TicketDetalhe />} />

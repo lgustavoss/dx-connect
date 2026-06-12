@@ -166,6 +166,33 @@ function dedupeAtendentesMesmoNome(
   return [...m.values()].sort((x, y) => x.nome.localeCompare(y.nome, 'pt-BR'))
 }
 
+const CSAT_STAR_PATH =
+  'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z'
+
+function TicketCsatEstrelas({ nota }: { nota: number }) {
+  return (
+    <span className="inline-flex items-center gap-0.5" aria-label={`${nota} de 5 estrelas`}>
+      {Array.from({ length: 5 }, (_, i) => (
+        <svg
+          key={i}
+          width={14}
+          height={14}
+          viewBox="0 0 24 24"
+          aria-hidden
+          className={i < nota ? 'text-amber-500' : 'text-slate-300 dark:text-slate-600'}
+        >
+          {i < nota ? (
+            <path fill="currentColor" d={CSAT_STAR_PATH} />
+          ) : (
+            <path fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round" d={CSAT_STAR_PATH} />
+          )}
+        </svg>
+      ))}
+      <span className="ml-1 font-medium text-slate-700 dark:text-slate-200">{nota}/5</span>
+    </span>
+  )
+}
+
 export function TicketDetalhe() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -174,6 +201,8 @@ export function TicketDetalhe() {
   const { isAdmin, user } = useAuth()
   const [atribuindo, setAtribuindo] = useState(false)
   const [fechando, setFechando] = useState(false)
+  const [gerandoCsatLink, setGerandoCsatLink] = useState(false)
+  const [csatDevLink, setCsatDevLink] = useState<string | null>(null)
 
   const [loading, setLoading] = useState(true)
   const [carregamentoFalhou, setCarregamentoFalhou] = useState<{ titulo: string; detalhe?: string } | null>(null)
@@ -855,6 +884,22 @@ export function TicketDetalhe() {
     }
   }
 
+  async function gerarLinkCsatDev() {
+    if (!ticket) return
+    setGerandoCsatLink(true)
+    try {
+      const res = await tickets.csatLinkDev(ticket.id)
+      setCsatDevLink(res.link)
+      const refreshed = await tickets.get(ticket.id)
+      setTicket(refreshed)
+      toast.showSuccess('Link de avaliação gerado (sem e-mail).')
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível gerar o link.'))
+    } finally {
+      setGerandoCsatLink(false)
+    }
+  }
+
   async function handleVincularFilhoExistente(alvo: Tickets.Ticket) {
     if (!ticket || alvo.id === ticket.id) return
     setVinculandoFilho(true)
@@ -1428,6 +1473,68 @@ export function TicketDetalhe() {
                 </span>
               ) : null}
             </p>
+
+            {ticket.fechado_em ? (
+              <div className="mt-2 rounded-lg border border-slate-200/80 bg-slate-50/80 px-2.5 py-2 text-[11px] sm:px-3 sm:text-xs dark:border-slate-700/70 dark:bg-slate-900/40">
+                <p className="font-semibold text-slate-700 dark:text-slate-200">Avaliação do cliente</p>
+                {ticket.avaliacao_nota != null ? (
+                  <div className="mt-1 space-y-1">
+                    <TicketCsatEstrelas nota={ticket.avaliacao_nota} />
+                    {ticket.avaliacao_comentario ? (
+                      <p className="text-slate-600 dark:text-slate-400">{ticket.avaliacao_comentario}</p>
+                    ) : null}
+                    {ticket.avaliacao_respondida_em ? (
+                      <p className="text-[10px] text-slate-500 dark:text-slate-500">
+                        Respondida em {new Date(ticket.avaliacao_respondida_em).toLocaleString('pt-BR')}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : ticket.csat_pendente ? (
+                  <p className="mt-1 text-slate-600 dark:text-slate-400">
+                    Aguardando resposta — link enviado por e-mail (válido por 24 horas).
+                  </p>
+                ) : (
+                  <p className="mt-1 text-slate-500 dark:text-slate-500">Sem avaliação (cliente sem e-mail na thread).</p>
+                )}
+                {import.meta.env.DEV && isAdmin && ticket.avaliacao_nota == null ? (
+                  <div className="mt-2 space-y-2 border-t border-slate-200/60 pt-2 dark:border-slate-700/60">
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                      Dev — testar sem e-mail
+                    </p>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={gerandoCsatLink}
+                      onClick={() => void gerarLinkCsatDev()}
+                    >
+                      {gerandoCsatLink ? 'Gerando…' : 'Gerar link de avaliação'}
+                    </Button>
+                    {csatDevLink ? (
+                      <div className="space-y-1">
+                        <a
+                          href={csatDevLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="break-all text-cyan-700 underline underline-offset-2 dark:text-cyan-400"
+                        >
+                          {csatDevLink}
+                        </a>
+                        <button
+                          type="button"
+                          className="text-[10px] font-medium text-slate-600 underline dark:text-slate-400"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(csatDevLink)
+                            toast.showSuccess('Link copiado.')
+                          }}
+                        >
+                          Copiar link
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             {chatsWhatsapp.length > 0 && (
               <div className="mt-2">
