@@ -168,6 +168,10 @@ class TicketRead(BaseModel):
     children: list[TicketChildBrief] = Field(default_factory=list)
     vinculos: list[TicketVinculoRead] = Field(default_factory=list)
     triagem_inbound: TicketTriagemInbound | None = None
+    avaliacao_nota: int | None = None
+    avaliacao_comentario: str | None = None
+    avaliacao_respondida_em: datetime | None = None
+    csat_pendente: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 

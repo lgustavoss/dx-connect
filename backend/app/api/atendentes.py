@@ -8,8 +8,10 @@ from app.database import get_db
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
 from app.models import Atendente, Setor
 from app.schemas.atendente import AtendenteCreate, AtendenteRead, AtendenteUpdate, TrocaSenhaPropria
+from app.schemas.ticket_csat import AtendenteAvaliacoesRead, AvaliacaoResumoRead
 from app.schemas.lista_paginada import ListaPaginada
 from app.core.auth import exigir_admin, obter_atendente_atual
+from app.services.atendente_avaliacoes import calcular_avaliacoes_atendente
 from app.core.setor_scope import ids_setores_mesmo_nome, ids_setores_visiveis_atendente
 from app.core.security import hash_senha, verificar_senha
 from app.core.audit import registrar_audit
@@ -173,6 +175,23 @@ def listar_atendentes_por_setor(
             by_id[a.id] = a
     merged = sorted(by_id.values(), key=lambda x: ((x.nome or "").lower(), x.id))
     return [_atendente_para_read(a) for a in merged]
+
+
+@router.get("/{atendente_id}/avaliacoes", response_model=AtendenteAvaliacoesRead)
+def obter_avaliacoes_atendente(
+    atendente_id: int,
+    db: Session = Depends(get_db),
+    _: Atendente = Depends(exigir_admin),
+):
+    atendente = db.query(Atendente).filter(Atendente.id == atendente_id).first()
+    if not atendente:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atendente não encontrado")
+    data = calcular_avaliacoes_atendente(db, atendente_id)
+    return AtendenteAvaliacoesRead(
+        geral=AvaliacaoResumoRead(**data["geral"]),
+        whatsapp=AvaliacaoResumoRead(**data["whatsapp"]),
+        tickets=AvaliacaoResumoRead(**data["tickets"]),
+    )
 
 
 @router.get("/{atendente_id}", response_model=AtendenteRead)

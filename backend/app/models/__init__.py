@@ -24,6 +24,7 @@ from app.models.password_reset_token import PasswordResetToken
 from app.models.resposta_pronta import RespostaPronta
 from app.models.ticket_vinculo import TicketVinculo
 from app.models.ticket_classificacao import TicketMotivo, TicketNatureza
+from app.models.ticket_avaliacao import TicketAvaliacao, TicketCsatInvite
 from app.models.empresa_pdv import EmpresaPdv, PdvRotulo, PdvTipoAcessoRemoto
 
 __all__ = [
@@ -61,6 +62,8 @@ __all__ = [
     "TicketVinculo",
     "TicketNatureza",
     "TicketMotivo",
+    "TicketAvaliacao",
+    "TicketCsatInvite",
     "PdvRotulo",
     "PdvTipoAcessoRemoto",
     "EmpresaPdv",

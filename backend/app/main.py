@@ -35,6 +35,7 @@ from app.api import (
     empresa_pdvs,
     system_settings,
     tenant,
+    public_csat,
 )
 from app.config import settings
 from app.core.tenant_context import resolve_tenant_id, set_request_tenant_id
@@ -309,6 +310,7 @@ app.include_router(ticket_catalogos.router, prefix=API_V1_PREFIX)
 app.include_router(empresa_pdvs.router, prefix=API_V1_PREFIX)
 app.include_router(system_settings.router, prefix=API_V1_PREFIX)
 app.include_router(tenant.router, prefix=API_V1_PREFIX)
+app.include_router(public_csat.router, prefix=API_V1_PREFIX)
 
 
 def _app_capabilities() -> dict[str, bool]:
