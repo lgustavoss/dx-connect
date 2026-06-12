@@ -219,6 +219,22 @@ def processar_email_inbound(
                 autor_externo=(parsed.from_display or parsed.from_email or "")[:512] or None,
             )
         )
+        db.flush()
+        from app.services.notificacao_atendente_email import notificar_nova_mensagem_ticket
+
+        msg_row = (
+            db.query(TicketMensagem)
+            .filter(TicketMensagem.ticket_id == existing_ticket.id)
+            .order_by(TicketMensagem.id.desc())
+            .first()
+        )
+        if msg_row:
+            notificar_nova_mensagem_ticket(
+                db,
+                ticket=existing_ticket,
+                mensagem=msg_row,
+                autor_atendente_id=None,
+            )
         db.add(
             EmailInboundReceived(
                 message_id_normalized=mid,

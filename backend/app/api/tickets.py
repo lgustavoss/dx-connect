@@ -53,6 +53,7 @@ from app.core.setor_scope import (
 )
 from app.services import ticket_anexo_storage
 from app.services.ticket_csat import csat_brief_para_ticket, criar_convite_csat, processar_convite_csat_ao_fechar
+from app.services.notificacao_atendente_email import notificar_nova_mensagem_ticket, notificar_ticket_atribuido
 from app.schemas.ticket_csat import TicketCsatDevLinkRead
 from app.services.ticket_vinculos import (
     criar_vinculo as criar_vinculo_ticket,
@@ -1036,6 +1037,7 @@ def criar_mensagem(
         agendar_envio_email(m, db)
     db.add(m)
     db.flush()
+    notificar_nova_mensagem_ticket(db, ticket=ticket, mensagem=m, autor_atendente_id=atendente.id)
     db.commit()
     db.refresh(m)
     m = (
@@ -1536,6 +1538,13 @@ def atualizar(
         novo_o = update["motivo_outro_texto"] or ""
         _registrar_historico(db, ticket.id, atendente.id, "motivo_outro_texto", antigo_o, novo_o)
 
+    atribuicao_notificar_id: int | None = None
+    if "atendente_id" in update:
+        antigo_at = ticket.atendente_id
+        novo_at = update["atendente_id"]
+        if novo_at is not None and novo_at != antigo_at:
+            atribuicao_notificar_id = int(novo_at)
+
     for k, v in update.items():
         setattr(ticket, k, v)
 
@@ -1553,6 +1562,16 @@ def atualizar(
     db.commit()
     if acabou_de_fechar:
         processar_convite_csat_ao_fechar(db, ticket_id)
+    if atribuicao_notificar_id is not None:
+        t_notify = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+        if t_notify:
+            notificar_ticket_atribuido(
+                db,
+                ticket=t_notify,
+                novo_atendente_id=atribuicao_notificar_id,
+                actor_id=atendente.id,
+            )
+            db.commit()
     ticket_out = (
         db.query(Ticket)
         .options(*_opcoes_carregamento_ticket_detalhe())

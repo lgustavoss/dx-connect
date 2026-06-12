@@ -191,6 +191,29 @@ async def lifespan(app: FastAPI):
         name="ticket-mensagem-email-outbox",
     ).start()
 
+    def notificacao_email_outbox_loop() -> None:
+        from app.database import SessionLocal
+        from app.services.notificacao_atendente_email import process_pending_notificacao_emails
+
+        interval = max(5, settings.NOTIFICACAO_EMAIL_WORKER_INTERVAL_SECONDS)
+        while True:
+            db = SessionLocal()
+            try:
+                n = process_pending_notificacao_emails(db, limit=30)
+                db.commit()
+            except Exception as e:
+                logger.warning("Worker e-mail de notificações: %s", e)
+                db.rollback()
+            finally:
+                db.close()
+            time.sleep(interval)
+
+    threading.Thread(
+        target=notificacao_email_outbox_loop,
+        daemon=True,
+        name="notificacao-email-outbox",
+    ).start()
+
     def whatsapp_inactivity_loop() -> None:
         from app.database import SessionLocal
         from app.services.whatsapp_inactivity_worker import process_whatsapp_inactivity_closures

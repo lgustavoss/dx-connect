@@ -182,6 +182,15 @@ export function NavbarNotificacoes({ enabled }: { enabled: boolean }) {
                 <span className="font-medium">Não lidas:</span> {resumo.nao_lidas_count}
               </div>
             )}
+            <div className="shrink-0 border-t border-slate-200/90 bg-white px-4 py-3 dark:border-slate-800/90 dark:bg-slate-950">
+              <Link
+                to="/notificacoes/preferencias"
+                className="text-xs font-medium text-cyan-700 hover:underline dark:text-cyan-400"
+                onClick={() => setAberto(false)}
+              >
+                Preferências de e-mail
+              </Link>
+            </div>
           </div>,
           document.body
         )}
@@ -232,6 +241,15 @@ export function NavbarNotificacoes({ enabled }: { enabled: boolean }) {
               Fila: {resumo.sem_responsavel_count} · Não lidas: {resumo.nao_lidas_count}
             </div>
           )}
+          <div className="border-t border-slate-100 px-3 py-2 dark:border-slate-800">
+            <Link
+              to="/notificacoes/preferencias"
+              className="text-xs font-medium text-cyan-700 hover:underline dark:text-cyan-400"
+              onClick={() => setAberto(false)}
+            >
+              Preferências de e-mail
+            </Link>
+          </div>
         </div>
       ) : null}
     </div>

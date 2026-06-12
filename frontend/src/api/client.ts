@@ -968,6 +968,11 @@ export namespace Notificacoes {
   export interface ItensResponse {
     itens: Item[];
   }
+  export interface Preferencias {
+    email_habilitado: boolean;
+    email_ticket_atribuido: boolean;
+    email_nova_mensagem: boolean;
+  }
 }
 
 export const notificacoes = {
@@ -976,6 +981,12 @@ export const notificacoes = {
     api<Notificacoes.ItensResponse>(withParams('/notificacoes/itens', params)),
   marcarVisto: (ticketId: number) =>
     api<void>(`/notificacoes/tickets/${ticketId}/visto`, { method: 'POST' }),
+  preferenciasGet: () => api<Notificacoes.Preferencias>('/notificacoes/preferencias'),
+  preferenciasUpdate: (data: Partial<Notificacoes.Preferencias>) =>
+    api<Notificacoes.Preferencias>('/notificacoes/preferencias', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
 };
 
 export namespace Dashboard {
