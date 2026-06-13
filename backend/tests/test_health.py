@@ -4,3 +4,4 @@ def test_health_ok(client):
     body = r.json()
     assert body.get("status") == "ok"
     assert "capabilities" in body
+    assert "integrations" in body

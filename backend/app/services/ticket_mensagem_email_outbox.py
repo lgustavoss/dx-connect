@@ -11,7 +11,9 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.core.structured_log import log_event
 from app.models.ticket import Ticket, TicketMensagem
+from app.services.email_outbox_policy import MAX_EMAIL_SEND_ATTEMPTS, retry_delay_seconds
 from app.services.ticket_email_grace_config import resolver_grace_seconds
 from app.services.ticket_client_email import enviar_resposta_equipa_por_email, ultima_mensagem_inbound
 from app.services.ticket_email_index import registar_message_id_para_ticket
@@ -23,6 +25,7 @@ EMAIL_STATUS_EM_EDICAO = "em_edicao"
 EMAIL_STATUS_ENVIANDO = "enviando"
 EMAIL_STATUS_ENVIADA = "enviada"
 EMAIL_STATUS_CANCELADA = "cancelada"
+EMAIL_STATUS_FALHA = "falha_envio"
 
 _STATUSES_EDITAVEIS = frozenset({EMAIL_STATUS_PENDENTE, EMAIL_STATUS_EM_EDICAO})
 
@@ -84,6 +87,8 @@ def agendar_envio_email(m: TicketMensagem, db: Session, *, ref: datetime | None 
     m.email_status = EMAIL_STATUS_PENDENTE
     m.scheduled_at = now if secs == 0 else now + timedelta(seconds=secs)
     m.sent_at = None
+    m.email_send_attempts = 0
+    m.email_last_error = None
     m.edit_lock_token = None
     m.edit_lock_expires_at = None
     m.updated_at = now
@@ -135,7 +140,6 @@ def _enviar_uma(db: Session, m: TicketMensagem, ticket: Ticket) -> bool:
         out_mid = enviar_resposta_equipa_por_email(db, ticket=ticket, corpo=m.corpo)
     except Exception:
         m.email_status = EMAIL_STATUS_PENDENTE
-        m.scheduled_at = now + timedelta(seconds=60)
         m.updated_at = now
         raise
 
@@ -143,10 +147,45 @@ def _enviar_uma(db: Session, m: TicketMensagem, ticket: Ticket) -> bool:
     m.email_status = EMAIL_STATUS_ENVIADA
     m.sent_at = now
     m.scheduled_at = None
+    m.email_send_attempts = 0
+    m.email_last_error = None
     m.edit_lock_token = None
     m.edit_lock_expires_at = None
     m.updated_at = now
     return True
+
+
+def _registrar_falha_envio(m: TicketMensagem, error: Exception, *, now: datetime) -> None:
+    tentativa = int(m.email_send_attempts or 0) + 1
+    m.email_send_attempts = tentativa
+    m.email_last_error = str(error)[:2000]
+    if tentativa >= MAX_EMAIL_SEND_ATTEMPTS:
+        m.email_status = EMAIL_STATUS_FALHA
+        m.scheduled_at = None
+        log_event(
+            logger,
+            "ticket_email_send_failed_permanent",
+            level=logging.ERROR,
+            mensagem_id=m.id,
+            ticket_id=m.ticket_id,
+            tentativas=tentativa,
+            error=str(error)[:500],
+        )
+    else:
+        delay = retry_delay_seconds(tentativa)
+        m.email_status = EMAIL_STATUS_PENDENTE
+        m.scheduled_at = now + timedelta(seconds=delay)
+        log_event(
+            logger,
+            "ticket_email_send_retry",
+            level=logging.WARNING,
+            mensagem_id=m.id,
+            ticket_id=m.ticket_id,
+            tentativas=tentativa,
+            retry_in_seconds=delay,
+            error=str(error)[:500],
+        )
+    m.updated_at = now
 
 
 def process_pending_ticket_mensagem_emails(db: Session, *, limit: int = 20) -> int:
@@ -181,13 +220,14 @@ def process_pending_ticket_mensagem_emails(db: Session, *, limit: int = 20) -> i
         try:
             if _enviar_uma(db, m, ticket):
                 enviadas += 1
+                log_event(
+                    logger,
+                    "ticket_email_send_ok",
+                    mensagem_id=m.id,
+                    ticket_id=m.ticket_id,
+                )
         except Exception as e:
-            logger.warning(
-                "Falha ao enviar e-mail da mensagem %s (ticket %s): %s",
-                m.id,
-                m.ticket_id,
-                e,
-            )
+            _registrar_falha_envio(m, e, now=now)
     return enviadas
 
 

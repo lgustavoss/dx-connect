@@ -4,11 +4,13 @@ import threading
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
 from starlette.middleware.trustedhost import TrustedHostMiddleware
+
+from app.database import get_db
 
 from app.api import (
     auth,
@@ -174,10 +176,7 @@ async def lifespan(app: FastAPI):
             db = SessionLocal()
             try:
                 n = process_pending_ticket_mensagem_emails(db, limit=30)
-                if n:
-                    db.commit()
-                else:
-                    db.rollback()
+                db.commit()
             except Exception as e:
                 logger.warning("Worker e-mail de mensagens de ticket: %s", e)
                 db.rollback()
@@ -273,7 +272,14 @@ if _th != ["*"]:
 async def tenant_context_middleware(request: Request, call_next):
     """Define ``request.state.tenant_id``. Webhooks e health ficam isentos."""
     path = request.url.path
-    if path.startswith("/v1/webhooks/") or path in ("/", "/health", "/docs", "/redoc", "/openapi.json"):
+    if path.startswith("/v1/webhooks/") or path in (
+        "/",
+        "/health",
+        "/health/ready",
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+    ):
         return await call_next(request)
     try:
         tid = resolve_tenant_id(request)
@@ -353,10 +359,14 @@ def _app_capabilities() -> dict[str, bool]:
 
 @app.get("/health")
 def health():
-    import os
+    from app.services.health_checks import build_health_payload
 
-    return {
-        "status": "ok",
-        "git_sha": (os.environ.get("DX_CONNECT_GIT_SHA") or "").strip() or None,
-        "capabilities": _app_capabilities(),
-    }
+    return build_health_payload(capabilities=_app_capabilities())
+
+
+@app.get("/health/ready")
+def health_ready(db: Session = Depends(get_db)):
+    from app.services.health_checks import build_readiness_payload
+
+    body, status_code = build_readiness_payload(db=db, capabilities=_app_capabilities())
+    return JSONResponse(content=body, status_code=status_code)
