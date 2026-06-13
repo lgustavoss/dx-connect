@@ -12,4 +12,4 @@ pydantic-settings==2.14.1
 PyJWT[crypto]==2.13.0
 cryptography>=42.0.0
 bcrypt>=5.0.0,<6
-svix>=1.40.0
+svix>=1.95.2
