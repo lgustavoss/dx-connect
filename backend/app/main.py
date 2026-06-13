@@ -213,6 +213,29 @@ async def lifespan(app: FastAPI):
         name="notificacao-email-outbox",
     ).start()
 
+    def webhook_outbox_loop() -> None:
+        from app.database import SessionLocal
+        from app.services.ticket_closed_webhook import process_pending_webhooks
+
+        interval = max(5, settings.WEBHOOK_OUTBOX_WORKER_INTERVAL_SECONDS)
+        while True:
+            db = SessionLocal()
+            try:
+                process_pending_webhooks(db, limit=30)
+                db.commit()
+            except Exception as e:
+                logger.warning("Worker webhook outbox: %s", e)
+                db.rollback()
+            finally:
+                db.close()
+            time.sleep(interval)
+
+    threading.Thread(
+        target=webhook_outbox_loop,
+        daemon=True,
+        name="webhook-outbox",
+    ).start()
+
     def whatsapp_inactivity_loop() -> None:
         from app.database import SessionLocal
         from app.services.whatsapp_inactivity_worker import process_whatsapp_inactivity_closures

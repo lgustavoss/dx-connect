@@ -60,6 +60,42 @@ def test_structured_log(caplog):
     assert payload["foo"] == 1
 
 
+def test_http_retry_delay():
+    from app.services.email_outbox_policy import http_retry_delay_seconds
+
+    assert http_retry_delay_seconds(1) == 2.0
+    assert http_retry_delay_seconds(2) == 4.0
+    assert http_retry_delay_seconds(10) == 30.0
+
+
+def test_evolution_send_text_retenta_falha_transiente(monkeypatch):
+    from app.services import evolution_api
+
+    calls = {"n": 0}
+
+    def fake_request(method, url, *, headers, body=None, timeout=20):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            return 503, None, "unavailable"
+        return 201, {"key": {"id": "wa-msg-1"}}, None
+
+    monkeypatch.setattr(evolution_api, "_request_json", fake_request)
+    monkeypatch.setattr(evolution_api.settings, "EVOLUTION_HTTP_MAX_ATTEMPTS", 3)
+    monkeypatch.setattr(evolution_api.time, "sleep", lambda s: None)
+
+    ok, err, mid = evolution_api.evolution_send_text(
+        "http://evo.local",
+        "inst",
+        "key",
+        "5511999999999",
+        "oi",
+    )
+    assert ok is True
+    assert err is None
+    assert mid == "wa-msg-1"
+    assert calls["n"] == 3
+
+
 def test_ticket_mensagem_email_retry_ate_falha_permanente(client, seed_base, auth_headers, monkeypatch, db_session):
     from app.models.ticket import TicketMensagem
     from app.services.ticket_mensagem_email_outbox import EMAIL_STATUS_FALHA, process_pending_ticket_mensagem_emails

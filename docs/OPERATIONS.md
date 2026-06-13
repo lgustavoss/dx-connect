@@ -20,7 +20,8 @@ Guia para quem opera o DX Connect em staging/produção: healthchecks, filas de 
   "integrations": {
     "email_outbound": "configured",
     "email_inbound": "configured",
-    "evolution_whatsapp": "missing"
+    "evolution_whatsapp": "missing",
+    "ticket_closed_webhook": "missing"
   }
 }
 ```
@@ -33,7 +34,7 @@ Guia para quem opera o DX Connect em staging/produção: healthchecks, filas de 
 
 1. Uptime em `GET /health` (intervalo 1–5 min).
 2. Alerta se `GET /health/ready` retorna **503** por > 2 min.
-3. Logs com `"event": "notificacao_email_send_failed_permanent"` ou `"ticket_email_send_failed_permanent"`.
+3. Logs com `"event": "notificacao_email_send_failed_permanent"`, `"ticket_email_send_failed_permanent"` ou `"webhook_outbox_send_failed_permanent"`.
 
 ## Workers em background
 
@@ -41,11 +42,44 @@ Guia para quem opera o DX Connect em staging/produção: healthchecks, filas de 
 |--------|-----------------|--------|
 | `notificacao-email-outbox` | `NOTIFICACAO_EMAIL_WORKER_INTERVAL_SECONDS` (10s) | E-mails de notificação a atendentes |
 | `ticket-mensagem-email-outbox` | `TICKET_MENSAGEM_EMAIL_WORKER_INTERVAL_SECONDS` (5s) | Respostas públicas ao cliente por e-mail |
-| `ticket-mensagem-email-outbox` | idem | Janela de graça antes do envio (#140) |
+| `webhook-outbox` | `WEBHOOK_OUTBOX_WORKER_INTERVAL_SECONDS` (15s) | POST HTTP ao fechar ticket (#119) |
 
-Ambos fazem **commit** após cada ciclo (mesmo com 0 envios), para persistir tentativas e retries.
+Todos fazem **commit** após cada ciclo (mesmo com 0 envios), para persistir tentativas e retries.
 
-## Política de retry (e-mail)
+## Webhook de saída — ticket fechado
+
+Variáveis (`.env`):
+
+- `TICKET_CLOSED_WEBHOOK_URL` — destino do POST (vazio = desligado)
+- `TICKET_CLOSED_WEBHOOK_SECRET` — HMAC SHA-256 no header `X-DX-Webhook-Signature: sha256=...`
+
+Payload mínimo:
+
+```json
+{
+  "event": "ticket.closed",
+  "ticket_id": 206,
+  "protocolo": "#T202605-0206",
+  "empresa_id": 1,
+  "setor_id": 2,
+  "atendente_id": 3,
+  "assunto": "...",
+  "fechado_em": "2026-06-12T21:00:00+00:00"
+}
+```
+
+Fila: tabela `webhook_outbox` (mesma política de 5 tentativas que e-mail).
+
+## Retry Evolution API (WhatsApp)
+
+Envio de texto/mídia via Evolution usa retry **síncrono** em falhas transitórias (rede, HTTP 429/502/503/504):
+
+- `EVOLUTION_HTTP_MAX_ATTEMPTS` (padrão **3**)
+- Backoff curto: 2s → 4s → 8s (máx. 30s)
+
+Logs: `evolution_http_retry`, `evolution_http_failed_permanent`.
+
+## Política de retry (e-mail e webhooks)
 
 - **Máximo:** 5 tentativas (`MAX_EMAIL_SEND_ATTEMPTS`).
 - **Backoff:** 60s → 120s → 240s → … (máx. 15 min entre tentativas).
@@ -68,6 +102,11 @@ Eventos relevantes (JSON em uma linha):
 | `ticket_email_send_ok` | Resposta ao cliente enviada |
 | `ticket_email_send_retry` | Retry da mensagem pública |
 | `ticket_email_send_failed_permanent` | Mensagem presa em `falha_envio` |
+| `webhook_outbox_send_ok` | Webhook entregue |
+| `webhook_outbox_send_retry` | Retry do webhook |
+| `webhook_outbox_send_failed_permanent` | Webhook esgotou tentativas |
+| `evolution_http_retry` | Retry HTTP Evolution |
+| `evolution_http_failed_permanent` | Evolution falhou após tentativas |
 
 Filtrar no agregador de logs: `grep '"event":"notificacao_email_send_failed_permanent"'`.
 
@@ -85,6 +124,13 @@ LIMIT 20;
 SELECT id, ticket_id, email_send_attempts, email_last_error, updated_at
 FROM ticket_mensagens
 WHERE email_status = 'falha_envio'
+ORDER BY id DESC
+LIMIT 20;
+
+-- Webhooks com falha permanente
+SELECT id, event_type, target_url, tentativas, last_error, created_at
+FROM webhook_outbox
+WHERE status = 'falha'
 ORDER BY id DESC
 LIMIT 20;
 ```

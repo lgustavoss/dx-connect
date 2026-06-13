@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 import json
+import logging
 import ssl
+import time
 import urllib.error
 import urllib.request
 from typing import Any
+
+from app.config import settings
+from app.core.structured_log import log_event
+from app.services.email_outbox_policy import TRANSIENT_HTTP_CODES, http_retry_delay_seconds
+
+logger = logging.getLogger(__name__)
 
 
 def _request_json(
@@ -35,6 +43,55 @@ def _request_json(
         return e.code, None, err_body or str(e.reason)
     except Exception as e:
         return 0, None, str(e)
+
+
+def _request_json_with_retry(
+    method: str,
+    url: str,
+    *,
+    headers: dict[str, str],
+    body: dict[str, Any] | None = None,
+    timeout: int = 20,
+    max_attempts: int | None = None,
+) -> tuple[int, Any | None, str | None]:
+    attempts = max(1, int(max_attempts or settings.EVOLUTION_HTTP_MAX_ATTEMPTS))
+    last: tuple[int, Any | None, str | None] = (0, None, "sem resposta")
+    for attempt in range(1, attempts + 1):
+        code, data, err = _request_json(method, url, headers=headers, body=body, timeout=timeout)
+        last = (code, data, err)
+        if code in (200, 201) or code not in TRANSIENT_HTTP_CODES:
+            if attempt > 1 and code in (200, 201):
+                log_event(
+                    logger,
+                    "evolution_http_send_ok_after_retry",
+                    url=url.split("?")[0][-120:],
+                    attempts=attempt,
+                    http_status=code,
+                )
+            return code, data, err
+        if attempt < attempts:
+            delay = http_retry_delay_seconds(attempt)
+            log_event(
+                logger,
+                "evolution_http_retry",
+                level=logging.WARNING,
+                url=url.split("?")[0][-120:],
+                attempt=attempt,
+                http_status=code,
+                retry_in_seconds=delay,
+                error=(err or f"HTTP {code}")[:500],
+            )
+            time.sleep(delay)
+    log_event(
+        logger,
+        "evolution_http_failed_permanent",
+        level=logging.ERROR,
+        url=url.split("?")[0][-120:],
+        attempts=attempts,
+        http_status=last[0],
+        error=(last[2] or f"HTTP {last[0]}")[:500],
+    )
+    return last
 
 
 def evolution_connection_state(base_url: str, instance: str, api_key: str) -> tuple[bool, str | None]:
@@ -116,7 +173,7 @@ def evolution_send_text(
     body: dict[str, Any] = {"number": number_digits, "text": text}
     if quoted:
         body["quoted"] = quoted
-    code, data, err = _request_json(
+    code, data, err = _request_json_with_retry(
         "POST",
         url,
         headers=headers,
@@ -156,7 +213,7 @@ def evolution_send_media(
     }
     if quoted:
         body["quoted"] = quoted
-    code, data, err = _request_json("POST", url, headers=headers, body=body, timeout=120)
+    code, data, err = _request_json_with_retry("POST", url, headers=headers, body=body, timeout=120)
     if code in (200, 201):
         return True, None, _extract_wa_message_id(data)
     if err:
@@ -198,7 +255,7 @@ def evolution_get_base64_from_media_message(
     url = f"{base}/chat/getBase64FromMediaMessage/{instance}"
     headers = {"apikey": api_key, "Content-Type": "application/json", "Accept": "application/json"}
     body: dict[str, Any] = {"message": message_envelope, "convertToMp4": convert_to_mp4}
-    code, data, err = _request_json("POST", url, headers=headers, body=body, timeout=timeout)
+    code, data, err = _request_json_with_retry("POST", url, headers=headers, body=body, timeout=timeout)
     if code in (200, 201):
         b64 = _extrair_base64_resposta(data)
         if b64:
