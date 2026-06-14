@@ -1,0 +1,238 @@
+"""Emissão SSE após commit — tickets e chats (#265)."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from typing import Any, Iterable
+
+from sqlalchemy.orm import Session
+
+from app.core.setor_scope import ids_setores_mesmo_nome, ids_setores_visiveis_atendente
+from app.core.tenant_context import effective_tenant_id
+from app.models.atendente import Atendente
+from app.models.setor import Setor
+from app.models.ticket import Ticket
+from app.models.whatsapp_chat import WhatsappChat
+from app.services.realtime_hub import publish_to_atendente
+
+logger = logging.getLogger(__name__)
+
+_main_loop: asyncio.AbstractEventLoop | None = None
+
+
+def register_realtime_loop(loop: asyncio.AbstractEventLoop) -> None:
+    global _main_loop
+    _main_loop = loop
+
+
+def _schedule(coro) -> None:
+    loop = _main_loop
+    if loop is None or not loop.is_running():
+        try:
+            asyncio.run(coro)
+        except RuntimeError:
+            logger.debug("SSE: loop principal indisponível; evento descartado")
+        return
+    asyncio.run_coroutine_threadsafe(coro, loop)
+
+
+async def _publish_many(atendente_ids: Iterable[int], event_type: str, payload: dict[str, Any]) -> None:
+    seen: set[int] = set()
+    for aid in atendente_ids:
+        if aid in seen:
+            continue
+        seen.add(aid)
+        await publish_to_atendente(aid, event_type, payload)
+
+
+def _publish_to_atendentes(atendente_ids: Iterable[int], event_type: str, payload: dict[str, Any]) -> None:
+    ids = list(atendente_ids)
+    if not ids:
+        return
+    _schedule(_publish_many(ids, event_type, payload))
+
+
+def _pode_ver_chat(db: Session, atendente: Atendente, chat: WhatsappChat) -> bool:
+    if atendente.role == "admin":
+        return True
+    if chat.atendente_id == atendente.id:
+        return True
+    vis = ids_setores_visiveis_atendente(db, atendente)
+    if chat.setor_id is None:
+        return chat.estado == "aguardando_atendente"
+    if chat.estado in ("aguardando_atendente", "encerrado", "aguardando_avaliacao"):
+        return chat.setor_id in vis
+    return False
+
+
+def _pode_ver_ticket(db: Session, atendente: Atendente, ticket: Ticket) -> bool:
+    if atendente.role == "admin":
+        return True
+    vis = ids_setores_visiveis_atendente(db, atendente)
+    return ticket.setor_id in vis
+
+
+def _ids_atendentes_ativos(db: Session) -> list[Atendente]:
+    tenant_id = effective_tenant_id()
+    return (
+        db.query(Atendente)
+        .filter(Atendente.ativo.is_(True), Atendente.tenant_id == tenant_id)
+        .all()
+    )
+
+
+def _ids_atendentes_por_setor(db: Session, setor_id: int) -> set[int]:
+    alvo_ids = list(ids_setores_mesmo_nome(db, setor_id))
+    q = (
+        db.query(Atendente)
+        .join(Atendente.setores)
+        .filter(Setor.id.in_(alvo_ids), Atendente.ativo.is_(True))
+        .distinct()
+    )
+    ids = {a.id for a in q.all()}
+    admins = (
+        db.query(Atendente)
+        .filter(Atendente.role == "admin", Atendente.ativo.is_(True))
+        .all()
+    )
+    ids.update(a.id for a in admins)
+    return ids
+
+
+def ids_atendentes_acesso_chat(db: Session, chat: WhatsappChat) -> set[int]:
+    return {a.id for a in _ids_atendentes_ativos(db) if _pode_ver_chat(db, a, chat)}
+
+
+def ids_atendentes_chat_fila(db: Session, chat: WhatsappChat) -> set[int]:
+    if chat.setor_id is None:
+        return {a.id for a in _ids_atendentes_ativos(db)}
+    return _ids_atendentes_por_setor(db, chat.setor_id)
+
+
+def ids_atendentes_ticket_mensagem(
+    db: Session,
+    ticket: Ticket,
+    *,
+    exclude_atendente_id: int | None = None,
+) -> set[int]:
+    ids = {a.id for a in _ids_atendentes_ativos(db) if _pode_ver_ticket(db, a, ticket)}
+    if exclude_atendente_id is not None:
+        ids.discard(exclude_atendente_id)
+    return ids
+
+
+def ids_atendentes_ticket_fila(db: Session, ticket: Ticket) -> set[int]:
+    if ticket.atendente_id is not None or ticket.fechado_em is not None:
+        return set()
+    return _ids_atendentes_por_setor(db, ticket.setor_id)
+
+
+def emit_chat_mensagem(
+    db: Session,
+    chat: WhatsappChat,
+    mensagem_payload: dict[str, Any],
+    *,
+    exclude_atendente_id: int | None = None,
+) -> None:
+    recipients = ids_atendentes_acesso_chat(db, chat)
+    if exclude_atendente_id is not None:
+        recipients.discard(exclude_atendente_id)
+    payload = {"chat_id": chat.id, "mensagem": mensagem_payload}
+    _publish_to_atendentes(recipients, "chat.mensagem", payload)
+
+
+def emit_chat_fila(
+    db: Session,
+    chat: WhatsappChat,
+    *,
+    chat_payload: dict[str, Any] | None = None,
+    estado_anterior: str | None = None,
+) -> None:
+    recipients = ids_atendentes_chat_fila(db, chat)
+    if chat.atendente_id is not None:
+        recipients.add(chat.atendente_id)
+    payload: dict[str, Any] = {
+        "chat_id": chat.id,
+        "estado": chat.estado,
+        "estado_anterior": estado_anterior,
+    }
+    if chat_payload is not None:
+        payload["chat"] = chat_payload
+    _publish_to_atendentes(recipients, "chat.fila", payload)
+
+
+def emit_ticket_mensagem(
+    db: Session,
+    ticket: Ticket,
+    mensagem_payload: dict[str, Any],
+    *,
+    exclude_atendente_id: int | None = None,
+) -> None:
+    recipients = ids_atendentes_ticket_mensagem(
+        db, ticket, exclude_atendente_id=exclude_atendente_id
+    )
+    payload = {"ticket_id": ticket.id, "mensagem": mensagem_payload}
+    _publish_to_atendentes(recipients, "ticket.mensagem", payload)
+
+
+def emit_ticket_fila(db: Session, ticket: Ticket) -> None:
+    recipients = ids_atendentes_ticket_fila(db, ticket)
+    if not recipients:
+        return
+    payload = {
+        "ticket_id": ticket.id,
+        "setor_id": ticket.setor_id,
+        "protocolo": ticket.protocolo,
+    }
+    _publish_to_atendentes(recipients, "ticket.fila", payload)
+
+
+def emit_chat_mensagem_from_models(
+    db: Session,
+    chat: WhatsappChat,
+    mensagem: Any,
+    *,
+    exclude_atendente_id: int | None = None,
+) -> None:
+    from app.api.whatsapp_chats import _mensagem_read
+
+    emit_chat_mensagem(
+        db,
+        chat,
+        _mensagem_read(mensagem).model_dump(mode="json"),
+        exclude_atendente_id=exclude_atendente_id,
+    )
+
+
+def emit_chat_fila_from_model(
+    db: Session,
+    chat: WhatsappChat,
+    *,
+    estado_anterior: str | None = None,
+) -> None:
+    from app.api.whatsapp_chats import _chat_read
+
+    emit_chat_fila(
+        db,
+        chat,
+        chat_payload=_chat_read(db, chat).model_dump(mode="json"),
+        estado_anterior=estado_anterior,
+    )
+
+
+def emit_ticket_mensagem_from_model(
+    db: Session,
+    ticket: Ticket,
+    mensagem: Any,
+    *,
+    exclude_atendente_id: int | None = None,
+) -> None:
+    from app.api.tickets import _mensagem_para_read
+
+    emit_ticket_mensagem(
+        db,
+        ticket,
+        _mensagem_para_read(mensagem).model_dump(mode="json"),
+        exclude_atendente_id=exclude_atendente_id,
+    )

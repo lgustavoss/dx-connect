@@ -64,8 +64,14 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Testes (pytest): schema mínimo sem seed, backfill nem thread IBGE — ver tests/conftest.py (#46).
+    import asyncio
     import os
+
+    from app.services.realtime_emit import register_realtime_loop
+
+    register_realtime_loop(asyncio.get_running_loop())
+
+    # Testes (pytest): schema mínimo sem seed, backfill nem thread IBGE — ver tests/conftest.py (#46).
 
     if os.environ.get("DX_CONNECT_TESTING") == "1":
         dev_create_all_tables(engine, Base.metadata)
