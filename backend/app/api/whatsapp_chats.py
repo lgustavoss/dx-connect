@@ -51,6 +51,7 @@ from app.services.whatsapp_auto_messages import (
 )
 from app.services.whatsapp_avaliacao import mensagem_oculta_na_conversa
 from app.services.whatsapp_media_storage import caminho_absoluto_arquivo, gravar_bytes_em_disco
+from app.services.realtime_emit import emit_chat_fila_from_model, emit_chat_mensagem_from_models
 
 router = APIRouter(prefix="/whatsapp/chats", tags=["whatsapp-chats"])
 
@@ -284,6 +285,7 @@ def _enviar_texto_whatsapp(
     db.add(m)
     db.commit()
     db.refresh(m)
+    emit_chat_mensagem_from_models(db, chat, m, exclude_atendente_id=atendente.id if atendente else None)
     return m
 
 
@@ -813,11 +815,13 @@ def assumir(
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
     if c.estado != "aguardando_atendente":
         raise HTTPException(status_code=400, detail="Só é possível assumir chats na fila de espera")
+    estado_anterior = c.estado
     c.estado = "em_atendimento"
     c.atendente_id = atendente.id
     c.atendimento_inicio_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(c)
+    emit_chat_fila_from_model(db, c, estado_anterior=estado_anterior)
     st_auto = db.query(WhatsappSettings).order_by(WhatsappSettings.id.asc()).first()
     if st_auto and bool(getattr(st_auto, "auto_msg_assumido_ativa", True)) and _evolution_configurada(st_auto):
         raw = (getattr(st_auto, "auto_msg_assumido_texto", "") or "").strip() or DEFAULT_AUTO_MSG_ASSUMIDO
@@ -873,6 +877,7 @@ def encerrar(
         raise HTTPException(status_code=502, detail="Falha ao encerrar o atendimento no WhatsApp") from exc
     c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
     assert c is not None
+    emit_chat_fila_from_model(db, c, estado_anterior="em_atendimento")
     return _chat_read(db, c)
 
 
@@ -1004,6 +1009,7 @@ async def enviar_mensagem_midia(
         .first()
     )
     assert m2 is not None
+    emit_chat_mensagem_from_models(db, c, m2, exclude_atendente_id=atendente.id)
     return _mensagem_read(m2)
 
 
@@ -1290,6 +1296,7 @@ def transferir(
             if data.setor_id not in setor_ids:
                 raise HTTPException(status_code=400, detail="Atendente selecionado não pertence ao setor escolhido")
 
+    estado_anterior = c.estado
     c.setor_id = data.setor_id
     c.atendente_id = destino.id if destino else None
     if destino:
@@ -1328,4 +1335,17 @@ def transferir(
         .first()
     )
     assert c2 is not None
+    transfer_msg = (
+        db.query(WhatsappMensagem)
+        .options(joinedload(WhatsappMensagem.atendente))
+        .filter(
+            WhatsappMensagem.chat_id == chat_id,
+            WhatsappMensagem.evento_sistema == "transferencia",
+        )
+        .order_by(WhatsappMensagem.id.desc())
+        .first()
+    )
+    emit_chat_fila_from_model(db, c2, estado_anterior=estado_anterior)
+    if transfer_msg:
+        emit_chat_mensagem_from_models(db, c2, transfer_msg, exclude_atendente_id=atendente.id)
     return _chat_read(db, c2)

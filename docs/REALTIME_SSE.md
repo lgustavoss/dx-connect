@@ -16,6 +16,18 @@ Evento inicial ao conectar:
 { "type": "connected", "payload": { "atendente_id": 1, "canal": "atendente:1" } }
 ```
 
+## Eventos (RT-F2+)
+
+| Tipo | Quando | Payload principal |
+|------|--------|-------------------|
+| `chat.mensagem` | Nova mensagem WhatsApp | `{ chat_id, mensagem }` |
+| `chat.fila` | Chat entra/sai da fila ou muda estado | `{ chat_id, estado, chat? }` |
+| `ticket.mensagem` | Nova mensagem em ticket | `{ ticket_id, mensagem }` |
+| `ticket.fila` | Ticket aberto sem responsável | `{ ticket_id, setor_id, protocolo }` |
+| `notificacao.contagem` | RT-F3 — contadores navbar | `{ ... }` (compatível com `/notificacoes/resumo`) |
+
+Destinatários filtrados por RBAC (setor homônimo + admin).
+
 ## Frontend
 
 - Cliente fetch-based (suporta Bearer; `EventSource` nativo não envia header)
