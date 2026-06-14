@@ -5,6 +5,7 @@ import { Sidebar } from './Sidebar'
 import { ThemeToggle } from './ThemeToggle'
 import { NavbarNotificacoes } from './NavbarNotificacoes'
 import { useAlertaFilaSemResponsavel } from '../hooks/useAlertaFilaSemResponsavel'
+import { EventStreamProvider } from '../contexts/EventStreamContext'
 
 function perfilExibicao(role: string | undefined): string {
   if (role === 'admin') return 'Administrador'
@@ -36,6 +37,7 @@ export function Layout() {
     /^\/tickets\/\d+\/?$/.test(location.pathname) || location.pathname === '/tickets/novo'
 
   return (
+    <EventStreamProvider enabled={notificacoesEnabled}>
     <div
       className="flex h-dvh max-h-dvh min-h-0 overflow-hidden bg-gradient-to-b from-slate-50 to-slate-100/90 dark:from-slate-950 dark:to-slate-900/95 md:grid md:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-200 md:ease-out"
       style={
@@ -110,5 +112,6 @@ export function Layout() {
           </main>
       </div>
     </div>
+    </EventStreamProvider>
   )
 }

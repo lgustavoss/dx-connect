@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Query, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
@@ -14,18 +14,13 @@ from app.core.tenant_context import (
 
 security = HTTPBearer(auto_error=False)
 
-def obter_atendente_atual(
+
+def _carregar_atendente_por_token(
     request: Request,
-    credentials: HTTPAuthorizationCredentials | None = Depends(security),
-    db: Session = Depends(get_db),
+    token: str,
+    db: Session,
 ) -> Atendente:
-    if not credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token não informado",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    payload = decodificar_token(credentials.credentials)
+    payload = decodificar_token(token)
     if not payload or "sub" not in payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -66,6 +61,36 @@ def obter_atendente_atual(
                 detail="Altere sua senha antes de usar o sistema.",
             )
     return atendente
+
+
+def obter_atendente_atual(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    db: Session = Depends(get_db),
+) -> Atendente:
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token não informado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return _carregar_atendente_por_token(request, credentials.credentials, db)
+
+
+def obter_atendente_sse(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    token: str | None = Query(None, description="JWT access token (alternativa ao header Bearer)"),
+    db: Session = Depends(get_db),
+) -> Atendente:
+    raw = credentials.credentials if credentials else token
+    if not raw:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token não informado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return _carregar_atendente_por_token(request, raw, db)
 
 
 def exigir_admin(atendente: Atendente = Depends(obter_atendente_atual)) -> Atendente:
