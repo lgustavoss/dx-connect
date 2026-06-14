@@ -247,6 +247,32 @@ async def lifespan(app: FastAPI):
         name="whatsapp-inactivity",
     ).start()
 
+    def ticket_distribuicao_loop() -> None:
+        from app.database import SessionLocal
+        from app.services.ticket_distribuicao import processar_distribuicao_timeout
+
+        interval = max(30, settings.TICKET_DISTRIBUICAO_WORKER_INTERVAL_SECONDS)
+        while True:
+            db = SessionLocal()
+            try:
+                n = processar_distribuicao_timeout(db, limit=50)
+                if n:
+                    db.commit()
+                else:
+                    db.rollback()
+            except Exception as e:
+                logger.warning("Worker distribuição de tickets: %s", e)
+                db.rollback()
+            finally:
+                db.close()
+            time.sleep(interval)
+
+    threading.Thread(
+        target=ticket_distribuicao_loop,
+        daemon=True,
+        name="ticket-distribuicao",
+    ).start()
+
     yield
 
 
