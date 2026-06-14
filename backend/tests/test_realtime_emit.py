@@ -70,9 +70,9 @@ def test_emit_chat_mensagem_rbac(client, seed_base, db_session, monkeypatch):
     publicados: list[int] = []
 
     def fake_publish(atendente_ids, event_type, payload):
-        publicados.extend(atendente_ids)
-        assert event_type == "chat.mensagem"
-        assert payload["chat_id"] == chat.id
+        if event_type == "chat.mensagem":
+            publicados.extend(atendente_ids)
+            assert payload["chat_id"] == chat.id
 
     monkeypatch.setattr("app.services.realtime_emit._publish_to_atendentes", fake_publish)
 
@@ -84,7 +84,6 @@ def test_emit_chat_mensagem_rbac(client, seed_base, db_session, monkeypatch):
     assert seed_base["a1"].id in publicados
     assert seed_base["admin"].id in publicados
     assert seed_base["a2"].id not in publicados
-
 
 def test_ids_atendentes_acesso_chat_em_atendimento(client, seed_base, db_session):
     from app.models.whatsapp_chat import WhatsappChat

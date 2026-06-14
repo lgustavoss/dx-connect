@@ -24,7 +24,7 @@ Evento inicial ao conectar:
 | `chat.fila` | Chat entra/sai da fila ou muda estado | `{ chat_id, estado, chat? }` |
 | `ticket.mensagem` | Nova mensagem em ticket | `{ ticket_id, mensagem }` |
 | `ticket.fila` | Ticket aberto sem responsável | `{ ticket_id, setor_id, protocolo }` |
-| `notificacao.contagem` | RT-F3 — contadores navbar | `{ ... }` (compatível com `/notificacoes/resumo`) |
+| `notificacao.contagem` | RT-F3 — contadores navbar | `NotificacaoResumo` (compatível com `/notificacoes/resumo`) |
 
 Destinatários filtrados por RBAC (setor homônimo + admin).
 

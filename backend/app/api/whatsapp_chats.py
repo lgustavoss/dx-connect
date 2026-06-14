@@ -1082,6 +1082,9 @@ def marcar_chat_visto(
     else:
         db.add(WhatsappChatReadModel(chat_id=chat_id, atendente_id=atendente.id, last_seen_at=now))
     db.commit()
+    from app.services.realtime_emit import emit_notificacao_contagem
+
+    emit_notificacao_contagem(db, [atendente.id])
     return None
 
 

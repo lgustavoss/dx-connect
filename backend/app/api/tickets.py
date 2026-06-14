@@ -72,7 +72,7 @@ from app.services.ticket_escopo import (
 from app.services.funcionario_rede_resolver import resolver_remetente_por_email
 from app.services.ticket_client_email import extrair_email_de_from_address
 from app.services.protocolo_mensal import gerar_protocolo_ticket
-from app.services.realtime_emit import emit_ticket_fila, emit_ticket_mensagem_from_model
+from app.services.realtime_emit import emit_ticket_fila, emit_ticket_mensagem_from_model, emit_notificacao_after_counter_change
 from app.services.ticket_mensagem_email_outbox import (
     EMAIL_STATUS_ENVIADA,
     agendar_envio_email,
@@ -1594,4 +1594,6 @@ def atualizar(
     if ticket_out and ticket_out.atendente_id is None and ticket_out.fechado_em is None:
         if "atendente_id" in update or "setor_id" in update:
             emit_ticket_fila(db, ticket_out)
+    elif atribuicao_notificar_id is not None or "atendente_id" in update or "setor_id" in update:
+        emit_notificacao_after_counter_change(db)
     return _ticket_para_read(ticket_out or ticket, db)

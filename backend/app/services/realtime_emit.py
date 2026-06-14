@@ -128,6 +128,40 @@ def ids_atendentes_ticket_fila(db: Session, ticket: Ticket) -> set[int]:
     return _ids_atendentes_por_setor(db, ticket.setor_id)
 
 
+def emit_notificacao_contagem(db: Session, atendente_ids: Iterable[int]) -> None:
+    """Publica contadores personalizados por atendente (#266)."""
+    from app.api.notificacoes import build_notificacao_resumo
+
+    seen: set[int] = set()
+    for aid in atendente_ids:
+        if aid in seen:
+            continue
+        seen.add(aid)
+        atendente = (
+            db.query(Atendente)
+            .filter(Atendente.id == aid, Atendente.ativo.is_(True))
+            .first()
+        )
+        if not atendente:
+            continue
+        payload = build_notificacao_resumo(db, atendente).model_dump(mode="json")
+        _publish_to_atendentes([atendente.id], "notificacao.contagem", payload)
+
+
+def emit_notificacao_contagem_all(db: Session) -> None:
+    """Recalcula e envia contadores a todos os atendentes ativos."""
+    emit_notificacao_contagem(db, [a.id for a in _ids_atendentes_ativos(db)])
+
+
+def _emit_notificacao_after_counter_change(db: Session) -> None:
+    emit_notificacao_contagem_all(db)
+
+
+def emit_notificacao_after_counter_change(db: Session) -> None:
+    """API pública para recalcular contadores SSE após mudanças operacionais."""
+    _emit_notificacao_after_counter_change(db)
+
+
 def emit_chat_mensagem(
     db: Session,
     chat: WhatsappChat,
@@ -140,6 +174,7 @@ def emit_chat_mensagem(
         recipients.discard(exclude_atendente_id)
     payload = {"chat_id": chat.id, "mensagem": mensagem_payload}
     _publish_to_atendentes(recipients, "chat.mensagem", payload)
+    _emit_notificacao_after_counter_change(db)
 
 
 def emit_chat_fila(
@@ -160,6 +195,7 @@ def emit_chat_fila(
     if chat_payload is not None:
         payload["chat"] = chat_payload
     _publish_to_atendentes(recipients, "chat.fila", payload)
+    _emit_notificacao_after_counter_change(db)
 
 
 def emit_ticket_mensagem(
@@ -174,6 +210,7 @@ def emit_ticket_mensagem(
     )
     payload = {"ticket_id": ticket.id, "mensagem": mensagem_payload}
     _publish_to_atendentes(recipients, "ticket.mensagem", payload)
+    _emit_notificacao_after_counter_change(db)
 
 
 def emit_ticket_fila(db: Session, ticket: Ticket) -> None:
@@ -186,6 +223,7 @@ def emit_ticket_fila(db: Session, ticket: Ticket) -> None:
         "protocolo": ticket.protocolo,
     }
     _publish_to_atendentes(recipients, "ticket.fila", payload)
+    _emit_notificacao_after_counter_change(db)
 
 
 def emit_chat_mensagem_from_models(
