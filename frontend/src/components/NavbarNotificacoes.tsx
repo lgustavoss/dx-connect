@@ -3,8 +3,10 @@ import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { notificacoes, type Notificacoes } from '../api/client'
 import { usePendenciasResumo } from '../hooks/useAlertaFilaSemResponsavel'
+import { useEventStream } from '../contexts/EventStreamContext'
 
 const POLL_ITENS_MS = 30_000
+const POLL_ITENS_SSE_MS = 60_000
 
 const bellIcon = (
   <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -25,6 +27,7 @@ function badgeText(n: number): string {
 
 export function NavbarNotificacoes({ enabled }: { enabled: boolean }) {
   const resumo = usePendenciasResumo(enabled)
+  const { subscribe, useFallback } = useEventStream()
   const [aberto, setAberto] = useState(false)
   const [mobileVisible, setMobileVisible] = useState(false)
   const [itens, setItens] = useState<Notificacoes.Item[]>([])
@@ -47,11 +50,19 @@ export function NavbarNotificacoes({ enabled }: { enabled: boolean }) {
   }, [enabled])
 
   useEffect(() => {
+    if (!enabled) return
+    return subscribe('notificacao.contagem', () => {
+      if (aberto) void carregarItens()
+    })
+  }, [enabled, subscribe, aberto, carregarItens])
+
+  useEffect(() => {
     if (!aberto || !enabled) return
     void carregarItens()
-    const id = window.setInterval(() => void carregarItens(), POLL_ITENS_MS)
+    const pollMs = useFallback ? POLL_ITENS_MS : POLL_ITENS_SSE_MS
+    const id = window.setInterval(() => void carregarItens(), pollMs)
     return () => window.clearInterval(id)
-  }, [aberto, enabled, carregarItens])
+  }, [aberto, enabled, useFallback, carregarItens])
 
   useEffect(() => {
     if (!aberto) return

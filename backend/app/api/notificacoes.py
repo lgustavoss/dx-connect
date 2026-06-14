@@ -114,7 +114,6 @@ def _count_wpp_fila(db: Session, atendente: Atendente) -> int:
 
 
 def _count_wpp_respostas_pendentes(db: Session, atendente: Atendente) -> int:
-    # Resposta pendente: existe inbound após o último "visto" do atendente no chat.
     seen_at = (
         select(WhatsappChatRead.last_seen_at)
         .where(
@@ -170,11 +169,8 @@ def _wpp_unread_count_for_chat(db: Session, chat_id: int, atendente_id: int) -> 
     return int(n or 0)
 
 
-@router.get("/resumo", response_model=NotificacaoResumo)
-def resumo(
-    db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
-):
+def build_notificacao_resumo(db: Session, atendente: Atendente) -> NotificacaoResumo:
+    """Contadores de pendências para um atendente (reutilizado por API e SSE)."""
     sem = _count_sem_responsavel(db, atendente)
     nao = _count_tickets_com_nao_lidas(db, atendente)
     wpp_fila = _count_wpp_fila(db, atendente)
@@ -186,6 +182,14 @@ def resumo(
         wpp_respostas_count=wpp_resp,
         total_pendencias=sem + nao + wpp_fila + wpp_resp,
     )
+
+
+@router.get("/resumo", response_model=NotificacaoResumo)
+def resumo(
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    return build_notificacao_resumo(db, atendente)
 
 
 @router.get("/itens", response_model=NotificacaoItensResponse)
@@ -329,6 +333,9 @@ def marcar_visto(
             )
         )
     db.commit()
+    from app.services.realtime_emit import emit_notificacao_contagem
+
+    emit_notificacao_contagem(db, [atendente.id])
     return None
 
 
