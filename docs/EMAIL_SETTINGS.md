@@ -177,4 +177,4 @@ Ao carregar a configuração, o frontend tenta classificar o provedor se os host
 
 Meta-issue relacionada: [#16 — melhorias operacionais](https://github.com/lgustavoss/dx-connect/issues/16). Ingestão **IMAP legado / BYO** em [#20](https://github.com/lgustavoss/dx-connect/issues/20).
 
-Rascunhos de texto usados na criação destas issues: pasta [`.github/planning-issue-bodies/`](https://github.com/lgustavoss/dx-connect/tree/main/.github/planning-issue-bodies).
+Rascunhos de issues de planejamento (portal, dashboards, SLA, roteamento, tempo real, KB, distribuição, auditoria): [`.github/planning-issue-bodies/`](../.github/planning-issue-bodies/README.md).
