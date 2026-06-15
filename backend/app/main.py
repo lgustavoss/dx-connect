@@ -24,6 +24,7 @@ from app.api import (
     tipo_negocio,
     cadastro_aux,
     notificacoes,
+    events,
     whatsapp_settings,
     whatsapp_chats,
     whatsapp_webhook,
@@ -63,8 +64,14 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Testes (pytest): schema mínimo sem seed, backfill nem thread IBGE — ver tests/conftest.py (#46).
+    import asyncio
     import os
+
+    from app.services.realtime_emit import register_realtime_loop
+
+    register_realtime_loop(asyncio.get_running_loop())
+
+    # Testes (pytest): schema mínimo sem seed, backfill nem thread IBGE — ver tests/conftest.py (#46).
 
     if os.environ.get("DX_CONNECT_TESTING") == "1":
         dev_create_all_tables(engine, Base.metadata)
@@ -322,6 +329,7 @@ app.include_router(audit.router, prefix=API_V1_PREFIX)
 app.include_router(tipo_negocio.router, prefix=API_V1_PREFIX)
 app.include_router(cadastro_aux.router, prefix=API_V1_PREFIX)
 app.include_router(notificacoes.router, prefix=API_V1_PREFIX)
+app.include_router(events.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_settings.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_chats.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_webhook.router, prefix=API_V1_PREFIX)

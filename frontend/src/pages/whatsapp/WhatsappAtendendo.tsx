@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, whatsappChats, type WhatsappChats } from '../../api/client'
 import { refetchPendenciasResumo } from '../../hooks/useAlertaFilaSemResponsavel'
+import { useEventStream } from '../../contexts/EventStreamContext'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
@@ -35,6 +36,7 @@ function TempoEspera({ data }: { data?: string | null }) {
 
 export function WhatsappAtendendo() {
   const toast = useToast()
+  const { subscribe, useFallback } = useEventStream()
   const [fila, setFila] = useState<WhatsappChats.Chat[]>([])
   const [meus, setMeus] = useState<WhatsappChats.Chat[]>([])
   const [loading, setLoading] = useState(true)
@@ -58,12 +60,23 @@ export function WhatsappAtendendo() {
     }
   }, [toast])
 
-  // Refresh automático a cada 10 segundos
   useEffect(() => {
-    void load() 
+    const refresh = () => void load(true)
+    const unsubFila = subscribe('chat.fila', refresh)
+    const unsubMsg = subscribe('chat.mensagem', refresh)
+    return () => {
+      unsubFila()
+      unsubMsg()
+    }
+  }, [subscribe, load])
+
+  // Refresh inicial + polling legado quando SSE indisponível
+  useEffect(() => {
+    void load()
+    if (!useFallback) return
     const timer = setInterval(() => void load(true), 10000)
     return () => clearInterval(timer)
-  }, [load])
+  }, [load, useFallback])
 
   useEffect(() => {
     if (fila.length > prevFilaCount.current) {
