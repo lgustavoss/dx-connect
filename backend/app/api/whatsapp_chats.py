@@ -52,6 +52,7 @@ from app.services.whatsapp_auto_messages import (
 from app.services.whatsapp_avaliacao import mensagem_oculta_na_conversa
 from app.services.whatsapp_media_storage import caminho_absoluto_arquivo, gravar_bytes_em_disco
 from app.services.realtime_emit import emit_chat_fila_from_model, emit_chat_mensagem_from_models
+from app.services.ticket_distribuicao import pos_criar_ticket_na_fila
 
 router = APIRouter(prefix="/whatsapp/chats", tags=["whatsapp-chats"])
 
@@ -1246,6 +1247,8 @@ def abrir_ticket(
     )
     db.add(WhatsappChatTicket(chat_id=chat_id, ticket_id=ticket.id, atendente_id=atendente.id))
     db.commit()
+    db.refresh(ticket)
+    pos_criar_ticket_na_fila(db, ticket)
     c2 = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
     assert c2 is not None
     return _chat_read(db, c2)
