@@ -53,6 +53,40 @@ function formatarTempoNaFila(filaDesdeAt: string | undefined | null): string {
   return m > 0 ? `${h}h ${m}min` : `${h}h`
 }
 
+function BadgeAutoDistribuicao({ ticket }: { ticket: Tickets.Ticket }) {
+  if (ticket.distribuicao_modo_setor === 'auto_apos_timeout' && ticket.distribuicao_auto_em_minutos != null) {
+    return (
+      <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+        Auto em {ticket.distribuicao_auto_em_minutos} min
+      </span>
+    )
+  }
+  if (ticket.distribuicao_modo_setor === 'auto_imediato') {
+    return (
+      <span className="inline-flex rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800 dark:bg-sky-950/40 dark:text-sky-200">
+        Auto imediato
+      </span>
+    )
+  }
+  return null
+}
+
+function IndicadoresFilaTicket({ ticket, className = '' }: { ticket: Tickets.Ticket; className?: string }) {
+  const badge = <BadgeAutoDistribuicao ticket={ticket} />
+  if (!ticket.fila_desde_at && !badge) return null
+  return (
+    <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400 ${className}`}>
+      {ticket.fila_desde_at ? (
+        <span>
+          <span className="font-medium text-slate-600 dark:text-slate-300">Na fila há:</span>{' '}
+          {formatarTempoNaFila(ticket.fila_desde_at)}
+        </span>
+      ) : null}
+      {badge}
+    </div>
+  )
+}
+
 export function Tickets() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -632,17 +666,11 @@ export function Tickets() {
                         <span className="font-medium text-slate-600 dark:text-slate-300">Resp.:</span>{' '}
                         {t.atendente_nome ?? 'Na fila'}
                       </span>
-                      {mostrarColunasFila && (
-                        <span className="truncate">
-                          <span className="font-medium text-slate-600 dark:text-slate-300">Na fila há:</span>{' '}
-                          {formatarTempoNaFila(t.fila_desde_at)}
-                        </span>
-                      )}
-                      {mostrarColunasFila && t.distribuicao_modo_setor === 'auto_apos_timeout' && t.distribuicao_auto_em_minutos != null && (
-                        <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                          Auto em {t.distribuicao_auto_em_minutos} min
-                        </span>
-                      )}
+                      {mostrarColunasFila && !t.atendente_id ? (
+                        <div className="mt-2 w-full">
+                          <IndicadoresFilaTicket ticket={t} />
+                        </div>
+                      ) : null}
                       {situacao === 'abertos' && (
                         <span className="truncate">
                           <span className="font-medium text-slate-600 dark:text-slate-300">Prior.:</span>{' '}
@@ -773,7 +801,7 @@ export function Tickets() {
                     <th className="hidden whitespace-nowrap px-4 py-3 lg:table-cell sm:px-6">Na fila há</th>
                   )}
                   {mostrarColunasFila && (
-                    <th className="hidden whitespace-nowrap px-4 py-3 xl:table-cell sm:px-6">Distribuição</th>
+                    <th className="hidden whitespace-nowrap px-4 py-3 lg:table-cell sm:px-6">Distribuição</th>
                   )}
                 </tr>
               </thead>
@@ -859,10 +887,15 @@ export function Tickets() {
                         </span>
                       </td>
                     )}
-                    <td className="hidden px-4 py-3.5 align-top text-slate-600 lg:table-cell sm:px-6 dark:text-slate-400">
+                    <td className="hidden px-4 py-3.5 align-top text-slate-600 md:table-cell sm:px-6 dark:text-slate-400">
                       <span className="block break-words whitespace-normal leading-snug">
                         {t.atendente_nome ?? 'Na fila'}
                       </span>
+                      {mostrarColunasFila && !t.atendente_id ? (
+                        <div className="mt-1.5 lg:hidden">
+                          <IndicadoresFilaTicket ticket={t} />
+                        </div>
+                      ) : null}
                     </td>
                     {mostrarColunasFila && (
                       <td className="hidden whitespace-nowrap px-4 py-3.5 align-top text-slate-600 lg:table-cell sm:px-6 dark:text-slate-400">
@@ -870,14 +903,8 @@ export function Tickets() {
                       </td>
                     )}
                     {mostrarColunasFila && (
-                      <td className="hidden px-4 py-3.5 align-top xl:table-cell sm:px-6">
-                        {t.distribuicao_modo_setor === 'auto_apos_timeout' && t.distribuicao_auto_em_minutos != null ? (
-                          <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                            Auto em {t.distribuicao_auto_em_minutos} min
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
+                      <td className="hidden px-4 py-3.5 align-top lg:table-cell sm:px-6">
+                        <BadgeAutoDistribuicao ticket={t} />
                       </td>
                     )}
                   </tr>
