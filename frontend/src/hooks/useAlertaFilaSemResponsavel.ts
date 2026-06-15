@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { notificacoes, type Notificacoes } from '../api/client'
+import { useEventStream } from '../contexts/EventStreamContext'
 
 const LS_KEY_LAST_SEM_RESP = 'dxconnect.notificacoes.last_sem_responsavel'
 const LS_KEY_LAST_NAO_LIDAS = 'dxconnect.notificacoes.last_nao_lidas'
 const LS_KEY_LAST_WPP_FILA = 'dxconnect.notificacoes.last_wpp_fila'
 const LS_KEY_LAST_WPP_RESP = 'dxconnect.notificacoes.last_wpp_resp'
 const POLL_MS = 10_000
+/** Fallback de segurança quando SSE está ativo (#266). */
+const POLL_SSE_SAFETY_MS = 60_000
 
 /** Tickets na fila sem responsável */
 const SOUND_TICKET_FILA = '/sons/alerta.mp3'
@@ -41,6 +44,8 @@ const listenersResumo = new Set<ListenerResumo>()
 
 let wppFilaLoopInterval: number | null = null
 let wppFilaLoopAudio: HTMLAudioElement | null = null
+let pollTimerId: number | null = null
+let sseSlowPollMode = false
 
 const audioByKey = new Map<string, HTMLAudioElement>()
 const alertQueue: AlertKind[] = []
@@ -313,6 +318,36 @@ function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean) {
   void trySetAppBadge(total)
 }
 
+function isNotificacaoResumo(payload: Record<string, unknown>): boolean {
+  return (
+    typeof payload.sem_responsavel_count === 'number' &&
+    typeof payload.nao_lidas_count === 'number' &&
+    typeof payload.wpp_fila_count === 'number' &&
+    typeof payload.wpp_respostas_count === 'number' &&
+    typeof payload.total_pendencias === 'number'
+  )
+}
+
+/** Atualiza contadores a partir de evento SSE `notificacao.contagem`. */
+export function applyNotificacaoResumoSse(payload: Record<string, unknown>) {
+  if (!isNotificacaoResumo(payload)) return
+  applyResumo(payload as unknown as Notificacoes.Resumo, true)
+}
+
+function restartPollTimer() {
+  if (pollTimerId != null) window.clearInterval(pollTimerId)
+  const ms = sseSlowPollMode ? POLL_SSE_SAFETY_MS : POLL_MS
+  pollTimerId = window.setInterval(() => void poll(), ms)
+}
+
+function setSsePollingMode(useFallback: boolean) {
+  const slow = !useFallback
+  if (slow === sseSlowPollMode) return
+  sseSlowPollMode = slow
+  if (!started) return
+  restartPollTimer()
+}
+
 async function poll() {
   if (inFlight) return
   inFlight = true
@@ -364,7 +399,7 @@ function ensureStarted() {
   preloadSounds()
 
   void poll()
-  window.setInterval(() => void poll(), POLL_MS)
+  restartPollTimer()
 
   const onFocusOrVisible = () => {
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
@@ -392,7 +427,20 @@ export function usePendenciasResumo(enabled: boolean): Notificacoes.Resumo {
 }
 
 export function useAlertaFilaSemResponsavel(enabled: boolean) {
+  const { subscribe, useFallback } = useEventStream()
   const [count, setCount] = useState(0)
+
+  useEffect(() => {
+    if (!enabled) return
+    setSsePollingMode(useFallback)
+  }, [enabled, useFallback])
+
+  useEffect(() => {
+    if (!enabled) return
+    return subscribe('notificacao.contagem', (payload) => {
+      applyNotificacaoResumoSse(payload)
+    })
+  }, [enabled, subscribe])
 
   useEffect(() => {
     if (!enabled) return
