@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     NOTIFICACAO_EMAIL_DEBOUNCE_MINUTES: int = 5
     NOTIFICACAO_EMAIL_WORKER_INTERVAL_SECONDS: int = 10
     WHATSAPP_INACTIVITY_WORKER_INTERVAL_SECONDS: int = 60
+    TICKET_DISTRIBUICAO_WORKER_INTERVAL_SECONDS: int = 45
 
     # Modo legado: vários clientes no mesmo Postgres (subdomínio numérico + coluna tenant_id).
     # Produção comercial: manter False (um Postgres por cliente / deploy).

@@ -44,6 +44,15 @@ const searchIcon = (
   </svg>
 )
 
+function formatarTempoNaFila(filaDesdeAt: string | undefined | null): string {
+  if (!filaDesdeAt) return '—'
+  const min = Math.max(0, Math.floor((Date.now() - new Date(filaDesdeAt).getTime()) / 60000))
+  if (min < 60) return `${min} min`
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  return m > 0 ? `${h}h ${m}min` : `${h}h`
+}
+
 export function Tickets() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -110,6 +119,8 @@ export function Tickets() {
     const ativos = atendentesOpt.filter((a) => a.ativo)
     return [...ativos].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')).map((a) => ({ value: a.id, label: a.nome }))
   }, [atendentesOpt])
+
+  const mostrarColunasFila = situacao === 'abertos' && filtroFila === 'sem_responsavel'
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE_PADRAO))
   const inicio = total === 0 ? 0 : (page - 1) * PAGE_SIZE_PADRAO + 1
@@ -621,6 +632,17 @@ export function Tickets() {
                         <span className="font-medium text-slate-600 dark:text-slate-300">Resp.:</span>{' '}
                         {t.atendente_nome ?? 'Na fila'}
                       </span>
+                      {mostrarColunasFila && (
+                        <span className="truncate">
+                          <span className="font-medium text-slate-600 dark:text-slate-300">Na fila há:</span>{' '}
+                          {formatarTempoNaFila(t.fila_desde_at)}
+                        </span>
+                      )}
+                      {mostrarColunasFila && t.distribuicao_modo_setor === 'auto_apos_timeout' && t.distribuicao_auto_em_minutos != null && (
+                        <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                          Auto em {t.distribuicao_auto_em_minutos} min
+                        </span>
+                      )}
                       {situacao === 'abertos' && (
                         <span className="truncate">
                           <span className="font-medium text-slate-600 dark:text-slate-300">Prior.:</span>{' '}
@@ -747,6 +769,12 @@ export function Tickets() {
                     }}
                     className="hidden px-4 py-3 lg:table-cell sm:px-6"
                   />
+                  {mostrarColunasFila && (
+                    <th className="hidden whitespace-nowrap px-4 py-3 lg:table-cell sm:px-6">Na fila há</th>
+                  )}
+                  {mostrarColunasFila && (
+                    <th className="hidden whitespace-nowrap px-4 py-3 xl:table-cell sm:px-6">Distribuição</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -836,6 +864,22 @@ export function Tickets() {
                         {t.atendente_nome ?? 'Na fila'}
                       </span>
                     </td>
+                    {mostrarColunasFila && (
+                      <td className="hidden whitespace-nowrap px-4 py-3.5 align-top text-slate-600 lg:table-cell sm:px-6 dark:text-slate-400">
+                        {formatarTempoNaFila(t.fila_desde_at)}
+                      </td>
+                    )}
+                    {mostrarColunasFila && (
+                      <td className="hidden px-4 py-3.5 align-top xl:table-cell sm:px-6">
+                        {t.distribuicao_modo_setor === 'auto_apos_timeout' && t.distribuicao_auto_em_minutos != null ? (
+                          <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                            Auto em {t.distribuicao_auto_em_minutos} min
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

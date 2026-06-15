@@ -8,15 +8,22 @@ from app.core.ordenacao_lista import OrdemLista, expr_ordem
 from app.models import Setor
 from app.models.atendente import Atendente
 from app.schemas.setor import SetorCreate, SetorUpdate, SetorRead
+from app.schemas.setor_distribuicao import SetorDistribuicaoRead, SetorDistribuicaoUpdate
 from app.schemas.lista_paginada import ListaPaginada
 from app.core.auth import obter_atendente_atual, exigir_admin
 from app.core.audit import registrar_audit
 from app.core.setor_scope import ids_setores_visiveis_atendente
+from app.services.ticket_distribuicao import setor_para_distribuicao_read, validar_atendentes_elegiveis
 
 router = APIRouter(prefix="/setores", tags=["setores"])
 
 _MAX_PAGE = 100
 _DEFAULT_PAGE = 20
+
+
+def _setor_para_read(setor: Setor) -> SetorRead:
+    base = SetorRead.model_validate(setor)
+    return base.model_copy(update={"distribuicao": setor_para_distribuicao_read(setor)})
 
 
 class OrdenarSetoresPor(str, Enum):
@@ -55,7 +62,7 @@ def listar_setores(
     else:
         order_cols = [expr_ordem(Setor.ativo, ordem), expr_ordem(Setor.id, ordem)]
     items = q.order_by(*order_cols).offset(offset).limit(limit).all()
-    return ListaPaginada(items=items, total=total)
+    return ListaPaginada(items=[_setor_para_read(s) for s in items], total=total)
 
 
 @router.post("", response_model=SetorRead, status_code=201)
@@ -76,7 +83,7 @@ def criar_setor(
     registrar_audit(db, "setor", setor.id, "create", atendente.id)
     db.commit()
     db.refresh(setor)
-    return setor
+    return _setor_para_read(setor)
 
 
 @router.get("/{setor_id}", response_model=SetorRead)
@@ -88,7 +95,7 @@ def obter_setor(
     setor = db.query(Setor).filter(Setor.id == setor_id).first()
     if not setor:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor não encontrado")
-    return setor
+    return _setor_para_read(setor)
 
 
 @router.patch("/{setor_id}", response_model=SetorRead)
@@ -106,7 +113,32 @@ def atualizar_setor(
     registrar_audit(db, "setor", setor_id, "update", atendente.id)
     db.commit()
     db.refresh(setor)
-    return setor
+    return _setor_para_read(setor)
+
+
+@router.put("/{setor_id}/distribuicao", response_model=SetorDistribuicaoRead)
+def atualizar_distribuicao_setor(
+    setor_id: int,
+    data: SetorDistribuicaoUpdate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_admin),
+):
+    setor = db.query(Setor).filter(Setor.id == setor_id, Setor.tenant_id == atendente.tenant_id).first()
+    if not setor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor não encontrado")
+    try:
+        elegiveis = validar_atendentes_elegiveis(db, setor, data.atendentes_elegiveis)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+    setor.distribuicao_modo = data.modo.value
+    setor.distribuicao_timeout_minutos = data.timeout_minutos
+    setor.distribuicao_estrategia = data.estrategia.value
+    setor.distribuicao_atendentes_elegiveis = elegiveis
+    registrar_audit(db, "setor", setor_id, "distribuicao_update", atendente.id)
+    db.commit()
+    db.refresh(setor)
+    return setor_para_distribuicao_read(setor)
 
 
 @router.delete("/{setor_id}", status_code=status.HTTP_204_NO_CONTENT)

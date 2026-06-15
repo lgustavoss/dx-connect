@@ -172,6 +172,9 @@ class TicketRead(BaseModel):
     avaliacao_comentario: str | None = None
     avaliacao_respondida_em: datetime | None = None
     csat_pendente: bool = False
+    fila_desde_at: datetime | None = None
+    distribuicao_modo_setor: str | None = None
+    distribuicao_auto_em_minutos: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
