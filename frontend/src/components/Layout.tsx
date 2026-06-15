@@ -19,7 +19,7 @@ const menuIcon = (
   </svg>
 )
 
-export function Layout() {
+function LayoutInner() {
   const { user, logout, isAdmin } = useAuth()
   const location = useLocation()
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
@@ -37,7 +37,6 @@ export function Layout() {
     /^\/tickets\/\d+\/?$/.test(location.pathname) || location.pathname === '/tickets/novo'
 
   return (
-    <EventStreamProvider enabled={notificacoesEnabled}>
     <div
       className="flex h-dvh max-h-dvh min-h-0 overflow-hidden bg-gradient-to-b from-slate-50 to-slate-100/90 dark:from-slate-950 dark:to-slate-900/95 md:grid md:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-200 md:ease-out"
       style={
@@ -112,6 +111,16 @@ export function Layout() {
           </main>
       </div>
     </div>
+  )
+}
+
+export function Layout() {
+  const { user } = useAuth()
+  const notificacoesEnabled = Boolean(user && !user.must_change_password)
+
+  return (
+    <EventStreamProvider enabled={notificacoesEnabled}>
+      <LayoutInner />
     </EventStreamProvider>
   )
 }
