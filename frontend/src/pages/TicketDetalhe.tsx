@@ -27,6 +27,7 @@ import { Select } from '../components/ui/Select'
 import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../contexts/AuthContext'
+import { useEventStream } from '../contexts/EventStreamContext'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { refetchPendenciasResumo } from '../hooks/useAlertaFilaSemResponsavel'
 import { SemPermissao } from './SemPermissao'
@@ -399,6 +400,25 @@ export function TicketDetalhe() {
     () => mensagens.some((m) => mensagemEmFilaEmail(m.status)),
     [mensagens],
   )
+
+  const { subscribe } = useEventStream()
+
+  useEffect(() => {
+    if (!ticket) return
+    const ticketId = ticket.id
+    const unsub = subscribe('ticket.mensagem', (payload) => {
+      if (Number(payload.ticket_id) !== ticketId) return
+      const msg = payload.mensagem as Tickets.Mensagem | undefined
+      if (!msg) return
+      setMensagens((prev) => {
+        if (prev.some((m) => m.id === msg.id)) return prev
+        const next = [...prev, msg]
+        next.sort((a, b) => String(a.created_at ?? '').localeCompare(String(b.created_at ?? '')))
+        return next
+      })
+    })
+    return unsub
+  }, [ticket?.id, subscribe, ticket])
 
   useEffect(() => {
     if (!ticket || !temMensagemEmailNaFila) return
