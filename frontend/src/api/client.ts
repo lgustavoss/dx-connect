@@ -360,6 +360,8 @@ export const setores = {
   get: (id: number) => api<Setores.Setor>(`/setores/${id}`),
   create: (data: Setores.Create) => api<Setores.Setor>('/setores', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: number, data: Setores.Update) => api<Setores.Setor>(`/setores/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  updateDistribuicao: (id: number, data: Setores.DistribuicaoUpdate) =>
+    api<Setores.Distribuicao>(`/setores/${id}/distribuicao`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id: number) => api<void>(`/setores/${id}`, { method: 'DELETE' }),
 };
 
@@ -1186,11 +1188,22 @@ export namespace TiposNegocio {
 }
 
 export namespace Setores {
+  export type DistribuicaoModo = 'manual' | 'auto_apos_timeout' | 'auto_imediato'
+  export type DistribuicaoEstrategia = 'round_robin' | 'menor_carga_abertos'
+
+  export interface Distribuicao {
+    modo: DistribuicaoModo
+    timeout_minutos: number
+    estrategia: DistribuicaoEstrategia
+    atendentes_elegiveis: number[] | null
+  }
+
   export interface Setor {
     id: number;
     nome: string;
     slug: string;
     ativo: boolean;
+    distribuicao?: Distribuicao | null;
   }
   export interface Create {
     nome: string;
@@ -1201,6 +1214,12 @@ export namespace Setores {
     nome?: string;
     slug?: string;
     ativo?: boolean;
+  }
+  export interface DistribuicaoUpdate {
+    modo: DistribuicaoModo;
+    timeout_minutos: number;
+    estrategia: DistribuicaoEstrategia;
+    atendentes_elegiveis?: number[] | null;
   }
 }
 
@@ -1557,6 +1576,9 @@ export namespace Tickets {
     avaliacao_comentario?: string | null;
     avaliacao_respondida_em?: string | null;
     csat_pendente?: boolean;
+    fila_desde_at?: string | null;
+    distribuicao_modo_setor?: string | null;
+    distribuicao_auto_em_minutos?: number | null;
   }
   export type TicketVinculoTipo = 'duplicado_de' | 'relacionado_a';
   export interface TicketVinculoOutro {

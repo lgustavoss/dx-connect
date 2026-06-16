@@ -4,11 +4,13 @@ import threading
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
 from starlette.middleware.trustedhost import TrustedHostMiddleware
+
+from app.database import get_db
 
 from app.api import (
     auth,
@@ -24,6 +26,7 @@ from app.api import (
     tipo_negocio,
     cadastro_aux,
     notificacoes,
+    events,
     whatsapp_settings,
     whatsapp_chats,
     whatsapp_webhook,
@@ -63,8 +66,14 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Testes (pytest): schema mínimo sem seed, backfill nem thread IBGE — ver tests/conftest.py (#46).
+    import asyncio
     import os
+
+    from app.services.realtime_emit import register_realtime_loop
+
+    register_realtime_loop(asyncio.get_running_loop())
+
+    # Testes (pytest): schema mínimo sem seed, backfill nem thread IBGE — ver tests/conftest.py (#46).
 
     if os.environ.get("DX_CONNECT_TESTING") == "1":
         dev_create_all_tables(engine, Base.metadata)
@@ -174,10 +183,7 @@ async def lifespan(app: FastAPI):
             db = SessionLocal()
             try:
                 n = process_pending_ticket_mensagem_emails(db, limit=30)
-                if n:
-                    db.commit()
-                else:
-                    db.rollback()
+                db.commit()
             except Exception as e:
                 logger.warning("Worker e-mail de mensagens de ticket: %s", e)
                 db.rollback()
@@ -214,6 +220,29 @@ async def lifespan(app: FastAPI):
         name="notificacao-email-outbox",
     ).start()
 
+    def webhook_outbox_loop() -> None:
+        from app.database import SessionLocal
+        from app.services.ticket_closed_webhook import process_pending_webhooks
+
+        interval = max(5, settings.WEBHOOK_OUTBOX_WORKER_INTERVAL_SECONDS)
+        while True:
+            db = SessionLocal()
+            try:
+                process_pending_webhooks(db, limit=30)
+                db.commit()
+            except Exception as e:
+                logger.warning("Worker webhook outbox: %s", e)
+                db.rollback()
+            finally:
+                db.close()
+            time.sleep(interval)
+
+    threading.Thread(
+        target=webhook_outbox_loop,
+        daemon=True,
+        name="webhook-outbox",
+    ).start()
+
     def whatsapp_inactivity_loop() -> None:
         from app.database import SessionLocal
         from app.services.whatsapp_inactivity_worker import process_whatsapp_inactivity_closures
@@ -238,6 +267,32 @@ async def lifespan(app: FastAPI):
         target=whatsapp_inactivity_loop,
         daemon=True,
         name="whatsapp-inactivity",
+    ).start()
+
+    def ticket_distribuicao_loop() -> None:
+        from app.database import SessionLocal
+        from app.services.ticket_distribuicao import processar_distribuicao_timeout
+
+        interval = max(30, settings.TICKET_DISTRIBUICAO_WORKER_INTERVAL_SECONDS)
+        while True:
+            db = SessionLocal()
+            try:
+                n = processar_distribuicao_timeout(db, limit=50)
+                if n:
+                    db.commit()
+                else:
+                    db.rollback()
+            except Exception as e:
+                logger.warning("Worker distribuição de tickets: %s", e)
+                db.rollback()
+            finally:
+                db.close()
+            time.sleep(interval)
+
+    threading.Thread(
+        target=ticket_distribuicao_loop,
+        daemon=True,
+        name="ticket-distribuicao",
     ).start()
 
     yield
@@ -273,7 +328,14 @@ if _th != ["*"]:
 async def tenant_context_middleware(request: Request, call_next):
     """Define ``request.state.tenant_id``. Webhooks e health ficam isentos."""
     path = request.url.path
-    if path.startswith("/v1/webhooks/") or path in ("/", "/health", "/docs", "/redoc", "/openapi.json"):
+    if path.startswith("/v1/webhooks/") or path in (
+        "/",
+        "/health",
+        "/health/ready",
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+    ):
         return await call_next(request)
     try:
         tid = resolve_tenant_id(request)
@@ -322,6 +384,7 @@ app.include_router(audit.router, prefix=API_V1_PREFIX)
 app.include_router(tipo_negocio.router, prefix=API_V1_PREFIX)
 app.include_router(cadastro_aux.router, prefix=API_V1_PREFIX)
 app.include_router(notificacoes.router, prefix=API_V1_PREFIX)
+app.include_router(events.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_settings.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_chats.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_webhook.router, prefix=API_V1_PREFIX)
@@ -353,10 +416,14 @@ def _app_capabilities() -> dict[str, bool]:
 
 @app.get("/health")
 def health():
-    import os
+    from app.services.health_checks import build_health_payload
 
-    return {
-        "status": "ok",
-        "git_sha": (os.environ.get("DX_CONNECT_GIT_SHA") or "").strip() or None,
-        "capabilities": _app_capabilities(),
-    }
+    return build_health_payload(capabilities=_app_capabilities())
+
+
+@app.get("/health/ready")
+def health_ready(db: Session = Depends(get_db)):
+    from app.services.health_checks import build_readiness_payload
+
+    body, status_code = build_readiness_payload(db=db, capabilities=_app_capabilities())
+    return JSONResponse(content=body, status_code=status_code)

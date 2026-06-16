@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, UniqueConstraint, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -16,6 +16,10 @@ class Setor(Base):
     nome = Column(String(100), nullable=False)
     slug = Column(String(50), nullable=False, index=True)
     ativo = Column(Boolean, default=True)
+    distribuicao_modo = Column(String(30), nullable=False, default="manual", server_default="manual")
+    distribuicao_timeout_minutos = Column(Integer, nullable=False, default=30, server_default="30")
+    distribuicao_estrategia = Column(String(30), nullable=False, default="round_robin", server_default="round_robin")
+    distribuicao_atendentes_elegiveis = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

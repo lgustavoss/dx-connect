@@ -269,6 +269,46 @@ def test_abrir_ticket_vincula(client, seed_base, auth_headers):
     assert r.json()["ticket_ids"]
 
 
+def test_abrir_ticket_whatsapp_distribuicao_imediata(client, seed_base, auth_headers, db_session):
+    """Ticket aberto a partir do chat WhatsApp entra na fila e respeita auto_imediato do setor."""
+    from app.models import Ticket
+
+    setor = seed_base["setor1"]
+    setor.distribuicao_modo = "auto_imediato"
+    db_session.commit()
+
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "dist-wpp"},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "dist-wpp"}
+    client.post(
+        "/v1/webhooks/evolution",
+        json=_webhook_body(wa_id="5511999445566", msg_id="dist-wpp-1"),
+        headers=h,
+    )
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+    client.post(f"/v1/whatsapp/chats/{cid}/assumir", headers=auth_headers["a1"])
+
+    r = client.post(
+        f"/v1/whatsapp/chats/{cid}/abrir-ticket",
+        json={
+            "empresa_id": seed_base["empresa"].id,
+            "setor_id": setor.id,
+            "assunto": "Ticket WhatsApp auto",
+            "descricao": "Deve atribuir automaticamente",
+        },
+        headers=auth_headers["a1"],
+    )
+    assert r.status_code == 200
+    ticket_ids = r.json()["ticket_ids"]
+    assert ticket_ids
+    ticket = db_session.query(Ticket).filter(Ticket.id == ticket_ids[-1]).first()
+    assert ticket is not None
+    assert ticket.atendente_id == seed_base["a1"].id
+
+
 def test_vincular_ticket_existente(client, seed_base, auth_headers):
     client.patch(
         "/v1/settings/whatsapp",

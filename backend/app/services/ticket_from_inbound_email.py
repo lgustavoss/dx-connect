@@ -201,6 +201,9 @@ def processar_email_inbound(
                 registar_message_id_para_ticket(db, ticket_id=ticket.id, message_id=out_mid, source="outbound")
             db.commit()
             db.refresh(ticket)
+            from app.services.ticket_distribuicao import pos_criar_ticket_na_fila
+
+            pos_criar_ticket_na_fila(db, ticket)
             return EmailInboundProcessResult(
                 ticket=ticket,
                 duplicate=False,
@@ -286,6 +289,9 @@ def processar_email_inbound(
     registar_message_id_para_ticket(db, ticket_id=ticket.id, message_id=mid, source="inbound")
     db.commit()
     db.refresh(ticket)
+    from app.services.ticket_distribuicao import pos_criar_ticket_na_fila
+
+    pos_criar_ticket_na_fila(db, ticket)
     return EmailInboundProcessResult(ticket=ticket, duplicate=False)
 
 

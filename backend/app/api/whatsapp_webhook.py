@@ -421,7 +421,9 @@ def evolution_webhook(
             mimetype_val = None
 
         chat = _chat_aberto_por_wa_id(db, wa_id)
+        chat_novo = False
         if not chat:
+            chat_novo = True
             chat = WhatsappChat(
                 protocolo=gerar_protocolo_chat(db),
                 wa_id=wa_id,
@@ -470,6 +472,18 @@ def evolution_webhook(
         try:
             db.commit()
             processados += 1
+            chat_emit = db.query(WhatsappChat).filter(WhatsappChat.id == chat.id).first()
+            msg_emit = (
+                db.query(WhatsappMensagem)
+                .filter(WhatsappMensagem.chat_id == chat.id, WhatsappMensagem.wa_message_id == wa_mid)
+                .first()
+            )
+            if chat_emit and msg_emit:
+                from app.services.realtime_emit import emit_chat_fila_from_model, emit_chat_mensagem_from_models
+
+                emit_chat_mensagem_from_models(db, chat_emit, msg_emit)
+                if chat_novo:
+                    emit_chat_fila_from_model(db, chat_emit, estado_anterior=None)
         except IntegrityError:
             db.rollback()
             logger.info("Webhook Evolution: mensagem duplicada ignorada (wa_message_id=%s)", wa_mid)

@@ -3,6 +3,7 @@ from app.models.empresa import Empresa
 from app.models.tipo_negocio import TipoNegocio
 from app.models.atendente import Atendente, AtendenteSetor
 from app.models.setor import Setor
+from app.models.setor_distribuicao_round_robin import SetorDistribuicaoRoundRobin
 from app.models.funcionario_rede import FuncionarioRede, FuncionarioRedeEmpresa
 from app.models.status_ticket import StatusTicket
 from app.models.ticket import Ticket, TicketHistorico, TicketMensagem
@@ -26,6 +27,7 @@ from app.models.ticket_vinculo import TicketVinculo
 from app.models.ticket_classificacao import TicketMotivo, TicketNatureza
 from app.models.ticket_avaliacao import TicketAvaliacao, TicketCsatInvite
 from app.models.atendente_notificacao import AtendenteNotificacaoPreferencias, NotificacaoEmailOutbox
+from app.models.webhook_outbox import WebhookOutbox
 from app.models.empresa_pdv import EmpresaPdv, PdvRotulo, PdvTipoAcessoRemoto
 
 __all__ = [
@@ -33,6 +35,7 @@ __all__ = [
     "Empresa",
     "TipoNegocio",
     "Setor",
+    "SetorDistribuicaoRoundRobin",
     "Atendente",
     "AtendenteSetor",
     "FuncionarioRede",
@@ -67,6 +70,7 @@ __all__ = [
     "TicketCsatInvite",
     "AtendenteNotificacaoPreferencias",
     "NotificacaoEmailOutbox",
+    "WebhookOutbox",
     "PdvRotulo",
     "PdvTipoAcessoRemoto",
     "EmpresaPdv",

@@ -52,7 +52,8 @@ from app.core.setor_scope import (
     responsavel_elegivel_para_setor_do_ticket,
 )
 from app.services import ticket_anexo_storage
-from app.services.ticket_csat import csat_brief_para_ticket, criar_convite_csat, processar_convite_csat_ao_fechar
+from app.services.ticket_csat import csat_brief_para_ticket, criar_convite_csat
+from app.services.ticket_close_hooks import processar_hooks_ao_fechar_ticket
 from app.services.notificacao_atendente_email import notificar_nova_mensagem_ticket, notificar_ticket_atribuido
 from app.schemas.ticket_csat import TicketCsatDevLinkRead
 from app.services.ticket_vinculos import (
@@ -72,6 +73,12 @@ from app.services.ticket_escopo import (
 from app.services.funcionario_rede_resolver import resolver_remetente_por_email
 from app.services.ticket_client_email import extrair_email_de_from_address
 from app.services.protocolo_mensal import gerar_protocolo_ticket
+from app.services.realtime_emit import emit_ticket_fila, emit_ticket_mensagem_from_model, emit_notificacao_after_counter_change
+from app.services.ticket_distribuicao import (
+    fila_info_para_ticket,
+    sincronizar_fila_desde_at,
+    tentar_distribuicao_imediata,
+)
 from app.services.ticket_mensagem_email_outbox import (
     EMAIL_STATUS_ENVIADA,
     agendar_envio_email,
@@ -292,6 +299,10 @@ def _ticket_para_read(t: Ticket, db: Session | None = None) -> TicketRead:
             r = db.query(Rede).filter(Rede.id == f.rede_id).first()
             rede_nome_out = r.nome if r else rede_nome_out
     csat = csat_brief_para_ticket(db, t.id) if db is not None else {}
+    setor_obj = t.setor if _attr_relacionamento_carregado(t, "setor") else None
+    if setor_obj is None and db is not None:
+        setor_obj = db.query(Setor).filter(Setor.id == t.setor_id).first()
+    fila = fila_info_para_ticket(t, setor_obj)
     return TicketRead(
         id=t.id,
         protocolo=t.protocolo,
@@ -324,6 +335,7 @@ def _ticket_para_read(t: Ticket, db: Session | None = None) -> TicketRead:
         vinculos=_vinculos_para_read(db, t) if db is not None else [],
         triagem_inbound=triagem,
         **csat,
+        **fila,
     )
 
 
@@ -604,6 +616,23 @@ def criar(
         )
     )
     db.commit()
+    msg_abertura = (
+        db.query(TicketMensagem)
+        .options(joinedload(TicketMensagem.atendente))
+        .filter(TicketMensagem.ticket_id == ticket.id, TicketMensagem.tipo == "abertura")
+        .order_by(TicketMensagem.id.desc())
+        .first()
+    )
+    if msg_abertura:
+        emit_ticket_mensagem_from_model(db, ticket, msg_abertura, exclude_atendente_id=atendente.id)
+    if ticket.atendente_id is None:
+        sincronizar_fila_desde_at(ticket)
+        db.commit()
+        if tentar_distribuicao_imediata(db, ticket):
+            db.commit()
+            emit_notificacao_after_counter_change(db)
+        else:
+            emit_ticket_fila(db, ticket)
     ticket_out = (
         db.query(Ticket)
         .options(*_opcoes_carregamento_ticket_detalhe())
@@ -802,7 +831,8 @@ def criar_vinculo(
     )
     db.commit()
     if duplicado_fechado:
-        processar_convite_csat_ao_fechar(db, ticket.id)
+        processar_hooks_ao_fechar_ticket(db, ticket.id)
+        db.commit()
     db.refresh(v)
     return _vinculo_para_read(v, ticket.id, db, duplicado_fechado=duplicado_fechado)
 
@@ -923,7 +953,17 @@ def criar_filhos_em_massa_endpoint(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
     _registrar_historico(db, ticket.id, atendente.id, "filhos_em_massa", "", str(len(criados)))
+    for filho in criados:
+        if filho.atendente_id is None:
+            sincronizar_fila_desde_at(filho)
     db.commit()
+    for filho in criados:
+        if filho.atendente_id is None:
+            if tentar_distribuicao_imediata(db, filho):
+                db.commit()
+                emit_notificacao_after_counter_change(db)
+            else:
+                emit_ticket_fila(db, filho)
 
     empresa_nomes = {
         e.id: e.nome
@@ -1047,6 +1087,7 @@ def criar_mensagem(
         .first()
     )
     assert m is not None
+    emit_ticket_mensagem_from_model(db, ticket, m, exclude_atendente_id=atendente.id)
     return _mensagem_para_read(m)
 
 
@@ -1538,6 +1579,10 @@ def atualizar(
         novo_o = update["motivo_outro_texto"] or ""
         _registrar_historico(db, ticket.id, atendente.id, "motivo_outro_texto", antigo_o, novo_o)
 
+    reset_fila = False
+    if "setor_id" in update and update["setor_id"] != ticket.setor_id:
+        reset_fila = True
+
     atribuicao_notificar_id: int | None = None
     if "atendente_id" in update:
         antigo_at = ticket.atendente_id
@@ -1559,9 +1604,17 @@ def atualizar(
         else:
             ticket.fechado_em = None
 
+    if ticket.fechado_em is not None:
+        ticket.fila_desde_at = None
+    elif ticket.atendente_id is None:
+        sincronizar_fila_desde_at(ticket, reset=reset_fila or "atendente_id" in update)
+    else:
+        ticket.fila_desde_at = None
+
     db.commit()
     if acabou_de_fechar:
-        processar_convite_csat_ao_fechar(db, ticket_id)
+        processar_hooks_ao_fechar_ticket(db, ticket_id)
+        db.commit()
     if atribuicao_notificar_id is not None:
         t_notify = db.query(Ticket).filter(Ticket.id == ticket_id).first()
         if t_notify:
@@ -1578,4 +1631,13 @@ def atualizar(
         .filter(Ticket.id == ticket_id)
         .first()
     )
+    if ticket_out and ticket_out.atendente_id is None and ticket_out.fechado_em is None:
+        if "atendente_id" in update or "setor_id" in update:
+            if tentar_distribuicao_imediata(db, ticket_out):
+                db.commit()
+                emit_notificacao_after_counter_change(db)
+            else:
+                emit_ticket_fila(db, ticket_out)
+    elif atribuicao_notificar_id is not None or "atendente_id" in update or "setor_id" in update:
+        emit_notificacao_after_counter_change(db)
     return _ticket_para_read(ticket_out or ticket, db)

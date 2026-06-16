@@ -34,6 +34,7 @@ import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
 
 import { useAuth } from '../../contexts/AuthContext'
+import { useEventStream } from '../../contexts/EventStreamContext'
 import { refetchPendenciasResumo } from '../../hooks/useAlertaFilaSemResponsavel'
 import { CustomAudioPlayer } from '../../components/CustomAudioPlayer'
 import {
@@ -187,6 +188,7 @@ export function WhatsappConversa() {
   const toast = useToast()
 
   const { user } = useAuth()
+  const { subscribe, useFallback } = useEventStream()
 
  
 
@@ -328,17 +330,38 @@ export function WhatsappConversa() {
     }
   }, [chat, user?.role, user?.id])
 
-  // Polling para novas mensagens (a cada 5s)
-
   useEffect(() => {
+    if (!id) return
+    const chatId = Number(id)
+    const unsubMsg = subscribe('chat.mensagem', (payload) => {
+      if (Number(payload.chat_id) !== chatId) return
+      const msg = payload.mensagem as WhatsappChats.Mensagem | undefined
+      if (!msg) return
+      setMsgs((prev) => {
+        if (prev.some((m) => m.id === msg.id)) return prev
+        if (msg.wa_message_id && prev.some((m) => m.wa_message_id === msg.wa_message_id)) return prev
+        return [...prev, msg]
+      })
+    })
+    const unsubFila = subscribe('chat.fila', (payload) => {
+      if (Number(payload.chat_id) !== chatId) return
+      const chatData = payload.chat as WhatsappChats.Chat | undefined
+      if (chatData) setChat(chatData)
+      else void carregar().catch(() => {})
+    })
+    return () => {
+      unsubMsg()
+      unsubFila()
+    }
+  }, [id, subscribe, carregar])
 
+  // Polling legado quando SSE indisponível
+  useEffect(() => {
+    if (!useFallback) return
     if (!chat || chat.estado === 'encerrado' || chat.estado === 'aguardando_avaliacao') return
-
     const t = setInterval(() => void carregar().catch(() => {}), 5000)
-
     return () => clearInterval(t)
-
-  }, [chat, carregar])
+  }, [useFallback, chat, carregar])
 
   useEffect(() => {
     if (!chat?.ticket_ids?.length) {

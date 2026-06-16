@@ -8,10 +8,11 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.config import settings
+from app.core.structured_log import log_event
 from app.models.atendente import Atendente
 from app.models.atendente_notificacao import AtendenteNotificacaoPreferencias, NotificacaoEmailOutbox
 from app.models.ticket import Ticket, TicketMensagem
+from app.services.email_outbox_policy import MAX_EMAIL_SEND_ATTEMPTS
 from app.services.email_send_sistema import enviar_mensagem_texto_sistema
 from app.services.password_reset import _public_app_origin
 
@@ -24,7 +25,7 @@ STATUS_FALHA = "falha"
 TIPO_TICKET_ATRIBUIDO = "ticket_atribuido"
 TIPO_NOVA_MENSAGEM = "nova_mensagem"
 
-MAX_TENTATIVAS = 5
+MAX_TENTATIVAS = MAX_EMAIL_SEND_ATTEMPTS
 
 
 def _utcnow() -> datetime:
@@ -277,26 +278,69 @@ def process_pending_notificacao_emails(db: Session, *, limit: int = 20) -> int:
             row.last_error = None
             row.dedup_key = f"{row.dedup_key}:sent:{row.id}"
             sent += 1
+            log_event(
+                logger,
+                "notificacao_email_send_ok",
+                outbox_id=row.id,
+                tipo=row.tipo,
+                ticket_id=row.ticket_id,
+                atendente_id=row.atendente_id,
+            )
         except ValueError as e:
             row.last_error = str(e)[:2000]
             if settings.ENVIRONMENT == "development":
-                logger.info(
-                    "DEV notificação e-mail (simulado) id=%s → %s | %s",
-                    row.id,
-                    row.to_email,
-                    row.subject,
+                log_event(
+                    logger,
+                    "notificacao_email_send_simulated_dev",
+                    outbox_id=row.id,
+                    to_email=row.to_email,
+                    subject=row.subject,
+                    tipo=row.tipo,
+                    ticket_id=row.ticket_id,
                 )
-                logger.debug("DEV notificação corpo:\n%s", row.body)
                 row.status = STATUS_ENVIADA
                 row.sent_at = now
                 row.dedup_key = f"{row.dedup_key}:sent:{row.id}"
                 sent += 1
             elif row.tentativas >= MAX_TENTATIVAS:
                 row.status = STATUS_FALHA
-            logger.info("Notificação e-mail %s não enviada: %s", row.id, e)
+                log_event(
+                    logger,
+                    "notificacao_email_send_failed_permanent",
+                    level=logging.ERROR,
+                    outbox_id=row.id,
+                    tentativas=row.tentativas,
+                    error=str(e)[:500],
+                )
+            else:
+                log_event(
+                    logger,
+                    "notificacao_email_send_retry",
+                    level=logging.WARNING,
+                    outbox_id=row.id,
+                    tentativas=row.tentativas,
+                    error=str(e)[:500],
+                )
         except Exception as e:
             row.last_error = str(e)[:2000]
             if row.tentativas >= MAX_TENTATIVAS:
                 row.status = STATUS_FALHA
+                log_event(
+                    logger,
+                    "notificacao_email_send_failed_permanent",
+                    level=logging.ERROR,
+                    outbox_id=row.id,
+                    tentativas=row.tentativas,
+                    error=str(e)[:500],
+                )
+            else:
+                log_event(
+                    logger,
+                    "notificacao_email_send_retry",
+                    level=logging.WARNING,
+                    outbox_id=row.id,
+                    tentativas=row.tentativas,
+                    error=str(e)[:500],
+                )
             logger.exception("Falha ao enviar notificação e-mail %s", row.id)
     return sent

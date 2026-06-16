@@ -1,6 +1,8 @@
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 
+from app.schemas.setor_distribuicao import SetorDistribuicaoRead
+
 
 class SetorBase(BaseModel):
     nome: str
@@ -22,5 +24,6 @@ class SetorRead(SetorBase):
     id: int
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    distribuicao: SetorDistribuicaoRead | None = None
 
     model_config = ConfigDict(from_attributes=True)

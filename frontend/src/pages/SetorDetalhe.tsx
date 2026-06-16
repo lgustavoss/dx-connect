@@ -7,11 +7,23 @@ import { Button } from '../components/ui/Button'
 import { DetailRow } from '../components/ui/DetailRow'
 import { BadgeAtivo } from '../components/ui/BadgeAtivo'
 import { SelectComPesquisa } from '../components/ui/SelectComPesquisa'
+import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { SemPermissao } from './SemPermissao'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
+
+const MODO_OPCOES: { value: Setores.DistribuicaoModo; label: string }[] = [
+  { value: 'manual', label: 'Manual — fila sem atribuição automática' },
+  { value: 'auto_apos_timeout', label: 'Automático após tempo na fila' },
+  { value: 'auto_imediato', label: 'Automático imediato ao entrar na fila' },
+]
+
+const ESTRATEGIA_OPCOES: { value: Setores.DistribuicaoEstrategia; label: string }[] = [
+  { value: 'round_robin', label: 'Round-robin (revezamento)' },
+  { value: 'menor_carga_abertos', label: 'Menor carga (tickets abertos)' },
+]
 
 /** Mesmo nome de setor = mesmo “setor lógico” (vários IDs no banco). */
 function idsSetoresMesmoNome(setoresList: Setores.Setor[], setorId: number): Set<number> {
@@ -39,6 +51,13 @@ export function SetorDetalhe() {
   const [addingId, setAddingId] = useState<number | ''>('')
   const [saving, setSaving] = useState(false)
 
+  const [distModo, setDistModo] = useState<Setores.DistribuicaoModo>('manual')
+  const [distTimeout, setDistTimeout] = useState(30)
+  const [distEstrategia, setDistEstrategia] = useState<Setores.DistribuicaoEstrategia>('round_robin')
+  const [distElegiveisIds, setDistElegiveisIds] = useState<number[]>([])
+  const [distUsarTodos, setDistUsarTodos] = useState(true)
+  const [savingDist, setSavingDist] = useState(false)
+
   const grupoSetorIds = useMemo(() => {
     if (!Number.isFinite(setorId) || setorId <= 0 || setoresList.length === 0) return new Set<number>()
     return idsSetoresMesmoNome(setoresList, setorId)
@@ -59,6 +78,21 @@ export function SetorDetalhe() {
       })),
     [candidatosParaAdicionar],
   )
+
+  const vinculadosOperacionais = useMemo(
+    () => vinculados.filter((a) => a.ativo && a.role !== 'admin').sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+    [vinculados],
+  )
+
+  function aplicarDistribuicaoDoSetor(s: Setores.Setor) {
+    const d = s.distribuicao
+    setDistModo(d?.modo ?? 'manual')
+    setDistTimeout(d?.timeout_minutos ?? 30)
+    setDistEstrategia(d?.estrategia ?? 'round_robin')
+    const eleg = d?.atendentes_elegiveis ?? null
+    setDistUsarTodos(eleg === null || eleg === undefined)
+    setDistElegiveisIds(eleg ?? [])
+  }
 
   async function reload() {
     if (!Number.isFinite(setorId) || setorId <= 0) {
@@ -83,6 +117,7 @@ export function SetorDetalhe() {
         ),
       ])
       setSetor(s)
+      aplicarDistribuicaoDoSetor(s)
       setSetoresList(setoresAll)
       setTodosAtendentes(todos)
 
@@ -138,7 +173,6 @@ export function SetorDetalhe() {
     setSaving(true)
     try {
       const atual = new Set(atendente.setor_ids ?? [])
-      // remove do “setor lógico” (todas duplicatas de mesmo nome)
       for (const sid of grupoSetorIds) atual.delete(sid)
       await updateVinculo(atendente, Array.from(atual))
       toast.showSuccess('Vínculo removido.')
@@ -147,6 +181,46 @@ export function SetorDetalhe() {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível remover o vínculo.'))
     } finally {
       setSaving(false)
+    }
+  }
+
+  function toggleElegivel(atendenteId: number) {
+    setDistElegiveisIds((prev) => {
+      const s = new Set(prev)
+      if (s.has(atendenteId)) s.delete(atendenteId)
+      else s.add(atendenteId)
+      return Array.from(s).sort((a, b) => a - b)
+    })
+  }
+
+  async function handleSalvarDistribuicao() {
+    if (savingDist || !setor) return
+    if (distModo === 'auto_imediato') {
+      const ok = confirm(
+        'Tickets novos ou devolvidos à fila serão atribuídos automaticamente assim que entrarem. Deseja continuar?',
+      )
+      if (!ok) return
+    }
+    if (!distUsarTodos && distElegiveisIds.length === 0) {
+      toast.showError('Selecione ao menos um atendente elegível ou marque «todos do setor».')
+      return
+    }
+    setSavingDist(true)
+    try {
+      const body: Setores.DistribuicaoUpdate = {
+        modo: distModo,
+        timeout_minutos: Math.max(1, distTimeout),
+        estrategia: distEstrategia,
+        atendentes_elegiveis: distUsarTodos ? null : distElegiveisIds,
+      }
+      const atualizado = await setores.updateDistribuicao(setor.id, body)
+      setSetor((prev) => (prev ? { ...prev, distribuicao: atualizado } : prev))
+      aplicarDistribuicaoDoSetor({ ...setor, distribuicao: atualizado })
+      toast.showSuccess('Distribuição automática atualizada.')
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar a distribuição.'))
+    } finally {
+      setSavingDist(false)
     }
   }
 
@@ -226,6 +300,91 @@ export function SetorDetalhe() {
         </dl>
       </Card>
 
+      <Card title="Distribuição automática de tickets">
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Define como tickets sem responsável neste setor são atribuídos. Administradores nunca recebem atribuição
+            automática.
+          </p>
+
+          <Select
+            label="Modo"
+            value={distModo}
+            onChange={(v) => setDistModo(v as Setores.DistribuicaoModo)}
+            options={MODO_OPCOES.map((o) => ({ value: o.value, label: o.label }))}
+          />
+
+          {distModo === 'auto_apos_timeout' && (
+            <div className="max-w-xs">
+              <label htmlFor="dist-timeout" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Tempo na fila antes de atribuir (minutos)
+              </label>
+              <input
+                id="dist-timeout"
+                type="number"
+                min={1}
+                max={1440}
+                value={distTimeout}
+                onChange={(e) => setDistTimeout(Number(e.target.value) || 1)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+              />
+            </div>
+          )}
+
+          {distModo !== 'manual' && (
+            <>
+              <Select
+                label="Estratégia"
+                value={distEstrategia}
+                onChange={(v) => setDistEstrategia(v as Setores.DistribuicaoEstrategia)}
+                options={ESTRATEGIA_OPCOES.map((o) => ({ value: o.value, label: o.label }))}
+              />
+
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={distUsarTodos}
+                    onChange={(e) => setDistUsarTodos(e.target.checked)}
+                    className="size-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                  />
+                  Todos os atendentes vinculados ao setor
+                </label>
+                {!distUsarTodos && (
+                  <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                    {vinculadosOperacionais.length === 0 ? (
+                      <p className="text-sm text-slate-500 dark:text-slate-400">Nenhum atendente operacional vinculado.</p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {vinculadosOperacionais.map((a) => (
+                          <li key={a.id}>
+                            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                              <input
+                                type="checkbox"
+                                checked={distElegiveisIds.includes(a.id)}
+                                onChange={() => toggleElegivel(a.id)}
+                                className="size-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                              />
+                              {a.nome}
+                            </label>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          <div>
+            <Button onClick={handleSalvarDistribuicao} loading={savingDist}>
+              Salvar distribuição
+            </Button>
+          </div>
+        </div>
+      </Card>
+
       <Card title="Atendentes vinculados">
         <div className="space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
@@ -295,4 +454,3 @@ export function SetorDetalhe() {
     </div>
   )
 }
-
