@@ -59,6 +59,12 @@ class Settings(BaseSettings):
     TICKET_MENSAGEM_EMAIL_WORKER_INTERVAL_SECONDS: int = 5
     NOTIFICACAO_EMAIL_DEBOUNCE_MINUTES: int = 5
     NOTIFICACAO_EMAIL_WORKER_INTERVAL_SECONDS: int = 10
+    WEBHOOK_OUTBOX_WORKER_INTERVAL_SECONDS: int = 15
+    # Webhook de saída ao fechar ticket (#119). URL vazia = desligado.
+    TICKET_CLOSED_WEBHOOK_URL: str | None = None
+    TICKET_CLOSED_WEBHOOK_SECRET: str | None = None
+    # Tentativas HTTP para Evolution API (falhas transitórias).
+    EVOLUTION_HTTP_MAX_ATTEMPTS: int = 3
     WHATSAPP_INACTIVITY_WORKER_INTERVAL_SECONDS: int = 60
     TICKET_DISTRIBUICAO_WORKER_INTERVAL_SECONDS: int = 45
 

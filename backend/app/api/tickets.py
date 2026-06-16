@@ -52,7 +52,8 @@ from app.core.setor_scope import (
     responsavel_elegivel_para_setor_do_ticket,
 )
 from app.services import ticket_anexo_storage
-from app.services.ticket_csat import csat_brief_para_ticket, criar_convite_csat, processar_convite_csat_ao_fechar
+from app.services.ticket_csat import csat_brief_para_ticket, criar_convite_csat
+from app.services.ticket_close_hooks import processar_hooks_ao_fechar_ticket
 from app.services.notificacao_atendente_email import notificar_nova_mensagem_ticket, notificar_ticket_atribuido
 from app.schemas.ticket_csat import TicketCsatDevLinkRead
 from app.services.ticket_vinculos import (
@@ -830,7 +831,8 @@ def criar_vinculo(
     )
     db.commit()
     if duplicado_fechado:
-        processar_convite_csat_ao_fechar(db, ticket.id)
+        processar_hooks_ao_fechar_ticket(db, ticket.id)
+        db.commit()
     db.refresh(v)
     return _vinculo_para_read(v, ticket.id, db, duplicado_fechado=duplicado_fechado)
 
@@ -1611,7 +1613,8 @@ def atualizar(
 
     db.commit()
     if acabou_de_fechar:
-        processar_convite_csat_ao_fechar(db, ticket_id)
+        processar_hooks_ao_fechar_ticket(db, ticket_id)
+        db.commit()
     if atribuicao_notificar_id is not None:
         t_notify = db.query(Ticket).filter(Ticket.id == ticket_id).first()
         if t_notify:

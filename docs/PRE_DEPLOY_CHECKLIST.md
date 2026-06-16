@@ -65,6 +65,7 @@ Legenda: **OK** atendido no repositório | **Você** validação manual no servi
 | Telas só admin no frontend | **OK** — `AdminRoute` exibe página 403 para não-admin (defesa em profundidade além da API). |
 | XSS / dependências JS | **Você** — `npm audit` no frontend; CSP no Nginx; token em storage continua sensível a XSS até eventual refresh em cookie httpOnly. |
 | CI + Dependabot no GitHub | **OK** — `.github/workflows/ci.yml` e `.github/dependabot.yml` (se usar outro Git, replique os passos manualmente). |
+| Runbook operacional (health, filas, logs) | **OK** — [`docs/OPERATIONS.md`](OPERATIONS.md) (#119). |
 
 ---
 
