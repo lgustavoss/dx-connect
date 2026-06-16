@@ -5,6 +5,7 @@ import { Sidebar } from './Sidebar'
 import { ThemeToggle } from './ThemeToggle'
 import { NavbarNotificacoes } from './NavbarNotificacoes'
 import { useAlertaFilaSemResponsavel } from '../hooks/useAlertaFilaSemResponsavel'
+import { EventStreamProvider } from '../contexts/EventStreamContext'
 
 function perfilExibicao(role: string | undefined): string {
   if (role === 'admin') return 'Administrador'
@@ -18,7 +19,7 @@ const menuIcon = (
   </svg>
 )
 
-export function Layout() {
+function LayoutInner() {
   const { user, logout, isAdmin } = useAuth()
   const location = useLocation()
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
@@ -110,5 +111,16 @@ export function Layout() {
           </main>
       </div>
     </div>
+  )
+}
+
+export function Layout() {
+  const { user } = useAuth()
+  const notificacoesEnabled = Boolean(user && !user.must_change_password)
+
+  return (
+    <EventStreamProvider enabled={notificacoesEnabled}>
+      <LayoutInner />
+    </EventStreamProvider>
   )
 }

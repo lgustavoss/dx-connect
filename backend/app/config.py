@@ -66,6 +66,7 @@ class Settings(BaseSettings):
     # Tentativas HTTP para Evolution API (falhas transitórias).
     EVOLUTION_HTTP_MAX_ATTEMPTS: int = 3
     WHATSAPP_INACTIVITY_WORKER_INTERVAL_SECONDS: int = 60
+    TICKET_DISTRIBUICAO_WORKER_INTERVAL_SECONDS: int = 45
 
     # Modo legado: vários clientes no mesmo Postgres (subdomínio numérico + coluna tenant_id).
     # Produção comercial: manter False (um Postgres por cliente / deploy).

@@ -3,6 +3,7 @@ from app.models.empresa import Empresa
 from app.models.tipo_negocio import TipoNegocio
 from app.models.atendente import Atendente, AtendenteSetor
 from app.models.setor import Setor
+from app.models.setor_distribuicao_round_robin import SetorDistribuicaoRoundRobin
 from app.models.funcionario_rede import FuncionarioRede, FuncionarioRedeEmpresa
 from app.models.status_ticket import StatusTicket
 from app.models.ticket import Ticket, TicketHistorico, TicketMensagem
@@ -34,6 +35,7 @@ __all__ = [
     "Empresa",
     "TipoNegocio",
     "Setor",
+    "SetorDistribuicaoRoundRobin",
     "Atendente",
     "AtendenteSetor",
     "FuncionarioRede",

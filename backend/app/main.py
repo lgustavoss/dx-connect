@@ -26,6 +26,7 @@ from app.api import (
     tipo_negocio,
     cadastro_aux,
     notificacoes,
+    events,
     whatsapp_settings,
     whatsapp_chats,
     whatsapp_webhook,
@@ -65,8 +66,14 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Testes (pytest): schema mínimo sem seed, backfill nem thread IBGE — ver tests/conftest.py (#46).
+    import asyncio
     import os
+
+    from app.services.realtime_emit import register_realtime_loop
+
+    register_realtime_loop(asyncio.get_running_loop())
+
+    # Testes (pytest): schema mínimo sem seed, backfill nem thread IBGE — ver tests/conftest.py (#46).
 
     if os.environ.get("DX_CONNECT_TESTING") == "1":
         dev_create_all_tables(engine, Base.metadata)
@@ -262,6 +269,32 @@ async def lifespan(app: FastAPI):
         name="whatsapp-inactivity",
     ).start()
 
+    def ticket_distribuicao_loop() -> None:
+        from app.database import SessionLocal
+        from app.services.ticket_distribuicao import processar_distribuicao_timeout
+
+        interval = max(30, settings.TICKET_DISTRIBUICAO_WORKER_INTERVAL_SECONDS)
+        while True:
+            db = SessionLocal()
+            try:
+                n = processar_distribuicao_timeout(db, limit=50)
+                if n:
+                    db.commit()
+                else:
+                    db.rollback()
+            except Exception as e:
+                logger.warning("Worker distribuição de tickets: %s", e)
+                db.rollback()
+            finally:
+                db.close()
+            time.sleep(interval)
+
+    threading.Thread(
+        target=ticket_distribuicao_loop,
+        daemon=True,
+        name="ticket-distribuicao",
+    ).start()
+
     yield
 
 
@@ -351,6 +384,7 @@ app.include_router(audit.router, prefix=API_V1_PREFIX)
 app.include_router(tipo_negocio.router, prefix=API_V1_PREFIX)
 app.include_router(cadastro_aux.router, prefix=API_V1_PREFIX)
 app.include_router(notificacoes.router, prefix=API_V1_PREFIX)
+app.include_router(events.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_settings.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_chats.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_webhook.router, prefix=API_V1_PREFIX)
