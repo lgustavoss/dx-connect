@@ -14,6 +14,7 @@ Quando esse encadeamento fica inconsistente, o comando `alembic upgrade head` fa
   - o `revision` gerado
   - o `down_revision` que ela referencia
   - se o `down_revision` bate com o `revision` real da migration anterior
+- **`revision` com no máximo 32 caracteres** — `alembic_version.version_num` é `varchar(32)`; IDs maiores falham no deploy com `StringDataRightTruncation`.
 - **Evite trocar o valor de `revision`** de uma migration que já pode ter sido aplicada em algum ambiente. Se precisar padronizar IDs antigos, prefira planejar isso como uma ação controlada (ex.: com `alembic stamp`) e documentar para todos os ambientes.
 
 ## Checagem rápida (local/CI)
