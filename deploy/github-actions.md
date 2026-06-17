@@ -93,7 +93,7 @@ Em cada deploy o workflow executa `alembic upgrade head` antes do `up --build`. 
 
 ## Troubleshooting
 
-- **`Connection timed out` (SSH/rsync)**: conexão intermitente entre o runner do GitHub e o VPS. O workflow tenta até 3 vezes e prioriza backend/migrations antes do rsync do frontend. Se persistir, confira firewall (porta SSH), se o VPS está online e se `DEPLOY_HOST`/`DEPLOY_SSH_PORT` estão corretos. Pode reexecutar em **Actions → Deploy → Run workflow**.
+- **`Connection timed out` (SSH/rsync)**: o runner do GitHub usa **IPs diferentes a cada execução** (pool Azure). O VPS pode aceitar uma tentativa e recusar outra no mesmo dia — não indica configuração SSH errada no servidor. O workflow tenta até 5 vezes; se o deploy por **push** falhar, o workflow **Deploy retry** reexecuta automaticamente após 90s. Também pode rodar manualmente em **Actions → Deploy → Run workflow**.
 - **`Permission denied (publickey)`**: confira `DEPLOY_SSH_KEY`, usuário e `authorized_keys` no VPS.
 - **`rsync` falha**: permissões em `DEPLOY_FRONTEND_DIST` e caminho absoluto correto.
 - **`docker: permission denied`**: usuário no grupo `docker` ou reiniciar sessão SSH após `usermod`.
