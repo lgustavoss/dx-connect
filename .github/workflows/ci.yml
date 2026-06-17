@@ -42,6 +42,15 @@ jobs:
       - name: Verificar sintaxe Python
         run: python -m compileall -q app
 
+      - name: Verificar única head do Alembic
+        run: |
+          heads=$(alembic heads | grep -c '(head)' || true)
+          if [ "$heads" -ne 1 ]; then
+            echo "Esperada 1 head do Alembic, encontradas: $heads"
+            alembic heads
+            exit 1
+          fi
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
