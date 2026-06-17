@@ -3,8 +3,8 @@
 O workflow [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) faz:
 
 1. **Build do frontend** no runner (usa `VITE_API_URL` dos secrets).
-2. **`rsync`** da pasta `frontend/dist/` para o caminho no VPS (`DEPLOY_FRONTEND_DIST`).
-3. **SSH** no servidor: `git pull`, `alembic upgrade head`, `docker compose -f docker-compose.prod.yml up -d --build`.
+2. **SSH** no servidor: `git pull`, `alembic upgrade head`, `docker compose -f docker-compose.prod.yml up -d --build` (com até 3 tentativas em falha de conexão).
+3. **`rsync`** da pasta `frontend/dist/` para o caminho no VPS (`DEPLOY_FRONTEND_DIST`), reutilizando a mesma sessão SSH quando possível.
 
 Disparo automático em **push** para **`staging`** quando mudam `backend/`, `frontend/`, `docker-compose.prod.yml` ou o próprio workflow. A branch **`main`** não dispara deploy (último estágio de testes/integração); após validar em `main`, abra PR **`main → staging`**, merge e o deploy roda no VPS. Também pode rodar manualmente em **Actions → Deploy → Run workflow**.
 
@@ -93,6 +93,7 @@ Em cada deploy o workflow executa `alembic upgrade head` antes do `up --build`. 
 
 ## Troubleshooting
 
+- **`Connection timed out` (SSH/rsync)**: conexão intermitente entre o runner do GitHub e o VPS. O workflow tenta até 3 vezes e prioriza backend/migrations antes do rsync do frontend. Se persistir, confira firewall (porta SSH), se o VPS está online e se `DEPLOY_HOST`/`DEPLOY_SSH_PORT` estão corretos. Pode reexecutar em **Actions → Deploy → Run workflow**.
 - **`Permission denied (publickey)`**: confira `DEPLOY_SSH_KEY`, usuário e `authorized_keys` no VPS.
 - **`rsync` falha**: permissões em `DEPLOY_FRONTEND_DIST` e caminho absoluto correto.
 - **`docker: permission denied`**: usuário no grupo `docker` ou reiniciar sessão SSH após `usermod`.
