@@ -86,39 +86,43 @@ jobs:
           P="${SSH_PORT:-22}"
           ssh-keyscan -p "$P" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
           echo "SSH_PORT=${P}" >> "$GITHUB_ENV"
-          {
-            echo 'SSH_COMMON_OPTS=-i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new'
-            echo 'SSH_CONNECT_OPTS=-o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3'
-            echo 'SSH_MUX_OPTS=-o ControlMaster=auto -o ControlPath=~/.ssh/cm-%r@%h:%p -o ControlPersist=120'
-          } >> "$GITHUB_ENV"
+          echo "DEPLOY_KEY_PATH=${HOME}/.ssh/deploy_key" >> "$GITHUB_ENV"
+          echo "SSH_MUX_PATH=${HOME}/.ssh/cm-%r@%h:%p" >> "$GITHUB_ENV"
 
       - name: Git pull + Alembic + Docker Compose
         run: |
           REF="${EVENT_REF:-${DEPLOY_GIT_REF:-staging}}"
           echo "Deploy ref no VPS: ${REF}"
 
-          retry() {
-            local attempt=1 max=3 delay=20
-            while true; do
-              if "$@"; then return 0; fi
-              if [ "$attempt" -ge "$max" ]; then
-                echo "::error::Comando falhou após ${max} tentativas: $*"
-                return 1
-              fi
-              echo "Tentativa ${attempt}/${max} falhou; nova em ${delay}s..."
-              sleep "$delay"
-              attempt=$((attempt + 1))
-              delay=$((delay * 2))
-            done
-          }
-
-          ssh_cmd() {
-            # shellcheck disable=SC2086
-            ssh ${SSH_COMMON_OPTS} ${SSH_CONNECT_OPTS} ${SSH_MUX_OPTS} -p "${SSH_PORT}" \
+          ssh_base() {
+            ssh -i "$DEPLOY_KEY_PATH" \
+              -o StrictHostKeyChecking=accept-new \
+              -o ConnectTimeout=20 \
+              -o ServerAliveInterval=15 \
+              -o ServerAliveCountMax=3 \
+              -o ControlMaster=auto \
+              -o "ControlPath=${SSH_MUX_PATH}" \
+              -o ControlPersist=120 \
+              -p "${SSH_PORT}" \
               "${DEPLOY_USER}@${DEPLOY_HOST}" "$@"
           }
 
-          retry ssh_cmd \
+          retry() {
+            local attempt=1 max=5 delay=15
+            while true; do
+              if "$@"; then return 0; fi
+              if [ "$attempt" -ge "$max" ]; then
+                echo "::error::Comando falhou após ${max} tentativas."
+                return 1
+              fi
+              echo "Tentativa ${attempt}/${max} falhou; nova em ${delay}s (runner GitHub → VPS)..."
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay + 15))
+            done
+          }
+
+          retry ssh_base \
             "REF='${REF}' DEPLOY_PATH='${DEPLOY_PATH}' SKIP_MIGRATIONS='${SKIP_MIGRATIONS}' WEBHOOK_BASE_URL='${VITE_API_URL}' bash -s" << 'REMOTE_SCRIPT'
           set -ex
           cd "$DEPLOY_PATH"
@@ -164,24 +168,28 @@ jobs:
 
       - name: Rsync — frontend dist → VPS
         run: |
+          ssh_rsync() {
+            rsync -avz --delete \
+              -e "ssh -i ${DEPLOY_KEY_PATH} -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 -o ControlMaster=auto -o ControlPath=${SSH_MUX_PATH} -o ControlPersist=120 -p ${SSH_PORT}" \
+              frontend/dist/ "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_FRONTEND_DIST}/"
+          }
+
           retry() {
-            local attempt=1 max=3 delay=20
+            local attempt=1 max=5 delay=15
             while true; do
               if "$@"; then return 0; fi
               if [ "$attempt" -ge "$max" ]; then
-                echo "::error::Comando falhou após ${max} tentativas: $*"
+                echo "::error::Rsync falhou após ${max} tentativas."
                 return 1
               fi
               echo "Tentativa ${attempt}/${max} falhou; nova em ${delay}s..."
               sleep "$delay"
               attempt=$((attempt + 1))
-              delay=$((delay * 2))
+              delay=$((delay + 15))
             done
           }
 
-          retry rsync -avz --delete \
-            -e "ssh ${SSH_COMMON_OPTS} ${SSH_CONNECT_OPTS} ${SSH_MUX_OPTS} -p ${SSH_PORT}" \
-            frontend/dist/ "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_FRONTEND_DIST}/"
+          retry ssh_rsync
 
       - name: Verificar rotas da API (health)
         run: |
