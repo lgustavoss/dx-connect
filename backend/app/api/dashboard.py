@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models import Ticket, StatusTicket, Empresa
 from app.models.atendente import Atendente
-from app.schemas.dashboard import DashboardResponse, DashboardResumo, StatusCount
+from app.schemas.dashboard import DashboardGeralResponse, DashboardResponse, DashboardResumo, StatusCount
+from app.services.dashboard_geral import obter_dashboard_geral as montar_dashboard_geral
 from app.schemas.ticket import TicketRead
 from app.core.auth import obter_atendente_atual
 from app.api.tickets import _ticket_para_read
@@ -86,3 +87,11 @@ def obter_dashboard(
     ultimos_tickets = [_ticket_para_read(t) for t in ultimos]
 
     return DashboardResponse(resumo=resumo, ultimos_tickets=ultimos_tickets)
+
+
+@router.get("/geral", response_model=DashboardGeralResponse)
+def obter_dashboard_geral(
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    return montar_dashboard_geral(db, atendente)

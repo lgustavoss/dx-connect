@@ -948,6 +948,7 @@ export const tickets = {
 
 export const dashboard = {
   get: () => api<Dashboard.Response>('/dashboard'),
+  getGeral: () => api<Dashboard.GeralResponse>('/dashboard/geral'),
 };
 
 export namespace Notificacoes {
@@ -1005,6 +1006,22 @@ export namespace Dashboard {
   export interface Response {
     resumo: Resumo;
     ultimos_tickets: Tickets.Ticket[];
+  }
+  export interface CsatResumo {
+    media: number | null;
+    total_avaliacoes: number;
+    periodo_dias: number;
+  }
+  export interface GeralResponse {
+    tickets_abertos: number;
+    tickets_sem_responsavel: number;
+    chats_aguardando_atendente: number;
+    chats_em_atendimento: number;
+    csat_tickets: CsatResumo;
+    csat_chats: CsatResumo;
+    sla_violacoes_abertas: number | null;
+    gerado_em: string;
+    cache_ttl_segundos: number;
   }
 }
 
