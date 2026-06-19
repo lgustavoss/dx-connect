@@ -12,6 +12,9 @@
 #   DEPLOY_GIT_REF        — branch no VPS (padrão staging; só usado se o workflow não tiver github.ref_name)
 #
 # Opcional: crie um Environment "production" com estes secrets e descomente "environment: production" abaixo.
+#
+# SSH intermitente: rsync e git pull usam deploy/scripts/retry.sh (5 tentativas, 15s entre elas).
+# Se ainda falhar com "Connection timed out", re-run do job no GitHub Actions — ver deploy/github-actions.md.
 
 name: Deploy
 
@@ -86,18 +89,24 @@ jobs:
           P="${SSH_PORT:-22}"
           ssh-keyscan -p "$P" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
           echo "SSH_PORT=${P}" >> "$GITHUB_ENV"
+          {
+            echo -n "SSH_OPTS="
+            echo -n "-i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new"
+            echo -n " -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3"
+            echo " -p ${P}"
+          } >> "$GITHUB_ENV"
 
       - name: Rsync — frontend dist → VPS
         run: |
-          rsync -avz --delete \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -p ${SSH_PORT}" \
+          bash deploy/scripts/retry.sh rsync -avz --delete \
+            -e "ssh ${SSH_OPTS}" \
             frontend/dist/ "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_FRONTEND_DIST}/"
 
       - name: Git pull + Alembic + Docker Compose
         run: |
           REF="${EVENT_REF:-${DEPLOY_GIT_REF:-staging}}"
           echo "Deploy ref no VPS: ${REF}"
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -p "${SSH_PORT}" \
+          bash deploy/scripts/retry.sh ssh ${SSH_OPTS} \
             "${DEPLOY_USER}@${DEPLOY_HOST}" \
             "REF='${REF}' DEPLOY_PATH='${DEPLOY_PATH}' SKIP_MIGRATIONS='${SKIP_MIGRATIONS}' WEBHOOK_BASE_URL='${VITE_API_URL}' bash -s" << 'REMOTE_SCRIPT'
           set -ex

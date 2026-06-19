@@ -93,6 +93,28 @@ Em cada deploy o workflow executa `alembic upgrade head` antes do `up --build`. 
 
 ## Troubleshooting
 
+### SSH timeout intermitente (`Connection timed out`)
+
+**Sintoma** no log do job:
+
+```text
+ssh: connect to host *** port 22: Connection timed out
+```
+
+Costuma aparecer nas etapas **Rsync — frontend dist → VPS** ou **Git pull + Alembic + Docker Compose**. O build do frontend no runner pode ter passado normalmente.
+
+**Causa provável:** falha de rede **transitória** entre o runner do GitHub Actions e o VPS. Não indica, por si só, chave SSH errada ou VPS fora do ar — o mesmo deploy costuma funcionar na segunda tentativa.
+
+**O que fazer (em ordem):**
+
+1. **Aguarde o retry automático** — `rsync` e `ssh` usam [`deploy/scripts/retry.sh`](../deploy/scripts/retry.sh) com até **5 tentativas** e **15 s** entre elas (opções `ConnectTimeout=30`, keepalive SSH).
+2. **Se o job ainda falhar:** no GitHub, abra **Actions → Deploy → run com falha → Re-run failed jobs** (ou **Re-run all jobs**). Historicamente isso resolve na segunda execução.
+3. **Se persistir em vários re-runs:** confira firewall do VPS (porta SSH acessível), serviço `sshd` ativo, `DEPLOY_HOST` / `DEPLOY_SSH_PORT` corretos e se o IP do servidor não mudou.
+
+**Disparo manual alternativo:** **Actions → Deploy → Run workflow** na branch `staging` (equivalente a um novo deploy completo).
+
+### Outros erros comuns
+
 - **`Permission denied (publickey)`**: confira `DEPLOY_SSH_KEY`, usuário e `authorized_keys` no VPS.
 - **`rsync` falha**: permissões em `DEPLOY_FRONTEND_DIST` e caminho absoluto correto.
 - **`docker: permission denied`**: usuário no grupo `docker` ou reiniciar sessão SSH após `usermod`.
