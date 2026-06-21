@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, type ReactNode } from 'react'
 import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { Link } from 'react-router-dom'
@@ -11,6 +11,9 @@ import { SemPermissao } from './SemPermissao'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { exibirProtocolo } from '../lib/exibirProtocolo'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
+import { DashboardCanalComparativo, snapshotFromGeral } from '../components/dashboard/DashboardCanalComparativo'
+import { DashboardNav } from '../components/dashboard/DashboardNav'
+import { NotaEstrelasMedia } from '../components/ui/NotaEstrelasMedia'
 
 type ColunaUltimos = 'protocolo' | 'empresa' | 'assunto' | 'status'
 
@@ -31,15 +34,14 @@ function DashboardSkeleton() {
   )
 }
 
-function formatarCsat(csat: Dashboard.CsatResumo): string {
-  if (csat.media == null) return '—'
-  return `${csat.media.toFixed(1).replace('.', ',')} ★`
-}
-
-function subtituloCsat(csat: Dashboard.CsatResumo): string {
-  const n = csat.total_avaliacoes
-  const aval = n === 1 ? 'avaliação' : 'avaliações'
-  return `últimos ${csat.periodo_dias} dias · ${n} ${aval}`
+function rotuloEstadoChat(estado: string): string {
+  const map: Record<string, string> = {
+    aguardando_atendente: 'Aguardando',
+    em_atendimento: 'Em atendimento',
+    aguardando_avaliacao: 'Aguard. avaliação',
+    encerrado: 'Encerrado',
+  }
+  return map[estado] ?? estado
 }
 
 function MetricCard({
@@ -49,18 +51,22 @@ function MetricCard({
   borderClass,
   href,
   hrefLabel,
+  children,
 }: {
   label: string
-  value: string | number
+  value?: string | number
   hint?: string
   borderClass: string
   href?: string
   hrefLabel?: string
+  children?: ReactNode
 }) {
   return (
     <Card className={`flex flex-col ${borderClass}`}>
       <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{label}</p>
-      <p className="mt-1 text-3xl font-bold text-slate-800 dark:text-slate-100">{value}</p>
+      {children ?? (
+        <p className="mt-1 text-3xl font-bold text-slate-800 dark:text-slate-100">{value}</p>
+      )}
       {hint ? <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{hint}</p> : null}
       {href && hrefLabel ? (
         <Link to={href} className="mt-3 text-sm font-medium text-cyan-700 hover:text-cyan-800 dark:text-cyan-400 dark:hover:text-cyan-300">
@@ -154,18 +160,26 @@ export function Dashboard() {
     )
   }
 
-  const { resumo } = data
+  const { resumo, resumo_chats } = data
 
   return (
     <PageContainer>
-      <PageHeader
-        title="Dashboard"
+      <PageHeader title="Dashboard" />
+
+      <DashboardNav
         actions={
-          <Link to="/tickets/novo">
-            <Button>Novo ticket</Button>
-          </Link>
+          <>
+            <Link to="/tickets/novo">
+              <Button variant="secondary">Novo ticket</Button>
+            </Link>
+            <Link to="/whatsapp/atendendo">
+              <Button variant="secondary">Ir para WhatsApp</Button>
+            </Link>
+          </>
         }
       />
+
+      {geral ? <DashboardCanalComparativo snapshot={snapshotFromGeral(geral)} /> : null}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <MetricCard
@@ -197,46 +211,85 @@ export function Dashboard() {
           hrefLabel="Ver central de atendimento"
         />
         <MetricCard
-          label="CSAT tickets"
-          value={formatarCsat(geral.csat_tickets)}
-          hint={subtituloCsat(geral.csat_tickets)}
+          label="Satisfação — tickets"
           borderClass="border-l-4 border-l-violet-400"
-        />
+          hint={`últimos ${geral.csat_tickets.periodo_dias} dias · ${geral.csat_tickets.total_avaliacoes} avaliações`}
+        >
+          <div className="mt-2">
+            <NotaEstrelasMedia media={geral.csat_tickets.media} size="lg" />
+          </div>
+        </MetricCard>
         <MetricCard
-          label="CSAT WhatsApp"
-          value={formatarCsat(geral.csat_chats)}
-          hint={subtituloCsat(geral.csat_chats)}
+          label="Satisfação — WhatsApp"
           borderClass="border-l-4 border-l-pink-400"
-        />
+          hint={`últimos ${geral.csat_chats.periodo_dias} dias · ${geral.csat_chats.total_avaliacoes} avaliações`}
+        >
+          <div className="mt-2">
+            <NotaEstrelasMedia media={geral.csat_chats.media} size="lg" />
+          </div>
+        </MetricCard>
       </div>
 
-      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Card className="border-l-4 border-l-slate-300">
-          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Total de tickets</p>
-          <p className="mt-1 text-3xl font-bold text-slate-800 dark:text-slate-100">{resumo.total_tickets}</p>
-        </Card>
-        <Card className="border-l-4 border-l-amber-300">
-          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Abertos hoje</p>
-          <p className="mt-1 text-3xl font-bold text-slate-800 dark:text-slate-100">{resumo.abertos_hoje}</p>
-        </Card>
-        <Card className="border-l-4 border-l-emerald-300 sm:col-span-2 lg:col-span-1">
-          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Por status</p>
-          <ul className="mt-2 space-y-1">
-            {resumo.por_status.length === 0 ? (
-              <li className="text-slate-500 dark:text-slate-400">Nenhum ticket</li>
-            ) : (
-              resumo.por_status.map((s) => (
-                <li key={s.status_id} className="flex justify-between text-sm">
-                  <span className="text-slate-600 dark:text-slate-400">{s.status_nome}</span>
-                  <span className="font-medium text-slate-800 dark:text-slate-100">{s.total}</span>
-                </li>
-              ))
-            )}
-          </ul>
-        </Card>
+      <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Tickets</h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Card className="border-l-4 border-l-slate-300">
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Total de tickets</p>
+              <p className="mt-1 text-3xl font-bold text-slate-800 dark:text-slate-100">{resumo.total_tickets}</p>
+            </Card>
+            <Card className="border-l-4 border-l-amber-300">
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Abertos hoje</p>
+              <p className="mt-1 text-3xl font-bold text-slate-800 dark:text-slate-100">{resumo.abertos_hoje}</p>
+            </Card>
+          </div>
+          <Card title="Por status">
+            <ul className="space-y-1">
+              {resumo.por_status.length === 0 ? (
+                <li className="text-slate-500 dark:text-slate-400">Nenhum ticket</li>
+              ) : (
+                resumo.por_status.map((s) => (
+                  <li key={s.status_id} className="flex justify-between text-sm">
+                    <span className="text-slate-600 dark:text-slate-400">{s.status_nome}</span>
+                    <span className="font-medium text-slate-800 dark:text-slate-100">{s.total}</span>
+                  </li>
+                ))
+              )}
+            </ul>
+          </Card>
+        </div>
+
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">WhatsApp</h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Card className="border-l-4 border-l-emerald-300">
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Total de conversas</p>
+              <p className="mt-1 text-3xl font-bold text-slate-800 dark:text-slate-100">{resumo_chats.total_chats}</p>
+            </Card>
+            <Card className="border-l-4 border-l-teal-300">
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Iniciadas hoje</p>
+              <p className="mt-1 text-3xl font-bold text-slate-800 dark:text-slate-100">{resumo_chats.iniciados_hoje}</p>
+            </Card>
+          </div>
+          <Card title="Por situação">
+            <ul className="space-y-1">
+              {resumo_chats.por_estado.length === 0 ? (
+                <li className="text-slate-500 dark:text-slate-400">Nenhuma conversa</li>
+              ) : (
+                resumo_chats.por_estado.map((e) => (
+                  <li key={e.estado} className="flex justify-between text-sm">
+                    <span className="text-slate-600 dark:text-slate-400">{e.rotulo}</span>
+                    <span className="font-medium text-slate-800 dark:text-slate-100">{e.total}</span>
+                  </li>
+                ))
+              )}
+            </ul>
+          </Card>
+        </div>
       </div>
 
-      <Card title="Últimos tickets" className="mt-8">
+      <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <Card title="Últimos tickets">
         {ultimos_tickets.length === 0 ? (
           <p className="text-slate-500 dark:text-slate-400">Nenhum ticket ainda.</p>
         ) : (
@@ -321,6 +374,47 @@ export function Dashboard() {
           </Link>
         </div>
       </Card>
+
+        <Card title="Últimas conversas WhatsApp">
+          {data.ultimos_chats.length === 0 ? (
+            <p className="text-slate-500 dark:text-slate-400">Nenhuma conversa ainda.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-400">
+                    <th className="pb-2 pr-4 font-medium">Protocolo</th>
+                    <th className="pb-2 pr-4 font-medium">Cliente</th>
+                    <th className="pb-2 pr-4 font-medium">Situação</th>
+                    <th className="pb-2 font-medium">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.ultimos_chats.map((c) => (
+                    <tr key={c.id} className="border-b border-slate-100 dark:border-slate-700/60">
+                      <td className="py-3 pr-4 font-mono text-slate-800 dark:text-slate-100">{c.protocolo}</td>
+                      <td className="py-3 pr-4">{c.cliente_nome ?? '—'}</td>
+                      <td className="py-3 pr-4">{rotuloEstadoChat(c.estado)}</td>
+                      <td className="py-3">
+                        <Link to={`/whatsapp/c/${c.id}`}>
+                          <Button type="button" variant="ghost" className="text-sm">
+                            Abrir
+                          </Button>
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="mt-4">
+            <Link to="/whatsapp/atendendo">
+              <Button variant="secondary">Ir para WhatsApp</Button>
+            </Link>
+          </div>
+        </Card>
+      </div>
     </PageContainer>
   )
 }

@@ -22,6 +22,7 @@ from app.api import (
     status_ticket,
     tickets,
     dashboard,
+    relatorios,
     audit,
     tipo_negocio,
     cadastro_aux,
@@ -380,6 +381,7 @@ app.include_router(funcionarios_rede.router, prefix=API_V1_PREFIX)
 app.include_router(status_ticket.router, prefix=API_V1_PREFIX)
 app.include_router(tickets.router, prefix=API_V1_PREFIX)
 app.include_router(dashboard.router, prefix=API_V1_PREFIX)
+app.include_router(relatorios.router, prefix=API_V1_PREFIX)
 app.include_router(audit.router, prefix=API_V1_PREFIX)
 app.include_router(tipo_negocio.router, prefix=API_V1_PREFIX)
 app.include_router(cadastro_aux.router, prefix=API_V1_PREFIX)
