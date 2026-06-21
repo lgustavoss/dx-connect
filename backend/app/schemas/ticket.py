@@ -134,6 +134,15 @@ class TicketTriagemInbound(BaseModel):
     remetente_email: str | None = None
     conflito_multiplas_redes: bool = False
     empresas_vinculo_sugeridas: list[EmpresaVinculoSugerida] = []
+    rede_id_inferida: int | None = None
+    rede_nome_inferida: str | None = None
+
+
+class TicketSolicitanteBrief(BaseModel):
+    id: int | None = None
+    nome: str | None = None
+    email: str | None = None
+    cadastrado: bool = True
 
 
 class TicketRead(BaseModel):
@@ -168,6 +177,7 @@ class TicketRead(BaseModel):
     children: list[TicketChildBrief] = Field(default_factory=list)
     vinculos: list[TicketVinculoRead] = Field(default_factory=list)
     triagem_inbound: TicketTriagemInbound | None = None
+    solicitante: TicketSolicitanteBrief | None = None
     avaliacao_nota: int | None = None
     avaliacao_comentario: str | None = None
     avaliacao_respondida_em: datetime | None = None

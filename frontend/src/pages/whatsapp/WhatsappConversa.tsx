@@ -344,16 +344,23 @@ export function WhatsappConversa() {
       })
     })
     const unsubFila = subscribe('chat.fila', (payload) => {
-      if (Number(payload.chat_id) !== chatId) return
+      const payloadChatId = Number(payload.chat_id)
       const chatData = payload.chat as WhatsappChats.Chat | undefined
-      if (chatData) setChat(chatData)
-      else void carregar().catch(() => {})
+      if (payloadChatId === chatId) {
+        if (chatData) setChat(chatData)
+        else void carregar().catch(() => {})
+      }
+      if (chatData && chatData.estado !== 'em_atendimento') {
+        setMeusChats((prev) => prev.filter((c) => c.id !== payloadChatId))
+      } else {
+        void carregarSidebar()
+      }
     })
     return () => {
       unsubMsg()
       unsubFila()
     }
-  }, [id, subscribe, carregar])
+  }, [id, subscribe, carregar, carregarSidebar])
 
   // Polling legado quando SSE indisponível
   useEffect(() => {
@@ -550,7 +557,7 @@ useEffect(() => {
 
       const atualizado = await whatsappChats.encerrar(chat.id)
 
-      await carregar()
+      await Promise.all([carregar(), carregarSidebar()])
 
       toast.showSuccess(
         atualizado.estado === 'aguardando_avaliacao'

@@ -1781,6 +1781,14 @@ export namespace Tickets {
     remetente_email?: string | null;
     conflito_multiplas_redes?: boolean;
     empresas_vinculo_sugeridas?: EmpresaVinculoSugerida[];
+    rede_id_inferida?: number | null;
+    rede_nome_inferida?: string | null;
+  }
+  export interface SolicitanteBrief {
+    id?: number | null;
+    nome?: string | null;
+    email?: string | null;
+    cadastrado: boolean;
   }
   export interface Ticket {
     id: number;
@@ -1813,6 +1821,7 @@ export namespace Tickets {
     children?: TicketChildBrief[];
     vinculos?: TicketVinculo[];
     triagem_inbound?: TriagemInbound | null;
+    solicitante?: SolicitanteBrief | null;
     avaliacao_nota?: number | null;
     avaliacao_comentario?: string | null;
     avaliacao_respondida_em?: string | null;

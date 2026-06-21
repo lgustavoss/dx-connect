@@ -24,6 +24,7 @@ from app.schemas.ticket import (
     TicketMensagemUpdate,
     TicketParentBrief,
     TicketRead,
+    TicketSolicitanteBrief,
     TicketTriagemInbound,
     TicketUpdate,
     TicketVinculoCreate,
@@ -71,7 +72,7 @@ from app.services.ticket_escopo import (
     validar_escopo_criacao_manual,
 )
 from app.services.funcionario_rede_resolver import resolver_remetente_por_email
-from app.services.ticket_client_email import extrair_email_de_from_address
+from app.services.ticket_client_email import extrair_email_de_from_address, extrair_nome_de_from_address
 from app.services.protocolo_mensal import gerar_protocolo_ticket
 from app.services.realtime_emit import emit_ticket_fila, emit_ticket_mensagem_from_model, emit_notificacao_after_counter_change
 from app.services.ticket_distribuicao import (
@@ -214,12 +215,68 @@ def _triagem_inbound_para_ticket(db: Session, t: Ticket) -> TicketTriagemInbound
             empresas.append(EmpresaVinculoSugerida(id=emp.id, nome=emp.nome))
     if not rem.requer_cadastro and not empresas and t.empresa_id is not None:
         return None
+    rede_nome_inferida = None
+    if rem.rede_id is not None:
+        r = db.query(Rede).filter(Rede.id == rem.rede_id).first()
+        rede_nome_inferida = r.nome if r else None
     return TicketTriagemInbound(
         requer_cadastro_funcionario=rem.requer_cadastro,
         remetente_email=rem.email or email,
         conflito_multiplas_redes=rem.conflito_multiplas_redes,
         empresas_vinculo_sugeridas=empresas,
+        rede_id_inferida=rem.rede_id,
+        rede_nome_inferida=rede_nome_inferida,
     )
+
+
+def _email_remetente_inbound(db: Session, t: Ticket) -> str | None:
+    if t.aberto_por_id:
+        f = db.query(FuncionarioRede).filter(FuncionarioRede.id == t.aberto_por_id).first()
+        email = (f.email or "").strip() if f else None
+        if email:
+            return email
+    row = (
+        db.query(EmailInboundReceived)
+        .filter(EmailInboundReceived.ticket_id == t.id)
+        .order_by(EmailInboundReceived.id.desc())
+        .first()
+    )
+    if row:
+        return extrair_email_de_from_address(row.from_address)
+    return None
+
+
+def _solicitante_para_read(
+    db: Session,
+    t: Ticket,
+    triagem: TicketTriagemInbound | None,
+) -> TicketSolicitanteBrief | None:
+    if t.aberto_por_id:
+        f = db.query(FuncionarioRede).filter(FuncionarioRede.id == t.aberto_por_id).first()
+        if f:
+            return TicketSolicitanteBrief(
+                id=f.id,
+                nome=f.nome,
+                email=f.email,
+                cadastrado=True,
+            )
+    row = (
+        db.query(EmailInboundReceived)
+        .filter(EmailInboundReceived.ticket_id == t.id)
+        .order_by(EmailInboundReceived.id.desc())
+        .first()
+    )
+    if row or triagem:
+        nome = extrair_nome_de_from_address(row.from_address) if row else None
+        email = triagem.remetente_email if triagem else extrair_email_de_from_address(row.from_address if row else None)
+        if email or nome:
+            return TicketSolicitanteBrief(
+                id=None,
+                nome=nome,
+                email=email,
+                cadastrado=not (triagem.requer_cadastro_funcionario if triagem else True),
+            )
+    return None
 
 
 def _ticket_vinculo_brief(t: Ticket) -> TicketVinculoOutroBrief:
@@ -334,6 +391,7 @@ def _ticket_para_read(t: Ticket, db: Session | None = None) -> TicketRead:
         children=children_out,
         vinculos=_vinculos_para_read(db, t) if db is not None else [],
         triagem_inbound=triagem,
+        solicitante=_solicitante_para_read(db, t, triagem) if db is not None else None,
         **csat,
         **fila,
     )
@@ -1542,25 +1600,20 @@ def atualizar(
             )
             if not empresa:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empresa não encontrada")
-            email_rem = None
-            if ticket.aberto_por_id:
-                f_ab = db.query(FuncionarioRede).filter(FuncionarioRede.id == ticket.aberto_por_id).first()
-                email_rem = (f_ab.email or "").strip() if f_ab else None
-            if not email_rem:
-                row_in = (
-                    db.query(EmailInboundReceived)
-                    .filter(EmailInboundReceived.ticket_id == ticket.id)
-                    .order_by(EmailInboundReceived.id.desc())
-                    .first()
-                )
-                if row_in:
-                    email_rem = extrair_email_de_from_address(row_in.from_address)
-            rem = resolver_remetente_por_email(db, email_rem)
-            if rem.empresa_ids_opcao and int(novo_eid) not in rem.empresa_ids_opcao:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Esta empresa não está vinculada ao funcionário remetente do e-mail.",
-                )
+            email_rem = _email_remetente_inbound(db, ticket)
+            if email_rem:
+                rem = resolver_remetente_por_email(db, email_rem)
+                if not rem.requer_cadastro:
+                    if rem.rede_id is not None and int(empresa.rede_id) != int(rem.rede_id):
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Esta empresa não pertence à rede do remetente do e-mail.",
+                        )
+                    if rem.empresa_ids_opcao and int(novo_eid) not in rem.empresa_ids_opcao:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Esta empresa não está vinculada ao funcionário remetente do e-mail.",
+                        )
             ticket.rede_id = empresa.rede_id
         antigo = str(ticket.empresa_id) if ticket.empresa_id is not None else ""
         novo = str(novo_eid) if novo_eid is not None else ""
