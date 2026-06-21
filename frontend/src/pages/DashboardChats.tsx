@@ -72,6 +72,15 @@ export function DashboardChats() {
   const drill = useDashboardDrilldown()
   const [reloadKey, setReloadKey] = useState(0)
 
+  const relatorioHref = useMemo(() => {
+    const params = new URLSearchParams()
+    if (de) params.set('de', de)
+    if (ate) params.set('ate', ate)
+    if (setorId !== '') params.set('setor_id', String(setorId))
+    const qs = params.toString()
+    return qs ? `/relatorios/chats?${qs}` : '/relatorios/chats'
+  }, [de, ate, setorId])
+
   const aplicarPreset = useCallback((p: Exclude<PresetPeriodo, 'custom'>) => {
     setPreset(p)
     const fim = new Date()
@@ -199,6 +208,11 @@ export function DashboardChats() {
             <Link to="/whatsapp/avaliacoes">
               <Button variant="secondary">Ver avaliações</Button>
             </Link>
+            {user?.role === 'admin' ? (
+              <Link to={relatorioHref}>
+                <Button variant="secondary">Exportar planilha</Button>
+              </Link>
+            ) : null}
           </>
         }
       />
