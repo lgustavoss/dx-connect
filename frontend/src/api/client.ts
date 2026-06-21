@@ -1004,6 +1004,38 @@ export const relatorios = {
     }
     return res.blob();
   },
+  chats: (params?: {
+    de?: string;
+    ate?: string;
+    setor_id?: number;
+    atendente_filtro_id?: number;
+    offset?: number;
+    limit?: number;
+  }) => api<Relatorios.ChatsResponse>(withParams('/relatorios/chats', params)),
+  exportChatsCsv: async (params?: {
+    de?: string;
+    ate?: string;
+    setor_id?: number;
+    atendente_filtro_id?: number;
+  }) => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
+    }
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const url = `${BASE}${API_VERSION_PREFIX}${withParams('/relatorios/chats', { ...params, format: 'csv' })}`;
+    const res = await fetch(url, { headers });
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin();
+      throw new ApiError('Sessão expirada ou inválida.', 401, {});
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody);
+    }
+    return res.blob();
+  },
 };
 
 export namespace Notificacoes {
@@ -1192,6 +1224,28 @@ export namespace Relatorios {
     offset: number;
     limit: number;
     itens: TicketLinha[];
+  }
+  export interface ChatLinha {
+    protocolo: string;
+    cliente_nome: string | null;
+    wa_id: string;
+    estado: string;
+    estado_rotulo: string;
+    setor_nome: string;
+    atendente_nome: string;
+    empresa_nome: string;
+    aberto_em: string | null;
+    inicio_atendimento: string | null;
+    encerrado_em: string | null;
+    avaliacao_nota: number | null;
+  }
+  export interface ChatsResponse {
+    de: string;
+    ate: string;
+    total: number;
+    offset: number;
+    limit: number;
+    itens: ChatLinha[];
   }
 }
 
