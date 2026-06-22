@@ -11,12 +11,14 @@ from app.services.system_email_config import TransactionalEmailConfig
 from app.services.ticket_mensagem_email_outbox import (
     EMAIL_STATUS_CANCELADA,
     EMAIL_STATUS_EM_EDICAO,
+    EMAIL_STATUS_ENVIADA,
     EMAIL_STATUS_PENDENTE,
     _dt_for_db,
     agendar_envio_email,
     cancelar_envio,
     iniciar_edicao,
     liberar_locks_expirados,
+    process_pending_ticket_mensagem_emails,
     salvar_edicao,
     validar_lock,
 )
@@ -169,3 +171,42 @@ def test_cancelar_envio(db_session):
     agendar_envio_email(m, db_session)
     cancelar_envio(m)
     assert m.email_status == EMAIL_STATUS_CANCELADA
+
+
+def test_process_pending_com_scheduled_at_timezone_aware(
+    client, seed_base, auth_headers, monkeypatch, db_session
+):
+    """Postgres devolve TIMESTAMPTZ como datetime aware; comparação naive não pode falhar."""
+    monkeypatch.setattr("app.config.settings.EMAIL_INBOUND_WEBHOOK_SECRET", "ob140tz")
+    monkeypatch.setattr("app.config.settings.EMAIL_INBOUND_DEFAULT_EMPRESA_ID", seed_base["empresa"].id)
+    monkeypatch.setattr("app.config.settings.EMAIL_INBOUND_DEFAULT_SETOR_ID", seed_base["setor1"].id)
+    monkeypatch.setattr("app.config.settings.TICKET_MENSAGEM_EMAIL_GRACE_SECONDS", 0)
+    _mock_resend(monkeypatch)
+    monkeypatch.setattr(
+        "app.services.ticket_client_email.enviar_mensagem_texto_sistema",
+        lambda *a, **k: "outbound-tz-aware@dx.test",
+    )
+
+    r0 = client.post(
+        "/v1/webhooks/email-inbound",
+        headers={"X-Dx-Email-Webhook-Secret": "ob140tz"},
+        json={"rfc822": _minimal_rfc822("<ob140tz@dx.local>")},
+    )
+    tid = r0.json()["ticket_id"]
+
+    r1 = client.post(
+        f"/v1/tickets/{tid}/mensagens",
+        headers=auth_headers["admin"],
+        json={"corpo": "Resposta", "tipo": "publico", "notificar_cliente_por_email": True},
+    )
+    mid = r1.json()["id"]
+    m = db_session.query(TicketMensagem).filter(TicketMensagem.id == mid).first()
+    assert m is not None
+    # Simula TIMESTAMPTZ do Postgres (aware) na instância que o worker vai ler.
+    m.scheduled_at = datetime.now(timezone.utc) - timedelta(seconds=30)
+
+    n = process_pending_ticket_mensagem_emails(db_session, limit=10)
+    assert n == 1
+    db_session.commit()
+    db_session.refresh(m)
+    assert m.email_status == EMAIL_STATUS_ENVIADA

@@ -42,6 +42,13 @@ def _as_utc(dt: datetime | None) -> datetime | None:
     return dt.astimezone(timezone.utc)
 
 
+def _naive_utc(dt: datetime | None) -> datetime | None:
+    """UTC sem tzinfo — alinha leituras do Postgres (TIMESTAMPTZ) com ``_dt_for_db()``."""
+    if dt is None:
+        return None
+    return _as_utc(dt).replace(tzinfo=None)
+
+
 def _dt_for_db(dt: datetime | None = None) -> datetime:
     """Persistência em UTC naive (compatível SQLite/Postgres)."""
     return _as_utc(dt or _utcnow()).replace(tzinfo=None)  # type: ignore[return-value]
@@ -111,8 +118,8 @@ def liberar_locks_expirados(db: Session, *, ref: datetime | None = None) -> int:
     )
     liberados = 0
     for m in rows:
-        exp = _as_utc(m.edit_lock_expires_at)
-        if exp is None or exp.replace(tzinfo=None) >= now:
+        exp = _naive_utc(m.edit_lock_expires_at)
+        if exp is None or exp >= now:
             continue
         m.email_status = EMAIL_STATUS_PENDENTE
         m.edit_lock_token = None
@@ -200,6 +207,7 @@ def process_pending_ticket_mensagem_emails(db: Session, *, limit: int = 20) -> i
         .filter(
             TicketMensagem.email_status == EMAIL_STATUS_PENDENTE,
             TicketMensagem.scheduled_at.isnot(None),
+            TicketMensagem.scheduled_at <= now,
         )
         .order_by(TicketMensagem.scheduled_at.asc())
         .limit(limit)
@@ -212,7 +220,8 @@ def process_pending_ticket_mensagem_emails(db: Session, *, limit: int = 20) -> i
     rows = q.all()
     enviadas = 0
     for m in rows:
-        if m.scheduled_at is None or m.scheduled_at > now:
+        sched = _naive_utc(m.scheduled_at)
+        if sched is None or sched > now:
             continue
         ticket = db.query(Ticket).filter(Ticket.id == m.ticket_id).first()
         if not ticket:
@@ -256,8 +265,8 @@ def validar_lock(m: TicketMensagem, token: str) -> None:
         raise ValueError("A mensagem não está em edição.")
     if not m.edit_lock_token or m.edit_lock_token != token:
         raise ValueError("Token de edição inválido.")
-    exp = _as_utc(m.edit_lock_expires_at)
-    if exp and exp.replace(tzinfo=None) < _dt_for_db():
+    exp = _naive_utc(m.edit_lock_expires_at)
+    if exp and exp < _dt_for_db():
         raise ValueError("O lock de edição expirou. Inicie a edição novamente.")
 
 
