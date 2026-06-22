@@ -25,6 +25,85 @@ function badgeText(n: number): string {
   return String(n)
 }
 
+function ResumoRodape({ resumo }: { resumo: Notificacoes.Resumo }) {
+  const partes: string[] = []
+  if (resumo.sem_responsavel_count > 0) partes.push(`Fila: ${resumo.sem_responsavel_count}`)
+  if (resumo.nao_lidas_count > 0) partes.push(`Não lidas: ${resumo.nao_lidas_count}`)
+  if (resumo.wpp_fila_count > 0) partes.push(`WPP fila: ${resumo.wpp_fila_count}`)
+  if (resumo.wpp_respostas_count > 0) partes.push(`WPP resposta: ${resumo.wpp_respostas_count}`)
+  if (partes.length === 0) return null
+  return (
+    <div className="shrink-0 border-t border-slate-200/90 bg-white px-4 py-3 text-xs text-slate-600 dark:border-slate-800/90 dark:bg-slate-950 dark:text-slate-300 sm:border-slate-100 sm:px-3 sm:pt-2 sm:text-[11px] sm:text-slate-400 dark:sm:border-slate-800 dark:sm:text-slate-500">
+      {partes.join(' · ')}
+    </div>
+  )
+}
+
+function ListaPendencias({
+  itens,
+  loadingItens,
+  erroItens,
+  totalPendencias,
+  onNavigate,
+}: {
+  itens: Notificacoes.Item[]
+  loadingItens: boolean
+  erroItens: boolean
+  totalPendencias: number
+  onNavigate: () => void
+}) {
+  if (loadingItens && itens.length === 0) {
+    return (
+      <p className="px-3 py-10 text-center text-sm text-slate-500 dark:text-slate-400 sm:py-6">
+        Carregando…
+      </p>
+    )
+  }
+  if (erroItens && itens.length === 0) {
+    return (
+      <p className="px-3 py-10 text-center text-sm text-rose-600 dark:text-rose-400 sm:py-6">
+        Não foi possível carregar as pendências.
+      </p>
+    )
+  }
+  if (itens.length === 0) {
+    return (
+      <p className="px-3 py-10 text-center text-sm text-slate-500 dark:text-slate-400 sm:py-6">
+        {totalPendencias > 0
+          ? 'Pendências no badge — abra novamente em instantes ou use a listagem de tickets.'
+          : 'Sem pendências'}
+      </p>
+    )
+  }
+  return (
+    <ul className="space-y-2 sm:space-y-0.5">
+      {itens.map((item, idx) => (
+        <li key={`${item.tipo}-${item.ticket_id ?? 'fila'}-${idx}`}>
+          <Link
+            role="menuitem"
+            to={item.href}
+            className="flex gap-3 rounded-2xl border border-slate-200/90 bg-white px-4 py-3 text-left text-sm shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-800/80 dark:bg-slate-900/50 dark:hover:bg-slate-800/60 sm:gap-2 sm:rounded-lg sm:border-0 sm:bg-transparent sm:px-2 sm:py-2 sm:shadow-none sm:hover:bg-slate-50 dark:sm:hover:bg-slate-800/80"
+            onClick={onNavigate}
+          >
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium text-slate-900 dark:text-slate-100">{item.titulo}</p>
+              <p className="mt-0.5 line-clamp-2 text-xs text-slate-500 dark:text-slate-400 sm:mt-0 sm:truncate sm:line-clamp-none">
+                {item.descricao}
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                {item.count}
+              </span>
+              <span className="text-xs font-medium text-cyan-600 dark:text-cyan-400">Ver</span>
+            </div>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 export function NavbarNotificacoes({ enabled }: { enabled: boolean }) {
   const resumo = usePendenciasResumo(enabled)
   const { subscribe, useFallback } = useEventStream()
@@ -32,6 +111,7 @@ export function NavbarNotificacoes({ enabled }: { enabled: boolean }) {
   const [mobileVisible, setMobileVisible] = useState(false)
   const [itens, setItens] = useState<Notificacoes.Item[]>([])
   const [loadingItens, setLoadingItens] = useState(false)
+  const [erroItens, setErroItens] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
   const mobileDrawerRef = useRef<HTMLDivElement>(null)
   const menuId = useId()
@@ -39,11 +119,13 @@ export function NavbarNotificacoes({ enabled }: { enabled: boolean }) {
   const carregarItens = useCallback(async () => {
     if (!enabled) return
     setLoadingItens(true)
+    setErroItens(false)
     try {
       const { itens: list } = await notificacoes.itens({ limit: 15 })
       setItens(list)
     } catch {
       setItens([])
+      setErroItens(true)
     } finally {
       setLoadingItens(false)
     }
@@ -155,44 +237,16 @@ export function NavbarNotificacoes({ enabled }: { enabled: boolean }) {
             </div>
 
             <div className="flex-1 overflow-y-auto bg-white p-2 dark:bg-slate-950">
-              {loadingItens && itens.length === 0 ? (
-                <p className="px-3 py-10 text-center text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
-              ) : itens.length === 0 ? (
-                <p className="px-3 py-10 text-center text-sm text-slate-500 dark:text-slate-400">Sem pendências</p>
-              ) : (
-                <ul className="space-y-2">
-                  {itens.map((item, idx) => (
-                    <li key={`${item.tipo}-${item.ticket_id ?? 'fila'}-${idx}`}>
-                      <Link
-                        role="menuitem"
-                        to={item.href}
-                        className="flex gap-3 rounded-2xl border border-slate-200/90 bg-white px-4 py-3 text-left text-sm shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-800/80 dark:bg-slate-900/50 dark:hover:bg-slate-800/60"
-                        onClick={() => setAberto(false)}
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate font-medium text-slate-900 dark:text-slate-100">{item.titulo}</p>
-                          <p className="mt-0.5 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{item.descricao}</p>
-                        </div>
-                        <div className="flex shrink-0 flex-col items-end gap-1">
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                            {item.count}
-                          </span>
-                          <span className="text-xs font-medium text-cyan-600 dark:text-cyan-400">Ver</span>
-                        </div>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <ListaPendencias
+                itens={itens}
+                loadingItens={loadingItens}
+                erroItens={erroItens}
+                totalPendencias={total}
+                onNavigate={() => setAberto(false)}
+              />
             </div>
 
-            {(resumo.sem_responsavel_count > 0 || resumo.nao_lidas_count > 0) && (
-              <div className="shrink-0 border-t border-slate-200/90 bg-white px-4 py-3 text-xs text-slate-600 dark:border-slate-800/90 dark:bg-slate-950 dark:text-slate-300">
-                <span className="font-medium">Fila:</span> {resumo.sem_responsavel_count}
-                <span className="text-slate-400 dark:text-slate-600"> · </span>
-                <span className="font-medium">Não lidas:</span> {resumo.nao_lidas_count}
-              </div>
-            )}
+            <ResumoRodape resumo={resumo} />
             <div className="shrink-0 border-t border-slate-200/90 bg-white px-4 py-3 dark:border-slate-800/90 dark:bg-slate-950">
               <Link
                 to="/notificacoes/preferencias"
@@ -217,41 +271,15 @@ export function NavbarNotificacoes({ enabled }: { enabled: boolean }) {
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Pendências</p>
           </div>
           <div className="max-h-[min(70vh,24rem)] overflow-y-auto px-1 py-1">
-            {loadingItens && itens.length === 0 ? (
-              <p className="px-3 py-6 text-center text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
-            ) : itens.length === 0 ? (
-              <p className="px-3 py-6 text-center text-sm text-slate-500 dark:text-slate-400">Sem pendências</p>
-            ) : (
-              <ul className="space-y-0.5">
-                {itens.map((item, idx) => (
-                  <li key={`${item.tipo}-${item.ticket_id ?? 'fila'}-${idx}`}>
-                    <Link
-                      role="menuitem"
-                      to={item.href}
-                      className="flex gap-2 rounded-lg px-2 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800/80"
-                      onClick={() => setAberto(false)}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium text-slate-900 dark:text-slate-100">{item.titulo}</p>
-                        <p className="truncate text-xs text-slate-500 dark:text-slate-400">{item.descricao}</p>
-                      </div>
-                      <div className="flex shrink-0 flex-col items-end gap-1">
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                          {item.count}
-                        </span>
-                        <span className="text-xs font-medium text-cyan-600 dark:text-cyan-400">Ver</span>
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <ListaPendencias
+              itens={itens}
+              loadingItens={loadingItens}
+              erroItens={erroItens}
+              totalPendencias={total}
+              onNavigate={() => setAberto(false)}
+            />
           </div>
-          {(resumo.sem_responsavel_count > 0 || resumo.nao_lidas_count > 0) && (
-            <div className="border-t border-slate-100 px-3 pt-2 text-[11px] text-slate-400 dark:border-slate-800 dark:text-slate-500">
-              Fila: {resumo.sem_responsavel_count} · Não lidas: {resumo.nao_lidas_count}
-            </div>
-          )}
+          <ResumoRodape resumo={resumo} />
           <div className="border-t border-slate-100 px-3 py-2 dark:border-slate-800">
             <Link
               to="/notificacoes/preferencias"
