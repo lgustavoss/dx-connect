@@ -37,6 +37,10 @@ type ColunaOrdenacao =
   | 'status'
   | 'responsavel'
   | 'fechado_em'
+  | 'fila_desde_at'
+
+/** Minutos restantes para auto-atribuição abaixo disto → destaque na listagem. */
+const MINUTOS_DESTAQUE_PROXIMO_AUTO = 5
 
 const searchIcon = (
   <svg className="size-4 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -53,11 +57,26 @@ function formatarTempoNaFila(filaDesdeAt: string | undefined | null): string {
   return m > 0 ? `${h}h ${m}min` : `${h}h`
 }
 
+function ticketProximoAutoAtribuicao(ticket: Tickets.Ticket): boolean {
+  return (
+    ticket.distribuicao_modo_setor === 'auto_apos_timeout' &&
+    ticket.distribuicao_auto_em_minutos != null &&
+    ticket.distribuicao_auto_em_minutos <= MINUTOS_DESTAQUE_PROXIMO_AUTO
+  )
+}
+
 function BadgeAutoDistribuicao({ ticket }: { ticket: Tickets.Ticket }) {
+  const urgente = ticketProximoAutoAtribuicao(ticket)
   if (ticket.distribuicao_modo_setor === 'auto_apos_timeout' && ticket.distribuicao_auto_em_minutos != null) {
     return (
-      <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-        Auto em {ticket.distribuicao_auto_em_minutos} min
+      <span
+        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+          urgente
+            ? 'bg-red-50 text-red-800 ring-1 ring-inset ring-red-200 dark:bg-red-950/40 dark:text-red-200 dark:ring-red-800/60'
+            : 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200'
+        }`}
+      >
+        {urgente ? 'Auto iminente' : `Auto em ${ticket.distribuicao_auto_em_minutos} min`}
       </span>
     )
   }
@@ -122,6 +141,14 @@ export function Tickets() {
   const [maisFiltrosAberto, setMaisFiltrosAberto] = useState(false)
   const painelFiltrosId = useId()
   const { ordenarPor, ordem, aoOrdenarColuna, sortParams } = useOrdenacaoLista<ColunaOrdenacao>()
+
+  const sortParamsEfetivos = useMemo(() => {
+    if (sortParams.ordenar_por) return sortParams
+    if (situacao === 'abertos' && filtroFila === 'sem_responsavel') {
+      return { ordenar_por: 'fila_desde_at' as const, ordem: 'asc' as const }
+    }
+    return {}
+  }, [sortParams, situacao, filtroFila])
 
   const resetarPagina = useCallback(() => setPage(1), [])
 
@@ -258,7 +285,7 @@ export function Tickets() {
           filtroAtendente !== ''
             ? Number(filtroAtendente)
             : undefined,
-        ...sortParams,
+        ...sortParamsEfetivos,
         offset: (page - 1) * PAGE_SIZE_PADRAO,
         limit: PAGE_SIZE_PADRAO,
       })
@@ -291,7 +318,7 @@ export function Tickets() {
     isAdmin,
     ordenarPor,
     ordem,
-    sortParams,
+    sortParamsEfetivos,
     toast,
   ])
 
@@ -621,12 +648,17 @@ export function Tickets() {
             <div className="divide-y divide-slate-100 dark:divide-slate-800 sm:hidden">
               {list.map((t) => {
                 const fechadoFmt = t.fechado_em ? new Date(t.fechado_em).toLocaleString('pt-BR') : null
+                const proximoAuto = mostrarColunasFila && !t.atendente_id && ticketProximoAutoAtribuicao(t)
                 return (
                   <button
                     key={t.id}
                     type="button"
                     onClick={() => navigate(`/tickets/${t.id}`)}
-                    className="w-full px-4 py-4 text-left transition-colors hover:bg-slate-50/80 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-slate-800/40 dark:focus-visible:bg-slate-800/60"
+                    className={`w-full px-4 py-4 text-left transition-colors hover:bg-slate-50/80 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-slate-800/40 dark:focus-visible:bg-slate-800/60 ${
+                      proximoAuto
+                        ? 'bg-amber-50/70 ring-1 ring-inset ring-amber-200/70 dark:bg-amber-950/25 dark:ring-amber-800/40'
+                        : ''
+                    }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -798,7 +830,17 @@ export function Tickets() {
                     className="hidden px-4 py-3 lg:table-cell sm:px-6"
                   />
                   {mostrarColunasFila && (
-                    <th className="hidden whitespace-nowrap px-4 py-3 lg:table-cell sm:px-6">Na fila há</th>
+                    <CabecalhoOrdenavel
+                      coluna="fila_desde_at"
+                      rotulo="Na fila há"
+                      ordenarPor={ordenarPor ?? (filtroFila === 'sem_responsavel' ? 'fila_desde_at' : null)}
+                      ordem={ordenarPor ? ordem : 'asc'}
+                      aoOrdenar={(c) => {
+                        resetarPagina()
+                        aoOrdenarColuna(c)
+                      }}
+                      className="hidden whitespace-nowrap px-4 py-3 lg:table-cell sm:px-6"
+                    />
                   )}
                   {mostrarColunasFila && (
                     <th className="hidden whitespace-nowrap px-4 py-3 lg:table-cell sm:px-6">Distribuição</th>
@@ -806,7 +848,9 @@ export function Tickets() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {list.map((t) => (
+                {list.map((t) => {
+                  const proximoAuto = mostrarColunasFila && !t.atendente_id && ticketProximoAutoAtribuicao(t)
+                  return (
                   <tr
                     key={t.id}
                     role="button"
@@ -818,7 +862,11 @@ export function Tickets() {
                         navigate(`/tickets/${t.id}`)
                       }
                     }}
-                    className="cursor-pointer transition-colors hover:bg-slate-50/90 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-slate-800/50 dark:focus-visible:bg-slate-800/60"
+                    className={`cursor-pointer transition-colors hover:bg-slate-50/90 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-slate-800/50 dark:focus-visible:bg-slate-800/60 ${
+                      proximoAuto
+                        ? 'bg-amber-50/70 ring-1 ring-inset ring-amber-200/70 dark:bg-amber-950/25 dark:ring-amber-800/40'
+                        : ''
+                    }`}
                   >
                     <td
                       className="max-w-[10rem] truncate px-4 py-3.5 align-top font-mono text-sm text-slate-900 sm:max-w-[12rem] sm:px-6 dark:text-slate-100"
@@ -908,7 +956,8 @@ export function Tickets() {
                       </td>
                     )}
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
             </div>

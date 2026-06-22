@@ -107,6 +107,7 @@ class OrdenarTicketsPor(str, Enum):
     status = "status"
     responsavel = "responsavel"
     fechado_em = "fechado_em"
+    fila_desde_at = "fila_desde_at"
 
 class SituacaoTicket(str, Enum):
     abertos = "abertos"
@@ -535,6 +536,9 @@ def listar(
         # Em finalizados, o mais útil é ordenar por data de fechamento (mais recentes primeiro).
         if situacao == SituacaoTicket.fechados:
             order_cols = [Ticket.fechado_em.desc().nullslast(), Ticket.id.desc()]
+        elif sem_responsavel and situacao == SituacaoTicket.abertos:
+            # Fila sem responsável: mais antigos primeiro (prioridade operacional).
+            order_cols = [nullslast(Ticket.fila_desde_at.asc()), Ticket.id.asc()]
         else:
             order_cols = [Ticket.created_at.desc(), Ticket.id.desc()]
     else:
@@ -557,6 +561,8 @@ def listar(
             primary = expr_ordem(StatusTicket.nome, ordem)
         elif ordenar_por == OrdenarTicketsPor.fechado_em:
             primary = nullslast(expr_ordem(Ticket.fechado_em, ordem))
+        elif ordenar_por == OrdenarTicketsPor.fila_desde_at:
+            primary = nullslast(expr_ordem(Ticket.fila_desde_at, ordem))
         else:
             primary = nullslast(expr_ordem(Atendente.nome, ordem))
         tie = expr_ordem(Ticket.id, ordem)

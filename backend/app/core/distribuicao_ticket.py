@@ -12,3 +12,4 @@ class DistribuicaoModo(str, Enum):
 class DistribuicaoEstrategia(str, Enum):
     round_robin = "round_robin"
     menor_carga_abertos = "menor_carga_abertos"
+    menor_carga_setor = "menor_carga_setor"
