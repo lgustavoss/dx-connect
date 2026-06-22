@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Repete um comando até sucesso ou esgotar tentativas (deploy via GitHub Actions → VPS).
-# Se stdin não for TTY, grava uma vez e reutiliza em cada tentativa (ex.: heredoc → ssh bash -s).
+# Repete um comando ate sucesso ou esgotar tentativas (deploy via GitHub Actions -> VPS).
+# Se stdin nao for TTY, grava uma vez e reutiliza em cada tentativa (ex.: heredoc -> ssh bash -s).
 set -euo pipefail
 
 max="${RETRY_MAX:-5}"

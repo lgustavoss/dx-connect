@@ -101,7 +101,7 @@ Em cada deploy o workflow executa `alembic upgrade head` antes do `up --build`. 
 ssh: connect to host *** port 22: Connection timed out
 ```
 
-Costuma aparecer nas etapas **Rsync — frontend dist → VPS** ou **Git pull + Alembic + Docker Compose**. O build do frontend no runner pode ter passado normalmente.
+Costuma aparecer nas etapas **Rsync - frontend dist para VPS** ou **Git pull + Alembic + Docker Compose**. O build do frontend no runner pode ter passado normalmente.
 
 **Causa provável:** falha de rede **transitória** entre o runner do GitHub Actions e o VPS. Não indica, por si só, chave SSH errada ou VPS fora do ar — o mesmo deploy costuma funcionar na segunda tentativa.
 
