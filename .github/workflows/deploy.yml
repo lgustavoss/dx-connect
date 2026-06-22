@@ -33,6 +33,10 @@ on:
       - "frontend/**"
       - "docker-compose.prod.yml"
       - ".github/workflows/deploy.yml"
+      - "VERSION"
+      - "CHANGELOG.md"
+      - "scripts/**"
+      - "docs/releases/**"
 
 concurrency:
   group: deploy-production
@@ -59,9 +63,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Preparar release (CalVer + release notes)
+        run: |
+          python3 scripts/prepare_release.py --deploy --write-env >> "$GITHUB_ENV"
 
       - name: Build do frontend
         working-directory: frontend
+        env:
+          VITE_APP_VERSION: ${{ env.DX_CONNECT_VERSION }}
+          VITE_APP_VERSION_DISPLAY: ${{ env.VITE_APP_VERSION_DISPLAY }}
         run: |
           if [ -z "${VITE_API_URL:-}" ]; then
             echo "::error::Defina o secret VITE_API_URL (URL HTTPS da API, sem barra no final)."
@@ -92,7 +105,7 @@ jobs:
           echo "DEPLOY_KEY_PATH=${HOME}/.ssh/deploy_key" >> "$GITHUB_ENV"
           echo "SSH_MUX_PATH=${HOME}/.ssh/cm-%r@%h:%p" >> "$GITHUB_ENV"
 
-      - name: Git pull + Alembic + Docker Compose
+      - name: Git pull no VPS
         run: |
           REF="${EVENT_REF:-${DEPLOY_GIT_REF:-staging}}"
           echo "Deploy ref no VPS: ${REF}"
@@ -126,15 +139,86 @@ jobs:
           }
 
           retry ssh_base \
-            "REF='${REF}' DEPLOY_PATH='${DEPLOY_PATH}' SKIP_MIGRATIONS='${SKIP_MIGRATIONS}' WEBHOOK_BASE_URL='${VITE_API_URL}' bash -s" << 'REMOTE_SCRIPT'
+            "REF='${REF}' DEPLOY_PATH='${DEPLOY_PATH}' bash -s" << 'REMOTE_SCRIPT'
           set -ex
           cd "$DEPLOY_PATH"
           echo "==> Deploy branch/ref: $REF"
           git fetch origin
           git checkout "$REF"
           git reset --hard "origin/$REF"
+          REMOTE_SCRIPT
+
+      - name: Rsync - artefatos de release para VPS
+        run: |
+          ssh_rsync_release() {
+            rsync -avz \
+              -e "ssh -i ${DEPLOY_KEY_PATH} -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 -o ControlMaster=auto -o ControlPath=${SSH_MUX_PATH} -o ControlPersist=120 -p ${SSH_PORT}" \
+              "$1" "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/$2"
+          }
+
+          retry() {
+            local attempt=1 max=5 delay=15
+            while true; do
+              if "$@"; then return 0; fi
+              if [ "$attempt" -ge "$max" ]; then
+                echo "::error::Rsync release falhou apos ${max} tentativas."
+                return 1
+              fi
+              echo "Tentativa ${attempt}/${max} falhou; nova em ${delay}s..."
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay + 15))
+            done
+          }
+
+          retry ssh_rsync_release "VERSION" ""
+          retry ssh_rsync_release "CHANGELOG.md" ""
+          retry ssh_rsync_release "docs/releases/manifest.json" "docs/releases/"
+          retry ssh_rsync_release "backend/app/data/release_notes.json" "backend/app/data/"
+          retry ssh_rsync_release "frontend/public/release-notes.json" "frontend/public/"
+
+      - name: Alembic + Docker Compose no VPS
+        run: |
+          REF="${EVENT_REF:-${DEPLOY_GIT_REF:-staging}}"
+
+          ssh_base() {
+            ssh -i "$DEPLOY_KEY_PATH" \
+              -o StrictHostKeyChecking=accept-new \
+              -o ConnectTimeout=20 \
+              -o ServerAliveInterval=15 \
+              -o ServerAliveCountMax=3 \
+              -o ControlMaster=auto \
+              -o "ControlPath=${SSH_MUX_PATH}" \
+              -o ControlPersist=120 \
+              -p "${SSH_PORT}" \
+              "${DEPLOY_USER}@${DEPLOY_HOST}" "$@"
+          }
+
+          retry() {
+            local attempt=1 max=5 delay=15
+            while true; do
+              if "$@"; then return 0; fi
+              if [ "$attempt" -ge "$max" ]; then
+                echo "::error::Comando falhou apos ${max} tentativas."
+                return 1
+              fi
+              echo "Tentativa ${attempt}/${max} falhou; nova em ${delay}s (runner GitHub -> VPS)..."
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay + 15))
+            done
+          }
+
+          retry ssh_base \
+            "REF='${REF}' DEPLOY_PATH='${DEPLOY_PATH}' SKIP_MIGRATIONS='${SKIP_MIGRATIONS}' WEBHOOK_BASE_URL='${VITE_API_URL}' DX_CONNECT_VERSION='${DX_CONNECT_VERSION:-}' bash -s" << 'REMOTE_SCRIPT'
+          set -ex
+          cd "$DEPLOY_PATH"
           export DX_CONNECT_GIT_SHA="$(git rev-parse --short HEAD)"
           echo "==> Commit: $DX_CONNECT_GIT_SHA"
+          if [ -z "${DX_CONNECT_VERSION:-}" ] && [ -f VERSION ]; then
+            export DX_CONNECT_VERSION="$(tr -d '\n\r' < VERSION)"
+          fi
+          echo "==> Versão: ${DX_CONNECT_VERSION:-n/a}"
           WEBHOOK_BASE_URL="${WEBHOOK_BASE_URL:-}" bash deploy/scripts/ensure-evolution-env.sh backend/.env
           COMPOSE="docker compose --env-file backend/.env -f docker-compose.prod.yml"
           if [ "$SKIP_MIGRATIONS" != "true" ]; then

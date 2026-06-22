@@ -76,6 +76,7 @@ services:
       dockerfile: Dockerfile
       args:
         DX_CONNECT_GIT_SHA: ${DX_CONNECT_GIT_SHA:-unknown}
+        DX_CONNECT_VERSION: ${DX_CONNECT_VERSION:-}
     container_name: dx-connect-api
     env_file:
       - ./backend/.env
@@ -83,6 +84,7 @@ services:
       ENVIRONMENT: production
       GUNICORN_BIND: "127.0.0.1:8000"
       DX_CONNECT_GIT_SHA: ${DX_CONNECT_GIT_SHA:-unknown}
+      DX_CONNECT_VERSION: ${DX_CONNECT_VERSION:-}
     network_mode: host
     depends_on:
       evolution-api:

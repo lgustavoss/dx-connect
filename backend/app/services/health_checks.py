@@ -9,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.services.system_release import resolve_app_version
 
 
 def _git_sha() -> str | None:
@@ -44,9 +45,11 @@ def integrations_status() -> dict[str, Any]:
 
 def build_health_payload(*, capabilities: dict[str, bool]) -> dict[str, Any]:
     """Liveness: processo de pé; não exige BD."""
+    version = resolve_app_version()
     return {
         "status": "ok",
         "git_sha": _git_sha(),
+        "version": version,
         "environment": settings.ENVIRONMENT,
         "capabilities": capabilities,
         "integrations": integrations_status(),
