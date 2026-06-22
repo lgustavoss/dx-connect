@@ -56,6 +56,7 @@ def _count_sem_responsavel(db: Session, atendente: Atendente) -> int:
         select(func.count())
         .select_from(Ticket)
         .where(
+            Ticket.tenant_id == atendente.tenant_id,
             Ticket.fechado_em.is_(None),
             Ticket.atendente_id.is_(None),
         )
@@ -66,15 +67,22 @@ def _count_sem_responsavel(db: Session, atendente: Atendente) -> int:
     return int(db.execute(stmt).scalar_one())
 
 
-def _count_tickets_com_nao_lidas(db: Session, atendente: Atendente) -> int:
-    stmt = select(func.count()).select_from(Ticket).where(
+def _apply_escopo_tickets_nao_lidos(stmt, db: Session, atendente: Atendente):
+    """Tickets abertos atribuídos ao atendente com mensagens não lidas (mesmo escopo em resumo e itens)."""
+    stmt = stmt.where(
+        Ticket.tenant_id == atendente.tenant_id,
         Ticket.fechado_em.is_(None),
-        Ticket.atendente_id.isnot(None),
+        Ticket.atendente_id == atendente.id,
         _exists_mensagem_nao_lida(atendente.id),
     )
     if atendente.role != "admin":
         vis = ids_setores_visiveis_atendente(db, atendente)
-        stmt = stmt.where(Ticket.setor_id.in_(vis), Ticket.atendente_id == atendente.id)
+        stmt = stmt.where(Ticket.setor_id.in_(vis))
+    return stmt
+
+
+def _count_tickets_com_nao_lidas(db: Session, atendente: Atendente) -> int:
+    stmt = _apply_escopo_tickets_nao_lidos(select(func.count()).select_from(Ticket), db, atendente)
     return int(db.execute(stmt).scalar_one())
 
 
@@ -169,35 +177,49 @@ def _wpp_unread_count_for_chat(db: Session, chat_id: int, atendente_id: int) -> 
     return int(n or 0)
 
 
-def build_notificacao_resumo(db: Session, atendente: Atendente) -> NotificacaoResumo:
-    """Contadores de pendências para um atendente (reutilizado por API e SSE)."""
-    sem = _count_sem_responsavel(db, atendente)
-    nao = _count_tickets_com_nao_lidas(db, atendente)
-    wpp_fila = _count_wpp_fila(db, atendente)
-    wpp_resp = _count_wpp_respostas_pendentes(db, atendente)
-    return NotificacaoResumo(
-        sem_responsavel_count=sem,
-        nao_lidas_count=nao,
-        wpp_fila_count=wpp_fila,
-        wpp_respostas_count=wpp_resp,
-        total_pendencias=sem + nao + wpp_fila + wpp_resp,
-    )
+def _append_fallback_itens(
+    out: list[NotificacaoItem],
+    *,
+    nao_lidas: int,
+    wpp_resp: int,
+) -> None:
+    """Garante item navegável quando o contador do resumo indica pendências mas a listagem ficou vazia."""
+    has_ticket = any(i.tipo == "mensagens_nao_lidas" for i in out)
+    if nao_lidas > 0 and not has_ticket:
+        out.append(
+            NotificacaoItem(
+                tipo="mensagens_nao_lidas",
+                ticket_id=None,
+                titulo=f"{nao_lidas} ticket(s) com mensagens não lidas",
+                descricao="Abrir tickets em aberto",
+                count=nao_lidas,
+                href="/tickets?situacao=abertos",
+                created_at=datetime.now(timezone.utc),
+            )
+        )
+
+    has_wpp_resp = any(i.tipo == "wpp_chats_com_resposta" for i in out)
+    if wpp_resp > 0 and not has_wpp_resp:
+        out.append(
+            NotificacaoItem(
+                tipo="wpp_chats_com_resposta",
+                ticket_id=None,
+                titulo=f"{wpp_resp} chat(s) com resposta pendente",
+                descricao="WhatsApp — ver meus atendimentos",
+                count=wpp_resp,
+                href="/whatsapp/atendendo",
+                created_at=datetime.now(timezone.utc),
+            )
+        )
 
 
-@router.get("/resumo", response_model=NotificacaoResumo)
-def resumo(
-    db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
-):
-    return build_notificacao_resumo(db, atendente)
-
-
-@router.get("/itens", response_model=NotificacaoItensResponse)
-def itens(
-    limit: int = Query(15, ge=1, le=50),
-    db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
-):
+def build_notificacao_itens(
+    db: Session,
+    atendente: Atendente,
+    *,
+    limit: int = 15,
+) -> list[NotificacaoItem]:
+    """Lista de pendências navegáveis (paridade com build_notificacao_resumo)."""
     out: list[NotificacaoItem] = []
 
     sem = _count_sem_responsavel(db, atendente)
@@ -228,8 +250,6 @@ def itens(
             )
         )
 
-    # Itens de WhatsApp com resposta: listar chats (até `limit`) com contagem por chat.
-    # Isso dá clareza ao atendente e permite navegar direto para o chat.
     stmt_wpp = (
         select(WhatsappChat)
         .where(
@@ -260,24 +280,17 @@ def itens(
             )
         )
 
-    stmt = (
+    stmt = _apply_escopo_tickets_nao_lidos(
         select(Ticket)
-        .where(
-            Ticket.fechado_em.is_(None),
-            Ticket.atendente_id.isnot(None),
-            _exists_mensagem_nao_lida(atendente.id),
-        )
         .options(
             joinedload(Ticket.empresa),
             joinedload(Ticket.setor),
         )
         .order_by(Ticket.updated_at.desc().nulls_last(), Ticket.id.desc())
-        .limit(limit)
+        .limit(limit),
+        db,
+        atendente,
     )
-    if atendente.role != "admin":
-        vis = ids_setores_visiveis_atendente(db, atendente)
-        stmt = stmt.where(Ticket.setor_id.in_(vis), Ticket.atendente_id == atendente.id)
-
     rows = db.execute(stmt).unique().scalars().all()
 
     for t in rows:
@@ -286,11 +299,12 @@ def itens(
             continue
         emp = t.empresa.nome if t.empresa else "—"
         setor = t.setor.nome if t.setor else "—"
+        assunto = (t.assunto or "").strip() or "—"
         out.append(
             NotificacaoItem(
                 tipo="mensagens_nao_lidas",
                 ticket_id=t.id,
-                titulo=f"{t.protocolo} — {t.assunto[:80]}{'…' if len(t.assunto) > 80 else ''}",
+                titulo=f"{t.protocolo} — {assunto[:80]}{'…' if len(assunto) > 80 else ''}",
                 descricao=f"{emp} · {setor}",
                 count=uc,
                 href=f"/tickets/{t.id}",
@@ -298,7 +312,42 @@ def itens(
             )
         )
 
-    return NotificacaoItensResponse(itens=out)
+    nao = _count_tickets_com_nao_lidas(db, atendente)
+    wpp_resp = _count_wpp_respostas_pendentes(db, atendente)
+    _append_fallback_itens(out, nao_lidas=nao, wpp_resp=wpp_resp)
+    return out
+
+
+def build_notificacao_resumo(db: Session, atendente: Atendente) -> NotificacaoResumo:
+    """Contadores de pendências para um atendente (reutilizado por API e SSE)."""
+    sem = _count_sem_responsavel(db, atendente)
+    nao = _count_tickets_com_nao_lidas(db, atendente)
+    wpp_fila = _count_wpp_fila(db, atendente)
+    wpp_resp = _count_wpp_respostas_pendentes(db, atendente)
+    return NotificacaoResumo(
+        sem_responsavel_count=sem,
+        nao_lidas_count=nao,
+        wpp_fila_count=wpp_fila,
+        wpp_respostas_count=wpp_resp,
+        total_pendencias=sem + nao + wpp_fila + wpp_resp,
+    )
+
+
+@router.get("/resumo", response_model=NotificacaoResumo)
+def resumo(
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    return build_notificacao_resumo(db, atendente)
+
+
+@router.get("/itens", response_model=NotificacaoItensResponse)
+def itens(
+    limit: int = Query(15, ge=1, le=50),
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    return NotificacaoItensResponse(itens=build_notificacao_itens(db, atendente, limit=limit))
 
 
 @router.post("/tickets/{ticket_id}/visto", status_code=204)

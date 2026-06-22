@@ -401,8 +401,13 @@ app.include_router(tenant.router, prefix=API_V1_PREFIX)
 app.include_router(public_csat.router, prefix=API_V1_PREFIX)
 
 
+def _app_route_paths() -> set[str]:
+    """Coleta paths das rotas (FastAPI >= 0.137 guarda routers incluídos em árvore)."""
+    return set(app.openapi().get("paths", {}))
+
+
 def _app_capabilities() -> dict[str, bool]:
-    paths = {getattr(r, "path", "") for r in app.routes}
+    paths = _app_route_paths()
     return {
         "settings_empresa_sistema": "/v1/settings/empresa-sistema" in paths,
         "settings_email": "/v1/settings/email" in paths,

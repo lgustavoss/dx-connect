@@ -3,8 +3,8 @@
 O workflow [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) faz:
 
 1. **Build do frontend** no runner (usa `VITE_API_URL` dos secrets).
-2. **SSH** no servidor: `git pull`, `alembic upgrade head`, `docker compose -f docker-compose.prod.yml up -d --build` (com até 3 tentativas em falha de conexão).
-3. **`rsync`** da pasta `frontend/dist/` para o caminho no VPS (`DEPLOY_FRONTEND_DIST`), reutilizando a mesma sessão SSH quando possível.
+2. **`rsync`** da pasta `frontend/dist/` para o caminho no VPS (`DEPLOY_FRONTEND_DIST`).
+3. **SSH** no servidor: `git pull`, `alembic upgrade head`, `docker compose -f docker-compose.prod.yml up -d --build`.
 
 Disparo automático em **push** para **`staging`** quando mudam `backend/`, `frontend/`, `docker-compose.prod.yml` ou o próprio workflow. A branch **`main`** não dispara deploy (último estágio de testes/integração); após validar em `main`, abra PR **`main → staging`**, merge e o deploy roda no VPS. Também pode rodar manualmente em **Actions → Deploy → Run workflow**.
 
@@ -93,7 +93,28 @@ Em cada deploy o workflow executa `alembic upgrade head` antes do `up --build`. 
 
 ## Troubleshooting
 
-- **`Connection timed out` (SSH/rsync)**: o runner do GitHub usa **IPs diferentes a cada execução** (pool Azure). O VPS pode aceitar uma tentativa e recusar outra no mesmo dia — não indica configuração SSH errada no servidor. O workflow tenta até 5 vezes; se o deploy por **push** falhar, o workflow **Deploy retry** reexecuta automaticamente após 90s. Também pode rodar manualmente em **Actions → Deploy → Run workflow**.
+### SSH timeout intermitente (`Connection timed out`)
+
+**Sintoma** no log do job:
+
+```text
+ssh: connect to host *** port 22: Connection timed out
+```
+
+Costuma aparecer nas etapas **Rsync - frontend dist para VPS** ou **Git pull + Alembic + Docker Compose**. O build do frontend no runner pode ter passado normalmente.
+
+**Causa provável:** falha de rede **transitória** entre o runner do GitHub Actions e o VPS. Não indica, por si só, chave SSH errada ou VPS fora do ar — o mesmo deploy costuma funcionar na segunda tentativa.
+
+**O que fazer (em ordem):**
+
+1. **Aguarde o retry automático** — `rsync` e `ssh` usam [`deploy/scripts/retry.sh`](../deploy/scripts/retry.sh) com até **5 tentativas** e **15 s** entre elas (opções `ConnectTimeout=30`, keepalive SSH).
+2. **Se o job ainda falhar:** no GitHub, abra **Actions → Deploy → run com falha → Re-run failed jobs** (ou **Re-run all jobs**). Historicamente isso resolve na segunda execução.
+3. **Se persistir em vários re-runs:** confira firewall do VPS (porta SSH acessível), serviço `sshd` ativo, `DEPLOY_HOST` / `DEPLOY_SSH_PORT` corretos e se o IP do servidor não mudou.
+
+**Disparo manual alternativo:** **Actions → Deploy → Run workflow** na branch `staging` (equivalente a um novo deploy completo).
+
+### Outros erros comuns
+
 - **`Permission denied (publickey)`**: confira `DEPLOY_SSH_KEY`, usuário e `authorized_keys` no VPS.
 - **`rsync` falha**: permissões em `DEPLOY_FRONTEND_DIST` e caminho absoluto correto.
 - **`docker: permission denied`**: usuário no grupo `docker` ou reiniciar sessão SSH após `usermod`.
