@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
+import { system } from '../api/client'
 
 const icons: Record<string, React.ReactNode> = {
   dashboard: (
@@ -253,6 +254,27 @@ export function Sidebar({
   const [openGroup, setOpenGroup] = useState<string | null>(null)
   const [openFlyout, setOpenFlyout] = useState<string | null>(null)
   const [flyoutTop, setFlyoutTop] = useState<number | null>(null)
+  const [versionLabel, setVersionLabel] = useState<string | null>(() => {
+    const fromEnv =
+      (import.meta.env.VITE_APP_VERSION_DISPLAY as string | undefined)?.trim() ||
+      (import.meta.env.VITE_APP_VERSION as string | undefined)?.trim()
+    return fromEnv ? (fromEnv.startsWith('v') ? fromEnv : `v${fromEnv}`) : null
+  })
+
+  useEffect(() => {
+    let cancelled = false
+    system
+      .info()
+      .then((info) => {
+        if (!cancelled && info.version_display) setVersionLabel(info.version_display)
+      })
+      .catch(() => {
+        /* fallback: env ou oculto */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const closeFlyout = useCallback(() => {
     setOpenFlyout(null)
@@ -494,6 +516,20 @@ export function Sidebar({
       </nav>
 
       <div className={`shrink-0 border-t border-slate-200 p-2 dark:border-slate-800 ${!expanded ? 'md:px-2' : ''}`}>
+        {versionLabel ? (
+          <Link
+            to="/sobre"
+            onClick={onMobileClose}
+            title="Versão e novidades"
+            className={`mb-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 ${
+              expanded ? '' : 'md:justify-center md:px-2'
+            }`}
+          >
+            <span className={`truncate font-mono tracking-tight ${expanded ? '' : 'md:text-[10px]'}`}>
+              {versionLabel}
+            </span>
+          </Link>
+        ) : null}
         <div
           className={`flex items-center gap-3 px-3 py-2 text-slate-600 dark:text-slate-400 ${
             expanded ? 'opacity-100' : 'md:hidden'
