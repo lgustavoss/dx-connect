@@ -949,6 +949,93 @@ export const tickets = {
 export const dashboard = {
   get: () => api<Dashboard.Response>('/dashboard'),
   getGeral: () => api<Dashboard.GeralResponse>('/dashboard/geral'),
+  getTickets: (params?: {
+    de?: string;
+    ate?: string;
+    rede_id?: number;
+    setor_id?: number;
+    prioridade?: string;
+    atendente_filtro_id?: number;
+    drill_tipo?: string;
+    drill_valor?: string;
+  }) => api<Dashboard.TicketsResponse>(withParams('/dashboard/tickets', params)),
+  getChats: (params?: {
+    de?: string;
+    ate?: string;
+    setor_id?: number;
+    atendente_filtro_id?: number;
+    drill_tipo?: string;
+    drill_valor?: string;
+  }) => api<Dashboard.ChatsResponse>(withParams('/dashboard/chats', params)),
+};
+
+export const relatorios = {
+  tickets: (params?: {
+    de?: string;
+    ate?: string;
+    rede_id?: number;
+    setor_id?: number;
+    prioridade?: string;
+    offset?: number;
+    limit?: number;
+  }) => api<Relatorios.TicketsResponse>(withParams('/relatorios/tickets', params)),
+  exportTicketsCsv: async (params?: {
+    de?: string;
+    ate?: string;
+    rede_id?: number;
+    setor_id?: number;
+    prioridade?: string;
+  }) => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
+    }
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const url = `${BASE}${API_VERSION_PREFIX}${withParams('/relatorios/tickets', { ...params, format: 'csv' })}`;
+    const res = await fetch(url, { headers });
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin();
+      throw new ApiError('Sessão expirada ou inválida.', 401, {});
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody);
+    }
+    return res.blob();
+  },
+  chats: (params?: {
+    de?: string;
+    ate?: string;
+    setor_id?: number;
+    atendente_filtro_id?: number;
+    offset?: number;
+    limit?: number;
+  }) => api<Relatorios.ChatsResponse>(withParams('/relatorios/chats', params)),
+  exportChatsCsv: async (params?: {
+    de?: string;
+    ate?: string;
+    setor_id?: number;
+    atendente_filtro_id?: number;
+  }) => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
+    }
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const url = `${BASE}${API_VERSION_PREFIX}${withParams('/relatorios/chats', { ...params, format: 'csv' })}`;
+    const res = await fetch(url, { headers });
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin();
+      throw new ApiError('Sessão expirada ou inválida.', 401, {});
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody);
+    }
+    return res.blob();
+  },
 };
 
 export namespace Notificacoes {
@@ -1003,9 +1090,28 @@ export namespace Dashboard {
     abertos_hoje: number;
     por_status: StatusCount[];
   }
+  export interface ChatEstadoCount {
+    estado: string;
+    rotulo: string;
+    total: number;
+  }
+  export interface ChatsResumo {
+    total_chats: number;
+    iniciados_hoje: number;
+    por_estado: ChatEstadoCount[];
+  }
+  export interface ChatRecente {
+    id: number;
+    protocolo: string;
+    cliente_nome: string | null;
+    estado: string;
+    created_at: string;
+  }
   export interface Response {
     resumo: Resumo;
+    resumo_chats: ChatsResumo;
     ultimos_tickets: Tickets.Ticket[];
+    ultimos_chats: ChatRecente[];
   }
   export interface CsatResumo {
     media: number | null;
@@ -1022,6 +1128,124 @@ export namespace Dashboard {
     sla_violacoes_abertas: number | null;
     gerado_em: string;
     cache_ttl_segundos: number;
+  }
+  export interface SerieVolumeDia {
+    dia: string;
+    abertos: number;
+    fechados: number;
+  }
+  export interface ContagemIdNome {
+    id: number;
+    nome: string;
+    total: number;
+  }
+  export interface ContagemPrioridade {
+    prioridade: string;
+    total: number;
+  }
+  export interface ContagemCanal {
+    canal: string;
+    rotulo: string;
+    total: number;
+  }
+  export interface CsatDistribuicao {
+    media: number | null;
+    total_avaliacoes: number;
+    por_nota: Record<string, number>;
+  }
+  export interface TicketsResponse {
+    de: string;
+    ate: string;
+    volume_por_dia: SerieVolumeDia[];
+    por_status: ContagemIdNome[];
+    por_prioridade: ContagemPrioridade[];
+    por_motivo: ContagemIdNome[];
+    por_rede: ContagemIdNome[];
+    por_empresa: ContagemIdNome[];
+    mttr_horas: number | null;
+    fila_tempo_medio_horas: number | null;
+    csat: CsatDistribuicao;
+    por_canal: ContagemCanal[];
+    por_atendente: ContagemIdNome[];
+    gerado_em: string;
+    cache_ttl_segundos: number;
+  }
+  export interface SnapshotCanais {
+    tickets_abertos: number;
+    tickets_sem_responsavel: number;
+    chats_aguardando: number;
+    chats_em_atendimento: number;
+  }
+  export interface ContagemRotulo {
+    chave?: string | null;
+    rotulo: string;
+    total: number;
+  }
+  export interface ContagemEncerramentoChat {
+    tipo: string;
+    rotulo: string;
+    total: number;
+  }
+  export interface ChatsResponse {
+    de: string;
+    ate: string;
+    volume_por_dia: SerieVolumeDia[];
+    tempo_espera_medio_horas: number | null;
+    tempo_atendimento_medio_horas: number | null;
+    avaliacoes: CsatDistribuicao;
+    encerramentos: ContagemEncerramentoChat[];
+    pct_com_ticket_vinculado: number | null;
+    por_atendente: ContagemIdNome[];
+    por_estado_atual: ContagemRotulo[];
+    snapshot: SnapshotCanais;
+    gerado_em: string;
+    cache_ttl_segundos: number;
+  }
+}
+
+export namespace Relatorios {
+  export interface TicketLinha {
+    protocolo: string;
+    assunto: string;
+    status_nome: string;
+    prioridade: string;
+    rede_nome: string;
+    empresa_nome: string;
+    setor_nome: string;
+    aberto_em: string | null;
+    fechado_em: string | null;
+    responsavel_nome: string;
+    canal: string;
+  }
+  export interface TicketsResponse {
+    de: string;
+    ate: string;
+    total: number;
+    offset: number;
+    limit: number;
+    itens: TicketLinha[];
+  }
+  export interface ChatLinha {
+    protocolo: string;
+    cliente_nome: string | null;
+    wa_id: string;
+    estado: string;
+    estado_rotulo: string;
+    setor_nome: string;
+    atendente_nome: string;
+    empresa_nome: string;
+    aberto_em: string | null;
+    inicio_atendimento: string | null;
+    encerrado_em: string | null;
+    avaliacao_nota: number | null;
+  }
+  export interface ChatsResponse {
+    de: string;
+    ate: string;
+    total: number;
+    offset: number;
+    limit: number;
+    itens: ChatLinha[];
   }
 }
 
@@ -1557,6 +1781,14 @@ export namespace Tickets {
     remetente_email?: string | null;
     conflito_multiplas_redes?: boolean;
     empresas_vinculo_sugeridas?: EmpresaVinculoSugerida[];
+    rede_id_inferida?: number | null;
+    rede_nome_inferida?: string | null;
+  }
+  export interface SolicitanteBrief {
+    id?: number | null;
+    nome?: string | null;
+    email?: string | null;
+    cadastrado: boolean;
   }
   export interface Ticket {
     id: number;
@@ -1589,6 +1821,7 @@ export namespace Tickets {
     children?: TicketChildBrief[];
     vinculos?: TicketVinculo[];
     triagem_inbound?: TriagemInbound | null;
+    solicitante?: SolicitanteBrief | null;
     avaliacao_nota?: number | null;
     avaliacao_comentario?: string | null;
     avaliacao_respondida_em?: string | null;

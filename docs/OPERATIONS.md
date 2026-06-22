@@ -138,5 +138,6 @@ LIMIT 20;
 ## Relacionado
 
 - Checklist de deploy: [`PRE_DEPLOY_CHECKLIST.md`](PRE_DEPLOY_CHECKLIST.md)
+- Deploy CI/CD (GitHub Actions, SSH timeout): [`deploy/github-actions.md`](../deploy/github-actions.md)
 - Arquitetura multi-cliente: [`DEPLOYMENT_ARCHITECTURE.md`](DEPLOYMENT_ARCHITECTURE.md)
 - Runbook e-mail inbound: issue **#167** (SPF/DKIM)

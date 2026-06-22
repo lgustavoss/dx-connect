@@ -20,6 +20,7 @@ from app.services.funcionario_escopo import (
     sincronizar_vinculos_empresas,
     validar_empresa_ids_na_rede,
 )
+from app.services.inbound_ticket_reconcile import reconciliar_tickets_pendentes_por_email
 from app.services.funcionario_rede_resolver import assert_email_unico_por_rede, resolver_remetente_por_email
 from app.schemas.lista_paginada import ListaPaginada
 from app.core.auth import exigir_admin
@@ -201,6 +202,8 @@ def criar(
     )
     db.commit()
     db.refresh(f)
+    reconciliar_tickets_pendentes_por_email(db, f.email)
+    db.commit()
     return _para_read(f)
 
 
@@ -277,6 +280,8 @@ def atualizar(
     registrar_audit(db, "funcionario_rede", funcionario_id, "update", atendente.id)
     db.commit()
     db.refresh(f)
+    reconciliar_tickets_pendentes_por_email(db, f.email)
+    db.commit()
     return _para_read(f)
 
 

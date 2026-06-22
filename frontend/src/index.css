@@ -31,4 +31,10 @@
   }
 }
 
+/* Recharts: remove faixa clara no hover (incompatível com tema escuro) */
+.recharts-tooltip-cursor,
+.recharts-active-bar,
+.recharts-active-shape {
+  fill: transparent !important;
+}
 

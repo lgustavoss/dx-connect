@@ -7,6 +7,10 @@ import { EsqueciSenha } from './pages/EsqueciSenha'
 import { RedefinirSenha } from './pages/RedefinirSenha'
 import { AvaliarTicket } from './pages/AvaliarTicket'
 import { Dashboard } from './pages/Dashboard'
+import { DashboardTickets } from './pages/DashboardTickets'
+import { DashboardChats } from './pages/DashboardChats'
+import { RelatoriosTickets } from './pages/RelatoriosTickets'
+import { RelatoriosChats } from './pages/RelatoriosChats'
 import { Tickets } from './pages/Tickets'
 import { TicketNovo } from './pages/TicketNovo'
 import { TicketDetalhe } from './pages/TicketDetalhe'
@@ -95,6 +99,24 @@ function AppRoutes() {
         }
       >
         <Route index element={<Dashboard />} />
+        <Route path="dashboard/tickets" element={<DashboardTickets />} />
+        <Route path="dashboard/chats" element={<DashboardChats />} />
+        <Route
+          path="relatorios/tickets"
+          element={
+            <AdminRoute>
+              <RelatoriosTickets />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="relatorios/chats"
+          element={
+            <AdminRoute>
+              <RelatoriosChats />
+            </AdminRoute>
+          }
+        />
         <Route path="alterar-senha" element={<AlterarSenha />} />
         <Route path="notificacoes/preferencias" element={<NotificacoesPreferencias />} />
         <Route path="tickets" element={<Tickets />} />

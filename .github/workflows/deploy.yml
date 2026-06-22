@@ -1,17 +1,20 @@
-# Deploy: build do frontend no GitHub + rsync para o VPS + git pull + Alembic + Docker Compose.
+﻿# Deploy: build do frontend no GitHub + rsync para o VPS + git pull + Alembic + Docker Compose.
 #
-# Secrets (Settings → Secrets and variables → Actions):
-#   DEPLOY_HOST           — hostname ou IP do VPS
-#   DEPLOY_USER           — usuário SSH
-#   DEPLOY_SSH_KEY        — chave privada OpenSSH completa
-#   DEPLOY_PATH           — clone do repositório no servidor (ex.: /home/deploy/dx-connect)
-#   DEPLOY_FRONTEND_DIST  — pasta onde o Nginx aponta o root do SPA (conteúdo de frontend/dist)
-#   VITE_API_URL          — URL HTTPS da API (sem barra final)
+# Secrets (Settings ÔåÆ Secrets and variables ÔåÆ Actions):
+#   DEPLOY_HOST           ÔÇö hostname ou IP do VPS
+#   DEPLOY_USER           ÔÇö usu├írio SSH
+#   DEPLOY_SSH_KEY        ÔÇö chave privada OpenSSH completa
+#   DEPLOY_PATH           ÔÇö clone do reposit├│rio no servidor (ex.: /home/deploy/dx-connect)
+#   DEPLOY_FRONTEND_DIST  ÔÇö pasta onde o Nginx aponta o root do SPA (conte├║do de frontend/dist)
+#   VITE_API_URL          ÔÇö URL HTTPS da API (sem barra final)
 # Opcional:
-#   DEPLOY_SSH_PORT       — porta SSH (padrão 22)
-#   DEPLOY_GIT_REF        — branch no VPS (padrão staging; só usado se o workflow não tiver github.ref_name)
+#   DEPLOY_SSH_PORT       ÔÇö porta SSH (padr├úo 22)
+#   DEPLOY_GIT_REF        ÔÇö branch no VPS (padr├úo staging; s├│ usado se o workflow n├úo tiver github.ref_name)
 #
 # Opcional: crie um Environment "production" com estes secrets e descomente "environment: production" abaixo.
+#
+# SSH intermitente: git pull e rsync usam retry inline (5 tentativas, 15s entre elas).
+# Se ainda falhar com "Connection timed out", re-run do job no GitHub Actions — ver deploy/github-actions.md.
 
 name: Deploy
 
@@ -19,7 +22,7 @@ on:
   workflow_dispatch:
     inputs:
       skip_migrations:
-        description: "Não executar alembic upgrade (só em situações excepcionais)"
+        description: "N├úo executar alembic upgrade (s├│ em situa├º├Áes excepcionais)"
         required: false
         default: false
         type: boolean
@@ -50,7 +53,7 @@ jobs:
       DEPLOY_GIT_REF: ${{ secrets.DEPLOY_GIT_REF }}
       EVENT_REF: ${{ github.ref_name }}
       DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-      # workflow_dispatch: checkbox; push: primeiro termo é false (short-circuit, não avalia inputs)
+      # workflow_dispatch: checkbox; push: primeiro termo ├® false (short-circuit, n├úo avalia inputs)
       SKIP_MIGRATIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_migrations == true || false }}
 
     steps:
@@ -78,7 +81,7 @@ jobs:
             exit 1
           fi
 
-      - name: SSH — known_hosts e chave
+      - name: SSH ÔÇö known_hosts e chave
         run: |
           mkdir -p ~/.ssh
           echo "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
@@ -112,10 +115,10 @@ jobs:
             while true; do
               if "$@"; then return 0; fi
               if [ "$attempt" -ge "$max" ]; then
-                echo "::error::Comando falhou após ${max} tentativas."
+                echo "::error::Comando falhou ap├│s ${max} tentativas."
                 return 1
               fi
-              echo "Tentativa ${attempt}/${max} falhou; nova em ${delay}s (runner GitHub → VPS)..."
+              echo "Tentativa ${attempt}/${max} falhou; nova em ${delay}s (runner GitHub ÔåÆ VPS)..."
               sleep "$delay"
               attempt=$((attempt + 1))
               delay=$((delay + 15))
@@ -143,21 +146,21 @@ jobs:
           fi
           WEBHOOK_BASE_URL="${WEBHOOK_BASE_URL:-}" bash deploy/scripts/restart-backend-prod.sh "$DEPLOY_PATH"
           PUBLIC_HEALTH="$(curl -sf "${WEBHOOK_BASE_URL%/}/health")"
-          echo "Health público (mesmo host): ${PUBLIC_HEALTH}"
+          echo "Health p├║blico (mesmo host): ${PUBLIC_HEALTH}"
           echo "${PUBLIC_HEALTH}" | DX_CONNECT_GIT_SHA="${DX_CONNECT_GIT_SHA}" python3 -c "
           import json, os, sys
           body = json.load(sys.stdin)
           caps = body.get('capabilities') or {}
           missing = [k for k in ('pdv_catalogos', 'empresa_pdvs') if not caps.get(k)]
           if missing:
-              print(f'::error::URL pública sem rotas PDV: faltam {missing}', file=sys.stderr)
+              print(f'::error::URL p├║blica sem rotas PDV: faltam {missing}', file=sys.stderr)
               sys.exit(1)
           expected = os.environ.get('DX_CONNECT_GIT_SHA', '')
           actual = (body.get('git_sha') or '') or ''
           if expected and actual and actual != expected:
-              print(f'::error::git_sha público {actual!r} != commit {expected!r}', file=sys.stderr)
+              print(f'::error::git_sha p├║blico {actual!r} != commit {expected!r}', file=sys.stderr)
               sys.exit(1)
-          print('OK: health público no VPS', actual, caps)
+          print('OK: health p├║blico no VPS', actual, caps)
           "
           for i in 1 2 3 4 5 6; do
             curl -sf "http://127.0.0.1:8080" >/dev/null && { echo "Evolution API: OK (8080)"; break; }
@@ -166,7 +169,7 @@ jobs:
           curl -sf "http://127.0.0.1:8080" >/dev/null || echo "Evolution API: aguardar ou conferir logs (docker logs dx-connect-evolution-api)"
           REMOTE_SCRIPT
 
-      - name: Rsync — frontend dist → VPS
+      - name: Rsync ÔÇö frontend dist ÔåÆ VPS
         run: |
           ssh_rsync() {
             rsync -avz --delete \
@@ -179,7 +182,7 @@ jobs:
             while true; do
               if "$@"; then return 0; fi
               if [ "$attempt" -ge "$max" ]; then
-                echo "::error::Rsync falhou após ${max} tentativas."
+                echo "::error::Rsync falhou ap├│s ${max} tentativas."
                 return 1
               fi
               echo "Tentativa ${attempt}/${max} falhou; nova em ${delay}s..."
@@ -219,7 +222,7 @@ jobs:
           actual_sha = (body.get("git_sha") or "") or ""
           if expected_sha and actual_sha and actual_sha != expected_sha:
               print(
-                  f"::error::git_sha em produção ({actual_sha!r}) difere do commit deployado ({expected_sha!r}). "
+                  f"::error::git_sha em produ├º├úo ({actual_sha!r}) difere do commit deployado ({expected_sha!r}). "
                   "Processo antigo pode ainda estar na porta 8000.",
                   file=sys.stderr,
               )
