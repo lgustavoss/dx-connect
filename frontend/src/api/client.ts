@@ -899,7 +899,7 @@ export const tickets = {
     meus?: boolean;
     atendente_id?: number;
     /** Coluna para ordenar (omitir = mais recentes primeiro). */
-    ordenar_por?: 'protocolo' | 'rede' | 'empresa' | 'setor' | 'assunto' | 'status' | 'responsavel' | 'fechado_em';
+    ordenar_por?: 'protocolo' | 'rede' | 'empresa' | 'setor' | 'assunto' | 'status' | 'responsavel' | 'fechado_em' | 'fila_desde_at';
     ordem?: 'asc' | 'desc';
     offset?: number;
     limit?: number;
@@ -1430,7 +1430,7 @@ export namespace TiposNegocio {
 
 export namespace Setores {
   export type DistribuicaoModo = 'manual' | 'auto_apos_timeout' | 'auto_imediato'
-  export type DistribuicaoEstrategia = 'round_robin' | 'menor_carga_abertos'
+  export type DistribuicaoEstrategia = 'round_robin' | 'menor_carga_abertos' | 'menor_carga_setor'
 
   export interface Distribuicao {
     modo: DistribuicaoModo
