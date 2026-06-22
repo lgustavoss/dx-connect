@@ -143,12 +143,12 @@ export function Tickets() {
   const { ordenarPor, ordem, aoOrdenarColuna, sortParams } = useOrdenacaoLista<ColunaOrdenacao>()
 
   const sortParamsEfetivos = useMemo(() => {
-    if (sortParams.ordenar_por) return sortParams
+    if (ordenarPor) return sortParams
     if (situacao === 'abertos' && filtroFila === 'sem_responsavel') {
       return { ordenar_por: 'fila_desde_at' as const, ordem: 'asc' as const }
     }
     return {}
-  }, [sortParams, situacao, filtroFila])
+  }, [ordenarPor, sortParams, situacao, filtroFila])
 
   const resetarPagina = useCallback(() => setPage(1), [])
 
