@@ -69,6 +69,7 @@ const ROTULO_CAMPO: Record<string, string> = {
   prioridade: 'Prioridade',
   motivo_id: 'Motivo',
   motivo_outro_texto: 'Detalhe do motivo',
+  distribuicao_automatica: 'Distribuição automática',
 }
 
 function resolverValorHistorico(
@@ -83,6 +84,7 @@ function resolverValorHistorico(
   },
 ): string {
   if (valor == null || valor === '') return '—'
+  if (campo === 'distribuicao_automatica') return valor
   if (campo === 'prioridade') return rotuloPrioridade(valor)
   if (campo === 'motivo_outro_texto') {
     const t = (valor || '').trim()
@@ -2019,11 +2021,17 @@ export function TicketDetalhe() {
                     {ROTULO_CAMPO[h.campo] ?? h.campo}
                   </div>
                   <div className="mt-1 text-slate-600 dark:text-slate-300">
-                    <span className="text-slate-500 dark:text-slate-400">
-                      {resolverValorHistorico(h.campo, h.valor_antigo, mapsHistorico)}
-                    </span>
-                    <span className="mx-2 text-slate-400 dark:text-slate-500">→</span>
-                    <span>{resolverValorHistorico(h.campo, h.valor_novo, mapsHistorico)}</span>
+                    {h.campo === 'distribuicao_automatica' ? (
+                      <span>{resolverValorHistorico(h.campo, h.valor_novo, mapsHistorico)}</span>
+                    ) : (
+                      <>
+                        <span className="text-slate-500 dark:text-slate-400">
+                          {resolverValorHistorico(h.campo, h.valor_antigo, mapsHistorico)}
+                        </span>
+                        <span className="mx-2 text-slate-400 dark:text-slate-500">→</span>
+                        <span>{resolverValorHistorico(h.campo, h.valor_novo, mapsHistorico)}</span>
+                      </>
+                    )}
                   </div>
                   <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                     {new Date(h.created_at).toLocaleString('pt-BR')}

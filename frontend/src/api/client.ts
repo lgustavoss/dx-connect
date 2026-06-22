@@ -899,7 +899,7 @@ export const tickets = {
     meus?: boolean;
     atendente_id?: number;
     /** Coluna para ordenar (omitir = mais recentes primeiro). */
-    ordenar_por?: 'protocolo' | 'rede' | 'empresa' | 'setor' | 'assunto' | 'status' | 'responsavel' | 'fechado_em';
+    ordenar_por?: 'protocolo' | 'rede' | 'empresa' | 'setor' | 'assunto' | 'status' | 'responsavel' | 'fechado_em' | 'fila_desde_at';
     ordem?: 'asc' | 'desc';
     offset?: number;
     limit?: number;
@@ -1430,7 +1430,7 @@ export namespace TiposNegocio {
 
 export namespace Setores {
   export type DistribuicaoModo = 'manual' | 'auto_apos_timeout' | 'auto_imediato'
-  export type DistribuicaoEstrategia = 'round_robin' | 'menor_carga_abertos'
+  export type DistribuicaoEstrategia = 'round_robin' | 'menor_carga_abertos' | 'menor_carga_setor'
 
   export interface Distribuicao {
     modo: DistribuicaoModo
@@ -1977,3 +1977,35 @@ export namespace Audit {
     created_at: string;
   }
 }
+
+export namespace System {
+  export interface Info {
+    version: string | null;
+    version_display: string | null;
+    git_sha: string | null;
+    environment: string;
+  }
+  export interface ReleaseChange {
+    category: string;
+    text: string;
+  }
+  export interface Release {
+    version: string;
+    version_display: string;
+    date: string;
+    status: string;
+    changes: ReleaseChange[];
+  }
+  export interface ReleaseNotes {
+    current_version: string | null;
+    current_version_display: string | null;
+    current: Release | null;
+    releases: Release[];
+    upcoming: ReleaseChange[];
+  }
+}
+
+export const system = {
+  info: () => api<System.Info>('/system/info'),
+  releaseNotes: () => api<System.ReleaseNotes>('/system/release-notes'),
+};

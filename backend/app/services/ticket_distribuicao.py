@@ -18,6 +18,9 @@ from app.services.realtime_emit import emit_notificacao_after_counter_change, em
 
 logger = logging.getLogger(__name__)
 
+CAMPO_HISTORICO_DISTRIBUICAO_AUTOMATICA = "distribuicao_automatica"
+TEXTO_HISTORICO_DISTRIBUICAO_AUTOMATICA = "Atribuído automaticamente"
+
 
 def setor_para_distribuicao_read(setor: Setor):
     from app.schemas.setor_distribuicao import SetorDistribuicaoRead
@@ -68,6 +71,18 @@ def _registrar_historico_atribuicao(
     )
 
 
+def _registrar_historico_distribuicao_automatica(db: Session, ticket_id: int) -> None:
+    db.add(
+        TicketHistorico(
+            ticket_id=ticket_id,
+            atendente_id=None,
+            campo=CAMPO_HISTORICO_DISTRIBUICAO_AUTOMATICA,
+            valor_antigo=None,
+            valor_novo=TEXTO_HISTORICO_DISTRIBUICAO_AUTOMATICA,
+        )
+    )
+
+
 def listar_atendentes_elegiveis_distribuicao(db: Session, setor: Setor) -> list[Atendente]:
     """Atendentes ativos do setor (homônimos), excluindo admin."""
     ids_setor = ids_setores_mesmo_nome(db, setor.id)
@@ -88,19 +103,24 @@ def listar_atendentes_elegiveis_distribuicao(db: Session, setor: Setor) -> list[
     return sorted(q.all(), key=lambda a: (a.nome.lower(), a.id))
 
 
-def _contar_tickets_abertos_por_atendente(db: Session, atendente_ids: list[int], setor_ids: set[int]) -> dict[int, int]:
+def _contar_tickets_abertos_por_atendente(
+    db: Session,
+    atendente_ids: list[int],
+    *,
+    tenant_id: int,
+    setor_ids: set[int] | None = None,
+) -> dict[int, int]:
+    """Conta tickets abertos por atendente. ``setor_ids=None`` = carga total no tenant."""
     if not atendente_ids:
         return {}
-    rows = (
-        db.query(Ticket.atendente_id, func.count(Ticket.id))
-        .filter(
-            Ticket.atendente_id.in_(atendente_ids),
-            Ticket.setor_id.in_(setor_ids),
-            Ticket.fechado_em.is_(None),
-        )
-        .group_by(Ticket.atendente_id)
-        .all()
+    q = db.query(Ticket.atendente_id, func.count(Ticket.id)).filter(
+        Ticket.tenant_id == tenant_id,
+        Ticket.atendente_id.in_(atendente_ids),
+        Ticket.fechado_em.is_(None),
     )
+    if setor_ids is not None:
+        q = q.filter(Ticket.setor_id.in_(setor_ids))
+    rows = q.group_by(Ticket.atendente_id).all()
     out = {aid: 0 for aid in atendente_ids}
     for aid, cnt in rows:
         if aid is not None:
@@ -108,11 +128,22 @@ def _contar_tickets_abertos_por_atendente(db: Session, atendente_ids: list[int],
     return out
 
 
-def _escolher_menor_carga(db: Session, setor: Setor, candidatos: list[Atendente]) -> Atendente | None:
+def _escolher_menor_carga(
+    db: Session,
+    setor: Setor,
+    candidatos: list[Atendente],
+    *,
+    escopo_setor: bool,
+) -> Atendente | None:
     if not candidatos:
         return None
-    ids_setor = ids_setores_mesmo_nome(db, setor.id)
-    cargas = _contar_tickets_abertos_por_atendente(db, [c.id for c in candidatos], ids_setor)
+    setor_ids = {setor.id} if escopo_setor else None
+    cargas = _contar_tickets_abertos_por_atendente(
+        db,
+        [c.id for c in candidatos],
+        tenant_id=setor.tenant_id,
+        setor_ids=setor_ids,
+    )
     return min(candidatos, key=lambda a: (cargas.get(a.id, 0), a.nome.lower(), a.id))
 
 
@@ -144,7 +175,9 @@ def _escolher_round_robin(db: Session, setor_id: int, candidatos: list[Atendente
 def _escolher_atendente(db: Session, setor: Setor, candidatos: list[Atendente]) -> Atendente | None:
     estrategia = setor.distribuicao_estrategia or DistribuicaoEstrategia.round_robin.value
     if estrategia == DistribuicaoEstrategia.menor_carga_abertos.value:
-        return _escolher_menor_carga(db, setor, candidatos)
+        return _escolher_menor_carga(db, setor, candidatos, escopo_setor=False)
+    if estrategia == DistribuicaoEstrategia.menor_carga_setor.value:
+        return _escolher_menor_carga(db, setor, candidatos, escopo_setor=True)
     return _escolher_round_robin(db, setor.id, candidatos)
 
 
@@ -167,6 +200,7 @@ def atribuir_ticket_automaticamente(
     ticket.atendente_id = escolhido.id
     ticket.fila_desde_at = None
     _registrar_historico_atribuicao(db, ticket.id, antigo or None, str(escolhido.id))
+    _registrar_historico_distribuicao_automatica(db, ticket.id)
     db.flush()
     notificar_ticket_atribuido(
         db,

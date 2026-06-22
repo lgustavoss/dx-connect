@@ -4,7 +4,9 @@ WORKDIR /app
 
 ARG INSTALL_DEV=0
 ARG DX_CONNECT_GIT_SHA=unknown
+ARG DX_CONNECT_VERSION=
 ENV DX_CONNECT_GIT_SHA=${DX_CONNECT_GIT_SHA}
+ENV DX_CONNECT_VERSION=${DX_CONNECT_VERSION}
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \

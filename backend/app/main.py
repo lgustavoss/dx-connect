@@ -40,6 +40,7 @@ from app.api import (
     system_settings,
     tenant,
     public_csat,
+    system,
 )
 from app.config import settings
 from app.core.tenant_context import resolve_tenant_id, set_request_tenant_id
@@ -399,6 +400,7 @@ app.include_router(empresa_pdvs.router, prefix=API_V1_PREFIX)
 app.include_router(system_settings.router, prefix=API_V1_PREFIX)
 app.include_router(tenant.router, prefix=API_V1_PREFIX)
 app.include_router(public_csat.router, prefix=API_V1_PREFIX)
+app.include_router(system.router, prefix=API_V1_PREFIX)
 
 
 def _app_route_paths() -> set[str]:
@@ -418,6 +420,8 @@ def _app_capabilities() -> dict[str, bool]:
         or any(p.startswith("/v1/empresas/") and "/pdvs" in p for p in paths),
         "multi_tenant_mode": settings.DX_CONNECT_MULTI_TENANT,
         "evolution_embutida": settings.evolution_embutida_disponivel,
+        "system_info": "/v1/system/info" in paths,
+        "system_release_notes": "/v1/system/release-notes" in paths,
     }
 
 

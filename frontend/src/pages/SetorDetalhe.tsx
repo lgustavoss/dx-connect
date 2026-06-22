@@ -22,7 +22,8 @@ const MODO_OPCOES: { value: Setores.DistribuicaoModo; label: string }[] = [
 
 const ESTRATEGIA_OPCOES: { value: Setores.DistribuicaoEstrategia; label: string }[] = [
   { value: 'round_robin', label: 'Round-robin (revezamento)' },
-  { value: 'menor_carga_abertos', label: 'Menor carga (tickets abertos)' },
+  { value: 'menor_carga_abertos', label: 'Menor carga (todos os tickets abertos do atendente)' },
+  { value: 'menor_carga_setor', label: 'Menor carga (tickets abertos neste setor)' },
 ]
 
 /** Mesmo nome de setor = mesmo “setor lógico” (vários IDs no banco). */
@@ -304,7 +305,7 @@ export function SetorDetalhe() {
         <div className="space-y-4">
           <p className="text-sm text-slate-600 dark:text-slate-400">
             Define como tickets sem responsável neste setor são atribuídos. Administradores nunca recebem atribuição
-            automática.
+            automática. Chats WhatsApp não são afetados — apenas tickets.
           </p>
 
           <Select
