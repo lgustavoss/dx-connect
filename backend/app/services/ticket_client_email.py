@@ -38,6 +38,18 @@ def extrair_email_de_from_address(raw: str | None) -> str | None:
     return None
 
 
+def extrair_nome_de_from_address(raw: str | None) -> str | None:
+    """Extrai nome legível antes do endereço em formato ``Nome <email@dominio>``."""
+    if not raw or not str(raw).strip():
+        return None
+    s = str(raw).strip()
+    m = _ANGLE_EMAIL.search(s)
+    if not m:
+        return None
+    nome = s[: m.start()].strip().strip('"').strip("'")
+    return nome or None
+
+
 def ultima_mensagem_inbound(db: Session, ticket_id: int) -> EmailInboundReceived | None:
     return (
         db.query(EmailInboundReceived)

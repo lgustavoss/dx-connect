@@ -757,7 +757,7 @@ export function TicketDetalhe() {
     setEditSetor(ticket.setor_id)
     setEditStatus(ticket.status_id)
     setEditAtendente(ticket.atendente_id ?? '')
-    setEditRede(ticket.rede_id ?? '')
+    setEditRede(ticket.rede_id ?? ticket.triagem_inbound?.rede_id_inferida ?? '')
     setEditEmpresa(ticket.empresa_id ?? '')
     setEditPrioridade((ticket.prioridade as PrioridadeTicket) ?? 'normal')
     setEditClassificacao(classificacaoFromTicket(ticket))
@@ -775,7 +775,23 @@ export function TicketDetalhe() {
   const triagemInbound = ticket?.triagem_inbound
   const empresasVinculoSugeridas = triagemInbound?.empresas_vinculo_sugeridas ?? []
   const requerCadastroFuncionario = triagemInbound?.requer_cadastro_funcionario === true
-  const redeTriagemFixa = empresasVinculoSugeridas.length > 0 && ticket?.rede_id != null
+  const redeIdTriagem = ticket?.rede_id ?? triagemInbound?.rede_id_inferida ?? null
+  const redeTriagemFixa =
+    redeIdTriagem != null &&
+    (empresasVinculoSugeridas.length > 0 || (triagemInbound != null && !requerCadastroFuncionario))
+
+  const redesOpcoesModal = useMemo(() => {
+    if (!redeTriagemFixa || redeIdTriagem == null) return redesList
+    const found = redesList.find((r) => r.id === redeIdTriagem)
+    if (found) return [found]
+    return [
+      {
+        id: redeIdTriagem,
+        nome: triagemInbound?.rede_nome_inferida ?? `Rede #${redeIdTriagem}`,
+        ativo: true,
+      },
+    ]
+  }, [redesList, redeTriagemFixa, redeIdTriagem, triagemInbound?.rede_nome_inferida])
 
   const empresasOpcoesModal = useMemo(() => {
     if (empresasVinculoSugeridas.length > 0) {
@@ -1455,6 +1471,24 @@ export function TicketDetalhe() {
                   value={ticket.atendente_nome ?? '—'}
                   onClick={() => tentarEditarTicket(() => abrirModalGerir('atendente'))}
                 />
+                {ticket.solicitante && (ticket.solicitante.nome || ticket.solicitante.email) ? (
+                  <TicketMetaChip
+                    label="Solic."
+                    value={ticket.solicitante.nome ?? ticket.solicitante.email ?? '—'}
+                    onClick={() => {
+                      if (ticket.solicitante?.id) {
+                        navigate(`/funcionarios-rede/${ticket.solicitante.id}`)
+                        return
+                      }
+                      if (!ticket.solicitante?.cadastrado && isAdmin) {
+                        navigate(linkCadastroFuncionario)
+                      }
+                    }}
+                    disabled={
+                      !ticket.solicitante.id && (ticket.solicitante.cadastrado || !isAdmin)
+                    }
+                  />
+                ) : null}
                 <TicketMetaChip
                   label="Hier."
                   value={rotuloChipHierarquia}
@@ -2337,7 +2371,7 @@ export function TicketDetalhe() {
                         setEditRede(v === '' ? '' : Number(v))
                         setEditEmpresa('')
                       }}
-                      options={redesList.map((r) => ({
+                      options={redesOpcoesModal.map((r) => ({
                         value: r.id,
                         label: `${r.nome}${!r.ativo ? ' (inativa)' : ''}`,
                       }))}
