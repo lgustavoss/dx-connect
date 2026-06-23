@@ -299,6 +299,32 @@ async def lifespan(app: FastAPI):
         name="ticket-distribuicao",
     ).start()
 
+    def sla_violacao_loop() -> None:
+        from app.database import SessionLocal
+        from app.services.sla_calculo import processar_sla_tickets_abertos
+
+        interval = max(30, settings.SLA_WORKER_INTERVAL_SECONDS)
+        while True:
+            db = SessionLocal()
+            try:
+                n = processar_sla_tickets_abertos(db, limit=200)
+                if n:
+                    db.commit()
+                else:
+                    db.rollback()
+            except Exception as e:
+                logger.warning("Worker SLA: %s", e)
+                db.rollback()
+            finally:
+                db.close()
+            time.sleep(interval)
+
+    threading.Thread(
+        target=sla_violacao_loop,
+        daemon=True,
+        name="sla-violacao",
+    ).start()
+
     yield
 
 

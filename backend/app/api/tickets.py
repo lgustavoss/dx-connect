@@ -57,6 +57,7 @@ from app.services.ticket_csat import csat_brief_para_ticket, criar_convite_csat
 from app.services.ticket_close_hooks import processar_hooks_ao_fechar_ticket
 from app.services.notificacao_atendente_email import notificar_nova_mensagem_ticket, notificar_ticket_atribuido
 from app.schemas.ticket_csat import TicketCsatDevLinkRead
+from app.schemas.sla import TicketSlaRead
 from app.services.ticket_vinculos import (
     criar_vinculo as criar_vinculo_ticket,
     fechar_ticket_como_duplicado,
@@ -772,6 +773,11 @@ def criar(
             emit_ticket_fila(db, ticket)
             contagem_ja_emitida = True
     if msg_abertura:
+        from app.services.sla_calculo import mensagem_conta_primeira_resposta, registrar_primeira_resposta_se_necessario
+
+        if mensagem_conta_primeira_resposta(msg_abertura):
+            registrar_primeira_resposta_se_necessario(db, ticket, momento=msg_abertura.created_at)
+            db.commit()
         emit_ticket_mensagem_from_model(
             db,
             ticket,
@@ -814,6 +820,33 @@ def obter(
     if not _pode_ver_ticket(db, atendente, ticket):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
     return _ticket_para_read(ticket, db)
+
+
+@router.get("/{ticket_id}/sla", response_model=TicketSlaRead)
+def obter_sla_ticket(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
+    if not _pode_ver_ticket(db, atendente, ticket):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
+    from app.services.sla_calculo import build_ticket_sla_read
+
+    dados = build_ticket_sla_read(db, ticket)
+    from app.schemas.sla import SlaMetaDetalheRead
+
+    return TicketSlaRead(
+        ticket_id=dados["ticket_id"],
+        sla_policy_id=dados["sla_policy_id"],
+        sla_violado=dados["sla_violado"],
+        inicio_em=dados["inicio_em"],
+        usa_horario_comercial=dados["usa_horario_comercial"],
+        primeira_resposta=SlaMetaDetalheRead(**dados["primeira_resposta"]),
+        resolucao=SlaMetaDetalheRead(**dados["resolucao"]),
+    )
 
 
 @router.post("/{ticket_id}/csat/link-dev", response_model=TicketCsatDevLinkRead)
@@ -1223,6 +1256,10 @@ def criar_mensagem(
         agendar_envio_email(m, db)
     db.add(m)
     db.flush()
+    from app.services.sla_calculo import mensagem_conta_primeira_resposta, registrar_primeira_resposta_se_necessario
+
+    if mensagem_conta_primeira_resposta(m):
+        registrar_primeira_resposta_se_necessario(db, ticket, momento=m.created_at)
     notificar_nova_mensagem_ticket(db, ticket=ticket, mensagem=m, autor_atendente_id=atendente.id)
     db.commit()
     db.refresh(m)
@@ -1751,6 +1788,10 @@ def atualizar(
         sincronizar_fila_desde_at(ticket, reset=reset_fila or "atendente_id" in update)
     else:
         ticket.fila_desde_at = None
+
+    from app.services.sla_calculo import sincronizar_sla_violado
+
+    sincronizar_sla_violado(db, ticket)
 
     db.commit()
     if acabou_de_fechar:
