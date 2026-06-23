@@ -445,6 +445,24 @@ export const respostasProntas = {
     ),
 };
 
+export const routingRules = {
+  list: (params?: { incluir_inativos?: boolean }) =>
+    api<RoutingRules.Regra[]>(withParams('/routing/rules', params)),
+  get: (id: number) => api<RoutingRules.Regra>(`/routing/rules/${id}`),
+  create: (data: RoutingRules.Create) =>
+    api<RoutingRules.Regra>('/routing/rules', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: RoutingRules.Update) =>
+    api<RoutingRules.Regra>(`/routing/rules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: number) => api<void>(`/routing/rules/${id}`, { method: 'DELETE' }),
+  reorder: (items: { id: number; ordem: number }[]) =>
+    api<RoutingRules.Regra[]>('/routing/rules/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ items }),
+    }),
+  simulate: (data: RoutingRules.Simulate) =>
+    api<RoutingRules.Resultado>('/routing/rules/simulate', { method: 'POST', body: JSON.stringify(data) }),
+};
+
 export const audit = {
   list: (params?: {
     entity_type?: string;
@@ -1727,6 +1745,74 @@ export namespace StatusTicket {
     slug?: string;
     ordem?: number;
     ativo?: boolean;
+  }
+}
+
+export namespace RoutingRules {
+  export type Campo = 'email_from' | 'email_to' | 'assunto' | 'canal';
+  export type Operador = 'contains' | 'equals' | 'regex';
+  export type Canal = 'email' | 'manual';
+  export type Prioridade = 'baixa' | 'normal' | 'alta' | 'urgente';
+
+  export interface Condicao {
+    campo: Campo;
+    operador: Operador;
+    valor: string;
+  }
+
+  export interface Acoes {
+    setor_id?: number | null;
+    prioridade?: Prioridade | null;
+    natureza_id?: number | null;
+    motivo_id?: number | null;
+    atendente_id?: number | null;
+  }
+
+  export interface Regra {
+    id: number;
+    nome: string;
+    ativo: boolean;
+    ordem: number;
+    rede_id: number | null;
+    condicoes: Condicao[];
+    acoes: Acoes;
+  }
+
+  export interface Create {
+    nome: string;
+    ativo?: boolean;
+    rede_id?: number | null;
+    condicoes: Condicao[];
+    acoes: Acoes;
+  }
+
+  export interface Update {
+    nome?: string;
+    ativo?: boolean;
+    rede_id?: number | null;
+    condicoes?: Condicao[];
+    acoes?: Acoes;
+  }
+
+  export interface Simulate {
+    email_from?: string | null;
+    email_to?: string | null;
+    assunto?: string | null;
+    canal?: Canal;
+    rede_id?: number | null;
+    setor_id_atual?: number | null;
+    aplicar_setor?: boolean;
+  }
+
+  export interface Resultado {
+    matched: boolean;
+    rule_id?: number | null;
+    rule_nome?: string | null;
+    setor_id?: number | null;
+    prioridade?: Prioridade | null;
+    natureza_id?: number | null;
+    motivo_id?: number | null;
+    atendente_id?: number | null;
   }
 }
 

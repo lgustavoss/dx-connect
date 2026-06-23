@@ -7,6 +7,10 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Melhorias
 
+- Motor de roteamento automático: regras configuráveis por admin (setor, prioridade, natureza, motivo, atendente) com avaliação em e-mail inbound e criação manual de tickets
+- Audit log e histórico do ticket quando uma regra de roteamento é aplicada em runtime
+- `aplicar_roteamento` restrito a administradores para sobrescrever setor explícito
+- UI em Configurações → Atendimento → Roteamento com simulador de teste seco
 - Histórico completo de atualizações no painel Sobre (versões anteriores permanecem visíveis)
 - CHANGELOG obrigatório em PRs com mudança de produto (validação automática no CI)
 

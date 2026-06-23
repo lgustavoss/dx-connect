@@ -9,12 +9,13 @@ from app.core.ticket_prioridade import PrioridadeTicket
 class TicketCreate(BaseModel):
     empresa_id: int | None = None
     rede_id: int | None = None
-    setor_id: int
+    setor_id: int | None = None
     assunto: str
     descricao: str | None = None
     aberto_por_id: int | None = None
     parent_ticket_id: int | None = None
     prioridade: PrioridadeTicket = PrioridadeTicket.normal
+    aplicar_roteamento: bool = False
 
     @model_validator(mode="after")
     def validar_escopo(self):
