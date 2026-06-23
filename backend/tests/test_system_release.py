@@ -64,14 +64,16 @@ def test_system_info_authenticated(client, auth_headers, monkeypatch):
 
 def test_system_release_notes_filters_stale_upcoming(client, auth_headers, monkeypatch, tmp_path):
     data_path = tmp_path / "release_notes.json"
+    release = {
+        "version": "26.06.001",
+        "version_display": "v26.06.001",
+        "date": "2026-06-22",
+        "status": "published",
+        "changes": [{"category": "melhorias", "text": "Distribuição (#399)"}],
+    }
     payload = {
         "current_version": "26.06.001",
-        "releases": [
-            {
-                "version": "26.06.001",
-                "changes": [{"category": "melhorias", "text": "Distribuição (#399)"}],
-            }
-        ],
+        "releases": [release],
         "upcoming": [
             {"category": "melhorias", "text": "feat(releases): CalVer (#404)"},
         ],
