@@ -481,6 +481,15 @@ def _avaliacao_read(c: WhatsappChat) -> WhatsappAvaliacaoRead:
     )
 
 
+def _exigir_responsavel_envio_cliente(c: WhatsappChat, atendente: Atendente) -> None:
+    """Somente o atendente responsável envia mensagem/mídia ao WhatsApp do cliente (#403)."""
+    if c.atendente_id != atendente.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Apenas o atendente responsável pode enviar mensagens ao cliente. Use comentário interno.",
+        )
+
+
 def _pode_ver_chat(db: Session, atendente: Atendente, c: WhatsappChat) -> bool:
     if atendente.role == "admin":
         return True
@@ -898,8 +907,7 @@ def enviar_mensagem(
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
     if c.estado != "em_atendimento":
         raise HTTPException(status_code=400, detail="Só é possível enviar mensagens em chats ativos")
-    if atendente.role != "admin" and c.atendente_id != atendente.id:
-        raise HTTPException(status_code=403, detail="Apenas o atendente responsável pode enviar mensagens")
+    _exigir_responsavel_envio_cliente(c, atendente)
     texto = data.texto.strip()
     m = _enviar_texto_whatsapp(
         db,
@@ -934,8 +942,7 @@ async def enviar_mensagem_midia(
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
     if c.estado != "em_atendimento":
         raise HTTPException(status_code=400, detail="Só é possível enviar mensagens em chats ativos")
-    if atendente.role != "admin" and c.atendente_id != atendente.id:
-        raise HTTPException(status_code=403, detail="Apenas o atendente responsável pode enviar mensagens")
+    _exigir_responsavel_envio_cliente(c, atendente)
 
     data = await file.read()
     if len(data) > settings.WHATSAPP_MEDIA_MAX_BYTES:
@@ -1055,6 +1062,7 @@ def comentar_interno(
         .first()
     )
     assert m2 is not None
+    emit_chat_mensagem_from_models(db, c, m2, exclude_atendente_id=atendente.id)
     return _mensagem_read(m2)
 
 
