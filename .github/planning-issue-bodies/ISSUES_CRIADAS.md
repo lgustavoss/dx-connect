@@ -13,7 +13,7 @@ Meta-issue geral: [#16](https://github.com/lgustavoss/dx-connect/issues/16)
 | RT | [#256](https://github.com/lgustavoss/dx-connect/issues/256) | #264–#269 |
 | T | [#257](https://github.com/lgustavoss/dx-connect/issues/257) | #270–#273 |
 | R | [#258](https://github.com/lgustavoss/dx-connect/issues/258) | #274–#276 |
-| S | [#259](https://github.com/lgustavoss/dx-connect/issues/259) | #277–#281 |
+| S | [#259](https://github.com/lgustavoss/dx-connect/issues/259) | #277–#281 (follow-ups: [#416](https://github.com/lgustavoss/dx-connect/issues/416)–[#419](https://github.com/lgustavoss/dx-connect/issues/419)) |
 | D | [#260](https://github.com/lgustavoss/dx-connect/issues/260) | #282–#289 |
 | A | [#261](https://github.com/lgustavoss/dx-connect/issues/261) | #290–#292 |
 | KB | [#262](https://github.com/lgustavoss/dx-connect/issues/262) | #293–#299 |

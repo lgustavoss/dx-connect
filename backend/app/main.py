@@ -41,6 +41,8 @@ from app.api import (
     tenant,
     public_csat,
     system,
+    routing,
+    sla,
 )
 from app.config import settings
 from app.core.tenant_context import resolve_tenant_id, set_request_tenant_id
@@ -297,6 +299,32 @@ async def lifespan(app: FastAPI):
         name="ticket-distribuicao",
     ).start()
 
+    def sla_violacao_loop() -> None:
+        from app.database import SessionLocal
+        from app.services.sla_notificacao import processar_alertas_sla
+
+        interval = max(30, settings.SLA_WORKER_INTERVAL_SECONDS)
+        while True:
+            db = SessionLocal()
+            try:
+                n = processar_alertas_sla(db, limit=200)
+                if n:
+                    db.commit()
+                else:
+                    db.rollback()
+            except Exception as e:
+                logger.warning("Worker SLA: %s", e)
+                db.rollback()
+            finally:
+                db.close()
+            time.sleep(interval)
+
+    threading.Thread(
+        target=sla_violacao_loop,
+        daemon=True,
+        name="sla-violacao",
+    ).start()
+
     yield
 
 
@@ -401,6 +429,8 @@ app.include_router(system_settings.router, prefix=API_V1_PREFIX)
 app.include_router(tenant.router, prefix=API_V1_PREFIX)
 app.include_router(public_csat.router, prefix=API_V1_PREFIX)
 app.include_router(system.router, prefix=API_V1_PREFIX)
+app.include_router(routing.router, prefix=API_V1_PREFIX)
+app.include_router(sla.router, prefix=API_V1_PREFIX)
 
 
 def _app_route_paths() -> set[str]:

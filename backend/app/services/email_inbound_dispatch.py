@@ -5,9 +5,17 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.core.routing import RoutingCanal
 from app.models.tenant import Tenant
 from app.schemas.email_inbound import EmailInboundWebhookResponse
 from app.services.email_inbound_parse import ParsedInboundEmail
+from app.services.routing_evaluate import (
+    RoutingContext,
+    RoutingResult,
+    aplicar_roteamento_setor,
+    evaluate_routing,
+)
+from app.services.routing_apply import acoes_efetivas_do_resultado
 from app.services.tenant_inbound import resolve_routing_from_recipients
 from app.services.funcionario_rede_resolver import resolver_remetente_por_email
 from app.services.ticket_from_inbound_email import processar_email_inbound
@@ -67,13 +75,54 @@ def dispatch_parsed_inbound(db: Session, parsed: ParsedInboundEmail) -> EmailInb
 
     tenant_id, empresa_id_rota, setor_id = resolve_inbound_routing(db, parsed)
     empresa_id, aberto_por_id = _empresa_e_funcionario_do_remetente(db, parsed, empresa_id_rota)
+
+    rede_id_ctx = None
+    if empresa_id is not None:
+        from app.models.empresa import Empresa
+
+        emp = db.query(Empresa).filter(Empresa.id == empresa_id).first()
+        if emp:
+            rede_id_ctx = emp.rede_id
+
+    email_to = parsed.to_recipients[0] if parsed.to_recipients else None
+    rota = evaluate_routing(
+        db,
+        tenant_id=tenant_id,
+        context=RoutingContext(
+            email_from=parsed.from_email,
+            email_to=email_to,
+            assunto=parsed.subject,
+            canal=RoutingCanal.email,
+            rede_id=rede_id_ctx,
+        ),
+    )
+    setor_final = aplicar_roteamento_setor(
+        setor_atual=setor_id,
+        resultado=rota,
+        aplicar_setor=True,
+    )
+    if setor_final is None:
+        setor_final = setor_id
+
+    motivo_id, atendente_id = acoes_efetivas_do_resultado(
+        db,
+        tenant_id=tenant_id,
+        setor_id=setor_final,
+        resultado=rota,
+    )
+
     res = processar_email_inbound(
         db,
         empresa_id=empresa_id,
-        setor_id=setor_id,
+        setor_id=setor_final,
         parsed=parsed,
         tenant_id=tenant_id,
         aberto_por_id=aberto_por_id,
+        prioridade=rota.prioridade,
+        natureza_id=rota.natureza_id,
+        motivo_id=motivo_id,
+        atendente_id=atendente_id,
+        rota_aplicada=rota if rota.matched else None,
     )
     return EmailInboundWebhookResponse(
         ticket_id=res.ticket.id,

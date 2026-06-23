@@ -445,6 +445,41 @@ export const respostasProntas = {
     ),
 };
 
+export const routingRules = {
+  list: (params?: { incluir_inativos?: boolean }) =>
+    api<RoutingRules.Regra[]>(withParams('/routing/rules', params)),
+  get: (id: number) => api<RoutingRules.Regra>(`/routing/rules/${id}`),
+  create: (data: RoutingRules.Create) =>
+    api<RoutingRules.Regra>('/routing/rules', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: RoutingRules.Update) =>
+    api<RoutingRules.Regra>(`/routing/rules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: number) => api<void>(`/routing/rules/${id}`, { method: 'DELETE' }),
+  reorder: (items: { id: number; ordem: number }[]) =>
+    api<RoutingRules.Regra[]>('/routing/rules/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ items }),
+    }),
+  simulate: (data: RoutingRules.Simulate) =>
+    api<RoutingRules.Resultado>('/routing/rules/simulate', { method: 'POST', body: JSON.stringify(data) }),
+};
+
+export const sla = {
+  prioridades: () => api<Sla.PrioridadesDisponiveis>('/sla/prioridades'),
+  policies: {
+    list: (params?: { setor_id?: number; incluir_inativos?: boolean }) =>
+      api<Sla.Policy[]>(withParams('/sla/policies', params)),
+    get: (id: number) => api<Sla.Policy>(`/sla/policies/${id}`),
+    create: (data: Sla.PolicyCreate) =>
+      api<Sla.Policy>('/sla/policies', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: number, data: Sla.PolicyUpdate) =>
+      api<Sla.Policy>(`/sla/policies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  },
+  calendars: {
+    list: (params?: { setor_id?: number; incluir_inativos?: boolean }) =>
+      api<Sla.BusinessCalendar[]>(withParams('/sla/calendars', params)),
+  },
+};
+
 export const audit = {
   list: (params?: {
     entity_type?: string;
@@ -901,10 +936,13 @@ export const tickets = {
     /** Coluna para ordenar (omitir = mais recentes primeiro). */
     ordenar_por?: 'protocolo' | 'rede' | 'empresa' | 'setor' | 'assunto' | 'status' | 'responsavel' | 'fechado_em' | 'fila_desde_at';
     ordem?: 'asc' | 'desc';
+    sla_violado?: boolean;
+    sla_em_risco?: boolean;
     offset?: number;
     limit?: number;
   }) => listPaginated<Tickets.Ticket>('/tickets', params),
   get: (id: number) => api<Tickets.Ticket>(`/tickets/${id}`),
+  getSla: (id: number) => api<Tickets.TicketSla>(`/tickets/${id}/sla`),
   getHistorico: (id: number) => api<Tickets.Historico[]>(`/tickets/${id}/historico`),
   listMensagens: (id: number) => api<Tickets.Mensagem[]>(`/tickets/${id}/mensagens`),
   addMensagem: (id: number, data: Tickets.MensagemCreate) =>
@@ -1062,6 +1100,8 @@ export namespace Notificacoes {
     email_habilitado: boolean;
     email_ticket_atribuido: boolean;
     email_nova_mensagem: boolean;
+    email_sla_em_risco: boolean;
+    email_sla_violado: boolean;
   }
 }
 
@@ -1730,6 +1770,126 @@ export namespace StatusTicket {
   }
 }
 
+export namespace Sla {
+  export type Prioridade = 'baixa' | 'normal' | 'alta' | 'urgente';
+
+  export interface PrioridadesDisponiveis {
+    prioridades: Prioridade[];
+  }
+
+  export interface Policy {
+    id: number;
+    setor_id: number;
+    setor_nome?: string | null;
+    prioridade: Prioridade | null;
+    business_calendar_id: number | null;
+    business_calendar_nome?: string | null;
+    meta_primeira_resposta_min: number | null;
+    meta_resolucao_min: number | null;
+    ativo: boolean;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+
+  export interface PolicyCreate {
+    setor_id: number;
+    prioridade?: Prioridade | null;
+    business_calendar_id?: number | null;
+    meta_primeira_resposta_min?: number | null;
+    meta_resolucao_min?: number | null;
+    ativo?: boolean;
+  }
+
+  export interface PolicyUpdate {
+    setor_id?: number;
+    prioridade?: Prioridade | null;
+    business_calendar_id?: number | null;
+    meta_primeira_resposta_min?: number | null;
+    meta_resolucao_min?: number | null;
+    ativo?: boolean;
+  }
+
+  export interface BusinessCalendar {
+    id: number;
+    nome: string;
+    setor_id: number | null;
+    horario_timezone: string;
+    horario_inicio: string | null;
+    horario_fim: string | null;
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
+    usar_feriados_nacionais: boolean;
+    ativo: boolean;
+  }
+}
+
+export namespace RoutingRules {
+  export type Campo = 'email_from' | 'email_to' | 'assunto' | 'canal';
+  export type Operador = 'contains' | 'equals' | 'regex';
+  export type Canal = 'email' | 'manual';
+  export type Prioridade = 'baixa' | 'normal' | 'alta' | 'urgente';
+
+  export interface Condicao {
+    campo: Campo;
+    operador: Operador;
+    valor: string;
+  }
+
+  export interface Acoes {
+    setor_id?: number | null;
+    prioridade?: Prioridade | null;
+    natureza_id?: number | null;
+    motivo_id?: number | null;
+    atendente_id?: number | null;
+  }
+
+  export interface Regra {
+    id: number;
+    nome: string;
+    ativo: boolean;
+    ordem: number;
+    rede_id: number | null;
+    condicoes: Condicao[];
+    acoes: Acoes;
+  }
+
+  export interface Create {
+    nome: string;
+    ativo?: boolean;
+    rede_id?: number | null;
+    condicoes: Condicao[];
+    acoes: Acoes;
+  }
+
+  export interface Update {
+    nome?: string;
+    ativo?: boolean;
+    rede_id?: number | null;
+    condicoes?: Condicao[];
+    acoes?: Acoes;
+  }
+
+  export interface Simulate {
+    email_from?: string | null;
+    email_to?: string | null;
+    assunto?: string | null;
+    canal?: Canal;
+    rede_id?: number | null;
+    setor_id_atual?: number | null;
+    aplicar_setor?: boolean;
+  }
+
+  export interface Resultado {
+    matched: boolean;
+    rule_id?: number | null;
+    rule_nome?: string | null;
+    setor_id?: number | null;
+    prioridade?: Prioridade | null;
+    natureza_id?: number | null;
+    motivo_id?: number | null;
+    atendente_id?: number | null;
+  }
+}
+
 export namespace RespostasProntas {
   export interface Resposta {
     id: number;
@@ -1829,6 +1989,25 @@ export namespace Tickets {
     fila_desde_at?: string | null;
     distribuicao_modo_setor?: string | null;
     distribuicao_auto_em_minutos?: number | null;
+    sla_policy_id?: number | null;
+    sla_violado?: boolean;
+    sla_estado?: 'dentro' | 'em_risco' | 'violado' | 'cumprido' | null;
+  }
+  export interface SlaMetaDetalhe {
+    meta_minutos: number | null;
+    vence_em: string | null;
+    cumprido_em: string | null;
+    estado: string;
+    percentual_decorrido: number | null;
+  }
+  export interface TicketSla {
+    ticket_id: number;
+    sla_policy_id: number | null;
+    sla_violado: boolean;
+    inicio_em: string;
+    usa_horario_comercial: boolean;
+    primeira_resposta: SlaMetaDetalhe;
+    resolucao: SlaMetaDetalhe;
   }
   export type TicketVinculoTipo = 'duplicado_de' | 'relacionado_a';
   export interface TicketVinculoOutro {

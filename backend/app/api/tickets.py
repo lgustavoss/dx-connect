@@ -57,6 +57,7 @@ from app.services.ticket_csat import csat_brief_para_ticket, criar_convite_csat
 from app.services.ticket_close_hooks import processar_hooks_ao_fechar_ticket
 from app.services.notificacao_atendente_email import notificar_nova_mensagem_ticket, notificar_ticket_atribuido
 from app.schemas.ticket_csat import TicketCsatDevLinkRead
+from app.schemas.sla import TicketSlaRead
 from app.services.ticket_vinculos import (
     criar_vinculo as criar_vinculo_ticket,
     fechar_ticket_como_duplicado,
@@ -320,7 +321,7 @@ def _vinculos_para_read(db: Session, t: Ticket) -> list[TicketVinculoRead]:
     return [_vinculo_para_read(v, t.id, db) for v in listar_vinculos(db, t.id)]
 
 
-def _ticket_para_read(t: Ticket, db: Session | None = None) -> TicketRead:
+def _ticket_para_read(t: Ticket, db: Session | None = None, *, sla_estado: str | None = None) -> TicketRead:
     parent_brief = None
     if t.parent_ticket_id and _attr_relacionamento_carregado(t, "parent") and t.parent is not None:
         p = t.parent
@@ -395,6 +396,14 @@ def _ticket_para_read(t: Ticket, db: Session | None = None) -> TicketRead:
         solicitante=_solicitante_para_read(db, t, triagem) if db is not None else None,
         **csat,
         **fila,
+        sla_policy_id=t.sla_policy_id,
+        sla_meta_primeira_resposta_min=t.sla_meta_primeira_resposta_min,
+        sla_meta_resolucao_min=t.sla_meta_resolucao_min,
+        sla_primeira_resposta_vence_em=t.sla_primeira_resposta_vence_em,
+        sla_resolucao_vence_em=t.sla_resolucao_vence_em,
+        sla_primeira_resposta_em=t.sla_primeira_resposta_em,
+        sla_violado=bool(t.sla_violado),
+        sla_estado=sla_estado,
     )
 
 
@@ -470,6 +479,14 @@ def listar(
         SituacaoTicket.abertos,
         description="abertos = fechado_em vazio; fechados = fechado_em preenchido; todos = sem filtro",
     ),
+    sla_violado: bool | None = Query(
+        None,
+        description="True = somente tickets com SLA violado",
+    ),
+    sla_em_risco: bool | None = Query(
+        None,
+        description="True = somente tickets com SLA em risco (≥80% do prazo)",
+    ),
     offset: int = Query(0, ge=0),
     limit: int = Query(_DEFAULT_PAGE, ge=1, le=_MAX_PAGE),
     ordenar_por: OrdenarTicketsPor | None = Query(
@@ -519,6 +536,12 @@ def listar(
         q = q.filter(Ticket.fechado_em.is_(None))
     elif situacao == SituacaoTicket.fechados:
         q = q.filter(Ticket.fechado_em.is_not(None))
+    if sla_violado is True:
+        q = q.filter(Ticket.sla_violado.is_(True))
+    if sla_em_risco is True:
+        from app.services.sla_calculo import filtro_sql_sla_em_risco
+
+        q = q.filter(filtro_sql_sla_em_risco())
     if protocolo and protocolo.strip():
         q = q.filter(Ticket.protocolo.ilike(f"%{protocolo.strip()}%"))
     if busca and busca.strip():
@@ -582,7 +605,25 @@ def listar(
         .limit(limit)
         .all()
     )
-    return ListaPaginada(items=[_ticket_para_read(t, db) for t in rows], total=total)
+    from datetime import datetime, timezone
+
+    from app.services.sla_calculo import preload_sla_calendars, sla_estado_resumido
+
+    now = datetime.now(timezone.utc)
+    cal_map = preload_sla_calendars(db, rows)
+    items = [
+        _ticket_para_read(
+            t,
+            db,
+            sla_estado=sla_estado_resumido(
+                t,
+                now=now,
+                calendar=cal_map.get(t.sla_policy_id) if t.sla_policy_id else None,
+            ),
+        )
+        for t in rows
+    ]
+    return ListaPaginada(items=items, total=total)
 
 
 @router.post("", response_model=TicketRead, status_code=201)
@@ -591,11 +632,6 @@ def criar(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    # Atendente só pode abrir ticket em setor que ele atende
-    if atendente.role != "admin":
-        vis = ids_setores_visiveis_atendente(db, atendente)
-        if data.setor_id not in vis:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este setor")
     try:
         modo = validar_escopo_criacao_manual(
             empresa_id=data.empresa_id,
@@ -604,14 +640,6 @@ def criar(
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
-
-    setor = (
-        db.query(Setor)
-        .filter(Setor.id == data.setor_id, Setor.tenant_id == atendente.tenant_id)
-        .first()
-    )
-    if not setor:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor não encontrado")
 
     ticket_empresa_id: int | None
     ticket_rede_id: int | None
@@ -648,26 +676,105 @@ def criar(
             filho_ticket_id=None,
             parent_id=data.parent_ticket_id,
         )
+
+    from app.core.routing import RoutingCanal
+    from app.services.routing_apply import acoes_efetivas_do_resultado, registrar_roteamento_aplicado
+    from app.services.routing_evaluate import (
+        RoutingContext,
+        aplicar_roteamento_setor,
+        evaluate_routing,
+    )
+
+    if data.aplicar_roteamento and atendente.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Apenas administradores podem forçar roteamento sobre setor explícito.",
+        )
+
+    setor_id_efetivo = data.setor_id
+    prioridade_efetiva = data.prioridade
+    motivo_id_rota: int | None = None
+    atendente_id_rota: int | None = None
+    rota_resultado = evaluate_routing(
+        db,
+        tenant_id=atendente.tenant_id,
+        context=RoutingContext(
+            assunto=data.assunto,
+            canal=RoutingCanal.manual,
+            rede_id=ticket_rede_id,
+        ),
+    )
+    if rota_resultado.matched:
+        aplicar_setor = data.setor_id is None or data.aplicar_roteamento
+        setor_id_efetivo = aplicar_roteamento_setor(
+            setor_atual=data.setor_id,
+            resultado=rota_resultado,
+            aplicar_setor=aplicar_setor,
+        )
+        if rota_resultado.prioridade is not None:
+            prioridade_efetiva = rota_resultado.prioridade
+
+    if setor_id_efetivo is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Setor não informado e nenhuma regra de roteamento definiu setor.",
+        )
+
+    if rota_resultado.matched:
+        motivo_id_rota, atendente_id_rota = acoes_efetivas_do_resultado(
+            db,
+            tenant_id=atendente.tenant_id,
+            setor_id=setor_id_efetivo,
+            resultado=rota_resultado,
+        )
+
+    # Atendente só pode abrir ticket em setor que ele atende
+    if atendente.role != "admin":
+        vis = ids_setores_visiveis_atendente(db, atendente)
+        if setor_id_efetivo not in vis:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este setor")
+
+    setor = (
+        db.query(Setor)
+        .filter(Setor.id == setor_id_efetivo, Setor.tenant_id == atendente.tenant_id)
+        .first()
+    )
+    if not setor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor não encontrado")
+
     # Status inicial: primeiro status ativo por ordem (ex.: «Aguardando atendimento» na fila do setor)
     status_inicial = db.query(StatusTicket).filter(StatusTicket.ativo.is_(True)).order_by(StatusTicket.ordem).first()
     if not status_inicial:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cadastre ao menos um status de ticket")
     protocolo = _gerar_protocolo(db)
-    prioridade = validar_prioridade(data.prioridade)
+    prioridade = validar_prioridade(prioridade_efetiva)
     ticket = Ticket(
         tenant_id=atendente.tenant_id,
         protocolo=protocolo,
         empresa_id=ticket_empresa_id,
         rede_id=ticket_rede_id,
-        setor_id=data.setor_id,
+        setor_id=setor_id_efetivo,
         status_id=status_inicial.id,
         prioridade=prioridade,
         assunto=data.assunto,
         descricao=data.descricao,
         aberto_por_id=data.aberto_por_id,
         parent_ticket_id=data.parent_ticket_id,
+        motivo_id=motivo_id_rota,
+        atendente_id=atendente_id_rota,
     )
     db.add(ticket)
+    db.flush()
+    from app.services.sla_policy import aplicar_sla_snapshot_ao_ticket
+
+    aplicar_sla_snapshot_ao_ticket(db, ticket)
+    if rota_resultado.matched:
+        registrar_roteamento_aplicado(
+            db,
+            resultado=rota_resultado,
+            ticket_id=ticket.id,
+            atendente_audit_id=atendente.id,
+        )
     db.commit()
     db.refresh(ticket)
     corpo_abertura = (data.descricao or "").strip() or "—"
@@ -687,16 +794,30 @@ def criar(
         .order_by(TicketMensagem.id.desc())
         .first()
     )
-    if msg_abertura:
-        emit_ticket_mensagem_from_model(db, ticket, msg_abertura, exclude_atendente_id=atendente.id)
+    contagem_ja_emitida = False
     if ticket.atendente_id is None:
         sincronizar_fila_desde_at(ticket)
         db.commit()
         if tentar_distribuicao_imediata(db, ticket):
             db.commit()
             emit_notificacao_after_counter_change(db)
+            contagem_ja_emitida = True
         else:
             emit_ticket_fila(db, ticket)
+            contagem_ja_emitida = True
+    if msg_abertura:
+        from app.services.sla_calculo import mensagem_conta_primeira_resposta, registrar_primeira_resposta_se_necessario
+
+        if mensagem_conta_primeira_resposta(msg_abertura):
+            registrar_primeira_resposta_se_necessario(db, ticket, momento=msg_abertura.created_at)
+            db.commit()
+        emit_ticket_mensagem_from_model(
+            db,
+            ticket,
+            msg_abertura,
+            exclude_atendente_id=atendente.id,
+            emit_notificacao=not contagem_ja_emitida,
+        )
     ticket_out = (
         db.query(Ticket)
         .options(*_opcoes_carregamento_ticket_detalhe())
@@ -731,7 +852,44 @@ def obter(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
     if not _pode_ver_ticket(db, atendente, ticket):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
-    return _ticket_para_read(ticket, db)
+    from datetime import datetime, timezone
+
+    from app.services.sla_calculo import preload_sla_calendars, sla_estado_resumido
+
+    cal_map = preload_sla_calendars(db, [ticket])
+    estado = sla_estado_resumido(
+        ticket,
+        now=datetime.now(timezone.utc),
+        calendar=cal_map.get(ticket.sla_policy_id) if ticket.sla_policy_id else None,
+    )
+    return _ticket_para_read(ticket, db, sla_estado=estado)
+
+
+@router.get("/{ticket_id}/sla", response_model=TicketSlaRead)
+def obter_sla_ticket(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
+    if not _pode_ver_ticket(db, atendente, ticket):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
+    from app.services.sla_calculo import build_ticket_sla_read
+
+    dados = build_ticket_sla_read(db, ticket)
+    from app.schemas.sla import SlaMetaDetalheRead
+
+    return TicketSlaRead(
+        ticket_id=dados["ticket_id"],
+        sla_policy_id=dados["sla_policy_id"],
+        sla_violado=dados["sla_violado"],
+        inicio_em=dados["inicio_em"],
+        usa_horario_comercial=dados["usa_horario_comercial"],
+        primeira_resposta=SlaMetaDetalheRead(**dados["primeira_resposta"]),
+        resolucao=SlaMetaDetalheRead(**dados["resolucao"]),
+    )
 
 
 @router.post("/{ticket_id}/csat/link-dev", response_model=TicketCsatDevLinkRead)
@@ -1141,6 +1299,10 @@ def criar_mensagem(
         agendar_envio_email(m, db)
     db.add(m)
     db.flush()
+    from app.services.sla_calculo import mensagem_conta_primeira_resposta, registrar_primeira_resposta_se_necessario
+
+    if mensagem_conta_primeira_resposta(m):
+        registrar_primeira_resposta_se_necessario(db, ticket, momento=m.created_at)
     notificar_nova_mensagem_ticket(db, ticket=ticket, mensagem=m, autor_atendente_id=atendente.id)
     db.commit()
     db.refresh(m)
@@ -1669,6 +1831,10 @@ def atualizar(
         sincronizar_fila_desde_at(ticket, reset=reset_fila or "atendente_id" in update)
     else:
         ticket.fila_desde_at = None
+
+    from app.services.sla_calculo import sincronizar_sla_violado
+
+    sincronizar_sla_violado(db, ticket)
 
     db.commit()
     if acabou_de_fechar:

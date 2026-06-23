@@ -9,12 +9,13 @@ from app.core.ticket_prioridade import PrioridadeTicket
 class TicketCreate(BaseModel):
     empresa_id: int | None = None
     rede_id: int | None = None
-    setor_id: int
+    setor_id: int | None = None
     assunto: str
     descricao: str | None = None
     aberto_por_id: int | None = None
     parent_ticket_id: int | None = None
     prioridade: PrioridadeTicket = PrioridadeTicket.normal
+    aplicar_roteamento: bool = False
 
     @model_validator(mode="after")
     def validar_escopo(self):
@@ -185,6 +186,17 @@ class TicketRead(BaseModel):
     fila_desde_at: datetime | None = None
     distribuicao_modo_setor: str | None = None
     distribuicao_auto_em_minutos: int | None = None
+    sla_policy_id: int | None = None
+    sla_meta_primeira_resposta_min: int | None = None
+    sla_meta_resolucao_min: int | None = None
+    sla_primeira_resposta_vence_em: datetime | None = None
+    sla_resolucao_vence_em: datetime | None = None
+    sla_primeira_resposta_em: datetime | None = None
+    sla_violado: bool = False
+    sla_estado: str | None = Field(
+        default=None,
+        description="Pior estado SLA resumido: dentro, em_risco, violado ou cumprido.",
+    )
 
     model_config = ConfigDict(from_attributes=True)
 

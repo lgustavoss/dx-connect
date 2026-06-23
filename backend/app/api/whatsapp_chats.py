@@ -1236,6 +1236,9 @@ def abrir_ticket(
     )
     db.add(ticket)
     db.flush()
+    from app.services.sla_policy import aplicar_sla_snapshot_ao_ticket
+
+    aplicar_sla_snapshot_ao_ticket(db, ticket)
     corpo_abertura = desc or linha_chat
     db.add(
         TicketMensagem(
@@ -1245,6 +1248,10 @@ def abrir_ticket(
             corpo=corpo_abertura,
         )
     )
+    db.flush()
+    from app.services.sla_calculo import registrar_primeira_resposta_se_necessario
+
+    registrar_primeira_resposta_se_necessario(db, ticket)
     db.add(WhatsappChatTicket(chat_id=chat_id, ticket_id=ticket.id, atendente_id=atendente.id))
     db.commit()
     db.refresh(ticket)

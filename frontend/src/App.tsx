@@ -34,6 +34,8 @@ import { TicketNaturezaMotivoPage } from './pages/TicketNaturezaMotivo'
 import { StatusTicketForm } from './pages/StatusTicketForm'
 import { StatusTicketDetalhe } from './pages/StatusTicketDetalhe'
 import { RespostasProntasPage } from './pages/RespostasProntas'
+import { RoteamentoRegrasPage } from './pages/RoteamentoRegras'
+import { SlaPoliticasPage } from './pages/SlaPoliticas'
 import { RespostaProntaForm } from './pages/RespostaProntaForm'
 import { RespostaProntaDetalhe } from './pages/RespostaProntaDetalhe'
 import { Auditoria } from './pages/Auditoria'
@@ -376,6 +378,8 @@ function AppRoutes() {
           <Route path="status-ticket" element={<StatusTicketPage embedded />} />
           <Route path="natureza-motivo" element={<TicketNaturezaMotivoPage embedded />} />
           <Route path="respostas-prontas" element={<RespostasProntasPage embedded />} />
+          <Route path="roteamento" element={<RoteamentoRegrasPage embedded />} />
+          <Route path="sla" element={<SlaPoliticasPage embedded />} />
         </Route>
         <Route
           path="configuracoes/cadastros"

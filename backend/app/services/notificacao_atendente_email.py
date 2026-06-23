@@ -24,6 +24,8 @@ STATUS_FALHA = "falha"
 
 TIPO_TICKET_ATRIBUIDO = "ticket_atribuido"
 TIPO_NOVA_MENSAGEM = "nova_mensagem"
+TIPO_SLA_EM_RISCO = "sla_em_risco"
+TIPO_SLA_VIOLADO = "sla_violado"
 
 MAX_TENTATIVAS = MAX_EMAIL_SEND_ATTEMPTS
 
@@ -60,6 +62,8 @@ def preferencias_para_dict(p: AtendenteNotificacaoPreferencias) -> dict:
         "email_habilitado": bool(p.email_habilitado),
         "email_ticket_atribuido": bool(p.email_ticket_atribuido),
         "email_nova_mensagem": bool(p.email_nova_mensagem),
+        "email_sla_em_risco": bool(getattr(p, "email_sla_em_risco", True)),
+        "email_sla_violado": bool(getattr(p, "email_sla_violado", True)),
     }
 
 
@@ -81,6 +85,10 @@ def _deve_notificar(prefs: AtendenteNotificacaoPreferencias, *, tipo: str) -> bo
         return bool(prefs.email_ticket_atribuido)
     if tipo == TIPO_NOVA_MENSAGEM:
         return bool(prefs.email_nova_mensagem)
+    if tipo == TIPO_SLA_EM_RISCO:
+        return bool(getattr(prefs, "email_sla_em_risco", True))
+    if tipo == TIPO_SLA_VIOLADO:
+        return bool(getattr(prefs, "email_sla_violado", True))
     return False
 
 
@@ -249,6 +257,41 @@ def notificar_nova_mensagem_ticket(
         )
     except Exception:
         logger.exception("Falha ao enfileirar notificação de mensagem (ticket %s)", ticket.id)
+
+
+def notificar_sla_alerta_email(
+    db: Session,
+    *,
+    atendente: Atendente,
+    ticket: Ticket,
+    meta: str,
+    evento: str,
+    meta_label: str,
+    evento_label: str,
+) -> None:
+    if ticket.fechado_em is not None:
+        return
+    proto = ticket.protocolo or str(ticket.id)
+    link = _ticket_link(ticket.id)
+    tipo = TIPO_SLA_EM_RISCO if evento == "em_risco" else TIPO_SLA_VIOLADO
+    subject = f"SLA {evento_label} — {proto} ({meta_label})"
+    body = (
+        f"Olá {atendente.nome},\n\n"
+        f"O chamado {proto} está com SLA de {meta_label.lower()} {evento_label}.\n"
+        f"Assunto: {ticket.assunto or '—'}\n\n"
+        f"Acesse: {link}\n"
+    )
+    dedup = f"sla:{evento}:{meta}:{ticket.id}:{atendente.id}"
+    _enqueue_email(
+        db,
+        atendente=atendente,
+        ticket=ticket,
+        tipo=tipo,
+        dedup_key=dedup,
+        subject=subject,
+        body=body,
+        debounce=False,
+    )
 
 
 def process_pending_notificacao_emails(db: Session, *, limit: int = 20) -> int:
