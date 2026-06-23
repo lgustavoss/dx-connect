@@ -22,6 +22,9 @@ from app.services.protocolo_mensal import gerar_protocolo_ticket
 from app.services.ticket_escopo import rede_id_de_empresa
 from app.services.email_body_sanitize import sanitize_inbound_email_body
 from app.services.ticket_email_index import registar_message_id_para_ticket
+from app.core.ticket_prioridade import PrioridadeTicket
+from app.services.ticket_classificacao_rules import validar_prioridade
+from app.services.routing_evaluate import RoutingResult
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +156,11 @@ def processar_email_inbound(
     setor_id: int,
     parsed: ParsedInboundEmail,
     aberto_por_id: int | None = None,
+    prioridade=None,
+    natureza_id: int | None = None,
+    motivo_id: int | None = None,
+    atendente_id: int | None = None,
+    rota_aplicada: RoutingResult | None = None,
 ) -> EmailInboundProcessResult:
     """
     Idempotente por ``parsed.message_id``.
@@ -254,6 +262,7 @@ def processar_email_inbound(
     protocolo = gerar_protocolo_ticket(db)
     assunto = (parsed.subject or "(sem assunto)")[:500]
     corpo = _corpo_mensagem(parsed, mid)
+    prio = validar_prioridade(prioridade) if prioridade is not None else PrioridadeTicket.normal
 
     ticket = Ticket(
         tenant_id=tenant_id,
@@ -262,12 +271,20 @@ def processar_email_inbound(
         rede_id=rede_id_de_empresa(db, empresa_id, tenant_id=tenant_id) if empresa_id else None,
         setor_id=setor_id,
         status_id=status_inicial.id,
+        prioridade=prio,
         assunto=assunto,
         descricao=corpo,
         aberto_por_id=aberto_por_id,
+        motivo_id=motivo_id,
+        atendente_id=atendente_id,
     )
     db.add(ticket)
     db.flush()
+
+    if rota_aplicada is not None and rota_aplicada.matched:
+        from app.services.routing_apply import registrar_roteamento_aplicado
+
+        registrar_roteamento_aplicado(db, resultado=rota_aplicada, ticket_id=ticket.id, atendente_audit_id=None)
 
     db.add(
         TicketMensagem(

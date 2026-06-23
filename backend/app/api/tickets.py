@@ -591,11 +591,6 @@ def criar(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    # Atendente só pode abrir ticket em setor que ele atende
-    if atendente.role != "admin":
-        vis = ids_setores_visiveis_atendente(db, atendente)
-        if data.setor_id not in vis:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este setor")
     try:
         modo = validar_escopo_criacao_manual(
             empresa_id=data.empresa_id,
@@ -604,14 +599,6 @@ def criar(
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
-
-    setor = (
-        db.query(Setor)
-        .filter(Setor.id == data.setor_id, Setor.tenant_id == atendente.tenant_id)
-        .first()
-    )
-    if not setor:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor não encontrado")
 
     ticket_empresa_id: int | None
     ticket_rede_id: int | None
@@ -648,26 +635,102 @@ def criar(
             filho_ticket_id=None,
             parent_id=data.parent_ticket_id,
         )
+
+    from app.core.routing import RoutingCanal
+    from app.services.routing_apply import acoes_efetivas_do_resultado, registrar_roteamento_aplicado
+    from app.services.routing_evaluate import (
+        RoutingContext,
+        aplicar_roteamento_setor,
+        evaluate_routing,
+    )
+
+    if data.aplicar_roteamento and atendente.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Apenas administradores podem forçar roteamento sobre setor explícito.",
+        )
+
+    setor_id_efetivo = data.setor_id
+    prioridade_efetiva = data.prioridade
+    motivo_id_rota: int | None = None
+    atendente_id_rota: int | None = None
+    rota_resultado = evaluate_routing(
+        db,
+        tenant_id=atendente.tenant_id,
+        context=RoutingContext(
+            assunto=data.assunto,
+            canal=RoutingCanal.manual,
+            rede_id=ticket_rede_id,
+        ),
+    )
+    if rota_resultado.matched:
+        aplicar_setor = data.setor_id is None or data.aplicar_roteamento
+        setor_id_efetivo = aplicar_roteamento_setor(
+            setor_atual=data.setor_id,
+            resultado=rota_resultado,
+            aplicar_setor=aplicar_setor,
+        )
+        if rota_resultado.prioridade is not None:
+            prioridade_efetiva = rota_resultado.prioridade
+
+    if setor_id_efetivo is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Setor não informado e nenhuma regra de roteamento definiu setor.",
+        )
+
+    if rota_resultado.matched:
+        motivo_id_rota, atendente_id_rota = acoes_efetivas_do_resultado(
+            db,
+            tenant_id=atendente.tenant_id,
+            setor_id=setor_id_efetivo,
+            resultado=rota_resultado,
+        )
+
+    # Atendente só pode abrir ticket em setor que ele atende
+    if atendente.role != "admin":
+        vis = ids_setores_visiveis_atendente(db, atendente)
+        if setor_id_efetivo not in vis:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este setor")
+
+    setor = (
+        db.query(Setor)
+        .filter(Setor.id == setor_id_efetivo, Setor.tenant_id == atendente.tenant_id)
+        .first()
+    )
+    if not setor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor não encontrado")
+
     # Status inicial: primeiro status ativo por ordem (ex.: «Aguardando atendimento» na fila do setor)
     status_inicial = db.query(StatusTicket).filter(StatusTicket.ativo.is_(True)).order_by(StatusTicket.ordem).first()
     if not status_inicial:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cadastre ao menos um status de ticket")
     protocolo = _gerar_protocolo(db)
-    prioridade = validar_prioridade(data.prioridade)
+    prioridade = validar_prioridade(prioridade_efetiva)
     ticket = Ticket(
         tenant_id=atendente.tenant_id,
         protocolo=protocolo,
         empresa_id=ticket_empresa_id,
         rede_id=ticket_rede_id,
-        setor_id=data.setor_id,
+        setor_id=setor_id_efetivo,
         status_id=status_inicial.id,
         prioridade=prioridade,
         assunto=data.assunto,
         descricao=data.descricao,
         aberto_por_id=data.aberto_por_id,
         parent_ticket_id=data.parent_ticket_id,
+        motivo_id=motivo_id_rota,
+        atendente_id=atendente_id_rota,
     )
     db.add(ticket)
+    db.flush()
+    if rota_resultado.matched:
+        registrar_roteamento_aplicado(
+            db,
+            resultado=rota_resultado,
+            ticket_id=ticket.id,
+            atendente_audit_id=atendente.id,
+        )
     db.commit()
     db.refresh(ticket)
     corpo_abertura = (data.descricao or "").strip() or "—"
