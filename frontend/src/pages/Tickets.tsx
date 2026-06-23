@@ -26,6 +26,7 @@ import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { exibirProtocolo } from '../lib/exibirProtocolo'
 import { rotuloPrioridade, classeBadgePrioridade } from '../lib/ticketPrioridade'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
+import { SlaBadge } from '../components/tickets/SlaBadge'
 
 type ColunaOrdenacao =
   | 'protocolo'
@@ -136,6 +137,7 @@ export function Tickets() {
     return sr === '1' || sr === 'true' ? 'sem_responsavel' : ''
   })
   const [filtroAtendente, setFiltroAtendente] = useState<number | ''>('')
+  const [filtroSla, setFiltroSla] = useState<'' | 'violado' | 'em_risco'>('')
   const [maisFiltrosAberto, setMaisFiltrosAberto] = useState(false)
   const painelFiltrosId = useId()
   const { ordenarPor, ordem, aoOrdenarColuna, sortParams } = useOrdenacaoLista<ColunaOrdenacao>()
@@ -191,13 +193,19 @@ export function Tickets() {
     filtroSetor !== '' ||
     (situacao === 'abertos' && filtroStatus !== '') ||
     filtroFila !== '' ||
+    filtroSla !== '' ||
     (isAdmin && filtroAtendente !== '')
 
   const qtdFiltrosRefinamento =
     (filtroEmpresa !== '' ? 1 : 0) +
     (filtroSetor !== '' ? 1 : 0) +
     (situacao === 'abertos' && filtroStatus !== '' ? 1 : 0) +
+    (situacao === 'abertos' && filtroSla !== '' ? 1 : 0) +
     (isAdmin && filtroAtendente !== '' ? 1 : 0)
+
+  useEffect(() => {
+    if (situacao !== 'abertos' && filtroSla !== '') setFiltroSla('')
+  }, [situacao, filtroSla])
 
   useEffect(() => {
     if (situacao !== 'fechados') return
@@ -283,6 +291,8 @@ export function Tickets() {
           filtroAtendente !== ''
             ? Number(filtroAtendente)
             : undefined,
+        sla_violado: filtroSla === 'violado' ? true : undefined,
+        sla_em_risco: filtroSla === 'em_risco' ? true : undefined,
         ...sortParamsEfetivos,
         offset: (page - 1) * PAGE_SIZE_PADRAO,
         limit: PAGE_SIZE_PADRAO,
@@ -313,6 +323,7 @@ export function Tickets() {
     filtroSetor,
     filtroFila,
     filtroAtendente,
+    filtroSla,
     isAdmin,
     ordenarPor,
     ordem,
@@ -341,6 +352,7 @@ export function Tickets() {
     setFiltroStatus('')
     setFiltroFila('')
     setFiltroAtendente('')
+    setFiltroSla('')
     setPage(1)
   }
 
@@ -497,6 +509,46 @@ export function Tickets() {
               <span className="font-medium text-slate-600 dark:text-slate-300">Em atendimento</span> — já com responsável atribuído.
               {isAdmin && ' Use «Mais filtros» para filtrar por atendente da equipe.'}
             </p>
+            </div>
+          )}
+
+          {situacao === 'abertos' && (
+            <div className="mt-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                SLA
+              </p>
+              <div
+                className="mt-2 inline-flex w-full flex-wrap rounded-2xl bg-slate-100/90 p-1 ring-1 ring-slate-200/60 dark:bg-slate-800/60 dark:ring-slate-700/80 sm:w-auto"
+                role="group"
+                aria-label="Filtrar por estado SLA"
+              >
+                {(
+                  [
+                    { id: '' as const, label: 'Todos' },
+                    { id: 'em_risco' as const, label: 'Em risco' },
+                    { id: 'violado' as const, label: 'Violado' },
+                  ] as const
+                ).map(({ id, label }) => {
+                  const ativo = filtroSla === id
+                  return (
+                    <button
+                      key={id || 'todos-sla'}
+                      type="button"
+                      onClick={() => {
+                        setFiltroSla(id)
+                        resetarPagina()
+                      }}
+                      className={`min-h-[2.25rem] flex-1 rounded-xl px-3 py-2 text-center text-xs font-medium transition-all duration-200 sm:flex-none sm:px-4 sm:text-sm ${
+                        ativo
+                          ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-700 dark:text-slate-50 dark:ring-slate-600/50'
+                          : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           )}
 
@@ -684,6 +736,11 @@ export function Tickets() {
                             {t.status_nome ?? t.status_id}
                           </span>
                         )}
+                        {situacao === 'abertos' && t.sla_estado ? (
+                          <div className="mt-2">
+                            <SlaBadge estado={t.sla_estado} />
+                          </div>
+                        ) : null}
                       </div>
                     </div>
 
@@ -843,6 +900,9 @@ export function Tickets() {
                   {mostrarColunasFila && (
                     <th className="hidden whitespace-nowrap px-4 py-3 lg:table-cell sm:px-6">Distribuição</th>
                   )}
+                  {situacao === 'abertos' && (
+                    <th className="hidden whitespace-nowrap px-4 py-3 lg:table-cell sm:px-6">SLA</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -931,6 +991,11 @@ export function Tickets() {
                         <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                           {t.status_nome ?? t.status_id}
                         </span>
+                      </td>
+                    )}
+                    {situacao === 'abertos' && (
+                      <td className="hidden px-4 py-3.5 align-top lg:table-cell sm:px-6">
+                        <SlaBadge estado={t.sla_estado} />
                       </td>
                     )}
                     <td className="hidden px-4 py-3.5 align-top text-slate-600 md:table-cell sm:px-6 dark:text-slate-400">

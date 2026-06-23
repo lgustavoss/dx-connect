@@ -9,6 +9,7 @@ const TABS = [
   { to: '/configuracoes/atendimento/natureza-motivo', label: 'Natureza e motivo' },
   { to: '/configuracoes/atendimento/respostas-prontas', label: 'Respostas prontas' },
   { to: '/configuracoes/atendimento/roteamento', label: 'Roteamento' },
+  { to: '/configuracoes/atendimento/sla', label: 'SLA' },
 ] as const
 
 const TAB_HINTS: Record<string, string> = {
@@ -18,6 +19,7 @@ const TAB_HINTS: Record<string, string> = {
   'natureza-motivo': 'Categorias (natureza) e itens específicos (motivo) usados ao encerrar tickets.',
   'respostas-prontas': 'Macros reutilizáveis ao responder tickets — globais ou por setor.',
   roteamento: 'Regras automáticas de setor e prioridade na criação de tickets (e-mail e manual).',
+  sla: 'Metas de primeira resposta e resolução por setor e prioridade, com calendário comercial opcional.',
 }
 
 function abaAtiva(pathname: string): string {

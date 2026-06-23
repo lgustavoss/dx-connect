@@ -193,6 +193,10 @@ class TicketRead(BaseModel):
     sla_resolucao_vence_em: datetime | None = None
     sla_primeira_resposta_em: datetime | None = None
     sla_violado: bool = False
+    sla_estado: str | None = Field(
+        default=None,
+        description="Pior estado SLA resumido: dentro, em_risco, violado ou cumprido.",
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
