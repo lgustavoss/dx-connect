@@ -21,7 +21,6 @@ import { useToast } from '../components/ui/Toast'
 import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { useAuth } from '../contexts/AuthContext'
-import { useAlertaFilaSemResponsavel } from '../hooks/useAlertaFilaSemResponsavel'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { exibirProtocolo } from '../lib/exibirProtocolo'
@@ -110,8 +109,7 @@ export function Tickets() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const toast = useToast()
-  const { isAdmin, user } = useAuth()
-  useAlertaFilaSemResponsavel(Boolean(user))
+  const { isAdmin } = useAuth()
   const [forbidden, setForbidden] = useState(false)
 
   const situacao = useMemo<'abertos' | 'fechados'>(() => {

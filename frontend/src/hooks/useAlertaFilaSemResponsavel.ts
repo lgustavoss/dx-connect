@@ -9,6 +9,10 @@ const LS_KEY_LAST_WPP_RESP = 'dxconnect.notificacoes.last_wpp_resp'
 const POLL_MS = 10_000
 /** Fallback de segurança quando SSE está ativo (#266). */
 const POLL_SSE_SAFETY_MS = 60_000
+/** Evita som duplicado quando poll retorna contagem obsoleta após SSE (#406). */
+const POLL_STALE_GUARD_MS = 3000
+/** Dedup de transição idêntica (SSE duplicado / múltiplos listeners). */
+const ALERT_DEDUP_MS = 2000
 
 /** Tickets na fila sem responsável */
 const SOUND_TICKET_FILA = '/sons/alerta.mp3'
@@ -46,6 +50,10 @@ let wppFilaLoopInterval: number | null = null
 let wppFilaLoopAudio: HTMLAudioElement | null = null
 let pollTimerId: number | null = null
 let sseSlowPollMode = false
+let sseListenerCount = 0
+let sseUnsubscribe: (() => void) | null = null
+let lastSemIncreaseAt = 0
+const recentAlertKeys = new Map<string, number>()
 
 const audioByKey = new Map<string, HTMLAudioElement>()
 const alertQueue: AlertKind[] = []
@@ -200,6 +208,26 @@ function enqueueAlert(kind: AlertKind) {
   void drainAlertQueue()
 }
 
+function shouldEnqueueCounterAlert(kind: AlertKind, prev: number | null, next: number): boolean {
+  if (prev == null || next <= prev) return false
+  const key = `${kind}:${prev}->${next}`
+  const now = Date.now()
+  const last = recentAlertKeys.get(key)
+  if (last != null && now - last < ALERT_DEDUP_MS) return false
+  recentAlertKeys.set(key, now)
+  return true
+}
+
+function isStalePollResumo(r: Notificacoes.Resumo): boolean {
+  if (Date.now() - lastSemIncreaseAt >= POLL_STALE_GUARD_MS) return false
+  return (
+    r.sem_responsavel_count < currentResumo.sem_responsavel_count ||
+    r.nao_lidas_count < currentResumo.nao_lidas_count ||
+    r.wpp_fila_count < currentResumo.wpp_fila_count ||
+    r.wpp_respostas_count < currentResumo.wpp_respostas_count
+  )
+}
+
 async function drainAlertQueue() {
   if (drainingAlerts) return
   drainingAlerts = true
@@ -276,7 +304,9 @@ function persistPrevCounters(r: Notificacoes.Resumo) {
   setStoredNumber(LS_KEY_LAST_WPP_RESP, r.wpp_respostas_count)
 }
 
-function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean) {
+function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean, source: 'sse' | 'poll' | 'refetch' = 'poll') {
+  if (source === 'poll' && isStalePollResumo(r)) return
+
   currentResumo = r
   const sem = r.sem_responsavel_count
   currentCount = sem
@@ -291,19 +321,21 @@ function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean) {
     const prevWR = prevWppResp
     const prevWppFilaValue = prevWppFila
 
-    if (prevSem != null && r.sem_responsavel_count > prevSem) {
-      enqueueAlert('ticket_fila')
+    if (shouldEnqueueCounterAlert('ticket_fila', prevSem, r.sem_responsavel_count)) {
+      lastSemIncreaseAt = Date.now()
+      const delta = r.sem_responsavel_count - (prevSem ?? r.sem_responsavel_count)
+      for (let i = 0; i < delta; i++) enqueueAlert('ticket_fila')
     }
 
-    if (prevWppFilaValue != null && r.wpp_fila_count > prevWppFilaValue) {
+    if (shouldEnqueueCounterAlert('wpp_fila_pulse', prevWppFilaValue, r.wpp_fila_count)) {
       enqueueAlert('wpp_fila_pulse')
     }
 
-    if (prevNao != null && r.nao_lidas_count > prevNao) {
+    if (shouldEnqueueCounterAlert('ticket_mensagem', prevNao, r.nao_lidas_count)) {
       enqueueAlert('ticket_mensagem')
     }
 
-    if (prevWR != null && r.wpp_respostas_count > prevWR) {
+    if (shouldEnqueueCounterAlert('wpp_mensagem', prevWR, r.wpp_respostas_count)) {
       enqueueAlert('wpp_mensagem')
     }
   }
@@ -331,7 +363,7 @@ function isNotificacaoResumo(payload: Record<string, unknown>): boolean {
 /** Atualiza contadores a partir de evento SSE `notificacao.contagem`. */
 export function applyNotificacaoResumoSse(payload: Record<string, unknown>) {
   if (!isNotificacaoResumo(payload)) return
-  applyResumo(payload as unknown as Notificacoes.Resumo, true)
+  applyResumo(payload as unknown as Notificacoes.Resumo, true, 'sse')
 }
 
 function restartPollTimer() {
@@ -353,7 +385,7 @@ async function poll() {
   inFlight = true
   try {
     const r = await notificacoes.resumo()
-    applyResumo(r, true)
+    applyResumo(r, true, 'poll')
   } catch {
     // ignore
   } finally {
@@ -367,7 +399,7 @@ export async function refetchPendenciasResumo(atualizarSom = false) {
   inFlight = true
   try {
     const r = await notificacoes.resumo()
-    applyResumo(r, atualizarSom)
+    applyResumo(r, atualizarSom, 'refetch')
   } catch {
     // ignore
   } finally {
@@ -437,9 +469,20 @@ export function useAlertaFilaSemResponsavel(enabled: boolean) {
 
   useEffect(() => {
     if (!enabled) return
-    return subscribe('notificacao.contagem', (payload) => {
-      applyNotificacaoResumoSse(payload)
-    })
+    ensureStarted()
+    sseListenerCount++
+    if (sseListenerCount === 1) {
+      sseUnsubscribe = subscribe('notificacao.contagem', (payload) => {
+        applyNotificacaoResumoSse(payload)
+      })
+    }
+    return () => {
+      sseListenerCount = Math.max(0, sseListenerCount - 1)
+      if (sseListenerCount === 0) {
+        sseUnsubscribe?.()
+        sseUnsubscribe = null
+      }
+    }
   }, [enabled, subscribe])
 
   useEffect(() => {
