@@ -197,6 +197,14 @@ export function Dashboard() {
           hrefLabel="Ver tickets sem responsável"
         />
         <MetricCard
+          label="SLA violado (abertos)"
+          value={geral.sla_violacoes_abertas}
+          borderClass="border-l-4 border-l-red-500"
+          hint="Tickets abertos com meta de SLA estourada"
+          href="/tickets?situacao=abertos&sla_violado=1"
+          hrefLabel="Ver tickets com SLA violado"
+        />
+        <MetricCard
           label="WhatsApp aguardando"
           value={geral.chats_aguardando_atendente}
           borderClass="border-l-4 border-l-emerald-400"

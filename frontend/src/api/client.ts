@@ -1165,7 +1165,7 @@ export namespace Dashboard {
     chats_em_atendimento: number;
     csat_tickets: CsatResumo;
     csat_chats: CsatResumo;
-    sla_violacoes_abertas: number | null;
+    sla_violacoes_abertas: number;
     gerado_em: string;
     cache_ttl_segundos: number;
   }

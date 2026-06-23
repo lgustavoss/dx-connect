@@ -1,0 +1,54 @@
+---
+description: PRs para main em lotes coesos — evitar merges frequentes de issues isoladas
+alwaysApply: true
+---
+
+# Entrega na main — lotes, não micro-PRs
+
+## Contexto
+
+Outros devs criam branch a partir da **`main`**. Merges frequentes e pequenos na `main` dificultam rebase/sync para quem trabalha em paralelo. **Issue no GitHub = rastreio; PR na `main` = unidade de entrega.**
+
+## Regra (agente + Luis)
+
+Antes de abrir ou mergear PR **`→ main`**:
+
+1. **Agrupar por lote lógico** — mesmo épico, tema ou mini-release (ex.: `feat/sla-v1.1` com #416 + #417; `feat/chat-operacional` com #403 + #423).
+2. **Não abrir PR separado por issue** se o trabalho é claramente relacionado e pode ir na mesma branch em sequência.
+3. **Continuar na branch do lote** — implementar issues relacionadas no mesmo branch; **um PR** quando o lote estiver testável e com CHANGELOG atualizado.
+4. **Cadência orientativa** — preferir **1–2 merges na `main` por semana** (ou quando o lote fechar), não vários PRs no mesmo dia por padrão.
+5. **Exceção: hotfix** — correção urgente (produção/deploy quebrado) pode ir em PR isolado; avisar no corpo do PR.
+
+## Fluxo do repositório
+
+```
+feature/feat/<lote>  →  PR  →  main  →  (acumular)  →  PR main → staging  →  deploy
+```
+
+- **`main → staging`**: só quando houver **release** para produção (várias melhorias no `[Unreleased]`), não a cada merge na `main`.
+- **Nunca** commit direto na `main`.
+
+## Nomenclatura de branch
+
+- Lote: `feat/sla-v1.1`, `feat/chat-operacional`, `fix/alembic-045` (hotfix)
+- Evitar: uma branch por issue de poucas linhas se faz parte do mesmo lote
+
+## Checklist antes de `gh pr create --base main`
+
+- [ ] Este PR fecha um **lote coeso** (ou é hotfix documentado)?
+- [ ] Issues relacionadas pendentes **não** foram deixadas de fora sem motivo?
+- [ ] `CHANGELOG.md` → `[Unreleased]` com bullets para o **lote** (linguagem para usuário final)
+- [ ] Corpo do PR lista issues fechadas (`Closes #NNN`) e test plan do lote
+
+## Exemplos
+
+| Situação | Fazer | Evitar |
+|----------|-------|--------|
+| #416 pronta, #417 é próximo passo SLA | Segurar merge; implementar #417 na mesma branch; **1 PR** | 2 PRs na `main` no mesmo dia |
+| Alembic quebrou deploy | PR hotfix isolado | Esperar lote |
+| #403 e #423 (chat) | Branch `feat/chat-operacional`, 1 PR quando ambas prontas | PR só por issue pequena |
+
+## Referências
+
+- Encerramento de issues: `.cursor/rules/issue-closure-backlog.mdc`, `docs/ISSUE_CLOSURE.md`
+- Deploy: PR `main → staging`; ver `docs/RELEASES.md` se existir

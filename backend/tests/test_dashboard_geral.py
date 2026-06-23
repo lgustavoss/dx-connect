@@ -64,7 +64,7 @@ def test_dashboard_geral_admin_ve_global(client, seed_base, auth_headers, db_ses
     assert body["tickets_sem_responsavel"] == 2
     assert body["chats_aguardando_atendente"] == 1
     assert body["chats_em_atendimento"] == 1
-    assert body["sla_violacoes_abertas"] is None
+    assert body["sla_violacoes_abertas"] == 0
     assert body["cache_ttl_segundos"] == CACHE_TTL_SECONDS
     assert body["csat_tickets"]["total_avaliacoes"] == 0
     assert body["csat_tickets"]["media"] is None
@@ -114,3 +114,24 @@ def test_dashboard_geral_csat_7_dias(client, seed_base, auth_headers, db_session
 def test_dashboard_geral_requer_autenticacao(client):
     r = client.get("/v1/dashboard/geral")
     assert r.status_code == 401
+
+
+def test_dashboard_geral_sla_violacoes_abertas(client, seed_base, auth_headers, db_session):
+    _criar_ticket(db_session, seed_base, setor_id=seed_base["setor1"].id)
+    violado_s1 = _criar_ticket(db_session, seed_base, setor_id=seed_base["setor1"].id)
+    violado_s2 = _criar_ticket(db_session, seed_base, setor_id=seed_base["setor2"].id)
+    fechado_violado = _criar_ticket(
+        db_session, seed_base, setor_id=seed_base["setor1"].id, fechado=True
+    )
+    violado_s1.sla_violado = True
+    violado_s2.sla_violado = True
+    fechado_violado.sla_violado = True
+    db_session.commit()
+
+    r_admin = client.get("/v1/dashboard/geral", headers=auth_headers["admin"])
+    assert r_admin.status_code == 200
+    assert r_admin.json()["sla_violacoes_abertas"] == 2
+
+    r_a1 = client.get("/v1/dashboard/geral", headers=auth_headers["a1"])
+    assert r_a1.status_code == 200
+    assert r_a1.json()["sla_violacoes_abertas"] == 1
