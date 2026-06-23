@@ -1829,6 +1829,8 @@ export namespace Sla {
     setor_id: number;
     setor_nome?: string | null;
     prioridade: Prioridade | null;
+    natureza_id: number | null;
+    natureza_nome?: string | null;
     business_calendar_id: number | null;
     business_calendar_nome?: string | null;
     meta_primeira_resposta_min: number | null;
@@ -1841,6 +1843,7 @@ export namespace Sla {
   export interface PolicyCreate {
     setor_id: number;
     prioridade?: Prioridade | null;
+    natureza_id?: number | null;
     business_calendar_id?: number | null;
     meta_primeira_resposta_min?: number | null;
     meta_resolucao_min?: number | null;
@@ -1850,6 +1853,7 @@ export namespace Sla {
   export interface PolicyUpdate {
     setor_id?: number;
     prioridade?: Prioridade | null;
+    natureza_id?: number | null;
     business_calendar_id?: number | null;
     meta_primeira_resposta_min?: number | null;
     meta_resolucao_min?: number | null;
@@ -2065,6 +2069,7 @@ export namespace Tickets {
   export interface SlaMetaDetalhe {
     meta_minutos: number | null;
     vence_em: string | null;
+    vence_em_efetivo: string | null;
     cumprido_em: string | null;
     estado: string;
     percentual_decorrido: number | null;

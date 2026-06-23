@@ -71,11 +71,9 @@ def _count_sla_violacoes_abertas(db: Session, atendente: Atendente) -> int:
 
 
 def _count_sla_em_risco_abertas(db: Session, atendente: Atendente) -> int:
-    from app.services.sla_calculo import filtro_sql_sla_em_risco
+    from app.services.sla_calculo import contar_tickets_sla_em_risco
 
-    stmt = select(func.count()).select_from(Ticket).where(filtro_sql_sla_em_risco())
-    stmt = _ticket_scope(stmt, db, atendente)
-    return int(db.execute(stmt).scalar_one())
+    return contar_tickets_sla_em_risco(db, atendente)
 
 
 def _count_chats_por_estado(db: Session, atendente: Atendente, estado: str) -> int:

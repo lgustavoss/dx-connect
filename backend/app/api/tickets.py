@@ -538,10 +538,14 @@ def listar(
         q = q.filter(Ticket.fechado_em.is_not(None))
     if sla_violado is True:
         q = q.filter(Ticket.sla_violado.is_(True))
-    if sla_em_risco is True:
-        from app.services.sla_calculo import filtro_sql_sla_em_risco
-
-        q = q.filter(filtro_sql_sla_em_risco())
+    sla_em_risco_preciso = sla_em_risco is True
+    if sla_em_risco_preciso:
+        q = q.filter(
+            Ticket.sla_policy_id.isnot(None),
+            Ticket.sla_violado.is_(False),
+        )
+        if situacao == SituacaoTicket.abertos:
+            q = q.filter(Ticket.fechado_em.is_(None))
     if protocolo and protocolo.strip():
         q = q.filter(Ticket.protocolo.ilike(f"%{protocolo.strip()}%"))
     if busca and busca.strip():
@@ -553,61 +557,88 @@ def listar(
                 Empresa.nome.ilike(term),
             )
         )
-    total = q.count()
-
-    if ordenar_por is None:
-        # Em finalizados, o mais útil é ordenar por data de fechamento (mais recentes primeiro).
-        if situacao == SituacaoTicket.fechados:
-            order_cols = [Ticket.fechado_em.desc().nullslast(), Ticket.id.desc()]
-        elif sem_responsavel and situacao == SituacaoTicket.abertos:
-            # Fila sem responsável: mais antigos primeiro (prioridade operacional).
-            order_cols = [nullslast(Ticket.fila_desde_at.asc()), Ticket.id.asc()]
-        else:
-            order_cols = [Ticket.created_at.desc(), Ticket.id.desc()]
-    else:
-        if ordenar_por == OrdenarTicketsPor.responsavel:
-            q = q.outerjoin(Ticket.atendente)
-        elif ordenar_por == OrdenarTicketsPor.rede:
-            q = q.outerjoin(Empresa.rede)
-
-        if ordenar_por == OrdenarTicketsPor.protocolo:
-            primary = expr_ordem(Ticket.protocolo, ordem)
-        elif ordenar_por == OrdenarTicketsPor.rede:
-            primary = expr_ordem(Rede.nome, ordem)
-        elif ordenar_por == OrdenarTicketsPor.empresa:
-            primary = expr_ordem(Empresa.nome, ordem)
-        elif ordenar_por == OrdenarTicketsPor.setor:
-            primary = expr_ordem(Setor.nome, ordem)
-        elif ordenar_por == OrdenarTicketsPor.assunto:
-            primary = expr_ordem(Ticket.assunto, ordem)
-        elif ordenar_por == OrdenarTicketsPor.status:
-            primary = expr_ordem(StatusTicket.nome, ordem)
-        elif ordenar_por == OrdenarTicketsPor.fechado_em:
-            primary = nullslast(expr_ordem(Ticket.fechado_em, ordem))
-        elif ordenar_por == OrdenarTicketsPor.fila_desde_at:
-            primary = nullslast(expr_ordem(Ticket.fila_desde_at, ordem))
-        else:
-            primary = nullslast(expr_ordem(Atendente.nome, ordem))
-        tie = expr_ordem(Ticket.id, ordem)
-        order_cols = [primary, tie]
-
-    rows = (
-        q.options(
-            joinedload(Ticket.empresa).joinedload(Empresa.rede),
-            joinedload(Ticket.rede),
-            joinedload(Ticket.setor),
-            joinedload(Ticket.status),
-            joinedload(Ticket.atendente),
-            joinedload(Ticket.motivo).joinedload(TicketMotivo.natureza),
-        )
-        .order_by(*order_cols)
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
     from datetime import datetime, timezone
 
-    from app.services.sla_calculo import preload_minutos_pausa_sla, preload_sla_calendars, sla_estado_resumido
+    from app.services.sla_calculo import preload_minutos_pausa_sla, preload_sla_calendars, selecionar_tickets_sla_em_risco, sla_estado_resumido
+
+    ticket_load_options = (
+        joinedload(Ticket.empresa).joinedload(Empresa.rede),
+        joinedload(Ticket.rede),
+        joinedload(Ticket.setor),
+        joinedload(Ticket.status),
+        joinedload(Ticket.atendente),
+        joinedload(Ticket.motivo).joinedload(TicketMotivo.natureza),
+    )
+
+    if sla_em_risco_preciso:
+        candidates = q.all()
+        now = datetime.now(timezone.utc)
+        filtered = selecionar_tickets_sla_em_risco(db, candidates, now=now)
+        total = len(filtered)
+        if ordenar_por is None:
+            if situacao == SituacaoTicket.fechados:
+                filtered.sort(
+                    key=lambda t: t.fechado_em or datetime.min.replace(tzinfo=timezone.utc),
+                    reverse=True,
+                )
+            elif sem_responsavel and situacao == SituacaoTicket.abertos:
+                filtered.sort(key=lambda t: t.fila_desde_at or datetime.max.replace(tzinfo=timezone.utc))
+            else:
+                filtered.sort(
+                    key=lambda t: t.created_at or datetime.min.replace(tzinfo=timezone.utc),
+                    reverse=True,
+                )
+        else:
+            filtered.sort(
+                key=lambda t: t.created_at or datetime.min.replace(tzinfo=timezone.utc),
+                reverse=True,
+            )
+        page_ids = [t.id for t in filtered[offset : offset + limit]]
+        if not page_ids:
+            return ListaPaginada(items=[], total=total)
+        rows = db.query(Ticket).filter(Ticket.id.in_(page_ids)).options(*ticket_load_options).all()
+        by_id = {t.id: t for t in rows}
+        rows = [by_id[i] for i in page_ids if i in by_id]
+    else:
+        total = q.count()
+
+        if ordenar_por is None:
+            # Em finalizados, o mais útil é ordenar por data de fechamento (mais recentes primeiro).
+            if situacao == SituacaoTicket.fechados:
+                order_cols = [Ticket.fechado_em.desc().nullslast(), Ticket.id.desc()]
+            elif sem_responsavel and situacao == SituacaoTicket.abertos:
+                # Fila sem responsável: mais antigos primeiro (prioridade operacional).
+                order_cols = [nullslast(Ticket.fila_desde_at.asc()), Ticket.id.asc()]
+            else:
+                order_cols = [Ticket.created_at.desc(), Ticket.id.desc()]
+        else:
+            if ordenar_por == OrdenarTicketsPor.responsavel:
+                q = q.outerjoin(Ticket.atendente)
+            elif ordenar_por == OrdenarTicketsPor.rede:
+                q = q.outerjoin(Empresa.rede)
+
+            if ordenar_por == OrdenarTicketsPor.protocolo:
+                primary = expr_ordem(Ticket.protocolo, ordem)
+            elif ordenar_por == OrdenarTicketsPor.rede:
+                primary = expr_ordem(Rede.nome, ordem)
+            elif ordenar_por == OrdenarTicketsPor.empresa:
+                primary = expr_ordem(Empresa.nome, ordem)
+            elif ordenar_por == OrdenarTicketsPor.setor:
+                primary = expr_ordem(Setor.nome, ordem)
+            elif ordenar_por == OrdenarTicketsPor.assunto:
+                primary = expr_ordem(Ticket.assunto, ordem)
+            elif ordenar_por == OrdenarTicketsPor.status:
+                primary = expr_ordem(StatusTicket.nome, ordem)
+            elif ordenar_por == OrdenarTicketsPor.fechado_em:
+                primary = nullslast(expr_ordem(Ticket.fechado_em, ordem))
+            elif ordenar_por == OrdenarTicketsPor.fila_desde_at:
+                primary = nullslast(expr_ordem(Ticket.fila_desde_at, ordem))
+            else:
+                primary = nullslast(expr_ordem(Atendente.nome, ordem))
+            tie = expr_ordem(Ticket.id, ordem)
+            order_cols = [primary, tie]
+
+        rows = q.options(*ticket_load_options).order_by(*order_cols).offset(offset).limit(limit).all()
 
     now = datetime.now(timezone.utc)
     cal_map = preload_sla_calendars(db, rows)

@@ -489,3 +489,73 @@ def test_worker_respeita_pausa_sla(db_session, seed_base):
     db_session.commit()
     db_session.refresh(ticket)
     assert ticket.sla_violado is False
+
+
+def test_em_risco_respeita_pausa_sla(db_session, seed_base):
+    from app.services.sla_calculo import selecionar_tickets_sla_em_risco
+
+    policy = SlaPolicy(
+        tenant_id=1,
+        setor_id=seed_base["setor1"].id,
+        meta_resolucao_min=100,
+        ativo=True,
+    )
+    db_session.add(policy)
+    db_session.flush()
+    st_pausa = _status_pausa_cliente(db_session)
+
+    inicio = datetime(2026, 6, 23, 10, 0, tzinfo=timezone.utc)
+    ticket = Ticket(
+        tenant_id=1,
+        protocolo="#T202606-SLA-RISCO",
+        empresa_id=seed_base["empresa"].id,
+        setor_id=seed_base["setor1"].id,
+        status_id=st_pausa.id,
+        assunto="Em risco pausado",
+        sla_policy_id=policy.id,
+        sla_meta_resolucao_min=100,
+        sla_resolucao_vence_em=inicio + timedelta(minutes=100),
+        sla_violado=False,
+        created_at=inicio,
+    )
+    db_session.add(ticket)
+    db_session.commit()
+
+    now = inicio + timedelta(minutes=85)
+    em_risco = selecionar_tickets_sla_em_risco(db_session, [ticket], now=now)
+    assert em_risco == []
+
+
+def test_get_sla_expoe_vence_em_efetivo_com_pausa(client, seed_base, auth_headers, db_session):
+    policy = SlaPolicy(
+        tenant_id=1,
+        setor_id=seed_base["setor1"].id,
+        meta_resolucao_min=60,
+        ativo=True,
+    )
+    db_session.add(policy)
+    db_session.commit()
+
+    r = client.post(
+        "/v1/tickets",
+        headers=auth_headers["admin"],
+        json={
+            "empresa_id": seed_base["empresa"].id,
+            "setor_id": seed_base["setor1"].id,
+            "assunto": "SLA efetivo",
+            "descricao": "x",
+        },
+    )
+    tid = r.json()["id"]
+    st_pausa = _status_pausa_cliente(db_session)
+    client.patch(
+        f"/v1/tickets/{tid}",
+        headers=auth_headers["admin"],
+        json={"status_id": st_pausa.id},
+    )
+
+    r_sla = client.get(f"/v1/tickets/{tid}/sla", headers=auth_headers["admin"])
+    assert r_sla.status_code == 200
+    body = r_sla.json()
+    assert body["resolucao"]["vence_em_efetivo"] is not None
+    assert body["pausado_agora"] is True

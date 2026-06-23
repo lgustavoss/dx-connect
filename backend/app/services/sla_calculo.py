@@ -295,6 +295,27 @@ def build_ticket_sla_read(db: Session, ticket: Ticket, *, now: datetime | None =
         minutos_pausados=pausa_resolucao,
     )
 
+    def _meta_block(
+        *,
+        meta_min: int | None,
+        vence_em: datetime | None,
+        cumprido_em: datetime | None,
+        pausa_min: int,
+        estado: SlaMetaEstado,
+        pct: float | None,
+    ) -> dict:
+        vence_efetivo = None
+        if meta_min and meta_min > 0 and cumprido_em is None:
+            vence_efetivo = compute_deadline(inicio, meta_min + pausa_min, calendar)
+        return {
+            "meta_minutos": meta_min,
+            "vence_em": vence_em,
+            "vence_em_efetivo": vence_efetivo,
+            "cumprido_em": cumprido_em,
+            "estado": estado.value,
+            "percentual_decorrido": pct,
+        }
+
     return {
         "ticket_id": ticket.id,
         "sla_policy_id": ticket.sla_policy_id,
@@ -303,20 +324,22 @@ def build_ticket_sla_read(db: Session, ticket: Ticket, *, now: datetime | None =
         "usa_horario_comercial": calendar is not None,
         "pausado_agora": pausado_agora,
         "minutos_pausados": minutos_pausados,
-        "primeira_resposta": {
-            "meta_minutos": ticket.sla_meta_primeira_resposta_min,
-            "vence_em": ticket.sla_primeira_resposta_vence_em,
-            "cumprido_em": ticket.sla_primeira_resposta_em,
-            "estado": estado_primeira.value,
-            "percentual_decorrido": pct_primeira,
-        },
-        "resolucao": {
-            "meta_minutos": ticket.sla_meta_resolucao_min,
-            "vence_em": ticket.sla_resolucao_vence_em,
-            "cumprido_em": ticket.fechado_em,
-            "estado": estado_resolucao.value,
-            "percentual_decorrido": pct_resolucao,
-        },
+        "primeira_resposta": _meta_block(
+            meta_min=ticket.sla_meta_primeira_resposta_min,
+            vence_em=ticket.sla_primeira_resposta_vence_em,
+            cumprido_em=ticket.sla_primeira_resposta_em,
+            pausa_min=pausa_primeira,
+            estado=estado_primeira,
+            pct=pct_primeira,
+        ),
+        "resolucao": _meta_block(
+            meta_min=ticket.sla_meta_resolucao_min,
+            vence_em=ticket.sla_resolucao_vence_em,
+            cumprido_em=ticket.fechado_em,
+            pausa_min=pausa_resolucao,
+            estado=estado_resolucao,
+            pct=pct_resolucao,
+        ),
     }
 
 
@@ -399,8 +422,49 @@ def preload_sla_calendars(db: Session, tickets: list[Ticket]) -> dict[int, Calen
     return out
 
 
+def selecionar_tickets_sla_em_risco(
+    db: Session,
+    tickets: list[Ticket],
+    *,
+    now: datetime | None = None,
+) -> list[Ticket]:
+    """Filtra tickets cujo pior estado SLA é ``em_risco`` (motor completo: calendário + pausa)."""
+    if not tickets:
+        return []
+    now_u = ensure_utc(now or datetime.now(timezone.utc))
+    cal_map = preload_sla_calendars(db, tickets)
+    pausa_map = preload_minutos_pausa_sla(db, tickets, ate=now_u, cal_map=cal_map)
+    em_risco: list[Ticket] = []
+    for ticket in tickets:
+        if not ticket.sla_policy_id or ticket.sla_violado or ticket.fechado_em is not None:
+            continue
+        estado = sla_estado_resumido(
+            ticket,
+            now=now_u,
+            calendar=cal_map.get(ticket.sla_policy_id),
+            minutos_pausados=pausa_map.get(ticket.id, 0),
+        )
+        if estado == "em_risco":
+            em_risco.append(ticket)
+    return em_risco
+
+
+def contar_tickets_sla_em_risco(db: Session, atendente) -> int:
+    from app.core.setor_scope import ids_setores_visiveis_atendente
+
+    q = db.query(Ticket).filter(
+        Ticket.fechado_em.is_(None),
+        Ticket.sla_policy_id.isnot(None),
+        Ticket.sla_violado.is_(False),
+    )
+    if atendente.role != "admin":
+        vis = ids_setores_visiveis_atendente(db, atendente)
+        q = q.filter(Ticket.setor_id.in_(vis))
+    return len(selecionar_tickets_sla_em_risco(db, q.all()))
+
+
 def filtro_sql_sla_em_risco():
-    """Expressão SQL para tickets com alguma meta em risco (aprox. relógio contínuo)."""
+    """Pré-filtro SQL rápido (24×7). Preferir ``selecionar_tickets_sla_em_risco`` para precisão."""
     from sqlalchemy import and_, func, or_
 
     elapsed_min = (func.extract("epoch", func.now()) - func.extract("epoch", Ticket.created_at)) / 60.0
