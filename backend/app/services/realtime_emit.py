@@ -128,6 +128,37 @@ def ids_atendentes_ticket_fila(db: Session, ticket: Ticket) -> set[int]:
     return _ids_atendentes_por_setor(db, ticket.setor_id)
 
 
+def ids_atendentes_sla_ticket(db: Session, ticket: Ticket) -> set[int]:
+    """Responsável + atendentes/admins do setor para alertas SLA."""
+    ids = _ids_atendentes_por_setor(db, ticket.setor_id)
+    if ticket.atendente_id is not None:
+        ids.add(ticket.atendente_id)
+    return ids
+
+
+def emit_ticket_sla_alerta(
+    db: Session,
+    ticket: Ticket,
+    *,
+    meta: str,
+    evento: str,
+    meta_label: str,
+    evento_label: str,
+    atendente_ids: set[int],
+) -> None:
+    payload = {
+        "ticket_id": ticket.id,
+        "protocolo": ticket.protocolo,
+        "assunto": ticket.assunto,
+        "meta": meta,
+        "evento": evento,
+        "meta_label": meta_label,
+        "evento_label": evento_label,
+    }
+    _publish_to_atendentes(atendente_ids, "ticket.sla_alerta", payload)
+    _emit_notificacao_after_counter_change(db)
+
+
 def emit_notificacao_contagem(db: Session, atendente_ids: Iterable[int]) -> None:
     """Publica contadores personalizados por atendente (#266)."""
     from app.api.notificacoes import build_notificacao_resumo

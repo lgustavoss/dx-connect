@@ -24,6 +24,8 @@ def test_preferencias_padrao_e_atualizacao(client, seed_base, auth_headers):
     assert body["email_habilitado"] is True
     assert body["email_ticket_atribuido"] is True
     assert body["email_nova_mensagem"] is True
+    assert body["email_sla_em_risco"] is True
+    assert body["email_sla_violado"] is True
 
     r2 = client.patch(
         "/v1/notificacoes/preferencias",

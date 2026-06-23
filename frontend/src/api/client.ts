@@ -1080,6 +1080,8 @@ export namespace Notificacoes {
     email_habilitado: boolean;
     email_ticket_atribuido: boolean;
     email_nova_mensagem: boolean;
+    email_sla_em_risco: boolean;
+    email_sla_violado: boolean;
   }
 }
 

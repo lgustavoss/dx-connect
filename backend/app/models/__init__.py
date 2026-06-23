@@ -31,6 +31,7 @@ from app.models.webhook_outbox import WebhookOutbox
 from app.models.routing_rule import RoutingRule
 from app.models.business_calendar import BusinessCalendar
 from app.models.sla_policy import SlaPolicy
+from app.models.sla_alerta_emitido import SlaAlertaEmitido
 from app.models.empresa_pdv import EmpresaPdv, PdvRotulo, PdvTipoAcessoRemoto
 
 __all__ = [
@@ -77,6 +78,7 @@ __all__ = [
     "RoutingRule",
     "BusinessCalendar",
     "SlaPolicy",
+    "SlaAlertaEmitido",
     "PdvRotulo",
     "PdvTipoAcessoRemoto",
     "EmpresaPdv",

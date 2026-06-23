@@ -301,13 +301,13 @@ async def lifespan(app: FastAPI):
 
     def sla_violacao_loop() -> None:
         from app.database import SessionLocal
-        from app.services.sla_calculo import processar_sla_tickets_abertos
+        from app.services.sla_notificacao import processar_alertas_sla
 
         interval = max(30, settings.SLA_WORKER_INTERVAL_SECONDS)
         while True:
             db = SessionLocal()
             try:
-                n = processar_sla_tickets_abertos(db, limit=200)
+                n = processar_alertas_sla(db, limit=200)
                 if n:
                     db.commit()
                 else:
