@@ -45,6 +45,9 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]'))
+    permissions:
+      contents: write
     # environment: production
 
     env:
@@ -313,3 +316,18 @@ jobs:
               sys.exit(1)
           print("OK: capabilities", caps, "git_sha", body.get("git_sha"))
           PY
+
+      - name: Persistir manifest e CHANGELOG em staging
+        if: github.ref == 'refs/heads/staging'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add VERSION CHANGELOG.md docs/releases/manifest.json \
+            backend/app/data/release_notes.json frontend/public/release-notes.json
+          if git diff --staged --quiet; then
+            echo "Nenhum artefato de release para commitar."
+            exit 0
+          fi
+          VER="$(tr -d '\n\r' < VERSION)"
+          git commit -m "chore(release): publica v${VER} [skip ci]"
+          git push origin HEAD:staging

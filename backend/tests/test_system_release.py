@@ -62,6 +62,32 @@ def test_system_info_authenticated(client, auth_headers, monkeypatch):
     assert body["environment"]
 
 
+def test_system_release_notes_filters_stale_upcoming(client, auth_headers, monkeypatch, tmp_path):
+    data_path = tmp_path / "release_notes.json"
+    payload = {
+        "current_version": "26.06.001",
+        "releases": [
+            {
+                "version": "26.06.001",
+                "changes": [{"category": "melhorias", "text": "Distribuição (#399)"}],
+            }
+        ],
+        "upcoming": [
+            {"category": "melhorias", "text": "feat(releases): CalVer (#404)"},
+        ],
+    }
+    data_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    import app.services.system_release as sr
+
+    monkeypatch.setattr(sr, "_DATA_DIR", tmp_path)
+    reload_release_notes_cache()
+    monkeypatch.setenv("DX_CONNECT_VERSION", "26.06.001")
+
+    body = client.get("/v1/system/release-notes", headers=auth_headers["admin"]).json()
+    assert body["upcoming"] == []
+
+
 def test_system_release_notes_authenticated(client, auth_headers, monkeypatch, tmp_path):
     data_path = tmp_path / "release_notes.json"
     payload = {
@@ -83,7 +109,7 @@ def test_system_release_notes_authenticated(client, auth_headers, monkeypatch, t
                 "changes": [{"category": "melhorias", "text": "Teste"}],
             }
         ],
-        "upcoming": [{"category": "correcoes", "text": "fix: algo"}],
+        "upcoming": [{"category": "melhorias", "text": "Relatórios CSV (#390)"}],
     }
     data_path.write_text(json.dumps(payload), encoding="utf-8")
 
@@ -98,7 +124,7 @@ def test_system_release_notes_authenticated(client, auth_headers, monkeypatch, t
     body = r.json()
     assert body["current_version"] == "26.06.001"
     assert body["current"]["changes"][0]["text"] == "Teste"
-    assert len(body["upcoming"]) == 1
+    assert body["upcoming"] == []
 
 
 def test_health_includes_version(client, monkeypatch):

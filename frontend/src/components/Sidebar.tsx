@@ -516,20 +516,6 @@ export function Sidebar({
       </nav>
 
       <div className={`shrink-0 border-t border-slate-200 p-2 dark:border-slate-800 ${!expanded ? 'md:px-2' : ''}`}>
-        {versionLabel ? (
-          <Link
-            to="/sobre"
-            onClick={onMobileClose}
-            title="Versão e novidades"
-            className={`mb-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 ${
-              expanded ? '' : 'md:justify-center md:px-2'
-            }`}
-          >
-            <span className={`truncate font-mono tracking-tight ${expanded ? '' : 'md:text-[10px]'}`}>
-              {versionLabel}
-            </span>
-          </Link>
-        ) : null}
         <div
           className={`flex items-center gap-3 px-3 py-2 text-slate-600 dark:text-slate-400 ${
             expanded ? 'opacity-100' : 'md:hidden'
@@ -584,6 +570,20 @@ export function Sidebar({
             Sair
           </span>
         </button>
+        {versionLabel ? (
+          <Link
+            to="/sobre"
+            onClick={onMobileClose}
+            title="Versão e novidades"
+            className={`mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 ${
+              expanded ? '' : 'md:justify-center md:px-2'
+            }`}
+          >
+            <span className={`truncate font-mono tracking-tight ${expanded ? '' : 'md:text-[10px]'}`}>
+              {versionLabel}
+            </span>
+          </Link>
+        ) : null}
       </div>
     </>
   )

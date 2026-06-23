@@ -121,7 +121,7 @@ export function Sobre() {
         </Link>
         <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">Sobre</h1>
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-          Versão instalada, novidades publicadas e entregas previstas para o próximo deploy.
+          Consulte a versão em uso e o que mudou em cada atualização publicada.
         </p>
       </div>
 
@@ -130,29 +130,11 @@ export function Sobre() {
         <p className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
           {versionLabel ?? '—'}
         </p>
-        {info?.git_sha ? (
-          <p className="text-xs text-slate-500 dark:text-slate-400">Commit {info.git_sha}</p>
-        ) : null}
-        {info?.environment ? (
-          <p className="text-xs text-slate-500 dark:text-slate-400">Ambiente: {info.environment}</p>
-        ) : null}
       </Card>
-
-      {(notes?.upcoming?.length ?? 0) > 0 ? (
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Em breve</h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            Itens já integrados na branch principal e aguardando promoção para staging.
-          </p>
-          <Card className="p-5">
-            <ChangeList items={notes?.upcoming ?? []} />
-          </Card>
-        </section>
-      ) : null}
 
       {notes?.current ? (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Release atual</h2>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">O que há de novo nesta versão</h2>
           <ReleaseBlock release={notes.current} />
         </section>
       ) : null}
@@ -160,6 +142,9 @@ export function Sobre() {
       {pastReleases.length > 0 ? (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Histórico</h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Atualizações publicadas em versões anteriores, do mais recente ao mais antigo.
+          </p>
           <div className="space-y-4">
             {pastReleases
               .slice()
