@@ -20,6 +20,7 @@ from app.schemas.dashboard import (
 )
 from app.services.chat_dashboard_filters import apply_chat_dashboard_filters, period_bounds, resolve_period
 from app.services.dashboard_drilldown import ChatDrillDown, apply_chat_drill_down
+from app.services.whatsapp_chat_demandas import agregar_demandas_por_motivo, agregar_demandas_por_natureza
 
 CACHE_TTL_SECONDS = 60
 
@@ -343,9 +344,19 @@ def _compute(
     ate: date,
     setor_id: int | None,
     drill: ChatDrillDown,
+    *,
+    empresa_id: int | None = None,
+    rede_id: int | None = None,
 ) -> DashboardChatsResponse:
     de_dt, ate_dt = period_bounds(de, ate)
     agora = datetime.now(timezone.utc)
+    filtros_demanda = dict(
+        de=de,
+        ate=ate,
+        setor_id=setor_id,
+        empresa_id=empresa_id,
+        rede_id=rede_id,
+    )
     return DashboardChatsResponse(
         de=de,
         ate=ate,
@@ -359,6 +370,8 @@ def _compute(
         pct_com_ticket_vinculado=_pct_com_ticket_vinculado(db, atendente, de_dt, ate_dt, setor_id, drill),
         por_atendente=_por_atendente(db, atendente, de_dt, ate_dt, setor_id, drill),
         por_estado_atual=_por_estado_atual(db, atendente, setor_id, drill),
+        demandas_por_natureza=agregar_demandas_por_natureza(db, atendente, **filtros_demanda),
+        demandas_por_motivo=agregar_demandas_por_motivo(db, atendente, **filtros_demanda),
         snapshot=_snapshot_canais(db, atendente),
         gerado_em=agora,
         cache_ttl_segundos=CACHE_TTL_SECONDS,
@@ -372,6 +385,8 @@ def obter_dashboard_chats(
     de: date | None = None,
     ate: date | None = None,
     setor_id: int | None = None,
+    empresa_id: int | None = None,
+    rede_id: int | None = None,
     drill_tipo: str | None = None,
     drill_valor: str | None = None,
     atendente_filtro_id: int | None = None,
@@ -382,13 +397,22 @@ def obter_dashboard_chats(
         drill_valor=drill_valor,
         atendente_filtro_id=atendente_filtro_id,
     )
-    chave = (atendente.id, atendente.role, inicio, fim, setor_id, drill.tipo, drill.valor)
+    chave = (atendente.id, atendente.role, inicio, fim, setor_id, empresa_id, rede_id, drill.tipo, drill.valor)
     agora = datetime.now(timezone.utc)
     em_cache = _cache.get(chave)
     if em_cache is not None:
         gerado_em, resposta = em_cache
         if (agora - gerado_em).total_seconds() < CACHE_TTL_SECONDS:
             return resposta
-    resposta = _compute(db, atendente, inicio, fim, setor_id, drill)
+    resposta = _compute(
+        db,
+        atendente,
+        inicio,
+        fim,
+        setor_id,
+        drill,
+        empresa_id=empresa_id,
+        rede_id=rede_id,
+    )
     _cache[chave] = (agora, resposta)
     return resposta

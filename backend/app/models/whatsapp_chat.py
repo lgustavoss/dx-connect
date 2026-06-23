@@ -79,6 +79,11 @@ class WhatsappChat(Base):
         order_by="WhatsappMensagem.created_at",
     )
     vinculos_tickets = relationship("WhatsappChatTicket", back_populates="chat")
+    demandas = relationship(
+        "WhatsappChatDemanda",
+        back_populates="chat",
+        order_by="WhatsappChatDemanda.created_at",
+    )
 
 
 class WhatsappMensagem(Base):

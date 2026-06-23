@@ -44,6 +44,7 @@ import {
 } from '../../lib/whatsappChatMeta'
 import { WhatsappTicketsModal } from './WhatsappTicketsModal'
 import { WhatsappVincFuncionarioModal } from './WhatsappVincFuncionarioModal'
+import { WhatsappDemandasPanel } from './WhatsappDemandasPanel'
 
 const ROTULO_SEM_LEGENDA = /^\[(Imagem|Áudio|Vídeo|Documento|Figurinha)\]$/
 
@@ -242,6 +243,8 @@ export function WhatsappConversa() {
 
   const [modalTickets, setModalTickets] = useState(false)
   const [ticketsVinculados, setTicketsVinculados] = useState<Tickets.Ticket[]>([])
+  const [demandasCount, setDemandasCount] = useState(0)
+  const [demandasReloadKey, setDemandasReloadKey] = useState(0)
   const navigate = useNavigate()
 
 
@@ -549,6 +552,16 @@ useEffect(() => {
 
     if (!chat || !confirm('Encerrar este atendimento?')) return
 
+    const podeRegistrarDemanda =
+      chat.estado === 'em_atendimento' &&
+      (chat.atendente_id === user?.id || user?.role === 'admin')
+    if (podeRegistrarDemanda && demandasCount === 0) {
+      const prosseguir = confirm(
+        'Nenhuma demanda foi registrada nesta sessão. Deseja encerrar mesmo assim?',
+      )
+      if (!prosseguir) return
+    }
+
     setEncerrando(true)
 
     try {
@@ -822,6 +835,17 @@ useEffect(() => {
               </>
             )}
           </div>
+        )}
+
+
+
+        {chat && chat.estado === 'em_atendimento' && (
+          <WhatsappDemandasPanel
+            key={`${chat.id}-${demandasReloadKey}`}
+            chatId={chat.id}
+            podeRegistrar={isResponsavel || isAdmin}
+            onDemandasChange={setDemandasCount}
+          />
         )}
 
 
@@ -1165,7 +1189,10 @@ useEffect(() => {
           chat={chat}
           open={modalTickets}
           onClose={() => setModalTickets(false)}
-          onSuccess={(atualizado) => setChat(atualizado)}
+          onSuccess={(atualizado) => {
+            setChat(atualizado)
+            setDemandasReloadKey((k) => k + 1)
+          }}
         />
       )}
 

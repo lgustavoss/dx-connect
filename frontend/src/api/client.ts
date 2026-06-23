@@ -790,6 +790,25 @@ export namespace WhatsappChats {
     atendente_nome?: string | null
     created_at?: string | null
   }
+  export interface Demanda {
+    id: number
+    chat_id: number
+    natureza_id: number
+    natureza_nome?: string | null
+    motivo_id?: number | null
+    motivo_nome?: string | null
+    desfecho: string
+    ticket_id?: number | null
+    descricao_curta?: string | null
+    atendente_id?: number | null
+    atendente_nome?: string | null
+    created_at?: string | null
+  }
+  export interface DemandaCreate {
+    natureza_id: number
+    motivo_id?: number | null
+    descricao_curta?: string | null
+  }
 }
 
 /** Obtém o binário de uma mensagem com mídia (requer JWT; não usar em `src` de img direto). */
@@ -840,6 +859,14 @@ export const whatsappChats = {
     listPaginated<WhatsappChats.Avaliacao>('/whatsapp/chats/avaliacoes', params),
   get: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}`),
   mensagens: (id: number) => api<WhatsappChats.Mensagem[]>(`/whatsapp/chats/${id}/mensagens`),
+  demandas: (id: number) => api<WhatsappChats.Demanda[]>(`/whatsapp/chats/${id}/demandas`),
+  registrarDemanda: (id: number, data: WhatsappChats.DemandaCreate) =>
+    api<WhatsappChats.Demanda>(`/whatsapp/chats/${id}/demandas`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  excluirDemanda: (id: number, demandaId: number) =>
+    api<void>(`/whatsapp/chats/${id}/demandas/${demandaId}`, { method: 'DELETE' }),
   assumir: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/assumir`, { method: 'POST' }),
   encerrar: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/encerrar`, { method: 'POST' }),
   transferir: (id: number, data: { setor_id: number; atendente_id?: number | null }) =>
@@ -890,7 +917,14 @@ export const whatsappChats = {
     }),
   abrirTicket: (
     id: number,
-    data: { empresa_id: number; setor_id: number; assunto: string; descricao?: string | null },
+    data: {
+      empresa_id: number
+      setor_id: number
+      assunto: string
+      descricao?: string | null
+      natureza_id?: number | null
+      motivo_id?: number | null
+    },
   ) =>
     api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/abrir-ticket`, {
       method: 'POST',
@@ -1006,6 +1040,8 @@ export const dashboard = {
     de?: string;
     ate?: string;
     setor_id?: number;
+    empresa_id?: number;
+    rede_id?: number;
     atendente_filtro_id?: number;
     drill_tipo?: string;
     drill_valor?: string;
@@ -1243,6 +1279,8 @@ export namespace Dashboard {
     pct_com_ticket_vinculado: number | null;
     por_atendente: ContagemIdNome[];
     por_estado_atual: ContagemRotulo[];
+    demandas_por_natureza: ContagemIdNome[];
+    demandas_por_motivo: ContagemIdNome[];
     snapshot: SnapshotCanais;
     gerado_em: string;
     cache_ttl_segundos: number;
