@@ -15,6 +15,8 @@ export function NotificacoesPreferencias() {
     email_habilitado: true,
     email_ticket_atribuido: true,
     email_nova_mensagem: true,
+    email_sla_em_risco: true,
+    email_sla_violado: true,
   })
 
   useEffect(() => {
@@ -90,6 +92,10 @@ export function NotificacoesPreferencias() {
             chamado em intervalos de alguns minutos.
           </li>
           <li>
+            <strong>SLA em risco / violado</strong> — quando um chamado sob sua responsabilidade (ou do seu setor)
+            atinge 80% do prazo ou estoura a meta de primeira resposta ou resolução.
+          </li>
+          <li>
             Em desenvolvimento, sem SMTP configurado, o sistema simula o envio e registra no log do backend.
           </li>
         </ul>
@@ -122,6 +128,26 @@ export function NotificacoesPreferencias() {
               onCheckedChange={(v) => setPrefs((p) => ({ ...p, email_nova_mensagem: v }))}
               label="Nova mensagem em chamado sob minha responsabilidade"
               description="Mensagens do cliente ou de colegas (agrupadas em intervalos de alguns minutos)."
+              disabled={!prefs.email_habilitado}
+              showStatusPill
+              statusOnText="Sim"
+              statusOffText="Não"
+            />
+            <Switch
+              checked={prefs.email_sla_em_risco}
+              onCheckedChange={(v) => setPrefs((p) => ({ ...p, email_sla_em_risco: v }))}
+              label="SLA em risco (80% do prazo)"
+              description="Primeira resposta ou resolução próximas do limite."
+              disabled={!prefs.email_habilitado}
+              showStatusPill
+              statusOnText="Sim"
+              statusOffText="Não"
+            />
+            <Switch
+              checked={prefs.email_sla_violado}
+              onCheckedChange={(v) => setPrefs((p) => ({ ...p, email_sla_violado: v }))}
+              label="SLA violado"
+              description="Meta de primeira resposta ou resolução estourada."
               disabled={!prefs.email_habilitado}
               showStatusPill
               statusOnText="Sim"
