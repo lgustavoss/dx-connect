@@ -29,6 +29,8 @@ from app.models.ticket_avaliacao import TicketAvaliacao, TicketCsatInvite
 from app.models.atendente_notificacao import AtendenteNotificacaoPreferencias, NotificacaoEmailOutbox
 from app.models.webhook_outbox import WebhookOutbox
 from app.models.routing_rule import RoutingRule
+from app.models.business_calendar import BusinessCalendar
+from app.models.sla_policy import SlaPolicy
 from app.models.empresa_pdv import EmpresaPdv, PdvRotulo, PdvTipoAcessoRemoto
 
 __all__ = [
@@ -73,6 +75,8 @@ __all__ = [
     "NotificacaoEmailOutbox",
     "WebhookOutbox",
     "RoutingRule",
+    "BusinessCalendar",
+    "SlaPolicy",
     "PdvRotulo",
     "PdvTipoAcessoRemoto",
     "EmpresaPdv",

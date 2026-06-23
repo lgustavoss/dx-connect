@@ -186,6 +186,13 @@ class TicketRead(BaseModel):
     fila_desde_at: datetime | None = None
     distribuicao_modo_setor: str | None = None
     distribuicao_auto_em_minutos: int | None = None
+    sla_policy_id: int | None = None
+    sla_meta_primeira_resposta_min: int | None = None
+    sla_meta_resolucao_min: int | None = None
+    sla_primeira_resposta_vence_em: datetime | None = None
+    sla_resolucao_vence_em: datetime | None = None
+    sla_primeira_resposta_em: datetime | None = None
+    sla_violado: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 

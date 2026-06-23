@@ -42,6 +42,7 @@ from app.api import (
     public_csat,
     system,
     routing,
+    sla,
 )
 from app.config import settings
 from app.core.tenant_context import resolve_tenant_id, set_request_tenant_id
@@ -403,6 +404,7 @@ app.include_router(tenant.router, prefix=API_V1_PREFIX)
 app.include_router(public_csat.router, prefix=API_V1_PREFIX)
 app.include_router(system.router, prefix=API_V1_PREFIX)
 app.include_router(routing.router, prefix=API_V1_PREFIX)
+app.include_router(sla.router, prefix=API_V1_PREFIX)
 
 
 def _app_route_paths() -> set[str]:

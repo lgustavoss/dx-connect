@@ -14,7 +14,7 @@ from app.services.whatsapp_auto_messages import (
     DEFAULT_AUTO_MSG_FORA_HORARIO,
     resolver_nome_empresa_para_template,
 )
-from app.services.whatsapp_media_storage import gravar_base64_em_disco
+from app.core.business_calendar import is_feriado_nacional_br as _is_feriado_nacional_br
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import json
@@ -164,49 +164,6 @@ def _parse_hhmm(v: str | None) -> tuple[int, int] | None:
         return hh, mm
     except Exception:
         return None
-
-
-def _easter_date_gregorian(year: int) -> date:
-    """Meeus/Jones/Butcher algorithm."""
-    a = year % 19
-    b = year // 100
-    c = year % 100
-    d = b // 4
-    e = b % 4
-    f = (b + 8) // 25
-    g = (b - f + 1) // 3
-    h = (19 * a + b - d - g + 15) % 30
-    i = c // 4
-    k = c % 4
-    l = (32 + 2 * e + 2 * i - h - k) % 7
-    m = (a + 11 * h + 22 * l) // 451
-    month = (h + l - 7 * m + 114) // 31
-    day = ((h + l - 7 * m + 114) % 31) + 1
-    return date(year, month, day)
-
-
-def _is_feriado_nacional_br(d: date) -> bool:
-    # Fixos (Brasil)
-    fixos = {
-        (1, 1),   # Confraternização
-        (4, 21),  # Tiradentes
-        (5, 1),   # Trabalho
-        (9, 7),   # Independência
-        (10, 12), # Nossa Senhora Aparecida
-        (11, 2),  # Finados
-        (11, 15), # Proclamação
-        (11, 20), # Consciência Negra (nacional)
-        (12, 25), # Natal
-    }
-    if (d.month, d.day) in fixos:
-        return True
-    # Móveis (base Páscoa)
-    easter = _easter_date_gregorian(d.year)
-    carnaval_seg = easter - timedelta(days=48)
-    carnaval_ter = easter - timedelta(days=47)
-    sexta_santa = easter - timedelta(days=2)
-    corpus_christi = easter + timedelta(days=60)
-    return d in (carnaval_seg, carnaval_ter, sexta_santa, corpus_christi)
 
 
 def _horario_semana(st: WhatsappSettings) -> dict[str, dict] | None:

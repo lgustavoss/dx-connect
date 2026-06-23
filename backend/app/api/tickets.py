@@ -395,6 +395,13 @@ def _ticket_para_read(t: Ticket, db: Session | None = None) -> TicketRead:
         solicitante=_solicitante_para_read(db, t, triagem) if db is not None else None,
         **csat,
         **fila,
+        sla_policy_id=t.sla_policy_id,
+        sla_meta_primeira_resposta_min=t.sla_meta_primeira_resposta_min,
+        sla_meta_resolucao_min=t.sla_meta_resolucao_min,
+        sla_primeira_resposta_vence_em=t.sla_primeira_resposta_vence_em,
+        sla_resolucao_vence_em=t.sla_resolucao_vence_em,
+        sla_primeira_resposta_em=t.sla_primeira_resposta_em,
+        sla_violado=bool(t.sla_violado),
     )
 
 
@@ -724,6 +731,9 @@ def criar(
     )
     db.add(ticket)
     db.flush()
+    from app.services.sla_policy import aplicar_sla_snapshot_ao_ticket
+
+    aplicar_sla_snapshot_ao_ticket(db, ticket)
     if rota_resultado.matched:
         registrar_roteamento_aplicado(
             db,
