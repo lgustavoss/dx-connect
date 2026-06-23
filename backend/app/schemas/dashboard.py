@@ -57,7 +57,7 @@ class DashboardGeralResponse(BaseModel):
     chats_em_atendimento: int = Field(ge=0)
     csat_tickets: CsAtMediaResumo
     csat_chats: CsAtMediaResumo
-    sla_violacoes_abertas: int | None = None
+    sla_violacoes_abertas: int = Field(ge=0)
     gerado_em: datetime
     cache_ttl_segundos: int = Field(ge=0)
 
