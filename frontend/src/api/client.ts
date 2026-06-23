@@ -477,6 +477,11 @@ export const sla = {
   calendars: {
     list: (params?: { setor_id?: number; incluir_inativos?: boolean }) =>
       api<Sla.BusinessCalendar[]>(withParams('/sla/calendars', params)),
+    get: (id: number) => api<Sla.BusinessCalendar>(`/sla/calendars/${id}`),
+    create: (data: Sla.BusinessCalendarCreate) =>
+      api<Sla.BusinessCalendar>('/sla/calendars', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: number, data: Sla.BusinessCalendarUpdate) =>
+      api<Sla.BusinessCalendar>(`/sla/calendars/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   },
 };
 
@@ -1819,6 +1824,28 @@ export namespace Sla {
     horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
     usar_feriados_nacionais: boolean;
     ativo: boolean;
+  }
+
+  export interface BusinessCalendarCreate {
+    nome: string;
+    setor_id?: number | null;
+    horario_timezone?: string;
+    horario_inicio?: string | null;
+    horario_fim?: string | null;
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
+    usar_feriados_nacionais?: boolean;
+    ativo?: boolean;
+  }
+
+  export interface BusinessCalendarUpdate {
+    nome?: string;
+    setor_id?: number | null;
+    horario_timezone?: string;
+    horario_inicio?: string | null;
+    horario_fim?: string | null;
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
+    usar_feriados_nacionais?: boolean;
+    ativo?: boolean;
   }
 }
 
