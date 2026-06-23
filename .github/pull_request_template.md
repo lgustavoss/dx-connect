@@ -13,3 +13,11 @@
 ## Test plan
 
 - [ ] 
+
+## Follow-ups / backlog (obrigatório ao fechar issue ou épico)
+
+- [ ] Revisei itens **fora do escopo** desta issue — cada um virou issue `#___` ou está documentado como wontfix
+- [ ] Stubs/campos nullable têm issue de conclusão, se aplicável
+- [ ] Comentário na issue fechada ou no PR lista links dos follow-ups criados
+
+> Guia: [docs/ISSUE_CLOSURE.md](../docs/ISSUE_CLOSURE.md)

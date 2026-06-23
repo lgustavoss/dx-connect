@@ -1,0 +1,41 @@
+---
+description: Ao fechar issues — registrar follow-ups em novas issues e manter escopo alinhado
+alwaysApply: true
+---
+
+# Encerramento de issues e backlog de follow-ups
+
+## Regra
+
+Ao **fechar** uma issue ou épico (merge do PR + fechamento no GitHub):
+
+1. **Escopo da issue atual** — só o que estava nos critérios de aceite; não expandir no mesmo PR.
+2. **Identificar lacunas** — stubs, «fora de escopo v1», melhorias descobertas na implementação, débito explícito.
+3. **Abrir issues novas** — uma issue por follow-up, com corpo em `.github/planning-issue-bodies/followups/` quando fizer sentido.
+4. **Referenciar origem** — seção «Origem» no corpo: issue/épico que motivou o follow-up.
+5. **Comentário ao fechar** — no PR ou na issue fechada, listar links `#NNN` dos follow-ups criados.
+
+## Checklist (obrigatório antes de fechar)
+
+- [ ] Critérios de aceite da issue **atendidos** ou explicitamente adiados com nova issue
+- [ ] Itens **fora de escopo** têm issue de backlog (não ficam só no chat ou no épico)
+- [ ] Stubs/campos nullable têm issue para implementação futura
+- [ ] Issues **obsoletas** substituídas por épico filho são **fechadas** com comentário (ex.: #101 → #277–#281)
+- [ ] Épico pai: checklist de filhas atualizado; follow-ups linkados no comentário final
+
+## Modelo de issue follow-up
+
+```markdown
+## Origem
+Identificado ao fechar #XXX — fora do escopo / stub / melhoria.
+
+## Dependências
+- Requer: #YYY (concluída)
+
+## Critérios de aceite
+- [ ] ...
+```
+
+## Referência
+
+Guia completo: `docs/ISSUE_CLOSURE.md`
