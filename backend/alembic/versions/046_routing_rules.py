@@ -1,7 +1,7 @@
 """Tabela routing_rules (#258).
 
 Revision ID: 046_routing_rules
-Revises: 045_merge_distrib_webhook
+Revises: 045_merge_setor_webhook
 Create Date: 2026-06-17
 """
 
@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "046_routing_rules"
-down_revision = "045_merge_distrib_webhook"
+down_revision = "045_merge_setor_webhook"
 branch_labels = None
 depends_on = None
 
