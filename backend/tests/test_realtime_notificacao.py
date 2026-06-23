@@ -64,3 +64,30 @@ def test_marcar_visto_emite_contagem(client, seed_base, auth_headers, db_session
     r = client.post(f"/v1/notificacoes/tickets/{ticket.id}/visto", headers=auth_headers["a1"])
     assert r.status_code == 204
     assert seed_base["a1"].id in calls
+
+
+def test_criar_ticket_fila_emite_contagem_unica(client, seed_base, auth_headers, monkeypatch):
+    """#406: criação manual não deve disparar notificacao.contagem mais de uma vez."""
+    contagem_calls: list[int] = []
+
+    def count_emit(db) -> None:
+        contagem_calls.append(1)
+
+    monkeypatch.setattr(
+        "app.services.realtime_emit._emit_notificacao_after_counter_change",
+        count_emit,
+    )
+
+    r = client.post(
+        "/v1/tickets",
+        headers=auth_headers["admin"],
+        json={
+            "empresa_id": seed_base["empresa"].id,
+            "setor_id": seed_base["setor1"].id,
+            "assunto": "Fila som único",
+            "descricao": "Teste #406",
+        },
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["atendente_id"] is None
+    assert len(contagem_calls) == 1

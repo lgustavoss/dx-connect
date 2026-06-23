@@ -750,16 +750,25 @@ def criar(
         .order_by(TicketMensagem.id.desc())
         .first()
     )
-    if msg_abertura:
-        emit_ticket_mensagem_from_model(db, ticket, msg_abertura, exclude_atendente_id=atendente.id)
+    contagem_ja_emitida = False
     if ticket.atendente_id is None:
         sincronizar_fila_desde_at(ticket)
         db.commit()
         if tentar_distribuicao_imediata(db, ticket):
             db.commit()
             emit_notificacao_after_counter_change(db)
+            contagem_ja_emitida = True
         else:
             emit_ticket_fila(db, ticket)
+            contagem_ja_emitida = True
+    if msg_abertura:
+        emit_ticket_mensagem_from_model(
+            db,
+            ticket,
+            msg_abertura,
+            exclude_atendente_id=atendente.id,
+            emit_notificacao=not contagem_ja_emitida,
+        )
     ticket_out = (
         db.query(Ticket)
         .options(*_opcoes_carregamento_ticket_detalhe())

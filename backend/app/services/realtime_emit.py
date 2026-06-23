@@ -204,13 +204,15 @@ def emit_ticket_mensagem(
     mensagem_payload: dict[str, Any],
     *,
     exclude_atendente_id: int | None = None,
+    emit_notificacao: bool = True,
 ) -> None:
     recipients = ids_atendentes_ticket_mensagem(
         db, ticket, exclude_atendente_id=exclude_atendente_id
     )
     payload = {"ticket_id": ticket.id, "mensagem": mensagem_payload}
     _publish_to_atendentes(recipients, "ticket.mensagem", payload)
-    _emit_notificacao_after_counter_change(db)
+    if emit_notificacao:
+        _emit_notificacao_after_counter_change(db)
 
 
 def emit_ticket_fila(db: Session, ticket: Ticket) -> None:
@@ -265,6 +267,7 @@ def emit_ticket_mensagem_from_model(
     mensagem: Any,
     *,
     exclude_atendente_id: int | None = None,
+    emit_notificacao: bool = True,
 ) -> None:
     from app.api.tickets import _mensagem_para_read
 
@@ -273,4 +276,5 @@ def emit_ticket_mensagem_from_model(
         ticket,
         _mensagem_para_read(mensagem).model_dump(mode="json"),
         exclude_atendente_id=exclude_atendente_id,
+        emit_notificacao=emit_notificacao,
     )
