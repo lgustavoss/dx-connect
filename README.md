@@ -41,6 +41,10 @@ Ferramenta interna de controle de tickets voltada para redes de postos/empresas,
     - Quantidade por status
     - Últimos tickets
 
+### Decisões de produto
+
+- **WhatsApp — atendimento humano:** o canal prioriza **operadores humanos**; fora de escopo chatbots, árvores de FAQ automatizadas ou respostas que substituam o atendente. Mensagens automáticas limitam-se a eventos operacionais (boas-vindas, encerramento, inatividade, avaliação). Decisão documentada na issue [#122](https://github.com/lgustavoss/dx-connect/issues/122) (encerrada).
+
 ### Estrutura do projeto
 
 ```text

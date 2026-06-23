@@ -38,10 +38,27 @@ Meta-issue geral: [#16](https://github.com/lgustavoss/dx-connect/issues/16)
 
 ## Tickets / inbound (2026-06-21)
 
+| Issue | Título | Estado |
+|-------|--------|--------|
+| [#388](https://github.com/lgustavoss/dx-connect/issues/388) | Triagem inbound: vínculo pós-cadastro do remetente | Fechada |
+| [#389](https://github.com/lgustavoss/dx-connect/issues/389) | Exibir solicitante no detalhe do ticket | Fechada |
+
+## Superseded / fechadas (hygiene 2026-06-23)
+
+| Issue | Motivo |
+|-------|--------|
+| [#102](https://github.com/lgustavoss/dx-connect/issues/102) | SLA UI → #277–#281, #416 |
+| [#111](https://github.com/lgustavoss/dx-connect/issues/111), [#112](https://github.com/lgustavoss/dx-connect/issues/112) | Portal → #263 |
+| [#122](https://github.com/lgustavoss/dx-connect/issues/122) | Decisão produto → README |
+
+---
+
+## Release notes / UX (2026-06-23)
+
 | Issue | Título |
 |-------|--------|
-| [#388](https://github.com/lgustavoss/dx-connect/issues/388) | Triagem inbound: vínculo pós-cadastro do remetente |
-| [#389](https://github.com/lgustavoss/dx-connect/issues/389) | Exibir solicitante no detalhe do ticket |
+| [#400](https://github.com/lgustavoss/dx-connect/issues/400) | **[Épico] Versionamento e release notes** |
+| [#426](https://github.com/lgustavoss/dx-connect/issues/426) | Centralizar badge "Melhorias" no card (`/sobre`) |
 
 ---
 

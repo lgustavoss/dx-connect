@@ -94,6 +94,40 @@ def test_resolve_prioridade_especifica_sobre_default(db_session, seed_base):
     assert resolved.id == especifica.id
 
 
+def test_resolve_policy_por_natureza(db_session, seed_base):
+    from app.models.ticket_classificacao import TicketMotivo, TicketNatureza
+
+    padrao = _criar_policy(db_session, seed_base, prioridade="normal", primeira=120, resolucao=600)
+    nat = TicketNatureza(nome="Erro SLA", slug="erro-sla-test", ordem=1, ativo=True)
+    db_session.add(nat)
+    db_session.flush()
+    mot = TicketMotivo(natureza_id=nat.id, nome="PDV", slug="pdv-sla-test", ordem=1, ativo=True)
+    db_session.add(mot)
+    db_session.flush()
+    especifica = SlaPolicy(
+        tenant_id=1,
+        setor_id=seed_base["setor1"].id,
+        prioridade="normal",
+        natureza_id=nat.id,
+        meta_primeira_resposta_min=15,
+        meta_resolucao_min=90,
+        ativo=True,
+    )
+    db_session.add(especifica)
+    db_session.commit()
+
+    resolved = resolve_sla_policy(
+        db_session,
+        tenant_id=1,
+        setor_id=seed_base["setor1"].id,
+        prioridade="normal",
+        natureza_id=nat.id,
+    )
+    assert resolved is not None
+    assert resolved.id == especifica.id
+    assert resolved.id != padrao.id
+
+
 def test_snapshot_na_criacao_ticket(client, seed_base, auth_headers, db_session):
     _criar_policy(db_session, seed_base, prioridade=None, primeira=60, resolucao=480)
     db_session.commit()

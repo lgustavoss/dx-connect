@@ -44,6 +44,7 @@ import {
 } from '../../lib/whatsappChatMeta'
 import { WhatsappTicketsModal } from './WhatsappTicketsModal'
 import { WhatsappVincFuncionarioModal } from './WhatsappVincFuncionarioModal'
+import { WhatsappDemandasPanel } from './WhatsappDemandasPanel'
 
 const ROTULO_SEM_LEGENDA = /^\[(Imagem|Áudio|Vídeo|Documento|Figurinha)\]$/
 
@@ -242,6 +243,8 @@ export function WhatsappConversa() {
 
   const [modalTickets, setModalTickets] = useState(false)
   const [ticketsVinculados, setTicketsVinculados] = useState<Tickets.Ticket[]>([])
+  const [demandasCount, setDemandasCount] = useState(0)
+  const [demandasReloadKey, setDemandasReloadKey] = useState(0)
   const navigate = useNavigate()
 
 
@@ -322,13 +325,13 @@ export function WhatsappConversa() {
 
   useEffect(() => {
     if (!chat) return
-    const isResponsavel = user?.role === 'admin' || chat.atendente_id === user?.id
-    if (!isResponsavel && chat.estado === 'em_atendimento') {
+    const responsavel = chat.atendente_id === user?.id
+    if (!responsavel && chat.estado === 'em_atendimento') {
       setModoInterno(true)
     } else {
       setModoInterno(false)
     }
-  }, [chat, user?.role, user?.id])
+  }, [chat, user?.id])
 
   useEffect(() => {
     if (!id) return
@@ -497,9 +500,7 @@ useEffect(() => {
 
     toast.showSuccess(mensagemTransferenciaSucesso(atualizado))
 
-    const aindaResponsavel =
-      user?.role === 'admin' || atualizado.atendente_id === user?.id
-    if (!aindaResponsavel && atualizado.estado === 'em_atendimento') {
+    if (atualizado.atendente_id !== user?.id && atualizado.estado === 'em_atendimento') {
       navigate('/whatsapp/atendendo')
     }
   } catch (err) {
@@ -551,6 +552,16 @@ useEffect(() => {
 
     if (!chat || !confirm('Encerrar este atendimento?')) return
 
+    const podeRegistrarDemanda =
+      chat.estado === 'em_atendimento' &&
+      (chat.atendente_id === user?.id || user?.role === 'admin')
+    if (podeRegistrarDemanda && demandasCount === 0) {
+      const prosseguir = confirm(
+        'Nenhuma demanda foi registrada nesta sessão. Deseja encerrar mesmo assim?',
+      )
+      if (!prosseguir) return
+    }
+
     setEncerrando(true)
 
     try {
@@ -577,11 +588,14 @@ useEffect(() => {
 
   const encerrado = chat?.estado === 'encerrado' || chat?.estado === 'aguardando_avaliacao'
 
-  const isResponsavel = user?.role === 'admin' || (chat?.atendente_id === user?.id)
+  const isResponsavel = chat?.atendente_id === user?.id
+  const isAdmin = user?.role === 'admin'
 
-  const podeTransferir = !encerrado && isResponsavel
+  const podeTransferir = !encerrado && (isResponsavel || isAdmin)
 
   const podeEnviar = chat?.estado === 'em_atendimento' && isResponsavel && !encerrado
+
+  const podeEncerrar = !encerrado && chat?.estado === 'em_atendimento' && (isResponsavel || isAdmin)
 
 
 
@@ -792,7 +806,7 @@ useEffect(() => {
                   Tickets{ticketsVinculados.length > 0 ? ` (${ticketsVinculados.length})` : ''}
                 </Button>
 
-                {podeEnviar && (
+                {podeEncerrar && (
 
                   <Button variant="danger" className="h-8 px-3 text-xs" onClick={() => void encerrar()} loading={encerrando}>Encerrar</Button>
 
@@ -808,9 +822,30 @@ useEffect(() => {
 
         {!encerrado && chat?.estado === 'em_atendimento' && !isResponsavel && (
           <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
-            Este chat está com <strong>{chat.atendente_nome || 'outro atendente'}</strong>.
-            Você pode acompanhar em modo interno; mensagens ao cliente ficam bloqueadas.
+            {isAdmin ? (
+              <>
+                Modo acompanhamento (administrador): chat com{' '}
+                <strong>{chat.atendente_nome || 'outro atendente'}</strong>. Mensagens ao cliente
+                ficam bloqueadas — use comentário interno.
+              </>
+            ) : (
+              <>
+                Este chat está com <strong>{chat.atendente_nome || 'outro atendente'}</strong>.
+                Você pode acompanhar em modo interno; mensagens ao cliente ficam bloqueadas.
+              </>
+            )}
           </div>
+        )}
+
+
+
+        {chat && chat.estado === 'em_atendimento' && (
+          <WhatsappDemandasPanel
+            key={`${chat.id}-${demandasReloadKey}`}
+            chatId={chat.id}
+            podeRegistrar={isResponsavel || isAdmin}
+            onDemandasChange={setDemandasCount}
+          />
         )}
 
 
@@ -1154,7 +1189,10 @@ useEffect(() => {
           chat={chat}
           open={modalTickets}
           onClose={() => setModalTickets(false)}
-          onSuccess={(atualizado) => setChat(atualizado)}
+          onSuccess={(atualizado) => {
+            setChat(atualizado)
+            setDemandasReloadKey((k) => k + 1)
+          }}
         />
       )}
 

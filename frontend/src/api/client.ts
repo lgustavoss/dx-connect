@@ -790,6 +790,25 @@ export namespace WhatsappChats {
     atendente_nome?: string | null
     created_at?: string | null
   }
+  export interface Demanda {
+    id: number
+    chat_id: number
+    natureza_id: number
+    natureza_nome?: string | null
+    motivo_id?: number | null
+    motivo_nome?: string | null
+    desfecho: string
+    ticket_id?: number | null
+    descricao_curta?: string | null
+    atendente_id?: number | null
+    atendente_nome?: string | null
+    created_at?: string | null
+  }
+  export interface DemandaCreate {
+    natureza_id: number
+    motivo_id?: number | null
+    descricao_curta?: string | null
+  }
 }
 
 /** Obtém o binário de uma mensagem com mídia (requer JWT; não usar em `src` de img direto). */
@@ -840,6 +859,14 @@ export const whatsappChats = {
     listPaginated<WhatsappChats.Avaliacao>('/whatsapp/chats/avaliacoes', params),
   get: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}`),
   mensagens: (id: number) => api<WhatsappChats.Mensagem[]>(`/whatsapp/chats/${id}/mensagens`),
+  demandas: (id: number) => api<WhatsappChats.Demanda[]>(`/whatsapp/chats/${id}/demandas`),
+  registrarDemanda: (id: number, data: WhatsappChats.DemandaCreate) =>
+    api<WhatsappChats.Demanda>(`/whatsapp/chats/${id}/demandas`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  excluirDemanda: (id: number, demandaId: number) =>
+    api<void>(`/whatsapp/chats/${id}/demandas/${demandaId}`, { method: 'DELETE' }),
   assumir: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/assumir`, { method: 'POST' }),
   encerrar: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/encerrar`, { method: 'POST' }),
   transferir: (id: number, data: { setor_id: number; atendente_id?: number | null }) =>
@@ -890,7 +917,14 @@ export const whatsappChats = {
     }),
   abrirTicket: (
     id: number,
-    data: { empresa_id: number; setor_id: number; assunto: string; descricao?: string | null },
+    data: {
+      empresa_id: number
+      setor_id: number
+      assunto: string
+      descricao?: string | null
+      natureza_id?: number | null
+      motivo_id?: number | null
+    },
   ) =>
     api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/abrir-ticket`, {
       method: 'POST',
@@ -1006,6 +1040,8 @@ export const dashboard = {
     de?: string;
     ate?: string;
     setor_id?: number;
+    empresa_id?: number;
+    rede_id?: number;
     atendente_filtro_id?: number;
     drill_tipo?: string;
     drill_valor?: string;
@@ -1243,6 +1279,8 @@ export namespace Dashboard {
     pct_com_ticket_vinculado: number | null;
     por_atendente: ContagemIdNome[];
     por_estado_atual: ContagemRotulo[];
+    demandas_por_natureza: ContagemIdNome[];
+    demandas_por_motivo: ContagemIdNome[];
     snapshot: SnapshotCanais;
     gerado_em: string;
     cache_ttl_segundos: number;
@@ -1761,18 +1799,21 @@ export namespace StatusTicket {
     slug: string;
     ordem: number;
     ativo: boolean;
+    pausa_sla: boolean;
   }
   export interface Create {
     nome: string;
     slug: string;
     ordem?: number;
     ativo?: boolean;
+    pausa_sla?: boolean;
   }
   export interface Update {
     nome?: string;
     slug?: string;
     ordem?: number;
     ativo?: boolean;
+    pausa_sla?: boolean;
   }
 }
 
@@ -1788,6 +1829,8 @@ export namespace Sla {
     setor_id: number;
     setor_nome?: string | null;
     prioridade: Prioridade | null;
+    natureza_id: number | null;
+    natureza_nome?: string | null;
     business_calendar_id: number | null;
     business_calendar_nome?: string | null;
     meta_primeira_resposta_min: number | null;
@@ -1800,6 +1843,7 @@ export namespace Sla {
   export interface PolicyCreate {
     setor_id: number;
     prioridade?: Prioridade | null;
+    natureza_id?: number | null;
     business_calendar_id?: number | null;
     meta_primeira_resposta_min?: number | null;
     meta_resolucao_min?: number | null;
@@ -1809,6 +1853,7 @@ export namespace Sla {
   export interface PolicyUpdate {
     setor_id?: number;
     prioridade?: Prioridade | null;
+    natureza_id?: number | null;
     business_calendar_id?: number | null;
     meta_primeira_resposta_min?: number | null;
     meta_resolucao_min?: number | null;
@@ -2024,6 +2069,7 @@ export namespace Tickets {
   export interface SlaMetaDetalhe {
     meta_minutos: number | null;
     vence_em: string | null;
+    vence_em_efetivo: string | null;
     cumprido_em: string | null;
     estado: string;
     percentual_decorrido: number | null;
@@ -2034,6 +2080,8 @@ export namespace Tickets {
     sla_violado: boolean;
     inicio_em: string;
     usa_horario_comercial: boolean;
+    pausado_agora: boolean;
+    minutos_pausados: number;
     primeira_resposta: SlaMetaDetalhe;
     resolucao: SlaMetaDetalhe;
   }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ApiError, setores, sla, type Sla } from '../api/client'
+import { ApiError, setores, sla, ticketClassificacao, type Sla, type TicketClassificacao } from '../api/client'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
@@ -30,6 +30,7 @@ function formVazio(): Sla.PolicyCreate {
   return {
     setor_id: 0,
     prioridade: null,
+    natureza_id: null,
     business_calendar_id: null,
     meta_primeira_resposta_min: 60,
     meta_resolucao_min: 480,
@@ -58,6 +59,7 @@ export function SlaPoliticasPage({ embedded = false }: { embedded?: boolean }) {
   const [incluirInativos, setIncluirInativos] = useState(false)
   const [filtroSetor, setFiltroSetor] = useState<number | ''>('')
   const [setorOpts, setSetorOpts] = useState<{ id: number; nome: string }[]>([])
+  const [naturezas, setNaturezas] = useState<TicketClassificacao.Natureza[]>([])
 
   const [editId, setEditId] = useState<number | null>(null)
   const [formOpen, setFormOpen] = useState(false)
@@ -98,6 +100,10 @@ export function SlaPoliticasPage({ embedded = false }: { embedded?: boolean }) {
     })
     sla.prioridades().then((r) => setPrioridades(r.prioridades))
     sla.calendars.list({ incluir_inativos: true }).then(setCalendars).catch(() => setCalendars([]))
+    ticketClassificacao
+      .listNaturezas({ limit: 100 })
+      .then(({ items }) => setNaturezas(items))
+      .catch(() => setNaturezas([]))
   }, [])
 
   function iniciarNova() {
@@ -114,6 +120,7 @@ export function SlaPoliticasPage({ embedded = false }: { embedded?: boolean }) {
     setForm({
       setor_id: policy.setor_id,
       prioridade: policy.prioridade,
+      natureza_id: policy.natureza_id,
       business_calendar_id: policy.business_calendar_id,
       meta_primeira_resposta_min: policy.meta_primeira_resposta_min,
       meta_resolucao_min: policy.meta_resolucao_min,
@@ -153,6 +160,7 @@ export function SlaPoliticasPage({ embedded = false }: { embedded?: boolean }) {
       const payload = {
         ...form,
         prioridade: form.prioridade || null,
+        natureza_id: form.natureza_id || null,
         business_calendar_id: form.business_calendar_id || null,
         meta_primeira_resposta_min: primeira && primeira > 0 ? primeira : null,
         meta_resolucao_min: resolucao && resolucao > 0 ? resolucao : null,
@@ -199,7 +207,7 @@ export function SlaPoliticasPage({ embedded = false }: { embedded?: boolean }) {
       forbidden={forbidden}
       denied={denied}
       title="SLA"
-      subtitle="Metas de primeira resposta e resolução por setor e prioridade."
+      subtitle="Metas de primeira resposta e resolução por setor, prioridade e natureza (opcional)."
       actions={<Button onClick={iniciarNova}>Nova política</Button>}
     >
       <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -227,6 +235,7 @@ export function SlaPoliticasPage({ embedded = false }: { embedded?: boolean }) {
             <tr className="border-b border-slate-200 dark:border-slate-700 text-left">
               <th className="p-2">Setor</th>
               <th className="p-2">Prioridade</th>
+              <th className="p-2">Natureza</th>
               <th className="p-2">Primeira resposta</th>
               <th className="p-2">Resolução</th>
               <th className="p-2">Calendário</th>
@@ -236,13 +245,13 @@ export function SlaPoliticasPage({ embedded = false }: { embedded?: boolean }) {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="p-4 text-slate-500">
+                <td colSpan={7} className="p-4 text-slate-500">
                   Carregando…
                 </td>
               </tr>
             ) : list.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-4 text-slate-500">
+                <td colSpan={7} className="p-4 text-slate-500">
                   Nenhuma política cadastrada.
                 </td>
               </tr>
@@ -257,6 +266,9 @@ export function SlaPoliticasPage({ embedded = false }: { embedded?: boolean }) {
                       {!p.ativo ? (
                         <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">inativa</span>
                       ) : null}
+                    </td>
+                    <td className="p-2 text-slate-600 dark:text-slate-400">
+                      {p.natureza_nome ?? 'Qualquer'}
                     </td>
                     <td className="p-2">{formatMinutosSla(p.meta_primeira_resposta_min, comercial)}</td>
                     <td className="p-2">{formatMinutosSla(p.meta_resolucao_min, comercial)}</td>
@@ -316,6 +328,26 @@ export function SlaPoliticasPage({ embedded = false }: { embedded?: boolean }) {
                 {prioridades.map((p) => (
                   <option key={p} value={p}>
                     {PRIORIDADE_LABELS[p]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm">
+              Natureza (opcional)
+              <select
+                className="mt-1 w-full rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5"
+                value={form.natureza_id ?? ''}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    natureza_id: e.target.value ? Number(e.target.value) : null,
+                  }))
+                }
+              >
+                <option value="">Qualquer natureza</option>
+                {naturezas.map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {n.nome}
                   </option>
                 ))}
               </select>
