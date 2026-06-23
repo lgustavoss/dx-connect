@@ -16,7 +16,8 @@ from app.core.business_calendar import (
     ensure_utc,
 )
 from app.models.sla_policy import SlaPolicy
-from app.models.ticket import Ticket, TicketMensagem
+from app.models.status_ticket import StatusTicket
+from app.models.ticket import Ticket, TicketHistorico, TicketMensagem
 from app.services.sla_policy import carregar_calendario_policy
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,147 @@ def elapsed_minutes(
     return business_minutes_between(inicio, fim, calendar)
 
 
+def _parse_status_id(valor: str | None) -> int | None:
+    if valor is None or valor == "":
+        return None
+    try:
+        return int(valor)
+    except (TypeError, ValueError):
+        return None
+
+
+def _timeline_status_segments(
+    ticket: Ticket,
+    historico: list[TicketHistorico],
+    ate: datetime,
+) -> list[tuple[int | None, datetime, datetime]]:
+    """Intervalos (status_id, início, fim) cobrindo a vida do ticket até ``ate``."""
+    inicio = ensure_utc(ticket.created_at or ate)
+    ate_u = ensure_utc(ate)
+    if ate_u < inicio:
+        ate_u = inicio
+
+    if not historico:
+        return [(ticket.status_id, inicio, ate_u)]
+
+    cur_status = _parse_status_id(historico[0].valor_antigo) or ticket.status_id
+    cur_inicio = inicio
+    segments: list[tuple[int | None, datetime, datetime]] = []
+
+    for h in historico:
+        h_at = ensure_utc(h.created_at or ate_u)
+        if h_at <= cur_inicio:
+            novo = _parse_status_id(h.valor_novo)
+            if novo is not None:
+                cur_status = novo
+            continue
+        segments.append((cur_status, cur_inicio, min(h_at, ate_u)))
+        cur_inicio = h_at
+        novo = _parse_status_id(h.valor_novo)
+        if novo is not None:
+            cur_status = novo
+
+    if cur_inicio < ate_u:
+        segments.append((cur_status, cur_inicio, ate_u))
+    return segments
+
+
+def _status_ids_com_pausa_sla(db: Session, status_ids: set[int]) -> set[int]:
+    if not status_ids:
+        return set()
+    rows = (
+        db.query(StatusTicket.id)
+        .filter(StatusTicket.id.in_(status_ids), StatusTicket.pausa_sla.is_(True))
+        .all()
+    )
+    return {int(r[0]) for r in rows}
+
+
+def minutos_pausa_sla(
+    db: Session,
+    ticket: Ticket,
+    *,
+    ate: datetime,
+    calendar: CalendarConfig | None,
+    historico: list[TicketHistorico] | None = None,
+    pausa_status_ids: set[int] | None = None,
+) -> int:
+    """Minutos em que o relógio SLA ficou pausado (status com ``pausa_sla``)."""
+    if historico is None:
+        historico = (
+            db.query(TicketHistorico)
+            .filter(TicketHistorico.ticket_id == ticket.id, TicketHistorico.campo == "status_id")
+            .order_by(TicketHistorico.created_at.asc(), TicketHistorico.id.asc())
+            .all()
+        )
+    segments = _timeline_status_segments(ticket, historico, ate)
+    status_ids = {sid for sid, _, _ in segments if sid is not None}
+    if pausa_status_ids is None:
+        pausa_status_ids = _status_ids_com_pausa_sla(db, status_ids)
+    if not pausa_status_ids:
+        return 0
+    total = 0
+    for status_id, seg_inicio, seg_fim in segments:
+        if status_id in pausa_status_ids and seg_fim > seg_inicio:
+            total += elapsed_minutes(seg_inicio, seg_fim, calendar)
+    return total
+
+
+def status_atual_pausa_sla(db: Session, ticket: Ticket) -> bool:
+    if not ticket.status_id:
+        return False
+    row = db.query(StatusTicket.pausa_sla).filter(StatusTicket.id == ticket.status_id).first()
+    return bool(row and row[0])
+
+
+def preload_minutos_pausa_sla(
+    db: Session,
+    tickets: list[Ticket],
+    *,
+    ate: datetime,
+    cal_map: dict[int, CalendarConfig | None],
+) -> dict[int, int]:
+    if not tickets:
+        return {}
+    ticket_ids = [t.id for t in tickets]
+    historicos = (
+        db.query(TicketHistorico)
+        .filter(TicketHistorico.ticket_id.in_(ticket_ids), TicketHistorico.campo == "status_id")
+        .order_by(TicketHistorico.ticket_id.asc(), TicketHistorico.created_at.asc(), TicketHistorico.id.asc())
+        .all()
+    )
+    hist_by_ticket: dict[int, list[TicketHistorico]] = {}
+    status_ids: set[int] = set()
+    for h in historicos:
+        hist_by_ticket.setdefault(h.ticket_id, []).append(h)
+        sid = _parse_status_id(h.valor_antigo)
+        if sid is not None:
+            status_ids.add(sid)
+        sid = _parse_status_id(h.valor_novo)
+        if sid is not None:
+            status_ids.add(sid)
+    for t in tickets:
+        if t.status_id:
+            status_ids.add(t.status_id)
+    pausa_ids = _status_ids_com_pausa_sla(db, status_ids)
+    if not pausa_ids:
+        return {t.id: 0 for t in tickets}
+
+    ate_u = ensure_utc(ate)
+    out: dict[int, int] = {}
+    for t in tickets:
+        calendar = cal_map.get(t.sla_policy_id) if t.sla_policy_id else None
+        out[t.id] = minutos_pausa_sla(
+            db,
+            t,
+            ate=ate_u,
+            calendar=calendar,
+            historico=hist_by_ticket.get(t.id, []),
+            pausa_status_ids=pausa_ids,
+        )
+    return out
+
+
 def avaliar_meta(
     *,
     inicio: datetime,
@@ -75,24 +217,25 @@ def avaliar_meta(
     meta_min: int | None,
     now: datetime,
     calendar: CalendarConfig | None,
+    minutos_pausados: int = 0,
 ) -> tuple[SlaMetaEstado, float | None]:
     if not meta_min or meta_min <= 0 or not vence_em:
         return SlaMetaEstado.sem_meta, None
 
-    vence_u = ensure_utc(vence_em)
     now_u = ensure_utc(now)
 
     if cumprido_em is not None:
         cumprido_u = ensure_utc(cumprido_em)
-        if cumprido_u <= vence_u:
-            return SlaMetaEstado.cumprido, 100.0
-        return SlaMetaEstado.violado, 100.0
+        decorridos = max(0, elapsed_minutes(inicio, cumprido_u, calendar) - minutos_pausados)
+        pct = min(100.0, (decorridos / meta_min) * 100) if meta_min > 0 else 100.0
+        if decorridos <= meta_min:
+            return SlaMetaEstado.cumprido, pct
+        return SlaMetaEstado.violado, pct
 
-    if now_u > vence_u:
-        return SlaMetaEstado.violado, 100.0
-
-    decorridos = elapsed_minutes(inicio, now_u, calendar)
+    decorridos = max(0, elapsed_minutes(inicio, now_u, calendar) - minutos_pausados)
     pct = min(99.9, (decorridos / meta_min) * 100) if meta_min > 0 else 0.0
+    if decorridos >= meta_min:
+        return SlaMetaEstado.violado, 100.0
     if pct >= SLA_RISCO_PERCENT:
         return SlaMetaEstado.em_risco, pct
     return SlaMetaEstado.dentro, pct
@@ -120,6 +263,18 @@ def build_ticket_sla_read(db: Session, ticket: Ticket, *, now: datetime | None =
     now_u = ensure_utc(now or datetime.now(timezone.utc))
     inicio = ensure_utc(ticket.created_at or now_u)
     calendar = calendar_config_para_ticket(db, ticket)
+    pausado_agora = status_atual_pausa_sla(db, ticket)
+    minutos_pausados = minutos_pausa_sla(db, ticket, ate=now_u, calendar=calendar)
+    pausa_primeira = (
+        minutos_pausa_sla(db, ticket, ate=ticket.sla_primeira_resposta_em, calendar=calendar)
+        if ticket.sla_primeira_resposta_em
+        else minutos_pausados
+    )
+    pausa_resolucao = (
+        minutos_pausa_sla(db, ticket, ate=ticket.fechado_em, calendar=calendar)
+        if ticket.fechado_em
+        else minutos_pausados
+    )
 
     estado_primeira, pct_primeira = avaliar_meta(
         inicio=inicio,
@@ -128,6 +283,7 @@ def build_ticket_sla_read(db: Session, ticket: Ticket, *, now: datetime | None =
         meta_min=ticket.sla_meta_primeira_resposta_min,
         now=now_u,
         calendar=calendar,
+        minutos_pausados=pausa_primeira,
     )
     estado_resolucao, pct_resolucao = avaliar_meta(
         inicio=inicio,
@@ -136,6 +292,7 @@ def build_ticket_sla_read(db: Session, ticket: Ticket, *, now: datetime | None =
         meta_min=ticket.sla_meta_resolucao_min,
         now=now_u,
         calendar=calendar,
+        minutos_pausados=pausa_resolucao,
     )
 
     return {
@@ -144,6 +301,8 @@ def build_ticket_sla_read(db: Session, ticket: Ticket, *, now: datetime | None =
         "sla_violado": bool(ticket.sla_violado),
         "inicio_em": inicio,
         "usa_horario_comercial": calendar is not None,
+        "pausado_agora": pausado_agora,
+        "minutos_pausados": minutos_pausados,
         "primeira_resposta": {
             "meta_minutos": ticket.sla_meta_primeira_resposta_min,
             "vence_em": ticket.sla_primeira_resposta_vence_em,
@@ -166,8 +325,9 @@ def sla_estado_resumido(
     *,
     now: datetime | None = None,
     calendar: CalendarConfig | None = None,
+    minutos_pausados: int = 0,
 ) -> str | None:
-    """Pior estado SLA entre primeira resposta e resolução (para listagem, sem query extra)."""
+    """Pior estado SLA entre primeira resposta e resolução (para listagem)."""
     if not ticket.sla_policy_id:
         return None
     now_u = ensure_utc(now or datetime.now(timezone.utc))
@@ -181,6 +341,7 @@ def sla_estado_resumido(
             meta_min=ticket.sla_meta_primeira_resposta_min,
             now=now_u,
             calendar=calendar,
+            minutos_pausados=minutos_pausados,
         )
         estados.append(estado)
     if ticket.sla_meta_resolucao_min:
@@ -191,6 +352,7 @@ def sla_estado_resumido(
             meta_min=ticket.sla_meta_resolucao_min,
             now=now_u,
             calendar=calendar,
+            minutos_pausados=minutos_pausados,
         )
         estados.append(estado)
     if not estados:

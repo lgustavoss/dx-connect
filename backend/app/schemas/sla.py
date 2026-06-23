@@ -152,5 +152,7 @@ class TicketSlaRead(BaseModel):
     sla_violado: bool = False
     inicio_em: datetime
     usa_horario_comercial: bool = False
+    pausado_agora: bool = False
+    minutos_pausados: int = 0
     primeira_resposta: SlaMetaDetalheRead
     resolucao: SlaMetaDetalheRead

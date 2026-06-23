@@ -9,7 +9,8 @@ from zoneinfo import ZoneInfo
 from app.core.business_calendar import CalendarConfig, add_business_minutes, business_minutes_between
 from app.models.business_calendar import BusinessCalendar
 from app.models.sla_policy import SlaPolicy
-from app.models.ticket import Ticket, TicketMensagem
+from app.models.status_ticket import StatusTicket
+from app.models.ticket import Ticket, TicketHistorico, TicketMensagem
 from app.services.sla_calculo import (
     SlaMetaEstado,
     avaliar_meta,
@@ -281,3 +282,210 @@ def test_mensagem_conta_primeira_resposta():
     m_int = TicketMensagem(ticket_id=1, atendente_id=1, tipo="interno", corpo="x")
     assert mensagem_conta_primeira_resposta(m_pub) is True
     assert mensagem_conta_primeira_resposta(m_int) is False
+
+
+def _status_pausa_cliente(db_session):
+    st = db_session.query(StatusTicket).filter(StatusTicket.slug == "aguardando_cliente").first()
+    if st is None:
+        st = StatusTicket(nome="Aguardando cliente", slug="aguardando_cliente", ordem=3, ativo=True)
+        db_session.add(st)
+        db_session.flush()
+    st.pausa_sla = True
+    db_session.commit()
+    return st
+
+
+def _status_em_atendimento(db_session):
+    st = db_session.query(StatusTicket).filter(StatusTicket.slug == "em_atendimento").first()
+    if st is None:
+        st = StatusTicket(nome="Em atendimento", slug="em_atendimento", ordem=2, ativo=True)
+        db_session.add(st)
+        db_session.commit()
+    return st
+
+
+def test_sla_pausa_por_status_congela_contagem(db_session, seed_base):
+    policy = SlaPolicy(
+        tenant_id=1,
+        setor_id=seed_base["setor1"].id,
+        meta_resolucao_min=60,
+        ativo=True,
+    )
+    db_session.add(policy)
+    db_session.flush()
+    st_ativo = _status_em_atendimento(db_session)
+    st_pausa = _status_pausa_cliente(db_session)
+
+    inicio = datetime(2026, 6, 23, 10, 0, tzinfo=timezone.utc)
+    ticket = Ticket(
+        tenant_id=1,
+        protocolo="#T202606-SLA-PAUSA",
+        empresa_id=seed_base["empresa"].id,
+        setor_id=seed_base["setor1"].id,
+        status_id=st_ativo.id,
+        assunto="Pausa SLA",
+        sla_policy_id=policy.id,
+        sla_meta_resolucao_min=60,
+        sla_resolucao_vence_em=inicio + timedelta(minutes=60),
+        created_at=inicio,
+    )
+    db_session.add(ticket)
+    db_session.flush()
+
+    pausa_em = inicio + timedelta(minutes=30)
+    db_session.add(
+        TicketHistorico(
+            ticket_id=ticket.id,
+            campo="status_id",
+            valor_antigo=str(st_ativo.id),
+            valor_novo=str(st_pausa.id),
+            created_at=pausa_em,
+        )
+    )
+    ticket.status_id = st_pausa.id
+    db_session.commit()
+
+    now = inicio + timedelta(minutes=100)
+    dados = build_ticket_sla_read(db_session, ticket, now=now)
+    assert dados["pausado_agora"] is True
+    assert dados["minutos_pausados"] == 70
+    assert dados["resolucao"]["estado"] == "dentro"
+
+
+def test_sla_retomada_viola_apos_minutos_efetivos(db_session, seed_base):
+    policy = SlaPolicy(
+        tenant_id=1,
+        setor_id=seed_base["setor1"].id,
+        meta_resolucao_min=60,
+        ativo=True,
+    )
+    db_session.add(policy)
+    db_session.flush()
+    st_ativo = _status_em_atendimento(db_session)
+    st_pausa = _status_pausa_cliente(db_session)
+
+    inicio = datetime(2026, 6, 23, 10, 0, tzinfo=timezone.utc)
+    ticket = Ticket(
+        tenant_id=1,
+        protocolo="#T202606-SLA-RET",
+        empresa_id=seed_base["empresa"].id,
+        setor_id=seed_base["setor1"].id,
+        status_id=st_ativo.id,
+        assunto="Retomada SLA",
+        sla_policy_id=policy.id,
+        sla_meta_resolucao_min=60,
+        sla_resolucao_vence_em=inicio + timedelta(minutes=60),
+        sla_violado=False,
+        created_at=inicio,
+    )
+    db_session.add(ticket)
+    db_session.flush()
+
+    pausa_em = inicio + timedelta(minutes=20)
+    retoma_em = inicio + timedelta(minutes=50)
+    db_session.add(
+        TicketHistorico(
+            ticket_id=ticket.id,
+            campo="status_id",
+            valor_antigo=str(st_ativo.id),
+            valor_novo=str(st_pausa.id),
+            created_at=pausa_em,
+        )
+    )
+    db_session.add(
+        TicketHistorico(
+            ticket_id=ticket.id,
+            campo="status_id",
+            valor_antigo=str(st_pausa.id),
+            valor_novo=str(st_ativo.id),
+            created_at=retoma_em,
+        )
+    )
+    ticket.status_id = st_ativo.id
+    db_session.commit()
+
+    now = inicio + timedelta(minutes=90)
+    dados = build_ticket_sla_read(db_session, ticket, now=now)
+    assert dados["pausado_agora"] is False
+    assert dados["minutos_pausados"] == 30
+    assert dados["resolucao"]["estado"] == "violado"
+
+
+def test_get_ticket_sla_reflete_pausa(client, seed_base, auth_headers, db_session):
+    policy = SlaPolicy(
+        tenant_id=1,
+        setor_id=seed_base["setor1"].id,
+        meta_resolucao_min=120,
+        ativo=True,
+    )
+    db_session.add(policy)
+    db_session.commit()
+
+    r = client.post(
+        "/v1/tickets",
+        headers=auth_headers["admin"],
+        json={
+            "empresa_id": seed_base["empresa"].id,
+            "setor_id": seed_base["setor1"].id,
+            "assunto": "SLA pausa API",
+            "descricao": "x",
+        },
+    )
+    tid = r.json()["id"]
+    st_pausa = _status_pausa_cliente(db_session)
+    client.patch(
+        f"/v1/tickets/{tid}",
+        headers=auth_headers["admin"],
+        json={"status_id": st_pausa.id},
+    )
+
+    r_sla = client.get(f"/v1/tickets/{tid}/sla", headers=auth_headers["admin"])
+    assert r_sla.status_code == 200
+    body = r_sla.json()
+    assert body["pausado_agora"] is True
+    assert body["minutos_pausados"] >= 0
+
+
+def test_worker_respeita_pausa_sla(db_session, seed_base):
+    policy = SlaPolicy(
+        tenant_id=1,
+        setor_id=seed_base["setor1"].id,
+        meta_resolucao_min=30,
+        ativo=True,
+    )
+    db_session.add(policy)
+    db_session.flush()
+    st_pausa = _status_pausa_cliente(db_session)
+    st_ativo = _status_em_atendimento(db_session)
+
+    inicio = datetime.now(timezone.utc) - timedelta(hours=2)
+    ticket = Ticket(
+        tenant_id=1,
+        protocolo="#T202606-SLA-WK",
+        empresa_id=seed_base["empresa"].id,
+        setor_id=seed_base["setor1"].id,
+        status_id=st_pausa.id,
+        assunto="Worker pausa",
+        sla_policy_id=policy.id,
+        sla_meta_resolucao_min=30,
+        sla_resolucao_vence_em=inicio + timedelta(minutes=30),
+        sla_violado=False,
+        created_at=inicio,
+    )
+    db_session.add(ticket)
+    db_session.flush()
+    db_session.add(
+        TicketHistorico(
+            ticket_id=ticket.id,
+            campo="status_id",
+            valor_antigo=str(st_ativo.id),
+            valor_novo=str(st_pausa.id),
+            created_at=inicio + timedelta(minutes=5),
+        )
+    )
+    db_session.commit()
+
+    processar_sla_tickets_abertos(db_session)
+    db_session.commit()
+    db_session.refresh(ticket)
+    assert ticket.sla_violado is False

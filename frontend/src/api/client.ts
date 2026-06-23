@@ -1799,18 +1799,21 @@ export namespace StatusTicket {
     slug: string;
     ordem: number;
     ativo: boolean;
+    pausa_sla: boolean;
   }
   export interface Create {
     nome: string;
     slug: string;
     ordem?: number;
     ativo?: boolean;
+    pausa_sla?: boolean;
   }
   export interface Update {
     nome?: string;
     slug?: string;
     ordem?: number;
     ativo?: boolean;
+    pausa_sla?: boolean;
   }
 }
 
@@ -2072,6 +2075,8 @@ export namespace Tickets {
     sla_violado: boolean;
     inicio_em: string;
     usa_horario_comercial: boolean;
+    pausado_agora: boolean;
+    minutos_pausados: number;
     primeira_resposta: SlaMetaDetalhe;
     resolucao: SlaMetaDetalhe;
   }

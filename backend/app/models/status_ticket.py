@@ -15,6 +15,7 @@ class StatusTicket(Base):
     slug = Column(String(50), unique=True, nullable=False, index=True)
     ordem = Column(SmallInteger, default=0)  # para ordenação na UI
     ativo = Column(Boolean, default=True)
+    pausa_sla = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

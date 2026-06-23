@@ -607,10 +607,11 @@ def listar(
     )
     from datetime import datetime, timezone
 
-    from app.services.sla_calculo import preload_sla_calendars, sla_estado_resumido
+    from app.services.sla_calculo import preload_minutos_pausa_sla, preload_sla_calendars, sla_estado_resumido
 
     now = datetime.now(timezone.utc)
     cal_map = preload_sla_calendars(db, rows)
+    pausa_map = preload_minutos_pausa_sla(db, rows, ate=now, cal_map=cal_map)
     items = [
         _ticket_para_read(
             t,
@@ -619,6 +620,7 @@ def listar(
                 t,
                 now=now,
                 calendar=cal_map.get(t.sla_policy_id) if t.sla_policy_id else None,
+                minutos_pausados=pausa_map.get(t.id, 0),
             ),
         )
         for t in rows
@@ -854,13 +856,20 @@ def obter(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
     from datetime import datetime, timezone
 
-    from app.services.sla_calculo import preload_sla_calendars, sla_estado_resumido
+    from app.services.sla_calculo import (
+        minutos_pausa_sla,
+        preload_sla_calendars,
+        sla_estado_resumido,
+    )
 
     cal_map = preload_sla_calendars(db, [ticket])
+    now = datetime.now(timezone.utc)
+    calendar = cal_map.get(ticket.sla_policy_id) if ticket.sla_policy_id else None
     estado = sla_estado_resumido(
         ticket,
-        now=datetime.now(timezone.utc),
-        calendar=cal_map.get(ticket.sla_policy_id) if ticket.sla_policy_id else None,
+        now=now,
+        calendar=calendar,
+        minutos_pausados=minutos_pausa_sla(db, ticket, ate=now, calendar=calendar),
     )
     return _ticket_para_read(ticket, db, sla_estado=estado)
 
@@ -887,6 +896,8 @@ def obter_sla_ticket(
         sla_violado=dados["sla_violado"],
         inicio_em=dados["inicio_em"],
         usa_horario_comercial=dados["usa_horario_comercial"],
+        pausado_agora=dados["pausado_agora"],
+        minutos_pausados=dados["minutos_pausados"],
         primeira_resposta=SlaMetaDetalheRead(**dados["primeira_resposta"]),
         resolucao=SlaMetaDetalheRead(**dados["resolucao"]),
     )
