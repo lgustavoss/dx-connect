@@ -7,10 +7,31 @@ on:
   push:
     branches: [main, master]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, staging]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validar CHANGELOG [Unreleased]
+        run: |
+          python scripts/check_changelog.py \
+            --base "origin/${{ github.event.pull_request.base.ref }}" \
+            --head "${{ github.event.pull_request.head.sha }}"
+
   backend:
     runs-on: ubuntu-latest
     defaults:

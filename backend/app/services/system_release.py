@@ -51,7 +51,6 @@ def release_notes_payload(*, version_override: str | None = None) -> dict[str, A
     raw = _load_release_notes_raw()
     version = version_override or resolve_app_version()
     releases: list[dict[str, Any]] = list(raw.get("releases") or [])
-    upcoming: list[dict[str, Any]] = list(raw.get("upcoming") or [])
 
     current = None
     if version:
@@ -67,7 +66,7 @@ def release_notes_payload(*, version_override: str | None = None) -> dict[str, A
         "current_version_display": version_display(version) if version else None,
         "current": current,
         "releases": releases,
-        "upcoming": upcoming,
+        "upcoming": [],
     }
 
 
