@@ -35,6 +35,26 @@
           "text": "Health check e capabilities com FastAPI 0.137+ (#394)"
         }
       ]
+    },
+    {
+      "version": "26.06.002",
+      "version_display": "v26.06.002",
+      "date": "2026-06-22",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "Histórico completo de atualizações no painel Sobre (versões anteriores permanecem visíveis)"
+        },
+        {
+          "category": "melhorias",
+          "text": "CHANGELOG obrigatório em PRs com mudança de produto (validação automática no CI)"
+        },
+        {
+          "category": "melhorias",
+          "text": "Persistência do manifest de releases após cada deploy em staging"
+        }
+      ]
     }
   ]
 }

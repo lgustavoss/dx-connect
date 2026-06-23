@@ -5,16 +5,13 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+## [26.06.002] - 2026-06-22
+
 ### Melhorias
 
 - Histórico completo de atualizações no painel Sobre (versões anteriores permanecem visíveis)
 - CHANGELOG obrigatório em PRs com mudança de produto (validação automática no CI)
-
-### Interno / Infra
-
 - Persistência do manifest de releases após cada deploy em staging
-
-<!-- Adicione bullets aqui a cada PR para main. Texto para o usuário final, não mensagem de commit. -->
 
 ## [26.06.001] - 2026-06-22
 
