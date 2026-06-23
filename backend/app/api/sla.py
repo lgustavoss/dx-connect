@@ -32,7 +32,7 @@ def _validar_setor(db: Session, tenant_id: int, setor_id: int) -> Setor:
     return setor
 
 
-def _validar_calendario(db: Session, tenant_id: int, calendar_id: int | None) -> None:
+def _validar_calendario(db: Session, tenant_id: int, calendar_id: int | None, *, exigir_ativo: bool = False) -> None:
     if calendar_id is None:
         return
     cal = (
@@ -42,6 +42,11 @@ def _validar_calendario(db: Session, tenant_id: int, calendar_id: int | None) ->
     )
     if not cal:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Calendário comercial não encontrado")
+    if exigir_ativo and not cal.ativo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Calendário inativo não pode ser vinculado à política SLA.",
+        )
 
 
 def _prioridade_db(prioridade: PrioridadeTicket | None) -> str | None:
@@ -235,7 +240,7 @@ def criar_policy(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
     _validar_setor(db, atendente.tenant_id, data.setor_id)
-    _validar_calendario(db, atendente.tenant_id, data.business_calendar_id)
+    _validar_calendario(db, atendente.tenant_id, data.business_calendar_id, exigir_ativo=True)
     _assert_policy_unica(
         db,
         tenant_id=atendente.tenant_id,
@@ -298,7 +303,7 @@ def atualizar_policy(
     if "prioridade" in payload:
         policy.prioridade = _prioridade_db(payload["prioridade"])
     if "business_calendar_id" in payload:
-        _validar_calendario(db, atendente.tenant_id, payload["business_calendar_id"])
+        _validar_calendario(db, atendente.tenant_id, payload["business_calendar_id"], exigir_ativo=True)
         policy.business_calendar_id = payload["business_calendar_id"]
     if "meta_primeira_resposta_min" in payload:
         policy.meta_primeira_resposta_min = payload["meta_primeira_resposta_min"]

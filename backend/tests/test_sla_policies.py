@@ -182,3 +182,26 @@ def test_policy_com_calendario(client, seed_base, auth_headers):
     assert r.status_code == 201, r.text
     assert r.json()["business_calendar_id"] == calendar_id
     assert r.json()["business_calendar_nome"] == "Cal SLA"
+
+
+def test_policy_rejeita_calendario_inativo(client, seed_base, auth_headers):
+    cal = client.post(
+        "/v1/sla/calendars",
+        headers=auth_headers["admin"],
+        json={"nome": "Cal inativo", "horario_inicio": "08:00", "horario_fim": "17:00", "ativo": False},
+    )
+    assert cal.status_code == 201
+    calendar_id = cal.json()["id"]
+
+    r = client.post(
+        "/v1/sla/policies",
+        headers=auth_headers["admin"],
+        json={
+            "setor_id": seed_base["setor2"].id,
+            "business_calendar_id": calendar_id,
+            "meta_primeira_resposta_min": 45,
+            "meta_resolucao_min": 360,
+        },
+    )
+    assert r.status_code == 400
+    assert "inativo" in r.json()["detail"].lower()

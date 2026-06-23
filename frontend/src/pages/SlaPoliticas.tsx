@@ -363,7 +363,9 @@ export function SlaPoliticasPage({ embedded = false }: { embedded?: boolean }) {
                 }
               >
                 <option value="">Sem calendário (contagem contínua 24×7)</option>
-                {calendars.map((c) => (
+                {calendars
+                  .filter((c) => c.ativo || c.id === form.business_calendar_id)
+                  .map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.nome}
                     {!c.ativo ? ' (inativo)' : ''}
@@ -371,11 +373,11 @@ export function SlaPoliticasPage({ embedded = false }: { embedded?: boolean }) {
                 ))}
               </select>
               <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
-                Calendários compartilhados contam apenas horário útil. Para referência de horário do WhatsApp, veja{' '}
-                <Link to="/configuracoes/sistema/whatsapp" className="text-sky-600 hover:underline dark:text-sky-400">
-                  Configurações → Sistema → WhatsApp
+                Gerencie calendários em{' '}
+                <Link to="/configuracoes/atendimento/sla/calendarios" className="text-sky-600 hover:underline dark:text-sky-400">
+                  SLA → Calendários
                 </Link>
-                .
+                . Apenas calendários ativos podem ser vinculados em novas políticas.
               </span>
             </label>
           </div>
@@ -401,24 +403,6 @@ export function SlaPoliticasPage({ embedded = false }: { embedded?: boolean }) {
               Cancelar
             </Button>
           </div>
-        </Card>
-      ) : null}
-
-      {calendars.length > 0 ? (
-        <Card className="p-4">
-          <h3 className="font-semibold mb-2">Calendários comerciais</h3>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-            Calendários cadastrados no tenant. Vincule um deles à política para contar apenas minutos úteis.
-          </p>
-          <ul className="text-sm space-y-1">
-            {calendars.map((c) => (
-              <li key={c.id} className="flex flex-wrap gap-x-2 text-slate-700 dark:text-slate-300">
-                <span className="font-medium">{c.nome}</span>
-                <span className="text-slate-500">({c.horario_timezone})</span>
-                {!c.ativo ? <span className="text-amber-600 dark:text-amber-400">inativo</span> : null}
-              </li>
-            ))}
-          </ul>
         </Card>
       ) : null}
     </ConfigListPageShell>
