@@ -130,6 +130,9 @@ def criar_filhos_em_massa(
         from app.services.sla_policy import aplicar_sla_snapshot_ao_ticket
 
         aplicar_sla_snapshot_ao_ticket(db, ticket)
+        from app.services.sla_calculo import registrar_primeira_resposta_se_necessario
+
+        registrar_primeira_resposta_se_necessario(db, ticket)
         db.add(
             TicketMensagem(
                 ticket_id=ticket.id,

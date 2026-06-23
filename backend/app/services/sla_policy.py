@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
+from app.core.business_calendar import CalendarConfig, add_business_minutes, calendar_config_from_model, ensure_utc
 from app.core.ticket_prioridade import PrioridadeTicket
 from app.models.business_calendar import BusinessCalendar
 from app.models.sla_policy import SlaPolicy
@@ -37,10 +38,15 @@ def resolve_sla_policy(
     return base_q.filter(SlaPolicy.prioridade.is_(None)).first()
 
 
-def _deadline_wall_clock(base: datetime, minutes: int) -> datetime:
-    if base.tzinfo is None:
-        base = base.replace(tzinfo=timezone.utc)
-    return base + timedelta(minutes=minutes)
+def _deadline_for_ticket(
+    base: datetime,
+    minutes: int,
+    calendar: CalendarConfig | None,
+) -> datetime:
+    base_u = ensure_utc(base)
+    if calendar is None:
+        return base_u + timedelta(minutes=minutes)
+    return add_business_minutes(base_u, minutes, calendar)
 
 
 def aplicar_sla_snapshot_ao_ticket(
@@ -49,7 +55,7 @@ def aplicar_sla_snapshot_ao_ticket(
     *,
     base_time: datetime | None = None,
 ) -> SlaPolicy | None:
-    """Grava metas e prazos iniciais no ticket (relógio corrido em S-01; calendário em S-02)."""
+    """Grava metas e prazos iniciais no ticket (horário comercial quando há calendário)."""
     prioridade = ticket.prioridade
     if prioridade is None:
         prioridade = PrioridadeTicket.normal
@@ -62,7 +68,9 @@ def aplicar_sla_snapshot_ao_ticket(
     if not policy:
         return None
 
-    base = base_time or ticket.created_at or datetime.now(timezone.utc)
+    base = ensure_utc(base_time or ticket.created_at or datetime.now(timezone.utc))
+    cal_model = carregar_calendario_policy(db, policy)
+    calendar = calendar_config_from_model(cal_model) if cal_model else None
 
     ticket.sla_policy_id = policy.id
     ticket.sla_meta_primeira_resposta_min = policy.meta_primeira_resposta_min
@@ -70,14 +78,14 @@ def aplicar_sla_snapshot_ao_ticket(
     ticket.sla_violado = False
 
     if policy.meta_primeira_resposta_min and policy.meta_primeira_resposta_min > 0:
-        ticket.sla_primeira_resposta_vence_em = _deadline_wall_clock(
-            base, policy.meta_primeira_resposta_min
+        ticket.sla_primeira_resposta_vence_em = _deadline_for_ticket(
+            base, policy.meta_primeira_resposta_min, calendar
         )
     else:
         ticket.sla_primeira_resposta_vence_em = None
 
     if policy.meta_resolucao_min and policy.meta_resolucao_min > 0:
-        ticket.sla_resolucao_vence_em = _deadline_wall_clock(base, policy.meta_resolucao_min)
+        ticket.sla_resolucao_vence_em = _deadline_for_ticket(base, policy.meta_resolucao_min, calendar)
     else:
         ticket.sla_resolucao_vence_em = None
 

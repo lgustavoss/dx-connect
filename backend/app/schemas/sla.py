@@ -136,3 +136,21 @@ class SlaPolicyRead(SlaPolicyBase):
 
 class SlaPrioridadesDisponiveis(BaseModel):
     prioridades: list[str] = list(PRIORIDADES_TICKET)
+
+
+class SlaMetaDetalheRead(BaseModel):
+    meta_minutos: int | None = None
+    vence_em: datetime | None = None
+    cumprido_em: datetime | None = None
+    estado: str
+    percentual_decorrido: float | None = None
+
+
+class TicketSlaRead(BaseModel):
+    ticket_id: int
+    sla_policy_id: int | None = None
+    sla_violado: bool = False
+    inicio_em: datetime
+    usa_horario_comercial: bool = False
+    primeira_resposta: SlaMetaDetalheRead
+    resolucao: SlaMetaDetalheRead
