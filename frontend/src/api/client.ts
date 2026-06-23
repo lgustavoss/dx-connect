@@ -463,6 +463,23 @@ export const routingRules = {
     api<RoutingRules.Resultado>('/routing/rules/simulate', { method: 'POST', body: JSON.stringify(data) }),
 };
 
+export const sla = {
+  prioridades: () => api<Sla.PrioridadesDisponiveis>('/sla/prioridades'),
+  policies: {
+    list: (params?: { setor_id?: number; incluir_inativos?: boolean }) =>
+      api<Sla.Policy[]>(withParams('/sla/policies', params)),
+    get: (id: number) => api<Sla.Policy>(`/sla/policies/${id}`),
+    create: (data: Sla.PolicyCreate) =>
+      api<Sla.Policy>('/sla/policies', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: number, data: Sla.PolicyUpdate) =>
+      api<Sla.Policy>(`/sla/policies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  },
+  calendars: {
+    list: (params?: { setor_id?: number; incluir_inativos?: boolean }) =>
+      api<Sla.BusinessCalendar[]>(withParams('/sla/calendars', params)),
+  },
+};
+
 export const audit = {
   list: (params?: {
     entity_type?: string;
@@ -1747,6 +1764,58 @@ export namespace StatusTicket {
     slug?: string;
     ordem?: number;
     ativo?: boolean;
+  }
+}
+
+export namespace Sla {
+  export type Prioridade = 'baixa' | 'normal' | 'alta' | 'urgente';
+
+  export interface PrioridadesDisponiveis {
+    prioridades: Prioridade[];
+  }
+
+  export interface Policy {
+    id: number;
+    setor_id: number;
+    setor_nome?: string | null;
+    prioridade: Prioridade | null;
+    business_calendar_id: number | null;
+    business_calendar_nome?: string | null;
+    meta_primeira_resposta_min: number | null;
+    meta_resolucao_min: number | null;
+    ativo: boolean;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+
+  export interface PolicyCreate {
+    setor_id: number;
+    prioridade?: Prioridade | null;
+    business_calendar_id?: number | null;
+    meta_primeira_resposta_min?: number | null;
+    meta_resolucao_min?: number | null;
+    ativo?: boolean;
+  }
+
+  export interface PolicyUpdate {
+    setor_id?: number;
+    prioridade?: Prioridade | null;
+    business_calendar_id?: number | null;
+    meta_primeira_resposta_min?: number | null;
+    meta_resolucao_min?: number | null;
+    ativo?: boolean;
+  }
+
+  export interface BusinessCalendar {
+    id: number;
+    nome: string;
+    setor_id: number | null;
+    horario_timezone: string;
+    horario_inicio: string | null;
+    horario_fim: string | null;
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
+    usar_feriados_nacionais: boolean;
+    ativo: boolean;
   }
 }
 
