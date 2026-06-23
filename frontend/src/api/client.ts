@@ -936,10 +936,13 @@ export const tickets = {
     /** Coluna para ordenar (omitir = mais recentes primeiro). */
     ordenar_por?: 'protocolo' | 'rede' | 'empresa' | 'setor' | 'assunto' | 'status' | 'responsavel' | 'fechado_em' | 'fila_desde_at';
     ordem?: 'asc' | 'desc';
+    sla_violado?: boolean;
+    sla_em_risco?: boolean;
     offset?: number;
     limit?: number;
   }) => listPaginated<Tickets.Ticket>('/tickets', params),
   get: (id: number) => api<Tickets.Ticket>(`/tickets/${id}`),
+  getSla: (id: number) => api<Tickets.TicketSla>(`/tickets/${id}/sla`),
   getHistorico: (id: number) => api<Tickets.Historico[]>(`/tickets/${id}/historico`),
   listMensagens: (id: number) => api<Tickets.Mensagem[]>(`/tickets/${id}/mensagens`),
   addMensagem: (id: number, data: Tickets.MensagemCreate) =>
@@ -1986,6 +1989,25 @@ export namespace Tickets {
     fila_desde_at?: string | null;
     distribuicao_modo_setor?: string | null;
     distribuicao_auto_em_minutos?: number | null;
+    sla_policy_id?: number | null;
+    sla_violado?: boolean;
+    sla_estado?: 'dentro' | 'em_risco' | 'violado' | 'cumprido' | null;
+  }
+  export interface SlaMetaDetalhe {
+    meta_minutos: number | null;
+    vence_em: string | null;
+    cumprido_em: string | null;
+    estado: string;
+    percentual_decorrido: number | null;
+  }
+  export interface TicketSla {
+    ticket_id: number;
+    sla_policy_id: number | null;
+    sla_violado: boolean;
+    inicio_em: string;
+    usa_horario_comercial: boolean;
+    primeira_resposta: SlaMetaDetalhe;
+    resolucao: SlaMetaDetalhe;
   }
   export type TicketVinculoTipo = 'duplicado_de' | 'relacionado_a';
   export interface TicketVinculoOutro {

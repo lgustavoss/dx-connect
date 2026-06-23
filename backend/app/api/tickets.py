@@ -321,7 +321,7 @@ def _vinculos_para_read(db: Session, t: Ticket) -> list[TicketVinculoRead]:
     return [_vinculo_para_read(v, t.id, db) for v in listar_vinculos(db, t.id)]
 
 
-def _ticket_para_read(t: Ticket, db: Session | None = None) -> TicketRead:
+def _ticket_para_read(t: Ticket, db: Session | None = None, *, sla_estado: str | None = None) -> TicketRead:
     parent_brief = None
     if t.parent_ticket_id and _attr_relacionamento_carregado(t, "parent") and t.parent is not None:
         p = t.parent
@@ -403,6 +403,7 @@ def _ticket_para_read(t: Ticket, db: Session | None = None) -> TicketRead:
         sla_resolucao_vence_em=t.sla_resolucao_vence_em,
         sla_primeira_resposta_em=t.sla_primeira_resposta_em,
         sla_violado=bool(t.sla_violado),
+        sla_estado=sla_estado,
     )
 
 
@@ -478,6 +479,14 @@ def listar(
         SituacaoTicket.abertos,
         description="abertos = fechado_em vazio; fechados = fechado_em preenchido; todos = sem filtro",
     ),
+    sla_violado: bool | None = Query(
+        None,
+        description="True = somente tickets com SLA violado",
+    ),
+    sla_em_risco: bool | None = Query(
+        None,
+        description="True = somente tickets com SLA em risco (≥80% do prazo)",
+    ),
     offset: int = Query(0, ge=0),
     limit: int = Query(_DEFAULT_PAGE, ge=1, le=_MAX_PAGE),
     ordenar_por: OrdenarTicketsPor | None = Query(
@@ -527,6 +536,12 @@ def listar(
         q = q.filter(Ticket.fechado_em.is_(None))
     elif situacao == SituacaoTicket.fechados:
         q = q.filter(Ticket.fechado_em.is_not(None))
+    if sla_violado is True:
+        q = q.filter(Ticket.sla_violado.is_(True))
+    if sla_em_risco is True:
+        from app.services.sla_calculo import filtro_sql_sla_em_risco
+
+        q = q.filter(filtro_sql_sla_em_risco())
     if protocolo and protocolo.strip():
         q = q.filter(Ticket.protocolo.ilike(f"%{protocolo.strip()}%"))
     if busca and busca.strip():
@@ -590,7 +605,25 @@ def listar(
         .limit(limit)
         .all()
     )
-    return ListaPaginada(items=[_ticket_para_read(t, db) for t in rows], total=total)
+    from datetime import datetime, timezone
+
+    from app.services.sla_calculo import preload_sla_calendars, sla_estado_resumido
+
+    now = datetime.now(timezone.utc)
+    cal_map = preload_sla_calendars(db, rows)
+    items = [
+        _ticket_para_read(
+            t,
+            db,
+            sla_estado=sla_estado_resumido(
+                t,
+                now=now,
+                calendar=cal_map.get(t.sla_policy_id) if t.sla_policy_id else None,
+            ),
+        )
+        for t in rows
+    ]
+    return ListaPaginada(items=items, total=total)
 
 
 @router.post("", response_model=TicketRead, status_code=201)
@@ -819,7 +852,17 @@ def obter(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
     if not _pode_ver_ticket(db, atendente, ticket):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
-    return _ticket_para_read(ticket, db)
+    from datetime import datetime, timezone
+
+    from app.services.sla_calculo import preload_sla_calendars, sla_estado_resumido
+
+    cal_map = preload_sla_calendars(db, [ticket])
+    estado = sla_estado_resumido(
+        ticket,
+        now=datetime.now(timezone.utc),
+        calendar=cal_map.get(ticket.sla_policy_id) if ticket.sla_policy_id else None,
+    )
+    return _ticket_para_read(ticket, db, sla_estado=estado)
 
 
 @router.get("/{ticket_id}/sla", response_model=TicketSlaRead)

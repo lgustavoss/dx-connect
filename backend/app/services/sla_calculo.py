@@ -161,6 +161,111 @@ def build_ticket_sla_read(db: Session, ticket: Ticket, *, now: datetime | None =
     }
 
 
+def sla_estado_resumido(
+    ticket: Ticket,
+    *,
+    now: datetime | None = None,
+    calendar: CalendarConfig | None = None,
+) -> str | None:
+    """Pior estado SLA entre primeira resposta e resolução (para listagem, sem query extra)."""
+    if not ticket.sla_policy_id:
+        return None
+    now_u = ensure_utc(now or datetime.now(timezone.utc))
+    inicio = ensure_utc(ticket.created_at or now_u)
+    estados: list[SlaMetaEstado] = []
+    if ticket.sla_meta_primeira_resposta_min:
+        estado, _ = avaliar_meta(
+            inicio=inicio,
+            vence_em=ticket.sla_primeira_resposta_vence_em,
+            cumprido_em=ticket.sla_primeira_resposta_em,
+            meta_min=ticket.sla_meta_primeira_resposta_min,
+            now=now_u,
+            calendar=calendar,
+        )
+        estados.append(estado)
+    if ticket.sla_meta_resolucao_min:
+        estado, _ = avaliar_meta(
+            inicio=inicio,
+            vence_em=ticket.sla_resolucao_vence_em,
+            cumprido_em=ticket.fechado_em,
+            meta_min=ticket.sla_meta_resolucao_min,
+            now=now_u,
+            calendar=calendar,
+        )
+        estados.append(estado)
+    if not estados:
+        return None
+    prioridade = {
+        SlaMetaEstado.violado: 5,
+        SlaMetaEstado.em_risco: 4,
+        SlaMetaEstado.dentro: 3,
+        SlaMetaEstado.cumprido: 2,
+        SlaMetaEstado.sem_meta: 1,
+    }
+    pior = max(estados, key=lambda e: prioridade.get(e, 0))
+    if pior in (SlaMetaEstado.sem_meta, SlaMetaEstado.cumprido) and ticket.fechado_em is not None:
+        return pior.value
+    if pior == SlaMetaEstado.sem_meta:
+        return None
+    if ticket.fechado_em is not None and pior == SlaMetaEstado.cumprido:
+        return "cumprido"
+    if ticket.fechado_em is not None and pior == SlaMetaEstado.violado:
+        return "violado"
+    if ticket.fechado_em is not None:
+        return None
+    return pior.value
+
+
+def preload_sla_calendars(db: Session, tickets: list[Ticket]) -> dict[int, CalendarConfig | None]:
+    """Mapa sla_policy_id → calendário (uma query por lote, evita N+1 na listagem)."""
+    policy_ids = {t.sla_policy_id for t in tickets if t.sla_policy_id}
+    if not policy_ids:
+        return {}
+    policies = db.query(SlaPolicy).filter(SlaPolicy.id.in_(policy_ids)).all()
+    cal_ids = {p.business_calendar_id for p in policies if p.business_calendar_id}
+    cal_by_id: dict[int, CalendarConfig] = {}
+    if cal_ids:
+        from app.models.business_calendar import BusinessCalendar
+
+        for row in db.query(BusinessCalendar).filter(BusinessCalendar.id.in_(cal_ids)).all():
+            cfg = calendar_config_from_model(row)
+            if cfg:
+                cal_by_id[row.id] = cfg
+    out: dict[int, CalendarConfig | None] = {}
+    for p in policies:
+        out[p.id] = cal_by_id.get(p.business_calendar_id) if p.business_calendar_id else None
+    return out
+
+
+def filtro_sql_sla_em_risco():
+    """Expressão SQL para tickets com alguma meta em risco (aprox. relógio contínuo)."""
+    from sqlalchemy import and_, func, or_
+
+    elapsed_min = (func.extract("epoch", func.now()) - func.extract("epoch", Ticket.created_at)) / 60.0
+    primeira = and_(
+        Ticket.sla_primeira_resposta_em.is_(None),
+        Ticket.sla_meta_primeira_resposta_min.isnot(None),
+        Ticket.sla_meta_primeira_resposta_min > 0,
+        Ticket.sla_primeira_resposta_vence_em.isnot(None),
+        Ticket.sla_primeira_resposta_vence_em > func.now(),
+        elapsed_min >= Ticket.sla_meta_primeira_resposta_min * (SLA_RISCO_PERCENT / 100.0),
+    )
+    resolucao = and_(
+        Ticket.fechado_em.is_(None),
+        Ticket.sla_meta_resolucao_min.isnot(None),
+        Ticket.sla_meta_resolucao_min > 0,
+        Ticket.sla_resolucao_vence_em.isnot(None),
+        Ticket.sla_resolucao_vence_em > func.now(),
+        elapsed_min >= Ticket.sla_meta_resolucao_min * (SLA_RISCO_PERCENT / 100.0),
+    )
+    return and_(
+        Ticket.sla_policy_id.isnot(None),
+        Ticket.sla_violado.is_(False),
+        Ticket.fechado_em.is_(None),
+        or_(primeira, resolucao),
+    )
+
+
 def sincronizar_sla_violado(db: Session, ticket: Ticket, *, now: datetime | None = None) -> None:
     dados = build_ticket_sla_read(db, ticket, now=now)
     violado = (
