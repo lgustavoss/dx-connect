@@ -55,6 +55,66 @@
           "text": "Persistência do manifest de releases após cada deploy em staging"
         }
       ]
+    },
+    {
+      "version": "26.06.003",
+      "version_display": "v26.06.003",
+      "date": "2026-06-23",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "Som de ticket novo na fila sem responsável tocava múltiplas vezes por emissões SSE duplicadas e hook de alerta montado em mais de um componente (#406)"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#277): políticas por setor e prioridade, calendário comercial compartilhado e snapshot de metas na criação de tickets"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#278): cálculo com horário comercial, estados dentro/em risco/violado, worker periódico e endpoint de detalhe do SLA por ticket"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#279): alertas de SLA em risco e violado por e-mail e SSE, com preferências opt-in/out e debounce por ticket/meta"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#280): painel admin em Configurações → Atendimento → SLA para CRUD de políticas por setor/prioridade"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#281): badges e filtros na listagem de tickets e card de SLA no detalhe com countdown"
+        },
+        {
+          "category": "melhorias",
+          "text": "Motor de roteamento automático: regras configuráveis por admin (setor, prioridade, natureza, motivo, atendente) com avaliação em e-mail inbound e criação manual de tickets"
+        },
+        {
+          "category": "melhorias",
+          "text": "Audit log e histórico do ticket quando uma regra de roteamento é aplicada em runtime"
+        },
+        {
+          "category": "melhorias",
+          "text": "`aplicar_roteamento` restrito a administradores para sobrescrever setor explícito"
+        },
+        {
+          "category": "melhorias",
+          "text": "UI em Configurações → Atendimento → Roteamento com simulador de teste seco"
+        },
+        {
+          "category": "melhorias",
+          "text": "Histórico completo de atualizações no painel Sobre (versões anteriores permanecem visíveis)"
+        },
+        {
+          "category": "melhorias",
+          "text": "CHANGELOG obrigatório em PRs com mudança de produto (validação automática no CI)"
+        },
+        {
+          "category": "melhorias",
+          "text": "Persistência do manifest de releases após cada deploy em staging"
+        }
+      ]
     }
   ]
 }

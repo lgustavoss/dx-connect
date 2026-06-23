@@ -5,12 +5,11 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
-### Correções
-
-- Som de ticket novo na fila sem responsável tocava múltiplas vezes por emissões SSE duplicadas e hook de alerta montado em mais de um componente (#406)
+## [26.06.003] - 2026-06-23
 
 ### Melhorias
 
+- Som de ticket novo na fila sem responsável tocava múltiplas vezes por emissões SSE duplicadas e hook de alerta montado em mais de um componente (#406)
 - SLA (#277): políticas por setor e prioridade, calendário comercial compartilhado e snapshot de metas na criação de tickets
 - SLA (#278): cálculo com horário comercial, estados dentro/em risco/violado, worker periódico e endpoint de detalhe do SLA por ticket
 - SLA (#279): alertas de SLA em risco e violado por e-mail e SSE, com preferências opt-in/out e debounce por ticket/meta
@@ -22,12 +21,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - UI em Configurações → Atendimento → Roteamento com simulador de teste seco
 - Histórico completo de atualizações no painel Sobre (versões anteriores permanecem visíveis)
 - CHANGELOG obrigatório em PRs com mudança de produto (validação automática no CI)
-
-### Interno / Infra
-
 - Persistência do manifest de releases após cada deploy em staging
-
-<!-- Adicione bullets aqui a cada PR para main. Texto para o usuário final, não mensagem de commit. -->
 
 ## [26.06.002] - 2026-06-22
 
