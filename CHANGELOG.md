@@ -11,6 +11,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Melhorias
 
+- SLA (#277): políticas por setor e prioridade, calendário comercial compartilhado e snapshot de metas na criação de tickets
 - Motor de roteamento automático: regras configuráveis por admin (setor, prioridade, natureza, motivo, atendente) com avaliação em e-mail inbound e criação manual de tickets
 - Audit log e histórico do ticket quando uma regra de roteamento é aplicada em runtime
 - `aplicar_roteamento` restrito a administradores para sobrescrever setor explícito

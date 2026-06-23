@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum as SAEnum
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum as SAEnum, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -30,6 +30,13 @@ class Ticket(Base):
     descricao = Column(Text, nullable=True)
     fechado_em = Column(DateTime(timezone=True), nullable=True)
     fila_desde_at = Column(DateTime(timezone=True), nullable=True)
+    sla_policy_id = Column(Integer, ForeignKey("sla_policies.id", ondelete="SET NULL"), nullable=True, index=True)
+    sla_meta_primeira_resposta_min = Column(Integer, nullable=True)
+    sla_meta_resolucao_min = Column(Integer, nullable=True)
+    sla_primeira_resposta_vence_em = Column(DateTime(timezone=True), nullable=True)
+    sla_resolucao_vence_em = Column(DateTime(timezone=True), nullable=True)
+    sla_primeira_resposta_em = Column(DateTime(timezone=True), nullable=True)
+    sla_violado = Column(Boolean, nullable=False, default=False, server_default="false")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

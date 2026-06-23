@@ -126,6 +126,9 @@ def _criar_ticket_triagem_pos_fecho(
     )
     db.add(ticket)
     db.flush()
+    from app.services.sla_policy import aplicar_sla_snapshot_ao_ticket
+
+    aplicar_sla_snapshot_ao_ticket(db, ticket)
 
     db.add(
         TicketMensagem(
@@ -280,6 +283,10 @@ def processar_email_inbound(
     )
     db.add(ticket)
     db.flush()
+
+    from app.services.sla_policy import aplicar_sla_snapshot_ao_ticket
+
+    aplicar_sla_snapshot_ao_ticket(db, ticket)
 
     if rota_aplicada is not None and rota_aplicada.matched:
         from app.services.routing_apply import registrar_roteamento_aplicado
