@@ -70,6 +70,14 @@ def _count_sla_violacoes_abertas(db: Session, atendente: Atendente) -> int:
     return int(db.execute(stmt).scalar_one())
 
 
+def _count_sla_em_risco_abertas(db: Session, atendente: Atendente) -> int:
+    from app.services.sla_calculo import filtro_sql_sla_em_risco
+
+    stmt = select(func.count()).select_from(Ticket).where(filtro_sql_sla_em_risco())
+    stmt = _ticket_scope(stmt, db, atendente)
+    return int(db.execute(stmt).scalar_one())
+
+
 def _count_chats_por_estado(db: Session, atendente: Atendente, estado: str) -> int:
     stmt = select(func.count()).select_from(WhatsappChat).where(WhatsappChat.estado == estado)
     stmt = _whatsapp_scope(stmt, db, atendente)
@@ -130,6 +138,7 @@ def _compute_dashboard_geral(db: Session, atendente: Atendente) -> DashboardGera
         csat_tickets=_csat_tickets(db, atendente, desde),
         csat_chats=_csat_chats(db, atendente, desde),
         sla_violacoes_abertas=_count_sla_violacoes_abertas(db, atendente),
+        sla_em_risco_abertas=_count_sla_em_risco_abertas(db, atendente),
         gerado_em=agora,
         cache_ttl_segundos=CACHE_TTL_SECONDS,
     )

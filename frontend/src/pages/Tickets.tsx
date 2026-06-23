@@ -139,7 +139,10 @@ export function Tickets() {
   const [filtroAtendente, setFiltroAtendente] = useState<number | ''>('')
   const [filtroSla, setFiltroSla] = useState<'' | 'violado' | 'em_risco'>(() => {
     const sv = searchParams.get('sla_violado')
-    return sv === '1' || sv === 'true' ? 'violado' : ''
+    if (sv === '1' || sv === 'true') return 'violado'
+    const sr = searchParams.get('sla_em_risco')
+    if (sr === '1' || sr === 'true') return 'em_risco'
+    return ''
   })
   const [maisFiltrosAberto, setMaisFiltrosAberto] = useState(false)
   const painelFiltrosId = useId()
@@ -237,12 +240,23 @@ export function Tickets() {
 
   useEffect(() => {
     const sv = searchParams.get('sla_violado')
+    const sr = searchParams.get('sla_em_risco')
     if (sv === '1' || sv === 'true') {
       setFiltroSla('violado')
       setSearchParams(
         (prev) => {
           const next = new URLSearchParams(prev)
           next.delete('sla_violado')
+          return next
+        },
+        { replace: true },
+      )
+    } else if (sr === '1' || sr === 'true') {
+      setFiltroSla('em_risco')
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev)
+          next.delete('sla_em_risco')
           return next
         },
         { replace: true },

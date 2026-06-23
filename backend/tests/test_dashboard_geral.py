@@ -65,6 +65,7 @@ def test_dashboard_geral_admin_ve_global(client, seed_base, auth_headers, db_ses
     assert body["chats_aguardando_atendente"] == 1
     assert body["chats_em_atendimento"] == 1
     assert body["sla_violacoes_abertas"] == 0
+    assert body["sla_em_risco_abertas"] == 0
     assert body["cache_ttl_segundos"] == CACHE_TTL_SECONDS
     assert body["csat_tickets"]["total_avaliacoes"] == 0
     assert body["csat_tickets"]["media"] is None
@@ -135,3 +136,66 @@ def test_dashboard_geral_sla_violacoes_abertas(client, seed_base, auth_headers, 
     r_a1 = client.get("/v1/dashboard/geral", headers=auth_headers["a1"])
     assert r_a1.status_code == 200
     assert r_a1.json()["sla_violacoes_abertas"] == 1
+
+
+def test_dashboard_geral_sla_em_risco_abertas(client, seed_base, auth_headers, db_session):
+    from app.models.sla_policy import SlaPolicy
+
+    policy = SlaPolicy(
+        tenant_id=1,
+        setor_id=seed_base["setor1"].id,
+        meta_primeira_resposta_min=100,
+        meta_resolucao_min=480,
+        ativo=True,
+    )
+    db_session.add(policy)
+    db_session.flush()
+
+    agora = datetime.now(timezone.utc)
+    em_risco_s1 = Ticket(
+        tenant_id=1,
+        protocolo=f"R1-{agora.timestamp()}",
+        empresa_id=seed_base["empresa"].id,
+        setor_id=seed_base["setor1"].id,
+        status_id=seed_base["status"].id,
+        assunto="SLA em risco s1",
+        sla_policy_id=policy.id,
+        sla_meta_primeira_resposta_min=100,
+        sla_primeira_resposta_vence_em=agora + timedelta(minutes=20),
+        sla_violado=False,
+        created_at=agora - timedelta(minutes=85),
+    )
+    em_risco_s2 = Ticket(
+        tenant_id=1,
+        protocolo=f"R2-{agora.timestamp()}",
+        empresa_id=seed_base["empresa"].id,
+        setor_id=seed_base["setor2"].id,
+        status_id=seed_base["status"].id,
+        assunto="SLA em risco s2",
+        sla_policy_id=policy.id,
+        sla_meta_primeira_resposta_min=100,
+        sla_primeira_resposta_vence_em=agora + timedelta(minutes=20),
+        sla_violado=False,
+        created_at=agora - timedelta(minutes=85),
+    )
+    violado = Ticket(
+        tenant_id=1,
+        protocolo=f"V-{agora.timestamp()}",
+        empresa_id=seed_base["empresa"].id,
+        setor_id=seed_base["setor1"].id,
+        status_id=seed_base["status"].id,
+        assunto="SLA violado",
+        sla_policy_id=policy.id,
+        sla_violado=True,
+        created_at=agora - timedelta(minutes=120),
+    )
+    db_session.add_all([em_risco_s1, em_risco_s2, violado])
+    db_session.commit()
+
+    r_admin = client.get("/v1/dashboard/geral", headers=auth_headers["admin"])
+    assert r_admin.status_code == 200
+    assert r_admin.json()["sla_em_risco_abertas"] == 2
+
+    r_a1 = client.get("/v1/dashboard/geral", headers=auth_headers["a1"])
+    assert r_a1.status_code == 200
+    assert r_a1.json()["sla_em_risco_abertas"] == 1
