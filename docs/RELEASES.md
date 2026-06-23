@@ -1,59 +1,88 @@
 # Releases — DX Connect (#400)
 
-Este documento descreve como versionamos entregas e como manter o changelog consumido pelo painel.
+Guia de versionamento, CHANGELOG e o que o usuário vê em **Sobre** (`/sobre`).
 
 ## CalVer (`YY.MM.NNN`)
 
-- Formato: **`v26.06.001`** (exibição) / **`26.06.001`** (arquivo `VERSION`, sem prefixo `v`)
-- Fuso de referência: **`America/Sao_Paulo`**
-- **`.NNN`** reinicia em `001` a cada mudança de mês; incrementa dentro do mesmo mês
-- Bump automático no **deploy de `staging`** (workflow `.github/workflows/deploy.yml`)
+| Exibição | Arquivo `VERSION` | Quando |
+|----------|-------------------|--------|
+| `v26.06.001` | `26.06.001` | 1º deploy do mês |
+| `v26.06.002` | `26.06.002` | 2º deploy no mesmo mês |
+
+Bump automático no **deploy de `staging`** (fuso `America/Sao_Paulo`).
+
+## Fluxo do time
+
+```
+feature → PR main (+ CHANGELOG) → PR main → staging → deploy → /sobre
+```
+
+1. **Cada PR para `main`** com mudança de produto: inclua bullet(s) em `CHANGELOG.md` → `## [Unreleased]`
+2. **PR `main → staging`**: o `[Unreleased]` descreve **todo o lote** que será publicado
+3. **Deploy em `staging`**: consome `[Unreleased]`, gera nova CalVer, append em `docs/releases/manifest.json`, zera `[Unreleased]`
+
+## Requisito de PR (obrigatório)
+
+Se o PR altera código de produto (`backend/`, `frontend/src/`, etc.), **`CHANGELOG.md` deve ter bullets em `[Unreleased]`**.
+
+- Texto para o **usuário final** (curto, claro)
+- Agrupe em `### Melhorias`, `### Correções` ou `### Interno / Infra`
+- Um bullet por entrega relevante; referência `(#issue)` opcional
+
+O CI executa `scripts/check_changelog.py` e **bloqueia merge** se faltar.
+
+Isento (sem exigir CHANGELOG): só docs internos, planning, artefatos de release gerados, etc.
+
+## O que o usuário vê em `/sobre`
+
+| Seção | Conteúdo |
+|-------|----------|
+| **Versão atual** | CalVer em produção (`v26.06.002`) |
+| **O que há de novo nesta versão** | Bullets publicados na **última** release |
+| **Histórico** | Releases anteriores (`v26.06.001`, …) com os **mesmos bullets** de quando foram publicadas |
+
+Exemplo após publicar `v26.06.002`:
+
+- **O que há de novo** → itens do lote de `.002`
+- **Histórico** → card `v26.06.001` com o texto que estava em «O que há de novo» antes
+
+O histórico vem de `docs/releases/manifest.json`, append a cada deploy (nunca sobrescreve releases antigas).
 
 ## Arquivos
 
 | Arquivo | Função |
 |---------|--------|
-| `VERSION` | Versão atual (sem `v`) |
-| `CHANGELOG.md` | Histórico humano; seção `[Unreleased]` é consumida no deploy |
-| `docs/releases/manifest.json` | Manifesto estruturado de releases publicadas |
-| `backend/app/data/release_notes.json` | Payload servido pela API (gerado por script) |
-| `frontend/public/release-notes.json` | Cópia estática opcional para fallback/offline |
+| `CHANGELOG.md` | Fonte editada pelo time; `[Unreleased]` → próxima release |
+| `VERSION` | Versão publicada (sem `v`) |
+| `docs/releases/manifest.json` | Histórico estruturado de todas as releases |
+| `backend/app/data/release_notes.json` | Payload da API (gerado no deploy) |
 
-## Fluxo no deploy (`staging`)
-
-1. `scripts/prepare_release.py --deploy` calcula a próxima CalVer, lê `[Unreleased]` do `CHANGELOG.md` e append em `manifest.json`
-2. Atualiza `VERSION`, finaliza a seção no changelog e regenera `release_notes.json`
-3. O build do frontend recebe `VITE_APP_VERSION` / `VITE_APP_VERSION_DISPLAY`
-4. Artefatos de release (`VERSION`, `CHANGELOG.md`, manifest e JSON) são sincronizados para o VPS antes do build Docker
-5. No VPS, `DX_CONNECT_VERSION` é aplicada ao container da API
-
-> **Nota:** O bump no deploy atualiza os arquivos no runner e no VPS, mas **não faz commit automático** em `staging`. Para manter o repositório alinhado, commite manualmente ou automatize um bot após deploy.
-
-## «Em breve»
-
-Itens listados como **Em breve** vêm do diff Git **`origin/staging..origin/main`** (commits ainda não promovidos a staging). Categorização heurística: mensagens `fix…` → correções; demais → melhorias.
+Após cada deploy, o workflow commita `VERSION`, `CHANGELOG.md`, `manifest.json` e JSONs em `staging` (mensagem com `[skip ci]` para não redeployar).
 
 ## API (autenticada)
 
-- `GET /v1/system/info` — versão, ambiente, `git_sha`
-- `GET /v1/system/release-notes` — release atual, histórico e upcoming
+- `GET /v1/system/info` — versão em execução
+- `GET /v1/system/release-notes` — release atual + array `releases` (histórico)
 
-Visível para **todos os atendentes e admins** autenticados.
+## Checklist — PR para `main`
 
-## Manutenção manual (antes do merge em `staging`)
+- [ ] Bullets em `CHANGELOG.md` → `[Unreleased]` (se mudou produto)
+- [ ] Texto compreensível para atendente/admin, não jargão de dev
 
-1. Acrescente bullets em `CHANGELOG.md` under `## [Unreleased]`, agrupados por `### Melhorias`, `### Correções` ou `### Interno / Infra`
-2. Após merge na `main` e promoção para `staging`, o deploy publica a release
+## Checklist — PR `main → staging`
+
+- [ ] `[Unreleased]` lista **todas** as entregas do lote
+- [ ] Revisão de redação (sem «deploy», «branch», «commit»)
 
 ## Desenvolvimento local
 
-Regenerar JSON sem bump:
+Validar CHANGELOG como no CI:
 
 ```bash
-python scripts/prepare_release.py
+python scripts/check_changelog.py --base origin/main --head HEAD
 ```
 
-Simular bump (não commitar em branch de feature):
+Simular publicação (cuidado — altera arquivos):
 
 ```bash
 python scripts/prepare_release.py --deploy

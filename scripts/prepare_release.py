@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -120,30 +119,6 @@ def finalize_changelog_release(text: str, version: str, date: str) -> str:
     return parts[0] + "## [Unreleased]\n\n" + new_block + "\n" + parts[1].lstrip("\n")
 
 
-def git_upcoming_items() -> list[dict[str, str]]:
-    """Commits/PRs em main ainda não em staging."""
-    try:
-        subprocess.run(["git", "fetch", "origin", "main", "staging"], check=False, capture_output=True)
-        r = subprocess.run(
-            ["git", "log", "origin/staging..origin/main", "--pretty=format:%s"],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-    except OSError:
-        return []
-    if r.returncode != 0 or not r.stdout.strip():
-        return []
-    items = []
-    for line in r.stdout.strip().splitlines():
-        t = line.strip()
-        if not t:
-            continue
-        cat = "correcoes" if t.lower().startswith("fix") else "melhorias"
-        items.append({"category": cat, "text": t})
-    return items
-
-
 def build_payload(*, current_version: str | None, manifest: dict, upcoming: list[dict]) -> dict:
     releases = manifest.get("releases") or []
     current = None
@@ -181,14 +156,13 @@ def main() -> int:
     current_raw = _read_text(VERSION_FILE).strip()
     changelog = _read_text(CHANGELOG_FILE)
     manifest = _load_manifest()
-    upcoming = git_upcoming_items()
 
     version = args.version
     if args.deploy:
         version = next_calver(current_raw or None)
         changes = parse_changelog_unreleased(changelog)
         if not changes:
-            changes = [{"category": "interno", "text": "Deploy de staging"}]
+            changes = [{"category": "interno", "text": "Atualização do sistema"}]
         entry = {
             "version": version,
             "version_display": version_display(version),
@@ -205,7 +179,7 @@ def main() -> int:
     elif version:
         current_raw = version
 
-    payload = build_payload(current_version=current_raw or None, manifest=manifest, upcoming=upcoming)
+    payload = build_payload(current_version=current_raw or None, manifest=manifest, upcoming=[])
     write_release_notes(payload)
 
     if args.write_env and current_raw:
