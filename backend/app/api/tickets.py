@@ -1341,6 +1341,16 @@ def criar_mensagem(
         agendar_envio_email(m, db)
     db.add(m)
     db.flush()
+    if data.notificar_cliente_por_email:
+        from app.services.audit_operacional import audit_ticket_send_email
+
+        audit_ticket_send_email(
+            db,
+            ticket_id=ticket_id,
+            mensagem_id=m.id,
+            atendente_id=atendente.id,
+            origem="agendar",
+        )
     from app.services.sla_calculo import mensagem_conta_primeira_resposta, registrar_primeira_resposta_se_necessario
 
     if mensagem_conta_primeira_resposta(m):
@@ -1469,6 +1479,15 @@ def enviar_mensagem_email_agora(
         forcar_envio_agora(m)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    from app.services.audit_operacional import audit_ticket_send_email
+
+    audit_ticket_send_email(
+        db,
+        ticket_id=ticket_id,
+        mensagem_id=mensagem_id,
+        atendente_id=atendente.id,
+        origem="send_now",
+    )
     db.commit()
     process_pending_ticket_mensagem_emails(db, limit=5)
     db.commit()
@@ -1662,6 +1681,15 @@ def reabrir(
 
     ticket.fechado_em = None
     ticket.status_id = novo_status.id
+    from app.services.audit_operacional import audit_ticket_reopen
+
+    audit_ticket_reopen(
+        db,
+        ticket_id=ticket.id,
+        atendente_id=atendente.id,
+        status_id=novo_status.id,
+        protocolo=ticket.protocolo,
+    )
     db.commit()
     db.refresh(ticket)
     return _ticket_para_read(ticket, db)
@@ -1841,6 +1869,53 @@ def atualizar(
         antigo_o = ticket.motivo_outro_texto or ""
         novo_o = update["motivo_outro_texto"] or ""
         _registrar_historico(db, ticket.id, atendente.id, "motivo_outro_texto", antigo_o, novo_o)
+
+    from app.services.audit_operacional import (
+        audit_ticket_assign,
+        audit_ticket_close,
+        audit_ticket_status_change,
+        audit_ticket_transfer,
+    )
+
+    proto = ticket.protocolo
+    if "atendente_id" in update and update["atendente_id"] != ticket.atendente_id:
+        audit_ticket_assign(
+            db,
+            ticket_id=ticket.id,
+            atendente_id=atendente.id,
+            de_atendente_id=ticket.atendente_id,
+            para_atendente_id=update["atendente_id"],
+            protocolo=proto,
+        )
+    if "setor_id" in update and update["setor_id"] != ticket.setor_id:
+        audit_ticket_transfer(
+            db,
+            ticket_id=ticket.id,
+            atendente_id=atendente.id,
+            de_setor_id=ticket.setor_id,
+            para_setor_id=int(update["setor_id"]),
+            protocolo=proto,
+        )
+    if "status_id" in update and update["status_id"] != ticket.status_id:
+        st_novo_audit = db.query(StatusTicket).filter(StatusTicket.id == update["status_id"]).first()
+        slug_audit = (st_novo_audit.slug or "").lower() if st_novo_audit else ""
+        if slug_audit == "fechado":
+            audit_ticket_close(
+                db,
+                ticket_id=ticket.id,
+                atendente_id=atendente.id,
+                status_id=int(update["status_id"]),
+                protocolo=proto,
+            )
+        else:
+            audit_ticket_status_change(
+                db,
+                ticket_id=ticket.id,
+                atendente_id=atendente.id,
+                de_status_id=ticket.status_id,
+                para_status_id=int(update["status_id"]),
+                protocolo=proto,
+            )
 
     reset_fila = False
     if "setor_id" in update and update["setor_id"] != ticket.setor_id:

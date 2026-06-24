@@ -2,6 +2,7 @@ import logging
 import sys
 import threading
 import time
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -45,6 +46,7 @@ from app.api import (
     sla,
 )
 from app.config import settings
+from app.core.audit import clear_audit_request_context, set_audit_request_context
 from app.core.tenant_context import resolve_tenant_id, set_request_tenant_id
 from app.core.lifecycle import dev_create_all_tables, production_require_alembic
 from app.database import Base, engine
@@ -373,6 +375,29 @@ async def tenant_context_middleware(request: Request, call_next):
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     set_request_tenant_id(request, tid)
     return await call_next(request)
+
+
+@app.middleware("http")
+async def audit_request_context_middleware(request: Request, call_next):
+    """Propaga IP, user-agent e request_id para registros de auditoria."""
+    rid = request.headers.get("x-request-id") or request.headers.get("x-correlation-id")
+    if not rid:
+        rid = str(uuid.uuid4())
+    forwarded = request.headers.get("x-forwarded-for", "")
+    ip = forwarded.split(",")[0].strip() if forwarded else None
+    if not ip and request.client:
+        ip = request.client.host
+    set_audit_request_context(
+        ip_address=ip,
+        user_agent=request.headers.get("user-agent"),
+        request_id=rid,
+    )
+    try:
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = rid
+        return response
+    finally:
+        clear_audit_request_context()
 
 
 @app.middleware("http")

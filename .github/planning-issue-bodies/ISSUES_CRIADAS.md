@@ -13,9 +13,9 @@ Meta-issue geral: [#16](https://github.com/lgustavoss/dx-connect/issues/16)
 | RT | [#256](https://github.com/lgustavoss/dx-connect/issues/256) | #264–#269 |
 | T | [#257](https://github.com/lgustavoss/dx-connect/issues/257) | #270–#273 |
 | R | [#258](https://github.com/lgustavoss/dx-connect/issues/258) | #274–#276 |
-| S | [#259](https://github.com/lgustavoss/dx-connect/issues/259) | #277–#281 (follow-ups: [#416](https://github.com/lgustavoss/dx-connect/issues/416)–[#419](https://github.com/lgustavoss/dx-connect/issues/419)) |
+| S | [#259](https://github.com/lgustavoss/dx-connect/issues/259) | #277–#281 · follow-ups [#416](https://github.com/lgustavoss/dx-connect/issues/416)–[#418](https://github.com/lgustavoss/dx-connect/issues/418) fechados · [#419](https://github.com/lgustavoss/dx-connect/issues/419) backlog |
 | D | [#260](https://github.com/lgustavoss/dx-connect/issues/260) | #282–#289 |
-| A | [#261](https://github.com/lgustavoss/dx-connect/issues/261) | #290–#292 |
+| A | [#261](https://github.com/lgustavoss/dx-connect/issues/261) | #290–#292 · em andamento |
 | KB | [#262](https://github.com/lgustavoss/dx-connect/issues/262) | #293–#299 |
 | P | [#263](https://github.com/lgustavoss/dx-connect/issues/263) | #300–#308 |
 
@@ -51,14 +51,32 @@ Meta-issue geral: [#16](https://github.com/lgustavoss/dx-connect/issues/16)
 | [#111](https://github.com/lgustavoss/dx-connect/issues/111), [#112](https://github.com/lgustavoss/dx-connect/issues/112) | Portal → #263 |
 | [#122](https://github.com/lgustavoss/dx-connect/issues/122) | Decisão produto → README |
 
+## WhatsApp / chat operacional (2026-06-23)
+
+| Issue | Título | Estado |
+|-------|--------|--------|
+| [#403](https://github.com/lgustavoss/dx-connect/issues/403) | Admin só comentário interno em chat alheio | Fechada · PR [#427](https://github.com/lgustavoss/dx-connect/pull/427) |
+| [#418](https://github.com/lgustavoss/dx-connect/issues/418) | Pausa SLA por status do ticket | Fechada · PR [#427](https://github.com/lgustavoss/dx-connect/pull/427) |
+| [#423](https://github.com/lgustavoss/dx-connect/issues/423) | Demandas resolvidas na sessão | Fechada · PR [#427](https://github.com/lgustavoss/dx-connect/pull/427) |
+
+---
+
+## Auditoria (#261) — em andamento
+
+| Issue | Título | Estado |
+|-------|--------|--------|
+| [#290](https://github.com/lgustavoss/dx-connect/issues/290) | Trail expandido (backend) | Em andamento |
+| [#291](https://github.com/lgustavoss/dx-connect/issues/291) | Filtros e export CSV | Em andamento |
+| [#292](https://github.com/lgustavoss/dx-connect/issues/292) | UI consulta | Em andamento |
+
 ---
 
 ## Release notes / UX (2026-06-23)
 
-| Issue | Título |
-|-------|--------|
-| [#400](https://github.com/lgustavoss/dx-connect/issues/400) | **[Épico] Versionamento e release notes** |
-| [#426](https://github.com/lgustavoss/dx-connect/issues/426) | Centralizar badge "Melhorias" no card (`/sobre`) |
+| Issue | Título | Estado |
+|-------|--------|--------|
+| [#400](https://github.com/lgustavoss/dx-connect/issues/400) | **[Épico] Versionamento e release notes** | Fechada |
+| [#426](https://github.com/lgustavoss/dx-connect/issues/426) | Centralizar badge "Melhorias" no card (`/sobre`) | Em andamento |
 
 ---
 

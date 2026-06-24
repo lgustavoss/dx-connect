@@ -489,12 +489,43 @@ export const audit = {
   list: (params?: {
     entity_type?: string;
     entity_id?: number;
+    action?: string;
+    atendente_id?: number;
+    de?: string;
+    ate?: string;
     busca?: string;
     ordenar_por?: 'created_at' | 'entity_type' | 'entity_id' | 'action' | 'atendente';
     ordem?: 'asc' | 'desc';
     offset?: number;
     limit?: number;
   }) => listPaginated<Audit.AuditLogEntry>('/audit', params),
+  exportCsv: async (params?: {
+    entity_type?: string;
+    entity_id?: number;
+    action?: string;
+    atendente_id?: number;
+    de?: string;
+    ate?: string;
+    busca?: string;
+  }) => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
+    }
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const url = `${BASE}${API_VERSION_PREFIX}${withParams('/audit', { ...params, format: 'csv' })}`;
+    const res = await fetch(url, { headers });
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin();
+      throw new ApiError('Sessão expirada ou inválida.', 401, {});
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody);
+    }
+    return res.blob();
+  },
 };
 
 export namespace WhatsappSettings {
@@ -2229,6 +2260,10 @@ export namespace Audit {
     action: string;
     atendente_id: number | null;
     atendente_nome: string | null;
+    payload_json: Record<string, unknown> | null;
+    ip_address: string | null;
+    user_agent: string | null;
+    request_id: string | null;
     created_at: string;
   }
 }
