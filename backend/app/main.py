@@ -44,6 +44,7 @@ from app.api import (
     system,
     routing,
     sla,
+    kb,
 )
 from app.config import settings
 from app.core.audit import clear_audit_request_context, set_audit_request_context
@@ -456,6 +457,7 @@ app.include_router(public_csat.router, prefix=API_V1_PREFIX)
 app.include_router(system.router, prefix=API_V1_PREFIX)
 app.include_router(routing.router, prefix=API_V1_PREFIX)
 app.include_router(sla.router, prefix=API_V1_PREFIX)
+app.include_router(kb.router, prefix=API_V1_PREFIX)
 
 
 def _app_route_paths() -> set[str]:

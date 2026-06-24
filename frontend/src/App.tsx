@@ -34,6 +34,8 @@ import { TicketNaturezaMotivoPage } from './pages/TicketNaturezaMotivo'
 import { StatusTicketForm } from './pages/StatusTicketForm'
 import { StatusTicketDetalhe } from './pages/StatusTicketDetalhe'
 import { RespostasProntasPage } from './pages/RespostasProntas'
+import { KbArtigosPage } from './pages/KbArtigos'
+import { KbArtigoForm } from './pages/KbArtigoForm'
 import { RoteamentoRegrasPage } from './pages/RoteamentoRegras'
 import { SlaPoliticasPage } from './pages/SlaPoliticas'
 import { SlaCalendariosPage } from './pages/SlaCalendarios'
@@ -316,6 +318,23 @@ function AppRoutes() {
         />
         <Route path="respostas-prontas" element={<Navigate to="/configuracoes/atendimento/respostas-prontas" replace />} />
         <Route
+          path="base-conhecimento/novo"
+          element={
+            <AdminRoute>
+              <KbArtigoForm />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="base-conhecimento/:id/editar"
+          element={
+            <AdminRoute>
+              <KbArtigoForm />
+            </AdminRoute>
+          }
+        />
+        <Route path="base-conhecimento" element={<Navigate to="/configuracoes/atendimento/base-conhecimento" replace />} />
+        <Route
           path="status-ticket/novo"
           element={
             <AdminRoute>
@@ -380,6 +399,7 @@ function AppRoutes() {
           <Route path="status-ticket" element={<StatusTicketPage embedded />} />
           <Route path="natureza-motivo" element={<TicketNaturezaMotivoPage embedded />} />
           <Route path="respostas-prontas" element={<RespostasProntasPage embedded />} />
+          <Route path="base-conhecimento" element={<KbArtigosPage embedded />} />
           <Route path="roteamento" element={<RoteamentoRegrasPage embedded />} />
           <Route path="sla" element={<SlaConfigLayout />}>
             <Route index element={<Navigate to="politicas" replace />} />

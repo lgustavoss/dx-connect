@@ -16,7 +16,7 @@ Meta-issue geral: [#16](https://github.com/lgustavoss/dx-connect/issues/16)
 | S | [#259](https://github.com/lgustavoss/dx-connect/issues/259) | #277–#281 · follow-ups [#416](https://github.com/lgustavoss/dx-connect/issues/416)–[#418](https://github.com/lgustavoss/dx-connect/issues/418) fechados · [#419](https://github.com/lgustavoss/dx-connect/issues/419) backlog |
 | D | [#260](https://github.com/lgustavoss/dx-connect/issues/260) | #282–#289 |
 | A | [#261](https://github.com/lgustavoss/dx-connect/issues/261) | #290–#292 fechados · PR [#428](https://github.com/lgustavoss/dx-connect/pull/428) |
-| KB | [#262](https://github.com/lgustavoss/dx-connect/issues/262) | #293–#299 |
+| KB | [#262](https://github.com/lgustavoss/dx-connect/issues/262) | #293–#294 em andamento · #295+ backlog |
 | P | [#263](https://github.com/lgustavoss/dx-connect/issues/263) | #300–#308 |
 
 ---
@@ -58,6 +58,16 @@ Meta-issue geral: [#16](https://github.com/lgustavoss/dx-connect/issues/16)
 | [#403](https://github.com/lgustavoss/dx-connect/issues/403) | Admin só comentário interno em chat alheio | Fechada · PR [#427](https://github.com/lgustavoss/dx-connect/pull/427) |
 | [#418](https://github.com/lgustavoss/dx-connect/issues/418) | Pausa SLA por status do ticket | Fechada · PR [#427](https://github.com/lgustavoss/dx-connect/pull/427) |
 | [#423](https://github.com/lgustavoss/dx-connect/issues/423) | Demandas resolvidas na sessão | Fechada · PR [#427](https://github.com/lgustavoss/dx-connect/pull/427) |
+
+---
+
+## Base de conhecimento (#262) — em andamento
+
+| Issue | Título | Estado |
+|-------|--------|--------|
+| [#293](https://github.com/lgustavoss/dx-connect/issues/293) | Modelo categorias/artigos | Em andamento |
+| [#294](https://github.com/lgustavoss/dx-connect/issues/294) | API admin CRUD | Em andamento |
+| [#297](https://github.com/lgustavoss/dx-connect/issues/297) | Editor admin (v1 markdown) | Em andamento |
 
 ---
 

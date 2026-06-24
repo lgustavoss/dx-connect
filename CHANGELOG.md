@@ -11,6 +11,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Melhorias
 
+- Base de conhecimento (#293–#294): categorias e artigos com rascunho, publicação e arquivamento; versões por save; busca ILIKE; consulta interna de artigos publicados; painel admin em Configurações → Atendimento
 - Auditoria (#290–#292): trail expandido com payload, IP, request-id e user-agent; registro de atribuição, transferência, fechamento e reabertura de tickets, ações em chats WhatsApp, envio de e-mail ao cliente, visualização de credencial PDV e exportação de relatórios
 - Auditoria: filtros por ação, período e atendente; exportação CSV; painel com detalhes do payload e request-id
 - Página Sobre: badges de categoria (Melhorias, Correções, etc.) com texto centralizado e alinhamento uniforme na lista (#426)
