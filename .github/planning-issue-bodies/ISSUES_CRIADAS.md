@@ -66,7 +66,7 @@ Meta-issue geral: [#16](https://github.com/lgustavoss/dx-connect/issues/16)
 | Issue | Título |
 |-------|--------|
 | [#400](https://github.com/lgustavoss/dx-connect/issues/400) | **[Épico] Versionamento e release notes** |
-| [#426](https://github.com/lgustavoss/dx-connect/issues/426) | Centralizar badge "Melhorias" no card (`/sobre`) |
+| [#426](https://github.com/lgustavoss/dx-connect/issues/426) | Centralizar badge "Melhorias" no card (`/sobre`) | Em andamento |
 
 ---
 
