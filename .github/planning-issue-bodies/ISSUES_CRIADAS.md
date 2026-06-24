@@ -13,7 +13,7 @@ Meta-issue geral: [#16](https://github.com/lgustavoss/dx-connect/issues/16)
 | RT | [#256](https://github.com/lgustavoss/dx-connect/issues/256) | #264–#269 |
 | T | [#257](https://github.com/lgustavoss/dx-connect/issues/257) | #270–#273 |
 | R | [#258](https://github.com/lgustavoss/dx-connect/issues/258) | #274–#276 |
-| S | [#259](https://github.com/lgustavoss/dx-connect/issues/259) | #277–#281 (follow-ups: [#416](https://github.com/lgustavoss/dx-connect/issues/416)–[#419](https://github.com/lgustavoss/dx-connect/issues/419)) |
+| S | [#259](https://github.com/lgustavoss/dx-connect/issues/259) | #277–#281 · follow-ups [#416](https://github.com/lgustavoss/dx-connect/issues/416)–[#418](https://github.com/lgustavoss/dx-connect/issues/418) fechados · [#419](https://github.com/lgustavoss/dx-connect/issues/419) backlog |
 | D | [#260](https://github.com/lgustavoss/dx-connect/issues/260) | #282–#289 |
 | A | [#261](https://github.com/lgustavoss/dx-connect/issues/261) | #290–#292 |
 | KB | [#262](https://github.com/lgustavoss/dx-connect/issues/262) | #293–#299 |
@@ -50,6 +50,14 @@ Meta-issue geral: [#16](https://github.com/lgustavoss/dx-connect/issues/16)
 | [#102](https://github.com/lgustavoss/dx-connect/issues/102) | SLA UI → #277–#281, #416 |
 | [#111](https://github.com/lgustavoss/dx-connect/issues/111), [#112](https://github.com/lgustavoss/dx-connect/issues/112) | Portal → #263 |
 | [#122](https://github.com/lgustavoss/dx-connect/issues/122) | Decisão produto → README |
+
+## WhatsApp / chat operacional (2026-06-23)
+
+| Issue | Título | Estado |
+|-------|--------|--------|
+| [#403](https://github.com/lgustavoss/dx-connect/issues/403) | Admin só comentário interno em chat alheio | Fechada · PR [#427](https://github.com/lgustavoss/dx-connect/pull/427) |
+| [#418](https://github.com/lgustavoss/dx-connect/issues/418) | Pausa SLA por status do ticket | Fechada · PR [#427](https://github.com/lgustavoss/dx-connect/pull/427) |
+| [#423](https://github.com/lgustavoss/dx-connect/issues/423) | Demandas resolvidas na sessão | Fechada · PR [#427](https://github.com/lgustavoss/dx-connect/pull/427) |
 
 ---
 
