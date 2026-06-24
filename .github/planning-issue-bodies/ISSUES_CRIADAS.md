@@ -15,7 +15,7 @@ Meta-issue geral: [#16](https://github.com/lgustavoss/dx-connect/issues/16)
 | R | [#258](https://github.com/lgustavoss/dx-connect/issues/258) | #274–#276 |
 | S | [#259](https://github.com/lgustavoss/dx-connect/issues/259) | #277–#281 · follow-ups [#416](https://github.com/lgustavoss/dx-connect/issues/416)–[#418](https://github.com/lgustavoss/dx-connect/issues/418) fechados · [#419](https://github.com/lgustavoss/dx-connect/issues/419) backlog |
 | D | [#260](https://github.com/lgustavoss/dx-connect/issues/260) | #282–#289 |
-| A | [#261](https://github.com/lgustavoss/dx-connect/issues/261) | #290–#292 |
+| A | [#261](https://github.com/lgustavoss/dx-connect/issues/261) | #290–#292 · em andamento |
 | KB | [#262](https://github.com/lgustavoss/dx-connect/issues/262) | #293–#299 |
 | P | [#263](https://github.com/lgustavoss/dx-connect/issues/263) | #300–#308 |
 
@@ -61,11 +61,21 @@ Meta-issue geral: [#16](https://github.com/lgustavoss/dx-connect/issues/16)
 
 ---
 
+## Auditoria (#261) — em andamento
+
+| Issue | Título | Estado |
+|-------|--------|--------|
+| [#290](https://github.com/lgustavoss/dx-connect/issues/290) | Trail expandido (backend) | Em andamento |
+| [#291](https://github.com/lgustavoss/dx-connect/issues/291) | Filtros e export CSV | Em andamento |
+| [#292](https://github.com/lgustavoss/dx-connect/issues/292) | UI consulta | Em andamento |
+
+---
+
 ## Release notes / UX (2026-06-23)
 
-| Issue | Título |
-|-------|--------|
-| [#400](https://github.com/lgustavoss/dx-connect/issues/400) | **[Épico] Versionamento e release notes** |
+| Issue | Título | Estado |
+|-------|--------|--------|
+| [#400](https://github.com/lgustavoss/dx-connect/issues/400) | **[Épico] Versionamento e release notes** | Fechada |
 | [#426](https://github.com/lgustavoss/dx-connect/issues/426) | Centralizar badge "Melhorias" no card (`/sobre`) | Em andamento |
 
 ---

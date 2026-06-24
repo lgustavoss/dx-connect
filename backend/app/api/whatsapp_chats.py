@@ -904,6 +904,15 @@ def assumir(
     c.estado = "em_atendimento"
     c.atendente_id = atendente.id
     c.atendimento_inicio_at = datetime.now(timezone.utc)
+    from app.services.audit_operacional import audit_whatsapp_chat
+
+    audit_whatsapp_chat(
+        db,
+        chat_id=c.id,
+        action="assign",
+        atendente_id=atendente.id,
+        payload={"de_estado": estado_anterior, "protocolo": c.protocolo},
+    )
     db.commit()
     db.refresh(c)
     emit_chat_fila_from_model(db, c, estado_anterior=estado_anterior)
@@ -954,6 +963,15 @@ def encerrar(
     from app.services.whatsapp_avaliacao import finalizar_atendimento_whatsapp
 
     try:
+        from app.services.audit_operacional import audit_whatsapp_chat
+
+        audit_whatsapp_chat(
+            db,
+            chat_id=c.id,
+            action="close",
+            atendente_id=atendente.id,
+            payload={"protocolo": c.protocolo},
+        )
         finalizar_atendimento_whatsapp(db, c, st_auto, evento_encerrado="auto_encerrado")
         db.commit()
     except Exception as exc:
@@ -1408,6 +1426,8 @@ def transferir(
                 raise HTTPException(status_code=400, detail="Atendente selecionado não pertence ao setor escolhido")
 
     estado_anterior = c.estado
+    de_setor_id = c.setor_id
+    de_atendente_id = c.atendente_id
     c.setor_id = data.setor_id
     c.atendente_id = destino.id if destino else None
     if destino:
@@ -1436,6 +1456,21 @@ def transferir(
             atendente_id=atendente.id,
             evento_sistema="transferencia",
         )
+    )
+    from app.services.audit_operacional import audit_whatsapp_chat
+
+    audit_whatsapp_chat(
+        db,
+        chat_id=c.id,
+        action="transfer",
+        atendente_id=atendente.id,
+        payload={
+            "protocolo": c.protocolo,
+            "de_setor_id": de_setor_id,
+            "para_setor_id": data.setor_id,
+            "de_atendente_id": de_atendente_id,
+            "para_atendente_id": destino.id if destino else None,
+        },
     )
     db.commit()
     db.refresh(c)
