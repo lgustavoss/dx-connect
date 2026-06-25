@@ -22,6 +22,7 @@ import {
 } from '../../api/client'
 
 import { Card } from '../../components/ui/Card'
+import { KbConsultaButton } from '../../components/KbConsultaModal'
 
 import { Button } from '../../components/ui/Button'
 
@@ -439,8 +440,10 @@ useEffect(() => {
     })
 }, [modalTransferir, transferSetorId])
 
-
-  // --- Ações ---
+  function inserirReferenciaKb(ref: string) {
+    const sep = texto && !texto.endsWith('\n') ? '\n\n' : texto ? '' : ''
+    setTexto(texto + sep + ref)
+  }
 
   async function enviar() {
 
@@ -597,7 +600,7 @@ useEffect(() => {
 
   const podeEncerrar = !encerrado && chat?.estado === 'em_atendimento' && (isResponsavel || isAdmin)
 
-
+  const podeDigitarMensagem = !encerrado && (modoInterno || podeEnviar)
 
   return (
 
@@ -1029,20 +1032,18 @@ useEffect(() => {
 
 
 
+            <KbConsultaButton
+              disabled={encerrado}
+              onInserirReferencia={podeDigitarMensagem ? inserirReferenciaKb : undefined}
+            />
+
             <Button
-
               variant="ghost"
-
               onClick={() => fileInputRef.current?.click()}
-
               disabled={enviando || encerrado || !podeEnviar}
-
               className="h-10 w-10 shrink-0 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
-
             >
-
               📎
-
             </Button>
 
 

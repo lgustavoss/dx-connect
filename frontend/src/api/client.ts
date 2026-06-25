@@ -445,6 +445,55 @@ export const respostasProntas = {
     ),
 };
 
+export const kb = {
+  listCategories: () => api<Kb.Category[]>('/kb/categories'),
+  createCategory: (data: Kb.CategoryCreate) =>
+    api<Kb.Category>('/kb/categories', { method: 'POST', body: JSON.stringify(data) }),
+  updateCategory: (id: number, data: Kb.CategoryUpdate) =>
+    api<Kb.Category>(`/kb/categories/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteCategory: (id: number) => api<void>(`/kb/categories/${id}`, { method: 'DELETE' }),
+  reorderCategories: (items: { id: number; ordem: number }[]) =>
+    api<Kb.Category[]>('/kb/categories/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ items }),
+    }),
+  listArticles: (params?: {
+    busca?: string;
+    status?: string;
+    category_id?: number;
+    incluir_arquivados?: boolean;
+    offset?: number;
+    limit?: number;
+    ordenar_por?: 'titulo' | 'status' | 'updated_at' | 'published_at';
+    ordem?: 'asc' | 'desc';
+  }) => listPaginated<Kb.ArticleBrief>('/kb/articles', params),
+  getArticle: (id: number) => api<Kb.Article>(`/kb/articles/${id}`),
+  createArticle: (data: Kb.ArticleCreate) =>
+    api<Kb.Article>('/kb/articles', { method: 'POST', body: JSON.stringify(data) }),
+  updateArticle: (id: number, data: Kb.ArticleUpdate) =>
+    api<Kb.Article>(`/kb/articles/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  publishArticle: (id: number) =>
+    api<Kb.Article>(`/kb/articles/${id}/publish`, { method: 'POST' }),
+  archiveArticle: (id: number) =>
+    api<Kb.Article>(`/kb/articles/${id}/archive`, { method: 'POST' }),
+  consulta: (params?: { busca?: string; category_id?: number; limit?: number }) =>
+    api<Kb.ArticleBrief[]>(withParams('/kb/articles/consulta', params)),
+  getPublicado: (id: number) => api<Kb.Article>(`/kb/articles/publicados/${id}`),
+  listPublicCategories: () => api<Kb.Category[]>('/kb/public/categories'),
+  listPublicArticles: (params?: { busca?: string; category_id?: number; limit?: number }) =>
+    api<Kb.ArticleBrief[]>(withParams('/kb/public/articles', params)),
+  getPublicArticleBySlug: (slug: string) => api<Kb.Article>(`/kb/public/articles/${encodeURIComponent(slug)}`),
+  listArticleVersions: (articleId: number) => api<Kb.ArticleVersion[]>(`/kb/articles/${articleId}/versions`),
+  getArticleVersion: (articleId: number, versionId: number) =>
+    api<Kb.ArticleVersionDetail>(`/kb/articles/${articleId}/versions/${versionId}`),
+  uploadImage: (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api<Kb.ImageUpload>('/kb/images', { method: 'POST', body: fd })
+  },
+  imageUrl: (filename: string) => `${resolvedApiBaseUrl()}${API_VERSION_PREFIX}/kb/images/${encodeURIComponent(filename)}`,
+};
+
 export const routingRules = {
   list: (params?: { incluir_inativos?: boolean }) =>
     api<RoutingRules.Regra[]>(withParams('/routing/rules', params)),
@@ -2249,6 +2298,78 @@ export namespace Tickets {
   export interface AnexoUploadResponse {
     anexo: Anexo
     download_url: string
+  }
+}
+
+export namespace Kb {
+  export interface Category {
+    id: number;
+    nome: string;
+    slug: string;
+    ordem: number;
+    parent_id: number | null;
+    parent_nome?: string | null;
+    artigos_count: number;
+  }
+  export interface CategoryCreate {
+    nome: string;
+    slug?: string | null;
+    ordem?: number;
+    parent_id?: number | null;
+  }
+  export interface CategoryUpdate {
+    nome?: string;
+    slug?: string | null;
+    ordem?: number;
+    parent_id?: number | null;
+  }
+  export interface ArticleBrief {
+    id: number;
+    titulo: string;
+    slug: string;
+    category_id: number | null;
+    category_nome: string | null;
+    status: string;
+    interno_only: boolean;
+    autor_nome: string | null;
+    published_at: string | null;
+    updated_at: string | null;
+  }
+  export interface Article extends ArticleBrief {
+    conteudo_markdown: string;
+    autor_atendente_id: number | null;
+    archived_at: string | null;
+    created_at: string;
+  }
+  export interface ArticleCreate {
+    titulo: string;
+    slug?: string | null;
+    category_id?: number | null;
+    conteudo_markdown?: string;
+    interno_only?: boolean;
+  }
+  export interface ArticleUpdate {
+    titulo?: string;
+    slug?: string | null;
+    category_id?: number | null;
+    conteudo_markdown?: string;
+    interno_only?: boolean;
+  }
+  export interface ArticleVersion {
+    id: number;
+    article_id: number;
+    titulo: string;
+    status: string;
+    autor_atendente_id: number | null;
+    autor_nome: string | null;
+    created_at: string;
+  }
+  export interface ArticleVersionDetail extends ArticleVersion {
+    conteudo_markdown: string;
+  }
+  export interface ImageUpload {
+    url: string;
+    filename: string;
   }
 }
 

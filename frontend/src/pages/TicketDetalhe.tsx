@@ -39,6 +39,7 @@ import { autorRodapeMensagem, corpoMensagemEmailVisivel } from '../lib/ticketMen
 import { mensagemEmFilaEmail } from '../lib/ticketMensagemEmailOutbox'
 import { TicketMensagemEmailOutbox } from '../components/TicketMensagemEmailOutbox'
 import { RespostasProntasPicker } from '../components/RespostasProntasPicker'
+import { KbConsultaButton } from '../components/KbConsultaModal'
 import { CheckboxField } from '../components/ui/CheckboxField'
 import { TicketBuscaPicker } from '../components/TicketBuscaPicker'
 import { TicketFilhosMassaPanel } from '../components/tickets/TicketFilhosMassaPanel'
@@ -1884,6 +1885,10 @@ export function TicketDetalhe() {
                   setorId={ticket.setor_id}
                   disabled={Boolean(ticket.fechado_em)}
                   onInserir={inserirRespostaPronta}
+                />
+                <KbConsultaButton
+                  disabled={Boolean(ticket.fechado_em)}
+                  onInserirReferencia={inserirRespostaPronta}
                 />
                 <input
                   ref={fileInputRef}
