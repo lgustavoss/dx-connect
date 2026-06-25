@@ -473,3 +473,62 @@ def test_cadastrar_funcionario_no_chat(client, seed_base, auth_headers, db_sessi
     assert catalogo.status_code == 200
     assert any(re["id"] == seed_base["rede"].id for re in catalogo.json()["redes"])
 
+
+def test_admin_nao_envia_ao_cliente_usa_comentario_interno(client, seed_base, auth_headers, monkeypatch):
+    """#403 — admin acompanha chat alheio; mensagem ao cliente bloqueada; comentário interno permitido."""
+    sent = {"n": 0, "seq": 0}
+
+    def fake_send(*_a, **_k):
+        sent["n"] += 1
+        sent["seq"] += 1
+        return True, None, f"wa-out-{sent['seq']}"
+
+    monkeypatch.setattr("app.api.whatsapp_chats.evolution_api.evolution_send_text", fake_send)
+
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={
+            "webhook_secret": "adm-int",
+            "evolution_base_url": "http://evolution.test",
+            "evolution_instance_name": "inst",
+            "evolution_api_key": "key-test",
+        },
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "adm-int"}
+    client.post(
+        "/v1/webhooks/evolution",
+        json=_webhook_body(wa_id="5511999001122", msg_id="adm-int-1"),
+        headers=h,
+    )
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+    client.post(f"/v1/whatsapp/chats/{cid}/assumir", headers=auth_headers["a1"])
+    enviados_antes = sent["n"]
+
+    denied = client.post(
+        f"/v1/whatsapp/chats/{cid}/mensagens",
+        json={"texto": "Olá cliente"},
+        headers=auth_headers["admin"],
+    )
+    assert denied.status_code == 403
+    assert sent["n"] == enviados_antes
+
+    ok = client.post(
+        f"/v1/whatsapp/chats/{cid}/comentarios-internos",
+        json={"texto": "Orientação interna para o operador"},
+        headers=auth_headers["admin"],
+    )
+    assert ok.status_code == 201
+    body = ok.json()
+    assert body["evento_sistema"] == "comentario_interno"
+    assert body["wa_message_id"] is None
+    assert "Orientação interna" in body["corpo"]
+
+    allowed = client.post(
+        f"/v1/whatsapp/chats/{cid}/mensagens",
+        json={"texto": "Resposta oficial"},
+        headers=auth_headers["a1"],
+    )
+    assert allowed.status_code == 201
+    assert sent["n"] == enviados_antes + 1
+

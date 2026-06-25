@@ -19,12 +19,25 @@ def _prioridade_valor(prioridade) -> str:
     return str(prioridade or PrioridadeTicket.normal.value)
 
 
+def _natureza_id_do_ticket(db: Session, ticket: Ticket) -> int | None:
+    if not ticket.motivo_id:
+        return None
+    motivo = ticket.motivo
+    if motivo is None:
+        from app.models.ticket_classificacao import TicketMotivo
+
+        row = db.query(TicketMotivo.natureza_id).filter(TicketMotivo.id == ticket.motivo_id).first()
+        return int(row[0]) if row else None
+    return motivo.natureza_id
+
+
 def resolve_sla_policy(
     db: Session,
     *,
     tenant_id: int,
     setor_id: int,
     prioridade,
+    natureza_id: int | None = None,
 ) -> SlaPolicy | None:
     prio_val = _prioridade_valor(prioridade)
     base_q = db.query(SlaPolicy).filter(
@@ -32,10 +45,29 @@ def resolve_sla_policy(
         SlaPolicy.setor_id == setor_id,
         SlaPolicy.ativo.is_(True),
     )
-    specific = base_q.filter(SlaPolicy.prioridade == prio_val).first()
-    if specific:
-        return specific
-    return base_q.filter(SlaPolicy.prioridade.is_(None)).first()
+
+    def _buscar(prioridade_val: str | None, natureza_val: int | None) -> SlaPolicy | None:
+        q = base_q
+        if prioridade_val is None:
+            q = q.filter(SlaPolicy.prioridade.is_(None))
+        else:
+            q = q.filter(SlaPolicy.prioridade == prioridade_val)
+        if natureza_val is None:
+            q = q.filter(SlaPolicy.natureza_id.is_(None))
+        else:
+            q = q.filter(SlaPolicy.natureza_id == natureza_val)
+        return q.first()
+
+    if natureza_id is not None:
+        for prio_try in (prio_val, None):
+            row = _buscar(prio_try, natureza_id)
+            if row:
+                return row
+    for prio_try in (prio_val, None):
+        row = _buscar(prio_try, None)
+        if row:
+            return row
+    return None
 
 
 def _deadline_for_ticket(
@@ -64,6 +96,7 @@ def aplicar_sla_snapshot_ao_ticket(
         tenant_id=ticket.tenant_id,
         setor_id=ticket.setor_id,
         prioridade=prioridade,
+        natureza_id=_natureza_id_do_ticket(db, ticket),
     )
     if not policy:
         return None

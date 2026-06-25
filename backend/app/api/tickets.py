@@ -538,10 +538,14 @@ def listar(
         q = q.filter(Ticket.fechado_em.is_not(None))
     if sla_violado is True:
         q = q.filter(Ticket.sla_violado.is_(True))
-    if sla_em_risco is True:
-        from app.services.sla_calculo import filtro_sql_sla_em_risco
-
-        q = q.filter(filtro_sql_sla_em_risco())
+    sla_em_risco_preciso = sla_em_risco is True
+    if sla_em_risco_preciso:
+        q = q.filter(
+            Ticket.sla_policy_id.isnot(None),
+            Ticket.sla_violado.is_(False),
+        )
+        if situacao == SituacaoTicket.abertos:
+            q = q.filter(Ticket.fechado_em.is_(None))
     if protocolo and protocolo.strip():
         q = q.filter(Ticket.protocolo.ilike(f"%{protocolo.strip()}%"))
     if busca and busca.strip():
@@ -553,64 +557,92 @@ def listar(
                 Empresa.nome.ilike(term),
             )
         )
-    total = q.count()
-
-    if ordenar_por is None:
-        # Em finalizados, o mais útil é ordenar por data de fechamento (mais recentes primeiro).
-        if situacao == SituacaoTicket.fechados:
-            order_cols = [Ticket.fechado_em.desc().nullslast(), Ticket.id.desc()]
-        elif sem_responsavel and situacao == SituacaoTicket.abertos:
-            # Fila sem responsável: mais antigos primeiro (prioridade operacional).
-            order_cols = [nullslast(Ticket.fila_desde_at.asc()), Ticket.id.asc()]
-        else:
-            order_cols = [Ticket.created_at.desc(), Ticket.id.desc()]
-    else:
-        if ordenar_por == OrdenarTicketsPor.responsavel:
-            q = q.outerjoin(Ticket.atendente)
-        elif ordenar_por == OrdenarTicketsPor.rede:
-            q = q.outerjoin(Empresa.rede)
-
-        if ordenar_por == OrdenarTicketsPor.protocolo:
-            primary = expr_ordem(Ticket.protocolo, ordem)
-        elif ordenar_por == OrdenarTicketsPor.rede:
-            primary = expr_ordem(Rede.nome, ordem)
-        elif ordenar_por == OrdenarTicketsPor.empresa:
-            primary = expr_ordem(Empresa.nome, ordem)
-        elif ordenar_por == OrdenarTicketsPor.setor:
-            primary = expr_ordem(Setor.nome, ordem)
-        elif ordenar_por == OrdenarTicketsPor.assunto:
-            primary = expr_ordem(Ticket.assunto, ordem)
-        elif ordenar_por == OrdenarTicketsPor.status:
-            primary = expr_ordem(StatusTicket.nome, ordem)
-        elif ordenar_por == OrdenarTicketsPor.fechado_em:
-            primary = nullslast(expr_ordem(Ticket.fechado_em, ordem))
-        elif ordenar_por == OrdenarTicketsPor.fila_desde_at:
-            primary = nullslast(expr_ordem(Ticket.fila_desde_at, ordem))
-        else:
-            primary = nullslast(expr_ordem(Atendente.nome, ordem))
-        tie = expr_ordem(Ticket.id, ordem)
-        order_cols = [primary, tie]
-
-    rows = (
-        q.options(
-            joinedload(Ticket.empresa).joinedload(Empresa.rede),
-            joinedload(Ticket.rede),
-            joinedload(Ticket.setor),
-            joinedload(Ticket.status),
-            joinedload(Ticket.atendente),
-            joinedload(Ticket.motivo).joinedload(TicketMotivo.natureza),
-        )
-        .order_by(*order_cols)
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
     from datetime import datetime, timezone
 
-    from app.services.sla_calculo import preload_sla_calendars, sla_estado_resumido
+    from app.services.sla_calculo import preload_minutos_pausa_sla, preload_sla_calendars, selecionar_tickets_sla_em_risco, sla_estado_resumido
+
+    ticket_load_options = (
+        joinedload(Ticket.empresa).joinedload(Empresa.rede),
+        joinedload(Ticket.rede),
+        joinedload(Ticket.setor),
+        joinedload(Ticket.status),
+        joinedload(Ticket.atendente),
+        joinedload(Ticket.motivo).joinedload(TicketMotivo.natureza),
+    )
+
+    if sla_em_risco_preciso:
+        candidates = q.all()
+        now = datetime.now(timezone.utc)
+        filtered = selecionar_tickets_sla_em_risco(db, candidates, now=now)
+        total = len(filtered)
+        if ordenar_por is None:
+            if situacao == SituacaoTicket.fechados:
+                filtered.sort(
+                    key=lambda t: t.fechado_em or datetime.min.replace(tzinfo=timezone.utc),
+                    reverse=True,
+                )
+            elif sem_responsavel and situacao == SituacaoTicket.abertos:
+                filtered.sort(key=lambda t: t.fila_desde_at or datetime.max.replace(tzinfo=timezone.utc))
+            else:
+                filtered.sort(
+                    key=lambda t: t.created_at or datetime.min.replace(tzinfo=timezone.utc),
+                    reverse=True,
+                )
+        else:
+            filtered.sort(
+                key=lambda t: t.created_at or datetime.min.replace(tzinfo=timezone.utc),
+                reverse=True,
+            )
+        page_ids = [t.id for t in filtered[offset : offset + limit]]
+        if not page_ids:
+            return ListaPaginada(items=[], total=total)
+        rows = db.query(Ticket).filter(Ticket.id.in_(page_ids)).options(*ticket_load_options).all()
+        by_id = {t.id: t for t in rows}
+        rows = [by_id[i] for i in page_ids if i in by_id]
+    else:
+        total = q.count()
+
+        if ordenar_por is None:
+            # Em finalizados, o mais útil é ordenar por data de fechamento (mais recentes primeiro).
+            if situacao == SituacaoTicket.fechados:
+                order_cols = [Ticket.fechado_em.desc().nullslast(), Ticket.id.desc()]
+            elif sem_responsavel and situacao == SituacaoTicket.abertos:
+                # Fila sem responsável: mais antigos primeiro (prioridade operacional).
+                order_cols = [nullslast(Ticket.fila_desde_at.asc()), Ticket.id.asc()]
+            else:
+                order_cols = [Ticket.created_at.desc(), Ticket.id.desc()]
+        else:
+            if ordenar_por == OrdenarTicketsPor.responsavel:
+                q = q.outerjoin(Ticket.atendente)
+            elif ordenar_por == OrdenarTicketsPor.rede:
+                q = q.outerjoin(Empresa.rede)
+
+            if ordenar_por == OrdenarTicketsPor.protocolo:
+                primary = expr_ordem(Ticket.protocolo, ordem)
+            elif ordenar_por == OrdenarTicketsPor.rede:
+                primary = expr_ordem(Rede.nome, ordem)
+            elif ordenar_por == OrdenarTicketsPor.empresa:
+                primary = expr_ordem(Empresa.nome, ordem)
+            elif ordenar_por == OrdenarTicketsPor.setor:
+                primary = expr_ordem(Setor.nome, ordem)
+            elif ordenar_por == OrdenarTicketsPor.assunto:
+                primary = expr_ordem(Ticket.assunto, ordem)
+            elif ordenar_por == OrdenarTicketsPor.status:
+                primary = expr_ordem(StatusTicket.nome, ordem)
+            elif ordenar_por == OrdenarTicketsPor.fechado_em:
+                primary = nullslast(expr_ordem(Ticket.fechado_em, ordem))
+            elif ordenar_por == OrdenarTicketsPor.fila_desde_at:
+                primary = nullslast(expr_ordem(Ticket.fila_desde_at, ordem))
+            else:
+                primary = nullslast(expr_ordem(Atendente.nome, ordem))
+            tie = expr_ordem(Ticket.id, ordem)
+            order_cols = [primary, tie]
+
+        rows = q.options(*ticket_load_options).order_by(*order_cols).offset(offset).limit(limit).all()
 
     now = datetime.now(timezone.utc)
     cal_map = preload_sla_calendars(db, rows)
+    pausa_map = preload_minutos_pausa_sla(db, rows, ate=now, cal_map=cal_map)
     items = [
         _ticket_para_read(
             t,
@@ -619,6 +651,7 @@ def listar(
                 t,
                 now=now,
                 calendar=cal_map.get(t.sla_policy_id) if t.sla_policy_id else None,
+                minutos_pausados=pausa_map.get(t.id, 0),
             ),
         )
         for t in rows
@@ -854,13 +887,20 @@ def obter(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
     from datetime import datetime, timezone
 
-    from app.services.sla_calculo import preload_sla_calendars, sla_estado_resumido
+    from app.services.sla_calculo import (
+        minutos_pausa_sla,
+        preload_sla_calendars,
+        sla_estado_resumido,
+    )
 
     cal_map = preload_sla_calendars(db, [ticket])
+    now = datetime.now(timezone.utc)
+    calendar = cal_map.get(ticket.sla_policy_id) if ticket.sla_policy_id else None
     estado = sla_estado_resumido(
         ticket,
-        now=datetime.now(timezone.utc),
-        calendar=cal_map.get(ticket.sla_policy_id) if ticket.sla_policy_id else None,
+        now=now,
+        calendar=calendar,
+        minutos_pausados=minutos_pausa_sla(db, ticket, ate=now, calendar=calendar),
     )
     return _ticket_para_read(ticket, db, sla_estado=estado)
 
@@ -887,6 +927,8 @@ def obter_sla_ticket(
         sla_violado=dados["sla_violado"],
         inicio_em=dados["inicio_em"],
         usa_horario_comercial=dados["usa_horario_comercial"],
+        pausado_agora=dados["pausado_agora"],
+        minutos_pausados=dados["minutos_pausados"],
         primeira_resposta=SlaMetaDetalheRead(**dados["primeira_resposta"]),
         resolucao=SlaMetaDetalheRead(**dados["resolucao"]),
     )
@@ -1299,6 +1341,16 @@ def criar_mensagem(
         agendar_envio_email(m, db)
     db.add(m)
     db.flush()
+    if data.notificar_cliente_por_email:
+        from app.services.audit_operacional import audit_ticket_send_email
+
+        audit_ticket_send_email(
+            db,
+            ticket_id=ticket_id,
+            mensagem_id=m.id,
+            atendente_id=atendente.id,
+            origem="agendar",
+        )
     from app.services.sla_calculo import mensagem_conta_primeira_resposta, registrar_primeira_resposta_se_necessario
 
     if mensagem_conta_primeira_resposta(m):
@@ -1427,6 +1479,15 @@ def enviar_mensagem_email_agora(
         forcar_envio_agora(m)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    from app.services.audit_operacional import audit_ticket_send_email
+
+    audit_ticket_send_email(
+        db,
+        ticket_id=ticket_id,
+        mensagem_id=mensagem_id,
+        atendente_id=atendente.id,
+        origem="send_now",
+    )
     db.commit()
     process_pending_ticket_mensagem_emails(db, limit=5)
     db.commit()
@@ -1620,6 +1681,15 @@ def reabrir(
 
     ticket.fechado_em = None
     ticket.status_id = novo_status.id
+    from app.services.audit_operacional import audit_ticket_reopen
+
+    audit_ticket_reopen(
+        db,
+        ticket_id=ticket.id,
+        atendente_id=atendente.id,
+        status_id=novo_status.id,
+        protocolo=ticket.protocolo,
+    )
     db.commit()
     db.refresh(ticket)
     return _ticket_para_read(ticket, db)
@@ -1799,6 +1869,53 @@ def atualizar(
         antigo_o = ticket.motivo_outro_texto or ""
         novo_o = update["motivo_outro_texto"] or ""
         _registrar_historico(db, ticket.id, atendente.id, "motivo_outro_texto", antigo_o, novo_o)
+
+    from app.services.audit_operacional import (
+        audit_ticket_assign,
+        audit_ticket_close,
+        audit_ticket_status_change,
+        audit_ticket_transfer,
+    )
+
+    proto = ticket.protocolo
+    if "atendente_id" in update and update["atendente_id"] != ticket.atendente_id:
+        audit_ticket_assign(
+            db,
+            ticket_id=ticket.id,
+            atendente_id=atendente.id,
+            de_atendente_id=ticket.atendente_id,
+            para_atendente_id=update["atendente_id"],
+            protocolo=proto,
+        )
+    if "setor_id" in update and update["setor_id"] != ticket.setor_id:
+        audit_ticket_transfer(
+            db,
+            ticket_id=ticket.id,
+            atendente_id=atendente.id,
+            de_setor_id=ticket.setor_id,
+            para_setor_id=int(update["setor_id"]),
+            protocolo=proto,
+        )
+    if "status_id" in update and update["status_id"] != ticket.status_id:
+        st_novo_audit = db.query(StatusTicket).filter(StatusTicket.id == update["status_id"]).first()
+        slug_audit = (st_novo_audit.slug or "").lower() if st_novo_audit else ""
+        if slug_audit == "fechado":
+            audit_ticket_close(
+                db,
+                ticket_id=ticket.id,
+                atendente_id=atendente.id,
+                status_id=int(update["status_id"]),
+                protocolo=proto,
+            )
+        else:
+            audit_ticket_status_change(
+                db,
+                ticket_id=ticket.id,
+                atendente_id=atendente.id,
+                de_status_id=ticket.status_id,
+                para_status_id=int(update["status_id"]),
+                protocolo=proto,
+            )
 
     reset_fila = False
     if "setor_id" in update and update["setor_id"] != ticket.setor_id:

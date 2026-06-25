@@ -11,6 +11,7 @@ from app.models.atendente import Atendente
 from app.models.business_calendar import BusinessCalendar
 from app.models.setor import Setor
 from app.models.sla_policy import SlaPolicy
+from app.models.ticket_classificacao import TicketNatureza
 from app.schemas.sla import (
     BusinessCalendarCreate,
     BusinessCalendarRead,
@@ -32,7 +33,7 @@ def _validar_setor(db: Session, tenant_id: int, setor_id: int) -> Setor:
     return setor
 
 
-def _validar_calendario(db: Session, tenant_id: int, calendar_id: int | None) -> None:
+def _validar_calendario(db: Session, tenant_id: int, calendar_id: int | None, *, exigir_ativo: bool = False) -> None:
     if calendar_id is None:
         return
     cal = (
@@ -42,6 +43,11 @@ def _validar_calendario(db: Session, tenant_id: int, calendar_id: int | None) ->
     )
     if not cal:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Calendário comercial não encontrado")
+    if exigir_ativo and not cal.ativo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Calendário inativo não pode ser vinculado à política SLA.",
+        )
 
 
 def _prioridade_db(prioridade: PrioridadeTicket | None) -> str | None:
@@ -50,12 +56,25 @@ def _prioridade_db(prioridade: PrioridadeTicket | None) -> str | None:
     return prioridade.value
 
 
+def _validar_natureza(db: Session, tenant_id: int, natureza_id: int | None) -> None:
+    if natureza_id is None:
+        return
+    row = (
+        db.query(TicketNatureza)
+        .filter(TicketNatureza.id == natureza_id, TicketNatureza.ativo.is_(True))
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Natureza inválida ou inativa")
+
+
 def _assert_policy_unica(
     db: Session,
     *,
     tenant_id: int,
     setor_id: int,
     prioridade: PrioridadeTicket | None,
+    natureza_id: int | None = None,
     exclude_id: int | None = None,
 ) -> None:
     q = db.query(SlaPolicy).filter(SlaPolicy.tenant_id == tenant_id, SlaPolicy.setor_id == setor_id)
@@ -64,13 +83,18 @@ def _assert_policy_unica(
         q = q.filter(SlaPolicy.prioridade.is_(None))
     else:
         q = q.filter(SlaPolicy.prioridade == prio_db)
+    if natureza_id is None:
+        q = q.filter(SlaPolicy.natureza_id.is_(None))
+    else:
+        q = q.filter(SlaPolicy.natureza_id == natureza_id)
     if exclude_id is not None:
         q = q.filter(SlaPolicy.id != exclude_id)
     if q.first():
-        label = prio_db or "padrão"
+        prio_label = prio_db or "padrão"
+        nat_label = f"natureza #{natureza_id}" if natureza_id else "qualquer natureza"
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Já existe política SLA para este setor (prioridade {label}).",
+            detail=f"Já existe política SLA para este setor (prioridade {prio_label}, {nat_label}).",
         )
 
 
@@ -80,7 +104,16 @@ def _policy_para_read(db: Session, policy: SlaPolicy) -> SlaPolicyRead:
     if policy.business_calendar_id:
         cal = db.query(BusinessCalendar).filter(BusinessCalendar.id == policy.business_calendar_id).first()
         cal_nome = cal.nome if cal else None
-    return SlaPolicyRead.from_row(policy, setor_nome=setor.nome if setor else None, calendar_nome=cal_nome)
+    nat_nome = None
+    if policy.natureza_id:
+        nat = db.query(TicketNatureza).filter(TicketNatureza.id == policy.natureza_id).first()
+        nat_nome = nat.nome if nat else None
+    return SlaPolicyRead.from_row(
+        policy,
+        setor_nome=setor.nome if setor else None,
+        calendar_nome=cal_nome,
+        natureza_nome=nat_nome,
+    )
 
 
 def _calendar_para_read(row: BusinessCalendar) -> BusinessCalendarRead:
@@ -216,7 +249,12 @@ def listar_policies(
         q = q.filter(SlaPolicy.setor_id == setor_id)
     if not incluir_inativos:
         q = q.filter(SlaPolicy.ativo.is_(True))
-    rows = q.order_by(SlaPolicy.setor_id.asc(), SlaPolicy.prioridade.asc().nullsfirst(), SlaPolicy.id.asc()).all()
+    rows = q.order_by(
+        SlaPolicy.setor_id.asc(),
+        SlaPolicy.prioridade.asc().nullsfirst(),
+        SlaPolicy.natureza_id.asc().nullsfirst(),
+        SlaPolicy.id.asc(),
+    ).all()
     return [_policy_para_read(db, r) for r in rows]
 
 
@@ -235,18 +273,21 @@ def criar_policy(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
     _validar_setor(db, atendente.tenant_id, data.setor_id)
-    _validar_calendario(db, atendente.tenant_id, data.business_calendar_id)
+    _validar_calendario(db, atendente.tenant_id, data.business_calendar_id, exigir_ativo=True)
+    _validar_natureza(db, atendente.tenant_id, data.natureza_id)
     _assert_policy_unica(
         db,
         tenant_id=atendente.tenant_id,
         setor_id=data.setor_id,
         prioridade=data.prioridade,
+        natureza_id=data.natureza_id,
     )
 
     policy = SlaPolicy(
         tenant_id=atendente.tenant_id,
         setor_id=data.setor_id,
         prioridade=_prioridade_db(data.prioridade),
+        natureza_id=data.natureza_id,
         business_calendar_id=data.business_calendar_id,
         meta_primeira_resposta_min=data.meta_primeira_resposta_min,
         meta_resolucao_min=data.meta_resolucao_min,
@@ -297,8 +338,11 @@ def atualizar_policy(
         policy.setor_id = payload["setor_id"]
     if "prioridade" in payload:
         policy.prioridade = _prioridade_db(payload["prioridade"])
+    if "natureza_id" in payload:
+        _validar_natureza(db, atendente.tenant_id, payload["natureza_id"])
+        policy.natureza_id = payload["natureza_id"]
     if "business_calendar_id" in payload:
-        _validar_calendario(db, atendente.tenant_id, payload["business_calendar_id"])
+        _validar_calendario(db, atendente.tenant_id, payload["business_calendar_id"], exigir_ativo=True)
         policy.business_calendar_id = payload["business_calendar_id"]
     if "meta_primeira_resposta_min" in payload:
         policy.meta_primeira_resposta_min = payload["meta_primeira_resposta_min"]
@@ -320,6 +364,7 @@ def atualizar_policy(
         tenant_id=atendente.tenant_id,
         setor_id=policy.setor_id,
         prioridade=PrioridadeTicket(policy.prioridade) if policy.prioridade else None,
+        natureza_id=policy.natureza_id,
         exclude_id=policy.id,
     )
 

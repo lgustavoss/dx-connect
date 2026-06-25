@@ -148,6 +148,16 @@ export function DashboardChats() {
     [data],
   )
 
+  const demandasNaturezaChart = useMemo(
+    () =>
+      (data?.demandas_por_natureza ?? []).map((d) => ({
+        id: d.id,
+        nome: d.nome,
+        total: d.total,
+      })),
+    [data],
+  )
+
   const estadoChart = useMemo(
     () =>
       (data?.por_estado_atual ?? []).map((e) => ({
@@ -459,6 +469,27 @@ export function DashboardChats() {
                         />
                       ))}
                     </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </Card>
+
+          <Card
+            title="Demandas registradas na sessão"
+            description="Naturezas informadas pelos atendentes ao resolver assuntos no chat (não inclui apenas transcript)"
+          >
+            <div className="h-72">
+              {demandasNaturezaChart.length === 0 ? (
+                <p className="text-slate-500 dark:text-slate-400">Nenhuma demanda registrada no período.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={demandasNaturezaChart}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-700" />
+                    <XAxis dataKey="nome" tick={{ fontSize: 11 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                    <Tooltip {...chartTooltipProps} />
+                    <Bar dataKey="total" name="Demandas" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}

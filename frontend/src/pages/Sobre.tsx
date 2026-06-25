@@ -35,9 +35,9 @@ function ChangeList({ items }: { items: System.ReleaseChange[] }) {
   return (
     <ul className="space-y-3">
       {items.map((item, idx) => (
-        <li key={`${item.category}-${idx}`} className="flex gap-3 text-sm leading-relaxed">
+        <li key={`${item.category}-${idx}`} className="flex items-start gap-3 text-sm leading-relaxed">
           <span
-            className={`mt-0.5 inline-flex shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${categoryClass(item.category)}`}
+            className={`inline-flex min-w-[5.5rem] shrink-0 items-center justify-center self-start rounded-md px-2.5 py-1 text-center text-xs font-medium leading-none ring-1 ring-inset ${categoryClass(item.category)}`}
           >
             {CATEGORY_LABEL[item.category] ?? item.category}
           </span>

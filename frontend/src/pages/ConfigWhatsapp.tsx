@@ -1,12 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { systemSettings, whatsappSettings } from '../api/client'
+import { HorarioSemanaEditor } from '../components/horario/HorarioSemanaEditor'
 import { Card } from '../components/ui/Card'
 import { PageContainer } from '../components/ui/PageContainer'
 import { Button } from '../components/ui/Button'
 import { Switch } from '../components/ui/Switch'
 import { useToast } from '../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
+import {
+  horarioSemanaFromApi,
+  horarioSemanaPadrao,
+  validarHorarioSemana,
+  type HorarioSemana,
+} from '../lib/horarioSemana'
 
 type EstadoEvolution = {
   configurado: boolean
@@ -23,32 +30,6 @@ const ABAS: Array<{ id: Aba; label: string }> = [
   { id: 'avaliacao', label: 'Avaliação' },
   { id: 'horarios', label: 'Horários' },
 ]
-
-type DiaKey = 'seg' | 'ter' | 'qua' | 'qui' | 'sex' | 'sab' | 'dom'
-type HorarioDia = { ativo: boolean; inicio: string; fim: string }
-type HorarioSemana = Record<DiaKey, HorarioDia>
-
-const DIAS: Array<{ key: DiaKey; label: string }> = [
-  { key: 'seg', label: 'Segunda' },
-  { key: 'ter', label: 'Terça' },
-  { key: 'qua', label: 'Quarta' },
-  { key: 'qui', label: 'Quinta' },
-  { key: 'sex', label: 'Sexta' },
-  { key: 'sab', label: 'Sábado' },
-  { key: 'dom', label: 'Domingo' },
-]
-
-function horarioSemanaPadrao(): HorarioSemana {
-  return {
-    seg: { ativo: true, inicio: '08:00', fim: '18:00' },
-    ter: { ativo: true, inicio: '08:00', fim: '18:00' },
-    qua: { ativo: true, inicio: '08:00', fim: '18:00' },
-    qui: { ativo: true, inicio: '08:00', fim: '18:00' },
-    sex: { ativo: true, inicio: '08:00', fim: '18:00' },
-    sab: { ativo: false, inicio: '08:00', fim: '12:00' },
-    dom: { ativo: false, inicio: '08:00', fim: '12:00' },
-  }
-}
 
 function extrairEstadoConexao(payload: unknown): string | null {
   if (!payload || typeof payload !== 'object') return null
@@ -212,23 +193,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
       const identidadeSalva = (r.nome_empresa_exibicao ?? '').trim()
       setNomeEmpresaExibicao(identidadeSalva || nomeEmpresaSistemaPadrao(emp))
       setUsarFeriadosNacionais(Boolean(r.usar_feriados_nacionais))
-      const hs = r.horario_semana as Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null | undefined
-      if (hs && typeof hs === 'object') {
-        const base = horarioSemanaPadrao()
-        for (const d of DIAS) {
-          const c = hs[d.key]
-          if (c && typeof c === 'object') {
-            base[d.key] = {
-              ativo: Boolean(c.ativo ?? base[d.key].ativo),
-              inicio: String(c.inicio ?? base[d.key].inicio),
-              fim: String(c.fim ?? base[d.key].fim),
-            }
-          }
-        }
-        setHorarioSemana(base)
-      } else {
-        setHorarioSemana(horarioSemanaPadrao())
-      }
+      setHorarioSemana(horarioSemanaFromApi(r.horario_semana ?? undefined))
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar as configurações.'))
     } finally {
@@ -737,62 +702,18 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/80">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50/70 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-slate-800/30 dark:text-slate-400">
-                  <tr>
-                    <th className="px-4 py-3">Dia</th>
-                    <th className="px-4 py-3">Aberto</th>
-                    <th className="px-4 py-3">Início</th>
-                    <th className="px-4 py-3">Fim</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                  {DIAS.map((d) => (
-                    <tr key={d.key} className="bg-white/40 dark:bg-slate-900/20">
-                      <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">{d.label}</td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="checkbox"
-                          checked={horarioSemana[d.key].ativo}
-                          onChange={(e) =>
-                            setHorarioSemana((prev) => ({ ...prev, [d.key]: { ...prev[d.key], ativo: e.target.checked } }))
-                          }
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="time"
-                          value={horarioSemana[d.key].inicio}
-                          disabled={!horarioSemana[d.key].ativo}
-                          onChange={(e) =>
-                            setHorarioSemana((prev) => ({ ...prev, [d.key]: { ...prev[d.key], inicio: e.target.value } }))
-                          }
-                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 disabled:opacity-50"
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="time"
-                          value={horarioSemana[d.key].fim}
-                          disabled={!horarioSemana[d.key].ativo}
-                          onChange={(e) =>
-                            setHorarioSemana((prev) => ({ ...prev, [d.key]: { ...prev[d.key], fim: e.target.value } }))
-                          }
-                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 disabled:opacity-50"
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <HorarioSemanaEditor value={horarioSemana} onChange={setHorarioSemana} />
 
             <div className="flex justify-end pt-2">
               <Button
                 type="button"
                 loading={salvandoHorarios}
                 onClick={() => {
+                  const erroHorario = validarHorarioSemana(horarioSemana)
+                  if (erroHorario) {
+                    toast.showError(erroHorario)
+                    return
+                  }
                   setSalvandoHorarios(true)
                   whatsappSettings
                     .patch({

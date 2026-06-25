@@ -57,7 +57,8 @@ class DashboardGeralResponse(BaseModel):
     chats_em_atendimento: int = Field(ge=0)
     csat_tickets: CsAtMediaResumo
     csat_chats: CsAtMediaResumo
-    sla_violacoes_abertas: int | None = None
+    sla_violacoes_abertas: int = Field(ge=0)
+    sla_em_risco_abertas: int = Field(ge=0)
     gerado_em: datetime
     cache_ttl_segundos: int = Field(ge=0)
 
@@ -139,6 +140,8 @@ class DashboardChatsResponse(BaseModel):
     pct_com_ticket_vinculado: float | None = None
     por_atendente: list[ContagemIdNome]
     por_estado_atual: list[ContagemRotulo]
+    demandas_por_natureza: list[ContagemIdNome] = Field(default_factory=list)
+    demandas_por_motivo: list[ContagemIdNome] = Field(default_factory=list)
     snapshot: SnapshotCanais
     gerado_em: datetime
     cache_ttl_segundos: int = Field(ge=0)

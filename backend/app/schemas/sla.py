@@ -73,6 +73,10 @@ class SlaPolicyBase(BaseModel):
         default=None,
         description="Nulo = política padrão do setor (qualquer prioridade sem regra específica).",
     )
+    natureza_id: int | None = Field(
+        default=None,
+        description="Nulo = qualquer natureza; preenchido = meta específica para tickets com motivo dessa natureza.",
+    )
     business_calendar_id: int | None = None
     meta_primeira_resposta_min: int | None = Field(default=None, ge=1)
     meta_resolucao_min: int | None = Field(default=None, ge=1)
@@ -93,6 +97,7 @@ class SlaPolicyCreate(SlaPolicyBase):
 class SlaPolicyUpdate(BaseModel):
     setor_id: int | None = None
     prioridade: PrioridadeTicket | None = None
+    natureza_id: int | None = None
     business_calendar_id: int | None = None
     meta_primeira_resposta_min: int | None = Field(default=None, ge=1)
     meta_resolucao_min: int | None = Field(default=None, ge=1)
@@ -109,6 +114,7 @@ class SlaPolicyUpdate(BaseModel):
 class SlaPolicyRead(SlaPolicyBase):
     id: int
     setor_nome: str | None = None
+    natureza_nome: str | None = None
     business_calendar_nome: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -116,13 +122,15 @@ class SlaPolicyRead(SlaPolicyBase):
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
-    def from_row(cls, row, *, setor_nome: str | None = None, calendar_nome: str | None = None) -> "SlaPolicyRead":
+    def from_row(cls, row, *, setor_nome: str | None = None, calendar_nome: str | None = None, natureza_nome: str | None = None) -> "SlaPolicyRead":
         prio = row.prioridade
         prioridade = PrioridadeTicket(prio) if prio else None
         return cls(
             id=row.id,
             setor_id=row.setor_id,
             prioridade=prioridade,
+            natureza_id=row.natureza_id,
+            natureza_nome=natureza_nome,
             business_calendar_id=row.business_calendar_id,
             meta_primeira_resposta_min=row.meta_primeira_resposta_min,
             meta_resolucao_min=row.meta_resolucao_min,
@@ -141,6 +149,7 @@ class SlaPrioridadesDisponiveis(BaseModel):
 class SlaMetaDetalheRead(BaseModel):
     meta_minutos: int | None = None
     vence_em: datetime | None = None
+    vence_em_efetivo: datetime | None = None
     cumprido_em: datetime | None = None
     estado: str
     percentual_decorrido: float | None = None
@@ -152,5 +161,7 @@ class TicketSlaRead(BaseModel):
     sla_violado: bool = False
     inicio_em: datetime
     usa_horario_comercial: bool = False
+    pausado_agora: bool = False
+    minutos_pausados: int = 0
     primeira_resposta: SlaMetaDetalheRead
     resolucao: SlaMetaDetalheRead

@@ -23,6 +23,8 @@ from app.schemas.whatsapp_chat import (
     WhatsappAbrirTicketBody,
     WhatsappAvaliacaoRead,
     WhatsappChatComentarioInternoCreate,
+    WhatsappChatDemandaCreate,
+    WhatsappChatDemandaRead,
     WhatsappChatMensagemCreate,
     WhatsappChatRead,
     WhatsappMensagemRead,
@@ -481,6 +483,25 @@ def _avaliacao_read(c: WhatsappChat) -> WhatsappAvaliacaoRead:
     )
 
 
+def _exigir_responsavel_envio_cliente(c: WhatsappChat, atendente: Atendente) -> None:
+    """Somente o atendente responsável envia mensagem/mídia ao WhatsApp do cliente (#403)."""
+    if c.atendente_id != atendente.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Apenas o atendente responsável pode enviar mensagens ao cliente. Use comentário interno.",
+        )
+
+
+def _pode_registrar_demanda(db: Session, atendente: Atendente, c: WhatsappChat) -> bool:
+    if c.estado != "em_atendimento":
+        return False
+    if not _pode_ver_chat(db, atendente, c):
+        return False
+    if atendente.role == "admin":
+        return True
+    return c.atendente_id == atendente.id
+
+
 def _pode_ver_chat(db: Session, atendente: Atendente, c: WhatsappChat) -> bool:
     if atendente.role == "admin":
         return True
@@ -801,6 +822,69 @@ def listar_mensagens(
     return [_mensagem_read(m) for m in visiveis]
 
 
+@router.get("/{chat_id}/demandas", response_model=list[WhatsappChatDemandaRead])
+def listar_demandas(
+    chat_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    from app.services.whatsapp_chat_demandas import listar_demandas_chat
+
+    c = db.query(WhatsappChat).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not _pode_ver_chat(db, atendente, c):
+        raise HTTPException(status_code=403, detail="Sem permissão para este chat")
+    return listar_demandas_chat(db, chat_id)
+
+
+@router.post("/{chat_id}/demandas", response_model=WhatsappChatDemandaRead, status_code=201)
+def registrar_demanda(
+    chat_id: int,
+    data: WhatsappChatDemandaCreate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    from app.services.whatsapp_chat_demandas import criar_demanda_chat, demanda_para_read
+
+    c = db.query(WhatsappChat).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not _pode_registrar_demanda(db, atendente, c):
+        raise HTTPException(status_code=403, detail="Sem permissão para registrar demanda neste chat")
+    row = criar_demanda_chat(db, c, atendente, data, desfecho="resolvido_sessao")
+    db.commit()
+    assert row is not None
+    return demanda_para_read(row)
+
+
+@router.delete("/{chat_id}/demandas/{demanda_id}", status_code=204)
+def excluir_demanda(
+    chat_id: int,
+    demanda_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    from app.models.whatsapp_chat_demanda import WhatsappChatDemanda
+
+    c = db.query(WhatsappChat).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not _pode_registrar_demanda(db, atendente, c):
+        raise HTTPException(status_code=403, detail="Sem permissão para alterar demandas neste chat")
+    row = (
+        db.query(WhatsappChatDemanda)
+        .filter(WhatsappChatDemanda.id == demanda_id, WhatsappChatDemanda.chat_id == chat_id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Demanda não encontrada")
+    if atendente.role != "admin" and row.atendente_id != atendente.id:
+        raise HTTPException(status_code=403, detail="Somente quem registrou ou admin pode excluir")
+    db.delete(row)
+    db.commit()
+
+
 @router.post("/{chat_id}/assumir", response_model=WhatsappChatRead)
 def assumir(
     chat_id: int,
@@ -820,6 +904,15 @@ def assumir(
     c.estado = "em_atendimento"
     c.atendente_id = atendente.id
     c.atendimento_inicio_at = datetime.now(timezone.utc)
+    from app.services.audit_operacional import audit_whatsapp_chat
+
+    audit_whatsapp_chat(
+        db,
+        chat_id=c.id,
+        action="assign",
+        atendente_id=atendente.id,
+        payload={"de_estado": estado_anterior, "protocolo": c.protocolo},
+    )
     db.commit()
     db.refresh(c)
     emit_chat_fila_from_model(db, c, estado_anterior=estado_anterior)
@@ -870,6 +963,15 @@ def encerrar(
     from app.services.whatsapp_avaliacao import finalizar_atendimento_whatsapp
 
     try:
+        from app.services.audit_operacional import audit_whatsapp_chat
+
+        audit_whatsapp_chat(
+            db,
+            chat_id=c.id,
+            action="close",
+            atendente_id=atendente.id,
+            payload={"protocolo": c.protocolo},
+        )
         finalizar_atendimento_whatsapp(db, c, st_auto, evento_encerrado="auto_encerrado")
         db.commit()
     except Exception as exc:
@@ -898,8 +1000,7 @@ def enviar_mensagem(
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
     if c.estado != "em_atendimento":
         raise HTTPException(status_code=400, detail="Só é possível enviar mensagens em chats ativos")
-    if atendente.role != "admin" and c.atendente_id != atendente.id:
-        raise HTTPException(status_code=403, detail="Apenas o atendente responsável pode enviar mensagens")
+    _exigir_responsavel_envio_cliente(c, atendente)
     texto = data.texto.strip()
     m = _enviar_texto_whatsapp(
         db,
@@ -934,8 +1035,7 @@ async def enviar_mensagem_midia(
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
     if c.estado != "em_atendimento":
         raise HTTPException(status_code=400, detail="Só é possível enviar mensagens em chats ativos")
-    if atendente.role != "admin" and c.atendente_id != atendente.id:
-        raise HTTPException(status_code=403, detail="Apenas o atendente responsável pode enviar mensagens")
+    _exigir_responsavel_envio_cliente(c, atendente)
 
     data = await file.read()
     if len(data) > settings.WHATSAPP_MEDIA_MAX_BYTES:
@@ -1055,6 +1155,7 @@ def comentar_interno(
         .first()
     )
     assert m2 is not None
+    emit_chat_mensagem_from_models(db, c, m2, exclude_atendente_id=atendente.id)
     return _mensagem_read(m2)
 
 
@@ -1253,6 +1354,21 @@ def abrir_ticket(
 
     registrar_primeira_resposta_se_necessario(db, ticket)
     db.add(WhatsappChatTicket(chat_id=chat_id, ticket_id=ticket.id, atendente_id=atendente.id))
+    if data.natureza_id is not None:
+        from app.services.whatsapp_chat_demandas import criar_demanda_chat
+
+        criar_demanda_chat(
+            db,
+            c,
+            atendente,
+            WhatsappChatDemandaCreate(
+                natureza_id=data.natureza_id,
+                motivo_id=data.motivo_id,
+                descricao_curta=data.assunto.strip()[:500],
+            ),
+            desfecho="escalado_ticket",
+            ticket_id=ticket.id,
+        )
     db.commit()
     db.refresh(ticket)
     pos_criar_ticket_na_fila(db, ticket)
@@ -1310,6 +1426,8 @@ def transferir(
                 raise HTTPException(status_code=400, detail="Atendente selecionado não pertence ao setor escolhido")
 
     estado_anterior = c.estado
+    de_setor_id = c.setor_id
+    de_atendente_id = c.atendente_id
     c.setor_id = data.setor_id
     c.atendente_id = destino.id if destino else None
     if destino:
@@ -1338,6 +1456,21 @@ def transferir(
             atendente_id=atendente.id,
             evento_sistema="transferencia",
         )
+    )
+    from app.services.audit_operacional import audit_whatsapp_chat
+
+    audit_whatsapp_chat(
+        db,
+        chat_id=c.id,
+        action="transfer",
+        atendente_id=atendente.id,
+        payload={
+            "protocolo": c.protocolo,
+            "de_setor_id": de_setor_id,
+            "para_setor_id": data.setor_id,
+            "de_atendente_id": de_atendente_id,
+            "para_atendente_id": destino.id if destino else None,
+        },
     )
     db.commit()
     db.refresh(c)
