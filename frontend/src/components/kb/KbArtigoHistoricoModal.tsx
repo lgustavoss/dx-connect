@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Button } from '../ui/Button'
 import { MODAL_OVERLAY, MODAL_PANEL_WIDE_SHELL } from '../../lib/modalPanel'
 import { KbMarkdownPreview } from './KbMarkdownPreview'
