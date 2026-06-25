@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { Layout } from './components/Layout'
@@ -36,6 +36,9 @@ import { StatusTicketDetalhe } from './pages/StatusTicketDetalhe'
 import { RespostasProntasPage } from './pages/RespostasProntas'
 import { KbArtigosPage } from './pages/KbArtigos'
 import { KbArtigoForm } from './pages/KbArtigoForm'
+import { KbConsultaSection } from './pages/KbConsulta'
+import { AjudaLayout } from './pages/AjudaLayout'
+import { KbCategoriasPage } from './pages/KbCategorias'
 import { RoteamentoRegrasPage } from './pages/RoteamentoRegras'
 import { SlaPoliticasPage } from './pages/SlaPoliticas'
 import { SlaCalendariosPage } from './pages/SlaCalendarios'
@@ -90,6 +93,11 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+function RedirectKbArtigoEditar() {
+  const { id } = useParams<{ id: string }>()
+  return <Navigate to={`/ajuda/artigos/${id}/editar`} replace />
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -125,6 +133,42 @@ function AppRoutes() {
           }
         />
         <Route path="alterar-senha" element={<AlterarSenha />} />
+        <Route path="ajuda" element={<AjudaLayout />}>
+          <Route index element={<Navigate to="consultar" replace />} />
+          <Route path="consultar" element={<KbConsultaSection />} />
+          <Route
+            path="categorias"
+            element={
+              <AdminRoute>
+                <KbCategoriasPage embedded />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="artigos"
+            element={
+              <AdminRoute>
+                <KbArtigosPage embedded />
+              </AdminRoute>
+            }
+          />
+        </Route>
+        <Route
+          path="ajuda/artigos/novo"
+          element={
+            <AdminRoute>
+              <KbArtigoForm />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="ajuda/artigos/:id/editar"
+          element={
+            <AdminRoute>
+              <KbArtigoForm />
+            </AdminRoute>
+          }
+        />
         <Route path="notificacoes/preferencias" element={<NotificacoesPreferencias />} />
         <Route path="sobre" element={<Sobre />} />
         <Route path="tickets" element={<Tickets />} />
@@ -319,21 +363,13 @@ function AppRoutes() {
         <Route path="respostas-prontas" element={<Navigate to="/configuracoes/atendimento/respostas-prontas" replace />} />
         <Route
           path="base-conhecimento/novo"
-          element={
-            <AdminRoute>
-              <KbArtigoForm />
-            </AdminRoute>
-          }
+          element={<Navigate to="/ajuda/artigos/novo" replace />}
         />
         <Route
           path="base-conhecimento/:id/editar"
-          element={
-            <AdminRoute>
-              <KbArtigoForm />
-            </AdminRoute>
-          }
+          element={<RedirectKbArtigoEditar />}
         />
-        <Route path="base-conhecimento" element={<Navigate to="/configuracoes/atendimento/base-conhecimento" replace />} />
+        <Route path="base-conhecimento" element={<Navigate to="/ajuda/artigos" replace />} />
         <Route
           path="status-ticket/novo"
           element={
@@ -399,7 +435,7 @@ function AppRoutes() {
           <Route path="status-ticket" element={<StatusTicketPage embedded />} />
           <Route path="natureza-motivo" element={<TicketNaturezaMotivoPage embedded />} />
           <Route path="respostas-prontas" element={<RespostasProntasPage embedded />} />
-          <Route path="base-conhecimento" element={<KbArtigosPage embedded />} />
+          <Route path="base-conhecimento" element={<Navigate to="/ajuda/artigos" replace />} />
           <Route path="roteamento" element={<RoteamentoRegrasPage embedded />} />
           <Route path="sla" element={<SlaConfigLayout />}>
             <Route index element={<Navigate to="politicas" replace />} />

@@ -16,7 +16,7 @@ Meta-issue geral: [#16](https://github.com/lgustavoss/dx-connect/issues/16)
 | S | [#259](https://github.com/lgustavoss/dx-connect/issues/259) | #277–#281 · follow-ups [#416](https://github.com/lgustavoss/dx-connect/issues/416)–[#418](https://github.com/lgustavoss/dx-connect/issues/418) fechados · [#419](https://github.com/lgustavoss/dx-connect/issues/419) backlog |
 | D | [#260](https://github.com/lgustavoss/dx-connect/issues/260) | #282–#289 |
 | A | [#261](https://github.com/lgustavoss/dx-connect/issues/261) | #290–#292 fechados · PR [#428](https://github.com/lgustavoss/dx-connect/pull/428) |
-| KB | [#262](https://github.com/lgustavoss/dx-connect/issues/262) | #293–#294 em andamento · #295+ backlog |
+| KB | [#262](https://github.com/lgustavoss/dx-connect/issues/262) | #293–#295, #297–#299 fechados · #296 backlog |
 | P | [#263](https://github.com/lgustavoss/dx-connect/issues/263) | #300–#308 |
 
 ---
@@ -61,13 +61,17 @@ Meta-issue geral: [#16](https://github.com/lgustavoss/dx-connect/issues/16)
 
 ---
 
-## Base de conhecimento (#262) — em andamento
+## Base de conhecimento (#262) — v1 interno fechado
 
 | Issue | Título | Estado |
 |-------|--------|--------|
-| [#293](https://github.com/lgustavoss/dx-connect/issues/293) | Modelo categorias/artigos | Em andamento |
-| [#294](https://github.com/lgustavoss/dx-connect/issues/294) | API admin CRUD | Em andamento |
-| [#297](https://github.com/lgustavoss/dx-connect/issues/297) | Editor admin (v1 markdown) | Em andamento |
+| [#293](https://github.com/lgustavoss/dx-connect/issues/293) | Modelo categorias/artigos | Fechada · branch `feat/kb-v1` |
+| [#294](https://github.com/lgustavoss/dx-connect/issues/294) | API admin CRUD + imagens | Fechada · branch `feat/kb-v1` |
+| [#295](https://github.com/lgustavoss/dx-connect/issues/295) | API pública + rate limit + interno_only | Fechada · branch `feat/kb-v1` |
+| [#297](https://github.com/lgustavoss/dx-connect/issues/297) | Editor admin (v1 markdown) | Fechada · branch `feat/kb-v1` |
+| [#298](https://github.com/lgustavoss/dx-connect/issues/298) | Gestão categorias + DnD ordem | Fechada · branch `feat/kb-v1` |
+| [#299](https://github.com/lgustavoss/dx-connect/issues/299) | Consulta interna + cache offline | Fechada · branch `feat/kb-v1` |
+| [#296](https://github.com/lgustavoss/dx-connect/issues/296) | Sugestões por natureza/motivo | Backlog |
 
 ---
 

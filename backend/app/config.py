@@ -105,6 +105,10 @@ class Settings(BaseSettings):
     # Tamanho máximo (bytes) para upload de logo (2MB).
     SYSTEM_LOGO_MAX_BYTES: int = 2 * 1024 * 1024
 
+    # Imagens inline nos artigos da base de conhecimento (#294).
+    KB_MEDIA_DIR: str = "data/kb_media"
+    KB_MEDIA_MAX_BYTES: int = 2 * 1024 * 1024
+
     @property
     def evolution_embutida_disponivel(self) -> bool:
         return bool(

@@ -8,7 +8,6 @@ const TABS = [
   { to: '/configuracoes/atendimento/status-ticket', label: 'Status de ticket' },
   { to: '/configuracoes/atendimento/natureza-motivo', label: 'Natureza e motivo' },
   { to: '/configuracoes/atendimento/respostas-prontas', label: 'Respostas prontas' },
-  { to: '/configuracoes/atendimento/base-conhecimento', label: 'Base de conhecimento' },
   { to: '/configuracoes/atendimento/roteamento', label: 'Roteamento' },
   { to: '/configuracoes/atendimento/sla', label: 'SLA' },
 ] as const
@@ -19,7 +18,6 @@ const TAB_HINTS: Record<string, string> = {
   'status-ticket': 'Etapas do fluxo de chamados (aberto, em atendimento, encerrado…).',
   'natureza-motivo': 'Categorias (natureza) e itens específicos (motivo) usados ao encerrar tickets.',
   'respostas-prontas': 'Macros reutilizáveis ao responder tickets — globais ou por setor.',
-  'base-conhecimento': 'Manuais e artigos para consulta interna — categorias, rascunho e publicação.',
   roteamento: 'Regras automáticas de setor e prioridade na criação de tickets (e-mail e manual).',
   sla: 'Metas de SLA por setor/prioridade e calendários comerciais (horário útil).',
 }

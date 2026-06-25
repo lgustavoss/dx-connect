@@ -3,9 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { ApiError, kb, type Kb } from '../api/client'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
-import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
-import { Select } from '../components/ui/Select'
-import { Input } from '../components/ui/Input'
+import { KbListaFiltros, KB_PAGE_SIZE } from '../components/kb/KbListaFiltros'
+import { KbArtigoPreviewModal } from '../components/kb/KbArtigoPreviewModal'
 import { useToast } from '../components/ui/Toast'
 import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
 import { SemPermissao } from './SemPermissao'
@@ -26,11 +25,14 @@ export function KbArtigosPage({ embedded = false }: { embedded?: boolean }) {
   const [busca, setBusca] = useState('')
   const [debouncedBusca, setDebouncedBusca] = useState('')
   const [statusFiltro, setStatusFiltro] = useState('')
+  const [categoryFiltro, setCategoryFiltro] = useState('')
   const [loading, setLoading] = useState(true)
   const [forbidden, setForbidden] = useState(false)
   const [categorias, setCategorias] = useState<Kb.Category[]>([])
-  const [showCats, setShowCats] = useState(false)
-  const [novaCat, setNovaCat] = useState('')
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewArtigo, setPreviewArtigo] = useState<Kb.Article | null>(null)
+  const [publicandoId, setPublicandoId] = useState<number | null>(null)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedBusca(busca.trim()), 400)
@@ -49,9 +51,10 @@ export function KbArtigosPage({ embedded = false }: { embedded?: boolean }) {
     kb.listArticles({
       busca: debouncedBusca || undefined,
       status: statusFiltro || undefined,
+      category_id: categoryFiltro ? Number(categoryFiltro) : undefined,
       incluir_arquivados: statusFiltro === 'arquivado',
-      offset: (page - 1) * PAGE_SIZE_PADRAO,
-      limit: PAGE_SIZE_PADRAO,
+      offset: (page - 1) * KB_PAGE_SIZE,
+      limit: KB_PAGE_SIZE,
       ordenar_por: 'updated_at',
       ordem: 'desc',
     })
@@ -69,7 +72,7 @@ export function KbArtigosPage({ embedded = false }: { embedded?: boolean }) {
         toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível carregar os artigos.'))
       })
       .finally(() => setLoading(false))
-  }, [debouncedBusca, page, statusFiltro, toast])
+  }, [categoryFiltro, debouncedBusca, page, statusFiltro, toast])
 
   useEffect(() => {
     loadCats()
@@ -79,27 +82,33 @@ export function KbArtigosPage({ embedded = false }: { embedded?: boolean }) {
     load()
   }, [load])
 
-  async function criarCategoria() {
-    if (!novaCat.trim()) return
+  async function abrirPreview(item: Kb.ArticleBrief) {
+    setPreviewOpen(true)
+    setPreviewLoading(true)
+    setPreviewArtigo(null)
     try {
-      await kb.createCategory({ nome: novaCat.trim(), ordem: categorias.length })
-      setNovaCat('')
-      loadCats()
-      toast.showSuccess('Categoria criada.')
+      const full = await kb.getArticle(item.id)
+      setPreviewArtigo(full)
     } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível criar a categoria.'))
+      setPreviewOpen(false)
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar o artigo.'))
+    } finally {
+      setPreviewLoading(false)
     }
   }
 
-  async function excluirCategoria(id: number) {
-    if (!window.confirm('Excluir categoria? Artigos ficarão sem categoria.')) return
+  async function publicarDaLista(item: Kb.ArticleBrief) {
+    if (item.status === 'publicado') return
+    if (!window.confirm(`Publicar «${item.titulo}»? O manual ficará disponível para a equipe em Ajuda → Consultar.`)) return
+    setPublicandoId(item.id)
     try {
-      await kb.deleteCategory(id)
-      loadCats()
+      await kb.publishArticle(item.id)
+      toast.showSuccess('Artigo publicado.')
       load()
-      toast.showSuccess('Categoria excluída.')
     } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível excluir.'))
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível publicar.'))
+    } finally {
+      setPublicandoId(null)
     }
   }
 
@@ -109,116 +118,97 @@ export function KbArtigosPage({ embedded = false }: { embedded?: boolean }) {
       forbidden={forbidden}
       denied={
         <SemPermissao
-          title="Você não tem permissão para gerenciar a base de conhecimento."
-          voltarPara="/"
-          voltarLabel="Voltar para o Dashboard"
+          title="Você não tem permissão para gerenciar os manuais."
+          voltarPara="/ajuda/consultar"
+          voltarLabel="Voltar para Ajuda"
         />
       }
-      title="Base de conhecimento"
-      subtitle="Manuais e artigos para consulta interna — rascunho, publicação e arquivamento."
+      title="Artigos"
+      subtitle="Rascunho, publicação e arquivamento de manuais."
       actions={
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" type="button" onClick={() => setShowCats((v) => !v)}>
-            Categorias
-          </Button>
-          <Button type="button" onClick={() => navigate('/base-conhecimento/novo')}>
-            Novo artigo
-          </Button>
-        </div>
+        <Button type="button" onClick={() => navigate('/ajuda/artigos/novo')}>
+          Novo artigo
+        </Button>
       }
     >
-      {showCats ? (
-        <Card className="mb-4 space-y-3 p-4">
-          <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Categorias</h2>
-          <div className="flex flex-wrap gap-2">
-            <Input
-              label="Nova categoria"
-              value={novaCat}
-              onChange={(e) => setNovaCat(e.target.value)}
-              className="min-w-[200px] flex-1"
-            />
-            <div className="flex items-end">
-              <Button type="button" onClick={criarCategoria}>
-                Adicionar
-              </Button>
-            </div>
-          </div>
-          {categorias.length === 0 ? (
-            <p className="text-sm text-slate-500">Nenhuma categoria.</p>
-          ) : (
-            <ul className="divide-y divide-slate-100 text-sm dark:divide-slate-800">
-              {categorias.map((c) => (
-                <li key={c.id} className="flex items-center justify-between gap-2 py-2">
-                  <span>
-                    {c.nome}{' '}
-                    <span className="text-slate-500">({c.artigos_count} artigo{c.artigos_count === 1 ? '' : 's'})</span>
-                  </span>
-                  <Button type="button" variant="secondary" onClick={() => excluirCategoria(c.id)}>
-                    Excluir
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      ) : null}
-
-      <Card>
-        <BarraBuscaPaginacao
+      <Card className="p-4 sm:p-5">
+        <KbListaFiltros
           busca={busca}
           onBuscaChange={(v) => {
             setBusca(v)
             setPage(1)
           }}
-          placeholder="Buscar por título ou conteúdo"
-          page={page}
-          total={total}
-          onPageChange={setPage}
+          buscaPlaceholder="Buscar por título ou conteúdo…"
+          categoryId={categoryFiltro}
+          onCategoryChange={(v) => {
+            setCategoryFiltro(v)
+            setPage(1)
+          }}
+          categorias={categorias}
           disabled={loading}
-          extra={
-            <div className="w-full min-w-0 sm:w-auto sm:min-w-[180px]">
-              <Select
-                label="Status"
-                value={statusFiltro}
-                onChange={(v) => {
-                  setStatusFiltro(typeof v === 'string' ? v : String(v))
-                  setPage(1)
-                }}
-                options={Object.entries(STATUS_LABEL).map(([value, label]) => ({ value, label }))}
-                includeEmpty
-                emptyLabel="Ativos (sem arquivados)"
-                placeholder="Ativos"
-              />
-            </div>
-          }
+          statusId={statusFiltro}
+          onStatusChange={(v) => {
+            setStatusFiltro(v)
+            setPage(1)
+          }}
+          statusOptions={Object.entries(STATUS_LABEL).map(([value, label]) => ({ value, label }))}
+          paginacao={{ page, total, onPageChange: setPage, disabled: loading }}
         />
+
         {loading ? (
           <p className="text-slate-500">Carregando…</p>
         ) : list.length === 0 ? (
-          <p className="text-slate-500">Nenhum artigo cadastrado.</p>
+          <p className="py-6 text-center text-sm text-slate-500">Nenhum artigo encontrado.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
+          <div className="overflow-x-auto rounded-xl border border-slate-200/90 dark:border-slate-700/80">
+            <table className="w-full min-w-[720px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500">Título</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500">Categoria</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500">Status</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500">Atualizado</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase text-slate-500">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {list.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                    onClick={() => navigate(`/base-conhecimento/${item.id}/editar`)}
-                  >
-                    <td className="px-4 py-3 font-medium">{item.titulo}</td>
+                  <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
+                    <td className="px-4 py-3 font-medium">
+                      {item.titulo}
+                      {item.interno_only ? (
+                        <span className="ml-2 rounded bg-slate-200/80 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                          Só equipe
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{item.category_nome ?? '—'}</td>
                     <td className="px-4 py-3">{STATUS_LABEL[item.status] ?? item.status}</td>
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
                       {item.updated_at ? new Date(item.updated_at).toLocaleString('pt-BR') : '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Button type="button" variant="secondary" onClick={() => abrirPreview(item)}>
+                          Visualizar
+                        </Button>
+                        {item.status === 'rascunho' ? (
+                          <Button
+                            type="button"
+                            loading={publicandoId === item.id}
+                            onClick={() => publicarDaLista(item)}
+                          >
+                            Publicar
+                          </Button>
+                        ) : null}
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => navigate(`/ajuda/artigos/${item.id}/editar`)}
+                        >
+                          Editar
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -227,6 +217,50 @@ export function KbArtigosPage({ embedded = false }: { embedded?: boolean }) {
           </div>
         )}
       </Card>
+
+      <KbArtigoPreviewModal
+        open={previewOpen}
+        onClose={() => {
+          setPreviewOpen(false)
+          setPreviewArtigo(null)
+        }}
+        titulo={previewArtigo?.titulo ?? ''}
+        categoryNome={previewArtigo?.category_nome}
+        statusLabel={
+          previewArtigo ? (STATUS_LABEL[previewArtigo.status] ?? previewArtigo.status) : undefined
+        }
+        conteudoMarkdown={previewArtigo?.conteudo_markdown ?? ''}
+        loading={previewLoading}
+        footer={
+          previewArtigo ? (
+            <>
+              {previewArtigo.status === 'rascunho' ? (
+                <Button
+                  type="button"
+                  loading={publicandoId === previewArtigo.id}
+                  onClick={async () => {
+                    await publicarDaLista(previewArtigo)
+                    setPreviewOpen(false)
+                    setPreviewArtigo(null)
+                  }}
+                >
+                  Publicar
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setPreviewOpen(false)
+                  navigate(`/ajuda/artigos/${previewArtigo.id}/editar`)
+                }}
+              >
+                Editar
+              </Button>
+            </>
+          ) : null
+        }
+      />
     </ConfigListPageShell>
   )
 }
