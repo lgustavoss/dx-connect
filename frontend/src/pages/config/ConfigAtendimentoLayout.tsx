@@ -19,7 +19,7 @@ const TAB_HINTS: Record<string, string> = {
   'natureza-motivo': 'Categorias (natureza) e itens específicos (motivo) usados ao encerrar tickets.',
   'respostas-prontas': 'Macros reutilizáveis ao responder tickets — globais ou por setor.',
   roteamento: 'Regras automáticas de setor e prioridade na criação de tickets (e-mail e manual).',
-  sla: 'Metas de primeira resposta e resolução por setor e prioridade, com calendário comercial opcional.',
+  sla: 'Metas de SLA por setor/prioridade e calendários comerciais (horário útil).',
 }
 
 function abaAtiva(pathname: string): string {

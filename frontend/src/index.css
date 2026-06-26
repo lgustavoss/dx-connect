@@ -38,3 +38,72 @@
   fill: transparent !important;
 }
 
+/* Base de conhecimento — renderização Markdown */
+.kb-markdown {
+  @apply text-sm leading-relaxed text-slate-800 dark:text-slate-100;
+}
+
+.kb-markdown > :first-child {
+  margin-top: 0;
+}
+
+.kb-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.kb-markdown h1 {
+  @apply mb-4 mt-6 text-2xl font-bold text-slate-900 dark:text-slate-50;
+}
+
+.kb-markdown h2 {
+  @apply mb-3 mt-5 text-xl font-semibold text-slate-900 dark:text-slate-50;
+}
+
+.kb-markdown h3 {
+  @apply mb-2 mt-4 text-lg font-semibold text-slate-900 dark:text-slate-50;
+}
+
+.kb-markdown p {
+  @apply my-3;
+}
+
+.kb-markdown ul {
+  @apply my-3 list-disc space-y-1 pl-6;
+}
+
+.kb-markdown ol {
+  @apply my-3 list-decimal space-y-1 pl-6;
+}
+
+.kb-markdown li {
+  @apply my-1;
+}
+
+.kb-markdown a {
+  @apply text-cyan-700 underline underline-offset-2 dark:text-cyan-400;
+}
+
+.kb-markdown code {
+  @apply rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[0.85em] text-slate-800 dark:bg-slate-800 dark:text-slate-100;
+}
+
+.kb-markdown pre {
+  @apply my-4 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/60;
+}
+
+.kb-markdown pre code {
+  @apply bg-transparent p-0;
+}
+
+.kb-markdown blockquote {
+  @apply my-4 border-l-4 border-slate-300 pl-4 italic text-slate-600 dark:border-slate-600 dark:text-slate-400;
+}
+
+.kb-markdown hr {
+  @apply my-6 border-slate-200 dark:border-slate-700;
+}
+
+.kb-markdown strong {
+  @apply font-semibold text-slate-900 dark:text-slate-50;
+}
+

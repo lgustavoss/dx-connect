@@ -121,6 +121,31 @@ class WhatsappAbrirTicketBody(BaseModel):
     setor_id: int
     assunto: str = Field(..., min_length=1, max_length=500)
     descricao: str | None = None
+    natureza_id: int | None = Field(None, description="Natureza da demanda escalada (opcional)")
+    motivo_id: int | None = Field(None, description="Motivo opcional; deve pertencer à natureza")
+
+
+class WhatsappChatDemandaCreate(BaseModel):
+    natureza_id: int
+    motivo_id: int | None = None
+    descricao_curta: str | None = Field(None, max_length=500)
+
+
+class WhatsappChatDemandaRead(BaseModel):
+    id: int
+    chat_id: int
+    natureza_id: int
+    natureza_nome: str | None = None
+    motivo_id: int | None = None
+    motivo_nome: str | None = None
+    desfecho: str
+    ticket_id: int | None = None
+    descricao_curta: str | None = None
+    atendente_id: int | None = None
+    atendente_nome: str | None = None
+    created_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
 
 
 class WhatsappTransferirChatBody(BaseModel):

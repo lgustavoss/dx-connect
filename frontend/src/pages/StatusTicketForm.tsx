@@ -30,6 +30,7 @@ export function StatusTicketForm() {
   const [slug, setSlug] = useState('')
   const [ordem, setOrdem] = useState(0)
   const [ativo, setAtivo] = useState(true)
+  const [pausaSla, setPausaSla] = useState(false)
 
   useEffect(() => {
     if (isEdit) return
@@ -55,6 +56,7 @@ export function StatusTicketForm() {
         setSlug(s.slug)
         setOrdem(s.ordem)
         setAtivo(s.ativo)
+        setPausaSla(s.pausa_sla)
       })
       .catch((err) => {
         if (cancelled) return
@@ -82,11 +84,23 @@ export function StatusTicketForm() {
     setSaving(true)
     try {
       if (isEdit && !Number.isNaN(statusId)) {
-        await statusTicket.update(statusId, { nome: nome.trim(), slug: slug.trim(), ordem, ativo })
+        await statusTicket.update(statusId, {
+          nome: nome.trim(),
+          slug: slug.trim(),
+          ordem,
+          ativo,
+          pausa_sla: pausaSla,
+        })
         toast.showSuccess('Status atualizado.')
         navigate(`/status-ticket/${statusId}`, { replace: true })
       } else {
-        const created = await statusTicket.create({ nome: nome.trim(), slug: slug.trim(), ordem, ativo })
+        const created = await statusTicket.create({
+          nome: nome.trim(),
+          slug: slug.trim(),
+          ordem,
+          ativo,
+          pausa_sla: pausaSla,
+        })
         toast.showSuccess('Status cadastrado.')
         navigate(`/status-ticket/${created.id}`, { replace: true })
       }
@@ -152,6 +166,18 @@ export function StatusTicketForm() {
                 statusOnText="Ativo"
                 statusOffText="Inativo"
               />
+              <Switch
+                bare
+                checked={pausaSla}
+                onCheckedChange={setPausaSla}
+                label="Pausa contagem do SLA"
+                showStatusPill
+                statusOnText="Pausa SLA"
+                statusOffText="Conta SLA"
+              />
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Enquanto o ticket estiver neste status, o relógio de SLA não avança (ex.: aguardando cliente).
+              </p>
             </FormSection>
           </div>
           <InlineCadastroFooter onCancel={voltarAnterior} saving={saving} />

@@ -445,6 +445,55 @@ export const respostasProntas = {
     ),
 };
 
+export const kb = {
+  listCategories: () => api<Kb.Category[]>('/kb/categories'),
+  createCategory: (data: Kb.CategoryCreate) =>
+    api<Kb.Category>('/kb/categories', { method: 'POST', body: JSON.stringify(data) }),
+  updateCategory: (id: number, data: Kb.CategoryUpdate) =>
+    api<Kb.Category>(`/kb/categories/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteCategory: (id: number) => api<void>(`/kb/categories/${id}`, { method: 'DELETE' }),
+  reorderCategories: (items: { id: number; ordem: number }[]) =>
+    api<Kb.Category[]>('/kb/categories/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ items }),
+    }),
+  listArticles: (params?: {
+    busca?: string;
+    status?: string;
+    category_id?: number;
+    incluir_arquivados?: boolean;
+    offset?: number;
+    limit?: number;
+    ordenar_por?: 'titulo' | 'status' | 'updated_at' | 'published_at';
+    ordem?: 'asc' | 'desc';
+  }) => listPaginated<Kb.ArticleBrief>('/kb/articles', params),
+  getArticle: (id: number) => api<Kb.Article>(`/kb/articles/${id}`),
+  createArticle: (data: Kb.ArticleCreate) =>
+    api<Kb.Article>('/kb/articles', { method: 'POST', body: JSON.stringify(data) }),
+  updateArticle: (id: number, data: Kb.ArticleUpdate) =>
+    api<Kb.Article>(`/kb/articles/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  publishArticle: (id: number) =>
+    api<Kb.Article>(`/kb/articles/${id}/publish`, { method: 'POST' }),
+  archiveArticle: (id: number) =>
+    api<Kb.Article>(`/kb/articles/${id}/archive`, { method: 'POST' }),
+  consulta: (params?: { busca?: string; category_id?: number; limit?: number }) =>
+    api<Kb.ArticleBrief[]>(withParams('/kb/articles/consulta', params)),
+  getPublicado: (id: number) => api<Kb.Article>(`/kb/articles/publicados/${id}`),
+  listPublicCategories: () => api<Kb.Category[]>('/kb/public/categories'),
+  listPublicArticles: (params?: { busca?: string; category_id?: number; limit?: number }) =>
+    api<Kb.ArticleBrief[]>(withParams('/kb/public/articles', params)),
+  getPublicArticleBySlug: (slug: string) => api<Kb.Article>(`/kb/public/articles/${encodeURIComponent(slug)}`),
+  listArticleVersions: (articleId: number) => api<Kb.ArticleVersion[]>(`/kb/articles/${articleId}/versions`),
+  getArticleVersion: (articleId: number, versionId: number) =>
+    api<Kb.ArticleVersionDetail>(`/kb/articles/${articleId}/versions/${versionId}`),
+  uploadImage: (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api<Kb.ImageUpload>('/kb/images', { method: 'POST', body: fd })
+  },
+  imageUrl: (filename: string) => `${resolvedApiBaseUrl()}${API_VERSION_PREFIX}/kb/images/${encodeURIComponent(filename)}`,
+};
+
 export const routingRules = {
   list: (params?: { incluir_inativos?: boolean }) =>
     api<RoutingRules.Regra[]>(withParams('/routing/rules', params)),
@@ -477,6 +526,11 @@ export const sla = {
   calendars: {
     list: (params?: { setor_id?: number; incluir_inativos?: boolean }) =>
       api<Sla.BusinessCalendar[]>(withParams('/sla/calendars', params)),
+    get: (id: number) => api<Sla.BusinessCalendar>(`/sla/calendars/${id}`),
+    create: (data: Sla.BusinessCalendarCreate) =>
+      api<Sla.BusinessCalendar>('/sla/calendars', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: number, data: Sla.BusinessCalendarUpdate) =>
+      api<Sla.BusinessCalendar>(`/sla/calendars/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   },
 };
 
@@ -484,12 +538,43 @@ export const audit = {
   list: (params?: {
     entity_type?: string;
     entity_id?: number;
+    action?: string;
+    atendente_id?: number;
+    de?: string;
+    ate?: string;
     busca?: string;
     ordenar_por?: 'created_at' | 'entity_type' | 'entity_id' | 'action' | 'atendente';
     ordem?: 'asc' | 'desc';
     offset?: number;
     limit?: number;
   }) => listPaginated<Audit.AuditLogEntry>('/audit', params),
+  exportCsv: async (params?: {
+    entity_type?: string;
+    entity_id?: number;
+    action?: string;
+    atendente_id?: number;
+    de?: string;
+    ate?: string;
+    busca?: string;
+  }) => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
+    }
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const url = `${BASE}${API_VERSION_PREFIX}${withParams('/audit', { ...params, format: 'csv' })}`;
+    const res = await fetch(url, { headers });
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin();
+      throw new ApiError('Sessão expirada ou inválida.', 401, {});
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody);
+    }
+    return res.blob();
+  },
 };
 
 export namespace WhatsappSettings {
@@ -785,6 +870,25 @@ export namespace WhatsappChats {
     atendente_nome?: string | null
     created_at?: string | null
   }
+  export interface Demanda {
+    id: number
+    chat_id: number
+    natureza_id: number
+    natureza_nome?: string | null
+    motivo_id?: number | null
+    motivo_nome?: string | null
+    desfecho: string
+    ticket_id?: number | null
+    descricao_curta?: string | null
+    atendente_id?: number | null
+    atendente_nome?: string | null
+    created_at?: string | null
+  }
+  export interface DemandaCreate {
+    natureza_id: number
+    motivo_id?: number | null
+    descricao_curta?: string | null
+  }
 }
 
 /** Obtém o binário de uma mensagem com mídia (requer JWT; não usar em `src` de img direto). */
@@ -835,6 +939,14 @@ export const whatsappChats = {
     listPaginated<WhatsappChats.Avaliacao>('/whatsapp/chats/avaliacoes', params),
   get: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}`),
   mensagens: (id: number) => api<WhatsappChats.Mensagem[]>(`/whatsapp/chats/${id}/mensagens`),
+  demandas: (id: number) => api<WhatsappChats.Demanda[]>(`/whatsapp/chats/${id}/demandas`),
+  registrarDemanda: (id: number, data: WhatsappChats.DemandaCreate) =>
+    api<WhatsappChats.Demanda>(`/whatsapp/chats/${id}/demandas`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  excluirDemanda: (id: number, demandaId: number) =>
+    api<void>(`/whatsapp/chats/${id}/demandas/${demandaId}`, { method: 'DELETE' }),
   assumir: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/assumir`, { method: 'POST' }),
   encerrar: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/encerrar`, { method: 'POST' }),
   transferir: (id: number, data: { setor_id: number; atendente_id?: number | null }) =>
@@ -885,7 +997,14 @@ export const whatsappChats = {
     }),
   abrirTicket: (
     id: number,
-    data: { empresa_id: number; setor_id: number; assunto: string; descricao?: string | null },
+    data: {
+      empresa_id: number
+      setor_id: number
+      assunto: string
+      descricao?: string | null
+      natureza_id?: number | null
+      motivo_id?: number | null
+    },
   ) =>
     api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/abrir-ticket`, {
       method: 'POST',
@@ -1001,6 +1120,8 @@ export const dashboard = {
     de?: string;
     ate?: string;
     setor_id?: number;
+    empresa_id?: number;
+    rede_id?: number;
     atendente_filtro_id?: number;
     drill_tipo?: string;
     drill_valor?: string;
@@ -1165,7 +1286,8 @@ export namespace Dashboard {
     chats_em_atendimento: number;
     csat_tickets: CsatResumo;
     csat_chats: CsatResumo;
-    sla_violacoes_abertas: number | null;
+    sla_violacoes_abertas: number;
+    sla_em_risco_abertas: number;
     gerado_em: string;
     cache_ttl_segundos: number;
   }
@@ -1237,6 +1359,8 @@ export namespace Dashboard {
     pct_com_ticket_vinculado: number | null;
     por_atendente: ContagemIdNome[];
     por_estado_atual: ContagemRotulo[];
+    demandas_por_natureza: ContagemIdNome[];
+    demandas_por_motivo: ContagemIdNome[];
     snapshot: SnapshotCanais;
     gerado_em: string;
     cache_ttl_segundos: number;
@@ -1755,18 +1879,21 @@ export namespace StatusTicket {
     slug: string;
     ordem: number;
     ativo: boolean;
+    pausa_sla: boolean;
   }
   export interface Create {
     nome: string;
     slug: string;
     ordem?: number;
     ativo?: boolean;
+    pausa_sla?: boolean;
   }
   export interface Update {
     nome?: string;
     slug?: string;
     ordem?: number;
     ativo?: boolean;
+    pausa_sla?: boolean;
   }
 }
 
@@ -1782,6 +1909,8 @@ export namespace Sla {
     setor_id: number;
     setor_nome?: string | null;
     prioridade: Prioridade | null;
+    natureza_id: number | null;
+    natureza_nome?: string | null;
     business_calendar_id: number | null;
     business_calendar_nome?: string | null;
     meta_primeira_resposta_min: number | null;
@@ -1794,6 +1923,7 @@ export namespace Sla {
   export interface PolicyCreate {
     setor_id: number;
     prioridade?: Prioridade | null;
+    natureza_id?: number | null;
     business_calendar_id?: number | null;
     meta_primeira_resposta_min?: number | null;
     meta_resolucao_min?: number | null;
@@ -1803,6 +1933,7 @@ export namespace Sla {
   export interface PolicyUpdate {
     setor_id?: number;
     prioridade?: Prioridade | null;
+    natureza_id?: number | null;
     business_calendar_id?: number | null;
     meta_primeira_resposta_min?: number | null;
     meta_resolucao_min?: number | null;
@@ -1819,6 +1950,28 @@ export namespace Sla {
     horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
     usar_feriados_nacionais: boolean;
     ativo: boolean;
+  }
+
+  export interface BusinessCalendarCreate {
+    nome: string;
+    setor_id?: number | null;
+    horario_timezone?: string;
+    horario_inicio?: string | null;
+    horario_fim?: string | null;
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
+    usar_feriados_nacionais?: boolean;
+    ativo?: boolean;
+  }
+
+  export interface BusinessCalendarUpdate {
+    nome?: string;
+    setor_id?: number | null;
+    horario_timezone?: string;
+    horario_inicio?: string | null;
+    horario_fim?: string | null;
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
+    usar_feriados_nacionais?: boolean;
+    ativo?: boolean;
   }
 }
 
@@ -1996,6 +2149,7 @@ export namespace Tickets {
   export interface SlaMetaDetalhe {
     meta_minutos: number | null;
     vence_em: string | null;
+    vence_em_efetivo: string | null;
     cumprido_em: string | null;
     estado: string;
     percentual_decorrido: number | null;
@@ -2006,6 +2160,8 @@ export namespace Tickets {
     sla_violado: boolean;
     inicio_em: string;
     usa_horario_comercial: boolean;
+    pausado_agora: boolean;
+    minutos_pausados: number;
     primeira_resposta: SlaMetaDetalhe;
     resolucao: SlaMetaDetalhe;
   }
@@ -2145,6 +2301,78 @@ export namespace Tickets {
   }
 }
 
+export namespace Kb {
+  export interface Category {
+    id: number;
+    nome: string;
+    slug: string;
+    ordem: number;
+    parent_id: number | null;
+    parent_nome?: string | null;
+    artigos_count: number;
+  }
+  export interface CategoryCreate {
+    nome: string;
+    slug?: string | null;
+    ordem?: number;
+    parent_id?: number | null;
+  }
+  export interface CategoryUpdate {
+    nome?: string;
+    slug?: string | null;
+    ordem?: number;
+    parent_id?: number | null;
+  }
+  export interface ArticleBrief {
+    id: number;
+    titulo: string;
+    slug: string;
+    category_id: number | null;
+    category_nome: string | null;
+    status: string;
+    interno_only: boolean;
+    autor_nome: string | null;
+    published_at: string | null;
+    updated_at: string | null;
+  }
+  export interface Article extends ArticleBrief {
+    conteudo_markdown: string;
+    autor_atendente_id: number | null;
+    archived_at: string | null;
+    created_at: string;
+  }
+  export interface ArticleCreate {
+    titulo: string;
+    slug?: string | null;
+    category_id?: number | null;
+    conteudo_markdown?: string;
+    interno_only?: boolean;
+  }
+  export interface ArticleUpdate {
+    titulo?: string;
+    slug?: string | null;
+    category_id?: number | null;
+    conteudo_markdown?: string;
+    interno_only?: boolean;
+  }
+  export interface ArticleVersion {
+    id: number;
+    article_id: number;
+    titulo: string;
+    status: string;
+    autor_atendente_id: number | null;
+    autor_nome: string | null;
+    created_at: string;
+  }
+  export interface ArticleVersionDetail extends ArticleVersion {
+    conteudo_markdown: string;
+  }
+  export interface ImageUpload {
+    url: string;
+    filename: string;
+  }
+}
+
 export namespace Audit {
   export interface AuditLogEntry {
     id: number;
@@ -2153,6 +2381,10 @@ export namespace Audit {
     action: string;
     atendente_id: number | null;
     atendente_nome: string | null;
+    payload_json: Record<string, unknown> | null;
+    ip_address: string | null;
+    user_agent: string | null;
+    request_id: string | null;
     created_at: string;
   }
 }

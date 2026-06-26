@@ -18,6 +18,7 @@ from app.services.relatorio_tickets import (
     exportar_relatorio_tickets_csv,
     listar_relatorio_tickets,
 )
+from app.services.audit_operacional import audit_export_relatorio
 from app.services.ticket_dashboard_filters import normalizar_prioridade
 
 router = APIRouter(prefix="/relatorios", tags=["relatorios"])
@@ -61,6 +62,19 @@ def relatorio_tickets(
             setor_id=setor_id,
             prioridade=prio,
         )
+        audit_export_relatorio(
+            db,
+            tipo="tickets",
+            atendente_id=atendente.id,
+            filtros={
+                "de": de.isoformat() if de else None,
+                "ate": ate.isoformat() if ate else None,
+                "rede_id": rede_id,
+                "setor_id": setor_id,
+                "prioridade": prio,
+            },
+        )
+        db.commit()
         nome = f"relatorio-tickets-{date.today().isoformat()}.csv"
         return PlainTextResponse(
             content=conteudo,
@@ -108,6 +122,18 @@ def relatorio_chats(
             setor_id=setor_id,
             atendente_filtro_id=atendente_filtro_id,
         )
+        audit_export_relatorio(
+            db,
+            tipo="chats",
+            atendente_id=atendente.id,
+            filtros={
+                "de": de.isoformat() if de else None,
+                "ate": ate.isoformat() if ate else None,
+                "setor_id": setor_id,
+                "atendente_filtro_id": atendente_filtro_id,
+            },
+        )
+        db.commit()
         nome = f"relatorio-chats-{date.today().isoformat()}.csv"
         return PlainTextResponse(
             content=conteudo,

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
 
+from app.services.audit_operacional import audit_view_credential
 from app.core.audit import registrar_audit
 from app.core.auth import exigir_admin, obter_atendente_atual
 from app.database import get_db
@@ -179,6 +180,6 @@ def revelar_credencial(
         senha = decrypt_str(row.acesso_remoto_senha_cifrada)
     except Exception as e:
         raise HTTPException(status_code=500, detail="Não foi possível decifrar a credencial.") from e
-    registrar_audit(db, "empresa_pdv", row.id, "reveal_credential", atendente.id)
+    audit_view_credential(db, pdv_id=row.id, empresa_id=empresa_id, atendente_id=atendente.id)
     db.commit()
     return EmpresaPdvCredencialRead(acesso_remoto_senha=senha)

@@ -43,6 +43,10 @@ export function TicketSlaCard({ ticketId, fechado }: { ticketId: number; fechado
       </div>
       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
         {comercial ? 'Contagem em horário comercial' : 'Contagem contínua (24×7)'}
+        {sla.pausado_agora ? ' · SLA pausado neste status' : ''}
+        {sla.minutos_pausados > 0 && !sla.pausado_agora
+          ? ` · ${sla.minutos_pausados} min já pausados`
+          : ''}
       </p>
       <dl className="mt-3 grid gap-3 sm:grid-cols-2">
         {(['primeira_resposta', 'resolucao'] as const).map((chave) => {
@@ -58,7 +62,9 @@ export function TicketSlaCard({ ticketId, fechado }: { ticketId: number; fechado
                 {nome}
               </dt>
               <dd className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-100">
-                {textoCountdownSla(meta, comercial)}
+                {sla.pausado_agora && meta.estado !== 'cumprido' && meta.estado !== 'violado'
+                  ? 'Pausado'
+                  : textoCountdownSla(meta, comercial)}
               </dd>
               <dd className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                 Meta: {formatMinutosSla(meta.meta_minutos, comercial)}

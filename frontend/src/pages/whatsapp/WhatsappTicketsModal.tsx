@@ -10,6 +10,10 @@ import {
 } from '../../api/client'
 import { coletarTodasPaginas } from '../../api/collectPages'
 import { TicketBuscaPicker } from '../../components/TicketBuscaPicker'
+import {
+  TicketClassificacaoFields,
+  type ClassificacaoFormValue,
+} from '../../components/tickets/TicketClassificacaoFields'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
@@ -41,6 +45,11 @@ export function WhatsappTicketsModal({ chat, open, onClose, onSuccess }: Props) 
   const [setorId, setSetorId] = useState<number | ''>(chat.setor_id ?? '')
   const [assunto, setAssunto] = useState('')
   const [descricao, setDescricao] = useState('')
+  const [classificacao, setClassificacao] = useState<ClassificacaoFormValue>({
+    naturezaId: '',
+    motivoId: '',
+    motivoOutroTexto: '',
+  })
 
   const empresaItems = useMemo(
     () => empresasList.map((e) => ({ id: e.id, label: e.nome })),
@@ -57,6 +66,7 @@ export function WhatsappTicketsModal({ chat, open, onClose, onSuccess }: Props) 
     setModo('vincular')
     setAssunto(`Atendimento WhatsApp — ${chat.cliente_nome?.trim() || chat.wa_id}`)
     setDescricao('')
+    setClassificacao({ naturezaId: '', motivoId: '', motivoOutroTexto: '' })
     setSetorId(chat.setor_id ?? '')
     setEmpresaId('')
     setCatalogoLoading(true)
@@ -95,6 +105,10 @@ export function WhatsappTicketsModal({ chat, open, onClose, onSuccess }: Props) 
       toast.showWarning('Preencha empresa, setor e assunto.')
       return
     }
+    if (classificacao.naturezaId === '') {
+      toast.showWarning('Selecione a natureza da demanda escalada.')
+      return
+    }
     setSalvando(true)
     try {
       const atualizado = await whatsappChats.abrirTicket(chat.id, {
@@ -102,6 +116,8 @@ export function WhatsappTicketsModal({ chat, open, onClose, onSuccess }: Props) 
         setor_id: Number(setorId),
         assunto: assunto.trim(),
         descricao: descricao.trim() || null,
+        natureza_id: Number(classificacao.naturezaId),
+        motivo_id: classificacao.motivoId === '' ? null : Number(classificacao.motivoId),
       })
       const novoId = atualizado.ticket_ids.find((tid) => !chat.ticket_ids.includes(tid))
       toast.showSuccess(
@@ -219,6 +235,12 @@ export function WhatsappTicketsModal({ chat, open, onClose, onSuccess }: Props) 
                 value={assunto}
                 onChange={(e) => setAssunto(e.target.value)}
                 disabled={salvando}
+              />
+              <TicketClassificacaoFields
+                value={classificacao}
+                onChange={setClassificacao}
+                disabled={salvando}
+                motivoLabel="Motivo (opcional)"
               />
               <label className="block">
                 <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Descrição</span>

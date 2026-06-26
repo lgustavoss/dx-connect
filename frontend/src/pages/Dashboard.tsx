@@ -197,6 +197,22 @@ export function Dashboard() {
           hrefLabel="Ver tickets sem responsável"
         />
         <MetricCard
+          label="SLA violado (abertos)"
+          value={geral.sla_violacoes_abertas}
+          borderClass="border-l-4 border-l-red-500"
+          hint="Tickets abertos com meta de SLA estourada"
+          href="/tickets?situacao=abertos&sla_violado=1"
+          hrefLabel="Ver tickets com SLA violado"
+        />
+        <MetricCard
+          label="SLA em risco (abertos)"
+          value={geral.sla_em_risco_abertas}
+          borderClass="border-l-4 border-l-amber-500"
+          hint="Tickets abertos próximos do limite de SLA"
+          href="/tickets?situacao=abertos&sla_em_risco=1"
+          hrefLabel="Ver tickets com SLA em risco"
+        />
+        <MetricCard
           label="WhatsApp aguardando"
           value={geral.chats_aguardando_atendente}
           borderClass="border-l-4 border-l-emerald-400"

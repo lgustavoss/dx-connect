@@ -137,7 +137,13 @@ export function Tickets() {
     return sr === '1' || sr === 'true' ? 'sem_responsavel' : ''
   })
   const [filtroAtendente, setFiltroAtendente] = useState<number | ''>('')
-  const [filtroSla, setFiltroSla] = useState<'' | 'violado' | 'em_risco'>('')
+  const [filtroSla, setFiltroSla] = useState<'' | 'violado' | 'em_risco'>(() => {
+    const sv = searchParams.get('sla_violado')
+    if (sv === '1' || sv === 'true') return 'violado'
+    const sr = searchParams.get('sla_em_risco')
+    if (sr === '1' || sr === 'true') return 'em_risco'
+    return ''
+  })
   const [maisFiltrosAberto, setMaisFiltrosAberto] = useState(false)
   const painelFiltrosId = useId()
   const { ordenarPor, ordem, aoOrdenarColuna, sortParams } = useOrdenacaoLista<ColunaOrdenacao>()
@@ -225,6 +231,32 @@ export function Tickets() {
         (prev) => {
           const next = new URLSearchParams(prev)
           next.delete('sem_responsavel')
+          return next
+        },
+        { replace: true },
+      )
+    }
+  }, [searchParams, setSearchParams])
+
+  useEffect(() => {
+    const sv = searchParams.get('sla_violado')
+    const sr = searchParams.get('sla_em_risco')
+    if (sv === '1' || sv === 'true') {
+      setFiltroSla('violado')
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev)
+          next.delete('sla_violado')
+          return next
+        },
+        { replace: true },
+      )
+    } else if (sr === '1' || sr === 'true') {
+      setFiltroSla('em_risco')
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev)
+          next.delete('sla_em_risco')
           return next
         },
         { replace: true },

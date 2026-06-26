@@ -3,6 +3,7 @@ export type SlaEstadoResumido = 'dentro' | 'em_risco' | 'violado' | 'cumprido'
 export interface SlaMetaDetalhe {
   meta_minutos: number | null
   vence_em: string | null
+  vence_em_efetivo?: string | null
   cumprido_em: string | null
   estado: string
   percentual_decorrido: number | null
@@ -66,7 +67,8 @@ function diffMinutos(iso: string | null | undefined, agora = Date.now()): number
 export function textoCountdownSla(meta: SlaMetaDetalhe, comercial: boolean): string {
   if (meta.estado === 'cumprido') return 'Cumprido'
   if (meta.estado === 'violado') {
-    const atraso = diffMinutos(meta.vence_em)
+    const ref = meta.vence_em_efetivo ?? meta.vence_em
+    const atraso = diffMinutos(ref)
     if (atraso != null && atraso < 0) {
       const min = Math.abs(atraso)
       if (min < 60) return `Violado há ${min} min`
@@ -76,7 +78,8 @@ export function textoCountdownSla(meta: SlaMetaDetalhe, comercial: boolean): str
     }
     return 'Violado'
   }
-  const rest = diffMinutos(meta.vence_em)
+  const ref = meta.vence_em_efetivo ?? meta.vence_em
+  const rest = diffMinutos(ref)
   if (rest == null) return '—'
   if (rest <= 0) return 'Prazo esgotado'
   const tipo = comercial ? 'úteis' : 'restantes'
