@@ -5,12 +5,11 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
-### Correções
-
-- Som de ticket novo na fila sem responsável tocava múltiplas vezes por emissões SSE duplicadas e hook de alerta montado em mais de um componente (#406)
+## [26.06.004] - 2026-06-25
 
 ### Melhorias
 
+- Som de ticket novo na fila sem responsável tocava múltiplas vezes por emissões SSE duplicadas e hook de alerta montado em mais de um componente (#406)
 - Base de conhecimento (#293–#299): menu **Ajuda** para consultar manuais durante o atendimento; gestão de categorias e artigos (admin); consulta integrada em tickets e WhatsApp; manuais «só para a equipe»; imagens no texto; histórico de versões; reordenar categorias arrastando; manuais consultados ficam disponíveis offline neste computador
 - Auditoria (#290–#292): registro detalhado de ações no sistema (atribuição e transferência de tickets, chats WhatsApp, e-mails ao cliente, credenciais PDV e exportações)
 - Auditoria: filtros por ação, período e atendente; exportação CSV; painel com detalhes do registro
