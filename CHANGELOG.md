@@ -11,39 +11,50 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - WhatsApp (#432): barra de anexos com ações visíveis (imagem, vídeo, áudio, documento, gravar áudio), pré-visualização antes do envio e legenda opcional
 - WhatsApp (#433): banner e badge «Sem vínculo» para contactos não cadastrados; botão vincular visível em mobile
 - WhatsApp: mensagens de contacto e localização recebidas passam a aparecer como texto legível no chat
-- Som de ticket novo na fila sem responsável tocava múltiplas vezes por emissões SSE duplicadas e hook de alerta montado em mais de um componente (#406)
 
 ### Melhorias
 
+- Identidade visual DeskRudder no painel (logos, login, favicon e componentes de marca)
+
+## [26.06.004] - 2026-06-25
+
+### Melhorias
+
+- Som de ticket novo na fila sem responsável tocava múltiplas vezes por emissões SSE duplicadas e hook de alerta montado em mais de um componente (#406)
 - Base de conhecimento (#293–#299): menu **Ajuda** para consultar manuais durante o atendimento; gestão de categorias e artigos (admin); consulta integrada em tickets e WhatsApp; manuais «só para a equipe»; imagens no texto; histórico de versões; reordenar categorias arrastando; manuais consultados ficam disponíveis offline neste computador
-- Auditoria (#290–#292): trail expandido com payload, IP, request-id e user-agent; registro de atribuição, transferência, fechamento e reabertura de tickets, ações em chats WhatsApp, envio de e-mail ao cliente, visualização de credencial PDV e exportação de relatórios
-- Auditoria: filtros por ação, período e atendente; exportação CSV; painel com detalhes do payload e request-id
+- Auditoria (#290–#292): registro detalhado de ações no sistema (atribuição e transferência de tickets, chats WhatsApp, e-mails ao cliente, credenciais PDV e exportações)
+- Auditoria: filtros por ação, período e atendente; exportação CSV; painel com detalhes do registro
 - Página Sobre: badges de categoria (Melhorias, Correções, etc.) com texto centralizado e alinhamento uniforme na lista (#426)
 - Chat WhatsApp (#403): administradores acompanham chats alheios apenas com comentário interno; envio ao cliente restrito ao operador responsável
 - Chat WhatsApp (#423): registro de demandas por sessão (natureza/motivo), auto-registro ao abrir ticket e agregação no dashboard de chats
-- SLA (#418): pausa automática da contagem quando o ticket está em status configurado (flag `pausa_sla`; «Aguardando cliente» ativado por padrão)
-- SLA: políticas opcionais por natureza do ticket; filtro «em risco» e dashboard usam o motor completo (calendário + pausa); prazo efetivo no card SLA
-- SLA (#277): políticas por setor e prioridade, calendário comercial compartilhado e snapshot de metas na criação de tickets
-- SLA (#278): cálculo com horário comercial, estados dentro/em risco/violado, worker periódico e endpoint de detalhe do SLA por ticket
-- SLA (#279): alertas de SLA em risco e violado por e-mail e SSE, com preferências opt-in/out e debounce por ticket/meta
-- SLA (#280): painel admin em Configurações → Atendimento → SLA para CRUD de políticas por setor/prioridade
-- SLA (#281): badges e filtros na listagem de tickets e card de SLA no detalhe com countdown
+- SLA (#418): pausa automática da contagem quando o ticket está em status «Aguardando cliente» (ativado por padrão)
+- SLA: políticas opcionais por natureza do ticket; filtro «em risco» e dashboard usam calendário comercial e pausa; prazo efetivo no card SLA
 - Dashboard geral: card com quantidade de tickets abertos em violação de SLA, com atalho para a listagem filtrada (#416)
 - Dashboard geral: card com tickets abertos em risco de SLA, com atalho para a listagem filtrada
-- SLA (#417): CRUD de calendários comerciais em Configurações → Atendimento → SLA → Calendários (horário semanal e feriados nacionais)
+- SLA (#417): calendários comerciais em Configurações → Atendimento → SLA (horário semanal e feriados nacionais)
 - Configurações WhatsApp: editor de horário semanal reutilizado (mesmo componente dos calendários SLA)
-- Motor de roteamento automático: regras configuráveis por admin (setor, prioridade, natureza, motivo, atendente) com avaliação em e-mail inbound e criação manual de tickets
-- Audit log e histórico do ticket quando uma regra de roteamento é aplicada em runtime
-- `aplicar_roteamento` restrito a administradores para sobrescrever setor explícito
-- UI em Configurações → Atendimento → Roteamento com simulador de teste seco
+
+## [26.06.003] - 2026-06-23
+
+### Melhorias
+
+- SLA (#277): políticas por setor e prioridade, calendário comercial compartilhado e snapshot de metas na criação de tickets
+- SLA (#278): cálculo com horário comercial, estados dentro/em risco/violado, worker periódico e detalhe do SLA por ticket
+- SLA (#279): alertas de SLA em risco e violado por e-mail e SSE, com preferências opt-in/out
+- SLA (#280): painel admin em Configurações → Atendimento → SLA para políticas por setor/prioridade
+- SLA (#281): badges e filtros na listagem de tickets e card de SLA no detalhe com countdown
+- Motor de roteamento automático: regras configuráveis por admin com simulador de teste
 - Histórico completo de atualizações no painel Sobre (versões anteriores permanecem visíveis)
 - CHANGELOG obrigatório em PRs com mudança de produto (validação automática no CI)
-
-### Interno / Infra
-
 - Persistência do manifest de releases após cada deploy em staging
 
-<!-- Adicione bullets aqui a cada PR para main. Texto para o usuário final, não mensagem de commit. -->
+## [26.06.002] - 2026-06-22
+
+### Melhorias
+
+- Histórico completo de atualizações no painel Sobre (versões anteriores permanecem visíveis)
+- CHANGELOG obrigatório em PRs com mudança de produto (validação automática no CI)
+- Persistência do manifest de releases após cada deploy em staging
 
 ## [26.06.001] - 2026-06-22
 

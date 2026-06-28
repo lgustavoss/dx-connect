@@ -63,6 +63,31 @@ jobs:
       - name: Verificar sintaxe Python
         run: python -m compileall -q app
 
+      - name: Verificar única head do Alembic
+        run: |
+          heads=$(alembic heads | grep -c '(head)' || true)
+          if [ "$heads" -ne 1 ]; then
+            echo "Esperada 1 head do Alembic, encontradas: $heads"
+            alembic heads
+            exit 1
+          fi
+
+      - name: Verificar tamanho dos revision IDs (máx. 32)
+        run: |
+          python - <<'PY'
+          import pathlib, re, sys
+          bad = []
+          for path in pathlib.Path("alembic/versions").glob("*.py"):
+              text = path.read_text(encoding="utf-8")
+              m = re.search(r'^revision\s*=\s*["\']([^"\']+)["\']', text, re.M)
+              if m and len(m.group(1)) > 32:
+                  bad.append(f"{path.name}: {m.group(1)!r} ({len(m.group(1))} chars)")
+          if bad:
+              print("revision IDs excedem varchar(32) do alembic_version:", file=sys.stderr)
+              print("\n".join(bad), file=sys.stderr)
+              sys.exit(1)
+          PY
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
