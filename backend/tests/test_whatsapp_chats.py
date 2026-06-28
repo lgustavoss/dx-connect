@@ -107,7 +107,8 @@ def test_listar_encerrados_filtra_e_respeita_rbac(client, seed_base, auth_header
     assert denied.status_code == 403
 
 
-def test_nao_acessa_chat_em_atendimento_de_outro_atendente_mesmo_setor(client, seed_base, auth_headers):
+def test_colaborador_mesmo_setor_ve_chat_em_atendimento(client, seed_base, auth_headers, db_session):
+    """#455 — colega do setor consulta chat activo; envio ao cliente continua bloqueado (#403)."""
     client.patch(
         "/v1/settings/whatsapp",
         json={"webhook_secret": "rbac-2"},
@@ -126,8 +127,25 @@ def test_nao_acessa_chat_em_atendimento_de_outro_atendente_mesmo_setor(client, s
 
     client.post(f"/v1/whatsapp/chats/{cid}/assumir", headers=auth_headers["a1"])
 
-    denied = client.get(f"/v1/whatsapp/chats/{cid}", headers=auth_headers["a2"])
-    assert denied.status_code == 403
+    seed_base["a2"].setores.append(seed_base["setor1"])
+    db_session.commit()
+
+    ok = client.get(f"/v1/whatsapp/chats/{cid}", headers=auth_headers["a2"])
+    assert ok.status_code == 200
+
+    denied_cliente = client.post(
+        f"/v1/whatsapp/chats/{cid}/mensagens",
+        json={"texto": "Olá cliente"},
+        headers=auth_headers["a2"],
+    )
+    assert denied_cliente.status_code == 403
+
+    interno = client.post(
+        f"/v1/whatsapp/chats/{cid}/comentarios-internos",
+        json={"texto": "Nota interna de apoio"},
+        headers=auth_headers["a2"],
+    )
+    assert interno.status_code == 201
 
 
 def test_webhook_guarda_citacao_em_mensagem(client, seed_base, auth_headers):

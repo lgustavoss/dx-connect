@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import desc, or_
+from sqlalchemy import desc, func, or_
 
 from app.database import get_db
 from app.models.atendente import Atendente
@@ -531,13 +531,9 @@ def _pode_ver_chat(db: Session, atendente: Atendente, c: WhatsappChat) -> bool:
     if c.atendente_id == atendente.id:
         return True
     vis = ids_setores_visiveis_atendente(db, atendente)
-    # Chats without a setor_id are considered public (the queue). Allow
-    # visibility to attendants for queue items (so they can assume and
-    # view messages while waiting). For other states (e.g. encerrado)
-    # require either being the attendant or having the setor visible.
     if c.setor_id is None:
         return c.estado == "aguardando_atendente"
-    if c.estado in ("aguardando_atendente", "encerrado", "aguardando_avaliacao"):
+    if c.estado in ("aguardando_atendente", "encerrado", "aguardando_avaliacao", "em_atendimento"):
         return c.setor_id in vis
     return False
 
@@ -627,15 +623,20 @@ def listar_encerrados(
         )
     if atendente_id:
         q = q.filter(WhatsappChat.atendente_id == atendente_id)
+    ref_data = func.coalesce(
+        WhatsappChat.encerramento_at,
+        WhatsappChat.atendimento_inicio_at,
+        WhatsappChat.created_at,
+    )
     if encerramento_inicio:
-        q = q.filter(WhatsappChat.encerramento_at >= encerramento_inicio)
+        q = q.filter(ref_data >= encerramento_inicio)
     if encerramento_fim:
-        q = q.filter(WhatsappChat.encerramento_at <= encerramento_fim)
+        q = q.filter(ref_data <= encerramento_fim)
     if atendente.role != "admin":
         vis = ids_setores_visiveis_atendente(db, atendente)
         q = q.filter(or_(WhatsappChat.atendente_id == atendente.id, WhatsappChat.setor_id.in_(vis)))
     total = q.count()
-    rows = q.order_by(desc(WhatsappChat.encerramento_at), desc(WhatsappChat.id)).offset(offset).limit(limit).all()
+    rows = q.order_by(desc(ref_data), desc(WhatsappChat.id)).offset(offset).limit(limit).all()
     return ListaPaginada(items=[_chat_read(db, c, revelar_avaliacao=True) for c in rows], total=total)
 
 
@@ -877,16 +878,29 @@ def registrar_demanda(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    from app.services.whatsapp_chat_demandas import criar_demanda_chat, demanda_para_read
+    from app.services.whatsapp_chat_demandas import (
+        criar_demanda_chat,
+        criar_marco_demanda_mensagem,
+        demanda_para_read,
+        remover_marco_demanda_mensagem,
+    )
 
-    c = db.query(WhatsappChat).filter(WhatsappChat.id == chat_id).first()
+    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
     if not _pode_registrar_demanda(db, atendente, c):
         raise HTTPException(status_code=403, detail="Sem permissão para registrar demanda neste chat")
     row = criar_demanda_chat(db, c, atendente, data, desfecho="resolvido_sessao")
+    marco = criar_marco_demanda_mensagem(db, chat=c, atendente=atendente, demanda=row)
     db.commit()
-    assert row is not None
+    db.refresh(marco)
+    marco = (
+        db.query(WhatsappMensagem)
+        .options(joinedload(WhatsappMensagem.atendente))
+        .filter(WhatsappMensagem.id == marco.id)
+        .first()
+    )
+    emit_chat_mensagem_from_models(db, c, marco, exclude_atendente_id=atendente.id)
     return demanda_para_read(row)
 
 
@@ -928,6 +942,7 @@ def excluir_demanda(
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
     from app.models.whatsapp_chat_demanda import WhatsappChatDemanda
+    from app.services.whatsapp_chat_demandas import remover_marco_demanda_mensagem
 
     c = db.query(WhatsappChat).filter(WhatsappChat.id == chat_id).first()
     if not c:
@@ -943,6 +958,7 @@ def excluir_demanda(
         raise HTTPException(status_code=404, detail="Demanda não encontrada")
     if atendente.role != "admin" and row.atendente_id != atendente.id:
         raise HTTPException(status_code=403, detail="Somente quem registrou ou admin pode excluir")
+    remover_marco_demanda_mensagem(db, chat_id=chat_id, demanda_id=demanda_id)
     db.delete(row)
     db.commit()
 
@@ -1432,9 +1448,9 @@ def abrir_ticket(
     registrar_primeira_resposta_se_necessario(db, ticket)
     db.add(WhatsappChatTicket(chat_id=chat_id, ticket_id=ticket.id, atendente_id=atendente.id))
     if data.natureza_id is not None:
-        from app.services.whatsapp_chat_demandas import criar_demanda_chat
+        from app.services.whatsapp_chat_demandas import criar_demanda_chat, criar_marco_demanda_mensagem
 
-        criar_demanda_chat(
+        row_dem = criar_demanda_chat(
             db,
             c,
             atendente,
@@ -1446,6 +1462,16 @@ def abrir_ticket(
             desfecho="escalado_ticket",
             ticket_id=ticket.id,
         )
+        marco = criar_marco_demanda_mensagem(db, chat=c, atendente=atendente, demanda=row_dem)
+        db.flush()
+        marco_loaded = (
+            db.query(WhatsappMensagem)
+            .options(joinedload(WhatsappMensagem.atendente))
+            .filter(WhatsappMensagem.id == marco.id)
+            .first()
+        )
+        if marco_loaded:
+            emit_chat_mensagem_from_models(db, c, marco_loaded, exclude_atendente_id=atendente.id)
     db.commit()
     db.refresh(ticket)
     pos_criar_ticket_na_fila(db, ticket)

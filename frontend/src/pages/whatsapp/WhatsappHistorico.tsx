@@ -107,7 +107,8 @@ export function WhatsappHistorico() {
   }, [])
 
   const formatDuration = (chat: WhatsappChats.Chat) => {
-    if (!chat.atendimento_inicio_at || !chat.encerramento_at) return '—'
+    if (!chat.atendimento_inicio_at) return '—'
+    if (!chat.encerramento_at) return 'Em curso'
     const start = new Date(chat.atendimento_inicio_at)
     const end = new Date(chat.encerramento_at)
     const diff = Math.max(0, Math.round((end.getTime() - start.getTime()) / 1000))

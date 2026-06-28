@@ -9,6 +9,7 @@ import { SelectComPesquisa } from '../../components/ui/SelectComPesquisa'
 import { CheckboxField } from '../../components/ui/CheckboxField'
 import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
+import { CONTATO_CLIENTE } from '../../constants/contatoClienteLabels'
 
 type Modo = 'vincular' | 'cadastrar'
 type TipoCadastro = 'colaborador' | 'supervisor'
@@ -118,7 +119,7 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
       .then(setResultados)
       .catch((err) => {
         setResultados([])
-        setErroBusca(mensagemFalhaParaToast(err, 'Não foi possível buscar funcionários.'))
+        setErroBusca(mensagemFalhaParaToast(err, 'Não foi possível buscar contatos da rede.'))
       })
       .finally(() => setLoadingBusca(false))
   }, [debouncedBusca, modo, open])
@@ -157,11 +158,11 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
 
   async function confirmarVinculo() {
     if (!selecionado) {
-      setErroFormulario('Selecione um funcionário.')
+      setErroFormulario(CONTATO_CLIENTE.selecioneContato)
       return
     }
     if (selecionado.empresas.length > 1 && empresaVinculoId === '') {
-      setErroFormulario('Selecione a empresa do funcionário.')
+      setErroFormulario(CONTATO_CLIENTE.selecioneEmpresaContato)
       return
     }
     setErroFormulario(null)
@@ -171,11 +172,11 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
         funcionario_rede_id: selecionado.id,
         empresa_id: empresaVinculoId === '' ? null : Number(empresaVinculoId),
       })
-      toast.showSuccess('Funcionário vinculado ao contato.')
+      toast.showSuccess(CONTATO_CLIENTE.vinculadoSucesso)
       onSuccess(atualizado)
       onClose()
     } catch (err) {
-      setErroFormulario(mensagemFalhaParaToast(err, 'Não foi possível vincular o funcionário.'))
+      setErroFormulario(mensagemFalhaParaToast(err, 'Não foi possível vincular o contato.'))
     } finally {
       setSalvando(false)
     }
@@ -183,7 +184,7 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
 
   async function confirmarCadastro() {
     if (!nomeCadastro.trim()) {
-      setErroFormulario('Informe o nome do funcionário.')
+      setErroFormulario(CONTATO_CLIENTE.informeNome)
       return
     }
     if (redeIdCadastro === '') {
@@ -222,11 +223,11 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
         empresa_ids: empresaIds,
         empresa_id: empresaContextoId === '' ? null : Number(empresaContextoId),
       })
-      toast.showSuccess('Funcionário cadastrado e vinculado ao contato.')
+      toast.showSuccess(CONTATO_CLIENTE.cadastradoSucesso)
       onSuccess(atualizado)
       onClose()
     } catch (err) {
-      setErroFormulario(mensagemFalhaParaToast(err, 'Não foi possível cadastrar o funcionário.'))
+      setErroFormulario(mensagemFalhaParaToast(err, 'Não foi possível cadastrar o contato.'))
     } finally {
       setSalvando(false)
     }
@@ -236,11 +237,11 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
     setSalvando(true)
     try {
       const atualizado = await whatsappChats.desvincularFuncionario(chat.id)
-      toast.showSuccess('Vínculo com funcionário removido.')
+      toast.showSuccess(CONTATO_CLIENTE.desvinculadoSucesso)
       onSuccess(atualizado)
       onClose()
     } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível desvincular o funcionário.'))
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível desvincular o contato.'))
     } finally {
       setSalvando(false)
     }
@@ -251,10 +252,8 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
       <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 animate-in zoom-in-95">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-lg font-bold">Funcionário do contato</h3>
-            <p className="mt-1 text-sm text-slate-500">
-              Vincule um cadastro existente ou cadastre o contato como funcionário da rede.
-            </p>
+            <h3 className="text-lg font-bold">{CONTATO_CLIENTE.modalTitulo}</h3>
+            <p className="mt-1 text-sm text-slate-500">{CONTATO_CLIENTE.modalSubtitulo}</p>
           </div>
           <button
             type="button"
@@ -335,7 +334,7 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
         {modo === 'vincular' ? (
           <div className="mt-4 space-y-4">
             <Input
-              placeholder="Buscar por nome ou e-mail"
+              placeholder={CONTATO_CLIENTE.buscarPlaceholder}
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
             />
@@ -370,11 +369,13 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
                 </div>
               ) : (
                 <p className="text-sm text-slate-500">
-                  Nenhum funcionário encontrado. Use a aba <strong>Cadastrar novo</strong>.
+                <p className="text-sm text-slate-500">
+                  Nenhum contato encontrado. Use a aba <strong>Cadastrar novo</strong>.
+                </p>
                 </p>
               )
             ) : (
-              <p className="text-sm text-slate-500">Digite um termo para buscar funcionários.</p>
+              <p className="text-sm text-slate-500">{CONTATO_CLIENTE.digiteParaBuscar}</p>
             )}
             {selecionado && selecionado.empresas.length > 1 && (
               <SelectComPesquisa
