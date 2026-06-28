@@ -186,6 +186,34 @@ def evolution_send_text(
     return False, f"HTTP {code}", None
 
 
+def evolution_send_whatsapp_audio(
+    base_url: str,
+    instance: str,
+    api_key: str,
+    number_digits: str,
+    *,
+    audio_base64: str,
+    quoted: dict[str, Any] | None = None,
+) -> tuple[bool, str | None, str | None]:
+    """POST /message/sendWhatsAppAudio/{instance} — nota de voz (PTT) com encoding automático."""
+    base = base_url.rstrip("/")
+    url = f"{base}/message/sendWhatsAppAudio/{instance}"
+    headers = {"apikey": api_key, "Content-Type": "application/json", "Accept": "application/json"}
+    body: dict[str, Any] = {
+        "number": number_digits,
+        "audio": audio_base64,
+        "encoding": True,
+    }
+    if quoted:
+        body["quoted"] = quoted
+    code, data, err = _request_json_with_retry("POST", url, headers=headers, body=body, timeout=120)
+    if code in (200, 201):
+        return True, None, _extract_wa_message_id(data)
+    if err:
+        return False, err[:1200], None
+    return False, f"HTTP {code}", None
+
+
 def evolution_send_media(
     base_url: str,
     instance: str,

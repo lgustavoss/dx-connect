@@ -63,6 +63,26 @@ logger = logging.getLogger(__name__)
 _MAX_PAGE = 100
 _DEFAULT_PAGE = 20
 
+_ESTADOS_HISTORICO_FINALIZADOS = ("encerrado", "aguardando_avaliacao")
+_ESTADOS_HISTORICO_ATIVOS = ("em_atendimento", "aguardando_atendente")
+
+
+def _estados_historico_filtro(estado: str | None) -> list[str]:
+    s = (estado or "finalizados").strip().lower()
+    if s in ("finalizados", "default"):
+        return list(_ESTADOS_HISTORICO_FINALIZADOS)
+    if s == "encerrado":
+        return ["encerrado"]
+    if s == "aguardando_avaliacao":
+        return ["aguardando_avaliacao"]
+    if s == "em_atendimento":
+        return ["em_atendimento"]
+    if s == "aguardando_atendente":
+        return ["aguardando_atendente"]
+    if s == "todos":
+        return list(_ESTADOS_HISTORICO_FINALIZADOS + _ESTADOS_HISTORICO_ATIVOS)
+    raise HTTPException(status_code=400, detail="Parâmetro estado inválido para histórico.")
+
 _CHAT_LOAD_OPTIONS = (
     joinedload(WhatsappChat.atendente),
     joinedload(WhatsappChat.setor),
@@ -580,12 +600,17 @@ def listar_encerrados(
     atendente_id: int | None = Query(None, ge=1, description="Filtro por atendente que encerrou"),
     encerramento_inicio: datetime | None = Query(None, description="Filtro por data de encerramento a partir de"),
     encerramento_fim: datetime | None = Query(None, description="Filtro por data de encerramento até"),
+    estado: str | None = Query(
+        None,
+        description="finalizados (padrão) | encerrado | aguardando_avaliacao | em_atendimento | aguardando_atendente | todos",
+    ),
     offset: int = Query(0, ge=0),
     limit: int = Query(_DEFAULT_PAGE, ge=1, le=_MAX_PAGE),
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    q = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.estado == "encerrado")
+    estados = _estados_historico_filtro(estado)
+    q = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.estado.in_(estados))
     if protocolo:
         q = q.filter(WhatsappChat.protocolo.ilike(f"%{protocolo}%"))
     if wa_id:
@@ -621,16 +646,20 @@ def listar_avaliacoes(
     nota_max: int | None = Query(None, ge=1, le=5),
     encerramento_inicio: datetime | None = Query(None),
     encerramento_fim: datetime | None = Query(None),
+    incluir_sem_resposta: bool = Query(
+        False,
+        description="Incluir chats com avaliação solicitada mas sem nota (auditoria)",
+    ),
     offset: int = Query(0, ge=0),
     limit: int = Query(_DEFAULT_PAGE, ge=1, le=_MAX_PAGE),
     db: Session = Depends(get_db),
     _: Atendente = Depends(exigir_admin),
 ):
-    q = (
-        db.query(WhatsappChat)
-        .options(*_CHAT_LOAD_OPTIONS)
-        .filter(WhatsappChat.avaliacao_solicitada.is_(True))
-    )
+    q = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS)
+    if incluir_sem_resposta:
+        q = q.filter(WhatsappChat.avaliacao_solicitada.is_(True))
+    else:
+        q = q.filter(WhatsappChat.avaliacao_nota.isnot(None))
     if busca:
         term = f"%{busca.strip()}%"
         q = q.filter(
@@ -1075,20 +1104,35 @@ async def enviar_mensagem_midia(
         )
         q_prev = _preview_citacao(ref) if ref else None
 
-    ok, err, sent_wa_id = evolution_api.evolution_send_media(
-        st.evolution_base_url,
-        st.evolution_instance_name,
-        st.evolution_api_key,
-        c.wa_id,
-        mediatype=ev_mt,
-        mimetype=mime,
-        caption=legenda_whatsapp,
-        media_base64=b64,
-        file_name=fname,
-        quoted=quoted_payload,
-    )
+    if tipo_db == "audio":
+        ok, err, sent_wa_id = evolution_api.evolution_send_whatsapp_audio(
+            st.evolution_base_url,
+            st.evolution_instance_name,
+            st.evolution_api_key,
+            c.wa_id,
+            audio_base64=b64,
+            quoted=quoted_payload,
+        )
+    else:
+        ok, err, sent_wa_id = evolution_api.evolution_send_media(
+            st.evolution_base_url,
+            st.evolution_instance_name,
+            st.evolution_api_key,
+            c.wa_id,
+            mediatype=ev_mt,
+            mimetype=mime,
+            caption=legenda_whatsapp,
+            media_base64=b64,
+            file_name=fname,
+            quoted=quoted_payload,
+        )
     if not ok:
         raise HTTPException(status_code=502, detail=err or "Falha ao enviar mídia pela Evolution API")
+    if tipo_db == "audio" and not sent_wa_id:
+        raise HTTPException(
+            status_code=502,
+            detail="Evolution API não confirmou entrega do áudio (wa_message_id ausente).",
+        )
 
     m = WhatsappMensagem(
         chat_id=c.id,

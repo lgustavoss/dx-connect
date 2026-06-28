@@ -9,6 +9,7 @@ import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
 import { rotuloAvaliacaoChat } from '../../lib/whatsappChatMeta'
+import { CheckboxField } from '../../components/ui/CheckboxField'
 
 const PAGE_SIZE = 15
 
@@ -24,6 +25,7 @@ export function WhatsappAvaliacoes() {
   const [notaMin, setNotaMin] = useState<number | ''>('')
   const [desde, setDesde] = useState('')
   const [ate, setAte] = useState('')
+  const [incluirSemResposta, setIncluirSemResposta] = useState(false)
 
   const load = useCallback(
     async (from: number) => {
@@ -41,6 +43,7 @@ export function WhatsappAvaliacoes() {
         }
         if (desde) params.encerramento_inicio = `${desde}T00:00:00`
         if (ate) params.encerramento_fim = `${ate}T23:59:59`
+        if (incluirSemResposta) params.incluir_sem_resposta = 'true'
         const { items: rows, total: t } = await whatsappChats.avaliacoes(params)
         setItems(rows)
         setTotal(t)
@@ -51,7 +54,7 @@ export function WhatsappAvaliacoes() {
         setLoading(false)
       }
     },
-    [atendenteId, ate, busca, desde, notaMin, toast],
+    [atendenteId, ate, busca, desde, incluirSemResposta, notaMin, toast],
   )
 
   useEffect(() => {
@@ -104,7 +107,10 @@ export function WhatsappAvaliacoes() {
             <Input label="Até" type="date" value={ate} onChange={(e) => setAte(e.target.value)} />
           </div>
         </div>
-        <div className="mt-4 flex justify-end">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <CheckboxField checked={incluirSemResposta} onChange={setIncluirSemResposta}>
+            Incluir solicitações sem resposta (auditoria)
+          </CheckboxField>
           <Button type="button" onClick={() => void load(0)}>
             Filtrar
           </Button>

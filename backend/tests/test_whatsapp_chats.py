@@ -617,3 +617,73 @@ def test_webhook_inbound_midia_grava_ficheiro(client, seed_base, auth_headers, m
     assert r_mid.status_code == 200
     assert r_mid.headers.get("content-type", "").startswith("image/")
 
+
+def test_enviar_audio_usa_sendWhatsAppAudio(client, seed_base, auth_headers, monkeypatch):
+    """#441 — áudio outbound via sendWhatsAppAudio com encoding, não sendMedia."""
+    calls: list[str] = []
+
+    def fake_audio(*_a, **_k):
+        calls.append("audio")
+        return True, None, "wa-audio-1"
+
+    def fake_media(*_a, **_k):
+        calls.append("media")
+        return True, None, "wa-media-1"
+
+    monkeypatch.setattr("app.api.whatsapp_chats.evolution_api.evolution_send_whatsapp_audio", fake_audio)
+    monkeypatch.setattr("app.api.whatsapp_chats.evolution_api.evolution_send_media", fake_media)
+
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={
+            "webhook_secret": "aud-out",
+            "evolution_base_url": "http://evolution.test",
+            "evolution_instance_name": "inst",
+            "evolution_api_key": "key-test",
+        },
+        headers=auth_headers["admin"],
+    )
+    cid = _chat_ativo(client, seed_base, auth_headers, wa_id="5511999445566", msg_id="aud-out-1")
+
+    webm_bytes = b"\x1a\x45\xdf\xa3" + b"\x00" * 64
+    r = client.post(
+        f"/v1/whatsapp/chats/{cid}/mensagens/midia",
+        data={"mediatipo": "audio", "caption": ""},
+        files={"file": ("gravacao.webm", webm_bytes, "audio/webm")},
+        headers=auth_headers["a1"],
+    )
+    assert r.status_code == 201
+    body = r.json()
+    assert body["tipo_midia"] == "audio"
+    assert body["wa_message_id"] == "wa-audio-1"
+    assert calls == ["audio"]
+
+
+def test_enviar_audio_falha_sem_wa_message_id(client, seed_base, auth_headers, monkeypatch):
+    """#441 — não persiste áudio se Evolution não devolver wa_message_id."""
+    monkeypatch.setattr(
+        "app.api.whatsapp_chats.evolution_api.evolution_send_whatsapp_audio",
+        lambda *_a, **_k: (True, None, None),
+    )
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={
+            "webhook_secret": "aud-fail",
+            "evolution_base_url": "http://evolution.test",
+            "evolution_instance_name": "inst",
+            "evolution_api_key": "key-test",
+        },
+        headers=auth_headers["admin"],
+    )
+    cid = _chat_ativo(client, seed_base, auth_headers, wa_id="5511999556677", msg_id="aud-fail-1")
+    webm_bytes = b"\x1a\x45\xdf\xa3" + b"\x00" * 64
+    r = client.post(
+        f"/v1/whatsapp/chats/{cid}/mensagens/midia",
+        data={"mediatipo": "audio", "caption": ""},
+        files={"file": ("gravacao.webm", webm_bytes, "audio/webm")},
+        headers=auth_headers["a1"],
+    )
+    assert r.status_code == 502
+    rows = client.get(f"/v1/whatsapp/chats/{cid}/mensagens", headers=auth_headers["a1"]).json()
+    assert all(m.get("tipo_midia") != "audio" or m.get("direcao") != "outbound" for m in rows)
+
