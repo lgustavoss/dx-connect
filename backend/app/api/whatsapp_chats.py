@@ -25,6 +25,7 @@ from app.schemas.whatsapp_chat import (
     WhatsappChatComentarioInternoCreate,
     WhatsappChatDemandaCreate,
     WhatsappChatDemandaRead,
+    WhatsappChatDemandaUpdate,
     WhatsappChatMensagemCreate,
     WhatsappChatRead,
     WhatsappMensagemRead,
@@ -887,6 +888,36 @@ def registrar_demanda(
     db.commit()
     assert row is not None
     return demanda_para_read(row)
+
+
+@router.patch("/{chat_id}/demandas/{demanda_id}", response_model=WhatsappChatDemandaRead)
+def atualizar_demanda(
+    chat_id: int,
+    demanda_id: int,
+    data: WhatsappChatDemandaUpdate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    from app.models.whatsapp_chat_demanda import WhatsappChatDemanda
+    from app.services.whatsapp_chat_demandas import atualizar_demanda_chat, demanda_para_read
+
+    c = db.query(WhatsappChat).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not _pode_registrar_demanda(db, atendente, c):
+        raise HTTPException(status_code=403, detail="Sem permissão para alterar demandas neste chat")
+    row = (
+        db.query(WhatsappChatDemanda)
+        .filter(WhatsappChatDemanda.id == demanda_id, WhatsappChatDemanda.chat_id == chat_id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Demanda não encontrada")
+    if not data.model_dump(exclude_unset=True):
+        raise HTTPException(status_code=400, detail="Nenhum campo para atualizar")
+    updated = atualizar_demanda_chat(db, c, row, data, atendente=atendente)
+    db.commit()
+    return demanda_para_read(updated)
 
 
 @router.delete("/{chat_id}/demandas/{demanda_id}", status_code=204)

@@ -59,6 +59,26 @@ Meta-issue geral: [#16](https://github.com/lgustavoss/dx-connect/issues/16)
 | [#418](https://github.com/lgustavoss/dx-connect/issues/418) | Pausa SLA por status do ticket | Fechada · PR [#427](https://github.com/lgustavoss/dx-connect/pull/427) |
 | [#423](https://github.com/lgustavoss/dx-connect/issues/423) | Demandas resolvidas na sessão | Fechada · PR [#427](https://github.com/lgustavoss/dx-connect/pull/427) |
 
+### Feedback produção — WhatsApp, UX, notificações (2026-06)
+
+| Issue | Título | Estado |
+|-------|--------|--------|
+| [#431](https://github.com/lgustavoss/dx-connect/issues/431) | Mídia inbound webhook + UI | Fechada · PR [#439](https://github.com/lgustavoss/dx-connect/pull/439) |
+| [#432](https://github.com/lgustavoss/dx-connect/issues/432) | Barra de anexos e pré-visualização | Fechada · PR [#439](https://github.com/lgustavoss/dx-connect/pull/439) |
+| [#433](https://github.com/lgustavoss/dx-connect/issues/433) | Banner «Sem vínculo» | Fechada · PR [#439](https://github.com/lgustavoss/dx-connect/pull/439) |
+| [#441](https://github.com/lgustavoss/dx-connect/issues/441) | Áudio outbound nota de voz | Fechada · PR `fix/whatsapp-correcoes` |
+| [#442](https://github.com/lgustavoss/dx-connect/issues/442) | Tempo real / polling | Fechada · PR `fix/whatsapp-correcoes` |
+| [#444](https://github.com/lgustavoss/dx-connect/issues/444) | E-mail opcional no cadastro | Fechada · PR `fix/whatsapp-correcoes` |
+| [#445](https://github.com/lgustavoss/dx-connect/issues/445) | Modal encerramento + demandas | Fechada · PR `fix/whatsapp-correcoes` |
+| [#448](https://github.com/lgustavoss/dx-connect/issues/448) | Histórico e Avaliações | Fechada · PR `fix/whatsapp-correcoes` |
+| [#449](https://github.com/lgustavoss/dx-connect/issues/449) | Botão Voltar na conversa | Fechada · PR `fix/whatsapp-correcoes` |
+| [#446](https://github.com/lgustavoss/dx-connect/issues/446) | Marco timeline demanda (SSE/backend) | Aberta · parcial em `fix/whatsapp-correcoes` |
+| [#443](https://github.com/lgustavoss/dx-connect/issues/443) | Composer estilo WhatsApp Web | Aberta |
+| [#447](https://github.com/lgustavoss/dx-connect/issues/447) | Terminologia contato vs atendente | Aberta |
+| [#452](https://github.com/lgustavoss/dx-connect/issues/452) | Notificações: link directo ao ticket | Aberta · #391 |
+| [#453](https://github.com/lgustavoss/dx-connect/issues/453) | Ícones por tipo de ficheiro | Aberta |
+| [#455](https://github.com/lgustavoss/dx-connect/issues/455) | Chats activos no Histórico (colaboração) | Aberta |
+
 ---
 
 ## Base de conhecimento (#262) — v1 interno fechado

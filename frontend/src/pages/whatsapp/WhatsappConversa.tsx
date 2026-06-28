@@ -46,11 +46,14 @@ import {
 import { WhatsappTicketsModal } from './WhatsappTicketsModal'
 import { WhatsappVincFuncionarioModal } from './WhatsappVincFuncionarioModal'
 import { WhatsappDemandasPanel } from './WhatsappDemandasPanel'
+import { WhatsappEncerrarModal } from './WhatsappEncerrarModal'
+import { WhatsappDemandaTimelineMarco } from './WhatsappDemandaTimelineMarco'
 import { WhatsappBarraAnexos, ACCEPT_ANEXO, type TipoAnexoPicker } from './WhatsappBarraAnexos'
 import { WhatsappGravadorAudio } from './WhatsappGravadorAudio'
 import { WhatsappPreviaAnexo } from './WhatsappPreviaAnexo'
 import { useWhatsappVoltarLista } from '../../hooks/useWhatsappVoltarLista'
 import { whatsappConversaLink, resolveWhatsappListFallback, WHATSAPP_LIST_PATHS } from '../../lib/whatsappListReturn'
+import { mergeTimelineChat } from '../../lib/whatsappDemandaUtils'
 
 const ROTULO_SEM_LEGENDA = /^\[(Imagem|Áudio|Vídeo|Documento|Figurinha|Contacto|Localização)\]$/
 
@@ -270,7 +273,6 @@ export function WhatsappConversa() {
   const [texto, setTexto] = useState('')
 
   const [enviando, setEnviando] = useState(false)
-  const [encerrando, setEncerrando] = useState(false)
 
   // Estados de WhatsApp Clone (Citação e Zoom)
   const [msgRespondida, setMsgRespondida] = useState<WhatsappChats.Mensagem | null>(null)
@@ -293,8 +295,9 @@ export function WhatsappConversa() {
 
   const [modalTickets, setModalTickets] = useState(false)
   const [ticketsVinculados, setTicketsVinculados] = useState<Tickets.Ticket[]>([])
-  const [demandasCount, setDemandasCount] = useState(0)
   const [demandasReloadKey, setDemandasReloadKey] = useState(0)
+  const [demandasTimeline, setDemandasTimeline] = useState<WhatsappChats.Demanda[]>([])
+  const [modalEncerrar, setModalEncerrar] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
@@ -307,14 +310,22 @@ export function WhatsappConversa() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented) return
+      if (e.key !== 'Escape' || e.defaultPrevented || modalEncerrar) return
       const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase()
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return
       voltarLista()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [voltarLista])
+  }, [voltarLista, modalEncerrar])
+
+  useEffect(() => {
+    if (!id) return
+    whatsappChats
+      .demandas(id)
+      .then(setDemandasTimeline)
+      .catch(() => setDemandasTimeline([]))
+  }, [id, demandasReloadKey])
 
 
 
@@ -630,36 +641,15 @@ useEffect(() => {
 
 
 
-  async function encerrar() {
-
-    if (!chat || !confirm('Encerrar este atendimento?')) return
-
-    const podeRegistrarDemanda =
-      chat.estado === 'em_atendimento' &&
-      (chat.atendente_id === user?.id || user?.role === 'admin')
-    if (podeRegistrarDemanda && demandasCount === 0) {
-      const prosseguir = confirm(
-        'Nenhuma demanda foi registrada nesta sessão. Deseja encerrar mesmo assim?',
-      )
-      if (!prosseguir) return
-    }
-
-    setEncerrando(true)
-
-    try {
-
-      const atualizado = await whatsappChats.encerrar(chat.id)
-
-      await Promise.all([carregar(), carregarSidebar()])
-
-      toast.showSuccess(
-        atualizado.estado === 'aguardando_avaliacao'
-          ? 'Atendimento encerrado. Aguardando avaliação do cliente.'
-          : 'Atendimento encerrado.',
-      )
-
-    } finally { setEncerrando(false) }
-
+  async function handleEncerrado(atualizado: WhatsappChats.Chat) {
+    setChat(atualizado)
+    await Promise.all([carregar(), carregarSidebar()])
+    setDemandasReloadKey((k) => k + 1)
+    toast.showSuccess(
+      atualizado.estado === 'aguardando_avaliacao'
+        ? 'Atendimento encerrado. Aguardando avaliação do cliente.'
+        : 'Atendimento encerrado.',
+    )
   }
 
 
@@ -916,7 +906,9 @@ useEffect(() => {
 
                 {podeEncerrar && (
 
-                  <Button variant="danger" className="h-8 px-3 text-xs" onClick={() => void encerrar()} loading={encerrando}>Encerrar</Button>
+                  <Button variant="danger" className="h-8 px-3 text-xs" onClick={() => setModalEncerrar(true)}>
+                    Encerrar
+                  </Button>
 
                 )}
 
@@ -963,7 +955,7 @@ useEffect(() => {
             key={`${chat.id}-${demandasReloadKey}`}
             chatId={chat.id}
             podeRegistrar={isResponsavel || isAdmin}
-            onDemandasChange={setDemandasCount}
+            onDemandasChange={() => setDemandasReloadKey((k) => k + 1)}
           />
         )}
 
@@ -983,7 +975,12 @@ useEffect(() => {
 
         >
 
-          {msgs.map((m) => {
+          {mergeTimelineChat(msgs, demandasTimeline).map((item) => {
+            if (item.kind === 'demanda') {
+              return <WhatsappDemandaTimelineMarco key={`dem-${item.demanda.id}`} demanda={item.demanda} />
+            }
+
+            const m = item.mensagem
 
             const isInbound = m.direcao === 'inbound'
 
@@ -1357,6 +1354,17 @@ useEffect(() => {
             setChat(atualizado)
             setDemandasReloadKey((k) => k + 1)
           }}
+        />
+      )}
+
+      {chat && (
+        <WhatsappEncerrarModal
+          open={modalEncerrar}
+          chatId={chat.id}
+          msgs={msgs}
+          onClose={() => setModalEncerrar(false)}
+          onEncerrado={(atualizado) => void handleEncerrado(atualizado)}
+          onDemandasChange={() => setDemandasReloadKey((k) => k + 1)}
         />
       )}
 

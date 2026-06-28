@@ -138,6 +138,12 @@ class WhatsappChatDemandaCreate(BaseModel):
     descricao_curta: str | None = Field(None, max_length=500)
 
 
+class WhatsappChatDemandaUpdate(BaseModel):
+    natureza_id: int | None = None
+    motivo_id: int | None = None
+    descricao_curta: str | None = Field(None, max_length=500)
+
+
 class WhatsappChatDemandaRead(BaseModel):
     id: int
     chat_id: int

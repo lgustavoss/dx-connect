@@ -889,6 +889,11 @@ export namespace WhatsappChats {
     motivo_id?: number | null
     descricao_curta?: string | null
   }
+  export interface DemandaUpdate {
+    natureza_id?: number
+    motivo_id?: number | null
+    descricao_curta?: string | null
+  }
 }
 
 /** Obtém o binário de uma mensagem com mídia (requer JWT; não usar em `src` de img direto). */
@@ -947,6 +952,11 @@ export const whatsappChats = {
     }),
   excluirDemanda: (id: number, demandaId: number) =>
     api<void>(`/whatsapp/chats/${id}/demandas/${demandaId}`, { method: 'DELETE' }),
+  atualizarDemanda: (id: number, demandaId: number, data: WhatsappChats.DemandaUpdate) =>
+    api<WhatsappChats.Demanda>(`/whatsapp/chats/${id}/demandas/${demandaId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
   assumir: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/assumir`, { method: 'POST' }),
   encerrar: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/encerrar`, { method: 'POST' }),
   transferir: (id: number, data: { setor_id: number; atendente_id?: number | null }) =>
