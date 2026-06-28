@@ -63,11 +63,31 @@ export type TimelineItem =
   | { kind: 'mensagem'; ts: number; mensagem: WhatsappChats.Mensagem }
   | { kind: 'demanda'; ts: number; demanda: WhatsappChats.Demanda }
 
+export function demandasComMarcoMensagem(
+  demandas: WhatsappChats.Demanda[],
+  msgs: WhatsappChats.Mensagem[],
+): WhatsappChats.Demanda[] {
+  const idsComMarco = new Set<number>()
+  for (const m of msgs) {
+    if (m.evento_sistema === 'demanda_registrada' || m.evento_sistema === 'demanda_escalada') {
+      const match = m.corpo?.match(/^\[demanda_id=(\d+)\]/)
+      if (match) idsComMarco.add(Number(match[1]))
+    }
+  }
+  return demandas.filter((d) => !idsComMarco.has(d.id))
+}
+
+export function textoMarcoDemanda(corpo: string | null | undefined): string {
+  if (!corpo) return 'Demanda registada'
+  return corpo.replace(/^\[demanda_id=\d+\]\s*/, '')
+}
+
 export function mergeTimelineChat(
   msgs: WhatsappChats.Mensagem[],
   demandas: WhatsappChats.Demanda[],
 ): TimelineItem[] {
   const items: TimelineItem[] = []
+  const demandasMerge = demandasComMarcoMensagem(demandas, msgs)
   for (const m of mensagensVisiveisConversa(msgs)) {
     items.push({
       kind: 'mensagem',
@@ -75,7 +95,7 @@ export function mergeTimelineChat(
       mensagem: m,
     })
   }
-  for (const d of demandas) {
+  for (const d of demandasMerge) {
     items.push({
       kind: 'demanda',
       ts: d.created_at ? new Date(d.created_at).getTime() : 0,

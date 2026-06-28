@@ -64,7 +64,8 @@ def test_admin_nao_conta_nao_lidas_de_outro_responsavel(client, seed_base, auth_
     assert resumo_a1.nao_lidas_count >= 1
 
 
-def test_itens_fallback_quando_contador_positivo(client, seed_base, auth_headers, db_session, monkeypatch):
+def test_itens_link_directo_por_ticket(client, seed_base, auth_headers, db_session, monkeypatch):
+    """Cada pendência de não-lida aponta para /tickets/{id}, nunca listagem genérica (#452)."""
     _criar_ticket_com_mensagem(db_session, seed_base, atendente_id=seed_base["a1"].id)
 
     def fake_unread(db, ticket, atendente_id):
@@ -76,7 +77,23 @@ def test_itens_fallback_quando_contador_positivo(client, seed_base, auth_headers
     itens = build_notificacao_itens(db_session, seed_base["a1"], limit=15)
 
     assert resumo.nao_lidas_count >= 1
-    assert any(i.tipo == "mensagens_nao_lidas" for i in itens)
+    ticket_itens = [i for i in itens if i.tipo == "mensagens_nao_lidas"]
+    assert len(ticket_itens) >= 1
+    for item in ticket_itens:
+        assert item.ticket_id is not None
+        assert item.href == f"/tickets/{item.ticket_id}"
+        assert "situacao=abertos" not in item.href
+
+
+def test_varios_tickets_nao_lidos_links_individuais(client, seed_base, auth_headers, db_session):
+    t1 = _criar_ticket_com_mensagem(db_session, seed_base, atendente_id=seed_base["a1"].id, assunto="Um")
+    t2 = _criar_ticket_com_mensagem(db_session, seed_base, atendente_id=seed_base["a1"].id, assunto="Dois")
+
+    itens = build_notificacao_itens(db_session, seed_base["a1"], limit=15)
+    ticket_itens = [i for i in itens if i.tipo == "mensagens_nao_lidas"]
+    hrefs = {i.href for i in ticket_itens}
+    assert f"/tickets/{t1.id}" in hrefs
+    assert f"/tickets/{t2.id}" in hrefs
 
 
 def test_mensagem_anterior_a_visto_nao_conta(db_session, seed_base):

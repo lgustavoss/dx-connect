@@ -72,12 +72,12 @@ Meta-issue geral: [#16](https://github.com/lgustavoss/dx-connect/issues/16)
 | [#445](https://github.com/lgustavoss/dx-connect/issues/445) | Modal encerramento + demandas | Fechada · PR [#456](https://github.com/lgustavoss/dx-connect/pull/456) |
 | [#448](https://github.com/lgustavoss/dx-connect/issues/448) | Histórico e Avaliações | Fechada · PR [#456](https://github.com/lgustavoss/dx-connect/pull/456) |
 | [#449](https://github.com/lgustavoss/dx-connect/issues/449) | Botão Voltar na conversa | Fechada · PR [#456](https://github.com/lgustavoss/dx-connect/pull/456) |
-| [#446](https://github.com/lgustavoss/dx-connect/issues/446) | Marco timeline demanda (SSE/backend) | Aberta · parcial em `fix/whatsapp-correcoes` |
-| [#443](https://github.com/lgustavoss/dx-connect/issues/443) | Composer estilo WhatsApp Web | Aberta |
-| [#447](https://github.com/lgustavoss/dx-connect/issues/447) | Terminologia contato vs atendente | Aberta |
-| [#452](https://github.com/lgustavoss/dx-connect/issues/452) | Notificações: link directo ao ticket | Aberta · #391 |
-| [#453](https://github.com/lgustavoss/dx-connect/issues/453) | Ícones por tipo de ficheiro | Aberta |
-| [#455](https://github.com/lgustavoss/dx-connect/issues/455) | Chats activos no Histórico (colaboração) | Aberta |
+| [#452](https://github.com/lgustavoss/dx-connect/issues/452) | Notificações: link directo ao ticket | PR pendente · branch `feat/whatsapp-ux-lote-2` |
+| [#446](https://github.com/lgustavoss/dx-connect/issues/446) | Marco timeline demanda (SSE/backend) | PR pendente · branch `feat/whatsapp-ux-lote-2` |
+| [#443](https://github.com/lgustavoss/dx-connect/issues/443) | Composer estilo WhatsApp Web | PR pendente · branch `feat/whatsapp-ux-lote-2` |
+| [#447](https://github.com/lgustavoss/dx-connect/issues/447) | Terminologia contato vs atendente | PR pendente · branch `feat/whatsapp-ux-lote-2` |
+| [#453](https://github.com/lgustavoss/dx-connect/issues/453) | Ícones por tipo de ficheiro | PR pendente · branch `feat/whatsapp-ux-lote-2` |
+| [#455](https://github.com/lgustavoss/dx-connect/issues/455) | Chats activos no Histórico (colaboração) | PR pendente · branch `feat/whatsapp-ux-lote-2` |
 
 ---
 

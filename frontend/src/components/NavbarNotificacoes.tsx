@@ -70,7 +70,7 @@ function ListaPendencias({
     return (
       <p className="px-3 py-10 text-center text-sm text-slate-500 dark:text-slate-400 sm:py-6">
         {totalPendencias > 0
-          ? 'Pendências no badge — abra novamente em instantes ou use a listagem de tickets.'
+          ? 'A carregar pendências…'
           : 'Sem pendências'}
       </p>
     )

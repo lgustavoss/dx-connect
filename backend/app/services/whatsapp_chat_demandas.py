@@ -11,11 +11,67 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.atendente import Atendente
 from app.models.empresa import Empresa
 from app.models.ticket_classificacao import TicketMotivo, TicketNatureza
-from app.models.whatsapp_chat import WhatsappChat
+from app.models.whatsapp_chat import WhatsappChat, WhatsappMensagem
 from app.models.whatsapp_chat_demanda import DESFECHOS_DEMANDA, WhatsappChatDemanda
 from app.schemas.dashboard import ContagemIdNome
 from app.schemas.whatsapp_chat import WhatsappChatDemandaCreate, WhatsappChatDemandaRead, WhatsappChatDemandaUpdate
 from app.services.chat_dashboard_filters import apply_chat_dashboard_filters, period_bounds
+
+DESFECHO_MARCO = {
+    "resolvido_sessao": "Resolvido na sessão",
+    "escalado_ticket": "Escalado para ticket",
+}
+
+
+def _rotulo_demanda(row: WhatsappChatDemanda) -> str:
+    nat = row.natureza.nome if row.natureza else "Demanda"
+    if row.motivo and row.motivo.nome:
+        return f"{nat} · {row.motivo.nome}"
+    return nat
+
+
+def corpo_marco_demanda(row: WhatsappChatDemanda) -> str:
+    desfecho = DESFECHO_MARCO.get(row.desfecho, row.desfecho)
+    return f"[demanda_id={row.id}] Demanda registada: {_rotulo_demanda(row)} — {desfecho}"
+
+
+def criar_marco_demanda_mensagem(
+    db: Session,
+    *,
+    chat: WhatsappChat,
+    atendente: Atendente,
+    demanda: WhatsappChatDemanda,
+) -> WhatsappMensagem:
+    evento = "demanda_registrada" if demanda.desfecho == "resolvido_sessao" else "demanda_escalada"
+    m = WhatsappMensagem(
+        chat_id=chat.id,
+        direcao="outbound",
+        corpo=corpo_marco_demanda(demanda),
+        tipo_midia="texto",
+        mimetype=None,
+        midia_nome_arquivo=None,
+        wa_message_id=None,
+        atendente_id=atendente.id,
+        evento_sistema=evento,
+    )
+    db.add(m)
+    db.flush()
+    return m
+
+
+def remover_marco_demanda_mensagem(db: Session, *, chat_id: int, demanda_id: int) -> None:
+    tag = f"[demanda_id={demanda_id}]"
+    rows = (
+        db.query(WhatsappMensagem)
+        .filter(
+            WhatsappMensagem.chat_id == chat_id,
+            WhatsappMensagem.evento_sistema.in_(("demanda_registrada", "demanda_escalada")),
+            WhatsappMensagem.corpo.like(f"{tag}%"),
+        )
+        .all()
+    )
+    for row in rows:
+        db.delete(row)
 
 
 def _validar_natureza_motivo(

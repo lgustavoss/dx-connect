@@ -57,6 +57,7 @@ import {
   rotuloPrioridade,
   type PrioridadeTicket,
 } from '../lib/ticketPrioridade'
+import { CONTATO_CLIENTE } from '../constants/contatoClienteLabels'
 
 const ROTULO_CAMPO: Record<string, string> = {
   status_id: 'Status',
@@ -1426,10 +1427,10 @@ export function TicketDetalhe() {
               >
                 {requerCadastroFuncionario ? (
                   <>
-                    <p className="font-medium">Remetente sem cadastro</p>
+                    <p className="font-medium">{CONTATO_CLIENTE.remetenteSemCadastro}</p>
                     {isAdmin && (
                       <Link to={linkCadastroFuncionario} className="mt-1 inline-block font-semibold underline underline-offset-2">
-                        Cadastrar funcionário
+                        {CONTATO_CLIENTE.cadastrarTicket}
                       </Link>
                     )}
                   </>

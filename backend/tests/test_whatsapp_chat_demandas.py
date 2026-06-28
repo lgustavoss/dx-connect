@@ -49,6 +49,11 @@ def test_registrar_e_listar_demanda(client, seed_base, auth_headers, db_session)
     assert len(listed) == 1
     assert listed[0]["id"] == body["id"]
 
+    msgs = client.get(f"/v1/whatsapp/chats/{cid}/mensagens", headers=auth_headers["a1"]).json()
+    marcos = [m for m in msgs if m.get("evento_sistema") == "demanda_registrada"]
+    assert len(marcos) == 1
+    assert f"[demanda_id={body['id']}]" in marcos[0]["corpo"]
+
 
 def test_abrir_ticket_cria_demanda_escalada(client, seed_base, auth_headers, db_session):
     nat, mot = _seed_natureza_motivo(db_session)
@@ -74,6 +79,26 @@ def test_abrir_ticket_cria_demanda_escalada(client, seed_base, auth_headers, db_
     assert len(demandas) == 1
     assert demandas[0]["desfecho"] == "escalado_ticket"
     assert demandas[0]["ticket_id"] == ticket_ids[-1]
+
+    msgs = client.get(f"/v1/whatsapp/chats/{cid}/mensagens", headers=auth_headers["a1"]).json()
+    assert any(m.get("evento_sistema") == "demanda_escalada" for m in msgs)
+
+
+def test_excluir_demanda_remove_marco(client, seed_base, auth_headers, db_session):
+    nat, mot = _seed_natureza_motivo(db_session)
+    cid = _chat_em_atendimento(client, auth_headers, wa_id="5511999007788", msg_id="dm-del")
+    created = client.post(
+        f"/v1/whatsapp/chats/{cid}/demandas",
+        json={"natureza_id": nat.id, "motivo_id": mot.id},
+        headers=auth_headers["a1"],
+    ).json()
+    did = created["id"]
+
+    r = client.delete(f"/v1/whatsapp/chats/{cid}/demandas/{did}", headers=auth_headers["a1"])
+    assert r.status_code == 204
+
+    msgs = client.get(f"/v1/whatsapp/chats/{cid}/mensagens", headers=auth_headers["a1"]).json()
+    assert not any(m.get("evento_sistema") == "demanda_registrada" for m in msgs)
 
 
 def test_outro_atendente_nao_registra_demanda(client, seed_base, auth_headers, db_session):
