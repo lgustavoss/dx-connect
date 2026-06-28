@@ -1,6 +1,6 @@
 """funcionarios_rede.email opcional (#444).
 
-Revision ID: 055_funcionario_rede_email_nullable
+Revision ID: 055_func_rede_email_null
 Revises: 054_kb_interno_only
 Create Date: 2026-06-17
 """
@@ -8,7 +8,7 @@ Create Date: 2026-06-17
 import sqlalchemy as sa
 from alembic import op
 
-revision = "055_funcionario_rede_email_nullable"
+revision = "055_func_rede_email_null"
 down_revision = "054_kb_interno_only"
 branch_labels = None
 depends_on = None
