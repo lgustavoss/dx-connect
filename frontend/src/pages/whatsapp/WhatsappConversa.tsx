@@ -46,12 +46,38 @@ import {
 import { WhatsappTicketsModal } from './WhatsappTicketsModal'
 import { WhatsappVincFuncionarioModal } from './WhatsappVincFuncionarioModal'
 import { WhatsappDemandasPanel } from './WhatsappDemandasPanel'
+import { WhatsappBarraAnexos, ACCEPT_ANEXO, type TipoAnexoPicker } from './WhatsappBarraAnexos'
+import { WhatsappGravadorAudio } from './WhatsappGravadorAudio'
+import { WhatsappPreviaAnexo } from './WhatsappPreviaAnexo'
 
-const ROTULO_SEM_LEGENDA = /^\[(Imagem|Áudio|Vídeo|Documento|Figurinha)\]$/
+const ROTULO_SEM_LEGENDA = /^\[(Imagem|Áudio|Vídeo|Documento|Figurinha|Contacto|Localização)\]$/
 
 
 
 // --- Subcomponente de Renderização de Mídia ---
+
+function TextoComLinks({ texto }: { texto: string }) {
+  const partes = texto.split(/(https?:\/\/\S+)/g)
+  return (
+    <p className="whitespace-pre-wrap">
+      {partes.map((parte, i) =>
+        /^https?:\/\//.test(parte) ? (
+          <a
+            key={i}
+            href={parte}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="break-all underline opacity-90 hover:opacity-100"
+          >
+            {parte}
+          </a>
+        ) : (
+          <span key={i}>{parte}</span>
+        ),
+      )}
+    </p>
+  )
+}
 
 function ConteudoMensagemWhatsApp({ chatId, m, onImageClick }: { chatId: number; m: WhatsappChats.Mensagem; onImageClick: (url: string, caption: string | null) => void }) {
 
@@ -115,7 +141,15 @@ function ConteudoMensagemWhatsApp({ chatId, m, onImageClick }: { chatId: number;
 
 
 
-  if (tipo === 'texto' || !m.tipo_midia) return <p className="whitespace-pre-wrap">{m.corpo}</p>
+  if (tipo === 'texto' || !m.tipo_midia) return <TextoComLinks texto={m.corpo} />
+
+  if (!m.midia_disponivel) {
+    return (
+      <p className="text-xs italic opacity-70" title="O ficheiro não foi obtido da Evolution API">
+        {m.corpo || 'Mídia não disponível'}
+      </p>
+    )
+  }
 
   if (!m.midia_disponivel) {
     return (
@@ -207,6 +241,11 @@ export function WhatsappConversa() {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const [pickerAnexo, setPickerAnexo] = useState<TipoAnexoPicker>('imagem')
+  const [mostrarGravador, setMostrarGravador] = useState(false)
+  const [arquivoPendente, setArquivoPendente] = useState<File | null>(null)
+  const [legendaMidia, setLegendaMidia] = useState('')
 
 
 
@@ -523,38 +562,49 @@ useEffect(() => {
   }
 }
 
-  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  function abrirPickerAnexo(tipo: TipoAnexoPicker) {
+    setMostrarGravador(false)
+    setPickerAnexo(tipo)
+    window.setTimeout(() => fileInputRef.current?.click(), 0)
+  }
 
+  function handleGravacaoConcluida(file: File) {
+    setMostrarGravador(false)
+    setArquivoPendente(file)
+    setLegendaMidia('')
+  }
+
+  function handleFileSelecionado(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-
-    if (!file || !chat || !podeEnviar) return
-
-   
-
-    setEnviando(true)
-
-    try {
-
-      await whatsappChats.enviarMidia(chat.id, file, '', msgRespondida?.wa_message_id || null)
-
-      setMsgRespondida(null)
-
-      toast.showSuccess('Arquivo enviado!')
-
-      await carregar()
-
-    } catch (err) {
-
-      toast.showError(mensagemFalhaParaToast(err, 'Falha no envio do arquivo'))
-
-    } finally {
-
-      setEnviando(false)
-
+    if (!file || !chat || !podeEnviar) {
       if (fileInputRef.current) fileInputRef.current.value = ''
-
+      return
     }
+    setArquivoPendente(file)
+    setLegendaMidia('')
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
 
+  async function confirmarEnvioMidia() {
+    if (!arquivoPendente || !chat || !podeEnviar) return
+    setEnviando(true)
+    try {
+      await whatsappChats.enviarMidia(
+        chat.id,
+        arquivoPendente,
+        legendaMidia.trim(),
+        msgRespondida?.wa_message_id || null,
+      )
+      setMsgRespondida(null)
+      setArquivoPendente(null)
+      setLegendaMidia('')
+      toast.showSuccess('Anexo enviado!')
+      await carregar()
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Falha no envio do anexo'))
+    } finally {
+      setEnviando(false)
+    }
   }
 
 
@@ -609,6 +659,15 @@ useEffect(() => {
   const podeEncerrar = !encerrado && chat?.estado === 'em_atendimento' && (isResponsavel || isAdmin)
 
   const podeDigitarMensagem = !encerrado && (modoInterno || podeEnviar)
+
+  const motivoAnexoDesabilitado =
+    encerrado
+      ? undefined
+      : chat?.estado === 'aguardando_atendente'
+        ? 'Assuma este chat para enviar anexos ao cliente.'
+        : !podeEnviar && chat?.estado === 'em_atendimento'
+          ? `Este chat está com ${chat.atendente_nome || 'outro atendente'}.`
+          : undefined
 
   return (
 
@@ -680,6 +739,11 @@ useEffect(() => {
                     <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">{c.cliente_nome || 'Cliente'}</p>
 
                     {c.estado === 'aguardando_atendente' && <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />}
+                    {!c.funcionario_rede_id && (
+                      <span className="shrink-0 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-medium text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
+                        Sem vínculo
+                      </span>
+                    )}
 
                   </div>
 
@@ -807,10 +871,11 @@ useEffect(() => {
               )}
               <Button
                 variant="ghost"
-                className="hidden sm:inline-flex text-xs h-8"
+                className="inline-flex text-xs h-8"
                 onClick={() => setModalVincFuncionario(true)}
               >
-                Vincular funcionário
+                <span className="sm:hidden">Vincular</span>
+                <span className="hidden sm:inline">Vincular funcionário</span>
               </Button>
 
                 <Button variant="ghost" className="hidden sm:inline-flex text-xs h-8" onClick={() => setModalTickets(true)}>
@@ -830,6 +895,17 @@ useEffect(() => {
           </div>
 
         </header>
+
+        {!encerrado && chat && !chat.funcionario_rede_id && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950 dark:border-violet-900/40 dark:bg-violet-950/30 dark:text-violet-100">
+            <p>
+              <strong>Contacto não vinculado</strong> a nenhuma empresa ou funcionário cadastrado.
+            </p>
+            <Button variant="primary" className="h-8 shrink-0 text-xs" onClick={() => setModalVincFuncionario(true)}>
+              Vincular a empresa
+            </Button>
+          </div>
+        )}
 
         {!encerrado && chat?.estado === 'em_atendimento' && !isResponsavel && (
           <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
@@ -1018,41 +1094,88 @@ useEffect(() => {
             </p>
           )}
 
+          {!encerrado && !modoInterno && podeEnviar && !arquivoPendente && !mostrarGravador && (
+            <WhatsappBarraAnexos
+              disabled={enviando}
+              onEscolher={abrirPickerAnexo}
+              onGravarAudio={() => {
+                setArquivoPendente(null)
+                setMostrarGravador(true)
+              }}
+            />
+          )}
+
+          {!encerrado && !modoInterno && !podeEnviar && (
+            <WhatsappBarraAnexos
+              disabled
+              motivoDesabilitado={motivoAnexoDesabilitado}
+              onEscolher={() => {}}
+              onGravarAudio={() => {}}
+            />
+          )}
+
+          {mostrarGravador && podeEnviar && !encerrado && (
+            <WhatsappGravadorAudio
+              disabled={enviando}
+              onConcluido={handleGravacaoConcluida}
+              onCancelar={() => setMostrarGravador(false)}
+            />
+          )}
+
+          {arquivoPendente && (
+            <div className="mb-2 rounded-xl border border-cyan-200 bg-cyan-50/80 p-3 dark:border-cyan-900/40 dark:bg-cyan-950/20">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-cyan-800 dark:text-cyan-300">Anexo selecionado</p>
+                  <p className="truncate text-sm text-slate-700 dark:text-slate-200">{arquivoPendente.name}</p>
+                  <WhatsappPreviaAnexo file={arquivoPendente} />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setArquivoPendente(null)
+                    setLegendaMidia('')
+                  }}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  aria-label="Remover anexo"
+                >
+                  &times;
+                </button>
+              </div>
+              {!arquivoPendente.type.startsWith('audio/') && (
+                <input
+                  type="text"
+                  value={legendaMidia}
+                  onChange={(e) => setLegendaMidia(e.target.value)}
+                  placeholder="Legenda opcional (visível no WhatsApp)"
+                  className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                />
+              )}
+              <div className="mt-2 flex justify-end gap-2">
+                <Button variant="ghost" className="h-8 text-xs" onClick={() => setArquivoPendente(null)}>
+                  Cancelar
+                </Button>
+                <Button className="h-8 text-xs" loading={enviando} onClick={() => void confirmarEnvioMidia()}>
+                  Enviar anexo
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-end gap-2 bg-slate-100 dark:bg-slate-900 p-2 rounded-2xl shadow-inner">
 
-           
-
-            {/* Input de arquivo invisível */}
-
             <input
-
               type="file"
-
               ref={fileInputRef}
-
-              onChange={handleFileUpload}
-
+              onChange={handleFileSelecionado}
               className="hidden"
-
-              accept="image/*,video/*,application/pdf"
-
+              accept={ACCEPT_ANEXO[pickerAnexo]}
             />
-
-
 
             <KbConsultaButton
               disabled={encerrado}
               onInserirReferencia={podeDigitarMensagem ? inserirReferenciaKb : undefined}
             />
-
-            <Button
-              variant="ghost"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={enviando || encerrado || !podeEnviar}
-              className="h-10 w-10 shrink-0 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
-            >
-              📎
-            </Button>
 
 
 
