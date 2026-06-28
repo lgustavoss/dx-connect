@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { atendentes, whatsappChats, type WhatsappChats, type Atendentes } from '../../api/client'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -10,6 +10,7 @@ import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
 import { AvaliacaoEstrelas } from '../../components/ui/AvaliacaoEstrelas'
 import { rotuloEstadoChat } from '../../lib/whatsappChatMeta'
+import { buildHistoricoReturnPath, whatsappConversaLink } from '../../lib/whatsappListReturn'
 
 const PAGE_SIZE = 15
 
@@ -23,16 +24,52 @@ type FiltroEstadoHistorico =
 
 export function WhatsappHistorico() {
   const toast = useToast()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [items, setItems] = useState<WhatsappChats.Chat[]>([])
   const [total, setTotal] = useState(0)
-  const [offset, setOffset] = useState(0)
+  const [offset, setOffset] = useState(() => Number(searchParams.get('offset') || 0))
   const [loading, setLoading] = useState(true)
-  const [busca, setBusca] = useState('')
+  const [busca, setBusca] = useState(() => searchParams.get('busca') ?? '')
   const [atendentesList, setAtendentesList] = useState<Atendentes.Atendente[]>([])
-  const [atendenteId, setAtendenteId] = useState<number | ''>('')
-  const [desde, setDesde] = useState('')
-  const [ate, setAte] = useState('')
-  const [estadoFiltro, setEstadoFiltro] = useState<FiltroEstadoHistorico>('finalizados')
+  const [atendenteId, setAtendenteId] = useState<number | ''>(() => {
+    const v = searchParams.get('atendente_id')
+    return v ? Number(v) : ''
+  })
+  const [desde, setDesde] = useState(() => searchParams.get('desde') ?? '')
+  const [ate, setAte] = useState(() => searchParams.get('ate') ?? '')
+  const [estadoFiltro, setEstadoFiltro] = useState<FiltroEstadoHistorico>(() => {
+    const v = searchParams.get('estado')
+    return (v as FiltroEstadoHistorico) || 'finalizados'
+  })
+
+  const historicoReturnPath = useMemo(
+    () =>
+      buildHistoricoReturnPath({
+        busca,
+        atendenteId,
+        desde,
+        ate,
+        estado: estadoFiltro,
+        offset,
+      }),
+    [ate, atendenteId, busca, desde, estadoFiltro, offset],
+  )
+
+  const syncUrl = useCallback(
+    (from: number) => {
+      const path = buildHistoricoReturnPath({
+        busca,
+        atendenteId,
+        desde,
+        ate,
+        estado: estadoFiltro,
+        offset: from,
+      })
+      const qs = path.includes('?') ? path.split('?')[1] : ''
+      setSearchParams(qs ? new URLSearchParams(qs) : new URLSearchParams(), { replace: true })
+    },
+    [ate, atendenteId, busca, desde, estadoFiltro, setSearchParams],
+  )
 
   const load = useCallback(async (from: number) => {
     setLoading(true)
@@ -50,12 +87,13 @@ export function WhatsappHistorico() {
       setItems(rows)
       setTotal(t)
       setOffset(from)
+      syncUrl(from)
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Falha ao carregar histórico.'))
     } finally {
       setLoading(false)
     }
-  }, [atendenteId, ate, busca, desde, estadoFiltro, toast])
+  }, [atendenteId, ate, busca, desde, estadoFiltro, syncUrl, toast])
 
   useEffect(() => {
     void load(0)
@@ -224,7 +262,7 @@ export function WhatsappHistorico() {
                     </div>
 
                     <Link
-                      to={`/whatsapp/c/${c.id}`}
+                      to={whatsappConversaLink(c.id, historicoReturnPath, 'historico')}
                       className="rounded-full bg-slate-100 p-2 text-slate-400 transition-all hover:bg-cyan-600 hover:text-white dark:bg-slate-800 dark:hover:bg-cyan-700"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>

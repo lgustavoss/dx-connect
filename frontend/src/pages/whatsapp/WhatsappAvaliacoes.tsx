@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { atendentes, whatsappChats, type WhatsappChats, type Atendentes } from '../../api/client'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -9,23 +9,64 @@ import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
 import { rotuloAvaliacaoChat } from '../../lib/whatsappChatMeta'
+import { buildAvaliacoesReturnPath, whatsappConversaLink } from '../../lib/whatsappListReturn'
 import { CheckboxField } from '../../components/ui/CheckboxField'
 
 const PAGE_SIZE = 15
 
 export function WhatsappAvaliacoes() {
   const toast = useToast()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [items, setItems] = useState<WhatsappChats.Avaliacao[]>([])
   const [total, setTotal] = useState(0)
-  const [offset, setOffset] = useState(0)
+  const [offset, setOffset] = useState(() => Number(searchParams.get('offset') || 0))
   const [loading, setLoading] = useState(true)
-  const [busca, setBusca] = useState('')
+  const [busca, setBusca] = useState(() => searchParams.get('busca') ?? '')
   const [atendentesList, setAtendentesList] = useState<Atendentes.Atendente[]>([])
-  const [atendenteId, setAtendenteId] = useState<number | ''>('')
-  const [notaMin, setNotaMin] = useState<number | ''>('')
-  const [desde, setDesde] = useState('')
-  const [ate, setAte] = useState('')
-  const [incluirSemResposta, setIncluirSemResposta] = useState(false)
+  const [atendenteId, setAtendenteId] = useState<number | ''>(() => {
+    const v = searchParams.get('atendente_id')
+    return v ? Number(v) : ''
+  })
+  const [notaMin, setNotaMin] = useState<number | ''>(() => {
+    const v = searchParams.get('nota')
+    return v ? Number(v) : ''
+  })
+  const [desde, setDesde] = useState(() => searchParams.get('desde') ?? '')
+  const [ate, setAte] = useState(() => searchParams.get('ate') ?? '')
+  const [incluirSemResposta, setIncluirSemResposta] = useState(
+    () => searchParams.get('incluir_sem_resposta') === 'true',
+  )
+
+  const avaliacoesReturnPath = useMemo(
+    () =>
+      buildAvaliacoesReturnPath({
+        busca,
+        atendenteId,
+        notaMin,
+        desde,
+        ate,
+        incluirSemResposta,
+        offset,
+      }),
+    [ate, atendenteId, busca, desde, incluirSemResposta, notaMin, offset],
+  )
+
+  const syncUrl = useCallback(
+    (from: number) => {
+      const path = buildAvaliacoesReturnPath({
+        busca,
+        atendenteId,
+        notaMin,
+        desde,
+        ate,
+        incluirSemResposta,
+        offset: from,
+      })
+      const qs = path.includes('?') ? path.split('?')[1] : ''
+      setSearchParams(qs ? new URLSearchParams(qs) : new URLSearchParams(), { replace: true })
+    },
+    [ate, atendenteId, busca, desde, incluirSemResposta, notaMin, setSearchParams],
+  )
 
   const load = useCallback(
     async (from: number) => {
@@ -48,13 +89,14 @@ export function WhatsappAvaliacoes() {
         setItems(rows)
         setTotal(t)
         setOffset(from)
+        syncUrl(from)
       } catch (err) {
         toast.showError(mensagemFalhaParaToast(err, 'Falha ao carregar avaliações.'))
       } finally {
         setLoading(false)
       }
     },
-    [atendenteId, ate, busca, desde, incluirSemResposta, notaMin, toast],
+    [atendenteId, ate, busca, desde, incluirSemResposta, notaMin, syncUrl, toast],
   )
 
   useEffect(() => {
@@ -108,7 +150,10 @@ export function WhatsappAvaliacoes() {
           </div>
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <CheckboxField checked={incluirSemResposta} onChange={setIncluirSemResposta}>
+          <CheckboxField
+            checked={incluirSemResposta}
+            onChange={(e) => setIncluirSemResposta(e.target.checked)}
+          >
             Incluir solicitações sem resposta (auditoria)
           </CheckboxField>
           <Button type="button" onClick={() => void load(0)}>
@@ -149,7 +194,7 @@ export function WhatsappAvaliacoes() {
                       : '—'}
                   </p>
                   <Link
-                    to={`/whatsapp/c/${a.chat_id}`}
+                    to={whatsappConversaLink(a.chat_id, avaliacoesReturnPath, 'avaliacoes')}
                     className="mt-1 inline-block text-xs font-medium text-cyan-600 hover:underline dark:text-cyan-400"
                   >
                     Ver conversa

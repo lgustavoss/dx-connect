@@ -196,7 +196,7 @@ export function FuncionariosRede() {
                         )}
                       </div>
                     </td>
-                    <td className="max-w-[14rem] truncate px-4 py-3.5 text-slate-600 sm:px-6 dark:text-slate-400" title={f.email}>
+                    <td className="max-w-[14rem] truncate px-4 py-3.5 text-slate-600 sm:px-6 dark:text-slate-400" title={f.email ?? undefined}>
                       {f.email}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3.5 text-slate-600 sm:px-6 dark:text-slate-400">

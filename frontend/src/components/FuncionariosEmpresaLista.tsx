@@ -59,7 +59,7 @@ export function FuncionariosEmpresaLista({
               </td>
               <td
                 className="max-w-[14rem] truncate px-4 py-3 text-slate-600 dark:text-slate-300 sm:px-6"
-                title={f.email}
+                title={f.email ?? undefined}
               >
                 {f.email}
               </td>

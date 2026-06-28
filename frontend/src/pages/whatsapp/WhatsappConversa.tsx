@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
 
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import {
 
@@ -49,6 +49,8 @@ import { WhatsappDemandasPanel } from './WhatsappDemandasPanel'
 import { WhatsappBarraAnexos, ACCEPT_ANEXO, type TipoAnexoPicker } from './WhatsappBarraAnexos'
 import { WhatsappGravadorAudio } from './WhatsappGravadorAudio'
 import { WhatsappPreviaAnexo } from './WhatsappPreviaAnexo'
+import { useWhatsappVoltarLista } from '../../hooks/useWhatsappVoltarLista'
+import { whatsappConversaLink, resolveWhatsappListFallback, WHATSAPP_LIST_PATHS } from '../../lib/whatsappListReturn'
 
 const ROTULO_SEM_LEGENDA = /^\[(Imagem|Áudio|Vídeo|Documento|Figurinha|Contacto|Localização)\]$/
 
@@ -294,6 +296,25 @@ export function WhatsappConversa() {
   const [demandasCount, setDemandasCount] = useState(0)
   const [demandasReloadKey, setDemandasReloadKey] = useState(0)
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
+  const voltarLista = useWhatsappVoltarLista()
+  const listaRetorno = resolveWhatsappListFallback(
+    location.state,
+    searchParams.get('from'),
+    WHATSAPP_LIST_PATHS.atendendo,
+  )
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+      voltarLista()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [voltarLista])
 
 
 
@@ -716,7 +737,7 @@ useEffect(() => {
 
               key={c.id}
 
-              to={`/whatsapp/c/${c.id}`}
+              to={whatsappConversaLink(c.id, listaRetorno)}
 
               className={`flex items-center p-4 gap-3 transition-colors ${c.id === id ? 'bg-white shadow-sm dark:bg-slate-800' : 'hover:bg-white/40 dark:hover:bg-slate-900/50'}`}
 
@@ -778,7 +799,18 @@ useEffect(() => {
 
         <header className="flex h-16 items-center justify-between border-b border-slate-100 px-4 dark:border-slate-800 shadow-sm z-10">
 
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 sm:gap-3">
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-9 shrink-0 px-2 text-xs font-medium"
+              onClick={voltarLista}
+              aria-label="Voltar à lista"
+            >
+              <span aria-hidden>←</span>
+              <span className="hidden sm:inline"> Voltar</span>
+            </Button>
 
             <div className="min-w-0">
 
