@@ -203,6 +203,18 @@
           "text": "Identidade visual DeskRudder no painel (logos, login, favicon e componentes de marca)"
         }
       ]
+    },
+    {
+      "version": "26.06.006",
+      "version_display": "v26.06.006",
+      "date": "2026-06-28",
+      "status": "published",
+      "changes": [
+        {
+          "category": "interno",
+          "text": "Atualização do sistema"
+        }
+      ]
     }
   ]
 }
