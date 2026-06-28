@@ -175,7 +175,7 @@ export function AtendenteForm() {
                   <button
                     type="button"
                     onClick={() => setMostrarSenha((v) => !v)}
-                    className="inline-flex size-9 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/30 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-200"
+                    className="inline-flex size-9 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/30 dark:text-slate-400 dark:hover:bg-white/70 dark:hover:text-slate-200"
                     aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
                     aria-pressed={mostrarSenha}
                   >
@@ -199,7 +199,7 @@ export function AtendenteForm() {
                   Opcional, mas recomendado: vincule administradores a setores para poderem ser responsáveis em tickets do setor.
                 </p>
               )}
-              <div className="max-h-44 overflow-auto rounded-lg border border-slate-200 p-3 dark:border-slate-700/80">
+              <div className="max-h-44 overflow-auto rounded-lg border border-slate-200 p-3 dark:border-slate-800/80">
                 <div className="flex flex-wrap gap-2">
                   {setoresList.map((s) => (
                     <CheckboxField key={s.id} checked={setorIds.includes(s.id)} onChange={() => toggleSetor(s.id)}>

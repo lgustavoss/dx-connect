@@ -172,7 +172,7 @@ export function Empresas() {
                           navigate(`/empresas/${e.id}`)
                         }
                       }}
-                      className="cursor-pointer transition-colors hover:bg-slate-50/90 focus-within:bg-slate-50/90 dark:hover:bg-slate-800/50 dark:focus-within:bg-slate-800/50"
+                      className="cursor-pointer transition-colors hover:bg-slate-50/90 focus-within:bg-slate-50/90 dark:hover:bg-white/50 dark:focus-within:bg-slate-800/50"
                     >
                       <td className="max-w-0 py-3 pl-2 pr-4">
                         <div className="flex min-w-0 flex-wrap items-center gap-2">

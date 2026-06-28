@@ -177,7 +177,7 @@ export function KbMarkdownAjudaModal({ open, onClose, onInserir }: Props) {
       onClick={onClose}
     >
       <div className={MODAL_PANEL_WIDE_SHELL} onClick={(e) => e.stopPropagation()}>
-        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-700">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
           <div>
             <h2 id="kb-markdown-ajuda-title" className="text-lg font-semibold text-slate-900 dark:text-slate-50">
               Guia de formatação
@@ -202,13 +202,13 @@ export function KbMarkdownAjudaModal({ open, onClose, onInserir }: Props) {
             {EXEMPLOS.map((item) => (
               <li
                 key={item.titulo}
-                className="rounded-xl border border-slate-200/90 bg-slate-50/70 p-4 dark:border-slate-700/80 dark:bg-slate-900/40"
+                className="rounded-xl border border-slate-200/90 bg-slate-50/70 p-4 dark:border-slate-800/80 dark:bg-slate-900/40"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{item.titulo}</h3>
                     <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{item.descricao}</p>
-                    <pre className="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
+                    <pre className="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-800 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
                       {item.sintaxe}
                     </pre>
                   </div>
@@ -232,10 +232,10 @@ export function KbMarkdownAjudaModal({ open, onClose, onInserir }: Props) {
               ) : null}
             </div>
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
-              <pre className="max-h-64 overflow-auto rounded-lg border border-slate-200 bg-white p-3 font-mono text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
+              <pre className="max-h-64 overflow-auto rounded-lg border border-slate-200 bg-white p-3 font-mono text-xs text-slate-800 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
                 {EXEMPLO_COMPLETO}
               </pre>
-              <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-950/60">
+              <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950/60">
                 <KbMarkdownPreview markdown={EXEMPLO_COMPLETO} />
               </div>
             </div>

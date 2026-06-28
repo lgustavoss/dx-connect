@@ -4,6 +4,7 @@ import { system, type System } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { Card } from '../components/ui/Card'
 import { useToast } from '../components/ui/Toast'
+import { APP_DESCRIPTION, APP_NAME, BrandLogo } from '../brand'
 
 const CATEGORY_LABEL: Record<string, string> = {
   melhorias: 'Melhorias',
@@ -120,8 +121,12 @@ export function Sobre() {
           <span aria-hidden>←</span> Voltar
         </Link>
         <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">Sobre</h1>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <BrandLogo variant="full" size="md" />
+        </div>
+        <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">{APP_DESCRIPTION}</p>
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-          Consulte a versão em uso e o que mudou em cada atualização publicada.
+          Consulte a versão em uso e o que mudou em cada atualização publicada do {APP_NAME}.
         </p>
       </div>
 

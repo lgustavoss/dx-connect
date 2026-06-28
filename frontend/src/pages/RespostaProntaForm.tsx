@@ -163,7 +163,7 @@ export function RespostaProntaForm() {
                   onChange={(e) => setCorpo(e.target.value)}
                   rows={8}
                   required
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
                 />
               </label>
             </FormSection>
@@ -173,7 +173,7 @@ export function RespostaProntaForm() {
                 <select
                   value={setorId}
                   onChange={(e) => setSetorId(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="">Global — todos os setores</option>
                   {setoresOpts.map((s) => (

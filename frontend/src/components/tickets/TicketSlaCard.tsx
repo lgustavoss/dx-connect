@@ -55,7 +55,7 @@ export function TicketSlaCard({ ticketId, fechado }: { ticketId: number; fechado
           return (
             <div
               key={chave}
-              className="rounded-lg border border-slate-200/80 bg-slate-50/80 px-3 py-2 dark:border-slate-700/70 dark:bg-slate-900/40"
+              className="rounded-lg border border-slate-200/80 bg-slate-50/80 px-3 py-2 dark:border-slate-800/70 dark:bg-slate-900/40"
               title={tooltipSlaMeta(nome, meta, comercial)}
             >
               <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">

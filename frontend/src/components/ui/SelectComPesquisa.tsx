@@ -108,7 +108,7 @@ export function SelectComPesquisa({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={placeholder}
-            className="w-full border-b border-slate-100 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none focus:bg-slate-50/50 dark:border-slate-700 dark:text-slate-100 dark:focus:bg-slate-800/50"
+            className="w-full border-b border-slate-100 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none focus:bg-slate-50/50 dark:border-slate-800 dark:text-slate-100 dark:focus:bg-slate-800/50"
             autoFocus
             aria-label={`Buscar em ${label}`}
           />

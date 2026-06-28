@@ -57,7 +57,7 @@ function PaginacaoBarra({
   const fim = Math.min(page * pageSize, total)
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/80 pt-4 dark:border-slate-700/80">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/80 pt-4 dark:border-slate-800/80">
       <p className="text-sm text-slate-600 dark:text-slate-400">
         {total > 0 ? (
           <>
@@ -114,7 +114,7 @@ export function KbListaFiltros({
 
   return (
     <section className="mb-4 space-y-0">
-      <div className="rounded-xl border border-slate-200/90 bg-slate-50/70 p-4 dark:border-slate-700/80 dark:bg-slate-900/40">
+      <div className="rounded-xl border border-slate-200/90 bg-slate-50/70 p-4 dark:border-slate-800/80 dark:bg-slate-900/40">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
           <div className={comStatus ? 'md:col-span-2 xl:col-span-6' : 'md:col-span-2 xl:col-span-8'}>
             <label htmlFor="kb-filtro-busca" className={labelOverline}>

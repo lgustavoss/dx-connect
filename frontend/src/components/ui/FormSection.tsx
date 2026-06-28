@@ -23,9 +23,9 @@ export function FormSection({ title, description, children, className = '', comp
 
   return (
     <section
-      className={`rounded-2xl border border-slate-200/90 bg-slate-50/35 p-4 sm:p-5 dark:border-slate-700/55 dark:bg-slate-900/40 ${className}`}
+      className={`rounded-2xl border border-slate-200/90 bg-slate-50/35 p-4 sm:p-5 dark:border-slate-800/55 dark:bg-slate-900/40 ${className}`}
     >
-      <header className="mb-4 border-b border-slate-200/80 pb-3 dark:border-slate-700/55">
+      <header className="mb-4 border-b border-slate-200/80 pb-3 dark:border-slate-800/55">
         <h3 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">{title}</h3>
         {description ? (
           <div className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-400">{description}</div>

@@ -340,13 +340,13 @@ export function KbArtigoForm() {
           {modoConteudo === 'editar' ? (
             <textarea
               ref={textareaRef}
-              className="min-h-[280px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm text-slate-800 shadow-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              className="min-h-[280px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm text-slate-800 shadow-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
               value={conteudo}
               onChange={(e) => setConteudo(e.target.value)}
               placeholder="# Título do manual&#10;&#10;Descreva o procedimento..."
             />
           ) : (
-            <div className="min-h-[280px] rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/50">
+            <div className="min-h-[280px] rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/50">
               <KbMarkdownPreview markdown={conteudo} emptyLabel="Nada para visualizar ainda — escreva o conteúdo do manual." />
             </div>
           )}

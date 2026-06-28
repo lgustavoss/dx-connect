@@ -11,7 +11,7 @@ const TAB_CLASS =
 export function RelatoriosNav() {
   return (
     <nav
-      className="mb-6 inline-flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800/50"
+      className="mb-6 inline-flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-800/50"
       aria-label="Navegação entre relatórios"
     >
       {VIEWS.map((view) => (

@@ -857,7 +857,7 @@ export function RedeDetalhe() {
               className={
                 aba === 'empresas'
                   ? 'border-b-2 border-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 dark:border-sky-400 dark:bg-slate-800/50 dark:text-white'
-                  : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/30 dark:hover:text-slate-200'
+                  : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/30 dark:hover:text-slate-200'
               }
             >
               Empresas
@@ -869,7 +869,7 @@ export function RedeDetalhe() {
               className={
                 aba === 'funcionarios'
                   ? 'border-b-2 border-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 dark:border-sky-400 dark:bg-slate-800/50 dark:text-white'
-                  : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/30 dark:hover:text-slate-200'
+                  : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/30 dark:hover:text-slate-200'
               }
             >
               Funcionários
@@ -881,7 +881,7 @@ export function RedeDetalhe() {
               className={
                 aba === 'tickets'
                   ? 'border-b-2 border-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 dark:border-sky-400 dark:bg-slate-800/50 dark:text-white'
-                  : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/30 dark:hover:text-slate-200'
+                  : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/30 dark:hover:text-slate-200'
               }
             >
               Tickets
@@ -903,7 +903,7 @@ export function RedeDetalhe() {
                     className={
                       abaModalEmpresa === 'geral'
                         ? 'border-b-2 border-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 dark:border-sky-400 dark:bg-slate-800/50 dark:text-white'
-                        : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/30 dark:hover:text-slate-200'
+                        : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/30 dark:hover:text-slate-200'
                     }
                   >
                     Geral
@@ -915,7 +915,7 @@ export function RedeDetalhe() {
                     className={
                       abaModalEmpresa === 'tickets'
                         ? 'border-b-2 border-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 dark:border-sky-400 dark:bg-slate-800/50 dark:text-white'
-                        : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/30 dark:hover:text-slate-200'
+                        : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/30 dark:hover:text-slate-200'
                     }
                   >
                     Tickets
@@ -927,7 +927,7 @@ export function RedeDetalhe() {
                     className={
                       abaModalEmpresa === 'funcionarios'
                         ? 'border-b-2 border-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 dark:border-sky-400 dark:bg-slate-800/50 dark:text-white'
-                        : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/30 dark:hover:text-slate-200'
+                        : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/30 dark:hover:text-slate-200'
                     }
                   >
                     Funcionários
@@ -939,7 +939,7 @@ export function RedeDetalhe() {
                     className={
                       abaModalEmpresa === 'pdvs'
                         ? 'border-b-2 border-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 dark:border-sky-400 dark:bg-slate-800/50 dark:text-white'
-                        : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/30 dark:hover:text-slate-200'
+                        : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/30 dark:hover:text-slate-200'
                     }
                   >
                     PDVs
@@ -1032,7 +1032,7 @@ export function RedeDetalhe() {
                     </div>
                   </div>
 
-                  <div className="border-t border-slate-200 pt-4 dark:border-slate-700">
+                  <div className="border-t border-slate-200 pt-4 dark:border-slate-800">
                     <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Responsável legal
                     </p>
@@ -1182,7 +1182,7 @@ export function RedeDetalhe() {
                 <EmpresaPdvsPanel empresaId={editingEmpresaId} />
               )}
 
-              <div className="flex items-center justify-between border-t border-slate-200 pt-4 dark:border-slate-700">
+              <div className="flex items-center justify-between border-t border-slate-200 pt-4 dark:border-slate-800">
                 <span
                   className={`rounded-md px-2 py-1 text-xs font-medium ${
                     ativoEmpresa
@@ -1447,7 +1447,7 @@ export function RedeDetalhe() {
                 </FormSection>
               </div>
 
-              <div className="sticky bottom-0 -mx-6 border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-700 dark:bg-slate-900">
+              <div className="sticky bottom-0 -mx-6 border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
                 <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                   <Button
                     type="button"
@@ -1524,7 +1524,7 @@ export function RedeDetalhe() {
                           openViewEmpresa(e)
                         }
                       }}
-                      className="cursor-pointer transition-colors hover:bg-slate-50/80 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-slate-800/50"
+                      className="cursor-pointer transition-colors hover:bg-slate-50/80 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-white/50"
                     >
                       <td className="px-4 py-3.5 sm:px-6">
                         <div className="flex flex-wrap items-center gap-2">
@@ -1653,7 +1653,7 @@ export function RedeDetalhe() {
                           {empresasDaRedeParaVinculo.length === 0 ? (
                             <p className="text-sm text-slate-500 dark:text-slate-400">Nenhuma empresa ativa nesta rede.</p>
                           ) : (
-                            <div className="flex max-h-44 flex-wrap gap-2 overflow-auto rounded-xl border border-slate-200 bg-slate-50/40 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+                            <div className="flex max-h-44 flex-wrap gap-2 overflow-auto rounded-xl border border-slate-200 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/40">
                               {empresasDaRedeParaVinculo.map((e) => (
                                 <CheckboxField
                                   key={e.id}
@@ -1683,7 +1683,7 @@ export function RedeDetalhe() {
                   </FormSection>
                 </div>
 
-                <div className="sticky bottom-0 -mx-6 mt-6 border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-700 dark:bg-slate-900">
+                <div className="sticky bottom-0 -mx-6 mt-6 border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
                   <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => fecharModalFuncionario()}>
                       Cancelar
@@ -1763,7 +1763,7 @@ export function RedeDetalhe() {
                           verFuncionarioDetalhe(f)
                         }
                       }}
-                      className="cursor-pointer transition-colors hover:bg-slate-50/80 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-slate-800/50"
+                      className="cursor-pointer transition-colors hover:bg-slate-50/80 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-white/50"
                     >
                       <td className="px-4 py-3.5 font-medium text-slate-800 sm:px-6 dark:text-slate-100">{f.nome}</td>
                       <td className="max-w-[12rem] truncate px-4 py-3.5 text-slate-600 sm:px-6 dark:text-slate-300" title={f.email}>

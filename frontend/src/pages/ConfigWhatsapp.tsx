@@ -247,7 +247,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
   }
 
   async function reporTudo() {
-    if (!confirm('Apagar a instância na Evolution e limpar credenciais no DX Connect?')) return
+    if (!confirm('Apagar a instância na Evolution e limpar credenciais no DeskRudder?')) return
     try {
       await whatsappSettings.reporEmbutido()
       setQrPayload(null)
@@ -289,7 +289,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
         </p>
       ) : null}
 
-      <div className={embedded ? 'border-b border-slate-200 dark:border-slate-700/80' : 'mt-5 border-b border-slate-200 dark:border-slate-700/80'}>
+      <div className={embedded ? 'border-b border-slate-200 dark:border-slate-800/80' : 'mt-5 border-b border-slate-200 dark:border-slate-800/80'}>
           <nav className="-mb-px flex gap-1 overflow-x-auto sm:gap-2" aria-label="Seções do WhatsApp">
             {ABAS.map(({ id, label }) => (
               <button
@@ -300,7 +300,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
                 className={
                   aba === id
                     ? 'shrink-0 border-b-2 border-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 dark:border-sky-400 dark:bg-slate-800/50 dark:text-white'
-                    : 'shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/30 dark:hover:text-slate-200'
+                    : 'shrink-0 border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/30 dark:hover:text-slate-200'
                 }
               >
                 {label}
@@ -320,7 +320,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
                   </p>
                 </div>
 
-                <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-200">
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-200">
                   <p className="font-medium">
                     Status da conexão:{' '}
                     <span
@@ -369,7 +369,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
                 {qrPayload && <div className="pt-1">{renderQrPayload(qrPayload)}</div>}
               </>
             ) : (
-              <div className="rounded-lg border border-slate-200 p-4 text-sm text-slate-600 dark:border-slate-700/80 dark:text-slate-400">
+              <div className="rounded-lg border border-slate-200 p-4 text-sm text-slate-600 dark:border-slate-800/80 dark:text-slate-400">
                 <p className="font-medium text-slate-800 dark:text-slate-200">Pareamento por QR não disponível</p>
                 <p className="mt-2 leading-relaxed">
                   Neste servidor a Evolution API embutida não está configurada. Suba o stack via Docker e confirme as variáveis no backend.
@@ -379,7 +379,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
           </div>
         ) : aba === 'mensagens' ? (
           <div className="mt-6 space-y-5">
-            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-700 dark:border-slate-700/80 dark:bg-slate-800/20 dark:text-slate-200">
+            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-700 dark:border-slate-800/80 dark:bg-slate-800/20 dark:text-slate-200">
               <p className="font-medium">Como funciona</p>
               <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
                 As mensagens abaixo são enviadas automaticamente em eventos do chat. Variáveis:{' '}
@@ -393,7 +393,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
               </p>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700/80 dark:bg-slate-900/30">
+            <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800/80 dark:bg-slate-900/30">
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Identidade</p>
               <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                 Usado em templates como <span className="font-mono">{'{{nome_empresa}}'}</span>. Se vazio ao salvar,
@@ -501,7 +501,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
           </div>
         ) : aba === 'inatividade' ? (
           <div className="mt-6 space-y-5">
-            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-700 dark:border-slate-700/80 dark:bg-slate-800/20 dark:text-slate-200">
+            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-700 dark:border-slate-800/80 dark:bg-slate-800/20 dark:text-slate-200">
               <p className="font-medium">Encerramento por inatividade</p>
               <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
                 Encerra chats em atendimento quando o cliente para de responder. O tempo conta desde a última mensagem
@@ -599,7 +599,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
           </div>
         ) : aba === 'avaliacao' ? (
           <div className="mt-6 space-y-5">
-            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-700 dark:border-slate-700/80 dark:bg-slate-800/20 dark:text-slate-200">
+            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-700 dark:border-slate-800/80 dark:bg-slate-800/20 dark:text-slate-200">
               <p className="font-medium">Avaliação do atendimento</p>
               <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
                 Ao encerrar o chat, o cliente recebe uma solicitação de nota de 1 a 5 antes do atendimento ser
@@ -669,14 +669,14 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
           </div>
         ) : (
           <div className="mt-6 space-y-5">
-            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-700 dark:border-slate-700/80 dark:bg-slate-800/20 dark:text-slate-200">
+            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-700 dark:border-slate-800/80 dark:bg-slate-800/20 dark:text-slate-200">
               <p className="font-medium">Horário de funcionamento</p>
               <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
                 Define quando o atendimento está aberto em cada dia da semana. Fora desse período, a mensagem “fora do horário” pode ser enviada.
               </p>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700/80 dark:bg-slate-900/30">
+            <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800/80 dark:bg-slate-900/30">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="sm:col-span-1">
                   <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Fuso horário</label>

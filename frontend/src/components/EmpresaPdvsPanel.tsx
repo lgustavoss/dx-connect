@@ -187,7 +187,7 @@ export function EmpresaPdvsPanel({ empresaId }: Props) {
                       </span>
                       {row.tem_senha_remota && isAdmin ? (
                         senhaRevelada?.pdvId === row.id ? (
-                          <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200">
+                          <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-200">
                             {senhaRevelada.senha}
                             <button
                               type="button"
@@ -239,7 +239,7 @@ export function EmpresaPdvsPanel({ empresaId }: Props) {
 
       {modalOpen && isAdmin ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
               {editId ? 'Editar PDV' : 'Novo PDV'}
             </h3>

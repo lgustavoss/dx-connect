@@ -26,7 +26,7 @@ export function DashboardNav({ actions }: DashboardNavProps) {
   return (
     <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
       <nav
-        className="inline-flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800/50"
+        className="inline-flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-900/70"
         aria-label="Navegação entre dashboards"
       >
         {VIEWS.map((view) => (
