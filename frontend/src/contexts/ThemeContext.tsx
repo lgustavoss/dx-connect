@@ -1,12 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { THEME_STORAGE_KEY, THEME_STORAGE_KEY_LEGACY } from '../brand'
 
 export type ThemePreference = 'light' | 'dark' | 'system'
 
-const STORAGE_KEY = 'dx-connect-theme'
-
 function readStored(): ThemePreference {
   try {
-    const v = localStorage.getItem(STORAGE_KEY)
+    const v = localStorage.getItem(THEME_STORAGE_KEY) ?? localStorage.getItem(THEME_STORAGE_KEY_LEGACY)
     if (v === 'light' || v === 'dark' || v === 'system') return v
   } catch {
     /* ignore */
@@ -51,7 +50,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const setPreference = useCallback((p: ThemePreference) => {
     setPreferenceState(p)
     try {
-      localStorage.setItem(STORAGE_KEY, p)
+      localStorage.setItem(THEME_STORAGE_KEY, p)
     } catch {
       /* ignore */
     }

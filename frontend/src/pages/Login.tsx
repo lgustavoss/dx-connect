@@ -4,15 +4,14 @@ import { useAuth } from '../contexts/AuthContext'
 import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
-
-const REMEMBER_EMAIL_KEY = 'dx-connect-login-email'
+import { BrandLogo, LOGIN_EMAIL_STORAGE_KEY, LOGIN_EMAIL_STORAGE_KEY_LEGACY, brandAssets } from '../brand'
 
 const fieldClass =
   'w-full rounded-xl border border-white/10 bg-white/[0.06] px-3.5 py-3 text-[0.9375rem] text-slate-100 placeholder:text-slate-500 shadow-inner shadow-black/20 backdrop-blur-sm transition-colors focus:border-cyan-400/50 focus:outline-none focus:ring-2 focus:ring-cyan-400/25'
 
 function readRememberedEmail(): string {
   try {
-    return localStorage.getItem(REMEMBER_EMAIL_KEY) ?? ''
+    return localStorage.getItem(LOGIN_EMAIL_STORAGE_KEY) ?? localStorage.getItem(LOGIN_EMAIL_STORAGE_KEY_LEGACY) ?? ''
   } catch {
     return ''
   }
@@ -85,9 +84,10 @@ export function Login() {
       await login(email.trim(), senha, lembrarMe)
       try {
         if (lembrarMe) {
-          localStorage.setItem(REMEMBER_EMAIL_KEY, email.trim())
+          localStorage.setItem(LOGIN_EMAIL_STORAGE_KEY, email.trim())
         } else {
-          localStorage.removeItem(REMEMBER_EMAIL_KEY)
+          localStorage.removeItem(LOGIN_EMAIL_STORAGE_KEY)
+          localStorage.removeItem(LOGIN_EMAIL_STORAGE_KEY_LEGACY)
         }
       } catch {
         /* storage indisponível */
@@ -103,7 +103,7 @@ export function Login() {
 
   return (
     <div
-      className="relative flex h-dvh max-h-dvh min-h-0 flex-col overflow-y-auto bg-[#050810] font-[family-name:'Plus_Jakarta_Sans',system-ui,sans-serif] text-slate-100 antialiased lg:flex-row"
+      className="relative flex min-h-dvh flex-col bg-[#050810] font-sans text-slate-100 antialiased lg:flex-row"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       <LoginMeshBg />
@@ -113,7 +113,7 @@ export function Login() {
         aria-hidden
       >
         <img
-          src="/duplexsoft-brand-panel.png"
+          src={brandAssets.loginPlexusPanel}
           alt=""
           className="absolute inset-0 size-full object-cover object-left"
           decoding="async"
@@ -125,23 +125,12 @@ export function Login() {
       <main className="relative flex flex-1 flex-col justify-center px-4 py-10 sm:px-8 lg:px-12 xl:px-16">
         <div className="mx-auto w-full max-w-[400px] space-y-8 sm:space-y-10">
           <header className="w-full">
-            <div className="flex w-full flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-5 lg:gap-6">
-              <img
-                src="/dx-connect-mark.png"
-                alt=""
-                width={112}
-                height={112}
-                className="size-24 shrink-0 object-contain brightness-0 invert opacity-[0.96] drop-shadow-[0_0_24px_rgba(34,211,238,0.22)] sm:size-24 lg:size-28"
-                decoding="async"
-                aria-hidden
-              />
-              <h1 className="w-full text-center text-[2rem] font-semibold leading-[1.12] tracking-tight text-white sm:min-w-0 sm:flex-1 sm:text-left sm:text-4xl lg:text-[2.75rem] lg:leading-[1.08] drop-shadow-[0_0_24px_rgba(34,211,238,0.12)]">
-                <span className="bg-gradient-to-r from-cyan-300 to-sky-400 bg-clip-text font-bold text-transparent">
-                  DX
-                </span>
-                <span className="font-medium text-slate-100"> Connect</span>
-              </h1>
-            </div>
+            <BrandLogo
+              variant="full"
+              size="lg"
+              markVariant="onDark"
+              className="w-full flex-col items-center gap-4 sm:flex-row sm:items-center sm:justify-start sm:gap-5 lg:gap-6"
+            />
           </header>
 
           <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 shadow-2xl shadow-black/40 backdrop-blur-md sm:p-6">

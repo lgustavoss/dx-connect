@@ -74,7 +74,7 @@ export function RespostasProntasPicker({ setorId, disabled, onInserir }: Props) 
         Respostas prontas
       </Button>
       {aberto ? (
-        <div className="absolute bottom-full left-0 z-30 mb-2 w-[min(100vw-2rem,22rem)] rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+        <div className="absolute bottom-full left-0 z-30 mb-2 w-[min(100vw-2rem,22rem)] rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-slate-800 dark:bg-slate-900">
           <Input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}

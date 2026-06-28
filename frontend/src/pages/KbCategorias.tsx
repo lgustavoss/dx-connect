@@ -196,7 +196,7 @@ export function KbCategoriasPage({ embedded = false }: { embedded?: boolean }) {
                 {arvore.map(({ categoria, depth }) => (
                   <tr
                     key={categoria.id}
-                    className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${dragId === categoria.id ? 'opacity-60' : ''}`}
+                    className={`hover:bg-slate-50/80 dark:hover:bg-white/40 ${dragId === categoria.id ? 'opacity-60' : ''}`}
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={() => void soltarEm(categoria.id)}
                   >

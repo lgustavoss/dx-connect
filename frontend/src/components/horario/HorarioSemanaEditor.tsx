@@ -7,7 +7,7 @@ type Props = {
 
 export function HorarioSemanaEditor({ value, onChange }: Props) {
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/80">
+    <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800/80">
       <table className="w-full text-left text-sm">
         <thead className="bg-slate-50/70 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-slate-800/30 dark:text-slate-400">
           <tr>

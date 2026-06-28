@@ -5,8 +5,12 @@
     <script>
       (function () {
         try {
-          var k = 'dx-connect-theme'
-          var t = localStorage.getItem(k)
+          var legacy = 'dx-connect-theme'
+          var k = 'deskrudder-theme'
+          var t = localStorage.getItem(k) || localStorage.getItem(legacy)
+          if (t && !localStorage.getItem(k) && localStorage.getItem(legacy)) {
+            localStorage.setItem(k, t)
+          }
           var dark = t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)
           document.documentElement.classList.toggle('dark', dark)
           var m = document.querySelector('meta[name="theme-color"]')
@@ -14,13 +18,17 @@
         } catch (e) {}
       })()
     </script>
-    <link rel="icon" type="image/png" href="/dx-connect-mark.png" />
+    <link rel="icon" href="/favicon.ico?v=22" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/deskrudder-mark-32.png?v=22" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/deskrudder-mark-16.png?v=22" />
+    <link rel="apple-touch-icon" sizes="128x128" href="/deskrudder-mark-128.png?v=22" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#f8fafc" />
+    <meta name="application-name" content="DeskRudder" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <title>DX Connect</title>
+    <title>DeskRudder</title>
   </head>
   <body>
     <div id="root"></div>

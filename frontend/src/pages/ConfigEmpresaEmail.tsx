@@ -328,7 +328,7 @@ export function ConfigEmpresaEmail({ embedded = false, section }: ConfigEmpresaE
       ) : null}
 
       {abasInternas ? (
-        <div className="mt-5 border-b border-slate-200 dark:border-slate-700/80">
+        <div className="mt-5 border-b border-slate-200 dark:border-slate-800/80">
           <nav className="flex gap-1 sm:gap-2" aria-label="Seções">
             <button
               type="button"
@@ -337,7 +337,7 @@ export function ConfigEmpresaEmail({ embedded = false, section }: ConfigEmpresaE
               className={
                 aba === 'empresa'
                   ? 'border-b-2 border-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 dark:border-sky-400 dark:bg-slate-800/50 dark:text-white'
-                  : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/30 dark:hover:text-slate-200'
+                  : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/30 dark:hover:text-slate-200'
               }
             >
               Empresa
@@ -349,7 +349,7 @@ export function ConfigEmpresaEmail({ embedded = false, section }: ConfigEmpresaE
               className={
                 aba === 'email'
                   ? 'border-b-2 border-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 dark:border-sky-400 dark:bg-slate-800/50 dark:text-white'
-                  : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/30 dark:hover:text-slate-200'
+                  : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/30 dark:hover:text-slate-200'
               }
             >
               E-mail
@@ -432,7 +432,7 @@ export function ConfigEmpresaEmail({ embedded = false, section }: ConfigEmpresaE
                       type="button"
                       onClick={() => void consultarCnpjReceita()}
                       disabled={loadingCnpjConsulta}
-                      className="absolute right-1.5 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/30 disabled:pointer-events-none disabled:opacity-45 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-200"
+                      className="absolute right-1.5 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/30 disabled:pointer-events-none disabled:opacity-45 dark:text-slate-400 dark:hover:bg-white/70 dark:hover:text-slate-200"
                       aria-label="Consultar CNPJ na Receita Federal"
                     >
                       {loadingCnpjConsulta ? (
@@ -566,7 +566,7 @@ export function ConfigEmpresaEmail({ embedded = false, section }: ConfigEmpresaE
           <div className="mt-6 space-y-8">
             <p className="max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-400">
               Configure o <strong>encaminhamento</strong> por departamento (entrada de tickets). As{' '}
-              <strong>respostas por e-mail</strong> são enviadas pela infraestrutura DX Connect — não é necessário criar
+              <strong>respostas por e-mail</strong> são enviadas pela infraestrutura DeskRudder — não é necessário criar
               conta Resend nem configurar SMTP na sua organização.
             </p>
 
@@ -746,7 +746,7 @@ export function ConfigEmpresaEmail({ embedded = false, section }: ConfigEmpresaE
                     Encaminhamento; Outlook: Regras → Encaminhar para).
                   </li>
                   <li>
-                    Adicione o endereço DX Connect do setor (botão <strong>Copiar</strong>) como destino do encaminhamento —
+                    Adicione o endereço DeskRudder do setor (botão <strong>Copiar</strong>) como destino do encaminhamento —
                     use o valor <strong>exacto</strong> da coluna da tabela. Mantenha uma cópia na caixa original se a
                     ferramenta permitir.
                   </li>

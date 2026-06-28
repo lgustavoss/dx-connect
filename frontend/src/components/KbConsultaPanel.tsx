@@ -215,7 +215,7 @@ export function KbConsultaPanel({ onInserirReferencia, showInserir = false }: Pr
         {loadingArtigo ? (
           <p className="text-sm text-slate-500">Carregando…</p>
         ) : (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/50">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/50">
             <KbMarkdownPreview markdown={artigo.conteudo_markdown} />
           </div>
         )}
@@ -240,7 +240,7 @@ export function KbConsultaPanel({ onInserirReferencia, showInserir = false }: Pr
                 <button
                   type="button"
                   onClick={() => abrirArtigo(c.id, c.slug)}
-                  className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
                 >
                   {c.titulo}
                 </button>
@@ -272,13 +272,13 @@ export function KbConsultaPanel({ onInserirReferencia, showInserir = false }: Pr
               : 'Nenhum manual publicado encontrado. Peça a um administrador para publicar em Ajuda → Artigos.'}
           </p>
         ) : (
-          <ul className="divide-y divide-slate-200/80 overflow-hidden rounded-xl border border-slate-200/90 dark:divide-slate-800 dark:border-slate-700/80">
+          <ul className="divide-y divide-slate-200/80 overflow-hidden rounded-xl border border-slate-200/90 dark:divide-slate-800 dark:border-slate-800/80">
             {itens.map((item) => (
               <li key={item.id}>
                 <button
                   type="button"
                   onClick={() => abrirArtigo(item.id, item.slug)}
-                  className="flex w-full flex-col gap-0.5 px-4 py-3.5 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                  className="flex w-full flex-col gap-0.5 px-4 py-3.5 text-left transition-colors hover:bg-slate-50 dark:hover:bg-white/50"
                 >
                   <span className="font-medium text-slate-900 dark:text-slate-100">{item.titulo}</span>
                   <span className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">

@@ -232,7 +232,7 @@ export function SlaPoliticasPage({ embedded = false }: { embedded?: boolean }) {
       <Card className="mb-6 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 dark:border-slate-700 text-left">
+            <tr className="border-b border-slate-200 dark:border-slate-800 text-left">
               <th className="p-2">Setor</th>
               <th className="p-2">Prioridade</th>
               <th className="p-2">Natureza</th>
@@ -414,7 +414,7 @@ export function SlaPoliticasPage({ embedded = false }: { embedded?: boolean }) {
             </label>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-200">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-200">
             {preview}
           </div>
 

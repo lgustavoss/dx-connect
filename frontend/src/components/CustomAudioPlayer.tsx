@@ -71,7 +71,7 @@ export function CustomAudioPlayer({ src }: CustomAudioPlayerProps) {
   }
 
   return (
-    <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800/80 px-3 py-2 rounded-2xl w-full max-w-[280px] shadow-sm text-slate-800 dark:text-slate-200 border border-slate-200/40 dark:border-slate-700/50">
+    <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800/80 px-3 py-2 rounded-2xl w-full max-w-[280px] shadow-sm text-slate-800 dark:text-slate-200 border border-slate-200/40 dark:border-slate-800/50">
       <button
         type="button"
         onClick={togglePlay}

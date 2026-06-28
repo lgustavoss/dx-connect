@@ -239,7 +239,7 @@ export function Auditoria({ embedded = false }: { embedded?: boolean }) {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-400">
+                <tr className="border-b border-slate-200 dark:border-slate-800/80 text-slate-600 dark:text-slate-400">
                   <CabecalhoOrdenavel
                     coluna="created_at"
                     rotulo="Data/Hora"
@@ -300,7 +300,7 @@ export function Auditoria({ embedded = false }: { embedded?: boolean }) {
               </thead>
               <tbody>
                 {list.map((r) => (
-                  <tr key={r.id} className="border-b border-slate-100 dark:border-slate-700/60">
+                  <tr key={r.id} className="border-b border-slate-100 dark:border-slate-800/60">
                     <td className="py-2 pr-4 text-slate-600 dark:text-slate-400">
                       {r.created_at ? new Date(r.created_at).toLocaleString('pt-BR') : '—'}
                     </td>

@@ -441,7 +441,7 @@ export function Tickets() {
         }
       />
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-700/80 dark:bg-slate-900/40">
+      <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-800/80 dark:bg-slate-900/40">
         <div className="border-b border-slate-100/90 px-4 py-5 sm:px-6 dark:border-slate-800">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-3">
             <div className="relative min-w-0 flex-1">
@@ -465,7 +465,7 @@ export function Tickets() {
               aria-expanded={maisFiltrosAberto}
               aria-controls={painelFiltrosId}
               onClick={() => setMaisFiltrosAberto((o) => !o)}
-              className="inline-flex w-full shrink-0 items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800 sm:w-auto sm:justify-start"
+              className="inline-flex w-full shrink-0 items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:bg-slate-800 sm:w-auto sm:justify-start"
             >
               <span className="flex items-center gap-2">
                 <span
@@ -736,7 +736,7 @@ export function Tickets() {
                     key={t.id}
                     type="button"
                     onClick={() => navigate(`/tickets/${t.id}`)}
-                    className={`w-full px-4 py-4 text-left transition-colors hover:bg-slate-50/80 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-slate-800/40 dark:focus-visible:bg-slate-800/60 ${
+                    className={`w-full px-4 py-4 text-left transition-colors hover:bg-slate-50/80 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-white/40 dark:focus-visible:bg-slate-800/60 ${
                       proximoAuto
                         ? 'bg-amber-50/70 ring-1 ring-inset ring-amber-200/70 dark:bg-amber-950/25 dark:ring-amber-800/40'
                         : ''
@@ -952,7 +952,7 @@ export function Tickets() {
                         navigate(`/tickets/${t.id}`)
                       }
                     }}
-                    className={`cursor-pointer transition-colors hover:bg-slate-50/90 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-slate-800/50 dark:focus-visible:bg-slate-800/60 ${
+                    className={`cursor-pointer transition-colors hover:bg-slate-50/90 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-white/50 dark:focus-visible:bg-slate-800/60 ${
                       proximoAuto
                         ? 'bg-amber-50/70 ring-1 ring-inset ring-amber-200/70 dark:bg-amber-950/25 dark:ring-amber-800/40'
                         : ''

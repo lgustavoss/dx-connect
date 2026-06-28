@@ -140,7 +140,7 @@ export function RespostasProntasPage({ embedded = false }: { embedded?: boolean 
                         navigate(`/respostas-prontas/${item.id}`)
                       }
                     }}
-                    className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:outline-none focus-visible:bg-slate-100/80 dark:focus-visible:bg-slate-800/60"
+                    className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-white/50 focus:outline-none focus-visible:bg-slate-100/80 dark:focus-visible:bg-slate-800/60"
                   >
                     <td className="px-4 py-3.5 font-medium text-slate-800 sm:px-6 dark:text-slate-100">{item.titulo}</td>
                     <td className="px-4 py-3.5 text-slate-600 sm:px-6 dark:text-slate-400">

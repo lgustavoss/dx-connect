@@ -128,7 +128,7 @@ export function WhatsappDemandasPanel({ chatId, podeRegistrar, onDemandasChange 
           {demandas.slice(0, 3).map((d) => (
             <span
               key={d.id}
-              className="inline-flex max-w-[12rem] truncate rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              className="inline-flex max-w-[12rem] truncate rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-200"
               title={d.motivo_nome ? `${d.natureza_nome} · ${d.motivo_nome}` : d.natureza_nome ?? undefined}
             >
               {d.natureza_nome}
@@ -152,7 +152,7 @@ export function WhatsappDemandasPanel({ chatId, podeRegistrar, onDemandasChange 
       </div>
 
       {expandido && podeRegistrar && (
-        <div className="mt-2 flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+        <div className="mt-2 flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
           <div className="min-w-[10rem] flex-1">
             <Select
               label="Natureza"

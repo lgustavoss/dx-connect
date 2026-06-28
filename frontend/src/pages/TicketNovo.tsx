@@ -273,7 +273,7 @@ export function TicketNovo() {
       <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Novo ticket</h1>
 
       {paiCarregando && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-200">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-200">
           Carregando dados do ticket pai…
         </div>
       )}
@@ -480,7 +480,7 @@ export function TicketNovo() {
         </div>
       </div>
 
-      <div className="z-10 -mx-4 shrink-0 border-t border-slate-200 bg-white px-4 py-4 shadow-[0_-8px_24px_-4px_rgba(15,23,42,0.12)] dark:border-slate-700 dark:bg-slate-900 dark:shadow-[0_-8px_24px_-4px_rgba(0,0,0,0.45)] md:-mx-6 md:px-6">
+      <div className="z-10 -mx-4 shrink-0 border-t border-slate-200 bg-white px-4 py-4 shadow-[0_-8px_24px_-4px_rgba(15,23,42,0.12)] dark:border-slate-800 dark:bg-slate-900 dark:shadow-[0_-8px_24px_-4px_rgba(0,0,0,0.45)] md:-mx-6 md:px-6">
         <div className="mx-auto flex max-w-3xl flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button type="button" variant="secondary" onClick={voltarAnterior} className="w-full sm:w-auto">
             Cancelar

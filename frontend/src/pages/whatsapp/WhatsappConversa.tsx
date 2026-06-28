@@ -117,6 +117,14 @@ function ConteudoMensagemWhatsApp({ chatId, m, onImageClick }: { chatId: number;
 
   if (tipo === 'texto' || !m.tipo_midia) return <p className="whitespace-pre-wrap">{m.corpo}</p>
 
+  if (!m.midia_disponivel) {
+    return (
+      <p className="text-xs italic opacity-70" title="O ficheiro não foi obtido da Evolution API">
+        {m.corpo || 'Mídia não disponível'}
+      </p>
+    )
+  }
+
   if (loading || !url) return <p className="text-[10px] animate-pulse opacity-50">Carregando mídia...</p>
 
   if (err) return <p className="text-[10px] italic opacity-50">Erro ao carregar mídia</p>
@@ -769,7 +777,7 @@ useEffect(() => {
                     {chat.funcionario_tipo ? ` · ${chat.funcionario_tipo}` : ''}
                   </Link>
                   {chat.empresa_nome && (
-                    <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                    <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
                       {chat.empresa_nome}
                     </span>
                   )}

@@ -4,9 +4,10 @@ import { auth } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
+import { BrandLogo } from '../brand'
 
 const fieldClass =
-  'w-full rounded-xl border border-white/10 bg-white/[0.06] px-3.5 py-3 text-[0.9375rem] text-slate-100 placeholder:text-slate-500 shadow-inner shadow-black/20 backdrop-blur-sm transition-colors focus:border-cyan-400/50 focus:outline-none focus:ring-2 focus:ring-cyan-400/25'
+  'w-full rounded-xl border border-white/10 bg-white/[0.06] px-3.5 py-3 text-[0.9375rem] text-slate-100 placeholder:text-slate-500 shadow-inner shadow-black/20 backdrop-blur-sm transition-colors focus:border-teal-400/50 focus:outline-none focus:ring-2 focus:ring-teal-400/25'
 
 export function EsqueciSenha() {
   const [email, setEmail] = useState('')
@@ -34,11 +35,12 @@ export function EsqueciSenha() {
   }
 
   return (
-    <div className="relative flex h-dvh max-h-dvh min-h-0 flex-col overflow-y-auto bg-[#050810] px-4 py-10 font-[family-name:'Plus_Jakarta_Sans',system-ui,sans-serif] text-slate-100 antialiased">
-      <div className="mx-auto w-full max-w-[400px] space-y-6">
-        <header className="text-center">
-          <h1 className="text-2xl font-semibold text-white">Esqueci minha senha</h1>
-          <p className="mt-2 text-sm text-slate-400">
+    <div className="relative flex h-dvh max-h-dvh min-h-0 flex-col overflow-y-auto bg-[#050810] px-4 py-10 font-sans text-slate-100 antialiased">
+      <div className="mx-auto w-full max-w-[400px] space-y-8">
+        <header className="w-full">
+          <BrandLogo variant="lockup" size="md" markVariant="onDark" className="mx-auto" />
+          <h1 className="mt-6 text-center text-xl font-semibold text-slate-100">Esqueci minha senha</h1>
+          <p className="mt-2 text-center text-sm text-slate-400">
             Informe o e-mail da sua conta. Se estiver cadastrado, enviaremos um link para redefinir a senha.
           </p>
         </header>
@@ -66,7 +68,7 @@ export function EsqueciSenha() {
               </div>
               <Button
                 type="submit"
-                className="w-full rounded-xl py-3 text-base font-semibold shadow-lg shadow-cyan-500/25 disabled:opacity-60"
+                className="w-full rounded-xl py-3 text-base font-semibold shadow-lg shadow-teal-500/25 focus-visible:ring-offset-slate-950 disabled:opacity-60"
                 loading={loading}
               >
                 Enviar link
@@ -76,7 +78,7 @@ export function EsqueciSenha() {
         </div>
 
         <p className="text-center text-sm">
-          <Link to="/login" className="text-cyan-400/90 hover:text-cyan-300">
+          <Link to="/login" className="text-teal-400/90 hover:text-teal-300">
             Voltar ao login
           </Link>
         </p>

@@ -92,7 +92,7 @@ export function TicketBuscaPicker({
       />
       {hint ? <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{hint}</p> : null}
       <div
-        className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-slate-200/90 bg-white dark:border-slate-700/80 dark:bg-slate-950/40"
+        className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-slate-200/90 bg-white dark:border-slate-800/80 dark:bg-slate-950/40"
         role="listbox"
         aria-label="Tickets em aberto"
       >

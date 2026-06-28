@@ -113,7 +113,7 @@ export function NotificacoesPreferencias() {
             statusOffText="Inativo"
           />
 
-          <div className="space-y-4 border-t border-slate-200 pt-4 dark:border-slate-700">
+          <div className="space-y-4 border-t border-slate-200 pt-4 dark:border-slate-800">
             <Switch
               checked={prefs.email_ticket_atribuido}
               onCheckedChange={(v) => setPrefs((p) => ({ ...p, email_ticket_atribuido: v }))}
@@ -155,7 +155,7 @@ export function NotificacoesPreferencias() {
             />
           </div>
 
-          <div className="flex justify-end border-t border-slate-200 pt-4 dark:border-slate-700">
+          <div className="flex justify-end border-t border-slate-200 pt-4 dark:border-slate-800">
             <Button type="submit" disabled={saving}>
               {saving ? 'Salvando…' : 'Salvar preferências'}
             </Button>
