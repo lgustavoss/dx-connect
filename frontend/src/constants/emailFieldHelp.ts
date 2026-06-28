@@ -72,7 +72,7 @@ export function getEmailFieldHelp(
         steps: [
           'Com verificação em duas etapas ativa, o Gmail não aceita a senha normal do site.',
           'Na Conta Google: Segurança → verificação em duas etapas ativa → «Senhas de app».',
-          'Crie uma senha para a app «Correio» (dispositivo «Outro», ex.: DX Connect), copie os 16 caracteres e cole aqui.',
+          'Crie uma senha para a app «Correio» (dispositivo «Outro», ex.: DeskRudder), copie os 16 caracteres e cole aqui.',
           'Esta senha é usada automaticamente para envio e receção. Deixe em branco ao guardar se quiser manter a senha já gravada no sistema.',
         ],
       }

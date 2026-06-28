@@ -70,7 +70,7 @@ export function AlterarSenha() {
               <button
                 type="button"
                 onClick={() => setMostrarAtual((v) => !v)}
-                className="absolute right-1.5 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/30 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-200"
+                className="absolute right-1.5 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/30 dark:text-slate-400 dark:hover:bg-white/70 dark:hover:text-slate-200"
                 aria-label={mostrarAtual ? 'Ocultar senha atual' : 'Mostrar senha atual'}
                 aria-pressed={mostrarAtual}
               >
@@ -96,7 +96,7 @@ export function AlterarSenha() {
               <button
                 type="button"
                 onClick={() => setMostrarNova((v) => !v)}
-                className="absolute right-1.5 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/30 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-200"
+                className="absolute right-1.5 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/30 dark:text-slate-400 dark:hover:bg-white/70 dark:hover:text-slate-200"
                 aria-label={mostrarNova ? 'Ocultar nova senha' : 'Mostrar nova senha'}
                 aria-pressed={mostrarNova}
               >
@@ -122,7 +122,7 @@ export function AlterarSenha() {
               <button
                 type="button"
                 onClick={() => setMostrarConf((v) => !v)}
-                className="absolute right-1.5 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/30 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-200"
+                className="absolute right-1.5 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/30 dark:text-slate-400 dark:hover:bg-white/70 dark:hover:text-slate-200"
                 aria-label={mostrarConf ? 'Ocultar confirmação' : 'Mostrar confirmação'}
                 aria-pressed={mostrarConf}
               >

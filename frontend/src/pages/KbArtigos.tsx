@@ -160,7 +160,7 @@ export function KbArtigosPage({ embedded = false }: { embedded?: boolean }) {
         ) : list.length === 0 ? (
           <p className="py-6 text-center text-sm text-slate-500">Nenhum artigo encontrado.</p>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-slate-200/90 dark:border-slate-700/80">
+          <div className="overflow-x-auto rounded-xl border border-slate-200/90 dark:border-slate-800/80">
             <table className="w-full min-w-[720px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
@@ -173,7 +173,7 @@ export function KbArtigosPage({ embedded = false }: { embedded?: boolean }) {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {list.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
+                  <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-white/40">
                     <td className="px-4 py-3 font-medium">
                       {item.titulo}
                       {item.interno_only ? (

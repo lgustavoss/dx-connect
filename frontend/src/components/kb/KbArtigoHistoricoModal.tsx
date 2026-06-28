@@ -38,14 +38,14 @@ export function KbArtigoHistoricoModal({
   return (
     <div className={MODAL_OVERLAY} role="dialog" aria-modal="true" onClick={onClose}>
       <div className={MODAL_PANEL_WIDE_SHELL} onClick={(e) => e.stopPropagation()}>
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-700">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Histórico de versões</h2>
           <Button type="button" variant="secondary" onClick={onClose}>
             Fechar
           </Button>
         </div>
         <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[minmax(220px,280px)_1fr]">
-          <div className="min-h-0 overflow-y-auto border-b border-slate-200 p-3 dark:border-slate-700 lg:border-b-0 lg:border-r">
+          <div className="min-h-0 overflow-y-auto border-b border-slate-200 p-3 dark:border-slate-800 lg:border-b-0 lg:border-r">
             {loading ? (
               <p className="text-sm text-slate-500">Carregando…</p>
             ) : versions.length === 0 ? (
@@ -60,7 +60,7 @@ export function KbArtigoHistoricoModal({
                       className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
                         selectedVersion?.id === v.id
                           ? 'bg-cyan-50 text-cyan-950 dark:bg-cyan-950/40 dark:text-cyan-100'
-                          : 'hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                          : 'hover:bg-slate-100 dark:hover:bg-slate-800/80'
                       }`}
                     >
                       <span className="font-medium">{v.titulo}</span>

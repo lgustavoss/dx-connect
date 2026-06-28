@@ -234,7 +234,7 @@ export function ConfigPdvCatalogos({ embedded = false }: { embedded?: boolean })
         />
       )}
 
-      <div className="border-b border-slate-200 dark:border-slate-700">
+      <div className="border-b border-slate-200 dark:border-slate-800">
         <nav className="-mb-px flex gap-1" aria-label="Tipo de catálogo">
           {ABAS.map((t) => tabBtn(t.id, t.rotulo))}
         </nav>
@@ -285,7 +285,7 @@ export function ConfigPdvCatalogos({ embedded = false }: { embedded?: boolean })
                 {items.map((item) => (
                   <tr
                     key={item.id}
-                    className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
+                    className="transition-colors hover:bg-slate-50/80 dark:hover:bg-white/40"
                   >
                     <td className="px-4 py-3.5 font-medium text-slate-800 dark:text-slate-100 sm:px-6">{item.nome}</td>
                     <td className="px-4 py-3.5 text-center tabular-nums text-slate-600 dark:text-slate-400 sm:px-6">
@@ -369,7 +369,7 @@ export function ConfigPdvCatalogos({ embedded = false }: { embedded?: boolean })
                 label="Ativo"
                 showStatusPill
               />
-              <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 dark:border-slate-700">
+              <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
                 <Button type="button" variant="secondary" onClick={fecharModal}>
                   Cancelar
                 </Button>

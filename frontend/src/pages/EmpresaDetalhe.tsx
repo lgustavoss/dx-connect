@@ -258,7 +258,7 @@ export function EmpresaDetalhe() {
       className={
         aba === key
           ? 'border-b-2 border-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 dark:border-sky-400 dark:bg-slate-800/50 dark:text-white'
-          : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/30 dark:hover:text-slate-200'
+          : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/30 dark:hover:text-slate-200'
       }
     >
       {label}
@@ -321,7 +321,7 @@ export function EmpresaDetalhe() {
 
       {aba === 'geral' && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
+          <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
             <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
               Vínculos
             </h2>
@@ -347,7 +347,7 @@ export function EmpresaDetalhe() {
             </dl>
           </section>
 
-          <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
+          <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
             <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
               Contato
             </h2>
@@ -357,7 +357,7 @@ export function EmpresaDetalhe() {
             </dl>
           </section>
 
-          <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
+          <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
             <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
               Dados cadastrais
             </h2>
@@ -368,7 +368,7 @@ export function EmpresaDetalhe() {
             </dl>
           </section>
 
-          <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
+          <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
             <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
               Endereço
             </h2>
@@ -380,7 +380,7 @@ export function EmpresaDetalhe() {
             </dl>
           </section>
 
-          <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7 lg:col-span-2">
+          <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7 lg:col-span-2">
             <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
               Responsável legal
             </h2>
@@ -407,7 +407,7 @@ export function EmpresaDetalhe() {
       )}
 
       {aba === 'tickets' && (
-        <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
+        <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
           <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
             Tickets abertos e encerrados vinculados a esta empresa.
           </p>
@@ -438,7 +438,7 @@ export function EmpresaDetalhe() {
       )}
 
       {aba === 'funcionarios' && (
-        <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
+        <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
           <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
             Funcionários da rede associados a esta empresa (sócio, supervisor ou colaborador).
           </p>
@@ -478,7 +478,7 @@ export function EmpresaDetalhe() {
       )}
 
       {aba === 'pdvs' && (
-        <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
+        <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
           <EmpresaPdvsPanel empresaId={empresa.id} />
         </section>
       )}

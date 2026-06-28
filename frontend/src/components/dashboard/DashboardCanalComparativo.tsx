@@ -18,7 +18,7 @@ function ComparativoItem({
   hrefLabel: string
 }) {
   return (
-    <div className="flex min-w-[9rem] flex-1 flex-col gap-1 rounded-lg border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40">
+    <div className="flex min-w-[9rem] flex-1 flex-col gap-1 rounded-lg border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900/40">
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
       <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{value}</p>
       <Link to={href} className="text-xs font-medium text-cyan-700 hover:text-cyan-800 dark:text-cyan-400">

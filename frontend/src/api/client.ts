@@ -1018,9 +1018,10 @@ export const whatsappChats = {
 
     // Infere o tipo de mídia
     let mediatipo = 'documento'
+    const nome = file.name.toLowerCase()
     if (file.type.startsWith('image/')) {
       mediatipo = 'imagem'
-    } else if (file.type.startsWith('audio/')) {
+    } else if (file.type.startsWith('audio/') || nome.endsWith('.webm') || nome.endsWith('.ogg') || nome.endsWith('.m4a')) {
       mediatipo = 'audio'
     } else if (file.type.startsWith('video/')) {
       mediatipo = 'video'

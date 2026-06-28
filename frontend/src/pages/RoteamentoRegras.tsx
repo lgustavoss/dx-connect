@@ -224,7 +224,7 @@ export function RoteamentoRegrasPage({ embedded = false }: { embedded?: boolean 
       <Card className="mb-6 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 dark:border-slate-700 text-left">
+            <tr className="border-b border-slate-200 dark:border-slate-800 text-left">
               <th className="p-2 w-20">Ordem</th>
               <th className="p-2">Nome</th>
               <th className="p-2">Escopo</th>

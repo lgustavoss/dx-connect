@@ -9,6 +9,7 @@ from app.models.whatsapp_chat import WhatsappChat, WhatsappMensagem, WhatsappSet
 from app.services import evolution_api
 from app.services.protocolo_mensal import gerar_protocolo_chat
 from app.services.evolution_inbound import iter_inbound_whatsapp_messages
+from app.services.whatsapp_media_storage import gravar_base64_em_disco
 from app.services.whatsapp_auto_messages import (
     DEFAULT_AUTO_MSG_ESPERA,
     DEFAULT_AUTO_MSG_FORA_HORARIO,
@@ -37,6 +38,54 @@ def _webhook_autorizado(request: Request, secret: str | None) -> bool:
 
 def _get_settings(db: Session) -> WhatsappSettings | None:
     return db.query(WhatsappSettings).order_by(WhatsappSettings.id.asc()).first()
+
+
+def _baixar_midia_inbound(
+    *,
+    item: dict,
+    st_media: WhatsappSettings | None,
+    tipo: str,
+    wa_id: str,
+    wa_mid: str | None,
+) -> str | None:
+    """Obtém base64 na Evolution e grava em disco. Devolve basename ou None."""
+    if tipo == "texto":
+        return None
+    raw_env = item.get("raw_envelope")
+    if not (
+        isinstance(raw_env, dict)
+        and st_media
+        and st_media.evolution_base_url
+        and st_media.evolution_instance_name
+        and st_media.evolution_api_key
+    ):
+        logger.warning(
+            "Webhook Evolution: integração incompleta para obter mídia (wa_id=%s wa_message_id=%s tipo=%s)",
+            wa_id,
+            wa_mid,
+            tipo,
+        )
+        return None
+    mimetype_val = item.get("mimetype")
+    ok, b64, err = evolution_api.evolution_get_base64_from_media_message(
+        st_media.evolution_base_url,
+        st_media.evolution_instance_name,
+        st_media.evolution_api_key,
+        raw_env,
+        convert_to_mp4=(tipo in ("video", "audio")),
+    )
+    if ok and b64:
+        nome = gravar_base64_em_disco(b64, mimetype_val)
+        if nome:
+            return nome
+    logger.warning(
+        "Webhook Evolution: mídia não gravada (wa_id=%s wa_message_id=%s tipo=%s): %s",
+        wa_id,
+        wa_mid,
+        tipo,
+        err or "sem ficheiro",
+    )
+    return None
 
 
 def _chat_aberto_por_wa_id(db: Session, wa_id: str) -> WhatsappChat | None:
@@ -304,7 +353,13 @@ def evolution_webhook(
 
         tipo_midia = tipo
         mimetype_val = item.get("mimetype")
-        midia_nome: str | None = None
+        midia_nome = _baixar_midia_inbound(
+            item=item,
+            st_media=st_media,
+            tipo=tipo,
+            wa_id=wa_id,
+            wa_mid=wa_mid,
+        )
 
         chat = _chat_aberto_por_wa_id(db, wa_id)
         if chat and chat.estado == "aguardando_avaliacao":
@@ -342,42 +397,11 @@ def evolution_webhook(
                 raise
             continue
 
-        if tipo != "texto":
-            raw_env = item.get("raw_envelope")
-            if (
-                isinstance(raw_env, dict)
-                and st_media
-                and st_media.evolution_base_url
-                and st_media.evolution_instance_name
-                and st_media.evolution_api_key
-            ):
-                ok, b64, err = evolution_api.evolution_get_base64_from_media_message(
-                    st_media.evolution_base_url,
-                    st_media.evolution_instance_name,
-                    st_media.evolution_api_key,
-                    raw_env,
-                    convert_to_mp4=(tipo == "video"),
-                )
-                if ok and b64:
-                    midia_nome = gravar_base64_em_disco(b64, mimetype_val)
-                if not midia_nome:
-                    logger.warning(
-                        "Webhook Evolution: mídia não gravada (wa_id=%s tipo=%s): %s",
-                        wa_id,
-                        tipo,
-                        err or "sem ficheiro",
-                    )
-            elif tipo != "texto":
-                logger.warning(
-                    "Webhook Evolution: integração incompleta para obter mídia (wa_id=%s tipo=%s)",
-                    wa_id,
-                    tipo,
-                )
-        else:
+        if tipo == "texto":
             tipo_midia = "texto"
             mimetype_val = None
+            midia_nome = None
 
-        chat = _chat_aberto_por_wa_id(db, wa_id)
         chat_novo = False
         if not chat:
             chat_novo = True

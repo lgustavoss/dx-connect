@@ -352,7 +352,7 @@ export function SetorDetalhe() {
                   Todos os atendentes vinculados ao setor
                 </label>
                 {!distUsarTodos && (
-                  <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                  <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
                     {vinculadosOperacionais.length === 0 ? (
                       <p className="text-sm text-slate-500 dark:text-slate-400">Nenhum atendente operacional vinculado.</p>
                     ) : (
@@ -431,7 +431,7 @@ export function SetorDetalhe() {
                     .slice()
                     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
                     .map((a) => (
-                      <tr key={a.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                      <tr key={a.id} className="hover:bg-slate-50 dark:hover:bg-white/50">
                         <td className="px-4 py-3.5">
                           <span className={`font-medium ${a.ativo ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400'}`}>
                             {a.nome}

@@ -1,0 +1,1096 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DeskRudder — preview da marca</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        /* Marca */
+        --navy: #0b2d4a;
+        --navy-mid: #134166;
+        --teal: #0d9488;
+        --teal-light: #14b8a6;
+        --sky: #0284c7;
+        --brass: #c9973a;
+        --deck: #f8fafc;
+        --ink: #0f172a;
+        /* Tema escuro — app (index.css) */
+        --dr-deep: #071826;
+        --dr-panel: #0a1628;
+        --dr-navy: #0b2d4a;
+        --dr-navy-mid: #134166;
+        --dr-surface: #0e2438;
+        --dr-surface-elevated: #112d45;
+        /* Tema claro — app */
+        --lt-bg: #f8fafc;
+        --lt-bg-subtle: #f1f5f9;
+        --lt-surface: #ffffff;
+        --lt-border: #e2e8f0;
+        --lt-text: #0f172a;
+        --lt-muted: #64748b;
+        --lt-nav-active: #f0fdfa;
+        --lt-nav-active-ring: #99f6e4;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+        background: #eef2f6;
+        color: var(--ink);
+        line-height: 1.5;
+      }
+      .wrap {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 2rem 1.25rem 4rem;
+      }
+      h1 {
+        font-size: 1.75rem;
+        margin: 0 0 0.35rem;
+      }
+      .sub {
+        color: #64748b;
+        margin: 0 0 2rem;
+        font-size: 0.95rem;
+      }
+      .grid {
+        display: grid;
+        gap: 1.25rem;
+      }
+      @media (min-width: 720px) {
+        .grid-2 {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      .card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 1.25rem;
+        box-shadow: 0 1px 3px rgb(15 23 42 / 6%);
+      }
+      .card h2 {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #64748b;
+        margin: 0 0 1rem;
+        font-weight: 600;
+      }
+      .preview-box {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 160px;
+        border-radius: 12px;
+        padding: 1.5rem;
+      }
+      .preview-box.light {
+        background: var(--deck);
+        border: 1px dashed #cbd5e1;
+      }
+      .preview-box.dark {
+        background: linear-gradient(to bottom right, #0b2d4a, #134166, #0a4d6e);
+      }
+      .preview-box.dark-row {
+        background: var(--dr-navy);
+        border-radius: 10px;
+        padding: 0.75rem 1rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+      .size-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.25rem;
+        margin-top: 1rem;
+        align-items: flex-end;
+      }
+      .size-row-label {
+        width: 100%;
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+        margin-bottom: -0.35rem;
+      }
+      .mark-hero {
+        width: 160px;
+        height: 160px;
+      }
+      .preview-box img,
+      .preview-box svg {
+        max-width: 100%;
+        height: auto;
+      }
+      .sizes {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: 1.5rem;
+        margin-top: 1rem;
+      }
+      .size-item {
+        text-align: center;
+        font-size: 0.7rem;
+        color: #64748b;
+      }
+      .wordmark {
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+      .wordmark .desk {
+        font-weight: 600;
+        color: #0b2d4a;
+      }
+      .wordmark .rudder {
+        font-weight: 700;
+        color: #0284c7;
+      }
+      .wordmark.on-dark .desk {
+        color: #f1f5f9;
+      }
+      .wordmark.on-dark .rudder {
+        color: #38bdf8;
+      }
+      .theme-block-title {
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #64748b;
+        margin: 0 0 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .theme-block-title.dark-label {
+        color: #94a3b8;
+        border-bottom-color: var(--dr-border);
+      }
+      .mark-on-dark {
+        object-fit: contain;
+      }
+      .brand-lockup {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+        text-align: center;
+      }
+      .brand-lockup .wordmark {
+        line-height: 1.15;
+      }
+      .brand-lockup .tagline-on-dark {
+        margin: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.375rem 1rem;
+        border-radius: 10px;
+        border: 1px solid rgb(255 255 255 / 10%);
+        background: rgb(255 255 255 / 6%);
+        box-shadow: inset 0 1px 2px rgb(0 0 0 / 20%);
+        font-size: 0.875rem;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        color: #cbd5e1;
+      }
+      .tagline-pill {
+        margin: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.3rem 0.875rem;
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        color: #475569;
+      }
+      .brand-lockup.lg .mark-on-dark {
+        width: auto;
+        height: 128px;
+        max-width: 100%;
+      }
+      .brand-lockup.md .mark-on-dark {
+        width: 80px;
+        height: 80px;
+      }
+      .brand-lockup.md {
+        gap: 0.65rem;
+      }
+      .brand-lockup.md .tagline-on-dark {
+        font-size: 0.8125rem;
+        padding: 0.3rem 0.875rem;
+      }
+      .brand-lockup.lg .tagline-on-dark {
+        font-size: 0.9375rem;
+        padding: 0.375rem 1.125rem;
+      }
+      .ui-mock-nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.65rem 1rem;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+      }
+      .ui-mock-nav.dark {
+        background: var(--dr-deep);
+        border-color: var(--dr-border);
+      }
+      .ui-mock-nav.dark .mock-meta {
+        color: #94a3b8;
+      }
+      .ui-mock-sidebar {
+        width: 220px;
+        padding: 1rem 0.75rem;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+      }
+      .ui-mock-sidebar.dark {
+        background: var(--dr-navy);
+        border-color: var(--dr-navy-mid);
+      }
+      .ui-mock-sidebar .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        padding: 0.5rem 0.65rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        color: #475569;
+      }
+      .ui-mock-sidebar.dark .nav-item {
+        color: #cbd5e1;
+      }
+      .ui-mock-sidebar .nav-item.active {
+        background: #f0fdfa;
+        color: #0d9488;
+        font-weight: 600;
+      }
+      .ui-mock-sidebar.dark .nav-item.active {
+        background: rgb(255 255 255 / 10%);
+        color: #5eead4;
+        box-shadow: inset 0 0 0 1px rgb(45 212 191 / 25%);
+      }
+      .ui-mock-surface {
+        background: var(--dr-surface);
+        border: 1px solid var(--dr-border);
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        color: #cbd5e1;
+        box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
+      }
+      .ui-mock-surface .mock-label {
+        font-size: 0.75rem;
+        color: #94a3b8;
+        margin: 0 0 0.35rem;
+      }
+      .ui-mock-surface .mock-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #f1f5f9;
+        margin: 0;
+      }
+      .ui-mock-tabs {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+        padding: 0.25rem;
+        border-radius: 12px;
+        border: 1px solid var(--dr-border);
+        background: rgb(14 36 56 / 70%);
+      }
+      .ui-mock-tabs .tab {
+        padding: 0.45rem 1rem;
+        border-radius: 8px;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: #cbd5e1;
+      }
+      .ui-mock-tabs .tab.active {
+        background: linear-gradient(90deg, #0ea5e9, #0284c7);
+        color: #fff;
+        box-shadow: 0 1px 2px rgb(2 132 199 / 25%);
+      }
+      .ui-mock-tabs.light {
+        border-color: var(--lt-border);
+        background: var(--lt-bg);
+      }
+      .ui-mock-tabs.light .tab {
+        color: #475569;
+      }
+      .ui-mock-tabs.light .tab.active {
+        background: linear-gradient(90deg, #0ea5e9, #0284c7);
+        color: #fff;
+      }
+      .ui-mock-canvas-light {
+        background: linear-gradient(180deg, var(--lt-bg), rgb(241 245 249 / 90%));
+        border-radius: 12px;
+        padding: 1rem;
+        border: 1px solid var(--lt-border);
+      }
+      .ui-mock-surface-light {
+        background: var(--lt-surface);
+        border: 1px solid var(--lt-border);
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        box-shadow: 0 1px 3px rgb(15 23 42 / 6%);
+      }
+      .ui-mock-surface-light .mock-label {
+        font-size: 0.75rem;
+        color: var(--lt-muted);
+        margin: 0 0 0.35rem;
+      }
+      .ui-mock-surface-light .mock-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin: 0;
+      }
+      .login-panel-gradient {
+        background: linear-gradient(to bottom right, #0b2d4a, #134166, #0a4d6e);
+        position: relative;
+      }
+      .login-panel-gradient::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(to right, transparent, transparent, rgb(7 24 38 / 40%));
+        pointer-events: none;
+      }
+      .login-form-card {
+        width: 100%;
+        max-width: 15rem;
+        border-radius: 16px;
+        border: 1px solid rgb(255 255 255 / 8%);
+        background: rgb(255 255 255 / 3%);
+        padding: 1rem;
+        box-shadow: 0 25px 50px -12px rgb(0 0 0 / 40%);
+      }
+      .login-field {
+        height: 36px;
+        border-radius: 10px;
+        background: rgb(255 255 255 / 6%);
+        border: 1px solid rgb(255 255 255 / 10%);
+        margin-bottom: 0.5rem;
+        box-shadow: inset 0 1px 2px rgb(0 0 0 / 20%);
+      }
+      .login-btn-mock {
+        height: 38px;
+        border-radius: 10px;
+        margin-top: 0.25rem;
+        background: linear-gradient(90deg, #14b8a6, #0284c7);
+        box-shadow: 0 10px 15px -3px rgb(20 184 166 / 25%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: #0f172a;
+      }
+      .lockup-light-surface {
+        background: var(--lt-bg);
+        border: 1px dashed var(--lt-border);
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+      }
+      .swatch-group-label {
+        width: 100%;
+        margin: 0.75rem 0 0.35rem;
+        font-size: 0.68rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      .swatch-group-label:first-child {
+        margin-top: 0;
+      }
+      .swatch code {
+        display: block;
+        margin-top: 0.15rem;
+        font-size: 0.58rem;
+        color: #94a3b8;
+        font-family: ui-monospace, monospace;
+      }
+      .swatches {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+      }
+      .swatch {
+        width: 72px;
+        text-align: center;
+        font-size: 0.65rem;
+        color: #64748b;
+      }
+      .swatch div {
+        height: 48px;
+        border-radius: 10px;
+        margin-bottom: 0.35rem;
+        border: 1px solid rgb(0 0 0 / 8%);
+      }
+      .login-mock {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        min-height: 280px;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid #e2e8f0;
+      }
+      .login-mock aside {
+        position: relative;
+        overflow: hidden;
+        background: linear-gradient(to bottom right, #0b2d4a, #134166, #0a4d6e);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+      }
+      .login-mock aside::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(to right, transparent, transparent, rgb(7 24 38 / 40%));
+        pointer-events: none;
+      }
+      .login-mock aside .brand-lockup {
+        position: relative;
+        z-index: 1;
+      }
+      .login-mock aside img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: left center;
+        display: block;
+      }
+      .login-mock main {
+        background: var(--dr-deep);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+        gap: 0.75rem;
+      }
+      .tagline {
+        font-size: 0.75rem;
+        color: #94a3b8;
+        text-align: center;
+        max-width: 14rem;
+      }
+      @media (max-width: 640px) {
+        .login-mock {
+          grid-template-columns: 1fr;
+        }
+        .login-mock aside {
+          min-height: 140px;
+        }
+      }
+      .note {
+        margin-top: 2rem;
+        padding: 1rem 1.25rem;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-radius: 12px;
+        font-size: 0.875rem;
+        color: #92400e;
+      }
+      .note strong {
+        display: block;
+        margin-bottom: 0.25rem;
+      }
+      .concept-desc {
+        margin: 0.75rem 0 0;
+        font-size: 0.82rem;
+        color: #475569;
+        line-height: 1.45;
+      }
+      .concept-tag {
+        display: inline-block;
+        margin-top: 0.5rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        background: #f1f5f9;
+        color: #64748b;
+      }
+      .card.recommended {
+        border-color: #0d9488;
+        box-shadow: 0 0 0 1px rgb(13 148 136 / 15%);
+      }
+      .card.recommended .concept-tag {
+        background: #ccfbf1;
+        color: #0f766e;
+      }
+      .intro-box {
+        margin-bottom: 1.5rem;
+        padding: 1rem 1.25rem;
+        background: #f0fdfa;
+        border: 1px solid #99f6e4;
+        border-radius: 12px;
+        font-size: 0.9rem;
+        color: #115e59;
+      }
+      @media (min-width: 900px) {
+        .grid-3 {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>DeskRudder — preview da identidade</h1>
+      <p class="sub">
+        Página temporária para avaliar logo e assets antes de adotar no produto.
+        Arquivos em <code>frontend/public/</code>.
+      </p>
+
+      <div class="intro-box">
+        <strong>Tema claro + escuro navy</strong>
+        Mocks espelham <code>BrandLogo</code>, <code>Layout</code> e <code>Login.tsx</code>:
+        claro (<code>#F8FAFC</code>, Desk <code>#0B2D4A</code>) · escuro (sidebar <code>#0B2D4A</code>, fundo <code>#071826</code>).
+      </div>
+
+      <div class="card recommended" style="margin-bottom: 1.25rem">
+        <h2>Logo completa</h2>
+        <div class="preview-box light" style="min-height: auto; padding: 2rem; text-align: center">
+          <div class="brand-lockup md">
+            <img src="/deskrudder-mark-alpha.png?v=22" alt="" style="height: 120px; width: auto; object-fit: contain" />
+            <div class="wordmark" style="font-size: 1.75rem">
+              <span class="desk">Desk</span><span class="rudder">Rudder</span>
+            </div>
+            <p class="tagline-pill">Organize. Foque. Direcione</p>
+          </div>
+        </div>
+        <span class="concept-tag">Aprovada</span>
+      </div>
+
+      <div class="grid grid-2" style="margin-bottom: 2rem">
+        <div class="card">
+          <h2>Monograma — app / favicon</h2>
+          <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center">
+            <img src="/deskrudder-mark-128.png?v=22" alt="Monograma" width="128" height="128" style="object-fit:contain" />
+            <div style="display: flex; align-items: flex-end; gap: 1rem">
+              <div class="size-item"><img src="/deskrudder-mark-16.png?v=22" width="16" height="16" alt="" style="object-fit:contain" /><div>16px</div></div>
+              <div class="size-item"><img src="/deskrudder-mark-24.png?v=22" width="24" height="24" alt="" style="object-fit:contain" /><div>24px</div></div>
+              <div class="size-item"><img src="/deskrudder-mark-32.png?v=22" width="32" height="32" alt="" style="object-fit:contain" /><div>32px</div></div>
+              <div class="size-item"><img src="/deskrudder-mark-48.png?v=22" width="48" height="48" alt="" style="object-fit:contain" /><div>48px</div></div>
+            </div>
+          </div>
+          <p class="concept-desc" style="margin-top: 0.75rem">
+            PNGs em <code>deskrudder-mark-{16,24,32,48,128}.png</code> + SVG com base64 embutido.
+          </p>
+        </div>
+        <div class="card">
+          <h2>Arquivos</h2>
+          <p class="concept-desc" style="margin: 0">
+            <code>deskrudder-mark.png</code> — monograma (512px, fundo branco)<br />
+            <code>deskrudder-mark-alpha.png</code> — monograma transparente (login/escuro)<br />
+            <code>deskrudder-mark-16..128.png</code> — tamanhos app/favicon<br />
+            Regenerar: <code>node scripts/build-mark-alpha.mjs</code> (fonte: logo-ref-v2-black.png)<br />
+            <code>deskrudder-icon.svg</code> / <code>deskrudder-favicon.svg</code> — SVG base64<br />
+            <code>favicon.ico</code> — aba do navegador<br />
+            <code>deskrudder-logo-name.png</code> — icone + nome<br />
+            <code>deskrudder-lockup.png</code> — logo + tagline<br />
+            <code>deskrudder-logo-ref.png</code> — original 1024px
+          </p>
+        </div>
+      </div>
+
+      <h2 style="font-size: 1rem; color: #64748b; margin: 0 0 1rem; font-weight: 600">Aplicacao na UI — tema claro e escuro</h2>
+
+      <p class="theme-block-title">Tema claro</p>
+      <div class="grid grid-2" style="margin-bottom: 1.25rem">
+        <div class="card">
+          <h2>Paleta + lockup</h2>
+          <p class="swatch-group-label">Superficies</p>
+          <div class="swatches" style="margin-bottom: 0.75rem">
+            <div class="swatch"><div style="background: var(--lt-bg)"></div>BG<code>#F8FAFC</code></div>
+            <div class="swatch"><div style="background: var(--lt-surface)"></div>Surface<code>#FFFFFF</code></div>
+            <div class="swatch"><div style="background: var(--lt-border); border-color: #cbd5e1"></div>Border<code>#E2E8F0</code></div>
+            <div class="swatch"><div style="background: var(--navy)"></div>Desk<code>#0B2D4A</code></div>
+            <div class="swatch"><div style="background: var(--sky)"></div>Rudder<code>#0284C7</code></div>
+          </div>
+          <div class="lockup-light-surface">
+            <img src="/deskrudder-mark.png?v=22" alt="" style="height: 80px; width: auto; object-fit: contain" />
+            <div class="wordmark" style="font-size: 1.5rem; margin-top: 0.75rem">
+              <span class="desk">Desk</span><span class="rudder">Rudder</span>
+            </div>
+            <p class="tagline-pill" style="margin-top: 0.5rem">Organize. Foque. Direcione</p>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Navbar + sidebar</h2>
+          <div class="ui-mock-nav" style="margin-bottom: 0.75rem">
+            <div style="display: flex; align-items: center; gap: 0.5rem">
+              <img src="/deskrudder-mark-32.png?v=22" width="32" height="32" alt="" style="object-fit:contain" />
+              <div class="wordmark" style="font-size: 1rem"><span class="desk">Desk</span><span class="rudder">Rudder</span></div>
+            </div>
+            <span style="font-size: 0.75rem; color: var(--lt-muted)">Atendimento</span>
+          </div>
+          <div class="ui-mock-sidebar" style="width: 100%; max-width: 220px">
+            <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0 0.65rem 0.75rem; margin-bottom: 0.5rem; border-bottom: 1px solid var(--lt-border)">
+              <img src="/deskrudder-mark-32.png?v=22" width="32" height="32" alt="" style="object-fit:contain" />
+              <div class="wordmark" style="font-size: 0.95rem"><span class="desk">Desk</span><span class="rudder">Rudder</span></div>
+            </div>
+            <div class="nav-item active">Chats</div>
+            <div class="nav-item">Tickets</div>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom: 2rem">
+        <h2>Dashboard — tema claro</h2>
+        <div class="ui-mock-canvas-light">
+          <div class="ui-mock-tabs light" style="margin-bottom: 0.75rem">
+            <span class="tab active">Visão geral</span>
+            <span class="tab">Tickets</span>
+            <span class="tab">WhatsApp</span>
+          </div>
+          <div class="ui-mock-surface-light" style="max-width: 12rem">
+            <p class="mock-label">Tickets abertos</p>
+            <p class="mock-value">10</p>
+          </div>
+        </div>
+      </div>
+
+      <p class="theme-block-title dark-label">Tema escuro (navy)</p>
+      <div class="grid grid-2" style="margin-bottom: 1.25rem">
+        <div class="card">
+          <h2>Paleta + lockup</h2>
+          <p class="swatch-group-label">Superficies</p>
+          <div class="swatches" style="margin-bottom: 0.75rem">
+            <div class="swatch"><div style="background: var(--dr-deep)"></div>Deep<code>#071826</code></div>
+            <div class="swatch"><div style="background: var(--dr-navy)"></div>Sidebar<code>#0B2D4A</code></div>
+            <div class="swatch"><div style="background: var(--dr-surface)"></div>Surface<code>#0E2438</code></div>
+            <div class="swatch"><div style="background: var(--dr-border)"></div>Border<code>#1A4568</code></div>
+            <div class="swatch"><div style="background: #f1f5f9"></div>Desk<code>#F1F5F9</code></div>
+            <div class="swatch"><div style="background: #38bdf8"></div>Rudder<code>#38BDF8</code></div>
+          </div>
+          <div style="background: var(--dr-deep); border: 1px solid var(--dr-border); border-radius: 12px; padding: 1.5rem; text-align: center">
+            <img src="/deskrudder-mark-alpha.png?v=22" alt="" style="height: 80px; width: auto; object-fit: contain" />
+            <div class="wordmark on-dark" style="font-size: 1.5rem; margin-top: 0.75rem">
+              <span class="desk">Desk</span><span class="rudder">Rudder</span>
+            </div>
+            <p class="tagline-on-dark" style="margin-top: 0.5rem">Organize. Foque. Direcione</p>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Navbar + sidebar</h2>
+          <div class="ui-mock-nav dark" style="margin-bottom: 0.75rem">
+            <div style="display: flex; align-items: center; gap: 0.5rem">
+              <img src="/deskrudder-mark-alpha.png?v=22" width="32" height="32" alt="" style="object-fit:contain" />
+              <div class="wordmark on-dark" style="font-size: 1rem"><span class="desk">Desk</span><span class="rudder">Rudder</span></div>
+            </div>
+            <span class="mock-meta" style="font-size: 0.75rem">Atendimento</span>
+          </div>
+          <div class="ui-mock-sidebar dark" style="width: 100%; max-width: 220px">
+            <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0 0.65rem 0.75rem; margin-bottom: 0.5rem; border-bottom: 1px solid var(--dr-navy-mid)">
+              <img src="/deskrudder-mark-alpha.png?v=22" width="32" height="32" alt="" style="object-fit:contain" />
+              <div class="wordmark on-dark" style="font-size: 0.95rem"><span class="desk">Desk</span><span class="rudder">Rudder</span></div>
+            </div>
+            <div class="nav-item active">Chats</div>
+            <div class="nav-item">Tickets</div>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom: 2rem">
+        <h2>Dashboard — tema escuro</h2>
+        <div style="background: linear-gradient(180deg, var(--dr-deep), var(--dr-panel)); border-radius: 12px; padding: 1rem; border: 1px solid var(--dr-border)">
+          <div class="ui-mock-tabs" style="margin-bottom: 0.75rem">
+            <span class="tab active">Visão geral</span>
+            <span class="tab">Tickets</span>
+            <span class="tab">WhatsApp</span>
+          </div>
+          <div class="ui-mock-surface" style="max-width: 12rem">
+            <p class="mock-label">Tickets abertos</p>
+            <p class="mock-value">10</p>
+          </div>
+        </div>
+      </div>
+
+      <p class="theme-block-title dark-label">Login (sempre escuro — igual ao app)</p>
+
+      <div class="card recommended" style="margin-bottom: 1.25rem">
+        <h2>Login — painel lateral (desktop)</h2>
+        <div class="preview-box dark login-panel-gradient" style="min-height: 320px; padding: 2rem">
+          <p style="position: relative; z-index: 1; margin: 0; max-width: 16rem; font-size: 0.875rem; line-height: 1.5; color: #94a3b8">
+            Gradiente navy + mesh decorativo. Logo fica só na coluna do formulário (sem repetir).
+          </p>
+        </div>
+        <p class="concept-desc" style="margin-top: 0.75rem">
+          Gradiente <code>#0B2D4A → #134166 → #0A4D6E</code> · lockup único acima do form à direita.
+        </p>
+      </div>
+
+      <div class="card" style="margin-bottom: 2rem">
+        <h2>Mock — tela de login completa</h2>
+        <div class="login-mock">
+          <aside>
+            <div style="position: relative; z-index: 1; padding: 1rem; max-width: 12rem; font-size: 0.75rem; line-height: 1.45; color: #94a3b8">
+              Painel decorativo (sem logo)
+            </div>
+          </aside>
+          <main>
+            <div class="brand-lockup md" style="margin-bottom: 0.75rem; align-items: flex-start; text-align: left; width: 100%; max-width: 15rem">
+              <img src="/deskrudder-mark-alpha.png?v=22" alt="" class="mark-on-dark" />
+              <div class="wordmark on-dark" style="font-size: 1.75rem">
+                <span class="desk">Desk</span><span class="rudder">Rudder</span>
+              </div>
+              <p class="tagline-on-dark">Organize. Foque. Direcione</p>
+            </div>
+            <div class="login-form-card">
+              <div class="login-field"></div>
+              <div class="login-field"></div>
+              <div class="login-btn-mock">Entrar</div>
+            </div>
+          </main>
+        </div>
+        <p class="concept-desc" style="margin-top: 0.75rem">
+          Coluna direita: fundo <code>#071826</code> · card do formulario
+          <code>bg-white/3</code> · campos <code>white/6</code> · botao teal→sky.
+        </p>
+      </div>
+
+      <details style="margin-bottom: 2rem">
+        <summary style="cursor: pointer; font-weight: 600; color: #64748b; margin-bottom: 1rem">Tentativas anteriores (v6-v9) — arquivadas</summary>
+
+      <div class="intro-box" style="opacity: 0.85">
+        <strong>v9 — logo desenhada (nao recortes)</strong>
+        Leme sobre a mesa, dentro do D. Descartado em favor da referencia aprovada.
+      </div>
+
+      <div class="card" style="margin-bottom: 1.25rem; opacity: 0.85">
+        <h2>Referencia vs v9</h2>
+        <div style="display: flex; flex-wrap: wrap; gap: 2rem; align-items: center; justify-content: center">
+          <div style="text-align: center">
+            <img src="/deskrudder-ref-inspiracao.png?v=10" alt="Referencia" width="140" height="140" style="object-fit: contain" />
+            <div style="font-size: 0.72rem; color: #64748b; margin-top: 0.5rem">Sua referencia</div>
+          </div>
+          <div style="text-align: center">
+            <img src="/deskrudder-icon.svg?v=10-old" alt="DeskRudder v9" width="140" height="140" onerror="this.style.display='none'" />
+            <div style="font-size: 0.72rem; color: #64748b; margin-top: 0.5rem">v9 (descartada)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid" style="grid-template-columns: 1fr; gap: 1.25rem; margin-bottom: 2rem; opacity: 0.85">
+        <div class="card">
+          <h2>Monograma v9 — descartado</h2>
+          <img src="/deskrudder-icon.svg?v=10-old" alt="" width="64" height="64" onerror="this.style.display='none'" />
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom: 1.25rem; opacity: 0.85">
+        <h2>Sua referencia (IA externa)</h2>
+        <div class="preview-box light" style="min-height: auto; padding: 1.25rem">
+          <img src="/deskrudder-ref-inspiracao.png?v=4" alt="Referencia enviada" style="max-height: 200px; width: auto" />
+        </div>
+        <p class="concept-desc">
+          <strong>O que funciona:</strong> monograma inteligente, mesa + leme dentro do D, visual de marca (não ícone de app).<br />
+          <strong>O que ajustamos:</strong> paleta genérica azul → teal/navy aprovados; leme simplificado para favicon;
+          tagline genérica → foco em atendimento; versão opcional com multicanal.
+        </p>
+      </div>
+
+      <div class="grid grid-3" style="margin-bottom: 1.25rem">
+        <div class="card recommended">
+          <h2>D4 — Minimal (favicon)</h2>
+          <div class="preview-box light">
+            <img src="/deskrudder-mark-d-minimal.svg?v=5" alt="Monograma D minimal" class="mark-hero" width="160" height="160" />
+          </div>
+          <div class="size-row">
+            <span class="size-row-label">Fundo claro</span>
+            <div class="size-item"><img src="/deskrudder-mark-d-minimal.svg?v=5" width="24" height="24" alt="" /><div>24px</div></div>
+            <div class="size-item"><img src="/deskrudder-mark-d-minimal.svg?v=5" width="32" height="32" alt="" /><div>32px</div></div>
+            <div class="size-item"><img src="/deskrudder-mark-d-minimal.svg?v=5" width="48" height="48" alt="" /><div>48px</div></div>
+          </div>
+          <div class="size-row">
+            <span class="size-row-label">Fundo escuro</span>
+            <div class="preview-box dark-row" style="width:100%;margin:0">
+              <img src="/deskrudder-mark-d-minimal.svg?v=5" width="24" height="24" alt="" />
+              <img src="/deskrudder-mark-d-minimal.svg?v=5" width="32" height="32" alt="" />
+              <img src="/deskrudder-mark-d-minimal.svg?v=5" width="48" height="48" alt="" />
+            </div>
+          </div>
+          <p class="concept-desc">
+            Apenas <strong>4 formas</strong>: disco + cruz + mesa. Máxima legibilidade em sidebar e aba do navegador.
+          </p>
+          <span class="concept-tag">Melhor em 32px</span>
+        </div>
+
+        <div class="card recommended">
+          <h2>D1 — Monograma clássico</h2>
+          <div class="preview-box light">
+            <img src="/deskrudder-mark-d-classic.svg?v=5" alt="Monograma D classico" class="mark-hero" width="160" height="160" />
+          </div>
+          <div class="size-row">
+            <span class="size-row-label">Fundo claro</span>
+            <div class="size-item"><img src="/deskrudder-mark-d-classic.svg?v=5" width="24" height="24" alt="" /><div>24px</div></div>
+            <div class="size-item"><img src="/deskrudder-mark-d-classic.svg?v=5" width="32" height="32" alt="" /><div>32px</div></div>
+            <div class="size-item"><img src="/deskrudder-mark-d-classic.svg?v=5" width="48" height="48" alt="" /><div>48px</div></div>
+          </div>
+          <p class="concept-desc">
+            Referência refinada: roda com <strong>raios preenchidos</strong>, mesa em blocos sólidos, pino latão.
+          </p>
+          <span class="concept-tag">Marca principal</span>
+        </div>
+
+        <div class="card">
+          <h2>D2 — Leme moderno</h2>
+          <div class="preview-box light">
+            <img src="/deskrudder-mark-d-modern.svg?v=5" alt="Monograma D moderno" class="mark-hero" width="160" height="160" />
+          </div>
+          <div class="size-row">
+            <span class="size-row-label">Fundo claro</span>
+            <div class="size-item"><img src="/deskrudder-mark-d-modern.svg?v=5" width="24" height="24" alt="" /><div>24px</div></div>
+            <div class="size-item"><img src="/deskrudder-mark-d-modern.svg?v=5" width="32" height="32" alt="" /><div>32px</div></div>
+            <div class="size-item"><img src="/deskrudder-mark-d-modern.svg?v=5" width="48" height="48" alt="" /><div>48px</div></div>
+          </div>
+          <p class="concept-desc">
+            Lâmina grande preenchida — sem roda náutica. Boa leitura em tamanhos médios.
+          </p>
+          <span class="concept-tag">Moderno</span>
+        </div>
+      </div>
+
+      <div class="grid" style="margin-bottom:1.25rem;grid-template-columns:1fr;max-width:420px">
+        <div class="card">
+          <h2>D3 — Operacional</h2>
+          <div class="preview-box light">
+            <img src="/deskrudder-mark-d-ops.svg?v=5" alt="Monograma D operacional" class="mark-hero" width="160" height="160" />
+          </div>
+          <div class="size-row">
+            <div class="size-item"><img src="/deskrudder-mark-d-ops.svg?v=5" width="32" height="32" alt="" /><div>32px</div></div>
+            <div class="size-item"><img src="/deskrudder-mark-d-ops.svg?v=5" width="48" height="48" alt="" /><div>48px</div></div>
+          </div>
+          <p class="concept-desc">
+            Canais convergindo + leme. Mais detalhe — teste se ainda lê bem em 32px.
+          </p>
+          <span class="concept-tag">Produto + marca</span>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom: 1.25rem">
+        <h2>Lockup — ícone + nome (D1)</h2>
+        <div class="preview-box light" style="min-height: auto; padding: 1.5rem">
+          <img src="/deskrudder-lockup-d-classic.svg?v=5" alt="Lockup DeskRudder" style="width: min(100%, 480px); height: auto" />
+        </div>
+        <p class="concept-desc">
+          Como ficaria ícone + wordmark + tagline do produto (substitui «Organize. Foque. Navegue.» genérico).
+        </p>
+      </div>
+
+      <h2 style="font-size: 1rem; color: #64748b; margin: 2rem 0 1rem; font-weight: 600">Rodada anterior — ícones em tile</h2>
+
+      <div class="intro-box" style="background: #f8fafc; border-color: #e2e8f0; color: #475569">
+        Conceitos com quadrado arredondado (estilo app icon). Mantidos para comparação.
+      </div>
+
+      <div class="grid grid-3" style="margin-bottom: 1.25rem">
+        <div class="card">
+          <h2>A — Multicanal</h2>
+          <div class="preview-box light">
+            <img src="/deskrudder-mark-converge.svg" alt="Conceito multicanal" width="96" height="96" />
+          </div>
+          <div class="sizes">
+            <div class="size-item">
+              <img src="/deskrudder-mark-converge.svg" width="32" height="32" alt="" />
+              <div>32px</div>
+            </div>
+            <div class="size-item">
+              <img src="/deskrudder-mark-converge.svg" width="48" height="48" alt="" />
+              <div>48px</div>
+            </div>
+          </div>
+          <p class="concept-desc">
+            Chat, e-mail e ticket entram na mesma mesa; o leme direciona a operação.
+            Comunica <strong>omnicanal</strong> — o core do produto hoje.
+          </p>
+          <span class="concept-tag">Tile</span>
+        </div>
+
+        <div class="card">
+          <h2>B — Fila e roteamento</h2>
+          <div class="preview-box light">
+            <img src="/deskrudder-mark-queue.svg" alt="Conceito fila" width="96" height="96" />
+          </div>
+          <div class="sizes">
+            <div class="size-item">
+              <img src="/deskrudder-mark-queue.svg" width="32" height="32" alt="" />
+              <div>32px</div>
+            </div>
+            <div class="size-item">
+              <img src="/deskrudder-mark-queue.svg" width="48" height="48" alt="" />
+              <div>48px</div>
+            </div>
+          </div>
+          <p class="concept-desc">
+            Fila de demandas, item destacado sendo encaminhado ao atendente.
+            Comunica <strong>distribuição automática</strong>, fila e roteamento.
+          </p>
+          <span class="concept-tag">Operação interna</span>
+        </div>
+
+        <div class="card">
+          <h2>C — Rede de clientes</h2>
+          <div class="preview-box light">
+            <img src="/deskrudder-mark-network.svg" alt="Conceito rede" width="96" height="96" />
+          </div>
+          <div class="sizes">
+            <div class="size-item">
+              <img src="/deskrudder-mark-network.svg" width="32" height="32" alt="" />
+              <div>32px</div>
+            </div>
+            <div class="size-item">
+              <img src="/deskrudder-mark-network.svg" width="48" height="48" alt="" />
+              <div>48px</div>
+            </div>
+          </div>
+          <p class="concept-desc">
+            Vários clientes/empresas conectados a um hub; o leme comanda o centro.
+            Comunica <strong>rede → empresa</strong> e carteira B2B.
+          </p>
+          <span class="concept-tag">Tile</span>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h2>Versão anterior (abstrata)</h2>
+          <div class="preview-box light">
+            <img src="/deskrudder-mark.svg" alt="DeskRudder mark" width="120" height="120" />
+          </div>
+          <div class="sizes">
+            <div class="size-item">
+              <img src="/deskrudder-mark.svg" width="32" height="32" alt="" />
+              <div>32px</div>
+            </div>
+            <div class="size-item">
+              <img src="/deskrudder-mark.svg" width="48" height="48" alt="" />
+              <div>48px</div>
+            </div>
+            <div class="size-item">
+              <img src="/deskrudder-mark.svg" width="72" height="72" alt="" />
+              <div>72px</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Favicon</h2>
+          <div class="preview-box light">
+            <img src="/deskrudder-favicon.svg" alt="Favicon" width="64" height="64" />
+          </div>
+          <p style="margin: 0.75rem 0 0; font-size: 0.8rem; color: #64748b">
+            Usado na aba do navegador (<code>index.html</code>).
+          </p>
+        </div>
+
+        <div class="card">
+          <h2>Wordmark — fundo claro</h2>
+          <div class="preview-box light" style="flex-direction: column; gap: 0.75rem">
+            <div class="wordmark" style="font-size: 2rem">
+              <span class="desk">Desk</span><span class="rudder">Rudder</span>
+            </div>
+            <div class="wordmark" style="font-size: 1rem">
+              <span class="desk">Desk</span><span class="rudder">Rudder</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Wordmark — fundo escuro (login)</h2>
+          <div class="preview-box dark" style="flex-direction: column; gap: 0.75rem">
+            <div class="wordmark on-dark" style="font-size: 2rem">
+              <span class="desk">Desk</span><span class="rudder">Rudder</span>
+            </div>
+            <p style="margin: 0; font-size: 0.85rem; color: #94a3b8">O leme da sua operação de atendimento</p>
+          </div>
+        </div>
+
+        <div class="card" style="grid-column: 1 / -1">
+          <h2>Painel lateral do login (desktop)</h2>
+          <div class="preview-box light" style="padding: 0; overflow: hidden; min-height: auto">
+            <img
+              src="/deskrudder-login-panel.svg?v=3"
+              alt="Painel login DeskRudder"
+              style="width: 100%; max-height: 420px; object-fit: cover; object-position: center top"
+            />
+          </div>
+        </div>
+
+        <div class="card" style="grid-column: 1 / -1">
+          <h2>Mock — tela de login</h2>
+          <div class="login-mock">
+            <aside>
+              <img src="/deskrudder-login-panel.svg?v=3" alt="" />
+            </aside>
+            <main>
+              <img src="/deskrudder-mark-converge.svg?v=3" width="80" height="80" alt="" />
+              <div class="wordmark on-dark" style="font-size: 1.75rem">
+                <span class="desk">Desk</span><span class="rudder">Rudder</span>
+              </div>
+              <p class="tagline">O leme da sua operação de atendimento</p>
+            </main>
+          </div>
+        </div>
+
+        <div class="card" style="grid-column: 1 / -1">
+          <h2>Paleta de cores</h2>
+          <p class="swatch-group-label">Marca</p>
+          <div class="swatches">
+            <div class="swatch"><div style="background: var(--navy)"></div>Navy</div>
+            <div class="swatch"><div style="background: var(--navy-mid)"></div>Navy mid</div>
+            <div class="swatch"><div style="background: var(--teal)"></div>Teal</div>
+            <div class="swatch"><div style="background: var(--teal-light)"></div>Teal light</div>
+            <div class="swatch"><div style="background: var(--sky)"></div>Sky</div>
+            <div class="swatch"><div style="background: var(--brass)"></div>Brass</div>
+            <div class="swatch"><div style="background: linear-gradient(135deg, var(--teal-light), var(--teal), var(--sky))"></div>Gradiente</div>
+          </div>
+          <p class="swatch-group-label">Tema escuro — app</p>
+          <div class="swatches">
+            <div class="swatch"><div style="background: var(--dr-deep)"></div>Deep</div>
+            <div class="swatch"><div style="background: var(--dr-panel)"></div>Panel</div>
+            <div class="swatch"><div style="background: var(--dr-surface)"></div>Surface</div>
+            <div class="swatch"><div style="background: var(--dr-surface-elevated)"></div>Elevated</div>
+            <div class="swatch"><div style="background: var(--dr-border)"></div>Border</div>
+          </div>
+        </div>
+      </div>
+
+      </details>
+
+      <div class="note">
+        <strong>Logo oficial v2 + tema escuro navy</strong>
+        Abra <a href="/brand-preview.html?v=22">/brand-preview.html?v=22</a> (Ctrl+F5).
+        Secoes <strong>Tema claro</strong>, <strong>Tema escuro</strong> e <strong>Login</strong> com hex do app.
+      </div>
+    </div>
+  </body>
+</html>

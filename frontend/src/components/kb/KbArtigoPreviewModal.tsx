@@ -44,7 +44,7 @@ export function KbArtigoPreviewModal({
       onClick={onClose}
     >
       <div className={MODAL_PANEL_WIDE_SHELL} onClick={(e) => e.stopPropagation()}>
-        <div className="shrink-0 border-b border-slate-200 px-5 py-4 dark:border-slate-700">
+        <div className="shrink-0 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -73,7 +73,7 @@ export function KbArtigoPreviewModal({
         </div>
 
         {footer ? (
-          <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-200 px-5 py-4 dark:border-slate-700">
+          <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-200 px-5 py-4 dark:border-slate-800">
             {footer}
           </div>
         ) : null}

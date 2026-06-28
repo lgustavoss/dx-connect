@@ -138,7 +138,7 @@ export function Setores({ embedded = false }: { embedded?: boolean }) {
                         navigate(`/setores/${s.id}`)
                       }
                     }}
-                    className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:outline-none focus-visible:bg-slate-100 dark:focus-visible:bg-slate-800/60"
+                    className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-white/50 focus:outline-none focus-visible:bg-slate-100 dark:focus-visible:bg-slate-800/60"
                   >
                     <td className="px-4 py-3.5 sm:px-6">
                       <span className={`font-medium ${s.ativo ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400'}`}>{s.nome}</span>

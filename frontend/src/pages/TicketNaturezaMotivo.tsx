@@ -221,7 +221,7 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
         </Button>
       }
     >
-      <div className="border-b border-slate-200 dark:border-slate-700">
+      <div className="border-b border-slate-200 dark:border-slate-800">
         <nav className="-mb-px flex gap-1" aria-label="Catálogo de classificação">
           {tabBtn('naturezas', 'Naturezas')}
           {tabBtn('motivos', 'Motivos')}
@@ -272,7 +272,7 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {naturezas.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
+                  <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-white/40">
                     <td className="px-4 py-3.5 font-medium sm:px-6">{item.nome}</td>
                     <td className="px-4 py-3.5 font-mono text-xs text-slate-500 sm:px-6">{item.slug}</td>
                     <td className="px-4 py-3.5 text-center tabular-nums sm:px-6">{item.ordem}</td>
@@ -303,7 +303,7 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {motivos.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
+                <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-white/40">
                   <td className="px-4 py-3.5 text-slate-600 sm:px-6">{item.natureza_nome ?? item.natureza_id}</td>
                   <td className="px-4 py-3.5 font-medium sm:px-6">{item.nome}</td>
                   <td className="px-4 py-3.5 font-mono text-xs text-slate-500 sm:px-6">{item.slug}</td>

@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
 import { system } from '../api/client'
+import { BrandLogo } from '../brand'
+import { useTheme } from '../contexts/ThemeContext'
 
 const icons: Record<string, React.ReactNode> = {
   dashboard: (
@@ -308,6 +310,8 @@ export function Sidebar({
   onLogout,
 }: SidebarProps) {
   const location = useLocation()
+  const { resolved } = useTheme()
+  const logoOnDark = resolved === 'dark'
   const [openGroup, setOpenGroup] = useState<string | null>(null)
   const [openFlyout, setOpenFlyout] = useState<string | null>(null)
   const [flyoutTop, setFlyoutTop] = useState<number | null>(null)
@@ -408,7 +412,7 @@ export function Sidebar({
               onClick={closeFlyout}
             />
             <ul
-              className="fixed z-50 min-w-[200px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+              className="fixed z-50 min-w-[200px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-800 dark:bg-slate-800"
               style={{
                 left: 'calc(var(--sidebar-w, 80px) + 4px)',
                 top: flyoutTop,
@@ -440,31 +444,19 @@ export function Sidebar({
   const sidebarContent = (
     <>
       <div
-        className={`flex h-14 min-h-[56px] shrink-0 items-center justify-center border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${expanded ? 'px-3' : 'md:px-2'}`}
+        className={`flex h-16 min-h-[64px] shrink-0 items-center border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${expanded ? 'px-3' : 'justify-center md:px-2'}`}
       >
         <Link
           to="/"
           onClick={onMobileClose}
           title="Início"
-          className={`flex items-center overflow-hidden rounded-lg ${expanded ? 'min-w-0 flex-1 gap-2.5' : 'md:w-full md:justify-center md:gap-0'}`}
+          className={`flex items-center overflow-visible rounded-lg ${expanded ? 'min-w-0 w-full' : 'md:w-full md:justify-center'}`}
         >
-          <img
-            src="/dx-connect-mark.png"
-            alt=""
-            width={36}
-            height={36}
-            className="size-9 shrink-0 object-contain md:size-8 dark:brightness-0 dark:invert dark:opacity-95"
-            decoding="async"
-            aria-hidden
-          />
-          <span
-            className={`min-w-0 truncate text-[0.95rem] font-semibold leading-tight transition-all duration-200 ${
-              expanded ? 'opacity-100 w-auto' : 'md:hidden'
-            }`}
-          >
-            <span className="bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text font-bold text-transparent">DX</span>
-            <span className="font-medium text-slate-700 dark:text-slate-200"> Connect</span>
-          </span>
+          {expanded ? (
+            <BrandLogo variant="full" size="sidebar" markVariant={logoOnDark ? 'onDark' : 'default'} className="min-w-0 w-full" />
+          ) : (
+            <BrandLogo variant="mark" size="sm" markVariant={logoOnDark ? 'onDark' : 'default'} className="md:mx-auto" />
+          )}
         </Link>
       </div>
 
@@ -632,7 +624,7 @@ export function Sidebar({
             to="/sobre"
             onClick={onMobileClose}
             title="Versão e novidades"
-            className={`mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 ${
+            className={`mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:hover:text-slate-200 ${
               expanded ? '' : 'md:justify-center md:px-2'
             }`}
           >
@@ -663,12 +655,12 @@ export function Sidebar({
         aria-label="Menu lateral"
       >
         {/* Mobile header com "voltar/fechar" */}
-        <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200/90 bg-white/95 px-4 shadow-sm backdrop-blur-sm dark:border-slate-800/90 dark:bg-slate-950/90 md:hidden">
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200/90 bg-white/95 px-4 shadow-sm backdrop-blur-sm dark:border-slate-800 dark:bg-slate-950 md:hidden">
           <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Menu</span>
           <button
             type="button"
             onClick={onMobileClose}
-            className="inline-flex size-10 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 active:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800 dark:active:bg-slate-700"
+            className="inline-flex size-10 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 active:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800 dark:active:bg-slate-700"
             aria-label="Fechar menu"
           >
             ×

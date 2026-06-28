@@ -1353,7 +1353,7 @@ export function TicketDetalhe() {
   return (
     <>
       <div className="-m-4 flex h-full min-h-0 flex-col overflow-hidden md:-m-6">
-        <div className="relative z-20 shrink-0 border-b border-slate-200/70 bg-white shadow-sm dark:border-slate-700/70 dark:bg-slate-950 sm:rounded-b-2xl sm:border sm:border-t-0">
+        <div className="relative z-20 shrink-0 border-b border-slate-200/70 bg-white shadow-sm dark:border-slate-800/70 dark:bg-slate-950 sm:rounded-b-2xl sm:border sm:border-t-0">
           <div className="mx-auto max-w-6xl px-3 py-2.5 sm:px-5 sm:py-4 lg:py-5">
             {linkVoltar}
 
@@ -1533,7 +1533,7 @@ export function TicketDetalhe() {
             </p>
 
             {ticket.fechado_em ? (
-              <div className="mt-2 rounded-lg border border-slate-200/80 bg-slate-50/80 px-2.5 py-2 text-[11px] sm:px-3 sm:text-xs dark:border-slate-700/70 dark:bg-slate-900/40">
+              <div className="mt-2 rounded-lg border border-slate-200/80 bg-slate-50/80 px-2.5 py-2 text-[11px] sm:px-3 sm:text-xs dark:border-slate-800/70 dark:bg-slate-900/40">
                 <p className="font-semibold text-slate-700 dark:text-slate-200">Avaliação do cliente</p>
                 {ticket.avaliacao_nota != null ? (
                   <div className="mt-1 space-y-1">
@@ -1555,7 +1555,7 @@ export function TicketDetalhe() {
                   <p className="mt-1 text-slate-500 dark:text-slate-500">Sem avaliação (cliente sem e-mail na thread).</p>
                 )}
                 {import.meta.env.DEV && isAdmin && ticket.avaliacao_nota == null ? (
-                  <div className="mt-2 space-y-2 border-t border-slate-200/60 pt-2 dark:border-slate-700/60">
+                  <div className="mt-2 space-y-2 border-t border-slate-200/60 pt-2 dark:border-slate-800/60">
                     <p className="text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">
                       Dev — testar sem e-mail
                     </p>
@@ -1602,7 +1602,7 @@ export function TicketDetalhe() {
                   <Link
                     key={c.id}
                     to={`/whatsapp/c/${c.id}`}
-                    className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-cyan-700 sm:text-xs dark:border-slate-700 dark:bg-slate-900/40 dark:text-cyan-400"
+                    className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-cyan-700 sm:text-xs dark:border-slate-800 dark:bg-slate-900/40 dark:text-cyan-400"
                   >
                     WA {exibirProtocolo(c.protocolo)}
                   </Link>
@@ -1621,7 +1621,7 @@ export function TicketDetalhe() {
           <div className="mx-auto max-w-6xl space-y-4 px-3 pb-8 pt-3 sm:space-y-6 sm:px-5 sm:pb-10 sm:pt-4 md:px-6">
         {!ticket.fechado_em ? <TicketSlaCard ticketId={ticket.id} fechado={false} /> : null}
         {temVinculosHierarquia && (
-          <div className="rounded-xl border border-slate-200/90 bg-slate-50/50 px-3 py-2.5 text-sm dark:border-slate-700/80 dark:bg-slate-900/35">
+          <div className="rounded-xl border border-slate-200/90 bg-slate-50/50 px-3 py-2.5 text-sm dark:border-slate-800/80 dark:bg-slate-900/35">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0 flex-1 space-y-2 text-slate-700 dark:text-slate-200">
                 <div>
@@ -1687,7 +1687,7 @@ export function TicketDetalhe() {
         </p>
         <div className="space-y-4">
           {anexos.some((a) => a.mensagem_id == null) && (
-            <div className="rounded-xl border border-slate-200/90 bg-slate-50/70 px-4 py-3 text-sm dark:border-slate-700/70 dark:bg-slate-900/30">
+            <div className="rounded-xl border border-slate-200/90 bg-slate-50/70 px-4 py-3 text-sm dark:border-slate-800/70 dark:bg-slate-900/30">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Anexos do ticket
               </p>
@@ -1771,7 +1771,7 @@ export function TicketDetalhe() {
                       />
                     ) : null}
                     {anexosDaMsg.length > 0 && (
-                      <div className="mt-3 rounded-lg border border-slate-200/80 bg-slate-50/70 px-3 py-2 dark:border-slate-700/70 dark:bg-slate-900/30">
+                      <div className="mt-3 rounded-lg border border-slate-200/80 bg-slate-50/70 px-3 py-2 dark:border-slate-800/70 dark:bg-slate-900/30">
                         <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                           Anexos
                         </p>
@@ -1804,7 +1804,7 @@ export function TicketDetalhe() {
             </ul>
           )}
 
-          <div className="border-t border-slate-200 pt-4 dark:border-slate-700/90">
+          <div className="border-t border-slate-200 pt-4 dark:border-slate-800/90">
             <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">Nova mensagem</p>
             {ticket.fechado_em ? (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-800/60 dark:bg-emerald-950/25 dark:text-emerald-100">
@@ -1949,10 +1949,10 @@ export function TicketDetalhe() {
           <div
             role="dialog"
             aria-modal="true"
-            className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-950"
+            className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-950"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800">
               <div className="min-w-0">
                 <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
                   {previewAnexo.nome}
@@ -1976,7 +1976,7 @@ export function TicketDetalhe() {
                 <img
                   src={previewAnexo.url}
                   alt={previewAnexo.nome}
-                  className="mx-auto max-h-[80vh] max-w-full rounded-lg border border-slate-200 dark:border-slate-700"
+                  className="mx-auto max-h-[80vh] max-w-full rounded-lg border border-slate-200 dark:border-slate-800"
                 />
               ) : previewAnexo.contentType === 'application/pdf' ? (
                 <iframe title={previewAnexo.nome} src={previewAnexo.url} className="h-[80vh] w-full rounded-lg" />
@@ -1988,7 +1988,7 @@ export function TicketDetalhe() {
                   className="h-[80vh] w-full rounded-lg bg-white"
                 />
               ) : previewAnexo.contentType.startsWith('text/') ? (
-                <pre className="h-[80vh] w-full overflow-auto rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-900 whitespace-pre-wrap dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
+                <pre className="h-[80vh] w-full overflow-auto rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-900 whitespace-pre-wrap dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
                   {previewAnexoTexto ?? ''}
                 </pre>
               ) : (
@@ -2002,7 +2002,7 @@ export function TicketDetalhe() {
       )}
 
       {historico.length > 0 && (
-        <div className="mt-4 rounded-xl border border-slate-200/90 bg-white shadow-sm sm:mt-6 dark:border-slate-700/80 dark:bg-slate-900/70 dark:shadow-none dark:ring-1 dark:ring-white/5">
+        <div className="mt-4 rounded-xl border border-slate-200/90 bg-white shadow-sm sm:mt-6 dark:border-slate-800/80 dark:bg-slate-900/70 dark:shadow-none dark:ring-1 dark:ring-white/5">
           <button
             type="button"
             onClick={() => setHistoricoAberto((o) => !o)}
@@ -2018,11 +2018,11 @@ export function TicketDetalhe() {
             </span>
           </button>
           {historicoAberto && (
-            <ul className="space-y-2 border-t border-slate-100 px-4 py-3 text-sm dark:border-slate-700/80 sm:px-5">
+            <ul className="space-y-2 border-t border-slate-100 px-4 py-3 text-sm dark:border-slate-800/80 sm:px-5">
               {historico.map((h) => (
                 <li
                   key={h.id}
-                  className="rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/40"
+                  className="rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2 dark:border-slate-800 dark:bg-slate-800/40"
                 >
                   <div className="font-medium text-slate-800 dark:text-slate-100">
                     {ROTULO_CAMPO[h.campo] ?? h.campo}
@@ -2142,7 +2142,7 @@ export function TicketDetalhe() {
                     <p className="mt-1 text-slate-500 dark:text-slate-400">Nenhum filho vinculado.</p>
                   )}
                   {ticket.children && ticket.children.length > 0 && (
-                    <ul className="mt-2 divide-y divide-slate-200 rounded-lg border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
+                    <ul className="mt-2 divide-y divide-slate-200 rounded-lg border border-slate-200 dark:divide-slate-700 dark:border-slate-800">
                       {ticket.children.map((c) => (
                         <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
                           <div className="min-w-0">
@@ -2210,7 +2210,7 @@ export function TicketDetalhe() {
                 )}
 
                 {podeEditarHierarquia && (
-                  <div className="rounded-lg border border-slate-200/90 bg-slate-50/70 p-3 dark:border-slate-700/70 dark:bg-slate-900/30">
+                  <div className="rounded-lg border border-slate-200/90 bg-slate-50/70 p-3 dark:border-slate-800/70 dark:bg-slate-900/30">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       Vincular ticket existente como filho
                     </p>
@@ -2231,7 +2231,7 @@ export function TicketDetalhe() {
                 )}
 
                 {podeEditarHierarquia && (
-                  <div className="rounded-lg border border-slate-200/90 bg-slate-50/70 p-3 dark:border-slate-700/70 dark:bg-slate-900/30">
+                  <div className="rounded-lg border border-slate-200/90 bg-slate-50/70 p-3 dark:border-slate-800/70 dark:bg-slate-900/30">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       {ticket.parent_ticket_id != null ? 'Alterar ticket pai' : 'Vincular a um ticket pai'}
                     </p>
@@ -2262,7 +2262,7 @@ export function TicketDetalhe() {
                   {(ticket.vinculos?.length ?? 0) === 0 ? (
                     <p className="mt-1 text-slate-500 dark:text-slate-400">Nenhum vínculo lateral.</p>
                   ) : (
-                    <ul className="mt-2 divide-y divide-slate-200 rounded-lg border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
+                    <ul className="mt-2 divide-y divide-slate-200 rounded-lg border border-slate-200 dark:divide-slate-700 dark:border-slate-800">
                       {(ticket.vinculos ?? []).map((v) => (
                         <li key={v.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
                           <div className="min-w-0">
@@ -2297,7 +2297,7 @@ export function TicketDetalhe() {
                 </div>
 
                 {podeEditarHierarquia && (
-                  <div className="rounded-lg border border-slate-200/90 bg-slate-50/70 p-3 dark:border-slate-700/70 dark:bg-slate-900/30">
+                  <div className="rounded-lg border border-slate-200/90 bg-slate-50/70 p-3 dark:border-slate-800/70 dark:bg-slate-900/30">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       Adicionar vínculo
                     </p>
@@ -2491,7 +2491,7 @@ export function TicketDetalhe() {
             )}
 
             {modalGerirFoco === 'geral' && (
-              <div className="mt-5 rounded-lg border border-slate-200/90 bg-slate-50/60 p-3 dark:border-slate-700/70 dark:bg-slate-900/30">
+              <div className="mt-5 rounded-lg border border-slate-200/90 bg-slate-50/60 p-3 dark:border-slate-800/70 dark:bg-slate-900/30">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   Hierarquia de tickets
                 </p>

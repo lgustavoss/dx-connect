@@ -328,7 +328,7 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
               <p className="text-sm text-slate-500">Buscando...</p>
             ) : debouncedBusca ? (
               resultados.length > 0 ? (
-                <div className="max-h-56 overflow-y-auto divide-y divide-slate-200 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-900">
+                <div className="max-h-56 overflow-y-auto divide-y divide-slate-200 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:divide-slate-700 dark:border-slate-800 dark:bg-slate-900">
                   {resultados.map((funcionario) => (
                     <button
                       key={funcionario.id}
@@ -445,7 +445,7 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
                         required
                       />
                     ) : empresasDaRede.length > 0 ? (
-                      <div className="flex max-h-40 flex-wrap gap-2 overflow-auto rounded-xl border border-slate-200 bg-slate-50/40 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+                      <div className="flex max-h-40 flex-wrap gap-2 overflow-auto rounded-xl border border-slate-200 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/40">
                         {empresasDaRede.map((e) => (
                           <CheckboxField
                             key={e.id}

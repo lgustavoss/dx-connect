@@ -82,7 +82,7 @@ function ListaPendencias({
           <Link
             role="menuitem"
             to={item.href}
-            className="flex gap-3 rounded-2xl border border-slate-200/90 bg-white px-4 py-3 text-left text-sm shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-800/80 dark:bg-slate-900/50 dark:hover:bg-slate-800/60 sm:gap-2 sm:rounded-lg sm:border-0 sm:bg-transparent sm:px-2 sm:py-2 sm:shadow-none sm:hover:bg-slate-50 dark:sm:hover:bg-slate-800/80"
+            className="flex gap-3 rounded-2xl border border-slate-200/90 bg-white px-4 py-3 text-left text-sm shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-800/80 dark:bg-slate-900/50 dark:hover:bg-slate-800/80 sm:gap-2 sm:rounded-lg sm:border-0 sm:bg-transparent sm:px-2 sm:py-2 sm:shadow-none sm:hover:bg-slate-50 dark:sm:hover:bg-slate-800/80"
             onClick={onNavigate}
           >
             <div className="min-w-0 flex-1">
@@ -193,7 +193,7 @@ export function NavbarNotificacoes({ enabled }: { enabled: boolean }) {
     <div ref={wrapRef} className="relative">
       <button
         type="button"
-        className="relative flex size-10 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 active:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800 dark:active:bg-slate-700 touch-manipulation md:size-9"
+        className="relative flex size-10 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 active:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800 dark:active:bg-slate-800 touch-manipulation md:size-9"
         aria-label="Pendências"
         aria-expanded={aberto}
         aria-haspopup="true"
@@ -228,7 +228,7 @@ export function NavbarNotificacoes({ enabled }: { enabled: boolean }) {
               </p>
               <button
                 type="button"
-                className="inline-flex size-10 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 active:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800 dark:active:bg-slate-700"
+                className="inline-flex size-10 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 active:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800 dark:active:bg-slate-800"
                 onClick={() => setAberto(false)}
                 aria-label="Fechar"
               >
@@ -265,7 +265,7 @@ export function NavbarNotificacoes({ enabled }: { enabled: boolean }) {
         <div
           id={menuId}
           role="menu"
-          className="absolute right-0 top-full z-50 mt-2 hidden w-[22rem] rounded-xl border border-slate-200/90 bg-white py-2 shadow-lg dark:border-slate-700 dark:bg-slate-900 sm:block"
+          className="absolute right-0 top-full z-50 mt-2 hidden w-[22rem] rounded-xl border border-slate-200/90 bg-white py-2 shadow-lg dark:border-slate-800 dark:bg-slate-900 sm:block"
         >
           <div className="border-b border-slate-100 px-3 pb-2 dark:border-slate-800">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Pendências</p>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { notificacoes, type Notificacoes } from '../api/client'
 import { useEventStream } from '../contexts/EventStreamContext'
+import { APP_NAME } from '../brand'
 
 const LS_KEY_LAST_SEM_RESP = 'dxconnect.notificacoes.last_sem_responsavel'
 const LS_KEY_LAST_NAO_LIDAS = 'dxconnect.notificacoes.last_nao_lidas'
@@ -343,7 +344,7 @@ function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean, source: 'sse
   persistPrevCounters(r)
 
   const total = r.total_pendencias
-  const base = (typeof document !== 'undefined' ? document.title : 'DX Connect').replace(/^\(\d+\)\s+/, '')
+  const base = (typeof document !== 'undefined' ? document.title : APP_NAME).replace(/^\(\d+\)\s+/, '')
   if (typeof document !== 'undefined') {
     document.title = total > 0 ? `(${total}) ${base}` : base
   }

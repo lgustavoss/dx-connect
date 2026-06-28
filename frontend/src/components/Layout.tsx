@@ -6,6 +6,8 @@ import { ThemeToggle } from './ThemeToggle'
 import { NavbarNotificacoes } from './NavbarNotificacoes'
 import { useAlertaFilaSemResponsavel } from '../hooks/useAlertaFilaSemResponsavel'
 import { EventStreamProvider } from '../contexts/EventStreamContext'
+import { BrandLogo } from '../brand'
+import { useTheme } from '../contexts/ThemeContext'
 
 function perfilExibicao(role: string | undefined): string {
   if (role === 'admin') return 'Administrador'
@@ -24,6 +26,8 @@ function LayoutInner() {
   const location = useLocation()
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false)
+  const { resolved } = useTheme()
+  const logoOnDark = resolved === 'dark'
 
   const notificacoesEnabled = Boolean(user && !user.must_change_password)
   useAlertaFilaSemResponsavel(notificacoesEnabled)
@@ -56,7 +60,7 @@ function LayoutInner() {
       />
 
       <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden md:col-start-2 md:row-start-1">
-          <header className="z-30 flex h-14 min-h-[56px] shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-4 shadow-sm dark:border-slate-800 dark:bg-slate-950 md:gap-3 md:px-6">
+          <header className="z-30 flex h-16 min-h-[64px] shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-4 shadow-sm dark:border-slate-800 dark:bg-slate-950 md:gap-3 md:px-6">
             <button
               type="button"
               onClick={() => {
@@ -74,19 +78,7 @@ function LayoutInner() {
             </button>
 
             <div className="flex items-center gap-2 overflow-hidden rounded-lg md:hidden">
-              <img
-                src="/dx-connect-mark.png"
-                alt=""
-                width={32}
-                height={32}
-                className="size-8 shrink-0 object-contain dark:brightness-0 dark:invert dark:opacity-95"
-                decoding="async"
-                aria-hidden
-              />
-              <span className="truncate text-sm font-semibold leading-tight">
-                <span className="bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text font-bold text-transparent">DX</span>
-                <span className="font-medium text-slate-700 dark:text-slate-200"> Connect</span>
-              </span>
+              <BrandLogo variant="full" size="sm" markVariant={logoOnDark ? 'onDark' : 'default'} className="min-w-0" />
             </div>
 
             <div className="min-w-0 flex-1" />

@@ -44,7 +44,7 @@ export function TicketsTabelaContexto({
           {items.map((t) => (
             <tr
               key={t.id}
-              className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
+              className="transition-colors hover:bg-slate-50/80 dark:hover:bg-white/40"
             >
               <td
                 className="max-w-[11rem] truncate px-4 py-3 font-mono text-xs text-slate-800 dark:text-slate-100 sm:px-6"
