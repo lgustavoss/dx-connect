@@ -142,7 +142,7 @@ def test_colaborador_mesmo_setor_ve_chat_em_atendimento(client, seed_base, auth_
 
     interno = client.post(
         f"/v1/whatsapp/chats/{cid}/comentarios-internos",
-        json={"corpo": "Nota interna de apoio"},
+        json={"texto": "Nota interna de apoio"},
         headers=auth_headers["a2"],
     )
     assert interno.status_code == 201
