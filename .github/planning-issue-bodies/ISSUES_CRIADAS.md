@@ -72,12 +72,13 @@ Meta-issue geral: [#16](https://github.com/lgustavoss/dx-connect/issues/16)
 | [#445](https://github.com/lgustavoss/dx-connect/issues/445) | Modal encerramento + demandas | Fechada · PR [#456](https://github.com/lgustavoss/dx-connect/pull/456) |
 | [#448](https://github.com/lgustavoss/dx-connect/issues/448) | Histórico e Avaliações | Fechada · PR [#456](https://github.com/lgustavoss/dx-connect/pull/456) |
 | [#449](https://github.com/lgustavoss/dx-connect/issues/449) | Botão Voltar na conversa | Fechada · PR [#456](https://github.com/lgustavoss/dx-connect/pull/456) |
-| [#452](https://github.com/lgustavoss/dx-connect/issues/452) | Notificações: link directo ao ticket | PR pendente · branch `feat/whatsapp-ux-lote-2` |
-| [#446](https://github.com/lgustavoss/dx-connect/issues/446) | Marco timeline demanda (SSE/backend) | PR pendente · branch `feat/whatsapp-ux-lote-2` |
-| [#443](https://github.com/lgustavoss/dx-connect/issues/443) | Composer estilo WhatsApp Web | PR pendente · branch `feat/whatsapp-ux-lote-2` |
-| [#447](https://github.com/lgustavoss/dx-connect/issues/447) | Terminologia contato vs atendente | PR pendente · branch `feat/whatsapp-ux-lote-2` |
-| [#453](https://github.com/lgustavoss/dx-connect/issues/453) | Ícones por tipo de ficheiro | PR pendente · branch `feat/whatsapp-ux-lote-2` |
-| [#455](https://github.com/lgustavoss/dx-connect/issues/455) | Chats activos no Histórico (colaboração) | PR pendente · branch `feat/whatsapp-ux-lote-2` |
+| [#452](https://github.com/lgustavoss/dx-connect/issues/452) | Notificações: link directo ao ticket | Fechada · PR [#457](https://github.com/lgustavoss/dx-connect/pull/457) |
+| [#446](https://github.com/lgustavoss/dx-connect/issues/446) | Marco timeline demanda (SSE/backend) | Fechada · PR [#457](https://github.com/lgustavoss/dx-connect/pull/457) |
+| [#443](https://github.com/lgustavoss/dx-connect/issues/443) | Composer estilo WhatsApp Web | Fechada · PR [#457](https://github.com/lgustavoss/dx-connect/pull/457) |
+| [#447](https://github.com/lgustavoss/dx-connect/issues/447) | Terminologia contato vs atendente | Fechada · PR [#457](https://github.com/lgustavoss/dx-connect/pull/457) |
+| [#453](https://github.com/lgustavoss/dx-connect/issues/453) | Ícones por tipo de ficheiro | Fechada · PR [#457](https://github.com/lgustavoss/dx-connect/pull/457) |
+| [#455](https://github.com/lgustavoss/dx-connect/issues/455) | Chats activos no Histórico (colaboração) | Fechada · PR [#457](https://github.com/lgustavoss/dx-connect/pull/457) |
+| [#454](https://github.com/lgustavoss/dx-connect/issues/454) | Voltar no histórico preservando pesquisa | Fechada · duplicada de #449 (PR [#456](https://github.com/lgustavoss/dx-connect/pull/456)) |
 
 ---
 
