@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
 
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import {
 
@@ -22,7 +22,6 @@ import {
 } from '../../api/client'
 
 import { Card } from '../../components/ui/Card'
-import { KbConsultaButton } from '../../components/KbConsultaModal'
 
 import { Button } from '../../components/ui/Button'
 
@@ -46,9 +45,16 @@ import {
 import { WhatsappTicketsModal } from './WhatsappTicketsModal'
 import { WhatsappVincFuncionarioModal } from './WhatsappVincFuncionarioModal'
 import { WhatsappDemandasPanel } from './WhatsappDemandasPanel'
-import { WhatsappBarraAnexos, ACCEPT_ANEXO, type TipoAnexoPicker } from './WhatsappBarraAnexos'
-import { WhatsappGravadorAudio } from './WhatsappGravadorAudio'
+import { WhatsappEncerrarModal } from './WhatsappEncerrarModal'
+import { WhatsappDemandaTimelineMarco } from './WhatsappDemandaTimelineMarco'
+import { ACCEPT_ANEXO, type TipoAnexoPicker } from './WhatsappBarraAnexos'
+import { WhatsappComposerBar } from './WhatsappComposerBar'
 import { WhatsappPreviaAnexo } from './WhatsappPreviaAnexo'
+import { useWhatsappVoltarLista } from '../../hooks/useWhatsappVoltarLista'
+import { whatsappConversaLink, resolveWhatsappListFallback, WHATSAPP_LIST_PATHS } from '../../lib/whatsappListReturn'
+import { mergeTimelineChat, textoMarcoDemanda } from '../../lib/whatsappDemandaUtils'
+import { rotuloDownloadArquivo, visualTipoArquivo } from '../../lib/fileTypeIcon'
+import { CONTATO_CLIENTE } from '../../constants/contatoClienteLabels'
 
 const ROTULO_SEM_LEGENDA = /^\[(Imagem|Áudio|Vídeo|Documento|Figurinha|Contacto|Localização)\]$/
 
@@ -201,18 +207,18 @@ function ConteudoMensagemWhatsApp({ chatId, m, onImageClick }: { chatId: number;
 
  
 
-  const downloadLabel = {
-    documento: '📄 Baixar Documento',
-    audio: '🔊 Baixar Áudio',
-    video: '🎬 Baixar Vídeo',
-    imagem: '📷 Baixar Imagem',
-    figurinha: '📷 Baixar Imagem',
-  }[tipo] || `📄 Baixar ${tipo || 'Ficheiro'}`
+  const downloadLabel = rotuloDownloadArquivo(
+    tipo === 'documento' ? m.corpo : null,
+    m.mimetype,
+    tipo,
+  )
+  const fileVisual = visualTipoArquivo(tipo === 'documento' ? m.corpo : null, m.mimetype)
 
   return (
 
     <a href={url} download className="flex items-center gap-2 text-xs font-bold underline">
-      <span>{downloadLabel.split(' ')[0]}</span> {downloadLabel.replace(/^\S+\s*/, '')}
+      <span className="text-base" aria-hidden>{fileVisual.emoji}</span>
+      <span>{downloadLabel.replace(/^\S+\s*/, '')}</span>
     </a>
 
   )
@@ -243,7 +249,6 @@ export function WhatsappConversa() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [pickerAnexo, setPickerAnexo] = useState<TipoAnexoPicker>('imagem')
-  const [mostrarGravador, setMostrarGravador] = useState(false)
   const [arquivoPendente, setArquivoPendente] = useState<File | null>(null)
   const [legendaMidia, setLegendaMidia] = useState('')
 
@@ -268,7 +273,6 @@ export function WhatsappConversa() {
   const [texto, setTexto] = useState('')
 
   const [enviando, setEnviando] = useState(false)
-  const [encerrando, setEncerrando] = useState(false)
 
   // Estados de WhatsApp Clone (Citação e Zoom)
   const [msgRespondida, setMsgRespondida] = useState<WhatsappChats.Mensagem | null>(null)
@@ -291,9 +295,37 @@ export function WhatsappConversa() {
 
   const [modalTickets, setModalTickets] = useState(false)
   const [ticketsVinculados, setTicketsVinculados] = useState<Tickets.Ticket[]>([])
-  const [demandasCount, setDemandasCount] = useState(0)
   const [demandasReloadKey, setDemandasReloadKey] = useState(0)
+  const [demandasTimeline, setDemandasTimeline] = useState<WhatsappChats.Demanda[]>([])
+  const [modalEncerrar, setModalEncerrar] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
+  const voltarLista = useWhatsappVoltarLista()
+  const listaRetorno = resolveWhatsappListFallback(
+    location.state,
+    searchParams.get('from'),
+    WHATSAPP_LIST_PATHS.atendendo,
+  )
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || modalEncerrar) return
+      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+      voltarLista()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [voltarLista, modalEncerrar])
+
+  useEffect(() => {
+    if (!id) return
+    whatsappChats
+      .demandas(id)
+      .then(setDemandasTimeline)
+      .catch(() => setDemandasTimeline([]))
+  }, [id, demandasReloadKey])
 
 
 
@@ -413,11 +445,11 @@ export function WhatsappConversa() {
     }
   }, [id, subscribe, carregar, carregarSidebar])
 
-  // Polling legado quando SSE indisponível
+  // Polling de segurança (#442): complementa SSE quando Gunicorn usa N workers in-process
   useEffect(() => {
-    if (!useFallback) return
     if (!chat || chat.estado === 'encerrado' || chat.estado === 'aguardando_avaliacao') return
-    const t = setInterval(() => void carregar().catch(() => {}), 5000)
+    const intervalMs = useFallback ? 5000 : 4000
+    const t = setInterval(() => void carregar().catch(() => {}), intervalMs)
     return () => clearInterval(t)
   }, [useFallback, chat, carregar])
 
@@ -563,13 +595,11 @@ useEffect(() => {
 }
 
   function abrirPickerAnexo(tipo: TipoAnexoPicker) {
-    setMostrarGravador(false)
     setPickerAnexo(tipo)
     window.setTimeout(() => fileInputRef.current?.click(), 0)
   }
 
   function handleGravacaoConcluida(file: File) {
-    setMostrarGravador(false)
     setArquivoPendente(file)
     setLegendaMidia('')
   }
@@ -609,36 +639,15 @@ useEffect(() => {
 
 
 
-  async function encerrar() {
-
-    if (!chat || !confirm('Encerrar este atendimento?')) return
-
-    const podeRegistrarDemanda =
-      chat.estado === 'em_atendimento' &&
-      (chat.atendente_id === user?.id || user?.role === 'admin')
-    if (podeRegistrarDemanda && demandasCount === 0) {
-      const prosseguir = confirm(
-        'Nenhuma demanda foi registrada nesta sessão. Deseja encerrar mesmo assim?',
-      )
-      if (!prosseguir) return
-    }
-
-    setEncerrando(true)
-
-    try {
-
-      const atualizado = await whatsappChats.encerrar(chat.id)
-
-      await Promise.all([carregar(), carregarSidebar()])
-
-      toast.showSuccess(
-        atualizado.estado === 'aguardando_avaliacao'
-          ? 'Atendimento encerrado. Aguardando avaliação do cliente.'
-          : 'Atendimento encerrado.',
-      )
-
-    } finally { setEncerrando(false) }
-
+  async function handleEncerrado(atualizado: WhatsappChats.Chat) {
+    setChat(atualizado)
+    await Promise.all([carregar(), carregarSidebar()])
+    setDemandasReloadKey((k) => k + 1)
+    toast.showSuccess(
+      atualizado.estado === 'aguardando_avaliacao'
+        ? 'Atendimento encerrado. Aguardando avaliação do cliente.'
+        : 'Atendimento encerrado.',
+    )
   }
 
 
@@ -716,7 +725,7 @@ useEffect(() => {
 
               key={c.id}
 
-              to={`/whatsapp/c/${c.id}`}
+              to={whatsappConversaLink(c.id, listaRetorno)}
 
               className={`flex items-center p-4 gap-3 transition-colors ${c.id === id ? 'bg-white shadow-sm dark:bg-slate-800' : 'hover:bg-white/40 dark:hover:bg-slate-900/50'}`}
 
@@ -778,7 +787,18 @@ useEffect(() => {
 
         <header className="flex h-16 items-center justify-between border-b border-slate-100 px-4 dark:border-slate-800 shadow-sm z-10">
 
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 sm:gap-3">
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-9 shrink-0 px-2 text-xs font-medium"
+              onClick={voltarLista}
+              aria-label="Voltar à lista"
+            >
+              <span aria-hidden>←</span>
+              <span className="hidden sm:inline"> Voltar</span>
+            </Button>
 
             <div className="min-w-0">
 
@@ -874,8 +894,8 @@ useEffect(() => {
                 className="inline-flex text-xs h-8"
                 onClick={() => setModalVincFuncionario(true)}
               >
-                <span className="sm:hidden">Vincular</span>
-                <span className="hidden sm:inline">Vincular funcionário</span>
+                <span className="sm:hidden">{CONTATO_CLIENTE.vincularCurto}</span>
+                <span className="hidden sm:inline">{CONTATO_CLIENTE.vincularChat}</span>
               </Button>
 
                 <Button variant="ghost" className="hidden sm:inline-flex text-xs h-8" onClick={() => setModalTickets(true)}>
@@ -884,7 +904,9 @@ useEffect(() => {
 
                 {podeEncerrar && (
 
-                  <Button variant="danger" className="h-8 px-3 text-xs" onClick={() => void encerrar()} loading={encerrando}>Encerrar</Button>
+                  <Button variant="danger" className="h-8 px-3 text-xs" onClick={() => setModalEncerrar(true)}>
+                    Encerrar
+                  </Button>
 
                 )}
 
@@ -898,11 +920,9 @@ useEffect(() => {
 
         {!encerrado && chat && !chat.funcionario_rede_id && (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950 dark:border-violet-900/40 dark:bg-violet-950/30 dark:text-violet-100">
-            <p>
-              <strong>Contacto não vinculado</strong> a nenhuma empresa ou funcionário cadastrado.
-            </p>
+            <p>{CONTATO_CLIENTE.bannerNaoVinculado}</p>
             <Button variant="primary" className="h-8 shrink-0 text-xs" onClick={() => setModalVincFuncionario(true)}>
-              Vincular a empresa
+              {CONTATO_CLIENTE.vincularEmpresa}
             </Button>
           </div>
         )}
@@ -931,7 +951,7 @@ useEffect(() => {
             key={`${chat.id}-${demandasReloadKey}`}
             chatId={chat.id}
             podeRegistrar={isResponsavel || isAdmin}
-            onDemandasChange={setDemandasCount}
+            onDemandasChange={() => setDemandasReloadKey((k) => k + 1)}
           />
         )}
 
@@ -951,7 +971,35 @@ useEffect(() => {
 
         >
 
-          {msgs.map((m) => {
+          {mergeTimelineChat(msgs, demandasTimeline).map((item) => {
+            if (item.kind === 'demanda') {
+              return <WhatsappDemandaTimelineMarco key={`dem-${item.demanda.id}`} demanda={item.demanda} />
+            }
+
+            const m = item.mensagem
+
+            if (m.evento_sistema === 'demanda_registrada' || m.evento_sistema === 'demanda_escalada') {
+              return (
+                <div key={m.id} className="flex w-full justify-center py-2">
+                  <div className="max-w-md rounded-xl border border-violet-200 bg-violet-50/95 px-4 py-2 text-center text-xs shadow-sm dark:border-violet-900/50 dark:bg-violet-950/40">
+                    <p className="font-bold uppercase tracking-wide text-violet-800 dark:text-violet-200">
+                      Demanda registada
+                    </p>
+                    <p className="mt-0.5 font-medium text-violet-950 dark:text-violet-100">
+                      {textoMarcoDemanda(m.corpo)}
+                    </p>
+                    {m.atendente_nome && (
+                      <p className="mt-0.5 text-[10px] text-violet-700/80 dark:text-violet-300/80">
+                        {m.atendente_nome}
+                        {m.created_at
+                          ? ` · ${new Date(m.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
+                          : ''}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )
+            }
 
             const isInbound = m.direcao === 'inbound'
 
@@ -1094,32 +1142,8 @@ useEffect(() => {
             </p>
           )}
 
-          {!encerrado && !modoInterno && podeEnviar && !arquivoPendente && !mostrarGravador && (
-            <WhatsappBarraAnexos
-              disabled={enviando}
-              onEscolher={abrirPickerAnexo}
-              onGravarAudio={() => {
-                setArquivoPendente(null)
-                setMostrarGravador(true)
-              }}
-            />
-          )}
-
           {!encerrado && !modoInterno && !podeEnviar && (
-            <WhatsappBarraAnexos
-              disabled
-              motivoDesabilitado={motivoAnexoDesabilitado}
-              onEscolher={() => {}}
-              onGravarAudio={() => {}}
-            />
-          )}
-
-          {mostrarGravador && podeEnviar && !encerrado && (
-            <WhatsappGravadorAudio
-              disabled={enviando}
-              onConcluido={handleGravacaoConcluida}
-              onCancelar={() => setMostrarGravador(false)}
-            />
+            <p className="mb-2 text-[11px] text-amber-800 dark:text-amber-200">{motivoAnexoDesabilitado}</p>
           )}
 
           {arquivoPendente && (
@@ -1162,79 +1186,27 @@ useEffect(() => {
             </div>
           )}
 
-          <div className="flex items-end gap-2 bg-slate-100 dark:bg-slate-900 p-2 rounded-2xl shadow-inner">
+          <WhatsappComposerBar
+            texto={texto}
+            onTextoChange={setTexto}
+            onEnviar={() => void enviar()}
+            enviando={enviando}
+            encerrado={encerrado}
+            podeEnviar={podeEnviar}
+            modoInterno={modoInterno}
+            podeDigitar={podeDigitarMensagem}
+            onEscolherAnexo={abrirPickerAnexo}
+            onAudioGravado={handleGravacaoConcluida}
+            onInserirReferenciaKb={inserirReferenciaKb}
+          />
 
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileSelecionado}
-              className="hidden"
-              accept={ACCEPT_ANEXO[pickerAnexo]}
-            />
-
-            <KbConsultaButton
-              disabled={encerrado}
-              onInserirReferencia={podeDigitarMensagem ? inserirReferenciaKb : undefined}
-            />
-
-
-
-            <textarea
-
-              value={texto}
-
-              onChange={(e) => setTexto(e.target.value)}
-
-              placeholder={
-                encerrado
-                  ? "Apenas leitura..."
-                  : modoInterno
-                    ? "Escreva um comentário interno..."
-                    : podeEnviar
-                      ? "Escreva uma mensagem..."
-                      : "Somente comentários internos são permitidos."
-              }
-
-              rows={1}
-
-              disabled={encerrado || (!modoInterno && !podeEnviar)}
-
-              className="flex-1 max-h-32 min-h-[40px] resize-none border-none bg-transparent p-2 text-sm focus:ring-0 dark:text-slate-100 placeholder:text-slate-400"
-
-              onKeyDown={(e) => {
-
-                if (e.key === 'Enter' && !e.shiftKey) {
-
-                  e.preventDefault()
-
-                  void enviar()
-
-                }
-
-              }}
-
-            />
-
-
-
-            <Button
-
-              onClick={() => void enviar()}
-
-              disabled={
-                enviando || !texto.trim() || encerrado || (!modoInterno && !podeEnviar)
-              }
-
-              className="h-10 w-10 shrink-0 rounded-xl bg-cyan-600 p-0 text-white shadow-lg shadow-cyan-600/30 hover:bg-cyan-700 disabled:opacity-50"
-
-            >
-
-              {enviando ? '...' : modoInterno ? '✎' : '➤'}
-
-            </Button>
-
-          </div>
-
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelecionado}
+            className="hidden"
+            accept={ACCEPT_ANEXO[pickerAnexo]}
+          />
         </footer>
 
       </main>
@@ -1325,6 +1297,17 @@ useEffect(() => {
             setChat(atualizado)
             setDemandasReloadKey((k) => k + 1)
           }}
+        />
+      )}
+
+      {chat && (
+        <WhatsappEncerrarModal
+          open={modalEncerrar}
+          chatId={chat.id}
+          msgs={msgs}
+          onClose={() => setModalEncerrar(false)}
+          onEncerrado={(atualizado) => void handleEncerrado(atualizado)}
+          onDemandasChange={() => setDemandasReloadKey((k) => k + 1)}
         />
       )}
 

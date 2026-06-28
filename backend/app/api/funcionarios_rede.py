@@ -177,13 +177,15 @@ def criar(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Informe a rede.")
     if rede_id_final is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="rede_id não definido para o vínculo.")
-    try:
-        assert_email_unico_por_rede(db, email=str(data.email), rede_id=int(rede_id_final))
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    email_eff = data.email
+    if email_eff:
+        try:
+            assert_email_unico_por_rede(db, email=str(email_eff), rede_id=int(rede_id_final))
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     f = FuncionarioRede(
         nome=data.nome,
-        email=data.email,
+        email=email_eff,
         tipo=data.tipo,
         escopo_empresas=escopo,
         ativo=data.ativo,
@@ -202,7 +204,8 @@ def criar(
     )
     db.commit()
     db.refresh(f)
-    reconciliar_tickets_pendentes_por_email(db, f.email)
+    if f.email:
+        reconciliar_tickets_pendentes_por_email(db, f.email)
     db.commit()
     return _para_read(f)
 
@@ -267,7 +270,7 @@ def atualizar(
         rede_id=int(rede_id),
         empresa_ids=ids if escopo == "selected" else None,
     )
-    if f.rede_id is not None:
+    if f.rede_id is not None and f.email:
         try:
             assert_email_unico_por_rede(
                 db,
@@ -280,7 +283,8 @@ def atualizar(
     registrar_audit(db, "funcionario_rede", funcionario_id, "update", atendente.id)
     db.commit()
     db.refresh(f)
-    reconciliar_tickets_pendentes_por_email(db, f.email)
+    if f.email:
+        reconciliar_tickets_pendentes_por_email(db, f.email)
     db.commit()
     return _para_read(f)
 

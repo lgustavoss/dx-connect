@@ -220,3 +220,82 @@ def test_listar_avaliacoes_admin(client, seed_base, auth_headers, db_session):
 
     r403 = client.get("/v1/whatsapp/chats/avaliacoes", headers=auth_headers["a1"])
     assert r403.status_code == 403
+
+
+def test_historico_inclui_aguardando_avaliacao(client, seed_base, auth_headers, db_session, monkeypatch):
+    """#448 — sessão aguardando avaliação aparece no histórico (filtro padrão)."""
+    _configurar(db_session)
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "hist-av"},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "hist-av"}
+    body = {
+        "event": "messages.upsert",
+        "data": {
+            "messages": [
+                {
+                    "key": {"remoteJid": "5511777666555@s.whatsapp.net", "fromMe": False, "id": "hist-av-1"},
+                    "message": {"conversation": "Oi"},
+                }
+            ]
+        },
+    }
+    client.post("/v1/webhooks/evolution", json=body, headers=h)
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+    client.post(f"/v1/whatsapp/chats/{cid}/assumir", headers=auth_headers["a1"])
+    monkeypatch.setattr(
+        "app.services.whatsapp_avaliacao.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-out-hist"),
+    )
+    enc = client.post(f"/v1/whatsapp/chats/{cid}/encerrar", headers=auth_headers["a1"])
+    assert enc.json()["estado"] == "aguardando_avaliacao"
+
+    hist = client.get("/v1/whatsapp/chats/encerrados", headers=auth_headers["admin"]).json()
+    assert any(item["id"] == cid for item in hist["items"])
+    assert any(item["estado"] == "aguardando_avaliacao" for item in hist["items"] if item["id"] == cid)
+
+    so_encerrado = client.get("/v1/whatsapp/chats/encerrados?estado=encerrado", headers=auth_headers["admin"]).json()
+    assert not any(item["id"] == cid for item in so_encerrado["items"])
+
+
+def test_avaliacoes_exclui_sem_nota_por_defeito(client, seed_base, auth_headers, db_session):
+    """#448 — aba Avaliações lista só chats com nota respondida."""
+    _configurar(db_session)
+    db_session.add(
+        WhatsappChat(
+            protocolo="WPP-AV-SEM",
+            wa_id="5511999000011",
+            cliente_nome="Sem nota",
+            estado="aguardando_avaliacao",
+            atendente_id=1,
+            avaliacao_solicitada=True,
+            avaliacao_nota=None,
+        )
+    )
+    db_session.add(
+        WhatsappChat(
+            protocolo="WPP-AV-COM",
+            wa_id="5511999000022",
+            cliente_nome="Com nota",
+            estado="encerrado",
+            atendente_id=1,
+            avaliacao_solicitada=True,
+            avaliacao_nota=5,
+        )
+    )
+    db_session.commit()
+
+    body = client.get("/v1/whatsapp/chats/avaliacoes", headers=auth_headers["admin"]).json()
+    ids = [item["chat_id"] for item in body["items"]]
+    assert any(item["nota"] == 5 for item in body["items"])
+    assert all(item.get("nota") is not None for item in body["items"])
+    assert not any(item.get("sem_avaliacao") for item in body["items"])
+
+    audit = client.get(
+        "/v1/whatsapp/chats/avaliacoes?incluir_sem_resposta=true",
+        headers=auth_headers["admin"],
+    ).json()
+    assert any(item.get("sem_avaliacao") for item in audit["items"])
+

@@ -11,11 +11,67 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.atendente import Atendente
 from app.models.empresa import Empresa
 from app.models.ticket_classificacao import TicketMotivo, TicketNatureza
-from app.models.whatsapp_chat import WhatsappChat
+from app.models.whatsapp_chat import WhatsappChat, WhatsappMensagem
 from app.models.whatsapp_chat_demanda import DESFECHOS_DEMANDA, WhatsappChatDemanda
 from app.schemas.dashboard import ContagemIdNome
-from app.schemas.whatsapp_chat import WhatsappChatDemandaCreate, WhatsappChatDemandaRead
+from app.schemas.whatsapp_chat import WhatsappChatDemandaCreate, WhatsappChatDemandaRead, WhatsappChatDemandaUpdate
 from app.services.chat_dashboard_filters import apply_chat_dashboard_filters, period_bounds
+
+DESFECHO_MARCO = {
+    "resolvido_sessao": "Resolvido na sessão",
+    "escalado_ticket": "Escalado para ticket",
+}
+
+
+def _rotulo_demanda(row: WhatsappChatDemanda) -> str:
+    nat = row.natureza.nome if row.natureza else "Demanda"
+    if row.motivo and row.motivo.nome:
+        return f"{nat} · {row.motivo.nome}"
+    return nat
+
+
+def corpo_marco_demanda(row: WhatsappChatDemanda) -> str:
+    desfecho = DESFECHO_MARCO.get(row.desfecho, row.desfecho)
+    return f"[demanda_id={row.id}] Demanda registada: {_rotulo_demanda(row)} — {desfecho}"
+
+
+def criar_marco_demanda_mensagem(
+    db: Session,
+    *,
+    chat: WhatsappChat,
+    atendente: Atendente,
+    demanda: WhatsappChatDemanda,
+) -> WhatsappMensagem:
+    evento = "demanda_registrada" if demanda.desfecho == "resolvido_sessao" else "demanda_escalada"
+    m = WhatsappMensagem(
+        chat_id=chat.id,
+        direcao="outbound",
+        corpo=corpo_marco_demanda(demanda),
+        tipo_midia="texto",
+        mimetype=None,
+        midia_nome_arquivo=None,
+        wa_message_id=None,
+        atendente_id=atendente.id,
+        evento_sistema=evento,
+    )
+    db.add(m)
+    db.flush()
+    return m
+
+
+def remover_marco_demanda_mensagem(db: Session, *, chat_id: int, demanda_id: int) -> None:
+    tag = f"[demanda_id={demanda_id}]"
+    rows = (
+        db.query(WhatsappMensagem)
+        .filter(
+            WhatsappMensagem.chat_id == chat_id,
+            WhatsappMensagem.evento_sistema.in_(("demanda_registrada", "demanda_escalada")),
+            WhatsappMensagem.corpo.like(f"{tag}%"),
+        )
+        .all()
+    )
+    for row in rows:
+        db.delete(row)
 
 
 def _validar_natureza_motivo(
@@ -114,6 +170,50 @@ def listar_demandas_chat(db: Session, chat_id: int) -> list[WhatsappChatDemandaR
         .all()
     )
     return [demanda_para_read(r) for r in rows]
+
+
+def atualizar_demanda_chat(
+    db: Session,
+    chat: WhatsappChat,
+    row: WhatsappChatDemanda,
+    data: WhatsappChatDemandaUpdate,
+    *,
+    atendente: Atendente,
+) -> WhatsappChatDemanda:
+    if chat.estado != "em_atendimento":
+        raise HTTPException(status_code=400, detail="Edite demandas apenas em chats em atendimento")
+    if row.desfecho != "resolvido_sessao":
+        raise HTTPException(status_code=400, detail="Demandas escaladas para ticket não podem ser editadas")
+    if atendente.role != "admin" and row.atendente_id != atendente.id:
+        raise HTTPException(status_code=403, detail="Somente quem registrou ou admin pode editar")
+    update = data.model_dump(exclude_unset=True)
+    natureza_id = update.get("natureza_id", row.natureza_id)
+    motivo_id = update.get("motivo_id", row.motivo_id)
+    if "motivo_id" in update and update["motivo_id"] is None:
+        motivo_id = None
+    _validar_natureza_motivo(db, natureza_id=int(natureza_id), motivo_id=motivo_id)
+    if "natureza_id" in update:
+        row.natureza_id = int(natureza_id)
+    if "motivo_id" in update or "natureza_id" in update:
+        row.motivo_id = motivo_id
+    if "descricao_curta" in update:
+        desc = (update["descricao_curta"] or "").strip() or None
+        if desc and len(desc) > 500:
+            raise HTTPException(status_code=400, detail="Descrição curta excede 500 caracteres")
+        row.descricao_curta = desc
+    db.flush()
+    refreshed = (
+        db.query(WhatsappChatDemanda)
+        .options(
+            joinedload(WhatsappChatDemanda.natureza),
+            joinedload(WhatsappChatDemanda.motivo),
+            joinedload(WhatsappChatDemanda.atendente),
+        )
+        .filter(WhatsappChatDemanda.id == row.id)
+        .first()
+    )
+    assert refreshed is not None
+    return refreshed
 
 
 def agregar_demandas_por_natureza(

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, whatsappChats, type WhatsappChats } from '../../api/client'
+import { whatsappConversaLink, WHATSAPP_LIST_PATHS } from '../../lib/whatsappListReturn'
 import { refetchPendenciasResumo } from '../../hooks/useAlertaFilaSemResponsavel'
 import { useEventStream } from '../../contexts/EventStreamContext'
 import { Card } from '../../components/ui/Card'
@@ -70,11 +71,11 @@ export function WhatsappAtendendo() {
     }
   }, [subscribe, load])
 
-  // Refresh inicial + polling legado quando SSE indisponível
+  // Refresh inicial + polling de segurança (#442)
   useEffect(() => {
     void load()
-    if (!useFallback) return
-    const timer = setInterval(() => void load(true), 10000)
+    const intervalMs = useFallback ? 10000 : 8000
+    const timer = setInterval(() => void load(true), intervalMs)
     return () => clearInterval(timer)
   }, [load, useFallback])
 
@@ -173,7 +174,7 @@ export function WhatsappAtendendo() {
                     {/* Grupo de Botões da Fila */}
                     <div className="flex items-center gap-2 border-t pt-3 dark:border-slate-800">
                       <Link 
-                        to={`/whatsapp/c/${c.id}`}
+                        to={whatsappConversaLink(c.id, WHATSAPP_LIST_PATHS.atendendo, 'atendendo')}
                         className="flex-1 text-center rounded-lg bg-slate-100 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 transition-colors dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                       >
                         Visualizar
@@ -205,7 +206,7 @@ export function WhatsappAtendendo() {
               </div>
             ) : (
               meus.map((c) => (
-                <Link key={c.id} to={`/whatsapp/c/${c.id}`} className="group">
+                <Link key={c.id} to={whatsappConversaLink(c.id, WHATSAPP_LIST_PATHS.atendendo, 'atendendo')} className="group">
                   <Card className="h-full border-none p-5 shadow-sm ring-1 ring-slate-200 transition-all group-hover:ring-cyan-500 dark:ring-slate-800">
                     <div className="flex flex-col h-full justify-between gap-4">
                       <div>

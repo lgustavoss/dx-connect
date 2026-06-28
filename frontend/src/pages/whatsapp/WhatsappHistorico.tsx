@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { atendentes, whatsappChats, type WhatsappChats, type Atendentes } from '../../api/client'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -9,20 +9,67 @@ import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
 import { AvaliacaoEstrelas } from '../../components/ui/AvaliacaoEstrelas'
+import { rotuloEstadoChat } from '../../lib/whatsappChatMeta'
+import { buildHistoricoReturnPath, whatsappConversaLink } from '../../lib/whatsappListReturn'
 
-const PAGE_SIZE = 15 // Reduzi para 15 para melhorar o fôlego da página em listas longas
+const PAGE_SIZE = 15
+
+type FiltroEstadoHistorico =
+  | 'finalizados'
+  | 'encerrado'
+  | 'aguardando_avaliacao'
+  | 'em_atendimento'
+  | 'aguardando_atendente'
+  | 'todos'
 
 export function WhatsappHistorico() {
   const toast = useToast()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [items, setItems] = useState<WhatsappChats.Chat[]>([])
   const [total, setTotal] = useState(0)
-  const [offset, setOffset] = useState(0)
+  const [offset, setOffset] = useState(() => Number(searchParams.get('offset') || 0))
   const [loading, setLoading] = useState(true)
-  const [busca, setBusca] = useState('')
+  const [busca, setBusca] = useState(() => searchParams.get('busca') ?? '')
   const [atendentesList, setAtendentesList] = useState<Atendentes.Atendente[]>([])
-  const [atendenteId, setAtendenteId] = useState<number | ''>('')
-  const [desde, setDesde] = useState('')
-  const [ate, setAte] = useState('')
+  const [atendenteId, setAtendenteId] = useState<number | ''>(() => {
+    const v = searchParams.get('atendente_id')
+    return v ? Number(v) : ''
+  })
+  const [desde, setDesde] = useState(() => searchParams.get('desde') ?? '')
+  const [ate, setAte] = useState(() => searchParams.get('ate') ?? '')
+  const [estadoFiltro, setEstadoFiltro] = useState<FiltroEstadoHistorico>(() => {
+    const v = searchParams.get('estado')
+    return (v as FiltroEstadoHistorico) || 'finalizados'
+  })
+
+  const historicoReturnPath = useMemo(
+    () =>
+      buildHistoricoReturnPath({
+        busca,
+        atendenteId,
+        desde,
+        ate,
+        estado: estadoFiltro,
+        offset,
+      }),
+    [ate, atendenteId, busca, desde, estadoFiltro, offset],
+  )
+
+  const syncUrl = useCallback(
+    (from: number) => {
+      const path = buildHistoricoReturnPath({
+        busca,
+        atendenteId,
+        desde,
+        ate,
+        estado: estadoFiltro,
+        offset: from,
+      })
+      const qs = path.includes('?') ? path.split('?')[1] : ''
+      setSearchParams(qs ? new URLSearchParams(qs) : new URLSearchParams(), { replace: true })
+    },
+    [ate, atendenteId, busca, desde, estadoFiltro, setSearchParams],
+  )
 
   const load = useCallback(async (from: number) => {
     setLoading(true)
@@ -35,16 +82,18 @@ export function WhatsappHistorico() {
       if (atendenteId !== '') params.atendente_id = atendenteId
       if (desde) params.encerramento_inicio = `${desde}T00:00:00`
       if (ate) params.encerramento_fim = `${ate}T23:59:59`
+      params.estado = estadoFiltro
       const { items: rows, total: t } = await whatsappChats.encerrados(params)
       setItems(rows)
       setTotal(t)
       setOffset(from)
+      syncUrl(from)
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Falha ao carregar histórico.'))
     } finally {
       setLoading(false)
     }
-  }, [atendenteId, ate, busca, desde, toast])
+  }, [atendenteId, ate, busca, desde, estadoFiltro, syncUrl, toast])
 
   useEffect(() => {
     void load(0)
@@ -58,7 +107,8 @@ export function WhatsappHistorico() {
   }, [])
 
   const formatDuration = (chat: WhatsappChats.Chat) => {
-    if (!chat.atendimento_inicio_at || !chat.encerramento_at) return '—'
+    if (!chat.atendimento_inicio_at) return '—'
+    if (!chat.encerramento_at) return 'Em curso'
     const start = new Date(chat.atendimento_inicio_at)
     const end = new Date(chat.encerramento_at)
     const diff = Math.max(0, Math.round((end.getTime() - start.getTime()) / 1000))
@@ -80,7 +130,7 @@ export function WhatsappHistorico() {
       <header className="flex flex-col gap-6 border-b pb-6 dark:border-slate-800 md:flex-row md:items-end md:justify-between">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Histórico de Mensagens</h1>
-          <p className="text-sm text-slate-500">Consulte atendimentos finalizados e protocolos antigos.</p>
+          <p className="text-sm text-slate-500">Consulte sessões finalizadas, aguardando avaliação e chats em aberto (conforme filtro).</p>
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between flex-1">
@@ -95,7 +145,20 @@ export function WhatsappHistorico() {
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             </span>
           </div>
-          <div className="grid w-full max-w-full grid-cols-1 gap-3 sm:max-w-xl sm:grid-cols-3">
+          <div className="grid w-full max-w-full grid-cols-1 gap-3 sm:max-w-2xl sm:grid-cols-2 lg:grid-cols-4">
+            <Select
+              label="Estado"
+              value={estadoFiltro}
+              onChange={(value) => setEstadoFiltro(value as FiltroEstadoHistorico)}
+              options={[
+                { value: 'finalizados', label: 'Finalizados (padrão)' },
+                { value: 'encerrado', label: 'Encerrados' },
+                { value: 'aguardando_avaliacao', label: 'Aguardando avaliação' },
+                { value: 'em_atendimento', label: 'Em atendimento' },
+                { value: 'aguardando_atendente', label: 'Aguardando atendente' },
+                { value: 'todos', label: 'Todos' },
+              ]}
+            />
             <Input
               type="date"
               label="De"
@@ -153,6 +216,9 @@ export function WhatsappHistorico() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <h3 className="truncate font-bold text-slate-900 dark:text-slate-100">{c.cliente_nome || 'Cliente'}</h3>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                          {rotuloEstadoChat(c.estado)}
+                        </span>
                         <span className="font-mono text-[10px] font-bold text-slate-400">{c.wa_id}</span>
                       </div>
                       <p
@@ -197,7 +263,7 @@ export function WhatsappHistorico() {
                     </div>
 
                     <Link
-                      to={`/whatsapp/c/${c.id}`}
+                      to={whatsappConversaLink(c.id, historicoReturnPath, 'historico')}
                       className="rounded-full bg-slate-100 p-2 text-slate-400 transition-all hover:bg-cyan-600 hover:text-white dark:bg-slate-800 dark:hover:bg-cyan-700"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>

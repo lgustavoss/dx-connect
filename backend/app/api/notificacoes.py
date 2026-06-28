@@ -107,6 +107,68 @@ def _unread_count_for_ticket(db: Session, ticket: Ticket, atendente_id: int) -> 
     return int(n or 0)
 
 
+def _last_unread_message_at_subq(atendente_id: int):
+    eff = _effective_last_seen_expr(atendente_id)
+    return (
+        select(func.max(TicketMensagem.created_at))
+        .where(
+            TicketMensagem.ticket_id == Ticket.id,
+            TicketMensagem.created_at > eff,
+        )
+        .scalar_subquery()
+    )
+
+
+def _wpp_resposta_pendente_exprs(atendente_id: int):
+    seen_at = (
+        select(WhatsappChatRead.last_seen_at)
+        .where(
+            WhatsappChatRead.chat_id == WhatsappChat.id,
+            WhatsappChatRead.atendente_id == atendente_id,
+        )
+        .limit(1)
+        .scalar_subquery()
+    )
+    inbound_last = (
+        select(func.max(WhatsappMensagem.created_at))
+        .where(
+            WhatsappMensagem.chat_id == WhatsappChat.id,
+            WhatsappMensagem.direcao == "inbound",
+        )
+        .scalar_subquery()
+    )
+    eff_seen = func.coalesce(seen_at, WhatsappChat.atendimento_inicio_at, WhatsappChat.created_at)
+    return inbound_last, eff_seen
+
+
+def _preview_ultima_nao_lida(db: Session, ticket: Ticket, atendente_id: int) -> str | None:
+    ls = (
+        db.query(TicketRead.last_seen_at)
+        .filter(
+            TicketRead.ticket_id == ticket.id,
+            TicketRead.atendente_id == atendente_id,
+        )
+        .scalar()
+    )
+    eff = ls if ls is not None else ticket.created_at
+    corpo = (
+        db.query(TicketMensagem.corpo)
+        .filter(
+            TicketMensagem.ticket_id == ticket.id,
+            TicketMensagem.created_at > eff,
+        )
+        .order_by(TicketMensagem.created_at.desc())
+        .limit(1)
+        .scalar()
+    )
+    if not corpo:
+        return None
+    texto = corpo.strip()
+    if len(texto) > 60:
+        return texto[:60] + "…"
+    return texto
+
+
 def _count_wpp_fila(db: Session, atendente: Atendente) -> int:
     stmt = (
         select(func.count())
@@ -122,23 +184,7 @@ def _count_wpp_fila(db: Session, atendente: Atendente) -> int:
 
 
 def _count_wpp_respostas_pendentes(db: Session, atendente: Atendente) -> int:
-    seen_at = (
-        select(WhatsappChatRead.last_seen_at)
-        .where(
-            WhatsappChatRead.chat_id == WhatsappChat.id,
-            WhatsappChatRead.atendente_id == atendente.id,
-        )
-        .limit(1)
-        .scalar_subquery()
-    )
-    inbound_last = (
-        select(func.max(WhatsappMensagem.created_at))
-        .where(
-            WhatsappMensagem.chat_id == WhatsappChat.id,
-            WhatsappMensagem.direcao == "inbound",
-        )
-        .scalar_subquery()
-    )
+    inbound_last, eff_seen = _wpp_resposta_pendente_exprs(atendente.id)
     stmt = (
         select(func.count())
         .select_from(WhatsappChat)
@@ -146,7 +192,7 @@ def _count_wpp_respostas_pendentes(db: Session, atendente: Atendente) -> int:
             WhatsappChat.estado == "em_atendimento",
             WhatsappChat.atendente_id == atendente.id,
             inbound_last.isnot(None),
-            func.coalesce(seen_at, WhatsappChat.atendimento_inicio_at, WhatsappChat.created_at) < inbound_last,
+            eff_seen < inbound_last,
         )
     )
     if atendente.role != "admin":
@@ -175,42 +221,6 @@ def _wpp_unread_count_for_chat(db: Session, chat_id: int, atendente_id: int) -> 
         .scalar()
     )
     return int(n or 0)
-
-
-def _append_fallback_itens(
-    out: list[NotificacaoItem],
-    *,
-    nao_lidas: int,
-    wpp_resp: int,
-) -> None:
-    """Garante item navegável quando o contador do resumo indica pendências mas a listagem ficou vazia."""
-    has_ticket = any(i.tipo == "mensagens_nao_lidas" for i in out)
-    if nao_lidas > 0 and not has_ticket:
-        out.append(
-            NotificacaoItem(
-                tipo="mensagens_nao_lidas",
-                ticket_id=None,
-                titulo=f"{nao_lidas} ticket(s) com mensagens não lidas",
-                descricao="Abrir tickets em aberto",
-                count=nao_lidas,
-                href="/tickets?situacao=abertos",
-                created_at=datetime.now(timezone.utc),
-            )
-        )
-
-    has_wpp_resp = any(i.tipo == "wpp_chats_com_resposta" for i in out)
-    if wpp_resp > 0 and not has_wpp_resp:
-        out.append(
-            NotificacaoItem(
-                tipo="wpp_chats_com_resposta",
-                ticket_id=None,
-                titulo=f"{wpp_resp} chat(s) com resposta pendente",
-                descricao="WhatsApp — ver meus atendimentos",
-                count=wpp_resp,
-                href="/whatsapp/atendendo",
-                created_at=datetime.now(timezone.utc),
-            )
-        )
 
 
 def build_notificacao_itens(
@@ -250,13 +260,16 @@ def build_notificacao_itens(
             )
         )
 
+    inbound_last, eff_seen = _wpp_resposta_pendente_exprs(atendente.id)
     stmt_wpp = (
         select(WhatsappChat)
         .where(
             WhatsappChat.estado == "em_atendimento",
             WhatsappChat.atendente_id == atendente.id,
+            inbound_last.isnot(None),
+            eff_seen < inbound_last,
         )
-        .order_by(WhatsappChat.id.desc())
+        .order_by(inbound_last.desc(), WhatsappChat.id.desc())
         .limit(limit)
     )
     if atendente.role != "admin":
@@ -266,7 +279,7 @@ def build_notificacao_itens(
     for c in chats:
         uc = _wpp_unread_count_for_chat(db, c.id, atendente.id)
         if uc <= 0:
-            continue
+            uc = 1
         nome = (c.cliente_nome or "").strip() or c.wa_id
         out.append(
             NotificacaoItem(
@@ -280,13 +293,14 @@ def build_notificacao_itens(
             )
         )
 
+    last_unread_at = _last_unread_message_at_subq(atendente.id)
     stmt = _apply_escopo_tickets_nao_lidos(
         select(Ticket)
         .options(
             joinedload(Ticket.empresa),
             joinedload(Ticket.setor),
         )
-        .order_by(Ticket.updated_at.desc().nulls_last(), Ticket.id.desc())
+        .order_by(last_unread_at.desc(), Ticket.id.desc())
         .limit(limit),
         db,
         atendente,
@@ -296,25 +310,24 @@ def build_notificacao_itens(
     for t in rows:
         uc = _unread_count_for_ticket(db, t, atendente.id)
         if uc <= 0:
-            continue
+            uc = 1
         emp = t.empresa.nome if t.empresa else "—"
         setor = t.setor.nome if t.setor else "—"
         assunto = (t.assunto or "").strip() or "—"
+        preview = _preview_ultima_nao_lida(db, t, atendente.id)
+        descricao = f"Nova resposta do cliente — {preview}" if preview else f"{emp} · {setor}"
         out.append(
             NotificacaoItem(
                 tipo="mensagens_nao_lidas",
                 ticket_id=t.id,
                 titulo=f"{t.protocolo} — {assunto[:80]}{'…' if len(assunto) > 80 else ''}",
-                descricao=f"{emp} · {setor}",
+                descricao=descricao,
                 count=uc,
                 href=f"/tickets/{t.id}",
                 created_at=t.updated_at or t.created_at,
             )
         )
 
-    nao = _count_tickets_com_nao_lidas(db, atendente)
-    wpp_resp = _count_wpp_respostas_pendentes(db, atendente)
-    _append_fallback_itens(out, nao_lidas=nao, wpp_resp=wpp_resp)
     return out
 
 

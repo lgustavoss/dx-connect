@@ -60,6 +60,7 @@ Campos persistidos em `whatsapp_settings` (via **Configurações → WhatsApp**,
 ## Envio (DX Connect → Evolution)
 
 - Endpoint típico Evolution v2: `POST {base}/message/sendText/{instance}` com JSON `{ "number": "<DDI+DDD+número>", "text": "..." }` e header `apikey`.
+- **Áudio outbound (#441):** notas de voz usam `POST {base}/message/sendWhatsAppAudio/{instance}` com `{ "number", "audio": "<base64>", "encoding": true }` — a Evolution converte para Ogg Opus compatível com WhatsApp (não usar `sendMedia` com `audio/webm` do browser).
 - O número do cliente é normalizado a dígitos (ex.: `5511999999999`).
 
 ## Ciclo de vida do chat

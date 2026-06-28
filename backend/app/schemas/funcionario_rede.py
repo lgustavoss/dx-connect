@@ -1,13 +1,24 @@
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 from datetime import datetime
+
+
+def _email_vazio_para_none(v: object) -> object:
+    if v is None or (isinstance(v, str) and not v.strip()):
+        return None
+    return v
 
 
 class FuncionarioRedeBase(BaseModel):
     nome: str
-    email: EmailStr
+    email: EmailStr | None = None
     tipo: str  # socio | supervisor | colaborador
     escopo_empresas: str = "selected"  # all | selected
     ativo: bool = True
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def email_opcional(cls, v: object) -> object:
+        return _email_vazio_para_none(v)
 
 
 class FuncionarioRedeCreate(FuncionarioRedeBase):
@@ -25,6 +36,11 @@ class FuncionarioRedeUpdate(BaseModel):
     rede_id: int | None = None
     empresa_id: int | None = None
     empresa_ids: list[int] | None = None
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def email_opcional(cls, v: object) -> object:
+        return _email_vazio_para_none(v)
 
 
 class FuncionarioRedeRead(FuncionarioRedeBase):
