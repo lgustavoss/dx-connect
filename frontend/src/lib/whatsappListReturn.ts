@@ -15,9 +15,9 @@ export function whatsappConversaState(returnPath: string): WhatsappListReturnSta
 }
 
 export function whatsappConversaLink(chatId: number, returnPath: string, from?: WhatsappListOrigin) {
-  const search = from ? `?from=${from}` : ''
   return {
-    pathname: `/whatsapp/c/${chatId}${search}`,
+    pathname: `/whatsapp/c/${chatId}`,
+    search: from ? `?from=${from}` : '',
     state: whatsappConversaState(returnPath),
   }
 }
