@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
 
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import {
 
@@ -46,9 +46,14 @@ import {
 import { WhatsappTicketsModal } from './WhatsappTicketsModal'
 import { WhatsappVincFuncionarioModal } from './WhatsappVincFuncionarioModal'
 import { WhatsappDemandasPanel } from './WhatsappDemandasPanel'
+import { WhatsappEncerrarModal } from './WhatsappEncerrarModal'
+import { WhatsappDemandaTimelineMarco } from './WhatsappDemandaTimelineMarco'
 import { WhatsappBarraAnexos, ACCEPT_ANEXO, type TipoAnexoPicker } from './WhatsappBarraAnexos'
 import { WhatsappGravadorAudio } from './WhatsappGravadorAudio'
 import { WhatsappPreviaAnexo } from './WhatsappPreviaAnexo'
+import { useWhatsappVoltarLista } from '../../hooks/useWhatsappVoltarLista'
+import { whatsappConversaLink, resolveWhatsappListFallback, WHATSAPP_LIST_PATHS } from '../../lib/whatsappListReturn'
+import { mergeTimelineChat } from '../../lib/whatsappDemandaUtils'
 
 const ROTULO_SEM_LEGENDA = /^\[(Imagem|Áudio|Vídeo|Documento|Figurinha|Contacto|Localização)\]$/
 
@@ -268,7 +273,6 @@ export function WhatsappConversa() {
   const [texto, setTexto] = useState('')
 
   const [enviando, setEnviando] = useState(false)
-  const [encerrando, setEncerrando] = useState(false)
 
   // Estados de WhatsApp Clone (Citação e Zoom)
   const [msgRespondida, setMsgRespondida] = useState<WhatsappChats.Mensagem | null>(null)
@@ -291,9 +295,37 @@ export function WhatsappConversa() {
 
   const [modalTickets, setModalTickets] = useState(false)
   const [ticketsVinculados, setTicketsVinculados] = useState<Tickets.Ticket[]>([])
-  const [demandasCount, setDemandasCount] = useState(0)
   const [demandasReloadKey, setDemandasReloadKey] = useState(0)
+  const [demandasTimeline, setDemandasTimeline] = useState<WhatsappChats.Demanda[]>([])
+  const [modalEncerrar, setModalEncerrar] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
+  const voltarLista = useWhatsappVoltarLista()
+  const listaRetorno = resolveWhatsappListFallback(
+    location.state,
+    searchParams.get('from'),
+    WHATSAPP_LIST_PATHS.atendendo,
+  )
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || modalEncerrar) return
+      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+      voltarLista()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [voltarLista, modalEncerrar])
+
+  useEffect(() => {
+    if (!id) return
+    whatsappChats
+      .demandas(id)
+      .then(setDemandasTimeline)
+      .catch(() => setDemandasTimeline([]))
+  }, [id, demandasReloadKey])
 
 
 
@@ -413,11 +445,11 @@ export function WhatsappConversa() {
     }
   }, [id, subscribe, carregar, carregarSidebar])
 
-  // Polling legado quando SSE indisponível
+  // Polling de segurança (#442): complementa SSE quando Gunicorn usa N workers in-process
   useEffect(() => {
-    if (!useFallback) return
     if (!chat || chat.estado === 'encerrado' || chat.estado === 'aguardando_avaliacao') return
-    const t = setInterval(() => void carregar().catch(() => {}), 5000)
+    const intervalMs = useFallback ? 5000 : 4000
+    const t = setInterval(() => void carregar().catch(() => {}), intervalMs)
     return () => clearInterval(t)
   }, [useFallback, chat, carregar])
 
@@ -609,36 +641,15 @@ useEffect(() => {
 
 
 
-  async function encerrar() {
-
-    if (!chat || !confirm('Encerrar este atendimento?')) return
-
-    const podeRegistrarDemanda =
-      chat.estado === 'em_atendimento' &&
-      (chat.atendente_id === user?.id || user?.role === 'admin')
-    if (podeRegistrarDemanda && demandasCount === 0) {
-      const prosseguir = confirm(
-        'Nenhuma demanda foi registrada nesta sessão. Deseja encerrar mesmo assim?',
-      )
-      if (!prosseguir) return
-    }
-
-    setEncerrando(true)
-
-    try {
-
-      const atualizado = await whatsappChats.encerrar(chat.id)
-
-      await Promise.all([carregar(), carregarSidebar()])
-
-      toast.showSuccess(
-        atualizado.estado === 'aguardando_avaliacao'
-          ? 'Atendimento encerrado. Aguardando avaliação do cliente.'
-          : 'Atendimento encerrado.',
-      )
-
-    } finally { setEncerrando(false) }
-
+  async function handleEncerrado(atualizado: WhatsappChats.Chat) {
+    setChat(atualizado)
+    await Promise.all([carregar(), carregarSidebar()])
+    setDemandasReloadKey((k) => k + 1)
+    toast.showSuccess(
+      atualizado.estado === 'aguardando_avaliacao'
+        ? 'Atendimento encerrado. Aguardando avaliação do cliente.'
+        : 'Atendimento encerrado.',
+    )
   }
 
 
@@ -716,7 +727,7 @@ useEffect(() => {
 
               key={c.id}
 
-              to={`/whatsapp/c/${c.id}`}
+              to={whatsappConversaLink(c.id, listaRetorno)}
 
               className={`flex items-center p-4 gap-3 transition-colors ${c.id === id ? 'bg-white shadow-sm dark:bg-slate-800' : 'hover:bg-white/40 dark:hover:bg-slate-900/50'}`}
 
@@ -778,7 +789,18 @@ useEffect(() => {
 
         <header className="flex h-16 items-center justify-between border-b border-slate-100 px-4 dark:border-slate-800 shadow-sm z-10">
 
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 sm:gap-3">
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-9 shrink-0 px-2 text-xs font-medium"
+              onClick={voltarLista}
+              aria-label="Voltar à lista"
+            >
+              <span aria-hidden>←</span>
+              <span className="hidden sm:inline"> Voltar</span>
+            </Button>
 
             <div className="min-w-0">
 
@@ -884,7 +906,9 @@ useEffect(() => {
 
                 {podeEncerrar && (
 
-                  <Button variant="danger" className="h-8 px-3 text-xs" onClick={() => void encerrar()} loading={encerrando}>Encerrar</Button>
+                  <Button variant="danger" className="h-8 px-3 text-xs" onClick={() => setModalEncerrar(true)}>
+                    Encerrar
+                  </Button>
 
                 )}
 
@@ -931,7 +955,7 @@ useEffect(() => {
             key={`${chat.id}-${demandasReloadKey}`}
             chatId={chat.id}
             podeRegistrar={isResponsavel || isAdmin}
-            onDemandasChange={setDemandasCount}
+            onDemandasChange={() => setDemandasReloadKey((k) => k + 1)}
           />
         )}
 
@@ -951,7 +975,12 @@ useEffect(() => {
 
         >
 
-          {msgs.map((m) => {
+          {mergeTimelineChat(msgs, demandasTimeline).map((item) => {
+            if (item.kind === 'demanda') {
+              return <WhatsappDemandaTimelineMarco key={`dem-${item.demanda.id}`} demanda={item.demanda} />
+            }
+
+            const m = item.mensagem
 
             const isInbound = m.direcao === 'inbound'
 
@@ -1325,6 +1354,17 @@ useEffect(() => {
             setChat(atualizado)
             setDemandasReloadKey((k) => k + 1)
           }}
+        />
+      )}
+
+      {chat && (
+        <WhatsappEncerrarModal
+          open={modalEncerrar}
+          chatId={chat.id}
+          msgs={msgs}
+          onClose={() => setModalEncerrar(false)}
+          onEncerrado={(atualizado) => void handleEncerrado(atualizado)}
+          onDemandasChange={() => setDemandasReloadKey((k) => k + 1)}
         />
       )}
 

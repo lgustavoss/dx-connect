@@ -626,7 +626,7 @@ export function RedeDetalhe() {
 
   function preencherFormFuncionario(f: FuncionarioListaItem) {
     setNomeFuncionario(f.nome)
-    setEmailFuncionario(f.email)
+    setEmailFuncionario(f.email ?? '')
     setTipoFuncionario((f.tipo as TipoFuncionario) || 'colaborador')
     setAtivoFuncionario(f.ativo)
     setEmpresaIdFuncionario(f.empresa_id ?? '')
@@ -1766,7 +1766,7 @@ export function RedeDetalhe() {
                       className="cursor-pointer transition-colors hover:bg-slate-50/80 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-white/50"
                     >
                       <td className="px-4 py-3.5 font-medium text-slate-800 sm:px-6 dark:text-slate-100">{f.nome}</td>
-                      <td className="max-w-[12rem] truncate px-4 py-3.5 text-slate-600 sm:px-6 dark:text-slate-300" title={f.email}>
+                      <td className="max-w-[12rem] truncate px-4 py-3.5 text-slate-600 sm:px-6 dark:text-slate-300" title={f.email ?? undefined}>
                         {f.email}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3.5 text-slate-600 sm:px-6 dark:text-slate-300">

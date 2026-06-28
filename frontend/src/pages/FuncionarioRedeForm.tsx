@@ -97,7 +97,7 @@ export function FuncionarioRedeForm() {
       .then((item) => {
         if (cancelled) return
         setNome(item.nome)
-        setEmail(item.email)
+        setEmail(item.email || '')
         setTipo(item.tipo as Tipo)
         setEscopoEmpresas((item.escopo_empresas as Escopo) || (item.tipo === 'socio' ? 'all' : 'selected'))
         setAtivo(item.ativo)
@@ -170,12 +170,13 @@ export function FuncionarioRedeForm() {
       }
     }
     setSaving(true)
+    const emailPayload = email.trim() || null
     try {
       let saved: FuncionariosRede.Funcionario
       if (isEdit && !Number.isNaN(funcionarioId)) {
         const payload: FuncionariosRede.Update = {
           nome: nome.trim(),
-          email,
+          email: emailPayload,
           tipo,
           escopo_empresas: escopo,
           ativo,
@@ -188,7 +189,7 @@ export function FuncionarioRedeForm() {
       } else {
         const payload: FuncionariosRede.Create = {
           nome: nome.trim(),
-          email,
+          email: emailPayload,
           tipo,
           escopo_empresas: escopo,
           ativo,
@@ -257,7 +258,15 @@ export function FuncionarioRedeForm() {
           <div className="space-y-6">
             <FormSection title="Dados do funcionário">
               <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
-              <Input label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Input
+                label="E-mail (opcional)"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              <p className="text-xs text-slate-500">
+                Usado para identificar remetente em tickets por e-mail. Contactos só WhatsApp podem ficar em branco.
+              </p>
               <Select
                 label="Tipo"
                 value={tipo}

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class WhatsappMensagemRead(BaseModel):
@@ -105,7 +105,7 @@ class WhatsappVincularFuncionarioBody(BaseModel):
 
 class WhatsappCadastrarFuncionarioBody(BaseModel):
     nome: str = Field(..., min_length=1, max_length=255)
-    email: str = Field(..., min_length=3, max_length=255)
+    email: str | None = Field(default=None, max_length=255)
     rede_id: int
     tipo: str = Field(default="colaborador", description="colaborador | supervisor")
     escopo_empresas: str = Field(default="selected", description="all | selected")
@@ -114,6 +114,13 @@ class WhatsappCadastrarFuncionarioBody(BaseModel):
         None,
         description="Empresa exibida no chat quando o funcionário tem várias empresas.",
     )
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def email_opcional(cls, v: object) -> str | None:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return None
+        return str(v).strip()
 
 
 class WhatsappAbrirTicketBody(BaseModel):
@@ -127,6 +134,12 @@ class WhatsappAbrirTicketBody(BaseModel):
 
 class WhatsappChatDemandaCreate(BaseModel):
     natureza_id: int
+    motivo_id: int | None = None
+    descricao_curta: str | None = Field(None, max_length=500)
+
+
+class WhatsappChatDemandaUpdate(BaseModel):
+    natureza_id: int | None = None
     motivo_id: int | None = None
     descricao_curta: str | None = Field(None, max_length=500)
 

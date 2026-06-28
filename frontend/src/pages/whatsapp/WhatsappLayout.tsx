@@ -36,9 +36,9 @@ export function WhatsappLayout() {
               <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">WhatsApp</h1>
               <p className="text-sm font-medium text-slate-500">
                 {isAvaliacoes
-                  ? 'Avaliações dos clientes (notas não aparecem na conversa)'
+                  ? 'Chats com avaliação respondida pelos clientes'
                   : isHistorico
-                    ? 'Revisão de atendimentos passados'
+                    ? 'Consulta de sessões finalizadas e chats em aberto'
                     : 'Operação em tempo real'}
               </p>
             </div>

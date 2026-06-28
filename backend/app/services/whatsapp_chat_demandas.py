@@ -14,7 +14,7 @@ from app.models.ticket_classificacao import TicketMotivo, TicketNatureza
 from app.models.whatsapp_chat import WhatsappChat
 from app.models.whatsapp_chat_demanda import DESFECHOS_DEMANDA, WhatsappChatDemanda
 from app.schemas.dashboard import ContagemIdNome
-from app.schemas.whatsapp_chat import WhatsappChatDemandaCreate, WhatsappChatDemandaRead
+from app.schemas.whatsapp_chat import WhatsappChatDemandaCreate, WhatsappChatDemandaRead, WhatsappChatDemandaUpdate
 from app.services.chat_dashboard_filters import apply_chat_dashboard_filters, period_bounds
 
 
@@ -114,6 +114,50 @@ def listar_demandas_chat(db: Session, chat_id: int) -> list[WhatsappChatDemandaR
         .all()
     )
     return [demanda_para_read(r) for r in rows]
+
+
+def atualizar_demanda_chat(
+    db: Session,
+    chat: WhatsappChat,
+    row: WhatsappChatDemanda,
+    data: WhatsappChatDemandaUpdate,
+    *,
+    atendente: Atendente,
+) -> WhatsappChatDemanda:
+    if chat.estado != "em_atendimento":
+        raise HTTPException(status_code=400, detail="Edite demandas apenas em chats em atendimento")
+    if row.desfecho != "resolvido_sessao":
+        raise HTTPException(status_code=400, detail="Demandas escaladas para ticket não podem ser editadas")
+    if atendente.role != "admin" and row.atendente_id != atendente.id:
+        raise HTTPException(status_code=403, detail="Somente quem registrou ou admin pode editar")
+    update = data.model_dump(exclude_unset=True)
+    natureza_id = update.get("natureza_id", row.natureza_id)
+    motivo_id = update.get("motivo_id", row.motivo_id)
+    if "motivo_id" in update and update["motivo_id"] is None:
+        motivo_id = None
+    _validar_natureza_motivo(db, natureza_id=int(natureza_id), motivo_id=motivo_id)
+    if "natureza_id" in update:
+        row.natureza_id = int(natureza_id)
+    if "motivo_id" in update or "natureza_id" in update:
+        row.motivo_id = motivo_id
+    if "descricao_curta" in update:
+        desc = (update["descricao_curta"] or "").strip() or None
+        if desc and len(desc) > 500:
+            raise HTTPException(status_code=400, detail="Descrição curta excede 500 caracteres")
+        row.descricao_curta = desc
+    db.flush()
+    refreshed = (
+        db.query(WhatsappChatDemanda)
+        .options(
+            joinedload(WhatsappChatDemanda.natureza),
+            joinedload(WhatsappChatDemanda.motivo),
+            joinedload(WhatsappChatDemanda.atendente),
+        )
+        .filter(WhatsappChatDemanda.id == row.id)
+        .first()
+    )
+    assert refreshed is not None
+    return refreshed
 
 
 def agregar_demandas_por_natureza(

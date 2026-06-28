@@ -102,3 +102,55 @@ def test_dashboard_agrega_demandas_por_natureza(client, seed_base, auth_headers,
     assert row is not None
     assert row["total"] >= 1
     assert row["nome"] == "Dúvida WPP"
+
+
+def test_atualizar_demanda_resolvido_sessao(client, seed_base, auth_headers, db_session):
+    from app.models.ticket_classificacao import TicketNatureza
+
+    nat, mot = _seed_natureza_motivo(db_session)
+    nat2 = TicketNatureza(nome="Outra WPP", slug="outra-wpp-test", ordem=2, ativo=True)
+    db_session.add(nat2)
+    db_session.commit()
+
+    cid = _chat_em_atendimento(client, auth_headers, wa_id="5511999005566", msg_id="dm-5")
+    created = client.post(
+        f"/v1/whatsapp/chats/{cid}/demandas",
+        json={"natureza_id": nat.id, "motivo_id": mot.id, "descricao_curta": "Antes"},
+        headers=auth_headers["a1"],
+    ).json()
+    did = created["id"]
+
+    r = client.patch(
+        f"/v1/whatsapp/chats/{cid}/demandas/{did}",
+        json={"natureza_id": nat2.id, "motivo_id": None, "descricao_curta": "Depois"},
+        headers=auth_headers["a1"],
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["natureza_nome"] == "Outra WPP"
+    assert body["motivo_id"] is None
+    assert body["descricao_curta"] == "Depois"
+
+
+def test_nao_edita_demanda_escalada(client, seed_base, auth_headers, db_session):
+    nat, mot = _seed_natureza_motivo(db_session)
+    cid = _chat_em_atendimento(client, auth_headers, wa_id="5511999006677", msg_id="dm-6")
+    client.post(
+        f"/v1/whatsapp/chats/{cid}/abrir-ticket",
+        json={
+            "empresa_id": seed_base["empresa"].id,
+            "setor_id": seed_base["setor1"].id,
+            "assunto": "Escalado",
+            "natureza_id": nat.id,
+            "motivo_id": mot.id,
+        },
+        headers=auth_headers["a1"],
+    )
+    demandas = client.get(f"/v1/whatsapp/chats/{cid}/demandas", headers=auth_headers["a1"]).json()
+    did = demandas[0]["id"]
+    denied = client.patch(
+        f"/v1/whatsapp/chats/{cid}/demandas/{did}",
+        json={"descricao_curta": "Tentativa"},
+        headers=auth_headers["a1"],
+    )
+    assert denied.status_code == 400

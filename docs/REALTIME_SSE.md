@@ -32,7 +32,8 @@ Destinatários filtrados por RBAC (setor homônimo + admin).
 
 - Cliente fetch-based (suporta Bearer; `EventSource` nativo não envia header)
 - Hook `useEventStream()` + `EventStreamProvider` no `Layout`
-- Reconexão com backoff exponencial; após **3 falhas** consecutivas, `useFallback === true` (consumidores RT-F2 mantêm polling)
+- Reconexão com backoff exponencial; após **3 falhas** consecutivas, `useFallback === true` (intervalos de polling mais frequentes)
+- **Polling de segurança (#442):** WhatsApp (`WhatsappConversa`, `WhatsappAtendendo`) faz refresh periódico **mesmo com SSE conectado** (4–8 s), porque o hub v1 não propaga eventos entre workers Gunicorn
 
 ## Gunicorn e multi-worker
 

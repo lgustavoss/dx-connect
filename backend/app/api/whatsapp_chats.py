@@ -25,6 +25,7 @@ from app.schemas.whatsapp_chat import (
     WhatsappChatComentarioInternoCreate,
     WhatsappChatDemandaCreate,
     WhatsappChatDemandaRead,
+    WhatsappChatDemandaUpdate,
     WhatsappChatMensagemCreate,
     WhatsappChatRead,
     WhatsappMensagemRead,
@@ -62,6 +63,26 @@ logger = logging.getLogger(__name__)
 
 _MAX_PAGE = 100
 _DEFAULT_PAGE = 20
+
+_ESTADOS_HISTORICO_FINALIZADOS = ("encerrado", "aguardando_avaliacao")
+_ESTADOS_HISTORICO_ATIVOS = ("em_atendimento", "aguardando_atendente")
+
+
+def _estados_historico_filtro(estado: str | None) -> list[str]:
+    s = (estado or "finalizados").strip().lower()
+    if s in ("finalizados", "default"):
+        return list(_ESTADOS_HISTORICO_FINALIZADOS)
+    if s == "encerrado":
+        return ["encerrado"]
+    if s == "aguardando_avaliacao":
+        return ["aguardando_avaliacao"]
+    if s == "em_atendimento":
+        return ["em_atendimento"]
+    if s == "aguardando_atendente":
+        return ["aguardando_atendente"]
+    if s == "todos":
+        return list(_ESTADOS_HISTORICO_FINALIZADOS + _ESTADOS_HISTORICO_ATIVOS)
+    raise HTTPException(status_code=400, detail="Parâmetro estado inválido para histórico.")
 
 _CHAT_LOAD_OPTIONS = (
     joinedload(WhatsappChat.atendente),
@@ -371,7 +392,7 @@ def _criar_funcionario_rede(
     atendente: Atendente,
     *,
     nome: str,
-    email: str,
+    email: str | None,
     tipo: str,
     escopo_empresas: str,
     rede_id: int,
@@ -402,16 +423,18 @@ def _criar_funcionario_rede(
         emps = db.query(Empresa).filter(Empresa.id.in_(ids)).all()
         if any(int(e.tenant_id) != int(atendente.tenant_id) for e in emps):
             raise HTTPException(status_code=400, detail="Empresa inválida para este tenant")
-    try:
-        assert_email_unico_por_rede(db, email=email.strip(), rede_id=int(rede_id))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    email_norm = (email or "").strip() or None
+    if email_norm:
+        try:
+            assert_email_unico_por_rede(db, email=email_norm, rede_id=int(rede_id))
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
     emp_colab_id: int | None = None
     if escopo == "selected" and tipo_eff == "colaborador" and len(ids) == 1:
         emp_colab_id = ids[0]
     f = FuncionarioRede(
         nome=nome.strip(),
-        email=email.strip(),
+        email=email_norm,
         tipo=tipo_eff,
         escopo_empresas=escopo,
         ativo=True,
@@ -578,12 +601,17 @@ def listar_encerrados(
     atendente_id: int | None = Query(None, ge=1, description="Filtro por atendente que encerrou"),
     encerramento_inicio: datetime | None = Query(None, description="Filtro por data de encerramento a partir de"),
     encerramento_fim: datetime | None = Query(None, description="Filtro por data de encerramento até"),
+    estado: str | None = Query(
+        None,
+        description="finalizados (padrão) | encerrado | aguardando_avaliacao | em_atendimento | aguardando_atendente | todos",
+    ),
     offset: int = Query(0, ge=0),
     limit: int = Query(_DEFAULT_PAGE, ge=1, le=_MAX_PAGE),
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    q = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.estado == "encerrado")
+    estados = _estados_historico_filtro(estado)
+    q = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.estado.in_(estados))
     if protocolo:
         q = q.filter(WhatsappChat.protocolo.ilike(f"%{protocolo}%"))
     if wa_id:
@@ -619,16 +647,20 @@ def listar_avaliacoes(
     nota_max: int | None = Query(None, ge=1, le=5),
     encerramento_inicio: datetime | None = Query(None),
     encerramento_fim: datetime | None = Query(None),
+    incluir_sem_resposta: bool = Query(
+        False,
+        description="Incluir chats com avaliação solicitada mas sem nota (auditoria)",
+    ),
     offset: int = Query(0, ge=0),
     limit: int = Query(_DEFAULT_PAGE, ge=1, le=_MAX_PAGE),
     db: Session = Depends(get_db),
     _: Atendente = Depends(exigir_admin),
 ):
-    q = (
-        db.query(WhatsappChat)
-        .options(*_CHAT_LOAD_OPTIONS)
-        .filter(WhatsappChat.avaliacao_solicitada.is_(True))
-    )
+    q = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS)
+    if incluir_sem_resposta:
+        q = q.filter(WhatsappChat.avaliacao_solicitada.is_(True))
+    else:
+        q = q.filter(WhatsappChat.avaliacao_nota.isnot(None))
     if busca:
         term = f"%{busca.strip()}%"
         q = q.filter(
@@ -858,6 +890,36 @@ def registrar_demanda(
     return demanda_para_read(row)
 
 
+@router.patch("/{chat_id}/demandas/{demanda_id}", response_model=WhatsappChatDemandaRead)
+def atualizar_demanda(
+    chat_id: int,
+    demanda_id: int,
+    data: WhatsappChatDemandaUpdate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    from app.models.whatsapp_chat_demanda import WhatsappChatDemanda
+    from app.services.whatsapp_chat_demandas import atualizar_demanda_chat, demanda_para_read
+
+    c = db.query(WhatsappChat).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not _pode_registrar_demanda(db, atendente, c):
+        raise HTTPException(status_code=403, detail="Sem permissão para alterar demandas neste chat")
+    row = (
+        db.query(WhatsappChatDemanda)
+        .filter(WhatsappChatDemanda.id == demanda_id, WhatsappChatDemanda.chat_id == chat_id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Demanda não encontrada")
+    if not data.model_dump(exclude_unset=True):
+        raise HTTPException(status_code=400, detail="Nenhum campo para atualizar")
+    updated = atualizar_demanda_chat(db, c, row, data, atendente=atendente)
+    db.commit()
+    return demanda_para_read(updated)
+
+
 @router.delete("/{chat_id}/demandas/{demanda_id}", status_code=204)
 def excluir_demanda(
     chat_id: int,
@@ -1073,20 +1135,35 @@ async def enviar_mensagem_midia(
         )
         q_prev = _preview_citacao(ref) if ref else None
 
-    ok, err, sent_wa_id = evolution_api.evolution_send_media(
-        st.evolution_base_url,
-        st.evolution_instance_name,
-        st.evolution_api_key,
-        c.wa_id,
-        mediatype=ev_mt,
-        mimetype=mime,
-        caption=legenda_whatsapp,
-        media_base64=b64,
-        file_name=fname,
-        quoted=quoted_payload,
-    )
+    if tipo_db == "audio":
+        ok, err, sent_wa_id = evolution_api.evolution_send_whatsapp_audio(
+            st.evolution_base_url,
+            st.evolution_instance_name,
+            st.evolution_api_key,
+            c.wa_id,
+            audio_base64=b64,
+            quoted=quoted_payload,
+        )
+    else:
+        ok, err, sent_wa_id = evolution_api.evolution_send_media(
+            st.evolution_base_url,
+            st.evolution_instance_name,
+            st.evolution_api_key,
+            c.wa_id,
+            mediatype=ev_mt,
+            mimetype=mime,
+            caption=legenda_whatsapp,
+            media_base64=b64,
+            file_name=fname,
+            quoted=quoted_payload,
+        )
     if not ok:
         raise HTTPException(status_code=502, detail=err or "Falha ao enviar mídia pela Evolution API")
+    if tipo_db == "audio" and not sent_wa_id:
+        raise HTTPException(
+            status_code=502,
+            detail="Evolution API não confirmou entrega do áudio (wa_message_id ausente).",
+        )
 
     m = WhatsappMensagem(
         chat_id=c.id,
