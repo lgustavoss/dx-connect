@@ -413,11 +413,11 @@ export function WhatsappConversa() {
     }
   }, [id, subscribe, carregar, carregarSidebar])
 
-  // Polling legado quando SSE indisponível
+  // Polling de segurança (#442): complementa SSE quando Gunicorn usa N workers in-process
   useEffect(() => {
-    if (!useFallback) return
     if (!chat || chat.estado === 'encerrado' || chat.estado === 'aguardando_avaliacao') return
-    const t = setInterval(() => void carregar().catch(() => {}), 5000)
+    const intervalMs = useFallback ? 5000 : 4000
+    const t = setInterval(() => void carregar().catch(() => {}), intervalMs)
     return () => clearInterval(t)
   }, [useFallback, chat, carregar])
 

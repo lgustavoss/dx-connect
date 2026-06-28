@@ -70,11 +70,11 @@ export function WhatsappAtendendo() {
     }
   }, [subscribe, load])
 
-  // Refresh inicial + polling legado quando SSE indisponível
+  // Refresh inicial + polling de segurança (#442)
   useEffect(() => {
     void load()
-    if (!useFallback) return
-    const timer = setInterval(() => void load(true), 10000)
+    const intervalMs = useFallback ? 10000 : 8000
+    const timer = setInterval(() => void load(true), intervalMs)
     return () => clearInterval(timer)
   }, [load, useFallback])
 

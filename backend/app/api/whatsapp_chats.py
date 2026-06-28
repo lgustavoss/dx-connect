@@ -1073,20 +1073,35 @@ async def enviar_mensagem_midia(
         )
         q_prev = _preview_citacao(ref) if ref else None
 
-    ok, err, sent_wa_id = evolution_api.evolution_send_media(
-        st.evolution_base_url,
-        st.evolution_instance_name,
-        st.evolution_api_key,
-        c.wa_id,
-        mediatype=ev_mt,
-        mimetype=mime,
-        caption=legenda_whatsapp,
-        media_base64=b64,
-        file_name=fname,
-        quoted=quoted_payload,
-    )
+    if tipo_db == "audio":
+        ok, err, sent_wa_id = evolution_api.evolution_send_whatsapp_audio(
+            st.evolution_base_url,
+            st.evolution_instance_name,
+            st.evolution_api_key,
+            c.wa_id,
+            audio_base64=b64,
+            quoted=quoted_payload,
+        )
+    else:
+        ok, err, sent_wa_id = evolution_api.evolution_send_media(
+            st.evolution_base_url,
+            st.evolution_instance_name,
+            st.evolution_api_key,
+            c.wa_id,
+            mediatype=ev_mt,
+            mimetype=mime,
+            caption=legenda_whatsapp,
+            media_base64=b64,
+            file_name=fname,
+            quoted=quoted_payload,
+        )
     if not ok:
         raise HTTPException(status_code=502, detail=err or "Falha ao enviar mídia pela Evolution API")
+    if tipo_db == "audio" and not sent_wa_id:
+        raise HTTPException(
+            status_code=502,
+            detail="Evolution API não confirmou entrega do áudio (wa_message_id ausente).",
+        )
 
     m = WhatsappMensagem(
         chat_id=c.id,
