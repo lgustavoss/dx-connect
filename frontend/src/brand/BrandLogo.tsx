@@ -26,6 +26,7 @@ const wordmarkSizes = {
 
 const taglineSizes = {
   sm: 'text-[0.625rem] px-2.5 py-0.5',
+  sidebar: 'text-[0.625rem] px-2.5 py-0.5',
   md: 'text-xs sm:text-sm px-3.5 py-1',
   lg: 'text-sm sm:text-base px-4 py-1.5',
 } as const
