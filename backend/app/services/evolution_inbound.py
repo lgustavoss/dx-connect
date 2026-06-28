@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 _MEDIA_KEYS: list[tuple[str, str]] = [
     ("imageMessage", "imagem"),
@@ -133,6 +133,45 @@ def _caption_de_obj_midia(obj: dict[str, Any]) -> str | None:
     return None
 
 
+def _telefone_de_vcard(vcard: str | None) -> str | None:
+    if not vcard:
+        return None
+    for line in str(vcard).splitlines():
+        s = line.strip()
+        if s.upper().startswith("TEL"):
+            part = s.split(":", 1)
+            if len(part) == 2 and part[1].strip():
+                return re.sub(r"\D", "", part[1]) or part[1].strip()
+    return None
+
+
+def _corpo_contacto(obj: dict[str, Any]) -> str:
+    nome = str(obj.get("displayName") or obj.get("DisplayName") or "Contacto").strip()
+    tel = _telefone_de_vcard(obj.get("vcard") or obj.get("Vcard"))
+    if tel:
+        return f"[Contacto] {nome} — {tel}"
+    return f"[Contacto] {nome}"
+
+
+def _corpo_localizacao(obj: dict[str, Any]) -> str:
+    nome = str(obj.get("name") or obj.get("Name") or obj.get("address") or obj.get("Address") or "Localização").strip()
+    lat = obj.get("degreesLatitude") if obj.get("degreesLatitude") is not None else obj.get("DegreesLatitude")
+    lng = obj.get("degreesLongitude") if obj.get("degreesLongitude") is not None else obj.get("DegreesLongitude")
+    if lat is not None and lng is not None:
+        return f"[Localização] {nome}\nhttps://maps.google.com/?q={lat},{lng}"
+    return f"[Localização] {nome}"
+
+
+_ESPECIAL_TEXTO: list[tuple[str, Callable[[dict[str, Any]], str]]] = [
+    ("contactMessage", _corpo_contacto),
+    ("ContactMessage", _corpo_contacto),
+    ("locationMessage", _corpo_localizacao),
+    ("LocationMessage", _corpo_localizacao),
+    ("liveLocationMessage", _corpo_localizacao),
+    ("LiveLocationMessage", _corpo_localizacao),
+]
+
+
 def _iter_message_dicts(data: Any) -> Iterator[dict[str, Any]]:
     if isinstance(data, list):
         for item in data:
@@ -206,6 +245,28 @@ def iter_inbound_whatsapp_messages(webhook_body: dict[str, Any]) -> Iterator[dic
                 "corpo": corpo,
                 "mimetype": mime,
                 "raw_envelope": m,
+                "quoted_wa_message_id": q_wid,
+                "quoted_corpo_preview": q_prev,
+            }
+            continue
+
+        corpo_especial: str | None = None
+        for key, formatter in _ESPECIAL_TEXTO:
+            obj = inner.get(key)
+            if isinstance(obj, dict):
+                corpo_fmt = formatter(obj).strip()
+                if corpo_fmt:
+                    corpo_especial = corpo_fmt
+                    break
+        if corpo_especial:
+            yield {
+                "wa_id": wa_id,
+                "wa_message_id": wa_message_id,
+                "push_name": push_name,
+                "tipo": "texto",
+                "corpo": corpo_especial,
+                "mimetype": None,
+                "raw_envelope": None,
                 "quoted_wa_message_id": q_wid,
                 "quoted_corpo_preview": q_prev,
             }

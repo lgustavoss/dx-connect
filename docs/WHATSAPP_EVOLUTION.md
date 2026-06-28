@@ -74,7 +74,9 @@ Campos persistidos em `whatsapp_settings` (via **Configurações → WhatsApp**,
 - Comportamento e payloads podem variar entre **versões** da Evolution; ajustar o parser em `app/services/evolution_inbound.py` ou a chamada a `getBase64FromMediaMessage` se necessário.
 - Políticas e limitações do **WhatsApp** aplicam-se ao número conectado na Evolution.
 - **Localização** e **templates** não são tratados nesta versão.
-- Ficheiros muito grandes respeitam `WHATSAPP_MEDIA_MAX_BYTES` (por defeito 25 MB); mensagens de contacto / localização não são mapeadas.
+- Ficheiros muito grandes respeitam `WHATSAPP_MEDIA_MAX_BYTES` (por defeito 25 MB).
+- **Contacto** e **localização** inbound aparecem como texto legível (`[Contacto]`, `[Localização]` + link Google Maps).
+- Grupos (`@g.us`) continuam ignorados.
 
 ## Referências úteis
 
