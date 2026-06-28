@@ -39,6 +39,9 @@ services:
       AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "true"
       DATABASE_PROVIDER: postgresql
       DATABASE_CONNECTION_URI: postgresql://evolution:evolution_e2e_secret@evolution-db:5432/evolution?schema=public
+      DATABASE_ENABLED: "true"
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
       CACHE_REDIS_ENABLED: "true"
       CACHE_REDIS_URI: redis://evolution-redis:6379/0
       CACHE_REDIS_PREFIX_KEY: evo_dx

@@ -153,6 +153,11 @@ export function WhatsappAtendendo() {
                             {exibirProtocolo(c.protocolo)}
                           </span>
                           <TempoEspera data={c.created_at} />
+                          {!c.funcionario_rede_id && (
+                            <span className="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-medium text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
+                              Sem vínculo
+                            </span>
+                          )}
                         </div>
                         <h3 className="truncate font-bold text-slate-900 dark:text-slate-100">{c.cliente_nome || 'Cliente'}</h3>
                         <p className="font-mono text-xs text-slate-500">{c.wa_id}</p>
@@ -219,6 +224,11 @@ export function WhatsappAtendendo() {
                         <h3 className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-cyan-600 transition-colors">
                           {c.cliente_nome || 'Cliente'}
                         </h3>
+                        {!c.funcionario_rede_id && (
+                          <span className="mt-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-medium text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
+                            Sem vínculo
+                          </span>
+                        )}
                         <p className="text-xs text-slate-400 font-mono mt-1">{c.wa_id}</p>
                         <p className="mt-2 text-[10px] font-medium text-slate-500 dark:text-slate-400">
                           {rotuloResponsavelChat(c)}

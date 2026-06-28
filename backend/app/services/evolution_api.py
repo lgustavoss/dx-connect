@@ -226,7 +226,7 @@ def _extrair_base64_resposta(data: Any) -> str | None:
         return data.strip()
     if not isinstance(data, dict):
         return None
-    for k in ("base64", "Base64"):
+    for k in ("base64", "Base64", "buffer", "Buffer"):
         v = data.get(k)
         if isinstance(v, str) and v.strip():
             return v.strip()
@@ -236,6 +236,43 @@ def _extrair_base64_resposta(data: Any) -> str | None:
         if got:
             return got
     return None
+
+
+def _payloads_get_base64_from_envelope(message_envelope: dict[str, Any]) -> list[dict[str, Any]]:
+    """Variantes aceites pela Evolution v2 (envelope completo ou só key.id)."""
+    payloads: list[dict[str, Any]] = [message_envelope]
+    key = message_envelope.get("key") or message_envelope.get("Key")
+    if isinstance(key, dict):
+        slim_key: dict[str, Any] = {}
+        mid = key.get("id") or key.get("Id")
+        if mid:
+            slim_key["id"] = str(mid).strip()
+        rj = key.get("remoteJid") or key.get("RemoteJid")
+        if rj:
+            slim_key["remoteJid"] = rj
+        if "fromMe" in key:
+            slim_key["fromMe"] = key["fromMe"]
+        elif "FromMe" in key:
+            slim_key["fromMe"] = key["FromMe"]
+        if slim_key.get("id"):
+            payloads.append({"key": slim_key})
+            payloads.append({"key": {"id": slim_key["id"]}})
+    # dedupe mantendo ordem
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for p in payloads:
+        sig = json.dumps(p, sort_keys=True, default=str)
+        if sig not in seen:
+            seen.add(sig)
+            out.append(p)
+    return out
+
+
+def _erro_indica_mensagem_nao_encontrada(err: str | None) -> bool:
+    if not err:
+        return False
+    low = err.lower()
+    return "message not found" in low or "mensagem não encontrada" in low or "mensagem nao encontrada" in low
 
 
 def evolution_get_base64_from_media_message(
@@ -250,17 +287,26 @@ def evolution_get_base64_from_media_message(
     """
     POST /chat/getBase64FromMediaMessage/{instance}
     `message_envelope` costuma ser o objeto completo da mensagem no webhook (key, message, …).
+    Tenta envelope completo e fallback com key mínima; repete uma vez se a Evolution ainda
+    não persistiu a mensagem (erro «Message not found»).
     """
     base = base_url.rstrip("/")
     url = f"{base}/chat/getBase64FromMediaMessage/{instance}"
     headers = {"apikey": api_key, "Content-Type": "application/json", "Accept": "application/json"}
-    body: dict[str, Any] = {"message": message_envelope, "convertToMp4": convert_to_mp4}
-    code, data, err = _request_json_with_retry("POST", url, headers=headers, body=body, timeout=timeout)
-    if code in (200, 201):
-        b64 = _extrair_base64_resposta(data)
-        if b64:
-            return True, b64, None
-        return False, None, "Evolution não devolveu base64 no formato esperado"
-    if err:
-        return False, None, err[:1200]
-    return False, None, f"HTTP {code}"
+    last_err: str | None = None
+    for attempt in range(2):
+        for msg_payload in _payloads_get_base64_from_envelope(message_envelope):
+            body: dict[str, Any] = {"message": msg_payload, "convertToMp4": convert_to_mp4}
+            code, data, err = _request_json_with_retry("POST", url, headers=headers, body=body, timeout=timeout)
+            if code in (200, 201):
+                b64 = _extrair_base64_resposta(data)
+                if b64:
+                    return True, b64, None
+                last_err = "Evolution não devolveu base64 no formato esperado"
+            else:
+                last_err = (err[:1200] if err else f"HTTP {code}") or last_err
+        if attempt == 0 and _erro_indica_mensagem_nao_encontrada(last_err):
+            time.sleep(1.5)
+            continue
+        break
+    return False, None, last_err or "Falha ao obter mídia da Evolution"

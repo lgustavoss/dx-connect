@@ -47,6 +47,16 @@ Campos persistidos em `whatsapp_settings` (via **Configurações → WhatsApp**,
 
 4. **Segurança:** se `webhook_secret` estiver preenchido nas settings, o pedido deve enviar o mesmo valor em `X-Dx-Webhook-Secret` ou `apikey` (útil se a Evolution só permitir o header `apikey`). Se o segredo estiver vazio (ex.: dev), o webhook aceita sem validação — **não usar assim em produção**.
 
+5. **Mídia inbound (Evolution):** o download via `getBase64FromMediaMessage` exige que a Evolution **persista mensagens** na base de dados. Defina pelo menos:
+
+   ```env
+   DATABASE_ENABLED=true
+   DATABASE_SAVE_DATA_INSTANCE=true
+   DATABASE_SAVE_DATA_NEW_MESSAGE=true
+   ```
+
+   Sem isto, o webhook recebe o evento mas a Evolution responde «Message not found» ao pedir o base64. Garanta também volume/gravação em `WHATSAPP_MEDIA_DIR` no backend e que URL/API key da instância estão corretos no painel.
+
 ## Envio (DX Connect → Evolution)
 
 - Endpoint típico Evolution v2: `POST {base}/message/sendText/{instance}` com JSON `{ "number": "<DDI+DDD+número>", "text": "..." }` e header `apikey`.

@@ -532,3 +532,66 @@ def test_admin_nao_envia_ao_cliente_usa_comentario_interno(client, seed_base, au
     assert allowed.status_code == 201
     assert sent["n"] == enviados_antes + 1
 
+
+def test_webhook_inbound_midia_grava_ficheiro(client, seed_base, auth_headers, monkeypatch, tmp_path):
+    """Mídia inbound: obtém base64 da Evolution e persiste em disco (#431)."""
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={
+            "webhook_secret": "midia-in",
+            "evolution_base_url": "http://evolution.test",
+            "evolution_instance_name": "inst",
+            "evolution_api_key": "key-test",
+        },
+        headers=auth_headers["admin"],
+    )
+    monkeypatch.setattr("app.config.settings.WHATSAPP_MEDIA_DIR", str(tmp_path))
+
+    png_b64 = (
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    )
+
+    def fake_get_base64(_base, _inst, _key, envelope, *, convert_to_mp4=False, timeout=90):
+        assert envelope.get("key", {}).get("id") == "img-in-1"
+        return True, png_b64, None
+
+    monkeypatch.setattr(
+        "app.api.whatsapp_webhook.evolution_api.evolution_get_base64_from_media_message",
+        fake_get_base64,
+    )
+
+    h = {"X-Dx-Webhook-Secret": "midia-in"}
+    body = {
+        "event": "messages.upsert",
+        "data": {
+            "key": {
+                "remoteJid": "5511666555444@s.whatsapp.net",
+                "fromMe": False,
+                "id": "img-in-1",
+            },
+            "message": {
+                "imageMessage": {
+                    "mimetype": "image/jpeg",
+                    "caption": "Foto teste",
+                }
+            },
+        },
+    }
+    r = client.post("/v1/webhooks/evolution", json=body, headers=h)
+    assert r.status_code == 200
+    assert r.json().get("processados") == 1
+
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+    rows = client.get(f"/v1/whatsapp/chats/{cid}/mensagens", headers=auth_headers["a1"]).json()
+    last = rows[-1]
+    assert last["tipo_midia"] == "imagem"
+    assert last["midia_disponivel"] is True
+    assert last["corpo"] == "Foto teste"
+
+    r_mid = client.get(
+        f"/v1/whatsapp/chats/{cid}/mensagens/{last['id']}/midia",
+        headers=auth_headers["a1"],
+    )
+    assert r_mid.status_code == 200
+    assert r_mid.headers.get("content-type", "").startswith("image/")
+

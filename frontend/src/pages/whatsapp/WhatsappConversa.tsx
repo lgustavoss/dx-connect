@@ -49,6 +49,23 @@ import { WhatsappDemandasPanel } from './WhatsappDemandasPanel'
 
 const ROTULO_SEM_LEGENDA = /^\[(Imagem|Áudio|Vídeo|Documento|Figurinha)\]$/
 
+type TipoAnexoPicker = 'imagem' | 'video' | 'audio' | 'documento'
+
+const ACCEPT_ANEXO: Record<TipoAnexoPicker, string> = {
+  imagem: 'image/*',
+  video: 'video/*',
+  audio: 'audio/*',
+  documento:
+    '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+}
+
+const ROTULO_TIPO_ANEXO: Record<TipoAnexoPicker, string> = {
+  imagem: 'Imagem',
+  video: 'Vídeo',
+  audio: 'Áudio',
+  documento: 'Documento',
+}
+
 
 
 // --- Subcomponente de Renderização de Mídia ---
@@ -116,6 +133,14 @@ function ConteudoMensagemWhatsApp({ chatId, m, onImageClick }: { chatId: number;
 
 
   if (tipo === 'texto' || !m.tipo_midia) return <p className="whitespace-pre-wrap">{m.corpo}</p>
+
+  if (!m.midia_disponivel) {
+    return (
+      <p className="text-xs italic opacity-70" title="O ficheiro não foi obtido da Evolution API">
+        {m.corpo || 'Mídia não disponível'}
+      </p>
+    )
+  }
 
   if (loading || !url) return <p className="text-[10px] animate-pulse opacity-50">Carregando mídia...</p>
 
@@ -199,6 +224,12 @@ export function WhatsappConversa() {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const anexoMenuRef = useRef<HTMLDivElement>(null)
+
+  const [pickerAnexo, setPickerAnexo] = useState<TipoAnexoPicker>('imagem')
+  const [menuAnexoAberto, setMenuAnexoAberto] = useState(false)
+  const [arquivoPendente, setArquivoPendente] = useState<File | null>(null)
+  const [legendaMidia, setLegendaMidia] = useState('')
 
 
 
@@ -323,6 +354,17 @@ export function WhatsappConversa() {
   }, [id, carregar])
 
 
+
+  useEffect(() => {
+    if (!menuAnexoAberto) return
+    function fechar(ev: MouseEvent) {
+      if (anexoMenuRef.current && !anexoMenuRef.current.contains(ev.target as Node)) {
+        setMenuAnexoAberto(false)
+      }
+    }
+    document.addEventListener('mousedown', fechar)
+    return () => document.removeEventListener('mousedown', fechar)
+  }, [menuAnexoAberto])
 
   useEffect(() => {
     if (!chat) return
@@ -515,38 +557,43 @@ useEffect(() => {
   }
 }
 
-  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  function abrirPickerAnexo(tipo: TipoAnexoPicker) {
+    setPickerAnexo(tipo)
+    setMenuAnexoAberto(false)
+    window.setTimeout(() => fileInputRef.current?.click(), 0)
+  }
 
+  function handleFileSelecionado(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-
-    if (!file || !chat || !podeEnviar) return
-
-   
-
-    setEnviando(true)
-
-    try {
-
-      await whatsappChats.enviarMidia(chat.id, file, '', msgRespondida?.wa_message_id || null)
-
-      setMsgRespondida(null)
-
-      toast.showSuccess('Arquivo enviado!')
-
-      await carregar()
-
-    } catch (err) {
-
-      toast.showError(mensagemFalhaParaToast(err, 'Falha no envio do arquivo'))
-
-    } finally {
-
-      setEnviando(false)
-
+    if (!file || !chat || !podeEnviar) {
       if (fileInputRef.current) fileInputRef.current.value = ''
-
+      return
     }
+    setArquivoPendente(file)
+    setLegendaMidia('')
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
 
+  async function confirmarEnvioMidia() {
+    if (!arquivoPendente || !chat || !podeEnviar) return
+    setEnviando(true)
+    try {
+      await whatsappChats.enviarMidia(
+        chat.id,
+        arquivoPendente,
+        legendaMidia.trim(),
+        msgRespondida?.wa_message_id || null,
+      )
+      setMsgRespondida(null)
+      setArquivoPendente(null)
+      setLegendaMidia('')
+      toast.showSuccess('Anexo enviado!')
+      await carregar()
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Falha no envio do anexo'))
+    } finally {
+      setEnviando(false)
+    }
   }
 
 
@@ -672,6 +719,11 @@ useEffect(() => {
                     <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">{c.cliente_nome || 'Cliente'}</p>
 
                     {c.estado === 'aguardando_atendente' && <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />}
+                    {!c.funcionario_rede_id && (
+                      <span className="shrink-0 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-medium text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
+                        Sem vínculo
+                      </span>
+                    )}
 
                   </div>
 
@@ -799,10 +851,11 @@ useEffect(() => {
               )}
               <Button
                 variant="ghost"
-                className="hidden sm:inline-flex text-xs h-8"
+                className="inline-flex text-xs h-8"
                 onClick={() => setModalVincFuncionario(true)}
               >
-                Vincular funcionário
+                <span className="sm:hidden">Vincular</span>
+                <span className="hidden sm:inline">Vincular funcionário</span>
               </Button>
 
                 <Button variant="ghost" className="hidden sm:inline-flex text-xs h-8" onClick={() => setModalTickets(true)}>
@@ -822,6 +875,17 @@ useEffect(() => {
           </div>
 
         </header>
+
+        {!encerrado && chat && !chat.funcionario_rede_id && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950 dark:border-violet-900/40 dark:bg-violet-950/30 dark:text-violet-100">
+            <p>
+              <strong>Contacto não vinculado</strong> a nenhuma empresa ou funcionário cadastrado.
+            </p>
+            <Button variant="primary" className="h-8 shrink-0 text-xs" onClick={() => setModalVincFuncionario(true)}>
+              Vincular a empresa
+            </Button>
+          </div>
+        )}
 
         {!encerrado && chat?.estado === 'em_atendimento' && !isResponsavel && (
           <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
@@ -1010,41 +1074,101 @@ useEffect(() => {
             </p>
           )}
 
+          {!encerrado && !modoInterno && chat?.estado === 'aguardando_atendente' && (
+            <p className="mb-2 text-xs text-amber-800 dark:text-amber-200">
+              Assuma este chat para enviar mensagens e anexos ao cliente.
+            </p>
+          )}
+
+          {!encerrado && !modoInterno && chat?.estado === 'em_atendimento' && !podeEnviar && (
+            <p className="mb-2 text-xs text-amber-800 dark:text-amber-200">
+              Este chat está com <strong>{chat.atendente_nome || 'outro atendente'}</strong>. Assuma o atendimento ou use comentário interno.
+            </p>
+          )}
+
+          {arquivoPendente && (
+            <div className="mb-2 rounded-xl border border-cyan-200 bg-cyan-50/80 p-3 dark:border-cyan-900/40 dark:bg-cyan-950/20">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-cyan-800 dark:text-cyan-300">Anexo selecionado</p>
+                  <p className="truncate text-sm text-slate-700 dark:text-slate-200">{arquivoPendente.name}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setArquivoPendente(null)
+                    setLegendaMidia('')
+                  }}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  aria-label="Remover anexo"
+                >
+                  &times;
+                </button>
+              </div>
+              <input
+                type="text"
+                value={legendaMidia}
+                onChange={(e) => setLegendaMidia(e.target.value)}
+                placeholder="Legenda opcional (visível no WhatsApp)"
+                className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+              />
+              <div className="mt-2 flex justify-end gap-2">
+                <Button variant="ghost" className="h-8 text-xs" onClick={() => setArquivoPendente(null)}>
+                  Cancelar
+                </Button>
+                <Button className="h-8 text-xs" loading={enviando} onClick={() => void confirmarEnvioMidia()}>
+                  Enviar anexo
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-end gap-2 bg-slate-100 dark:bg-slate-900 p-2 rounded-2xl shadow-inner">
 
-           
-
-            {/* Input de arquivo invisível */}
-
             <input
-
               type="file"
-
               ref={fileInputRef}
-
-              onChange={handleFileUpload}
-
+              onChange={handleFileSelecionado}
               className="hidden"
-
-              accept="image/*,video/*,application/pdf"
-
+              accept={ACCEPT_ANEXO[pickerAnexo]}
             />
-
-
 
             <KbConsultaButton
               disabled={encerrado}
               onInserirReferencia={podeDigitarMensagem ? inserirReferenciaKb : undefined}
             />
 
-            <Button
-              variant="ghost"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={enviando || encerrado || !podeEnviar}
-              className="h-10 w-10 shrink-0 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
-            >
-              📎
-            </Button>
+            <div className="relative shrink-0" ref={anexoMenuRef}>
+              <Button
+                variant="ghost"
+                type="button"
+                title={
+                  !podeEnviar && !encerrado
+                    ? 'Assuma o chat para enviar anexos'
+                    : 'Anexar imagem, vídeo, áudio ou documento'
+                }
+                onClick={() => setMenuAnexoAberto((v) => !v)}
+                disabled={enviando || encerrado || !podeEnviar || !!arquivoPendente}
+                className="h-10 min-w-[2.5rem] shrink-0 rounded-xl px-2 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+              >
+                <span className="text-lg leading-none" aria-hidden>📎</span>
+                <span className="ml-1 hidden text-xs font-semibold sm:inline">Anexar</span>
+              </Button>
+              {menuAnexoAberto && (
+                <div className="absolute bottom-full left-0 z-20 mb-2 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                  {(Object.keys(ROTULO_TIPO_ANEXO) as TipoAnexoPicker[]).map((tipo) => (
+                    <button
+                      key={tipo}
+                      type="button"
+                      className="flex w-full px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                      onClick={() => abrirPickerAnexo(tipo)}
+                    >
+                      {ROTULO_TIPO_ANEXO[tipo]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
 
 
