@@ -1,9 +1,9 @@
 {
-  "current_version": "26.06.006",
-  "current_version_display": "v26.06.006",
+  "current_version": "26.06.007",
+  "current_version_display": "v26.06.007",
   "current": {
-    "version": "26.06.006",
-    "version_display": "v26.06.006",
+    "version": "26.06.007",
+    "version_display": "v26.06.007",
     "date": "2026-06-28",
     "status": "published",
     "changes": [
@@ -221,6 +221,18 @@
     {
       "version": "26.06.006",
       "version_display": "v26.06.006",
+      "date": "2026-06-28",
+      "status": "published",
+      "changes": [
+        {
+          "category": "interno",
+          "text": "Atualização do sistema"
+        }
+      ]
+    },
+    {
+      "version": "26.06.007",
+      "version_display": "v26.06.007",
       "date": "2026-06-28",
       "status": "published",
       "changes": [

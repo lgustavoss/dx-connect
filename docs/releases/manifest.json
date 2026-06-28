@@ -215,6 +215,18 @@
           "text": "Atualização do sistema"
         }
       ]
+    },
+    {
+      "version": "26.06.007",
+      "version_display": "v26.06.007",
+      "date": "2026-06-28",
+      "status": "published",
+      "changes": [
+        {
+          "category": "interno",
+          "text": "Atualização do sistema"
+        }
+      ]
     }
   ]
 }
