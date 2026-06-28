@@ -5,15 +5,14 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
-### Correções
+## [26.06.005] - 2026-06-27
+
+### Melhorias
 
 - WhatsApp (#431): mídia recebida (imagem, áudio, vídeo, documento, figurinha) gravada corretamente no webhook; fallback e retry na Evolution API; UI deixa de ficar presa em «Carregando mídia…» quando o ficheiro não está disponível
 - WhatsApp (#432): barra de anexos com ações visíveis (imagem, vídeo, áudio, documento, gravar áudio), pré-visualização antes do envio e legenda opcional
 - WhatsApp (#433): banner e badge «Sem vínculo» para contactos não cadastrados; botão vincular visível em mobile
 - WhatsApp: mensagens de contacto e localização recebidas passam a aparecer como texto legível no chat
-
-### Melhorias
-
 - Identidade visual DeskRudder no painel (logos, login, favicon e componentes de marca)
 
 ## [26.06.004] - 2026-06-25
