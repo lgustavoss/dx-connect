@@ -61,7 +61,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+      <div className="pointer-events-none fixed bottom-4 right-4 z-[200] flex flex-col gap-2">
         {toasts.map((toast) => {
           let styles =
             'bg-slate-800 text-white dark:bg-slate-800 dark:text-slate-100 dark:ring-1 dark:ring-slate-600/60'

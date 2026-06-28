@@ -474,6 +474,28 @@ def test_cadastrar_funcionario_no_chat(client, seed_base, auth_headers, db_sessi
     assert any(re["id"] == seed_base["rede"].id for re in catalogo.json()["redes"])
 
 
+def test_cadastrar_funcionario_no_chat_sem_email(client, seed_base, auth_headers):
+    """#444 — cadastro pelo WhatsApp sem e-mail vincula o contacto."""
+    cid = _chat_ativo(client, seed_base, auth_headers, wa_id="5511999112244", msg_id="func-sem-email")
+    r = client.post(
+        f"/v1/whatsapp/chats/{cid}/cadastrar-funcionario",
+        json={
+            "nome": "Contacto Só WhatsApp",
+            "rede_id": seed_base["rede"].id,
+            "tipo": "colaborador",
+            "escopo_empresas": "selected",
+            "empresa_ids": [seed_base["empresa"].id],
+        },
+        headers=auth_headers["a1"],
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["funcionario_nome"] == "Contacto Só WhatsApp"
+    assert body["funcionario_email"] is None
+    assert body["funcionario_rede_id"] is not None
+    assert body["empresa_id"] == seed_base["empresa"].id
+
+
 def test_admin_nao_envia_ao_cliente_usa_comentario_interno(client, seed_base, auth_headers, monkeypatch):
     """#403 — admin acompanha chat alheio; mensagem ao cliente bloqueada; comentário interno permitido."""
     sent = {"n": 0, "seq": 0}

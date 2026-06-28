@@ -371,7 +371,7 @@ def _criar_funcionario_rede(
     atendente: Atendente,
     *,
     nome: str,
-    email: str,
+    email: str | None,
     tipo: str,
     escopo_empresas: str,
     rede_id: int,
@@ -402,16 +402,18 @@ def _criar_funcionario_rede(
         emps = db.query(Empresa).filter(Empresa.id.in_(ids)).all()
         if any(int(e.tenant_id) != int(atendente.tenant_id) for e in emps):
             raise HTTPException(status_code=400, detail="Empresa inválida para este tenant")
-    try:
-        assert_email_unico_por_rede(db, email=email.strip(), rede_id=int(rede_id))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    email_norm = (email or "").strip() or None
+    if email_norm:
+        try:
+            assert_email_unico_por_rede(db, email=email_norm, rede_id=int(rede_id))
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
     emp_colab_id: int | None = None
     if escopo == "selected" and tipo_eff == "colaborador" and len(ids) == 1:
         emp_colab_id = ids[0]
     f = FuncionarioRede(
         nome=nome.strip(),
-        email=email.strip(),
+        email=email_norm,
         tipo=tipo_eff,
         escopo_empresas=escopo,
         ativo=True,

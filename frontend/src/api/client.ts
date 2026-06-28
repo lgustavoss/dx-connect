@@ -983,7 +983,7 @@ export const whatsappChats = {
     id: number,
     data: {
       nome: string
-      email: string
+      email?: string | null
       rede_id: number
       tipo?: 'colaborador' | 'supervisor'
       escopo_empresas?: 'all' | 'selected'
@@ -1671,7 +1671,7 @@ export namespace FuncionariosRede {
   export interface Funcionario {
     id: number;
     nome: string;
-    email: string;
+    email: string | null;
     tipo: string;
     escopo_empresas: EscopoEmpresas;
     ativo: boolean;
@@ -1683,7 +1683,7 @@ export namespace FuncionariosRede {
   }
   export interface Create {
     nome: string;
-    email: string;
+    email?: string | null;
     tipo: string;
     escopo_empresas?: EscopoEmpresas;
     ativo?: boolean;
@@ -1693,7 +1693,7 @@ export namespace FuncionariosRede {
   }
   export interface Update {
     nome?: string;
-    email?: string;
+    email?: string | null;
     tipo?: string;
     escopo_empresas?: EscopoEmpresas;
     ativo?: boolean;
