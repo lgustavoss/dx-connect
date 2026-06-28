@@ -135,7 +135,7 @@ def test_colaborador_mesmo_setor_ve_chat_em_atendimento(client, seed_base, auth_
 
     denied_cliente = client.post(
         f"/v1/whatsapp/chats/{cid}/mensagens",
-        json={"corpo": "Olá cliente"},
+        json={"texto": "Olá cliente"},
         headers=auth_headers["a2"],
     )
     assert denied_cliente.status_code == 403
