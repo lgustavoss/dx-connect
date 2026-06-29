@@ -1022,6 +1022,19 @@ export const whatsappChats = {
     }),
   porTicket: (ticketId: number) => api<WhatsappChats.Chat[]>(`/whatsapp/chats/por-ticket/${ticketId}`),
   setoresParaTransferencia: () => api<Array<{ id: number; nome: string }>>('/whatsapp/chats/transfer/setores'),
+  enviarFigurinha: (id: number, file: File, quotedWaMessageId?: string | null) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('mediatipo', 'figurinha')
+    formData.append('caption', '')
+    if (quotedWaMessageId) {
+      formData.append('quoted_wa_message_id', quotedWaMessageId)
+    }
+    return api<WhatsappChats.Mensagem>(`/whatsapp/chats/${id}/mensagens/midia`, {
+      method: 'POST',
+      body: formData,
+    })
+  },
   enviarMidia: (id: number, file: File, caption?: string, quotedWaMessageId?: string | null) => {
     const formData = new FormData()
     formData.append('file', file)

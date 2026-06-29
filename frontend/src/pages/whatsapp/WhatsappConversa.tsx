@@ -637,6 +637,21 @@ useEffect(() => {
     }
   }
 
+  async function enviarFigurinha(file: File) {
+    if (!chat || !podeEnviar) return
+    setEnviando(true)
+    try {
+      await whatsappChats.enviarFigurinha(chat.id, file, msgRespondida?.wa_message_id || null)
+      setMsgRespondida(null)
+      toast.showSuccess('Figurinha enviada!')
+      await carregar()
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Falha ao enviar figurinha'))
+    } finally {
+      setEnviando(false)
+    }
+  }
+
 
 
   async function handleEncerrado(atualizado: WhatsappChats.Chat) {
@@ -1197,6 +1212,8 @@ useEffect(() => {
             podeDigitar={podeDigitarMensagem}
             onEscolherAnexo={abrirPickerAnexo}
             onAudioGravado={handleGravacaoConcluida}
+            onInserirEmoji={setTexto}
+            onEnviarFigurinha={(file) => void enviarFigurinha(file)}
             onInserirReferenciaKb={inserirReferenciaKb}
           />
 
