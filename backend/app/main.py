@@ -258,11 +258,7 @@ async def lifespan(app: FastAPI):
         while True:
             db = SessionLocal()
             try:
-                n = process_whatsapp_inactivity_closures(db, limit=200)
-                if n:
-                    db.commit()
-                else:
-                    db.rollback()
+                process_whatsapp_inactivity_closures(db, limit=200)
             except Exception as e:
                 logger.warning("Worker inatividade WhatsApp: %s", e)
                 db.rollback()

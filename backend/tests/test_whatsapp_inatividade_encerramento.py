@@ -195,3 +195,59 @@ def test_worker_aviso_mesmo_com_atendente_enviando_varias_vezes(
 
     n = process_whatsapp_inactivity_closures(db_session)
     assert n == 1
+
+
+def test_worker_nao_reenvia_aviso_duplicado_no_mesmo_ciclo(
+    client, seed_base, auth_headers, db_session, monkeypatch
+):
+    """Vários workers Gunicorn não devem reenviar o aviso de inatividade."""
+    _configurar_evolution(db_session)
+    chat = _chat_em_atendimento(db_session, wa_id="5511999443322")
+    antiga_cliente = datetime.now(timezone.utc) - timedelta(minutes=20)
+    antiga_atendente = datetime.now(timezone.utc) - timedelta(minutes=15)
+    db_session.add(
+        WhatsappMensagem(
+            chat_id=chat.id,
+            direcao="inbound",
+            corpo="Preciso de ajuda",
+            tipo_midia="texto",
+            created_at=antiga_cliente,
+        )
+    )
+    db_session.add(
+        WhatsappMensagem(
+            chat_id=chat.id,
+            direcao="outbound",
+            corpo="[ Atendente ]: Alguma dúvida?",
+            tipo_midia="texto",
+            atendente_id=1,
+            created_at=antiga_atendente,
+        )
+    )
+    db_session.commit()
+
+    enviados: list[str] = []
+
+    def fake_send(base, inst, key, wa, text):
+        enviados.append(text)
+        return True, None, f"wa-out-dup-{len(enviados)}"
+
+    monkeypatch.setattr(
+        "app.services.whatsapp_inactivity_worker.evolution_api.evolution_send_text",
+        fake_send,
+    )
+
+    n1 = process_whatsapp_inactivity_closures(db_session)
+    db_session.commit()
+    n2 = process_whatsapp_inactivity_closures(db_session)
+    db_session.commit()
+
+    assert n1 == 1
+    assert n2 == 0
+    assert len(enviados) == 1
+    total_avisos = (
+        db_session.query(WhatsappMensagem)
+        .filter(WhatsappMensagem.chat_id == chat.id, WhatsappMensagem.evento_sistema == "auto_inativ_aviso")
+        .count()
+    )
+    assert total_avisos == 1

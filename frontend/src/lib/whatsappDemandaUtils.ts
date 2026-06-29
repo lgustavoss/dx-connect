@@ -29,6 +29,14 @@ export function mensagensVisiveisConversa(msgs: WhatsappChats.Mensagem[]): Whats
   )
 }
 
+/** Aviso ou encerramento automático por inatividade do cliente — demanda no modal é opcional. */
+export function chatEncerramentoPorInatividade(msgs: WhatsappChats.Mensagem[]): boolean {
+  return msgs.some(
+    (m) =>
+      m.evento_sistema === 'auto_encerrado_inatividade' || m.evento_sistema === 'auto_inativ_aviso',
+  )
+}
+
 export function analisarDemandaPosRegistro(
   demandas: WhatsappChats.Demanda[],
   msgs: WhatsappChats.Mensagem[],
