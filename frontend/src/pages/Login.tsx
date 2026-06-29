@@ -113,7 +113,7 @@ export function Login() {
         aria-hidden
       >
         <img
-          src={brandAssets.loginPlexusPanel}
+          src={brandAssets.loginPanel}
           alt=""
           className="absolute inset-0 size-full object-cover object-left"
           decoding="async"
