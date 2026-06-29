@@ -71,8 +71,6 @@ export const brandAssets = {
   logoName: '/deskrudder-logo-name.png',
   lockup: '/deskrudder-lockup.png',
   loginPanel: '/deskrudder-login-panel.png',
-  /** Painel plexus à esquerda no login desktop (fundo original). */
-  loginPlexusPanel: '/duplexsoft-brand-panel.png',
 } as const
 
 /** Chaves de persistência local (com fallback legado DX Connect). */
