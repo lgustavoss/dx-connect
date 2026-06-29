@@ -484,6 +484,16 @@ export const kb = {
     api<Kb.ArticleBrief[]>(withParams('/kb/public/articles', params)),
   getPublicArticleBySlug: (slug: string) => api<Kb.Article>(`/kb/public/articles/${encodeURIComponent(slug)}`),
   listArticleVersions: (articleId: number) => api<Kb.ArticleVersion[]>(`/kb/articles/${articleId}/versions`),
+  listArticleMotivoLinks: (articleId: number) => api<Kb.MotivoLinkItem[]>(`/kb/articles/${articleId}/motivo-links`),
+  updateArticleMotivoLinks: (articleId: number, links: Kb.MotivoLinkItem[]) =>
+    api<Kb.MotivoLinkItem[]>(`/kb/articles/${articleId}/motivo-links`, {
+      method: 'PUT',
+      body: JSON.stringify({ links }),
+    }),
+  suggestions: (params: { motivo_id?: number; natureza_id?: number }) =>
+    api<Kb.ArticleBrief[]>(withParams('/kb/suggestions', params)),
+  publicSuggestions: (params: { motivo_id?: number; natureza_id?: number }) =>
+    api<Kb.ArticleBrief[]>(withParams('/kb/public/suggestions', params)),
   getArticleVersion: (articleId: number, versionId: number) =>
     api<Kb.ArticleVersionDetail>(`/kb/articles/${articleId}/versions/${versionId}`),
   uploadImage: (file: File) => {
@@ -2394,6 +2404,14 @@ export namespace Kb {
   export interface ImageUpload {
     url: string;
     filename: string;
+  }
+  export interface MotivoLinkItem {
+    id?: number | null;
+    motivo_id?: number | null;
+    natureza_id?: number | null;
+    ordem?: number;
+    motivo_nome?: string | null;
+    natureza_nome?: string | null;
   }
 }
 

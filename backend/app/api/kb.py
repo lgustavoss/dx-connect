@@ -13,7 +13,8 @@ from app.core.tenant_context import TenantIdDep
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
 from app.database import get_db
 from app.models.atendente import Atendente
-from app.models.kb import KbArticle, KbArticleStatus, KbArticleVersion, KbCategory
+from app.models.kb import KbArticle, KbArticleMotivoLink, KbArticleStatus, KbArticleVersion, KbCategory
+from app.models.ticket_classificacao import TicketMotivo, TicketNatureza
 from app.schemas.kb import (
     KbArticleBrief,
     KbArticleCreate,
@@ -21,6 +22,8 @@ from app.schemas.kb import (
     KbArticleUpdate,
     KbArticleVersionDetail,
     KbArticleVersionRead,
+    KbArticleMotivoLinkItem,
+    KbArticleMotivoLinksUpdate,
     KbCategoryCreate,
     KbCategoryRead,
     KbCategoryReorder,
@@ -28,7 +31,7 @@ from app.schemas.kb import (
     KbImageUploadResponse,
 )
 from app.schemas.lista_paginada import ListaPaginada
-from app.services.kb import registrar_versao_artigo, slug_disponivel
+from app.services.kb import listar_artigos_sugeridos, registrar_versao_artigo, slug_disponivel
 from app.services.kb_media_storage import caminho_absoluto_imagem, gravar_imagem_bytes
 
 router = APIRouter(prefix="/kb", tags=["kb"])
@@ -192,6 +195,33 @@ def _get_article_or_404(db: Session, tenant_id: int, article_id: int) -> KbArtic
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Artigo não encontrado")
     return row
+
+
+def _motivo_link_read(link: KbArticleMotivoLink) -> KbArticleMotivoLinkItem:
+    return KbArticleMotivoLinkItem(
+        id=link.id,
+        motivo_id=link.motivo_id,
+        natureza_id=link.natureza_id,
+        ordem=int(link.ordem or 0),
+        motivo_nome=link.motivo.nome if link.motivo else None,
+        natureza_nome=link.natureza.nome if link.natureza else None,
+    )
+
+
+def _assert_motivo_link_item_valido(db: Session, item: KbArticleMotivoLinkItem) -> tuple[int | None, int | None]:
+    if item.motivo_id is not None and item.natureza_id is not None:
+        raise HTTPException(status_code=400, detail="Informe motivo ou natureza, não ambos no mesmo vínculo.")
+    if item.motivo_id is None and item.natureza_id is None:
+        raise HTTPException(status_code=400, detail="Cada vínculo precisa de motivo ou natureza.")
+    if item.motivo_id is not None:
+        mot = db.query(TicketMotivo).filter(TicketMotivo.id == item.motivo_id, TicketMotivo.ativo.is_(True)).first()
+        if not mot:
+            raise HTTPException(status_code=400, detail=f"Motivo {item.motivo_id} não encontrado.")
+        return item.motivo_id, None
+    nat = db.query(TicketNatureza).filter(TicketNatureza.id == item.natureza_id, TicketNatureza.ativo.is_(True)).first()
+    if not nat:
+        raise HTTPException(status_code=400, detail=f"Natureza {item.natureza_id} não encontrada.")
+    return None, item.natureza_id
 
 
 # --- Categorias (admin) ---
@@ -405,6 +435,104 @@ def consultar_artigos_publicados(
         q = q.filter(or_(KbArticle.titulo.ilike(term), KbArticle.conteudo_markdown.ilike(term)))
     rows = q.order_by(KbArticle.titulo.asc(), KbArticle.id.asc()).limit(limit).all()
     return [_article_brief(r) for r in rows]
+
+
+@router.get("/suggestions", response_model=list[KbArticleBrief])
+def sugestoes_artigos(
+    motivo_id: int | None = Query(None, ge=1),
+    natureza_id: int | None = Query(None, ge=1),
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    if motivo_id is None and natureza_id is None:
+        raise HTTPException(status_code=400, detail="Informe motivo_id ou natureza_id.")
+    arts = listar_artigos_sugeridos(
+        db,
+        atendente.tenant_id,
+        motivo_id=motivo_id,
+        natureza_id=natureza_id,
+        incluir_interno_only=True,
+    )
+    return [_article_brief(a) for a in arts]
+
+
+@router.get("/articles/{article_id}/motivo-links", response_model=list[KbArticleMotivoLinkItem])
+def listar_vinculos_motivo_artigo(
+    article_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_admin),
+):
+    _get_article_or_404(db, atendente.tenant_id, article_id)
+    rows = (
+        db.query(KbArticleMotivoLink)
+        .options(joinedload(KbArticleMotivoLink.motivo), joinedload(KbArticleMotivoLink.natureza))
+        .filter(
+            KbArticleMotivoLink.tenant_id == atendente.tenant_id,
+            KbArticleMotivoLink.article_id == article_id,
+        )
+        .order_by(KbArticleMotivoLink.ordem.asc(), KbArticleMotivoLink.id.asc())
+        .all()
+    )
+    return [_motivo_link_read(r) for r in rows]
+
+
+@router.put("/articles/{article_id}/motivo-links", response_model=list[KbArticleMotivoLinkItem])
+def atualizar_vinculos_motivo_artigo(
+    article_id: int,
+    data: KbArticleMotivoLinksUpdate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_admin),
+):
+    _get_article_or_404(db, atendente.tenant_id, article_id)
+    vistos_motivo: set[int] = set()
+    vistos_natureza: set[int] = set()
+    novos: list[KbArticleMotivoLink] = []
+    for idx, item in enumerate(data.links):
+        motivo_id, nat_id = _assert_motivo_link_item_valido(db, item)
+        if motivo_id is not None:
+            if motivo_id in vistos_motivo:
+                raise HTTPException(status_code=400, detail="Motivo duplicado na lista de vínculos.")
+            vistos_motivo.add(motivo_id)
+        else:
+            assert nat_id is not None
+            if nat_id in vistos_natureza:
+                raise HTTPException(status_code=400, detail="Natureza duplicada na lista de vínculos.")
+            vistos_natureza.add(nat_id)
+        novos.append(
+            KbArticleMotivoLink(
+                tenant_id=atendente.tenant_id,
+                article_id=article_id,
+                motivo_id=motivo_id,
+                natureza_id=nat_id,
+                ordem=item.ordem if item.ordem is not None else idx,
+            )
+        )
+    db.query(KbArticleMotivoLink).filter(
+        KbArticleMotivoLink.tenant_id == atendente.tenant_id,
+        KbArticleMotivoLink.article_id == article_id,
+    ).delete(synchronize_session=False)
+    for row in novos:
+        db.add(row)
+    registrar_audit(
+        db,
+        "kb_article",
+        article_id,
+        "motivo_links_update",
+        atendente.id,
+        payload={"count": len(novos)},
+    )
+    db.commit()
+    rows = (
+        db.query(KbArticleMotivoLink)
+        .options(joinedload(KbArticleMotivoLink.motivo), joinedload(KbArticleMotivoLink.natureza))
+        .filter(
+            KbArticleMotivoLink.tenant_id == atendente.tenant_id,
+            KbArticleMotivoLink.article_id == article_id,
+        )
+        .order_by(KbArticleMotivoLink.ordem.asc(), KbArticleMotivoLink.id.asc())
+        .all()
+    )
+    return [_motivo_link_read(r) for r in rows]
 
 
 @router.get("/articles/publicados/{article_id}", response_model=KbArticleRead)
@@ -668,6 +796,29 @@ def listar_artigos_publicos(
     rows = q.order_by(KbArticle.titulo.asc(), KbArticle.id.asc()).limit(limit).all()
     _public_cache_headers(response)
     return [_article_brief(r) for r in rows]
+
+
+@router.get("/public/suggestions", response_model=list[KbArticleBrief])
+def sugestoes_artigos_publicas(
+    request: Request,
+    response: Response,
+    tenant_id: TenantIdDep,
+    motivo_id: int | None = Query(None, ge=1),
+    natureza_id: int | None = Query(None, ge=1),
+    db: Session = Depends(get_db),
+):
+    check_kb_public_rate_limit(request)
+    if motivo_id is None and natureza_id is None:
+        raise HTTPException(status_code=400, detail="Informe motivo_id ou natureza_id.")
+    arts = listar_artigos_sugeridos(
+        db,
+        tenant_id,
+        motivo_id=motivo_id,
+        natureza_id=natureza_id,
+        incluir_interno_only=False,
+    )
+    _public_cache_headers(response)
+    return [_article_brief(a) for a in arts]
 
 
 @router.get("/public/articles/{slug}", response_model=KbArticleRead)

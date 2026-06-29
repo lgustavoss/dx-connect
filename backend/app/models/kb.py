@@ -69,6 +69,12 @@ class KbArticle(Base):
     category = relationship("KbCategory", back_populates="articles")
     autor = relationship("Atendente", foreign_keys=[autor_atendente_id])
     versions = relationship("KbArticleVersion", back_populates="article", order_by="KbArticleVersion.id.desc()")
+    motivo_links = relationship(
+        "KbArticleMotivoLink",
+        back_populates="article",
+        cascade="all, delete-orphan",
+        order_by="KbArticleMotivoLink.ordem",
+    )
 
 
 class KbArticleVersion(Base):
@@ -84,3 +90,23 @@ class KbArticleVersion(Base):
 
     article = relationship("KbArticle", back_populates="versions")
     autor = relationship("Atendente", foreign_keys=[autor_atendente_id])
+
+
+class KbArticleMotivoLink(Base):
+    __tablename__ = "kb_article_motivo_links"
+    __table_args__ = (
+        UniqueConstraint("article_id", "motivo_id", name="uq_kb_article_motivo_links_article_motivo"),
+        UniqueConstraint("article_id", "natureza_id", name="uq_kb_article_motivo_links_article_natureza"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False, index=True)
+    article_id = Column(Integer, ForeignKey("kb_articles.id", ondelete="CASCADE"), nullable=False, index=True)
+    motivo_id = Column(Integer, ForeignKey("ticket_motivos.id", ondelete="CASCADE"), nullable=True, index=True)
+    natureza_id = Column(Integer, ForeignKey("ticket_naturezas.id", ondelete="CASCADE"), nullable=True, index=True)
+    ordem = Column(SmallInteger, default=0, nullable=False, server_default="0")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    article = relationship("KbArticle", back_populates="motivo_links")
+    motivo = relationship("TicketMotivo")
+    natureza = relationship("TicketNatureza")

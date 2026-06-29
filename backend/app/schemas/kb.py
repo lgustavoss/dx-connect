@@ -107,3 +107,21 @@ class KbArticleVersionDetail(KbArticleVersionRead):
 class KbImageUploadResponse(BaseModel):
     url: str
     filename: str
+
+
+class KbArticleMotivoLinkItem(BaseModel):
+    id: int | None = None
+    motivo_id: int | None = Field(None, ge=1)
+    natureza_id: int | None = Field(None, ge=1)
+    ordem: int = Field(0, ge=0, le=32767)
+    motivo_nome: str | None = None
+    natureza_nome: str | None = None
+
+
+class KbArticleMotivoLinksUpdate(BaseModel):
+    links: list[KbArticleMotivoLinkItem] = Field(default_factory=list, max_length=20)
+
+
+class KbSuggestionsQuery(BaseModel):
+    motivo_id: int | None = Field(None, ge=1)
+    natureza_id: int | None = Field(None, ge=1)
