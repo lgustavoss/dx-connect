@@ -194,6 +194,8 @@ def _tipo_midia_db(slug: str) -> str:
         return "video"
     if s == "audio":
         return "audio"
+    if s in ("figurinha", "sticker"):
+        return "figurinha"
     return "documento"
 
 
@@ -203,6 +205,7 @@ def _rotulo_midia_outbound(tipo_db: str) -> str:
         "video": "[Vídeo enviado]",
         "audio": "[Áudio enviado]",
         "documento": "[Documento enviado]",
+        "figurinha": "[Figurinha enviada]",
     }.get(tipo_db, "[Ficheiro enviado]")
 
 
@@ -1099,7 +1102,7 @@ async def enviar_mensagem_midia(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
     file: UploadFile = File(...),
-    mediatipo: str = Form(..., description="imagem | video | audio | documento"),
+    mediatipo: str = Form(..., description="imagem | video | audio | documento | figurinha"),
     caption: str = Form(""),
     quoted_wa_message_id: str | None = Form(None),
 ):
@@ -1128,10 +1131,14 @@ async def enviar_mensagem_midia(
         raise HTTPException(status_code=500, detail="Não foi possível guardar o ficheiro em disco.")
 
     cap = (caption or "").strip()
-    base_legenda = cap if cap else _rotulo_midia_outbound(tipo_db)
-    nome_atend = (atendente.nome or "").strip()
-    legenda_whatsapp = f"[ {nome_atend} ]: {base_legenda}" if nome_atend else base_legenda
-    corpo_eff = legenda_whatsapp
+    if tipo_db == "figurinha":
+        corpo_eff = _rotulo_midia_outbound(tipo_db)
+        legenda_whatsapp = ""
+    else:
+        base_legenda = cap if cap else _rotulo_midia_outbound(tipo_db)
+        nome_atend = (atendente.nome or "").strip()
+        legenda_whatsapp = f"[ {nome_atend} ]: {base_legenda}" if nome_atend else base_legenda
+        corpo_eff = legenda_whatsapp
 
     b64 = base64.b64encode(data).decode("ascii")
     st = _settings_envio(db)
@@ -1158,6 +1165,15 @@ async def enviar_mensagem_midia(
             st.evolution_api_key,
             c.wa_id,
             audio_base64=b64,
+            quoted=quoted_payload,
+        )
+    elif tipo_db == "figurinha":
+        ok, err, sent_wa_id = evolution_api.evolution_send_sticker(
+            st.evolution_base_url,
+            st.evolution_instance_name,
+            st.evolution_api_key,
+            c.wa_id,
+            sticker_base64=b64,
             quoted=quoted_payload,
         )
     else:

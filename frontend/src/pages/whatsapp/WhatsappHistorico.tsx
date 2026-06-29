@@ -10,7 +10,8 @@ import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
 import { AvaliacaoEstrelas } from '../../components/ui/AvaliacaoEstrelas'
 import { rotuloEstadoChat } from '../../lib/whatsappChatMeta'
-import { buildHistoricoReturnPath, whatsappConversaLink } from '../../lib/whatsappListReturn'
+import { buildHistoricoReturnPath, saveWhatsappListScroll, whatsappConversaLink } from '../../lib/whatsappListReturn'
+import { useWhatsappListScrollRestore } from '../../hooks/useWhatsappListScrollRestore'
 
 const PAGE_SIZE = 15
 
@@ -94,6 +95,8 @@ export function WhatsappHistorico() {
       setLoading(false)
     }
   }, [atendenteId, ate, busca, desde, estadoFiltro, syncUrl, toast])
+
+  useWhatsappListScrollRestore('historico', historicoReturnPath, !loading)
 
   useEffect(() => {
     void load(0)
@@ -264,6 +267,7 @@ export function WhatsappHistorico() {
 
                     <Link
                       to={whatsappConversaLink(c.id, historicoReturnPath, 'historico')}
+                      onClick={() => saveWhatsappListScroll('historico', historicoReturnPath)}
                       className="rounded-full bg-slate-100 p-2 text-slate-400 transition-all hover:bg-cyan-600 hover:text-white dark:bg-slate-800 dark:hover:bg-cyan-700"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>

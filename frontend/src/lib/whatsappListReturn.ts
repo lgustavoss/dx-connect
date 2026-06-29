@@ -10,6 +10,33 @@ export type WhatsappListReturnState = {
   whatsappListReturn?: string
 }
 
+const SCROLL_KEY_PREFIX = 'wpp-list-scroll:'
+
+export function whatsappListScrollKey(origin: WhatsappListOrigin, returnPath: string): string {
+  return `${SCROLL_KEY_PREFIX}${origin}:${returnPath}`
+}
+
+export function saveWhatsappListScroll(origin: WhatsappListOrigin, returnPath: string): void {
+  try {
+    sessionStorage.setItem(whatsappListScrollKey(origin, returnPath), String(window.scrollY))
+  } catch {
+    /* quota / modo privado */
+  }
+}
+
+export function consumeWhatsappListScroll(origin: WhatsappListOrigin, returnPath: string): number | null {
+  try {
+    const key = whatsappListScrollKey(origin, returnPath)
+    const raw = sessionStorage.getItem(key)
+    sessionStorage.removeItem(key)
+    if (!raw) return null
+    const y = Number(raw)
+    return Number.isFinite(y) && y >= 0 ? y : null
+  } catch {
+    return null
+  }
+}
+
 export function whatsappConversaState(returnPath: string): WhatsappListReturnState {
   return { whatsappListReturn: returnPath }
 }
