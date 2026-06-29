@@ -70,7 +70,8 @@ export const brandAssets = {
   logoRefV2: '/deskrudder-logo-ref-v2-black.png',
   logoName: '/deskrudder-logo-name.png',
   lockup: '/deskrudder-lockup.png',
-  loginPanel: '/deskrudder-login-panel.png',
+  loginPanel: '/deskrudder-login-panel.svg',
+  loginBackground: '/deskrudder-login-bg.svg',
 } as const
 
 /** Chaves de persistência local (com fallback legado DX Connect). */

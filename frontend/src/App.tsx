@@ -37,6 +37,7 @@ import { RespostasProntasPage } from './pages/RespostasProntas'
 import { KbArtigosPage } from './pages/KbArtigos'
 import { KbArtigoForm } from './pages/KbArtigoForm'
 import { KbConsultaSection } from './pages/KbConsulta'
+import { KbPortalSettingsPage } from './pages/KbPortalSettings'
 import { AjudaLayout } from './pages/AjudaLayout'
 import { KbCategoriasPage } from './pages/KbCategorias'
 import { RoteamentoRegrasPage } from './pages/RoteamentoRegras'
@@ -64,6 +65,9 @@ import { AlterarSenha } from './pages/AlterarSenha'
 import { NotificacoesPreferencias } from './pages/NotificacoesPreferencias'
 import { Sobre } from './pages/Sobre'
 import { AcessoNegado } from './pages/AcessoNegado'
+import { KbPublicLayout } from './pages/kb-public/KbPublicLayout'
+import { KbPublicHome } from './pages/kb-public/KbPublicHome'
+import { KbPublicArtigo } from './pages/kb-public/KbPublicArtigo'
 import { ToastProvider } from './components/ui/Toast'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { PageLoading } from './components/ui/PageLoading'
@@ -105,6 +109,10 @@ function AppRoutes() {
       <Route path="/esqueci-senha" element={<EsqueciSenha />} />
       <Route path="/redefinir-senha" element={<RedefinirSenha />} />
       <Route path="/avaliar-ticket" element={<AvaliarTicket />} />
+      <Route path="/kb" element={<KbPublicLayout />}>
+        <Route index element={<KbPublicHome />} />
+        <Route path="a/:slug" element={<KbPublicArtigo />} />
+      </Route>
       <Route
         path="/"
         element={
@@ -153,6 +161,7 @@ function AppRoutes() {
             }
           />
         </Route>
+        <Route path="ajuda/portal" element={<Navigate to="/configuracoes/sistema/base-conhecimento" replace />} />
         <Route
           path="ajuda/artigos/novo"
           element={
@@ -468,6 +477,7 @@ function AppRoutes() {
           <Route path="email" element={<ConfigEmpresaEmail embedded section="email" />} />
           <Route path="empresa-email" element={<Navigate to="empresa" replace />} />
           <Route path="whatsapp" element={<ConfigWhatsapp embedded />} />
+          <Route path="base-conhecimento" element={<KbPortalSettingsPage embedded />} />
           <Route path="auditoria" element={<Auditoria embedded />} />
         </Route>
         <Route

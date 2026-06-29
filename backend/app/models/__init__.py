@@ -34,7 +34,7 @@ from app.models.business_calendar import BusinessCalendar
 from app.models.sla_policy import SlaPolicy
 from app.models.sla_alerta_emitido import SlaAlertaEmitido
 from app.models.empresa_pdv import EmpresaPdv, PdvRotulo, PdvTipoAcessoRemoto
-from app.models.kb import KbArticle, KbArticleMotivoLink, KbArticleVersion, KbCategory
+from app.models.kb import KbArticle, KbArticleMotivoLink, KbArticleVersion, KbCategory, KbPortalSettings
 
 __all__ = [
     "Rede",
@@ -89,4 +89,5 @@ __all__ = [
     "KbArticle",
     "KbArticleMotivoLink",
     "KbArticleVersion",
+    "KbPortalSettings",
 ]

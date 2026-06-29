@@ -159,13 +159,29 @@ async function publicApi<T>(path: string, options: RequestInit = {}): Promise<T>
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...(options.headers as object),
-  };
-  const res = await fetch(`${BASE}${API_VERSION_PREFIX}${path}`, { ...options, headers });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new ApiError(mensagemErroApi(err, res.status), res.status, err);
   }
-  return res.json();
+  if (isMultiTenantMode()) {
+    ;(headers as Record<string, string>)['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+  }
+  const res = await fetch(`${BASE}${API_VERSION_PREFIX}${path}`, { ...options, headers })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new ApiError(mensagemErroApi(err, res.status), res.status, err)
+  }
+  if (res.status === 204) return undefined as T
+  return res.json()
+}
+
+export const kbPublic = {
+  branding: () => publicApi<Kb.PublicBranding>('/kb/public/branding'),
+  logoAssetUrl: () => `${BASE}${API_VERSION_PREFIX}/kb/public/logo`,
+  listCategories: () => publicApi<Kb.Category[]>('/kb/public/categories'),
+  listArticles: (params?: { busca?: string; category_id?: number; limit?: number }) =>
+    publicApi<Kb.ArticleBrief[]>(withParams('/kb/public/articles', params)),
+  getArticleBySlug: (slug: string) =>
+    publicApi<Kb.Article>(`/kb/public/articles/${encodeURIComponent(slug)}`),
+  suggestions: (params: { motivo_id?: number; natureza_id?: number }) =>
+    publicApi<Kb.ArticleBrief[]>(withParams('/kb/public/suggestions', params)),
 }
 
 export const publicCsat = {
@@ -479,10 +495,10 @@ export const kb = {
   consulta: (params?: { busca?: string; category_id?: number; limit?: number }) =>
     api<Kb.ArticleBrief[]>(withParams('/kb/articles/consulta', params)),
   getPublicado: (id: number) => api<Kb.Article>(`/kb/articles/publicados/${id}`),
-  listPublicCategories: () => api<Kb.Category[]>('/kb/public/categories'),
+  listPublicCategories: () => kbPublic.listCategories(),
   listPublicArticles: (params?: { busca?: string; category_id?: number; limit?: number }) =>
-    api<Kb.ArticleBrief[]>(withParams('/kb/public/articles', params)),
-  getPublicArticleBySlug: (slug: string) => api<Kb.Article>(`/kb/public/articles/${encodeURIComponent(slug)}`),
+    kbPublic.listArticles(params),
+  getPublicArticleBySlug: (slug: string) => kbPublic.getArticleBySlug(slug),
   listArticleVersions: (articleId: number) => api<Kb.ArticleVersion[]>(`/kb/articles/${articleId}/versions`),
   listArticleMotivoLinks: (articleId: number) => api<Kb.MotivoLinkItem[]>(`/kb/articles/${articleId}/motivo-links`),
   updateArticleMotivoLinks: (articleId: number, links: Kb.MotivoLinkItem[]) =>
@@ -492,8 +508,10 @@ export const kb = {
     }),
   suggestions: (params: { motivo_id?: number; natureza_id?: number }) =>
     api<Kb.ArticleBrief[]>(withParams('/kb/suggestions', params)),
-  publicSuggestions: (params: { motivo_id?: number; natureza_id?: number }) =>
-    api<Kb.ArticleBrief[]>(withParams('/kb/public/suggestions', params)),
+  publicSuggestions: (params: { motivo_id?: number; natureza_id?: number }) => kbPublic.suggestions(params),
+  getPortalSettings: () => api<Kb.PortalSettings>('/kb/portal-settings'),
+  updatePortalSettings: (data: Kb.PortalSettingsUpdate) =>
+    api<Kb.PortalSettings>('/kb/portal-settings', { method: 'PUT', body: JSON.stringify(data) }),
   getArticleVersion: (articleId: number, versionId: number) =>
     api<Kb.ArticleVersionDetail>(`/kb/articles/${articleId}/versions/${versionId}`),
   uploadImage: (file: File) => {
@@ -2412,6 +2430,42 @@ export namespace Kb {
     ordem?: number;
     motivo_nome?: string | null;
     natureza_nome?: string | null;
+  }
+  export interface PublicBranding {
+    nome_exibicao: string;
+    portal_titulo: string;
+    logo_url: string | null;
+    texto_boas_vindas: string | null;
+    cor_primaria: string;
+    cor_header: string;
+    cor_texto_header: string;
+    cor_texto_corpo: string;
+    cor_fundo: string;
+    cor_link: string;
+    exibir_marca_deskrudder: boolean;
+  }
+  export interface PortalSettings {
+    portal_titulo: string | null;
+    texto_boas_vindas: string | null;
+    cor_header: string;
+    cor_primaria: string;
+    cor_texto_header: string;
+    cor_texto_corpo: string;
+    cor_fundo: string;
+    cor_link: string | null;
+    exibir_marca_deskrudder: boolean;
+    public_url_preview: string | null;
+  }
+  export interface PortalSettingsUpdate {
+    portal_titulo?: string | null;
+    texto_boas_vindas?: string | null;
+    cor_header?: string;
+    cor_primaria?: string;
+    cor_texto_header?: string;
+    cor_texto_corpo?: string;
+    cor_fundo?: string;
+    cor_link?: string | null;
+    exibir_marca_deskrudder?: boolean;
   }
 }
 

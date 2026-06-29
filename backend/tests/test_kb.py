@@ -84,6 +84,62 @@ def test_atendente_403_kb_admin(client, auth_headers):
     assert r.status_code == 403
 
 
+def test_kb_public_branding_com_logo(client, auth_headers, db_session):
+    png = (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+        b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01"
+        b"\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+    client.post(
+        "/v1/settings/empresa-sistema/logo",
+        headers=auth_headers["admin"],
+        files={"file": ("logo.png", png, "image/png")},
+    )
+    r = client.get("/v1/kb/public/branding")
+    assert r.status_code == 200
+    assert r.json()["logo_url"] == "/v1/kb/public/logo"
+    r2 = client.get("/v1/kb/public/logo")
+    assert r2.status_code == 200
+
+
+def test_kb_portal_settings_admin(client, auth_headers, db_session):
+    r = client.get("/v1/kb/portal-settings", headers=auth_headers["admin"])
+    assert r.status_code == 200, r.text
+    assert r.json()["cor_header"] == "#0B2D4A"
+
+    r = client.put(
+        "/v1/kb/portal-settings",
+        headers=auth_headers["admin"],
+        json={
+            "portal_titulo": "Ajuda ACME",
+            "cor_header": "#112233",
+            "cor_primaria": "#AABBCC",
+            "cor_texto_header": "#FFFFFF",
+            "cor_texto_corpo": "#222222",
+            "cor_fundo": "#EEEEEE",
+            "cor_link": "#0055AA",
+            "texto_boas_vindas": "Bem-vindo à central de ajuda.",
+            "exibir_marca_deskrudder": False,
+        },
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["portal_titulo"] == "Ajuda ACME"
+    assert body["cor_header"] == "#112233"
+
+    r = client.get("/v1/kb/public/branding")
+    assert r.status_code == 200
+    pub = r.json()
+    assert pub["portal_titulo"] == "Ajuda ACME"
+    assert pub["cor_header"] == "#112233"
+    assert pub["cor_link"] == "#0055AA"
+    assert pub["texto_boas_vindas"] == "Bem-vindo à central de ajuda."
+    assert pub["exibir_marca_deskrudder"] is False
+
+    r403 = client.get("/v1/kb/portal-settings", headers=auth_headers["a1"])
+    assert r403.status_code == 403
+
+
 def test_kb_api_publica_sem_auth(client, auth_headers, db_session):
     cat = client.post("/v1/kb/categories", headers=auth_headers["admin"], json={"nome": "Público", "ordem": 0}).json()
     art = client.post(
@@ -101,6 +157,12 @@ def test_kb_api_publica_sem_auth(client, auth_headers, db_session):
     assert r.status_code == 200, r.text
     assert r.headers.get("cache-control") == "public, max-age=60"
     assert any(c["nome"] == "Público" for c in r.json())
+
+    r = client.get("/v1/kb/public/branding")
+    assert r.status_code == 200, r.text
+    branding = r.json()
+    assert "nome_exibicao" in branding
+    assert branding.get("logo_url") is None or branding["logo_url"].endswith("/kb/public/logo")
 
     r = client.get("/v1/kb/public/articles", params={"busca": "visível"})
     assert r.status_code == 200
