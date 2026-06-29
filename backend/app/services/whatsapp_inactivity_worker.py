@@ -92,6 +92,28 @@ def _minutos_desde(ref: datetime | None, now: datetime) -> float:
     return max(0.0, (now - ref).total_seconds() / 60.0)
 
 
+def _normalizar_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def _aviso_ja_enviado_no_ciclo(db: Session, chat_id: int, referencia: datetime) -> bool:
+    """Evita reenvio do aviso quando vários workers processam o mesmo chat em paralelo."""
+    ref = _normalizar_utc(referencia)
+    return (
+        db.query(WhatsappMensagem.id)
+        .filter(
+            WhatsappMensagem.chat_id == chat_id,
+            WhatsappMensagem.evento_sistema == "auto_inativ_aviso",
+            WhatsappMensagem.created_at >= ref,
+        )
+        .limit(1)
+        .first()
+        is not None
+    )
+
+
 def _prefixo_bot(texto: str) -> str:
     t = (texto or "").strip()
     if not t:
@@ -135,6 +157,7 @@ def _enviar_texto_sistema(
             evento_sistema=evento_sistema,
         )
     )
+    db.flush()
     return True
 
 
@@ -173,6 +196,9 @@ def _processar_chat_inatividade(
     if _minutos_desde(referencia, now) < aviso_min:
         return False
 
+    if _aviso_ja_enviado_no_ciclo(db, chat.id, referencia):
+        return False
+
     if not bool(getattr(st, "auto_msg_inativ_aviso_ativa", True)):
         _encerrar_por_inatividade(db, chat, st)
         return True
@@ -191,6 +217,9 @@ def process_whatsapp_inactivity_closures(db: Session, *, limit: int = 200) -> in
     """
     Verifica chats em atendimento e envia aviso ou encerra por inatividade do cliente.
     Retorna quantidade de chats alterados.
+
+    Usa lock de linha (FOR UPDATE) e commit por chat para evitar mensagens duplicadas
+    quando Gunicorn roda N workers, cada um com thread de inatividade.
     """
     st = db.query(WhatsappSettings).order_by(WhatsappSettings.id.asc()).first()
     if not st or not bool(getattr(st, "inativ_encerramento_ativa", False)):
@@ -199,18 +228,34 @@ def process_whatsapp_inactivity_closures(db: Session, *, limit: int = 200) -> in
         return 0
 
     now = datetime.now(timezone.utc)
-    chats = (
-        db.query(WhatsappChat)
-        .filter(WhatsappChat.estado == "em_atendimento")
-        .order_by(WhatsappChat.id.asc())
-        .limit(limit)
-        .all()
-    )
+    chat_ids = [
+        row[0]
+        for row in (
+            db.query(WhatsappChat.id)
+            .filter(WhatsappChat.estado == "em_atendimento")
+            .order_by(WhatsappChat.id.asc())
+            .limit(limit)
+            .all()
+        )
+    ]
     alterados = 0
-    for chat in chats:
+    for chat_id in chat_ids:
         try:
+            chat = (
+                db.query(WhatsappChat)
+                .filter(WhatsappChat.id == chat_id, WhatsappChat.estado == "em_atendimento")
+                .with_for_update()
+                .first()
+            )
+            if not chat:
+                db.rollback()
+                continue
             if _processar_chat_inatividade(db, chat, st, now):
+                db.commit()
                 alterados += 1
+            else:
+                db.rollback()
         except Exception as exc:
-            logger.warning("Inatividade WhatsApp (chat=%s): %s", chat.protocolo, exc)
+            db.rollback()
+            logger.warning("Inatividade WhatsApp (chat=%s): %s", chat_id, exc)
     return alterados

@@ -1348,6 +1348,7 @@ def vincular_funcionario(
     db.commit()
     c2 = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
     assert c2 is not None
+    emit_chat_fila_from_model(db, c2, estado_anterior=c.estado)
     return _chat_read(db, c2)
 
 
@@ -1367,6 +1368,7 @@ def desvincular_funcionario(
     db.commit()
     c2 = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
     assert c2 is not None
+    emit_chat_fila_from_model(db, c2, estado_anterior=c.estado)
     return _chat_read(db, c2)
 
 
@@ -1406,6 +1408,7 @@ def cadastrar_funcionario(
     db.commit()
     c2 = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
     assert c2 is not None
+    emit_chat_fila_from_model(db, c2, estado_anterior=c.estado)
     return _chat_read(db, c2)
 
 
