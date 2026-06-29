@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ApiError, ticketClassificacao, type TicketClassificacao } from '../../api/client'
 import { Select } from '../ui/Select'
 import { Input } from '../ui/Input'
+import { KbSugestoesMotivo } from '../kb/KbSugestoesMotivo'
 
 export type ClassificacaoFormValue = {
   naturezaId: number | ''
@@ -104,6 +105,11 @@ export function TicketClassificacaoFields({
           placeholder="Obrigatório para motivo Outros"
         />
       ) : null}
+      <KbSugestoesMotivo
+        naturezaId={value.naturezaId}
+        motivoId={value.motivoId}
+        className="mt-1"
+      />
     </div>
   )
 }

@@ -17,44 +17,19 @@ function readRememberedEmail(): string {
   }
 }
 
-/** Decoração leve estilo “plexus” para mobile (sem imagem pesada). */
-function LoginMeshBg() {
+/** Painel lateral estendido em tela cheia; escurece à direita para o formulário. */
+function LoginBackground() {
   return (
-    <div
-      aria-hidden
-      className="pointer-events-none fixed inset-0 -z-10 overflow-hidden lg:hidden"
-    >
-      <div className="absolute -left-1/4 top-0 h-[min(70vh,480px)] w-[min(120vw,600px)] rounded-full bg-cyan-500/[0.12] blur-[80px]" />
-      <div className="absolute -right-1/4 bottom-0 h-[min(50vh,360px)] w-[min(100vw,480px)] rounded-full bg-blue-600/[0.10] blur-[72px]" />
-      <svg className="absolute left-0 top-12 h-64 w-full opacity-[0.2]" viewBox="0 0 400 200" fill="none">
-        <path
-          d="M0 120 L80 60 L160 100 L240 40 L320 90 L400 50"
-          stroke="url(#login-line)"
-          strokeWidth="1"
-        />
-        <path
-          d="M40 180 L120 130 L200 160 L280 110 L360 150"
-          stroke="url(#login-line)"
-          strokeWidth="1"
-          opacity="0.6"
-        />
-        {[
-          [80, 60],
-          [160, 100],
-          [240, 40],
-          [320, 90],
-          [120, 130],
-          [200, 160],
-        ].map(([cx, cy], i) => (
-          <circle key={i} cx={cx} cy={cy} r="2.5" fill="#22d3ee" fillOpacity="0.7" />
-        ))}
-        <defs>
-          <linearGradient id="login-line" x1="0" y1="0" x2="400" y2="0">
-            <stop stopColor="#22d3ee" stopOpacity="0.5" />
-            <stop offset="1" stopColor="#3b82f6" stopOpacity="0.3" />
-          </linearGradient>
-        </defs>
-      </svg>
+    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-[#050810]">
+      <img
+        src={brandAssets.loginBackground}
+        alt=""
+        className="absolute inset-0 size-full object-cover object-left"
+        decoding="async"
+        fetchPriority="high"
+      />
+      <div className="absolute inset-0 bg-gradient-to-r from-[#050810]/30 via-[#050810]/55 to-[#050810]/90" />
+      <div className="absolute inset-0 bg-gradient-to-b from-[#050810]/25 via-transparent to-[#050810]/35" />
     </div>
   )
 }
@@ -103,33 +78,19 @@ export function Login() {
 
   return (
     <div
-      className="relative flex min-h-dvh flex-col bg-[#050810] font-sans text-slate-100 antialiased lg:flex-row"
+      className="relative min-h-dvh font-sans text-slate-100 antialiased"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
-      <LoginMeshBg />
+      <LoginBackground />
 
-      <aside
-        className="relative hidden min-h-0 shrink-0 overflow-hidden lg:flex lg:w-[min(44vw,540px)] xl:w-[min(38vw,520px)]"
-        aria-hidden
-      >
-        <img
-          src={brandAssets.loginPanel}
-          alt=""
-          className="absolute inset-0 size-full object-cover object-left"
-          decoding="async"
-          fetchPriority="low"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#050810]/20 to-[#050810]" />
-      </aside>
-
-      <main className="relative flex flex-1 flex-col justify-center px-4 py-10 sm:px-8 lg:px-12 xl:px-16">
-        <div className="mx-auto w-full max-w-[400px] space-y-8 sm:space-y-10">
-          <header className="w-full">
+      <main className="relative flex min-h-dvh flex-col items-center justify-center px-4 py-10 sm:px-8">
+        <div className="w-full max-w-[400px] space-y-8 sm:space-y-10">
+          <header className="flex w-full justify-center">
             <BrandLogo
               variant="full"
               size="lg"
               markVariant="onDark"
-              className="w-full flex-col items-center gap-4 sm:flex-row sm:items-center sm:justify-start sm:gap-5 lg:gap-6"
+              className="flex-col items-center gap-4 sm:flex-row sm:items-center sm:justify-center sm:gap-5"
             />
           </header>
 
@@ -214,7 +175,7 @@ export function Login() {
             </form>
           </div>
 
-          <p className="text-center text-xs leading-relaxed text-slate-500 lg:text-left">
+          <p className="text-center text-xs leading-relaxed text-slate-500">
             Use o usuário cadastrado pelo administrador. Problemas para acessar? Contate o suporte interno.
           </p>
         </div>

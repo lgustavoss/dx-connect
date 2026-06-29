@@ -13,7 +13,9 @@ from app.core.tenant_context import TenantIdDep
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
 from app.database import get_db
 from app.models.atendente import Atendente
-from app.models.kb import KbArticle, KbArticleStatus, KbArticleVersion, KbCategory
+from app.models.empresa_sistema import EmpresaSistema
+from app.models.kb import KbArticle, KbArticleMotivoLink, KbArticleStatus, KbArticleVersion, KbCategory, KbPortalSettings
+from app.models.ticket_classificacao import TicketMotivo, TicketNatureza
 from app.schemas.kb import (
     KbArticleBrief,
     KbArticleCreate,
@@ -21,14 +23,20 @@ from app.schemas.kb import (
     KbArticleUpdate,
     KbArticleVersionDetail,
     KbArticleVersionRead,
+    KbArticleMotivoLinkItem,
+    KbArticleMotivoLinksUpdate,
     KbCategoryCreate,
     KbCategoryRead,
     KbCategoryReorder,
     KbCategoryUpdate,
     KbImageUploadResponse,
+    KbPortalSettingsRead,
+    KbPortalSettingsUpdate,
+    KbPublicBrandingRead,
 )
 from app.schemas.lista_paginada import ListaPaginada
-from app.services.kb import registrar_versao_artigo, slug_disponivel
+from app.services.kb import listar_artigos_sugeridos, registrar_versao_artigo, slug_disponivel
+from app.services.system_logo_storage import caminho_absoluto_logo
 from app.services.kb_media_storage import caminho_absoluto_imagem, gravar_imagem_bytes
 
 router = APIRouter(prefix="/kb", tags=["kb"])
@@ -192,6 +200,33 @@ def _get_article_or_404(db: Session, tenant_id: int, article_id: int) -> KbArtic
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Artigo não encontrado")
     return row
+
+
+def _motivo_link_read(link: KbArticleMotivoLink) -> KbArticleMotivoLinkItem:
+    return KbArticleMotivoLinkItem(
+        id=link.id,
+        motivo_id=link.motivo_id,
+        natureza_id=link.natureza_id,
+        ordem=int(link.ordem or 0),
+        motivo_nome=link.motivo.nome if link.motivo else None,
+        natureza_nome=link.natureza.nome if link.natureza else None,
+    )
+
+
+def _assert_motivo_link_item_valido(db: Session, item: KbArticleMotivoLinkItem) -> tuple[int | None, int | None]:
+    if item.motivo_id is not None and item.natureza_id is not None:
+        raise HTTPException(status_code=400, detail="Informe motivo ou natureza, não ambos no mesmo vínculo.")
+    if item.motivo_id is None and item.natureza_id is None:
+        raise HTTPException(status_code=400, detail="Cada vínculo precisa de motivo ou natureza.")
+    if item.motivo_id is not None:
+        mot = db.query(TicketMotivo).filter(TicketMotivo.id == item.motivo_id, TicketMotivo.ativo.is_(True)).first()
+        if not mot:
+            raise HTTPException(status_code=400, detail=f"Motivo {item.motivo_id} não encontrado.")
+        return item.motivo_id, None
+    nat = db.query(TicketNatureza).filter(TicketNatureza.id == item.natureza_id, TicketNatureza.ativo.is_(True)).first()
+    if not nat:
+        raise HTTPException(status_code=400, detail=f"Natureza {item.natureza_id} não encontrada.")
+    return None, item.natureza_id
 
 
 # --- Categorias (admin) ---
@@ -407,6 +442,104 @@ def consultar_artigos_publicados(
     return [_article_brief(r) for r in rows]
 
 
+@router.get("/suggestions", response_model=list[KbArticleBrief])
+def sugestoes_artigos(
+    motivo_id: int | None = Query(None, ge=1),
+    natureza_id: int | None = Query(None, ge=1),
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    if motivo_id is None and natureza_id is None:
+        raise HTTPException(status_code=400, detail="Informe motivo_id ou natureza_id.")
+    arts = listar_artigos_sugeridos(
+        db,
+        atendente.tenant_id,
+        motivo_id=motivo_id,
+        natureza_id=natureza_id,
+        incluir_interno_only=True,
+    )
+    return [_article_brief(a) for a in arts]
+
+
+@router.get("/articles/{article_id}/motivo-links", response_model=list[KbArticleMotivoLinkItem])
+def listar_vinculos_motivo_artigo(
+    article_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_admin),
+):
+    _get_article_or_404(db, atendente.tenant_id, article_id)
+    rows = (
+        db.query(KbArticleMotivoLink)
+        .options(joinedload(KbArticleMotivoLink.motivo), joinedload(KbArticleMotivoLink.natureza))
+        .filter(
+            KbArticleMotivoLink.tenant_id == atendente.tenant_id,
+            KbArticleMotivoLink.article_id == article_id,
+        )
+        .order_by(KbArticleMotivoLink.ordem.asc(), KbArticleMotivoLink.id.asc())
+        .all()
+    )
+    return [_motivo_link_read(r) for r in rows]
+
+
+@router.put("/articles/{article_id}/motivo-links", response_model=list[KbArticleMotivoLinkItem])
+def atualizar_vinculos_motivo_artigo(
+    article_id: int,
+    data: KbArticleMotivoLinksUpdate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_admin),
+):
+    _get_article_or_404(db, atendente.tenant_id, article_id)
+    vistos_motivo: set[int] = set()
+    vistos_natureza: set[int] = set()
+    novos: list[KbArticleMotivoLink] = []
+    for idx, item in enumerate(data.links):
+        motivo_id, nat_id = _assert_motivo_link_item_valido(db, item)
+        if motivo_id is not None:
+            if motivo_id in vistos_motivo:
+                raise HTTPException(status_code=400, detail="Motivo duplicado na lista de vínculos.")
+            vistos_motivo.add(motivo_id)
+        else:
+            assert nat_id is not None
+            if nat_id in vistos_natureza:
+                raise HTTPException(status_code=400, detail="Natureza duplicada na lista de vínculos.")
+            vistos_natureza.add(nat_id)
+        novos.append(
+            KbArticleMotivoLink(
+                tenant_id=atendente.tenant_id,
+                article_id=article_id,
+                motivo_id=motivo_id,
+                natureza_id=nat_id,
+                ordem=item.ordem if item.ordem is not None else idx,
+            )
+        )
+    db.query(KbArticleMotivoLink).filter(
+        KbArticleMotivoLink.tenant_id == atendente.tenant_id,
+        KbArticleMotivoLink.article_id == article_id,
+    ).delete(synchronize_session=False)
+    for row in novos:
+        db.add(row)
+    registrar_audit(
+        db,
+        "kb_article",
+        article_id,
+        "motivo_links_update",
+        atendente.id,
+        payload={"count": len(novos)},
+    )
+    db.commit()
+    rows = (
+        db.query(KbArticleMotivoLink)
+        .options(joinedload(KbArticleMotivoLink.motivo), joinedload(KbArticleMotivoLink.natureza))
+        .filter(
+            KbArticleMotivoLink.tenant_id == atendente.tenant_id,
+            KbArticleMotivoLink.article_id == article_id,
+        )
+        .order_by(KbArticleMotivoLink.ordem.asc(), KbArticleMotivoLink.id.asc())
+        .all()
+    )
+    return [_motivo_link_read(r) for r in rows]
+
+
 @router.get("/articles/publicados/{article_id}", response_model=KbArticleRead)
 def ler_artigo_publicado(
     article_id: int,
@@ -614,6 +747,149 @@ def _public_cache_headers(response: Response) -> None:
     response.headers["Cache-Control"] = "public, max-age=60"
 
 
+def _empresa_sistema_row(db: Session) -> EmpresaSistema | None:
+    return db.query(EmpresaSistema).order_by(EmpresaSistema.id.asc()).first()
+
+
+def _portal_settings_row(db: Session, tenant_id: int) -> KbPortalSettings | None:
+    return db.query(KbPortalSettings).filter(KbPortalSettings.tenant_id == tenant_id).first()
+
+
+def _get_or_create_portal_settings(db: Session, tenant_id: int) -> KbPortalSettings:
+    row = _portal_settings_row(db, tenant_id)
+    if row:
+        return row
+    row = KbPortalSettings(tenant_id=tenant_id)
+    db.add(row)
+    db.flush()
+    return row
+
+
+def _portal_settings_read(row: KbPortalSettings) -> KbPortalSettingsRead:
+    return KbPortalSettingsRead(
+        portal_titulo=row.portal_titulo,
+        texto_boas_vindas=row.texto_boas_vindas,
+        cor_header=row.cor_header or "#0B2D4A",
+        cor_primaria=row.cor_primaria or "#0D9488",
+        cor_texto_header=row.cor_texto_header or "#FFFFFF",
+        cor_texto_corpo=row.cor_texto_corpo or "#0F172A",
+        cor_fundo=row.cor_fundo or "#F8FAFC",
+        cor_link=row.cor_link,
+        exibir_marca_deskrudder=bool(row.exibir_marca_deskrudder),
+        public_url_preview="/kb",
+    )
+
+
+def _nome_exibicao_empresa(row: EmpresaSistema | None) -> str:
+    if not row:
+        return "Central de ajuda"
+    for attr in ("nome_fantasia", "nome", "razao_social"):
+        val = getattr(row, attr, None)
+        if val and str(val).strip():
+            return str(val).strip()
+    return "Central de ajuda"
+
+
+def _kb_public_branding(db: Session, tenant_id: int) -> KbPublicBrandingRead:
+    row = _empresa_sistema_row(db)
+    settings = _portal_settings_row(db, tenant_id)
+    logo_url = None
+    if row and row.logo_filename and str(row.logo_filename).strip():
+        logo_url = "/v1/kb/public/logo"
+    nome = _nome_exibicao_empresa(row)
+    titulo_custom = (settings.portal_titulo or "").strip() if settings else ""
+    if titulo_custom:
+        portal_titulo = titulo_custom
+    elif nome != "Central de ajuda":
+        portal_titulo = f"Central de ajuda — {nome}"
+    else:
+        portal_titulo = "Central de ajuda"
+    cor_primaria = (settings.cor_primaria if settings else None) or "#0D9488"
+    cor_link = (settings.cor_link if settings and settings.cor_link else None) or cor_primaria
+    return KbPublicBrandingRead(
+        nome_exibicao=nome,
+        portal_titulo=portal_titulo,
+        logo_url=logo_url,
+        texto_boas_vindas=settings.texto_boas_vindas if settings else None,
+        cor_primaria=cor_primaria,
+        cor_header=(settings.cor_header if settings else None) or "#0B2D4A",
+        cor_texto_header=(settings.cor_texto_header if settings else None) or "#FFFFFF",
+        cor_texto_corpo=(settings.cor_texto_corpo if settings else None) or "#0F172A",
+        cor_fundo=(settings.cor_fundo if settings else None) or "#F8FAFC",
+        cor_link=cor_link,
+        exibir_marca_deskrudder=bool(settings.exibir_marca_deskrudder) if settings else True,
+    )
+
+
+@router.get("/portal-settings", response_model=KbPortalSettingsRead)
+def obter_portal_settings(
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_admin),
+):
+    row = _get_or_create_portal_settings(db, atendente.tenant_id)
+    db.commit()
+    return _portal_settings_read(row)
+
+
+@router.put("/portal-settings", response_model=KbPortalSettingsRead)
+def atualizar_portal_settings(
+    data: KbPortalSettingsUpdate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_admin),
+):
+    row = _get_or_create_portal_settings(db, atendente.tenant_id)
+    update = data.model_dump(exclude_unset=True)
+    if "portal_titulo" in update and update["portal_titulo"] is not None:
+        update["portal_titulo"] = update["portal_titulo"].strip() or None
+    if "texto_boas_vindas" in update and update["texto_boas_vindas"] is not None:
+        update["texto_boas_vindas"] = update["texto_boas_vindas"].strip() or None
+    for key, val in update.items():
+        setattr(row, key, val)
+    registrar_audit(db, "kb_portal_settings", row.id, "update", atendente.id, payload=update)
+    db.commit()
+    db.refresh(row)
+    return _portal_settings_read(row)
+
+
+@router.get("/public/branding", response_model=KbPublicBrandingRead)
+def branding_kb_publico(
+    request: Request,
+    response: Response,
+    tenant_id: TenantIdDep,
+    db: Session = Depends(get_db),
+):
+    check_kb_public_rate_limit(request)
+    _ = tenant_id
+    out = _kb_public_branding(db, tenant_id)
+    _public_cache_headers(response)
+    return out
+
+
+@router.get("/public/logo")
+def logo_kb_publico(
+    request: Request,
+    response: Response,
+    tenant_id: TenantIdDep,
+    db: Session = Depends(get_db),
+):
+    check_kb_public_rate_limit(request)
+    _ = tenant_id
+    row = _empresa_sistema_row(db)
+    if not row or not row.logo_filename:
+        raise HTTPException(status_code=404, detail="Logo não definido.")
+    p = caminho_absoluto_logo(row.logo_filename)
+    if not p:
+        raise HTTPException(status_code=404, detail="Logo não encontrado.")
+    mt = (row.logo_mimetype or "").strip() or "application/octet-stream"
+    _public_cache_headers(response)
+    return FileResponse(
+        path=str(p),
+        media_type=mt,
+        filename=p.name,
+        headers={"Cache-Control": "public, max-age=300"},
+    )
+
+
 @router.get("/public/categories", response_model=list[KbCategoryRead])
 def listar_categorias_publicas(
     request: Request,
@@ -668,6 +944,29 @@ def listar_artigos_publicos(
     rows = q.order_by(KbArticle.titulo.asc(), KbArticle.id.asc()).limit(limit).all()
     _public_cache_headers(response)
     return [_article_brief(r) for r in rows]
+
+
+@router.get("/public/suggestions", response_model=list[KbArticleBrief])
+def sugestoes_artigos_publicas(
+    request: Request,
+    response: Response,
+    tenant_id: TenantIdDep,
+    motivo_id: int | None = Query(None, ge=1),
+    natureza_id: int | None = Query(None, ge=1),
+    db: Session = Depends(get_db),
+):
+    check_kb_public_rate_limit(request)
+    if motivo_id is None and natureza_id is None:
+        raise HTTPException(status_code=400, detail="Informe motivo_id ou natureza_id.")
+    arts = listar_artigos_sugeridos(
+        db,
+        tenant_id,
+        motivo_id=motivo_id,
+        natureza_id=natureza_id,
+        incluir_interno_only=False,
+    )
+    _public_cache_headers(response)
+    return [_article_brief(a) for a in arts]
 
 
 @router.get("/public/articles/{slug}", response_model=KbArticleRead)
