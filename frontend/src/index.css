@@ -107,3 +107,45 @@
   @apply font-semibold text-slate-900 dark:text-slate-50;
 }
 
+/* Portal público /kb — usa cores do branding; ignora tema escuro do app (cards brancos) */
+.kb-public-portal .kb-markdown,
+.dark .kb-public-portal .kb-markdown {
+  color: var(--kb-body-text, #0f172a);
+}
+
+.kb-public-portal .kb-markdown h1,
+.kb-public-portal .kb-markdown h2,
+.kb-public-portal .kb-markdown h3,
+.kb-public-portal .kb-markdown strong,
+.dark .kb-public-portal .kb-markdown h1,
+.dark .kb-public-portal .kb-markdown h2,
+.dark .kb-public-portal .kb-markdown h3,
+.dark .kb-public-portal .kb-markdown strong {
+  color: var(--kb-body-text, #0f172a);
+}
+
+.kb-public-portal .kb-markdown a,
+.dark .kb-public-portal .kb-markdown a {
+  color: var(--kb-link, #0d9488);
+}
+
+.kb-public-portal .kb-markdown code,
+.dark .kb-public-portal .kb-markdown code {
+  @apply bg-slate-100 text-slate-800;
+}
+
+.kb-public-portal .kb-markdown pre,
+.dark .kb-public-portal .kb-markdown pre {
+  @apply border-slate-200 bg-slate-50;
+}
+
+.kb-public-portal .kb-markdown blockquote,
+.dark .kb-public-portal .kb-markdown blockquote {
+  @apply border-slate-300 text-slate-600;
+}
+
+.kb-public-portal .kb-markdown hr,
+.dark .kb-public-portal .kb-markdown hr {
+  @apply border-slate-200;
+}
+

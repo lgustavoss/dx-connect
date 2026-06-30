@@ -107,3 +107,63 @@ class KbArticleVersionDetail(KbArticleVersionRead):
 class KbImageUploadResponse(BaseModel):
     url: str
     filename: str
+
+
+class KbArticleMotivoLinkItem(BaseModel):
+    id: int | None = None
+    motivo_id: int | None = Field(None, ge=1)
+    natureza_id: int | None = Field(None, ge=1)
+    ordem: int = Field(0, ge=0, le=32767)
+    motivo_nome: str | None = None
+    natureza_nome: str | None = None
+
+
+class KbArticleMotivoLinksUpdate(BaseModel):
+    links: list[KbArticleMotivoLinkItem] = Field(default_factory=list, max_length=20)
+
+
+class KbSuggestionsQuery(BaseModel):
+    motivo_id: int | None = Field(None, ge=1)
+    natureza_id: int | None = Field(None, ge=1)
+
+
+class KbPublicBrandingRead(BaseModel):
+    nome_exibicao: str
+    portal_titulo: str = "Central de ajuda"
+    logo_url: str | None = None
+    texto_boas_vindas: str | None = None
+    cor_primaria: str = "#0D9488"
+    cor_header: str = "#0B2D4A"
+    cor_texto_header: str = "#FFFFFF"
+    cor_texto_corpo: str = "#0F172A"
+    cor_fundo: str = "#F8FAFC"
+    cor_link: str = "#0D9488"
+    exibir_marca_deskrudder: bool = True
+
+
+class KbPortalSettingsRead(BaseModel):
+    portal_titulo: str | None = None
+    texto_boas_vindas: str | None = None
+    cor_header: str = "#0B2D4A"
+    cor_primaria: str = "#0D9488"
+    cor_texto_header: str = "#FFFFFF"
+    cor_texto_corpo: str = "#0F172A"
+    cor_fundo: str = "#F8FAFC"
+    cor_link: str | None = None
+    exibir_marca_deskrudder: bool = True
+    public_url_preview: str | None = None
+
+
+_HEX_COLOR = r"^#[0-9A-Fa-f]{6}$"
+
+
+class KbPortalSettingsUpdate(BaseModel):
+    portal_titulo: str | None = Field(None, max_length=120)
+    texto_boas_vindas: str | None = Field(None, max_length=500)
+    cor_header: str | None = Field(None, pattern=_HEX_COLOR)
+    cor_primaria: str | None = Field(None, pattern=_HEX_COLOR)
+    cor_texto_header: str | None = Field(None, pattern=_HEX_COLOR)
+    cor_texto_corpo: str | None = Field(None, pattern=_HEX_COLOR)
+    cor_fundo: str | None = Field(None, pattern=_HEX_COLOR)
+    cor_link: str | None = Field(None, pattern=_HEX_COLOR)
+    exibir_marca_deskrudder: bool | None = None

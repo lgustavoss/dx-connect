@@ -86,6 +86,11 @@ services:
       - --port
       - "8000"
       - --reload
+      # Evita reload travado em "Waiting for connections to close" (SSE / event stream).
+      - --reload-exclude
+      - alembic/*
+      - --reload-exclude
+      - tests/*
     ports:
       - "8000:8000"
     depends_on:

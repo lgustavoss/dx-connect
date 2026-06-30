@@ -17,6 +17,12 @@ import { kbCategoriasOpcoesSelect } from '../lib/kbCategorias'
 import { KbMarkdownPreview } from '../components/kb/KbMarkdownPreview'
 import { KbMarkdownAjudaModal } from '../components/kb/KbMarkdownAjudaModal'
 import { KbArtigoHistoricoModal } from '../components/kb/KbArtigoHistoricoModal'
+import {
+  draftFromApiLinks,
+  draftToApiLinks,
+  KbArtigoMotivoLinksFields,
+  type MotivoLinkDraft,
+} from '../components/kb/KbArtigoMotivoLinksFields'
 
 type ModoConteudo = 'editar' | 'visualizar'
 
@@ -50,6 +56,7 @@ export function KbArtigoForm() {
   const [loadingVersoes, setLoadingVersoes] = useState(false)
   const [versaoSelecionada, setVersaoSelecionada] = useState<Kb.ArticleVersionDetail | null>(null)
   const [loadingVersao, setLoadingVersao] = useState(false)
+  const [motivoLinks, setMotivoLinks] = useState<MotivoLinkDraft[]>([])
 
   useEffect(() => {
     kb.listCategories()
@@ -96,6 +103,25 @@ export function KbArtigoForm() {
     }
   }, [artigoId, id, isEdit, toast])
 
+  useEffect(() => {
+    if (!isEdit || Number.isNaN(artigoId)) return
+    let cancelled = false
+    kb.listArticleMotivoLinks(artigoId)
+      .then((rows) => {
+        if (!cancelled) setMotivoLinks(draftFromApiLinks(rows))
+      })
+      .catch(() => {
+        if (!cancelled) setMotivoLinks([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [artigoId, isEdit])
+
+  async function salvarMotivoLinks(articleId: number) {
+    await kb.updateArticleMotivoLinks(articleId, draftToApiLinks(motivoLinks))
+  }
+
   function artigoPayload() {
     return {
       titulo: titulo.trim(),
@@ -115,6 +141,7 @@ export function KbArtigoForm() {
     try {
       if (isEdit && !Number.isNaN(artigoId)) {
         await kb.updateArticle(artigoId, artigoPayload())
+        await salvarMotivoLinks(artigoId)
         toast.showSuccess('Artigo salvo.')
       } else {
         const created = await kb.createArticle(artigoPayload())
@@ -136,6 +163,7 @@ export function KbArtigoForm() {
     setSaving(true)
     try {
       await kb.updateArticle(artigoId, artigoPayload())
+      await salvarMotivoLinks(artigoId)
       const pub = await kb.publishArticle(artigoId)
       setStatus(pub.status)
       toast.showSuccess('Artigo publicado.')
@@ -300,6 +328,16 @@ export function KbArtigoForm() {
             </p>
           </div>
         </FormSection>
+
+        {isEdit ? (
+          <FormSection title="Sugestões por classificação">
+            <KbArtigoMotivoLinksFields
+              links={motivoLinks}
+              onChange={setMotivoLinks}
+              disabled={status === 'arquivado' || saving}
+            />
+          </FormSection>
+        ) : null}
 
         <FormSection title="Conteúdo do manual">
           <div className="mb-3 flex flex-wrap items-center gap-2">

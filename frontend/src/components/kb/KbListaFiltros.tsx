@@ -43,6 +43,7 @@ type Props = {
   onStatusChange?: (value: string) => void
   statusOptions?: { value: string; label: string }[]
   paginacao?: PaginacaoProps
+  hideCategoryFilter?: boolean
 }
 
 function PaginacaoBarra({
@@ -109,6 +110,7 @@ export function KbListaFiltros({
   onStatusChange,
   statusOptions,
   paginacao,
+  hideCategoryFilter = false,
 }: Props) {
   const comStatus = Boolean(statusOptions?.length && onStatusChange)
 
@@ -116,7 +118,15 @@ export function KbListaFiltros({
     <section className="mb-4 space-y-0">
       <div className="rounded-xl border border-slate-200/90 bg-slate-50/70 p-4 dark:border-slate-800/80 dark:bg-slate-900/40">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
-          <div className={comStatus ? 'md:col-span-2 xl:col-span-6' : 'md:col-span-2 xl:col-span-8'}>
+          <div
+            className={
+              hideCategoryFilter
+                ? 'md:col-span-2 xl:col-span-12'
+                : comStatus
+                  ? 'md:col-span-2 xl:col-span-6'
+                  : 'md:col-span-2 xl:col-span-8'
+            }
+          >
             <label htmlFor="kb-filtro-busca" className={labelOverline}>
               Busca
             </label>
@@ -136,6 +146,7 @@ export function KbListaFiltros({
             </div>
           </div>
 
+          {!hideCategoryFilter ? (
           <div className={comStatus ? 'xl:col-span-3' : 'xl:col-span-4'}>
             <Select
               label="Categoria"
@@ -149,6 +160,7 @@ export function KbListaFiltros({
               disabled={disabled}
             />
           </div>
+          ) : null}
 
           {comStatus && statusOptions && onStatusChange ? (
             <div className="xl:col-span-3">

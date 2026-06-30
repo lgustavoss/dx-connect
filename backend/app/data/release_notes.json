@@ -1,15 +1,39 @@
 {
-  "current_version": "26.06.007",
-  "current_version_display": "v26.06.007",
+  "current_version": "26.06.001",
+  "current_version_display": "v26.06.001",
   "current": {
-    "version": "26.06.007",
-    "version_display": "v26.06.007",
-    "date": "2026-06-28",
+    "version": "26.06.001",
+    "version_display": "v26.06.001",
+    "date": "2026-06-22",
     "status": "published",
     "changes": [
       {
-        "category": "interno",
-        "text": "Atualização do sistema"
+        "category": "melhorias",
+        "text": "Versão e notas de atualização no painel (página Sobre) (#404)"
+      },
+      {
+        "category": "melhorias",
+        "text": "Distribuição automática de tickets na fila — modos manual, após timeout e imediato; estratégias round-robin e menor carga (#399)"
+      },
+      {
+        "category": "melhorias",
+        "text": "Exibição do solicitante no detalhe do ticket e reconciliação inbound pós-cadastro (#392)"
+      },
+      {
+        "category": "melhorias",
+        "text": "Relatórios de tickets e chats WhatsApp com exportação CSV (#390)"
+      },
+      {
+        "category": "correcoes",
+        "text": "E-mail de resposta ao cliente no Postgres (worker de outbox com timezone) (#397)"
+      },
+      {
+        "category": "correcoes",
+        "text": "Notificações: paridade entre badge e itens do dropdown (#395)"
+      },
+      {
+        "category": "correcoes",
+        "text": "Health check e capabilities com FastAPI 0.137+ (#394)"
       }
     ]
   },
@@ -47,198 +71,6 @@
         {
           "category": "correcoes",
           "text": "Health check e capabilities com FastAPI 0.137+ (#394)"
-        }
-      ]
-    },
-    {
-      "version": "26.06.002",
-      "version_display": "v26.06.002",
-      "date": "2026-06-22",
-      "status": "published",
-      "changes": [
-        {
-          "category": "melhorias",
-          "text": "Histórico completo de atualizações no painel Sobre (versões anteriores permanecem visíveis)"
-        },
-        {
-          "category": "melhorias",
-          "text": "CHANGELOG obrigatório em PRs com mudança de produto (validação automática no CI)"
-        },
-        {
-          "category": "melhorias",
-          "text": "Persistência do manifest de releases após cada deploy em staging"
-        }
-      ]
-    },
-    {
-      "version": "26.06.003",
-      "version_display": "v26.06.003",
-      "date": "2026-06-23",
-      "status": "published",
-      "changes": [
-        {
-          "category": "melhorias",
-          "text": "Som de ticket novo na fila sem responsável tocava múltiplas vezes por emissões SSE duplicadas e hook de alerta montado em mais de um componente (#406)"
-        },
-        {
-          "category": "melhorias",
-          "text": "SLA (#277): políticas por setor e prioridade, calendário comercial compartilhado e snapshot de metas na criação de tickets"
-        },
-        {
-          "category": "melhorias",
-          "text": "SLA (#278): cálculo com horário comercial, estados dentro/em risco/violado, worker periódico e endpoint de detalhe do SLA por ticket"
-        },
-        {
-          "category": "melhorias",
-          "text": "SLA (#279): alertas de SLA em risco e violado por e-mail e SSE, com preferências opt-in/out e debounce por ticket/meta"
-        },
-        {
-          "category": "melhorias",
-          "text": "SLA (#280): painel admin em Configurações → Atendimento → SLA para CRUD de políticas por setor/prioridade"
-        },
-        {
-          "category": "melhorias",
-          "text": "SLA (#281): badges e filtros na listagem de tickets e card de SLA no detalhe com countdown"
-        },
-        {
-          "category": "melhorias",
-          "text": "Motor de roteamento automático: regras configuráveis por admin (setor, prioridade, natureza, motivo, atendente) com avaliação em e-mail inbound e criação manual de tickets"
-        },
-        {
-          "category": "melhorias",
-          "text": "Audit log e histórico do ticket quando uma regra de roteamento é aplicada em runtime"
-        },
-        {
-          "category": "melhorias",
-          "text": "`aplicar_roteamento` restrito a administradores para sobrescrever setor explícito"
-        },
-        {
-          "category": "melhorias",
-          "text": "UI em Configurações → Atendimento → Roteamento com simulador de teste seco"
-        },
-        {
-          "category": "melhorias",
-          "text": "Histórico completo de atualizações no painel Sobre (versões anteriores permanecem visíveis)"
-        },
-        {
-          "category": "melhorias",
-          "text": "CHANGELOG obrigatório em PRs com mudança de produto (validação automática no CI)"
-        },
-        {
-          "category": "melhorias",
-          "text": "Persistência do manifest de releases após cada deploy em staging"
-        }
-      ]
-    },
-    {
-      "version": "26.06.004",
-      "version_display": "v26.06.004",
-      "date": "2026-06-25",
-      "status": "published",
-      "changes": [
-        {
-          "category": "melhorias",
-          "text": "Som de ticket novo na fila sem responsável tocava múltiplas vezes por emissões SSE duplicadas e hook de alerta montado em mais de um componente (#406)"
-        },
-        {
-          "category": "melhorias",
-          "text": "Base de conhecimento (#293–#299): menu **Ajuda** para consultar manuais durante o atendimento; gestão de categorias e artigos (admin); consulta integrada em tickets e WhatsApp; manuais «só para a equipe»; imagens no texto; histórico de versões; reordenar categorias arrastando; manuais consultados ficam disponíveis offline neste computador"
-        },
-        {
-          "category": "melhorias",
-          "text": "Auditoria (#290–#292): registro detalhado de ações no sistema (atribuição e transferência de tickets, chats WhatsApp, e-mails ao cliente, credenciais PDV e exportações)"
-        },
-        {
-          "category": "melhorias",
-          "text": "Auditoria: filtros por ação, período e atendente; exportação CSV; painel com detalhes do registro"
-        },
-        {
-          "category": "melhorias",
-          "text": "Página Sobre: badges de categoria (Melhorias, Correções, etc.) com texto centralizado e alinhamento uniforme na lista (#426)"
-        },
-        {
-          "category": "melhorias",
-          "text": "Chat WhatsApp (#403): administradores acompanham chats alheios apenas com comentário interno; envio ao cliente restrito ao operador responsável"
-        },
-        {
-          "category": "melhorias",
-          "text": "Chat WhatsApp (#423): registro de demandas por sessão (natureza/motivo), auto-registro ao abrir ticket e agregação no dashboard de chats"
-        },
-        {
-          "category": "melhorias",
-          "text": "SLA (#418): pausa automática da contagem quando o ticket está em status «Aguardando cliente» (ativado por padrão)"
-        },
-        {
-          "category": "melhorias",
-          "text": "SLA: políticas opcionais por natureza do ticket; filtro «em risco» e dashboard usam calendário comercial e pausa; prazo efetivo no card SLA"
-        },
-        {
-          "category": "melhorias",
-          "text": "Dashboard geral: card com quantidade de tickets abertos em violação de SLA, com atalho para a listagem filtrada (#416)"
-        },
-        {
-          "category": "melhorias",
-          "text": "Dashboard geral: card com tickets abertos em risco de SLA, com atalho para a listagem filtrada"
-        },
-        {
-          "category": "melhorias",
-          "text": "SLA (#417): calendários comerciais em Configurações → Atendimento → SLA (horário semanal e feriados nacionais)"
-        },
-        {
-          "category": "melhorias",
-          "text": "Configurações WhatsApp: editor de horário semanal reutilizado (mesmo componente dos calendários SLA)"
-        }
-      ]
-    },
-    {
-      "version": "26.06.005",
-      "version_display": "v26.06.005",
-      "date": "2026-06-27",
-      "status": "published",
-      "changes": [
-        {
-          "category": "melhorias",
-          "text": "WhatsApp (#431): mídia recebida (imagem, áudio, vídeo, documento, figurinha) gravada corretamente no webhook; fallback e retry na Evolution API; UI deixa de ficar presa em «Carregando mídia…» quando o ficheiro não está disponível"
-        },
-        {
-          "category": "melhorias",
-          "text": "WhatsApp (#432): barra de anexos com ações visíveis (imagem, vídeo, áudio, documento, gravar áudio), pré-visualização antes do envio e legenda opcional"
-        },
-        {
-          "category": "melhorias",
-          "text": "WhatsApp (#433): banner e badge «Sem vínculo» para contactos não cadastrados; botão vincular visível em mobile"
-        },
-        {
-          "category": "melhorias",
-          "text": "WhatsApp: mensagens de contacto e localização recebidas passam a aparecer como texto legível no chat"
-        },
-        {
-          "category": "melhorias",
-          "text": "Identidade visual DeskRudder no painel (logos, login, favicon e componentes de marca)"
-        }
-      ]
-    },
-    {
-      "version": "26.06.006",
-      "version_display": "v26.06.006",
-      "date": "2026-06-28",
-      "status": "published",
-      "changes": [
-        {
-          "category": "interno",
-          "text": "Atualização do sistema"
-        }
-      ]
-    },
-    {
-      "version": "26.06.007",
-      "version_display": "v26.06.007",
-      "date": "2026-06-28",
-      "status": "published",
-      "changes": [
-        {
-          "category": "interno",
-          "text": "Atualização do sistema"
         }
       ]
     }

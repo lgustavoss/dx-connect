@@ -3,6 +3,7 @@ import { Button } from '../../components/ui/Button'
 import { KbConsultaButton } from '../../components/KbConsultaModal'
 import type { TipoAnexoPicker } from './WhatsappBarraAnexos'
 import { WhatsappGravadorAudioInline } from './WhatsappGravadorAudioInline'
+import { WhatsappEmojiFigurinhaPanel } from './WhatsappEmojiFigurinhaPanel'
 
 type Props = {
   texto: string
@@ -11,6 +12,8 @@ type Props = {
   onEnviarInterno?: () => void
   onEscolherAnexo: (tipo: TipoAnexoPicker) => void
   onAudioGravado: (file: File) => void
+  onInserirEmoji: (emoji: string) => void
+  onEnviarFigurinha: (file: File) => void
   enviando: boolean
   encerrado: boolean
   podeEnviar: boolean
@@ -35,6 +38,8 @@ export function WhatsappComposerBar({
   onEnviarInterno,
   onEscolherAnexo,
   onAudioGravado,
+  onInserirEmoji,
+  onEnviarFigurinha,
   enviando,
   encerrado,
   podeEnviar,
@@ -43,8 +48,11 @@ export function WhatsappComposerBar({
   onInserirReferenciaKb,
 }: Props) {
   const [menuAberto, setMenuAberto] = useState(false)
+  const [painelEmojiAberto, setPainelEmojiAberto] = useState(false)
   const [gravando, setGravando] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const emojiRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (!menuAberto) return
@@ -61,6 +69,23 @@ export function WhatsappComposerBar({
   function enviar() {
     if (modoInterno && onEnviarInterno) onEnviarInterno()
     else onEnviar()
+  }
+
+  function inserirEmojiNoCursor(emoji: string) {
+    const el = textareaRef.current
+    if (!el) {
+      onInserirEmoji(emoji)
+      return
+    }
+    const start = el.selectionStart ?? texto.length
+    const end = el.selectionEnd ?? texto.length
+    const next = `${texto.slice(0, start)}${emoji}${texto.slice(end)}`
+    onTextoChange(next)
+    requestAnimationFrame(() => {
+      el.focus()
+      const pos = start + emoji.length
+      el.setSelectionRange(pos, pos)
+    })
   }
 
   return (
@@ -107,21 +132,34 @@ export function WhatsappComposerBar({
           )}
         </div>
 
-        <button
-          type="button"
-          disabled
-          title="Figurinhas — em breve"
-          aria-label="Figurinhas (em breve)"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg opacity-40"
-        >
-          😊
-        </button>
+        <div className="relative shrink-0" ref={emojiRef}>
+          <button
+            type="button"
+            disabled={desabilitado || modoInterno || !podeEnviar}
+            title="Emoji e figurinhas"
+            aria-label="Emoji e figurinhas"
+            aria-expanded={painelEmojiAberto}
+            onClick={() => setPainelEmojiAberto((o) => !o)}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            😊
+          </button>
+          {painelEmojiAberto && (
+            <WhatsappEmojiFigurinhaPanel
+              disabled={desabilitado || modoInterno || !podeEnviar}
+              onInserirEmoji={inserirEmojiNoCursor}
+              onEnviarFigurinha={onEnviarFigurinha}
+              onFechar={() => setPainelEmojiAberto(false)}
+            />
+          )}
+        </div>
 
         {onInserirReferenciaKb && (
           <KbConsultaButton disabled={encerrado} onInserirReferencia={podeDigitar ? onInserirReferenciaKb : undefined} />
         )}
 
         <textarea
+          ref={textareaRef}
           value={texto}
           onChange={(e) => onTextoChange(e.target.value)}
           placeholder={
