@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { kb, type Kb } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
@@ -41,6 +41,8 @@ function cachedToArticle(c: KbCachedArticle): Kb.Article {
 
 export function KbConsultaPanel({ onInserirReferencia, showInserir = false }: Props) {
   const toast = useToast()
+  const toastRef = useRef(toast)
+  toastRef.current = toast
   const [searchParams, setSearchParams] = useSearchParams()
   const [busca, setBusca] = useState('')
   const [debouncedBusca, setDebouncedBusca] = useState('')
@@ -79,8 +81,9 @@ export function KbConsultaPanel({ onInserirReferencia, showInserir = false }: Pr
 
   const carregar = useCallback(() => {
     if (offline) {
+      const cached = listKbOfflineCache()
       setItens(
-        cacheRecentes.map((c) => ({
+        cached.map((c) => ({
           id: c.id,
           titulo: c.titulo,
           slug: c.slug,
@@ -102,11 +105,11 @@ export function KbConsultaPanel({ onInserirReferencia, showInserir = false }: Pr
     })
       .then(setItens)
       .catch((err) => {
-        toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível buscar artigos.'))
+        toastRef.current.showWarning(mensagemFalhaParaToast(err, 'Não foi possível buscar artigos.'))
         setItens([])
       })
       .finally(() => setLoading(false))
-  }, [categoryId, debouncedBusca, cacheRecentes, offline, toast])
+  }, [categoryId, debouncedBusca, offline])
 
   useEffect(() => {
     carregar()
@@ -119,7 +122,7 @@ export function KbConsultaPanel({ onInserirReferencia, showInserir = false }: Pr
         if (offline) {
           const cached = getKbOfflineById(id) ?? (slug ? getKbOfflineBySlug(slug) : null)
           if (!cached) {
-            toast.showWarning('Este manual não está salvo neste computador. Abra-o uma vez com internet.')
+            toastRef.current.showWarning('Este manual não está salvo neste computador. Abra-o uma vez com internet.')
             return
           }
           setArtigo(cachedToArticle(cached))
@@ -133,15 +136,15 @@ export function KbConsultaPanel({ onInserirReferencia, showInserir = false }: Pr
         const cached = getKbOfflineById(id) ?? (slug ? getKbOfflineBySlug(slug) : null)
         if (cached) {
           setArtigo(cachedToArticle(cached))
-          toast.showWarning('Exibindo a última versão salva neste computador.')
+          toastRef.current.showWarning('Exibindo a última versão salva neste computador.')
         } else {
-          toast.showError(mensagemFalhaParaToast(err, 'Artigo não encontrado.'))
+          toastRef.current.showError(mensagemFalhaParaToast(err, 'Artigo não encontrado.'))
         }
       } finally {
         setLoadingArtigo(false)
       }
     },
-    [offline, toast],
+    [offline],
   )
 
   useEffect(() => {

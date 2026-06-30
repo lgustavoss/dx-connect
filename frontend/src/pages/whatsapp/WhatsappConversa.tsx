@@ -21,6 +21,11 @@ import {
 
 } from '../../api/client'
 
+import { resolveWhatsappMidiaObjectUrl, revokeWhatsappMidiaForChat } from '../../lib/whatsappMidiaCache'
+import { chatEncerramentoPorInatividade } from '../../lib/whatsappDemandaUtils'
+import { mergeWhatsappChat, patchWhatsappChatLista, replaceWhatsappChatLista } from '../../lib/whatsappChatMerge'
+import { whatsappMensagensUnicas } from '../../lib/whatsappMensagens'
+
 import { Card } from '../../components/ui/Card'
 
 import { Button } from '../../components/ui/Button'
@@ -107,21 +112,17 @@ function ConteudoMensagemWhatsApp({ chatId, m, onImageClick }: { chatId: number;
 
     }
 
-    let objectUrl: string | null = null
-
     let cancelled = false
 
     setLoading(true)
 
-    fetchWhatsAppMidiaBlob(chatId, m.id)
+    setErr(false)
 
-      .then((blob) => {
+    void resolveWhatsappMidiaObjectUrl(chatId, m.id, () => fetchWhatsAppMidiaBlob(chatId, m.id))
+
+      .then((u) => {
 
         if (cancelled) return
-
-        const u = URL.createObjectURL(blob)
-
-        objectUrl = u
 
         setUrl(u)
 
@@ -135,8 +136,6 @@ function ConteudoMensagemWhatsApp({ chatId, m, onImageClick }: { chatId: number;
 
       cancelled = true
 
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
-
     }
 
   }, [chatId, m.id, m.midia_disponivel, tipo])
@@ -148,14 +147,6 @@ function ConteudoMensagemWhatsApp({ chatId, m, onImageClick }: { chatId: number;
 
 
   if (tipo === 'texto' || !m.tipo_midia) return <TextoComLinks texto={m.corpo} />
-
-  if (!m.midia_disponivel) {
-    return (
-      <p className="text-xs italic opacity-70" title="O ficheiro não foi obtido da Evolution API">
-        {m.corpo || 'Mídia não disponível'}
-      </p>
-    )
-  }
 
   if (!m.midia_disponivel) {
     return (
@@ -248,6 +239,8 @@ export function WhatsappConversa() {
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const carregarGenRef = useRef(0)
+
   const [pickerAnexo, setPickerAnexo] = useState<TipoAnexoPicker>('imagem')
   const [arquivoPendente, setArquivoPendente] = useState<File | null>(null)
   const [legendaMidia, setLegendaMidia] = useState('')
@@ -320,6 +313,15 @@ export function WhatsappConversa() {
   }, [voltarLista, modalEncerrar])
 
   useEffect(() => {
+    if (!modalEncerrar || !chat) return
+    const fechado = chat.estado === 'encerrado' || chat.estado === 'aguardando_avaliacao'
+    if (fechado && chatEncerramentoPorInatividade(msgs)) {
+      setModalEncerrar(false)
+      toast.showSuccess('Atendimento encerrado automaticamente por inatividade do cliente.')
+    }
+  }, [modalEncerrar, chat, msgs, toast])
+
+  useEffect(() => {
     if (!id) return
     whatsappChats
       .demandas(id)
@@ -351,7 +353,12 @@ export function WhatsappConversa() {
 
       const rows = await whatsappChats.meus()
 
-      setMeusChats(rows)
+      setMeusChats((prev) =>
+        rows.map((row) => {
+          const antigo = prev.find((c) => c.id === row.id)
+          return antigo ? mergeWhatsappChat(antigo, row) : row
+        }),
+      )
 
     } catch { setMeusChats([]) }
 
@@ -365,13 +372,17 @@ export function WhatsappConversa() {
 
     if (!id) return
 
+    const gen = ++carregarGenRef.current
+
     try {
 
       const [c, m] = await Promise.all([whatsappChats.get(id), whatsappChats.mensagens(id)])
 
-      setChat(c)
+      if (gen !== carregarGenRef.current) return
 
-      setMsgs(m)
+      setChat((prev) => mergeWhatsappChat(prev, c))
+
+      setMsgs(whatsappMensagensUnicas(m))
 
     } catch (err) {
 
@@ -380,6 +391,14 @@ export function WhatsappConversa() {
     }
 
   }, [id, toast])
+
+
+
+  const aplicarChatAtualizado = useCallback((atualizado: WhatsappChats.Chat) => {
+    carregarGenRef.current += 1
+    setChat(atualizado)
+    setMeusChats((prev) => replaceWhatsappChatLista(prev, atualizado))
+  }, [])
 
 
 
@@ -398,6 +417,10 @@ export function WhatsappConversa() {
     setLoading(true)
 
     carregar().then(() => whatsappChats.marcarVisto(id)).finally(() => setLoading(false))
+
+    return () => {
+      revokeWhatsappMidiaForChat(Number(id))
+    }
 
   }, [id, carregar])
 
@@ -430,12 +453,17 @@ export function WhatsappConversa() {
       const payloadChatId = Number(payload.chat_id)
       const chatData = payload.chat as WhatsappChats.Chat | undefined
       if (payloadChatId === chatId) {
-        if (chatData) setChat(chatData)
-        else void carregar().catch(() => {})
+        if (chatData) {
+          carregarGenRef.current += 1
+          setChat((prev) => mergeWhatsappChat(prev, chatData))
+          setMeusChats((prev) => patchWhatsappChatLista(prev, chatData))
+        } else {
+          void carregar().catch(() => {})
+        }
       }
       if (chatData && chatData.estado !== 'em_atendimento') {
         setMeusChats((prev) => prev.filter((c) => c.id !== payloadChatId))
-      } else {
+      } else if (!chatData || payloadChatId !== chatId) {
         void carregarSidebar()
       }
     })
@@ -599,9 +627,24 @@ useEffect(() => {
     window.setTimeout(() => fileInputRef.current?.click(), 0)
   }
 
-  function handleGravacaoConcluida(file: File) {
-    setArquivoPendente(file)
-    setLegendaMidia('')
+  async function handleGravacaoConcluida(file: File) {
+    if (!chat || enviando) return
+    setEnviando(true)
+    try {
+      await whatsappChats.enviarMidia(
+        chat.id,
+        file,
+        '',
+        msgRespondida?.wa_message_id || null,
+      )
+      setMsgRespondida(null)
+      toast.showSuccess('Áudio enviado.')
+      await carregar()
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Falha ao enviar áudio.'))
+    } finally {
+      setEnviando(false)
+    }
   }
 
   function handleFileSelecionado(e: React.ChangeEvent<HTMLInputElement>) {
@@ -632,6 +675,21 @@ useEffect(() => {
       await carregar()
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Falha no envio do anexo'))
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  async function enviarFigurinha(file: File) {
+    if (!chat || !podeEnviar) return
+    setEnviando(true)
+    try {
+      await whatsappChats.enviarFigurinha(chat.id, file, msgRespondida?.wa_message_id || null)
+      setMsgRespondida(null)
+      toast.showSuccess('Figurinha enviada!')
+      await carregar()
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Falha ao enviar figurinha'))
     } finally {
       setEnviando(false)
     }
@@ -1197,6 +1255,8 @@ useEffect(() => {
             podeDigitar={podeDigitarMensagem}
             onEscolherAnexo={abrirPickerAnexo}
             onAudioGravado={handleGravacaoConcluida}
+            onInserirEmoji={setTexto}
+            onEnviarFigurinha={(file) => void enviarFigurinha(file)}
             onInserirReferenciaKb={inserirReferenciaKb}
           />
 
@@ -1284,7 +1344,7 @@ useEffect(() => {
             chat={chat}
             open={modalVincFuncionario}
             onClose={() => setModalVincFuncionario(false)}
-            onSuccess={(atualizado) => setChat(atualizado)}
+            onSuccess={aplicarChatAtualizado}
           />
         )}
 
@@ -1294,7 +1354,7 @@ useEffect(() => {
           open={modalTickets}
           onClose={() => setModalTickets(false)}
           onSuccess={(atualizado) => {
-            setChat(atualizado)
+            aplicarChatAtualizado(atualizado)
             setDemandasReloadKey((k) => k + 1)
           }}
         />
@@ -1304,6 +1364,7 @@ useEffect(() => {
         <WhatsappEncerrarModal
           open={modalEncerrar}
           chatId={chat.id}
+          chatEstado={chat.estado}
           msgs={msgs}
           onClose={() => setModalEncerrar(false)}
           onEncerrado={(atualizado) => void handleEncerrado(atualizado)}

@@ -705,3 +705,42 @@ def test_enviar_audio_falha_sem_wa_message_id(client, seed_base, auth_headers, m
     rows = client.get(f"/v1/whatsapp/chats/{cid}/mensagens", headers=auth_headers["a1"]).json()
     assert all(m.get("tipo_midia") != "audio" or m.get("direcao") != "outbound" for m in rows)
 
+
+def test_enviar_figurinha_usa_sendSticker(client, seed_base, auth_headers, monkeypatch):
+    calls: list[str] = []
+
+    def fake_sticker(*_a, **_k):
+        calls.append("sticker")
+        return True, None, "wa-sticker-1"
+
+    def fake_media(*_a, **_k):
+        calls.append("media")
+        return True, None, "wa-media-1"
+
+    monkeypatch.setattr("app.api.whatsapp_chats.evolution_api.evolution_send_sticker", fake_sticker)
+    monkeypatch.setattr("app.api.whatsapp_chats.evolution_api.evolution_send_media", fake_media)
+
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={
+            "webhook_secret": "stk-out",
+            "evolution_base_url": "http://evolution.test",
+            "evolution_instance_name": "inst",
+            "evolution_api_key": "key-test",
+        },
+        headers=auth_headers["admin"],
+    )
+    cid = _chat_ativo(client, seed_base, auth_headers, wa_id="5511999667788", msg_id="stk-out-1")
+
+    webp_bytes = b"RIFF" + b"\x00" * 64
+    r = client.post(
+        f"/v1/whatsapp/chats/{cid}/mensagens/midia",
+        data={"mediatipo": "figurinha", "caption": ""},
+        files={"file": ("fig.webp", webp_bytes, "image/webp")},
+        headers=auth_headers["a1"],
+    )
+    assert r.status_code == 201
+    body = r.json()
+    assert body["tipo_midia"] == "figurinha"
+    assert body["wa_message_id"] == "wa-sticker-1"
+    assert calls == ["sticker"]

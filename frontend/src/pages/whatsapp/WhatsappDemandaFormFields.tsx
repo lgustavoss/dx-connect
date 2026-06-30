@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ticketClassificacao, type TicketClassificacao } from '../../api/client'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
+import { KbSugestoesMotivo } from '../../components/kb/KbSugestoesMotivo'
 
 export type DemandaFormValues = {
   naturezaId: number | ''
@@ -72,6 +73,7 @@ export function WhatsappDemandaFormFields({ values, onChange, disabled, idPrefix
         id={`${idPrefix}-desc`}
         placeholder="Resumo do que foi tratado"
       />
+      <KbSugestoesMotivo naturezaId={values.naturezaId} motivoId={values.motivoId} />
     </div>
   )
 }
