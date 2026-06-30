@@ -227,6 +227,222 @@
           "text": "Atualização do sistema"
         }
       ]
+    },
+    {
+      "version": "26.06.008",
+      "version_display": "v26.06.008",
+      "date": "2026-06-29",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#473): modal de encerramento deixava de carregar demandas — polling da conversa refazia o fetch e mantinha «A carregar demandas…» em loop; demanda passa a ser opcional quando o chat encerra por inatividade"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#472): banner «contato não identificado» persistia após vincular/cadastrar — polling/SSE com snapshot antigo sobrescrevia o vínculo; sidebar e header atualizam na hora"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#471): cache de mídia por mensagem reduz refetch de blobs e mitiga `ERR_INSUFFICIENT_RESOURCES` no carregamento de anexos"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: aviso de inatividade duplicado quando vários workers processavam o mesmo chat em paralelo (Gunicorn)"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#443/#454): painel de emoji e envio de figurinhas no composer; Histórico e Avaliações preservam posição de scroll ao voltar da conversa"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#449): corrigido link do Histórico/Avaliações para conversa — query `?from=` separada do `pathname` (React Router v7)"
+        },
+        {
+          "category": "melhorias",
+          "text": "Notificações (#452): pendências de mensagem não lida abrem o ticket ou chat concreto (`/tickets/{id}`, `/whatsapp/c/{id}`) — removido fallback genérico para listagens"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#447): terminologia «contato do cliente» no chat e tickets — distingue colaborador da rede de atendente interno"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#453): ícones por tipo de ficheiro (PDF, Word, Excel, etc.) nas mensagens de documento"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#446): marco «Demanda registada» na timeline via evento interno + SSE em tempo real; removido ao excluir demanda"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#455): Histórico lista chats em atendimento — colegas do setor consultam e comentam internamente; ordenação e filtros de data corrigidos"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#443): barra de composição estilo WhatsApp Web (+ anexos, emoji e figurinhas, microfone à direita)"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#445): modal de encerramento substitui `confirm()` nativo — registo/edição de demandas, aviso quando houve conversa após última demanda, marco na timeline e `ConfirmDialog` reutilizável"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#449): botão Voltar na conversa regressa à lista de origem (Atendimento, Histórico ou Avaliações), com filtros na URL e atalho Escape"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#448): abas Histórico e Avaliações — filtros coerentes (finalizados incluem aguardando avaliação; avaliações só com nota respondida)"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#444): cadastro de funcionário no chat com e-mail opcional; erros de validação visíveis dentro do modal (não atrás do overlay); toasts acima de modais"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#442): mensagens inbound passam a aparecer sem reload — polling de segurança na conversa e na fila, complementando SSE em deploy multi-worker"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#441): áudio gravado pelo atendente enviado como nota de voz via `sendWhatsAppAudio` (encoding Evolution); falha explícita se a API não confirmar entrega"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#431): mídia recebida (imagem, áudio, vídeo, documento, figurinha) gravada corretamente no webhook; fallback e retry na Evolution API; UI deixa de ficar presa em «Carregando mídia…» quando o ficheiro não está disponível"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#432): barra de anexos com ações visíveis (imagem, vídeo, áudio, documento, gravar áudio), pré-visualização antes do envio e legenda opcional"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#433): banner e badge «Sem vínculo» para contactos não cadastrados; botão vincular visível em mobile"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: mensagens de contacto e localização recebidas passam a aparecer como texto legível no chat"
+        },
+        {
+          "category": "melhorias",
+          "text": "Som de ticket novo na fila sem responsável tocava múltiplas vezes por emissões SSE duplicadas e hook de alerta montado em mais de um componente (#406)"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#470): áudio gravado na barra de composição é enviado automaticamente ao terminar a gravação (estilo WhatsApp Web)"
+        },
+        {
+          "category": "melhorias",
+          "text": "Identidade visual (#434): painel lateral do login e assets legados DX/Duplexsoft removidos — marca DeskRudder em todo o painel"
+        },
+        {
+          "category": "melhorias",
+          "text": "Base de conhecimento (#296): admin vincula manuais a natureza/motivo; até 5 sugestões na classificação de tickets e demandas WhatsApp"
+        },
+        {
+          "category": "melhorias",
+          "text": "Base de conhecimento (#465/#466): portal público `/kb` com logo e nome da empresa (Configurações → Empresa); listagem, busca e leitura de artigos sem login"
+        },
+        {
+          "category": "melhorias",
+          "text": "Base de conhecimento (#467): personalização do portal em Configurações → Sistema → Base de conhecimento (cores da navbar, textos, links); menu lateral de categorias/subcategorias expansível no /kb; navbar com título centralizado, logo sem fundo branco e menu hamburger"
+        },
+        {
+          "category": "melhorias",
+          "text": "Base de conhecimento (#293–#299): menu **Ajuda** para consultar manuais durante o atendimento; gestão de categorias e artigos (admin); consulta integrada em tickets e WhatsApp; manuais «só para a equipe»; imagens no texto; histórico de versões; reordenar categorias arrastando; manuais consultados ficam disponíveis offline neste computador"
+        },
+        {
+          "category": "melhorias",
+          "text": "Auditoria (#290–#292): trail expandido com payload, IP, request-id e user-agent; registro de atribuição, transferência, fechamento e reabertura de tickets, ações em chats WhatsApp, envio de e-mail ao cliente, visualização de credencial PDV e exportação de relatórios"
+        },
+        {
+          "category": "melhorias",
+          "text": "Auditoria: filtros por ação, período e atendente; exportação CSV; painel com detalhes do payload e request-id"
+        },
+        {
+          "category": "melhorias",
+          "text": "Página Sobre: badges de categoria (Melhorias, Correções, etc.) com texto centralizado e alinhamento uniforme na lista (#426)"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat WhatsApp (#403): administradores acompanham chats alheios apenas com comentário interno; envio ao cliente restrito ao operador responsável"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat WhatsApp (#423): registro de demandas por sessão (natureza/motivo), auto-registro ao abrir ticket e agregação no dashboard de chats; edição via `PATCH`, marco na timeline e fluxo completo no modal de encerramento (#445)"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#418): pausa automática da contagem quando o ticket está em status configurado (flag `pausa_sla`; «Aguardando cliente» ativado por padrão)"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA: políticas opcionais por natureza do ticket; filtro «em risco» e dashboard usam o motor completo (calendário + pausa); prazo efetivo no card SLA"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#277): políticas por setor e prioridade, calendário comercial compartilhado e snapshot de metas na criação de tickets"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#278): cálculo com horário comercial, estados dentro/em risco/violado, worker periódico e endpoint de detalhe do SLA por ticket"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#279): alertas de SLA em risco e violado por e-mail e SSE, com preferências opt-in/out e debounce por ticket/meta"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#280): painel admin em Configurações → Atendimento → SLA para CRUD de políticas por setor/prioridade"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#281): badges e filtros na listagem de tickets e card de SLA no detalhe com countdown"
+        },
+        {
+          "category": "melhorias",
+          "text": "Dashboard geral: card com quantidade de tickets abertos em violação de SLA, com atalho para a listagem filtrada (#416)"
+        },
+        {
+          "category": "melhorias",
+          "text": "Dashboard geral: card com tickets abertos em risco de SLA, com atalho para a listagem filtrada"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#417): CRUD de calendários comerciais em Configurações → Atendimento → SLA → Calendários (horário semanal e feriados nacionais)"
+        },
+        {
+          "category": "melhorias",
+          "text": "Configurações WhatsApp: editor de horário semanal reutilizado (mesmo componente dos calendários SLA)"
+        },
+        {
+          "category": "melhorias",
+          "text": "Motor de roteamento automático: regras configuráveis por admin (setor, prioridade, natureza, motivo, atendente) com avaliação em e-mail inbound e criação manual de tickets"
+        },
+        {
+          "category": "melhorias",
+          "text": "Audit log e histórico do ticket quando uma regra de roteamento é aplicada em runtime"
+        },
+        {
+          "category": "melhorias",
+          "text": "`aplicar_roteamento` restrito a administradores para sobrescrever setor explícito"
+        },
+        {
+          "category": "melhorias",
+          "text": "UI em Configurações → Atendimento → Roteamento com simulador de teste seco"
+        },
+        {
+          "category": "melhorias",
+          "text": "Histórico completo de atualizações no painel Sobre (versões anteriores permanecem visíveis)"
+        },
+        {
+          "category": "melhorias",
+          "text": "CHANGELOG obrigatório em PRs com mudança de produto (validação automática no CI)"
+        },
+        {
+          "category": "melhorias",
+          "text": "Persistência do manifest de releases após cada deploy em staging"
+        }
+      ]
     }
   ]
 }

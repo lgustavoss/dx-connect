@@ -5,7 +5,9 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
-### Correções
+## [26.06.008] - 2026-06-29
+
+### Melhorias
 
 - WhatsApp (#473): modal de encerramento deixava de carregar demandas — polling da conversa refazia o fetch e mantinha «A carregar demandas…» em loop; demanda passa a ser opcional quando o chat encerra por inatividade
 - WhatsApp (#472): banner «contato não identificado» persistia após vincular/cadastrar — polling/SSE com snapshot antigo sobrescrevia o vínculo; sidebar e header atualizam na hora
@@ -30,9 +32,6 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - WhatsApp (#433): banner e badge «Sem vínculo» para contactos não cadastrados; botão vincular visível em mobile
 - WhatsApp: mensagens de contacto e localização recebidas passam a aparecer como texto legível no chat
 - Som de ticket novo na fila sem responsável tocava múltiplas vezes por emissões SSE duplicadas e hook de alerta montado em mais de um componente (#406)
-
-### Melhorias
-
 - WhatsApp (#470): áudio gravado na barra de composição é enviado automaticamente ao terminar a gravação (estilo WhatsApp Web)
 - Identidade visual (#434): painel lateral do login e assets legados DX/Duplexsoft removidos — marca DeskRudder em todo o painel
 - Base de conhecimento (#296): admin vincula manuais a natureza/motivo; até 5 sugestões na classificação de tickets e demandas WhatsApp
@@ -61,12 +60,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - UI em Configurações → Atendimento → Roteamento com simulador de teste seco
 - Histórico completo de atualizações no painel Sobre (versões anteriores permanecem visíveis)
 - CHANGELOG obrigatório em PRs com mudança de produto (validação automática no CI)
-
-### Interno / Infra
-
 - Persistência do manifest de releases após cada deploy em staging
-
-<!-- Adicione bullets aqui a cada PR para main. Texto para o usuário final, não mensagem de commit. -->
 
 ## [26.06.005] - 2026-06-27
 
