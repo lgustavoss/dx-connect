@@ -18,7 +18,7 @@
     "recharts": "^2.15.4"
   },
   "devDependencies": {
-    "@emnapi/core": "^1.11.1",
+    "@emnapi/core": "^1.11.2",
     "@emnapi/runtime": "^1.11.1",
     "@eslint/js": "^9.39.1",
     "@tailwindcss/vite": "^4.3.1",
