@@ -1,0 +1,57 @@
+---
+description: Fluxo Git — branch por feature, PR para main, convenções do time
+alwaysApply: true
+---
+
+# Git workflow
+
+## Regras do time
+
+- **Nunca** implementar direto em `main` ou `staging`
+- **Sempre** criar branch nova antes de codar
+- **Uma feature = uma branch = um PR** para `main`
+- Merge via PR (revisão + CI verde) — não push direto em `main`
+
+## Nomenclatura de branch
+
+```
+{tipo}/{slug-curto}[-{numero-issue}]
+```
+
+| Tipo | Quando |
+|------|--------|
+| `feat/` | Feature nova |
+| `fix/` | Correção de bug |
+| `chore/` | Deps, CI, refatoração sem feature |
+| `docs/` | Só documentação |
+
+Exemplos do repo: `feat/observabilidade-119`, `feat/whatsapp-vinculo-funcionario-155-156`
+
+## Início de feature
+
+```bash
+git fetch origin
+git checkout main
+git pull origin main
+git checkout -b feat/minha-feature-123
+```
+
+Use `/iniciar-feature` para automatizar este passo.
+
+## Commits
+
+- Mensagens claras, foco no **porquê**
+- Estilo do repo: `feat(tickets): ...`, `fix(frontend): ...`, `chore(deps): ...`
+- **Não commitar** sem pedido explícito do usuário
+- **Não** `--no-verify`, `--force`, `push --force` em `main`
+
+## Finalização
+
+1. `/revisar-e-testar` — qualidade + testes
+2. `/criar-pr` — commit (se pendente), push e PR para `main`
+
+## PR
+
+- Base: **`main`**
+- Corpo: resumo, test plan, link da issue
+- Aguardar CI (pytest + build frontend) antes de merge

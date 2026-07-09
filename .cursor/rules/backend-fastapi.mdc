@@ -1,0 +1,51 @@
+---
+description: Padrões FastAPI — camadas, RBAC, testes e migrations
+globs: backend/**
+alwaysApply: false
+---
+
+# Backend FastAPI
+
+## Camadas (obrigatório)
+
+Nova feature = arquivos em cada camada, sem lógica pesada na rota:
+
+```
+api/<recurso>.py  →  schemas/<recurso>.py  →  services/<recurso>.py  →  models/
+```
+
+Registrar rota em `app/main.py` se for módulo novo.
+
+## RBAC e setor
+
+- Admin: `exigir_admin` — ver tabela em `docs/BACKEND_RBAC.md`
+- Atendente: `obter_atendente_atual` + filtro por setor
+- Escopo/homônimos: `app/core/setor_scope.py` — **nunca** filtrar setor só no frontend
+- Referência: `tests/test_rbac_*.py`
+
+## Migrations Alembic
+
+- Encadeamento por `revision` / `down_revision` (nome do arquivo **não** importa)
+- **Nunca** renomear `revision` já aplicada em algum ambiente
+- Múltiplos heads → migration de **merge** (sem DDL)
+- Checar: `alembic heads` e `alembic history`
+
+## Testes
+
+- Novo endpoint ou regra de negócio → teste em `backend/tests/test_<area>.py`
+- Usar fixtures de `conftest.py` (`DX_CONNECT_TESTING=1`, SQLite in-memory)
+- Rodar: `docker compose run --rm --no-deps backend pytest -q`
+
+## SSE (se aplicável)
+
+- Publicar evento **depois** do `commit` da transação
+- Tipos em `app/services/realtime.py`; destinatários filtrados por RBAC
+- Ver `docs/REALTIME_SSE.md`
+
+## Exemplo de rota fina
+
+```python
+@router.post("", response_model=MeuSchema)
+def criar(body: MeuCreate, db: Session = Depends(get_db), atendente=Depends(obter_atendente_atual)):
+    return meu_service.criar(db, body, atendente)
+```

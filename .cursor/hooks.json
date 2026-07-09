@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": "python .cursor/hooks/block_main_branch.py",
+        "matcher": "git "
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": "python .cursor/hooks/format_frontend.py"
+      }
+    ]
+  }
+}
