@@ -1,0 +1,46 @@
+---
+description: SSE tempo real — eventos pós-commit, envelope, RBAC e frontend
+globs: backend/app/services/realtime*.py,backend/app/api/events.py,frontend/src/**/eventStream*,frontend/src/contexts/EventStreamContext.tsx,frontend/src/hooks/useEventStream*
+alwaysApply: false
+---
+
+# SSE — tempo real
+
+Referência: `docs/REALTIME_SSE.md`
+
+## Backend
+
+- Endpoint: `GET /v1/events/stream` — canal `atendente:{id}`
+- Envelope: `{ "type": "<tipo>", "payload": { ... } }`
+- Publicar evento **somente após `commit`** da transação DB
+- Lógica de emissão: `app/services/realtime_emit.py`
+- Destinatários filtrados por RBAC (setor homônimo + admin)
+
+## Tipos de evento existentes
+
+| Tipo | Uso |
+|------|-----|
+| `chat.mensagem` | Nova mensagem WhatsApp |
+| `chat.fila` | Fila/estado do chat |
+| `ticket.mensagem` | Mensagem em ticket |
+| `ticket.fila` | Ticket sem responsável |
+| `notificacao.contagem` | Contadores navbar |
+
+Novo tipo: documentar em `docs/REALTIME_SSE.md` + teste em `test_realtime_*.py`.
+
+## Frontend
+
+- **Uma** conexão SSE via `EventStreamContext` — não abrir `EventSource`/fetch paralelo
+- Cliente: `frontend/src/api/eventStream.ts` (Bearer header)
+- Respeitar `useFallback` — polling após 3 falhas de reconexão
+- Consumidores invalidam cache/refetch; não duplicar lógica de filtro RBAC no cliente
+
+## Limitações v1
+
+- Hub in-process (`asyncio.Queue`) — `--workers 1` ou sticky session
+- Não assumir fan-out entre workers Gunicorn sem Redis (v2)
+
+## Testes
+
+- `backend/tests/test_events_stream.py`
+- `backend/tests/test_realtime_emit.py`

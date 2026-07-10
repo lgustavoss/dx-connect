@@ -1,0 +1,54 @@
+---
+description: RBAC admin/atendente e escopo por setor (inclui homônimos)
+globs: backend/app/api/**,backend/app/core/**
+alwaysApply: false
+---
+
+# RBAC e escopo por setor
+
+Referência completa: `docs/BACKEND_RBAC.md`
+
+## Perfis
+
+| Perfil | Dependency | Uso |
+|--------|------------|-----|
+| Admin | `exigir_admin` | Cadastros, auditoria, mutações de catálogo |
+| Atendente | `obter_atendente_atual` | Operação (tickets, dashboard, notificações) |
+
+## Setores homônimos (crítico)
+
+Setores com **mesmo nome** e IDs diferentes compartilham visibilidade operacional.
+
+```python
+from app.core.setor_scope import (
+    ids_setores_visiveis_atendente,
+    ids_setores_mesmo_nome,
+    atendente_atende_algum_id_setor,
+    responsavel_elegivel_para_setor_do_ticket,
+    select_rede_ids_com_ticket_nos_setores,
+)
+```
+
+- Listagens: filtrar por `ids_setores_visiveis_atendente(db, atendente)`
+- Acesso a recurso de setor X: `atendente_atende_algum_id_setor(db, atendente.id, setor_id)`
+- **Nunca** confiar em `atendente.setor_ids` ou filtro equivalente só no frontend
+
+## Decisão rápida para rota nova
+
+```
+Cadastro/config global?     → exigir_admin
+Operação do atendente?      → obter_atendente_atual + filtro setor_scope
+Recurso de outro atendente? → 403 (não vazar existência em listagens)
+Leitura de catálogo p/ UI?  → autenticado; mutação continua admin
+```
+
+## Testes obrigatórios
+
+- Caminho feliz admin **e** atendente no escopo
+- **403** fora do setor / recurso de terceiro
+- Referência: `tests/test_rbac_tickets.py`, `test_rbac_admin_only.py`, `test_rbac_catalogos.py`
+
+## Frontend (se tocar UI)
+
+- Cadastro: `AdminRoute` + menu admin no `Sidebar`
+- Listas de setor/empresa: usar resposta da API, sem recorte local por `/me`

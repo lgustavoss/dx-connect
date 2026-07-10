@@ -1,0 +1,46 @@
+---
+description: Padrões gerais do DX Connect — idioma, docs, Docker e o que evitar
+alwaysApply: true
+---
+
+# DX Connect — Core
+
+Sistema interno de helpdesk para redes de postos (tickets, WhatsApp, e-mail, SSE).
+
+## Idioma e escopo
+
+- UI, mensagens de erro e docs em **português**.
+- Mudanças **mínimas**: só o necessário para a tarefa; não refatorar código adjacente.
+- **Não commitar** nem sugerir commit/push sem pedido explícito do usuário.
+- Git: branch nova por feature, PR para `main` — ver rule `git-workflow`.
+
+## Onde está a verdade
+
+- RBAC: `docs/BACKEND_RBAC.md`
+- SSE: `docs/REALTIME_SSE.md`
+- Migrations: `docs/ALEMBIC_MIGRATIONS.md`
+- Deploy: `docs/DEPLOYMENT_ARCHITECTURE.md`
+- Planejamento: `.github/planning-issue-bodies/`
+
+## Dev e testes (Docker-first)
+
+```bash
+docker compose run --rm --no-deps backend pytest -q
+docker compose up -d --build   # só se Dockerfile ou requirements mudaram
+```
+
+Frontend em dev: `npm run dev` na pasta `frontend/` (proxy `/api` → `:8000`).
+
+## Arquitetura de deploy
+
+- **Produção = single-tenant por instância** (subdomínio + Postgres dedicado).
+- `tenant_id` é legado de dev/staging — não modelar features novas em cima disso.
+
+## Checklist antes de considerar pronto
+
+- [ ] Critérios de aceite da issue atendidos
+- [ ] RBAC e escopo por setor respeitados (admin vs atendente, homônimos)
+- [ ] Testes backend passando (`pytest -q`)
+- [ ] Se houve migration: `alembic heads` com um único head
+- [ ] Se afeta tempo real: evento SSE **após commit** no banco
+- [ ] Frontend builda (`npm run build`) se tocou em `frontend/`
