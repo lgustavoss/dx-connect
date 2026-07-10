@@ -10,7 +10,8 @@ alwaysApply: true
 - **Nunca** implementar direto em `main` ou `staging`
 - **Sempre** criar branch nova antes de codar
 - **Uma feature = uma branch = um PR** para `main`
-- Merge via PR (revisão + CI verde) — não push direto em `main`
+- `main` é **branch de testes** — `/criar-pr` mergeia automaticamente após CI verde
+- Não push direto em `main` (sempre via PR)
 
 ## Nomenclatura de branch
 
@@ -48,10 +49,12 @@ Use `/iniciar-feature` para automatizar este passo.
 ## Finalização
 
 1. `/revisar-e-testar` — qualidade + testes
-2. `/criar-pr` — commit (se pendente), push e PR para `main`
+2. `/criar-pr` — commit (se pendente), push, PR, CI, approve e **merge em main**
 
 ## PR
 
 - Base: **`main`**
 - Corpo: resumo, test plan, link da issue
-- Aguardar CI (pytest + build frontend) antes de merge
+- Aguardar CI (pytest + build frontend)
+- `/criar-pr` faz merge automático quando CI passa (main = testes)
+- Para staging/produção: fluxo separado (`main → staging`)

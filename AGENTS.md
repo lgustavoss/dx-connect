@@ -41,7 +41,7 @@ Config: `.cursor/hooks.json`
 | `/implementar-issue` | Implementar issue/épico com checklist completo |
 | `/nova-migration` | Criar/validar migration Alembic |
 | `/revisar-e-testar` | Revisão pré-merge com testes |
-| `/criar-pr` | Commit, push e abrir PR para `main` |
+| `/criar-pr` | PR → watch CI → approve → **merge automático em main** |
 
 ## Subagents (Task tool)
 
@@ -64,8 +64,10 @@ Use subagents para **paralelizar** ou **isolar** trabalho:
 3. /iniciar-feature                    → branch feat/chat-interno-api-ic02
 4. /implementar-issue @IC-02-backend-api-chat-interno.md
 5. /revisar-e-testar
-6. /criar-pr                           → PR para main
+6. /criar-pr                           → PR + CI + approve + merge em main
 ```
+
+O `/criar-pr` monitora Actions, aprova e **mergeia em `main`** quando CI passa (main = branch de testes). Em falha, corrige e re-monitora (skill **babysit**). Opt-out: pedir `/criar-pr sem merge`.
 
 ## Skills
 
