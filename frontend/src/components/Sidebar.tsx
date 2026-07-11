@@ -224,10 +224,11 @@ const navStructure: NavItem[] = [
     id: 'chat',
     label: 'Chat',
     icon: 'chat',
-    extraActivePrefixes: ['/whatsapp/c/'],
+    extraActivePrefixes: ['/whatsapp/c/', '/chat-interno/'],
     children: [
       { to: '/whatsapp/atendendo', label: 'Atendendo', icon: 'chatInbox' },
       { to: '/whatsapp/historico', label: 'Histórico', icon: 'chatHistory' },
+      { to: '/chat-interno', label: 'Chat interno', icon: 'chat' },
     ],
   },
   {

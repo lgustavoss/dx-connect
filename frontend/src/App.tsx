@@ -61,6 +61,10 @@ import { WhatsappAtendendo } from './pages/whatsapp/WhatsappAtendendo'
 import { WhatsappHistorico } from './pages/whatsapp/WhatsappHistorico'
 import { WhatsappAvaliacoes } from './pages/whatsapp/WhatsappAvaliacoes'
 import { WhatsappConversa } from './pages/whatsapp/WhatsappConversa'
+import { ChatInternoLayout } from './pages/chat-interno/ChatInternoLayout'
+import { ChatInternoInbox } from './pages/chat-interno/ChatInternoInbox'
+import { ChatInternoThread } from './pages/chat-interno/ChatInternoThread'
+import { ChatInternoSetorCanal } from './pages/chat-interno/ChatInternoSetorCanal'
 import { AlterarSenha } from './pages/AlterarSenha'
 import { NotificacoesPreferencias } from './pages/NotificacoesPreferencias'
 import { Sobre } from './pages/Sobre'
@@ -198,6 +202,11 @@ function AppRoutes() {
           <Route path="fila" element={<Navigate to="/whatsapp/atendendo" replace />} />
           <Route path="meus" element={<Navigate to="/whatsapp/atendendo" replace />} />
           <Route path="c/:chatId" element={<WhatsappConversa />} />
+        </Route>
+        <Route path="chat-interno" element={<ChatInternoLayout />}>
+          <Route index element={<ChatInternoInbox />} />
+          <Route path="setor/:setorId" element={<ChatInternoSetorCanal />} />
+          <Route path=":conversaId" element={<ChatInternoThread />} />
         </Route>
         <Route
           path="redes/:id"

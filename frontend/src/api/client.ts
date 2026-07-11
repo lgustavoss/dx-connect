@@ -1299,6 +1299,64 @@ export const notificacoes = {
     }),
 };
 
+export namespace ChatInterno {
+  export type ConversaTipo = 'direta' | 'setor';
+
+  export interface ConversaInbox {
+    id: number;
+    tipo: ConversaTipo;
+    titulo: string;
+    setor_id: number | null;
+    ultima_mensagem_corpo: string | null;
+    ultima_mensagem_em: string | null;
+    nao_lidas_count: number;
+    created_at: string;
+  }
+
+  export interface Conversa {
+    id: number;
+    tipo: ConversaTipo;
+    setor_id: number | null;
+    setor_nome: string | null;
+    titulo: string | null;
+    created_at: string;
+  }
+
+  export interface Mensagem {
+    id: number;
+    conversa_id: number;
+    atendente_id: number | null;
+    atendente_nome: string | null;
+    corpo: string;
+    created_at: string;
+  }
+}
+
+export const chatInterno = {
+  listarConversas: () => api<ChatInterno.ConversaInbox[]>('/chat-interno/conversas'),
+  criarDireta: (atendente_id: number) =>
+    api<ChatInterno.Conversa>('/chat-interno/conversas/direta', {
+      method: 'POST',
+      body: JSON.stringify({ atendente_id }),
+    }),
+  mensagens: (conversaId: number, params?: { offset?: number; limit?: number }) =>
+    listPaginated<ChatInterno.Mensagem>(`/chat-interno/conversas/${conversaId}/mensagens`, params),
+  enviar: (conversaId: number, corpo: string) =>
+    api<ChatInterno.Mensagem>(`/chat-interno/conversas/${conversaId}/mensagens`, {
+      method: 'POST',
+      body: JSON.stringify({ corpo }),
+    }),
+  marcarVisto: (conversaId: number) =>
+    api<void>(`/chat-interno/conversas/${conversaId}/visto`, { method: 'POST' }),
+  obterCanalSetor: (setorId: number) =>
+    api<ChatInterno.Conversa>(`/chat-interno/setores/${setorId}/canal`),
+  publicarCanalSetor: (setorId: number, corpo: string) =>
+    api<ChatInterno.Mensagem>(`/chat-interno/setores/${setorId}/canal/mensagens`, {
+      method: 'POST',
+      body: JSON.stringify({ corpo }),
+    }),
+};
+
 export namespace Dashboard {
   export interface StatusCount {
     status_id: number;
