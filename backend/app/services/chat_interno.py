@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
@@ -21,6 +21,8 @@ from app.models.chat_interno import (
     ConversaInternaLeitura,
     ConversaInternaParticipante,
     MensagemInterna,
+    MensagemInternaOculta,
+    MensagemInternaReacao,
 )
 from app.services import chat_interno_media_storage as media_storage
 from app.services.mensagem_status import STATUS_ENVIADA, STATUS_LIDA
@@ -28,6 +30,11 @@ from app.services.mensagem_status import STATUS_ENVIADA, STATUS_LIDA
 
 class ChatInternoErro(ValueError):
     """Erro de validação de domínio do chat interno."""
+
+
+CORPO_MENSAGEM_APAGADA = "Mensagem apagada"
+_EMOJIS_REACAO_PERMITIDOS = frozenset({"👍", "❤️", "😂", "😮", "😢", "🙏"})
+JANELA_EDICAO_MINUTOS = 5
 
 
 @dataclass
@@ -170,12 +177,18 @@ def contar_nao_lidas(
         )
         .scalar()
     )
+    historico = obter_historico_oculto_ate(db, conversa.id, atendente_id)
+    ocultas = ids_mensagens_ocultas_para_atendente(db, conversa.id, atendente_id)
     q = db.query(func.count(MensagemInterna.id)).filter(
         MensagemInterna.conversa_id == conversa.id,
         MensagemInterna.atendente_id != atendente_id,
     )
     if last_seen is not None:
         q = q.filter(MensagemInterna.created_at > last_seen)
+    if historico is not None:
+        q = q.filter(MensagemInterna.created_at > historico)
+    if ocultas:
+        q = q.filter(~MensagemInterna.id.in_(ocultas))
     return int(q.scalar() or 0)
 
 
@@ -186,6 +199,86 @@ def obter_ultima_mensagem(db: Session, conversa_id: int) -> MensagemInterna | No
         .order_by(MensagemInterna.created_at.desc(), MensagemInterna.id.desc())
         .first()
     )
+
+
+def _as_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def dentro_janela_edicao_apagar_todos(mensagem: MensagemInterna, agora: datetime | None = None) -> bool:
+    agora = _as_utc(agora or datetime.now(timezone.utc))
+    created = _as_utc(mensagem.created_at)
+    limite = agora - timedelta(minutes=JANELA_EDICAO_MINUTOS)
+    return created >= limite
+
+
+def obter_historico_oculto_ate(db: Session, conversa_id: int, atendente_id: int) -> datetime | None:
+    return (
+        db.query(ConversaInternaLeitura.historico_oculto_ate)
+        .filter(
+            ConversaInternaLeitura.conversa_id == conversa_id,
+            ConversaInternaLeitura.atendente_id == atendente_id,
+        )
+        .scalar()
+    )
+
+
+def ids_mensagens_ocultas_para_atendente(db: Session, conversa_id: int, atendente_id: int) -> set[int]:
+    rows = (
+        db.query(MensagemInternaOculta.mensagem_id)
+        .join(MensagemInterna, MensagemInterna.id == MensagemInternaOculta.mensagem_id)
+        .filter(
+            MensagemInterna.conversa_id == conversa_id,
+            MensagemInternaOculta.atendente_id == atendente_id,
+        )
+        .all()
+    )
+    return {int(mid) for (mid,) in rows}
+
+
+def mensagem_visivel_para_atendente(
+    db: Session,
+    mensagem: MensagemInterna,
+    atendente_id: int,
+    *,
+    historico_oculto_ate: datetime | None = None,
+    ocultas_ids: set[int] | None = None,
+) -> bool:
+    if historico_oculto_ate is None:
+        historico_oculto_ate = obter_historico_oculto_ate(db, mensagem.conversa_id, atendente_id)
+    if historico_oculto_ate is not None and _as_utc(mensagem.created_at) <= _as_utc(historico_oculto_ate):
+        return False
+    if ocultas_ids is None:
+        ocultas_ids = ids_mensagens_ocultas_para_atendente(db, mensagem.conversa_id, atendente_id)
+    return mensagem.id not in ocultas_ids
+
+
+def obter_ultima_mensagem_visivel(db: Session, conversa_id: int, atendente_id: int) -> MensagemInterna | None:
+    historico = obter_historico_oculto_ate(db, conversa_id, atendente_id)
+    ocultas = ids_mensagens_ocultas_para_atendente(db, conversa_id, atendente_id)
+    candidatas = (
+        db.query(MensagemInterna)
+        .filter(MensagemInterna.conversa_id == conversa_id)
+        .order_by(MensagemInterna.created_at.desc(), MensagemInterna.id.desc())
+        .limit(80)
+        .all()
+    )
+    for mensagem in candidatas:
+        if mensagem_visivel_para_atendente(
+            db,
+            mensagem,
+            atendente_id,
+            historico_oculto_ate=historico,
+            ocultas_ids=ocultas,
+        ):
+            return mensagem
+    return None
+
+
+def conversa_tem_mensagens_visiveis(db: Session, conversa_id: int, atendente_id: int) -> bool:
+    return obter_ultima_mensagem_visivel(db, conversa_id, atendente_id) is not None
 
 
 def titulo_conversa(db: Session, conversa: ConversaInterna, atendente_id: int) -> str:
@@ -250,14 +343,17 @@ def listar_conversas_inbox(db: Session, atendente: Atendente) -> list[ConversaIn
 
     resumos: list[ConversaInboxResumo] = []
     for conversa in conversas:
-        ultima = obter_ultima_mensagem(db, conversa.id)
+        nao_lidas = contar_nao_lidas(db, conversa, atendente.id)
+        ultima = obter_ultima_mensagem_visivel(db, conversa.id, atendente.id)
+        if ultima is None and nao_lidas == 0:
+            continue
         resumos.append(
             ConversaInboxResumo(
                 conversa=conversa,
                 titulo=titulo_conversa(db, conversa, atendente.id),
                 ultima_mensagem_corpo=preview_mensagem(ultima) if ultima else None,
                 ultima_mensagem_em=ultima.created_at if ultima else None,
-                nao_lidas_count=contar_nao_lidas(db, conversa, atendente.id),
+                nao_lidas_count=nao_lidas,
             )
         )
 
@@ -321,6 +417,8 @@ def rotulo_midia(tipo_midia: str) -> str:
 
 
 def preview_mensagem(mensagem: MensagemInterna) -> str:
+    if mensagem.apagada_em is not None:
+        return CORPO_MENSAGEM_APAGADA
     tipo = mensagem.tipo_midia or TIPO_MENSAGEM_TEXTO
     if tipo in TIPOS_MENSAGEM_MIDIA:
         texto = (mensagem.corpo or "").strip()
@@ -510,10 +608,19 @@ def obter_conversa_por_id(db: Session, conversa_id: int) -> ConversaInterna | No
 def listar_mensagens(
     db: Session,
     conversa_id: int,
+    atendente_id: int,
     offset: int = 0,
     limit: int = 50,
 ) -> tuple[list[MensagemInterna], int]:
+    historico = obter_historico_oculto_ate(db, conversa_id, atendente_id)
+    ocultas = ids_mensagens_ocultas_para_atendente(db, conversa_id, atendente_id)
+
     base = db.query(MensagemInterna).filter(MensagemInterna.conversa_id == conversa_id)
+    if historico is not None:
+        base = base.filter(MensagemInterna.created_at > historico)
+    if ocultas:
+        base = base.filter(~MensagemInterna.id.in_(ocultas))
+
     total = int(base.count())
     rows = (
         base.options(joinedload(MensagemInterna.atendente))
@@ -544,3 +651,314 @@ def listar_conversas_com_nao_lidas(
 ) -> list[ConversaInboxResumo]:
     resumos = [r for r in listar_conversas_inbox(db, atendente) if r.nao_lidas_count > 0]
     return resumos[:limit]
+
+
+def mensagem_esta_apagada(mensagem: MensagemInterna) -> bool:
+    return mensagem.apagada_em is not None
+
+
+@dataclass
+class PermissoesMensagem:
+    pode_editar: bool
+    pode_apagar_para_todos: bool
+    pode_apagar_para_mim: bool
+
+
+def _eh_autor_mensagem(mensagem: MensagemInterna, atendente: Atendente) -> bool:
+    return mensagem.atendente_id == atendente.id
+
+
+def _pode_apagar_para_todos(
+    db: Session,
+    conversa: ConversaInterna,
+    mensagem: MensagemInterna,
+    atendente: Atendente,
+) -> bool:
+    if mensagem_esta_apagada(mensagem):
+        return False
+    if not dentro_janela_edicao_apagar_todos(mensagem):
+        return False
+    if _eh_autor_mensagem(mensagem, atendente):
+        return True
+    if atendente.role == "admin" and conversa.tipo == TIPO_CONVERSA_SETOR:
+        return True
+    return False
+
+
+def permissoes_mensagem(
+    db: Session,
+    conversa: ConversaInterna,
+    mensagem: MensagemInterna,
+    atendente: Atendente,
+) -> PermissoesMensagem:
+    if not mensagem_visivel_para_atendente(db, mensagem, atendente.id):
+        return PermissoesMensagem(False, False, False)
+
+    tipo = mensagem.tipo_midia or TIPO_MENSAGEM_TEXTO
+    in_window = dentro_janela_edicao_apagar_todos(mensagem)
+    is_author = _eh_autor_mensagem(mensagem, atendente)
+
+    pode_editar = (
+        is_author
+        and in_window
+        and not mensagem_esta_apagada(mensagem)
+        and tipo == TIPO_MENSAGEM_TEXTO
+    )
+    pode_apagar_para_todos = _pode_apagar_para_todos(db, conversa, mensagem, atendente)
+    pode_apagar_para_mim = True
+
+    return PermissoesMensagem(
+        pode_editar=pode_editar,
+        pode_apagar_para_todos=pode_apagar_para_todos,
+        pode_apagar_para_mim=pode_apagar_para_mim,
+    )
+
+
+def pode_modificar_mensagem(atendente: Atendente, mensagem: MensagemInterna) -> bool:
+    """Legado — preferir permissoes_mensagem."""
+    if mensagem_esta_apagada(mensagem):
+        return False
+    if not dentro_janela_edicao_apagar_todos(mensagem):
+        return False
+    return mensagem.atendente_id == atendente.id
+
+
+def editar_mensagem(
+    db: Session,
+    conversa: ConversaInterna,
+    mensagem: MensagemInterna,
+    atendente: Atendente,
+    novo_corpo: str,
+) -> MensagemInterna:
+    if not pode_acessar_conversa(db, atendente, conversa):
+        raise ChatInternoErro("Sem permissão para esta conversa.")
+    if mensagem.conversa_id != conversa.id:
+        raise ChatInternoErro("Mensagem não pertence a esta conversa.")
+    if mensagem_esta_apagada(mensagem):
+        raise ChatInternoErro("Mensagem apagada não pode ser editada.")
+    if not _eh_autor_mensagem(mensagem, atendente):
+        raise ChatInternoErro("Sem permissão para editar esta mensagem.")
+    if not dentro_janela_edicao_apagar_todos(mensagem):
+        raise ChatInternoErro(
+            f"Só é possível editar mensagens nos primeiros {JANELA_EDICAO_MINUTOS} minutos."
+        )
+    tipo = mensagem.tipo_midia or TIPO_MENSAGEM_TEXTO
+    if tipo != TIPO_MENSAGEM_TEXTO:
+        raise ChatInternoErro("Somente mensagens de texto podem ser editadas.")
+
+    texto = novo_corpo.strip()
+    if not texto:
+        raise ChatInternoErro("Corpo da mensagem não pode ser vazio.")
+
+    mensagem.corpo = texto
+    mensagem.editada_em = datetime.now(timezone.utc)
+    db.flush()
+    return mensagem
+
+
+def apagar_mensagem_para_todos(
+    db: Session,
+    conversa: ConversaInterna,
+    mensagem: MensagemInterna,
+    atendente: Atendente,
+) -> MensagemInterna:
+    if not pode_acessar_conversa(db, atendente, conversa):
+        raise ChatInternoErro("Sem permissão para esta conversa.")
+    if mensagem.conversa_id != conversa.id:
+        raise ChatInternoErro("Mensagem não pertence a esta conversa.")
+    if mensagem_esta_apagada(mensagem):
+        return mensagem
+    if not _pode_apagar_para_todos(db, conversa, mensagem, atendente):
+        raise ChatInternoErro(
+            f"Só é possível apagar para todos nos primeiros {JANELA_EDICAO_MINUTOS} minutos."
+        )
+
+    now = datetime.now(timezone.utc)
+    mensagem.apagada_em = now
+    mensagem.corpo = CORPO_MENSAGEM_APAGADA
+    db.flush()
+    return mensagem
+
+
+def ocultar_mensagem_para_atendente(
+    db: Session,
+    conversa: ConversaInterna,
+    mensagem: MensagemInterna,
+    atendente: Atendente,
+) -> None:
+    if not pode_acessar_conversa(db, atendente, conversa):
+        raise ChatInternoErro("Sem permissão para esta conversa.")
+    if mensagem.conversa_id != conversa.id:
+        raise ChatInternoErro("Mensagem não pertence a esta conversa.")
+    if not mensagem_visivel_para_atendente(db, mensagem, atendente.id):
+        raise ChatInternoErro("Mensagem não encontrada.")
+    if mensagem_esta_apagada(mensagem) and _eh_autor_mensagem(mensagem, atendente):
+        return
+
+    existente = (
+        db.query(MensagemInternaOculta)
+        .filter(
+            MensagemInternaOculta.mensagem_id == mensagem.id,
+            MensagemInternaOculta.atendente_id == atendente.id,
+        )
+        .first()
+    )
+    if not existente:
+        db.add(
+            MensagemInternaOculta(
+                mensagem_id=mensagem.id,
+                atendente_id=atendente.id,
+            )
+        )
+        db.flush()
+
+
+def limpar_conversa_para_atendente(
+    db: Session,
+    conversa: ConversaInterna,
+    atendente: Atendente,
+) -> None:
+    if not pode_acessar_conversa(db, atendente, conversa):
+        raise ChatInternoErro("Sem permissão para esta conversa.")
+
+    now = datetime.now(timezone.utc)
+    row = (
+        db.query(ConversaInternaLeitura)
+        .filter(
+            ConversaInternaLeitura.conversa_id == conversa.id,
+            ConversaInternaLeitura.atendente_id == atendente.id,
+        )
+        .first()
+    )
+    if row:
+        row.historico_oculto_ate = now
+        row.last_seen_at = now
+    else:
+        db.add(
+            ConversaInternaLeitura(
+                conversa_id=conversa.id,
+                atendente_id=atendente.id,
+                last_seen_at=now,
+                historico_oculto_ate=now,
+            )
+        )
+    db.flush()
+
+
+def apagar_mensagem(
+    db: Session,
+    conversa: ConversaInterna,
+    mensagem: MensagemInterna,
+    atendente: Atendente,
+    *,
+    escopo: str,
+) -> MensagemInterna | None:
+    if escopo == "todos":
+        return apagar_mensagem_para_todos(db, conversa, mensagem, atendente)
+    if escopo == "para_mim":
+        ocultar_mensagem_para_atendente(db, conversa, mensagem, atendente)
+        return None
+    raise ChatInternoErro("Escopo de exclusão inválido.")
+
+
+def _validar_emoji_reacao(emoji: str) -> str:
+    valor = (emoji or "").strip()
+    if valor not in _EMOJIS_REACAO_PERMITIDOS:
+        raise ChatInternoErro("Emoji de reação inválido.")
+    return valor
+
+
+def definir_reacao_mensagem(
+    db: Session,
+    conversa: ConversaInterna,
+    mensagem: MensagemInterna,
+    atendente: Atendente,
+    emoji: str,
+) -> MensagemInterna:
+    if not pode_acessar_conversa(db, atendente, conversa):
+        raise ChatInternoErro("Sem permissão para esta conversa.")
+    if mensagem.conversa_id != conversa.id:
+        raise ChatInternoErro("Mensagem não pertence a esta conversa.")
+    if mensagem_esta_apagada(mensagem):
+        raise ChatInternoErro("Não é possível reagir a mensagem apagada.")
+
+    emoji_ok = _validar_emoji_reacao(emoji)
+    row = (
+        db.query(MensagemInternaReacao)
+        .filter(
+            MensagemInternaReacao.mensagem_id == mensagem.id,
+            MensagemInternaReacao.atendente_id == atendente.id,
+        )
+        .first()
+    )
+    if row:
+        if row.emoji == emoji_ok:
+            db.delete(row)
+        else:
+            row.emoji = emoji_ok
+    else:
+        db.add(
+            MensagemInternaReacao(
+                mensagem_id=mensagem.id,
+                atendente_id=atendente.id,
+                emoji=emoji_ok,
+            )
+        )
+    db.flush()
+    db.refresh(mensagem)
+    return mensagem
+
+
+def remover_reacao_mensagem(
+    db: Session,
+    conversa: ConversaInterna,
+    mensagem: MensagemInterna,
+    atendente: Atendente,
+) -> MensagemInterna:
+    if not pode_acessar_conversa(db, atendente, conversa):
+        raise ChatInternoErro("Sem permissão para esta conversa.")
+    if mensagem.conversa_id != conversa.id:
+        raise ChatInternoErro("Mensagem não pertence a esta conversa.")
+
+    db.query(MensagemInternaReacao).filter(
+        MensagemInternaReacao.mensagem_id == mensagem.id,
+        MensagemInternaReacao.atendente_id == atendente.id,
+    ).delete(synchronize_session=False)
+    db.flush()
+    db.refresh(mensagem)
+    return mensagem
+
+
+@dataclass
+class ReacaoAgregada:
+    emoji: str
+    count: int
+    reagiu_eu: bool
+
+
+def agregar_reacoes_mensagem(
+    db: Session,
+    mensagem_id: int,
+    viewer_id: int,
+) -> list[ReacaoAgregada]:
+    rows = (
+        db.query(MensagemInternaReacao.emoji, MensagemInternaReacao.atendente_id)
+        .filter(MensagemInternaReacao.mensagem_id == mensagem_id)
+        .all()
+    )
+    por_emoji: dict[str, dict[str, int | bool]] = {}
+    for emoji, atendente_id in rows:
+        bucket = por_emoji.setdefault(emoji, {"count": 0, "reagiu_eu": False})
+        bucket["count"] = int(bucket["count"]) + 1
+        if atendente_id == viewer_id:
+            bucket["reagiu_eu"] = True
+    return [
+        ReacaoAgregada(emoji=emoji, count=int(data["count"]), reagiu_eu=bool(data["reagiu_eu"]))
+        for emoji, data in sorted(por_emoji.items(), key=lambda item: (-int(item[1]["count"]), item[0]))
+    ]
+
+
+def corpo_mensagem_para_leitura(mensagem: MensagemInterna) -> str:
+    if mensagem_esta_apagada(mensagem):
+        return CORPO_MENSAGEM_APAGADA
+    return mensagem.corpo

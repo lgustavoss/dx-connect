@@ -101,3 +101,31 @@ def test_emit_chat_interno_canal_setor_notifica_todos_membros(client, seed_base,
     assert seed_base["admin"].id in destinatarios
     assert seed_base["a1"].id not in destinatarios
     assert seed_base["a2"].id not in destinatarios
+
+
+def test_emit_chat_interno_mensagem_atualizada(client, seed_base, db_session, monkeypatch):
+    conversa = chat_svc.obter_ou_criar_conversa_direta(db_session, 1, seed_base["a1"].id, seed_base["admin"].id)
+    mensagem = chat_svc.enviar_mensagem(db_session, conversa, seed_base["a1"], "Editar isto")
+    db_session.commit()
+
+    eventos: list[tuple[str, dict]] = []
+
+    def fake_publish(atendente_ids, event_type, payload):
+        for _aid in atendente_ids:
+            eventos.append((event_type, payload))
+
+    monkeypatch.setattr("app.services.realtime_emit._publish_to_atendentes", fake_publish)
+    monkeypatch.setattr("app.services.realtime_emit._emit_notificacao_after_counter_change", lambda db: None)
+
+    from app.services.realtime_emit import emit_chat_interno_mensagem_atualizada
+
+    chat_svc.editar_mensagem(db_session, conversa, mensagem, seed_base["a1"], "Corrigido")
+    db_session.commit()
+    emit_chat_interno_mensagem_atualizada(db_session, conversa, mensagem, acao="editada")
+
+    assert len(eventos) >= 1
+    etype, payload = eventos[0]
+    assert etype == "chat.interno.mensagem.atualizada"
+    assert payload["conversa_id"] == conversa.id
+    assert payload["mensagem_id"] == mensagem.id
+    assert payload["acao"] == "editada"

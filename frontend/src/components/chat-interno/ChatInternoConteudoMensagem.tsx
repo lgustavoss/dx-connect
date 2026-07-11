@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { fetchChatInternoMidiaBlob, type ChatInterno } from '../../api/client'
 
 const ROTULO_SEM_LEGENDA = /^(📷 Imagem|🎬 Vídeo|🎵 Áudio|📄 Documento)$/
@@ -7,9 +7,18 @@ type Props = {
   conversaId: number
   mensagem: ChatInterno.Mensagem
   textoClaro?: boolean
+  /** Rodapé compacto (hora/status) embutido no canto — estilo WhatsApp Web para texto curto */
+  rodape?: ReactNode
+  somenteTextoCompacto?: boolean
 }
 
-export function ChatInternoConteudoMensagem({ conversaId, mensagem, textoClaro }: Props) {
+export function ChatInternoConteudoMensagem({
+  conversaId,
+  mensagem,
+  textoClaro,
+  rodape,
+  somenteTextoCompacto = false,
+}: Props) {
   const tipo = (mensagem.tipo_midia || 'texto').toLowerCase()
   const [url, setUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -48,10 +57,37 @@ export function ChatInternoConteudoMensagem({ conversaId, mensagem, textoClaro }
   const legenda =
     mensagem.corpo && !ROTULO_SEM_LEGENDA.test(mensagem.corpo.trim()) ? mensagem.corpo : null
 
-  if (tipo === 'texto' || !mensagem.tipo_midia || mensagem.tipo_midia === 'texto') {
+  if (mensagem.apagada) {
     return (
       <p
-        className={`whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
+        className={`text-sm italic opacity-70 ${
+          textoClaro ? 'text-cyan-100' : 'text-slate-500 dark:text-slate-400'
+        }`}
+      >
+        Mensagem apagada
+      </p>
+    )
+  }
+
+  if (tipo === 'texto' || !mensagem.tipo_midia || mensagem.tipo_midia === 'texto') {
+    if (somenteTextoCompacto && rodape) {
+      return (
+        <div className="relative min-w-[3.5rem]">
+          <p
+            className={`whitespace-pre-wrap break-words text-sm leading-[1.35] [overflow-wrap:anywhere] ${
+              textoClaro ? 'text-white' : 'text-slate-900 dark:text-slate-100'
+            }`}
+          >
+            {mensagem.corpo}
+            <span aria-hidden className="inline-block w-[4.25rem] h-[0.85rem]" />
+          </p>
+          <div className="absolute bottom-0 right-0 flex items-center gap-0.5 pl-1">{rodape}</div>
+        </div>
+      )
+    }
+    return (
+      <p
+        className={`whitespace-pre-wrap break-words text-sm leading-[1.35] [overflow-wrap:anywhere] ${
           textoClaro ? 'text-white' : 'text-slate-900 dark:text-slate-100'
         }`}
       >
