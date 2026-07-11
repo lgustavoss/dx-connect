@@ -1255,11 +1255,18 @@ export namespace Notificacoes {
     nao_lidas_count: number;
     wpp_fila_count: number;
     wpp_respostas_count: number;
+    chat_interno_nao_lidas_count: number;
     total_pendencias: number;
   }
   export interface Item {
-    tipo: 'fila_sem_responsavel' | 'mensagens_nao_lidas' | 'wpp_chats_na_fila' | 'wpp_chats_com_resposta';
+    tipo:
+      | 'fila_sem_responsavel'
+      | 'mensagens_nao_lidas'
+      | 'wpp_chats_na_fila'
+      | 'wpp_chats_com_resposta'
+      | 'chat_interno';
     ticket_id: number | null;
+    conversa_id?: number | null;
     titulo: string;
     descricao: string;
     count: number;

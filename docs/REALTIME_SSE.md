@@ -25,6 +25,7 @@ Evento inicial ao conectar:
 | `ticket.mensagem` | Nova mensagem em ticket | `{ ticket_id, mensagem }` |
 | `ticket.fila` | Ticket aberto sem responsável | `{ ticket_id, setor_id, protocolo }` |
 | `notificacao.contagem` | RT-F3 — contadores navbar | `NotificacaoResumo` (compatível com `/notificacoes/resumo`) |
+| `chat.interno.mensagem` | Nova mensagem no chat interno | `{ conversa_id, tipo, setor_id?, remetente_id, corpo_preview }` |
 
 Destinatários filtrados por RBAC (setor homônimo + admin).
 

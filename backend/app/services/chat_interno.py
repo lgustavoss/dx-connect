@@ -355,3 +355,24 @@ def listar_mensagens(
         .all()
     )
     return rows, total
+
+
+def preview_corpo(corpo: str, max_len: int = 60) -> str:
+    texto = corpo.strip()
+    if len(texto) > max_len:
+        return texto[:max_len] + "…"
+    return texto
+
+
+def contar_total_nao_lidas_atendente(db: Session, atendente: Atendente) -> int:
+    return sum(r.nao_lidas_count for r in listar_conversas_inbox(db, atendente))
+
+
+def listar_conversas_com_nao_lidas(
+    db: Session,
+    atendente: Atendente,
+    *,
+    limit: int = 15,
+) -> list[ConversaInboxResumo]:
+    resumos = [r for r in listar_conversas_inbox(db, atendente) if r.nao_lidas_count > 0]
+    return resumos[:limit]

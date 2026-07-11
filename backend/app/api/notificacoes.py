@@ -19,6 +19,7 @@ from app.services.notificacao_atendente_email import (
     obter_ou_criar_preferencias,
     preferencias_para_dict,
 )
+from app.services import chat_interno as chat_interno_svc
 from app.core.setor_scope import ids_setores_visiveis_atendente
 from app.api.tickets import _pode_ver_ticket
 
@@ -328,6 +329,25 @@ def build_notificacao_itens(
             )
         )
 
+    for resumo in chat_interno_svc.listar_conversas_com_nao_lidas(db, atendente, limit=limit):
+        preview = resumo.ultima_mensagem_corpo
+        descricao = (
+            f"Chat interno — {chat_interno_svc.preview_corpo(preview)}"
+            if preview
+            else "Chat interno — nova mensagem"
+        )
+        out.append(
+            NotificacaoItem(
+                tipo="chat_interno",
+                conversa_id=resumo.conversa.id,
+                titulo=resumo.titulo,
+                descricao=descricao,
+                count=resumo.nao_lidas_count,
+                href=f"/chat-interno/{resumo.conversa.id}",
+                created_at=resumo.ultima_mensagem_em or resumo.conversa.created_at,
+            )
+        )
+
     return out
 
 
@@ -337,12 +357,14 @@ def build_notificacao_resumo(db: Session, atendente: Atendente) -> NotificacaoRe
     nao = _count_tickets_com_nao_lidas(db, atendente)
     wpp_fila = _count_wpp_fila(db, atendente)
     wpp_resp = _count_wpp_respostas_pendentes(db, atendente)
+    chat_interno = chat_interno_svc.contar_total_nao_lidas_atendente(db, atendente)
     return NotificacaoResumo(
         sem_responsavel_count=sem,
         nao_lidas_count=nao,
         wpp_fila_count=wpp_fila,
         wpp_respostas_count=wpp_resp,
-        total_pendencias=sem + nao + wpp_fila + wpp_resp,
+        chat_interno_nao_lidas_count=chat_interno,
+        total_pendencias=sem + nao + wpp_fila + wpp_resp + chat_interno,
     )
 
 

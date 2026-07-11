@@ -148,6 +148,14 @@ def enviar_mensagem(
         mensagem = chat_svc.enviar_mensagem(db, conversa, atendente, body.corpo)
         db.commit()
         db.refresh(mensagem)
+        from app.services.realtime_emit import emit_chat_interno_mensagem
+
+        emit_chat_interno_mensagem(
+            db,
+            conversa,
+            mensagem,
+            exclude_atendente_id=atendente.id,
+        )
         return _to_mensagem_read(mensagem)
     except chat_svc.ChatInternoErro as exc:
         raise _map_chat_erro(exc) from exc
@@ -187,6 +195,14 @@ def publicar_no_canal_setor(
         mensagem = chat_svc.enviar_mensagem(db, conversa, atendente, body.corpo)
         db.commit()
         db.refresh(mensagem)
+        from app.services.realtime_emit import emit_chat_interno_mensagem
+
+        emit_chat_interno_mensagem(
+            db,
+            conversa,
+            mensagem,
+            exclude_atendente_id=atendente.id,
+        )
         return _to_mensagem_read(mensagem)
     except chat_svc.ChatInternoErro as exc:
         raise _map_chat_erro(exc) from exc
@@ -204,5 +220,8 @@ def marcar_visto(
     try:
         chat_svc.marcar_visto(db, conversa, atendente)
         db.commit()
+        from app.services.realtime_emit import emit_notificacao_contagem
+
+        emit_notificacao_contagem(db, [atendente.id])
     except chat_svc.ChatInternoErro as exc:
         raise _map_chat_erro(exc) from exc
