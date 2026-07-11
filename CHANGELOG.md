@@ -44,6 +44,9 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Chat interno (#502): reações rápidas (👍 ❤️ 😂 😮 😢 🙏) em conversas diretas e canais de setor
 - Chat interno: editar e apagar para todos só nos primeiros 5 minutos; depois «apagar para mim»; opção de limpar conversa só para você
 - Chat interno: ao ler o histórico o scroll não volta sozinho para o fim; ao reabrir a conversa retoma na última mensagem visualizada
+- Chat interno (#505): paginação infinita — carrega mensagens recentes e busca histórico ao rolar para cima (50 por vez)
+- Chat interno (#506): editar legenda de mensagens com mídia (mesma janela de 5 minutos)
+- Chat interno (#507): grupos personalizados com até 50 atendentes; criador e admins promovidos gerenciam membros
 - WhatsApp (#470): áudio gravado na barra de composição é enviado automaticamente ao terminar a gravação (estilo WhatsApp Web)
 - Identidade visual (#434): painel lateral do login e assets legados DX/Duplexsoft removidos — marca DeskRudder em todo o painel
 - Base de conhecimento (#296): admin vincula manuais a natureza/motivo; até 5 sugestões na classificação de tickets e demandas WhatsApp

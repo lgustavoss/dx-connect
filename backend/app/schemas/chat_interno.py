@@ -8,12 +8,30 @@ class ConversaDiretaCreate(BaseModel):
     atendente_id: int = Field(..., gt=0)
 
 
+class ConversaGrupoCreate(BaseModel):
+    titulo: str = Field(..., min_length=1, max_length=120)
+    atendente_ids: list[int] = Field(..., min_length=1)
+
+
+class GrupoParticipantesUpdate(BaseModel):
+    adicionar: list[int] = Field(default_factory=list)
+    remover: list[int] = Field(default_factory=list)
+    promover_admin: list[int] = Field(default_factory=list)
+    rebaixar_admin: list[int] = Field(default_factory=list)
+
+
+class ParticipanteGrupoRead(BaseModel):
+    atendente_id: int
+    nome: str
+    papel: Literal["admin", "membro"]
+
+
 class MensagemInternaCreate(BaseModel):
     corpo: str = Field(..., min_length=1, max_length=8000)
 
 
 class MensagemInternaUpdate(BaseModel):
-    corpo: str = Field(..., min_length=1, max_length=8000)
+    corpo: str = Field(..., max_length=8000)
 
 
 class ReacaoMensagemCreate(BaseModel):
@@ -50,12 +68,20 @@ class MensagemInternaRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class MensagensInternasPaginaRead(BaseModel):
+    items: list[MensagemInternaRead]
+    total: int
+    tem_mais_antigas: bool
+
+
 class ConversaRead(BaseModel):
     id: int
-    tipo: Literal["direta", "setor"]
+    tipo: Literal["direta", "setor", "grupo"]
     setor_id: int | None = None
     setor_nome: str | None = None
     titulo: str | None = None
+    participantes: list[ParticipanteGrupoRead] | None = None
+    sou_admin_grupo: bool = False
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -63,7 +89,7 @@ class ConversaRead(BaseModel):
 
 class ConversaInboxRead(BaseModel):
     id: int
-    tipo: Literal["direta", "setor"]
+    tipo: Literal["direta", "setor", "grupo"]
     titulo: str
     setor_id: int | None = None
     ultima_mensagem_corpo: str | None = None

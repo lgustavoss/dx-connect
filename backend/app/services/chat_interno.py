@@ -10,7 +10,10 @@ from app.core.setor_scope import atendente_atende_algum_id_setor, ids_setores_vi
 from app.models import Atendente, Setor
 from app.models.chat_interno import (
     TIPO_CONVERSA_DIRETA,
+    TIPO_CONVERSA_GRUPO,
     TIPO_CONVERSA_SETOR,
+    PAPEL_PARTICIPANTE_ADMIN,
+    PAPEL_PARTICIPANTE_MEMBRO,
     TIPO_MENSAGEM_AUDIO,
     TIPO_MENSAGEM_DOCUMENTO,
     TIPO_MENSAGEM_IMAGEM,
@@ -35,6 +38,8 @@ class ChatInternoErro(ValueError):
 CORPO_MENSAGEM_APAGADA = "Mensagem apagada"
 _EMOJIS_REACAO_PERMITIDOS = frozenset({"👍", "❤️", "😂", "😮", "😢", "🙏"})
 JANELA_EDICAO_MINUTOS = 5
+MENSAGENS_POR_PAGINA = 50
+MAX_PARTICIPANTES_GRUPO = 50
 
 
 @dataclass
@@ -61,7 +66,7 @@ def is_participante(db: Session, conversa_id: int, atendente_id: int) -> bool:
 def pode_acessar_conversa(db: Session, atendente: Atendente, conversa: ConversaInterna) -> bool:
     if conversa.tenant_id != atendente.tenant_id:
         return False
-    if conversa.tipo == TIPO_CONVERSA_DIRETA:
+    if conversa.tipo in (TIPO_CONVERSA_DIRETA, TIPO_CONVERSA_GRUPO):
         return is_participante(db, conversa.id, atendente.id)
     if conversa.tipo == TIPO_CONVERSA_SETOR:
         if atendente.role == "admin":
@@ -131,6 +136,165 @@ def obter_ou_criar_conversa_direta(
     )
     db.flush()
     return conversa
+
+
+def is_admin_grupo(db: Session, conversa_id: int, atendente_id: int) -> bool:
+    return (
+        db.query(ConversaInternaParticipante)
+        .filter(
+            ConversaInternaParticipante.conversa_id == conversa_id,
+            ConversaInternaParticipante.atendente_id == atendente_id,
+            ConversaInternaParticipante.papel == PAPEL_PARTICIPANTE_ADMIN,
+        )
+        .first()
+        is not None
+    )
+
+
+def _validar_atendentes_grupo(db: Session, tenant_id: int, atendente_ids: set[int]) -> None:
+    if not atendente_ids:
+        raise ChatInternoErro("Informe pelo menos um participante.")
+    count = (
+        db.query(Atendente)
+        .filter(
+            Atendente.id.in_(atendente_ids),
+            Atendente.tenant_id == tenant_id,
+            Atendente.ativo.is_(True),
+        )
+        .count()
+    )
+    if count != len(atendente_ids):
+        raise ChatInternoErro("Um ou mais atendentes são inválidos ou inativos.")
+
+
+def criar_conversa_grupo(
+    db: Session,
+    tenant_id: int,
+    criador: Atendente,
+    titulo: str,
+    atendente_ids: list[int],
+) -> ConversaInterna:
+    nome = titulo.strip()
+    if not nome:
+        raise ChatInternoErro("Informe o nome do grupo.")
+    if len(nome) > 120:
+        raise ChatInternoErro("Nome do grupo muito longo (máx. 120 caracteres).")
+
+    ids = {int(i) for i in atendente_ids}
+    ids.add(criador.id)
+    if len(ids) < 2:
+        raise ChatInternoErro("Grupo precisa de pelo menos 2 participantes.")
+    if len(ids) > MAX_PARTICIPANTES_GRUPO:
+        raise ChatInternoErro(f"Máximo de {MAX_PARTICIPANTES_GRUPO} participantes por grupo.")
+
+    _validar_atendentes_grupo(db, tenant_id, ids)
+
+    conversa = ConversaInterna(
+        tenant_id=tenant_id,
+        tipo=TIPO_CONVERSA_GRUPO,
+        titulo=nome,
+        setor_id=None,
+    )
+    db.add(conversa)
+    db.flush()
+    db.add_all(
+        [
+            ConversaInternaParticipante(
+                conversa_id=conversa.id,
+                atendente_id=aid,
+                papel=PAPEL_PARTICIPANTE_ADMIN if aid == criador.id else PAPEL_PARTICIPANTE_MEMBRO,
+            )
+            for aid in ids
+        ]
+    )
+    db.flush()
+    return conversa
+
+
+def _contar_admins_grupo(participantes: list[ConversaInternaParticipante]) -> int:
+    return sum(1 for p in participantes if p.papel == PAPEL_PARTICIPANTE_ADMIN)
+
+
+def atualizar_participantes_grupo(
+    db: Session,
+    conversa: ConversaInterna,
+    atendente: Atendente,
+    *,
+    adicionar: list[int] | None = None,
+    remover: list[int] | None = None,
+    promover_admin: list[int] | None = None,
+    rebaixar_admin: list[int] | None = None,
+) -> ConversaInterna:
+    if conversa.tipo != TIPO_CONVERSA_GRUPO:
+        raise ChatInternoErro("Operação válida apenas para grupos.")
+    if not is_admin_grupo(db, conversa.id, atendente.id):
+        raise ChatInternoErro("Sem permissão para gerenciar membros deste grupo.")
+
+    add_ids = list({int(x) for x in (adicionar or [])})
+    rem_ids = list({int(x) for x in (remover or [])})
+    promove_ids = list({int(x) for x in (promover_admin or [])})
+    rebaixa_ids = list({int(x) for x in (rebaixar_admin or [])})
+
+    participantes = (
+        db.query(ConversaInternaParticipante)
+        .filter(ConversaInternaParticipante.conversa_id == conversa.id)
+        .all()
+    )
+    por_id = {p.atendente_id: p for p in participantes}
+
+    for rid in rem_ids:
+        participante = por_id.get(rid)
+        if participante is None:
+            continue
+        if participante.papel == PAPEL_PARTICIPANTE_ADMIN and _contar_admins_grupo(list(por_id.values())) <= 1:
+            raise ChatInternoErro("O grupo precisa de pelo menos um administrador.")
+        db.delete(participante)
+        del por_id[rid]
+
+    prospective_add = [aid for aid in add_ids if aid not in por_id]
+    if prospective_add:
+        _validar_atendentes_grupo(db, conversa.tenant_id, set(prospective_add))
+    for aid in prospective_add:
+        por_id[aid] = ConversaInternaParticipante(
+            conversa_id=conversa.id,
+            atendente_id=aid,
+            papel=PAPEL_PARTICIPANTE_MEMBRO,
+        )
+        db.add(por_id[aid])
+
+    if len(por_id) < 2:
+        raise ChatInternoErro("Grupo precisa de pelo menos 2 participantes.")
+    if len(por_id) > MAX_PARTICIPANTES_GRUPO:
+        raise ChatInternoErro(f"Máximo de {MAX_PARTICIPANTES_GRUPO} participantes por grupo.")
+
+    for aid in promove_ids:
+        if aid in por_id:
+            por_id[aid].papel = PAPEL_PARTICIPANTE_ADMIN
+
+    for aid in rebaixa_ids:
+        participante = por_id.get(aid)
+        if participante is None or participante.papel != PAPEL_PARTICIPANTE_ADMIN:
+            continue
+        if _contar_admins_grupo(list(por_id.values())) <= 1:
+            raise ChatInternoErro("O grupo precisa de pelo menos um administrador.")
+        participante.papel = PAPEL_PARTICIPANTE_MEMBRO
+
+    db.flush()
+    return conversa
+
+
+def listar_participantes_grupo(
+    db: Session,
+    conversa_id: int,
+) -> list[tuple[Atendente, str]]:
+    rows = (
+        db.query(ConversaInternaParticipante, Atendente)
+        .join(Atendente, Atendente.id == ConversaInternaParticipante.atendente_id)
+        .filter(ConversaInternaParticipante.conversa_id == conversa_id)
+        .order_by(Atendente.nome.asc())
+        .all()
+    )
+    return [(atendente, participante.papel) for participante, atendente in rows]
 
 
 def obter_ou_criar_canal_setor(db: Session, tenant_id: int, setor_id: int) -> ConversaInterna:
@@ -282,6 +446,8 @@ def conversa_tem_mensagens_visiveis(db: Session, conversa_id: int, atendente_id:
 
 
 def titulo_conversa(db: Session, conversa: ConversaInterna, atendente_id: int) -> str:
+    if conversa.tipo == TIPO_CONVERSA_GRUPO:
+        return conversa.titulo or "Grupo"
     if conversa.tipo == TIPO_CONVERSA_SETOR:
         if conversa.setor_id is None:
             return "Canal do setor"
@@ -325,6 +491,19 @@ def listar_conversas_inbox(db: Session, atendente: Atendente) -> list[ConversaIn
     )
     conversas.extend(diretas)
 
+    grupos = (
+        db.query(ConversaInterna)
+        .join(ConversaInternaParticipante)
+        .options(joinedload(ConversaInterna.participantes), joinedload(ConversaInterna.setor))
+        .filter(
+            ConversaInterna.tenant_id == atendente.tenant_id,
+            ConversaInterna.tipo == TIPO_CONVERSA_GRUPO,
+            ConversaInternaParticipante.atendente_id == atendente.id,
+        )
+        .all()
+    )
+    conversas.extend(grupos)
+
     q_setor = (
         db.query(ConversaInterna)
         .options(joinedload(ConversaInterna.setor))
@@ -345,7 +524,7 @@ def listar_conversas_inbox(db: Session, atendente: Atendente) -> list[ConversaIn
     for conversa in conversas:
         nao_lidas = contar_nao_lidas(db, conversa, atendente.id)
         ultima = obter_ultima_mensagem_visivel(db, conversa.id, atendente.id)
-        if ultima is None and nao_lidas == 0:
+        if ultima is None and nao_lidas == 0 and conversa.tipo != TIPO_CONVERSA_GRUPO:
             continue
         resumos.append(
             ConversaInboxResumo(
@@ -609,9 +788,9 @@ def listar_mensagens(
     db: Session,
     conversa_id: int,
     atendente_id: int,
-    offset: int = 0,
-    limit: int = 50,
-) -> tuple[list[MensagemInterna], int]:
+    *,
+    antes_de_id: int | None = None,
+) -> tuple[list[MensagemInterna], int, bool]:
     historico = obter_historico_oculto_ate(db, conversa_id, atendente_id)
     ocultas = ids_mensagens_ocultas_para_atendente(db, conversa_id, atendente_id)
 
@@ -622,14 +801,30 @@ def listar_mensagens(
         base = base.filter(~MensagemInterna.id.in_(ocultas))
 
     total = int(base.count())
-    rows = (
-        base.options(joinedload(MensagemInterna.atendente))
-        .order_by(MensagemInterna.created_at.asc(), MensagemInterna.id.asc())
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
-    return rows, total
+    limit = MENSAGENS_POR_PAGINA
+
+    if antes_de_id is not None:
+        older_base = base.filter(MensagemInterna.id < antes_de_id)
+        older_total = int(older_base.count())
+        rows = (
+            older_base.options(joinedload(MensagemInterna.atendente))
+            .order_by(MensagemInterna.created_at.desc(), MensagemInterna.id.desc())
+            .limit(limit)
+            .all()
+        )
+        rows.reverse()
+        tem_mais_antigas = older_total > limit
+    else:
+        rows = (
+            base.options(joinedload(MensagemInterna.atendente))
+            .order_by(MensagemInterna.created_at.desc(), MensagemInterna.id.desc())
+            .limit(limit)
+            .all()
+        )
+        rows.reverse()
+        tem_mais_antigas = total > limit
+
+    return rows, total, tem_mais_antigas
 
 
 def preview_corpo(corpo: str, max_len: int = 60) -> str:
@@ -702,7 +897,7 @@ def permissoes_mensagem(
         is_author
         and in_window
         and not mensagem_esta_apagada(mensagem)
-        and tipo == TIPO_MENSAGEM_TEXTO
+        and (tipo == TIPO_MENSAGEM_TEXTO or tipo in TIPOS_MENSAGEM_MIDIA)
     )
     pode_apagar_para_todos = _pode_apagar_para_todos(db, conversa, mensagem, atendente)
     pode_apagar_para_mim = True
@@ -743,14 +938,15 @@ def editar_mensagem(
             f"Só é possível editar mensagens nos primeiros {JANELA_EDICAO_MINUTOS} minutos."
         )
     tipo = mensagem.tipo_midia or TIPO_MENSAGEM_TEXTO
-    if tipo != TIPO_MENSAGEM_TEXTO:
-        raise ChatInternoErro("Somente mensagens de texto podem ser editadas.")
-
-    texto = novo_corpo.strip()
-    if not texto:
-        raise ChatInternoErro("Corpo da mensagem não pode ser vazio.")
-
-    mensagem.corpo = texto
+    if tipo == TIPO_MENSAGEM_TEXTO:
+        texto = novo_corpo.strip()
+        if not texto:
+            raise ChatInternoErro("Corpo da mensagem não pode ser vazio.")
+        mensagem.corpo = texto
+    elif tipo in TIPOS_MENSAGEM_MIDIA:
+        mensagem.corpo = novo_corpo.strip()
+    else:
+        raise ChatInternoErro("Somente mensagens de texto ou mídia podem ser editadas.")
     mensagem.editada_em = datetime.now(timezone.utc)
     db.flush()
     return mensagem

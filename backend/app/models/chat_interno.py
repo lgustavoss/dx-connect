@@ -15,6 +15,10 @@ from app.database import Base
 
 TIPO_CONVERSA_DIRETA = "direta"
 TIPO_CONVERSA_SETOR = "setor"
+TIPO_CONVERSA_GRUPO = "grupo"
+
+PAPEL_PARTICIPANTE_MEMBRO = "membro"
+PAPEL_PARTICIPANTE_ADMIN = "admin"
 
 TIPO_MENSAGEM_TEXTO = "texto"
 TIPO_MENSAGEM_IMAGEM = "imagem"
@@ -33,7 +37,7 @@ class ConversaInterna(Base):
     __tablename__ = "conversas_internas"
     __table_args__ = (
         CheckConstraint(
-            "(tipo = 'setor' AND setor_id IS NOT NULL) OR (tipo = 'direta' AND setor_id IS NULL)",
+            "(tipo = 'setor' AND setor_id IS NOT NULL) OR (tipo IN ('direta', 'grupo') AND setor_id IS NULL)",
             name="ck_conversas_internas_tipo_setor",
         ),
         UniqueConstraint("tenant_id", "setor_id", name="uq_conversas_internas_tenant_setor"),
@@ -42,6 +46,7 @@ class ConversaInterna(Base):
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
     tipo = Column(String(20), nullable=False, index=True)
+    titulo = Column(String(120), nullable=True)
     setor_id = Column(Integer, ForeignKey("setores.id", ondelete="CASCADE"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -66,7 +71,7 @@ class ConversaInterna(Base):
 
 
 class ConversaInternaParticipante(Base):
-    """Participantes de conversas diretas (canal setor usa vínculo lazy em atendente_setor)."""
+    """Participantes de conversas diretas e grupos (canal setor usa vínculo lazy em atendente_setor)."""
 
     __tablename__ = "conversas_internas_participantes"
     __table_args__ = (
@@ -84,6 +89,7 @@ class ConversaInternaParticipante(Base):
         primary_key=True,
         index=True,
     )
+    papel = Column(String(20), nullable=False, server_default=PAPEL_PARTICIPANTE_MEMBRO)
 
     conversa = relationship("ConversaInterna", back_populates="participantes")
     atendente = relationship("Atendente", backref="conversas_internas_participantes")

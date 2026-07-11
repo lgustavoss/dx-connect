@@ -29,7 +29,7 @@ docker compose run --rm --no-deps backend pytest -q
 docker compose up -d --build   # só se Dockerfile ou requirements mudaram
 ```
 
-Frontend em dev: `npm run dev` na pasta `frontend/` (proxy `/api` → `:8000`).
+Frontend em dev: `npm run dev` na pasta `frontend/` (proxy `/api` → `:8000`). Use `/subir-local` para subir tudo.
 
 ## Arquitetura de deploy
 

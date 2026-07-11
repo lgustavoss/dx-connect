@@ -10,25 +10,25 @@ from app.core.auth import obter_atendente_atual
 from app.core.setor_scope import ids_setores_visiveis_atendente
 from app.database import get_db
 from app.models.atendente import Atendente
-from app.models.chat_interno import TIPO_MENSAGEM_TEXTO, ConversaInterna, MensagemInterna
+from app.models.chat_interno import TIPO_CONVERSA_GRUPO, TIPO_MENSAGEM_TEXTO, ConversaInterna, MensagemInterna
 from app.services import chat_interno_media_storage as media_storage
 from app.schemas.chat_interno import (
     ConversaDiretaCreate,
+    ConversaGrupoCreate,
     ConversaInboxRead,
     ConversaRead,
+    GrupoParticipantesUpdate,
     MensagemInternaCreate,
     MensagemInternaRead,
     MensagemInternaUpdate,
+    MensagensInternasPaginaRead,
+    ParticipanteGrupoRead,
     ReacaoMensagemCreate,
     ReacaoMensagemRead,
 )
-from app.schemas.lista_paginada import ListaPaginada
 from app.services import chat_interno as chat_svc
 
 router = APIRouter(prefix="/chat-interno", tags=["chat-interno"])
-
-_MAX_MENSAGENS = 100
-_DEFAULT_MENSAGENS = 50
 
 
 def _assert_acesso_setor(atendente: Atendente, db: Session, setor_id: int) -> None:
@@ -41,12 +41,22 @@ def _assert_acesso_setor(atendente: Atendente, db: Session, setor_id: int) -> No
 
 def _to_conversa_read(db: Session, conversa: ConversaInterna, atendente: Atendente) -> ConversaRead:
     titulo = chat_svc.titulo_conversa(db, conversa, atendente.id)
+    participantes: list[ParticipanteGrupoRead] | None = None
+    sou_admin_grupo = False
+    if conversa.tipo == TIPO_CONVERSA_GRUPO:
+        participantes = [
+            ParticipanteGrupoRead(atendente_id=a.id, nome=a.nome, papel=papel)  # type: ignore[arg-type]
+            for a, papel in chat_svc.listar_participantes_grupo(db, conversa.id)
+        ]
+        sou_admin_grupo = chat_svc.is_admin_grupo(db, conversa.id, atendente.id)
     return ConversaRead(
         id=conversa.id,
         tipo=conversa.tipo,  # type: ignore[arg-type]
         setor_id=conversa.setor_id,
         setor_nome=conversa.setor.nome if conversa.setor else None,
         titulo=titulo,
+        participantes=participantes,
+        sou_admin_grupo=sou_admin_grupo,
         created_at=conversa.created_at,
     )
 
@@ -170,11 +180,72 @@ def criar_ou_obter_conversa_direta(
         raise _map_chat_erro(exc) from exc
 
 
-@router.get("/conversas/{conversa_id}/mensagens", response_model=ListaPaginada[MensagemInternaRead])
+@router.get("/conversas/{conversa_id}", response_model=ConversaRead)
+def obter_conversa(
+    conversa_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    conversa = _obter_conversa_ou_404(db, conversa_id)
+    if conversa.tenant_id != atendente.tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversa não encontrada.")
+    _exigir_acesso_conversa(db, atendente, conversa)
+    return _to_conversa_read(db, conversa, atendente)
+
+
+@router.post("/conversas/grupo", response_model=ConversaRead, status_code=status.HTTP_201_CREATED)
+def criar_conversa_grupo(
+    body: ConversaGrupoCreate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    try:
+        conversa = chat_svc.criar_conversa_grupo(
+            db,
+            atendente.tenant_id,
+            atendente,
+            body.titulo,
+            body.atendente_ids,
+        )
+        db.commit()
+        db.refresh(conversa)
+        return _to_conversa_read(db, conversa, atendente)
+    except chat_svc.ChatInternoErro as exc:
+        raise _map_chat_erro(exc) from exc
+
+
+@router.patch("/conversas/{conversa_id}/participantes", response_model=ConversaRead)
+def atualizar_participantes_grupo(
+    conversa_id: int,
+    body: GrupoParticipantesUpdate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    conversa = _obter_conversa_ou_404(db, conversa_id)
+    if conversa.tenant_id != atendente.tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversa não encontrada.")
+    _exigir_acesso_conversa(db, atendente, conversa)
+    try:
+        conversa = chat_svc.atualizar_participantes_grupo(
+            db,
+            conversa,
+            atendente,
+            adicionar=body.adicionar,
+            remover=body.remover,
+            promover_admin=body.promover_admin,
+            rebaixar_admin=body.rebaixar_admin,
+        )
+        db.commit()
+        db.refresh(conversa)
+        return _to_conversa_read(db, conversa, atendente)
+    except chat_svc.ChatInternoErro as exc:
+        raise _map_chat_erro(exc) from exc
+
+
+@router.get("/conversas/{conversa_id}/mensagens", response_model=MensagensInternasPaginaRead)
 def listar_mensagens(
     conversa_id: int,
-    offset: int = Query(0, ge=0),
-    limit: int = Query(_DEFAULT_MENSAGENS, ge=1, le=_MAX_MENSAGENS),
+    antes_de_id: int | None = Query(None, gt=0),
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
@@ -183,10 +254,13 @@ def listar_mensagens(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversa não encontrada.")
     _exigir_acesso_conversa(db, atendente, conversa)
 
-    rows, total = chat_svc.listar_mensagens(db, conversa_id, atendente.id, offset=offset, limit=limit)
-    return ListaPaginada(
+    rows, total, tem_mais_antigas = chat_svc.listar_mensagens(
+        db, conversa_id, atendente.id, antes_de_id=antes_de_id
+    )
+    return MensagensInternasPaginaRead(
         items=[_to_mensagem_read(m, conversa=conversa, atendente=atendente, db=db) for m in rows],
         total=total,
+        tem_mais_antigas=tem_mais_antigas,
     )
 
 

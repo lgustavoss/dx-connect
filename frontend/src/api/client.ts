@@ -1320,7 +1320,13 @@ export const notificacoes = {
 };
 
 export namespace ChatInterno {
-  export type ConversaTipo = 'direta' | 'setor';
+  export type ConversaTipo = 'direta' | 'setor' | 'grupo';
+
+  export interface ParticipanteGrupo {
+    atendente_id: number;
+    nome: string;
+    papel: 'admin' | 'membro';
+  }
 
   export interface ConversaInbox {
     id: number;
@@ -1339,6 +1345,8 @@ export namespace ChatInterno {
     setor_id: number | null;
     setor_nome: string | null;
     titulo: string | null;
+    participantes?: ParticipanteGrupo[] | null;
+    sou_admin_grupo?: boolean;
     created_at: string;
   }
 
@@ -1371,17 +1379,46 @@ export namespace ChatInterno {
     pode_apagar_para_mim?: boolean;
     created_at: string;
   }
+
+  export interface MensagensPagina {
+    items: Mensagem[];
+    total: number;
+    tem_mais_antigas: boolean;
+  }
 }
 
 export const chatInterno = {
   listarConversas: () => api<ChatInterno.ConversaInbox[]>('/chat-interno/conversas'),
+  obterConversa: (conversaId: number) => api<ChatInterno.Conversa>(`/chat-interno/conversas/${conversaId}`),
   criarDireta: (atendente_id: number) =>
     api<ChatInterno.Conversa>('/chat-interno/conversas/direta', {
       method: 'POST',
       body: JSON.stringify({ atendente_id }),
     }),
-  mensagens: (conversaId: number, params?: { offset?: number; limit?: number }) =>
-    listPaginated<ChatInterno.Mensagem>(`/chat-interno/conversas/${conversaId}/mensagens`, params),
+  criarGrupo: (titulo: string, atendente_ids: number[]) =>
+    api<ChatInterno.Conversa>('/chat-interno/conversas/grupo', {
+      method: 'POST',
+      body: JSON.stringify({ titulo, atendente_ids }),
+    }),
+  atualizarParticipantesGrupo: (
+    conversaId: number,
+    data: {
+      adicionar?: number[];
+      remover?: number[];
+      promover_admin?: number[];
+      rebaixar_admin?: number[];
+    },
+  ) =>
+    api<ChatInterno.Conversa>(`/chat-interno/conversas/${conversaId}/participantes`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  mensagens: (conversaId: number, params?: { antesDeId?: number }) =>
+    api<ChatInterno.MensagensPagina>(
+      withParams(`/chat-interno/conversas/${conversaId}/mensagens`, {
+        antes_de_id: params?.antesDeId,
+      }),
+    ),
   enviar: (conversaId: number, corpo: string) =>
     api<ChatInterno.Mensagem>(`/chat-interno/conversas/${conversaId}/mensagens`, {
       method: 'POST',

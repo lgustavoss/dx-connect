@@ -2,6 +2,15 @@ import { useEffect, useState } from 'react'
 import type { ChatInterno } from '../../api/client'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 
+const ROTULO_SEM_LEGENDA = /^(📷 Imagem|🎬 Vídeo|🎵 Áudio|📄 Documento)$/
+
+function legendaEditavel(mensagem: ChatInterno.Mensagem): string {
+  const tipo = mensagem.tipo_midia || 'texto'
+  const corpo = mensagem.corpo.trim()
+  if (tipo !== 'texto' && ROTULO_SEM_LEGENDA.test(corpo)) return ''
+  return mensagem.corpo
+}
+
 type Props = {
   mensagem: ChatInterno.Mensagem
   onEditar: (novoCorpo: string) => Promise<void>
@@ -16,7 +25,7 @@ export function ChatInternoMensagemAcoes({
   alinhamento = 'end',
 }: Props) {
   const [editando, setEditando] = useState(false)
-  const [texto, setTexto] = useState(mensagem.corpo)
+  const [texto, setTexto] = useState(() => legendaEditavel(mensagem))
   const [salvando, setSalvando] = useState(false)
   const [confirmarApagar, setConfirmarApagar] = useState(false)
   const [apagando, setApagando] = useState(false)
@@ -26,28 +35,32 @@ export function ChatInternoMensagemAcoes({
   const podeApagarMim = Boolean(mensagem.pode_apagar_para_mim)
   const temAcoes = podeEditar || podeApagarTodos || podeApagarMim
 
+  const tipoMidia = mensagem.tipo_midia || 'texto'
+  const editandoTexto = tipoMidia === 'texto'
+
   useEffect(() => {
-    if (!editando) setTexto(mensagem.corpo)
-  }, [mensagem.corpo, editando])
+    if (!editando) setTexto(legendaEditavel(mensagem))
+  }, [mensagem, editando])
 
   if (mensagem.apagada || !temAcoes) return null
 
-  if (editando && podeEditar && (mensagem.tipo_midia || 'texto') === 'texto') {
+  if (editando && podeEditar) {
     return (
       <div className="mt-1 w-full min-w-[min(100%,18rem)] space-y-2">
         <textarea
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
-          rows={3}
+          rows={editandoTexto ? 3 : 2}
+          placeholder={editandoTexto ? undefined : 'Legenda da mídia (opcional)'}
           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
         />
         <div className="flex gap-2">
           <button
             type="button"
-            disabled={salvando || !texto.trim()}
+            disabled={salvando || (editandoTexto && !texto.trim())}
             onClick={() => {
               setSalvando(true)
-              void onEditar(texto.trim())
+              void onEditar(editandoTexto ? texto.trim() : texto)
                 .then(() => setEditando(false))
                 .finally(() => setSalvando(false))
             }}
@@ -58,7 +71,7 @@ export function ChatInternoMensagemAcoes({
           <button
             type="button"
             onClick={() => {
-              setTexto(mensagem.corpo)
+              setTexto(legendaEditavel(mensagem))
               setEditando(false)
             }}
             className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
@@ -77,10 +90,13 @@ export function ChatInternoMensagemAcoes({
           alinhamento === 'end' ? 'right-1' : 'left-1'
         }`}
       >
-        {podeEditar && (mensagem.tipo_midia || 'texto') === 'texto' && (
+        {podeEditar && (
           <button
             type="button"
-            onClick={() => setEditando(true)}
+            onClick={() => {
+              setTexto(legendaEditavel(mensagem))
+              setEditando(true)
+            }}
             className="pointer-events-auto rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-sm ring-1 ring-slate-200 hover:bg-white dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-600"
           >
             Editar
