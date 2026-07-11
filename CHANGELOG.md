@@ -33,6 +33,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Melhorias
 
+- Chat interno (IC-F1): API backend para conversas diretas entre atendentes e canal de comunicados por setor — inbox, mensagens, leitura (`/v1/chat-interno`); conversas diretas privadas (admin não vê conversas de terceiros)
 - WhatsApp (#470): áudio gravado na barra de composição é enviado automaticamente ao terminar a gravação (estilo WhatsApp Web)
 - Identidade visual (#434): painel lateral do login e assets legados DX/Duplexsoft removidos — marca DeskRudder em todo o painel
 - Base de conhecimento (#296): admin vincula manuais a natureza/motivo; até 5 sugestões na classificação de tickets e demandas WhatsApp

@@ -35,6 +35,12 @@ from app.models.sla_policy import SlaPolicy
 from app.models.sla_alerta_emitido import SlaAlertaEmitido
 from app.models.empresa_pdv import EmpresaPdv, PdvRotulo, PdvTipoAcessoRemoto
 from app.models.kb import KbArticle, KbArticleMotivoLink, KbArticleVersion, KbCategory, KbPortalSettings
+from app.models.chat_interno import (
+    ConversaInterna,
+    ConversaInternaLeitura,
+    ConversaInternaParticipante,
+    MensagemInterna,
+)
 
 __all__ = [
     "Rede",
@@ -90,4 +96,8 @@ __all__ = [
     "KbArticleMotivoLink",
     "KbArticleVersion",
     "KbPortalSettings",
+    "ConversaInterna",
+    "ConversaInternaParticipante",
+    "MensagemInterna",
+    "ConversaInternaLeitura",
 ]
