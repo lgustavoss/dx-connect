@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from typing import Literal
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -8,7 +10,7 @@ from app.core.auth import obter_atendente_atual
 from app.core.setor_scope import ids_setores_visiveis_atendente
 from app.database import get_db
 from app.models.atendente import Atendente
-from app.models.chat_interno import TIPO_MENSAGEM_TEXTO, ConversaInterna
+from app.models.chat_interno import TIPO_MENSAGEM_TEXTO, ConversaInterna, MensagemInterna
 from app.services import chat_interno_media_storage as media_storage
 from app.schemas.chat_interno import (
     ConversaDiretaCreate,
@@ -16,6 +18,9 @@ from app.schemas.chat_interno import (
     ConversaRead,
     MensagemInternaCreate,
     MensagemInternaRead,
+    MensagemInternaUpdate,
+    ReacaoMensagemCreate,
+    ReacaoMensagemRead,
 )
 from app.schemas.lista_paginada import ListaPaginada
 from app.services import chat_interno as chat_svc
@@ -49,19 +54,31 @@ def _to_conversa_read(db: Session, conversa: ConversaInterna, atendente: Atenden
 def _to_mensagem_read(mensagem, *, conversa: ConversaInterna, atendente: Atendente, db: Session) -> MensagemInternaRead:
     tipo = mensagem.tipo_midia or TIPO_MENSAGEM_TEXTO
     status = chat_svc.status_entrega_mensagem(db, conversa, mensagem, atendente.id)
+    reacoes = [
+        ReacaoMensagemRead(emoji=r.emoji, count=r.count, reagiu_eu=r.reagiu_eu)
+        for r in chat_svc.agregar_reacoes_mensagem(db, mensagem.id, atendente.id)
+    ]
+    perms = chat_svc.permissoes_mensagem(db, conversa, mensagem, atendente)
     return MensagemInternaRead(
         id=mensagem.id,
         conversa_id=mensagem.conversa_id,
         atendente_id=mensagem.atendente_id,
         atendente_nome=mensagem.atendente.nome if mensagem.atendente else None,
-        corpo=mensagem.corpo,
+        corpo=chat_svc.corpo_mensagem_para_leitura(mensagem),
         tipo_midia=tipo,  # type: ignore[arg-type]
         mimetype=mensagem.mimetype,
         nome_arquivo=mensagem.nome_arquivo,
         tamanho_bytes=mensagem.tamanho_bytes,
-        midia_disponivel=bool(mensagem.storage_key),
+        midia_disponivel=bool(mensagem.storage_key) and not chat_svc.mensagem_esta_apagada(mensagem),
         status_entrega=status,  # type: ignore[arg-type]
+        apagada=chat_svc.mensagem_esta_apagada(mensagem),
+        editada=mensagem.editada_em is not None,
+        reacoes=reacoes,
+        pode_editar=perms.pode_editar,
+        pode_apagar_para_todos=perms.pode_apagar_para_todos,
+        pode_apagar_para_mim=perms.pode_apagar_para_mim,
         created_at=mensagem.created_at,
+        editada_em=mensagem.editada_em,
     )
 
 
@@ -74,6 +91,23 @@ def _emit_apos_mensagem(db: Session, conversa: ConversaInterna, mensagem, atende
         mensagem,
         exclude_atendente_id=atendente_id,
     )
+
+
+def _emit_mensagem_atualizada(db: Session, conversa: ConversaInterna, mensagem, *, acao: str) -> None:
+    from app.services.realtime_emit import emit_chat_interno_mensagem_atualizada
+
+    emit_chat_interno_mensagem_atualizada(db, conversa, mensagem, acao=acao)
+
+
+def _obter_mensagem_na_conversa(
+    db: Session,
+    conversa_id: int,
+    mensagem_id: int,
+) -> MensagemInterna:
+    mensagem = chat_svc.obter_mensagem_por_id(db, conversa_id, mensagem_id)
+    if not mensagem:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mensagem não encontrada.")
+    return mensagem
 
 
 def _obter_conversa_ou_404(db: Session, conversa_id: int) -> ConversaInterna:
@@ -149,7 +183,7 @@ def listar_mensagens(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversa não encontrada.")
     _exigir_acesso_conversa(db, atendente, conversa)
 
-    rows, total = chat_svc.listar_mensagens(db, conversa_id, offset=offset, limit=limit)
+    rows, total = chat_svc.listar_mensagens(db, conversa_id, atendente.id, offset=offset, limit=limit)
     return ListaPaginada(
         items=[_to_mensagem_read(m, conversa=conversa, atendente=atendente, db=db) for m in rows],
         total=total,
@@ -234,7 +268,7 @@ def download_mensagem_midia(
     _exigir_acesso_conversa(db, atendente, conversa)
 
     mensagem = chat_svc.obter_mensagem_por_id(db, conversa_id, mensagem_id)
-    if not mensagem or not mensagem.storage_key:
+    if not mensagem or not mensagem.storage_key or chat_svc.mensagem_esta_apagada(mensagem):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mídia não encontrada.")
 
     path = media_storage.caminho_absoluto_arquivo(mensagem.storage_key)
@@ -322,6 +356,124 @@ async def publicar_midia_no_canal_setor(
         db.commit()
         db.refresh(mensagem)
         _emit_apos_mensagem(db, conversa, mensagem, atendente.id)
+        return _to_mensagem_read(mensagem, conversa=conversa, atendente=atendente, db=db)
+    except chat_svc.ChatInternoErro as exc:
+        raise _map_chat_erro(exc) from exc
+
+
+@router.patch("/conversas/{conversa_id}/mensagens/{mensagem_id}", response_model=MensagemInternaRead)
+def editar_mensagem(
+    conversa_id: int,
+    mensagem_id: int,
+    body: MensagemInternaUpdate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    conversa = _obter_conversa_ou_404(db, conversa_id)
+    if conversa.tenant_id != atendente.tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversa não encontrada.")
+    _exigir_acesso_conversa(db, atendente, conversa)
+    mensagem = _obter_mensagem_na_conversa(db, conversa_id, mensagem_id)
+    try:
+        chat_svc.editar_mensagem(db, conversa, mensagem, atendente, body.corpo)
+        db.commit()
+        db.refresh(mensagem)
+        _emit_mensagem_atualizada(db, conversa, mensagem, acao="editada")
+        return _to_mensagem_read(mensagem, conversa=conversa, atendente=atendente, db=db)
+    except chat_svc.ChatInternoErro as exc:
+        raise _map_chat_erro(exc) from exc
+
+
+@router.delete("/conversas/{conversa_id}/mensagens/{mensagem_id}")
+def apagar_mensagem(
+    conversa_id: int,
+    mensagem_id: int,
+    escopo: Literal["todos", "para_mim"] = Query(
+        "todos",
+        description="todos = apagar para todos (até 5 min); para_mim = ocultar só para você",
+    ),
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    conversa = _obter_conversa_ou_404(db, conversa_id)
+    if conversa.tenant_id != atendente.tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversa não encontrada.")
+    _exigir_acesso_conversa(db, atendente, conversa)
+    mensagem = _obter_mensagem_na_conversa(db, conversa_id, mensagem_id)
+    try:
+        resultado = chat_svc.apagar_mensagem(db, conversa, mensagem, atendente, escopo=escopo)
+        db.commit()
+        if escopo == "para_mim":
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
+        db.refresh(mensagem)
+        _emit_mensagem_atualizada(db, conversa, mensagem, acao="apagada")
+        return _to_mensagem_read(mensagem, conversa=conversa, atendente=atendente, db=db)
+    except chat_svc.ChatInternoErro as exc:
+        raise _map_chat_erro(exc) from exc
+
+
+@router.post("/conversas/{conversa_id}/limpar", status_code=status.HTTP_204_NO_CONTENT)
+def limpar_conversa(
+    conversa_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    conversa = _obter_conversa_ou_404(db, conversa_id)
+    if conversa.tenant_id != atendente.tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversa não encontrada.")
+    try:
+        chat_svc.limpar_conversa_para_atendente(db, conversa, atendente)
+        db.commit()
+    except chat_svc.ChatInternoErro as exc:
+        raise _map_chat_erro(exc) from exc
+
+
+@router.put(
+    "/conversas/{conversa_id}/mensagens/{mensagem_id}/reacoes",
+    response_model=MensagemInternaRead,
+)
+def definir_reacao_mensagem(
+    conversa_id: int,
+    mensagem_id: int,
+    body: ReacaoMensagemCreate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    conversa = _obter_conversa_ou_404(db, conversa_id)
+    if conversa.tenant_id != atendente.tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversa não encontrada.")
+    _exigir_acesso_conversa(db, atendente, conversa)
+    mensagem = _obter_mensagem_na_conversa(db, conversa_id, mensagem_id)
+    try:
+        chat_svc.definir_reacao_mensagem(db, conversa, mensagem, atendente, body.emoji)
+        db.commit()
+        db.refresh(mensagem)
+        _emit_mensagem_atualizada(db, conversa, mensagem, acao="reacao")
+        return _to_mensagem_read(mensagem, conversa=conversa, atendente=atendente, db=db)
+    except chat_svc.ChatInternoErro as exc:
+        raise _map_chat_erro(exc) from exc
+
+
+@router.delete(
+    "/conversas/{conversa_id}/mensagens/{mensagem_id}/reacoes",
+    response_model=MensagemInternaRead,
+)
+def remover_reacao_mensagem(
+    conversa_id: int,
+    mensagem_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    conversa = _obter_conversa_ou_404(db, conversa_id)
+    if conversa.tenant_id != atendente.tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversa não encontrada.")
+    _exigir_acesso_conversa(db, atendente, conversa)
+    mensagem = _obter_mensagem_na_conversa(db, conversa_id, mensagem_id)
+    try:
+        chat_svc.remover_reacao_mensagem(db, conversa, mensagem, atendente)
+        db.commit()
+        db.refresh(mensagem)
+        _emit_mensagem_atualizada(db, conversa, mensagem, acao="reacao")
         return _to_mensagem_read(mensagem, conversa=conversa, atendente=atendente, db=db)
     except chat_svc.ChatInternoErro as exc:
         raise _map_chat_erro(exc) from exc

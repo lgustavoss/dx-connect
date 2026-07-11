@@ -40,6 +40,8 @@ from app.models.chat_interno import (
     ConversaInternaLeitura,
     ConversaInternaParticipante,
     MensagemInterna,
+    MensagemInternaReacao,
+    MensagemInternaOculta,
 )
 
 __all__ = [
@@ -99,5 +101,7 @@ __all__ = [
     "ConversaInterna",
     "ConversaInternaParticipante",
     "MensagemInterna",
+    "MensagemInternaReacao",
+    "MensagemInternaOculta",
     "ConversaInternaLeitura",
 ]

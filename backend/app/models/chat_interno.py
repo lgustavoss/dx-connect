@@ -107,9 +107,42 @@ class MensagemInterna(Base):
     storage_key = Column(String(255), nullable=True)
     tamanho_bytes = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    editada_em = Column(DateTime(timezone=True), nullable=True)
+    apagada_em = Column(DateTime(timezone=True), nullable=True)
 
     conversa = relationship("ConversaInterna", back_populates="mensagens")
     atendente = relationship("Atendente", backref="mensagens_internas")
+    reacoes = relationship(
+        "MensagemInternaReacao",
+        back_populates="mensagem",
+        cascade="all, delete-orphan",
+    )
+
+
+class MensagemInternaReacao(Base):
+    __tablename__ = "mensagens_internas_reacoes"
+    __table_args__ = (
+        UniqueConstraint("mensagem_id", "atendente_id", name="uq_mensagens_internas_reacoes_mensagem_atendente"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    mensagem_id = Column(
+        Integer,
+        ForeignKey("mensagens_internas.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    atendente_id = Column(
+        Integer,
+        ForeignKey("atendentes.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    emoji = Column(String(16), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    mensagem = relationship("MensagemInterna", back_populates="reacoes")
+    atendente = relationship("Atendente", backref="mensagens_internas_reacoes")
 
 
 class ConversaInternaLeitura(Base):
@@ -132,6 +165,34 @@ class ConversaInternaLeitura(Base):
         index=True,
     )
     last_seen_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    historico_oculto_ate = Column(DateTime(timezone=True), nullable=True)
 
     conversa = relationship("ConversaInterna", back_populates="leituras")
     atendente = relationship("Atendente", backref="conversas_internas_leituras")
+
+
+class MensagemInternaOculta(Base):
+    """Mensagem oculta apenas para um atendente (apagar para mim)."""
+
+    __tablename__ = "mensagens_internas_ocultas"
+    __table_args__ = (
+        UniqueConstraint("mensagem_id", "atendente_id", name="uq_mensagens_internas_ocultas"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    mensagem_id = Column(
+        Integer,
+        ForeignKey("mensagens_internas.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    atendente_id = Column(
+        Integer,
+        ForeignKey("atendentes.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    ocultada_em = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    mensagem = relationship("MensagemInterna", backref="ocultacoes")
+    atendente = relationship("Atendente", backref="mensagens_internas_ocultas")

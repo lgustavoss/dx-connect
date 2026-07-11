@@ -392,3 +392,22 @@ def emit_chat_interno_lido(
         "leitor_atendente_id": leitor_atendente_id,
     }
     _publish_to_atendentes(recipients, "chat.interno.lido", payload)
+
+
+def emit_chat_interno_mensagem_atualizada(
+    db: Session,
+    conversa: Any,
+    mensagem: Any,
+    *,
+    acao: str,
+) -> None:
+    """Mensagem editada, apagada ou com reação alterada."""
+    recipients = ids_destinatarios_chat_interno_mensagem(db, conversa)
+    payload = {
+        "conversa_id": conversa.id,
+        "mensagem_id": getattr(mensagem, "id", None),
+        "acao": acao,
+    }
+    _publish_to_atendentes(recipients, "chat.interno.mensagem.atualizada", payload)
+    if acao in {"editada", "apagada"}:
+        _emit_notificacao_after_counter_change(db)

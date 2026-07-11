@@ -1344,6 +1344,12 @@ export namespace ChatInterno {
 
   export type TipoMidia = 'texto' | 'imagem' | 'video' | 'audio' | 'documento';
 
+  export interface ReacaoMensagem {
+    emoji: string;
+    count: number;
+    reagiu_eu: boolean;
+  }
+
   export interface Mensagem {
     id: number;
     conversa_id: number;
@@ -1356,6 +1362,13 @@ export namespace ChatInterno {
     tamanho_bytes?: number | null;
     midia_disponivel?: boolean;
     status_entrega?: 'enviada' | 'entregue' | 'lida' | null;
+    apagada?: boolean;
+    editada?: boolean;
+    editada_em?: string | null;
+    reacoes?: ReacaoMensagem[];
+    pode_editar?: boolean;
+    pode_apagar_para_todos?: boolean;
+    pode_apagar_para_mim?: boolean;
     created_at: string;
   }
 }
@@ -1391,6 +1404,27 @@ export const chatInterno = {
   },
   marcarVisto: (conversaId: number) =>
     api<void>(`/chat-interno/conversas/${conversaId}/visto`, { method: 'POST' }),
+  editarMensagem: (conversaId: number, mensagemId: number, corpo: string) =>
+    api<ChatInterno.Mensagem>(`/chat-interno/conversas/${conversaId}/mensagens/${mensagemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ corpo }),
+    }),
+  apagarMensagem: (conversaId: number, mensagemId: number, escopo: 'todos' | 'para_mim') =>
+    api<ChatInterno.Mensagem | void>(
+      `/chat-interno/conversas/${conversaId}/mensagens/${mensagemId}?escopo=${escopo}`,
+      { method: 'DELETE' },
+    ),
+  limparConversa: (conversaId: number) =>
+    api<void>(`/chat-interno/conversas/${conversaId}/limpar`, { method: 'POST' }),
+  definirReacao: (conversaId: number, mensagemId: number, emoji: string) =>
+    api<ChatInterno.Mensagem>(`/chat-interno/conversas/${conversaId}/mensagens/${mensagemId}/reacoes`, {
+      method: 'PUT',
+      body: JSON.stringify({ emoji }),
+    }),
+  removerReacao: (conversaId: number, mensagemId: number) =>
+    api<ChatInterno.Mensagem>(`/chat-interno/conversas/${conversaId}/mensagens/${mensagemId}/reacoes`, {
+      method: 'DELETE',
+    }),
   obterCanalSetor: (setorId: number) =>
     api<ChatInterno.Conversa>(`/chat-interno/setores/${setorId}/canal`),
   publicarCanalSetor: (setorId: number, corpo: string) =>

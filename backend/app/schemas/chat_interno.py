@@ -12,6 +12,20 @@ class MensagemInternaCreate(BaseModel):
     corpo: str = Field(..., min_length=1, max_length=8000)
 
 
+class MensagemInternaUpdate(BaseModel):
+    corpo: str = Field(..., min_length=1, max_length=8000)
+
+
+class ReacaoMensagemCreate(BaseModel):
+    emoji: str = Field(..., min_length=1, max_length=16)
+
+
+class ReacaoMensagemRead(BaseModel):
+    emoji: str
+    count: int
+    reagiu_eu: bool = False
+
+
 class MensagemInternaRead(BaseModel):
     id: int
     conversa_id: int
@@ -24,7 +38,14 @@ class MensagemInternaRead(BaseModel):
     tamanho_bytes: int | None = None
     midia_disponivel: bool = False
     status_entrega: Literal["enviada", "entregue", "lida"] | None = None
+    apagada: bool = False
+    editada: bool = False
+    reacoes: list[ReacaoMensagemRead] = Field(default_factory=list)
+    pode_editar: bool = False
+    pode_apagar_para_todos: bool = False
+    pode_apagar_para_mim: bool = False
     created_at: datetime
+    editada_em: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
