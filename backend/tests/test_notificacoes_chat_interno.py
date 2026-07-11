@@ -32,7 +32,7 @@ def test_itens_chat_interno_link_conversa(db_session, seed_base):
     assert len(chat_itens) >= 1
     item = chat_itens[0]
     assert item.conversa_id == conversa.id
-    assert item.href == f"/chat-interno/{conversa.id}"
+    assert item.href == f"/chat/interno/{conversa.id}"
     assert item.count >= 1
 
 
