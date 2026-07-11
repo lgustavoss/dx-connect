@@ -65,10 +65,14 @@ export function ChatInternoLista() {
                   >
                     <div
                       className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ${
-                        c.tipo === 'setor' ? 'bg-amber-500' : 'bg-cyan-600'
+                        c.tipo === 'setor'
+                          ? 'bg-amber-500'
+                          : c.tipo === 'grupo'
+                            ? 'bg-violet-600'
+                            : 'bg-cyan-600'
                       }`}
                     >
-                      {c.tipo === 'setor' ? 'S' : c.titulo.slice(0, 1).toUpperCase()}
+                      {c.tipo === 'setor' ? 'S' : c.tipo === 'grupo' ? 'G' : c.titulo.slice(0, 1).toUpperCase()}
                       {c.nao_lidas_count > 0 && (
                         <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-cyan-600 ring-2 ring-white dark:ring-slate-950" />
                       )}

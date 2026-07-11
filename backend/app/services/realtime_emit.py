@@ -319,11 +319,12 @@ def ids_destinatarios_chat_interno_mensagem(
 ) -> set[int]:
     from app.models.chat_interno import (
         TIPO_CONVERSA_DIRETA,
+        TIPO_CONVERSA_GRUPO,
         TIPO_CONVERSA_SETOR,
         ConversaInternaParticipante,
     )
 
-    if conversa.tipo == TIPO_CONVERSA_DIRETA:
+    if conversa.tipo in (TIPO_CONVERSA_DIRETA, TIPO_CONVERSA_GRUPO):
         rows = (
             db.query(ConversaInternaParticipante.atendente_id)
             .filter(ConversaInternaParticipante.conversa_id == conversa.id)

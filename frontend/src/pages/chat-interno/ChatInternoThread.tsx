@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiError, chatInterno, type ChatInterno } from '../../api/client'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { ChatInternoComposerBar } from '../../components/chat-interno/ChatInternoComposerBar'
+import { ChatInternoGrupoMembrosModal } from '../../components/chat-interno/ChatInternoGrupoMembrosModal'
 import { ChatInternoConteudoMensagem } from '../../components/chat-interno/ChatInternoConteudoMensagem'
 import { ChatInternoMensagemAcoes } from '../../components/chat-interno/ChatInternoMensagemAcoes'
 import { ChatInternoReacoesBar } from '../../components/chat-interno/ChatInternoReacoesBar'
@@ -21,7 +22,10 @@ import {
   saveChatInternoScroll,
   scrollChatToBottom,
 } from '../../lib/chatInternoScrollMemory'
+import { mergeMensagensChatInterno, prependMensagensChatInterno } from '../../lib/chatInternoMensagensMerge'
 import { SemPermissao } from '../SemPermissao'
+
+const SCROLL_TOPO_CARREGAR_PX = 80
 
 function formatarHoraMensagem(iso: string): string {
   const d = new Date(iso)
@@ -45,10 +49,23 @@ export function ChatInternoThread() {
   const [enviando, setEnviando] = useState(false)
   const [forbidden, setForbidden] = useState(false)
   const [erro, setErro] = useState(false)
+  const [temMaisAntigas, setTemMaisAntigas] = useState(false)
+  const [carregandoAntigas, setCarregandoAntigas] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickToBottomRef = useRef(true)
   const initialScrollRestoredRef = useRef(false)
   const saveScrollRafRef = useRef<number | null>(null)
+  const carregandoAntigasRef = useRef(false)
+  const temMaisAntigasRef = useRef(false)
+  const mensagensRef = useRef<ChatInterno.Mensagem[]>([])
+
+  useEffect(() => {
+    temMaisAntigasRef.current = temMaisAntigas
+  }, [temMaisAntigas])
+
+  useEffect(() => {
+    mensagensRef.current = mensagens
+  }, [mensagens])
 
   const marcarVistoSeNoFim = useCallback(async () => {
     const el = scrollRef.current
@@ -62,7 +79,40 @@ export function ChatInternoThread() {
     }
   }, [conversaId, refreshInbox])
 
-  const carregarMensagens = useCallback(async () => {
+  const carregarMaisAntigas = useCallback(async () => {
+    if (!Number.isFinite(conversaId) || conversaId <= 0) return
+    if (!temMaisAntigasRef.current || carregandoAntigasRef.current) return
+
+    const oldestId = mensagensRef.current[0]?.id
+    if (oldestId == null) return
+
+    const el = scrollRef.current
+    const prevTop = el?.scrollTop ?? 0
+    const prevHeight = el?.scrollHeight ?? 0
+
+    carregandoAntigasRef.current = true
+    setCarregandoAntigas(true)
+    try {
+      const pagina = await chatInterno.mensagens(conversaId, { antesDeId: oldestId })
+      setMensagens((prev) => prependMensagensChatInterno(prev, pagina.items))
+      setTemMaisAntigas(pagina.tem_mais_antigas)
+      requestAnimationFrame(() => {
+        const container = scrollRef.current
+        if (container && el) {
+          preserveScrollOnContentChange(container, prevTop, prevHeight)
+        }
+      })
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) {
+        setForbidden(true)
+      }
+    } finally {
+      carregandoAntigasRef.current = false
+      setCarregandoAntigas(false)
+    }
+  }, [conversaId])
+
+  const sincronizarRecentes = useCallback(async () => {
     if (!Number.isFinite(conversaId) || conversaId <= 0) return
     const el = scrollRef.current
     const stick = stickToBottomRef.current
@@ -70,8 +120,12 @@ export function ChatInternoThread() {
     const prevHeight = el?.scrollHeight ?? 0
 
     try {
-      const pagina = await chatInterno.mensagens(conversaId, { offset: 0, limit: 100 })
-      setMensagens(pagina.items)
+      const pagina = await chatInterno.mensagens(conversaId)
+      setMensagens((prev) => {
+        const merged = mergeMensagensChatInterno(prev, pagina.items)
+        setTemMaisAntigas(merged.length < pagina.total)
+        return merged
+      })
 
       requestAnimationFrame(() => {
         const container = scrollRef.current
@@ -96,8 +150,9 @@ export function ChatInternoThread() {
     setErro(false)
     setForbidden(false)
     try {
-      const pagina = await chatInterno.mensagens(conversaId, { offset: 0, limit: 100 })
+      const pagina = await chatInterno.mensagens(conversaId)
       setMensagens(pagina.items)
+      setTemMaisAntigas(pagina.tem_mais_antigas)
       await marcarVistoSeNoFim()
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) {
@@ -118,6 +173,7 @@ export function ChatInternoThread() {
     }
     initialScrollRestoredRef.current = false
     stickToBottomRef.current = true
+    setTemMaisAntigas(false)
     setLoading(true)
     void carregar()
   }, [conversaId, carregar, navigate])
@@ -141,6 +197,13 @@ export function ChatInternoThread() {
 
     const onScroll = () => {
       stickToBottomRef.current = isNearBottom(el)
+      if (
+        el.scrollTop < SCROLL_TOPO_CARREGAR_PX &&
+        temMaisAntigasRef.current &&
+        !carregandoAntigasRef.current
+      ) {
+        void carregarMaisAntigas()
+      }
       if (saveScrollRafRef.current != null) cancelAnimationFrame(saveScrollRafRef.current)
       saveScrollRafRef.current = requestAnimationFrame(() => {
         saveChatInternoScroll(conversaId, el)
@@ -153,7 +216,7 @@ export function ChatInternoThread() {
       if (saveScrollRafRef.current != null) cancelAnimationFrame(saveScrollRafRef.current)
       saveChatInternoScroll(conversaId, el)
     }
-  }, [conversaId, loading])
+  }, [conversaId, loading, carregarMaisAntigas])
 
   useEffect(() => {
     if (loading || !initialScrollRestoredRef.current || !stickToBottomRef.current) return
@@ -168,28 +231,28 @@ export function ChatInternoThread() {
       const id = Number(payload.conversa_id)
       void refreshInbox(true)
       if (id !== conversaId) return
-      void carregarMensagens()
+      void sincronizarRecentes()
     })
     const unsubLido = subscribe('chat.interno.lido', (payload) => {
       if (Number(payload.conversa_id) !== conversaId) return
-      void carregarMensagens()
+      void sincronizarRecentes()
     })
     const unsubAtualizada = subscribe('chat.interno.mensagem.atualizada', (payload) => {
       if (Number(payload.conversa_id) !== conversaId) return
-      void carregarMensagens()
+      void sincronizarRecentes()
     })
     return () => {
       unsubMsg()
       unsubLido()
       unsubAtualizada()
     }
-  }, [subscribe, conversaId, carregarMensagens, refreshInbox])
+  }, [subscribe, conversaId, sincronizarRecentes, refreshInbox])
 
   useEffect(() => {
     const intervalMs = useFallback ? 10_000 : 6_000
-    const timer = setInterval(() => void carregarMensagens(), intervalMs)
+    const timer = setInterval(() => void sincronizarRecentes(), intervalMs)
     return () => clearInterval(timer)
-  }, [carregarMensagens, useFallback])
+  }, [sincronizarRecentes, useFallback])
 
   const atualizarMensagemNoEstado = useCallback((msg: ChatInterno.Mensagem) => {
     setMensagens((prev) => prev.map((m) => (m.id === msg.id ? msg : m)))
@@ -197,6 +260,19 @@ export function ChatInternoThread() {
 
   const [confirmarLimpar, setConfirmarLimpar] = useState(false)
   const [limpando, setLimpando] = useState(false)
+  const [grupoDetalhe, setGrupoDetalhe] = useState<ChatInterno.Conversa | null>(null)
+  const [modalMembros, setModalMembros] = useState(false)
+
+  useEffect(() => {
+    if (meta?.tipo !== 'grupo') {
+      setGrupoDetalhe(null)
+      return
+    }
+    void chatInterno
+      .obterConversa(conversaId)
+      .then(setGrupoDetalhe)
+      .catch(() => setGrupoDetalhe(null))
+  }, [conversaId, meta?.tipo])
 
   async function editarMensagem(mensagemId: number, corpo: string) {
     try {
@@ -229,6 +305,7 @@ export function ChatInternoThread() {
       await chatInterno.limparConversa(conversaId)
       clearChatInternoScroll(conversaId)
       setMensagens([])
+      setTemMaisAntigas(false)
       void refreshInbox(true)
       navigate('/chat/interno', { replace: true })
     } catch (err) {
@@ -307,6 +384,12 @@ export function ChatInternoThread() {
 
   const titulo = meta?.titulo ?? 'Conversa'
   const isSetor = meta?.tipo === 'setor'
+  const isGrupo = meta?.tipo === 'grupo'
+  const subtitulo = isSetor
+    ? 'Canal do setor — comunicados'
+    : isGrupo
+      ? 'Grupo da equipe'
+      : 'Conversa direta'
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
@@ -322,17 +405,24 @@ export function ChatInternoThread() {
         </Link>
         <div
           className={`hidden h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white md:flex ${
-            isSetor ? 'bg-amber-500' : 'bg-cyan-600'
+            isSetor ? 'bg-amber-500' : isGrupo ? 'bg-violet-600' : 'bg-cyan-600'
           }`}
         >
-          {isSetor ? 'S' : titulo.slice(0, 1).toUpperCase()}
+          {isSetor ? 'S' : isGrupo ? 'G' : titulo.slice(0, 1).toUpperCase()}
         </div>
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-lg font-bold text-slate-900 dark:text-white">{titulo}</h2>
-          <p className="truncate text-sm text-slate-500">
-            {isSetor ? 'Canal do setor — comunicados' : 'Conversa direta'}
-          </p>
+          <p className="truncate text-sm text-slate-500">{subtitulo}</p>
         </div>
+        {isGrupo && grupoDetalhe?.sou_admin_grupo && (
+          <button
+            type="button"
+            onClick={() => setModalMembros(true)}
+            className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium text-violet-700 ring-1 ring-violet-200 hover:bg-violet-50 dark:text-violet-300 dark:ring-violet-800 dark:hover:bg-violet-950/40"
+          >
+            Membros
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setConfirmarLimpar(true)}
@@ -360,11 +450,27 @@ export function ChatInternoThread() {
         }}
       />
 
+      {grupoDetalhe && (
+        <ChatInternoGrupoMembrosModal
+          open={modalMembros}
+          conversaId={conversaId}
+          participantes={grupoDetalhe.participantes ?? []}
+          onClose={() => setModalMembros(false)}
+          onAtualizado={(conv: ChatInterno.Conversa) => {
+            setGrupoDetalhe(conv)
+            void refreshInbox(true)
+          }}
+        />
+      )}
+
       <div
         ref={scrollRef}
         className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto bg-slate-100/90 px-4 py-5 dark:bg-slate-900/60 md:px-6 lg:px-8"
       >
         <div className="w-full min-w-0 space-y-1">
+        {carregandoAntigas && (
+          <p className="py-2 text-center text-sm text-slate-400">Carregando mensagens anteriores…</p>
+        )}
         {loading ? (
           <p className="text-center text-base text-slate-400 animate-pulse">Carregando mensagens…</p>
         ) : erro ? (

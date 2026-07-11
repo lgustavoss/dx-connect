@@ -32,6 +32,19 @@ const FILTROS: FiltroDef[] = [
     ),
   },
   {
+    id: 'grupo',
+    label: 'Grupos',
+    titulo: 'Grupos personalizados da equipe',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+  },
+  {
     id: 'setor',
     label: 'Setores',
     titulo: 'Canais de comunicado por setor',
@@ -46,13 +59,16 @@ const FILTROS: FiltroDef[] = [
 
 function contagemPorTipo(conversas: { tipo: string; nao_lidas_count: number }[]) {
   const diretas = conversas.filter((c) => c.tipo === 'direta')
+  const grupos = conversas.filter((c) => c.tipo === 'grupo')
   const setores = conversas.filter((c) => c.tipo === 'setor')
   return {
     todas: conversas.length,
     direta: diretas.length,
+    grupo: grupos.length,
     setor: setores.length,
     naoLidasTodas: conversas.reduce((acc, c) => acc + c.nao_lidas_count, 0),
     naoLidasDireta: diretas.reduce((acc, c) => acc + c.nao_lidas_count, 0),
+    naoLidasGrupo: grupos.reduce((acc, c) => acc + c.nao_lidas_count, 0),
     naoLidasSetor: setores.reduce((acc, c) => acc + c.nao_lidas_count, 0),
   }
 }
@@ -68,12 +84,14 @@ export function ChatInternoFiltroTipo({ className = '' }: Props) {
 
   const naoLidasDe = (id: FiltroInboxChatInterno) => {
     if (id === 'direta') return stats.naoLidasDireta
+    if (id === 'grupo') return stats.naoLidasGrupo
     if (id === 'setor') return stats.naoLidasSetor
     return stats.naoLidasTodas
   }
 
   const totalDe = (id: FiltroInboxChatInterno) => {
     if (id === 'direta') return stats.direta
+    if (id === 'grupo') return stats.grupo
     if (id === 'setor') return stats.setor
     return stats.todas
   }
@@ -82,7 +100,7 @@ export function ChatInternoFiltroTipo({ className = '' }: Props) {
     <nav
       role="tablist"
       aria-label="Filtrar conversas internas"
-      className={`grid grid-cols-3 gap-1 rounded-xl border border-slate-200/90 bg-slate-100/80 p-1 dark:border-slate-700/80 dark:bg-slate-900/50 ${className}`}
+      className={`grid grid-cols-4 gap-1 rounded-xl border border-slate-200/90 bg-slate-100/80 p-1 dark:border-slate-700/80 dark:bg-slate-900/50 ${className}`}
     >
       {FILTROS.map((f) => {
         const ativo = filtro === f.id
@@ -132,5 +150,6 @@ export function ChatInternoFiltroTipo({ className = '' }: Props) {
 export const CHAT_INTERNO_FILTRO_VAZIO: Record<FiltroInboxChatInterno, string> = {
   todas: 'Nenhuma conversa ainda.',
   direta: 'Nenhuma conversa direta.',
+  grupo: 'Nenhum grupo criado.',
   setor: 'Nenhum canal de setor.',
 }

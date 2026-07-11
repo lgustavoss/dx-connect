@@ -16,4 +16,4 @@ export function previewTexto(texto: string | null | undefined, max = 80): string
   return `${t.slice(0, max)}…`
 }
 
-export type FiltroInboxChatInterno = 'todas' | 'direta' | 'setor'
+export type FiltroInboxChatInterno = 'todas' | 'direta' | 'setor' | 'grupo'

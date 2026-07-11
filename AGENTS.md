@@ -41,6 +41,8 @@ Config: `.cursor/hooks.json`
 | `/implementar-issue` | Implementar issue/épico com checklist completo |
 | `/nova-migration` | Criar/validar migration Alembic |
 | `/revisar-e-testar` | Revisão pré-merge com testes |
+| `/subir-local` | Subir Docker, migrations, API e frontend em dev |
+| `/testar-ui` | Smoke test no navegador integrado (login, rotas, console) |
 | `/criar-pr` | PR → watch CI → approve → **merge automático em main** |
 
 ## Subagents (Task tool)
@@ -69,12 +71,15 @@ Use subagents para **paralelizar** ou **isolar** trabalho:
 
 O `/criar-pr` monitora Actions, aprova e **mergeia em `main`** quando CI passa (main = branch de testes). Em falha, corrige e re-monitora (skill **babysit**). Opt-out: pedir `/criar-pr sem merge`.
 
+Para desenvolvimento local: `/subir-local` → `/testar-ui` (navegador integrado).
+
 ## Skills
 
 | Skill | Quando |
 |-------|--------|
 | `design-feature` | Planejar épicos/features (usado por `/planejar-feature`) |
 | `deploy-cliente` | Deploy/atualização de instância por cliente |
+| `browser-qa` | Smoke tests no navegador integrado (`/testar-ui`) |
 
 Skills futuras sugeridas:
 
