@@ -1,11 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
+
+from app.config import settings
 
 from app.core.auth import obter_atendente_atual
 from app.core.setor_scope import ids_setores_visiveis_atendente
 from app.database import get_db
 from app.models.atendente import Atendente
-from app.models.chat_interno import ConversaInterna
+from app.models.chat_interno import TIPO_MENSAGEM_TEXTO, ConversaInterna
+from app.services import chat_interno_media_storage as media_storage
 from app.schemas.chat_interno import (
     ConversaDiretaCreate,
     ConversaInboxRead,
@@ -42,14 +46,33 @@ def _to_conversa_read(db: Session, conversa: ConversaInterna, atendente: Atenden
     )
 
 
-def _to_mensagem_read(mensagem) -> MensagemInternaRead:
+def _to_mensagem_read(mensagem, *, conversa: ConversaInterna, atendente: Atendente, db: Session) -> MensagemInternaRead:
+    tipo = mensagem.tipo_midia or TIPO_MENSAGEM_TEXTO
+    status = chat_svc.status_entrega_mensagem(db, conversa, mensagem, atendente.id)
     return MensagemInternaRead(
         id=mensagem.id,
         conversa_id=mensagem.conversa_id,
         atendente_id=mensagem.atendente_id,
         atendente_nome=mensagem.atendente.nome if mensagem.atendente else None,
         corpo=mensagem.corpo,
+        tipo_midia=tipo,  # type: ignore[arg-type]
+        mimetype=mensagem.mimetype,
+        nome_arquivo=mensagem.nome_arquivo,
+        tamanho_bytes=mensagem.tamanho_bytes,
+        midia_disponivel=bool(mensagem.storage_key),
+        status_entrega=status,  # type: ignore[arg-type]
         created_at=mensagem.created_at,
+    )
+
+
+def _emit_apos_mensagem(db: Session, conversa: ConversaInterna, mensagem, atendente_id: int) -> None:
+    from app.services.realtime_emit import emit_chat_interno_mensagem
+
+    emit_chat_interno_mensagem(
+        db,
+        conversa,
+        mensagem,
+        exclude_atendente_id=atendente_id,
     )
 
 
@@ -127,7 +150,10 @@ def listar_mensagens(
     _exigir_acesso_conversa(db, atendente, conversa)
 
     rows, total = chat_svc.listar_mensagens(db, conversa_id, offset=offset, limit=limit)
-    return ListaPaginada(items=[_to_mensagem_read(m) for m in rows], total=total)
+    return ListaPaginada(
+        items=[_to_mensagem_read(m, conversa=conversa, atendente=atendente, db=db) for m in rows],
+        total=total,
+    )
 
 
 @router.post(
@@ -148,17 +174,76 @@ def enviar_mensagem(
         mensagem = chat_svc.enviar_mensagem(db, conversa, atendente, body.corpo)
         db.commit()
         db.refresh(mensagem)
-        from app.services.realtime_emit import emit_chat_interno_mensagem
-
-        emit_chat_interno_mensagem(
-            db,
-            conversa,
-            mensagem,
-            exclude_atendente_id=atendente.id,
-        )
-        return _to_mensagem_read(mensagem)
+        _emit_apos_mensagem(db, conversa, mensagem, atendente.id)
+        return _to_mensagem_read(mensagem, conversa=conversa, atendente=atendente, db=db)
     except chat_svc.ChatInternoErro as exc:
         raise _map_chat_erro(exc) from exc
+
+
+@router.post(
+    "/conversas/{conversa_id}/mensagens/midia",
+    response_model=MensagemInternaRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def enviar_mensagem_midia(
+    conversa_id: int,
+    file: UploadFile = File(...),
+    mediatipo: str = Form(..., description="imagem | video | audio | documento"),
+    caption: str = Form(""),
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    conversa = _obter_conversa_ou_404(db, conversa_id)
+    if conversa.tenant_id != atendente.tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversa não encontrada.")
+
+    data = await file.read()
+    if len(data) > settings.CHAT_INTERNO_MEDIA_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="Arquivo excede o tamanho máximo permitido.")
+
+    mime = (file.content_type or "application/octet-stream").split(";")[0].strip()
+    try:
+        mensagem = chat_svc.enviar_mensagem_midia(
+            db,
+            conversa,
+            atendente,
+            tipo_midia=mediatipo,
+            data=data,
+            mimetype=mime,
+            nome_original=file.filename,
+            caption=caption,
+        )
+        db.commit()
+        db.refresh(mensagem)
+        _emit_apos_mensagem(db, conversa, mensagem, atendente.id)
+        return _to_mensagem_read(mensagem, conversa=conversa, atendente=atendente, db=db)
+    except chat_svc.ChatInternoErro as exc:
+        raise _map_chat_erro(exc) from exc
+
+
+@router.get("/conversas/{conversa_id}/mensagens/{mensagem_id}/download")
+def download_mensagem_midia(
+    conversa_id: int,
+    mensagem_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    conversa = _obter_conversa_ou_404(db, conversa_id)
+    if conversa.tenant_id != atendente.tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversa não encontrada.")
+    _exigir_acesso_conversa(db, atendente, conversa)
+
+    mensagem = chat_svc.obter_mensagem_por_id(db, conversa_id, mensagem_id)
+    if not mensagem or not mensagem.storage_key:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mídia não encontrada.")
+
+    path = media_storage.caminho_absoluto_arquivo(mensagem.storage_key)
+    if not path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Arquivo não encontrado.")
+
+    media_type = mensagem.mimetype or "application/octet-stream"
+    filename = mensagem.nome_arquivo or path.name
+    return FileResponse(path, media_type=media_type, filename=filename)
 
 
 @router.get("/setores/{setor_id}/canal", response_model=ConversaRead)
@@ -195,15 +280,49 @@ def publicar_no_canal_setor(
         mensagem = chat_svc.enviar_mensagem(db, conversa, atendente, body.corpo)
         db.commit()
         db.refresh(mensagem)
-        from app.services.realtime_emit import emit_chat_interno_mensagem
+        _emit_apos_mensagem(db, conversa, mensagem, atendente.id)
+        return _to_mensagem_read(mensagem, conversa=conversa, atendente=atendente, db=db)
+    except chat_svc.ChatInternoErro as exc:
+        raise _map_chat_erro(exc) from exc
 
-        emit_chat_interno_mensagem(
+
+@router.post(
+    "/setores/{setor_id}/canal/mensagens/midia",
+    response_model=MensagemInternaRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def publicar_midia_no_canal_setor(
+    setor_id: int,
+    file: UploadFile = File(...),
+    mediatipo: str = Form(..., description="imagem | video | audio | documento"),
+    caption: str = Form(""),
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    if not chat_svc.pode_publicar_no_canal(db, atendente, setor_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este setor.")
+
+    data = await file.read()
+    if len(data) > settings.CHAT_INTERNO_MEDIA_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="Arquivo excede o tamanho máximo permitido.")
+
+    mime = (file.content_type or "application/octet-stream").split(";")[0].strip()
+    try:
+        conversa = chat_svc.obter_ou_criar_canal_setor(db, atendente.tenant_id, setor_id)
+        mensagem = chat_svc.enviar_mensagem_midia(
             db,
             conversa,
-            mensagem,
-            exclude_atendente_id=atendente.id,
+            atendente,
+            tipo_midia=mediatipo,
+            data=data,
+            mimetype=mime,
+            nome_original=file.filename,
+            caption=caption,
         )
-        return _to_mensagem_read(mensagem)
+        db.commit()
+        db.refresh(mensagem)
+        _emit_apos_mensagem(db, conversa, mensagem, atendente.id)
+        return _to_mensagem_read(mensagem, conversa=conversa, atendente=atendente, db=db)
     except chat_svc.ChatInternoErro as exc:
         raise _map_chat_erro(exc) from exc
 
@@ -220,8 +339,9 @@ def marcar_visto(
     try:
         chat_svc.marcar_visto(db, conversa, atendente)
         db.commit()
-        from app.services.realtime_emit import emit_notificacao_contagem
+        from app.services.realtime_emit import emit_chat_interno_lido, emit_notificacao_contagem
 
+        emit_chat_interno_lido(db, conversa, atendente.id)
         emit_notificacao_contagem(db, [atendente.id])
     except chat_svc.ChatInternoErro as exc:
         raise _map_chat_erro(exc) from exc

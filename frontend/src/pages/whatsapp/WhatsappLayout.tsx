@@ -46,7 +46,7 @@ export function WhatsappLayout() {
         </div>
 
         <nav className="inline-flex max-w-full items-center overflow-x-auto rounded-xl bg-slate-100 p-1.5 dark:bg-slate-800/60 ring-1 ring-slate-200 dark:ring-slate-800">
-          <Link to="/whatsapp/atendendo" className={tabClass(isAtendendo)}>
+          <Link to="/chat/atendendo" className={tabClass(isAtendendo)}>
             {isAtendendo && (
               <span className="absolute -top-1 -right-1 flex h-2 w-2">
                 <span className="absolute h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" />

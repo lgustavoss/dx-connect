@@ -348,8 +348,9 @@ def emit_chat_interno_mensagem(
     exclude_atendente_id: int | None = None,
 ) -> None:
     """Nova mensagem no chat interno — direta ou canal de setor (IC-03)."""
-    corpo = getattr(mensagem, "corpo", "") or ""
-    preview = corpo.strip()
+    from app.services.chat_interno import preview_mensagem
+
+    preview = preview_mensagem(mensagem)
     if len(preview) > 80:
         preview = preview[:80] + "…"
 
@@ -358,6 +359,7 @@ def emit_chat_interno_mensagem(
         conversa,
         exclude_atendente_id=exclude_atendente_id,
     )
+    tipo_midia = getattr(mensagem, "tipo_midia", None) or "texto"
     payload = {
         "conversa_id": conversa.id,
         "tipo": conversa.tipo,
@@ -365,6 +367,28 @@ def emit_chat_interno_mensagem(
         "remetente_id": getattr(mensagem, "atendente_id", None),
         "corpo_preview": preview,
         "mensagem_id": getattr(mensagem, "id", None),
+        "tipo_midia": tipo_midia,
+        "midia_disponivel": bool(getattr(mensagem, "storage_key", None)),
     }
     _publish_to_atendentes(recipients, "chat.interno.mensagem", payload)
     _emit_notificacao_after_counter_change(db)
+
+
+def emit_chat_interno_lido(
+    db: Session,
+    conversa: Any,
+    leitor_atendente_id: int,
+) -> None:
+    """Participante leu a conversa — atualiza ticks de leitura para remetentes."""
+    recipients = ids_destinatarios_chat_interno_mensagem(
+        db,
+        conversa,
+        exclude_atendente_id=leitor_atendente_id,
+    )
+    if not recipients:
+        return
+    payload = {
+        "conversa_id": conversa.id,
+        "leitor_atendente_id": leitor_atendente_id,
+    }
+    _publish_to_atendentes(recipients, "chat.interno.lido", payload)

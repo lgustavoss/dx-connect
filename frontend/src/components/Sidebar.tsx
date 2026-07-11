@@ -212,6 +212,8 @@ interface NavItemLink {
   to: string
   label: string
   icon: string
+  /** Mantém o item ativo em rotas filhas (ex.: `/chat/c/:id`) */
+  activePrefix?: string
 }
 
 type NavItem = NavItemLink | NavGroup
@@ -219,18 +221,8 @@ type NavItem = NavItemLink | NavGroup
 const navStructure: NavItem[] = [
   { type: 'link', to: '/', label: 'Dashboard', icon: 'dashboard' },
   { type: 'link', to: '/tickets', label: 'Tickets', icon: 'tickets' },
-  {
-    type: 'group',
-    id: 'chat',
-    label: 'Chat',
-    icon: 'chat',
-    extraActivePrefixes: ['/whatsapp/c/', '/chat-interno/'],
-    children: [
-      { to: '/whatsapp/atendendo', label: 'Atendendo', icon: 'chatInbox' },
-      { to: '/whatsapp/historico', label: 'Histórico', icon: 'chatHistory' },
-      { to: '/chat-interno', label: 'Chat interno', icon: 'chat' },
-    ],
-  },
+  { type: 'link', to: '/chat/atendendo', label: 'Chat', icon: 'chat', activePrefix: '/chat/' },
+  { type: 'link', to: '/whatsapp/historico', label: 'Histórico', icon: 'chatHistory' },
   {
     type: 'group',
     id: 'clientes',
@@ -389,9 +381,16 @@ export function Sidebar({
     }
   }, [closeFlyout, openFlyout])
 
-  const linkClass = (to: string, base = '') =>
+  const isLinkActive = (to: string, activePrefix?: string) => {
+    if (location.pathname === to) return true
+    if (activePrefix && location.pathname.startsWith(activePrefix)) return true
+    if (to !== '/' && location.pathname.startsWith(`${to}/`)) return true
+    return false
+  }
+
+  const linkClass = (to: string, activePrefix?: string, base = '') =>
     `${base} flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors touch-manipulation min-h-[44px] ${
-      location.pathname === to || (to !== '/' && location.pathname.startsWith(to))
+      isLinkActive(to, activePrefix)
         ? 'bg-cyan-50 text-slate-900 ring-1 ring-cyan-200/60 dark:bg-cyan-950/35 dark:text-slate-100 dark:ring-cyan-800/50'
         : 'text-slate-600 hover:bg-slate-100 active:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:active:bg-slate-800'
     } ${!expanded ? 'md:justify-center md:gap-0 md:px-2' : ''}`
@@ -474,7 +473,7 @@ export function Sidebar({
                     to={item.to}
                     onClick={onMobileClose}
                     title={item.label}
-                    className={linkClass(item.to)}
+                    className={linkClass(item.to, item.activePrefix)}
                   >
                     {icons[item.icon]}
                     <span

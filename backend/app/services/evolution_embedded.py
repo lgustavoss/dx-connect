@@ -168,7 +168,7 @@ def provisionar_e_ligar_webhook(db: Session, row: WhatsappSettings) -> dict[str,
         "webhook": {
             "url": webhook_url,
             "byEvents": False,
-            "events": ["MESSAGES_UPSERT"],
+            "events": ["MESSAGES_UPSERT", "MESSAGES_UPDATE"],
             "headers": {"X-Dx-Webhook-Secret": secret},
         },
     }

@@ -343,7 +343,7 @@ def build_notificacao_itens(
                 titulo=resumo.titulo,
                 descricao=descricao,
                 count=resumo.nao_lidas_count,
-                href=f"/chat-interno/{resumo.conversa.id}",
+                href=f"/chat/interno/{resumo.conversa.id}",
                 created_at=resumo.ultima_mensagem_em or resumo.conversa.created_at,
             )
         )

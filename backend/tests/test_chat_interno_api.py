@@ -115,6 +115,29 @@ def test_post_visto_zera_nao_lidas(client, seed_base, auth_headers):
     assert r_after.json()[0]["nao_lidas_count"] == 0
 
 
+def test_status_leitura_mensagem_direta(client, seed_base, auth_headers):
+    conv = _criar_direta(client, auth_headers["a1"], seed_base["admin"].id)
+    _enviar_mensagem(client, auth_headers["a1"], conv["id"], "Olá admin")
+
+    r_antes = client.get(
+        f"/v1/chat-interno/conversas/{conv['id']}/mensagens",
+        headers=auth_headers["a1"],
+    )
+    assert r_antes.status_code == 200
+    assert r_antes.json()["items"][0]["status_entrega"] == "enviada"
+
+    client.post(
+        f"/v1/chat-interno/conversas/{conv['id']}/visto",
+        headers=auth_headers["admin"],
+    )
+
+    r_depois = client.get(
+        f"/v1/chat-interno/conversas/{conv['id']}/mensagens",
+        headers=auth_headers["a1"],
+    )
+    assert r_depois.json()["items"][0]["status_entrega"] == "lida"
+
+
 def test_admin_publica_no_canal_sem_vinculo(client, seed_base, auth_headers):
     setor1 = seed_base["setor1"].id
     r = client.post(

@@ -52,13 +52,13 @@ export function DashboardCanalComparativo({ snapshot }: Props) {
         <ComparativoItem
           label="WhatsApp aguardando"
           value={snapshot.chats_aguardando}
-          href="/whatsapp/atendendo"
+          href="/chat/atendendo"
           hrefLabel="Ir para fila"
         />
         <ComparativoItem
           label="WhatsApp em atendimento"
           value={snapshot.chats_em_atendimento}
-          href="/whatsapp/atendendo"
+          href="/chat/atendendo"
           hrefLabel="Ver central"
         />
       </div>

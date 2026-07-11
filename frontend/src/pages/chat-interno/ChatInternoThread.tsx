@@ -2,7 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiError, chatInterno, type ChatInterno } from '../../api/client'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
-import { ChatInternoComposer } from '../../components/chat-interno/ChatInternoComposer'
+import { ChatInternoComposerBar } from '../../components/chat-interno/ChatInternoComposerBar'
+import { ChatInternoConteudoMensagem } from '../../components/chat-interno/ChatInternoConteudoMensagem'
+import { MensagemRodapeMeta } from '../../components/chat/MensagemRodapeMeta'
+import { useChatInterno } from '../../contexts/ChatInternoContext'
 import { useToast } from '../../components/ui/Toast'
 import { useAuth } from '../../contexts/AuthContext'
 import { useEventStream } from '../../contexts/EventStreamContext'
@@ -22,8 +25,9 @@ export function ChatInternoThread() {
   const toast = useToast()
   const { user } = useAuth()
   const { subscribe, useFallback } = useEventStream()
+  const { obterConversa, carregar: refreshInbox } = useChatInterno()
 
-  const [meta, setMeta] = useState<ChatInterno.ConversaInbox | null>(null)
+  const meta = obterConversa(conversaId)
   const [mensagens, setMensagens] = useState<ChatInterno.Mensagem[]>([])
   const [texto, setTexto] = useState('')
   const [loading, setLoading] = useState(true)
@@ -37,25 +41,26 @@ export function ChatInternoThread() {
     try {
       const pagina = await chatInterno.mensagens(conversaId, { offset: 0, limit: 100 })
       setMensagens(pagina.items)
+      await chatInterno.marcarVisto(conversaId)
+      void refetchPendenciasResumo()
+      void refreshInbox(true)
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) {
         setForbidden(true)
       }
     }
-  }, [conversaId])
+  }, [conversaId, refreshInbox])
 
   const carregar = useCallback(async () => {
     if (!Number.isFinite(conversaId) || conversaId <= 0) return
     setErro(false)
     setForbidden(false)
     try {
-      const inbox = await chatInterno.listarConversas()
-      const encontrada = inbox.find((c) => c.id === conversaId) ?? null
-      setMeta(encontrada)
       const pagina = await chatInterno.mensagens(conversaId, { offset: 0, limit: 100 })
       setMensagens(pagina.items)
       await chatInterno.marcarVisto(conversaId)
       void refetchPendenciasResumo()
+      void refreshInbox(true)
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) {
         setForbidden(true)
@@ -66,11 +71,11 @@ export function ChatInternoThread() {
     } finally {
       setLoading(false)
     }
-  }, [conversaId, toast])
+  }, [conversaId, toast, refreshInbox])
 
   useEffect(() => {
     if (!Number.isFinite(conversaId) || conversaId <= 0) {
-      navigate('/chat-interno', { replace: true })
+      navigate('/chat/interno', { replace: true })
       return
     }
     setLoading(true)
@@ -84,19 +89,43 @@ export function ChatInternoThread() {
   }, [mensagens])
 
   useEffect(() => {
-    const unsub = subscribe('chat.interno.mensagem', (payload) => {
+    const unsubMsg = subscribe('chat.interno.mensagem', (payload) => {
+      const id = Number(payload.conversa_id)
+      void refreshInbox(true)
+      if (id !== conversaId) return
+      void carregarMensagens()
+    })
+    const unsubLido = subscribe('chat.interno.lido', (payload) => {
       if (Number(payload.conversa_id) !== conversaId) return
       void carregarMensagens()
-      void refetchPendenciasResumo()
     })
-    return unsub
-  }, [subscribe, conversaId, carregarMensagens])
+    return () => {
+      unsubMsg()
+      unsubLido()
+    }
+  }, [subscribe, conversaId, carregarMensagens, refreshInbox])
 
   useEffect(() => {
     const intervalMs = useFallback ? 10_000 : 6_000
     const timer = setInterval(() => void carregarMensagens(), intervalMs)
     return () => clearInterval(timer)
   }, [carregarMensagens, useFallback])
+
+  async function enviarMidia(file: File, caption?: string) {
+    if (enviando) return
+    setEnviando(true)
+    try {
+      const msg = await chatInterno.enviarMidia(conversaId, file, caption)
+      setTexto('')
+      setMensagens((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]))
+      void refreshInbox(true)
+      void refetchPendenciasResumo()
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível enviar o arquivo.'))
+    } finally {
+      setEnviando(false)
+    }
+  }
 
   async function enviar() {
     const corpo = texto.trim()
@@ -106,6 +135,7 @@ export function ChatInternoThread() {
       const msg = await chatInterno.enviar(conversaId, corpo)
       setTexto('')
       setMensagens((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]))
+      void refreshInbox(true)
       void refetchPendenciasResumo()
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível enviar a mensagem.'))
@@ -118,12 +148,12 @@ export function ChatInternoThread() {
 
   if (forbidden) {
     return (
-      <div className="mx-auto max-w-3xl p-4">
+      <div className="flex h-full items-center justify-center p-4">
         <SemPermissao
           title="Sem permissão para esta conversa"
           detail="Você não participa deste chat ou não tem acesso ao canal do setor."
-          voltarPara="/chat-interno"
-          voltarLabel="Voltar ao inbox"
+          voltarPara="/chat/interno"
+          voltarLabel="Voltar à lista"
         />
       </div>
     )
@@ -133,29 +163,43 @@ export function ChatInternoThread() {
   const isSetor = meta?.tipo === 'setor'
 
   return (
-    <div className="flex h-[calc(100vh-140px)] min-h-[500px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950">
-      <header className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
+      <header className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900 md:px-6 lg:px-8">
         <Link
-          to="/chat-interno"
-          className="rounded-lg px-2 py-1 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+          to="/chat/interno"
+          className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 md:hidden"
+          aria-label="Voltar à lista"
         >
-          ← Inbox
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
         </Link>
+        <div
+          className={`hidden h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white md:flex ${
+            isSetor ? 'bg-amber-500' : 'bg-cyan-600'
+          }`}
+        >
+          {isSetor ? 'S' : titulo.slice(0, 1).toUpperCase()}
+        </div>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-lg font-bold text-slate-900 dark:text-white">{titulo}</h1>
-          <p className="text-xs text-slate-500">
+          <h2 className="truncate text-lg font-bold text-slate-900 dark:text-white">{titulo}</h2>
+          <p className="truncate text-sm text-slate-500">
             {isSetor ? 'Canal do setor — comunicados' : 'Conversa direta'}
           </p>
         </div>
       </header>
 
-      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
+      <div
+        ref={scrollRef}
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto bg-slate-100/90 px-4 py-5 dark:bg-slate-900/60 md:px-6 lg:px-8"
+      >
+        <div className="w-full min-w-0 space-y-4">
         {loading ? (
-          <p className="text-center text-sm text-slate-400 animate-pulse">Carregando mensagens…</p>
+          <p className="text-center text-base text-slate-400 animate-pulse">Carregando mensagens…</p>
         ) : erro ? (
-          <p className="text-center text-sm text-rose-600">Erro ao carregar. Tente voltar ao inbox.</p>
+          <p className="text-center text-base text-rose-600">Erro ao carregar mensagens.</p>
         ) : mensagens.length === 0 ? (
-          <p className="text-center text-sm text-slate-400">
+          <p className="text-center text-base text-slate-400">
             {isSetor ? 'Nenhum comunicado ainda. Publique o primeiro aviso.' : 'Nenhuma mensagem. Diga olá!'}
           </p>
         ) : (
@@ -165,45 +209,61 @@ export function ChatInternoThread() {
               return (
                 <article
                   key={m.id}
-                  className="rounded-xl border border-amber-200/80 bg-amber-50/90 p-4 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/30"
+                  className="w-full min-w-0 overflow-hidden rounded-2xl border border-amber-200/80 bg-amber-50/95 p-5 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/40"
                 >
                   <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">
                     <span>Comunicado</span>
                     <span className="font-normal normal-case text-slate-500">
-                      {m.atendente_nome ?? 'Atendente'} · {formatarHoraMensagem(m.created_at)}
+                      {m.atendente_nome ?? 'Atendente'}
                     </span>
                   </div>
-                  <p className="whitespace-pre-wrap text-sm text-slate-800 dark:text-slate-100">{m.corpo}</p>
+                  <ChatInternoConteudoMensagem conversaId={conversaId} mensagem={m} />
+                  {m.atendente_id === user?.id ? (
+                    <MensagemRodapeMeta
+                      hora={m.created_at}
+                      status={m.status_entrega}
+                      direcao="outbound"
+                      variant="escuro"
+                      className="mt-2"
+                    />
+                  ) : (
+                    <p className="mt-2 text-xs text-slate-500">{formatarHoraMensagem(m.created_at)}</p>
+                  )}
                 </article>
               )
             }
             return (
-              <div key={m.id} className={`flex ${propria ? 'justify-end' : 'justify-start'}`}>
+              <div key={m.id} className={`flex min-w-0 w-full ${propria ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm shadow-sm ${
+                  className={`min-w-0 max-w-[min(42rem,78%)] overflow-hidden rounded-2xl px-4 py-3 text-base leading-relaxed shadow-sm ${
                     propria
-                      ? 'rounded-tr-none bg-violet-600 text-white'
-                      : 'rounded-tl-none bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100'
+                      ? 'rounded-tr-md bg-cyan-600 text-white'
+                      : 'rounded-tl-md bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100'
                   }`}
                 >
                   {!propria && (
-                    <p className="mb-1 text-[11px] font-semibold opacity-80">{m.atendente_nome ?? 'Atendente'}</p>
+                    <p className="mb-1.5 text-xs font-semibold opacity-80">{m.atendente_nome ?? 'Atendente'}</p>
                   )}
-                  <p className="whitespace-pre-wrap">{m.corpo}</p>
-                  <p className={`mt-1 text-[10px] ${propria ? 'text-violet-100' : 'text-slate-400'}`}>
-                    {formatarHoraMensagem(m.created_at)}
-                  </p>
+                  <ChatInternoConteudoMensagem conversaId={conversaId} mensagem={m} textoClaro={propria} />
+                  <MensagemRodapeMeta
+                    hora={m.created_at}
+                    status={propria ? m.status_entrega : null}
+                    direcao={propria ? 'outbound' : 'inbound'}
+                    variant={propria ? 'claro' : 'escuro'}
+                  />
                 </div>
               </div>
             )
           })
         )}
+        </div>
       </div>
 
-      <ChatInternoComposer
+      <ChatInternoComposerBar
         texto={texto}
         onTextoChange={setTexto}
         onEnviar={() => void enviar()}
+        onEnviarMidia={(file, caption) => void enviarMidia(file, caption)}
         enviando={enviando}
         placeholder={isSetor ? 'Novo comunicado para o setor…' : 'Escreva uma mensagem…'}
         labelEnviar={isSetor ? 'Publicar' : 'Enviar'}

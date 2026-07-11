@@ -11,20 +11,20 @@ export function ChatInternoSetorCanal() {
 
   useEffect(() => {
     if (!Number.isFinite(setorId) || setorId <= 0) {
-      navigate('/chat-interno', { replace: true })
+      navigate('/chat/interno', { replace: true })
       return
     }
     let cancelled = false
     ;(async () => {
       try {
         const canal = await chatInterno.obterCanalSetor(setorId)
-        if (!cancelled) navigate(`/chat-interno/${canal.id}`, { replace: true })
+        if (!cancelled) navigate(`/chat/interno/${canal.id}`, { replace: true })
       } catch (err) {
         if (!cancelled && err instanceof ApiError && err.status === 403) {
           setForbidden(true)
           return
         }
-        if (!cancelled) navigate('/chat-interno', { replace: true })
+        if (!cancelled) navigate('/chat/interno', { replace: true })
       }
     })()
     return () => {
@@ -38,7 +38,7 @@ export function ChatInternoSetorCanal() {
         <SemPermissao
           title="Sem permissão para este canal"
           detail="Você não está vinculado a este setor."
-          voltarPara="/chat-interno"
+          voltarPara="/chat/interno"
           voltarLabel="Voltar ao inbox"
         />
       </div>

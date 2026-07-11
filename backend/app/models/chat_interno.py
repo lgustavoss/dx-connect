@@ -16,6 +16,16 @@ from app.database import Base
 TIPO_CONVERSA_DIRETA = "direta"
 TIPO_CONVERSA_SETOR = "setor"
 
+TIPO_MENSAGEM_TEXTO = "texto"
+TIPO_MENSAGEM_IMAGEM = "imagem"
+TIPO_MENSAGEM_VIDEO = "video"
+TIPO_MENSAGEM_AUDIO = "audio"
+TIPO_MENSAGEM_DOCUMENTO = "documento"
+
+TIPOS_MENSAGEM_MIDIA = frozenset(
+    {TIPO_MENSAGEM_IMAGEM, TIPO_MENSAGEM_VIDEO, TIPO_MENSAGEM_AUDIO, TIPO_MENSAGEM_DOCUMENTO}
+)
+
 
 class ConversaInterna(Base):
     """Conversa de chat interno (direta 1:1 ou canal de setor)."""
@@ -91,6 +101,11 @@ class MensagemInterna(Base):
     )
     atendente_id = Column(Integer, ForeignKey("atendentes.id", ondelete="SET NULL"), nullable=True, index=True)
     corpo = Column(Text, nullable=False)
+    tipo_midia = Column(String(24), nullable=False, server_default=TIPO_MENSAGEM_TEXTO, index=True)
+    mimetype = Column(String(128), nullable=True)
+    nome_arquivo = Column(String(500), nullable=True)
+    storage_key = Column(String(255), nullable=True)
+    tamanho_bytes = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
 
     conversa = relationship("ConversaInterna", back_populates="mensagens")

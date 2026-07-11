@@ -35,7 +35,11 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 - Chat interno (IC-F1): API backend para conversas diretas entre atendentes e canal de comunicados por setor — inbox, mensagens, leitura (`/v1/chat-interno`); conversas diretas privadas (admin não vê conversas de terceiros)
 - Chat interno (IC-F2): mensagens internas no sino de notificações e evento SSE `chat.interno.mensagem`; contador `chat_interno_nao_lidas_count` no badge do navbar
-- Chat interno (IC-F3): inbox unificada, conversas diretas e canais de setor no menu Chat interno; comunicados com visual distinto; link no detalhe do setor
+- Chat interno (IC-F3): inbox unificada, conversas diretas e canais de setor no menu Chat interno; comunicados com visual distinto; link no detalhe do setor; layout com lista lateral fixa para alternar conversas e ver não lidas
+- Chat interno (#495): anexos e mídia — upload, download, pré-visualização no painel e colar imagem (Ctrl+V) no composer
+- Chat operacional: hub unificado em `/chat` com abas Atendendo, Espera e Interno; Histórico permanece em menu separado
+- Chat interno e WhatsApp: indicadores de envio, entrega e leitura nas mensagens (✓ / ✓✓)
+- Notificações: pendência do chat interno abre direto em `/chat/interno/{id}`
 - WhatsApp (#470): áudio gravado na barra de composição é enviado automaticamente ao terminar a gravação (estilo WhatsApp Web)
 - Identidade visual (#434): painel lateral do login e assets legados DX/Duplexsoft removidos — marca DeskRudder em todo o painel
 - Base de conhecimento (#296): admin vincula manuais a natureza/motivo; até 5 sugestões na classificação de tickets e demandas WhatsApp

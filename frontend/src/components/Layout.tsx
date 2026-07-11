@@ -37,8 +37,11 @@ function LayoutInner() {
   }
 
   const sidebarW = sidebarExpanded ? '280px' : '80px'
+  const isChatHub = location.pathname.startsWith('/chat')
   const scrollInternoNaPagina =
-    /^\/tickets\/\d+\/?$/.test(location.pathname) || location.pathname === '/tickets/novo'
+    /^\/tickets\/\d+\/?$/.test(location.pathname) ||
+    location.pathname === '/tickets/novo' ||
+    isChatHub
 
   return (
     <div
@@ -94,7 +97,9 @@ function LayoutInner() {
             <div
               className={
                 scrollInternoNaPagina
-                  ? 'flex h-full min-h-0 flex-col overflow-hidden px-4 pt-4 md:px-6 md:pt-6'
+                  ? isChatHub
+                    ? 'flex h-full min-h-0 flex-col overflow-hidden'
+                    : 'flex h-full min-h-0 flex-col overflow-hidden px-4 pt-4 md:px-6 md:pt-6'
                   : 'h-full min-h-0 overflow-x-hidden overflow-y-auto p-4 md:p-6'
               }
             >

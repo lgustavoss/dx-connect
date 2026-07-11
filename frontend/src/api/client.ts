@@ -896,6 +896,7 @@ export namespace WhatsappChats {
     quoted_corpo_preview?: string | null
     atendente_id?: number | null
     atendente_nome?: string | null
+    status_entrega?: 'pendente' | 'enviada' | 'entregue' | 'lida' | 'erro' | null
     created_at?: string | null
   }
   export interface Demanda {
@@ -931,6 +932,25 @@ export async function fetchWhatsAppMidiaBlob(chatId: number, mensagemId: number)
   if (token) headers.Authorization = `Bearer ${token}`
   const res = await fetch(
     `${BASE}${API_VERSION_PREFIX}/whatsapp/chats/${chatId}/mensagens/${mensagemId}/midia`,
+    { headers },
+  )
+  if (res.status === 401) {
+    invalidateSessionAndRedirectToLogin()
+    throw new ApiError('Sessão expirada ou inválida.', 401, {})
+  }
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+  }
+  return res.blob()
+}
+
+export async function fetchChatInternoMidiaBlob(conversaId: number, mensagemId: number): Promise<Blob> {
+  const token = getAuthToken()
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(
+    `${BASE}${API_VERSION_PREFIX}/chat-interno/conversas/${conversaId}/mensagens/${mensagemId}/download`,
     { headers },
   )
   if (res.status === 401) {
@@ -1322,12 +1342,20 @@ export namespace ChatInterno {
     created_at: string;
   }
 
+  export type TipoMidia = 'texto' | 'imagem' | 'video' | 'audio' | 'documento';
+
   export interface Mensagem {
     id: number;
     conversa_id: number;
     atendente_id: number | null;
     atendente_nome: string | null;
     corpo: string;
+    tipo_midia?: TipoMidia;
+    mimetype?: string | null;
+    nome_arquivo?: string | null;
+    tamanho_bytes?: number | null;
+    midia_disponivel?: boolean;
+    status_entrega?: 'enviada' | 'entregue' | 'lida' | null;
     created_at: string;
   }
 }
@@ -1346,6 +1374,21 @@ export const chatInterno = {
       method: 'POST',
       body: JSON.stringify({ corpo }),
     }),
+  enviarMidia: (conversaId: number, file: File, caption?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    let mediatipo: ChatInterno.TipoMidia = 'documento';
+    if (file.type.startsWith('image/')) mediatipo = 'imagem';
+    else if (file.type.startsWith('audio/') || file.name.endsWith('.webm') || file.name.endsWith('.ogg')) {
+      mediatipo = 'audio';
+    } else if (file.type.startsWith('video/')) mediatipo = 'video';
+    formData.append('mediatipo', mediatipo);
+    formData.append('caption', caption || '');
+    return api<ChatInterno.Mensagem>(`/chat-interno/conversas/${conversaId}/mensagens/midia`, {
+      method: 'POST',
+      body: formData,
+    });
+  },
   marcarVisto: (conversaId: number) =>
     api<void>(`/chat-interno/conversas/${conversaId}/visto`, { method: 'POST' }),
   obterCanalSetor: (setorId: number) =>

@@ -18,6 +18,12 @@ class MensagemInternaRead(BaseModel):
     atendente_id: int | None
     atendente_nome: str | None = None
     corpo: str
+    tipo_midia: Literal["texto", "imagem", "video", "audio", "documento"] = "texto"
+    mimetype: str | None = None
+    nome_arquivo: str | None = None
+    tamanho_bytes: int | None = None
+    midia_disponivel: bool = False
+    status_entrega: Literal["enviada", "entregue", "lida"] | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

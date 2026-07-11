@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     # Tamanho máximo (bytes) para cada anexo de ticket.
     TICKET_ANEXOS_MAX_BYTES: int = 25 * 1024 * 1024
 
+    # Mídia do chat interno (#495).
+    CHAT_INTERNO_MEDIA_DIR: str = "data/chat_interno_media"
+    CHAT_INTERNO_MEDIA_MAX_BYTES: int = 25 * 1024 * 1024
+
     # Mensagem pública com notificação por e-mail (#140): janela antes do envio e TTL do lock de edição.
     TICKET_MENSAGEM_EMAIL_GRACE_SECONDS: int = 120
     TICKET_MENSAGEM_EDIT_LOCK_TTL_SECONDS: int = 300

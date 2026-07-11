@@ -11,11 +11,19 @@ from app.models import Atendente, Setor
 from app.models.chat_interno import (
     TIPO_CONVERSA_DIRETA,
     TIPO_CONVERSA_SETOR,
+    TIPO_MENSAGEM_AUDIO,
+    TIPO_MENSAGEM_DOCUMENTO,
+    TIPO_MENSAGEM_IMAGEM,
+    TIPO_MENSAGEM_TEXTO,
+    TIPO_MENSAGEM_VIDEO,
+    TIPOS_MENSAGEM_MIDIA,
     ConversaInterna,
     ConversaInternaLeitura,
     ConversaInternaParticipante,
     MensagemInterna,
 )
+from app.services import chat_interno_media_storage as media_storage
+from app.services.mensagem_status import STATUS_ENVIADA, STATUS_LIDA
 
 
 class ChatInternoErro(ValueError):
@@ -247,7 +255,7 @@ def listar_conversas_inbox(db: Session, atendente: Atendente) -> list[ConversaIn
             ConversaInboxResumo(
                 conversa=conversa,
                 titulo=titulo_conversa(db, conversa, atendente.id),
-                ultima_mensagem_corpo=ultima.corpo if ultima else None,
+                ultima_mensagem_corpo=preview_mensagem(ultima) if ultima else None,
                 ultima_mensagem_em=ultima.created_at if ultima else None,
                 nao_lidas_count=contar_nao_lidas(db, conversa, atendente.id),
             )
@@ -279,10 +287,105 @@ def enviar_mensagem(
         conversa_id=conversa.id,
         atendente_id=atendente.id,
         corpo=texto,
+        tipo_midia=TIPO_MENSAGEM_TEXTO,
     )
     db.add(mensagem)
     db.flush()
     return mensagem
+
+
+_MIDIA_ROTULOS = {
+    TIPO_MENSAGEM_IMAGEM: "📷 Imagem",
+    TIPO_MENSAGEM_VIDEO: "🎬 Vídeo",
+    TIPO_MENSAGEM_AUDIO: "🎵 Áudio",
+    TIPO_MENSAGEM_DOCUMENTO: "📄 Documento",
+}
+
+_MIDIA_FORM_PARA_DB = {
+    "imagem": TIPO_MENSAGEM_IMAGEM,
+    "video": TIPO_MENSAGEM_VIDEO,
+    "audio": TIPO_MENSAGEM_AUDIO,
+    "documento": TIPO_MENSAGEM_DOCUMENTO,
+}
+
+
+def normalizar_tipo_midia(mediatipo: str) -> str:
+    tipo = (mediatipo or "").strip().lower()
+    if tipo not in _MIDIA_FORM_PARA_DB:
+        raise ChatInternoErro("Tipo de mídia inválido.")
+    return _MIDIA_FORM_PARA_DB[tipo]
+
+
+def rotulo_midia(tipo_midia: str) -> str:
+    return _MIDIA_ROTULOS.get(tipo_midia, "📎 Anexo")
+
+
+def preview_mensagem(mensagem: MensagemInterna) -> str:
+    tipo = mensagem.tipo_midia or TIPO_MENSAGEM_TEXTO
+    if tipo in TIPOS_MENSAGEM_MIDIA:
+        texto = (mensagem.corpo or "").strip()
+        rotulo = rotulo_midia(tipo)
+        if texto and texto != rotulo:
+            return preview_corpo(texto)
+        return rotulo
+    return preview_corpo(mensagem.corpo or "")
+
+
+def enviar_mensagem_midia(
+    db: Session,
+    conversa: ConversaInterna,
+    atendente: Atendente,
+    *,
+    tipo_midia: str,
+    data: bytes,
+    mimetype: str | None,
+    nome_original: str | None,
+    caption: str = "",
+) -> MensagemInterna:
+    if not pode_acessar_conversa(db, atendente, conversa):
+        raise ChatInternoErro("Sem permissão para esta conversa.")
+    if not data:
+        raise ChatInternoErro("Arquivo vazio.")
+
+    tipo_db = normalizar_tipo_midia(tipo_midia)
+
+    try:
+        storage_key, nome_sanitizado, mime_norm = media_storage.gravar_bytes_em_disco(
+            data,
+            mimetype=mimetype,
+            nome_original=nome_original or "arquivo",
+        )
+    except ValueError as exc:
+        raise ChatInternoErro(str(exc)) from exc
+
+    cap = (caption or "").strip()
+    corpo_eff = cap if cap else rotulo_midia(tipo_db)
+
+    mensagem = MensagemInterna(
+        conversa_id=conversa.id,
+        atendente_id=atendente.id,
+        corpo=corpo_eff,
+        tipo_midia=tipo_db,
+        mimetype=mime_norm,
+        nome_arquivo=nome_sanitizado,
+        storage_key=storage_key,
+        tamanho_bytes=len(data),
+    )
+    db.add(mensagem)
+    db.flush()
+    return mensagem
+
+
+def obter_mensagem_por_id(db: Session, conversa_id: int, mensagem_id: int) -> MensagemInterna | None:
+    return (
+        db.query(MensagemInterna)
+        .options(joinedload(MensagemInterna.atendente))
+        .filter(
+            MensagemInterna.id == mensagem_id,
+            MensagemInterna.conversa_id == conversa_id,
+        )
+        .first()
+    )
 
 
 def marcar_visto(db: Session, conversa: ConversaInterna, atendente: Atendente) -> None:
@@ -309,6 +412,71 @@ def marcar_visto(db: Session, conversa: ConversaInterna, atendente: Atendente) -
             )
         )
     db.flush()
+
+
+def _last_seen_atendente(db: Session, conversa_id: int, atendente_id: int) -> datetime | None:
+    return (
+        db.query(ConversaInternaLeitura.last_seen_at)
+        .filter(
+            ConversaInternaLeitura.conversa_id == conversa_id,
+            ConversaInternaLeitura.atendente_id == atendente_id,
+        )
+        .scalar()
+    )
+
+
+def status_entrega_mensagem(
+    db: Session,
+    conversa: ConversaInterna,
+    mensagem: MensagemInterna,
+    viewer_id: int,
+) -> str | None:
+    """Status estilo WhatsApp apenas para mensagens enviadas pelo viewer."""
+    if mensagem.atendente_id != viewer_id:
+        return None
+
+    created = mensagem.created_at
+    if created is None:
+        return STATUS_ENVIADA
+
+    if conversa.tipo == TIPO_CONVERSA_DIRETA:
+        outro_id = None
+        for p in conversa.participantes:
+            if p.atendente_id != viewer_id:
+                outro_id = p.atendente_id
+                break
+        if outro_id is None:
+            rows = (
+                db.query(ConversaInternaParticipante.atendente_id)
+                .filter(ConversaInternaParticipante.conversa_id == conversa.id)
+                .all()
+            )
+            for (aid,) in rows:
+                if aid != viewer_id:
+                    outro_id = aid
+                    break
+        if outro_id is None:
+            return STATUS_ENVIADA
+        last_seen = _last_seen_atendente(db, conversa.id, outro_id)
+        if last_seen is not None and last_seen >= created:
+            return STATUS_LIDA
+        return STATUS_ENVIADA
+
+    if conversa.tipo == TIPO_CONVERSA_SETOR:
+        leu = (
+            db.query(ConversaInternaLeitura.id)
+            .filter(
+                ConversaInternaLeitura.conversa_id == conversa.id,
+                ConversaInternaLeitura.atendente_id != viewer_id,
+                ConversaInternaLeitura.last_seen_at >= created,
+            )
+            .first()
+        )
+        if leu:
+            return STATUS_LIDA
+        return STATUS_ENVIADA
+
+    return STATUS_ENVIADA
 
 
 def validar_atendente_destino(
