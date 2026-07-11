@@ -309,3 +309,86 @@ def emit_ticket_mensagem_from_model(
         exclude_atendente_id=exclude_atendente_id,
         emit_notificacao=emit_notificacao,
     )
+
+
+def ids_destinatarios_chat_interno_mensagem(
+    db: Session,
+    conversa: Any,
+    *,
+    exclude_atendente_id: int | None = None,
+) -> set[int]:
+    from app.models.chat_interno import (
+        TIPO_CONVERSA_DIRETA,
+        TIPO_CONVERSA_SETOR,
+        ConversaInternaParticipante,
+    )
+
+    if conversa.tipo == TIPO_CONVERSA_DIRETA:
+        rows = (
+            db.query(ConversaInternaParticipante.atendente_id)
+            .filter(ConversaInternaParticipante.conversa_id == conversa.id)
+            .all()
+        )
+        ids = {aid for (aid,) in rows}
+    elif conversa.tipo == TIPO_CONVERSA_SETOR and conversa.setor_id is not None:
+        ids = _ids_atendentes_por_setor(db, conversa.setor_id)
+    else:
+        ids = set()
+
+    if exclude_atendente_id is not None:
+        ids.discard(exclude_atendente_id)
+    return ids
+
+
+def emit_chat_interno_mensagem(
+    db: Session,
+    conversa: Any,
+    mensagem: Any,
+    *,
+    exclude_atendente_id: int | None = None,
+) -> None:
+    """Nova mensagem no chat interno — direta ou canal de setor (IC-03)."""
+    from app.services.chat_interno import preview_mensagem
+
+    preview = preview_mensagem(mensagem)
+    if len(preview) > 80:
+        preview = preview[:80] + "…"
+
+    recipients = ids_destinatarios_chat_interno_mensagem(
+        db,
+        conversa,
+        exclude_atendente_id=exclude_atendente_id,
+    )
+    tipo_midia = getattr(mensagem, "tipo_midia", None) or "texto"
+    payload = {
+        "conversa_id": conversa.id,
+        "tipo": conversa.tipo,
+        "setor_id": conversa.setor_id,
+        "remetente_id": getattr(mensagem, "atendente_id", None),
+        "corpo_preview": preview,
+        "mensagem_id": getattr(mensagem, "id", None),
+        "tipo_midia": tipo_midia,
+        "midia_disponivel": bool(getattr(mensagem, "storage_key", None)),
+    }
+    _publish_to_atendentes(recipients, "chat.interno.mensagem", payload)
+    _emit_notificacao_after_counter_change(db)
+
+
+def emit_chat_interno_lido(
+    db: Session,
+    conversa: Any,
+    leitor_atendente_id: int,
+) -> None:
+    """Participante leu a conversa — atualiza ticks de leitura para remetentes."""
+    recipients = ids_destinatarios_chat_interno_mensagem(
+        db,
+        conversa,
+        exclude_atendente_id=leitor_atendente_id,
+    )
+    if not recipients:
+        return
+    payload = {
+        "conversa_id": conversa.id,
+        "leitor_atendente_id": leitor_atendente_id,
+    }
+    _publish_to_atendentes(recipients, "chat.interno.lido", payload)

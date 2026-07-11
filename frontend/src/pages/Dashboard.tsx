@@ -172,7 +172,7 @@ export function Dashboard() {
             <Link to="/tickets/novo">
               <Button variant="secondary">Novo ticket</Button>
             </Link>
-            <Link to="/whatsapp/atendendo">
+            <Link to="/chat/atendendo">
               <Button variant="secondary">Ir para WhatsApp</Button>
             </Link>
           </>
@@ -216,14 +216,14 @@ export function Dashboard() {
           label="WhatsApp aguardando"
           value={geral.chats_aguardando_atendente}
           borderClass="border-l-4 border-l-emerald-400"
-          href="/whatsapp/atendendo"
+          href="/chat/atendendo"
           hrefLabel="Ir para fila WhatsApp"
         />
         <MetricCard
           label="WhatsApp em atendimento"
           value={geral.chats_em_atendimento}
           borderClass="border-l-4 border-l-cyan-500"
-          href="/whatsapp/atendendo"
+          href="/chat/atendendo"
           hrefLabel="Ver central de atendimento"
         />
         <MetricCard
@@ -412,7 +412,7 @@ export function Dashboard() {
                       <td className="py-3 pr-4">{c.cliente_nome ?? '—'}</td>
                       <td className="py-3 pr-4">{rotuloEstadoChat(c.estado)}</td>
                       <td className="py-3">
-                        <Link to={`/whatsapp/c/${c.id}`}>
+                        <Link to={`/chat/c/${c.id}`}>
                           <Button type="button" variant="ghost" className="text-sm">
                             Abrir
                           </Button>
@@ -425,7 +425,7 @@ export function Dashboard() {
             </div>
           )}
           <div className="mt-4">
-            <Link to="/whatsapp/atendendo">
+            <Link to="/chat/atendendo">
               <Button variant="secondary">Ir para WhatsApp</Button>
             </Link>
           </div>

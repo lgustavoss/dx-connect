@@ -896,6 +896,7 @@ export namespace WhatsappChats {
     quoted_corpo_preview?: string | null
     atendente_id?: number | null
     atendente_nome?: string | null
+    status_entrega?: 'pendente' | 'enviada' | 'entregue' | 'lida' | 'erro' | null
     created_at?: string | null
   }
   export interface Demanda {
@@ -931,6 +932,25 @@ export async function fetchWhatsAppMidiaBlob(chatId: number, mensagemId: number)
   if (token) headers.Authorization = `Bearer ${token}`
   const res = await fetch(
     `${BASE}${API_VERSION_PREFIX}/whatsapp/chats/${chatId}/mensagens/${mensagemId}/midia`,
+    { headers },
+  )
+  if (res.status === 401) {
+    invalidateSessionAndRedirectToLogin()
+    throw new ApiError('Sessão expirada ou inválida.', 401, {})
+  }
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+  }
+  return res.blob()
+}
+
+export async function fetchChatInternoMidiaBlob(conversaId: number, mensagemId: number): Promise<Blob> {
+  const token = getAuthToken()
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(
+    `${BASE}${API_VERSION_PREFIX}/chat-interno/conversas/${conversaId}/mensagens/${mensagemId}/download`,
     { headers },
   )
   if (res.status === 401) {
@@ -1255,11 +1275,18 @@ export namespace Notificacoes {
     nao_lidas_count: number;
     wpp_fila_count: number;
     wpp_respostas_count: number;
+    chat_interno_nao_lidas_count: number;
     total_pendencias: number;
   }
   export interface Item {
-    tipo: 'fila_sem_responsavel' | 'mensagens_nao_lidas' | 'wpp_chats_na_fila' | 'wpp_chats_com_resposta';
+    tipo:
+      | 'fila_sem_responsavel'
+      | 'mensagens_nao_lidas'
+      | 'wpp_chats_na_fila'
+      | 'wpp_chats_com_resposta'
+      | 'chat_interno';
     ticket_id: number | null;
+    conversa_id?: number | null;
     titulo: string;
     descricao: string;
     count: number;
@@ -1289,6 +1316,87 @@ export const notificacoes = {
     api<Notificacoes.Preferencias>('/notificacoes/preferencias', {
       method: 'PATCH',
       body: JSON.stringify(data),
+    }),
+};
+
+export namespace ChatInterno {
+  export type ConversaTipo = 'direta' | 'setor';
+
+  export interface ConversaInbox {
+    id: number;
+    tipo: ConversaTipo;
+    titulo: string;
+    setor_id: number | null;
+    ultima_mensagem_corpo: string | null;
+    ultima_mensagem_em: string | null;
+    nao_lidas_count: number;
+    created_at: string;
+  }
+
+  export interface Conversa {
+    id: number;
+    tipo: ConversaTipo;
+    setor_id: number | null;
+    setor_nome: string | null;
+    titulo: string | null;
+    created_at: string;
+  }
+
+  export type TipoMidia = 'texto' | 'imagem' | 'video' | 'audio' | 'documento';
+
+  export interface Mensagem {
+    id: number;
+    conversa_id: number;
+    atendente_id: number | null;
+    atendente_nome: string | null;
+    corpo: string;
+    tipo_midia?: TipoMidia;
+    mimetype?: string | null;
+    nome_arquivo?: string | null;
+    tamanho_bytes?: number | null;
+    midia_disponivel?: boolean;
+    status_entrega?: 'enviada' | 'entregue' | 'lida' | null;
+    created_at: string;
+  }
+}
+
+export const chatInterno = {
+  listarConversas: () => api<ChatInterno.ConversaInbox[]>('/chat-interno/conversas'),
+  criarDireta: (atendente_id: number) =>
+    api<ChatInterno.Conversa>('/chat-interno/conversas/direta', {
+      method: 'POST',
+      body: JSON.stringify({ atendente_id }),
+    }),
+  mensagens: (conversaId: number, params?: { offset?: number; limit?: number }) =>
+    listPaginated<ChatInterno.Mensagem>(`/chat-interno/conversas/${conversaId}/mensagens`, params),
+  enviar: (conversaId: number, corpo: string) =>
+    api<ChatInterno.Mensagem>(`/chat-interno/conversas/${conversaId}/mensagens`, {
+      method: 'POST',
+      body: JSON.stringify({ corpo }),
+    }),
+  enviarMidia: (conversaId: number, file: File, caption?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    let mediatipo: ChatInterno.TipoMidia = 'documento';
+    if (file.type.startsWith('image/')) mediatipo = 'imagem';
+    else if (file.type.startsWith('audio/') || file.name.endsWith('.webm') || file.name.endsWith('.ogg')) {
+      mediatipo = 'audio';
+    } else if (file.type.startsWith('video/')) mediatipo = 'video';
+    formData.append('mediatipo', mediatipo);
+    formData.append('caption', caption || '');
+    return api<ChatInterno.Mensagem>(`/chat-interno/conversas/${conversaId}/mensagens/midia`, {
+      method: 'POST',
+      body: formData,
+    });
+  },
+  marcarVisto: (conversaId: number) =>
+    api<void>(`/chat-interno/conversas/${conversaId}/visto`, { method: 'POST' }),
+  obterCanalSetor: (setorId: number) =>
+    api<ChatInterno.Conversa>(`/chat-interno/setores/${setorId}/canal`),
+  publicarCanalSetor: (setorId: number, corpo: string) =>
+    api<ChatInterno.Mensagem>(`/chat-interno/setores/${setorId}/canal/mensagens`, {
+      method: 'POST',
+      body: JSON.stringify({ corpo }),
     }),
 };
 

@@ -31,6 +31,9 @@ function ResumoRodape({ resumo }: { resumo: Notificacoes.Resumo }) {
   if (resumo.nao_lidas_count > 0) partes.push(`Não lidas: ${resumo.nao_lidas_count}`)
   if (resumo.wpp_fila_count > 0) partes.push(`WPP fila: ${resumo.wpp_fila_count}`)
   if (resumo.wpp_respostas_count > 0) partes.push(`WPP resposta: ${resumo.wpp_respostas_count}`)
+  if (resumo.chat_interno_nao_lidas_count > 0) {
+    partes.push(`Chat interno: ${resumo.chat_interno_nao_lidas_count}`)
+  }
   if (partes.length === 0) return null
   return (
     <div className="shrink-0 border-t border-slate-200/90 bg-white px-4 py-3 text-xs text-slate-600 dark:border-slate-800/90 dark:bg-slate-950 dark:text-slate-300 sm:border-slate-100 sm:px-3 sm:pt-2 sm:text-[11px] sm:text-slate-400 dark:sm:border-slate-800 dark:sm:text-slate-500">
@@ -78,7 +81,7 @@ function ListaPendencias({
   return (
     <ul className="space-y-2 sm:space-y-0.5">
       {itens.map((item, idx) => (
-        <li key={`${item.tipo}-${item.ticket_id ?? 'fila'}-${idx}`}>
+        <li key={`${item.tipo}-${item.conversa_id ?? item.ticket_id ?? 'fila'}-${idx}`}>
           <Link
             role="menuitem"
             to={item.href}

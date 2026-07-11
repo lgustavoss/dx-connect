@@ -212,7 +212,7 @@ export function DashboardChats() {
       <DashboardNav
         actions={
           <>
-            <Link to="/whatsapp/atendendo">
+            <Link to="/chat/atendendo">
               <Button>Ir para atendimento</Button>
             </Link>
             <Link to="/whatsapp/avaliacoes">

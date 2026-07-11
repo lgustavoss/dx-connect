@@ -38,6 +38,7 @@ let currentResumo: Notificacoes.Resumo = {
   nao_lidas_count: 0,
   wpp_fila_count: 0,
   wpp_respostas_count: 0,
+  chat_interno_nao_lidas_count: 0,
   total_pendencias: 0,
 }
 let prevSemResponsavel: number | null = null
@@ -225,7 +226,8 @@ function isStalePollResumo(r: Notificacoes.Resumo): boolean {
     r.sem_responsavel_count < currentResumo.sem_responsavel_count ||
     r.nao_lidas_count < currentResumo.nao_lidas_count ||
     r.wpp_fila_count < currentResumo.wpp_fila_count ||
-    r.wpp_respostas_count < currentResumo.wpp_respostas_count
+    r.wpp_respostas_count < currentResumo.wpp_respostas_count ||
+    r.chat_interno_nao_lidas_count < currentResumo.chat_interno_nao_lidas_count
   )
 }
 
@@ -357,6 +359,7 @@ function isNotificacaoResumo(payload: Record<string, unknown>): boolean {
     typeof payload.nao_lidas_count === 'number' &&
     typeof payload.wpp_fila_count === 'number' &&
     typeof payload.wpp_respostas_count === 'number' &&
+    typeof payload.chat_interno_nao_lidas_count === 'number' &&
     typeof payload.total_pendencias === 'number'
   )
 }

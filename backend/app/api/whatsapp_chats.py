@@ -46,6 +46,7 @@ from app.core.auth import exigir_admin, obter_atendente_atual
 from app.api.tickets import _gerar_protocolo, _pode_ver_ticket
 from app.core.setor_scope import ids_setores_visiveis_atendente
 from app.config import settings
+from app.services.mensagem_status import status_inicial_outbound_whatsapp
 from app.services import evolution_api
 from app.services.whatsapp_auto_messages import (
     DEFAULT_AUTO_MSG_ASSUMIDO,
@@ -308,6 +309,7 @@ def _enviar_texto_whatsapp(
         quoted_corpo_preview=q_prev,
         atendente_id=atendente.id if atendente else None,
         evento_sistema=evento_sistema,
+        status_entrega=status_inicial_outbound_whatsapp(wa_message_id=sent_wa_id) if evento_sistema is None else None,
     )
     db.add(m)
     db.commit()
@@ -543,6 +545,7 @@ def _pode_ver_chat(db: Session, atendente: Atendente, c: WhatsappChat) -> bool:
 
 def _mensagem_read(m: WhatsappMensagem) -> WhatsappMensagemRead:
     midia_ok = bool(m.midia_nome_arquivo and str(m.midia_nome_arquivo).strip())
+    status = m.status_entrega if m.direcao == "outbound" and not m.evento_sistema else None
     return WhatsappMensagemRead(
         id=m.id,
         chat_id=m.chat_id,
@@ -557,6 +560,7 @@ def _mensagem_read(m: WhatsappMensagem) -> WhatsappMensagemRead:
         quoted_corpo_preview=getattr(m, "quoted_corpo_preview", None),
         atendente_id=m.atendente_id,
         atendente_nome=m.atendente.nome if m.atendente else None,
+        status_entrega=status,
         created_at=m.created_at,
     )
 
@@ -1209,6 +1213,7 @@ async def enviar_mensagem_midia(
         quoted_corpo_preview=q_prev,
         atendente_id=atendente.id,
         evento_sistema=None,
+        status_entrega=status_inicial_outbound_whatsapp(wa_message_id=sent_wa_id),
     )
     db.add(m)
     db.commit()

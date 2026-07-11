@@ -1602,7 +1602,7 @@ export function TicketDetalhe() {
                 {chatsWhatsapp.map((c) => (
                   <Link
                     key={c.id}
-                    to={`/whatsapp/c/${c.id}`}
+                    to={`/chat/c/${c.id}`}
                     className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-cyan-700 sm:text-xs dark:border-slate-800 dark:bg-slate-900/40 dark:text-cyan-400"
                   >
                     WA {exibirProtocolo(c.protocolo)}

@@ -105,6 +105,8 @@ class WhatsappMensagem(Base):
     quoted_wa_message_id = Column(String(128), nullable=True)
     quoted_corpo_preview = Column(String(500), nullable=True)
     atendente_id = Column(Integer, ForeignKey("atendentes.id", ondelete="SET NULL"), nullable=True)
+    # pendente | enviada | entregue | lida | erro — apenas outbound ao cliente
+    status_entrega = Column(String(20), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     chat = relationship("WhatsappChat", back_populates="mensagens")
