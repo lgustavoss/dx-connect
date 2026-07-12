@@ -5,6 +5,7 @@ import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
+import { CheckboxField } from '../components/ui/CheckboxField'
 import { useToast } from '../components/ui/Toast'
 import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
 import { SemPermissao } from './SemPermissao'
@@ -18,6 +19,7 @@ type FormState = {
   cor_texto_corpo: string
   cor_fundo: string
   cor_link: string
+  feedback_habilitado: boolean
 }
 
 function fromApi(data: Kb.PortalSettings): FormState {
@@ -30,6 +32,7 @@ function fromApi(data: Kb.PortalSettings): FormState {
     cor_texto_corpo: data.cor_texto_corpo,
     cor_fundo: data.cor_fundo,
     cor_link: data.cor_link ?? data.cor_primaria,
+    feedback_habilitado: data.feedback_habilitado,
   }
 }
 
@@ -103,6 +106,7 @@ export function KbPortalSettingsPage({ embedded = false }: { embedded?: boolean 
         cor_texto_corpo: form.cor_texto_corpo,
         cor_fundo: form.cor_fundo,
         cor_link: form.cor_link.trim() || null,
+        feedback_habilitado: form.feedback_habilitado,
       })
       setForm(fromApi(data))
       toast.showSuccess('Configurações do portal salvas.')
@@ -167,6 +171,18 @@ export function KbPortalSettingsPage({ embedded = false }: { embedded?: boolean 
                 className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-900"
               />
             </div>
+          </Card>
+
+          <Card className="p-4 sm:p-5">
+            <CheckboxField
+              checked={form.feedback_habilitado}
+              onChange={(e) => setForm({ ...form, feedback_habilitado: e.target.checked })}
+            >
+              Permitir avaliação «útil / não útil» nos manuais do portal
+            </CheckboxField>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              Quando desligado, os visitantes não veem os botões de feedback no fim de cada artigo.
+            </p>
           </Card>
 
           <Card className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5">

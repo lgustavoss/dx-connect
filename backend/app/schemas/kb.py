@@ -67,6 +67,8 @@ class KbArticleRead(BaseModel):
     autor_nome: str | None = None
     published_at: datetime | None
     archived_at: datetime | None
+    feedback_util_count: int = 0
+    feedback_nao_util_count: int = 0
     created_at: datetime
     updated_at: datetime | None
 
@@ -127,6 +129,17 @@ class KbSuggestionsQuery(BaseModel):
     natureza_id: int | None = Field(None, ge=1)
 
 
+class KbArticleFeedbackBody(BaseModel):
+    util: bool
+
+
+class KbArticleFeedbackRead(BaseModel):
+    util: bool
+    ja_avaliado: bool
+    feedback_util_count: int
+    feedback_nao_util_count: int
+
+
 class KbPublicBrandingRead(BaseModel):
     nome_exibicao: str
     portal_titulo: str = "Central de ajuda"
@@ -139,6 +152,7 @@ class KbPublicBrandingRead(BaseModel):
     cor_fundo: str = "#F8FAFC"
     cor_link: str = "#0D9488"
     exibir_marca_deskrudder: bool = True
+    feedback_habilitado: bool = True
 
 
 class KbPortalSettingsRead(BaseModel):
@@ -151,6 +165,7 @@ class KbPortalSettingsRead(BaseModel):
     cor_fundo: str = "#F8FAFC"
     cor_link: str | None = None
     exibir_marca_deskrudder: bool = True
+    feedback_habilitado: bool = True
     public_url_preview: str | None = None
 
 
@@ -167,3 +182,4 @@ class KbPortalSettingsUpdate(BaseModel):
     cor_fundo: str | None = Field(None, pattern=_HEX_COLOR)
     cor_link: str | None = Field(None, pattern=_HEX_COLOR)
     exibir_marca_deskrudder: bool | None = None
+    feedback_habilitado: bool | None = None

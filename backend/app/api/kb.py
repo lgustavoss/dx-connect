@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.audit import registrar_audit
 from app.core.auth import exigir_admin, obter_atendente_atual
-from app.core.kb_public_rate_limit import check_kb_public_rate_limit
+from app.core.kb_public_rate_limit import check_kb_public_feedback_rate_limit, check_kb_public_rate_limit
 from app.core.tenant_context import TenantIdDep
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
 from app.database import get_db
@@ -19,6 +19,8 @@ from app.models.ticket_classificacao import TicketMotivo, TicketNatureza
 from app.schemas.kb import (
     KbArticleBrief,
     KbArticleCreate,
+    KbArticleFeedbackBody,
+    KbArticleFeedbackRead,
     KbArticleRead,
     KbArticleUpdate,
     KbArticleVersionDetail,
@@ -36,6 +38,8 @@ from app.schemas.kb import (
 )
 from app.schemas.lista_paginada import ListaPaginada
 from app.services.kb import listar_artigos_sugeridos, registrar_versao_artigo, slug_disponivel
+from app.services.kb_feedback import registrar_feedback_artigo_publico
+from app.core.login_protection import client_ip
 from app.services.system_logo_storage import caminho_absoluto_logo
 from app.services.kb_media_storage import caminho_absoluto_imagem, gravar_imagem_bytes
 
@@ -80,6 +84,8 @@ def _article_read(article: KbArticle) -> KbArticleRead:
         autor_nome=article.autor.nome if article.autor else None,
         published_at=article.published_at,
         archived_at=article.archived_at,
+        feedback_util_count=int(article.feedback_util_count or 0),
+        feedback_nao_util_count=int(article.feedback_nao_util_count or 0),
         created_at=article.created_at,
         updated_at=article.updated_at,
     )
@@ -776,6 +782,7 @@ def _portal_settings_read(row: KbPortalSettings) -> KbPortalSettingsRead:
         cor_fundo=row.cor_fundo or "#F8FAFC",
         cor_link=row.cor_link,
         exibir_marca_deskrudder=bool(row.exibir_marca_deskrudder),
+        feedback_habilitado=bool(row.feedback_habilitado),
         public_url_preview="/kb",
     )
 
@@ -818,6 +825,7 @@ def _kb_public_branding(db: Session, tenant_id: int) -> KbPublicBrandingRead:
         cor_fundo=(settings.cor_fundo if settings else None) or "#F8FAFC",
         cor_link=cor_link,
         exibir_marca_deskrudder=bool(settings.exibir_marca_deskrudder) if settings else True,
+        feedback_habilitado=bool(settings.feedback_habilitado) if settings else True,
     )
 
 
@@ -993,3 +1001,23 @@ def obter_artigo_publico_por_slug(
         raise HTTPException(status_code=404, detail="Artigo não encontrado")
     _public_cache_headers(response)
     return _article_read(row)
+
+
+@router.post("/public/articles/{slug}/feedback", response_model=KbArticleFeedbackRead)
+def enviar_feedback_artigo_publico(
+    slug: str,
+    body: KbArticleFeedbackBody,
+    request: Request,
+    tenant_id: TenantIdDep,
+    db: Session = Depends(get_db),
+):
+    check_kb_public_rate_limit(request)
+    check_kb_public_feedback_rate_limit(request)
+    result = registrar_feedback_artigo_publico(
+        db,
+        tenant_id=tenant_id,
+        slug=slug,
+        util=body.util,
+        ip=client_ip(request),
+    )
+    return KbArticleFeedbackRead(**result)

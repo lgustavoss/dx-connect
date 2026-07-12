@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging`.
@@ -54,6 +54,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Base de conhecimento (#296): admin vincula manuais a natureza/motivo; até 5 sugestões na classificação de tickets e demandas WhatsApp
 - Base de conhecimento (#465/#466): portal público `/kb` com logo e nome da empresa (Configurações → Empresa); listagem, busca e leitura de artigos sem login
 - Base de conhecimento (#467): personalização do portal em Configurações → Sistema → Base de conhecimento (cores da navbar, textos, links); menu lateral de categorias/subcategorias expansível no /kb; navbar com título centralizado, logo sem fundo branco e menu hamburger
+- Base de conhecimento (#469): visitantes do portal `/kb` avaliam manuais como úteis ou não; admin vê totais no artigo e pode ligar/desligar a avaliação nas configurações do portal
 - Base de conhecimento (#293–#299): menu **Ajuda** para consultar manuais durante o atendimento; gestão de categorias e artigos (admin); consulta integrada em tickets e WhatsApp; manuais «só para a equipe»; imagens no texto; histórico de versões; reordenar categorias arrastando; manuais consultados ficam disponíveis offline neste computador
 - Auditoria (#290–#292): trail expandido com payload, IP, request-id e user-agent; registro de atribuição, transferência, fechamento e reabertura de tickets, ações em chats WhatsApp, envio de e-mail ao cliente, visualização de credencial PDV e exportação de relatórios
 - Auditoria: filtros por ação, período e atendente; exportação CSV; painel com detalhes do payload e request-id

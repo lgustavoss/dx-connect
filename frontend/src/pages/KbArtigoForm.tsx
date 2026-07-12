@@ -57,6 +57,8 @@ export function KbArtigoForm() {
   const [versaoSelecionada, setVersaoSelecionada] = useState<Kb.ArticleVersionDetail | null>(null)
   const [loadingVersao, setLoadingVersao] = useState(false)
   const [motivoLinks, setMotivoLinks] = useState<MotivoLinkDraft[]>([])
+  const [feedbackUtil, setFeedbackUtil] = useState(0)
+  const [feedbackNaoUtil, setFeedbackNaoUtil] = useState(0)
 
   useEffect(() => {
     kb.listCategories()
@@ -82,6 +84,8 @@ export function KbArtigoForm() {
         setConteudo(item.conteudo_markdown)
         setInternoOnly(item.interno_only)
         setStatus(item.status)
+        setFeedbackUtil(item.feedback_util_count ?? 0)
+        setFeedbackNaoUtil(item.feedback_nao_util_count ?? 0)
       })
       .catch((err) => {
         if (cancelled) return
@@ -328,6 +332,24 @@ export function KbArtigoForm() {
             </p>
           </div>
         </FormSection>
+
+        {isEdit && status === 'publicado' && !internoOnly ? (
+          <FormSection title="Avaliações do portal">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Visitantes da central de ajuda podem marcar se o manual foi útil.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-6 text-sm">
+              <div>
+                <span className="font-semibold text-teal-700 dark:text-teal-400">{feedbackUtil}</span>
+                <span className="ml-1 text-slate-600 dark:text-slate-400">úteis</span>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-700 dark:text-slate-300">{feedbackNaoUtil}</span>
+                <span className="ml-1 text-slate-600 dark:text-slate-400">não úteis</span>
+              </div>
+            </div>
+          </FormSection>
+        ) : null}
 
         {isEdit ? (
           <FormSection title="Sugestões por classificação">
