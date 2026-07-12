@@ -2,13 +2,13 @@ import logging
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.models.whatsapp_chat import WhatsappChat, WhatsappMensagem, WhatsappSettings
 from app.services import evolution_api
 from app.services.protocolo_mensal import gerar_protocolo_chat
-from app.services.evolution_inbound import iter_inbound_whatsapp_messages
+from app.services.evolution_inbound import iter_inbound_whatsapp_messages, iter_message_status_updates
 from app.services.whatsapp_media_storage import gravar_base64_em_disco
 from app.services.whatsapp_auto_messages import (
     DEFAULT_AUTO_MSG_ESPERA,
@@ -331,6 +331,37 @@ def _try_auto_msg_fora_horario(db: Session, st: WhatsappSettings | None, chat: W
         db.rollback()
 
 
+def _processar_atualizacoes_status_mensagem(db: Session, body: dict) -> int:
+    from app.services.mensagem_status import status_deve_atualizar
+    from app.services.realtime_emit import emit_chat_mensagem_from_models
+
+    atualizados = 0
+    for item in iter_message_status_updates(body):
+        wa_mid = item.get("wa_message_id")
+        novo_status = item.get("status_entrega")
+        if not wa_mid or not novo_status:
+            continue
+        msg = (
+            db.query(WhatsappMensagem)
+            .options(joinedload(WhatsappMensagem.atendente), joinedload(WhatsappMensagem.chat))
+            .filter(
+                WhatsappMensagem.wa_message_id == wa_mid,
+                WhatsappMensagem.direcao == "outbound",
+            )
+            .first()
+        )
+        if not msg or not status_deve_atualizar(msg.status_entrega, novo_status):
+            continue
+        msg.status_entrega = novo_status
+        try:
+            db.commit()
+            emit_chat_mensagem_from_models(db, msg.chat, msg)
+            atualizados += 1
+        except Exception:
+            db.rollback()
+    return atualizados
+
+
 @router.post("/evolution")
 def evolution_webhook(
     request: Request,
@@ -341,6 +372,11 @@ def evolution_webhook(
     secret = st.webhook_secret if st else None
     if not _webhook_autorizado(request, secret):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Webhook não autorizado")
+
+    event = str(body.get("event") or body.get("Event") or "").lower()
+    if "update" in event and "message" in event:
+        n = _processar_atualizacoes_status_mensagem(db, body)
+        return {"ok": True, "status_updates": n}
 
     st_media = st
     processados = 0

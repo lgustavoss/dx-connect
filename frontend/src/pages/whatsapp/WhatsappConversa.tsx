@@ -25,6 +25,7 @@ import { resolveWhatsappMidiaObjectUrl, revokeWhatsappMidiaForChat } from '../..
 import { chatEncerramentoPorInatividade } from '../../lib/whatsappDemandaUtils'
 import { mergeWhatsappChat, patchWhatsappChatLista, replaceWhatsappChatLista } from '../../lib/whatsappChatMerge'
 import { whatsappMensagensUnicas } from '../../lib/whatsappMensagens'
+import { MensagemRodapeMeta } from '../../components/chat/MensagemRodapeMeta'
 
 import { Card } from '../../components/ui/Card'
 
@@ -444,8 +445,20 @@ export function WhatsappConversa() {
       const msg = payload.mensagem as WhatsappChats.Mensagem | undefined
       if (!msg) return
       setMsgs((prev) => {
-        if (prev.some((m) => m.id === msg.id)) return prev
-        if (msg.wa_message_id && prev.some((m) => m.wa_message_id === msg.wa_message_id)) return prev
+        const idx = prev.findIndex((m) => m.id === msg.id)
+        if (idx >= 0) {
+          const next = [...prev]
+          next[idx] = { ...next[idx], ...msg }
+          return next
+        }
+        if (msg.wa_message_id && prev.some((m) => m.wa_message_id === msg.wa_message_id)) {
+          const widx = prev.findIndex((m) => m.wa_message_id === msg.wa_message_id)
+          if (widx >= 0) {
+            const next = [...prev]
+            next[widx] = { ...next[widx], ...msg }
+            return next
+          }
+        }
         return [...prev, msg]
       })
     })
@@ -611,7 +624,7 @@ useEffect(() => {
     toast.showSuccess(mensagemTransferenciaSucesso(atualizado))
 
     if (atualizado.atendente_id !== user?.id && atualizado.estado === 'em_atendimento') {
-      navigate('/whatsapp/atendendo')
+      navigate('/chat/atendendo')
     }
   } catch (err) {
     toast.showWarning(
@@ -736,14 +749,23 @@ useEffect(() => {
           ? `Este chat está com ${chat.atendente_nome || 'outro atendente'}.`
           : undefined
 
+  const modoHub = location.pathname.startsWith('/chat/c/')
+
   return (
 
-    <div className="flex h-[calc(100vh-140px)] min-h-[500px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-950">
+    <div
+      className={
+        modoHub
+          ? 'flex h-full min-h-0 overflow-hidden bg-white dark:bg-slate-950'
+          : 'flex h-[calc(100vh-140px)] min-h-[500px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-950'
+      }
+    >
 
      
 
-      {/* SIDEBAR RECOLHÍVEL */}
+      {/* SIDEBAR RECOLHÍVEL — oculta no hub unificado (/chat) */}
 
+      {!modoHub && (
       <aside className={`
 
         transition-all duration-300 ease-in-out border-r border-slate-100 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900/30
@@ -832,6 +854,7 @@ useEffect(() => {
         </div>
 
       </aside>
+      )}
 
 
 
@@ -1135,17 +1158,18 @@ useEffect(() => {
                       setActiveZoomImageCaption(caption)
                     }} />
 
+                    {!isSystem && (
+                      <MensagemRodapeMeta
+                        hora={m.created_at}
+                        status={m.status_entrega}
+                        direcao={m.direcao}
+                        eventoSistema={m.evento_sistema}
+                        variant={isInbound ? 'escuro' : 'claro'}
+                        className={isInbound ? 'text-slate-400' : ''}
+                      />
+                    )}
+
                   </div>
-
-                 
-
-                  <p className="text-[9px] text-slate-400 px-1 font-medium">
-
-                    {!isInbound && m.atendente_nome ? `${m.atendente_nome} • ` : ''}
-
-                    {m.created_at ? new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-
-                  </p>
 
                 </div>
 

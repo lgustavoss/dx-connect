@@ -1,0 +1,54 @@
+---
+description: Alembic — revision chain, heads e merge migrations
+globs: backend/alembic/**
+alwaysApply: false
+---
+
+# Alembic migrations
+
+Referência: `docs/ALEMBIC_MIGRATIONS.md`
+
+## Regra de ouro
+
+- Encadeamento = `revision` + `down_revision` (IDs internos)
+- **Nome do arquivo não é referência** — só o valor de `revision` importa
+- `down_revision` deve apontar para um `revision` que **existe** em `versions/`
+
+## Ao criar migration
+
+1. Confirmar head atual: `alembic heads` (deve ser **um** só)
+2. `down_revision` = `revision` real da migration anterior (não o nome do arquivo)
+3. **Nunca** alterar `revision` de migration já aplicada em algum ambiente
+4. DDL idempotente quando possível; downgrade coerente se o projeto exigir
+
+## Múltiplos heads
+
+Se `alembic heads` listar mais de uma revision → criar **merge** sem DDL:
+
+```python
+revision = "030_merge_exemplo"
+down_revision = ("head_a", "head_b")
+
+def upgrade() -> None:
+    pass
+
+def downgrade() -> None:
+    pass
+```
+
+Modelo: `029_merge_ticket_parent_and_outbox_heads.py`
+
+## Checagem antes de PR
+
+```bash
+docker compose run --rm --no-deps backend alembic heads
+docker compose run --rm --no-deps backend alembic history
+```
+
+Deploy roda `upgrade head` **em cada** Postgres de cliente — chain quebrada para todos.
+
+## Anti-padrões
+
+- ❌ Copiar `down_revision` do nome do arquivo vizinho
+- ❌ Editar migration antiga já em produção (criar nova em vez disso)
+- ❌ Deixar 2+ heads sem merge

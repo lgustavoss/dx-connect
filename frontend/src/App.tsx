@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { Layout } from './components/Layout'
@@ -57,10 +57,14 @@ import { ConfigAtendimentoLayout } from './pages/config/ConfigAtendimentoLayout'
 import { ConfigCadastrosLayout } from './pages/config/ConfigCadastrosLayout'
 import { ConfigSistemaLayout } from './pages/config/ConfigSistemaLayout'
 import { WhatsappLayout } from './pages/whatsapp/WhatsappLayout'
-import { WhatsappAtendendo } from './pages/whatsapp/WhatsappAtendendo'
 import { WhatsappHistorico } from './pages/whatsapp/WhatsappHistorico'
 import { WhatsappAvaliacoes } from './pages/whatsapp/WhatsappAvaliacoes'
 import { WhatsappConversa } from './pages/whatsapp/WhatsappConversa'
+import { ChatInternoThread } from './pages/chat-interno/ChatInternoThread'
+import { ChatInternoSetorCanal } from './pages/chat-interno/ChatInternoSetorCanal'
+import { ChatHubShell } from './pages/chat/ChatHubShell'
+import { ChatHubLayout } from './pages/chat/ChatHubLayout'
+import { ChatHubPlaceholder } from './pages/chat/ChatHubPlaceholder'
 import { AlterarSenha } from './pages/AlterarSenha'
 import { NotificacoesPreferencias } from './pages/NotificacoesPreferencias'
 import { Sobre } from './pages/Sobre'
@@ -100,6 +104,17 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 function RedirectKbArtigoEditar() {
   const { id } = useParams<{ id: string }>()
   return <Navigate to={`/ajuda/artigos/${id}/editar`} replace />
+}
+
+function RedirectWhatsappConversa() {
+  const { chatId } = useParams<{ chatId: string }>()
+  return <Navigate to={`/chat/c/${chatId}`} replace />
+}
+
+function RedirectLegacyChatInterno() {
+  const location = useLocation()
+  const path = location.pathname.replace(/^\/chat-interno/, '/chat/interno')
+  return <Navigate to={`${path}${location.search}${location.hash}`} replace />
 }
 
 function AppRoutes() {
@@ -183,10 +198,49 @@ function AppRoutes() {
         <Route path="tickets" element={<Tickets />} />
         <Route path="tickets/novo" element={<TicketNovo />} />
         <Route path="tickets/:id" element={<TicketDetalhe />} />
+        <Route path="chat" element={<ChatHubShell />}>
+          <Route element={<ChatHubLayout />}>
+            <Route index element={<Navigate to="atendendo" replace />} />
+            <Route
+              path="atendendo"
+              element={
+                <ChatHubPlaceholder
+                  titulo="Atendendo"
+                  subtitulo="Selecione um dos seus chats em atendimento na lista ao lado."
+                />
+              }
+            />
+            <Route
+              path="espera"
+              element={
+                <ChatHubPlaceholder
+                  titulo="Fila de espera"
+                  subtitulo="Assuma um chat da fila ou abra um já em atendimento."
+                />
+              }
+            />
+            <Route
+              path="interno"
+              element={
+                <ChatHubPlaceholder
+                  titulo="Chat interno"
+                  subtitulo="Converse com colegas ou acesse o canal do seu setor."
+                />
+              }
+            />
+            <Route path="interno/setor/:setorId" element={<ChatInternoSetorCanal />} />
+            <Route path="interno/:conversaId" element={<ChatInternoThread />} />
+            <Route path="c/:chatId" element={<WhatsappConversa />} />
+          </Route>
+        </Route>
+        <Route path="chat/historico" element={<Navigate to="/whatsapp/historico" replace />} />
         <Route path="whatsapp" element={<WhatsappLayout />}>
-          <Route index element={<Navigate to="atendendo" replace />} />
-          <Route path="atendendo" element={<WhatsappAtendendo />} />
+          <Route index element={<Navigate to="/chat/atendendo" replace />} />
+          <Route path="atendendo" element={<Navigate to="/chat/atendendo" replace />} />
           <Route path="historico" element={<WhatsappHistorico />} />
+          <Route path="fila" element={<Navigate to="/chat/espera" replace />} />
+          <Route path="meus" element={<Navigate to="/chat/atendendo" replace />} />
+          <Route path="c/:chatId" element={<RedirectWhatsappConversa />} />
           <Route
             path="avaliacoes"
             element={
@@ -195,10 +249,8 @@ function AppRoutes() {
               </AdminRoute>
             }
           />
-          <Route path="fila" element={<Navigate to="/whatsapp/atendendo" replace />} />
-          <Route path="meus" element={<Navigate to="/whatsapp/atendendo" replace />} />
-          <Route path="c/:chatId" element={<WhatsappConversa />} />
         </Route>
+        <Route path="chat-interno/*" element={<RedirectLegacyChatInterno />} />
         <Route
           path="redes/:id"
           element={

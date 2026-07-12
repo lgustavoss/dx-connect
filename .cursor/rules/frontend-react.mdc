@@ -1,0 +1,44 @@
+---
+description: Padrões React/Vite — API client, rotas, SSE e UI
+globs: frontend/**
+alwaysApply: false
+---
+
+# Frontend React
+
+## API e erros
+
+- Chamadas HTTP **somente** via `frontend/src/api/client.ts` — não criar `fetch` solto
+- Erros: `mensagemErroApi()` de `api/errorMessage.ts`
+- Prefixo: `API_VERSION_PREFIX = '/v1'`
+
+## Rotas e permissões
+
+- Cadastros/admin: `AdminRoute` em `App.tsx`
+- Menu admin: `Sidebar.tsx` (`role === 'admin'`)
+- Atendente acessando URL admin → `AcessoNegado` (não redirecionar silenciosamente)
+
+## Componentes
+
+- Reutilizar `components/ui/` antes de criar UI nova
+- Páginas em `pages/`; lógica reutilizável em `hooks/`
+- Tailwind 4 — seguir classes existentes nas telas vizinhas
+
+## Tempo real
+
+- Consumir via `EventStreamContext` / `useEventStream()` — não duplicar conexão SSE
+- Respeitar `useFallback` (polling após 3 falhas de reconexão)
+- Ver `docs/REALTIME_SSE.md`
+
+## Build
+
+```bash
+cd frontend && npm run build
+```
+
+ESLint local está relaxado para padrões React comuns — não reintroduzir regras agressivas.
+
+## Escopo de dados
+
+- **Não** filtrar setores no cliente por `setor_ids` do `/me` (homônimos são resolvidos no backend)
+- Listas de empresas/setores seguem o que a API retorna

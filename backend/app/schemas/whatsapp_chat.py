@@ -17,6 +17,7 @@ class WhatsappMensagemRead(BaseModel):
     quoted_corpo_preview: str | None = None
     atendente_id: int | None = None
     atendente_nome: str | None = None
+    status_entrega: str | None = None
     created_at: datetime | None = None
 
     model_config = {"from_attributes": True}

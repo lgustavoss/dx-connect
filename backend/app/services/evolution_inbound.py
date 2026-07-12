@@ -288,6 +288,49 @@ def iter_inbound_whatsapp_messages(webhook_body: dict[str, Any]) -> Iterator[dic
         }
 
 
+def _ack_de_update_dict(update: dict[str, Any]) -> int | str | None:
+    if not isinstance(update, dict):
+        return None
+    for key in ("status", "Status", "ack", "Ack"):
+        if key in update:
+            return update[key]
+    return None
+
+
+def iter_message_status_updates(webhook_body: dict[str, Any]) -> Iterator[dict[str, Any]]:
+    """
+  Por cada atualização de ACK em mensagem outbound, produz:
+  wa_message_id, status_entrega (pendente|enviada|entregue|lida|erro)
+    """
+    from app.services.mensagem_status import ack_evolution_para_status
+
+    event = webhook_body.get("event") or webhook_body.get("Event") or ""
+    ev = str(event).lower()
+    if "update" not in ev or "message" not in ev:
+        return
+
+    data = webhook_body.get("data") or webhook_body.get("Data")
+    for m in _iter_message_dicts(data):
+        key = m.get("key") or m.get("Key") or {}
+        if not isinstance(key, dict):
+            continue
+        if not (key.get("fromMe") or key.get("FromMe")):
+            continue
+        mid = key.get("id") or key.get("Id")
+        wa_message_id = str(mid).strip() if mid else None
+        if not wa_message_id:
+            continue
+
+        ack_raw = _ack_de_update_dict(m.get("update") or m.get("Update") or {})
+        if ack_raw is None:
+            ack_raw = m.get("status") or m.get("Status") or m.get("ack") or m.get("Ack")
+
+        status = ack_evolution_para_status(ack_raw)
+        if not status:
+            continue
+        yield {"wa_message_id": wa_message_id, "status_entrega": status}
+
+
 def iter_inbound_text_messages(webhook_body: dict[str, Any]) -> Iterator[dict[str, Any]]:
     """Compatibilidade: apenas mensagens de texto (mesmo formato que antes)."""
     for item in iter_inbound_whatsapp_messages(webhook_body):

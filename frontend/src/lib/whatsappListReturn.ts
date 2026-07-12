@@ -1,5 +1,5 @@
 export const WHATSAPP_LIST_PATHS = {
-  atendendo: '/whatsapp/atendendo',
+  atendendo: '/chat/atendendo',
   historico: '/whatsapp/historico',
   avaliacoes: '/whatsapp/avaliacoes',
 } as const
@@ -43,7 +43,7 @@ export function whatsappConversaState(returnPath: string): WhatsappListReturnSta
 
 export function whatsappConversaLink(chatId: number, returnPath: string, from?: WhatsappListOrigin) {
   return {
-    pathname: `/whatsapp/c/${chatId}`,
+    pathname: `/chat/c/${chatId}`,
     search: from ? `?from=${from}` : '',
     state: whatsappConversaState(returnPath),
   }
