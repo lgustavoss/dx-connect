@@ -715,6 +715,18 @@
           "text": "Persistência do manifest de releases após cada deploy em staging"
         }
       ]
+    },
+    {
+      "version": "26.07.002",
+      "version_display": "v26.07.002",
+      "date": "2026-07-11",
+      "status": "published",
+      "changes": [
+        {
+          "category": "interno",
+          "text": "Atualização do sistema"
+        }
+      ]
     }
   ]
 }
