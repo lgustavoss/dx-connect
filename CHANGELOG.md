@@ -5,7 +5,9 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
-### Correções
+## [26.07.001] - 2026-07-11
+
+### Melhorias
 
 - WhatsApp (#473): modal de encerramento deixava de carregar demandas — polling da conversa refazia o fetch e mantinha «A carregar demandas…» em loop; demanda passa a ser opcional quando o chat encerra por inatividade
 - WhatsApp (#472): banner «contato não identificado» persistia após vincular/cadastrar — polling/SSE com snapshot antigo sobrescrevia o vínculo; sidebar e header atualizam na hora
@@ -30,9 +32,6 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - WhatsApp (#433): banner e badge «Sem vínculo» para contactos não cadastrados; botão vincular visível em mobile
 - WhatsApp: mensagens de contacto e localização recebidas passam a aparecer como texto legível no chat
 - Som de ticket novo na fila sem responsável tocava múltiplas vezes por emissões SSE duplicadas e hook de alerta montado em mais de um componente (#406)
-
-### Melhorias
-
 - Chat interno (IC-F1): API backend para conversas diretas entre atendentes e canal de comunicados por setor — inbox, mensagens, leitura (`/v1/chat-interno`); conversas diretas privadas (admin não vê conversas de terceiros)
 - Chat interno (IC-F2): mensagens internas no sino de notificações e evento SSE `chat.interno.mensagem`; contador `chat_interno_nao_lidas_count` no badge do navbar
 - Chat interno (IC-F3): inbox unificada, conversas diretas e canais de setor no menu Chat interno; comunicados com visual distinto; link no detalhe do setor; layout com lista lateral fixa para alternar conversas e ver não lidas
@@ -75,12 +74,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - UI em Configurações → Atendimento → Roteamento com simulador de teste seco
 - Histórico completo de atualizações no painel Sobre (versões anteriores permanecem visíveis)
 - CHANGELOG obrigatório em PRs com mudança de produto (validação automática no CI)
-
-### Interno / Infra
-
 - Persistência do manifest de releases após cada deploy em staging
-
-<!-- Adicione bullets aqui a cada PR para main. Texto para o usuário final, não mensagem de commit. -->
 
 ## [26.06.008] - 2026-06-29
 
