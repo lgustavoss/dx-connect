@@ -413,7 +413,7 @@ export function DashboardChats() {
                       cx="50%"
                       cy="50%"
                       outerRadius={90}
-                      label={({ nome, total }) => `${nome}: ${total}`}
+                      label={({ name, value }) => `${name}: ${value}`}
                       {...barClickableProps}
                       onClick={(entry) => {
                         const p = entry as { tipo?: string; nome?: string }
