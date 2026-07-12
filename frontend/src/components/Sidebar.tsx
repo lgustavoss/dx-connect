@@ -222,7 +222,7 @@ const navStructure: NavItem[] = [
   { type: 'link', to: '/', label: 'Dashboard', icon: 'dashboard' },
   { type: 'link', to: '/tickets', label: 'Tickets', icon: 'tickets' },
   { type: 'link', to: '/chat/atendendo', label: 'Chat', icon: 'chat', activePrefix: '/chat/' },
-  { type: 'link', to: '/whatsapp/historico', label: 'Histórico', icon: 'chatHistory' },
+  { type: 'link', to: '/whatsapp/historico', label: 'Atendimentos', icon: 'chatHistory' },
   {
     type: 'group',
     id: 'clientes',

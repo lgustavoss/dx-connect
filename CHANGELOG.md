@@ -48,7 +48,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Chat interno (#506): editar legenda de mensagens com mídia (mesma janela de 5 minutos)
 - Chat interno (#507): grupos personalizados com até 50 atendentes; criador e admins promovidos gerenciam membros
 - WhatsApp (#470): áudio gravado na barra de composição é enviado automaticamente ao terminar a gravação (estilo WhatsApp Web)
-- Identidade visual (#434): painel lateral do login e assets legados DX/Duplexsoft removidos — marca DeskRudder em todo o painel
+- Identidade visual (#434): marca DeskRudder no login e em todo o painel
+- WhatsApp (#485): menu «Atendimentos» unifica chats abertos e encerrados com filtro por status
 - Base de conhecimento (#296): admin vincula manuais a natureza/motivo; até 5 sugestões na classificação de tickets e demandas WhatsApp
 - Base de conhecimento (#465/#466): portal público `/kb` com logo e nome da empresa (Configurações → Empresa); listagem, busca e leitura de artigos sem login
 - Base de conhecimento (#467): personalização do portal em Configurações → Sistema → Base de conhecimento (cores da navbar, textos, links); menu lateral de categorias/subcategorias expansível no /kb; navbar com título centralizado, logo sem fundo branco e menu hamburger
