@@ -38,7 +38,7 @@ export function WhatsappLayout() {
                 {isAvaliacoes
                   ? 'Chats com avaliação respondida pelos clientes'
                   : isHistorico
-                    ? 'Consulta de sessões finalizadas e chats em aberto'
+                    ? 'Todos os atendimentos — abertos, em espera e finalizados'
                     : 'Operação em tempo real'}
               </p>
             </div>
@@ -56,7 +56,7 @@ export function WhatsappLayout() {
             Atendimento
           </Link>
           <Link to="/whatsapp/historico" className={tabClass(isHistorico)}>
-            Histórico
+            Atendimentos
           </Link>
           {user?.role === 'admin' && (
             <Link to="/whatsapp/avaliacoes" className={tabClass(isAvaliacoes)}>

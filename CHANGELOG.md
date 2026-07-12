@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging`.
@@ -36,7 +36,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Chat interno (IC-F2): mensagens internas no sino de notificações e evento SSE `chat.interno.mensagem`; contador `chat_interno_nao_lidas_count` no badge do navbar
 - Chat interno (IC-F3): inbox unificada, conversas diretas e canais de setor no menu Chat interno; comunicados com visual distinto; link no detalhe do setor; layout com lista lateral fixa para alternar conversas e ver não lidas
 - Chat interno (#495): anexos e mídia — upload, download, pré-visualização no painel e colar imagem (Ctrl+V) no composer
-- Chat operacional: hub unificado em `/chat` com abas Atendendo, Espera e Interno; Histórico permanece em menu separado
+- Chat operacional: hub unificado em `/chat` com abas Atendendo, Aguardando e Interno; tela **Atendimentos** no menu para consulta de chats abertos e encerrados (#485)
+- WhatsApp (#484): aba **Aguardando** no hub; no mobile, atalho na conversa abre a fila para assumir chats sem voltar à lista
 - Chat interno e WhatsApp: indicadores de envio, entrega e leitura nas mensagens (✓ / ✓✓)
 - Notificações: pendência do chat interno abre direto em `/chat/interno/{id}`
 - Chat interno (#503): editar e apagar mensagens de texto — autor ou admin; exclusão lógica com «Mensagem apagada»
@@ -47,10 +48,12 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Chat interno (#506): editar legenda de mensagens com mídia (mesma janela de 5 minutos)
 - Chat interno (#507): grupos personalizados com até 50 atendentes; criador e admins promovidos gerenciam membros
 - WhatsApp (#470): áudio gravado na barra de composição é enviado automaticamente ao terminar a gravação (estilo WhatsApp Web)
-- Identidade visual (#434): painel lateral do login e assets legados DX/Duplexsoft removidos — marca DeskRudder em todo o painel
+- Identidade visual (#434): marca DeskRudder no login e em todo o painel
+- WhatsApp (#485): menu «Atendimentos» unifica chats abertos e encerrados com filtro por status
 - Base de conhecimento (#296): admin vincula manuais a natureza/motivo; até 5 sugestões na classificação de tickets e demandas WhatsApp
 - Base de conhecimento (#465/#466): portal público `/kb` com logo e nome da empresa (Configurações → Empresa); listagem, busca e leitura de artigos sem login
 - Base de conhecimento (#467): personalização do portal em Configurações → Sistema → Base de conhecimento (cores da navbar, textos, links); menu lateral de categorias/subcategorias expansível no /kb; navbar com título centralizado, logo sem fundo branco e menu hamburger
+- Base de conhecimento (#469): visitantes do portal `/kb` avaliam manuais como úteis ou não; admin vê totais no artigo e pode ligar/desligar a avaliação nas configurações do portal
 - Base de conhecimento (#293–#299): menu **Ajuda** para consultar manuais durante o atendimento; gestão de categorias e artigos (admin); consulta integrada em tickets e WhatsApp; manuais «só para a equipe»; imagens no texto; histórico de versões; reordenar categorias arrastando; manuais consultados ficam disponíveis offline neste computador
 - Auditoria (#290–#292): trail expandido com payload, IP, request-id e user-agent; registro de atribuição, transferência, fechamento e reabertura de tickets, ações em chats WhatsApp, envio de e-mail ao cliente, visualização de credencial PDV e exportação de relatórios
 - Auditoria: filtros por ação, período e atendente; exportação CSV; painel com detalhes do payload e request-id

@@ -58,6 +58,8 @@ import { WhatsappComposerBar } from './WhatsappComposerBar'
 import { WhatsappPreviaAnexo } from './WhatsappPreviaAnexo'
 import { useWhatsappVoltarLista } from '../../hooks/useWhatsappVoltarLista'
 import { whatsappConversaLink, resolveWhatsappListFallback, WHATSAPP_LIST_PATHS } from '../../lib/whatsappListReturn'
+import { useChatHub } from '../../contexts/ChatHubContext'
+import { ChatFilaAguardandoSheet } from '../../components/chat/ChatFilaAguardandoSheet'
 import { mergeTimelineChat, textoMarcoDemanda } from '../../lib/whatsappDemandaUtils'
 import { rotuloDownloadArquivo, visualTipoArquivo } from '../../lib/fileTypeIcon'
 import { CONTATO_CLIENTE } from '../../constants/contatoClienteLabels'
@@ -292,6 +294,8 @@ export function WhatsappConversa() {
   const [demandasReloadKey, setDemandasReloadKey] = useState(0)
   const [demandasTimeline, setDemandasTimeline] = useState<WhatsappChats.Demanda[]>([])
   const [modalEncerrar, setModalEncerrar] = useState(false)
+  const [filaAguardandoAberta, setFilaAguardandoAberta] = useState(false)
+  const { filaCount } = useChatHub()
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
@@ -957,6 +961,25 @@ useEffect(() => {
 
           <div className="flex items-center gap-2">
 
+            {modoHub && (
+              <Button
+                type="button"
+                variant="secondary"
+                className="relative h-8 shrink-0 px-2.5 text-xs font-semibold md:hidden"
+                onClick={() => setFilaAguardandoAberta(true)}
+                aria-label={
+                  filaCount > 0 ? `Aguardando, ${filaCount} na fila` : 'Aguardando'
+                }
+              >
+                Aguardando
+                {filaCount > 0 && (
+                  <span className="ml-1 inline-flex min-w-[1rem] justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-4 text-white">
+                    {filaCount > 99 ? '99+' : filaCount}
+                  </span>
+                )}
+              </Button>
+            )}
+
              {!encerrado && (
 
               <>
@@ -1434,6 +1457,13 @@ useEffect(() => {
             📥 Baixar Imagem
           </a>
         </div>
+      )}
+
+      {modoHub && (
+        <ChatFilaAguardandoSheet
+          open={filaAguardandoAberta}
+          onClose={() => setFilaAguardandoAberta(false)}
+        />
       )}
       
     </div>
