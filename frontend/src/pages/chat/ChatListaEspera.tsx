@@ -41,7 +41,16 @@ function TempoEspera({ data }: { data?: string | null }) {
   )
 }
 
-export function ChatListaEspera() {
+type Props = {
+  /** Drawer mobile: não aplica busca global do hub */
+  ignorarBusca?: boolean
+  /** Após assumir com sucesso (ex.: navegar e fechar drawer) */
+  onChatAssumido?: (chatId: number) => void
+  /** Ao abrir um chat da lista (link Ver) */
+  onVerChat?: () => void
+}
+
+export function ChatListaEspera({ ignorarBusca = false, onChatAssumido, onVerChat }: Props = {}) {
   const toast = useToast()
   const { busca, refreshContagens } = useChatHub()
   const { subscribe, useFallback } = useEventStream()
@@ -77,6 +86,7 @@ export function ChatListaEspera() {
       await load()
       void refreshContagens()
       void refetchPendenciasResumo()
+      onChatAssumido?.(id)
     } catch (err) {
       const msg =
         err instanceof ApiError && err.status === 400
@@ -86,7 +96,7 @@ export function ChatListaEspera() {
     }
   }
 
-  const lista = filtrarPorBusca(fila, busca)
+  const lista = ignorarBusca ? fila : filtrarPorBusca(fila, busca)
 
   if (loading) {
     return <p className="p-4 text-center text-sm text-slate-400 animate-pulse">Carregando fila…</p>
@@ -121,6 +131,7 @@ export function ChatListaEspera() {
               <div className="mt-2 flex gap-2">
                 <Link
                   to={chatWhatsappLink(c.id, 'espera')}
+                  onClick={() => onVerChat?.()}
                   className="flex-1 rounded-lg border border-slate-200 py-1.5 text-center text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   Ver

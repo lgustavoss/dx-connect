@@ -26,6 +26,7 @@ const FALLBACK_BRANDING: Kb.PublicBranding = {
   cor_fundo: '#F8FAFC',
   cor_link: '#0D9488',
   exibir_marca_deskrudder: true,
+  feedback_habilitado: true,
 }
 
 export function KbPublicProvider({ children }: { children: ReactNode }) {

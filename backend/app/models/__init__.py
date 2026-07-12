@@ -34,7 +34,7 @@ from app.models.business_calendar import BusinessCalendar
 from app.models.sla_policy import SlaPolicy
 from app.models.sla_alerta_emitido import SlaAlertaEmitido
 from app.models.empresa_pdv import EmpresaPdv, PdvRotulo, PdvTipoAcessoRemoto
-from app.models.kb import KbArticle, KbArticleMotivoLink, KbArticleVersion, KbCategory, KbPortalSettings
+from app.models.kb import KbArticle, KbArticleFeedbackVote, KbArticleMotivoLink, KbArticleVersion, KbCategory, KbPortalSettings
 from app.models.chat_interno import (
     ConversaInterna,
     ConversaInternaLeitura,
@@ -95,6 +95,7 @@ __all__ = [
     "EmpresaPdv",
     "KbCategory",
     "KbArticle",
+    "KbArticleFeedbackVote",
     "KbArticleMotivoLink",
     "KbArticleVersion",
     "KbPortalSettings",

@@ -63,10 +63,17 @@ class KbArticle(Base):
     autor_atendente_id = Column(Integer, ForeignKey("atendentes.id", ondelete="SET NULL"), nullable=True, index=True)
     published_at = Column(DateTime(timezone=True), nullable=True)
     archived_at = Column(DateTime(timezone=True), nullable=True)
+    feedback_util_count = Column(Integer, nullable=False, server_default="0", default=0)
+    feedback_nao_util_count = Column(Integer, nullable=False, server_default="0", default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     category = relationship("KbCategory", back_populates="articles")
+    feedback_votes = relationship(
+        "KbArticleFeedbackVote",
+        back_populates="article",
+        cascade="all, delete-orphan",
+    )
     autor = relationship("Atendente", foreign_keys=[autor_atendente_id])
     versions = relationship("KbArticleVersion", back_populates="article", order_by="KbArticleVersion.id.desc()")
     motivo_links = relationship(
@@ -129,5 +136,24 @@ class KbPortalSettings(Base):
     cor_fundo = Column(String(7), nullable=False, server_default="#F8FAFC", default="#F8FAFC")
     cor_link = Column(String(7), nullable=True)
     exibir_marca_deskrudder = Column(Boolean, nullable=False, server_default="true", default=True)
+    feedback_habilitado = Column(Boolean, nullable=False, server_default="true", default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
+class KbArticleFeedbackVote(Base):
+    """Voto de utilidade em artigo público — um por IP (hash) por artigo (#469)."""
+
+    __tablename__ = "kb_article_feedback_votes"
+    __table_args__ = (
+        UniqueConstraint("article_id", "ip_hash", name="uq_kb_article_feedback_votes_article_ip"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False, index=True)
+    article_id = Column(Integer, ForeignKey("kb_articles.id", ondelete="CASCADE"), nullable=False, index=True)
+    ip_hash = Column(String(64), nullable=False)
+    util = Column(Boolean, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    article = relationship("KbArticle", back_populates="feedback_votes")

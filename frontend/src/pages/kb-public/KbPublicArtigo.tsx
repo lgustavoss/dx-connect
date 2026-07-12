@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { kbPublic, type Kb } from '../../api/client'
 import { KbMarkdownPreview } from '../../components/kb/KbMarkdownPreview'
 import { useKbPublicBranding } from './KbPublicContext'
+import { KbPublicArtigoFeedback } from './KbPublicArtigoFeedback'
 
 export function KbPublicArtigo() {
   const branding = useKbPublicBranding()
@@ -85,6 +86,8 @@ export function KbPublicArtigo() {
       >
         <KbMarkdownPreview markdown={artigo.conteudo_markdown} />
       </div>
+
+      <KbPublicArtigoFeedback slug={artigo.slug} />
 
       <Link to="/kb" className="inline-block text-sm font-medium hover:underline" style={linkStyle}>
         ← Voltar para todos os manuais

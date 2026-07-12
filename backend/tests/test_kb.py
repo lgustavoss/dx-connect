@@ -397,3 +397,54 @@ def test_kb_sugestoes_por_motivo_e_natureza(client, auth_headers, db_session):
     links = db_session.query(KbArticleMotivoLink).filter(KbArticleMotivoLink.article_id == art_mot["id"]).all()
     assert len(links) == 1
     assert links[0].motivo_id == mot.id
+
+
+def test_kb_feedback_artigo_publico(client, auth_headers, db_session):
+    art = client.post(
+        "/v1/kb/articles",
+        headers=auth_headers["admin"],
+        json={"titulo": "Manual com feedback", "conteudo_markdown": "Conteúdo"},
+    ).json()
+    client.post(f"/v1/kb/articles/{art['id']}/publish", headers=auth_headers["admin"])
+    slug = art["slug"]
+
+    r = client.post(f"/v1/kb/public/articles/{slug}/feedback", json={"util": True})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["util"] is True
+    assert body["ja_avaliado"] is False
+    assert body["feedback_util_count"] == 1
+    assert body["feedback_nao_util_count"] == 0
+
+    r_dup = client.post(f"/v1/kb/public/articles/{slug}/feedback", json={"util": False})
+    assert r_dup.status_code == 200, r_dup.text
+    dup = r_dup.json()
+    assert dup["ja_avaliado"] is True
+    assert dup["util"] is True
+    assert dup["feedback_util_count"] == 1
+
+    r_admin = client.get(f"/v1/kb/articles/{art['id']}", headers=auth_headers["admin"])
+    assert r_admin.status_code == 200
+    admin = r_admin.json()
+    assert admin["feedback_util_count"] == 1
+    assert admin["feedback_nao_util_count"] == 0
+
+    client.put(
+        "/v1/kb/portal-settings",
+        headers=auth_headers["admin"],
+        json={"feedback_habilitado": False},
+    )
+    r_off = client.post(f"/v1/kb/public/articles/{slug}/feedback", json={"util": True})
+    assert r_off.status_code == 403
+
+    client.put(
+        "/v1/kb/portal-settings",
+        headers=auth_headers["admin"],
+        json={"feedback_habilitado": True},
+    )
+    r_brand = client.get("/v1/kb/public/branding")
+    assert r_brand.status_code == 200
+    assert r_brand.json()["feedback_habilitado"] is True
+
+    r404 = client.post("/v1/kb/public/articles/slug-inexistente/feedback", json={"util": True})
+    assert r404.status_code == 404

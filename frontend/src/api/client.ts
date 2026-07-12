@@ -180,6 +180,11 @@ export const kbPublic = {
     publicApi<Kb.ArticleBrief[]>(withParams('/kb/public/articles', params)),
   getArticleBySlug: (slug: string) =>
     publicApi<Kb.Article>(`/kb/public/articles/${encodeURIComponent(slug)}`),
+  submitArticleFeedback: (slug: string, data: { util: boolean }) =>
+    publicApi<Kb.ArticleFeedback>(`/kb/public/articles/${encodeURIComponent(slug)}/feedback`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   suggestions: (params: { motivo_id?: number; natureza_id?: number }) =>
     publicApi<Kb.ArticleBrief[]>(withParams('/kb/public/suggestions', params)),
 }
@@ -2571,6 +2576,14 @@ export namespace Kb {
     autor_atendente_id: number | null;
     archived_at: string | null;
     created_at: string;
+    feedback_util_count?: number;
+    feedback_nao_util_count?: number;
+  }
+  export interface ArticleFeedback {
+    util: boolean;
+    ja_avaliado: boolean;
+    feedback_util_count: number;
+    feedback_nao_util_count: number;
   }
   export interface ArticleCreate {
     titulo: string;
@@ -2622,6 +2635,7 @@ export namespace Kb {
     cor_fundo: string;
     cor_link: string;
     exibir_marca_deskrudder: boolean;
+    feedback_habilitado: boolean;
   }
   export interface PortalSettings {
     portal_titulo: string | null;
@@ -2633,6 +2647,7 @@ export namespace Kb {
     cor_fundo: string;
     cor_link: string | null;
     exibir_marca_deskrudder: boolean;
+    feedback_habilitado: boolean;
     public_url_preview: string | null;
   }
   export interface PortalSettingsUpdate {
@@ -2645,6 +2660,7 @@ export namespace Kb {
     cor_fundo?: string;
     cor_link?: string | null;
     exibir_marca_deskrudder?: boolean;
+    feedback_habilitado?: boolean;
   }
 }
 
