@@ -214,8 +214,8 @@ function AppRoutes() {
               path="espera"
               element={
                 <ChatHubPlaceholder
-                  titulo="Fila de espera"
-                  subtitulo="Assuma um chat da fila ou abra um já em atendimento."
+                  titulo="Aguardando"
+                  subtitulo="Chats na fila — assuma um novo atendimento."
                 />
               }
             />
