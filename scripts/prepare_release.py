@@ -42,6 +42,27 @@ CATEGORY_MAP = {
     "changed": "melhorias",
 }
 
+_LEGACY_BRAND_RE = re.compile(r"DX/Duplexsoft|Duplexsoft|DX Connect|DX-Connect", re.IGNORECASE)
+
+
+def sanitize_release_text(text: str) -> str:
+    """Remove referências à marca legada em textos voltados ao usuário (release notes)."""
+    result = text
+    for old, new in (
+        (
+            "painel lateral do login e assets legados DX/Duplexsoft removidos — marca DeskRudder em todo o painel",
+            "marca DeskRudder no login e em todo o painel",
+        ),
+        (
+            "assets legados DX/Duplexsoft removidos — marca DeskRudder em todo o painel",
+            "marca DeskRudder no login e em todo o painel",
+        ),
+    ):
+        result = result.replace(old, new)
+    if _LEGACY_BRAND_RE.search(result) and "Identidade visual (#434)" in result:
+        return "Identidade visual (#434): marca DeskRudder no login e em todo o painel"
+    return result
+
 
 def _today_sp() -> str:
     return datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%d")
@@ -78,7 +99,9 @@ def parse_changelog_unreleased(text: str) -> list[dict[str, str]]:
             continue
         bullet = re.match(r"^-\s+(.+)$", line.strip())
         if bullet:
-            changes.append({"category": current_cat, "text": bullet.group(1).strip()})
+            changes.append(
+                {"category": current_cat, "text": sanitize_release_text(bullet.group(1).strip())}
+            )
     return changes
 
 
@@ -120,7 +143,16 @@ def finalize_changelog_release(text: str, version: str, date: str) -> str:
 
 
 def build_payload(*, current_version: str | None, manifest: dict, upcoming: list[dict]) -> dict:
-    releases = manifest.get("releases") or []
+    releases = []
+    for rel in manifest.get("releases") or []:
+        entry = dict(rel)
+        entry["changes"] = [
+            {**ch, "text": sanitize_release_text(ch["text"])}
+            if isinstance(ch, dict) and isinstance(ch.get("text"), str)
+            else ch
+            for ch in entry.get("changes") or []
+        ]
+        releases.append(entry)
     current = None
     if current_version:
         for rel in releases:

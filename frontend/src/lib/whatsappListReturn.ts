@@ -76,7 +76,7 @@ export function buildHistoricoReturnPath(filters: {
   if (filters.atendenteId !== '') p.set('atendente_id', String(filters.atendenteId))
   if (filters.desde) p.set('desde', filters.desde)
   if (filters.ate) p.set('ate', filters.ate)
-  if (filters.estado && filters.estado !== 'finalizados') p.set('estado', filters.estado)
+  if (filters.estado && filters.estado !== 'todos') p.set('estado', filters.estado)
   if (filters.offset > 0) p.set('offset', String(filters.offset))
   const qs = p.toString()
   return qs ? `${WHATSAPP_LIST_PATHS.historico}?${qs}` : WHATSAPP_LIST_PATHS.historico

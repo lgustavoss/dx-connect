@@ -40,7 +40,7 @@ export function WhatsappHistorico() {
   const [ate, setAte] = useState(() => searchParams.get('ate') ?? '')
   const [estadoFiltro, setEstadoFiltro] = useState<FiltroEstadoHistorico>(() => {
     const v = searchParams.get('estado')
-    return (v as FiltroEstadoHistorico) || 'finalizados'
+    return (v as FiltroEstadoHistorico) || 'todos'
   })
 
   const historicoReturnPath = useMemo(
@@ -90,7 +90,7 @@ export function WhatsappHistorico() {
       setOffset(from)
       syncUrl(from)
     } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Falha ao carregar histórico.'))
+      toast.showError(mensagemFalhaParaToast(err, 'Falha ao carregar atendimentos.'))
     } finally {
       setLoading(false)
     }
@@ -132,8 +132,8 @@ export function WhatsappHistorico() {
       {/* Header com Filtros Rápidos */}
       <header className="flex flex-col gap-6 border-b pb-6 dark:border-slate-800 md:flex-row md:items-end md:justify-between">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Histórico de Mensagens</h1>
-          <p className="text-sm text-slate-500">Consulte sessões finalizadas, aguardando avaliação e chats em aberto (conforme filtro).</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Atendimentos</h1>
+          <p className="text-sm text-slate-500">Acompanhe todo o ciclo dos chats — em andamento, aguardando e finalizados.</p>
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between flex-1">
@@ -154,12 +154,10 @@ export function WhatsappHistorico() {
               value={estadoFiltro}
               onChange={(value) => setEstadoFiltro(value as FiltroEstadoHistorico)}
               options={[
-                { value: 'finalizados', label: 'Finalizados (padrão)' },
-                { value: 'encerrado', label: 'Encerrados' },
-                { value: 'aguardando_avaliacao', label: 'Aguardando avaliação' },
-                { value: 'em_atendimento', label: 'Em atendimento' },
-                { value: 'aguardando_atendente', label: 'Aguardando atendente' },
                 { value: 'todos', label: 'Todos' },
+                { value: 'em_atendimento', label: 'Em andamento' },
+                { value: 'aguardando_atendente', label: 'Aguardando' },
+                { value: 'finalizados', label: 'Finalizados' },
               ]}
             />
             <Input
