@@ -11,6 +11,7 @@ from app.models import Ticket, TicketMensagem, Atendente
 from app.models.ticket_read import TicketRead
 from app.models.whatsapp_chat_read import WhatsappChatRead
 from app.models.whatsapp_chat import WhatsappChat, WhatsappMensagem
+from app.models.portal_chat import PortalChat, PortalChatRead as PortalChatReadModel, PortalMensagem
 from app.schemas.notificacoes import NotificacaoResumo, NotificacaoItem, NotificacaoItensResponse
 from app.schemas.atendente_notificacao import NotificacaoPreferenciasRead, NotificacaoPreferenciasUpdate
 from app.core.auth import obter_atendente_atual
@@ -202,6 +203,58 @@ def _count_wpp_respostas_pendentes(db: Session, atendente: Atendente) -> int:
     return int(db.execute(stmt).scalar_one())
 
 
+def _portal_resposta_pendente_exprs(atendente_id: int):
+    seen_at = (
+        select(PortalChatReadModel.last_seen_at)
+        .where(
+            PortalChatReadModel.chat_id == PortalChat.id,
+            PortalChatReadModel.atendente_id == atendente_id,
+        )
+        .limit(1)
+        .scalar_subquery()
+    )
+    inbound_last = (
+        select(func.max(PortalMensagem.created_at))
+        .where(
+            PortalMensagem.chat_id == PortalChat.id,
+            PortalMensagem.direcao == "inbound",
+        )
+        .scalar_subquery()
+    )
+    eff_seen = func.coalesce(seen_at, PortalChat.atendimento_inicio_at, PortalChat.created_at)
+    return inbound_last, eff_seen
+
+
+def _count_portal_fila(db: Session, atendente: Atendente) -> int:
+    stmt = (
+        select(func.count())
+        .select_from(PortalChat)
+        .where(PortalChat.estado == "aguardando_atendente")
+    )
+    if atendente.role != "admin":
+        vis = ids_setores_visiveis_atendente(db, atendente)
+        stmt = stmt.where(or_(PortalChat.setor_id.is_(None), PortalChat.setor_id.in_(vis)))
+    return int(db.execute(stmt).scalar_one())
+
+
+def _count_portal_respostas_pendentes(db: Session, atendente: Atendente) -> int:
+    inbound_last, eff_seen = _portal_resposta_pendente_exprs(atendente.id)
+    stmt = (
+        select(func.count())
+        .select_from(PortalChat)
+        .where(
+            PortalChat.estado == "em_atendimento",
+            PortalChat.atendente_id == atendente.id,
+            inbound_last.isnot(None),
+            eff_seen < inbound_last,
+        )
+    )
+    if atendente.role != "admin":
+        vis = ids_setores_visiveis_atendente(db, atendente)
+        stmt = stmt.where(or_(PortalChat.setor_id.is_(None), PortalChat.setor_id.in_(vis)))
+    return int(db.execute(stmt).scalar_one())
+
+
 def _wpp_unread_count_for_chat(db: Session, chat_id: int, atendente_id: int) -> int:
     c = db.query(WhatsappChat.id, WhatsappChat.created_at, WhatsappChat.atendimento_inicio_at).filter(WhatsappChat.id == chat_id).first()
     if not c:
@@ -357,14 +410,18 @@ def build_notificacao_resumo(db: Session, atendente: Atendente) -> NotificacaoRe
     nao = _count_tickets_com_nao_lidas(db, atendente)
     wpp_fila = _count_wpp_fila(db, atendente)
     wpp_resp = _count_wpp_respostas_pendentes(db, atendente)
+    portal_fila = _count_portal_fila(db, atendente)
+    portal_resp = _count_portal_respostas_pendentes(db, atendente)
     chat_interno = chat_interno_svc.contar_total_nao_lidas_atendente(db, atendente)
     return NotificacaoResumo(
         sem_responsavel_count=sem,
         nao_lidas_count=nao,
         wpp_fila_count=wpp_fila,
         wpp_respostas_count=wpp_resp,
+        portal_fila_count=portal_fila,
+        portal_respostas_count=portal_resp,
         chat_interno_nao_lidas_count=chat_interno,
-        total_pendencias=sem + nao + wpp_fila + wpp_resp + chat_interno,
+        total_pendencias=sem + nao + wpp_fila + wpp_resp + portal_fila + portal_resp + chat_interno,
     )
 
 

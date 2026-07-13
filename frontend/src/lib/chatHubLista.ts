@@ -1,0 +1,94 @@
+import type { PortalChats, WhatsappChats } from '../api/client'
+import { chatPortalLink, chatWhatsappLink, type ChatHubModo } from './chatHubPaths'
+import { rotuloResponsavelChat } from './whatsappChatMeta'
+
+export type ChatHubCanal = 'whatsapp' | 'portal'
+
+export type ChatHubItem = {
+  canal: ChatHubCanal
+  id: number
+  protocolo: string
+  nome: string
+  subtitulo?: string | null
+  setor_nome?: string | null
+  created_at?: string | null
+  atendimento_inicio_at?: string | null
+  estado: string
+  atendente_id?: number | null
+  atendente_nome?: string | null
+  ultima_mensagem_preview?: string | null
+}
+
+export function mapWhatsappChat(c: WhatsappChats.Chat): ChatHubItem {
+  return {
+    canal: 'whatsapp',
+    id: c.id,
+    protocolo: c.protocolo,
+    nome: c.cliente_nome || 'Cliente',
+    subtitulo: c.wa_id,
+    setor_nome: c.setor_nome,
+    created_at: c.created_at,
+    atendimento_inicio_at: c.atendimento_inicio_at,
+    estado: c.estado,
+    atendente_id: c.atendente_id,
+    atendente_nome: c.atendente_nome,
+  }
+}
+
+export function mapPortalChat(c: PortalChats.Chat): ChatHubItem {
+  return {
+    canal: 'portal',
+    id: c.id,
+    protocolo: c.protocolo,
+    nome: c.visitante_nome,
+    subtitulo: c.visitante_email,
+    setor_nome: c.setor_nome,
+    created_at: c.created_at,
+    atendimento_inicio_at: c.atendimento_inicio_at,
+    estado: c.estado,
+    atendente_id: c.atendente_id,
+    atendente_nome: c.atendente_nome,
+    ultima_mensagem_preview: c.ultima_mensagem_preview,
+  }
+}
+
+export function chatHubItemLink(item: ChatHubItem, from?: ChatHubModo) {
+  if (item.canal === 'portal') return chatPortalLink(item.id)
+  return chatWhatsappLink(item.id, from === 'espera' ? 'espera' : 'atendendo')
+}
+
+export function chatHubItemKey(item: ChatHubItem) {
+  return `${item.canal}-${item.id}`
+}
+
+export function filtrarChatHubPorBusca(items: ChatHubItem[], busca: string): ChatHubItem[] {
+  const q = busca.trim().toLowerCase()
+  if (!q) return items
+  return items.filter((c) => {
+    const nome = c.nome.toLowerCase()
+    const sub = (c.subtitulo || '').toLowerCase()
+    const proto = c.protocolo.toLowerCase()
+    const canal = c.canal === 'portal' ? 'portal' : 'whatsapp'
+    return nome.includes(q) || sub.includes(q) || proto.includes(q) || canal.includes(q)
+  })
+}
+
+export function ordenarFila(items: ChatHubItem[]): ChatHubItem[] {
+  return [...items].sort((a, b) => {
+    const ta = a.created_at ? new Date(a.created_at).getTime() : 0
+    const tb = b.created_at ? new Date(b.created_at).getTime() : 0
+    return ta - tb
+  })
+}
+
+export function ordenarAtendendo(items: ChatHubItem[]): ChatHubItem[] {
+  return [...items].sort((a, b) => {
+    const ta = a.atendimento_inicio_at || a.created_at
+    const tb = b.atendimento_inicio_at || b.created_at
+    return (tb ? new Date(tb).getTime() : 0) - (ta ? new Date(ta).getTime() : 0)
+  })
+}
+
+export function rotuloResponsavelItem(item: ChatHubItem, usuarioId?: number | null): string {
+  return rotuloResponsavelChat(item, usuarioId)
+}

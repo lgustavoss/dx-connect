@@ -1,20 +1,25 @@
 from datetime import datetime, timezone
 from enum import Enum
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.audit import registrar_audit
 from app.core.auth import exigir_admin, obter_atendente_atual
-from app.core.kb_public_rate_limit import check_kb_public_feedback_rate_limit, check_kb_public_rate_limit
+from app.core.kb_public_rate_limit import (
+    check_kb_public_chat_rate_limit,
+    check_kb_public_feedback_rate_limit,
+    check_kb_public_rate_limit,
+)
 from app.core.tenant_context import TenantIdDep
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
 from app.database import get_db
 from app.models.atendente import Atendente
 from app.models.empresa_sistema import EmpresaSistema
 from app.models.kb import KbArticle, KbArticleMotivoLink, KbArticleStatus, KbArticleVersion, KbCategory, KbPortalSettings
+from app.models.portal_chat import PortalChat, PortalMensagem
 from app.models.ticket_classificacao import TicketMotivo, TicketNatureza
 from app.schemas.kb import (
     KbArticleBrief,
@@ -36,12 +41,33 @@ from app.schemas.kb import (
     KbPortalSettingsUpdate,
     KbPublicBrandingRead,
 )
+from app.schemas.portal_chat import (
+    PortalChatMensagemCreate,
+    PortalChatMensagemRead,
+    PortalChatPublicSessionRead,
+    PortalChatRead,
+    PortalChatSessionCreate,
+    PortalChatSessionRead,
+)
 from app.schemas.lista_paginada import ListaPaginada
 from app.services.kb import listar_artigos_sugeridos, registrar_versao_artigo, slug_disponivel
 from app.services.kb_feedback import registrar_feedback_artigo_publico
 from app.core.login_protection import client_ip
 from app.services.system_logo_storage import caminho_absoluto_logo
 from app.services.kb_media_storage import caminho_absoluto_imagem, gravar_imagem_bytes
+from app.config import settings
+from app.services.portal_chat import (
+    VISITOR_TOKEN_HEADER,
+    chat_por_token,
+    criar_ou_retomar_sessao_visitante,
+    listar_mensagens_chat,
+    portal_chat_habilitado,
+    registrar_mensagem_midia_visitante,
+    registrar_mensagem_visitante,
+    serializar_chat,
+)
+from app.services.realtime_emit import emit_portal_chat_fila_from_model, emit_portal_chat_mensagem_from_models
+from app.services.whatsapp_media_storage import caminho_absoluto_arquivo, gravar_bytes_em_disco
 
 router = APIRouter(prefix="/kb", tags=["kb"])
 
@@ -783,6 +809,9 @@ def _portal_settings_read(row: KbPortalSettings) -> KbPortalSettingsRead:
         cor_link=row.cor_link,
         exibir_marca_deskrudder=bool(row.exibir_marca_deskrudder),
         feedback_habilitado=bool(row.feedback_habilitado),
+        chat_habilitado=bool(row.chat_habilitado),
+        chat_setor_id=row.chat_setor_id,
+        chat_texto_boas_vindas=row.chat_texto_boas_vindas,
         public_url_preview="/kb",
     )
 
@@ -826,6 +855,7 @@ def _kb_public_branding(db: Session, tenant_id: int) -> KbPublicBrandingRead:
         cor_link=cor_link,
         exibir_marca_deskrudder=bool(settings.exibir_marca_deskrudder) if settings else True,
         feedback_habilitado=bool(settings.feedback_habilitado) if settings else True,
+        chat_habilitado=bool(settings.chat_habilitado) if settings else False,
     )
 
 
@@ -851,6 +881,14 @@ def atualizar_portal_settings(
         update["portal_titulo"] = update["portal_titulo"].strip() or None
     if "texto_boas_vindas" in update and update["texto_boas_vindas"] is not None:
         update["texto_boas_vindas"] = update["texto_boas_vindas"].strip() or None
+    if "chat_texto_boas_vindas" in update and update["chat_texto_boas_vindas"] is not None:
+        update["chat_texto_boas_vindas"] = update["chat_texto_boas_vindas"].strip() or None
+    if update.get("chat_habilitado") and not update.get("chat_setor_id") and row.chat_setor_id is None:
+        if "chat_setor_id" not in update or update.get("chat_setor_id") is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Selecione o setor de atendimento para habilitar o chat do portal.",
+            )
     for key, val in update.items():
         setattr(row, key, val)
     registrar_audit(db, "kb_portal_settings", row.id, "update", atendente.id, payload=update)
@@ -1021,3 +1059,238 @@ def enviar_feedback_artigo_publico(
         ip=client_ip(request),
     )
     return KbArticleFeedbackRead(**result)
+
+
+def _portal_mensagem_read(m: PortalMensagem) -> PortalChatMensagemRead:
+    midia_ok = bool(m.midia_nome_arquivo and str(m.midia_nome_arquivo).strip())
+    return PortalChatMensagemRead(
+        id=m.id,
+        chat_id=m.chat_id,
+        direcao=m.direcao,
+        corpo=m.corpo,
+        tipo_midia=m.tipo_midia or "texto",
+        mimetype=m.mimetype,
+        midia_disponivel=midia_ok,
+        atendente_id=m.atendente_id,
+        atendente_nome=m.atendente.nome if m.atendente else None,
+        evento_sistema=m.evento_sistema,
+        created_at=m.created_at,
+    )
+
+
+def _portal_public_session_read(db: Session, chat: PortalChat) -> PortalChatPublicSessionRead:
+    msgs = listar_mensagens_chat(db, chat.id, limit=100)
+    return PortalChatPublicSessionRead(
+        protocolo=chat.protocolo,
+        estado=chat.estado,
+        visitante_nome=chat.visitante_nome,
+        mensagens=[_portal_mensagem_read(m) for m in msgs],
+    )
+
+
+def _visitor_token_from_request(request: Request) -> str | None:
+    token = (request.headers.get(VISITOR_TOKEN_HEADER) or "").strip()
+    return token or None
+
+
+@router.post("/public/chat/session", response_model=PortalChatSessionRead)
+def iniciar_sessao_chat_publico(
+    body: PortalChatSessionCreate,
+    request: Request,
+    tenant_id: TenantIdDep,
+    db: Session = Depends(get_db),
+):
+    check_kb_public_rate_limit(request)
+    check_kb_public_chat_rate_limit(request)
+    token_existente = _visitor_token_from_request(request)
+    token, chat, retomado = criar_ou_retomar_sessao_visitante(
+        db,
+        tenant_id=tenant_id,
+        visitante_nome=body.visitante_nome,
+        visitante_email=body.visitante_email,
+        token_existente=token_existente,
+    )
+    db.commit()
+    db.refresh(chat)
+    if not retomado:
+        emit_portal_chat_fila_from_model(db, chat, estado_anterior=None)
+        ultima = (
+            db.query(PortalMensagem)
+            .options(joinedload(PortalMensagem.atendente))
+            .filter(PortalMensagem.chat_id == chat.id)
+            .order_by(PortalMensagem.id.desc())
+            .first()
+        )
+        if ultima and ultima.evento_sistema == "auto_espera":
+            emit_portal_chat_mensagem_from_models(db, chat, ultima)
+    msgs = listar_mensagens_chat(db, chat.id, limit=100)
+    chat_loaded = (
+        db.query(PortalChat)
+        .options(joinedload(PortalChat.setor), joinedload(PortalChat.atendente))
+        .filter(PortalChat.id == chat.id)
+        .first()
+    )
+    assert chat_loaded is not None
+    chat_data = serializar_chat(db, chat_loaded)
+    return PortalChatSessionRead(
+        visitor_token=token,
+        chat=PortalChatRead(**chat_data),
+        mensagens=[_portal_mensagem_read(m) for m in msgs],
+    )
+
+
+@router.get("/public/chat", response_model=PortalChatPublicSessionRead)
+def obter_sessao_chat_publico(
+    request: Request,
+    tenant_id: TenantIdDep,
+    db: Session = Depends(get_db),
+):
+    check_kb_public_rate_limit(request)
+    if not portal_chat_habilitado(db, tenant_id):
+        raise HTTPException(status_code=403, detail="Chat do portal desabilitado.")
+    token = _visitor_token_from_request(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Sessão do visitante não informada.")
+    chat = chat_por_token(db, tenant_id, token)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada.")
+    return _portal_public_session_read(db, chat)
+
+
+@router.get("/public/chat/mensagens", response_model=list[PortalChatMensagemRead])
+def listar_mensagens_chat_publico(
+    request: Request,
+    tenant_id: TenantIdDep,
+    since_id: int | None = Query(None, ge=1),
+    db: Session = Depends(get_db),
+):
+    check_kb_public_rate_limit(request)
+    if not portal_chat_habilitado(db, tenant_id):
+        raise HTTPException(status_code=403, detail="Chat do portal desabilitado.")
+    token = _visitor_token_from_request(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Sessão do visitante não informada.")
+    chat = chat_por_token(db, tenant_id, token)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada.")
+    rows = listar_mensagens_chat(db, chat.id, since_id=since_id, limit=100)
+    return [_portal_mensagem_read(m) for m in rows]
+
+
+@router.post("/public/chat/mensagens", response_model=PortalChatMensagemRead)
+def enviar_mensagem_chat_publico(
+    body: PortalChatMensagemCreate,
+    request: Request,
+    tenant_id: TenantIdDep,
+    db: Session = Depends(get_db),
+):
+    check_kb_public_rate_limit(request)
+    check_kb_public_chat_rate_limit(request)
+    token = _visitor_token_from_request(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Sessão do visitante não informada.")
+    chat = chat_por_token(db, tenant_id, token)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada.")
+    estado_antes = chat.estado
+    msg = registrar_mensagem_visitante(db, chat, body.corpo)
+    db.commit()
+    db.refresh(msg)
+    db.refresh(chat)
+    msg = (
+        db.query(PortalMensagem)
+        .options(joinedload(PortalMensagem.atendente))
+        .filter(PortalMensagem.id == msg.id)
+        .first()
+    )
+    assert msg is not None
+    emit_portal_chat_mensagem_from_models(db, chat, msg)
+    if estado_antes == "aguardando_avaliacao" and chat.estado == "encerrado":
+        ultima = (
+            db.query(PortalMensagem)
+            .options(joinedload(PortalMensagem.atendente))
+            .filter(PortalMensagem.chat_id == chat.id)
+            .order_by(PortalMensagem.id.desc())
+            .first()
+        )
+        if ultima and ultima.id != msg.id:
+            emit_portal_chat_mensagem_from_models(db, chat, ultima)
+    return _portal_mensagem_read(msg)
+
+
+@router.get("/public/chat/mensagens/{mensagem_id}/midia")
+def obter_midia_chat_publico(
+    mensagem_id: int,
+    request: Request,
+    tenant_id: TenantIdDep,
+    db: Session = Depends(get_db),
+):
+    check_kb_public_rate_limit(request)
+    token = _visitor_token_from_request(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Sessão do visitante não informada.")
+    chat = chat_por_token(db, tenant_id, token)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada.")
+    m = (
+        db.query(PortalMensagem)
+        .filter(PortalMensagem.chat_id == chat.id, PortalMensagem.id == mensagem_id)
+        .first()
+    )
+    if not m or not m.midia_nome_arquivo:
+        raise HTTPException(status_code=404, detail="Mídia não encontrada")
+    path = caminho_absoluto_arquivo(m.midia_nome_arquivo)
+    if not path:
+        raise HTTPException(status_code=404, detail="Ficheiro não encontrado em disco")
+    media_type = m.mimetype or "application/octet-stream"
+    return FileResponse(path, media_type=media_type, filename=path.name)
+
+
+@router.post("/public/chat/mensagens/midia", response_model=PortalChatMensagemRead, status_code=201)
+async def enviar_midia_chat_publico(
+    request: Request,
+    tenant_id: TenantIdDep,
+    db: Session = Depends(get_db),
+    file: UploadFile = File(...),
+    mediatipo: str = Form(..., description="imagem | video | audio | documento"),
+    caption: str = Form(""),
+):
+    check_kb_public_rate_limit(request)
+    check_kb_public_chat_rate_limit(request)
+    token = _visitor_token_from_request(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Sessão do visitante não informada.")
+    chat = chat_por_token(db, tenant_id, token)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada.")
+    data = await file.read()
+    if len(data) > settings.WHATSAPP_MEDIA_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="Ficheiro excede o tamanho máximo permitido.")
+    if len(data) == 0:
+        raise HTTPException(status_code=400, detail="Ficheiro vazio.")
+    mime = (file.content_type or "application/octet-stream").split(";")[0].strip()
+    tipo = (mediatipo or "documento").strip().lower()
+    if tipo in ("image", "imagem"):
+        tipo = "imagem"
+    nome_guardado = gravar_bytes_em_disco(data, mime)
+    if not nome_guardado:
+        raise HTTPException(status_code=500, detail="Não foi possível guardar o ficheiro em disco.")
+    msg = registrar_mensagem_midia_visitante(
+        db,
+        chat,
+        tipo_midia=tipo,
+        mimetype=mime,
+        midia_nome_arquivo=nome_guardado,
+        caption=caption,
+    )
+    db.commit()
+    db.refresh(msg)
+    msg = (
+        db.query(PortalMensagem)
+        .options(joinedload(PortalMensagem.atendente))
+        .filter(PortalMensagem.id == msg.id)
+        .first()
+    )
+    assert msg is not None
+    emit_portal_chat_mensagem_from_models(db, chat, msg)
+    return _portal_mensagem_read(msg)

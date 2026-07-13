@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { kb, type Kb } from '../api/client'
+import { kb, setores, type Kb, type Setores } from '../api/client'
+import { coletarTodasPaginas } from '../api/collectPages'
 import { ApiError } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { Card } from '../components/ui/Card'
@@ -20,6 +21,9 @@ type FormState = {
   cor_fundo: string
   cor_link: string
   feedback_habilitado: boolean
+  chat_habilitado: boolean
+  chat_setor_id: string
+  chat_texto_boas_vindas: string
 }
 
 function fromApi(data: Kb.PortalSettings): FormState {
@@ -33,6 +37,9 @@ function fromApi(data: Kb.PortalSettings): FormState {
     cor_fundo: data.cor_fundo,
     cor_link: data.cor_link ?? data.cor_primaria,
     feedback_habilitado: data.feedback_habilitado,
+    chat_habilitado: data.chat_habilitado,
+    chat_setor_id: data.chat_setor_id != null ? String(data.chat_setor_id) : '',
+    chat_texto_boas_vindas: data.chat_texto_boas_vindas ?? '',
   }
 }
 
@@ -67,6 +74,7 @@ export function KbPortalSettingsPage({ embedded = false }: { embedded?: boolean 
   const [saving, setSaving] = useState(false)
   const [forbidden, setForbidden] = useState(false)
   const [form, setForm] = useState<FormState | null>(null)
+  const [setoresOpts, setSetoresOpts] = useState<Setores.Setor[]>([])
 
   const publicUrl = useMemo(
     () => (typeof window !== 'undefined' ? `${window.location.origin}/kb` : '/kb'),
@@ -90,6 +98,9 @@ export function KbPortalSettingsPage({ embedded = false }: { embedded?: boolean 
 
   useEffect(() => {
     load()
+    void coletarTodasPaginas<Setores.Setor>((o, l) => setores.list({ incluir_inativos: false, offset: o, limit: l })).then(
+      setSetoresOpts,
+    )
   }, [load])
 
   async function salvar(e: React.FormEvent) {
@@ -107,6 +118,9 @@ export function KbPortalSettingsPage({ embedded = false }: { embedded?: boolean 
         cor_fundo: form.cor_fundo,
         cor_link: form.cor_link.trim() || null,
         feedback_habilitado: form.feedback_habilitado,
+        chat_habilitado: form.chat_habilitado,
+        chat_setor_id: form.chat_setor_id ? Number(form.chat_setor_id) : null,
+        chat_texto_boas_vindas: form.chat_texto_boas_vindas.trim() || null,
       })
       setForm(fromApi(data))
       toast.showSuccess('Configurações do portal salvas.')
@@ -185,7 +199,56 @@ export function KbPortalSettingsPage({ embedded = false }: { embedded?: boolean 
             </p>
           </Card>
 
+          <Card className="space-y-4 p-4 sm:p-5">
+            <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Chat ao vivo no portal</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              O visual do chat (barra superior, fundo, botões e balões) usa as cores da seção «Personalização de cores»
+              abaixo. A logo e o nome exibidos vêm de Configurações → Sistema → Empresa e do título do portal.
+            </p>
+            <CheckboxField
+              checked={form.chat_habilitado}
+              onChange={(e) => setForm({ ...form, chat_habilitado: e.target.checked })}
+            >
+              Habilitar chat ao vivo para visitantes do /kb
+            </CheckboxField>
+            <div>
+              <label htmlFor="kb-chat-setor" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Setor de atendimento
+              </label>
+              <select
+                id="kb-chat-setor"
+                value={form.chat_setor_id}
+                onChange={(e) => setForm({ ...form, chat_setor_id: e.target.value })}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-900"
+              >
+                <option value="">Selecione um setor</option>
+                {setoresOpts.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="kb-chat-boas-vindas" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Mensagem de boas-vindas no chat
+              </label>
+              <textarea
+                id="kb-chat-boas-vindas"
+                rows={2}
+                value={form.chat_texto_boas_vindas}
+                onChange={(e) => setForm({ ...form, chat_texto_boas_vindas: e.target.value })}
+                placeholder="Olá! Como podemos ajudar?"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-900"
+              />
+            </div>
+          </Card>
+
           <Card className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5">
+            <p className="col-span-full text-xs text-slate-500 dark:text-slate-400">
+              Estas cores afetam o portal /kb e o widget de chat ao vivo (barra superior = cor da navbar; destaque =
+              botões e suas mensagens).
+            </p>
             <ColorField label="Cor da barra superior (navbar)" value={form.cor_header} onChange={(v) => setForm({ ...form, cor_header: v })} />
             <ColorField label="Cor do texto da navbar" value={form.cor_texto_header} onChange={(v) => setForm({ ...form, cor_texto_header: v })} />
             <ColorField label="Cor de destaque (botões / seleção)" value={form.cor_primaria} onChange={(v) => setForm({ ...form, cor_primaria: v })} />

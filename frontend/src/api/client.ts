@@ -187,6 +187,45 @@ export const kbPublic = {
     }),
   suggestions: (params: { motivo_id?: number; natureza_id?: number }) =>
     publicApi<Kb.ArticleBrief[]>(withParams('/kb/public/suggestions', params)),
+  iniciarChat: (data: Kb.PortalChatSessionCreate, visitorToken?: string | null) =>
+    publicApi<Kb.PortalChatSession>('/kb/public/chat/session', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: visitorToken ? { 'X-Portal-Visitor-Token': visitorToken } : {},
+    }),
+  obterChat: (visitorToken: string) =>
+    publicApi<Kb.PortalChatPublicSession>('/kb/public/chat', {
+      headers: { 'X-Portal-Visitor-Token': visitorToken },
+    }),
+  listarMensagensChat: (visitorToken: string, sinceId?: number) =>
+    publicApi<Kb.PortalChatMensagem[]>(
+      withParams('/kb/public/chat/mensagens', sinceId ? { since_id: sinceId } : undefined),
+      { headers: { 'X-Portal-Visitor-Token': visitorToken } },
+    ),
+  enviarMensagemChat: (visitorToken: string, corpo: string) =>
+    publicApi<Kb.PortalChatMensagem>('/kb/public/chat/mensagens', {
+      method: 'POST',
+      body: JSON.stringify({ corpo }),
+      headers: { 'X-Portal-Visitor-Token': visitorToken },
+    }),
+  enviarMidiaChat: (visitorToken: string, file: File, caption?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    let mediatipo = 'documento';
+    const nome = file.name.toLowerCase();
+    if (file.type.startsWith('image/')) mediatipo = 'imagem';
+    else if (file.type.startsWith('audio/') || nome.endsWith('.webm') || nome.endsWith('.ogg')) mediatipo = 'audio';
+    else if (file.type.startsWith('video/')) mediatipo = 'video';
+    formData.append('mediatipo', mediatipo);
+    formData.append('caption', caption || '');
+    return publicApi<Kb.PortalChatMensagem>('/kb/public/chat/mensagens/midia', {
+      method: 'POST',
+      body: formData,
+      headers: { 'X-Portal-Visitor-Token': visitorToken },
+    });
+  },
+  midiaChatUrl: (mensagemId: number) =>
+    `${BASE}${API_VERSION_PREFIX}/kb/public/chat/mensagens/${mensagemId}/midia`,
 }
 
 export const publicCsat = {
@@ -950,6 +989,40 @@ export async function fetchWhatsAppMidiaBlob(chatId: number, mensagemId: number)
   return res.blob()
 }
 
+export async function fetchPortalMidiaBlob(chatId: number, mensagemId: number): Promise<Blob> {
+  const token = getAuthToken()
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(
+    `${BASE}${API_VERSION_PREFIX}/portal-chats/${chatId}/mensagens/${mensagemId}/midia`,
+    { headers },
+  )
+  if (res.status === 401) {
+    invalidateSessionAndRedirectToLogin()
+    throw new ApiError('Sessão expirada ou inválida.', 401, {})
+  }
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+  }
+  return res.blob()
+}
+
+export async function fetchPortalPublicMidiaBlob(
+  visitorToken: string,
+  mensagemId: number,
+): Promise<Blob> {
+  const res = await fetch(
+    `${BASE}${API_VERSION_PREFIX}/kb/public/chat/mensagens/${mensagemId}/midia`,
+    { headers: { 'X-Portal-Visitor-Token': visitorToken } },
+  )
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+  }
+  return res.blob()
+}
+
 export async function fetchChatInternoMidiaBlob(conversaId: number, mensagemId: number): Promise<Blob> {
   const token = getAuthToken()
   const headers: Record<string, string> = {}
@@ -986,6 +1059,54 @@ export async function fetchTicketAnexoBlob(ticketId: number, anexoId: number): P
     throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
   }
   return res.blob()
+}
+
+export const portalChats = {
+  fila: () => api<PortalChats.Chat[]>('/portal-chats/fila'),
+  meus: () => api<PortalChats.Chat[]>('/portal-chats/meus'),
+  get: (id: number) => api<PortalChats.Chat>(`/portal-chats/${id}`),
+  mensagens: (id: number, sinceId?: number) =>
+    api<PortalChats.Mensagem[]>(withParams(`/portal-chats/${id}/mensagens`, sinceId ? { since_id: sinceId } : undefined)),
+  demandas: (id: number) => api<PortalChats.Demanda[]>(`/portal-chats/${id}/demandas`),
+  registrarDemanda: (id: number, data: PortalChats.DemandaCreate) =>
+    api<PortalChats.Demanda>(`/portal-chats/${id}/demandas`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  excluirDemanda: (id: number, demandaId: number) =>
+    api<void>(`/portal-chats/${id}/demandas/${demandaId}`, { method: 'DELETE' }),
+  atualizarDemanda: (id: number, demandaId: number, data: PortalChats.DemandaUpdate) =>
+    api<PortalChats.Demanda>(`/portal-chats/${id}/demandas/${demandaId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  assumir: (id: number) => api<PortalChats.Chat>(`/portal-chats/${id}/assumir`, { method: 'POST' }),
+  encerrar: (id: number) => api<PortalChats.Chat>(`/portal-chats/${id}/encerrar`, { method: 'POST' }),
+  transferir: (id: number, data: { setor_id: number; atendente_id?: number | null }) =>
+    api<PortalChats.Chat>(`/portal-chats/${id}/transferir`, { method: 'POST', body: JSON.stringify(data) }),
+  enviar: (id: number, corpo: string) =>
+    api<PortalChats.Mensagem>(`/portal-chats/${id}/mensagens`, {
+      method: 'POST',
+      body: JSON.stringify({ corpo }),
+    }),
+  marcarVisto: (id: number) => api<void>(`/portal-chats/${id}/visto`, { method: 'POST' }),
+  setoresParaTransferencia: () => api<Array<{ id: number; nome: string }>>('/portal-chats/transfer/setores'),
+  enviarMidia: (id: number, file: File, caption?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    let mediatipo = 'documento';
+    const nome = file.name.toLowerCase();
+    if (file.type.startsWith('image/')) mediatipo = 'imagem';
+    else if (file.type.startsWith('audio/') || nome.endsWith('.webm') || nome.endsWith('.ogg') || nome.endsWith('.m4a')) {
+      mediatipo = 'audio';
+    } else if (file.type.startsWith('video/')) mediatipo = 'video';
+    formData.append('mediatipo', mediatipo);
+    formData.append('caption', caption || '');
+    return api<PortalChats.Mensagem>(`/portal-chats/${id}/mensagens/midia`, {
+      method: 'POST',
+      body: formData,
+    });
+  },
 }
 
 export const whatsappChats = {
@@ -1280,6 +1401,8 @@ export namespace Notificacoes {
     nao_lidas_count: number;
     wpp_fila_count: number;
     wpp_respostas_count: number;
+    portal_fila_count: number;
+    portal_respostas_count: number;
     chat_interno_nao_lidas_count: number;
     total_pendencias: number;
   }
@@ -2636,6 +2759,74 @@ export namespace Kb {
     cor_link: string;
     exibir_marca_deskrudder: boolean;
     feedback_habilitado: boolean;
+    chat_habilitado: boolean;
+  }
+  export interface PortalChatSessionCreate {
+    visitante_nome: string;
+    visitante_email?: string | null;
+  }
+  export interface PortalChatMensagem {
+    id: number;
+    chat_id: number;
+    direcao: string;
+    corpo: string;
+    tipo_midia?: string;
+    mimetype?: string | null;
+    midia_disponivel?: boolean;
+    atendente_id: number | null;
+    atendente_nome?: string | null;
+    evento_sistema?: string | null;
+    created_at: string;
+  }
+  export interface PortalChat {
+    id: number;
+    protocolo: string;
+    visitante_nome: string;
+    visitante_email: string | null;
+    estado: string;
+    setor_id: number | null;
+    setor_nome?: string | null;
+    atendente_id: number | null;
+    atendente_nome?: string | null;
+    created_at: string;
+    atendimento_inicio_at: string | null;
+    encerramento_at: string | null;
+    ultima_mensagem_preview?: string | null;
+  }
+  export interface PortalChatSession {
+    visitor_token: string;
+    chat: PortalChat;
+    mensagens: PortalChatMensagem[];
+  }
+  export interface PortalChatPublicSession {
+    protocolo: string;
+    estado: string;
+    visitante_nome: string;
+    mensagens: PortalChatMensagem[];
+  }
+  export interface PortalChatDemanda {
+    id: number;
+    chat_id: number;
+    natureza_id: number;
+    natureza_nome?: string | null;
+    motivo_id?: number | null;
+    motivo_nome?: string | null;
+    desfecho: string;
+    ticket_id?: number | null;
+    descricao_curta?: string | null;
+    atendente_id?: number | null;
+    atendente_nome?: string | null;
+    created_at?: string | null;
+  }
+  export interface PortalChatDemandaCreate {
+    natureza_id: number;
+    motivo_id?: number | null;
+    descricao_curta?: string | null;
+  }
+  export interface PortalChatDemandaUpdate {
+    natureza_id?: number | null;
+    motivo_id?: number | null;
+    descricao_curta?: string | null;
   }
   export interface PortalSettings {
     portal_titulo: string | null;
@@ -2648,6 +2839,9 @@ export namespace Kb {
     cor_link: string | null;
     exibir_marca_deskrudder: boolean;
     feedback_habilitado: boolean;
+    chat_habilitado: boolean;
+    chat_setor_id: number | null;
+    chat_texto_boas_vindas: string | null;
     public_url_preview: string | null;
   }
   export interface PortalSettingsUpdate {
@@ -2661,7 +2855,18 @@ export namespace Kb {
     cor_link?: string | null;
     exibir_marca_deskrudder?: boolean;
     feedback_habilitado?: boolean;
+    chat_habilitado?: boolean;
+    chat_setor_id?: number | null;
+    chat_texto_boas_vindas?: string | null;
   }
+}
+
+export namespace PortalChats {
+  export type Chat = Kb.PortalChat;
+  export type Mensagem = Kb.PortalChatMensagem;
+  export type Demanda = Kb.PortalChatDemanda;
+  export type DemandaCreate = Kb.PortalChatDemandaCreate;
+  export type DemandaUpdate = Kb.PortalChatDemandaUpdate;
 }
 
 export namespace Audit {
