@@ -14,6 +14,8 @@ def test_build_notificacao_resumo(client, seed_base, db_session):
         + r.nao_lidas_count
         + r.wpp_fila_count
         + r.wpp_respostas_count
+        + r.portal_fila_count
+        + r.portal_respostas_count
         + r.chat_interno_nao_lidas_count
     )
 

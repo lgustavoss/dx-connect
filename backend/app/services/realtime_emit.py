@@ -14,6 +14,7 @@ from app.models.atendente import Atendente
 from app.models.setor import Setor
 from app.models.ticket import Ticket
 from app.models.whatsapp_chat import WhatsappChat
+from app.models.portal_chat import PortalChat
 from app.services.realtime_hub import publish_to_atendente
 
 logger = logging.getLogger(__name__)
@@ -105,6 +106,22 @@ def ids_atendentes_acesso_chat(db: Session, chat: WhatsappChat) -> set[int]:
 
 
 def ids_atendentes_chat_fila(db: Session, chat: WhatsappChat) -> set[int]:
+    if chat.setor_id is None:
+        return {a.id for a in _ids_atendentes_ativos(db)}
+    return _ids_atendentes_por_setor(db, chat.setor_id)
+
+
+def _pode_ver_portal_chat(db: Session, atendente: Atendente, chat: PortalChat) -> bool:
+    from app.services.portal_chat import pode_ver_portal_chat
+
+    return pode_ver_portal_chat(db, atendente, chat)
+
+
+def ids_atendentes_acesso_portal_chat(db: Session, chat: PortalChat) -> set[int]:
+    return {a.id for a in _ids_atendentes_ativos(db) if _pode_ver_portal_chat(db, a, chat)}
+
+
+def ids_atendentes_portal_chat_fila(db: Session, chat: PortalChat) -> set[int]:
     if chat.setor_id is None:
         return {a.id for a in _ids_atendentes_ativos(db)}
     return _ids_atendentes_por_setor(db, chat.setor_id)
@@ -288,6 +305,75 @@ def emit_chat_fila_from_model(
         db,
         chat,
         chat_payload=_chat_read(db, chat).model_dump(mode="json"),
+        estado_anterior=estado_anterior,
+    )
+
+
+def emit_portal_chat_mensagem(
+    db: Session,
+    chat: PortalChat,
+    mensagem_payload: dict[str, Any],
+    *,
+    exclude_atendente_id: int | None = None,
+) -> None:
+    recipients = ids_atendentes_acesso_portal_chat(db, chat)
+    if exclude_atendente_id is not None:
+        recipients.discard(exclude_atendente_id)
+    payload = {"chat_id": chat.id, "mensagem": mensagem_payload}
+    _publish_to_atendentes(recipients, "portal.chat.mensagem", payload)
+    _emit_notificacao_after_counter_change(db)
+
+
+def emit_portal_chat_fila(
+    db: Session,
+    chat: PortalChat,
+    *,
+    chat_payload: dict[str, Any] | None = None,
+    estado_anterior: str | None = None,
+) -> None:
+    recipients = ids_atendentes_portal_chat_fila(db, chat)
+    if chat.atendente_id is not None:
+        recipients.add(chat.atendente_id)
+    payload: dict[str, Any] = {
+        "chat_id": chat.id,
+        "estado": chat.estado,
+        "estado_anterior": estado_anterior,
+    }
+    if chat_payload is not None:
+        payload["chat"] = chat_payload
+    _publish_to_atendentes(recipients, "portal.chat.fila", payload)
+    _emit_notificacao_after_counter_change(db)
+
+
+def emit_portal_chat_mensagem_from_models(
+    db: Session,
+    chat: PortalChat,
+    mensagem: Any,
+    *,
+    exclude_atendente_id: int | None = None,
+) -> None:
+    from app.services.portal_chat import serializar_mensagem
+
+    emit_portal_chat_mensagem(
+        db,
+        chat,
+        serializar_mensagem(mensagem),
+        exclude_atendente_id=exclude_atendente_id,
+    )
+
+
+def emit_portal_chat_fila_from_model(
+    db: Session,
+    chat: PortalChat,
+    *,
+    estado_anterior: str | None = None,
+) -> None:
+    from app.services.portal_chat import serializar_chat
+
+    emit_portal_chat_fila(
+        db,
+        chat,
+        chat_payload=serializar_chat(db, chat),
         estado_anterior=estado_anterior,
     )
 

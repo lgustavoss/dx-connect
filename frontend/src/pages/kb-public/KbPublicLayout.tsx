@@ -2,6 +2,7 @@ import { Link, Outlet } from 'react-router-dom'
 import { kbPublic } from '../../api/client'
 import { KbPublicProvider, useKbPublic, useKbPublicBranding } from './KbPublicContext'
 import { KbPublicSidebar } from './KbPublicSidebar'
+import { KbPublicChatWidget } from './KbPublicChatWidget'
 
 const menuIcon = (
   <svg className="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -76,6 +77,7 @@ function KbPublicShell() {
           DeskRudder
         </span>
       </footer>
+      <KbPublicChatWidget />
     </div>
   )
 }

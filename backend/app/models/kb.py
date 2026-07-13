@@ -137,6 +137,9 @@ class KbPortalSettings(Base):
     cor_link = Column(String(7), nullable=True)
     exibir_marca_deskrudder = Column(Boolean, nullable=False, server_default="true", default=True)
     feedback_habilitado = Column(Boolean, nullable=False, server_default="true", default=True)
+    chat_habilitado = Column(Boolean, nullable=False, server_default="false", default=False)
+    chat_setor_id = Column(Integer, ForeignKey("setores.id", ondelete="SET NULL"), nullable=True, index=True)
+    chat_texto_boas_vindas = Column(String(500), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

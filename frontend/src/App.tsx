@@ -65,6 +65,7 @@ import { ChatInternoSetorCanal } from './pages/chat-interno/ChatInternoSetorCana
 import { ChatHubShell } from './pages/chat/ChatHubShell'
 import { ChatHubLayout } from './pages/chat/ChatHubLayout'
 import { ChatHubPlaceholder } from './pages/chat/ChatHubPlaceholder'
+import { PortalConversa } from './pages/chat/PortalConversa'
 import { AlterarSenha } from './pages/AlterarSenha'
 import { NotificacoesPreferencias } from './pages/NotificacoesPreferencias'
 import { Sobre } from './pages/Sobre'
@@ -219,6 +220,8 @@ function AppRoutes() {
                 />
               }
             />
+            <Route path="portal" element={<Navigate to="/chat/espera" replace />} />
+            <Route path="portal/:chatId" element={<PortalConversa />} />
             <Route
               path="interno"
               element={

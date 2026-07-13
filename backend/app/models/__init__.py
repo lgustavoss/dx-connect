@@ -35,6 +35,8 @@ from app.models.sla_policy import SlaPolicy
 from app.models.sla_alerta_emitido import SlaAlertaEmitido
 from app.models.empresa_pdv import EmpresaPdv, PdvRotulo, PdvTipoAcessoRemoto
 from app.models.kb import KbArticle, KbArticleFeedbackVote, KbArticleMotivoLink, KbArticleVersion, KbCategory, KbPortalSettings
+from app.models.portal_chat import PortalChat, PortalChatRead as PortalChatReadRow, PortalMensagem
+from app.models.portal_chat_demanda import PortalChatDemanda
 from app.models.chat_interno import (
     ConversaInterna,
     ConversaInternaLeitura,
@@ -99,6 +101,9 @@ __all__ = [
     "KbArticleMotivoLink",
     "KbArticleVersion",
     "KbPortalSettings",
+    "PortalChat",
+    "PortalMensagem",
+    "PortalChatReadRow",
     "ConversaInterna",
     "ConversaInternaParticipante",
     "MensagemInterna",
