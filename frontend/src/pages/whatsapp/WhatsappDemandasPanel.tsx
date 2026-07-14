@@ -40,12 +40,10 @@ export function WhatsappDemandasPanel({ chatId, podeRegistrar, onDemandasChange 
     try {
       const rows = await whatsappChats.demandas(chatId)
       setDemandas(rows)
-      onDemandasChange?.(rows.length)
     } catch {
       setDemandas([])
-      onDemandasChange?.(0)
     }
-  }, [chatId, onDemandasChange])
+  }, [chatId])
 
   useEffect(() => {
     setLoading(true)
@@ -68,7 +66,11 @@ export function WhatsappDemandasPanel({ chatId, podeRegistrar, onDemandasChange 
       const payload = demandaFormPayload(form)
       if (editandoId != null) {
         const row = await whatsappChats.atualizarDemanda(chatId, editandoId, payload)
-        setDemandas((prev) => prev.map((d) => (d.id === editandoId ? row : d)))
+        setDemandas((prev) => {
+          const next = prev.map((d) => (d.id === editandoId ? row : d))
+          onDemandasChange?.(next.length)
+          return next
+        })
         toast.showSuccess('Demanda atualizada.')
       } else {
         const row = await whatsappChats.registrarDemanda(chatId, payload)
