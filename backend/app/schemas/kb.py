@@ -153,6 +153,7 @@ class KbPublicBrandingRead(BaseModel):
     cor_link: str = "#0D9488"
     exibir_marca_deskrudder: bool = True
     feedback_habilitado: bool = True
+    chat_habilitado: bool = False
 
 
 class KbPortalSettingsRead(BaseModel):
@@ -166,6 +167,9 @@ class KbPortalSettingsRead(BaseModel):
     cor_link: str | None = None
     exibir_marca_deskrudder: bool = True
     feedback_habilitado: bool = True
+    chat_habilitado: bool = False
+    chat_setor_id: int | None = None
+    chat_texto_boas_vindas: str | None = None
     public_url_preview: str | None = None
 
 
@@ -183,3 +187,6 @@ class KbPortalSettingsUpdate(BaseModel):
     cor_link: str | None = Field(None, pattern=_HEX_COLOR)
     exibir_marca_deskrudder: bool | None = None
     feedback_habilitado: bool | None = None
+    chat_habilitado: bool | None = None
+    chat_setor_id: int | None = Field(None, ge=1)
+    chat_texto_boas_vindas: str | None = Field(None, max_length=500)

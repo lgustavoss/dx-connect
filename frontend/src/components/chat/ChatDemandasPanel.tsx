@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import { whatsappChats, type WhatsappChats } from '../../api/client'
-import { Button } from '../../components/ui/Button'
-import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
-import { useToast } from '../../components/ui/Toast'
+import { Button } from '../ui/Button'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
+import { useToast } from '../ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { useAuth } from '../../contexts/AuthContext'
+import type { ChatDemanda, ChatDemandasApi } from '../../lib/chatDemandasApi'
 import { formatarHoraDemanda, rotuloDemanda } from '../../lib/whatsappDemandaUtils'
 import {
   DEMANDA_FORM_VAZIO,
@@ -12,10 +12,11 @@ import {
   demandaFormFromDemanda,
   demandaFormPayload,
   type DemandaFormValues,
-} from './WhatsappDemandaFormFields'
+} from '../../pages/whatsapp/WhatsappDemandaFormFields'
 
 type Props = {
   chatId: number
+  api: ChatDemandasApi
   podeRegistrar: boolean
   onDemandasChange?: (count: number) => void
 }
@@ -25,10 +26,10 @@ const DESFECHO_ROTULO: Record<string, string> = {
   escalado_ticket: 'Escalado para ticket',
 }
 
-export function WhatsappDemandasPanel({ chatId, podeRegistrar, onDemandasChange }: Props) {
+export function ChatDemandasPanel({ chatId, api, podeRegistrar, onDemandasChange }: Props) {
   const toast = useToast()
   const { user } = useAuth()
-  const [demandas, setDemandas] = useState<WhatsappChats.Demanda[]>([])
+  const [demandas, setDemandas] = useState<ChatDemanda[]>([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState<DemandaFormValues>(DEMANDA_FORM_VAZIO)
   const [salvando, setSalvando] = useState(false)
@@ -38,12 +39,14 @@ export function WhatsappDemandasPanel({ chatId, podeRegistrar, onDemandasChange 
 
   const carregar = useCallback(async () => {
     try {
-      const rows = await whatsappChats.demandas(chatId)
+      const rows = await api.listarDemandas(chatId)
       setDemandas(rows)
+      onDemandasChange?.(rows.length)
     } catch {
       setDemandas([])
+      onDemandasChange?.(0)
     }
-  }, [chatId])
+  }, [api, chatId, onDemandasChange])
 
   useEffect(() => {
     setLoading(true)
@@ -65,15 +68,11 @@ export function WhatsappDemandasPanel({ chatId, podeRegistrar, onDemandasChange 
     try {
       const payload = demandaFormPayload(form)
       if (editandoId != null) {
-        const row = await whatsappChats.atualizarDemanda(chatId, editandoId, payload)
-        setDemandas((prev) => {
-          const next = prev.map((d) => (d.id === editandoId ? row : d))
-          onDemandasChange?.(next.length)
-          return next
-        })
+        const row = await api.atualizarDemanda(chatId, editandoId, payload)
+        setDemandas((prev) => prev.map((d) => (d.id === editandoId ? row : d)))
         toast.showSuccess('Demanda atualizada.')
       } else {
-        const row = await whatsappChats.registrarDemanda(chatId, payload)
+        const row = await api.registrarDemanda(chatId, payload)
         setDemandas((prev) => {
           const next = [...prev, row]
           onDemandasChange?.(next.length)
@@ -92,7 +91,7 @@ export function WhatsappDemandasPanel({ chatId, podeRegistrar, onDemandasChange 
   async function confirmarExclusao() {
     if (excluirId == null) return
     try {
-      await whatsappChats.excluirDemanda(chatId, excluirId)
+      await api.excluirDemanda(chatId, excluirId)
       setDemandas((prev) => {
         const next = prev.filter((d) => d.id !== excluirId)
         onDemandasChange?.(next.length)
@@ -106,7 +105,7 @@ export function WhatsappDemandasPanel({ chatId, podeRegistrar, onDemandasChange 
     }
   }
 
-  function iniciarEdicao(d: WhatsappChats.Demanda) {
+  function iniciarEdicao(d: ChatDemanda) {
     setEditandoId(d.id)
     setForm(demandaFormFromDemanda(d))
     setExpandido(true)

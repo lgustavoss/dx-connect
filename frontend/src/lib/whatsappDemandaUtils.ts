@@ -1,7 +1,7 @@
-import type { WhatsappChats } from '../api/client'
+import type { ChatDemanda, ChatMensagemTimeline } from './chatDemandasApi'
 
 export type DemandaPosEncerramento = {
-  ultimaDemanda: WhatsappChats.Demanda
+  ultimaDemanda: ChatDemanda
   mensagensApos: number
   ultimaMensagemAt: string | null
 }
@@ -16,12 +16,12 @@ export function formatarHoraDemanda(iso: string | null | undefined): string {
   })
 }
 
-export function rotuloDemanda(d: WhatsappChats.Demanda): string {
+export function rotuloDemanda(d: ChatDemanda): string {
   return d.motivo_nome ? `${d.natureza_nome} · ${d.motivo_nome}` : d.natureza_nome ?? 'Demanda'
 }
 
 /** Mensagens visíveis na conversa (exclui eventos ocultos de avaliação). */
-export function mensagensVisiveisConversa(msgs: WhatsappChats.Mensagem[]): WhatsappChats.Mensagem[] {
+export function mensagensVisiveisConversa<TMsg extends ChatMensagemTimeline>(msgs: TMsg[]): TMsg[] {
   return msgs.filter(
     (m) =>
       m.evento_sistema !== 'auto_avaliacao_solicitacao' &&
@@ -30,7 +30,7 @@ export function mensagensVisiveisConversa(msgs: WhatsappChats.Mensagem[]): Whats
 }
 
 /** Aviso ou encerramento automático por inatividade do cliente — demanda no modal é opcional. */
-export function chatEncerramentoPorInatividade(msgs: WhatsappChats.Mensagem[]): boolean {
+export function chatEncerramentoPorInatividade(msgs: ChatMensagemTimeline[]): boolean {
   return msgs.some(
     (m) =>
       m.evento_sistema === 'auto_encerrado_inatividade' || m.evento_sistema === 'auto_inativ_aviso',
@@ -38,8 +38,8 @@ export function chatEncerramentoPorInatividade(msgs: WhatsappChats.Mensagem[]): 
 }
 
 export function analisarDemandaPosRegistro(
-  demandas: WhatsappChats.Demanda[],
-  msgs: WhatsappChats.Mensagem[],
+  demandas: ChatDemanda[],
+  msgs: ChatMensagemTimeline[],
 ): DemandaPosEncerramento | null {
   const editaveis = demandas.filter((d) => d.desfecho === 'resolvido_sessao')
   if (editaveis.length === 0) return null
@@ -67,14 +67,14 @@ export function analisarDemandaPosRegistro(
   }
 }
 
-export type TimelineItem =
-  | { kind: 'mensagem'; ts: number; mensagem: WhatsappChats.Mensagem }
-  | { kind: 'demanda'; ts: number; demanda: WhatsappChats.Demanda }
+export type TimelineItem<TMsg extends ChatMensagemTimeline = ChatMensagemTimeline> =
+  | { kind: 'mensagem'; ts: number; mensagem: TMsg }
+  | { kind: 'demanda'; ts: number; demanda: ChatDemanda }
 
 export function demandasComMarcoMensagem(
-  demandas: WhatsappChats.Demanda[],
-  msgs: WhatsappChats.Mensagem[],
-): WhatsappChats.Demanda[] {
+  demandas: ChatDemanda[],
+  msgs: ChatMensagemTimeline[],
+): ChatDemanda[] {
   const idsComMarco = new Set<number>()
   for (const m of msgs) {
     if (m.evento_sistema === 'demanda_registrada' || m.evento_sistema === 'demanda_escalada') {
@@ -90,11 +90,11 @@ export function textoMarcoDemanda(corpo: string | null | undefined): string {
   return corpo.replace(/^\[demanda_id=\d+\]\s*/, '')
 }
 
-export function mergeTimelineChat(
-  msgs: WhatsappChats.Mensagem[],
-  demandas: WhatsappChats.Demanda[],
-): TimelineItem[] {
-  const items: TimelineItem[] = []
+export function mergeTimelineChat<TMsg extends ChatMensagemTimeline>(
+  msgs: TMsg[],
+  demandas: ChatDemanda[],
+): TimelineItem<TMsg>[] {
+  const items: TimelineItem<TMsg>[] = []
   const demandasMerge = demandasComMarcoMensagem(demandas, msgs)
   for (const m of mensagensVisiveisConversa(msgs)) {
     items.push({

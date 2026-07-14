@@ -1,4 +1,4 @@
-import type { WhatsappChats } from '../../api/client'
+import type { ChatDemanda } from '../../lib/chatDemandasApi'
 import { rotuloDemanda, formatarHoraDemanda } from '../../lib/whatsappDemandaUtils'
 
 const DESFECHO: Record<string, string> = {
@@ -7,7 +7,7 @@ const DESFECHO: Record<string, string> = {
 }
 
 type Props = {
-  demanda: WhatsappChats.Demanda
+  demanda: ChatDemanda
 }
 
 export function WhatsappDemandaTimelineMarco({ demanda }: Props) {

@@ -7,6 +7,8 @@ const LS_KEY_LAST_SEM_RESP = 'dxconnect.notificacoes.last_sem_responsavel'
 const LS_KEY_LAST_NAO_LIDAS = 'dxconnect.notificacoes.last_nao_lidas'
 const LS_KEY_LAST_WPP_FILA = 'dxconnect.notificacoes.last_wpp_fila'
 const LS_KEY_LAST_WPP_RESP = 'dxconnect.notificacoes.last_wpp_resp'
+const LS_KEY_LAST_PORTAL_FILA = 'dxconnect.notificacoes.last_portal_fila'
+const LS_KEY_LAST_PORTAL_RESP = 'dxconnect.notificacoes.last_portal_resp'
 const POLL_MS = 10_000
 /** Fallback de segurança quando SSE está ativo (#266). */
 const POLL_SSE_SAFETY_MS = 60_000
@@ -38,6 +40,8 @@ let currentResumo: Notificacoes.Resumo = {
   nao_lidas_count: 0,
   wpp_fila_count: 0,
   wpp_respostas_count: 0,
+  portal_fila_count: 0,
+  portal_respostas_count: 0,
   chat_interno_nao_lidas_count: 0,
   total_pendencias: 0,
 }
@@ -45,6 +49,8 @@ let prevSemResponsavel: number | null = null
 let prevNaoLidas: number | null = null
 let prevWppResp: number | null = null
 let prevWppFila: number | null = null
+let prevPortalFila: number | null = null
+let prevPortalResp: number | null = null
 const listenersFila = new Set<ListenerFila>()
 const listenersResumo = new Set<ListenerResumo>()
 
@@ -227,6 +233,8 @@ function isStalePollResumo(r: Notificacoes.Resumo): boolean {
     r.nao_lidas_count < currentResumo.nao_lidas_count ||
     r.wpp_fila_count < currentResumo.wpp_fila_count ||
     r.wpp_respostas_count < currentResumo.wpp_respostas_count ||
+    r.portal_fila_count < currentResumo.portal_fila_count ||
+    r.portal_respostas_count < currentResumo.portal_respostas_count ||
     r.chat_interno_nao_lidas_count < currentResumo.chat_interno_nao_lidas_count
   )
 }
@@ -301,10 +309,14 @@ function persistPrevCounters(r: Notificacoes.Resumo) {
   prevNaoLidas = r.nao_lidas_count
   prevWppResp = r.wpp_respostas_count
   prevWppFila = r.wpp_fila_count
+  prevPortalFila = r.portal_fila_count
+  prevPortalResp = r.portal_respostas_count
   setStoredNumber(LS_KEY_LAST_SEM_RESP, r.sem_responsavel_count)
   setStoredNumber(LS_KEY_LAST_NAO_LIDAS, r.nao_lidas_count)
   setStoredNumber(LS_KEY_LAST_WPP_FILA, r.wpp_fila_count)
   setStoredNumber(LS_KEY_LAST_WPP_RESP, r.wpp_respostas_count)
+  setStoredNumber(LS_KEY_LAST_PORTAL_FILA, r.portal_fila_count)
+  setStoredNumber(LS_KEY_LAST_PORTAL_RESP, r.portal_respostas_count)
 }
 
 function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean, source: 'sse' | 'poll' | 'refetch' = 'poll') {
@@ -316,13 +328,15 @@ function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean, source: 'sse
   for (const l of listenersFila) l({ count: sem })
   for (const l of listenersResumo) l(r)
 
-  syncWppFilaBeep(r.wpp_fila_count)
+  syncWppFilaBeep(r.wpp_fila_count + r.portal_fila_count)
 
   if (atualizarSom) {
     const prevSem = prevSemResponsavel
     const prevNao = prevNaoLidas
     const prevWR = prevWppResp
     const prevWppFilaValue = prevWppFila
+    const prevPortalFilaValue = prevPortalFila
+    const prevPortalRespValue = prevPortalResp
 
     if (shouldEnqueueCounterAlert('ticket_fila', prevSem, r.sem_responsavel_count)) {
       lastSemIncreaseAt = Date.now()
@@ -334,11 +348,19 @@ function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean, source: 'sse
       enqueueAlert('wpp_fila_pulse')
     }
 
+    if (shouldEnqueueCounterAlert('wpp_fila_pulse', prevPortalFilaValue, r.portal_fila_count)) {
+      enqueueAlert('wpp_fila_pulse')
+    }
+
     if (shouldEnqueueCounterAlert('ticket_mensagem', prevNao, r.nao_lidas_count)) {
       enqueueAlert('ticket_mensagem')
     }
 
     if (shouldEnqueueCounterAlert('wpp_mensagem', prevWR, r.wpp_respostas_count)) {
+      enqueueAlert('wpp_mensagem')
+    }
+
+    if (shouldEnqueueCounterAlert('wpp_mensagem', prevPortalRespValue, r.portal_respostas_count)) {
       enqueueAlert('wpp_mensagem')
     }
   }
@@ -359,6 +381,8 @@ function isNotificacaoResumo(payload: Record<string, unknown>): boolean {
     typeof payload.nao_lidas_count === 'number' &&
     typeof payload.wpp_fila_count === 'number' &&
     typeof payload.wpp_respostas_count === 'number' &&
+    typeof payload.portal_fila_count === 'number' &&
+    typeof payload.portal_respostas_count === 'number' &&
     typeof payload.chat_interno_nao_lidas_count === 'number' &&
     typeof payload.total_pendencias === 'number'
   )

@@ -15,6 +15,16 @@ class NotificacaoResumo(BaseModel):
         ge=0,
         description="Quantidade de chats WhatsApp em atendimento do usuário com resposta do cliente pendente",
     )
+    portal_fila_count: int = Field(
+        ge=0,
+        default=0,
+        description="Quantidade de chats do portal aguardando atendimento",
+    )
+    portal_respostas_count: int = Field(
+        ge=0,
+        default=0,
+        description="Quantidade de chats do portal em atendimento com resposta do visitante pendente",
+    )
     chat_interno_nao_lidas_count: int = Field(
         ge=0,
         default=0,

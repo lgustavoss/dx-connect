@@ -60,8 +60,8 @@ export function ChatFilaAguardandoSheet({ open, onClose }: Props) {
         <div className="min-h-0 flex-1 overflow-y-auto">
           <ChatListaEspera
             ignorarBusca
-            onChatAssumido={(chatId) => {
-              navigate(`/chat/c/${chatId}`)
+            onChatAssumido={(canal, chatId) => {
+              navigate(canal === 'portal' ? `/chat/portal/${chatId}` : `/chat/c/${chatId}`)
               onClose()
             }}
             onVerChat={onClose}

@@ -30,8 +30,8 @@ def _periodo_mensal_ref(ref: datetime | None) -> str:
 
 def _proximo_valor(db: Session, kind: str, periodo: str) -> int:
     """Incrementa e devolve o próximo sequencial para (kind, periodo YYYYMM) na mesma transação."""
-    if kind not in ("T", "C"):
-        raise ValueError("kind deve ser T ou C")
+    if kind not in ("T", "C", "P"):
+        raise ValueError("kind deve ser T, C ou P")
     for _ in range(32):
         row = (
             db.query(ProtocolSequence)
@@ -66,3 +66,9 @@ def gerar_protocolo_chat(db: Session, *, ref: datetime | None = None) -> str:
     yyyymm = _periodo_mensal_ref(ref)
     n = _proximo_valor(db, "C", yyyymm)
     return f"#C{yyyymm}-{n:04d}"
+
+
+def gerar_protocolo_portal(db: Session, *, ref: datetime | None = None) -> str:
+    yyyymm = _periodo_mensal_ref(ref)
+    n = _proximo_valor(db, "P", yyyymm)
+    return f"#P{yyyymm}-{n:04d}"

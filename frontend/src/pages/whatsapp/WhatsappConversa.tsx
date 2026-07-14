@@ -326,6 +326,10 @@ export function WhatsappConversa() {
     }
   }, [modalEncerrar, chat, msgs, toast])
 
+  const refrescarTimelineDemandas = useCallback(() => {
+    setDemandasReloadKey((k) => k + 1)
+  }, [])
+
   useEffect(() => {
     if (!id) return
     whatsappChats
@@ -717,7 +721,7 @@ useEffect(() => {
   async function handleEncerrado(atualizado: WhatsappChats.Chat) {
     setChat(atualizado)
     await Promise.all([carregar(), carregarSidebar()])
-    setDemandasReloadKey((k) => k + 1)
+    refrescarTimelineDemandas()
     toast.showSuccess(
       atualizado.estado === 'aguardando_avaliacao'
         ? 'Atendimento encerrado. Aguardando avaliação do cliente.'
@@ -1052,10 +1056,10 @@ useEffect(() => {
 
         {chat && chat.estado === 'em_atendimento' && (
           <WhatsappDemandasPanel
-            key={`${chat.id}-${demandasReloadKey}`}
+            key={chat.id}
             chatId={chat.id}
             podeRegistrar={isResponsavel || isAdmin}
-            onDemandasChange={() => setDemandasReloadKey((k) => k + 1)}
+            onDemandasChange={refrescarTimelineDemandas}
           />
         )}
 
@@ -1402,7 +1406,7 @@ useEffect(() => {
           onClose={() => setModalTickets(false)}
           onSuccess={(atualizado) => {
             aplicarChatAtualizado(atualizado)
-            setDemandasReloadKey((k) => k + 1)
+            refrescarTimelineDemandas()
           }}
         />
       )}
@@ -1415,7 +1419,7 @@ useEffect(() => {
           msgs={msgs}
           onClose={() => setModalEncerrar(false)}
           onEncerrado={(atualizado) => void handleEncerrado(atualizado)}
-          onDemandasChange={() => setDemandasReloadKey((k) => k + 1)}
+          onDemandasChange={refrescarTimelineDemandas}
         />
       )}
 
