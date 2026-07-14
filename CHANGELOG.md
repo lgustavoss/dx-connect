@@ -5,12 +5,11 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
-### Correções
-
-- WhatsApp: conversa em atendimento disparava loop de pedidos a `/demandas` (e esgotava recursos do browser com `ERR_INSUFFICIENT_RESOURCES`) — o painel de demandas já não notifica o pai no carregamento inicial
+## [26.07.003] - 2026-07-14
 
 ### Melhorias
 
+- WhatsApp: conversa em atendimento disparava loop de pedidos a `/demandas` (e esgotava recursos do browser com `ERR_INSUFFICIENT_RESOURCES`) — o painel de demandas já não notifica o pai no carregamento inicial
 - Base de conhecimento (#468): chat ao vivo no portal `/kb` — widget para visitantes; atendimento na mesma inbox WhatsApp (abas Aguardando/Atendendo) com badge Portal; protocolo unificado `#C`; mensagens automáticas, avaliação ao encerrar, anexos e áudio como no WhatsApp; transferência, demandas e encerramento com revisão
 
 ## [26.07.001] - 2026-07-11

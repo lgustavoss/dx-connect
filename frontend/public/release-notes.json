@@ -1,15 +1,19 @@
 {
-  "current_version": "26.07.002",
-  "current_version_display": "v26.07.002",
+  "current_version": "26.07.003",
+  "current_version_display": "v26.07.003",
   "current": {
-    "version": "26.07.002",
-    "version_display": "v26.07.002",
-    "date": "2026-07-11",
+    "version": "26.07.003",
+    "version_display": "v26.07.003",
+    "date": "2026-07-14",
     "status": "published",
     "changes": [
       {
-        "category": "interno",
-        "text": "Atualização do sistema"
+        "category": "melhorias",
+        "text": "WhatsApp: conversa em atendimento disparava loop de pedidos a `/demandas` (e esgotava recursos do browser com `ERR_INSUFFICIENT_RESOURCES`) — o painel de demandas já não notifica o pai no carregamento inicial"
+      },
+      {
+        "category": "melhorias",
+        "text": "Base de conhecimento (#468): chat ao vivo no portal `/kb` — widget para visitantes; atendimento na mesma inbox WhatsApp (abas Aguardando/Atendendo) com badge Portal; protocolo unificado `#C`; mensagens automáticas, avaliação ao encerrar, anexos e áudio como no WhatsApp; transferência, demandas e encerramento com revisão"
       }
     ]
   },
@@ -739,6 +743,22 @@
         {
           "category": "interno",
           "text": "Atualização do sistema"
+        }
+      ]
+    },
+    {
+      "version": "26.07.003",
+      "version_display": "v26.07.003",
+      "date": "2026-07-14",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: conversa em atendimento disparava loop de pedidos a `/demandas` (e esgotava recursos do browser com `ERR_INSUFFICIENT_RESOURCES`) — o painel de demandas já não notifica o pai no carregamento inicial"
+        },
+        {
+          "category": "melhorias",
+          "text": "Base de conhecimento (#468): chat ao vivo no portal `/kb` — widget para visitantes; atendimento na mesma inbox WhatsApp (abas Aguardando/Atendendo) com badge Portal; protocolo unificado `#C`; mensagens automáticas, avaliação ao encerrar, anexos e áudio como no WhatsApp; transferência, demandas e encerramento com revisão"
         }
       ]
     }
