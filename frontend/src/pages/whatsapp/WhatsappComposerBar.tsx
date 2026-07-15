@@ -64,11 +64,15 @@ export function WhatsappComposerBar({
   }, [menuAberto])
 
   const temTexto = texto.trim().length > 0
-  const desabilitado = encerrado || !podeDigitar || enviando
+  /** Não incluir `enviando`: disabled no textarea remove o foco (#539). */
+  const campoBloqueado = encerrado || !podeDigitar
+  const acoesBloqueadas = campoBloqueado || enviando
 
   function enviar() {
+    if (acoesBloqueadas || !temTexto) return
     if (modoInterno && onEnviarInterno) onEnviarInterno()
     else onEnviar()
+    requestAnimationFrame(() => textareaRef.current?.focus())
   }
 
   function inserirEmojiNoCursor(emoji: string) {
@@ -105,7 +109,7 @@ export function WhatsappComposerBar({
         <div className="relative shrink-0" ref={menuRef}>
           <button
             type="button"
-            disabled={desabilitado || modoInterno || !podeEnviar}
+            disabled={acoesBloqueadas || modoInterno || !podeEnviar}
             aria-label="Anexos"
             title={modoInterno ? 'Anexos indisponíveis em modo interno' : 'Anexos'}
             onClick={() => setMenuAberto((o) => !o)}
@@ -135,7 +139,7 @@ export function WhatsappComposerBar({
         <div className="relative shrink-0" ref={emojiRef}>
           <button
             type="button"
-            disabled={desabilitado || modoInterno || !podeEnviar}
+            disabled={acoesBloqueadas || modoInterno || !podeEnviar}
             title="Emoji e figurinhas"
             aria-label="Emoji e figurinhas"
             aria-expanded={painelEmojiAberto}
@@ -146,7 +150,7 @@ export function WhatsappComposerBar({
           </button>
           {painelEmojiAberto && (
             <WhatsappEmojiFigurinhaPanel
-              disabled={desabilitado || modoInterno || !podeEnviar}
+              disabled={acoesBloqueadas || modoInterno || !podeEnviar}
               onInserirEmoji={inserirEmojiNoCursor}
               onEnviarFigurinha={onEnviarFigurinha}
               onFechar={() => setPainelEmojiAberto(false)}
@@ -172,12 +176,12 @@ export function WhatsappComposerBar({
                   : 'Somente comentários internos…'
           }
           rows={1}
-          disabled={desabilitado}
+          disabled={campoBloqueado}
           className="max-h-32 min-h-[40px] flex-1 resize-none border-none bg-transparent p-2 text-sm focus:ring-0 dark:text-slate-100 placeholder:text-slate-400"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
-              if (!desabilitado && temTexto) enviar()
+              if (!acoesBloqueadas && temTexto) enviar()
             }
           }}
         />
@@ -185,7 +189,7 @@ export function WhatsappComposerBar({
         {temTexto ? (
           <Button
             onClick={enviar}
-            disabled={desabilitado || !temTexto}
+            disabled={acoesBloqueadas || !temTexto}
             className="h-10 w-10 shrink-0 rounded-full bg-cyan-600 p-0 text-white shadow-lg shadow-cyan-600/30 hover:bg-cyan-700 disabled:opacity-50"
             aria-label="Enviar"
           >
@@ -194,7 +198,7 @@ export function WhatsappComposerBar({
         ) : (
           <button
             type="button"
-            disabled={desabilitado || modoInterno || !podeEnviar || gravando}
+            disabled={acoesBloqueadas || modoInterno || !podeEnviar || gravando}
             aria-label="Gravar áudio"
             title="Gravar áudio"
             onClick={() => setGravando(true)}

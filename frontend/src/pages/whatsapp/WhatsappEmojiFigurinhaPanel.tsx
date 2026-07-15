@@ -57,7 +57,6 @@ export function WhatsappEmojiFigurinhaPanel({ disabled, onInserirEmoji, onEnviar
               className="flex h-9 w-9 items-center justify-center rounded-lg text-xl hover:bg-slate-100 disabled:opacity-40 dark:hover:bg-slate-800"
               onClick={() => {
                 onInserirEmoji(e)
-                onFechar()
               }}
             >
               {e}

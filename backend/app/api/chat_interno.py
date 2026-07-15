@@ -87,6 +87,9 @@ def _to_mensagem_read(mensagem, *, conversa: ConversaInterna, atendente: Atenden
         pode_editar=perms.pode_editar,
         pode_apagar_para_todos=perms.pode_apagar_para_todos,
         pode_apagar_para_mim=perms.pode_apagar_para_mim,
+        reply_to_message_id=getattr(mensagem, "reply_to_message_id", None),
+        reply_preview=getattr(mensagem, "reply_preview", None),
+        reply_autor_nome=getattr(mensagem, "reply_autor_nome", None),
         created_at=mensagem.created_at,
         editada_em=mensagem.editada_em,
     )
@@ -279,7 +282,9 @@ def enviar_mensagem(
     if conversa.tenant_id != atendente.tenant_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversa não encontrada.")
     try:
-        mensagem = chat_svc.enviar_mensagem(db, conversa, atendente, body.corpo)
+        mensagem = chat_svc.enviar_mensagem(
+            db, conversa, atendente, body.corpo, reply_to_message_id=body.reply_to_message_id
+        )
         db.commit()
         db.refresh(mensagem)
         _emit_apos_mensagem(db, conversa, mensagem, atendente.id)
@@ -298,6 +303,7 @@ async def enviar_mensagem_midia(
     file: UploadFile = File(...),
     mediatipo: str = Form(..., description="imagem | video | audio | documento"),
     caption: str = Form(""),
+    reply_to_message_id: int | None = Form(None),
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
@@ -320,6 +326,7 @@ async def enviar_mensagem_midia(
             mimetype=mime,
             nome_original=file.filename,
             caption=caption,
+            reply_to_message_id=reply_to_message_id,
         )
         db.commit()
         db.refresh(mensagem)
@@ -385,7 +392,9 @@ def publicar_no_canal_setor(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este setor.")
     try:
         conversa = chat_svc.obter_ou_criar_canal_setor(db, atendente.tenant_id, setor_id)
-        mensagem = chat_svc.enviar_mensagem(db, conversa, atendente, body.corpo)
+        mensagem = chat_svc.enviar_mensagem(
+            db, conversa, atendente, body.corpo, reply_to_message_id=body.reply_to_message_id
+        )
         db.commit()
         db.refresh(mensagem)
         _emit_apos_mensagem(db, conversa, mensagem, atendente.id)
@@ -404,6 +413,7 @@ async def publicar_midia_no_canal_setor(
     file: UploadFile = File(...),
     mediatipo: str = Form(..., description="imagem | video | audio | documento"),
     caption: str = Form(""),
+    reply_to_message_id: int | None = Form(None),
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
@@ -426,6 +436,7 @@ async def publicar_midia_no_canal_setor(
             mimetype=mime,
             nome_original=file.filename,
             caption=caption,
+            reply_to_message_id=reply_to_message_id,
         )
         db.commit()
         db.refresh(mensagem)

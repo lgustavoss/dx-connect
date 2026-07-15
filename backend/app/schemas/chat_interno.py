@@ -28,6 +28,7 @@ class ParticipanteGrupoRead(BaseModel):
 
 class MensagemInternaCreate(BaseModel):
     corpo: str = Field(..., min_length=1, max_length=8000)
+    reply_to_message_id: int | None = Field(None, gt=0)
 
 
 class MensagemInternaUpdate(BaseModel):
@@ -62,6 +63,9 @@ class MensagemInternaRead(BaseModel):
     pode_editar: bool = False
     pode_apagar_para_todos: bool = False
     pode_apagar_para_mim: bool = False
+    reply_to_message_id: int | None = None
+    reply_preview: str | None = None
+    reply_autor_nome: str | None = None
     created_at: datetime
     editada_em: datetime | None = None
 

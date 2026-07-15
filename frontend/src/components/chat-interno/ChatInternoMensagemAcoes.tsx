@@ -15,6 +15,7 @@ type Props = {
   mensagem: ChatInterno.Mensagem
   onEditar: (novoCorpo: string) => Promise<void>
   onApagar: (escopo: 'todos' | 'para_mim') => Promise<void>
+  onResponder?: () => void
   alinhamento?: 'start' | 'end'
 }
 
@@ -22,6 +23,7 @@ export function ChatInternoMensagemAcoes({
   mensagem,
   onEditar,
   onApagar,
+  onResponder,
   alinhamento = 'end',
 }: Props) {
   const [editando, setEditando] = useState(false)
@@ -33,7 +35,8 @@ export function ChatInternoMensagemAcoes({
   const podeEditar = Boolean(mensagem.pode_editar)
   const podeApagarTodos = Boolean(mensagem.pode_apagar_para_todos)
   const podeApagarMim = Boolean(mensagem.pode_apagar_para_mim)
-  const temAcoes = podeEditar || podeApagarTodos || podeApagarMim
+  const podeResponder = Boolean(onResponder) && !mensagem.apagada
+  const temAcoes = podeEditar || podeApagarTodos || podeApagarMim || podeResponder
 
   const tipoMidia = mensagem.tipo_midia || 'texto'
   const editandoTexto = tipoMidia === 'texto'
@@ -90,6 +93,15 @@ export function ChatInternoMensagemAcoes({
           alinhamento === 'end' ? 'right-1' : 'left-1'
         }`}
       >
+        {podeResponder && (
+          <button
+            type="button"
+            onClick={() => onResponder?.()}
+            className="pointer-events-auto rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-sm ring-1 ring-slate-200 hover:bg-white dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-600"
+          >
+            Responder
+          </button>
+        )}
         {podeEditar && (
           <button
             type="button"

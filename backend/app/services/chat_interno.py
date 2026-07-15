@@ -551,6 +551,7 @@ def enviar_mensagem(
     conversa: ConversaInterna,
     atendente: Atendente,
     corpo: str,
+    reply_to_message_id: int | None = None,
 ) -> MensagemInterna:
     if not pode_acessar_conversa(db, atendente, conversa):
         raise ChatInternoErro("Sem permissão para esta conversa.")
@@ -558,11 +559,16 @@ def enviar_mensagem(
     if not texto:
         raise ChatInternoErro("Corpo da mensagem não pode ser vazio.")
 
+    reply_id, reply_preview, reply_autor = _resolver_citacao(db, conversa.id, reply_to_message_id)
+
     mensagem = MensagemInterna(
         conversa_id=conversa.id,
         atendente_id=atendente.id,
         corpo=texto,
         tipo_midia=TIPO_MENSAGEM_TEXTO,
+        reply_to_message_id=reply_id,
+        reply_preview=reply_preview,
+        reply_autor_nome=reply_autor,
     )
     db.add(mensagem)
     db.flush()
@@ -608,6 +614,21 @@ def preview_mensagem(mensagem: MensagemInterna) -> str:
     return preview_corpo(mensagem.corpo or "")
 
 
+def _resolver_citacao(
+    db: Session,
+    conversa_id: int,
+    reply_to_message_id: int | None,
+) -> tuple[int | None, str | None, str | None]:
+    if reply_to_message_id is None:
+        return None, None, None
+    citada = obter_mensagem_por_id(db, conversa_id, int(reply_to_message_id))
+    if not citada:
+        raise ChatInternoErro("Mensagem citada não encontrada nesta conversa.")
+    autor = citada.atendente.nome if citada.atendente else "Atendente"
+    preview = (preview_mensagem(citada) or "")[:500] or None
+    return citada.id, preview, autor
+
+
 def enviar_mensagem_midia(
     db: Session,
     conversa: ConversaInterna,
@@ -618,6 +639,7 @@ def enviar_mensagem_midia(
     mimetype: str | None,
     nome_original: str | None,
     caption: str = "",
+    reply_to_message_id: int | None = None,
 ) -> MensagemInterna:
     if not pode_acessar_conversa(db, atendente, conversa):
         raise ChatInternoErro("Sem permissão para esta conversa.")
@@ -637,6 +659,7 @@ def enviar_mensagem_midia(
 
     cap = (caption or "").strip()
     corpo_eff = cap if cap else rotulo_midia(tipo_db)
+    reply_id, reply_preview, reply_autor = _resolver_citacao(db, conversa.id, reply_to_message_id)
 
     mensagem = MensagemInterna(
         conversa_id=conversa.id,
@@ -647,6 +670,9 @@ def enviar_mensagem_midia(
         nome_arquivo=nome_sanitizado,
         storage_key=storage_key,
         tamanho_bytes=len(data),
+        reply_to_message_id=reply_id,
+        reply_preview=reply_preview,
+        reply_autor_nome=reply_autor,
     )
     db.add(mensagem)
     db.flush()
