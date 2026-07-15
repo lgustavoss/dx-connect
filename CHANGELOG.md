@@ -5,6 +5,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+## [26.07.005] - 2026-07-15
+
 ### Melhorias
 
 - WhatsApp (#534): identificar/cadastrar contato do cliente também em atendimento **encerrado** (Histórico); o número do WhatsApp passa a ser gravado no telefone do cadastro para retomar pela aba Contatos
