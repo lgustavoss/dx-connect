@@ -984,49 +984,48 @@ useEffect(() => {
               </Button>
             )}
 
-             {!encerrado && (
+            <Button
+              variant="ghost"
+              className="inline-flex text-xs h-8"
+              onClick={() => setModalVincFuncionario(true)}
+            >
+              <span className="sm:hidden">{CONTATO_CLIENTE.vincularCurto}</span>
+              <span className="hidden sm:inline">{CONTATO_CLIENTE.vincularChat}</span>
+            </Button>
 
+            {!encerrado && (
               <>
+                {podeTransferir && (
+                  <Button
+                    variant="primary"
+                    className="hidden sm:inline-flex text-xs h-8"
+                    onClick={() => setModalTransferir(true)}
+                  >
+                    Transferir
+                  </Button>
+                )}
 
-              {podeTransferir && (
-              <Button
-  variant="primary"
-  className="hidden sm:inline-flex text-xs h-8"
-  onClick={() => setModalTransferir(true)}
->
-  Transferir
-</Button>
-              )}
-              <Button
-                variant="ghost"
-                className="inline-flex text-xs h-8"
-                onClick={() => setModalVincFuncionario(true)}
-              >
-                <span className="sm:hidden">{CONTATO_CLIENTE.vincularCurto}</span>
-                <span className="hidden sm:inline">{CONTATO_CLIENTE.vincularChat}</span>
-              </Button>
-
-                <Button variant="ghost" className="hidden sm:inline-flex text-xs h-8" onClick={() => setModalTickets(true)}>
+                <Button
+                  variant="ghost"
+                  className="hidden sm:inline-flex text-xs h-8"
+                  onClick={() => setModalTickets(true)}
+                >
                   Tickets{ticketsVinculados.length > 0 ? ` (${ticketsVinculados.length})` : ''}
                 </Button>
 
                 {podeEncerrar && (
-
                   <Button variant="danger" className="h-8 px-3 text-xs" onClick={() => setModalEncerrar(true)}>
                     Encerrar
                   </Button>
-
                 )}
-
               </>
-
             )}
 
           </div>
 
         </header>
 
-        {!encerrado && chat && !chat.funcionario_rede_id && (
+        {chat && !chat.funcionario_rede_id && (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950 dark:border-violet-900/40 dark:bg-violet-950/30 dark:text-violet-100">
             <p>{CONTATO_CLIENTE.bannerNaoVinculado}</p>
             <Button variant="primary" className="h-8 shrink-0 text-xs" onClick={() => setModalVincFuncionario(true)}>
