@@ -1,12 +1,14 @@
-Sons de alerta do DX Connect (pasta public/sons).
+Sons de alerta do DeskRudder (pasta public/sons).
 
 Cada evento usa um arquivo distinto para não se misturar na reprodução:
 
-  alerta.mp3           — ticket novo na fila (sem responsável)
-  ticket-mensagem.mp3  — nova mensagem em ticket já atribuído
-                         (fallback: notification.mp3, se existir)
-  wpp-fila.mp3         — cliente aguardando na fila WhatsApp (loop enquanto houver fila)
-  wpp-mensagem.mp3     — nova mensagem do cliente em chat WhatsApp em atendimento
+  notification.mp3   — ticket novo na fila (sem responsável)
+  ticket-mensagem.mp3 — nova mensagem em ticket já atribuído
+                        (fallback: notification.mp3, se faltar o ficheiro)
+  alerta.mp3         — cliente aguardando na fila WhatsApp / Portal
+                        (loop enquanto houver fila — «novo chat»)
+  wpp-mensagem.mp3   — nova mensagem do cliente em chat em atendimento
+                        (fallback: notification.mp3)
 
 Se um arquivo não existir ou o navegador bloquear autoplay, o sistema usa um beep
 sintetizado diferente por tipo de alerta (frequências distintas).
