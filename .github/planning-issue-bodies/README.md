@@ -6,7 +6,9 @@
 |------|------|
 | Issues abertas (texto, aceite, comentários) | **GitHub** — fonte da verdade |
 | Índice de épicos e números | [`ISSUES_CRIADAS.md`](ISSUES_CRIADAS.md) |
-| Análises / spikes de viabilidade | [`analises/`](analises/) |
+| Análises / spikes de viabilidade | [`analises/`](analises/) — inclui SaaS vs produto |
+
+Épico SaaS DeskRudder (licenças/instâncias): [#519](https://github.com/lgustavoss/dx-connect/issues/519).
 
 Não mantemos cópias locais do **corpo** de issues já publicadas no GitHub. Isso evita divergência entre repositório e o que o time revisa na issue.
 
