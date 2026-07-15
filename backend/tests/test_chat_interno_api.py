@@ -146,3 +146,26 @@ def test_admin_publica_no_canal_sem_vinculo(client, seed_base, auth_headers):
         headers=auth_headers["admin"],
     )
     assert r.status_code == 201
+
+
+def test_responder_mensagem_interna(client, seed_base, auth_headers):
+    """#539 — reply_to_message_id + preview na leitura."""
+    conv = _criar_direta(client, auth_headers["a1"], seed_base["a2"].id)
+    original = _enviar_mensagem(client, auth_headers["a1"], conv["id"], "Mensagem original")
+    r = client.post(
+        f"/v1/chat-interno/conversas/{conv['id']}/mensagens",
+        json={"corpo": "Resposta citada", "reply_to_message_id": original["id"]},
+        headers=auth_headers["a2"],
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["reply_to_message_id"] == original["id"]
+    assert body["reply_preview"] == "Mensagem original"
+    assert body["reply_autor_nome"]
+
+    r404 = client.post(
+        f"/v1/chat-interno/conversas/{conv['id']}/mensagens",
+        json={"corpo": "x", "reply_to_message_id": 999999},
+        headers=auth_headers["a1"],
+    )
+    assert r404.status_code == 400

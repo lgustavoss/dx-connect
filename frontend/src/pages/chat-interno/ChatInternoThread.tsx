@@ -47,6 +47,7 @@ export function ChatInternoThread() {
   const [texto, setTexto] = useState('')
   const [loading, setLoading] = useState(true)
   const [enviando, setEnviando] = useState(false)
+  const [msgRespondida, setMsgRespondida] = useState<ChatInterno.Mensagem | null>(null)
   const [forbidden, setForbidden] = useState(false)
   const [erro, setErro] = useState(false)
   const [temMaisAntigas, setTemMaisAntigas] = useState(false)
@@ -326,8 +327,9 @@ export function ChatInternoThread() {
     if (enviando) return
     setEnviando(true)
     try {
-      const msg = await chatInterno.enviarMidia(conversaId, file, caption)
+      const msg = await chatInterno.enviarMidia(conversaId, file, caption, msgRespondida?.id ?? null)
       setTexto('')
+      setMsgRespondida(null)
       setMensagens((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]))
       stickToBottomRef.current = true
       requestAnimationFrame(() => {
@@ -349,8 +351,9 @@ export function ChatInternoThread() {
     if (!corpo || enviando) return
     setEnviando(true)
     try {
-      const msg = await chatInterno.enviar(conversaId, corpo)
+      const msg = await chatInterno.enviar(conversaId, corpo, msgRespondida?.id ?? null)
       setTexto('')
+      setMsgRespondida(null)
       setMensagens((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]))
       stickToBottomRef.current = true
       requestAnimationFrame(() => {
@@ -500,11 +503,25 @@ export function ChatInternoThread() {
                       <span className="font-normal normal-case text-slate-400">· editada</span>
                     )}
                   </div>
+                  {m.reply_to_message_id && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const el = document.querySelector(`[data-chat-msg-id="${m.reply_to_message_id}"]`)
+                        el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                      }}
+                      className="mb-2 w-full rounded-md border-l-2 border-amber-500 bg-amber-100/80 px-2 py-1 text-left text-[11px] text-amber-950 dark:bg-amber-950/50 dark:text-amber-100"
+                    >
+                      <p className="font-semibold truncate">{m.reply_autor_nome || 'Mensagem'}</p>
+                      <p className="truncate opacity-90">{m.reply_preview || '…'}</p>
+                    </button>
+                  )}
                   <ChatInternoConteudoMensagem conversaId={conversaId} mensagem={m} />
                   <ChatInternoMensagemAcoes
                     mensagem={m}
                     onEditar={(corpo) => editarMensagem(m.id, corpo)}
                     onApagar={(escopo) => apagarMensagem(m.id, escopo)}
+                    onResponder={() => setMsgRespondida(m)}
                   />
                   {!m.apagada && (
                     <ChatInternoReacoesBar
@@ -546,6 +563,23 @@ export function ChatInternoThread() {
                           {m.atendente_nome ?? 'Atendente'}
                         </p>
                       )}
+                      {m.reply_to_message_id && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const el = document.querySelector(`[data-chat-msg-id="${m.reply_to_message_id}"]`)
+                            el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                          }}
+                          className={`mb-1 w-full rounded-md border-l-2 px-2 py-1 text-left text-[11px] ${
+                            propria
+                              ? 'border-white/50 bg-white/15 text-white/90'
+                              : 'border-cyan-500 bg-slate-100 text-slate-600 dark:bg-slate-900/60 dark:text-slate-300'
+                          }`}
+                        >
+                          <p className="font-semibold truncate">{m.reply_autor_nome || 'Mensagem'}</p>
+                          <p className="truncate opacity-90">{m.reply_preview || '…'}</p>
+                        </button>
+                      )}
                       <ChatInternoConteudoMensagem
                         conversaId={conversaId}
                         mensagem={m}
@@ -578,6 +612,7 @@ export function ChatInternoThread() {
                       mensagem={m}
                       onEditar={(corpo) => editarMensagem(m.id, corpo)}
                       onApagar={(escopo) => apagarMensagem(m.id, escopo)}
+                      onResponder={() => setMsgRespondida(m)}
                       alinhamento={propria ? 'end' : 'start'}
                     />
                     {!m.apagada && (
@@ -595,6 +630,29 @@ export function ChatInternoThread() {
         )}
         </div>
       </div>
+
+      {msgRespondida && (
+        <div className="flex items-start justify-between gap-3 border-t border-slate-200 bg-slate-50 px-4 py-2 dark:border-slate-800 dark:bg-slate-900/80">
+          <div className="min-w-0 border-l-2 border-cyan-500 pl-2">
+            <p className="text-xs font-semibold text-cyan-700 dark:text-cyan-300">
+              {msgRespondida.atendente_id === user?.id ? 'Você' : msgRespondida.atendente_nome || 'Atendente'}
+            </p>
+            <p className="truncate text-xs text-slate-600 dark:text-slate-300">
+              {msgRespondida.tipo_midia && msgRespondida.tipo_midia !== 'texto'
+                ? `[${msgRespondida.tipo_midia}] ${msgRespondida.corpo}`
+                : msgRespondida.corpo}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMsgRespondida(null)}
+            className="shrink-0 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+            aria-label="Cancelar resposta"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       <ChatInternoComposerBar
         texto={texto}

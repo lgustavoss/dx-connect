@@ -99,7 +99,8 @@ export function ChatInternoComposerBar({
 
   const temTexto = texto.trim().length > 0
 
-  const desabilitado = enviando || Boolean(midiaPendente)
+  const campoBloqueado = Boolean(midiaPendente)
+  const acoesBloqueadas = enviando || campoBloqueado
 
 
 
@@ -123,10 +124,9 @@ export function ChatInternoComposerBar({
 
   function enviar() {
 
-    if (desabilitado || !temTexto) return
-
+    if (acoesBloqueadas || !temTexto) return
     onEnviar()
-
+    requestAnimationFrame(() => textareaRef.current?.focus())
   }
 
 
@@ -299,7 +299,7 @@ export function ChatInternoComposerBar({
 
             <WhatsappGravadorAudioInline
 
-              disabled={desabilitado}
+              disabled={acoesBloqueadas}
 
               onConcluido={(file) => {
 
@@ -343,7 +343,7 @@ export function ChatInternoComposerBar({
 
               type="button"
 
-              disabled={desabilitado}
+              disabled={acoesBloqueadas}
 
               aria-label="Anexos"
 
@@ -397,7 +397,7 @@ export function ChatInternoComposerBar({
 
               type="button"
 
-              disabled={desabilitado}
+              disabled={acoesBloqueadas}
 
               title="Emoji"
 
@@ -419,7 +419,7 @@ export function ChatInternoComposerBar({
 
               <ChatInternoEmojiPanel
 
-                disabled={desabilitado}
+                disabled={acoesBloqueadas}
 
                 onInserirEmoji={inserirEmojiNoCursor}
 
@@ -445,7 +445,7 @@ export function ChatInternoComposerBar({
 
             rows={1}
 
-            disabled={desabilitado}
+            disabled={campoBloqueado}
 
             className="max-h-32 min-h-[40px] min-w-0 flex-1 resize-none break-words border-none bg-transparent p-2 text-base focus:ring-0 dark:text-slate-100 placeholder:text-slate-400"
 
@@ -473,7 +473,7 @@ export function ChatInternoComposerBar({
 
               onClick={enviar}
 
-              disabled={desabilitado || !temTexto}
+              disabled={acoesBloqueadas || !temTexto}
 
               className="h-10 w-10 shrink-0 rounded-full bg-cyan-600 p-0 text-white shadow-lg shadow-cyan-600/30 hover:bg-cyan-700 disabled:opacity-50"
 
@@ -493,7 +493,7 @@ export function ChatInternoComposerBar({
 
               type="button"
 
-              disabled={desabilitado || gravando}
+              disabled={acoesBloqueadas || gravando}
 
               aria-label="Gravar áudio"
 
@@ -592,11 +592,7 @@ function ChatInternoEmojiPanel({
             className="flex h-9 w-9 items-center justify-center rounded-lg text-xl hover:bg-slate-100 disabled:opacity-40 dark:hover:bg-slate-800"
 
             onClick={() => {
-
               onInserirEmoji(e)
-
-              onFechar()
-
             }}
 
           >
