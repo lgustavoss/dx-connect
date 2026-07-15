@@ -44,6 +44,7 @@ export function FuncionarioRedeForm() {
 
   const [nome, setNome] = useState('')
   const [email, setEmail] = useState('')
+  const [telefone, setTelefone] = useState('')
   const [tipo, setTipo] = useState<Tipo>('colaborador')
   const [escopoEmpresas, setEscopoEmpresas] = useState<Escopo>('selected')
   const [ativo, setAtivo] = useState(true)
@@ -98,6 +99,7 @@ export function FuncionarioRedeForm() {
         if (cancelled) return
         setNome(item.nome)
         setEmail(item.email || '')
+        setTelefone(item.telefone || '')
         setTipo(item.tipo as Tipo)
         setEscopoEmpresas((item.escopo_empresas as Escopo) || (item.tipo === 'socio' ? 'all' : 'selected'))
         setAtivo(item.ativo)
@@ -177,6 +179,7 @@ export function FuncionarioRedeForm() {
         const payload: FuncionariosRede.Update = {
           nome: nome.trim(),
           email: emailPayload,
+          telefone: telefone.replace(/\D/g, '') || null,
           tipo,
           escopo_empresas: escopo,
           ativo,
@@ -190,6 +193,7 @@ export function FuncionarioRedeForm() {
         const payload: FuncionariosRede.Create = {
           nome: nome.trim(),
           email: emailPayload,
+          telefone: telefone.replace(/\D/g, '') || null,
           tipo,
           escopo_empresas: escopo,
           ativo,
@@ -266,6 +270,15 @@ export function FuncionarioRedeForm() {
               />
               <p className="text-xs text-slate-500">
                 Usado para identificar remetente em tickets por e-mail. Contactos só WhatsApp podem ficar em branco.
+              </p>
+              <Input
+                label="WhatsApp (opcional)"
+                value={telefone}
+                onChange={(e) => setTelefone(e.target.value)}
+                placeholder="5511999999999"
+              />
+              <p className="text-xs text-slate-500">
+                Número para iniciar conversa pelo hub Contatos. Preferencialmente com DDI (55).
               </p>
               <Select
                 label="Tipo"

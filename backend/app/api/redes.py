@@ -147,6 +147,7 @@ def listar_funcionarios_da_rede(
                 id=f.id,
                 nome=f.nome,
                 email=f.email,
+                telefone=getattr(f, "telefone", None),
                 tipo=f.tipo,
                 ativo=f.ativo,
                 rede_id=f.rede_id,

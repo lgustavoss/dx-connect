@@ -744,3 +744,137 @@ def test_enviar_figurinha_usa_sendSticker(client, seed_base, auth_headers, monke
     assert body["tipo_midia"] == "figurinha"
     assert body["wa_message_id"] == "wa-sticker-1"
     assert calls == ["sticker"]
+
+
+def _evolution_settings(client, auth_headers, secret="outb"):
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={
+            "webhook_secret": secret,
+            "evolution_base_url": "http://evolution.test",
+            "evolution_instance_name": "inst",
+            "evolution_api_key": "key-test",
+        },
+        headers=auth_headers["admin"],
+    )
+
+
+def test_listar_contatos_whatsapp(client, seed_base, auth_headers, db_session):
+    func = _criar_funcionario_colaborador(db_session, seed_base, nome="Ana Contato", email="ana.contato@test.local")
+    from app.models.funcionario_rede import FuncionarioRede
+
+    f = db_session.query(FuncionarioRede).filter(FuncionarioRede.id == func["id"]).first()
+    f.telefone = "5511988776655"
+    db_session.commit()
+
+    r = client.get("/v1/whatsapp/chats/contatos?busca=Ana", headers=auth_headers["a1"])
+    assert r.status_code == 200
+    body = r.json()
+    assert body["total"] >= 1
+    ids = [x["id"] for x in body["items"]]
+    assert func["id"] in ids
+    row = next(x for x in body["items"] if x["id"] == func["id"])
+    assert row["telefone"] == "5511988776655"
+    assert any(e["id"] == seed_base["empresa"].id for e in row["empresas"])
+
+
+def test_iniciar_chat_outbound_por_telefone(client, seed_base, auth_headers, monkeypatch):
+    sent = {"n": 0}
+
+    def fake_send(*_a, **_k):
+        sent["n"] += 1
+        return True, None, "wa-out-1"
+
+    monkeypatch.setattr("app.api.whatsapp_chats.evolution_api.evolution_send_text", fake_send)
+    _evolution_settings(client, auth_headers, "iniciar-1")
+
+    r = client.post(
+        "/v1/whatsapp/chats/iniciar",
+        json={"telefone": "11988776655", "mensagem_inicial": "Olá, retorno da demanda"},
+        headers=auth_headers["a1"],
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["estado"] == "em_atendimento"
+    assert body["atendente_id"] == seed_base["a1"].id
+    assert body["wa_id"] == "5511988776655"
+    assert sent["n"] == 1
+
+    meus = client.get("/v1/whatsapp/chats/meus", headers=auth_headers["a1"]).json()
+    assert any(c["id"] == body["id"] for c in meus)
+
+
+def test_iniciar_chat_reusa_aberto_mesmo_responsavel(client, seed_base, auth_headers, monkeypatch):
+    monkeypatch.setattr(
+        "app.api.whatsapp_chats.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-out"),
+    )
+    _evolution_settings(client, auth_headers, "iniciar-2")
+
+    r1 = client.post(
+        "/v1/whatsapp/chats/iniciar",
+        json={"telefone": "5511999000011"},
+        headers=auth_headers["a1"],
+    )
+    assert r1.status_code == 200
+    cid = r1.json()["id"]
+
+    r2 = client.post(
+        "/v1/whatsapp/chats/iniciar",
+        json={"telefone": "5511999000011"},
+        headers=auth_headers["a1"],
+    )
+    assert r2.status_code == 200
+    assert r2.json()["id"] == cid
+
+
+def test_iniciar_chat_409_outro_responsavel(client, seed_base, auth_headers, monkeypatch):
+    monkeypatch.setattr(
+        "app.api.whatsapp_chats.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-out"),
+    )
+    _evolution_settings(client, auth_headers, "iniciar-3")
+
+    r1 = client.post(
+        "/v1/whatsapp/chats/iniciar",
+        json={"telefone": "5511999000022"},
+        headers=auth_headers["a1"],
+    )
+    assert r1.status_code == 200
+
+    r2 = client.post(
+        "/v1/whatsapp/chats/iniciar",
+        json={"telefone": "5511999000022"},
+        headers=auth_headers["a2"],
+    )
+    assert r2.status_code == 409
+
+
+def test_iniciar_chat_funcionario_sem_telefone_exige_numero(client, seed_base, auth_headers, db_session, monkeypatch):
+    monkeypatch.setattr(
+        "app.api.whatsapp_chats.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-out"),
+    )
+    _evolution_settings(client, auth_headers, "iniciar-4")
+    func = _criar_funcionario_colaborador(db_session, seed_base, nome="Sem Fone", email="semfone@test.local")
+
+    denied = client.post(
+        "/v1/whatsapp/chats/iniciar",
+        json={"funcionario_id": func["id"]},
+        headers=auth_headers["a1"],
+    )
+    assert denied.status_code == 400
+
+    ok = client.post(
+        "/v1/whatsapp/chats/iniciar",
+        json={"funcionario_id": func["id"], "telefone": "5511999000033"},
+        headers=auth_headers["a1"],
+    )
+    assert ok.status_code == 200
+    assert ok.json()["funcionario_rede_id"] == func["id"]
+
+    from app.models.funcionario_rede import FuncionarioRede
+
+    f = db_session.query(FuncionarioRede).filter(FuncionarioRede.id == func["id"]).first()
+    db_session.refresh(f)
+    assert f.telefone == "5511999000033"
