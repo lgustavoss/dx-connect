@@ -811,6 +811,18 @@ def _normalize_wa_id(raw: str | None) -> str:
     return digits
 
 
+def _preencher_telefone_do_chat(func: FuncionarioRede, wa_id: str | None) -> None:
+    """Se o cadastro não tem telefone, copia o WhatsApp do chat (aba Contatos / outbound)."""
+    digits = re.sub(r"\D", "", wa_id or "")
+    if not digits:
+        return
+    if re.sub(r"\D", "", getattr(func, "telefone", None) or ""):
+        return
+    if len(digits) in (10, 11) and not digits.startswith("55"):
+        digits = "55" + digits
+    func.telefone = digits
+
+
 def _chat_aberto_por_wa_id(db: Session, wa_id: str) -> WhatsappChat | None:
     return (
         db.query(WhatsappChat)
@@ -1574,6 +1586,7 @@ def vincular_funcionario(
     if not func:
         raise HTTPException(status_code=404, detail="Funcionário não encontrado")
     emp = _resolver_empresa_vinculo(db, atendente, func, data.empresa_id)
+    _preencher_telefone_do_chat(func, c.wa_id)
     c.funcionario_rede_id = func.id
     c.empresa_id = emp.id
     db.commit()
@@ -1633,6 +1646,7 @@ def cadastrar_funcionario(
         empresa_id=data.empresa_id,
         empresa_ids=empresa_ids,
     )
+    _preencher_telefone_do_chat(func, c.wa_id)
     emp = _resolver_empresa_vinculo(db, atendente, func, data.empresa_id)
     c.funcionario_rede_id = func.id
     c.empresa_id = emp.id

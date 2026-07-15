@@ -487,6 +487,12 @@ def test_cadastrar_funcionario_no_chat(client, seed_base, auth_headers, db_sessi
     assert body["funcionario_email"] == "cliente.novo@test.local"
     assert body["empresa_id"] == seed_base["empresa"].id
 
+    from app.models.funcionario_rede import FuncionarioRede
+
+    f = db_session.query(FuncionarioRede).filter(FuncionarioRede.id == body["funcionario_rede_id"]).first()
+    assert f is not None
+    assert f.telefone == "5511999112233"
+
     catalogo = client.get("/v1/whatsapp/chats/funcionarios/catalogo", headers=auth_headers["a1"])
     assert catalogo.status_code == 200
     assert any(re["id"] == seed_base["rede"].id for re in catalogo.json()["redes"])
@@ -512,6 +518,64 @@ def test_cadastrar_funcionario_no_chat_sem_email(client, seed_base, auth_headers
     assert body["funcionario_email"] is None
     assert body["funcionario_rede_id"] is not None
     assert body["empresa_id"] == seed_base["empresa"].id
+
+
+def test_cadastrar_funcionario_em_chat_encerrado(client, seed_base, auth_headers, db_session):
+    """#534 — identificar contato no Histórico (chat já encerrado) e gravar telefone."""
+    wa_id = "5511999112255"
+    cid = _chat_ativo(client, seed_base, auth_headers, wa_id=wa_id, msg_id="func-cad-enc")
+    enc = client.post(f"/v1/whatsapp/chats/{cid}/encerrar", headers=auth_headers["a1"])
+    assert enc.status_code == 200
+    assert enc.json()["estado"] in ("encerrado", "aguardando_avaliacao")
+
+    r = client.post(
+        f"/v1/whatsapp/chats/{cid}/cadastrar-funcionario",
+        json={
+            "nome": "Cliente Pós Encerrar",
+            "rede_id": seed_base["rede"].id,
+            "tipo": "colaborador",
+            "escopo_empresas": "selected",
+            "empresa_ids": [seed_base["empresa"].id],
+        },
+        headers=auth_headers["a1"],
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["funcionario_rede_id"] is not None
+    assert body["funcionario_nome"] == "Cliente Pós Encerrar"
+
+    from app.models.funcionario_rede import FuncionarioRede
+
+    f = db_session.query(FuncionarioRede).filter(FuncionarioRede.id == body["funcionario_rede_id"]).first()
+    assert f is not None
+    assert f.telefone == wa_id
+
+
+def test_vincular_funcionario_em_chat_encerrado_preenche_telefone(
+    client, seed_base, auth_headers, db_session
+):
+    """#534 — vincular existente em chat encerrado preenche telefone se vazio."""
+    wa_id = "5511999112266"
+    func = _criar_funcionario_colaborador(db_session, seed_base, email="vinc-enc@test.local")
+    from app.models.funcionario_rede import FuncionarioRede
+
+    f0 = db_session.query(FuncionarioRede).filter(FuncionarioRede.id == func["id"]).first()
+    assert f0 is not None
+    assert not (f0.telefone or "").strip()
+
+    cid = _chat_ativo(client, seed_base, auth_headers, wa_id=wa_id, msg_id="func-vinc-enc")
+    assert client.post(f"/v1/whatsapp/chats/{cid}/encerrar", headers=auth_headers["a1"]).status_code == 200
+
+    r = client.post(
+        f"/v1/whatsapp/chats/{cid}/vincular-funcionario",
+        json={"funcionario_rede_id": func["id"]},
+        headers=auth_headers["a1"],
+    )
+    assert r.status_code == 200
+    assert r.json()["funcionario_rede_id"] == func["id"]
+
+    db_session.refresh(f0)
+    assert f0.telefone == wa_id
 
 
 def test_admin_nao_envia_ao_cliente_usa_comentario_interno(client, seed_base, auth_headers, monkeypatch):
