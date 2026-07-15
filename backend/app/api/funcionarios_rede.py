@@ -54,6 +54,7 @@ def _para_read(f: FuncionarioRede) -> FuncionarioRedeRead:
         id=f.id,
         nome=f.nome,
         email=f.email,
+        telefone=getattr(f, "telefone", None),
         tipo=f.tipo,
         escopo_empresas=escopo_efetivo(f),
         ativo=f.ativo,
@@ -186,6 +187,7 @@ def criar(
     f = FuncionarioRede(
         nome=data.nome,
         email=email_eff,
+        telefone=data.telefone,
         tipo=data.tipo,
         escopo_empresas=escopo,
         ativo=data.ativo,

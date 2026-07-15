@@ -60,6 +60,10 @@ export function resolveWhatsappListFallback(
   if (from && from in WHATSAPP_LIST_PATHS) {
     return WHATSAPP_LIST_PATHS[from as WhatsappListOrigin]
   }
+  if (from === 'contatos') return '/chat/contatos'
+  if (from === 'espera') return '/chat/espera'
+  if (from === 'interno') return '/chat/interno'
+  if (from === 'atendendo') return '/chat/atendendo'
   return fallback
 }
 

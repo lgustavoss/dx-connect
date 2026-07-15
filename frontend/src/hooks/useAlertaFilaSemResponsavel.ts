@@ -18,14 +18,15 @@ const POLL_STALE_GUARD_MS = 3000
 const ALERT_DEDUP_MS = 2000
 
 /** Tickets na fila sem responsável */
-const SOUND_TICKET_FILA = '/sons/alerta.mp3'
+const SOUND_TICKET_FILA = '/sons/notification.mp3'
 /** Nova mensagem em ticket já atribuído */
 const SOUND_TICKET_MENSAGEM = '/sons/ticket-mensagem.mp3'
 const SOUND_TICKET_MENSAGEM_FALLBACK = '/sons/notification.mp3'
-/** Cliente aguardando na fila WhatsApp (alerta contínuo) */
-const SOUND_WPP_FILA = '/sons/wpp-fila.mp3'
-/** Nova mensagem do cliente em chat WhatsApp em atendimento */
+/** Cliente aguardando na fila WhatsApp / Portal (alerta contínuo) */
+const SOUND_WPP_FILA = '/sons/alerta.mp3'
+/** Nova mensagem do cliente em chat WhatsApp / Portal em atendimento */
 const SOUND_WPP_MENSAGEM = '/sons/wpp-mensagem.mp3'
+const SOUND_WPP_MENSAGEM_FALLBACK = '/sons/notification.mp3'
 
 type AlertKind = 'ticket_fila' | 'ticket_mensagem' | 'wpp_fila_pulse' | 'wpp_mensagem'
 
@@ -186,6 +187,10 @@ function playSrcOnce(src: string, key: string, volume: number): Promise<void> {
     const onError = () => {
       if (key.startsWith('ticket_mensagem:') && src === SOUND_TICKET_MENSAGEM) {
         void playSrcOnce(SOUND_TICKET_MENSAGEM_FALLBACK, `${key}:fallback`, volume).then(finish)
+        return
+      }
+      if (key.startsWith('wpp_mensagem:') && src === SOUND_WPP_MENSAGEM) {
+        void playSrcOnce(SOUND_WPP_MENSAGEM_FALLBACK, `${key}:fallback`, volume).then(finish)
         return
       }
       const kind = key.split(':')[0] as AlertKind
@@ -442,6 +447,7 @@ function preloadSounds() {
     SOUND_TICKET_MENSAGEM_FALLBACK,
     SOUND_WPP_FILA,
     SOUND_WPP_MENSAGEM,
+    SOUND_WPP_MENSAGEM_FALLBACK,
   ]
   for (const src of sources) {
     getAudioElement(`preload:${src}`, src)

@@ -28,6 +28,8 @@ from app.schemas.whatsapp_chat import (
     WhatsappChatDemandaUpdate,
     WhatsappChatMensagemCreate,
     WhatsappChatRead,
+    WhatsappContatoRead,
+    WhatsappIniciarChatBody,
     WhatsappMensagemRead,
     WhatsappTransferirChatBody,
     WhatsappVincularFuncionarioBody,
@@ -57,6 +59,8 @@ from app.services.whatsapp_avaliacao import mensagem_oculta_na_conversa
 from app.services.whatsapp_media_storage import caminho_absoluto_arquivo, gravar_bytes_em_disco
 from app.services.realtime_emit import emit_chat_fila_from_model, emit_chat_mensagem_from_models
 from app.services.ticket_distribuicao import pos_criar_ticket_na_fila
+from app.services.protocolo_mensal import gerar_protocolo_chat
+from app.services.audit_operacional import audit_whatsapp_chat
 
 router = APIRouter(prefix="/whatsapp/chats", tags=["whatsapp-chats"])
 
@@ -764,6 +768,7 @@ def buscar_funcionarios(
                 id=func.id,
                 nome=func.nome,
                 email=func.email,
+                telefone=getattr(func, "telefone", None),
                 tipo=func.tipo,
                 empresas=_empresas_funcionario(db, func),
             )
@@ -792,6 +797,227 @@ def catalogo_funcionarios(
         redes=[WhatsappRedeCatalogoRead(id=r.id, nome=r.nome) for r in redes],
         empresas=[WhatsappEmpresaCatalogoRead(id=e.id, nome=_empresa_nome_exibicao(e) or e.nome, rede_id=int(e.rede_id)) for e in empresas],
     )
+
+
+def _normalize_wa_id(raw: str | None) -> str:
+    digits = re.sub(r"\D", "", raw or "")
+    if not digits:
+        raise HTTPException(status_code=400, detail="Informe um número WhatsApp válido.")
+    # Aceita com ou sem DDI; se 10–11 dígitos BR, prefixa 55
+    if len(digits) in (10, 11) and not digits.startswith("55"):
+        digits = "55" + digits
+    if len(digits) < 12:
+        raise HTTPException(status_code=400, detail="Número WhatsApp incompleto.")
+    return digits
+
+
+def _chat_aberto_por_wa_id(db: Session, wa_id: str) -> WhatsappChat | None:
+    return (
+        db.query(WhatsappChat)
+        .options(*_CHAT_LOAD_OPTIONS)
+        .filter(
+            WhatsappChat.wa_id == wa_id,
+            WhatsappChat.estado.in_(("aguardando_atendente", "em_atendimento")),
+        )
+        .order_by(WhatsappChat.id.desc())
+        .first()
+    )
+
+
+@router.get("/contatos", response_model=ListaPaginada[WhatsappContatoRead])
+def listar_contatos(
+    busca: str | None = Query(None, description="Nome, e-mail, telefone ou empresa"),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(_DEFAULT_PAGE, ge=1, le=_MAX_PAGE),
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    rede_ids = [int(r[0]) for r in db.query(Rede.id).filter(Rede.tenant_id == atendente.tenant_id).all()]
+    empresa_ids = [int(r[0]) for r in db.query(Empresa.id).filter(Empresa.tenant_id == atendente.tenant_id).all()]
+    func_ids_junction = [
+        int(r[0])
+        for r in db.query(FuncionarioRedeEmpresa.funcionario_id)
+        .join(Empresa, Empresa.id == FuncionarioRedeEmpresa.empresa_id)
+        .filter(Empresa.tenant_id == atendente.tenant_id)
+        .distinct()
+        .all()
+    ]
+    filtros = []
+    if rede_ids:
+        filtros.append(FuncionarioRede.rede_id.in_(rede_ids))
+    if empresa_ids:
+        filtros.append(FuncionarioRede.empresa_id.in_(empresa_ids))
+    if func_ids_junction:
+        filtros.append(FuncionarioRede.id.in_(func_ids_junction))
+    if not filtros:
+        return ListaPaginada(items=[], total=0)
+
+    q = db.query(FuncionarioRede).filter(FuncionarioRede.ativo.is_(True), or_(*filtros))
+    term_raw = (busca or "").strip()
+    if term_raw:
+        term = f"%{term_raw}%"
+        digits = re.sub(r"\D", "", term_raw)
+        conds = [
+            FuncionarioRede.nome.ilike(term),
+            FuncionarioRede.email.ilike(term),
+        ]
+        if digits:
+            conds.append(FuncionarioRede.telefone.ilike(f"%{digits}%"))
+        # empresas por nome: filtramos após ou via subquery
+        emp_ids_match = [
+            int(r[0])
+            for r in db.query(Empresa.id)
+            .filter(
+                Empresa.tenant_id == atendente.tenant_id,
+                or_(
+                    Empresa.nome.ilike(term),
+                    Empresa.nome_fantasia.ilike(term),
+                    Empresa.razao_social.ilike(term),
+                ),
+            )
+            .all()
+        ]
+        if emp_ids_match:
+            sub_j = db.query(FuncionarioRedeEmpresa.funcionario_id).filter(
+                FuncionarioRedeEmpresa.empresa_id.in_(emp_ids_match)
+            )
+            conds.append(FuncionarioRede.empresa_id.in_(emp_ids_match))
+            conds.append(FuncionarioRede.id.in_(sub_j))
+        q = q.filter(or_(*conds))
+
+    total = q.count()
+    rows = q.order_by(FuncionarioRede.nome.asc(), FuncionarioRede.id.asc()).offset(offset).limit(limit).all()
+    redes_cache: dict[int, str] = {
+        int(r.id): r.nome
+        for r in db.query(Rede).filter(Rede.tenant_id == atendente.tenant_id).all()
+    }
+    items: list[WhatsappContatoRead] = []
+    for func in rows:
+        if _funcionario_no_tenant(db, atendente, func.id) is None:
+            continue
+        rid = rede_id_efetiva(db, func)
+        items.append(
+            WhatsappContatoRead(
+                id=func.id,
+                nome=func.nome,
+                email=func.email,
+                telefone=getattr(func, "telefone", None),
+                tipo=func.tipo,
+                empresas=_empresas_funcionario(db, func),
+                rede_id=rid,
+                rede_nome=redes_cache.get(int(rid)) if rid is not None else None,
+            )
+        )
+    return ListaPaginada(items=items, total=total)
+
+
+@router.post("/iniciar", response_model=WhatsappChatRead)
+def iniciar_chat_outbound(
+    data: WhatsappIniciarChatBody,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    """Atendente inicia contacto WhatsApp (contato cadastrado, número avulso ou retoma)."""
+    func: FuncionarioRede | None = None
+    if data.funcionario_id is not None:
+        func = _funcionario_no_tenant(db, atendente, data.funcionario_id)
+        if not func:
+            raise HTTPException(status_code=404, detail="Funcionário não encontrado")
+        if not func.ativo:
+            raise HTTPException(status_code=400, detail="Funcionário inativo")
+
+    telefone_body = data.telefone
+    telefone_cadastro = re.sub(r"\D", "", getattr(func, "telefone", None) or "") if func else ""
+    telefone_raw = telefone_body or telefone_cadastro or None
+    if not telefone_raw:
+        raise HTTPException(
+            status_code=400,
+            detail="Informe o número WhatsApp do contato (cadastro ou neste pedido).",
+        )
+    wa_id = _normalize_wa_id(telefone_raw)
+
+    if func is not None and not telefone_cadastro:
+        func.telefone = wa_id
+        db.flush()
+
+    empresa_id: int | None = None
+    if func is not None:
+        emps = _empresas_funcionario(db, func)
+        if len(emps) == 1:
+            empresa_id = emps[0].id
+        elif getattr(func, "empresa_id", None):
+            empresa_id = int(func.empresa_id)
+
+    existente = _chat_aberto_por_wa_id(db, wa_id)
+    if existente:
+        if existente.estado == "em_atendimento" and existente.atendente_id not in (None, atendente.id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Já existe um atendimento aberto deste contacto com outro responsável.",
+            )
+        estado_anterior = existente.estado
+        if existente.estado == "aguardando_atendente" or existente.atendente_id is None:
+            existente.estado = "em_atendimento"
+            existente.atendente_id = atendente.id
+            existente.atendimento_inicio_at = datetime.now(timezone.utc)
+            if func is not None and not existente.funcionario_rede_id:
+                existente.funcionario_rede_id = func.id
+            if empresa_id is not None and not existente.empresa_id:
+                existente.empresa_id = empresa_id
+            audit_whatsapp_chat(
+                db,
+                chat_id=existente.id,
+                action="assign",
+                atendente_id=atendente.id,
+                payload={"de_estado": estado_anterior, "protocolo": existente.protocolo, "origem": "iniciar_outbound"},
+            )
+            db.commit()
+            db.refresh(existente)
+            emit_chat_fila_from_model(db, existente, estado_anterior=estado_anterior)
+        msg_init = (data.mensagem_inicial or "").strip()
+        if msg_init:
+            try:
+                _enviar_texto_whatsapp(db, chat=existente, texto=msg_init, atendente=atendente, evento_sistema=None)
+            except HTTPException:
+                raise
+        c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == existente.id).first()
+        assert c is not None
+        return _chat_read(db, c)
+
+    # Garante Evolution configurada se houver mensagem inicial (criar chat sem msg ainda exige settings para uso posterior)
+    _settings_envio(db)
+
+    chat = WhatsappChat(
+        protocolo=gerar_protocolo_chat(db),
+        wa_id=wa_id,
+        cliente_nome=(func.nome if func else None),
+        estado="em_atendimento",
+        atendente_id=atendente.id,
+        atendimento_inicio_at=datetime.now(timezone.utc),
+        setor_id=None,
+        funcionario_rede_id=func.id if func else None,
+        empresa_id=empresa_id,
+    )
+    db.add(chat)
+    db.flush()
+    audit_whatsapp_chat(
+        db,
+        chat_id=chat.id,
+        action="create",
+        atendente_id=atendente.id,
+        payload={"protocolo": chat.protocolo, "origem": "iniciar_outbound", "wa_id": wa_id},
+    )
+    db.commit()
+    db.refresh(chat)
+    emit_chat_fila_from_model(db, chat, estado_anterior=None)
+
+    msg_init = (data.mensagem_inicial or "").strip()
+    if msg_init:
+        _enviar_texto_whatsapp(db, chat=chat, texto=msg_init, atendente=atendente, evento_sistema=None)
+
+    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat.id).first()
+    assert c is not None
+    return _chat_read(db, c)
 
 
 @router.get("/{chat_id}", response_model=WhatsappChatRead)

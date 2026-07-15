@@ -901,9 +901,20 @@ export namespace WhatsappChats {
   export interface FuncionarioOpcao {
     id: number
     nome: string
-    email: string
+    email?: string | null
+    telefone?: string | null
     tipo: string
     empresas: EmpresaOpcao[]
+  }
+  export interface Contato {
+    id: number
+    nome: string
+    email?: string | null
+    telefone?: string | null
+    tipo: string
+    empresas: EmpresaOpcao[]
+    rede_id?: number | null
+    rede_nome?: string | null
   }
   export interface EmpresaCatalogo extends EmpresaOpcao {
     rede_id: number
@@ -1112,6 +1123,17 @@ export const portalChats = {
 export const whatsappChats = {
   fila: () => api<WhatsappChats.Chat[]>('/whatsapp/chats/fila'),
   meus: () => api<WhatsappChats.Chat[]>('/whatsapp/chats/meus'),
+  contatos: (params?: { busca?: string; offset?: number; limit?: number }) =>
+    listPaginated<WhatsappChats.Contato>('/whatsapp/chats/contatos', params),
+  iniciar: (data: {
+    funcionario_id?: number | null
+    telefone?: string | null
+    mensagem_inicial?: string | null
+  }) =>
+    api<WhatsappChats.Chat>('/whatsapp/chats/iniciar', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   encerrados: (params?: Record<string, string | number | undefined>) =>
     listPaginated<WhatsappChats.Chat>('/whatsapp/chats/encerrados', params),
   avaliacoes: (params?: Record<string, string | number | undefined>) =>
@@ -2030,6 +2052,7 @@ export namespace FuncionariosRede {
     id: number;
     nome: string;
     email: string | null;
+    telefone?: string | null;
     tipo: string;
     escopo_empresas: EscopoEmpresas;
     ativo: boolean;
@@ -2042,6 +2065,7 @@ export namespace FuncionariosRede {
   export interface Create {
     nome: string;
     email?: string | null;
+    telefone?: string | null;
     tipo: string;
     escopo_empresas?: EscopoEmpresas;
     ativo?: boolean;
@@ -2052,6 +2076,7 @@ export namespace FuncionariosRede {
   export interface Update {
     nome?: string;
     email?: string | null;
+    telefone?: string | null;
     tipo?: string;
     escopo_empresas?: EscopoEmpresas;
     ativo?: boolean;

@@ -64,9 +64,38 @@ class WhatsappEmpresaCatalogoRead(BaseModel):
 class WhatsappFuncionarioOpcaoRead(BaseModel):
     id: int
     nome: str
-    email: str
+    email: str | None = None
+    telefone: str | None = None
     tipo: str
     empresas: list[WhatsappEmpresaOpcaoRead] = Field(default_factory=list)
+
+
+class WhatsappContatoRead(BaseModel):
+    id: int
+    nome: str
+    email: str | None = None
+    telefone: str | None = None
+    tipo: str
+    empresas: list[WhatsappEmpresaOpcaoRead] = Field(default_factory=list)
+    rede_id: int | None = None
+    rede_nome: str | None = None
+
+
+class WhatsappIniciarChatBody(BaseModel):
+    funcionario_id: int | None = None
+    telefone: str | None = Field(
+        None,
+        description="Número WhatsApp (dígitos). Obrigatório se funcionário sem telefone ou número avulso.",
+    )
+    mensagem_inicial: str | None = Field(None, max_length=4000)
+
+    @field_validator("telefone", mode="before")
+    @classmethod
+    def telefone_digitos(cls, v: object) -> str | None:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return None
+        digits = "".join(ch for ch in str(v) if ch.isdigit())
+        return digits or None
 
 
 class WhatsappRedeCatalogoRead(BaseModel):

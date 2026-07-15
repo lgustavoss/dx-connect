@@ -5,6 +5,14 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### Melhorias
+
+- WhatsApp (#531): aba **Contatos** no hub de chat — lista funcionários com empresa e telefone; iniciar conversa (ou número avulso / retomar no Histórico); chat já fica em atendimento com o iniciador; telefone no cadastro do funcionário da rede
+
+### Correções
+
+- Sons de alerta: toque de **abertura de ticket** e de **novo chat** (fila WhatsApp/Portal) estavam trocados — ticket usa `notification.mp3` e chat na fila usa `alerta.mp3`
+
 ## [26.07.003] - 2026-07-14
 
 ### Melhorias

@@ -13,15 +13,17 @@ Meta-issue geral: [#16](https://github.com/lgustavoss/dx-connect/issues/16)
 | RT | [#256](https://github.com/lgustavoss/dx-connect/issues/256) | #264–#269 |
 | T | [#257](https://github.com/lgustavoss/dx-connect/issues/257) | #270–#273 |
 | R | [#258](https://github.com/lgustavoss/dx-connect/issues/258) | #274–#276 |
-| S | [#259](https://github.com/lgustavoss/dx-connect/issues/259) | #277–#281 · follow-ups [#416](https://github.com/lgustavoss/dx-connect/issues/416)–[#418](https://github.com/lgustavoss/dx-connect/issues/418) fechados · [#419](https://github.com/lgustavoss/dx-connect/issues/419) backlog |
+| S | [#259](https://github.com/lgustavoss/dx-connect/issues/259) | #277–#281 · follow-ups [#416](https://github.com/lgustavoss/dx-connect/issues/416)–[#418](https://github.com/lgustavoss/dx-connect/issues/418) fechados · [#419](https://github.com/lgustavoss/dx-connect/issues/419) Fase 4 roadmap |
 | D | [#260](https://github.com/lgustavoss/dx-connect/issues/260) | #282–#289 |
 | A | [#261](https://github.com/lgustavoss/dx-connect/issues/261) | #290–#292 fechados · PR [#428](https://github.com/lgustavoss/dx-connect/pull/428) |
-| KB | [#262](https://github.com/lgustavoss/dx-connect/issues/262) | #293–#295, #297–#299 fechados · #296 backlog |
-| P | [#263](https://github.com/lgustavoss/dx-connect/issues/263) | #300–#308 |
+| KB | [#262](https://github.com/lgustavoss/dx-connect/issues/262) | #293–#295, #297–#299 fechados · #296 fechada · portal público [#464](https://github.com/lgustavoss/dx-connect/issues/464) fechado |
+| P | [#263](https://github.com/lgustavoss/dx-connect/issues/263) | #300–#308 · **Fase 3** roadmap |
 
 ---
 
-## Comercial / financeiro (2026-06-18)
+## Comercial / financeiro (2026-06-18) — **módulos do produto** (Fase 2 roadmap)
+
+> Não confundir com o painel de **licenças SaaS** (#519). CM/FN roda **dentro** da instância do cliente DeskRudder.
 
 | Prefixo | Épico | Issues filhas |
 |---------|-------|---------------|
@@ -63,6 +65,7 @@ Meta-issue geral: [#16](https://github.com/lgustavoss/dx-connect/issues/16)
 
 | Issue | Título | Estado |
 |-------|--------|--------|
+| [#531](https://github.com/lgustavoss/dx-connect/issues/531) | Aba Contatos + chat iniciado pelo atendente | Aberta · `feat/whatsapp-contatos-outbound` |
 | [#431](https://github.com/lgustavoss/dx-connect/issues/431) | Mídia inbound webhook + UI | Fechada · PR [#439](https://github.com/lgustavoss/dx-connect/pull/439) |
 | [#432](https://github.com/lgustavoss/dx-connect/issues/432) | Barra de anexos e pré-visualização | Fechada · PR [#439](https://github.com/lgustavoss/dx-connect/pull/439) |
 | [#433](https://github.com/lgustavoss/dx-connect/issues/433) | Banner «Sem vínculo» | Fechada · PR [#439](https://github.com/lgustavoss/dx-connect/pull/439) |
@@ -92,7 +95,7 @@ Meta-issue geral: [#16](https://github.com/lgustavoss/dx-connect/issues/16)
 | [#297](https://github.com/lgustavoss/dx-connect/issues/297) | Editor admin (v1 markdown) | Fechada · branch `feat/kb-v1` |
 | [#298](https://github.com/lgustavoss/dx-connect/issues/298) | Gestão categorias + DnD ordem | Fechada · branch `feat/kb-v1` |
 | [#299](https://github.com/lgustavoss/dx-connect/issues/299) | Consulta interna + cache offline | Fechada · branch `feat/kb-v1` |
-| [#296](https://github.com/lgustavoss/dx-connect/issues/296) | Sugestões por natureza/motivo | Backlog |
+| [#296](https://github.com/lgustavoss/dx-connect/issues/296) | Sugestões por natureza/motivo | Fechada |
 
 ---
 
@@ -115,9 +118,57 @@ Meta-issue geral: [#16](https://github.com/lgustavoss/dx-connect/issues/16)
 
 ---
 
+## Marketing / landing DeskRudder (2026-07)
+
+| Rascunho | Título | Issue GitHub |
+|----------|--------|--------------|
+| [`LP-01-landing-page-marketing.md`](LP-01-landing-page-marketing.md) | Landing pública — deskrudder.com.br | [#515](https://github.com/lgustavoss/dx-connect/issues/515) |
+| [`LP-02-landing-chat-comercial.md`](LP-02-landing-chat-comercial.md) | Contato comercial B2B (não reusa `/kb`) | [#516](https://github.com/lgustavoss/dx-connect/issues/516) revisada |
+
+---
+
+## SaaS DeskRudder — licenças e instâncias (2026-07)
+
+Análise: [`analises/saas-deskrudder-licencas-vs-produto.md`](analises/saas-deskrudder-licencas-vs-produto.md)
+
+**Duas camadas:** (1) SaaS DeskRudder — LP, licenças, provisionar instâncias; (2) produto por instância — helpdesk, KB white-label do cliente, CM/FN, portal #263.
+
+Épico: [#519](https://github.com/lgustavoss/dx-connect/issues/519)
+
+| Prefixo | Issue | Título | Estado |
+|---------|-------|--------|--------|
+| DR-00 | [#520](https://github.com/lgustavoss/dx-connect/issues/520) | Análise / vocabulário | Fechada |
+| DR-01 | [#521](https://github.com/lgustavoss/dx-connect/issues/521) | Modelo Licença / ClienteSaaS | Aberta |
+| DR-02 | [#522](https://github.com/lgustavoss/dx-connect/issues/522) | API admin SaaS | Aberta |
+| DR-03 | [#523](https://github.com/lgustavoss/dx-connect/issues/523) | UI painel de licenças | Aberta |
+| DR-04 | [#524](https://github.com/lgustavoss/dx-connect/issues/524) | Provisionamento via painel | Aberta |
+| DR-05 | [#525](https://github.com/lgustavoss/dx-connect/issues/525) / [#515](https://github.com/lgustavoss/dx-connect/issues/515) | Landing LP-01 | Aberta |
+| DR-06 | [#526](https://github.com/lgustavoss/dx-connect/issues/526) / [#516](https://github.com/lgustavoss/dx-connect/issues/516) | Contato comercial LP | Aberta |
+| DR-07 | [#527](https://github.com/lgustavoss/dx-connect/issues/527) | Trial / pré-cadastro | Aberta |
+| DR-08 | [#528](https://github.com/lgustavoss/dx-connect/issues/528) | Renovações e alertas | Aberta |
+
+Corpos locais: `DR-epic-saas-licencas-instancias.md`, `DR-00`…`DR-08-*.md`
+
+### Roadmap de desenvolvimento (tudo entra — ordem)
+
+| Fase | Foco | Issues |
+|------|------|--------|
+| **0** | Higiene / vocabulário | #520 (feita); #464 fechado |
+| **1** | Go-to-market SaaS | #515, #516 → #521–#523 |
+| **2** | Produto CM/FN | #321 → #328 |
+| **3** | Portal funcionário | #263 / #300–#308 |
+| **4** | SaaS avançado + polish | #524, #527, #528; #120–#124; #419; fechar #170 |
+
+Hotfixes de produção furam a fila. CM/FN (#321–#375) = módulos **do produto** na instância do cliente, não o painel de licenças.
+
+Portal KB white-label: [#464](https://github.com/lgustavoss/dx-connect/issues/464) **fechado** (entregue) — cada cliente publica `/kb` para o cliente final dele.
+
+---
+
 ## Análises de viabilidade (documentação)
 
 Material de apoio à decisão — **não** substitui issues no GitHub:
 
+- [`analises/saas-deskrudder-licencas-vs-produto.md`](analises/saas-deskrudder-licencas-vs-produto.md)
 - [`analises/integracao-retaguarda.md`](analises/integracao-retaguarda.md)
 - [`analises/filas-tickets-vs-chats.md`](analises/filas-tickets-vs-chats.md)

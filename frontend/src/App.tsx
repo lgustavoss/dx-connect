@@ -220,6 +220,15 @@ function AppRoutes() {
                 />
               }
             />
+            <Route
+              path="contatos"
+              element={
+                <ChatHubPlaceholder
+                  titulo="Contatos"
+                  subtitulo="Escolha um contacto ou número avulso para iniciar conversa no WhatsApp."
+                />
+              }
+            />
             <Route path="portal" element={<Navigate to="/chat/espera" replace />} />
             <Route path="portal/:chatId" element={<PortalConversa />} />
             <Route
