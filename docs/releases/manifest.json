@@ -771,6 +771,26 @@
           "text": "WhatsApp (#534): identificar/cadastrar contato do cliente também em atendimento **encerrado** (Histórico); o número do WhatsApp passa a ser gravado no telefone do cadastro para retomar pela aba Contatos"
         }
       ]
+    },
+    {
+      "version": "26.07.006",
+      "version_display": "v26.07.006",
+      "date": "2026-07-15",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "Chat (#539): após enviar mensagem (WhatsApp e chat interno), o cursor permanece no campo de texto; painel de emoji fica aberto ao escolher vários; **Responder** mensagem no chat interno (direta, equipe e grupo)"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: na busca «Vincular existente», cada resultado mostra **rede** e **empresa(s)** para distinguir homônimos"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp / modais: ao digitar na descrição da demanda no **Encerrar atendimento**, o campo perdia o foco a cada atualização da conversa — diálogo já não refoca o painel; formulário não é limpo pelo poll"
+        }
+      ]
     }
   ]
 }
