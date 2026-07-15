@@ -65,6 +65,7 @@ Meta-issue geral: [#16](https://github.com/lgustavoss/dx-connect/issues/16)
 
 | Issue | Título | Estado |
 |-------|--------|--------|
+| [#531](https://github.com/lgustavoss/dx-connect/issues/531) | Aba Contatos + chat iniciado pelo atendente | Aberta · `feat/whatsapp-contatos-outbound` |
 | [#431](https://github.com/lgustavoss/dx-connect/issues/431) | Mídia inbound webhook + UI | Fechada · PR [#439](https://github.com/lgustavoss/dx-connect/pull/439) |
 | [#432](https://github.com/lgustavoss/dx-connect/issues/432) | Barra de anexos e pré-visualização | Fechada · PR [#439](https://github.com/lgustavoss/dx-connect/pull/439) |
 | [#433](https://github.com/lgustavoss/dx-connect/issues/433) | Banner «Sem vínculo» | Fechada · PR [#439](https://github.com/lgustavoss/dx-connect/pull/439) |

@@ -12,6 +12,7 @@ import { AvaliacaoEstrelas } from '../../components/ui/AvaliacaoEstrelas'
 import { rotuloEstadoChat } from '../../lib/whatsappChatMeta'
 import { buildHistoricoReturnPath, saveWhatsappListScroll, whatsappConversaLink } from '../../lib/whatsappListReturn'
 import { useWhatsappListScrollRestore } from '../../hooks/useWhatsappListScrollRestore'
+import { ChatIniciarConversaModal } from '../../components/chat/ChatIniciarConversaModal'
 
 const PAGE_SIZE = 15
 
@@ -32,6 +33,7 @@ export function WhatsappHistorico() {
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState(() => searchParams.get('busca') ?? '')
   const [atendentesList, setAtendentesList] = useState<Atendentes.Atendente[]>([])
+  const [retomarChat, setRetomarChat] = useState<WhatsappChats.Chat | null>(null)
   const [atendenteId, setAtendenteId] = useState<number | ''>(() => {
     const v = searchParams.get('atendente_id')
     return v ? Number(v) : ''
@@ -267,9 +269,20 @@ export function WhatsappHistorico() {
                       to={whatsappConversaLink(c.id, historicoReturnPath, 'historico')}
                       onClick={() => saveWhatsappListScroll('historico', historicoReturnPath)}
                       className="rounded-full bg-slate-100 p-2 text-slate-400 transition-all hover:bg-cyan-600 hover:text-white dark:bg-slate-800 dark:hover:bg-cyan-700"
+                      title="Ver conversa"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
                     </Link>
+                    {(c.estado === 'encerrado' || c.estado === 'aguardando_avaliacao') && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="h-9 px-3 text-xs"
+                        onClick={() => setRetomarChat(c)}
+                      >
+                        Retomar contacto
+                      </Button>
+                    )}
                   </div>
                 </div>
               </Card>
@@ -277,6 +290,14 @@ export function WhatsappHistorico() {
           </div>
         )}
       </div>
+
+      <ChatIniciarConversaModal
+        open={retomarChat != null}
+        onClose={() => setRetomarChat(null)}
+        telefoneInicial={retomarChat?.wa_id}
+        funcionarioId={retomarChat?.funcionario_rede_id}
+        titulo={retomarChat ? `Retomar ${retomarChat.cliente_nome || retomarChat.wa_id}` : undefined}
+      />
 
       {/* Paginação Estilizada */}
       <footer className="flex flex-col items-center justify-between gap-4 border-t pt-6 dark:border-slate-800 sm:flex-row">

@@ -8,9 +8,17 @@ def _email_vazio_para_none(v: object) -> object:
     return v
 
 
+def _telefone_normalizado(v: object) -> str | None:
+    if v is None or (isinstance(v, str) and not v.strip()):
+        return None
+    digits = "".join(ch for ch in str(v) if ch.isdigit())
+    return digits or None
+
+
 class FuncionarioRedeBase(BaseModel):
     nome: str
     email: EmailStr | None = None
+    telefone: str | None = None
     tipo: str  # socio | supervisor | colaborador
     escopo_empresas: str = "selected"  # all | selected
     ativo: bool = True
@@ -19,6 +27,11 @@ class FuncionarioRedeBase(BaseModel):
     @classmethod
     def email_opcional(cls, v: object) -> object:
         return _email_vazio_para_none(v)
+
+    @field_validator("telefone", mode="before")
+    @classmethod
+    def telefone_opcional(cls, v: object) -> str | None:
+        return _telefone_normalizado(v)
 
 
 class FuncionarioRedeCreate(FuncionarioRedeBase):
@@ -30,6 +43,7 @@ class FuncionarioRedeCreate(FuncionarioRedeBase):
 class FuncionarioRedeUpdate(BaseModel):
     nome: str | None = None
     email: EmailStr | None = None
+    telefone: str | None = None
     tipo: str | None = None
     escopo_empresas: str | None = None
     ativo: bool | None = None
@@ -41,6 +55,11 @@ class FuncionarioRedeUpdate(BaseModel):
     @classmethod
     def email_opcional(cls, v: object) -> object:
         return _email_vazio_para_none(v)
+
+    @field_validator("telefone", mode="before")
+    @classmethod
+    def telefone_opcional(cls, v: object) -> str | None:
+        return _telefone_normalizado(v)
 
 
 class FuncionarioRedeRead(FuncionarioRedeBase):
