@@ -68,6 +68,8 @@ class WhatsappFuncionarioOpcaoRead(BaseModel):
     telefone: str | None = None
     tipo: str
     empresas: list[WhatsappEmpresaOpcaoRead] = Field(default_factory=list)
+    rede_id: int | None = None
+    rede_nome: str | None = None
 
 
 class WhatsappContatoRead(BaseModel):

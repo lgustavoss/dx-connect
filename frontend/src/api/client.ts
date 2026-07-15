@@ -905,6 +905,8 @@ export namespace WhatsappChats {
     telefone?: string | null
     tipo: string
     empresas: EmpresaOpcao[]
+    rede_id?: number | null
+    rede_nome?: string | null
   }
   export interface Contato {
     id: number
