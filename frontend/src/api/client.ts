@@ -905,6 +905,8 @@ export namespace WhatsappChats {
     telefone?: string | null
     tipo: string
     empresas: EmpresaOpcao[]
+    rede_id?: number | null
+    rede_nome?: string | null
   }
   export interface Contato {
     id: number
@@ -1527,6 +1529,9 @@ export namespace ChatInterno {
     pode_editar?: boolean;
     pode_apagar_para_todos?: boolean;
     pode_apagar_para_mim?: boolean;
+    reply_to_message_id?: number | null;
+    reply_preview?: string | null;
+    reply_autor_nome?: string | null;
     created_at: string;
   }
 
@@ -1569,12 +1574,15 @@ export const chatInterno = {
         antes_de_id: params?.antesDeId,
       }),
     ),
-  enviar: (conversaId: number, corpo: string) =>
+  enviar: (conversaId: number, corpo: string, replyToMessageId?: number | null) =>
     api<ChatInterno.Mensagem>(`/chat-interno/conversas/${conversaId}/mensagens`, {
       method: 'POST',
-      body: JSON.stringify({ corpo }),
+      body: JSON.stringify({
+        corpo,
+        ...(replyToMessageId != null ? { reply_to_message_id: replyToMessageId } : {}),
+      }),
     }),
-  enviarMidia: (conversaId: number, file: File, caption?: string) => {
+  enviarMidia: (conversaId: number, file: File, caption?: string, replyToMessageId?: number | null) => {
     const formData = new FormData();
     formData.append('file', file);
     let mediatipo: ChatInterno.TipoMidia = 'documento';
@@ -1584,6 +1592,7 @@ export const chatInterno = {
     } else if (file.type.startsWith('video/')) mediatipo = 'video';
     formData.append('mediatipo', mediatipo);
     formData.append('caption', caption || '');
+    if (replyToMessageId != null) formData.append('reply_to_message_id', String(replyToMessageId));
     return api<ChatInterno.Mensagem>(`/chat-interno/conversas/${conversaId}/mensagens/midia`, {
       method: 'POST',
       body: formData,

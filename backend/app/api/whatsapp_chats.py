@@ -759,10 +759,15 @@ def buscar_funcionarios(
         .limit(limit)
     )
     rows = q.all()
+    redes_cache: dict[int, str] = {
+        int(r.id): r.nome
+        for r in db.query(Rede).filter(Rede.tenant_id == atendente.tenant_id).all()
+    }
     out: list[WhatsappFuncionarioOpcaoRead] = []
     for func in rows:
         if _funcionario_no_tenant(db, atendente, func.id) is None:
             continue
+        rid = rede_id_efetiva(db, func)
         out.append(
             WhatsappFuncionarioOpcaoRead(
                 id=func.id,
@@ -771,6 +776,8 @@ def buscar_funcionarios(
                 telefone=getattr(func, "telefone", None),
                 tipo=func.tipo,
                 empresas=_empresas_funcionario(db, func),
+                rede_id=rid,
+                rede_nome=redes_cache.get(int(rid)) if rid is not None else None,
             )
         )
     return out

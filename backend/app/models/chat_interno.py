@@ -115,9 +115,18 @@ class MensagemInterna(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     editada_em = Column(DateTime(timezone=True), nullable=True)
     apagada_em = Column(DateTime(timezone=True), nullable=True)
+    reply_to_message_id = Column(
+        Integer,
+        ForeignKey("mensagens_internas.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    reply_preview = Column(String(500), nullable=True)
+    reply_autor_nome = Column(String(200), nullable=True)
 
     conversa = relationship("ConversaInterna", back_populates="mensagens")
     atendente = relationship("Atendente", backref="mensagens_internas")
+    reply_to = relationship("MensagemInterna", remote_side=[id], foreign_keys=[reply_to_message_id])
     reacoes = relationship(
         "MensagemInternaReacao",
         back_populates="mensagem",

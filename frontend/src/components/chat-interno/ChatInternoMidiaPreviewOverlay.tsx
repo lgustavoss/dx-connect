@@ -63,7 +63,6 @@ export function ChatInternoMidiaPreviewOverlay({ arquivo, legendaInicial = '', o
       const pos = start + emoji.length
       el.setSelectionRange(pos, pos)
     })
-    setEmojiAberto(false)
   }
 
   return (

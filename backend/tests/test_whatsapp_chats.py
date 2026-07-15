@@ -449,8 +449,12 @@ def test_buscar_funcionarios_whatsapp(client, seed_base, auth_headers, db_sessio
     func = _criar_funcionario_colaborador(db_session, seed_base, nome="Maria Silva", email="maria@test.local")
     r = client.get("/v1/whatsapp/chats/funcionarios?busca=Maria", headers=auth_headers["a1"])
     assert r.status_code == 200
-    ids = [x["id"] for x in r.json()]
+    rows = r.json()
+    ids = [x["id"] for x in rows]
     assert func["id"] in ids
+    hit = next(x for x in rows if x["id"] == func["id"])
+    assert hit["rede_nome"] == seed_base["rede"].nome
+    assert any(e["id"] == seed_base["empresa"].id for e in hit["empresas"])
 
 
 def test_desvincular_funcionario_no_chat(client, seed_base, auth_headers, db_session):

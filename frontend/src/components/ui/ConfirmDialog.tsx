@@ -32,19 +32,22 @@ export function ConfirmDialog({
 }: Props) {
   const titleId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
+  const onCancelRef = useRef(onCancel)
+  onCancelRef.current = onCancel
 
   useEffect(() => {
     if (!open) return
+    // Só ao abrir — não refocar quando onCancel muda a cada re-render do pai (poll/SSE).
     dialogRef.current?.focus()
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
-        onCancel()
+        onCancelRef.current()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onCancel])
+  }, [open])
 
   if (!open) return null
 

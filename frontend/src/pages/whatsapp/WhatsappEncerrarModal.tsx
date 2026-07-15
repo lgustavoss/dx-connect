@@ -124,11 +124,18 @@ export function WhatsappEncerrarModal({
     } else if (acao === 'nova' || acao === 'registrar') {
       setForm(DEMANDA_FORM_VAZIO)
     }
-  }, [acao, posRegistro])
+    // Só ao mudar a ação — posRegistro muda com poll de msgs e não deve limpar o que o usuário digita.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intencional
+  }, [acao])
 
   function selecionarAcao(nova: AcaoEncerramento) {
     acaoEscolhidaRef.current = true
     setAcao(nova)
+  }
+
+  function atualizarForm(next: DemandaFormValues) {
+    acaoEscolhidaRef.current = true
+    setForm(next)
   }
 
   async function executarEncerramento() {
@@ -338,7 +345,7 @@ export function WhatsappEncerrarModal({
           )}
 
           {mostrarForm && (
-            <WhatsappDemandaFormFields values={form} onChange={setForm} disabled={salvando} idPrefix="enc" />
+            <WhatsappDemandaFormFields values={form} onChange={atualizarForm} disabled={salvando} idPrefix="enc" />
           )}
 
           <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 dark:border-slate-800 sm:flex-row sm:justify-end">
