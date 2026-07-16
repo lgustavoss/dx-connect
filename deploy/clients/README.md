@@ -103,6 +103,12 @@ bash deploy/scripts/stack-client.sh duplexsoft migrate
 bash deploy/scripts/stack-client.sh duplexsoft up
 ```
 
+### Volume `/app/data` (anexos e mídia)
+
+O template monta `backend_data` → `/app/data`. Sem esse volume, cada rebuild apaga anexos de ticket, mídia WhatsApp/chat interno, KB e logos — o metadado fica na BD e o download devolve **404**.
+
+Clientes já provisionados **antes** deste volume: copie o bloco `volumes` do `_template/docker-compose.stack.yml` para o `docker-compose.yml` do cliente e faça `up` de novo. Ficheiros já perdidos não voltam; é preciso reenviar anexos.
+
 ## Backup da base do cliente
 
 ```bash

@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { fetchChatInternoMidiaBlob, type ChatInterno } from '../../api/client'
 
 const ROTULO_SEM_LEGENDA = /^(📷 Imagem|🎬 Vídeo|🎵 Áudio|📄 Documento)$/
@@ -23,6 +24,7 @@ export function ChatInternoConteudoMensagem({
   const [url, setUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState(false)
+  const [zoomAberto, setZoomAberto] = useState(false)
 
   useEffect(() => {
     if (!mensagem.midia_disponivel || tipo === 'texto') {
@@ -54,6 +56,15 @@ export function ChatInternoConteudoMensagem({
     }
   }, [url])
 
+  useEffect(() => {
+    if (!zoomAberto) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setZoomAberto(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [zoomAberto])
+
   const legenda =
     mensagem.corpo && !ROTULO_SEM_LEGENDA.test(mensagem.corpo.trim()) ? mensagem.corpo : null
 
@@ -79,7 +90,7 @@ export function ChatInternoConteudoMensagem({
             }`}
           >
             {mensagem.corpo}
-            <span aria-hidden className="inline-block w-[4.25rem] h-[0.85rem]" />
+            <span aria-hidden className="inline-block h-[0.85rem] w-[4.25rem]" />
           </p>
           <div className="absolute bottom-0 right-0 flex items-center gap-0.5 pl-1">{rodape}</div>
         </div>
@@ -112,14 +123,72 @@ export function ChatInternoConteudoMensagem({
 
   if (tipo === 'imagem') {
     return (
-      <div className="space-y-1">
-        <img src={url} alt="" className={`${mediaClass} cursor-zoom-in`} />
-        {legenda && (
-          <p className={`whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere] ${textoClaro ? 'text-cyan-50' : ''}`}>
-            {legenda}
-          </p>
-        )}
-      </div>
+      <>
+        <div className="space-y-1">
+          <button
+            type="button"
+            className="block max-w-full cursor-zoom-in rounded-lg border-0 bg-transparent p-0 text-left"
+            onClick={(e) => {
+              e.stopPropagation()
+              setZoomAberto(true)
+            }}
+            onDoubleClick={(e) => e.stopPropagation()}
+            aria-label="Ampliar imagem"
+          >
+            <img
+              src={url}
+              alt=""
+              className={`${mediaClass} transition-transform duration-200 hover:scale-[1.02]`}
+            />
+          </button>
+          {legenda && (
+            <p
+              className={`whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere] ${textoClaro ? 'text-cyan-50' : ''}`}
+            >
+              {legenda}
+            </p>
+          )}
+        </div>
+        {zoomAberto &&
+          createPortal(
+            <div
+              className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/90 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Imagem ampliada"
+              onClick={() => setZoomAberto(false)}
+            >
+              <button
+                type="button"
+                className="absolute top-4 right-4 flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-white/10 text-3xl font-bold text-white transition-colors hover:bg-white/20"
+                onClick={() => setZoomAberto(false)}
+                aria-label="Fechar"
+              >
+                &times;
+              </button>
+              <img
+                src={url}
+                alt=""
+                className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl animate-in zoom-in-95 duration-200"
+                onClick={(e) => e.stopPropagation()}
+              />
+              {legenda ? (
+                <p className="mt-4 max-w-2xl rounded-xl bg-black/40 px-4 py-2 text-center text-sm text-white backdrop-blur-md">
+                  {legenda}
+                </p>
+              ) : null}
+              <a
+                href={url}
+                download={mensagem.nome_arquivo || 'imagem.jpg'}
+                className="absolute bottom-4 right-4 flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg transition-all hover:scale-105 hover:bg-sky-500"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Baixar
+              </a>
+            </div>,
+            document.body,
+          )}
+      </>
     )
   }
 
