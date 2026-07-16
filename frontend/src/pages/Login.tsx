@@ -178,6 +178,14 @@ export function Login() {
           <p className="text-center text-xs leading-relaxed text-slate-500">
             Use o usuário cadastrado pelo administrador. Problemas para acessar? Contate o suporte interno.
           </p>
+          <p className="text-center">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-sky-300 transition hover:border-sky-400/40 hover:bg-white/10 hover:text-sky-200"
+            >
+              ← Voltar ao site
+            </Link>
+          </p>
         </div>
       </main>
     </div>
