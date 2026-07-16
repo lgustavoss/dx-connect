@@ -8,7 +8,7 @@ import logging
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Awaitable, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -116,10 +116,16 @@ async def stream_channel_events(
     *,
     initial_payload: dict[str, Any] | None = None,
     disconnect_check: Any | None = None,
+    on_presence_tick: Callable[[], Awaitable[None]] | None = None,
 ) -> AsyncIterator[str]:
     """Gera linhas SSE para um canal, com heartbeat e desconexão limpa."""
     queue = await hub.subscribe(channel)
     try:
+        if on_presence_tick is not None:
+            try:
+                await on_presence_tick()
+            except Exception:
+                logger.exception("Falha no tick inicial de presença (%s)", channel)
         if initial_payload is not None:
             yield format_sse(initial_payload)
         elapsed = 0.0
@@ -133,6 +139,11 @@ async def stream_channel_events(
             except asyncio.TimeoutError:
                 elapsed += _DISCONNECT_POLL_SEC
                 if elapsed >= HEARTBEAT_INTERVAL_SEC:
+                    if on_presence_tick is not None:
+                        try:
+                            await on_presence_tick()
+                        except Exception:
+                            logger.exception("Falha no tick de presença (%s)", channel)
                     yield format_sse({"type": "ping", "payload": {}})
                     elapsed = 0.0
     finally:

@@ -3,8 +3,10 @@ import { ApiError, presenca, type Presenca } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../contexts/AuthContext'
 import { SemPermissao } from './SemPermissao'
 
 const POLL_MS = 20_000
@@ -44,11 +46,14 @@ function rotuloRole(role: string): string {
 
 export function PresencaOnline() {
   const toast = useToast()
+  const { user } = useAuth()
   const [itens, setItens] = useState<Presenca.ItemOnline[]>([])
   const [loading, setLoading] = useState(true)
   const [semPermissao, setSemPermissao] = useState(false)
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null)
   const [agora, setAgora] = useState(() => Date.now())
+  const [alvoForcar, setAlvoForcar] = useState<Presenca.ItemOnline | null>(null)
+  const [forcando, setForcando] = useState(false)
 
   const carregar = useCallback(
     async (silencioso = false) => {
@@ -146,50 +151,105 @@ export function PresencaOnline() {
                   <th className="px-2 py-2 font-medium sm:px-3">Setores</th>
                   <th className="px-2 py-2 font-medium sm:px-3">Perfil</th>
                   <th className="px-2 py-2 font-medium sm:px-3">Online desde</th>
+                  <th className="px-2 py-2 font-medium sm:px-3">
+                    <span className="sr-only">Ações</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {itens.map((item) => (
-                  <tr key={item.atendente_id}>
-                    <td className="px-2 py-3 sm:px-3">
-                      <div className="flex items-center gap-3">
-                        <span
-                          className="size-2.5 shrink-0 rounded-full bg-emerald-500"
-                          title="Online"
-                          aria-label="Online"
-                        />
-                        <div className="min-w-0">
-                          <p className="font-medium text-slate-900 dark:text-slate-100">{item.nome}</p>
-                          <p className="truncate text-xs text-slate-500 dark:text-slate-400">{item.email}</p>
+                {itens.map((item) => {
+                  const souEu = item.atendente_id === user?.id
+                  return (
+                    <tr key={item.atendente_id}>
+                      <td className="px-2 py-3 sm:px-3">
+                        <div className="flex items-center gap-3">
+                          <span
+                            className="size-2.5 shrink-0 rounded-full bg-emerald-500"
+                            title="Online"
+                            aria-label="Online"
+                          />
+                          <div className="min-w-0">
+                            <p className="font-medium text-slate-900 dark:text-slate-100">
+                              {item.nome}
+                              {souEu ? (
+                                <span className="ml-1.5 text-xs font-normal text-slate-500">(você)</span>
+                              ) : null}
+                            </p>
+                            <p className="truncate text-xs text-slate-500 dark:text-slate-400">{item.email}</p>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-2 py-3 text-slate-700 dark:text-slate-300 sm:px-3">
-                      {item.setores.length === 0
-                        ? '—'
-                        : item.setores.map((s) => s.nome).join(', ')}
-                    </td>
-                    <td className="px-2 py-3 text-slate-700 dark:text-slate-300 sm:px-3">
-                      {rotuloRole(item.role)}
-                    </td>
-                    <td className="px-2 py-3 sm:px-3">
-                      <span
-                        className="font-medium text-slate-800 dark:text-slate-100"
-                        title={formatarAbsoluto(item.online_desde)}
-                      >
-                        {formatarRelativo(item.online_desde, agora)}
-                      </span>
-                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                        {formatarAbsoluto(item.online_desde)}
-                      </p>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-2 py-3 text-slate-700 dark:text-slate-300 sm:px-3">
+                        {item.setores.length === 0
+                          ? '—'
+                          : item.setores.map((s) => s.nome).join(', ')}
+                      </td>
+                      <td className="px-2 py-3 text-slate-700 dark:text-slate-300 sm:px-3">
+                        {rotuloRole(item.role)}
+                      </td>
+                      <td className="px-2 py-3 sm:px-3">
+                        <span
+                          className="font-medium text-slate-800 dark:text-slate-100"
+                          title={formatarAbsoluto(item.online_desde)}
+                        >
+                          {formatarRelativo(item.online_desde, agora)}
+                        </span>
+                        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                          {formatarAbsoluto(item.online_desde)}
+                        </p>
+                      </td>
+                      <td className="px-2 py-3 sm:px-3">
+                        {!souEu ? (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            className="!px-2.5 !py-1 text-xs text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950/40"
+                            onClick={() => setAlvoForcar(item)}
+                          >
+                            Forçar saída
+                          </Button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         </Card>
       )}
+
+      <ConfirmDialog
+        open={alvoForcar != null}
+        title="Forçar saída?"
+        message={
+          alvoForcar
+            ? `${alvoForcar.nome} será desconectado do painel e precisará fazer login novamente.`
+            : ''
+        }
+        confirmLabel="Forçar saída"
+        cancelLabel="Cancelar"
+        variant="danger"
+        loading={forcando}
+        onCancel={() => {
+          if (!forcando) setAlvoForcar(null)
+        }}
+        onConfirm={() => {
+          if (!alvoForcar) return
+          setForcando(true)
+          void presenca
+            .forcarSaida(alvoForcar.atendente_id)
+            .then(() => {
+              toast.showSuccess(`${alvoForcar.nome} foi desconectado.`)
+              setAlvoForcar(null)
+              void carregar(true)
+            })
+            .catch((err) => {
+              toast.showError(mensagemFalhaParaToast(err, 'Não foi possível forçar a saída.'))
+            })
+            .finally(() => setForcando(false))
+        }}
+      />
     </PageContainer>
   )
 }

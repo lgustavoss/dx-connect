@@ -651,6 +651,8 @@ export const audit = {
 
 export const presenca = {
   online: () => api<Presenca.ListaOnline>('/presenca/online'),
+  forcarSaida: (atendenteId: number) =>
+    api<void>(`/presenca/online/${atendenteId}/forcar-saida`, { method: 'POST' }),
 };
 
 export namespace WhatsappSettings {

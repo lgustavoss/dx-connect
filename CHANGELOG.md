@@ -7,6 +7,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Melhorias
 
+- Equipe online: lista funciona com vários workers do servidor (presença gravada no banco); admin pode **Forçar saída** de um atendente conectado
+- Chat interno: balões mais próximos — opções/reações só no hover; em grupos, avatar e cor por pessoa para distinguir quem fala
 - Equipe online (#545–#547): administradores veem quem está com o painel aberto e desde quando (menu **Equipe online**), para coordenar atendimento de chats e tickets
 - Chat (#539): após enviar mensagem (WhatsApp e chat interno), o cursor permanece no campo de texto; painel de emoji fica aberto ao escolher vários; **Responder** mensagem no chat interno (direta, equipe e grupo)
 - WhatsApp: na busca «Vincular existente», cada resultado mostra **rede** e **empresa(s)** para distinguir homónimos
@@ -15,6 +17,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Correções
 
+- Equipe online: «0 online» mesmo com painel aberto (lista lia só a memória do worker errado)
+- Chat interno: espaço excessivo entre mensagens após colocar ações/reações fora do balão
 - WhatsApp: o feed deixa de puxar sozinho para o fim enquanto você lê mensagens acima; ao reabrir a conversa, retoma a posição em que parou
 - Chat interno: ações (Responder/Editar/Apagar) e reações ficam fora do balão da mensagem
 - Chat interno: clique na imagem abre visualização em tela cheia (antes só tinha o cursor de zoom, sem ação)

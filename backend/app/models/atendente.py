@@ -27,6 +27,11 @@ class Atendente(Base):
     role = Column(String(20), nullable=False, default="atendente")  # admin | atendente
     ativo = Column(Boolean, default=True)
     must_change_password = Column(Boolean, nullable=False, default=False)
+    # Presença online (#546+): heartbeat gravado no DB (funciona com Gunicorn N>1).
+    presenca_online_desde = Column(DateTime(timezone=True), nullable=True)
+    presenca_heartbeat_em = Column(DateTime(timezone=True), nullable=True, index=True)
+    # Incrementado ao forçar saída — invalida access/refresh tokens com claim "ver" antigo.
+    token_version = Column(Integer, nullable=False, default=0, server_default="0")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

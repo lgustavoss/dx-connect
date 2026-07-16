@@ -48,6 +48,13 @@ def _carregar_atendente_por_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuário não encontrado ou inativo",
         )
+    token_ver = int(payload.get("ver") or 0)
+    atual_ver = int(getattr(atendente, "token_version", 0) or 0)
+    if token_ver != atual_ver:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sessão encerrada. Faça login novamente.",
+        )
     path = request.url.path.rstrip("/") or "/"
     method = request.method.upper()
     if getattr(atendente, "must_change_password", False):
