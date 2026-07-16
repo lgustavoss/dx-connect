@@ -984,15 +984,6 @@ useEffect(() => {
               </Button>
             )}
 
-            <Button
-              variant="ghost"
-              className="inline-flex text-xs h-8"
-              onClick={() => setModalVincFuncionario(true)}
-            >
-              <span className="sm:hidden">{CONTATO_CLIENTE.vincularCurto}</span>
-              <span className="hidden sm:inline">{CONTATO_CLIENTE.vincularChat}</span>
-            </Button>
-
             {!encerrado && (
               <>
                 {podeTransferir && (
@@ -1307,6 +1298,10 @@ useEffect(() => {
             onAudioGravado={handleGravacaoConcluida}
             onInserirEmoji={setTexto}
             onEnviarFigurinha={(file) => void enviarFigurinha(file)}
+            onColarArquivo={(file) => {
+              setArquivoPendente(file)
+              setLegendaMidia('')
+            }}
             onInserirReferenciaKb={inserirReferenciaKb}
           />
 

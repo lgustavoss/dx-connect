@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ClipboardEvent } from 'react'
 import { Button } from '../../components/ui/Button'
 import { KbConsultaButton } from '../../components/KbConsultaModal'
 import type { TipoAnexoPicker } from './WhatsappBarraAnexos'
@@ -14,6 +14,8 @@ type Props = {
   onAudioGravado: (file: File) => void
   onInserirEmoji: (emoji: string) => void
   onEnviarFigurinha: (file: File) => void
+  /** Ctrl+V / colar ficheiro do clipboard (imagem, etc.) */
+  onColarArquivo?: (file: File) => void
   enviando: boolean
   encerrado: boolean
   podeEnviar: boolean
@@ -40,6 +42,7 @@ export function WhatsappComposerBar({
   onAudioGravado,
   onInserirEmoji,
   onEnviarFigurinha,
+  onColarArquivo,
   enviando,
   encerrado,
   podeEnviar,
@@ -90,6 +93,17 @@ export function WhatsappComposerBar({
       const pos = start + emoji.length
       el.setSelectionRange(pos, pos)
     })
+  }
+
+  function handlePaste(e: ClipboardEvent<HTMLTextAreaElement>) {
+    if (acoesBloqueadas || modoInterno || !podeEnviar || !onColarArquivo) return
+    const files = Array.from(e.clipboardData?.items ?? [])
+      .filter((item) => item.kind === 'file')
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => Boolean(file))
+    if (files.length === 0) return
+    e.preventDefault()
+    onColarArquivo(files[0])
   }
 
   return (
@@ -184,6 +198,7 @@ export function WhatsappComposerBar({
               if (!acoesBloqueadas && temTexto) enviar()
             }
           }}
+          onPaste={handlePaste}
         />
 
         {temTexto ? (

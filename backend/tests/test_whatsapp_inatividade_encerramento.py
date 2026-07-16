@@ -160,6 +160,41 @@ def test_worker_nao_age_quando_cliente_respondeu_por_ultimo(client, seed_base, a
     assert n == 0
 
 
+def test_worker_nao_age_so_com_auto_assumido(client, seed_base, auth_headers, db_session, monkeypatch):
+    """Mensagem de sistema ao assumir não conta como resposta do atendente."""
+    _configurar_evolution(db_session)
+    chat = _chat_em_atendimento(db_session, wa_id="5511888776655")
+    antiga = datetime.now(timezone.utc) - timedelta(minutes=30)
+    db_session.add(
+        WhatsappMensagem(
+            chat_id=chat.id,
+            direcao="inbound",
+            corpo="Preciso de ajuda",
+            tipo_midia="texto",
+            created_at=antiga,
+        )
+    )
+    db_session.add(
+        WhatsappMensagem(
+            chat_id=chat.id,
+            direcao="outbound",
+            corpo="[ BOT ]: Atendimento iniciado",
+            tipo_midia="texto",
+            evento_sistema="auto_assumido",
+            created_at=antiga + timedelta(minutes=1),
+        )
+    )
+    db_session.commit()
+
+    monkeypatch.setattr(
+        "app.services.whatsapp_inactivity_worker.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-out-assumido"),
+    )
+
+    n = process_whatsapp_inactivity_closures(db_session)
+    assert n == 0
+
+
 def test_worker_aviso_mesmo_com_atendente_enviando_varias_vezes(
     client, seed_base, auth_headers, db_session, monkeypatch
 ):
