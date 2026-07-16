@@ -29,6 +29,7 @@ from app.api import (
     cadastro_aux,
     notificacoes,
     events,
+    presenca,
     whatsapp_settings,
     whatsapp_chats,
     whatsapp_webhook,
@@ -440,6 +441,7 @@ app.include_router(tipo_negocio.router, prefix=API_V1_PREFIX)
 app.include_router(cadastro_aux.router, prefix=API_V1_PREFIX)
 app.include_router(notificacoes.router, prefix=API_V1_PREFIX)
 app.include_router(events.router, prefix=API_V1_PREFIX)
+app.include_router(presenca.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_settings.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_chats.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_webhook.router, prefix=API_V1_PREFIX)
