@@ -7,7 +7,6 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Melhorias
 
-- Landing pública (#515): visitante anónimo em `/` vê a página institucional DeskRudder com copy comercial, blocos de produto e prints do painel; cliente autenticado continua no dashboard
 - Equipe online (#545–#547): administradores veem quem está com o painel aberto e desde quando (menu **Equipe online**), para coordenar atendimento de chats e tickets
 - Chat (#539): após enviar mensagem (WhatsApp e chat interno), o cursor permanece no campo de texto; painel de emoji fica aberto ao escolher vários; **Responder** mensagem no chat interno (direta, equipe e grupo)
 - WhatsApp: na busca «Vincular existente», cada resultado mostra **rede** e **empresa(s)** para distinguir homónimos
@@ -17,7 +16,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 ### Correções
 
 - Chat interno: clique na imagem abre visualização em tela cheia (antes só tinha o cursor de zoom, sem ação)
-- Anexos de ticket: compose de produção e template por cliente passam a persistir `/app/data` em volume Docker — evita 404 no download após redeploy; mensagem de erro esclarece quando o ficheiro sumiu do disco
+- Anexos de ticket: ficheiros deixam de desaparecer após atualização do sistema; se o arquivo já tiver sido perdido, o aviso deixa isso claro
 - WhatsApp: removido botão duplicado «Identificar contato» no header — fica só o do banner enquanto o contacto não está vinculado; após vincular o CTA some
 - WhatsApp: encerramento por inatividade só conta a partir da última mensagem do cliente quando o chat já está em atendimento e o atendente já enviou mensagem humana (auto_assumido/BOT não disparam o timer)
 - WhatsApp: Ctrl+V no composer cola imagem/ficheiro do clipboard (pré-visualização antes de enviar), como no chat interno
@@ -102,6 +101,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 ### Interno / Infra
 
 - Persistência do manifest de releases após cada deploy em staging
+- Deploy: volume Docker `backend_data` → `/app/data` (anexos, mídia WhatsApp/chat interno, KB e logos) no compose de produção e no template por cliente
 
 <!-- Adicione bullets aqui a cada PR para main. Texto para o usuário final, não mensagem de commit. -->
 
