@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState, useRef, type MouseEvent } from 'react'
 
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
@@ -28,6 +28,7 @@ import { whatsappMensagensUnicas } from '../../lib/whatsappMensagens'
 import { MensagemRodapeMeta } from '../../components/chat/MensagemRodapeMeta'
 
 import { Card } from '../../components/ui/Card'
+import { TEXTAREA_FIELD_CLASS } from '../../components/ui/Input'
 
 import { Button } from '../../components/ui/Button'
 
@@ -272,6 +273,7 @@ export function WhatsappConversa() {
 
   // Estados de WhatsApp Clone (Citação e Zoom)
   const [msgRespondida, setMsgRespondida] = useState<WhatsappChats.Mensagem | null>(null)
+  const [focoComposerEm, setFocoComposerEm] = useState(0)
   const [activeZoomImage, setActiveZoomImage] = useState<string | null>(null)
   const [activeZoomImageCaption, setActiveZoomImageCaption] = useState<string | null>(null)
   const [modoInterno, setModoInterno] = useState(false)
@@ -571,6 +573,18 @@ useEffect(() => {
   function inserirReferenciaKb(ref: string) {
     const sep = texto && !texto.endsWith('\n') ? '\n\n' : texto ? '' : ''
     setTexto(texto + sep + ref)
+  }
+
+  function iniciarResposta(m: WhatsappChats.Mensagem) {
+    setMsgRespondida(m)
+    setFocoComposerEm((n) => n + 1)
+  }
+
+  function duploCliqueResponder(e: MouseEvent, m: WhatsappChats.Mensagem, isSystem: boolean) {
+    if (isSystem || encerrado || !podeEnviar || modoInterno) return
+    const t = e.target as HTMLElement
+    if (t.closest('button, a, input, textarea, video, audio')) return
+    iniciarResposta(m)
   }
 
   async function enviar() {
@@ -984,15 +998,6 @@ useEffect(() => {
               </Button>
             )}
 
-            <Button
-              variant="ghost"
-              className="inline-flex text-xs h-8"
-              onClick={() => setModalVincFuncionario(true)}
-            >
-              <span className="sm:hidden">{CONTATO_CLIENTE.vincularCurto}</span>
-              <span className="hidden sm:inline">{CONTATO_CLIENTE.vincularChat}</span>
-            </Button>
-
             {!encerrado && (
               <>
                 {podeTransferir && (
@@ -1121,11 +1126,12 @@ useEffect(() => {
               <div 
                 key={m.id} 
                 id={`msg-${m.wa_message_id || m.id}`}
-                className={`flex w-full group items-center gap-2 transition-all ${isInbound ? 'justify-start' : 'justify-end'}`}
+                onDoubleClick={(e) => duploCliqueResponder(e, m, isSystem)}
+                className={`flex w-full group cursor-default items-center gap-2 transition-all ${isInbound ? 'justify-start' : 'justify-end'}`}
               >
                 {!isInbound && !isSystem && (
                   <button
-                    onClick={() => setMsgRespondida(m)}
+                    onClick={() => iniciarResposta(m)}
                     className="opacity-25 group-hover:opacity-100 md:opacity-0 transition-opacity p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer shrink-0"
                     title="Responder"
                   >
@@ -1201,7 +1207,7 @@ useEffect(() => {
 
                 {isInbound && !isSystem && (
                   <button
-                    onClick={() => setMsgRespondida(m)}
+                    onClick={() => iniciarResposta(m)}
                     className="opacity-25 group-hover:opacity-100 md:opacity-0 transition-opacity p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer shrink-0"
                     title="Responder"
                   >
@@ -1280,7 +1286,7 @@ useEffect(() => {
                   value={legendaMidia}
                   onChange={(e) => setLegendaMidia(e.target.value)}
                   placeholder="Legenda opcional (visível no WhatsApp)"
-                  className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                  className={`mt-2 ${TEXTAREA_FIELD_CLASS}`}
                 />
               )}
               <div className="mt-2 flex justify-end gap-2">
@@ -1307,7 +1313,12 @@ useEffect(() => {
             onAudioGravado={handleGravacaoConcluida}
             onInserirEmoji={setTexto}
             onEnviarFigurinha={(file) => void enviarFigurinha(file)}
+            onColarArquivo={(file) => {
+              setArquivoPendente(file)
+              setLegendaMidia('')
+            }}
             onInserirReferenciaKb={inserirReferenciaKb}
+            focoPedidoEm={focoComposerEm}
           />
 
           <input

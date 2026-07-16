@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ApiError, tickets, type Tickets } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { Button } from './ui/Button'
+import { TEXTAREA_FIELD_CLASS } from './ui/Input'
 import { useToast } from './ui/Toast'
 import {
   mensagemEmFilaEmail,
@@ -141,7 +142,7 @@ export function TicketMensagemEmailOutbox({ ticketId, msg, podeGerir, onAtualiza
             value={editCorpo}
             onChange={(e) => setEditCorpo(e.target.value)}
             rows={4}
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900"
+            className={TEXTAREA_FIELD_CLASS}
             disabled={busy}
           />
           <div className="flex flex-wrap gap-2">

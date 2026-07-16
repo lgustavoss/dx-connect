@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ChatInterno } from '../../api/client'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
+import { TEXTAREA_FIELD_CLASS } from '../ui/Input'
 
 const ROTULO_SEM_LEGENDA = /^(📷 Imagem|🎬 Vídeo|🎵 Áudio|📄 Documento)$/
 
@@ -55,7 +56,7 @@ export function ChatInternoMensagemAcoes({
           onChange={(e) => setTexto(e.target.value)}
           rows={editandoTexto ? 3 : 2}
           placeholder={editandoTexto ? undefined : 'Legenda da mídia (opcional)'}
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+          className={TEXTAREA_FIELD_CLASS}
         />
         <div className="flex gap-2">
           <button
@@ -86,6 +87,9 @@ export function ChatInternoMensagemAcoes({
     )
   }
 
+  const btnAcaoClass =
+    'pointer-events-auto rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-600 dark:hover:bg-slate-700'
+
   return (
     <>
       <div
@@ -94,11 +98,7 @@ export function ChatInternoMensagemAcoes({
         }`}
       >
         {podeResponder && (
-          <button
-            type="button"
-            onClick={() => onResponder?.()}
-            className="pointer-events-auto rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-sm ring-1 ring-slate-200 hover:bg-white dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-600"
-          >
+          <button type="button" onClick={() => onResponder?.()} className={btnAcaoClass}>
             Responder
           </button>
         )}
@@ -109,17 +109,13 @@ export function ChatInternoMensagemAcoes({
               setTexto(legendaEditavel(mensagem))
               setEditando(true)
             }}
-            className="pointer-events-auto rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-sm ring-1 ring-slate-200 hover:bg-white dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-600"
+            className={btnAcaoClass}
           >
             Editar
           </button>
         )}
         {(podeApagarTodos || podeApagarMim) && (
-          <button
-            type="button"
-            onClick={() => setConfirmarApagar(true)}
-            className="pointer-events-auto rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-sm ring-1 ring-slate-200 hover:bg-white dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-600"
-          >
+          <button type="button" onClick={() => setConfirmarApagar(true)} className={btnAcaoClass}>
             Apagar
           </button>
         )}

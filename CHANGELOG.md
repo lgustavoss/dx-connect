@@ -5,6 +5,14 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### Correções
+
+- WhatsApp: removido botão duplicado «Identificar contato» no header — fica só o do banner enquanto o contacto não está vinculado; após vincular o CTA some
+- WhatsApp: encerramento por inatividade só conta a partir da última mensagem do cliente quando o chat já está em atendimento e o atendente já enviou mensagem humana (auto_assumido/BOT não disparam o timer)
+- WhatsApp: Ctrl+V no composer cola imagem/ficheiro do clipboard (pré-visualização antes de enviar), como no chat interno
+- Chat: removida a borda branca de foco no campo de mensagem e nos demais inputs/textareas (outline nativo + alinhamento ao design system)
+- Chat interno: contraste no hover de Responder/Editar/Apagar; duplo clique na mensagem (ou ao lado do balão) inicia resposta e foca o composer — também no WhatsApp
+
 ## [26.07.006] - 2026-07-15
 
 ### Melhorias

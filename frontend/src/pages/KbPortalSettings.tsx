@@ -5,7 +5,7 @@ import { ApiError } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
+import { Input, TEXTAREA_FIELD_CLASS } from '../components/ui/Input'
 import { CheckboxField } from '../components/ui/CheckboxField'
 import { useToast } from '../components/ui/Toast'
 import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
@@ -181,8 +181,8 @@ export function KbPortalSettingsPage({ embedded = false }: { embedded?: boolean 
                 rows={3}
                 value={form.texto_boas_vindas}
                 onChange={(e) => setForm({ ...form, texto_boas_vindas: e.target.value })}
+                className={TEXTAREA_FIELD_CLASS}
                 placeholder="Consulte passo a passo para tirar dúvidas sobre o sistema."
-                className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-900"
               />
             </div>
           </Card>
@@ -238,8 +238,8 @@ export function KbPortalSettingsPage({ embedded = false }: { embedded?: boolean 
                 rows={2}
                 value={form.chat_texto_boas_vindas}
                 onChange={(e) => setForm({ ...form, chat_texto_boas_vindas: e.target.value })}
+                className={TEXTAREA_FIELD_CLASS}
                 placeholder="Olá! Como podemos ajudar?"
-                className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-900"
               />
             </div>
           </Card>
