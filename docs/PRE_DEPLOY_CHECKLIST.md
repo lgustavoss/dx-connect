@@ -25,6 +25,7 @@ Legenda: **OK** atendido no repositório | **Você** validação manual no servi
 | Cadeia de migrations consistente (`revision`/`down_revision`) | **OK** — ver `docs/ALEMBIC_MIGRATIONS.md` (evita quebra de deploy com `KeyError`/`Revision ... is not present`). |
 | Subir banco do zero e rodar app | **Você** — primeiro deploy: criar DB/usuário no provedor; API cria tabelas no startup. |
 | Persistência após reinício | **Você** — dados ficam no PostgreSQL do provedor; reiniciar só o container não apaga o DB. |
+| Ficheiros de anexos/mídia no disco | **OK** — `docker-compose.prod.yml` e template `deploy/clients` montam volume `backend_data` → `/app/data` (tickets, WhatsApp, chat interno, KB, logos). Sem isto, rebuild apaga ficheiros e o download devolve 404. |
 
 ## Frontend
 

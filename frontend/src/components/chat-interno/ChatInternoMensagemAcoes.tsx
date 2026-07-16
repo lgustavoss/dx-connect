@@ -88,13 +88,13 @@ export function ChatInternoMensagemAcoes({
   }
 
   const btnAcaoClass =
-    'pointer-events-auto rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-600 dark:hover:bg-slate-700'
+    'rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-600 dark:hover:bg-slate-700'
 
   return (
     <>
       <div
-        className={`pointer-events-none absolute top-1 z-10 flex gap-0.5 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 ${
-          alinhamento === 'end' ? 'right-1' : 'left-1'
+        className={`pointer-events-none absolute bottom-full z-10 mb-1 flex gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 ${
+          alinhamento === 'end' ? 'right-0 justify-end' : 'left-0 justify-start'
         }`}
       >
         {podeResponder && (

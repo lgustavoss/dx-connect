@@ -89,6 +89,10 @@ services:
     depends_on:
       evolution-api:
         condition: service_started
+    # Anexos de ticket, mídia WhatsApp/chat interno, KB e logos — sem isto, rebuild apaga ficheiros
+    # e o download devolve 404 («Arquivo não encontrado no storage») com metadados ainda na BD.
+    volumes:
+      - backend_data:/app/data
     restart: unless-stopped
 
 networks:
@@ -98,3 +102,4 @@ networks:
 volumes:
   evolution_postgres_data:
   evolution_instances:
+  backend_data:

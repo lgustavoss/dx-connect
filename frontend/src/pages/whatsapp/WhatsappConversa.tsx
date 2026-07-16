@@ -25,6 +25,13 @@ import { resolveWhatsappMidiaObjectUrl, revokeWhatsappMidiaForChat } from '../..
 import { chatEncerramentoPorInatividade } from '../../lib/whatsappDemandaUtils'
 import { mergeWhatsappChat, patchWhatsappChatLista, replaceWhatsappChatLista } from '../../lib/whatsappChatMerge'
 import { whatsappMensagensUnicas } from '../../lib/whatsappMensagens'
+import {
+  isNearBottom,
+  preserveScrollOnContentChange,
+  restoreWhatsappScroll,
+  saveWhatsappScroll,
+  scrollWhatsappToBottom,
+} from '../../lib/whatsappScrollMemory'
 import { MensagemRodapeMeta } from '../../components/chat/MensagemRodapeMeta'
 
 import { Card } from '../../components/ui/Card'
@@ -240,6 +247,9 @@ export function WhatsappConversa() {
   // Refs
 
   const scrollRef = useRef<HTMLDivElement>(null)
+  const stickToBottomRef = useRef(true)
+  const initialScrollRestoredRef = useRef(false)
+  const saveScrollRafRef = useRef<number | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -342,19 +352,51 @@ export function WhatsappConversa() {
 
 
 
-  // Auto-scroll para o fim
+  // Scroll: só cola no fim se o utilizador já estiver perto do fundo; senão preserva a posição.
+  useEffect(() => {
+    if (!id) return
+    initialScrollRestoredRef.current = false
+    stickToBottomRef.current = true
+  }, [id])
 
   useEffect(() => {
+    if (loading || msgs.length === 0 || initialScrollRestoredRef.current || !id) return
+    initialScrollRestoredRef.current = true
+    requestAnimationFrame(() => {
+      const el = scrollRef.current
+      if (!el) return
+      stickToBottomRef.current = restoreWhatsappScroll(Number(id), el)
+    })
+  }, [loading, msgs.length, id])
 
-    if (scrollRef.current) {
+  useEffect(() => {
+    if (loading || !initialScrollRestoredRef.current || !stickToBottomRef.current) return
+    requestAnimationFrame(() => {
+      const el = scrollRef.current
+      if (el) scrollWhatsappToBottom(el)
+    })
+  }, [msgs, loading])
 
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el || !id) return
+    const chatId = Number(id)
 
+    const onScroll = () => {
+      stickToBottomRef.current = isNearBottom(el)
+      if (saveScrollRafRef.current != null) cancelAnimationFrame(saveScrollRafRef.current)
+      saveScrollRafRef.current = requestAnimationFrame(() => {
+        saveWhatsappScroll(chatId, el)
+      })
     }
 
-  }, [msgs])
-
-
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      if (saveScrollRafRef.current != null) cancelAnimationFrame(saveScrollRafRef.current)
+      saveWhatsappScroll(chatId, el)
+    }
+  }, [id, loading])
 
   // Carregar lista de chats lateral
 
@@ -384,6 +426,10 @@ export function WhatsappConversa() {
     if (!id) return
 
     const gen = ++carregarGenRef.current
+    const el = scrollRef.current
+    const stick = stickToBottomRef.current
+    const prevTop = el?.scrollTop ?? 0
+    const prevHeight = el?.scrollHeight ?? 0
 
     try {
 
@@ -394,6 +440,17 @@ export function WhatsappConversa() {
       setChat((prev) => mergeWhatsappChat(prev, c))
 
       setMsgs(whatsappMensagensUnicas(m))
+
+      requestAnimationFrame(() => {
+        if (!initialScrollRestoredRef.current) return
+        const container = scrollRef.current
+        if (!container) return
+        if (stick) {
+          scrollWhatsappToBottom(container)
+        } else if (el) {
+          preserveScrollOnContentChange(container, prevTop, prevHeight)
+        }
+      })
 
     } catch (err) {
 
@@ -605,6 +662,7 @@ useEffect(() => {
       setTexto('')
       setMsgRespondida(null)
 
+      stickToBottomRef.current = true
       await carregar()
 
     } catch (err) {
@@ -674,6 +732,7 @@ useEffect(() => {
       )
       setMsgRespondida(null)
       toast.showSuccess('Áudio enviado.')
+      stickToBottomRef.current = true
       await carregar()
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Falha ao enviar áudio.'))
@@ -707,6 +766,7 @@ useEffect(() => {
       setArquivoPendente(null)
       setLegendaMidia('')
       toast.showSuccess('Anexo enviado!')
+      stickToBottomRef.current = true
       await carregar()
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Falha no envio do anexo'))
@@ -722,6 +782,7 @@ useEffect(() => {
       await whatsappChats.enviarFigurinha(chat.id, file, msgRespondida?.wa_message_id || null)
       setMsgRespondida(null)
       toast.showSuccess('Figurinha enviada!')
+      stickToBottomRef.current = true
       await carregar()
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Falha ao enviar figurinha'))
@@ -1126,6 +1187,7 @@ useEffect(() => {
               <div 
                 key={m.id} 
                 id={`msg-${m.wa_message_id || m.id}`}
+                data-wa-msg-id={m.id}
                 onDoubleClick={(e) => duploCliqueResponder(e, m, isSystem)}
                 className={`flex w-full group cursor-default items-center gap-2 transition-all ${isInbound ? 'justify-start' : 'justify-end'}`}
               >

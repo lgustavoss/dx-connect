@@ -1569,7 +1569,14 @@ def download_anexo(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Anexo não encontrado")
     p = ticket_anexo_storage.caminho_absoluto_arquivo(a.storage_key)
     if not p:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Arquivo não encontrado no storage")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                "Arquivo não encontrado no storage. "
+                "O registo do anexo existe, mas o ficheiro sumiu do disco "
+                "(comum após redeploy sem volume persistente em /app/data)."
+            ),
+        )
 
     # Força download (evita execução inline de tipos perigosos).
     return FileResponse(

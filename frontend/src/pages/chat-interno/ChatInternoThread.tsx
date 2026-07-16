@@ -483,7 +483,7 @@ export function ChatInternoThread() {
         ref={scrollRef}
         className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto bg-slate-100/90 px-4 py-5 dark:bg-slate-900/60 md:px-6 lg:px-8"
       >
-        <div className="w-full min-w-0 space-y-1">
+        <div className="w-full min-w-0 space-y-3">
         {carregandoAntigas && (
           <p className="py-2 text-center text-sm text-slate-400">Carregando mensagens anteriores…</p>
         )}
@@ -502,11 +502,17 @@ export function ChatInternoThread() {
             const textoCompacto = isTexto && !m.apagada
             if (isSetor) {
               return (
+                <div key={m.id} className="group relative w-full min-w-0" data-chat-msg-id={m.id}>
+                <ChatInternoMensagemAcoes
+                  mensagem={m}
+                  onEditar={(corpo) => editarMensagem(m.id, corpo)}
+                  onApagar={(escopo) => apagarMensagem(m.id, escopo)}
+                  onResponder={() => iniciarResposta(m)}
+                  alinhamento="start"
+                />
                 <article
-                  key={m.id}
-                  data-chat-msg-id={m.id}
                   onDoubleClick={(e) => duploCliqueResponder(e, m)}
-                  className="group w-full min-w-0 overflow-hidden rounded-2xl border border-amber-200/80 bg-amber-50/95 p-5 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/40"
+                  className="w-full min-w-0 overflow-hidden rounded-2xl border border-amber-200/80 bg-amber-50/95 p-5 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/40"
                 >
                   <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">
                     <span>Comunicado</span>
@@ -531,18 +537,6 @@ export function ChatInternoThread() {
                     </button>
                   )}
                   <ChatInternoConteudoMensagem conversaId={conversaId} mensagem={m} />
-                  <ChatInternoMensagemAcoes
-                    mensagem={m}
-                    onEditar={(corpo) => editarMensagem(m.id, corpo)}
-                    onApagar={(escopo) => apagarMensagem(m.id, escopo)}
-                    onResponder={() => iniciarResposta(m)}
-                  />
-                  {!m.apagada && (
-                    <ChatInternoReacoesBar
-                      reacoes={m.reacoes ?? []}
-                      onReagir={(emoji) => void reagirMensagem(m.id, emoji)}
-                    />
-                  )}
                   {m.atendente_id === user?.id ? (
                     <MensagemRodapeMeta
                       hora={m.created_at}
@@ -555,6 +549,14 @@ export function ChatInternoThread() {
                     <p className="mt-2 text-xs text-slate-500">{formatarHoraMensagem(m.created_at)}</p>
                   )}
                 </article>
+                  {!m.apagada && (
+                    <ChatInternoReacoesBar
+                      reacoes={m.reacoes ?? []}
+                      onReagir={(emoji) => void reagirMensagem(m.id, emoji)}
+                      alinhamento="start"
+                    />
+                  )}
+                </div>
               )
             }
             return (
@@ -570,63 +572,6 @@ export function ChatInternoThread() {
                   }`}
                 >
                   <div className="relative w-fit max-w-full">
-                    <div
-                      className={`relative w-fit max-w-full rounded-lg px-[9px] py-[6px] text-sm shadow-sm ring-1 ring-inset ${
-                        propria
-                          ? 'rounded-tr-none bg-cyan-600 text-white ring-cyan-500/30'
-                          : 'rounded-tl-none bg-white text-slate-900 ring-slate-200/80 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700'
-                      }`}
-                    >
-                      {!propria && (
-                        <p className="mb-0.5 text-[11px] font-semibold leading-none text-cyan-700 dark:text-cyan-300">
-                          {m.atendente_nome ?? 'Atendente'}
-                        </p>
-                      )}
-                      {m.reply_to_message_id && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const el = document.querySelector(`[data-chat-msg-id="${m.reply_to_message_id}"]`)
-                            el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                          }}
-                          className={`mb-1 w-full rounded-md border-l-2 px-2 py-1 text-left text-[11px] ${
-                            propria
-                              ? 'border-white/50 bg-white/15 text-white/90'
-                              : 'border-cyan-500 bg-slate-100 text-slate-600 dark:bg-slate-900/60 dark:text-slate-300'
-                          }`}
-                        >
-                          <p className="font-semibold truncate">{m.reply_autor_nome || 'Mensagem'}</p>
-                          <p className="truncate opacity-90">{m.reply_preview || '…'}</p>
-                        </button>
-                      )}
-                      <ChatInternoConteudoMensagem
-                        conversaId={conversaId}
-                        mensagem={m}
-                        textoClaro={propria}
-                        somenteTextoCompacto={textoCompacto}
-                        rodape={
-                          textoCompacto ? (
-                            <MensagemRodapeMeta
-                              hora={m.created_at}
-                              status={propria ? m.status_entrega : null}
-                              direcao={propria ? 'outbound' : 'inbound'}
-                              variant={propria ? 'claro' : 'escuro'}
-                              editada={m.editada}
-                              className="!mt-0"
-                            />
-                          ) : undefined
-                        }
-                      />
-                      {!textoCompacto && (
-                        <MensagemRodapeMeta
-                          hora={m.created_at}
-                          status={propria ? m.status_entrega : null}
-                          direcao={propria ? 'outbound' : 'inbound'}
-                          variant={propria ? 'claro' : 'escuro'}
-                          editada={m.editada}
-                        />
-                      )}
-                    </div>
                     <ChatInternoMensagemAcoes
                       mensagem={m}
                       onEditar={(corpo) => editarMensagem(m.id, corpo)}
@@ -634,13 +579,70 @@ export function ChatInternoThread() {
                       onResponder={() => iniciarResposta(m)}
                       alinhamento={propria ? 'end' : 'start'}
                     />
-                    {!m.apagada && (
-                      <ChatInternoReacoesBar
-                        reacoes={m.reacoes ?? []}
-                        onReagir={(emoji) => void reagirMensagem(m.id, emoji)}
-                        alinhamento={propria ? 'end' : 'start'}
+                    <div
+                      className={`relative w-fit max-w-full rounded-lg px-[9px] py-[6px] text-sm shadow-sm ring-1 ring-inset ${
+                        propria
+                          ? 'rounded-tr-none bg-cyan-600 text-white ring-cyan-500/30'
+                          : 'rounded-tl-none bg-white text-slate-900 ring-slate-200/80 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700'
+                      }`}
+                    >
+                    {!propria && (
+                      <p className="mb-0.5 text-[11px] font-semibold leading-none text-cyan-700 dark:text-cyan-300">
+                        {m.atendente_nome ?? 'Atendente'}
+                      </p>
+                    )}
+                    {m.reply_to_message_id && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const el = document.querySelector(`[data-chat-msg-id="${m.reply_to_message_id}"]`)
+                          el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                        }}
+                        className={`mb-1 w-full rounded-md border-l-2 px-2 py-1 text-left text-[11px] ${
+                          propria
+                            ? 'border-white/50 bg-white/15 text-white/90'
+                            : 'border-cyan-500 bg-slate-100 text-slate-600 dark:bg-slate-900/60 dark:text-slate-300'
+                        }`}
+                      >
+                        <p className="font-semibold truncate">{m.reply_autor_nome || 'Mensagem'}</p>
+                        <p className="truncate opacity-90">{m.reply_preview || '…'}</p>
+                      </button>
+                    )}
+                    <ChatInternoConteudoMensagem
+                      conversaId={conversaId}
+                      mensagem={m}
+                      textoClaro={propria}
+                      somenteTextoCompacto={textoCompacto}
+                      rodape={
+                        textoCompacto ? (
+                          <MensagemRodapeMeta
+                            hora={m.created_at}
+                            status={propria ? m.status_entrega : null}
+                            direcao={propria ? 'outbound' : 'inbound'}
+                            variant={propria ? 'claro' : 'escuro'}
+                            editada={m.editada}
+                            className="!mt-0"
+                          />
+                        ) : undefined
+                      }
+                    />
+                    {!textoCompacto && (
+                      <MensagemRodapeMeta
+                        hora={m.created_at}
+                        status={propria ? m.status_entrega : null}
+                        direcao={propria ? 'outbound' : 'inbound'}
+                        variant={propria ? 'claro' : 'escuro'}
+                        editada={m.editada}
                       />
                     )}
+                  </div>
+                  {!m.apagada && (
+                    <ChatInternoReacoesBar
+                      reacoes={m.reacoes ?? []}
+                      onReagir={(emoji) => void reagirMensagem(m.id, emoji)}
+                      alinhamento={propria ? 'end' : 'start'}
+                    />
+                  )}
                   </div>
                 </div>
               </div>

@@ -50,6 +50,13 @@ O hub v1 é **in-process** (`asyncio.Queue` por conexão). Implicações:
 
 **v2 (futuro):** Redis Pub/Sub ou similar para fan-out entre workers.
 
+## Presença online (#546)
+
+- «Online» = canal `atendente:{id}` com ≥1 conexão SSE no hub do processo
+- `online_desde` = instante da primeira conexão da sessão contínua (multi-aba mantém o mesmo horário)
+- API admin: `GET /v1/presenca/online` — lista só contas `ativo` do tenant atual
+- Com `--workers N>1`, cada worker vê só as conexões SSE locais (mesma limitação do pub/sub v1)
+
 ### Limites práticos
 
 - Cada atendente autenticado = **1 conexão HTTP longa** por aba do painel
