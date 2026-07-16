@@ -15,6 +15,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Correções
 
+- WhatsApp: o feed deixa de puxar sozinho para o fim enquanto você lê mensagens acima; ao reabrir a conversa, retoma a posição em que parou
 - Chat interno: ações (Responder/Editar/Apagar) e reações ficam fora do balão da mensagem
 - Chat interno: clique na imagem abre visualização em tela cheia (antes só tinha o cursor de zoom, sem ação)
 - Anexos de ticket: ficheiros deixam de desaparecer após atualização do sistema; se o arquivo já tiver sido perdido, o aviso deixa isso claro
