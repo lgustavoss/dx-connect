@@ -6,6 +6,7 @@ import { Login } from './pages/Login'
 import { EsqueciSenha } from './pages/EsqueciSenha'
 import { RedefinirSenha } from './pages/RedefinirSenha'
 import { AvaliarTicket } from './pages/AvaliarTicket'
+import { LandingPage } from './pages/marketing/LandingPage'
 import { Dashboard } from './pages/Dashboard'
 import { DashboardTickets } from './pages/DashboardTickets'
 import { DashboardChats } from './pages/DashboardChats'
@@ -77,15 +78,23 @@ import { ToastProvider } from './components/ui/Toast'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { PageLoading } from './components/ui/PageLoading'
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+/**
+ * `/` anônimo → landing pública; demais rotas do shell exigem login.
+ * Autenticado → Layout + painel (index = Dashboard).
+ */
+function LayoutOrLanding() {
   const { user, loading } = useAuth()
+  const location = useLocation()
   if (loading) {
     return <PageLoading fullscreen label="Carregando sessão…" />
   }
   if (!user) {
-    return <Navigate to="/login" replace />
+    if (location.pathname === '/' || location.pathname === '') {
+      return <LandingPage />
+    }
+    return <Navigate to="/login" replace state={{ from: location }} />
   }
-  return <>{children}</>
+  return <Layout />
 }
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
@@ -131,11 +140,7 @@ function AppRoutes() {
       </Route>
       <Route
         path="/"
-        element={
-          <ProtectedRoute>
-            <Layout />
-          </ProtectedRoute>
-        }
+        element={<LayoutOrLanding />}
       >
         <Route index element={<Dashboard />} />
         <Route path="dashboard/tickets" element={<DashboardTickets />} />
