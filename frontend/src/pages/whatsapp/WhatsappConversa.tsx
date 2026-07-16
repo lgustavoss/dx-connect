@@ -28,6 +28,7 @@ import { whatsappMensagensUnicas } from '../../lib/whatsappMensagens'
 import { MensagemRodapeMeta } from '../../components/chat/MensagemRodapeMeta'
 
 import { Card } from '../../components/ui/Card'
+import { TEXTAREA_FIELD_CLASS } from '../../components/ui/Input'
 
 import { Button } from '../../components/ui/Button'
 
@@ -1271,7 +1272,7 @@ useEffect(() => {
                   value={legendaMidia}
                   onChange={(e) => setLegendaMidia(e.target.value)}
                   placeholder="Legenda opcional (visível no WhatsApp)"
-                  className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                  className={`mt-2 ${TEXTAREA_FIELD_CLASS}`}
                 />
               )}
               <div className="mt-2 flex justify-end gap-2">

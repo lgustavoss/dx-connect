@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ChatInterno } from '../../api/client'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
+import { TEXTAREA_FIELD_CLASS } from '../ui/Input'
 
 const ROTULO_SEM_LEGENDA = /^(📷 Imagem|🎬 Vídeo|🎵 Áudio|📄 Documento)$/
 
@@ -55,7 +56,7 @@ export function ChatInternoMensagemAcoes({
           onChange={(e) => setTexto(e.target.value)}
           rows={editandoTexto ? 3 : 2}
           placeholder={editandoTexto ? undefined : 'Legenda da mídia (opcional)'}
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+          className={TEXTAREA_FIELD_CLASS}
         />
         <div className="flex gap-2">
           <button

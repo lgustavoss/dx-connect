@@ -6,6 +6,7 @@ import { Card } from '../components/ui/Card'
 import { PageContainer } from '../components/ui/PageContainer'
 import { Button } from '../components/ui/Button'
 import { Switch } from '../components/ui/Switch'
+import { TEXTAREA_FIELD_CLASS } from '../components/ui/Input'
 import { useToast } from '../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import {
@@ -421,7 +422,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
               value={msgEsperaTexto}
               onChange={(e) => setMsgEsperaTexto(e.target.value)}
               rows={4}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+              className={TEXTAREA_FIELD_CLASS}
             />
 
             <Switch
@@ -437,7 +438,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
               value={msgAssumidoTexto}
               onChange={(e) => setMsgAssumidoTexto(e.target.value)}
               rows={4}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+              className={TEXTAREA_FIELD_CLASS}
             />
 
             <Switch
@@ -453,7 +454,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
               value={msgEncerradoTexto}
               onChange={(e) => setMsgEncerradoTexto(e.target.value)}
               rows={4}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+              className={TEXTAREA_FIELD_CLASS}
             />
 
             <Switch
@@ -469,7 +470,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
               value={msgForaHorarioTexto}
               onChange={(e) => setMsgForaHorarioTexto(e.target.value)}
               rows={4}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+              className={TEXTAREA_FIELD_CLASS}
             />
 
             <div className="flex justify-end pt-2">
@@ -562,7 +563,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
               onChange={(e) => setMsgInativAvisoTexto(e.target.value)}
               rows={4}
               disabled={!inativEncerramentoAtiva || !msgInativAvisoAtiva}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+              className={`${TEXTAREA_FIELD_CLASS} disabled:opacity-50`}
             />
 
             <div className="flex justify-end pt-2">
@@ -632,7 +633,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
               onChange={(e) => setMsgAvaliacaoTexto(e.target.value)}
               rows={4}
               disabled={!avaliacaoAtiva || !msgAvaliacaoAtiva}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+              className={`${TEXTAREA_FIELD_CLASS} disabled:opacity-50`}
             />
             <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">
               Mensagem de agradecimento após a nota
@@ -642,7 +643,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
               onChange={(e) => setMsgAvaliacaoObrigadoTexto(e.target.value)}
               rows={2}
               disabled={!avaliacaoAtiva || !msgAvaliacaoAtiva}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+              className={`${TEXTAREA_FIELD_CLASS} disabled:opacity-50`}
             />
 
             <div className="flex justify-end pt-2">
