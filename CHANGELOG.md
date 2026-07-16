@@ -5,7 +5,9 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
-### Correções
+## [26.07.007] - 2026-07-16
+
+### Melhorias
 
 - WhatsApp: removido botão duplicado «Identificar contato» no header — fica só o do banner enquanto o contacto não está vinculado; após vincular o CTA some
 - WhatsApp: encerramento por inatividade só conta a partir da última mensagem do cliente quando o chat já está em atendimento e o atendente já enviou mensagem humana (auto_assumido/BOT não disparam o timer)
