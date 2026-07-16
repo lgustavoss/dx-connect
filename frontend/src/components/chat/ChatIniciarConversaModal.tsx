@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { whatsappChats, type WhatsappChats } from '../../api/client'
 import { Button } from '../../components/ui/Button'
-import { Input } from '../../components/ui/Input'
+import { Input, TEXTAREA_FIELD_CLASS } from '../../components/ui/Input'
 import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { chatWhatsappLink } from '../../lib/chatHubPaths'
@@ -99,7 +99,7 @@ export function ChatIniciarConversaModal({
               value={mensagem}
               onChange={(e) => setMensagem(e.target.value)}
               rows={3}
-              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
+              className={`mt-1 ${TEXTAREA_FIELD_CLASS}`}
               placeholder="Ex.: Olá, retorno sobre a sua demanda…"
             />
           </label>

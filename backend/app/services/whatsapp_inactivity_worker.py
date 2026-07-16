@@ -50,13 +50,31 @@ def _ultima_mensagem_relevante(db: Session, chat_id: int) -> WhatsappMensagem | 
     )
 
 
+def _ultima_outbound_humana(db: Session, chat_id: int) -> WhatsappMensagem | None:
+    """Mensagem enviada pelo atendente (não BOT / auto_assumido / avisos de sistema)."""
+    return (
+        db.query(WhatsappMensagem)
+        .filter(
+            WhatsappMensagem.chat_id == chat_id,
+            WhatsappMensagem.direcao == "outbound",
+            WhatsappMensagem.evento_sistema.is_(None),
+        )
+        .order_by(desc(WhatsappMensagem.created_at), desc(WhatsappMensagem.id))
+        .first()
+    )
+
+
 def _referencia_inatividade_cliente(db: Session, chat: WhatsappChat) -> datetime | None:
     """
     Momento a partir do qual o cliente está inativo.
 
-    Conta desde a última mensagem **do cliente** quando o atendente já respondeu depois
-    (cliente sumiu). Novas mensagens do atendente não reiniciam o timer — evita que
-    o atendente "fale sozinho" e impeça o encerramento.
+    Conta desde a última mensagem **do cliente** somente quando:
+    - o chat já está em atendimento (garantido pelo caller);
+    - o atendente já enviou pelo menos uma mensagem humana (não auto_assumido/BOT);
+    - essa resposta humana é posterior à última inbound (cliente sumiu).
+
+    Mensagens de sistema (auto_assumido, auto_espera, avisos) não disparam o timer.
+    Novas mensagens do atendente não reiniciam o relógio.
     """
     last_in = (
         _mensagens_relevantes_q(db, chat.id)
@@ -64,16 +82,9 @@ def _referencia_inatividade_cliente(db: Session, chat: WhatsappChat) -> datetime
         .order_by(desc(WhatsappMensagem.created_at), desc(WhatsappMensagem.id))
         .first()
     )
-    last_out = (
-        _mensagens_relevantes_q(db, chat.id)
-        .filter(WhatsappMensagem.direcao == "outbound")
-        .order_by(desc(WhatsappMensagem.created_at), desc(WhatsappMensagem.id))
-        .first()
-    )
-    if not last_out:
+    last_out = _ultima_outbound_humana(db, chat.id)
+    if not last_out or last_in is None:
         return None
-    if last_in is None:
-        return last_out.created_at or chat.atendimento_inicio_at
     out_at = last_out.created_at
     in_at = last_in.created_at
     if out_at is None or in_at is None:

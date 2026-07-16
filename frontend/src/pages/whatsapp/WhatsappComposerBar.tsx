@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ClipboardEvent } from 'react'
 import { Button } from '../../components/ui/Button'
 import { KbConsultaButton } from '../../components/KbConsultaModal'
 import type { TipoAnexoPicker } from './WhatsappBarraAnexos'
@@ -14,12 +14,16 @@ type Props = {
   onAudioGravado: (file: File) => void
   onInserirEmoji: (emoji: string) => void
   onEnviarFigurinha: (file: File) => void
+  /** Ctrl+V / colar ficheiro do clipboard (imagem, etc.) */
+  onColarArquivo?: (file: File) => void
   enviando: boolean
   encerrado: boolean
   podeEnviar: boolean
   modoInterno: boolean
   podeDigitar: boolean
   onInserirReferenciaKb?: (ref: string) => void
+  /** Incrementar para focar o textarea (ex.: após Responder). */
+  focoPedidoEm?: number
 }
 
 type MenuAnexo = { tipo: TipoAnexoPicker; label: string }
@@ -40,12 +44,14 @@ export function WhatsappComposerBar({
   onAudioGravado,
   onInserirEmoji,
   onEnviarFigurinha,
+  onColarArquivo,
   enviando,
   encerrado,
   podeEnviar,
   modoInterno,
   podeDigitar,
   onInserirReferenciaKb,
+  focoPedidoEm,
 }: Props) {
   const [menuAberto, setMenuAberto] = useState(false)
   const [painelEmojiAberto, setPainelEmojiAberto] = useState(false)
@@ -62,6 +68,11 @@ export function WhatsappComposerBar({
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
   }, [menuAberto])
+
+  useEffect(() => {
+    if (focoPedidoEm == null || focoPedidoEm <= 0) return
+    requestAnimationFrame(() => textareaRef.current?.focus())
+  }, [focoPedidoEm])
 
   const temTexto = texto.trim().length > 0
   /** Não incluir `enviando`: disabled no textarea remove o foco (#539). */
@@ -90,6 +101,17 @@ export function WhatsappComposerBar({
       const pos = start + emoji.length
       el.setSelectionRange(pos, pos)
     })
+  }
+
+  function handlePaste(e: ClipboardEvent<HTMLTextAreaElement>) {
+    if (acoesBloqueadas || modoInterno || !podeEnviar || !onColarArquivo) return
+    const files = Array.from(e.clipboardData?.items ?? [])
+      .filter((item) => item.kind === 'file')
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => Boolean(file))
+    if (files.length === 0) return
+    e.preventDefault()
+    onColarArquivo(files[0])
   }
 
   return (
@@ -177,13 +199,14 @@ export function WhatsappComposerBar({
           }
           rows={1}
           disabled={campoBloqueado}
-          className="max-h-32 min-h-[40px] flex-1 resize-none border-none bg-transparent p-2 text-sm focus:ring-0 dark:text-slate-100 placeholder:text-slate-400"
+          className="max-h-32 min-h-[40px] flex-1 resize-none border-0 bg-transparent p-2 text-sm outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 dark:text-slate-100 placeholder:text-slate-400"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
               if (!acoesBloqueadas && temTexto) enviar()
             }
           }}
+          onPaste={handlePaste}
         />
 
         {temTexto ? (

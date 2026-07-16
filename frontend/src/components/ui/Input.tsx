@@ -24,6 +24,9 @@ export const INPUT_FIELD_CLASS = `
             dark:disabled:bg-slate-900/30 dark:disabled:text-slate-500
           `
 
+/** Mesmo visual do Input para `<textarea>` soltos. */
+export const TEXTAREA_FIELD_CLASS = INPUT_FIELD_CLASS.trim()
+
 function slugFromLabel(label: string) {
   return (
     label

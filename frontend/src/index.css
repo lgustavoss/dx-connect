@@ -29,6 +29,17 @@
     max-height: 100dvh;
     overflow: hidden;
   }
+
+  /* Remove outline nativo (borda branca no dark); o foco fica nos rings/bordas do design system */
+  input:where(
+    :not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='button']):not(
+        [type='submit']
+      ):not([type='reset']):not([type='image']):not([type='hidden'])
+  ),
+  textarea,
+  select {
+    outline: none;
+  }
 }
 
 /* Recharts: remove faixa clara no hover (incompatível com tema escuro) */
