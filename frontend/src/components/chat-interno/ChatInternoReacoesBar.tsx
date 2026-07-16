@@ -9,15 +9,14 @@ type Props = {
 
 export function ChatInternoReacoesBar({ reacoes, onReagir, alinhamento = 'end' }: Props) {
   const temReacoes = reacoes.length > 0
+  const align = alinhamento === 'end' ? 'justify-end' : 'justify-start'
 
   return (
-    <>
+    <div className={`mt-1.5 flex flex-col gap-1 ${align}`}>
       <div
-        className={`pointer-events-none absolute bottom-[calc(100%-4px)] z-10 flex opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 md:opacity-0 md:group-hover:opacity-100 ${
-          alinhamento === 'end' ? 'right-0 justify-end' : 'left-0 justify-start'
-        }`}
+        className={`flex opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 ${align}`}
       >
-        <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-slate-200 bg-white px-1 py-0.5 shadow-md dark:border-slate-600 dark:bg-slate-800">
+        <div className="flex items-center gap-0.5 rounded-full border border-slate-200 bg-white px-1 py-0.5 shadow-md dark:border-slate-600 dark:bg-slate-800">
           {EMOJIS_REACAO_CHAT_INTERNO.map((emoji) => (
             <button
               key={emoji}
@@ -33,11 +32,7 @@ export function ChatInternoReacoesBar({ reacoes, onReagir, alinhamento = 'end' }
       </div>
 
       {temReacoes ? (
-        <div
-          className={`relative z-[1] -mt-2.5 flex flex-wrap gap-1 ${
-            alinhamento === 'end' ? 'justify-end' : 'justify-start'
-          }`}
-        >
+        <div className={`flex flex-wrap gap-1 ${align}`}>
           {reacoes.map((r) => (
             <button
               key={r.emoji}
@@ -56,6 +51,6 @@ export function ChatInternoReacoesBar({ reacoes, onReagir, alinhamento = 'end' }
           ))}
         </div>
       ) : null}
-    </>
+    </div>
   )
 }
