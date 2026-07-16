@@ -5,6 +5,19 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### Melhorias
+
+- Equipe online (#545–#547): administradores veem quem está com o painel aberto e desde quando (menu **Equipe online**), para coordenar atendimento de chats e tickets
+
+### Correções
+
+- Chat interno: clique na imagem abre visualização em tela cheia (antes só tinha o cursor de zoom, sem ação)
+- Anexos de ticket: ficheiros deixam de desaparecer após atualização do sistema; se o arquivo já tiver sido perdido, o aviso deixa isso claro
+
+### Interno / Infra
+
+- Deploy: volume Docker `backend_data` → `/app/data` (anexos, mídia WhatsApp/chat interno, KB e logos) no compose de produção e no template por cliente
+
 ## [26.07.007] - 2026-07-16
 
 ### Melhorias
@@ -116,6 +129,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Histórico completo de atualizações no painel Sobre (versões anteriores permanecem visíveis)
 - CHANGELOG obrigatório em PRs com mudança de produto (validação automática no CI)
 - Persistência do manifest de releases após cada deploy em staging
+- Deploy: volume Docker `backend_data` → `/app/data` (anexos, mídia WhatsApp/chat interno, KB e logos) no compose de produção e no template por cliente
 
 ## [26.06.008] - 2026-06-29
 
