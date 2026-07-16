@@ -43,8 +43,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Persistência de anexos/mídia (ticket, WhatsApp, chat interno, KB, logos)
+    volumes:
+      - backend_data:/app/data
     restart: unless-stopped
 
 volumes:
   db_data:
     name: dx-connect-pgdata-${CLIENT_SLUG}
+  backend_data:
+    name: dx-connect-data-${CLIENT_SLUG}

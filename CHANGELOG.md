@@ -16,6 +16,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Correções
 
+- Chat interno: clique na imagem abre visualização em tela cheia (antes só tinha o cursor de zoom, sem ação)
+- Anexos de ticket: compose de produção e template por cliente passam a persistir `/app/data` em volume Docker — evita 404 no download após redeploy; mensagem de erro esclarece quando o ficheiro sumiu do disco
 - WhatsApp: removido botão duplicado «Identificar contato» no header — fica só o do banner enquanto o contacto não está vinculado; após vincular o CTA some
 - WhatsApp: encerramento por inatividade só conta a partir da última mensagem do cliente quando o chat já está em atendimento e o atendente já enviou mensagem humana (auto_assumido/BOT não disparam o timer)
 - WhatsApp: Ctrl+V no composer cola imagem/ficheiro do clipboard (pré-visualização antes de enviar), como no chat interno
