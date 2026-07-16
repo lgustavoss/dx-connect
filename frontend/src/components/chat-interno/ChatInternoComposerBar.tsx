@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Button } from '../ui/Button'
 
@@ -7,6 +7,12 @@ import { ACCEPT_ANEXO, type TipoAnexoPicker } from '../../pages/whatsapp/Whatsap
 import { WhatsappGravadorAudioInline } from '../../pages/whatsapp/WhatsappGravadorAudioInline'
 
 import { WHATSAPP_EMOJIS } from '../../lib/whatsappEmojis'
+import {
+  detectarMencaoQuery,
+  filtrarMencionaveis,
+  inserirMencaoNoTexto,
+  type MencaoCandidato,
+} from '../../lib/chatInternoMencoes'
 
 import { ChatInternoMidiaPreviewOverlay } from './ChatInternoMidiaPreviewOverlay'
 
@@ -49,6 +55,11 @@ type Props = {
   /** Incrementar para focar o textarea (ex.: após Responder). */
   focoPedidoEm?: number
 
+  /** Participantes mencionáveis (grupo/setor). Sem lista = menções desligadas. */
+  mencionaveis?: MencaoCandidato[]
+
+  meuAtendenteId?: number | null
+
 }
 
 
@@ -79,6 +90,10 @@ export function ChatInternoComposerBar({
 
   focoPedidoEm,
 
+  mencionaveis = [],
+
+  meuAtendenteId,
+
 }: Props) {
 
   const [menuAberto, setMenuAberto] = useState(false)
@@ -91,6 +106,9 @@ export function ChatInternoComposerBar({
 
   const [midiaPendente, setMidiaPendente] = useState<File | null>(null)
   const [legendaPreview, setLegendaPreview] = useState('')
+  const [mencaoStart, setMencaoStart] = useState<number | null>(null)
+  const [mencaoQuery, setMencaoQuery] = useState('')
+  const [mencaoIdx, setMencaoIdx] = useState(0)
 
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -109,6 +127,51 @@ export function ChatInternoComposerBar({
 
   const campoBloqueado = Boolean(midiaPendente)
   const acoesBloqueadas = enviando || campoBloqueado
+
+  const mencoesAtivas = mencionaveis.length > 0
+  const opcoesMencao = useMemo(() => {
+    if (!mencoesAtivas || mencaoStart == null) return []
+    const users = filtrarMencionaveis(mencionaveis, mencaoQuery, meuAtendenteId)
+    const q = mencaoQuery.trim().toLowerCase()
+    const showAll = !q || 'all'.startsWith(q) || 'todos'.startsWith(q)
+    const items: Array<{ kind: 'all' } | { kind: 'user'; c: MencaoCandidato }> = []
+    if (showAll) items.push({ kind: 'all' })
+    for (const c of users) items.push({ kind: 'user', c })
+    return items
+  }, [mencoesAtivas, mencaoStart, mencionaveis, mencaoQuery, meuAtendenteId])
+
+  useEffect(() => {
+    setMencaoIdx(0)
+  }, [mencaoQuery, mencaoStart])
+
+  function atualizarMencaoFromCursor(value: string, cursor: number) {
+    if (!mencoesAtivas) {
+      setMencaoStart(null)
+      return
+    }
+    const hit = detectarMencaoQuery(value, cursor)
+    if (!hit) {
+      setMencaoStart(null)
+      setMencaoQuery('')
+      return
+    }
+    setMencaoStart(hit.start)
+    setMencaoQuery(hit.query)
+  }
+
+  function aplicarMencao(rotulo: string) {
+    const el = textareaRef.current
+    const cursor = el?.selectionStart ?? texto.length
+    const start = mencaoStart ?? cursor
+    const { texto: next, cursor: pos } = inserirMencaoNoTexto(texto, cursor, start, rotulo)
+    onTextoChange(next)
+    setMencaoStart(null)
+    setMencaoQuery('')
+    requestAnimationFrame(() => {
+      el?.focus()
+      el?.setSelectionRange(pos, pos)
+    })
+  }
 
 
 
@@ -441,13 +504,54 @@ export function ChatInternoComposerBar({
 
 
 
+          <div className="relative min-w-0 flex-1">
+            {opcoesMencao.length > 0 && mencaoStart != null ? (
+              <div
+                className="absolute bottom-full left-0 z-20 mb-1 max-h-48 w-full min-w-[12rem] overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-600 dark:bg-slate-800"
+                role="listbox"
+                aria-label="Menções"
+              >
+                {opcoesMencao.map((opt, i) => {
+                  const label = opt.kind === 'all' ? '@all — todos do grupo' : `@${opt.c.nome}`
+                  const ativo = i === mencaoIdx
+                  return (
+                    <button
+                      key={opt.kind === 'all' ? 'all' : opt.c.atendente_id}
+                      type="button"
+                      role="option"
+                      aria-selected={ativo}
+                      className={`flex w-full px-3 py-1.5 text-left text-sm ${
+                        ativo
+                          ? 'bg-cyan-50 text-cyan-900 dark:bg-cyan-950/50 dark:text-cyan-100'
+                          : 'text-slate-800 hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-700'
+                      }`}
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        aplicarMencao(opt.kind === 'all' ? 'all' : opt.c.nome)
+                      }}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : null}
           <textarea
 
             ref={textareaRef}
 
             value={texto}
 
-            onChange={(e) => onTextoChange(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value
+              onTextoChange(v)
+              atualizarMencaoFromCursor(v, e.target.selectionStart ?? v.length)
+            }}
+
+            onSelect={(e) => {
+              const t = e.currentTarget
+              atualizarMencaoFromCursor(t.value, t.selectionStart ?? t.value.length)
+            }}
 
             placeholder={placeholder}
 
@@ -455,9 +559,32 @@ export function ChatInternoComposerBar({
 
             disabled={campoBloqueado}
 
-            className="max-h-32 min-h-[40px] min-w-0 flex-1 resize-none break-words border-0 bg-transparent p-2 text-base outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 dark:text-slate-100 placeholder:text-slate-400"
+            className="max-h-32 min-h-[40px] min-w-0 w-full flex-1 resize-none break-words border-0 bg-transparent p-2 text-base outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 dark:text-slate-100 placeholder:text-slate-400"
 
             onKeyDown={(e) => {
+              if (opcoesMencao.length > 0 && mencaoStart != null) {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  setMencaoIdx((i) => (i + 1) % opcoesMencao.length)
+                  return
+                }
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  setMencaoIdx((i) => (i - 1 + opcoesMencao.length) % opcoesMencao.length)
+                  return
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault()
+                  setMencaoStart(null)
+                  return
+                }
+                if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey) {
+                  e.preventDefault()
+                  const opt = opcoesMencao[mencaoIdx]
+                  if (opt) aplicarMencao(opt.kind === 'all' ? 'all' : opt.c.nome)
+                  return
+                }
+              }
 
               if (e.key === 'Enter' && !e.shiftKey) {
 
@@ -472,6 +599,7 @@ export function ChatInternoComposerBar({
             onPaste={handlePaste}
 
           />
+          </div>
 
 
 

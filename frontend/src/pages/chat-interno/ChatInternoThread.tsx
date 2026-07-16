@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ApiError, chatInterno, type ChatInterno } from '../../api/client'
+import { ApiError, atendentes, chatInterno, type ChatInterno } from '../../api/client'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { ChatInternoComposerBar } from '../../components/chat-interno/ChatInternoComposerBar'
 import { ChatInternoGrupoMembrosModal } from '../../components/chat-interno/ChatInternoGrupoMembrosModal'
@@ -23,6 +23,12 @@ import {
   scrollChatToBottom,
 } from '../../lib/chatInternoScrollMemory'
 import { mergeMensagensChatInterno, prependMensagensChatInterno } from '../../lib/chatInternoMensagensMerge'
+import {
+  corAvatarRemetenteChat,
+  corNomeRemetenteChat,
+  inicialNomeRemetente,
+} from '../../lib/chatInternoRemetenteCor'
+import { montarMencoesDoCorpo, type MencaoCandidato } from '../../lib/chatInternoMencoes'
 import { SemPermissao } from '../SemPermissao'
 
 const SCROLL_TOPO_CARREGAR_PX = 80
@@ -264,6 +270,7 @@ export function ChatInternoThread() {
   const [limpando, setLimpando] = useState(false)
   const [grupoDetalhe, setGrupoDetalhe] = useState<ChatInterno.Conversa | null>(null)
   const [modalMembros, setModalMembros] = useState(false)
+  const [mencionaveis, setMencionaveis] = useState<MencaoCandidato[]>([])
 
   useEffect(() => {
     if (meta?.tipo !== 'grupo') {
@@ -275,6 +282,39 @@ export function ChatInternoThread() {
       .then(setGrupoDetalhe)
       .catch(() => setGrupoDetalhe(null))
   }, [conversaId, meta?.tipo])
+
+  useEffect(() => {
+    if (meta?.tipo === 'grupo') {
+      setMencionaveis(
+        (grupoDetalhe?.participantes ?? []).map((p) => ({
+          atendente_id: p.atendente_id,
+          nome: p.nome,
+        })),
+      )
+      return
+    }
+    if (meta?.tipo === 'setor' && meta.setor_id) {
+      let cancelled = false
+      void atendentes
+        .listPorSetor(meta.setor_id)
+        .then((lista) => {
+          if (cancelled) return
+          setMencionaveis(
+            lista.map((a) => ({
+              atendente_id: a.id,
+              nome: a.nome,
+            })),
+          )
+        })
+        .catch(() => {
+          if (!cancelled) setMencionaveis([])
+        })
+      return () => {
+        cancelled = true
+      }
+    }
+    setMencionaveis([])
+  }, [meta?.tipo, meta?.setor_id, grupoDetalhe?.participantes])
 
   async function editarMensagem(mensagemId: number, corpo: string) {
     try {
@@ -364,7 +404,13 @@ export function ChatInternoThread() {
     if (!corpo || enviando) return
     setEnviando(true)
     try {
-      const msg = await chatInterno.enviar(conversaId, corpo, msgRespondida?.id ?? null)
+      const mencoes = montarMencoesDoCorpo(corpo, mencionaveis)
+      const msg = await chatInterno.enviar(
+        conversaId,
+        corpo,
+        msgRespondida?.id ?? null,
+        mencoes.length > 0 ? mencoes : null,
+      )
       setTexto('')
       setMsgRespondida(null)
       setMensagens((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]))
@@ -483,7 +529,7 @@ export function ChatInternoThread() {
         ref={scrollRef}
         className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto bg-slate-100/90 px-4 py-5 dark:bg-slate-900/60 md:px-6 lg:px-8"
       >
-        <div className="w-full min-w-0 space-y-3">
+        <div className="w-full min-w-0 space-y-1">
         {carregandoAntigas && (
           <p className="py-2 text-center text-sm text-slate-400">Carregando mensagens anteriores…</p>
         )}
@@ -496,10 +542,14 @@ export function ChatInternoThread() {
             {isSetor ? 'Nenhum comunicado ainda. Publique o primeiro aviso.' : 'Nenhuma mensagem. Diga olá!'}
           </p>
         ) : (
-          mensagens.map((m) => {
+          mensagens.map((m, idx) => {
             const propria = m.atendente_id === user?.id
             const isTexto = !m.tipo_midia || m.tipo_midia === 'texto'
             const textoCompacto = isTexto && !m.apagada
+            const prev = idx > 0 ? mensagens[idx - 1] : null
+            const mesmoRemetenteQueAnterior = Boolean(prev && prev.atendente_id === m.atendente_id)
+            const mostrarNomeRemetente = !propria && (isGrupo || isSetor) && !mesmoRemetenteQueAnterior
+            const mostrarAvatarGrupo = isGrupo && !propria
             if (isSetor) {
               return (
                 <div key={m.id} className="group relative w-full min-w-0" data-chat-msg-id={m.id}>
@@ -564,8 +614,23 @@ export function ChatInternoThread() {
                 key={m.id}
                 data-chat-msg-id={m.id}
                 onDoubleClick={(e) => duploCliqueResponder(e, m)}
-                className={`group flex w-full cursor-default ${propria ? 'justify-end' : 'justify-start'}`}
+                className={`group flex w-full cursor-default gap-1.5 ${
+                  propria ? 'justify-end' : 'justify-start'
+                } ${mesmoRemetenteQueAnterior && !propria ? 'mt-0.5' : isGrupo && !propria && !mesmoRemetenteQueAnterior ? 'mt-2' : ''}`}
               >
+                {mostrarAvatarGrupo ? (
+                  mesmoRemetenteQueAnterior ? (
+                    <span className="w-7 shrink-0" aria-hidden />
+                  ) : (
+                    <span
+                      className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white ${corAvatarRemetenteChat(m.atendente_id ?? 0)}`}
+                      title={m.atendente_nome ?? 'Atendente'}
+                      aria-hidden
+                    >
+                      {inicialNomeRemetente(m.atendente_nome)}
+                    </span>
+                  )
+                ) : null}
                 <div
                   className={`flex max-w-[85%] flex-col sm:max-w-[min(65%,28rem)] ${
                     propria ? 'items-end' : 'items-start'
@@ -586,8 +651,14 @@ export function ChatInternoThread() {
                           : 'rounded-tl-none bg-white text-slate-900 ring-slate-200/80 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700'
                       }`}
                     >
-                    {!propria && (
-                      <p className="mb-0.5 text-[11px] font-semibold leading-none text-cyan-700 dark:text-cyan-300">
+                    {mostrarNomeRemetente && (
+                      <p
+                        className={`mb-0.5 text-[11px] font-semibold leading-none ${
+                          isGrupo
+                            ? corNomeRemetenteChat(m.atendente_id ?? 0)
+                            : 'text-cyan-700 dark:text-cyan-300'
+                        }`}
+                      >
                         {m.atendente_nome ?? 'Atendente'}
                       </p>
                     )}
@@ -681,9 +752,17 @@ export function ChatInternoThread() {
         onEnviar={() => void enviar()}
         onEnviarMidia={(file, caption) => void enviarMidia(file, caption)}
         enviando={enviando}
-        placeholder={isSetor ? 'Novo comunicado para o setor…' : 'Escreva uma mensagem…'}
+        placeholder={
+          isSetor
+            ? 'Novo comunicado… Use @ para mencionar'
+            : isGrupo
+              ? 'Escreva uma mensagem… Use @ para mencionar'
+              : 'Escreva uma mensagem…'
+        }
         labelEnviar={isSetor ? 'Publicar' : 'Enviar'}
         focoPedidoEm={focoComposerEm}
+        mencionaveis={mencionaveis}
+        meuAtendenteId={user?.id}
       />
     </div>
   )

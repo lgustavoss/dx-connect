@@ -7,16 +7,19 @@ type Props = {
   alinhamento?: 'start' | 'end'
 }
 
+/** Picker no hover (overlay, sem ocupar espaço); chips só quando há reações. */
 export function ChatInternoReacoesBar({ reacoes, onReagir, alinhamento = 'end' }: Props) {
   const temReacoes = reacoes.length > 0
-  const align = alinhamento === 'end' ? 'justify-end' : 'justify-start'
+  const alignEnd = alinhamento === 'end'
 
   return (
-    <div className={`mt-1.5 flex flex-col gap-1 ${align}`}>
+    <>
       <div
-        className={`flex opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 ${align}`}
+        className={`pointer-events-none absolute top-full z-10 mt-0.5 flex opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 ${
+          alignEnd ? 'right-0 justify-end' : 'left-0 justify-start'
+        }`}
       >
-        <div className="flex items-center gap-0.5 rounded-full border border-slate-200 bg-white px-1 py-0.5 shadow-md dark:border-slate-600 dark:bg-slate-800">
+        <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-slate-200 bg-white px-1 py-0.5 shadow-md dark:border-slate-600 dark:bg-slate-800">
           {EMOJIS_REACAO_CHAT_INTERNO.map((emoji) => (
             <button
               key={emoji}
@@ -32,7 +35,11 @@ export function ChatInternoReacoesBar({ reacoes, onReagir, alinhamento = 'end' }
       </div>
 
       {temReacoes ? (
-        <div className={`flex flex-wrap gap-1 ${align}`}>
+        <div
+          className={`relative z-[1] -mt-1.5 flex flex-wrap gap-1 ${
+            alignEnd ? 'justify-end' : 'justify-start'
+          }`}
+        >
           {reacoes.map((r) => (
             <button
               key={r.emoji}
@@ -51,6 +58,6 @@ export function ChatInternoReacoesBar({ reacoes, onReagir, alinhamento = 'end' }
           ))}
         </div>
       ) : null}
-    </div>
+    </>
   )
 }

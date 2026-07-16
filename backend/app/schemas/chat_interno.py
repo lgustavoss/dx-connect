@@ -26,13 +26,26 @@ class ParticipanteGrupoRead(BaseModel):
     papel: Literal["admin", "membro"]
 
 
+class MencaoMensagemCreate(BaseModel):
+    tipo: Literal["user", "all"]
+    atendente_id: int | None = Field(None, gt=0)
+
+
+class MencaoMensagemRead(BaseModel):
+    tipo: Literal["user", "all"]
+    atendente_id: int | None = None
+    rotulo: str | None = None
+
+
 class MensagemInternaCreate(BaseModel):
     corpo: str = Field(..., min_length=1, max_length=8000)
     reply_to_message_id: int | None = Field(None, gt=0)
+    mencoes: list[MencaoMensagemCreate] | None = None
 
 
 class MensagemInternaUpdate(BaseModel):
     corpo: str = Field(..., max_length=8000)
+    mencoes: list[MencaoMensagemCreate] | None = None
 
 
 class ReacaoMensagemCreate(BaseModel):
@@ -60,6 +73,7 @@ class MensagemInternaRead(BaseModel):
     apagada: bool = False
     editada: bool = False
     reacoes: list[ReacaoMensagemRead] = Field(default_factory=list)
+    mencoes: list[MencaoMensagemRead] = Field(default_factory=list)
     pode_editar: bool = False
     pode_apagar_para_todos: bool = False
     pode_apagar_para_mim: bool = False

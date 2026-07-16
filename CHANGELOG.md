@@ -1,9 +1,20 @@
-# Changelog
+﻿# Changelog
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging`.
 
 ## [Unreleased]
+
+### Melhorias
+
+- Chat interno (grupos/canal): menções com `@` — autocomplete de participantes e `@all` (todos); destaque visual na mensagem
+- Equipe online: lista funciona com vários workers do servidor (presença gravada no banco); admin pode **Forçar saída** de um atendente conectado
+- Chat interno: balões mais próximos — opções/reações só no hover; em grupos, avatar e cor por pessoa para distinguir quem fala
+
+### Correções
+
+- Equipe online: «0 online» mesmo com painel aberto (lista lia só a memória do worker errado)
+- Chat interno: espaço excessivo entre mensagens após colocar ações/reações fora do balão
 
 ## [26.07.008] - 2026-07-16
 

@@ -18,6 +18,7 @@ from app.schemas.chat_interno import (
     ConversaInboxRead,
     ConversaRead,
     GrupoParticipantesUpdate,
+    MencaoMensagemRead,
     MensagemInternaCreate,
     MensagemInternaRead,
     MensagemInternaUpdate,
@@ -68,6 +69,14 @@ def _to_mensagem_read(mensagem, *, conversa: ConversaInterna, atendente: Atenden
         ReacaoMensagemRead(emoji=r.emoji, count=r.count, reagiu_eu=r.reagiu_eu)
         for r in chat_svc.agregar_reacoes_mensagem(db, mensagem.id, atendente.id)
     ]
+    mencoes = [
+        MencaoMensagemRead(
+            tipo=m["tipo"],  # type: ignore[arg-type]
+            atendente_id=m.get("atendente_id"),
+            rotulo=m.get("rotulo"),
+        )
+        for m in chat_svc.mencoes_para_leitura(getattr(mensagem, "mencoes", None))
+    ]
     perms = chat_svc.permissoes_mensagem(db, conversa, mensagem, atendente)
     return MensagemInternaRead(
         id=mensagem.id,
@@ -84,6 +93,7 @@ def _to_mensagem_read(mensagem, *, conversa: ConversaInterna, atendente: Atenden
         apagada=chat_svc.mensagem_esta_apagada(mensagem),
         editada=mensagem.editada_em is not None,
         reacoes=reacoes,
+        mencoes=mencoes,
         pode_editar=perms.pode_editar,
         pode_apagar_para_todos=perms.pode_apagar_para_todos,
         pode_apagar_para_mim=perms.pode_apagar_para_mim,
@@ -283,7 +293,12 @@ def enviar_mensagem(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversa não encontrada.")
     try:
         mensagem = chat_svc.enviar_mensagem(
-            db, conversa, atendente, body.corpo, reply_to_message_id=body.reply_to_message_id
+            db,
+            conversa,
+            atendente,
+            body.corpo,
+            reply_to_message_id=body.reply_to_message_id,
+            mencoes=[m.model_dump() for m in body.mencoes] if body.mencoes else None,
         )
         db.commit()
         db.refresh(mensagem)
@@ -393,7 +408,12 @@ def publicar_no_canal_setor(
     try:
         conversa = chat_svc.obter_ou_criar_canal_setor(db, atendente.tenant_id, setor_id)
         mensagem = chat_svc.enviar_mensagem(
-            db, conversa, atendente, body.corpo, reply_to_message_id=body.reply_to_message_id
+            db,
+            conversa,
+            atendente,
+            body.corpo,
+            reply_to_message_id=body.reply_to_message_id,
+            mencoes=[m.model_dump() for m in body.mencoes] if body.mencoes else None,
         )
         db.commit()
         db.refresh(mensagem)
@@ -460,7 +480,14 @@ def editar_mensagem(
     _exigir_acesso_conversa(db, atendente, conversa)
     mensagem = _obter_mensagem_na_conversa(db, conversa_id, mensagem_id)
     try:
-        chat_svc.editar_mensagem(db, conversa, mensagem, atendente, body.corpo)
+        chat_svc.editar_mensagem(
+            db,
+            conversa,
+            mensagem,
+            atendente,
+            body.corpo,
+            mencoes=[m.model_dump() for m in body.mencoes] if body.mencoes is not None else None,
+        )
         db.commit()
         db.refresh(mensagem)
         _emit_mensagem_atualizada(db, conversa, mensagem, acao="editada")
