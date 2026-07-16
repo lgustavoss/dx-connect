@@ -5,6 +5,19 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### Melhorias
+- Equipe online (#545–#547): administradores veem quem está com o painel aberto e desde quando (menu **Equipe online**), para coordenar atendimento de chats e tickets
+- Chat (#539): após enviar mensagem (WhatsApp e chat interno), o cursor permanece no campo de texto; painel de emoji fica aberto ao escolher vários; **Responder** mensagem no chat interno (direta, equipe e grupo)
+- WhatsApp: na busca «Vincular existente», cada resultado mostra **rede** e **empresa(s)** para distinguir homónimos
+- WhatsApp (#534): identificar/cadastrar contato do cliente também em atendimento **encerrado** (Histórico); o número do WhatsApp passa a ser gravado no telefone do cadastro para retomar pela aba Contatos
+- WhatsApp (#531): aba **Contatos** no hub de chat — lista funcionários com empresa e telefone; iniciar conversa (ou número avulso / retomar no Histórico); chat já fica em atendimento com o iniciador; telefone no cadastro do funcionário da rede
+
+### Correções
+- WhatsApp: o feed deixa de puxar sozinho para o fim enquanto você lê mensagens acima; ao reabrir a conversa, retoma a posição em que parou
+- Chat interno: ações (Responder/Editar/Apagar) e reações ficam fora do balão da mensagem
+- Chat interno: clique na imagem abre visualização em tela cheia (antes só tinha o cursor de zoom, sem ação)
+- Anexos de ticket: ficheiros deixam de desaparecer após atualização do sistema; se o arquivo já tiver sido perdido, o aviso deixa isso claro
+
 ## [26.07.007] - 2026-07-16
 
 ### Melhorias

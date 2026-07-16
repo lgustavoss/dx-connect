@@ -656,7 +656,12 @@ export function TicketDetalhe() {
       link.remove()
       URL.revokeObjectURL(url)
     } catch (err) {
-      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível baixar o anexo.'))
+      const msg =
+        err instanceof ApiError && err.status === 404
+          ? err.message ||
+            'Anexo sem ficheiro no servidor (comum após atualização sem volume persistente). Peça reenvio do arquivo.'
+          : mensagemFalhaParaToast(err, 'Não foi possível baixar o anexo.')
+      toast.showWarning(msg)
     }
   }
 
