@@ -9,7 +9,7 @@ from app.core.security import criar_access_token
 from app.services.realtime_hub import RealtimeHub, channel_atendente, format_sse
 
 
-async def _short_stream(channel, *, initial_payload=None, disconnect_check=None):
+async def _short_stream(channel, *, initial_payload=None, disconnect_check=None, **_kwargs):
     """Generator finito para TestClient (evita conexão longa em testes)."""
     if initial_payload is not None:
         yield format_sse(initial_payload)
