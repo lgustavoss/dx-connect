@@ -4,6 +4,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    JSON,
     String,
     Text,
     UniqueConstraint,
@@ -123,6 +124,8 @@ class MensagemInterna(Base):
     )
     reply_preview = Column(String(500), nullable=True)
     reply_autor_nome = Column(String(200), nullable=True)
+    # Ex.: [{"tipo":"user","atendente_id":12,"rotulo":"Maria"},{"tipo":"all"}]
+    mencoes = Column(JSON, nullable=True)
 
     conversa = relationship("ConversaInterna", back_populates="mensagens")
     atendente = relationship("Atendente", backref="mensagens_internas")

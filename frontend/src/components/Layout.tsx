@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Sidebar } from './Sidebar'
 import { ThemeToggle } from './ThemeToggle'
 import { NavbarNotificacoes } from './NavbarNotificacoes'
 import { useAlertaFilaSemResponsavel } from '../hooks/useAlertaFilaSemResponsavel'
-import { EventStreamProvider } from '../contexts/EventStreamContext'
+import { EventStreamProvider, useEventStream } from '../contexts/EventStreamContext'
 import { BrandLogo } from '../brand'
 import { useTheme } from '../contexts/ThemeContext'
 
@@ -23,6 +23,7 @@ const menuIcon = (
 
 function LayoutInner() {
   const { user, logout, isAdmin } = useAuth()
+  const { subscribe } = useEventStream()
   const location = useLocation()
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false)
@@ -31,6 +32,12 @@ function LayoutInner() {
 
   const notificacoesEnabled = Boolean(user && !user.must_change_password)
   useAlertaFilaSemResponsavel(notificacoesEnabled)
+
+  useEffect(() => {
+    return subscribe('sessao.encerrada', () => {
+      logout()
+    })
+  }, [subscribe, logout])
 
   if (user?.must_change_password && location.pathname !== '/alterar-senha') {
     return <Navigate to="/alterar-senha" replace />

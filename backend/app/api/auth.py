@@ -43,8 +43,10 @@ async def login(request: Request, data: AtendenteLogin, db: Session = Depends(ge
         await delay_on_auth_failure()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="E-mail ou senha inválidos")
     tid_token = int(atendente.tenant_id)
-    access = criar_access_token(data={"sub": atendente.email, "tid": tid_token})
-    refresh = criar_refresh_token(data={"sub": atendente.email, "tid": tid_token})
+    ver = int(getattr(atendente, "token_version", 0) or 0)
+    claims = {"sub": atendente.email, "tid": tid_token, "ver": ver}
+    access = criar_access_token(data=claims)
+    refresh = criar_refresh_token(data=claims)
     return Token(
         access_token=access,
         refresh_token=refresh,
@@ -72,11 +74,20 @@ async def refresh(
     atendente = _buscar_atendente_por_email(db, email, tenant_id)
     if not atendente:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário não encontrado ou inativo")
+    token_ver = int(payload.get("ver") or 0)
+    atual_ver = int(getattr(atendente, "token_version", 0) or 0)
+    if token_ver != atual_ver:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sessão encerrada. Faça login novamente.",
+        )
     tid_token = int(atendente.tenant_id)
-    access = criar_access_token(data={"sub": atendente.email, "tid": tid_token})
+    claims = {"sub": atendente.email, "tid": tid_token, "ver": atual_ver}
+    access = criar_access_token(data=claims)
+    refresh = criar_refresh_token(data=claims)
     return Token(
         access_token=access,
-        refresh_token=data.refresh_token,
+        refresh_token=refresh,
         must_change_password=bool(getattr(atendente, "must_change_password", False)),
     )
 

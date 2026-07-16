@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { fetchChatInternoMidiaBlob, type ChatInterno } from '../../api/client'
+import { segmentarCorpoComMencoes } from '../../lib/chatInternoMencoes'
+import { useAuth } from '../../contexts/AuthContext'
 
 const ROTULO_SEM_LEGENDA = /^(📷 Imagem|🎬 Vídeo|🎵 Áudio|📄 Documento)$/
 
@@ -11,6 +13,43 @@ type Props = {
   /** Rodapé compacto (hora/status) embutido no canto — estilo WhatsApp Web para texto curto */
   rodape?: ReactNode
   somenteTextoCompacto?: boolean
+}
+
+function CorpoComMencoes({
+  corpo,
+  mencoes,
+  textoClaro,
+}: {
+  corpo: string
+  mencoes?: ChatInterno.MencaoMensagem[]
+  textoClaro?: boolean
+}) {
+  const { user } = useAuth()
+  const segs = segmentarCorpoComMencoes(corpo, mencoes, user?.id)
+  return (
+    <>
+      {segs.map((s, i) =>
+        s.kind === 'mention' ? (
+          <span
+            key={i}
+            className={
+              textoClaro
+                ? s.self
+                  ? 'rounded bg-white/25 px-0.5 font-semibold text-white'
+                  : 'font-semibold text-cyan-100'
+                : s.self
+                  ? 'rounded bg-cyan-100 px-0.5 font-semibold text-cyan-800 dark:bg-cyan-900/60 dark:text-cyan-200'
+                  : 'font-semibold text-cyan-700 dark:text-cyan-300'
+            }
+          >
+            {s.value}
+          </span>
+        ) : (
+          <span key={i}>{s.value}</span>
+        ),
+      )}
+    </>
+  )
 }
 
 export function ChatInternoConteudoMensagem({
@@ -89,7 +128,7 @@ export function ChatInternoConteudoMensagem({
               textoClaro ? 'text-white' : 'text-slate-900 dark:text-slate-100'
             }`}
           >
-            {mensagem.corpo}
+            <CorpoComMencoes corpo={mensagem.corpo} mencoes={mensagem.mencoes} textoClaro={textoClaro} />
             <span aria-hidden className="inline-block h-[0.85rem] w-[4.25rem]" />
           </p>
           <div className="absolute bottom-0 right-0 flex items-center gap-0.5 pl-1">{rodape}</div>
@@ -102,7 +141,7 @@ export function ChatInternoConteudoMensagem({
           textoClaro ? 'text-white' : 'text-slate-900 dark:text-slate-100'
         }`}
       >
-        {mensagem.corpo}
+        <CorpoComMencoes corpo={mensagem.corpo} mencoes={mensagem.mencoes} textoClaro={textoClaro} />
       </p>
     )
   }

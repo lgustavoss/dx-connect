@@ -50,12 +50,13 @@ O hub v1 é **in-process** (`asyncio.Queue` por conexão). Implicações:
 
 **v2 (futuro):** Redis Pub/Sub ou similar para fan-out entre workers.
 
-## Presença online (#546)
+## Presença online (#546+)
 
-- «Online» = canal `atendente:{id}` com ≥1 conexão SSE no hub do processo
-- `online_desde` = instante da primeira conexão da sessão contínua (multi-aba mantém o mesmo horário)
+- «Online» = heartbeat recente no Postgres (`presenca_heartbeat_em`), atualizado na conexão SSE e a cada ping (~30 s)
+- TTL: **90 s** sem heartbeat → some da lista (funciona com Gunicorn `--workers N>1`)
+- `online_desde` = início da sessão contínua (reinicia se o heartbeat tinha expirado)
 - API admin: `GET /v1/presenca/online` — lista só contas `ativo` do tenant atual
-- Com `--workers N>1`, cada worker vê só as conexões SSE locais (mesma limitação do pub/sub v1)
+- Forçar saída: `POST /v1/presenca/online/{id}/forcar-saida` — incrementa `token_version` (invalida JWT) e limpa presença; evento SSE `sessao.encerrada` no mesmo worker
 
 ### Limites práticos
 
@@ -68,3 +69,4 @@ O hub v1 é **in-process** (`asyncio.Queue` por conexão). Implicações:
 - Épico: [#256](https://github.com/lgustavoss/dx-connect/issues/256)
 - RT-F1 backend: [#264](https://github.com/lgustavoss/dx-connect/issues/264)
 - RT-F1 frontend: [#267](https://github.com/lgustavoss/dx-connect/issues/267)
+- Presença: [#545](https://github.com/lgustavoss/dx-connect/issues/545)
