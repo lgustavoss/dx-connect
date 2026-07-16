@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiError, chatInterno, type ChatInterno } from '../../api/client'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
@@ -48,6 +48,7 @@ export function ChatInternoThread() {
   const [loading, setLoading] = useState(true)
   const [enviando, setEnviando] = useState(false)
   const [msgRespondida, setMsgRespondida] = useState<ChatInterno.Mensagem | null>(null)
+  const [focoComposerEm, setFocoComposerEm] = useState(0)
   const [forbidden, setForbidden] = useState(false)
   const [erro, setErro] = useState(false)
   const [temMaisAntigas, setTemMaisAntigas] = useState(false)
@@ -323,6 +324,18 @@ export function ChatInternoThread() {
     }
   }
 
+  function iniciarResposta(m: ChatInterno.Mensagem) {
+    if (m.apagada) return
+    setMsgRespondida(m)
+    setFocoComposerEm((n) => n + 1)
+  }
+
+  function duploCliqueResponder(e: MouseEvent, m: ChatInterno.Mensagem) {
+    const t = e.target as HTMLElement
+    if (t.closest('button, a, input, textarea, [role="dialog"]')) return
+    iniciarResposta(m)
+  }
+
   async function enviarMidia(file: File, caption?: string) {
     if (enviando) return
     setEnviando(true)
@@ -492,6 +505,7 @@ export function ChatInternoThread() {
                 <article
                   key={m.id}
                   data-chat-msg-id={m.id}
+                  onDoubleClick={(e) => duploCliqueResponder(e, m)}
                   className="group w-full min-w-0 overflow-hidden rounded-2xl border border-amber-200/80 bg-amber-50/95 p-5 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/40"
                 >
                   <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">
@@ -521,7 +535,7 @@ export function ChatInternoThread() {
                     mensagem={m}
                     onEditar={(corpo) => editarMensagem(m.id, corpo)}
                     onApagar={(escopo) => apagarMensagem(m.id, escopo)}
-                    onResponder={() => setMsgRespondida(m)}
+                    onResponder={() => iniciarResposta(m)}
                   />
                   {!m.apagada && (
                     <ChatInternoReacoesBar
@@ -544,7 +558,12 @@ export function ChatInternoThread() {
               )
             }
             return (
-              <div key={m.id} data-chat-msg-id={m.id} className={`group flex w-full ${propria ? 'justify-end' : 'justify-start'}`}>
+              <div
+                key={m.id}
+                data-chat-msg-id={m.id}
+                onDoubleClick={(e) => duploCliqueResponder(e, m)}
+                className={`group flex w-full cursor-default ${propria ? 'justify-end' : 'justify-start'}`}
+              >
                 <div
                   className={`flex max-w-[85%] flex-col sm:max-w-[min(65%,28rem)] ${
                     propria ? 'items-end' : 'items-start'
@@ -612,7 +631,7 @@ export function ChatInternoThread() {
                       mensagem={m}
                       onEditar={(corpo) => editarMensagem(m.id, corpo)}
                       onApagar={(escopo) => apagarMensagem(m.id, escopo)}
-                      onResponder={() => setMsgRespondida(m)}
+                      onResponder={() => iniciarResposta(m)}
                       alinhamento={propria ? 'end' : 'start'}
                     />
                     {!m.apagada && (
@@ -662,6 +681,7 @@ export function ChatInternoThread() {
         enviando={enviando}
         placeholder={isSetor ? 'Novo comunicado para o setor…' : 'Escreva uma mensagem…'}
         labelEnviar={isSetor ? 'Publicar' : 'Enviar'}
+        focoPedidoEm={focoComposerEm}
       />
     </div>
   )

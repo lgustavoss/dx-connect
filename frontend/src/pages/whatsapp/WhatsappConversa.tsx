@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState, useRef, type MouseEvent } from 'react'
 
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
@@ -273,6 +273,7 @@ export function WhatsappConversa() {
 
   // Estados de WhatsApp Clone (Citação e Zoom)
   const [msgRespondida, setMsgRespondida] = useState<WhatsappChats.Mensagem | null>(null)
+  const [focoComposerEm, setFocoComposerEm] = useState(0)
   const [activeZoomImage, setActiveZoomImage] = useState<string | null>(null)
   const [activeZoomImageCaption, setActiveZoomImageCaption] = useState<string | null>(null)
   const [modoInterno, setModoInterno] = useState(false)
@@ -572,6 +573,18 @@ useEffect(() => {
   function inserirReferenciaKb(ref: string) {
     const sep = texto && !texto.endsWith('\n') ? '\n\n' : texto ? '' : ''
     setTexto(texto + sep + ref)
+  }
+
+  function iniciarResposta(m: WhatsappChats.Mensagem) {
+    setMsgRespondida(m)
+    setFocoComposerEm((n) => n + 1)
+  }
+
+  function duploCliqueResponder(e: MouseEvent, m: WhatsappChats.Mensagem, isSystem: boolean) {
+    if (isSystem || encerrado || !podeEnviar || modoInterno) return
+    const t = e.target as HTMLElement
+    if (t.closest('button, a, input, textarea, video, audio')) return
+    iniciarResposta(m)
   }
 
   async function enviar() {
@@ -1113,11 +1126,12 @@ useEffect(() => {
               <div 
                 key={m.id} 
                 id={`msg-${m.wa_message_id || m.id}`}
-                className={`flex w-full group items-center gap-2 transition-all ${isInbound ? 'justify-start' : 'justify-end'}`}
+                onDoubleClick={(e) => duploCliqueResponder(e, m, isSystem)}
+                className={`flex w-full group cursor-default items-center gap-2 transition-all ${isInbound ? 'justify-start' : 'justify-end'}`}
               >
                 {!isInbound && !isSystem && (
                   <button
-                    onClick={() => setMsgRespondida(m)}
+                    onClick={() => iniciarResposta(m)}
                     className="opacity-25 group-hover:opacity-100 md:opacity-0 transition-opacity p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer shrink-0"
                     title="Responder"
                   >
@@ -1193,7 +1207,7 @@ useEffect(() => {
 
                 {isInbound && !isSystem && (
                   <button
-                    onClick={() => setMsgRespondida(m)}
+                    onClick={() => iniciarResposta(m)}
                     className="opacity-25 group-hover:opacity-100 md:opacity-0 transition-opacity p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer shrink-0"
                     title="Responder"
                   >
@@ -1304,6 +1318,7 @@ useEffect(() => {
               setLegendaMidia('')
             }}
             onInserirReferenciaKb={inserirReferenciaKb}
+            focoPedidoEm={focoComposerEm}
           />
 
           <input

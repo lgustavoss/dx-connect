@@ -46,6 +46,9 @@ type Props = {
 
   labelEnviar?: string
 
+  /** Incrementar para focar o textarea (ex.: após Responder). */
+  focoPedidoEm?: number
+
 }
 
 
@@ -74,6 +77,8 @@ export function ChatInternoComposerBar({
 
   labelEnviar = 'Enviar',
 
+  focoPedidoEm,
+
 }: Props) {
 
   const [menuAberto, setMenuAberto] = useState(false)
@@ -95,7 +100,10 @@ export function ChatInternoComposerBar({
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-
+  useEffect(() => {
+    if (focoPedidoEm == null || focoPedidoEm <= 0) return
+    requestAnimationFrame(() => textareaRef.current?.focus())
+  }, [focoPedidoEm])
 
   const temTexto = texto.trim().length > 0
 

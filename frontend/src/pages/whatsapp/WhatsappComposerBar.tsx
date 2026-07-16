@@ -22,6 +22,8 @@ type Props = {
   modoInterno: boolean
   podeDigitar: boolean
   onInserirReferenciaKb?: (ref: string) => void
+  /** Incrementar para focar o textarea (ex.: após Responder). */
+  focoPedidoEm?: number
 }
 
 type MenuAnexo = { tipo: TipoAnexoPicker; label: string }
@@ -49,6 +51,7 @@ export function WhatsappComposerBar({
   modoInterno,
   podeDigitar,
   onInserirReferenciaKb,
+  focoPedidoEm,
 }: Props) {
   const [menuAberto, setMenuAberto] = useState(false)
   const [painelEmojiAberto, setPainelEmojiAberto] = useState(false)
@@ -65,6 +68,11 @@ export function WhatsappComposerBar({
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
   }, [menuAberto])
+
+  useEffect(() => {
+    if (focoPedidoEm == null || focoPedidoEm <= 0) return
+    requestAnimationFrame(() => textareaRef.current?.focus())
+  }, [focoPedidoEm])
 
   const temTexto = texto.trim().length > 0
   /** Não incluir `enviando`: disabled no textarea remove o foco (#539). */
