@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ApiError, chatInterno, type ChatInterno } from '../../api/client'
+import { ApiError, atendentes, chatInterno, type ChatInterno } from '../../api/client'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { ChatInternoComposerBar } from '../../components/chat-interno/ChatInternoComposerBar'
 import { ChatInternoGrupoMembrosModal } from '../../components/chat-interno/ChatInternoGrupoMembrosModal'
@@ -28,6 +28,7 @@ import {
   corNomeRemetenteChat,
   inicialNomeRemetente,
 } from '../../lib/chatInternoRemetenteCor'
+import { montarMencoesDoCorpo, type MencaoCandidato } from '../../lib/chatInternoMencoes'
 import { SemPermissao } from '../SemPermissao'
 
 const SCROLL_TOPO_CARREGAR_PX = 80
@@ -269,6 +270,7 @@ export function ChatInternoThread() {
   const [limpando, setLimpando] = useState(false)
   const [grupoDetalhe, setGrupoDetalhe] = useState<ChatInterno.Conversa | null>(null)
   const [modalMembros, setModalMembros] = useState(false)
+  const [mencionaveis, setMencionaveis] = useState<MencaoCandidato[]>([])
 
   useEffect(() => {
     if (meta?.tipo !== 'grupo') {
@@ -280,6 +282,39 @@ export function ChatInternoThread() {
       .then(setGrupoDetalhe)
       .catch(() => setGrupoDetalhe(null))
   }, [conversaId, meta?.tipo])
+
+  useEffect(() => {
+    if (meta?.tipo === 'grupo') {
+      setMencionaveis(
+        (grupoDetalhe?.participantes ?? []).map((p) => ({
+          atendente_id: p.atendente_id,
+          nome: p.nome,
+        })),
+      )
+      return
+    }
+    if (meta?.tipo === 'setor' && meta.setor_id) {
+      let cancelled = false
+      void atendentes
+        .listPorSetor(meta.setor_id)
+        .then((lista) => {
+          if (cancelled) return
+          setMencionaveis(
+            lista.map((a) => ({
+              atendente_id: a.id,
+              nome: a.nome,
+            })),
+          )
+        })
+        .catch(() => {
+          if (!cancelled) setMencionaveis([])
+        })
+      return () => {
+        cancelled = true
+      }
+    }
+    setMencionaveis([])
+  }, [meta?.tipo, meta?.setor_id, grupoDetalhe?.participantes])
 
   async function editarMensagem(mensagemId: number, corpo: string) {
     try {
@@ -369,7 +404,13 @@ export function ChatInternoThread() {
     if (!corpo || enviando) return
     setEnviando(true)
     try {
-      const msg = await chatInterno.enviar(conversaId, corpo, msgRespondida?.id ?? null)
+      const mencoes = montarMencoesDoCorpo(corpo, mencionaveis)
+      const msg = await chatInterno.enviar(
+        conversaId,
+        corpo,
+        msgRespondida?.id ?? null,
+        mencoes.length > 0 ? mencoes : null,
+      )
       setTexto('')
       setMsgRespondida(null)
       setMensagens((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]))
@@ -711,9 +752,17 @@ export function ChatInternoThread() {
         onEnviar={() => void enviar()}
         onEnviarMidia={(file, caption) => void enviarMidia(file, caption)}
         enviando={enviando}
-        placeholder={isSetor ? 'Novo comunicado para o setor…' : 'Escreva uma mensagem…'}
+        placeholder={
+          isSetor
+            ? 'Novo comunicado… Use @ para mencionar'
+            : isGrupo
+              ? 'Escreva uma mensagem… Use @ para mencionar'
+              : 'Escreva uma mensagem…'
+        }
         labelEnviar={isSetor ? 'Publicar' : 'Enviar'}
         focoPedidoEm={focoComposerEm}
+        mencionaveis={mencionaveis}
+        meuAtendenteId={user?.id}
       />
     </div>
   )

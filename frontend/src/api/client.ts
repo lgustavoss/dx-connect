@@ -1516,6 +1516,12 @@ export namespace ChatInterno {
     reagiu_eu: boolean;
   }
 
+  export interface MencaoMensagem {
+    tipo: 'user' | 'all';
+    atendente_id?: number | null;
+    rotulo?: string | null;
+  }
+
   export interface Mensagem {
     id: number;
     conversa_id: number;
@@ -1532,6 +1538,7 @@ export namespace ChatInterno {
     editada?: boolean;
     editada_em?: string | null;
     reacoes?: ReacaoMensagem[];
+    mencoes?: MencaoMensagem[];
     pode_editar?: boolean;
     pode_apagar_para_todos?: boolean;
     pode_apagar_para_mim?: boolean;
@@ -1580,12 +1587,18 @@ export const chatInterno = {
         antes_de_id: params?.antesDeId,
       }),
     ),
-  enviar: (conversaId: number, corpo: string, replyToMessageId?: number | null) =>
+  enviar: (
+    conversaId: number,
+    corpo: string,
+    replyToMessageId?: number | null,
+    mencoes?: ChatInterno.MencaoMensagem[] | null,
+  ) =>
     api<ChatInterno.Mensagem>(`/chat-interno/conversas/${conversaId}/mensagens`, {
       method: 'POST',
       body: JSON.stringify({
         corpo,
         ...(replyToMessageId != null ? { reply_to_message_id: replyToMessageId } : {}),
+        ...(mencoes && mencoes.length > 0 ? { mencoes } : {}),
       }),
     }),
   enviarMidia: (conversaId: number, file: File, caption?: string, replyToMessageId?: number | null) => {

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -297,6 +298,123 @@ def listar_participantes_grupo(
     return [(atendente, participante.papel) for participante, atendente in rows]
 
 
+def listar_mencionaveis(
+    db: Session,
+    conversa: ConversaInterna,
+    *,
+    excluir_atendente_id: int | None = None,
+) -> list[Atendente]:
+    """Atendentes que podem ser mencionados na conversa (grupo / setor / direta)."""
+    if conversa.tipo == TIPO_CONVERSA_GRUPO:
+        rows = listar_participantes_grupo(db, conversa.id)
+        atendentes = [a for a, _ in rows if a.ativo]
+    elif conversa.tipo == TIPO_CONVERSA_SETOR and conversa.setor_id is not None:
+        from app.models.atendente import atendente_setor
+
+        atendentes = (
+            db.query(Atendente)
+            .join(atendente_setor, atendente_setor.c.atendente_id == Atendente.id)
+            .filter(
+                atendente_setor.c.setor_id == conversa.setor_id,
+                Atendente.tenant_id == conversa.tenant_id,
+                Atendente.ativo.is_(True),
+            )
+            .order_by(Atendente.nome.asc())
+            .all()
+        )
+    elif conversa.tipo == TIPO_CONVERSA_DIRETA:
+        rows = listar_participantes_grupo(db, conversa.id)
+        atendentes = [a for a, _ in rows if a.ativo]
+    else:
+        atendentes = []
+
+    if excluir_atendente_id is not None:
+        atendentes = [a for a in atendentes if a.id != excluir_atendente_id]
+    return atendentes
+
+
+def _token_mencao_no_corpo(corpo: str, token: str) -> bool:
+    """True se `@token` aparece como menção (não no meio de palavra)."""
+    return re.search(rf"(?<!\w)@{re.escape(token)}(?!\w)", corpo, flags=re.IGNORECASE) is not None
+
+
+def normalizar_mencoes(
+    db: Session,
+    conversa: ConversaInterna,
+    remetente: Atendente,
+    corpo: str,
+    mencoes_in: list[dict] | None,
+) -> list[dict] | None:
+    """Valida menções enviadas pelo cliente (ou deriva do texto) e devolve JSON persistível."""
+    if conversa.tipo == TIPO_CONVERSA_DIRETA:
+        # Menções em DM não fazem sentido operacional — ignora.
+        return None
+
+    candidatos = {a.id: a for a in listar_mencionaveis(db, conversa)}
+    out: list[dict] = []
+    visto_ids: set[int] = set()
+    tem_all = False
+
+    raw = mencoes_in or []
+    if not raw:
+        # Deriva do corpo: @all / @todos e @Nome dos participantes.
+        if _token_mencao_no_corpo(corpo, "all") or _token_mencao_no_corpo(corpo, "todos"):
+            tem_all = True
+        for a in sorted(candidatos.values(), key=lambda x: len(x.nome or ""), reverse=True):
+            if a.id == remetente.id:
+                continue
+            if _token_mencao_no_corpo(corpo, a.nome):
+                visto_ids.add(a.id)
+                out.append({"tipo": "user", "atendente_id": a.id, "rotulo": a.nome})
+    else:
+        for item in raw:
+            tipo = (item.get("tipo") or "").strip().lower()
+            if tipo == "all":
+                tem_all = True
+                continue
+            if tipo != "user":
+                raise ChatInternoErro("Tipo de menção inválido.")
+            aid = item.get("atendente_id")
+            if aid is None:
+                raise ChatInternoErro("Menção de usuário exige atendente_id.")
+            aid = int(aid)
+            if aid == remetente.id:
+                continue
+            alvo = candidatos.get(aid)
+            if alvo is None:
+                raise ChatInternoErro("Só é possível mencionar participantes desta conversa.")
+            if aid in visto_ids:
+                continue
+            visto_ids.add(aid)
+            out.append({"tipo": "user", "atendente_id": aid, "rotulo": alvo.nome})
+
+    if tem_all:
+        out.insert(0, {"tipo": "all"})
+
+    return out or None
+
+
+def mencoes_para_leitura(raw) -> list[dict]:
+    if not raw or not isinstance(raw, list):
+        return []
+    itens: list[dict] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        tipo = item.get("tipo")
+        if tipo == "all":
+            itens.append({"tipo": "all", "atendente_id": None, "rotulo": "all"})
+        elif tipo == "user":
+            itens.append(
+                {
+                    "tipo": "user",
+                    "atendente_id": item.get("atendente_id"),
+                    "rotulo": item.get("rotulo"),
+                }
+            )
+    return itens
+
+
 def obter_ou_criar_canal_setor(db: Session, tenant_id: int, setor_id: int) -> ConversaInterna:
     setor = (
         db.query(Setor)
@@ -552,6 +670,7 @@ def enviar_mensagem(
     atendente: Atendente,
     corpo: str,
     reply_to_message_id: int | None = None,
+    mencoes: list[dict] | None = None,
 ) -> MensagemInterna:
     if not pode_acessar_conversa(db, atendente, conversa):
         raise ChatInternoErro("Sem permissão para esta conversa.")
@@ -560,6 +679,7 @@ def enviar_mensagem(
         raise ChatInternoErro("Corpo da mensagem não pode ser vazio.")
 
     reply_id, reply_preview, reply_autor = _resolver_citacao(db, conversa.id, reply_to_message_id)
+    mencoes_norm = normalizar_mencoes(db, conversa, atendente, texto, mencoes)
 
     mensagem = MensagemInterna(
         conversa_id=conversa.id,
@@ -569,6 +689,7 @@ def enviar_mensagem(
         reply_to_message_id=reply_id,
         reply_preview=reply_preview,
         reply_autor_nome=reply_autor,
+        mencoes=mencoes_norm,
     )
     db.add(mensagem)
     db.flush()
@@ -950,6 +1071,7 @@ def editar_mensagem(
     mensagem: MensagemInterna,
     atendente: Atendente,
     novo_corpo: str,
+    mencoes: list[dict] | None = None,
 ) -> MensagemInterna:
     if not pode_acessar_conversa(db, atendente, conversa):
         raise ChatInternoErro("Sem permissão para esta conversa.")
@@ -969,6 +1091,7 @@ def editar_mensagem(
         if not texto:
             raise ChatInternoErro("Corpo da mensagem não pode ser vazio.")
         mensagem.corpo = texto
+        mensagem.mencoes = normalizar_mencoes(db, conversa, atendente, texto, mencoes)
     elif tipo in TIPOS_MENSAGEM_MIDIA:
         mensagem.corpo = novo_corpo.strip()
     else:
