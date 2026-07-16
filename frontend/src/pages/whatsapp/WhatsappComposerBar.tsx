@@ -191,7 +191,7 @@ export function WhatsappComposerBar({
           }
           rows={1}
           disabled={campoBloqueado}
-          className="max-h-32 min-h-[40px] flex-1 resize-none border-none bg-transparent p-2 text-sm focus:ring-0 dark:text-slate-100 placeholder:text-slate-400"
+          className="max-h-32 min-h-[40px] flex-1 resize-none border-0 bg-transparent p-2 text-sm outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 dark:text-slate-100 placeholder:text-slate-400"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()

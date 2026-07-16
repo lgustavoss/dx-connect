@@ -447,7 +447,7 @@ export function ChatInternoComposerBar({
 
             disabled={campoBloqueado}
 
-            className="max-h-32 min-h-[40px] min-w-0 flex-1 resize-none break-words border-none bg-transparent p-2 text-base focus:ring-0 dark:text-slate-100 placeholder:text-slate-400"
+            className="max-h-32 min-h-[40px] min-w-0 flex-1 resize-none break-words border-0 bg-transparent p-2 text-base outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 dark:text-slate-100 placeholder:text-slate-400"
 
             onKeyDown={(e) => {
 

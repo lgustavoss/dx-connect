@@ -17,6 +17,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - WhatsApp: removido botão duplicado «Identificar contato» no header — fica só o do banner enquanto o contacto não está vinculado; após vincular o CTA some
 - WhatsApp: encerramento por inatividade só conta a partir da última mensagem do cliente quando o chat já está em atendimento e o atendente já enviou mensagem humana (auto_assumido/BOT não disparam o timer)
 - WhatsApp: Ctrl+V no composer cola imagem/ficheiro do clipboard (pré-visualização antes de enviar), como no chat interno
+- Chat: removida a borda branca de foco no campo de mensagem (WhatsApp e chat interno)
 - WhatsApp / modais: ao digitar na descrição da demanda no **Encerrar atendimento**, o campo perdia o foco a cada atualização da conversa — diálogo já não refoca o painel; formulário não é limpo pelo poll
 - Sons de alerta: toque de **abertura de ticket** e de **novo chat** (fila WhatsApp/Portal) estavam trocados — ticket usa `notification.mp3` e chat na fila usa `alerta.mp3`
 - WhatsApp: conversa em atendimento disparava loop de pedidos a `/demandas` (e esgotava recursos do browser com `ERR_INSUFFICIENT_RESOURCES`) — o painel de demandas já não notifica o pai no carregamento inicial
