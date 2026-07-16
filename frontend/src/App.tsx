@@ -12,6 +12,7 @@ import { DashboardTickets } from './pages/DashboardTickets'
 import { DashboardChats } from './pages/DashboardChats'
 import { RelatoriosTickets } from './pages/RelatoriosTickets'
 import { RelatoriosChats } from './pages/RelatoriosChats'
+import { PresencaOnline } from './pages/PresencaOnline'
 import { Tickets } from './pages/Tickets'
 import { TicketNovo } from './pages/TicketNovo'
 import { TicketDetalhe } from './pages/TicketDetalhe'
@@ -145,6 +146,14 @@ function AppRoutes() {
         <Route index element={<Dashboard />} />
         <Route path="dashboard/tickets" element={<DashboardTickets />} />
         <Route path="dashboard/chats" element={<DashboardChats />} />
+        <Route
+          path="equipe/online"
+          element={
+            <AdminRoute>
+              <PresencaOnline />
+            </AdminRoute>
+          }
+        />
         <Route
           path="relatorios/tickets"
           element={

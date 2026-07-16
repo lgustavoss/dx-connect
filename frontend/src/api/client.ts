@@ -649,6 +649,10 @@ export const audit = {
   },
 };
 
+export const presenca = {
+  online: () => api<Presenca.ListaOnline>('/presenca/online'),
+};
+
 export namespace WhatsappSettings {
   export interface Read {
     evolution_base_url: string | null
@@ -2916,6 +2920,24 @@ export namespace Audit {
     user_agent: string | null;
     request_id: string | null;
     created_at: string;
+  }
+}
+
+export namespace Presenca {
+  export interface SetorResumo {
+    id: number;
+    nome: string;
+  }
+  export interface ItemOnline {
+    atendente_id: number;
+    nome: string;
+    email: string;
+    role: string;
+    online_desde: string;
+    setores: SetorResumo[];
+  }
+  export interface ListaOnline {
+    itens: ItemOnline[];
   }
 }
 

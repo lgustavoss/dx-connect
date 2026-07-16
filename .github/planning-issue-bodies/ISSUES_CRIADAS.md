@@ -165,6 +165,18 @@ Portal KB white-label: [#464](https://github.com/lgustavoss/dx-connect/issues/46
 
 ---
 
+## Presença de atendentes online (2026-07-16)
+
+| Prefixo | Issue | Título |
+|---------|-------|--------|
+| PR | [#545](https://github.com/lgustavoss/dx-connect/issues/545) | **[Épico] Presença de atendentes online (admin)** |
+| PR-F1 | [#546](https://github.com/lgustavoss/dx-connect/issues/546) | Tracking SSE + API admin (backend) |
+| PR-F2 | [#547](https://github.com/lgustavoss/dx-connect/issues/547) | Tela admin Equipe online (frontend) |
+
+Online = conexão SSE ativa no painel. Lote sugerido: `feat/presenca-online`.
+
+---
+
 ## Análises de viabilidade (documentação)
 
 Material de apoio à decisão — **não** substitui issues no GitHub:

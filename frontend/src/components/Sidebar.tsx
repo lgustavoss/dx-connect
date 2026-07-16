@@ -41,6 +41,16 @@ const icons: Record<string, React.ReactNode> = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   ),
+  equipeOnline: (
+    <svg className="size-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+      />
+    </svg>
+  ),
   whatsapp: (
     <svg className="size-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
       <path
@@ -214,12 +224,20 @@ interface NavItemLink {
   icon: string
   /** Mantém o item ativo em rotas filhas (ex.: `/chat/c/:id`) */
   activePrefix?: string
+  adminOnly?: boolean
 }
 
 type NavItem = NavItemLink | NavGroup
 
 const navStructure: NavItem[] = [
   { type: 'link', to: '/', label: 'Dashboard', icon: 'dashboard' },
+  {
+    type: 'link',
+    to: '/equipe/online',
+    label: 'Equipe online',
+    icon: 'equipeOnline',
+    adminOnly: true,
+  },
   { type: 'link', to: '/tickets', label: 'Tickets', icon: 'tickets' },
   { type: 'link', to: '/chat/atendendo', label: 'Chat', icon: 'chat', activePrefix: '/chat/' },
   { type: 'link', to: '/whatsapp/historico', label: 'Atendimentos', icon: 'chatHistory' },
@@ -347,9 +365,10 @@ export function Sidebar({
     [closeFlyout, openFlyout]
   )
 
-  const items = navStructure.filter(
-    (item) => item.type === 'link' || !('adminOnly' in item && item.adminOnly) || isAdmin
-  ) as NavItem[]
+  const items = navStructure.filter((item) => {
+    if ('adminOnly' in item && item.adminOnly && !isAdmin) return false
+    return true
+  }) as NavItem[]
 
   // Abrir grupo automaticamente quando a rota pertence a ele
   useEffect(() => {
