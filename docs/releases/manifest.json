@@ -863,6 +863,34 @@
           "text": "Anexos de ticket: ficheiros deixam de desaparecer após atualização do sistema; se o arquivo já tiver sido perdido, o aviso deixa isso claro"
         }
       ]
+    },
+    {
+      "version": "26.07.009",
+      "version_display": "v26.07.009",
+      "date": "2026-07-16",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "Chat interno (grupos/canal): menções com `@` — autocomplete de participantes e `@all` (todos); destaque visual na mensagem"
+        },
+        {
+          "category": "melhorias",
+          "text": "Equipe online: lista funciona com vários workers do servidor (presença gravada no banco); admin pode **Forçar saída** de um atendente conectado"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno: balões mais próximos — opções/reações só no hover; em grupos, avatar e cor por pessoa para distinguir quem fala"
+        },
+        {
+          "category": "melhorias",
+          "text": "Equipe online: «0 online» mesmo com painel aberto (lista lia só a memória do worker errado)"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno: espaço excessivo entre mensagens após colocar ações/reações fora do balão"
+        }
+      ]
     }
   ]
 }
