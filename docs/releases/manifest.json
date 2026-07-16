@@ -819,6 +819,50 @@
           "text": "Chat interno: contraste no hover de Responder/Editar/Apagar; duplo clique na mensagem (ou ao lado do balão) inicia resposta e foca o composer — também no WhatsApp"
         }
       ]
+    },
+    {
+      "version": "26.07.008",
+      "version_display": "v26.07.008",
+      "date": "2026-07-16",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "Equipe online (#545–#547): administradores veem quem está com o painel aberto e desde quando (menu **Equipe online**), para coordenar atendimento de chats e tickets"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat (#539): após enviar mensagem (WhatsApp e chat interno), o cursor permanece no campo de texto; painel de emoji fica aberto ao escolher vários; **Responder** mensagem no chat interno (direta, equipe e grupo)"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: na busca «Vincular existente», cada resultado mostra **rede** e **empresa(s)** para distinguir homónimos"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#534): identificar/cadastrar contato do cliente também em atendimento **encerrado** (Histórico); o número do WhatsApp passa a ser gravado no telefone do cadastro para retomar pela aba Contatos"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#531): aba **Contatos** no hub de chat — lista funcionários com empresa e telefone; iniciar conversa (ou número avulso / retomar no Histórico); chat já fica em atendimento com o iniciador; telefone no cadastro do funcionário da rede"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: o feed deixa de puxar sozinho para o fim enquanto você lê mensagens acima; ao reabrir a conversa, retoma a posição em que parou"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno: ações (Responder/Editar/Apagar) e reações ficam fora do balão da mensagem"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno: clique na imagem abre visualização em tela cheia (antes só tinha o cursor de zoom, sem ação)"
+        },
+        {
+          "category": "melhorias",
+          "text": "Anexos de ticket: ficheiros deixam de desaparecer após atualização do sistema; se o arquivo já tiver sido perdido, o aviso deixa isso claro"
+        }
+      ]
     }
   ]
 }
