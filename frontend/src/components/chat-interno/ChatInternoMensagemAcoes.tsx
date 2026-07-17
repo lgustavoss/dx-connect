@@ -92,33 +92,47 @@ export function ChatInternoMensagemAcoes({
 
   return (
     <>
+      {/*
+        Ações acima do balão + ponte invisível (h-2) colada no topo do balão.
+        Sem a ponte, o gap faz o hover cair na mensagem de cima e as opções “saltam”.
+      */}
       <div
-        className={`pointer-events-none absolute bottom-full z-10 mb-1 flex gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 ${
-          alinhamento === 'end' ? 'right-0 justify-end' : 'left-0 justify-start'
+        className={`pointer-events-none absolute bottom-full z-20 flex flex-col ${
+          alinhamento === 'end' ? 'right-0 items-end' : 'left-0 items-start'
         }`}
       >
-        {podeResponder && (
-          <button type="button" onClick={() => onResponder?.()} className={btnAcaoClass}>
-            Responder
-          </button>
-        )}
-        {podeEditar && (
-          <button
-            type="button"
-            onClick={() => {
-              setTexto(legendaEditavel(mensagem))
-              setEditando(true)
-            }}
-            className={btnAcaoClass}
-          >
-            Editar
-          </button>
-        )}
-        {(podeApagarTodos || podeApagarMim) && (
-          <button type="button" onClick={() => setConfirmarApagar(true)} className={btnAcaoClass}>
-            Apagar
-          </button>
-        )}
+        <div
+          className={`flex gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-[.is-msg-hover]:pointer-events-auto group-[.is-msg-hover]:opacity-100 ${
+            alinhamento === 'end' ? 'justify-end' : 'justify-start'
+          }`}
+        >
+          {podeResponder && (
+            <button type="button" onClick={() => onResponder?.()} className={btnAcaoClass}>
+              Responder
+            </button>
+          )}
+          {podeEditar && (
+            <button
+              type="button"
+              onClick={() => {
+                setTexto(legendaEditavel(mensagem))
+                setEditando(true)
+              }}
+              className={btnAcaoClass}
+            >
+              Editar
+            </button>
+          )}
+          {(podeApagarTodos || podeApagarMim) && (
+            <button type="button" onClick={() => setConfirmarApagar(true)} className={btnAcaoClass}>
+              Apagar
+            </button>
+          )}
+        </div>
+        <div
+          className="h-2 w-full min-w-[8rem] group-hover:pointer-events-auto group-focus-within:pointer-events-auto group-[.is-msg-hover]:pointer-events-auto"
+          aria-hidden
+        />
       </div>
       <ConfirmDialog
         open={confirmarApagar}

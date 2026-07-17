@@ -13,7 +13,7 @@ import { useToast } from '../../components/ui/Toast'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { useAuth } from '../../contexts/AuthContext'
 import { useEventStream } from '../../contexts/EventStreamContext'
-import { refetchPendenciasResumo } from '../../hooks/useAlertaFilaSemResponsavel'
+import { refetchPendenciasResumo, setActiveChatInternoConversaId, setChatInternoMuted } from '../../hooks/useAlertaFilaSemResponsavel'
 import {
   clearChatInternoScroll,
   isNearBottom,
@@ -271,6 +271,36 @@ export function ChatInternoThread() {
   const [grupoDetalhe, setGrupoDetalhe] = useState<ChatInterno.Conversa | null>(null)
   const [modalMembros, setModalMembros] = useState(false)
   const [mencionaveis, setMencionaveis] = useState<MencaoCandidato[]>([])
+  const [silenciando, setSilenciando] = useState(false)
+  const [hoverMsgId, setHoverMsgId] = useState<number | null>(null)
+  const hoverLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function trancarHoverMensagem(id: number) {
+    if (hoverLeaveTimerRef.current != null) {
+      clearTimeout(hoverLeaveTimerRef.current)
+      hoverLeaveTimerRef.current = null
+    }
+    setHoverMsgId(id)
+  }
+
+  function liberarHoverMensagem(id: number) {
+    if (hoverLeaveTimerRef.current != null) clearTimeout(hoverLeaveTimerRef.current)
+    hoverLeaveTimerRef.current = setTimeout(() => {
+      setHoverMsgId((atual) => (atual === id ? null : atual))
+      hoverLeaveTimerRef.current = null
+    }, 200)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (hoverLeaveTimerRef.current != null) clearTimeout(hoverLeaveTimerRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    setActiveChatInternoConversaId(conversaId)
+    return () => setActiveChatInternoConversaId(null)
+  }, [conversaId])
 
   useEffect(() => {
     if (meta?.tipo !== 'grupo') {
@@ -282,6 +312,23 @@ export function ChatInternoThread() {
       .then(setGrupoDetalhe)
       .catch(() => setGrupoDetalhe(null))
   }, [conversaId, meta?.tipo])
+
+  async function alternarSilenciarGrupo() {
+    if (meta?.tipo !== 'grupo' || silenciando) return
+    const proximo = !(grupoDetalhe?.silenciado ?? false)
+    setSilenciando(true)
+    try {
+      const conv = await chatInterno.silenciarConversa(conversaId, proximo)
+      setGrupoDetalhe(conv)
+      setChatInternoMuted(conversaId, conv.silenciado ?? proximo)
+      void refreshInbox(true)
+      toast.showSuccess(proximo ? 'Grupo silenciado.' : 'Som do grupo reativado.')
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível alterar o silenciar do grupo.'))
+    } finally {
+      setSilenciando(false)
+    }
+  }
 
   useEffect(() => {
     if (meta?.tipo === 'grupo') {
@@ -451,9 +498,14 @@ export function ChatInternoThread() {
   const subtitulo = isSetor
     ? 'Canal do setor — comunicados'
     : isGrupo
-      ? qtdMembrosGrupo > 0
-        ? `Grupo · ${qtdMembrosGrupo} ${qtdMembrosGrupo === 1 ? 'participante' : 'participantes'}`
-        : 'Grupo da equipe'
+      ? [
+          qtdMembrosGrupo > 0
+            ? `Grupo · ${qtdMembrosGrupo} ${qtdMembrosGrupo === 1 ? 'participante' : 'participantes'}`
+            : 'Grupo da equipe',
+          grupoDetalhe?.silenciado ? 'silenciado' : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')
       : 'Conversa direta'
 
   return (
@@ -490,6 +542,21 @@ export function ChatInternoThread() {
             <h2 className="truncate text-lg font-bold text-slate-900 dark:text-white">{titulo}</h2>
             <p className="truncate text-sm text-slate-500">{subtitulo}</p>
           </div>
+        )}
+        {isGrupo && (
+          <button
+            type="button"
+            disabled={silenciando}
+            onClick={() => void alternarSilenciarGrupo()}
+            className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium ring-1 ${
+              grupoDetalhe?.silenciado
+                ? 'text-amber-700 ring-amber-200 hover:bg-amber-50 dark:text-amber-300 dark:ring-amber-800 dark:hover:bg-amber-950/40'
+                : 'text-slate-600 ring-slate-200 hover:bg-slate-100 dark:text-slate-300 dark:ring-slate-600 dark:hover:bg-slate-800'
+            }`}
+            title={grupoDetalhe?.silenciado ? 'Reativar som deste grupo' : 'Silenciar som deste grupo'}
+          >
+            {grupoDetalhe?.silenciado ? 'Ativar som' : 'Silenciar'}
+          </button>
         )}
         <button
           type="button"
@@ -537,7 +604,7 @@ export function ChatInternoThread() {
         ref={scrollRef}
         className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto bg-slate-100/90 px-4 py-5 dark:bg-slate-900/60 md:px-6 lg:px-8"
       >
-        <div className="w-full min-w-0 space-y-1">
+        <div className="w-full min-w-0 space-y-2.5">
         {carregandoAntigas && (
           <p className="py-2 text-center text-sm text-slate-400">Carregando mensagens anteriores…</p>
         )}
@@ -560,7 +627,13 @@ export function ChatInternoThread() {
             const mostrarAvatarGrupo = isGrupo && !propria
             if (isSetor) {
               return (
-                <div key={m.id} className="group relative w-full min-w-0" data-chat-msg-id={m.id}>
+                <div
+                  key={m.id}
+                  className={`group relative z-0 w-full min-w-0 hover:z-20 focus-within:z-20 ${hoverMsgId === m.id ? 'is-msg-hover z-20' : ''}`}
+                  data-chat-msg-id={m.id}
+                  onMouseEnter={() => trancarHoverMensagem(m.id)}
+                  onMouseLeave={() => liberarHoverMensagem(m.id)}
+                >
                 <ChatInternoMensagemAcoes
                   mensagem={m}
                   onEditar={(corpo) => editarMensagem(m.id, corpo)}
@@ -622,9 +695,13 @@ export function ChatInternoThread() {
                 key={m.id}
                 data-chat-msg-id={m.id}
                 onDoubleClick={(e) => duploCliqueResponder(e, m)}
-                className={`group flex w-full cursor-default gap-1.5 ${
+                className={`group relative z-0 flex w-full cursor-default gap-1.5 hover:z-20 focus-within:z-20 ${
+                  hoverMsgId === m.id ? 'is-msg-hover z-20' : ''
+                } ${
                   propria ? 'justify-end' : 'justify-start'
                 } ${mesmoRemetenteQueAnterior && !propria ? 'mt-0.5' : isGrupo && !propria && !mesmoRemetenteQueAnterior ? 'mt-2' : ''}`}
+                onMouseEnter={() => trancarHoverMensagem(m.id)}
+                onMouseLeave={() => liberarHoverMensagem(m.id)}
               >
                 {mostrarAvatarGrupo ? (
                   mesmoRemetenteQueAnterior ? (
@@ -644,7 +721,7 @@ export function ChatInternoThread() {
                     propria ? 'items-end' : 'items-start'
                   }`}
                 >
-                  <div className="relative w-fit max-w-full">
+                  <div className="relative z-0 w-fit max-w-full group-hover:z-20 group-focus-within:z-20">
                     <ChatInternoMensagemAcoes
                       mensagem={m}
                       onEditar={(corpo) => editarMensagem(m.id, corpo)}

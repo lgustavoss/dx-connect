@@ -20,6 +20,10 @@ class GrupoParticipantesUpdate(BaseModel):
     rebaixar_admin: list[int] = Field(default_factory=list)
 
 
+class ConversaSilenciarUpdate(BaseModel):
+    silenciado: bool
+
+
 class ParticipanteGrupoRead(BaseModel):
     atendente_id: int
     nome: str
@@ -100,6 +104,7 @@ class ConversaRead(BaseModel):
     titulo: str | None = None
     participantes: list[ParticipanteGrupoRead] | None = None
     sou_admin_grupo: bool = False
+    silenciado: bool = False
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -113,6 +118,7 @@ class ConversaInboxRead(BaseModel):
     ultima_mensagem_corpo: str | None = None
     ultima_mensagem_em: datetime | None = None
     nao_lidas_count: int = 0
+    silenciado: bool = False
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

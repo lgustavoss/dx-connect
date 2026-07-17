@@ -50,6 +50,7 @@ class ConversaInboxResumo:
     ultima_mensagem_corpo: str | None
     ultima_mensagem_em: datetime | None
     nao_lidas_count: int
+    silenciado: bool = False
 
 
 def is_participante(db: Session, conversa_id: int, atendente_id: int) -> bool:
@@ -150,6 +151,47 @@ def is_admin_grupo(db: Session, conversa_id: int, atendente_id: int) -> bool:
         .first()
         is not None
     )
+
+
+def conversa_esta_silenciada(db: Session, conversa_id: int, atendente_id: int) -> bool:
+    row = (
+        db.query(ConversaInternaParticipante.silenciado_em)
+        .filter(
+            ConversaInternaParticipante.conversa_id == conversa_id,
+            ConversaInternaParticipante.atendente_id == atendente_id,
+        )
+        .first()
+    )
+    return row is not None and row[0] is not None
+
+
+def definir_silenciado_conversa(
+    db: Session,
+    conversa: ConversaInterna,
+    atendente: Atendente,
+    *,
+    silenciado: bool,
+) -> ConversaInterna:
+    """Silencia/dessilencia notificações sonoras para o participante atual (grupos e diretas)."""
+    if conversa.tipo == TIPO_CONVERSA_SETOR:
+        raise ChatInternoErro("Silenciar não está disponível para canais de setor.")
+    if not is_participante(db, conversa.id, atendente.id):
+        raise ChatInternoErro("Sem permissão para esta conversa.")
+
+    participante = (
+        db.query(ConversaInternaParticipante)
+        .filter(
+            ConversaInternaParticipante.conversa_id == conversa.id,
+            ConversaInternaParticipante.atendente_id == atendente.id,
+        )
+        .first()
+    )
+    if participante is None:
+        raise ChatInternoErro("Sem permissão para esta conversa.")
+
+    participante.silenciado_em = datetime.now(timezone.utc) if silenciado else None
+    db.flush()
+    return conversa
 
 
 def _validar_atendentes_grupo(db: Session, tenant_id: int, atendente_ids: set[int]) -> None:
@@ -651,6 +693,7 @@ def listar_conversas_inbox(db: Session, atendente: Atendente) -> list[ConversaIn
                 ultima_mensagem_corpo=preview_mensagem(ultima) if ultima else None,
                 ultima_mensagem_em=ultima.created_at if ultima else None,
                 nao_lidas_count=nao_lidas,
+                silenciado=conversa_esta_silenciada(db, conversa.id, atendente.id),
             )
         )
 
