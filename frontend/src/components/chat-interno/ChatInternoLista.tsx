@@ -85,6 +85,11 @@ export function ChatInternoLista() {
                           }`}
                         >
                           {c.titulo}
+                          {c.silenciado ? (
+                            <span className="ml-1.5 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                              silenciado
+                            </span>
+                          ) : null}
                         </p>
                         <span className="shrink-0 text-[10px] text-slate-400">
                           {formatarHoraRelativa(c.ultima_mensagem_em)}

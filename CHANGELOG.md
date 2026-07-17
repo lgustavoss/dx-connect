@@ -7,7 +7,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Melhorias
 
-- Chat interno (grupos/canal): menções com `@` — autocomplete de participantes e `@all` (todos); destaque visual na mensagem
+- Chat interno: alerta sonoro ao receber nova mensagem; em grupos, opção de **Silenciar** / **Ativar som** (preferência por pessoa)
+- Chat interno: ao passar o mouse em mensagens próximas, as opções (Responder/Editar/Apagar) e reações não “saltam” mais para a mensagem de cima
 - Equipe online: lista funciona com vários workers do servidor (presença gravada no banco); admin pode **Forçar saída** de um atendente conectado
 - Chat interno: balões mais próximos — opções/reações só no hover; em grupos, avatar e cor por pessoa para distinguir quem fala
 - Equipe online (#545–#547): administradores veem quem está com o painel aberto e desde quando (menu **Equipe online**), para coordenar atendimento de chats e tickets

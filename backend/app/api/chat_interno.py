@@ -17,6 +17,7 @@ from app.schemas.chat_interno import (
     ConversaGrupoCreate,
     ConversaInboxRead,
     ConversaRead,
+    ConversaSilenciarUpdate,
     GrupoParticipantesUpdate,
     MencaoMensagemRead,
     MensagemInternaCreate,
@@ -58,6 +59,7 @@ def _to_conversa_read(db: Session, conversa: ConversaInterna, atendente: Atenden
         titulo=titulo,
         participantes=participantes,
         sou_admin_grupo=sou_admin_grupo,
+        silenciado=chat_svc.conversa_esta_silenciada(db, conversa.id, atendente.id),
         created_at=conversa.created_at,
     )
 
@@ -166,6 +168,7 @@ def listar_conversas(
             ultima_mensagem_corpo=r.ultima_mensagem_corpo,
             ultima_mensagem_em=r.ultima_mensagem_em,
             nao_lidas_count=r.nao_lidas_count,
+            silenciado=r.silenciado,
             created_at=r.conversa.created_at,
         )
         for r in resumos
@@ -247,6 +250,31 @@ def atualizar_participantes_grupo(
             remover=body.remover,
             promover_admin=body.promover_admin,
             rebaixar_admin=body.rebaixar_admin,
+        )
+        db.commit()
+        db.refresh(conversa)
+        return _to_conversa_read(db, conversa, atendente)
+    except chat_svc.ChatInternoErro as exc:
+        raise _map_chat_erro(exc) from exc
+
+
+@router.patch("/conversas/{conversa_id}/silenciar", response_model=ConversaRead)
+def silenciar_conversa(
+    conversa_id: int,
+    body: ConversaSilenciarUpdate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    conversa = _obter_conversa_ou_404(db, conversa_id)
+    if conversa.tenant_id != atendente.tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversa não encontrada.")
+    _exigir_acesso_conversa(db, atendente, conversa)
+    try:
+        conversa = chat_svc.definir_silenciado_conversa(
+            db,
+            conversa,
+            atendente,
+            silenciado=body.silenciado,
         )
         db.commit()
         db.refresh(conversa)

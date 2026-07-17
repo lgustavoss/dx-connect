@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { Sidebar } from './Sidebar'
 import { ThemeToggle } from './ThemeToggle'
 import { NavbarNotificacoes } from './NavbarNotificacoes'
-import { useAlertaFilaSemResponsavel } from '../hooks/useAlertaFilaSemResponsavel'
+import { useAlertaFilaSemResponsavel, setChatInternoAlertUserId } from '../hooks/useAlertaFilaSemResponsavel'
 import { EventStreamProvider, useEventStream } from '../contexts/EventStreamContext'
 import { BrandLogo } from '../brand'
 import { useTheme } from '../contexts/ThemeContext'
@@ -32,6 +32,11 @@ function LayoutInner() {
 
   const notificacoesEnabled = Boolean(user && !user.must_change_password)
   useAlertaFilaSemResponsavel(notificacoesEnabled)
+
+  useEffect(() => {
+    setChatInternoAlertUserId(user?.id ?? null)
+    return () => setChatInternoAlertUserId(null)
+  }, [user?.id])
 
   useEffect(() => {
     return subscribe('sessao.encerrada', () => {

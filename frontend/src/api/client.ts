@@ -1494,6 +1494,7 @@ export namespace ChatInterno {
     ultima_mensagem_corpo: string | null;
     ultima_mensagem_em: string | null;
     nao_lidas_count: number;
+    silenciado?: boolean;
     created_at: string;
   }
 
@@ -1505,6 +1506,7 @@ export namespace ChatInterno {
     titulo: string | null;
     participantes?: ParticipanteGrupo[] | null;
     sou_admin_grupo?: boolean;
+    silenciado?: boolean;
     created_at: string;
   }
 
@@ -1580,6 +1582,11 @@ export const chatInterno = {
     api<ChatInterno.Conversa>(`/chat-interno/conversas/${conversaId}/participantes`, {
       method: 'PATCH',
       body: JSON.stringify(data),
+    }),
+  silenciarConversa: (conversaId: number, silenciado: boolean) =>
+    api<ChatInterno.Conversa>(`/chat-interno/conversas/${conversaId}/silenciar`, {
+      method: 'PATCH',
+      body: JSON.stringify({ silenciado }),
     }),
   mensagens: (conversaId: number, params?: { antesDeId?: number }) =>
     api<ChatInterno.MensagensPagina>(

@@ -9,6 +9,7 @@ const LS_KEY_LAST_WPP_FILA = 'dxconnect.notificacoes.last_wpp_fila'
 const LS_KEY_LAST_WPP_RESP = 'dxconnect.notificacoes.last_wpp_resp'
 const LS_KEY_LAST_PORTAL_FILA = 'dxconnect.notificacoes.last_portal_fila'
 const LS_KEY_LAST_PORTAL_RESP = 'dxconnect.notificacoes.last_portal_resp'
+const LS_KEY_LAST_CHAT_INTERNO = 'dxconnect.notificacoes.last_chat_interno'
 const POLL_MS = 10_000
 /** Fallback de segurança quando SSE está ativo (#266). */
 const POLL_SSE_SAFETY_MS = 60_000
@@ -27,8 +28,11 @@ const SOUND_WPP_FILA = '/sons/alerta.mp3'
 /** Nova mensagem do cliente em chat WhatsApp / Portal em atendimento */
 const SOUND_WPP_MENSAGEM = '/sons/wpp-mensagem.mp3'
 const SOUND_WPP_MENSAGEM_FALLBACK = '/sons/notification.mp3'
+/** Nova mensagem no chat interno (direta, grupo ou canal) */
+const SOUND_CHAT_INTERNO = '/sons/wpp-mensagem.mp3'
+const SOUND_CHAT_INTERNO_FALLBACK = '/sons/notification.mp3'
 
-type AlertKind = 'ticket_fila' | 'ticket_mensagem' | 'wpp_fila_pulse' | 'wpp_mensagem'
+type AlertKind = 'ticket_fila' | 'ticket_mensagem' | 'wpp_fila_pulse' | 'wpp_mensagem' | 'chat_interno_mensagem'
 
 type ListenerFila = (state: { count: number }) => void
 type ListenerResumo = (state: Notificacoes.Resumo) => void
@@ -52,8 +56,14 @@ let prevWppResp: number | null = null
 let prevWppFila: number | null = null
 let prevPortalFila: number | null = null
 let prevPortalResp: number | null = null
+let prevChatInterno: number | null = null
 const listenersFila = new Set<ListenerFila>()
 const listenersResumo = new Set<ListenerResumo>()
+
+/** Preferências de som do chat interno (mute por conversa + conversa aberta). */
+const mutedChatInternoIds = new Set<number>()
+let chatInternoUserId: number | null = null
+let activeChatInternoConversaId: number | null = null
 
 let wppFilaLoopInterval: number | null = null
 let wppFilaLoopAudio: HTMLAudioElement | null = null
@@ -61,8 +71,47 @@ let pollTimerId: number | null = null
 let sseSlowPollMode = false
 let sseListenerCount = 0
 let sseUnsubscribe: (() => void) | null = null
+let chatInternoSseUnsubscribe: (() => void) | null = null
 let lastSemIncreaseAt = 0
 const recentAlertKeys = new Map<string, number>()
+
+export function setChatInternoAlertUserId(userId: number | null) {
+  chatInternoUserId = userId
+}
+
+export function setActiveChatInternoConversaId(conversaId: number | null) {
+  activeChatInternoConversaId = conversaId
+}
+
+export function syncChatInternoMutedIds(ids: Iterable<number>) {
+  mutedChatInternoIds.clear()
+  for (const id of ids) mutedChatInternoIds.add(id)
+}
+
+export function setChatInternoMuted(conversaId: number, muted: boolean) {
+  if (muted) mutedChatInternoIds.add(conversaId)
+  else mutedChatInternoIds.delete(conversaId)
+}
+
+function shouldPlayChatInternoSound(payload: Record<string, unknown>): boolean {
+  const conversaId = typeof payload.conversa_id === 'number' ? payload.conversa_id : null
+  const remetenteId = typeof payload.remetente_id === 'number' ? payload.remetente_id : null
+  if (remetenteId != null && chatInternoUserId != null && remetenteId === chatInternoUserId) {
+    return false
+  }
+  if (conversaId != null && mutedChatInternoIds.has(conversaId)) {
+    return false
+  }
+  if (
+    conversaId != null &&
+    activeChatInternoConversaId === conversaId &&
+    typeof document !== 'undefined' &&
+    document.visibilityState === 'visible'
+  ) {
+    return false
+  }
+  return true
+}
 
 const audioByKey = new Map<string, HTMLAudioElement>()
 const alertQueue: AlertKind[] = []
@@ -112,6 +161,8 @@ function srcForKind(kind: AlertKind): string {
       return SOUND_WPP_FILA
     case 'wpp_mensagem':
       return SOUND_WPP_MENSAGEM
+    case 'chat_interno_mensagem':
+      return SOUND_CHAT_INTERNO
   }
 }
 
@@ -169,6 +220,12 @@ function synthForKind(kind: AlertKind) {
         { freq: 780, ms: 200 },
       ])
       break
+    case 'chat_interno_mensagem':
+      playSynthPattern([
+        { freq: 540, ms: 140 },
+        { freq: 720, ms: 180 },
+      ])
+      break
   }
 }
 
@@ -191,6 +248,10 @@ function playSrcOnce(src: string, key: string, volume: number): Promise<void> {
       }
       if (key.startsWith('wpp_mensagem:') && src === SOUND_WPP_MENSAGEM) {
         void playSrcOnce(SOUND_WPP_MENSAGEM_FALLBACK, `${key}:fallback`, volume).then(finish)
+        return
+      }
+      if (key.startsWith('chat_interno_mensagem:') && src === SOUND_CHAT_INTERNO) {
+        void playSrcOnce(SOUND_CHAT_INTERNO_FALLBACK, `${key}:fallback`, volume).then(finish)
         return
       }
       const kind = key.split(':')[0] as AlertKind
@@ -316,12 +377,14 @@ function persistPrevCounters(r: Notificacoes.Resumo) {
   prevWppFila = r.wpp_fila_count
   prevPortalFila = r.portal_fila_count
   prevPortalResp = r.portal_respostas_count
+  prevChatInterno = r.chat_interno_nao_lidas_count
   setStoredNumber(LS_KEY_LAST_SEM_RESP, r.sem_responsavel_count)
   setStoredNumber(LS_KEY_LAST_NAO_LIDAS, r.nao_lidas_count)
   setStoredNumber(LS_KEY_LAST_WPP_FILA, r.wpp_fila_count)
   setStoredNumber(LS_KEY_LAST_WPP_RESP, r.wpp_respostas_count)
   setStoredNumber(LS_KEY_LAST_PORTAL_FILA, r.portal_fila_count)
   setStoredNumber(LS_KEY_LAST_PORTAL_RESP, r.portal_respostas_count)
+  setStoredNumber(LS_KEY_LAST_CHAT_INTERNO, r.chat_interno_nao_lidas_count)
 }
 
 function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean, source: 'sse' | 'poll' | 'refetch' = 'poll') {
@@ -342,6 +405,7 @@ function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean, source: 'sse
     const prevWppFilaValue = prevWppFila
     const prevPortalFilaValue = prevPortalFila
     const prevPortalRespValue = prevPortalResp
+    const prevChatInternoValue = prevChatInterno
 
     if (shouldEnqueueCounterAlert('ticket_fila', prevSem, r.sem_responsavel_count)) {
       lastSemIncreaseAt = Date.now()
@@ -367,6 +431,14 @@ function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean, source: 'sse
 
     if (shouldEnqueueCounterAlert('wpp_mensagem', prevPortalRespValue, r.portal_respostas_count)) {
       enqueueAlert('wpp_mensagem')
+    }
+
+    // Fallback quando SSE está off: contador sobe sem evento chat.interno.mensagem
+    if (
+      source !== 'sse' &&
+      shouldEnqueueCounterAlert('chat_interno_mensagem', prevChatInternoValue, r.chat_interno_nao_lidas_count)
+    ) {
+      enqueueAlert('chat_interno_mensagem')
     }
   }
 
@@ -448,6 +520,8 @@ function preloadSounds() {
     SOUND_WPP_FILA,
     SOUND_WPP_MENSAGEM,
     SOUND_WPP_MENSAGEM_FALLBACK,
+    SOUND_CHAT_INTERNO,
+    SOUND_CHAT_INTERNO_FALLBACK,
   ]
   for (const src of sources) {
     getAudioElement(`preload:${src}`, src)
@@ -461,6 +535,9 @@ function ensureStarted() {
   prevNaoLidas = getStoredNumber(LS_KEY_LAST_NAO_LIDAS)
   prevWppFila = getStoredNumber(LS_KEY_LAST_WPP_FILA)
   prevWppResp = getStoredNumber(LS_KEY_LAST_WPP_RESP)
+  prevPortalFila = getStoredNumber(LS_KEY_LAST_PORTAL_FILA)
+  prevPortalResp = getStoredNumber(LS_KEY_LAST_PORTAL_RESP)
+  prevChatInterno = getStoredNumber(LS_KEY_LAST_CHAT_INTERNO)
 
   preloadSounds()
 
@@ -509,12 +586,25 @@ export function useAlertaFilaSemResponsavel(enabled: boolean) {
       sseUnsubscribe = subscribe('notificacao.contagem', (payload) => {
         applyNotificacaoResumoSse(payload)
       })
+      chatInternoSseUnsubscribe = subscribe('chat.interno.mensagem', (payload) => {
+        if (!shouldPlayChatInternoSound(payload)) return
+        const conversaId = typeof payload.conversa_id === 'number' ? payload.conversa_id : 'x'
+        const mensagemId = typeof payload.mensagem_id === 'number' ? payload.mensagem_id : Date.now()
+        const key = `chat_interno_mensagem:${conversaId}:${mensagemId}`
+        const now = Date.now()
+        const last = recentAlertKeys.get(key)
+        if (last != null && now - last < ALERT_DEDUP_MS) return
+        recentAlertKeys.set(key, now)
+        enqueueAlert('chat_interno_mensagem')
+      })
     }
     return () => {
       sseListenerCount = Math.max(0, sseListenerCount - 1)
       if (sseListenerCount === 0) {
         sseUnsubscribe?.()
         sseUnsubscribe = null
+        chatInternoSseUnsubscribe?.()
+        chatInternoSseUnsubscribe = null
       }
     }
   }, [enabled, subscribe])

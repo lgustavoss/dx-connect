@@ -14,29 +14,38 @@ export function ChatInternoReacoesBar({ reacoes, onReagir, alinhamento = 'end' }
 
   return (
     <>
+      {/*
+        Picker abaixo do balão + ponte no topo para o mouse não “cair” na mensagem seguinte.
+      */}
       <div
-        className={`pointer-events-none absolute top-full z-10 mt-0.5 flex opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 ${
-          alignEnd ? 'right-0 justify-end' : 'left-0 justify-start'
+        className={`pointer-events-none absolute top-full z-20 flex flex-col ${
+          alignEnd ? 'right-0 items-end' : 'left-0 items-start'
         }`}
       >
-        <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-slate-200 bg-white px-1 py-0.5 shadow-md dark:border-slate-600 dark:bg-slate-800">
-          {EMOJIS_REACAO_CHAT_INTERNO.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              onClick={() => onReagir(emoji)}
-              className="rounded-full px-1.5 py-0.5 text-base leading-none hover:bg-slate-100 dark:hover:bg-slate-700"
-              aria-label={`Reagir com ${emoji}`}
-            >
-              {emoji}
-            </button>
-          ))}
+        <div
+          className="h-2 w-full min-w-[10rem] group-hover:pointer-events-auto group-focus-within:pointer-events-auto group-[.is-msg-hover]:pointer-events-auto"
+          aria-hidden
+        />
+        <div className="opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-[.is-msg-hover]:pointer-events-auto group-[.is-msg-hover]:opacity-100">
+          <div className="flex items-center gap-0.5 rounded-full border border-slate-200 bg-white px-1 py-0.5 shadow-md dark:border-slate-600 dark:bg-slate-800">
+            {EMOJIS_REACAO_CHAT_INTERNO.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => onReagir(emoji)}
+                className="rounded-full px-1.5 py-0.5 text-base leading-none hover:bg-slate-100 dark:hover:bg-slate-700"
+                aria-label={`Reagir com ${emoji}`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {temReacoes ? (
         <div
-          className={`relative z-[1] -mt-1.5 flex flex-wrap gap-1 ${
+          className={`relative z-[1] mt-1 flex flex-wrap gap-1 ${
             alignEnd ? 'justify-end' : 'justify-start'
           }`}
         >
