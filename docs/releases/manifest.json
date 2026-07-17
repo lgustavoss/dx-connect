@@ -899,8 +899,12 @@
       "status": "published",
       "changes": [
         {
-          "category": "interno",
-          "text": "Atualização do sistema"
+          "category": "melhorias",
+          "text": "Chat interno: alerta sonoro ao receber nova mensagem; em grupos, opção de **Silenciar** / **Ativar som** (preferência por pessoa)"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno: ao passar o mouse em mensagens próximas, as opções (Responder/Editar/Apagar) e reações não “saltam” mais para a mensagem de cima"
         }
       ]
     }
