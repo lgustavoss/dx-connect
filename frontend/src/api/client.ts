@@ -2277,6 +2277,7 @@ export namespace EmpresaPdv {
     ativo?: boolean;
   }
   export interface Update {
+    codigo?: string;
     rotulo_id?: number;
     papel?: 'principal' | 'auxiliar';
     usa_tef?: boolean;

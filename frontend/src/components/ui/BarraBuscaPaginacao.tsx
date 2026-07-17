@@ -1,19 +1,20 @@
-import { Button } from './Button';
+import { Button } from './Button'
+import { INPUT_FIELD_CLASS } from './Input'
 
-export const PAGE_SIZE_PADRAO = 20;
+export const PAGE_SIZE_PADRAO = 20
 
 type Props = {
-  busca: string;
-  onBuscaChange: (value: string) => void;
-  placeholder?: string;
+  busca: string
+  onBuscaChange: (value: string) => void
+  placeholder?: string
   /** Página 1-based */
-  page: number;
-  total: number;
-  pageSize?: number;
-  onPageChange: (page: number) => void;
-  disabled?: boolean;
-  extra?: React.ReactNode;
-};
+  page: number
+  total: number
+  pageSize?: number
+  onPageChange: (page: number) => void
+  disabled?: boolean
+  extra?: React.ReactNode
+}
 
 export function BarraBuscaPaginacao({
   busca,
@@ -26,9 +27,9 @@ export function BarraBuscaPaginacao({
   disabled,
   extra,
 }: Props) {
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const inicio = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const fim = Math.min(page * pageSize, total);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const inicio = total === 0 ? 0 : (page - 1) * pageSize + 1
+  const fim = Math.min(page * pageSize, total)
 
   return (
     <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
@@ -39,12 +40,12 @@ export function BarraBuscaPaginacao({
           onChange={(e) => onBuscaChange(e.target.value)}
           placeholder={placeholder}
           disabled={disabled}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400"
+          className={`${INPUT_FIELD_CLASS} text-sm`}
           aria-label="Buscar na listagem"
         />
         {extra}
       </div>
-      <div className="flex flex-wrap items-center justify-end gap-2 text-sm text-slate-600">
+      <div className="flex flex-wrap items-center justify-end gap-2 text-sm text-slate-600 dark:text-slate-300">
         <span className="whitespace-nowrap">
           {total > 0 ? `${inicio}–${fim} de ${total}` : '0 resultados'}
         </span>
@@ -71,5 +72,5 @@ export function BarraBuscaPaginacao({
         </Button>
       </div>
     </div>
-  );
+  )
 }

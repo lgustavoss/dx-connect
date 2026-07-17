@@ -194,7 +194,14 @@ def main() -> int:
         version = next_calver(current_raw or None)
         changes = parse_changelog_unreleased(changelog)
         if not changes:
-            changes = [{"category": "interno", "text": "Atualização do sistema"}]
+            print(
+                "::error::CHANGELOG.md ## [Unreleased] está vazio — não é permitido publicar "
+                "só «Atualização do sistema».\n"
+                "Antes do merge main → staging, confirme que os bullets do lote estão em "
+                "[Unreleased] (conflitos de CHANGELOG costumam esvaziar a seção).",
+                file=sys.stderr,
+            )
+            return 1
         entry = {
             "version": version,
             "version_display": version_display(version),

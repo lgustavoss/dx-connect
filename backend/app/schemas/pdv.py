@@ -59,6 +59,7 @@ class EmpresaPdvCreate(EmpresaPdvBase):
 
 
 class EmpresaPdvUpdate(BaseModel):
+    codigo: str | None = Field(default=None, min_length=1, max_length=32)
     rotulo_id: int | None = None
     papel: str | None = Field(default=None, pattern=r"^(principal|auxiliar)$")
     usa_tef: bool | None = None

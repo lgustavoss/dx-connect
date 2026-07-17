@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { empresaPdvs, pdvRotulos, pdvTiposAcessoRemoto, type EmpresaPdv, type PdvCatalogo } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Button } from './ui/Button'
+import { IconCopy } from './ui/IconCopy'
 import { IconEye, IconEyeOff } from './ui/IconEye'
 import { IconPencil } from './ui/IconPencil'
 import { Input } from './ui/Input'
@@ -96,6 +97,15 @@ export function EmpresaPdvsPanel({ empresaId }: Props) {
     }
   }
 
+  async function copiarTexto(texto: string, sucesso: string) {
+    try {
+      await navigator.clipboard.writeText(texto)
+      toast.showSuccess(sucesso)
+    } catch {
+      toast.showError('Não foi possível copiar. Selecione o texto manualmente.')
+    }
+  }
+
   async function salvar() {
     if (!form.codigo.trim() || !form.rotulo_id) {
       toast.showWarning('Informe o código e o rótulo do PDV.')
@@ -105,6 +115,7 @@ export function EmpresaPdvsPanel({ empresaId }: Props) {
     try {
       if (editId) {
         const payload: EmpresaPdv.Update = {
+          codigo: form.codigo.trim(),
           rotulo_id: form.rotulo_id,
           papel: form.papel,
           usa_tef: form.usa_tef,
@@ -139,7 +150,8 @@ export function EmpresaPdvsPanel({ empresaId }: Props) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Terminais/pontos de venda desta empresa. O código (ex.: 001) permanece estável ao trocar hardware.
+          Terminais/pontos de venda desta empresa. O código (ex.: 001) identifica o ponto; pode ser alterado se a
+          numeração mudar (único por empresa).
         </p>
         {isAdmin ? (
           <Button type="button" onClick={abrirNovo}>
@@ -161,7 +173,7 @@ export function EmpresaPdvsPanel({ empresaId }: Props) {
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-left text-sm">
+          <table className="w-full min-w-[800px] text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/60 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-800/40">
                 <th className="px-4 py-3">Código</th>
@@ -169,53 +181,83 @@ export function EmpresaPdvsPanel({ empresaId }: Props) {
                 <th className="px-4 py-3">Papel</th>
                 <th className="px-4 py-3">TEF</th>
                 <th className="px-4 py-3">Acesso remoto</th>
+                <th className="px-4 py-3">ID acesso</th>
+                <th className="px-4 py-3">Senha acesso</th>
                 <th className="px-4 py-3 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {items.map((row) => (
                 <tr key={row.id} className={!row.ativo ? 'opacity-60' : undefined}>
-                  <td className="px-4 py-3 font-mono font-medium">PDV {row.codigo}</td>
+                  <td className="px-4 py-3 font-mono font-medium">{row.codigo}</td>
                   <td className="px-4 py-3">{row.rotulo_nome ?? '—'}</td>
                   <td className="px-4 py-3 capitalize">{row.papel}</td>
                   <td className="px-4 py-3">{row.usa_tef ? 'Sim' : 'Não'}</td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                    {row.tipo_acesso_remoto_nome ?? '—'}
+                  </td>
                   <td className="px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-slate-600 dark:text-slate-300">
-                        {row.tipo_acesso_remoto_nome ?? '—'}
-                        {row.acesso_remoto_id ? ` · ${row.acesso_remoto_id}` : ''}
+                    {row.acesso_remoto_id ? (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="font-mono text-slate-700 dark:text-slate-200">{row.acesso_remoto_id}</span>
+                        <button
+                          type="button"
+                          className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                          onClick={() => void copiarTexto(row.acesso_remoto_id!, 'ID de acesso copiado.')}
+                          aria-label="Copiar ID de acesso remoto"
+                          title="Copiar ID"
+                        >
+                          <IconCopy className="size-4" ariaHidden={false} />
+                        </button>
                       </span>
-                      {row.tem_senha_remota && isAdmin ? (
-                        senhaRevelada?.pdvId === row.id ? (
-                          <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-200">
-                            {senhaRevelada.senha}
-                            <button
-                              type="button"
-                              className="rounded p-0.5 text-slate-400 transition hover:text-slate-600 dark:hover:text-slate-200"
-                              onClick={() => setSenhaRevelada(null)}
-                              aria-label="Ocultar senha"
-                            >
-                              <IconEyeOff className="size-3.5" ariaHidden={false} />
-                            </button>
-                          </span>
-                        ) : (
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {row.tem_senha_remota && isAdmin ? (
+                      senhaRevelada?.pdvId === row.id ? (
+                        <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-200">
+                          {senhaRevelada.senha}
                           <button
                             type="button"
-                            className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                            onClick={() => void revelarSenha(row.id)}
-                            disabled={revelandoPdvId === row.id}
-                            aria-label="Revelar senha de acesso remoto"
-                            title="Revelar senha"
+                            className="rounded p-0.5 text-slate-400 transition hover:text-slate-600 dark:hover:text-slate-200"
+                            onClick={() => void copiarTexto(senhaRevelada.senha, 'Senha copiada.')}
+                            aria-label="Copiar senha de acesso remoto"
+                            title="Copiar senha"
                           >
-                            {revelandoPdvId === row.id ? (
-                              <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                            ) : (
-                              <IconEye className="size-4" ariaHidden={false} />
-                            )}
+                            <IconCopy className="size-3.5" ariaHidden={false} />
                           </button>
-                        )
-                      ) : null}
-                    </div>
+                          <button
+                            type="button"
+                            className="rounded p-0.5 text-slate-400 transition hover:text-slate-600 dark:hover:text-slate-200"
+                            onClick={() => setSenhaRevelada(null)}
+                            aria-label="Ocultar senha"
+                          >
+                            <IconEyeOff className="size-3.5" ariaHidden={false} />
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                          onClick={() => void revelarSenha(row.id)}
+                          disabled={revelandoPdvId === row.id}
+                          aria-label="Revelar senha de acesso remoto"
+                          title="Revelar senha"
+                        >
+                          {revelandoPdvId === row.id ? (
+                            <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                          ) : (
+                            <IconEye className="size-4" ariaHidden={false} />
+                          )}
+                        </button>
+                      )
+                    ) : row.tem_senha_remota ? (
+                      <span className="text-slate-400">••••</span>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right">
                     {isAdmin ? (
@@ -246,17 +288,22 @@ export function EmpresaPdvsPanel({ empresaId }: Props) {
             <div className="mt-4 space-y-4">
               <Input
                 label="Código (ex.: 001)"
+                hint="Número do ponto na empresa. Ao trocar o equipamento principal, altere o código aqui (não use o prefixo «PDV»)."
                 value={form.codigo}
                 onChange={(e) => setForm((f) => ({ ...f, codigo: e.target.value }))}
-                disabled={!!editId}
                 required
               />
-              <Select
-                label="Rótulo do dispositivo"
-                value={form.rotulo_id || ''}
-                onChange={(v) => setForm((f) => ({ ...f, rotulo_id: Number(v) }))}
-                options={rotulos.map((r) => ({ value: r.id, label: r.nome }))}
-              />
+              <div>
+                <Select
+                  label="Rótulo do dispositivo"
+                  value={form.rotulo_id || ''}
+                  onChange={(v) => setForm((f) => ({ ...f, rotulo_id: Number(v) }))}
+                  options={rotulos.map((r) => ({ value: r.id, label: r.nome }))}
+                />
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Tipo do equipamento (ex.: SRV/PDV), não o número do ponto.
+                </p>
+              </div>
               <Select
                 label="Papel"
                 value={form.papel}
