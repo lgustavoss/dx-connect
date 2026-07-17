@@ -147,6 +147,26 @@ def atualizar_pdv(
         raise HTTPException(status_code=404, detail="PDV não encontrado")
     payload = data.model_dump(exclude_unset=True)
     senha = payload.pop("acesso_remoto_senha", None)
+    if "codigo" in payload:
+        codigo = (payload["codigo"] or "").strip()
+        if not codigo:
+            raise HTTPException(status_code=400, detail="Informe o código do PDV.")
+        conflito = (
+            db.query(EmpresaPdv)
+            .filter(
+                EmpresaPdv.empresa_id == empresa_id,
+                EmpresaPdv.codigo == codigo,
+                EmpresaPdv.id != pdv_id,
+            )
+            .first()
+        )
+        if conflito:
+            raise HTTPException(status_code=400, detail="Já existe um PDV com este código nesta empresa.")
+        payload["codigo"] = codigo
+    if "acesso_remoto_id" in payload and payload["acesso_remoto_id"] is not None:
+        payload["acesso_remoto_id"] = (payload["acesso_remoto_id"] or "").strip() or None
+    if "observacoes" in payload and payload["observacoes"] is not None:
+        payload["observacoes"] = (payload["observacoes"] or "").strip() or None
     _validar_refs(db, data, empresa_id)
     for k, v in payload.items():
         setattr(row, k, v)

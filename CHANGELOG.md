@@ -1,9 +1,17 @@
-﻿# Changelog
+# Changelog
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging`.
 
 ## [Unreleased]
+
+### Melhorias
+
+- PDVs: código editável na edição (ex.: 001 ↔ 002 ao trocar equipamento); listagem mostra só o código, sem prefixo «PDV»; colunas separadas de acesso remoto, ID e senha (copiar ID/senha; revelar senha com o olho)
+
+### Correções
+
+- Modo escuro: texto digitado nos campos de pesquisa (listagens e chat interno) volta a ficar legível
 
 ## [26.07.010] - 2026-07-17
 

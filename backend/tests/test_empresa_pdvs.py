@@ -98,3 +98,43 @@ def test_api_revelar_credencial_admin(client, auth_headers, seed_base, pdv_catal
     r = client.get(f"/v1/empresas/{emp.id}/pdvs/{pdv_id}/credencial", headers=auth_headers["admin"])
     assert r.status_code == 200
     assert r.json()["acesso_remoto_senha"] == "revelar-me"
+
+
+def test_api_atualizar_codigo_pdv(client, auth_headers, seed_base, pdv_catalogo):
+    emp = seed_base["empresa"]
+    criado = client.post(
+        f"/v1/empresas/{emp.id}/pdvs",
+        headers=auth_headers["admin"],
+        json={
+            "codigo": "001",
+            "rotulo_id": pdv_catalogo["rotulo"].id,
+            "papel": "principal",
+        },
+    )
+    assert criado.status_code == 201, criado.text
+    pdv_id = criado.json()["id"]
+
+    r = client.patch(
+        f"/v1/empresas/{emp.id}/pdvs/{pdv_id}",
+        headers=auth_headers["admin"],
+        json={"codigo": "010"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["codigo"] == "010"
+
+    client.post(
+        f"/v1/empresas/{emp.id}/pdvs",
+        headers=auth_headers["admin"],
+        json={
+            "codigo": "002",
+            "rotulo_id": pdv_catalogo["rotulo"].id,
+            "papel": "auxiliar",
+        },
+    )
+    conflito = client.patch(
+        f"/v1/empresas/{emp.id}/pdvs/{pdv_id}",
+        headers=auth_headers["admin"],
+        json={"codigo": "002"},
+    )
+    assert conflito.status_code == 400
+    assert "código" in conflito.json()["detail"].lower()
