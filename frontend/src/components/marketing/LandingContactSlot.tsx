@@ -15,8 +15,8 @@ type Props = {
 export function LandingContactSlot({ variant = 'hero', label, className = '' }: Props) {
   const base =
     variant === 'hero'
-      ? 'inline-flex items-center justify-center rounded-xl bg-sky-500 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-sky-900/40 transition hover:bg-sky-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#071826]'
-      : 'inline-flex items-center justify-center rounded-xl bg-sky-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300'
+      ? 'group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 via-sky-400 to-cyan-400 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_16px_40px_rgba(14,165,233,0.25)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_50px_rgba(14,165,233,0.32)] focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#071826]'
+      : 'group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 via-sky-400 to-cyan-400 px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(14,165,233,0.2)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_35px_rgba(14,165,233,0.28)] focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300'
 
   return (
     <a
@@ -25,7 +25,10 @@ export function LandingContactSlot({ variant = 'hero', label, className = '' }: 
       className={`${base} ${className}`.trim()}
       data-landing-contact-slot={variant}
     >
-      {label}
+      <span>{label}</span>
+      <svg viewBox="0 0 20 20" fill="none" className="size-4 transition duration-200 group-hover:translate-x-0.5" aria-hidden>
+        <path d="M4 10h12M12 5l5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
     </a>
   )
 }
