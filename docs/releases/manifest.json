@@ -891,6 +891,18 @@
           "text": "Chat interno: espaço excessivo entre mensagens após colocar ações/reações fora do balão"
         }
       ]
+    },
+    {
+      "version": "26.07.010",
+      "version_display": "v26.07.010",
+      "date": "2026-07-17",
+      "status": "published",
+      "changes": [
+        {
+          "category": "interno",
+          "text": "Atualização do sistema"
+        }
+      ]
     }
   ]
 }
