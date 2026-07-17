@@ -447,10 +447,13 @@ export function ChatInternoThread() {
   const titulo = meta?.titulo ?? 'Conversa'
   const isSetor = meta?.tipo === 'setor'
   const isGrupo = meta?.tipo === 'grupo'
+  const qtdMembrosGrupo = grupoDetalhe?.participantes?.length ?? 0
   const subtitulo = isSetor
     ? 'Canal do setor — comunicados'
     : isGrupo
-      ? 'Grupo da equipe'
+      ? qtdMembrosGrupo > 0
+        ? `Grupo · ${qtdMembrosGrupo} ${qtdMembrosGrupo === 1 ? 'participante' : 'participantes'}`
+        : 'Grupo da equipe'
       : 'Conversa direta'
 
   return (
@@ -472,18 +475,21 @@ export function ChatInternoThread() {
         >
           {isSetor ? 'S' : isGrupo ? 'G' : titulo.slice(0, 1).toUpperCase()}
         </div>
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-lg font-bold text-slate-900 dark:text-white">{titulo}</h2>
-          <p className="truncate text-sm text-slate-500">{subtitulo}</p>
-        </div>
-        {isGrupo && grupoDetalhe?.sou_admin_grupo && (
+        {isGrupo ? (
           <button
             type="button"
             onClick={() => setModalMembros(true)}
-            className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium text-violet-700 ring-1 ring-violet-200 hover:bg-violet-50 dark:text-violet-300 dark:ring-violet-800 dark:hover:bg-violet-950/40"
+            className="min-w-0 flex-1 rounded-lg text-left transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
+            aria-label="Ver membros do grupo"
           >
-            Membros
+            <h2 className="truncate text-lg font-bold text-slate-900 dark:text-white">{titulo}</h2>
+            <p className="truncate text-sm text-slate-500">{subtitulo}</p>
           </button>
+        ) : (
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate text-lg font-bold text-slate-900 dark:text-white">{titulo}</h2>
+            <p className="truncate text-sm text-slate-500">{subtitulo}</p>
+          </div>
         )}
         <button
           type="button"
@@ -516,7 +522,9 @@ export function ChatInternoThread() {
         <ChatInternoGrupoMembrosModal
           open={modalMembros}
           conversaId={conversaId}
+          tituloGrupo={grupoDetalhe.titulo ?? titulo}
           participantes={grupoDetalhe.participantes ?? []}
+          souAdmin={grupoDetalhe.sou_admin_grupo ?? false}
           onClose={() => setModalMembros(false)}
           onAtualizado={(conv: ChatInterno.Conversa) => {
             setGrupoDetalhe(conv)
