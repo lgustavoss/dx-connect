@@ -91,6 +91,7 @@ class ConversaInternaParticipante(Base):
         index=True,
     )
     papel = Column(String(20), nullable=False, server_default=PAPEL_PARTICIPANTE_MEMBRO)
+    silenciado_em = Column(DateTime(timezone=True), nullable=True)
 
     conversa = relationship("ConversaInterna", back_populates="participantes")
     atendente = relationship("Atendente", backref="conversas_internas_participantes")

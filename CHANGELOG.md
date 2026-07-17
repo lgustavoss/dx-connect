@@ -9,7 +9,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Melhorias
 
-- Chat interno (grupos/canal): menções com `@` — autocomplete de participantes e `@all` (todos); destaque visual na mensagem
+- Chat interno: alerta sonoro ao receber nova mensagem; em grupos, opção de **Silenciar** / **Ativar som** (preferência por pessoa)
+- Chat interno: ao passar o mouse em mensagens próximas, as opções (Responder/Editar/Apagar) e reações não “saltam” mais para a mensagem de cima
 - Equipe online: lista funciona com vários workers do servidor (presença gravada no banco); admin pode **Forçar saída** de um atendente conectado
 - Chat interno: balões mais próximos — opções/reações só no hover; em grupos, avatar e cor por pessoa para distinguir quem fala
 - Equipe online: «0 online» mesmo com painel aberto (lista lia só a memória do worker errado)
@@ -20,7 +21,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 ### Melhorias
 
 - Equipe online (#545–#547): administradores veem quem está com o painel aberto e desde quando (menu **Equipe online**), para coordenar atendimento de chats e tickets
-- Chat (#539): após enviar mensagem (WhatsApp e chat interno), o cursor permanece no campo de texto; painel de emoji fica aberto ao escolher vários; **Responder** mensagem no chat interno (direta, equipe e grupo)
+- Chat interno: no grupo, clique no nome na barra superior para ver participantes e administradores; admins promovidos também podem gerenciar membros
 - WhatsApp: na busca «Vincular existente», cada resultado mostra **rede** e **empresa(s)** para distinguir homónimos
 - WhatsApp (#534): identificar/cadastrar contato do cliente também em atendimento **encerrado** (Histórico); o número do WhatsApp passa a ser gravado no telefone do cadastro para retomar pela aba Contatos
 - WhatsApp (#531): aba **Contatos** no hub de chat — lista funcionários com empresa e telefone; iniciar conversa (ou número avulso / retomar no Histórico); chat já fica em atendimento com o iniciador; telefone no cadastro do funcionário da rede

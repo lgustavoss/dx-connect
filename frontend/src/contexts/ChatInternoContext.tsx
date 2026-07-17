@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { chatInterno, type ChatInterno } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
+import { syncChatInternoMutedIds } from '../hooks/useAlertaFilaSemResponsavel'
 import { useEventStream } from './EventStreamContext'
 import { useToast } from '../components/ui/Toast'
 import type { FiltroInboxChatInterno } from '../lib/chatInternoUtils'
@@ -41,6 +42,7 @@ export function ChatInternoProvider({ children }: { children: ReactNode }) {
       try {
         const rows = await chatInterno.listarConversas()
         setConversas(rows)
+        syncChatInternoMutedIds(rows.filter((c) => c.silenciado).map((c) => c.id))
       } catch (err) {
         setErro(true)
         if (!silent) toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar as conversas.'))
