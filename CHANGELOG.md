@@ -5,12 +5,11 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+## [26.07.011] - 2026-07-17
+
 ### Melhorias
 
 - PDVs: código editável na edição (ex.: 001 ↔ 002 ao trocar equipamento); listagem mostra só o código, sem prefixo «PDV»; colunas separadas de acesso remoto, ID e senha (copiar ID/senha; revelar senha com o olho)
-
-### Correções
-
 - Modo escuro: texto digitado nos campos de pesquisa (listagens e chat interno) volta a ficar legível
 
 ## [26.07.010] - 2026-07-17

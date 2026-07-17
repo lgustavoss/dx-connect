@@ -1,19 +1,19 @@
 {
-  "current_version": "26.07.010",
-  "current_version_display": "v26.07.010",
+  "current_version": "26.07.011",
+  "current_version_display": "v26.07.011",
   "current": {
-    "version": "26.07.010",
-    "version_display": "v26.07.010",
+    "version": "26.07.011",
+    "version_display": "v26.07.011",
     "date": "2026-07-17",
     "status": "published",
     "changes": [
       {
         "category": "melhorias",
-        "text": "Chat interno: alerta sonoro ao receber nova mensagem; em grupos, opção de **Silenciar** / **Ativar som** (preferência por pessoa)"
+        "text": "PDVs: código editável na edição (ex.: 001 ↔ 002 ao trocar equipamento); listagem mostra só o código, sem prefixo «PDV»; colunas separadas de acesso remoto, ID e senha (copiar ID/senha; revelar senha com o olho)"
       },
       {
         "category": "melhorias",
-        "text": "Chat interno: ao passar o mouse em mensagens próximas, as opções (Responder/Editar/Apagar) e reações não “saltam” mais para a mensagem de cima"
+        "text": "Modo escuro: texto digitado nos campos de pesquisa (listagens e chat interno) volta a ficar legível"
       }
     ]
   },
@@ -923,6 +923,22 @@
         {
           "category": "melhorias",
           "text": "Chat interno: ao passar o mouse em mensagens próximas, as opções (Responder/Editar/Apagar) e reações não “saltam” mais para a mensagem de cima"
+        }
+      ]
+    },
+    {
+      "version": "26.07.011",
+      "version_display": "v26.07.011",
+      "date": "2026-07-17",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "PDVs: código editável na edição (ex.: 001 ↔ 002 ao trocar equipamento); listagem mostra só o código, sem prefixo «PDV»; colunas separadas de acesso remoto, ID e senha (copiar ID/senha; revelar senha com o olho)"
+        },
+        {
+          "category": "melhorias",
+          "text": "Modo escuro: texto digitado nos campos de pesquisa (listagens e chat interno) volta a ficar legível"
         }
       ]
     }
