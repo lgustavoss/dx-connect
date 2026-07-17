@@ -3,6 +3,7 @@ import { atendentes, chatInterno, type ChatInterno } from '../../api/client'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { useAuth } from '../../contexts/AuthContext'
 import { Button } from '../ui/Button'
+import { INPUT_FIELD_CLASS } from '../ui/Input'
 import { useToast } from '../ui/Toast'
 import { MODAL_OVERLAY, MODAL_PANEL_SCROLLABLE } from '../../lib/modalPanel'
 
@@ -239,7 +240,7 @@ export function ChatInternoGrupoMembrosModal({
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar atendente para adicionar…"
-              className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900"
+              className={`mt-2 ${INPUT_FIELD_CLASS} text-sm`}
             />
             <ul className="mt-2 max-h-32 space-y-1 overflow-y-auto">
               {resultados.map((a) => (

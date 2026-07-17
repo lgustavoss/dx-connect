@@ -5,6 +5,7 @@ import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { useAuth } from '../../contexts/AuthContext'
 import { useChatInterno } from '../../contexts/ChatInternoContext'
 import { Button } from '../ui/Button'
+import { INPUT_FIELD_CLASS } from '../ui/Input'
 import { useToast } from '../ui/Toast'
 import { MODAL_OVERLAY, MODAL_PANEL_COMPACT } from '../../lib/modalPanel'
 
@@ -130,7 +131,7 @@ export function ChatInternoNovaConversaModal({ open, onClose }: Props) {
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Nome ou e-mail…"
-              className="mt-4 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900"
+              className={`mt-4 ${INPUT_FIELD_CLASS} text-sm`}
             />
             <ul className="mt-3 max-h-56 space-y-1 overflow-y-auto">
               {buscando && <li className="px-2 py-3 text-sm text-slate-400">Buscando…</li>}
@@ -162,14 +163,14 @@ export function ChatInternoNovaConversaModal({ open, onClose }: Props) {
               onChange={(e) => setTituloGrupo(e.target.value)}
               placeholder="Nome do grupo"
               maxLength={120}
-              className="mt-4 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900"
+              className={`mt-4 ${INPUT_FIELD_CLASS} text-sm`}
             />
             <input
               type="search"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Adicionar atendentes…"
-              className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900"
+              className={`mt-2 ${INPUT_FIELD_CLASS} text-sm`}
             />
             {selecionados.length > 0 && (
               <p className="mt-2 text-xs text-slate-500">{selecionados.length} selecionado(s)</p>
