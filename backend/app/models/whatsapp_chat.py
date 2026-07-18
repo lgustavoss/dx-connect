@@ -68,6 +68,8 @@ class WhatsappChat(Base):
         Integer, ForeignKey("funcionarios_rede.id", ondelete="SET NULL"), nullable=True, index=True
     )
     empresa_id = Column(Integer, ForeignKey("empresas.id", ondelete="SET NULL"), nullable=True, index=True)
+    inatividade_pausada = Column(Boolean, nullable=False, default=False, server_default="false")
+    inatividade_retomada_em = Column(DateTime(timezone=True), nullable=True)
 
     atendente = relationship("Atendente", backref="whatsapp_chats_atendidos")
     setor = relationship("Setor", backref="whatsapp_chats")

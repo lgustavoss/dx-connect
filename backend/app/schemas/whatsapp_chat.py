@@ -46,6 +46,8 @@ class WhatsappChatRead(BaseModel):
     funcionario_tipo: str | None = None
     empresa_id: int | None = None
     empresa_nome: str | None = None
+    inatividade_pausada: bool = False
+    inatividade_retomada_em: datetime | None = None
 
     model_config = {"from_attributes": True}
 
