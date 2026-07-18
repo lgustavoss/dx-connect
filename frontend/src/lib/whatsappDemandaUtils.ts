@@ -37,6 +37,24 @@ export function chatEncerramentoPorInatividade(msgs: ChatMensagemTimeline[]): bo
   )
 }
 
+const INATIV_DEMANDA_OK_PREFIX = 'dx.whatsapp.inativDemandaOk.'
+
+export function inatividadeDemandaJaClassificada(chatId: number): boolean {
+  try {
+    return localStorage.getItem(`${INATIV_DEMANDA_OK_PREFIX}${chatId}`) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function marcarInatividadeDemandaClassificada(chatId: number): void {
+  try {
+    localStorage.setItem(`${INATIV_DEMANDA_OK_PREFIX}${chatId}`, '1')
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
 export function analisarDemandaPosRegistro(
   demandas: ChatDemanda[],
   msgs: ChatMensagemTimeline[],

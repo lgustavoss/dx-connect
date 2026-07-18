@@ -22,7 +22,11 @@ import {
 } from '../../api/client'
 
 import { resolveWhatsappMidiaObjectUrl, revokeWhatsappMidiaForChat } from '../../lib/whatsappMidiaCache'
-import { chatEncerramentoPorInatividade } from '../../lib/whatsappDemandaUtils'
+import {
+  chatEncerramentoPorInatividade,
+  inatividadeDemandaJaClassificada,
+  marcarInatividadeDemandaClassificada,
+} from '../../lib/whatsappDemandaUtils'
 import { mergeWhatsappChat, patchWhatsappChatLista, replaceWhatsappChatLista } from '../../lib/whatsappChatMerge'
 import { whatsappMensagensUnicas } from '../../lib/whatsappMensagens'
 import {
@@ -341,7 +345,8 @@ export function WhatsappConversa() {
   }, [voltarLista, modalEncerrar, activeZoomImage, arquivoPendente])
 
   const viuEmAtendimentoRef = useRef(false)
-  const inatividadeDemandaPromptedRef = useRef(false)
+  const inatividadeToastFeitoRef = useRef(false)
+  const [inativDemandaOkLocal, setInativDemandaOkLocal] = useState(false)
 
   useEffect(() => {
     if (chat?.estado === 'em_atendimento') {
@@ -350,7 +355,12 @@ export function WhatsappConversa() {
   }, [chat?.estado])
 
   useEffect(() => {
-    if (!chat || inatividadeDemandaPromptedRef.current) return
+    if (!id) return
+    setInativDemandaOkLocal(inatividadeDemandaJaClassificada(Number(id)))
+  }, [id])
+
+  useEffect(() => {
+    if (!chat || inatividadeToastFeitoRef.current) return
     if (!viuEmAtendimentoRef.current) return
 
     const fechado = chat.estado === 'encerrado' || chat.estado === 'aguardando_avaliacao'
@@ -360,9 +370,10 @@ export function WhatsappConversa() {
       chat.atendente_id === user?.id || user?.role === 'admin'
     if (!podeClassificar) return
 
-    inatividadeDemandaPromptedRef.current = true
-    setModalEncerrar(true)
-    toast.showSuccess('Atendimento encerrado automaticamente por inatividade. Registe a demanda da sessão.')
+    inatividadeToastFeitoRef.current = true
+    toast.showSuccess(
+      'Atendimento encerrado por inatividade. Pode reler a conversa e registar a demanda no aviso abaixo.',
+    )
   }, [chat, msgs, user?.id, user?.role, toast])
 
   const refrescarTimelineDemandas = useCallback(() => {
@@ -512,7 +523,7 @@ export function WhatsappConversa() {
 
     setLoading(true)
     viuEmAtendimentoRef.current = false
-    inatividadeDemandaPromptedRef.current = false
+    inatividadeToastFeitoRef.current = false
 
     carregar().then(() => whatsappChats.marcarVisto(id)).finally(() => setLoading(false))
 
@@ -835,12 +846,18 @@ useEffect(() => {
 
   async function handleEncerrado(atualizado: WhatsappChats.Chat) {
     setChat(atualizado)
+    if (chatEncerramentoPorInatividade(msgs)) {
+      marcarInatividadeDemandaClassificada(atualizado.id)
+      setInativDemandaOkLocal(true)
+    }
     await Promise.all([carregar(), carregarSidebar()])
     refrescarTimelineDemandas()
     toast.showSuccess(
       atualizado.estado === 'aguardando_avaliacao'
         ? 'Atendimento encerrado. Aguardando avaliação do cliente.'
-        : 'Atendimento encerrado.',
+        : chatEncerramentoPorInatividade(msgs)
+          ? 'Classificação da sessão concluída.'
+          : 'Atendimento encerrado.',
     )
   }
 
@@ -860,6 +877,14 @@ useEffect(() => {
   const podeEnviar = chat?.estado === 'em_atendimento' && isResponsavel && !encerrado
 
   const podeEncerrar = !encerrado && chat?.estado === 'em_atendimento' && (isResponsavel || isAdmin)
+
+  const mostrarBannerDemandaInatividade =
+    encerrado &&
+    Boolean(chat) &&
+    chatEncerramentoPorInatividade(msgs) &&
+    (isResponsavel || isAdmin) &&
+    !inativDemandaOkLocal &&
+    demandasTimeline.length === 0
 
   const podeDigitarMensagem = !encerrado && (modoInterno || podeEnviar)
 
@@ -1143,6 +1168,22 @@ useEffect(() => {
             <p>{CONTATO_CLIENTE.bannerNaoVinculado}</p>
             <Button variant="primary" className="h-8 shrink-0 text-xs" onClick={() => setModalVincFuncionario(true)}>
               {CONTATO_CLIENTE.vincularEmpresa}
+            </Button>
+          </div>
+        )}
+
+        {mostrarBannerDemandaInatividade && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+            <p>
+              Atendimento encerrado por inatividade. Reler a conversa se precisar e{' '}
+              <strong>registar a demanda</strong> desta sessão.
+            </p>
+            <Button
+              variant="primary"
+              className="h-8 shrink-0 text-xs"
+              onClick={() => setModalEncerrar(true)}
+            >
+              Registar demanda
             </Button>
           </div>
         )}
