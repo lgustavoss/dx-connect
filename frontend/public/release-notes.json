@@ -1,19 +1,43 @@
 {
-  "current_version": "26.07.011",
-  "current_version_display": "v26.07.011",
+  "current_version": "26.07.012",
+  "current_version_display": "v26.07.012",
   "current": {
-    "version": "26.07.011",
-    "version_display": "v26.07.011",
-    "date": "2026-07-17",
+    "version": "26.07.012",
+    "version_display": "v26.07.012",
+    "date": "2026-07-18",
     "status": "published",
     "changes": [
       {
         "category": "melhorias",
-        "text": "PDVs: código editável na edição (ex.: 001 ↔ 002 ao trocar equipamento); listagem mostra só o código, sem prefixo «PDV»; colunas separadas de acesso remoto, ID e senha (copiar ID/senha; revelar senha com o olho)"
+        "text": "WhatsApp (#577): encerramento por inatividade conta desde a **última mensagem** (cliente ou atendente); botão **Pausar/Retomar** com countdown no chat"
       },
       {
         "category": "melhorias",
-        "text": "Modo escuro: texto digitado nos campos de pesquisa (listagens e chat interno) volta a ficar legível"
+        "text": "WhatsApp (#575): ✓✓ azul no WhatsApp do cliente só quando o **atendente responsável** abre o chat no painel"
+      },
+      {
+        "category": "melhorias",
+        "text": "WhatsApp (#568): ao anexar imagem, só o campo de legenda fica visível (sem o composer por baixo)"
+      },
+      {
+        "category": "melhorias",
+        "text": "WhatsApp (#569/#572/#574): legenda de mídia com a mesma fonte do texto; PDF/vídeo mostram legenda; sem placeholder «[Imagem enviada]» quando não há legenda"
+      },
+      {
+        "category": "melhorias",
+        "text": "WhatsApp (#571): Esc no zoom da imagem fecha só a visualização, sem sair do chat"
+      },
+      {
+        "category": "melhorias",
+        "text": "WhatsApp (#576): cancelar gravação de áudio já não envia o ficheiro"
+      },
+      {
+        "category": "melhorias",
+        "text": "WhatsApp (#573): ao reabrir o chat, o scroll volta à última posição vista (não salta para o início)"
+      },
+      {
+        "category": "melhorias",
+        "text": "WhatsApp (#570): contacto já vinculado é reconhecido em chats novos do mesmo número"
       }
     ]
   },
@@ -939,6 +963,46 @@
         {
           "category": "melhorias",
           "text": "Modo escuro: texto digitado nos campos de pesquisa (listagens e chat interno) volta a ficar legível"
+        }
+      ]
+    },
+    {
+      "version": "26.07.012",
+      "version_display": "v26.07.012",
+      "date": "2026-07-18",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#577): encerramento por inatividade conta desde a **última mensagem** (cliente ou atendente); botão **Pausar/Retomar** com countdown no chat"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#575): ✓✓ azul no WhatsApp do cliente só quando o **atendente responsável** abre o chat no painel"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#568): ao anexar imagem, só o campo de legenda fica visível (sem o composer por baixo)"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#569/#572/#574): legenda de mídia com a mesma fonte do texto; PDF/vídeo mostram legenda; sem placeholder «[Imagem enviada]» quando não há legenda"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#571): Esc no zoom da imagem fecha só a visualização, sem sair do chat"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#576): cancelar gravação de áudio já não envia o ficheiro"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#573): ao reabrir o chat, o scroll volta à última posição vista (não salta para o início)"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#570): contacto já vinculado é reconhecido em chats novos do mesmo número"
         }
       ]
     }
