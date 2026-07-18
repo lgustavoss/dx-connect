@@ -24,8 +24,6 @@ import {
 import { resolveWhatsappMidiaObjectUrl, revokeWhatsappMidiaForChat } from '../../lib/whatsappMidiaCache'
 import {
   chatEncerramentoPorInatividade,
-  inatividadeDemandaJaClassificada,
-  marcarInatividadeDemandaClassificada,
 } from '../../lib/whatsappDemandaUtils'
 import { mergeWhatsappChat, patchWhatsappChatLista, replaceWhatsappChatLista } from '../../lib/whatsappChatMerge'
 import { whatsappMensagensUnicas } from '../../lib/whatsappMensagens'
@@ -346,7 +344,6 @@ export function WhatsappConversa() {
 
   const viuEmAtendimentoRef = useRef(false)
   const inatividadeToastFeitoRef = useRef(false)
-  const [inativDemandaOkLocal, setInativDemandaOkLocal] = useState(false)
 
   useEffect(() => {
     if (chat?.estado === 'em_atendimento') {
@@ -355,16 +352,12 @@ export function WhatsappConversa() {
   }, [chat?.estado])
 
   useEffect(() => {
-    if (!id) return
-    setInativDemandaOkLocal(inatividadeDemandaJaClassificada(Number(id)))
-  }, [id])
-
-  useEffect(() => {
     if (!chat || inatividadeToastFeitoRef.current) return
     if (!viuEmAtendimentoRef.current) return
 
     const fechado = chat.estado === 'encerrado' || chat.estado === 'aguardando_avaliacao'
     if (!fechado || !chatEncerramentoPorInatividade(msgs)) return
+    if (!chat.classificacao_demanda_pendente) return
 
     const podeClassificar =
       chat.atendente_id === user?.id || user?.role === 'admin'
@@ -850,10 +843,6 @@ useEffect(() => {
 
   async function handleEncerrado(atualizado: WhatsappChats.Chat) {
     setChat(atualizado)
-    if (atualizado.classificacao_demanda_pendente === false) {
-      setInativDemandaOkLocal(true)
-      marcarInatividadeDemandaClassificada(atualizado.id)
-    }
     await Promise.all([carregar(), carregarSidebar()])
     refrescarTimelineDemandas()
     toast.showSuccess(
@@ -880,14 +869,29 @@ useEffect(() => {
 
   const podeTransferir = !encerrado && (isResponsavel || isAdmin)
 
-  const podeEnviar = chat?.estado === 'em_atendimento' && isResponsavel && !encerrado
+  const podeEnviar =
+    chat?.estado === 'em_atendimento' &&
+    isResponsavel &&
+    !encerrado &&
+    !chat?.classificacao_demanda_pendente
 
   const podeEncerrar = !encerrado && chat?.estado === 'em_atendimento' && (isResponsavel || isAdmin)
 
   const mostrarBannerDemandaInatividade =
     Boolean(chat?.classificacao_demanda_pendente) && (isResponsavel || isAdmin)
 
-  const podeDigitarMensagem = !encerrado && (modoInterno || podeEnviar)
+  const podeDigitarMensagem = !encerrado && !chat?.classificacao_demanda_pendente && (modoInterno || podeEnviar)
+
+  const composerPlaceholder =
+    encerrado || chat?.classificacao_demanda_pendente
+      ? chat?.classificacao_demanda_pendente
+        ? 'Chat aguarda classificação de demanda (somente leitura)'
+        : 'Chat encerrado'
+      : !podeEnviar && chat?.estado === 'em_atendimento'
+        ? 'Apenas o responsável pode enviar ao cliente — use comentário interno'
+        : modoInterno
+          ? 'Comentário interno (não enviado ao cliente)…'
+          : 'Digite uma mensagem…'
 
   const motivoAnexoDesabilitado =
     encerrado

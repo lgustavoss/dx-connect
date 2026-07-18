@@ -268,6 +268,13 @@ def _render_template(
     )
 
 
+def _sair_pausa_inatividade_por_atividade(chat: WhatsappChat) -> None:
+    """Mensagem do cliente ou outbound humana reinicia o ciclo — sai da pausa manual."""
+    if getattr(chat, "inatividade_pausada", False):
+        chat.inatividade_pausada = False
+        chat.inatividade_retomada_em = None
+
+
 def _enviar_texto_whatsapp(
     db: Session,
     *,
@@ -321,6 +328,8 @@ def _enviar_texto_whatsapp(
     )
     if not ok:
         raise HTTPException(status_code=502, detail=err or "Falha ao enviar pela Evolution API")
+    if evento_sistema is None:
+        _sair_pausa_inatividade_por_atividade(chat)
     m = WhatsappMensagem(
         chat_id=chat.id,
         direcao="outbound",
@@ -1383,6 +1392,11 @@ def enviar_mensagem(
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
     if c.estado != "em_atendimento":
         raise HTTPException(status_code=400, detail="Só é possível enviar mensagens em chats ativos")
+    if getattr(c, "classificacao_demanda_pendente", False):
+        raise HTTPException(
+            status_code=400,
+            detail="Chat aguarda classificação de demanda — não é possível enviar mensagens ao cliente",
+        )
     _exigir_responsavel_envio_cliente(c, atendente)
     texto = data.texto.strip()
     m = _enviar_texto_whatsapp(
@@ -1418,6 +1432,11 @@ async def enviar_mensagem_midia(
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
     if c.estado != "em_atendimento":
         raise HTTPException(status_code=400, detail="Só é possível enviar mensagens em chats ativos")
+    if getattr(c, "classificacao_demanda_pendente", False):
+        raise HTTPException(
+            status_code=400,
+            detail="Chat aguarda classificação de demanda — não é possível enviar mensagens ao cliente",
+        )
     _exigir_responsavel_envio_cliente(c, atendente)
 
     data = await file.read()
@@ -1508,6 +1527,7 @@ async def enviar_mensagem_midia(
         status_entrega=status_inicial_outbound_whatsapp(wa_message_id=sent_wa_id),
     )
     db.add(m)
+    _sair_pausa_inatividade_por_atividade(c)
     db.commit()
     m2 = (
         db.query(WhatsappMensagem)

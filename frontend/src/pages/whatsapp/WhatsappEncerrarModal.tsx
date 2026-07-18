@@ -153,9 +153,6 @@ export function WhatsappEncerrarModal({
           toast.showWarning('Confirme que deseja encerrar sem registar demanda.')
           return
         }
-        if (chatJaEncerrado && encerramentoPorInatividade) {
-          await whatsappChats.concluirClassificacaoDemanda(chatId)
-        }
       } else if (acao === 'nova') {
         if (form.naturezaId === '') {
           toast.showWarning('Selecione a natureza da nova demanda.')
@@ -164,6 +161,16 @@ export function WhatsappEncerrarModal({
         await whatsappChats.registrarDemanda(chatId, demandaFormPayload(form))
       } else if (acao === 'editar' && posRegistro) {
         await whatsappChats.atualizarDemanda(chatId, posRegistro.ultimaDemanda.id, demandaFormPayload(form))
+      }
+
+      // Pós-inatividade: qualquer conclusão (manter/editar/sem demanda/registar) limpa o pendente.
+      // Idempotente se registar demanda já tiver limpo a flag.
+      if (chatJaEncerrado && encerramentoPorInatividade) {
+        const atualizado = await whatsappChats.concluirClassificacaoDemanda(chatId)
+        onDemandasChange?.()
+        onEncerrado(atualizado)
+        onClose()
+        return
       }
 
       const atualizado = await whatsappChats.encerrar(chatId)

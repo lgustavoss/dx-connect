@@ -7,7 +7,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Melhorias
 
-- WhatsApp (#577): encerramento por inatividade conta desde a **última mensagem** (cliente ou atendente); botão **Pausar/Retomar** com countdown no chat
+- WhatsApp (#577): encerramento por inatividade conta desde a **última mensagem** (cliente ou atendente); botão **Pausar/Retomar** com countdown (até o aviso e, após o aviso, até encerrar); enviar mensagem sai da pausa automaticamente
 - WhatsApp (#575): ✓✓ azul no WhatsApp do cliente só quando o **atendente responsável** abre o chat no painel
 - PDVs: código editável na edição (ex.: 001 ↔ 002 ao trocar equipamento); listagem mostra só o código, sem prefixo «PDV»; colunas separadas de acesso remoto, ID e senha (copiar ID/senha; revelar senha com o olho)
 - Chat interno: alerta sonoro ao receber nova mensagem; em grupos, opção de **Silenciar** / **Ativar som** (preferência por pessoa)
@@ -22,7 +22,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Correções
 
-- WhatsApp: após encerramento por inatividade, o chat fica em **A classificar demanda** na lista do responsável até registar (ou confirmar sem demanda); banner na conversa sem bloquear a leitura
+- WhatsApp: após encerramento por inatividade, o chat fica em **A classificar demanda** (somente leitura) até registar, manter demandas existentes ou confirmar sem demanda; nova mensagem do mesmo cliente abre chat novo na fila
 - WhatsApp (#575): ticks de entrega/leitura no painel passam a atualizar (✓✓ / ✓✓ azul) — o webhook da Evolution com `keyId` + `DELIVERY_ACK`/`READ` era ignorado; mark-as-read no WhatsApp do cliente também quando chega mensagem nova com o responsável no chat
 - WhatsApp (#568): ao anexar imagem, só o campo de legenda fica visível (sem o composer por baixo)
 - WhatsApp (#569/#572/#574): legenda de mídia com a mesma fonte do texto; PDF/vídeo mostram legenda; sem placeholder «[Imagem enviada]» quando não há legenda
