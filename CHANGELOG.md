@@ -5,13 +5,12 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+## [26.07.013] - 2026-07-18
+
 ### Melhorias
 
 - WhatsApp (#577): countdown até o aviso e, após o aviso, até encerrar; enviar mensagem (ou o cliente falar) sai automaticamente da pausa
 - WhatsApp: após encerramento por inatividade, o chat fica em **A classificar demanda** (somente leitura) até registar, manter demandas existentes ou confirmar sem demanda; nova mensagem do mesmo cliente abre chat novo na fila
-
-### Correções
-
 - WhatsApp (#575): ticks de entrega/leitura no painel passam a atualizar (✓✓ / ✓✓ azul) — o webhook da Evolution com `keyId` + `DELIVERY_ACK`/`READ` era ignorado; mark-as-read no WhatsApp do cliente também quando chega mensagem nova com o responsável no chat
 
 ## [26.07.012] - 2026-07-18
