@@ -26,7 +26,9 @@ SKIP_PREFIXES = (
     "VERSION",
     "docs/releases/",
     "backend/app/data/release_notes.json",
+    "frontend/public/release-notes.json",
     "frontend/public/release_notes.json",
+    "scripts/prepare_release.py",
 )
 
 
