@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models.whatsapp_chat import WhatsappChat, WhatsappMensagem, WhatsappSettings
 from app.services import evolution_api
+from app.services.whatsapp_contato_match import funcionario_por_wa_id
 from app.services.protocolo_mensal import gerar_protocolo_chat
 from app.services.evolution_inbound import iter_inbound_whatsapp_messages, iter_message_status_updates
 from app.services.whatsapp_media_storage import gravar_base64_em_disco
@@ -441,12 +442,15 @@ def evolution_webhook(
         chat_novo = False
         if not chat:
             chat_novo = True
+            func = funcionario_por_wa_id(db, wa_id)
             chat = WhatsappChat(
                 protocolo=gerar_protocolo_chat(db),
                 wa_id=wa_id,
-                cliente_nome=push,
+                cliente_nome=push or (func.nome if func else None),
                 estado="aguardando_atendente",
                 setor_id=None,
+                funcionario_rede_id=func.id if func else None,
+                empresa_id=func.empresa_id if func and getattr(func, "empresa_id", None) else None,
             )
             db.add(chat)
             db.flush()
@@ -486,6 +490,9 @@ def evolution_webhook(
         db.add(msg)
         if push and not chat.cliente_nome:
             chat.cliente_nome = push
+        if getattr(chat, "inatividade_pausada", False):
+            chat.inatividade_pausada = False
+            chat.inatividade_retomada_em = None
         try:
             db.commit()
             processados += 1

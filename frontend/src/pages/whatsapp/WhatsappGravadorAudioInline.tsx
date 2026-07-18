@@ -17,6 +17,7 @@ export function WhatsappGravadorAudioInline({ disabled, onConcluido, onCancelar 
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<number | null>(null)
   const iniciouRef = useRef(false)
+  const canceladoRef = useRef(false)
 
   const pararStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop())
@@ -30,6 +31,7 @@ export function WhatsappGravadorAudioInline({ disabled, onConcluido, onCancelar 
   useEffect(() => {
     if (disabled || iniciouRef.current) return
     iniciouRef.current = true
+    canceladoRef.current = false
     void (async () => {
       setErro(null)
       chunksRef.current = []
@@ -44,10 +46,16 @@ export function WhatsappGravadorAudioInline({ disabled, onConcluido, onCancelar 
         const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream)
         recorderRef.current = recorder
         recorder.ondataavailable = (ev) => {
+          if (canceladoRef.current) return
           if (ev.data.size > 0) chunksRef.current.push(ev.data)
         }
         recorder.onstop = () => {
           pararStream()
+          if (canceladoRef.current) {
+            chunksRef.current = []
+            setGravando(false)
+            return
+          }
           const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' })
           if (blob.size === 0) {
             setErro('Gravação vazia.')
@@ -66,6 +74,7 @@ export function WhatsappGravadorAudioInline({ disabled, onConcluido, onCancelar 
       }
     })()
     return () => {
+      canceladoRef.current = true
       pararStream()
       const rec = recorderRef.current
       if (rec && rec.state !== 'inactive') rec.stop()
@@ -76,17 +85,20 @@ export function WhatsappGravadorAudioInline({ disabled, onConcluido, onCancelar 
   const ss = String(segundos % 60).padStart(2, '0')
 
   function parar() {
+    canceladoRef.current = false
     const rec = recorderRef.current
     if (rec && rec.state !== 'inactive') rec.stop()
     recorderRef.current = null
   }
 
   function cancelar() {
+    canceladoRef.current = true
     chunksRef.current = []
     pararStream()
     const rec = recorderRef.current
     if (rec && rec.state !== 'inactive') rec.stop()
     recorderRef.current = null
+    setGravando(false)
     onCancelar()
   }
 

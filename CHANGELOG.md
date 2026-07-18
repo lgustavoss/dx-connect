@@ -7,6 +7,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Melhorias
 
+- WhatsApp (#577): encerramento por inatividade conta desde a **última mensagem** (cliente ou atendente); botão **Pausar/Retomar** com countdown no chat
+- WhatsApp (#575): ✓✓ azul no WhatsApp do cliente só quando o **atendente responsável** abre o chat no painel
 - PDVs: código editável na edição (ex.: 001 ↔ 002 ao trocar equipamento); listagem mostra só o código, sem prefixo «PDV»; colunas separadas de acesso remoto, ID e senha (copiar ID/senha; revelar senha com o olho)
 - Chat interno: alerta sonoro ao receber nova mensagem; em grupos, opção de **Silenciar** / **Ativar som** (preferência por pessoa)
 - Chat interno: ao passar o mouse em mensagens próximas, as opções (Responder/Editar/Apagar) e reações não “saltam” mais para a mensagem de cima
@@ -20,6 +22,12 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Correções
 
+- WhatsApp (#568): ao anexar imagem, só o campo de legenda fica visível (sem o composer por baixo)
+- WhatsApp (#569/#572/#574): legenda de mídia com a mesma fonte do texto; PDF/vídeo mostram legenda; sem placeholder «[Imagem enviada]» quando não há legenda
+- WhatsApp (#571): Esc no zoom da imagem fecha só a visualização, sem sair do chat
+- WhatsApp (#576): cancelar gravação de áudio já não envia o ficheiro
+- WhatsApp (#573): ao reabrir o chat, o scroll volta à última posição vista (não salta para o início)
+- WhatsApp (#570): contacto já vinculado é reconhecido em chats novos do mesmo número
 - Modo escuro: texto digitado nos campos de pesquisa (listagens e chat interno) volta a ficar legível
 - Equipe online: «0 online» mesmo com painel aberto (lista lia só a memória do worker errado)
 - Chat interno: espaço excessivo entre mensagens após colocar ações/reações fora do balão

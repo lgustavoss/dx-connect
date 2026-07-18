@@ -66,33 +66,34 @@ def _ultima_outbound_humana(db: Session, chat_id: int) -> WhatsappMensagem | Non
 
 def _referencia_inatividade_cliente(db: Session, chat: WhatsappChat) -> datetime | None:
     """
-    Momento a partir do qual o cliente está inativo.
+    Momento a partir do qual o silêncio conta para inatividade.
 
-    Conta desde a última mensagem **do cliente** somente quando:
-    - o chat já está em atendimento (garantido pelo caller);
-    - o atendente já enviou pelo menos uma mensagem humana (não auto_assumido/BOT);
-    - essa resposta humana é posterior à última inbound (cliente sumiu).
+    Conta desde a **última mensagem relevante** (inbound do cliente **ou** outbound
+    humana do atendente), desde que já exista pelo menos uma outbound humana
+    (não dispara na fila / só com auto_assumido/BOT).
 
-    Mensagens de sistema (auto_assumido, auto_espera, avisos) não disparam o timer.
-    Novas mensagens do atendente não reiniciam o relógio.
+    Comentários internos e eventos de sistema não contam como atividade.
     """
+    last_out = _ultima_outbound_humana(db, chat.id)
+    if not last_out or last_out.created_at is None:
+        return None
+
     last_in = (
         _mensagens_relevantes_q(db, chat.id)
         .filter(WhatsappMensagem.direcao == "inbound")
         .order_by(desc(WhatsappMensagem.created_at), desc(WhatsappMensagem.id))
         .first()
     )
-    last_out = _ultima_outbound_humana(db, chat.id)
-    if not last_out or last_in is None:
-        return None
-    out_at = last_out.created_at
-    in_at = last_in.created_at
-    if out_at is None or in_at is None:
-        return None
-    if out_at <= in_at:
-        # Cliente falou por último ou atendente ainda não respondeu — não encerra.
-        return None
-    return in_at
+
+    candidatos: list[datetime] = [last_out.created_at]
+    if last_in is not None and last_in.created_at is not None:
+        candidatos.append(last_in.created_at)
+
+    retomada = getattr(chat, "inatividade_retomada_em", None)
+    if retomada is not None:
+        candidatos.append(retomada)
+
+    return max(candidatos)
 
 
 def _minutos_desde(ref: datetime | None, now: datetime) -> float:
@@ -186,6 +187,9 @@ def _processar_chat_inatividade(
 ) -> bool:
     """Retorna True se alterou algo no chat (mensagem ou encerramento)."""
     if chat.estado != "em_atendimento":
+        return False
+
+    if getattr(chat, "inatividade_pausada", False):
         return False
 
     aviso_min = int(getattr(st, "inativ_aviso_minutos", 0) or 0)

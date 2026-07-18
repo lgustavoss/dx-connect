@@ -899,6 +899,8 @@ export namespace WhatsappChats {
     funcionario_tipo?: string | null
     empresa_id?: number | null
     empresa_nome?: string | null
+    inatividade_pausada?: boolean
+    inatividade_retomada_em?: string | null
   }
   export interface EmpresaOpcao {
     id: number
@@ -1176,6 +1178,10 @@ export const whatsappChats = {
       body: JSON.stringify({ texto }),
     }),
   marcarVisto: (id: number) => api<void>(`/whatsapp/chats/${id}/visto`, { method: 'POST' }),
+  pausarInatividade: (id: number) =>
+    api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/inatividade/pausar`, { method: 'POST' }),
+  retomarInatividade: (id: number) =>
+    api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/inatividade/retomar`, { method: 'POST' }),
   vincularTicket: (id: number, ticketId: number) =>
     api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/vincular-ticket`, {
       method: 'POST',

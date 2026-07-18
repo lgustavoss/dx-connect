@@ -157,6 +157,36 @@ def _extract_wa_message_id(data: Any) -> str | None:
     return None
 
 
+def evolution_mark_messages_as_read(
+    base_url: str,
+    instance: str,
+    api_key: str,
+    *,
+    remote_jid: str,
+    message_ids: list[str],
+) -> tuple[bool, str | None]:
+    """POST /chat/markMessageAsRead/{instance} — marca inbound como lida no WhatsApp do cliente."""
+    import re
+
+    ids = [str(i).strip() for i in message_ids if str(i).strip()]
+    if not ids:
+        return True, None
+    base = base_url.rstrip("/")
+    url = f"{base}/chat/markMessageAsRead/{instance}"
+    headers = {"apikey": api_key, "Content-Type": "application/json", "Accept": "application/json"}
+    digits = re.sub(r"\D", "", remote_jid)
+    jid = remote_jid if "@" in remote_jid else f"{digits}@s.whatsapp.net"
+    body = {
+        "readMessages": [{"remoteJid": jid, "fromMe": False, "id": mid} for mid in ids]
+    }
+    code, _data, err = _request_json_with_retry("POST", url, headers=headers, body=body)
+    if code in (200, 201):
+        return True, None
+    if err:
+        return False, err[:800]
+    return False, f"HTTP {code}"
+
+
 def evolution_send_text(
     base_url: str,
     instance: str,

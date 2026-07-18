@@ -126,7 +126,10 @@ def test_worker_encerra_apos_aviso(client, seed_base, auth_headers, db_session, 
     assert chat.encerramento_at is not None
 
 
-def test_worker_nao_age_quando_cliente_respondeu_por_ultimo(client, seed_base, auth_headers, db_session, monkeypatch):
+def test_worker_nao_age_quando_ultima_mensagem_recente_do_cliente(
+    client, seed_base, auth_headers, db_session, monkeypatch
+):
+    """Cliente falou há 1 min — silêncio ainda dentro do prazo."""
     _configurar_evolution(db_session)
     chat = _chat_em_atendimento(db_session, wa_id="5511999665544")
     antiga = datetime.now(timezone.utc) - timedelta(minutes=20)
@@ -195,9 +198,10 @@ def test_worker_nao_age_so_com_auto_assumido(client, seed_base, auth_headers, db
     assert n == 0
 
 
-def test_worker_aviso_mesmo_com_atendente_enviando_varias_vezes(
+def test_worker_nao_avisa_se_ultima_mensagem_recente(
     client, seed_base, auth_headers, db_session, monkeypatch
 ):
+    """Última mensagem do atendente há 2 min reinicia o prazo — não avisa ainda."""
     _configurar_evolution(db_session)
     chat = _chat_em_atendimento(db_session, wa_id="5511999554433")
     t_cliente = datetime.now(timezone.utc) - timedelta(minutes=25)
@@ -229,7 +233,67 @@ def test_worker_aviso_mesmo_com_atendente_enviando_varias_vezes(
     )
 
     n = process_whatsapp_inactivity_closures(db_session)
+    assert n == 0
+
+
+def test_worker_avisa_apos_silencio_desde_ultima_msg_atendente(
+    client, seed_base, auth_headers, db_session, monkeypatch
+):
+    _configurar_evolution(db_session)
+    chat = _chat_em_atendimento(db_session, wa_id="5511999554400")
+    db_session.add(
+        WhatsappMensagem(
+            chat_id=chat.id,
+            direcao="inbound",
+            corpo="Oi",
+            tipo_midia="texto",
+            created_at=datetime.now(timezone.utc) - timedelta(minutes=30),
+        )
+    )
+    db_session.add(
+        WhatsappMensagem(
+            chat_id=chat.id,
+            direcao="outbound",
+            corpo="[ Atendente ]: Aguarde",
+            tipo_midia="texto",
+            atendente_id=1,
+            created_at=datetime.now(timezone.utc) - timedelta(minutes=15),
+        )
+    )
+    db_session.commit()
+
+    monkeypatch.setattr(
+        "app.services.whatsapp_inactivity_worker.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-out-silencio"),
+    )
+
+    n = process_whatsapp_inactivity_closures(db_session)
     assert n == 1
+
+
+def test_worker_respeita_pausa_inatividade(client, seed_base, auth_headers, db_session, monkeypatch):
+    _configurar_evolution(db_session)
+    chat = _chat_em_atendimento(db_session, wa_id="5511999554411")
+    chat.inatividade_pausada = True
+    db_session.add(
+        WhatsappMensagem(
+            chat_id=chat.id,
+            direcao="outbound",
+            corpo="[ Atendente ]: Analisando",
+            tipo_midia="texto",
+            atendente_id=1,
+            created_at=datetime.now(timezone.utc) - timedelta(minutes=30),
+        )
+    )
+    db_session.commit()
+
+    monkeypatch.setattr(
+        "app.services.whatsapp_inactivity_worker.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-out-pausa"),
+    )
+
+    n = process_whatsapp_inactivity_closures(db_session)
+    assert n == 0
 
 
 def test_worker_nao_reenvia_aviso_duplicado_no_mesmo_ciclo(

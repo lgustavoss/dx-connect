@@ -205,6 +205,7 @@ def _tipo_midia_db(slug: str) -> str:
 
 
 def _rotulo_midia_outbound(tipo_db: str) -> str:
+    """Rótulo interno legado — não enviar ao WhatsApp nem gravar como corpo sem caption."""
     return {
         "imagem": "[Imagem enviada]",
         "video": "[Vídeo enviado]",
@@ -212,6 +213,25 @@ def _rotulo_midia_outbound(tipo_db: str) -> str:
         "documento": "[Documento enviado]",
         "figurinha": "[Figurinha enviada]",
     }.get(tipo_db, "[Ficheiro enviado]")
+
+
+def _corpo_e_caption_midia_outbound(
+    tipo_db: str,
+    caption: str | None,
+    nome_atendente: str | None,
+) -> tuple[str, str]:
+    """
+    Retorna (corpo_db, caption_evolution).
+    Sem legenda do utilizador: corpo vazio e caption vazia (só a mídia no WhatsApp).
+    """
+    if tipo_db == "figurinha":
+        return "", ""
+    cap = (caption or "").strip()
+    if not cap:
+        return "", ""
+    nome = (nome_atendente or "").strip()
+    texto = f"[ {nome} ]: {cap}" if nome else cap
+    return texto, texto
 
 
 def _sanitizar_nome_ficheiro(name: str | None, fallback: str) -> str:
@@ -493,6 +513,8 @@ def _chat_read(db: Session, c: WhatsappChat, *, revelar_avaliacao: bool = False)
         funcionario_tipo=func.tipo if func else None,
         empresa_id=getattr(c, "empresa_id", None),
         empresa_nome=_empresa_nome_exibicao(emp),
+        inatividade_pausada=bool(getattr(c, "inatividade_pausada", False)),
+        inatividade_retomada_em=getattr(c, "inatividade_retomada_em", None),
     )
 
 
@@ -1380,15 +1402,9 @@ async def enviar_mensagem_midia(
         raise HTTPException(status_code=500, detail="Não foi possível guardar o ficheiro em disco.")
 
     cap = (caption or "").strip()
-    if tipo_db == "figurinha":
-        corpo_eff = _rotulo_midia_outbound(tipo_db)
-        legenda_whatsapp = ""
-    else:
-        base_legenda = cap if cap else _rotulo_midia_outbound(tipo_db)
-        nome_atend = (atendente.nome or "").strip()
-        legenda_whatsapp = f"[ {nome_atend} ]: {base_legenda}" if nome_atend else base_legenda
-        corpo_eff = legenda_whatsapp
-
+    corpo_eff, legenda_whatsapp = _corpo_e_caption_midia_outbound(
+        tipo_db, cap, atendente.nome
+    )
     b64 = base64.b64encode(data).decode("ascii")
     st = _settings_envio(db)
     ev_mt = _mediatype_evolution(mediatipo)
@@ -1542,11 +1558,93 @@ def marcar_chat_visto(
         row.last_seen_at = now
     else:
         db.add(WhatsappChatReadModel(chat_id=chat_id, atendente_id=atendente.id, last_seen_at=now))
+
+    # ✓✓ azul no WhatsApp do cliente: só o responsável, em atendimento
+    if (
+        c.estado == "em_atendimento"
+        and c.atendente_id is not None
+        and c.atendente_id == atendente.id
+    ):
+        _marcar_inbound_lido_evolution(db, c)
+
     db.commit()
     from app.services.realtime_emit import emit_notificacao_contagem
 
     emit_notificacao_contagem(db, [atendente.id])
     return None
+
+
+def _marcar_inbound_lido_evolution(db: Session, chat: WhatsappChat) -> None:
+    st = db.query(WhatsappSettings).order_by(WhatsappSettings.id.asc()).first()
+    if not st or not st.evolution_base_url or not st.evolution_instance_name or not st.evolution_api_key:
+        return
+    ids = [
+        row[0]
+        for row in (
+            db.query(WhatsappMensagem.wa_message_id)
+            .filter(
+                WhatsappMensagem.chat_id == chat.id,
+                WhatsappMensagem.direcao == "inbound",
+                WhatsappMensagem.wa_message_id.isnot(None),
+                WhatsappMensagem.wa_message_id != "",
+            )
+            .order_by(WhatsappMensagem.id.desc())
+            .limit(40)
+            .all()
+        )
+        if row[0]
+    ]
+    if not ids:
+        return
+    ok, err = evolution_api.evolution_mark_messages_as_read(
+        st.evolution_base_url,
+        st.evolution_instance_name,
+        st.evolution_api_key,
+        remote_jid=chat.wa_id,
+        message_ids=list(reversed(ids)),
+    )
+    if not ok:
+        logger.warning("markMessageAsRead falhou (chat=%s): %s", chat.id, err)
+
+
+@router.post("/{chat_id}/inatividade/pausar", response_model=WhatsappChatRead)
+def pausar_inatividade(
+    chat_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if c.estado != "em_atendimento":
+        raise HTTPException(status_code=400, detail="Só é possível pausar inatividade em chats em atendimento")
+    if c.atendente_id != atendente.id and atendente.role != "admin":
+        raise HTTPException(status_code=403, detail="Apenas o responsável pode pausar a inatividade")
+    c.inatividade_pausada = True
+    c.inatividade_retomada_em = None
+    db.commit()
+    c2 = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
+    assert c2 is not None
+    return _chat_read(db, c2)
+
+
+@router.post("/{chat_id}/inatividade/retomar", response_model=WhatsappChatRead)
+def retomar_inatividade(
+    chat_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if c.atendente_id != atendente.id and atendente.role != "admin":
+        raise HTTPException(status_code=403, detail="Apenas o responsável pode retomar a inatividade")
+    c.inatividade_pausada = False
+    c.inatividade_retomada_em = datetime.now(timezone.utc)
+    db.commit()
+    c2 = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
+    assert c2 is not None
+    return _chat_read(db, c2)
 
 
 @router.post("/{chat_id}/vincular-ticket", response_model=WhatsappChatRead)

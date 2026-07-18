@@ -68,12 +68,20 @@ import { useWhatsappVoltarLista } from '../../hooks/useWhatsappVoltarLista'
 import { whatsappConversaLink, resolveWhatsappListFallback, WHATSAPP_LIST_PATHS } from '../../lib/whatsappListReturn'
 import { useChatHub } from '../../contexts/ChatHubContext'
 import { ChatFilaAguardandoSheet } from '../../components/chat/ChatFilaAguardandoSheet'
+import { WhatsappInatividadeControle } from './WhatsappInatividadeControle'
 import { mergeTimelineChat, textoMarcoDemanda } from '../../lib/whatsappDemandaUtils'
 import { rotuloDownloadArquivo, visualTipoArquivo } from '../../lib/fileTypeIcon'
 import { CONTATO_CLIENTE } from '../../constants/contatoClienteLabels'
 
-const ROTULO_SEM_LEGENDA = /^\[(Imagem|Áudio|Vídeo|Documento|Figurinha|Contacto|Localização)\]$/
+const ROTULO_SEM_LEGENDA =
+  /^(?:\[\s*[^\]]+\s*\]:\s*)?\[(Imagem|Áudio|Vídeo|Documento|Figurinha|Contacto|Localização)(\s+enviad[oa])?\]$/i
 
+/** Legenda real sob mídia; ignora placeholders tipo «[Imagem enviada]». */
+function legendaMidiaVisivel(corpo: string | null | undefined): string | null {
+  const t = (corpo || '').trim()
+  if (!t || ROTULO_SEM_LEGENDA.test(t)) return null
+  return t
+}
 
 
 // --- Subcomponente de Renderização de Mídia ---
@@ -153,16 +161,14 @@ function ConteudoMensagemWhatsApp({ chatId, m, onImageClick }: { chatId: number;
 
 
 
-  const legenda = m.corpo && !ROTULO_SEM_LEGENDA.test(m.corpo.trim()) ? m.corpo : null
-
-
+  const legenda = legendaMidiaVisivel(m.corpo)
 
   if (tipo === 'texto' || !m.tipo_midia) return <TextoComLinks texto={m.corpo} />
 
   if (!m.midia_disponivel) {
     return (
       <p className="text-xs italic opacity-70" title="O ficheiro não foi obtido da Evolution API">
-        {m.corpo || 'Mídia não disponível'}
+        {legenda || 'Mídia não disponível'}
       </p>
     )
   }
@@ -171,60 +177,47 @@ function ConteudoMensagemWhatsApp({ chatId, m, onImageClick }: { chatId: number;
 
   if (err) return <p className="text-[10px] italic opacity-50">Erro ao carregar mídia</p>
 
-
-
-  const mediaClass = "max-h-64 max-w-full rounded-lg border border-black/5 shadow-sm"
-
-
+  const mediaClass = 'max-h-64 max-w-full rounded-lg border border-black/5 shadow-sm'
 
   if (tipo === 'imagem' || tipo === 'figurinha') {
-
     return (
-
       <div className="space-y-1">
-
-        <img 
-
-          src={url} 
-
-          alt="" 
-
-          className={`${mediaClass} cursor-zoom-in transition-transform duration-200 hover:scale-[1.02]`} 
-
+        <img
+          src={url}
+          alt=""
+          className={`${mediaClass} cursor-zoom-in transition-transform duration-200 hover:scale-[1.02]`}
           onClick={() => onImageClick(url, legenda)}
-
         />
-
-        {legenda && <p className="text-xs opacity-80 italic">{legenda}</p>}
-
+        {legenda ? <TextoComLinks texto={legenda} /> : null}
       </div>
-
     )
-
   }
 
   if (tipo === 'audio') return <CustomAudioPlayer src={url} />
 
-  if (tipo === 'video') return <video controls src={url} className={mediaClass} />
+  if (tipo === 'video') {
+    return (
+      <div className="space-y-1">
+        <video controls src={url} className={mediaClass} />
+        {legenda ? <TextoComLinks texto={legenda} /> : null}
+      </div>
+    )
+  }
 
- 
-
-  const downloadLabel = rotuloDownloadArquivo(
-    tipo === 'documento' ? m.corpo : null,
-    m.mimetype,
-    tipo,
-  )
-  const fileVisual = visualTipoArquivo(tipo === 'documento' ? m.corpo : null, m.mimetype)
+  const downloadLabel = rotuloDownloadArquivo(null, m.mimetype, tipo)
+  const fileVisual = visualTipoArquivo(null, m.mimetype)
 
   return (
-
-    <a href={url} download className="flex items-center gap-2 text-xs font-bold underline">
-      <span className="text-base" aria-hidden>{fileVisual.emoji}</span>
-      <span>{downloadLabel.replace(/^\S+\s*/, '')}</span>
-    </a>
-
+    <div className="space-y-1">
+      <a href={url} download className="flex items-center gap-2 text-xs font-bold underline">
+        <span className="text-base" aria-hidden>
+          {fileVisual.emoji}
+        </span>
+        <span>{downloadLabel.replace(/^\S+\s*/, '')}</span>
+      </a>
+      {legenda ? <TextoComLinks texto={legenda} /> : null}
+    </div>
   )
-
 }
 
 
@@ -323,11 +316,24 @@ export function WhatsappConversa() {
       if (e.key !== 'Escape' || e.defaultPrevented || modalEncerrar) return
       const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase()
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+      if (activeZoomImage) {
+        e.preventDefault()
+        e.stopPropagation()
+        setActiveZoomImage(null)
+        setActiveZoomImageCaption(null)
+        return
+      }
+      if (arquivoPendente) {
+        e.preventDefault()
+        setArquivoPendente(null)
+        setLegendaMidia('')
+        return
+      }
       voltarLista()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [voltarLista, modalEncerrar])
+  }, [voltarLista, modalEncerrar, activeZoomImage, arquivoPendente])
 
   useEffect(() => {
     if (!modalEncerrar || !chat) return
@@ -352,20 +358,22 @@ export function WhatsappConversa() {
 
 
 
-  // Scroll: só cola no fim se o utilizador já estiver perto do fundo; senão preserva a posição.
+  // Scroll: restaurar última posição vista; só cola no fim se já estava no fundo.
   useEffect(() => {
     if (!id) return
     initialScrollRestoredRef.current = false
-    stickToBottomRef.current = true
+    stickToBottomRef.current = false
   }, [id])
 
   useEffect(() => {
     if (loading || msgs.length === 0 || initialScrollRestoredRef.current || !id) return
     initialScrollRestoredRef.current = true
     requestAnimationFrame(() => {
-      const el = scrollRef.current
-      if (!el) return
-      stickToBottomRef.current = restoreWhatsappScroll(Number(id), el)
+      requestAnimationFrame(() => {
+        const el = scrollRef.current
+        if (!el) return
+        stickToBottomRef.current = restoreWhatsappScroll(Number(id), el)
+      })
     })
   }, [loading, msgs.length, id])
 
@@ -376,7 +384,6 @@ export function WhatsappConversa() {
       if (el) scrollWhatsappToBottom(el)
     })
   }, [msgs, loading])
-
   useEffect(() => {
     const el = scrollRef.current
     if (!el || !id) return
@@ -1061,6 +1068,14 @@ useEffect(() => {
 
             {!encerrado && (
               <>
+                {isResponsavel && chat && (
+                  <WhatsappInatividadeControle
+                    chat={chat}
+                    msgs={msgs}
+                    isResponsavel={isResponsavel}
+                    onChatUpdate={aplicarChatAtualizado}
+                  />
+                )}
                 {podeTransferir && (
                   <Button
                     variant="primary"
@@ -1070,7 +1085,6 @@ useEffect(() => {
                     Transferir
                   </Button>
                 )}
-
                 <Button
                   variant="ghost"
                   className="hidden sm:inline-flex text-xs h-8"
@@ -1349,10 +1363,18 @@ useEffect(() => {
                   onChange={(e) => setLegendaMidia(e.target.value)}
                   placeholder="Legenda opcional (visível no WhatsApp)"
                   className={`mt-2 ${TEXTAREA_FIELD_CLASS}`}
+                  autoFocus
                 />
               )}
               <div className="mt-2 flex justify-end gap-2">
-                <Button variant="ghost" className="h-8 text-xs" onClick={() => setArquivoPendente(null)}>
+                <Button
+                  variant="ghost"
+                  className="h-8 text-xs"
+                  onClick={() => {
+                    setArquivoPendente(null)
+                    setLegendaMidia('')
+                  }}
+                >
                   Cancelar
                 </Button>
                 <Button className="h-8 text-xs" loading={enviando} onClick={() => void confirmarEnvioMidia()}>
@@ -1362,27 +1384,28 @@ useEffect(() => {
             </div>
           )}
 
-          <WhatsappComposerBar
-            texto={texto}
-            onTextoChange={setTexto}
-            onEnviar={() => void enviar()}
-            enviando={enviando}
-            encerrado={encerrado}
-            podeEnviar={podeEnviar}
-            modoInterno={modoInterno}
-            podeDigitar={podeDigitarMensagem}
-            onEscolherAnexo={abrirPickerAnexo}
-            onAudioGravado={handleGravacaoConcluida}
-            onInserirEmoji={setTexto}
-            onEnviarFigurinha={(file) => void enviarFigurinha(file)}
-            onColarArquivo={(file) => {
-              setArquivoPendente(file)
-              setLegendaMidia('')
-            }}
-            onInserirReferenciaKb={inserirReferenciaKb}
-            focoPedidoEm={focoComposerEm}
-          />
-
+          {!arquivoPendente ? (
+            <WhatsappComposerBar
+              texto={texto}
+              onTextoChange={setTexto}
+              onEnviar={() => void enviar()}
+              enviando={enviando}
+              encerrado={encerrado}
+              podeEnviar={podeEnviar}
+              modoInterno={modoInterno}
+              podeDigitar={podeDigitarMensagem}
+              onEscolherAnexo={abrirPickerAnexo}
+              onAudioGravado={handleGravacaoConcluida}
+              onInserirEmoji={setTexto}
+              onEnviarFigurinha={(file) => void enviarFigurinha(file)}
+              onColarArquivo={(file) => {
+                setArquivoPendente(file)
+                setLegendaMidia('')
+              }}
+              onInserirReferenciaKb={inserirReferenciaKb}
+              focoPedidoEm={focoComposerEm}
+            />
+          ) : null}
           <input
             type="file"
             ref={fileInputRef}
