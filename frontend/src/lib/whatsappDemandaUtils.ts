@@ -29,7 +29,7 @@ export function mensagensVisiveisConversa<TMsg extends ChatMensagemTimeline>(msg
   )
 }
 
-/** Aviso ou encerramento automático por inatividade do cliente — demanda no modal é opcional. */
+/** Aviso ou encerramento automático por inatividade do cliente. */
 export function chatEncerramentoPorInatividade(msgs: ChatMensagemTimeline[]): boolean {
   return msgs.some(
     (m) =>

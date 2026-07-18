@@ -22,7 +22,9 @@ import {
 } from '../../api/client'
 
 import { resolveWhatsappMidiaObjectUrl, revokeWhatsappMidiaForChat } from '../../lib/whatsappMidiaCache'
-import { chatEncerramentoPorInatividade } from '../../lib/whatsappDemandaUtils'
+import {
+  chatEncerramentoPorInatividade,
+} from '../../lib/whatsappDemandaUtils'
 import { mergeWhatsappChat, patchWhatsappChatLista, replaceWhatsappChatLista } from '../../lib/whatsappChatMerge'
 import { whatsappMensagensUnicas } from '../../lib/whatsappMensagens'
 import {
@@ -262,6 +264,11 @@ export function WhatsappConversa() {
 
   const [meusChats, setMeusChats] = useState<WhatsappChats.Chat[]>([])
 
+  const chatRef = useRef(chat)
+  const userIdRef = useRef(user?.id)
+  chatRef.current = chat
+  userIdRef.current = user?.id
+
  
 
   // Estados de UI
@@ -335,14 +342,32 @@ export function WhatsappConversa() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [voltarLista, modalEncerrar, activeZoomImage, arquivoPendente])
 
+  const viuEmAtendimentoRef = useRef(false)
+  const inatividadeToastFeitoRef = useRef(false)
+
   useEffect(() => {
-    if (!modalEncerrar || !chat) return
-    const fechado = chat.estado === 'encerrado' || chat.estado === 'aguardando_avaliacao'
-    if (fechado && chatEncerramentoPorInatividade(msgs)) {
-      setModalEncerrar(false)
-      toast.showSuccess('Atendimento encerrado automaticamente por inatividade do cliente.')
+    if (chat?.estado === 'em_atendimento') {
+      viuEmAtendimentoRef.current = true
     }
-  }, [modalEncerrar, chat, msgs, toast])
+  }, [chat?.estado])
+
+  useEffect(() => {
+    if (!chat || inatividadeToastFeitoRef.current) return
+    if (!viuEmAtendimentoRef.current) return
+
+    const fechado = chat.estado === 'encerrado' || chat.estado === 'aguardando_avaliacao'
+    if (!fechado || !chatEncerramentoPorInatividade(msgs)) return
+    if (!chat.classificacao_demanda_pendente) return
+
+    const podeClassificar =
+      chat.atendente_id === user?.id || user?.role === 'admin'
+    if (!podeClassificar) return
+
+    inatividadeToastFeitoRef.current = true
+    toast.showSuccess(
+      'Atendimento encerrado por inatividade. Pode reler a conversa e registar a demanda no aviso abaixo.',
+    )
+  }, [chat, msgs, user?.id, user?.role, toast])
 
   const refrescarTimelineDemandas = useCallback(() => {
     setDemandasReloadKey((k) => k + 1)
@@ -490,6 +515,8 @@ export function WhatsappConversa() {
     if (!id) return
 
     setLoading(true)
+    viuEmAtendimentoRef.current = false
+    inatividadeToastFeitoRef.current = false
 
     carregar().then(() => whatsappChats.marcarVisto(id)).finally(() => setLoading(false))
 
@@ -535,6 +562,16 @@ export function WhatsappConversa() {
         }
         return [...prev, msg]
       })
+      // ✓✓ azul no WhatsApp do cliente: marcar leitura em inbound novo enquanto o responsável está no chat
+      const c = chatRef.current
+      if (
+        msg.direcao === 'inbound' &&
+        c?.estado === 'em_atendimento' &&
+        c.atendente_id != null &&
+        c.atendente_id === userIdRef.current
+      ) {
+        void whatsappChats.marcarVisto(chatId)
+      }
     })
     const unsubFila = subscribe('chat.fila', (payload) => {
       const payloadChatId = Number(payload.chat_id)
@@ -548,7 +585,11 @@ export function WhatsappConversa() {
           void carregar().catch(() => {})
         }
       }
-      if (chatData && chatData.estado !== 'em_atendimento') {
+      if (
+        chatData &&
+        chatData.estado !== 'em_atendimento' &&
+        !chatData.classificacao_demanda_pendente
+      ) {
         setMeusChats((prev) => prev.filter((c) => c.id !== payloadChatId))
       } else if (!chatData || payloadChatId !== chatId) {
         void carregarSidebar()
@@ -805,9 +846,13 @@ useEffect(() => {
     await Promise.all([carregar(), carregarSidebar()])
     refrescarTimelineDemandas()
     toast.showSuccess(
-      atualizado.estado === 'aguardando_avaliacao'
+      atualizado.estado === 'aguardando_avaliacao' && atualizado.classificacao_demanda_pendente
         ? 'Atendimento encerrado. Aguardando avaliação do cliente.'
-        : 'Atendimento encerrado.',
+        : atualizado.classificacao_demanda_pendente === false && chatEncerramentoPorInatividade(msgs)
+          ? 'Classificação da sessão concluída.'
+          : atualizado.estado === 'aguardando_avaliacao'
+            ? 'Atendimento encerrado. Aguardando avaliação do cliente.'
+            : 'Atendimento encerrado.',
     )
   }
 
@@ -824,11 +869,29 @@ useEffect(() => {
 
   const podeTransferir = !encerrado && (isResponsavel || isAdmin)
 
-  const podeEnviar = chat?.estado === 'em_atendimento' && isResponsavel && !encerrado
+  const podeEnviar =
+    chat?.estado === 'em_atendimento' &&
+    isResponsavel &&
+    !encerrado &&
+    !chat?.classificacao_demanda_pendente
 
   const podeEncerrar = !encerrado && chat?.estado === 'em_atendimento' && (isResponsavel || isAdmin)
 
-  const podeDigitarMensagem = !encerrado && (modoInterno || podeEnviar)
+  const mostrarBannerDemandaInatividade =
+    Boolean(chat?.classificacao_demanda_pendente) && (isResponsavel || isAdmin)
+
+  const podeDigitarMensagem = !encerrado && !chat?.classificacao_demanda_pendente && (modoInterno || podeEnviar)
+
+  const composerPlaceholder =
+    encerrado || chat?.classificacao_demanda_pendente
+      ? chat?.classificacao_demanda_pendente
+        ? 'Chat aguarda classificação de demanda (somente leitura)'
+        : 'Chat encerrado'
+      : !podeEnviar && chat?.estado === 'em_atendimento'
+        ? 'Apenas o responsável pode enviar ao cliente — use comentário interno'
+        : modoInterno
+          ? 'Comentário interno (não enviado ao cliente)…'
+          : 'Digite uma mensagem…'
 
   const motivoAnexoDesabilitado =
     encerrado
@@ -918,6 +981,11 @@ useEffect(() => {
                     <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">{c.cliente_nome || 'Cliente'}</p>
 
                     {c.estado === 'aguardando_atendente' && <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />}
+                    {c.classificacao_demanda_pendente && (
+                      <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+                        Demanda
+                      </span>
+                    )}
                     {!c.funcionario_rede_id && (
                       <span className="shrink-0 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-medium text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
                         Sem vínculo
@@ -1110,6 +1178,22 @@ useEffect(() => {
             <p>{CONTATO_CLIENTE.bannerNaoVinculado}</p>
             <Button variant="primary" className="h-8 shrink-0 text-xs" onClick={() => setModalVincFuncionario(true)}>
               {CONTATO_CLIENTE.vincularEmpresa}
+            </Button>
+          </div>
+        )}
+
+        {mostrarBannerDemandaInatividade && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+            <p>
+              Atendimento encerrado por inatividade. Reler a conversa se precisar e{' '}
+              <strong>registar a demanda</strong> desta sessão.
+            </p>
+            <Button
+              variant="primary"
+              className="h-8 shrink-0 text-xs"
+              onClick={() => setModalEncerrar(true)}
+            >
+              Registar demanda
             </Button>
           </div>
         )}
@@ -1404,6 +1488,7 @@ useEffect(() => {
               }}
               onInserirReferenciaKb={inserirReferenciaKb}
               focoPedidoEm={focoComposerEm}
+              placeholder={composerPlaceholder}
             />
           ) : null}
           <input

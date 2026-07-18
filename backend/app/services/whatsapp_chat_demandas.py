@@ -125,8 +125,8 @@ def criar_demanda_chat(
     desfecho: str = "resolvido_sessao",
     ticket_id: int | None = None,
 ) -> WhatsappChatDemanda:
-    if chat.estado != "em_atendimento":
-        raise HTTPException(status_code=400, detail="Registre demandas apenas em chats em atendimento")
+    if chat.estado not in ("em_atendimento", "aguardando_avaliacao", "encerrado"):
+        raise HTTPException(status_code=400, detail="Registre demandas apenas em chats em atendimento ou pós-inatividade")
     desfecho_eff = (desfecho or "resolvido_sessao").strip()
     if desfecho_eff not in DESFECHOS_DEMANDA:
         raise HTTPException(status_code=400, detail="Desfecho inválido")
@@ -180,8 +180,8 @@ def atualizar_demanda_chat(
     *,
     atendente: Atendente,
 ) -> WhatsappChatDemanda:
-    if chat.estado != "em_atendimento":
-        raise HTTPException(status_code=400, detail="Edite demandas apenas em chats em atendimento")
+    if chat.estado not in ("em_atendimento", "aguardando_avaliacao", "encerrado"):
+        raise HTTPException(status_code=400, detail="Edite demandas apenas em chats em atendimento ou pós-inatividade")
     if row.desfecho != "resolvido_sessao":
         raise HTTPException(status_code=400, detail="Demandas escaladas para ticket não podem ser editadas")
     if atendente.role != "admin" and row.atendente_id != atendente.id:

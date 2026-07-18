@@ -185,8 +185,33 @@ def _iter_message_dicts(data: Any) -> Iterator[dict[str, Any]]:
             if isinstance(m, dict):
                 yield m
         return
-    if "key" in data or "message" in data or "Message" in data:
+    # Evolution MESSAGES_UPDATE (formato flat): { keyId, fromMe, status, remoteJid }
+    if "keyId" in data or "KeyId" in data:
         yield data
+        return
+    if "key" in data or "Key" in data or "message" in data or "Message" in data:
+        yield data
+
+
+def _wa_id_e_from_me_de_update(m: dict[str, Any]) -> tuple[str | None, bool | None]:
+    """Extrai wa_message_id e fromMe de update aninhado (key.id) ou flat (keyId)."""
+    key = m.get("key") or m.get("Key")
+    if isinstance(key, dict):
+        mid = key.get("id") or key.get("Id")
+        wa_message_id = str(mid).strip() if mid else None
+        from_me_raw = key.get("fromMe") if "fromMe" in key else key.get("FromMe")
+        from_me = bool(from_me_raw) if from_me_raw is not None else None
+        return wa_message_id or None, from_me
+
+    mid = m.get("keyId") or m.get("KeyId") or m.get("id") or m.get("Id")
+    wa_message_id = str(mid).strip() if mid else None
+    if "fromMe" in m:
+        from_me = bool(m.get("fromMe"))
+    elif "FromMe" in m:
+        from_me = bool(m.get("FromMe"))
+    else:
+        from_me = None
+    return (wa_message_id or None), from_me
 
 
 def iter_inbound_whatsapp_messages(webhook_body: dict[str, Any]) -> Iterator[dict[str, Any]]:
@@ -299,26 +324,29 @@ def _ack_de_update_dict(update: dict[str, Any]) -> int | str | None:
 
 def iter_message_status_updates(webhook_body: dict[str, Any]) -> Iterator[dict[str, Any]]:
     """
-  Por cada atualização de ACK em mensagem outbound, produz:
-  wa_message_id, status_entrega (pendente|enviada|entregue|lida|erro)
+    Por cada atualização de ACK em mensagem outbound, produz:
+    wa_message_id, status_entrega (pendente|enviada|entregue|lida|erro)
+
+    Aceita:
+    - formato aninhado: data.key.id + data.update.status
+    - formato Evolution flat: data.keyId + data.fromMe + data.status (ex.: DELIVERY_ACK)
+    - data como lista de qualquer um dos formatos
     """
     from app.services.mensagem_status import ack_evolution_para_status
 
     event = webhook_body.get("event") or webhook_body.get("Event") or ""
-    ev = str(event).lower()
+    ev = str(event).lower().replace("_", ".")
     if "update" not in ev or "message" not in ev:
         return
 
     data = webhook_body.get("data") or webhook_body.get("Data")
     for m in _iter_message_dicts(data):
-        key = m.get("key") or m.get("Key") or {}
-        if not isinstance(key, dict):
-            continue
-        if not (key.get("fromMe") or key.get("FromMe")):
-            continue
-        mid = key.get("id") or key.get("Id")
-        wa_message_id = str(mid).strip() if mid else None
+        wa_message_id, from_me = _wa_id_e_from_me_de_update(m)
         if not wa_message_id:
+            continue
+        # Só atualiza ticks de mensagens enviadas por nós. Se fromMe vier omitido
+        # (alguns payloads), ainda tenta — o lookup no DB exige direcao=outbound.
+        if from_me is False:
             continue
 
         ack_raw = _ack_de_update_dict(m.get("update") or m.get("Update") or {})

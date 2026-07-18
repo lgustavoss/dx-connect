@@ -268,6 +268,13 @@ def _render_template(
     )
 
 
+def _sair_pausa_inatividade_por_atividade(chat: WhatsappChat) -> None:
+    """Mensagem do cliente ou outbound humana reinicia o ciclo — sai da pausa manual."""
+    if getattr(chat, "inatividade_pausada", False):
+        chat.inatividade_pausada = False
+        chat.inatividade_retomada_em = None
+
+
 def _enviar_texto_whatsapp(
     db: Session,
     *,
@@ -321,6 +328,8 @@ def _enviar_texto_whatsapp(
     )
     if not ok:
         raise HTTPException(status_code=502, detail=err or "Falha ao enviar pela Evolution API")
+    if evento_sistema is None:
+        _sair_pausa_inatividade_por_atividade(chat)
     m = WhatsappMensagem(
         chat_id=chat.id,
         direcao="outbound",
@@ -515,6 +524,7 @@ def _chat_read(db: Session, c: WhatsappChat, *, revelar_avaliacao: bool = False)
         empresa_nome=_empresa_nome_exibicao(emp),
         inatividade_pausada=bool(getattr(c, "inatividade_pausada", False)),
         inatividade_retomada_em=getattr(c, "inatividade_retomada_em", None),
+        classificacao_demanda_pendente=bool(getattr(c, "classificacao_demanda_pendente", False)),
     )
 
 
@@ -547,13 +557,31 @@ def _exigir_responsavel_envio_cliente(c: WhatsappChat, atendente: Atendente) -> 
 
 
 def _pode_registrar_demanda(db: Session, atendente: Atendente, c: WhatsappChat) -> bool:
-    if c.estado != "em_atendimento":
-        return False
+    """Responsável/admin: em atendimento, ou após encerramento automático por inatividade."""
     if not _pode_ver_chat(db, atendente, c):
         return False
-    if atendente.role == "admin":
+    if atendente.role != "admin" and c.atendente_id != atendente.id:
+        return False
+    if c.estado == "em_atendimento":
         return True
-    return c.atendente_id == atendente.id
+    if c.estado in ("aguardando_avaliacao", "encerrado") and _chat_encerrado_por_inatividade(db, c):
+        return True
+    return False
+
+
+def _chat_encerrado_por_inatividade(db: Session, c: WhatsappChat) -> bool:
+    return (
+        db.query(WhatsappMensagem.id)
+        .filter(
+            WhatsappMensagem.chat_id == c.id,
+            WhatsappMensagem.evento_sistema.in_(
+                ("auto_encerrado_inatividade", "auto_inativ_aviso"),
+            ),
+        )
+        .limit(1)
+        .first()
+        is not None
+    )
 
 
 def _pode_ver_chat(db: Session, atendente: Atendente, c: WhatsappChat) -> bool:
@@ -611,10 +639,18 @@ def listar_meus_ativos(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
+    """Chats em atendimento + encerrados por inatividade ainda sem classificação de demanda."""
+    from sqlalchemy import or_
+
     q = (
         db.query(WhatsappChat)
         .options(*_CHAT_LOAD_OPTIONS)
-        .filter(WhatsappChat.estado == "em_atendimento")
+        .filter(
+            or_(
+                WhatsappChat.estado == "em_atendimento",
+                WhatsappChat.classificacao_demanda_pendente.is_(True),
+            )
+        )
     )
     if atendente.role != "admin":
         q = q.filter(WhatsappChat.atendente_id == atendente.id)
@@ -1166,6 +1202,8 @@ def registrar_demanda(
         raise HTTPException(status_code=403, detail="Sem permissão para registrar demanda neste chat")
     row = criar_demanda_chat(db, c, atendente, data, desfecho="resolvido_sessao")
     marco = criar_marco_demanda_mensagem(db, chat=c, atendente=atendente, demanda=row)
+    if getattr(c, "classificacao_demanda_pendente", False):
+        c.classificacao_demanda_pendente = False
     db.commit()
     db.refresh(marco)
     marco = (
@@ -1175,6 +1213,8 @@ def registrar_demanda(
         .first()
     )
     emit_chat_mensagem_from_models(db, c, marco, exclude_atendente_id=atendente.id)
+    if c.estado != "em_atendimento":
+        emit_chat_fila_from_model(db, c, estado_anterior=c.estado)
     return demanda_para_read(row)
 
 
@@ -1352,6 +1392,11 @@ def enviar_mensagem(
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
     if c.estado != "em_atendimento":
         raise HTTPException(status_code=400, detail="Só é possível enviar mensagens em chats ativos")
+    if getattr(c, "classificacao_demanda_pendente", False):
+        raise HTTPException(
+            status_code=400,
+            detail="Chat aguarda classificação de demanda — não é possível enviar mensagens ao cliente",
+        )
     _exigir_responsavel_envio_cliente(c, atendente)
     texto = data.texto.strip()
     m = _enviar_texto_whatsapp(
@@ -1387,6 +1432,11 @@ async def enviar_mensagem_midia(
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
     if c.estado != "em_atendimento":
         raise HTTPException(status_code=400, detail="Só é possível enviar mensagens em chats ativos")
+    if getattr(c, "classificacao_demanda_pendente", False):
+        raise HTTPException(
+            status_code=400,
+            detail="Chat aguarda classificação de demanda — não é possível enviar mensagens ao cliente",
+        )
     _exigir_responsavel_envio_cliente(c, atendente)
 
     data = await file.read()
@@ -1477,6 +1527,7 @@ async def enviar_mensagem_midia(
         status_entrega=status_inicial_outbound_whatsapp(wa_message_id=sent_wa_id),
     )
     db.add(m)
+    _sair_pausa_inatividade_por_atividade(c)
     db.commit()
     m2 = (
         db.query(WhatsappMensagem)
@@ -1644,6 +1695,30 @@ def retomar_inatividade(
     db.commit()
     c2 = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
     assert c2 is not None
+    return _chat_read(db, c2)
+
+
+@router.post("/{chat_id}/classificacao-demanda/concluir", response_model=WhatsappChatRead)
+def concluir_classificacao_demanda(
+    chat_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    """Marca classificação pós-inatividade como concluída (ex.: confirmar sem registar demanda)."""
+    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not getattr(c, "classificacao_demanda_pendente", False):
+        return _chat_read(db, c)
+    if atendente.role != "admin" and c.atendente_id != atendente.id:
+        raise HTTPException(status_code=403, detail="Apenas o responsável pode concluir a classificação")
+    if c.estado not in ("encerrado", "aguardando_avaliacao"):
+        raise HTTPException(status_code=400, detail="Classificação só se aplica a chats já encerrados por inatividade")
+    c.classificacao_demanda_pendente = False
+    db.commit()
+    c2 = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
+    assert c2 is not None
+    emit_chat_fila_from_model(db, c2, estado_anterior=c2.estado)
     return _chat_read(db, c2)
 
 
