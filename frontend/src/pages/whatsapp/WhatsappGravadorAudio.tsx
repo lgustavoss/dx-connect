@@ -17,6 +17,8 @@ export function WhatsappGravadorAudio({ disabled, onConcluido, onCancelar }: Pro
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<number | null>(null)
 
+  const canceladoRef = useRef(false)
+
   const pararStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop())
     streamRef.current = null
@@ -31,6 +33,7 @@ export function WhatsappGravadorAudio({ disabled, onConcluido, onCancelar }: Pro
   async function iniciar() {
     if (disabled || gravando) return
     setErro(null)
+    canceladoRef.current = false
     chunksRef.current = []
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -44,10 +47,17 @@ export function WhatsappGravadorAudio({ disabled, onConcluido, onCancelar }: Pro
       const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream)
       recorderRef.current = recorder
       recorder.ondataavailable = (ev) => {
+        if (canceladoRef.current) return
         if (ev.data.size > 0) chunksRef.current.push(ev.data)
       }
       recorder.onstop = () => {
         pararStream()
+        if (canceladoRef.current) {
+          chunksRef.current = []
+          setGravando(false)
+          setSegundos(0)
+          return
+        }
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' })
         if (blob.size === 0) {
           setErro('Gravação vazia. Tente novamente.')
@@ -72,14 +82,17 @@ export function WhatsappGravadorAudio({ disabled, onConcluido, onCancelar }: Pro
   }
 
   function parar() {
+    canceladoRef.current = false
     const rec = recorderRef.current
     if (rec && rec.state !== 'inactive') rec.stop()
     recorderRef.current = null
   }
 
   function cancelar() {
+    canceladoRef.current = true
     if (gravando) {
-      recorderRef.current?.stop()
+      const rec = recorderRef.current
+      if (rec && rec.state !== 'inactive') rec.stop()
       recorderRef.current = null
       chunksRef.current = []
       pararStream()

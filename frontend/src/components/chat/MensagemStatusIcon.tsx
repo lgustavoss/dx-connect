@@ -10,12 +10,15 @@ type Props = {
 
 function corIcone(status: StatusEntregaMensagem, variant: 'claro' | 'escuro'): string {
   if (status === 'lida') {
-    return variant === 'claro' ? 'text-cyan-100' : 'text-cyan-500 dark:text-cyan-400'
+    return variant === 'claro' ? 'text-sky-200' : 'text-sky-500 dark:text-sky-400'
   }
   if (status === 'erro') {
     return variant === 'claro' ? 'text-rose-200' : 'text-rose-500'
   }
-  return variant === 'claro' ? 'text-cyan-100/90' : 'text-slate-400'
+  if (status === 'entregue') {
+    return variant === 'claro' ? 'text-white/90' : 'text-slate-500 dark:text-slate-400'
+  }
+  return variant === 'claro' ? 'text-white/80' : 'text-slate-400'
 }
 
 function IconePendente({ className }: { className: string }) {

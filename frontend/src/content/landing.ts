@@ -20,39 +20,39 @@ export const landingSeo = {
 export const landingHero = {
   brand: APP_NAME,
   tagline: APP_TAGLINE,
-  title: 'Suporte centralizado. Fila sob controle. Cliente bem atendido.',
+  title: 'Suporte centralizado. Operação sob controle. Cliente bem atendido.',
   titleLines: [
-    'Suporte centralizado.',
-    'Fila sob controle.',
-    'Cliente bem atendido.',
+    'Centralize o atendimento.',
+    'Organize a fila.',
+    'Eleve a experiência do cliente.',
   ] as const,
   subtitle:
-    'O DeskRudder reúne chamados, WhatsApp e conhecimento num só painel — para sua empresa organizar o atendimento, acompanhar prazos e saber quem está respondendo o quê.',
+    'O DeskRudder reúne chamados, WhatsApp, e-mail e conhecimento num único painel — para sua empresa operar com mais clareza, velocidade e excelência.',
   ctaPrimary: 'Quero ver uma demonstração',
   ctaSecondary: 'Já sou cliente',
   ctaSecondaryTo: '/login',
-  trustLine: 'Um painel para o time · Fila e prazos visíveis · Ambiente exclusivo da sua empresa',
+  trustLine: 'Visibilidade da operação · Priorização simples · Ambiente exclusivo da sua empresa',
 } as const
 
 export const landingPain = {
-  title: 'Se o suporte ainda vive assim, a operação está no limite',
+  title: 'Quando cada canal vira um problema, a operação perde controle',
   items: [
     {
-      title: 'WhatsApp no celular de cada um',
-      body: 'Conversa some, ninguém assume a fila e o cliente manda a mesma dúvida para três números.',
+      title: 'WhatsApp espalhado por celulares',
+      body: 'As conversas se perdem, ninguém assume e a fila vira um caos de mensagens repetidas.',
     },
     {
-      title: 'E-mail e planilha no lugar do sistema',
-      body: 'Prioridade no feeling, prazo no Excel e zero visão de quem está sobrecarregado.',
+      title: 'Planilha e e-mail no lugar de processo',
+      body: 'A prioridade fica no improviso, e a gestão perde a visão do que está em risco.',
     },
     {
-      title: 'Troca de plantão sem histórico',
-      body: 'O próximo atendente recomeça do zero — e o cliente sente que ninguém resolve.',
+      title: 'Troca de plantão sem contexto',
+      body: 'Cada atendente recomeça do zero, e o cliente sente que ninguém está coordenando a resposta.',
     },
   ],
-  pivotTitle: 'Com o DeskRudder, o suporte ganha um centro de comando',
+  pivotTitle: 'Com o DeskRudder, o suporte passa a ter direção e consistência',
   pivotBody:
-    'Uma fila. Um histórico. Setores com responsabilidade clara. A gestão vê o prazo em risco; o time vê o próximo da fila; o cliente recebe resposta organizada.',
+    'Uma fila. Um histórico. Responsabilidades claras. A gestão vê o risco antes de virar reclamação; o time entende o próximo passo; o cliente sente organização desde o primeiro contato.',
 } as const
 
 export type LandingShowcaseId = 'chat' | 'tickets' | 'sla' | 'kb'
@@ -120,23 +120,23 @@ export const landingShowcases: Array<{
 ]
 
 export const landingOutcomes = {
-  title: 'O que sua empresa ganha no dia a dia',
+  title: 'Resultados que aparecem no dia a dia',
   items: [
     {
       label: 'Fila única',
-      body: 'WhatsApp, e-mail e portal entram no mesmo fluxo. Acaba a disputa por «quem pegou a conversa».',
+      body: 'WhatsApp, e-mail e portal passam a seguir o mesmo fluxo, sem disputa por responsabilidade.',
     },
     {
       label: 'Time organizado',
-      body: 'Cada setor vê o que é dele. A gestão enxerga a operação inteira.',
+      body: 'Cada setor enxerga sua demanda com contexto, e a gestão vê a operação inteira.',
     },
     {
       label: 'Prazos sob controle',
-      body: 'Você vê o risco de atraso a tempo — antes do cliente cobrar no grupo da diretoria.',
+      body: 'O risco de atraso fica visível antes de virar reclamação e prejudicar a confiança.',
     },
     {
-      label: 'Dados da sua empresa',
-      body: 'Ambiente exclusivo. Seu painel, suas regras, seus dados.',
+      label: 'Ambiente exclusivo',
+      body: 'Seu painel, suas regras, seus dados e seus processos — tudo em um espaço seguro para a empresa.',
     },
   ],
 } as const

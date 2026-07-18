@@ -505,8 +505,9 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
             <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-700 dark:border-slate-800/80 dark:bg-slate-800/20 dark:text-slate-200">
               <p className="font-medium">Encerramento por inatividade</p>
               <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-                Encerra chats em atendimento quando o cliente para de responder. O tempo conta desde a última mensagem
-                do cliente, depois que o atendente já respondeu.
+                Encerra chats em atendimento após silêncio. O tempo conta desde a última mensagem (cliente ou
+                atendente). No chat, o responsável pode Pausar o timer durante análises longas — ao pausar/retomar o
+                prazo volta ao valor configurado.
               </p>
             </div>
 
@@ -514,7 +515,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
               checked={inativEncerramentoAtiva}
               onCheckedChange={setInativEncerramentoAtiva}
               label="Encerramento automático por inatividade do cliente"
-              description="Novas mensagens do atendente não reiniciam o timer."
+              description="Qualquer mensagem (cliente ou atendente) reinicia o timer. Use Pausar no chat se precisar de mais tempo."
               showStatusPill
               statusOnText="Ativo"
               statusOffText="Inativo"

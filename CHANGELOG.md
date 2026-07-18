@@ -5,6 +5,20 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### Melhorias
+
+- WhatsApp (#577): encerramento por inatividade conta desde a **última mensagem** (cliente ou atendente); botão **Pausar/Retomar** com countdown no chat
+- WhatsApp (#575): ✓✓ azul no WhatsApp do cliente só quando o **atendente responsável** abre o chat no painel
+
+### Correções
+
+- WhatsApp (#568): ao anexar imagem, só o campo de legenda fica visível (sem o composer por baixo)
+- WhatsApp (#569/#572/#574): legenda de mídia com a mesma fonte do texto; PDF/vídeo mostram legenda; sem placeholder «[Imagem enviada]» quando não há legenda
+- WhatsApp (#571): Esc no zoom da imagem fecha só a visualização, sem sair do chat
+- WhatsApp (#576): cancelar gravação de áudio já não envia o ficheiro
+- WhatsApp (#573): ao reabrir o chat, o scroll volta à última posição vista (não salta para o início)
+- WhatsApp (#570): contacto já vinculado é reconhecido em chats novos do mesmo número
+
 ## [26.07.011] - 2026-07-17
 
 ### Melhorias
