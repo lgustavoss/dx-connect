@@ -24,6 +24,8 @@ type Props = {
   onInserirReferenciaKb?: (ref: string) => void
   /** Incrementar para focar o textarea (ex.: após Responder). */
   focoPedidoEm?: number
+  /** Placeholder customizado (ex.: pós-inatividade a classificar). */
+  placeholder?: string
 }
 
 type MenuAnexo = { tipo: TipoAnexoPicker; label: string }
@@ -52,6 +54,7 @@ export function WhatsappComposerBar({
   podeDigitar,
   onInserirReferenciaKb,
   focoPedidoEm,
+  placeholder,
 }: Props) {
   const [menuAberto, setMenuAberto] = useState(false)
   const [painelEmojiAberto, setPainelEmojiAberto] = useState(false)
@@ -189,13 +192,14 @@ export function WhatsappComposerBar({
           value={texto}
           onChange={(e) => onTextoChange(e.target.value)}
           placeholder={
-            encerrado
+            placeholder ??
+            (encerrado
               ? 'Apenas leitura…'
               : modoInterno
                 ? 'Comentário interno…'
                 : podeEnviar
                   ? 'Escreva uma mensagem…'
-                  : 'Somente comentários internos…'
+                  : 'Somente comentários internos…')
           }
           rows={1}
           disabled={campoBloqueado}

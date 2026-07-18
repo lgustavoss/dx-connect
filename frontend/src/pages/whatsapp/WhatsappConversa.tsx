@@ -1488,6 +1488,7 @@ useEffect(() => {
               }}
               onInserirReferenciaKb={inserirReferenciaKb}
               focoPedidoEm={focoComposerEm}
+              placeholder={composerPlaceholder}
             />
           ) : null}
           <input
