@@ -154,7 +154,39 @@ def _extract_wa_message_id(data: Any) -> str | None:
         if mid:
             s = str(mid).strip()
             return s or None
+    for k in ("keyId", "KeyId", "id", "Id"):
+        mid = data.get(k)
+        if mid and not isinstance(mid, dict):
+            s = str(mid).strip()
+            if s:
+                return s
     return None
+
+
+def evolution_set_webhook(
+    base_url: str,
+    instance: str,
+    api_key: str,
+    *,
+    webhook_url: str,
+    secret: str | None = None,
+    events: list[str] | None = None,
+) -> tuple[int, Any | None, str | None]:
+    """POST /webhook/set/{instance} — garante MESSAGES_UPSERT + MESSAGES_UPDATE."""
+    base = base_url.rstrip("/")
+    url = f"{base}/webhook/set/{instance}"
+    headers = {"apikey": api_key, "Content-Type": "application/json", "Accept": "application/json"}
+    ev = events or ["MESSAGES_UPSERT", "MESSAGES_UPDATE"]
+    webhook: dict[str, Any] = {
+        "enabled": True,
+        "url": webhook_url,
+        "byEvents": False,
+        "events": ev,
+    }
+    if secret:
+        webhook["headers"] = {"X-Dx-Webhook-Secret": secret}
+    body = {"webhook": webhook}
+    return _request_json_with_retry("POST", url, headers=headers, body=body)
 
 
 def evolution_mark_messages_as_read(

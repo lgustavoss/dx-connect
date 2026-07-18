@@ -247,6 +247,10 @@ export function WhatsappConversa() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const carregarGenRef = useRef(0)
+  const chatRef = useRef(chat)
+  const userIdRef = useRef(user?.id)
+  chatRef.current = chat
+  userIdRef.current = user?.id
 
   const [pickerAnexo, setPickerAnexo] = useState<TipoAnexoPicker>('imagem')
   const [arquivoPendente, setArquivoPendente] = useState<File | null>(null)
@@ -535,6 +539,16 @@ export function WhatsappConversa() {
         }
         return [...prev, msg]
       })
+      // ✓✓ azul no WhatsApp do cliente: marcar leitura em inbound novo enquanto o responsável está no chat
+      const c = chatRef.current
+      if (
+        msg.direcao === 'inbound' &&
+        c?.estado === 'em_atendimento' &&
+        c.atendente_id != null &&
+        c.atendente_id === userIdRef.current
+      ) {
+        void whatsappChats.marcarVisto(chatId)
+      }
     })
     const unsubFila = subscribe('chat.fila', (payload) => {
       const payloadChatId = Number(payload.chat_id)
