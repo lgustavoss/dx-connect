@@ -899,9 +899,9 @@ export namespace WhatsappChats {
     funcionario_tipo?: string | null
     empresa_id?: number | null
     empresa_nome?: string | null
-  inatividade_pausada?: boolean
-  inatividade_retomada_em?: string | null
-  classificacao_demanda_pendente?: boolean
+    inatividade_pausada?: boolean
+    inatividade_retomada_em?: string | null
+    classificacao_demanda_pendente?: boolean
   }
   export interface EmpresaOpcao {
     id: number
