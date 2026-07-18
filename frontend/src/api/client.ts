@@ -901,6 +901,7 @@ export namespace WhatsappChats {
     empresa_nome?: string | null
     inatividade_pausada?: boolean
     inatividade_retomada_em?: string | null
+    classificacao_demanda_pendente?: boolean
   }
   export interface EmpresaOpcao {
     id: number
@@ -1182,6 +1183,8 @@ export const whatsappChats = {
     api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/inatividade/pausar`, { method: 'POST' }),
   retomarInatividade: (id: number) =>
     api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/inatividade/retomar`, { method: 'POST' }),
+  concluirClassificacaoDemanda: (id: number) =>
+    api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/classificacao-demanda/concluir`, { method: 'POST' }),
   vincularTicket: (id: number, ticketId: number) =>
     api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/vincular-ticket`, {
       method: 'POST',

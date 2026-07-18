@@ -90,9 +90,26 @@ def _baixar_midia_inbound(
 
 
 def _chat_aberto_por_wa_id(db: Session, wa_id: str) -> WhatsappChat | None:
+    """Chat ativo para conversa (fila ou em atendimento). Não inclui pós-inatividade a classificar."""
     return (
         db.query(WhatsappChat)
-        .filter(WhatsappChat.wa_id == wa_id, WhatsappChat.estado != "encerrado")
+        .filter(
+            WhatsappChat.wa_id == wa_id,
+            WhatsappChat.estado.in_(("aguardando_atendente", "em_atendimento")),
+            WhatsappChat.classificacao_demanda_pendente.is_(False),
+        )
+        .order_by(WhatsappChat.id.desc())
+        .first()
+    )
+
+
+def _chat_aguardando_avaliacao_por_wa_id(db: Session, wa_id: str) -> WhatsappChat | None:
+    return (
+        db.query(WhatsappChat)
+        .filter(
+            WhatsappChat.wa_id == wa_id,
+            WhatsappChat.estado == "aguardando_avaliacao",
+        )
         .order_by(WhatsappChat.id.desc())
         .first()
     )
@@ -193,10 +210,8 @@ def _try_auto_msg_espera(db: Session, st: WhatsappSettings | None, chat: Whatsap
             evento_sistema="auto_espera",
         )
     )
-    try:
-        db.commit()
-    except Exception:
-        db.rollback()
+    # Flush apenas: commit fica no webhook. commit/rollback aqui apagava chat novo se a auto-msg falhasse.
+    db.flush()
 
 
 def _parse_hhmm(v: str | None) -> tuple[int, int] | None:
@@ -326,10 +341,8 @@ def _try_auto_msg_fora_horario(db: Session, st: WhatsappSettings | None, chat: W
             evento_sistema="auto_fora_horario",
         )
     )
-    try:
-        db.commit()
-    except Exception:
-        db.rollback()
+    # Flush apenas: commit fica no webhook (evita rollback apagar chat recém-criado).
+    db.flush()
 
 
 def _processar_atualizacoes_status_mensagem(db: Session, body: dict) -> int:
@@ -399,40 +412,52 @@ def evolution_webhook(
         )
 
         chat = _chat_aberto_por_wa_id(db, wa_id)
-        if chat and chat.estado == "aguardando_avaliacao":
-            q_prev = item.get("quoted_corpo_preview")
-            if q_prev is not None and len(str(q_prev)) > 500:
-                q_prev = str(q_prev)[:500]
-            msg = WhatsappMensagem(
-                chat_id=chat.id,
-                direcao="inbound",
-                corpo=corpo,
-                tipo_midia=tipo_midia,
-                mimetype=mimetype_val,
-                midia_nome_arquivo=midia_nome,
-                wa_message_id=wa_mid,
-                quoted_wa_message_id=item.get("quoted_wa_message_id"),
-                quoted_corpo_preview=str(q_prev).strip()[:500] if q_prev else None,
-                atendente_id=None,
-            )
-            db.add(msg)
-            if push and not chat.cliente_nome:
-                chat.cliente_nome = push
-            try:
-                from app.services.whatsapp_avaliacao import processar_resposta_avaliacao
+        if not chat:
+            chat_aval = _chat_aguardando_avaliacao_por_wa_id(db, wa_id)
+            # Chat a classificar demanda: só reutiliza se for resposta de avaliação (nota 1–5).
+            # Qualquer outra mensagem abre atendimento novo; o pendente permanece.
+            if chat_aval is not None:
+                from app.services.whatsapp_avaliacao import parse_nota_avaliacao
 
-                processar_resposta_avaliacao(
-                    db, chat, st, corpo, tipo_midia=tipo or "texto", msg_inbound=msg
+                pendente = bool(getattr(chat_aval, "classificacao_demanda_pendente", False))
+                nota = parse_nota_avaliacao(corpo) if (tipo or "texto") == "texto" else None
+                if pendente and nota is None:
+                    chat_aval = None
+            if chat_aval is not None:
+                chat = chat_aval
+                q_prev = item.get("quoted_corpo_preview")
+                if q_prev is not None and len(str(q_prev)) > 500:
+                    q_prev = str(q_prev)[:500]
+                msg = WhatsappMensagem(
+                    chat_id=chat.id,
+                    direcao="inbound",
+                    corpo=corpo,
+                    tipo_midia=tipo_midia,
+                    mimetype=mimetype_val,
+                    midia_nome_arquivo=midia_nome,
+                    wa_message_id=wa_mid,
+                    quoted_wa_message_id=item.get("quoted_wa_message_id"),
+                    quoted_corpo_preview=str(q_prev).strip()[:500] if q_prev else None,
+                    atendente_id=None,
                 )
-                db.commit()
-                processados += 1
-            except IntegrityError:
-                db.rollback()
-                logger.info("Webhook Evolution: mensagem duplicada ignorada (wa_message_id=%s)", wa_mid)
-            except Exception:
-                db.rollback()
-                raise
-            continue
+                db.add(msg)
+                if push and not chat.cliente_nome:
+                    chat.cliente_nome = push
+                try:
+                    from app.services.whatsapp_avaliacao import processar_resposta_avaliacao
+
+                    processar_resposta_avaliacao(
+                        db, chat, st, corpo, tipo_midia=tipo or "texto", msg_inbound=msg
+                    )
+                    db.commit()
+                    processados += 1
+                except IntegrityError:
+                    db.rollback()
+                    logger.info("Webhook Evolution: mensagem duplicada ignorada (wa_message_id=%s)", wa_mid)
+                except Exception:
+                    db.rollback()
+                    raise
+                continue
 
         if tipo == "texto":
             tipo_midia = "texto"

@@ -23,7 +23,12 @@ def status_deve_atualizar(atual: str | None, novo: str) -> bool:
 
 
 def ack_evolution_para_status(ack: int | str | None) -> str | None:
-    """Mapeia ACK Baileys/Evolution para status_entrega."""
+    """Mapeia ACK Baileys/Evolution para status_entrega.
+
+    Numérico (Baileys WAMessageStatus):
+      0=ERROR, 1=PENDING, 2=SERVER_ACK, 3=DELIVERY_ACK, 4=READ, 5=PLAYED
+    Strings Evolution: PENDING, SERVER_ACK, DELIVERY_ACK, READ, …
+    """
     if ack is None:
         return None
     if isinstance(ack, str):
@@ -46,11 +51,11 @@ def ack_evolution_para_status(ack: int | str | None) -> str | None:
         return None
     if n <= 0:
         return STATUS_ERRO
-    if n == 1:
+    if n in (1, 2):
         return STATUS_ENVIADA
-    if n == 2:
+    if n == 3:
         return STATUS_ENTREGUE
-    if n >= 3:
+    if n >= 4:
         return STATUS_LIDA
     return None
 
