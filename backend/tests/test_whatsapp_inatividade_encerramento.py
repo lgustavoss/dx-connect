@@ -22,13 +22,13 @@ def _configurar_evolution(db_session):
     db_session.commit()
 
 
-def _chat_em_atendimento(db_session, *, wa_id: str = "5511999887766") -> WhatsappChat:
+def _chat_em_atendimento(db_session, *, wa_id: str = "5511999887766", atendente_id: int = 1) -> WhatsappChat:
     chat = WhatsappChat(
         protocolo="WPP-TEST-1",
         wa_id=wa_id,
         cliente_nome="Cliente Teste",
         estado="em_atendimento",
-        atendente_id=1,
+        atendente_id=atendente_id,
     )
     db_session.add(chat)
     db_session.flush()
@@ -124,6 +124,59 @@ def test_worker_encerra_apos_aviso(client, seed_base, auth_headers, db_session, 
     assert n == 1
     assert chat.estado == "encerrado"
     assert chat.encerramento_at is not None
+    marco = (
+        db_session.query(WhatsappMensagem)
+        .filter(
+            WhatsappMensagem.chat_id == chat.id,
+            WhatsappMensagem.evento_sistema == "auto_encerrado_inatividade",
+        )
+        .first()
+    )
+    assert marco is not None
+
+
+def test_pode_registrar_demanda_apos_encerramento_inatividade(
+    client, seed_base, auth_headers, db_session, monkeypatch
+):
+    from app.models.ticket_classificacao import TicketMotivo, TicketNatureza
+
+    _configurar_evolution(db_session)
+    a1_id = seed_base["a1"].id
+    chat = _chat_em_atendimento(db_session, wa_id="5511999112233", atendente_id=a1_id)
+    antiga_aviso = datetime.now(timezone.utc) - timedelta(minutes=8)
+    db_session.add(
+        WhatsappMensagem(
+            chat_id=chat.id,
+            direcao="outbound",
+            corpo="[ BOT ]: Aviso",
+            tipo_midia="texto",
+            evento_sistema="auto_inativ_aviso",
+            created_at=antiga_aviso,
+        )
+    )
+    nat = TicketNatureza(nome="Nat Inativ", slug="nat-inativ-test", ordem=1, ativo=True)
+    db_session.add(nat)
+    db_session.flush()
+    mot = TicketMotivo(natureza_id=nat.id, nome="Mot Inativ", slug="mot-inativ-test", ordem=1, ativo=True)
+    db_session.add(mot)
+    db_session.commit()
+
+    monkeypatch.setattr(
+        "app.services.whatsapp_inactivity_worker.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-out-dem"),
+    )
+    process_whatsapp_inactivity_closures(db_session)
+    db_session.commit()
+    db_session.refresh(chat)
+    assert chat.estado == "encerrado"
+
+    r = client.post(
+        f"/v1/whatsapp/chats/{chat.id}/demandas",
+        json={"natureza_id": nat.id, "motivo_id": mot.id, "descricao_curta": "Pós-inatividade"},
+        headers=auth_headers["a1"],
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["descricao_curta"] == "Pós-inatividade"
 
 
 def test_worker_nao_age_quando_ultima_mensagem_recente_do_cliente(

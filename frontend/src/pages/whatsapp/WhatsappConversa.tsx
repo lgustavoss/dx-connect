@@ -340,14 +340,30 @@ export function WhatsappConversa() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [voltarLista, modalEncerrar, activeZoomImage, arquivoPendente])
 
+  const viuEmAtendimentoRef = useRef(false)
+  const inatividadeDemandaPromptedRef = useRef(false)
+
   useEffect(() => {
-    if (!modalEncerrar || !chat) return
-    const fechado = chat.estado === 'encerrado' || chat.estado === 'aguardando_avaliacao'
-    if (fechado && chatEncerramentoPorInatividade(msgs)) {
-      setModalEncerrar(false)
-      toast.showSuccess('Atendimento encerrado automaticamente por inatividade do cliente.')
+    if (chat?.estado === 'em_atendimento') {
+      viuEmAtendimentoRef.current = true
     }
-  }, [modalEncerrar, chat, msgs, toast])
+  }, [chat?.estado])
+
+  useEffect(() => {
+    if (!chat || inatividadeDemandaPromptedRef.current) return
+    if (!viuEmAtendimentoRef.current) return
+
+    const fechado = chat.estado === 'encerrado' || chat.estado === 'aguardando_avaliacao'
+    if (!fechado || !chatEncerramentoPorInatividade(msgs)) return
+
+    const podeClassificar =
+      chat.atendente_id === user?.id || user?.role === 'admin'
+    if (!podeClassificar) return
+
+    inatividadeDemandaPromptedRef.current = true
+    setModalEncerrar(true)
+    toast.showSuccess('Atendimento encerrado automaticamente por inatividade. Registe a demanda da sessão.')
+  }, [chat, msgs, user?.id, user?.role, toast])
 
   const refrescarTimelineDemandas = useCallback(() => {
     setDemandasReloadKey((k) => k + 1)
@@ -495,6 +511,8 @@ export function WhatsappConversa() {
     if (!id) return
 
     setLoading(true)
+    viuEmAtendimentoRef.current = false
+    inatividadeDemandaPromptedRef.current = false
 
     carregar().then(() => whatsappChats.marcarVisto(id)).finally(() => setLoading(false))
 

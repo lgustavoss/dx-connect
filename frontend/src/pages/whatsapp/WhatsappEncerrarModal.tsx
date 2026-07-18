@@ -34,11 +34,11 @@ type Props = {
 function definirAcaoInicial(
   rows: WhatsappChats.Demanda[],
   msgs: WhatsappChats.Mensagem[],
-  encerramentoPorInatividade: boolean,
+  _encerramentoPorInatividade: boolean,
 ): AcaoEncerramento {
   const pos = analisarDemandaPosRegistro(rows, msgs)
   if (rows.length === 0) {
-    return encerramentoPorInatividade ? 'sem_demanda' : 'registrar'
+    return 'registrar'
   }
   if (pos) return 'nova'
   return 'manter'
@@ -73,7 +73,8 @@ export function WhatsappEncerrarModal({
 
   const semDemandas = demandas.length === 0
   const demandasResolvidas = demandas.filter((d) => d.desfecho === 'resolvido_sessao')
-  const demandaOpcional = encerramentoPorInatividade && semDemandas
+  // Pós-inatividade também pede registo (como Encerrar manual); só permite skip com confirmação.
+  const demandaOpcional = false
 
   useEffect(() => {
     if (!open) {
@@ -180,10 +181,10 @@ export function WhatsappEncerrarModal({
   let mensagemIntro =
     'Revise as demandas desta sessão antes de finalizar. O cliente poderá receber pedido de avaliação conforme configuração.'
 
-  if (demandaOpcional) {
-    mensagemIntro = chatJaEncerrado
-      ? 'Este atendimento foi encerrado automaticamente por inatividade do cliente. Registar demanda é opcional.'
-      : 'O cliente está inativo (aviso automático enviado). Pode encerrar sem registar demanda ou classificar opcionalmente.'
+  if (chatJaEncerrado && encerramentoPorInatividade) {
+    mensagemIntro = semDemandas
+      ? 'Este atendimento foi encerrado automaticamente por inatividade. Registe a demanda da sessão, ou confirme explicitamente concluir sem demanda.'
+      : 'Este atendimento foi encerrado automaticamente por inatividade. Revise as demandas antes de concluir.'
   } else if (semDemandas) {
     mensagemIntro =
       'Registe o motivo do atendimento antes de encerrar, ou confirme explicitamente o encerramento sem demanda.'
@@ -250,60 +251,32 @@ export function WhatsappEncerrarModal({
 
           {semDemandas ? (
             <div className="space-y-3">
-              {demandaOpcional ? (
-                <>
-                  <p className="text-xs text-slate-500">
-                    Registar demanda é opcional neste encerramento por inatividade.
-                  </p>
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <input
-                      type="radio"
-                      name="acao-encerrar"
-                      checked={acao === 'sem_demanda'}
-                      onChange={() => selecionarAcao('sem_demanda')}
-                    />
-                    {chatJaEncerrado ? 'Concluir sem registar demanda' : 'Encerrar sem registar demanda'}
-                  </label>
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <input
-                      type="radio"
-                      name="acao-encerrar"
-                      checked={acao === 'registrar'}
-                      onChange={() => selecionarAcao('registrar')}
-                    />
-                    Registar demanda (opcional)
-                  </label>
-                </>
-              ) : (
-                <>
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <input
-                      type="radio"
-                      name="acao-encerrar"
-                      checked={acao === 'registrar'}
-                      onChange={() => selecionarAcao('registrar')}
-                    />
-                    Registar demanda e encerrar
-                  </label>
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <input
-                      type="radio"
-                      name="acao-encerrar"
-                      checked={acao === 'sem_demanda'}
-                      onChange={() => selecionarAcao('sem_demanda')}
-                    />
-                    Encerrar sem registar demanda
-                  </label>
-                  {acao === 'sem_demanda' && (
-                    <CheckboxField
-                      checked={confirmarSemDemanda}
-                      onChange={(e) => setConfirmarSemDemanda(e.target.checked)}
-                      variant="inline"
-                    >
-                      Confirmo encerrar sem classificar esta sessão
-                    </CheckboxField>
-                  )}
-                </>
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="acao-encerrar"
+                  checked={acao === 'registrar'}
+                  onChange={() => selecionarAcao('registrar')}
+                />
+                {chatJaEncerrado ? 'Registar demanda e concluir' : 'Registar demanda e encerrar'}
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="acao-encerrar"
+                  checked={acao === 'sem_demanda'}
+                  onChange={() => selecionarAcao('sem_demanda')}
+                />
+                {chatJaEncerrado ? 'Concluir sem registar demanda' : 'Encerrar sem registar demanda'}
+              </label>
+              {acao === 'sem_demanda' && (
+                <CheckboxField
+                  checked={confirmarSemDemanda}
+                  onChange={(e) => setConfirmarSemDemanda(e.target.checked)}
+                  variant="inline"
+                >
+                  Confirmo {chatJaEncerrado ? 'concluir' : 'encerrar'} sem classificar esta sessão
+                </CheckboxField>
               )}
             </div>
           ) : posRegistro ? (

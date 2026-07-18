@@ -547,13 +547,31 @@ def _exigir_responsavel_envio_cliente(c: WhatsappChat, atendente: Atendente) -> 
 
 
 def _pode_registrar_demanda(db: Session, atendente: Atendente, c: WhatsappChat) -> bool:
-    if c.estado != "em_atendimento":
-        return False
+    """Responsável/admin: em atendimento, ou após encerramento automático por inatividade."""
     if not _pode_ver_chat(db, atendente, c):
         return False
-    if atendente.role == "admin":
+    if atendente.role != "admin" and c.atendente_id != atendente.id:
+        return False
+    if c.estado == "em_atendimento":
         return True
-    return c.atendente_id == atendente.id
+    if c.estado in ("aguardando_avaliacao", "encerrado") and _chat_encerrado_por_inatividade(db, c):
+        return True
+    return False
+
+
+def _chat_encerrado_por_inatividade(db: Session, c: WhatsappChat) -> bool:
+    return (
+        db.query(WhatsappMensagem.id)
+        .filter(
+            WhatsappMensagem.chat_id == c.id,
+            WhatsappMensagem.evento_sistema.in_(
+                ("auto_encerrado_inatividade", "auto_inativ_aviso"),
+            ),
+        )
+        .limit(1)
+        .first()
+        is not None
+    )
 
 
 def _pode_ver_chat(db: Session, atendente: Atendente, c: WhatsappChat) -> bool:
