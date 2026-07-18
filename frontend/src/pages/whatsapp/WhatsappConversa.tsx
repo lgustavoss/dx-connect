@@ -247,10 +247,6 @@ export function WhatsappConversa() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const carregarGenRef = useRef(0)
-  const chatRef = useRef(chat)
-  const userIdRef = useRef(user?.id)
-  chatRef.current = chat
-  userIdRef.current = user?.id
 
   const [pickerAnexo, setPickerAnexo] = useState<TipoAnexoPicker>('imagem')
   const [arquivoPendente, setArquivoPendente] = useState<File | null>(null)
@@ -265,6 +261,11 @@ export function WhatsappConversa() {
   const [msgs, setMsgs] = useState<WhatsappChats.Mensagem[]>([])
 
   const [meusChats, setMeusChats] = useState<WhatsappChats.Chat[]>([])
+
+  const chatRef = useRef(chat)
+  const userIdRef = useRef(user?.id)
+  chatRef.current = chat
+  userIdRef.current = user?.id
 
  
 
