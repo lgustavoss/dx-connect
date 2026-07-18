@@ -174,9 +174,36 @@ def _enviar_texto_sistema(
 
 
 def _encerrar_por_inatividade(db: Session, chat: WhatsappChat, st: WhatsappSettings) -> None:
+    from app.models.whatsapp_chat import WhatsappMensagem
     from app.services.whatsapp_avaliacao import finalizar_atendimento_whatsapp
 
     finalizar_atendimento_whatsapp(db, chat, st, evento_encerrado="auto_encerrado_inatividade")
+    chat.classificacao_demanda_pendente = True
+    # Com avaliação ativa o evento_encerrado não é gravado — marco interno para o painel pedir demanda.
+    ja_tem = (
+        db.query(WhatsappMensagem.id)
+        .filter(
+            WhatsappMensagem.chat_id == chat.id,
+            WhatsappMensagem.evento_sistema == "auto_encerrado_inatividade",
+        )
+        .limit(1)
+        .first()
+    )
+    if not ja_tem:
+        db.add(
+            WhatsappMensagem(
+                chat_id=chat.id,
+                direcao="outbound",
+                corpo="Atendimento encerrado automaticamente por inatividade.",
+                tipo_midia="texto",
+                mimetype=None,
+                midia_nome_arquivo=None,
+                wa_message_id=None,
+                atendente_id=None,
+                evento_sistema="auto_encerrado_inatividade",
+            )
+        )
+        db.flush()
 
 
 def _processar_chat_inatividade(
@@ -268,6 +295,25 @@ def process_whatsapp_inactivity_closures(db: Session, *, limit: int = 200) -> in
             if _processar_chat_inatividade(db, chat, st, now):
                 db.commit()
                 alterados += 1
+                try:
+                    from app.services.realtime_emit import emit_chat_fila_from_model, emit_chat_mensagem_from_models
+
+                    emit_chat_fila_from_model(db, chat, estado_anterior="em_atendimento")
+                    last_msg = (
+                        db.query(WhatsappMensagem)
+                        .filter(WhatsappMensagem.chat_id == chat.id)
+                        .order_by(WhatsappMensagem.id.desc())
+                        .first()
+                    )
+                    if last_msg and last_msg.evento_sistema in (
+                        "auto_inativ_aviso",
+                        "auto_encerrado_inatividade",
+                        "auto_avaliacao_solicitacao",
+                        "auto_encerrado",
+                    ):
+                        emit_chat_mensagem_from_models(db, chat, last_msg)
+                except Exception as emit_exc:
+                    logger.warning("SSE pós-inatividade (chat=%s): %s", chat_id, emit_exc)
             else:
                 db.rollback()
         except Exception as exc:

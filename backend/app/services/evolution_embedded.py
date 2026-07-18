@@ -208,6 +208,17 @@ def provisionar_e_ligar_webhook(db: Session, row: WhatsappSettings) -> dict[str,
     db.commit()
     db.refresh(row)
 
+    # Instâncias reutilizadas (409) podem ter webhook sem MESSAGES_UPDATE — ticks ficariam em ✓ único.
+    wh_code, _wh_data, wh_err = evolution_api.evolution_set_webhook(
+        internal,
+        iname,
+        api_inst,
+        webhook_url=webhook_url,
+        secret=secret,
+    )
+    if wh_code not in (200, 201):
+        logger.warning("Evolution setWebhook falhou (HTTP %s): %s", wh_code, wh_err)
+
     cq, qdata, qerr = evolution_api.evolution_connect(internal, api_inst, iname)
     if cq != 200:
         logger.warning("Connect após provisionar: HTTP %s %s", cq, qerr)
