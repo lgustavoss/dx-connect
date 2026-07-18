@@ -178,6 +178,7 @@ def _encerrar_por_inatividade(db: Session, chat: WhatsappChat, st: WhatsappSetti
     from app.services.whatsapp_avaliacao import finalizar_atendimento_whatsapp
 
     finalizar_atendimento_whatsapp(db, chat, st, evento_encerrado="auto_encerrado_inatividade")
+    chat.classificacao_demanda_pendente = True
     # Com avaliação ativa o evento_encerrado não é gravado — marco interno para o painel pedir demanda.
     ja_tem = (
         db.query(WhatsappMensagem.id)

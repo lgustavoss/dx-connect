@@ -592,7 +592,11 @@ export function WhatsappConversa() {
           void carregar().catch(() => {})
         }
       }
-      if (chatData && chatData.estado !== 'em_atendimento') {
+      if (
+        chatData &&
+        chatData.estado !== 'em_atendimento' &&
+        !chatData.classificacao_demanda_pendente
+      ) {
         setMeusChats((prev) => prev.filter((c) => c.id !== payloadChatId))
       } else if (!chatData || payloadChatId !== chatId) {
         void carregarSidebar()
@@ -846,18 +850,20 @@ useEffect(() => {
 
   async function handleEncerrado(atualizado: WhatsappChats.Chat) {
     setChat(atualizado)
-    if (chatEncerramentoPorInatividade(msgs)) {
-      marcarInatividadeDemandaClassificada(atualizado.id)
+    if (atualizado.classificacao_demanda_pendente === false) {
       setInativDemandaOkLocal(true)
+      marcarInatividadeDemandaClassificada(atualizado.id)
     }
     await Promise.all([carregar(), carregarSidebar()])
     refrescarTimelineDemandas()
     toast.showSuccess(
-      atualizado.estado === 'aguardando_avaliacao'
+      atualizado.estado === 'aguardando_avaliacao' && atualizado.classificacao_demanda_pendente
         ? 'Atendimento encerrado. Aguardando avaliação do cliente.'
-        : chatEncerramentoPorInatividade(msgs)
+        : atualizado.classificacao_demanda_pendente === false && chatEncerramentoPorInatividade(msgs)
           ? 'Classificação da sessão concluída.'
-          : 'Atendimento encerrado.',
+          : atualizado.estado === 'aguardando_avaliacao'
+            ? 'Atendimento encerrado. Aguardando avaliação do cliente.'
+            : 'Atendimento encerrado.',
     )
   }
 
@@ -879,12 +885,7 @@ useEffect(() => {
   const podeEncerrar = !encerrado && chat?.estado === 'em_atendimento' && (isResponsavel || isAdmin)
 
   const mostrarBannerDemandaInatividade =
-    encerrado &&
-    Boolean(chat) &&
-    chatEncerramentoPorInatividade(msgs) &&
-    (isResponsavel || isAdmin) &&
-    !inativDemandaOkLocal &&
-    demandasTimeline.length === 0
+    Boolean(chat?.classificacao_demanda_pendente) && (isResponsavel || isAdmin)
 
   const podeDigitarMensagem = !encerrado && (modoInterno || podeEnviar)
 
@@ -976,6 +977,11 @@ useEffect(() => {
                     <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">{c.cliente_nome || 'Cliente'}</p>
 
                     {c.estado === 'aguardando_atendente' && <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />}
+                    {c.classificacao_demanda_pendente && (
+                      <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+                        Demanda
+                      </span>
+                    )}
                     {!c.funcionario_rede_id && (
                       <span className="shrink-0 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-medium text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
                         Sem vínculo

@@ -124,6 +124,7 @@ def test_worker_encerra_apos_aviso(client, seed_base, auth_headers, db_session, 
     assert n == 1
     assert chat.estado == "encerrado"
     assert chat.encerramento_at is not None
+    assert chat.classificacao_demanda_pendente is True
     marco = (
         db_session.query(WhatsappMensagem)
         .filter(
@@ -177,6 +178,46 @@ def test_pode_registrar_demanda_apos_encerramento_inatividade(
     )
     assert r.status_code == 201, r.text
     assert r.json()["descricao_curta"] == "Pós-inatividade"
+    db_session.refresh(chat)
+    assert chat.classificacao_demanda_pendente is False
+
+
+def test_concluir_classificacao_sem_demanda(client, seed_base, auth_headers, db_session, monkeypatch):
+    _configurar_evolution(db_session)
+    a1_id = seed_base["a1"].id
+    chat = _chat_em_atendimento(db_session, wa_id="5511999223344", atendente_id=a1_id)
+    antiga_aviso = datetime.now(timezone.utc) - timedelta(minutes=8)
+    db_session.add(
+        WhatsappMensagem(
+            chat_id=chat.id,
+            direcao="outbound",
+            corpo="[ BOT ]: Aviso",
+            tipo_midia="texto",
+            evento_sistema="auto_inativ_aviso",
+            created_at=antiga_aviso,
+        )
+    )
+    db_session.commit()
+    monkeypatch.setattr(
+        "app.services.whatsapp_inactivity_worker.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-out-cls"),
+    )
+    process_whatsapp_inactivity_closures(db_session)
+    db_session.commit()
+    db_session.refresh(chat)
+    assert chat.classificacao_demanda_pendente is True
+
+    meus = client.get("/v1/whatsapp/chats/meus", headers=auth_headers["a1"]).json()
+    assert any(c["id"] == chat.id and c.get("classificacao_demanda_pendente") for c in meus)
+
+    r = client.post(
+        f"/v1/whatsapp/chats/{chat.id}/classificacao-demanda/concluir",
+        headers=auth_headers["a1"],
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["classificacao_demanda_pendente"] is False
+    db_session.refresh(chat)
+    assert chat.classificacao_demanda_pendente is False
 
 
 def test_worker_nao_age_quando_ultima_mensagem_recente_do_cliente(

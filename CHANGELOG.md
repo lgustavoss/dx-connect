@@ -22,7 +22,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Correções
 
-- WhatsApp: após encerramento por inatividade, banner «Registar demanda» (sem bloquear a conversa); o modal abre só ao clicar — permite reler o chat ou mudar de atendimento e voltar
+- WhatsApp: após encerramento por inatividade, o chat fica em **A classificar demanda** na lista do responsável até registar (ou confirmar sem demanda); banner na conversa sem bloquear a leitura
 - WhatsApp (#575): ticks de entrega/leitura no painel passam a atualizar (✓✓ / ✓✓ azul) — o webhook da Evolution com `keyId` + `DELIVERY_ACK`/`READ` era ignorado; mark-as-read no WhatsApp do cliente também quando chega mensagem nova com o responsável no chat
 - WhatsApp (#568): ao anexar imagem, só o campo de legenda fica visível (sem o composer por baixo)
 - WhatsApp (#569/#572/#574): legenda de mídia com a mesma fonte do texto; PDF/vídeo mostram legenda; sem placeholder «[Imagem enviada]» quando não há legenda

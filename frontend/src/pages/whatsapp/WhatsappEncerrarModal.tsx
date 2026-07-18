@@ -153,6 +153,9 @@ export function WhatsappEncerrarModal({
           toast.showWarning('Confirme que deseja encerrar sem registar demanda.')
           return
         }
+        if (chatJaEncerrado && encerramentoPorInatividade) {
+          await whatsappChats.concluirClassificacaoDemanda(chatId)
+        }
       } else if (acao === 'nova') {
         if (form.naturezaId === '') {
           toast.showWarning('Selecione a natureza da nova demanda.')
