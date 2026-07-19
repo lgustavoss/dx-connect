@@ -230,6 +230,12 @@ export function WhatsappHistorico() {
                       >
                         {exibirProtocolo(c.protocolo)}
                       </p>
+                      <p
+                        className="truncate text-xs text-slate-500 dark:text-slate-400"
+                        title={c.empresa_nome || 'Sem empresa'}
+                      >
+                        {c.empresa_nome || 'Sem empresa'}
+                      </p>
                     </div>
                   </div>
 
@@ -296,6 +302,7 @@ export function WhatsappHistorico() {
         onClose={() => setRetomarChat(null)}
         telefoneInicial={retomarChat?.wa_id}
         funcionarioId={retomarChat?.funcionario_rede_id}
+        empresas={retomarChat?.empresas_opcoes}
         titulo={retomarChat ? `Retomar ${retomarChat.cliente_nome || retomarChat.wa_id}` : undefined}
       />
 

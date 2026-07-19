@@ -445,6 +445,97 @@ def test_vincular_funcionario_no_chat(client, seed_base, auth_headers, db_sessio
     assert get_r.json()["funcionario_rede_id"] == func["id"]
 
 
+def test_encerrados_inclui_empresa_nome(client, seed_base, auth_headers, db_session):
+    """#590 — listagem Atendimentos deve serializar empresa_nome do chat."""
+    func = _criar_funcionario_colaborador(db_session, seed_base, email="hist-emp@test.local")
+    cid = _chat_ativo(client, seed_base, auth_headers, wa_id="5511999445566", msg_id="hist-emp-1")
+    client.post(
+        f"/v1/whatsapp/chats/{cid}/vincular-funcionario",
+        json={"funcionario_rede_id": func["id"]},
+        headers=auth_headers["a1"],
+    )
+    client.post(f"/v1/whatsapp/chats/{cid}/encerrar", headers=auth_headers["a1"])
+
+    hist = client.get("/v1/whatsapp/chats/encerrados", headers=auth_headers["admin"]).json()
+    item = next(x for x in hist["items"] if x["id"] == cid)
+    assert item["empresa_id"] == seed_base["empresa"].id
+    assert item["empresa_nome"]
+
+
+def test_encerrados_filtra_por_empresa_id(client, seed_base, auth_headers, db_session):
+    """#591 — filtro empresa_id isola chats de outras empresas."""
+    from app.models.empresa import Empresa
+    from app.models.funcionario_rede import FuncionarioRede, FuncionarioRedeEmpresa
+    from app.models.whatsapp_chat import WhatsappChat
+
+    emp_a = seed_base["empresa"]
+    emp_b = Empresa(tenant_id=1, rede_id=emp_a.rede_id, nome="Empresa Isolamento B", ativo=True)
+    db_session.add(emp_b)
+    db_session.flush()
+
+    fa = FuncionarioRede(
+        nome="Func A",
+        email="func.a.iso@test.local",
+        tipo="colaborador",
+        escopo_empresas="selected",
+        ativo=True,
+        rede_id=emp_a.rede_id,
+        empresa_id=emp_a.id,
+    )
+    fb = FuncionarioRede(
+        nome="Func B",
+        email="func.b.iso@test.local",
+        tipo="colaborador",
+        escopo_empresas="selected",
+        ativo=True,
+        rede_id=emp_a.rede_id,
+        empresa_id=emp_b.id,
+    )
+    db_session.add_all([fa, fb])
+    db_session.flush()
+    db_session.add(FuncionarioRedeEmpresa(funcionario_id=fa.id, empresa_id=emp_a.id))
+    db_session.add(FuncionarioRedeEmpresa(funcionario_id=fb.id, empresa_id=emp_b.id))
+    db_session.commit()
+
+    cid_a = _chat_ativo(client, seed_base, auth_headers, wa_id="5511999110001", msg_id="iso-a-1")
+    client.post(
+        f"/v1/whatsapp/chats/{cid_a}/vincular-funcionario",
+        json={"funcionario_rede_id": fa.id, "empresa_id": emp_a.id},
+        headers=auth_headers["a1"],
+    )
+    client.post(f"/v1/whatsapp/chats/{cid_a}/encerrar", headers=auth_headers["a1"])
+
+    cid_b = _chat_ativo(client, seed_base, auth_headers, wa_id="5511999110002", msg_id="iso-b-1")
+    client.post(
+        f"/v1/whatsapp/chats/{cid_b}/vincular-funcionario",
+        json={"funcionario_rede_id": fb.id, "empresa_id": emp_b.id},
+        headers=auth_headers["a1"],
+    )
+    client.post(f"/v1/whatsapp/chats/{cid_b}/encerrar", headers=auth_headers["a1"])
+
+    # Garante empresa_id no banco (fallback se vínculo legado)
+    for cid, eid in ((cid_a, emp_a.id), (cid_b, emp_b.id)):
+        chat = db_session.query(WhatsappChat).filter(WhatsappChat.id == cid).first()
+        chat.empresa_id = eid
+    db_session.commit()
+
+    only_a = client.get(
+        f"/v1/whatsapp/chats/encerrados?empresa_id={emp_a.id}&estado=todos",
+        headers=auth_headers["admin"],
+    ).json()
+    ids_a = {x["id"] for x in only_a["items"]}
+    assert cid_a in ids_a
+    assert cid_b not in ids_a
+
+    only_b = client.get(
+        f"/v1/whatsapp/chats/encerrados?empresa_id={emp_b.id}&estado=todos",
+        headers=auth_headers["admin"],
+    ).json()
+    ids_b = {x["id"] for x in only_b["items"]}
+    assert cid_b in ids_b
+    assert cid_a not in ids_b
+
+
 def test_buscar_funcionarios_whatsapp(client, seed_base, auth_headers, db_session):
     func = _criar_funcionario_colaborador(db_session, seed_base, nome="Maria Silva", email="maria@test.local")
     r = client.get("/v1/whatsapp/chats/funcionarios?busca=Maria", headers=auth_headers["a1"])
@@ -946,3 +1037,137 @@ def test_iniciar_chat_funcionario_sem_telefone_exige_numero(client, seed_base, a
     f = db_session.query(FuncionarioRede).filter(FuncionarioRede.id == func["id"]).first()
     db_session.refresh(f)
     assert f.telefone == "5511999000033"
+
+
+def _criar_funcionario_multi_empresa(db_session, seed_base, *, email="multi.emp@test.local"):
+    from app.models.empresa import Empresa
+    from app.models.funcionario_rede import FuncionarioRede, FuncionarioRedeEmpresa
+
+    emp = seed_base["empresa"]
+    e2 = Empresa(tenant_id=1, rede_id=emp.rede_id, nome="Empresa Filial B", ativo=True)
+    db_session.add(e2)
+    db_session.flush()
+    f = FuncionarioRede(
+        nome="Multi Empresa",
+        email=email,
+        tipo="colaborador",
+        escopo_empresas="selected",
+        ativo=True,
+        rede_id=emp.rede_id,
+        empresa_id=emp.id,
+        telefone="5511999000099",
+    )
+    db_session.add(f)
+    db_session.flush()
+    db_session.add(FuncionarioRedeEmpresa(funcionario_id=f.id, empresa_id=emp.id))
+    db_session.add(FuncionarioRedeEmpresa(funcionario_id=f.id, empresa_id=e2.id))
+    db_session.commit()
+    db_session.refresh(f)
+    db_session.refresh(e2)
+    return {"id": f.id, "empresa_a": emp.id, "empresa_b": e2.id, "telefone": f.telefone}
+
+
+def test_iniciar_chat_1_empresa_auto(client, seed_base, auth_headers, db_session, monkeypatch):
+    """#592 — funcionário com 1 empresa: inicia sem empresa_id no body."""
+    monkeypatch.setattr(
+        "app.api.whatsapp_chats.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-out"),
+    )
+    _evolution_settings(client, auth_headers, "iniciar-1emp")
+    func = _criar_funcionario_colaborador(db_session, seed_base, email="um.emp@test.local")
+    from app.models.funcionario_rede import FuncionarioRede
+
+    f = db_session.query(FuncionarioRede).filter(FuncionarioRede.id == func["id"]).first()
+    f.telefone = "5511999000044"
+    db_session.commit()
+
+    r = client.post(
+        "/v1/whatsapp/chats/iniciar",
+        json={"funcionario_id": func["id"]},
+        headers=auth_headers["a1"],
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["empresa_id"] == seed_base["empresa"].id
+    assert body["empresa_nome"]
+
+
+def test_iniciar_chat_multi_empresa_permite_sem_empresa_id(client, seed_base, auth_headers, db_session, monkeypatch):
+    """#592 — >1 empresas: pode iniciar sem empresa_id e definir depois; inválida → 400."""
+    monkeypatch.setattr(
+        "app.api.whatsapp_chats.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-out"),
+    )
+    _evolution_settings(client, auth_headers, "iniciar-multi")
+    multi = _criar_funcionario_multi_empresa(db_session, seed_base)
+
+    sem = client.post(
+        "/v1/whatsapp/chats/iniciar",
+        json={"funcionario_id": multi["id"]},
+        headers=auth_headers["a1"],
+    )
+    assert sem.status_code == 200
+    body = sem.json()
+    assert body["empresa_id"] is None
+    assert body["funcionario_rede_id"] == multi["id"]
+    assert len(body.get("empresas_opcoes") or []) >= 2
+
+    invalid = client.post(
+        "/v1/whatsapp/chats/iniciar",
+        json={"funcionario_id": multi["id"], "telefone": "5511999000077", "empresa_id": 999999},
+        headers=auth_headers["a1"],
+    )
+    assert invalid.status_code == 400
+
+    ok = client.post(
+        f"/v1/whatsapp/chats/{body['id']}/empresa-contexto",
+        json={"empresa_id": multi["empresa_b"]},
+        headers=auth_headers["a1"],
+    )
+    assert ok.status_code == 200
+    assert ok.json()["empresa_id"] == multi["empresa_b"]
+
+    # Pode alterar enquanto não encerrado
+    trocou = client.post(
+        f"/v1/whatsapp/chats/{body['id']}/empresa-contexto",
+        json={"empresa_id": multi["empresa_a"]},
+        headers=auth_headers["a1"],
+    )
+    assert trocou.status_code == 200
+    assert trocou.json()["empresa_id"] == multi["empresa_a"]
+
+
+def test_assumir_multi_empresa_sem_bloquear(client, seed_base, auth_headers, db_session):
+    """#592 — assumir multi-empresa sem empresa_id é permitido; contexto fica para depois."""
+    multi = _criar_funcionario_multi_empresa(db_session, seed_base, email="assumir.multi@test.local")
+    from app.models.whatsapp_chat import WhatsappChat
+
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "assumir-multi"},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "assumir-multi"}
+    client.post(
+        "/v1/webhooks/evolution",
+        json=_webhook_body(wa_id="5511999000088", msg_id="assumir-multi-1"),
+        headers=h,
+    )
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+    chat = db_session.query(WhatsappChat).filter(WhatsappChat.id == cid).first()
+    chat.funcionario_rede_id = multi["id"]
+    chat.empresa_id = None
+    db_session.commit()
+
+    ok = client.post(f"/v1/whatsapp/chats/{cid}/assumir", headers=auth_headers["a1"])
+    assert ok.status_code == 200
+    assert ok.json()["empresa_id"] is None
+    assert ok.json()["estado"] == "em_atendimento"
+
+    ctx = client.post(
+        f"/v1/whatsapp/chats/{cid}/empresa-contexto",
+        json={"empresa_id": multi["empresa_a"]},
+        headers=auth_headers["a1"],
+    )
+    assert ctx.status_code == 200
+    assert ctx.json()["empresa_id"] == multi["empresa_a"]

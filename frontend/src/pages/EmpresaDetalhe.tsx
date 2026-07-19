@@ -22,8 +22,9 @@ import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { TicketsTabelaContexto } from '../components/TicketsTabelaContexto'
 import { FuncionariosEmpresaLista } from '../components/FuncionariosEmpresaLista'
 import { EmpresaPdvsPanel } from '../components/EmpresaPdvsPanel'
+import { EmpresaChatsPanel } from '../components/EmpresaChatsPanel'
 import { SemPermissao } from './SemPermissao'
-type Aba = 'geral' | 'tickets' | 'funcionarios' | 'pdvs'
+type Aba = 'geral' | 'tickets' | 'chats' | 'funcionarios' | 'pdvs'
 
 function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
   const v = value?.trim()
@@ -313,6 +314,7 @@ export function EmpresaDetalhe() {
           <nav className="flex flex-wrap gap-1 sm:gap-2" aria-label="Seções da empresa">
             {tabBtn('geral', 'Geral')}
             {tabBtn('tickets', 'Tickets')}
+            {tabBtn('chats', 'Chats')}
             {tabBtn('funcionarios', 'Funcionários')}
             {tabBtn('pdvs', 'PDVs')}
           </nav>
@@ -434,6 +436,12 @@ export function EmpresaDetalhe() {
             showEmpresaColumn={false}
             emptyMessage="Nenhum ticket para esta empresa."
           />
+        </section>
+      )}
+
+      {aba === 'chats' && (
+        <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
+          <EmpresaChatsPanel empresaId={empresa.id} />
         </section>
       )}
 
