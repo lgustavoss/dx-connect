@@ -40,7 +40,13 @@ def criar_refresh_token(data: dict) -> str:
 
 def decodificar_token(token: str) -> dict | None:
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        # verify_aud=False: claim `aud` (portal) é validada nas dependências de auth (#300)
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            options={"verify_aud": False},
+        )
         if payload.get("type") not in (None, "access"):
             return None
         return payload
@@ -50,7 +56,12 @@ def decodificar_token(token: str) -> dict | None:
 
 def decodificar_refresh_token(token: str) -> dict | None:
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            options={"verify_aud": False},
+        )
         if payload.get("type") != "refresh":
             return None
         return payload

@@ -7,6 +7,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Melhorias
 
+- Portal do cliente (#263 / #300–#308): funcionários da rede fazem login em **/portal**, abrem e acompanham chamados da sua empresa, respondem no fio público, anexam ficheiros, consultam a base de ajuda e recebem e-mail quando a equipe responde; o admin define a senha do portal no cadastro do funcionário
 - WhatsApp (#577): encerramento por inatividade conta desde a **última mensagem** (cliente ou atendente); botão **Pausar/Retomar** com countdown (até o aviso e, após o aviso, até encerrar); enviar mensagem sai da pausa automaticamente
 - WhatsApp (#575): ✓✓ azul no WhatsApp do cliente só quando o **atendente responsável** abre o chat no painel
 - PDVs: código editável na edição (ex.: 001 ↔ 002 ao trocar equipamento); listagem mostra só o código, sem prefixo «PDV»; colunas separadas de acesso remoto, ID e senha (copiar ID/senha; revelar senha com o olho)
