@@ -899,6 +899,7 @@ export namespace WhatsappChats {
     funcionario_tipo?: string | null
     empresa_id?: number | null
     empresa_nome?: string | null
+    empresas_opcoes?: EmpresaOpcao[]
   inatividade_pausada?: boolean
   inatividade_retomada_em?: string | null
   classificacao_demanda_pendente?: boolean
@@ -1140,6 +1141,7 @@ export const whatsappChats = {
     funcionario_id?: number | null
     telefone?: string | null
     mensagem_inicial?: string | null
+    empresa_id?: number | null
   }) =>
     api<WhatsappChats.Chat>('/whatsapp/chats/iniciar', {
       method: 'POST',
@@ -1164,7 +1166,18 @@ export const whatsappChats = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
-  assumir: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/assumir`, { method: 'POST' }),
+  assumir: (id: number, data?: { empresa_id?: number | null }) => {
+    const qs =
+      data?.empresa_id != null && data.empresa_id !== undefined
+        ? `?empresa_id=${encodeURIComponent(String(data.empresa_id))}`
+        : ''
+    return api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/assumir${qs}`, { method: 'POST' })
+  },
+  definirEmpresaContexto: (id: number, empresa_id: number) =>
+    api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/empresa-contexto`, {
+      method: 'POST',
+      body: JSON.stringify({ empresa_id }),
+    }),
   encerrar: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/encerrar`, { method: 'POST' }),
   transferir: (id: number, data: { setor_id: number; atendente_id?: number | null }) =>
     api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/transferir`, { method: 'POST', body: JSON.stringify(data) }),
