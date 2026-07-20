@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { whatsappChats, type WhatsappChats } from '../../api/client'
 import { Button } from '../../components/ui/Button'
 import { Input, TEXTAREA_FIELD_CLASS } from '../../components/ui/Input'
+import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { chatWhatsappLink } from '../../lib/chatHubPaths'
@@ -14,6 +15,8 @@ type Props = {
   /** Número pré-preenchido (retomar / avulso) */
   telefoneInicial?: string | null
   funcionarioId?: number | null
+  /** Empresas do funcionário (retomar histórico / chat com vínculo) */
+  empresas?: WhatsappChats.EmpresaOpcao[] | null
   titulo?: string
 }
 
@@ -23,21 +26,35 @@ export function ChatIniciarConversaModal({
   contato,
   telefoneInicial,
   funcionarioId,
+  empresas,
   titulo,
 }: Props) {
   const toast = useToast()
   const navigate = useNavigate()
   const [telefone, setTelefone] = useState('')
   const [mensagem, setMensagem] = useState('')
+  const [empresaId, setEmpresaId] = useState<number | ''>('')
   const [salvando, setSalvando] = useState(false)
 
+  const empresasLista = useMemo(() => {
+    if (contato?.empresas?.length) return contato.empresas
+    if (empresas?.length) return empresas
+    return []
+  }, [contato, empresas])
+
+  const multiEmpresa = empresasLista.length > 1
   const precisaTelefone = !(contato?.telefone || telefoneInicial)
 
   useEffect(() => {
     if (!open) return
     setTelefone(contato?.telefone || telefoneInicial || '')
     setMensagem('')
-  }, [open, contato, telefoneInicial])
+    if (empresasLista.length === 1) {
+      setEmpresaId(empresasLista[0].id)
+    } else {
+      setEmpresaId('')
+    }
+  }, [open, contato, telefoneInicial, empresasLista])
 
   if (!open) return null
 
@@ -58,6 +75,7 @@ export function ChatIniciarConversaModal({
         funcionario_id: fid ?? undefined,
         telefone: digits || undefined,
         mensagem_inicial: mensagem.trim() || undefined,
+        empresa_id: empresaId === '' ? undefined : Number(empresaId),
       })
       onClose()
       navigate(chatWhatsappLink(chat.id, 'contatos'))
@@ -93,6 +111,23 @@ export function ChatIniciarConversaModal({
             onChange={(e) => setTelefone(e.target.value)}
             placeholder="5511999999999"
           />
+          {multiEmpresa && (
+            <div className="space-y-1">
+              <Select
+                label="Empresa do atendimento (opcional)"
+                value={empresaId}
+                onChange={(value) => setEmpresaId(value === '' ? '' : Number(value))}
+                options={empresasLista.map((e) => ({ value: e.id, label: e.nome }))}
+                placeholder="Definir depois na conversa"
+                includeEmpty
+                emptyLabel="Definir depois na conversa"
+              />
+              <p className="text-[11px] text-slate-500">
+                Se ainda não souber, pergunte ao cliente na conversa e vincule a empresa a qualquer
+                momento antes de encerrar.
+              </p>
+            </div>
+          )}
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
             Mensagem inicial (opcional)
             <textarea

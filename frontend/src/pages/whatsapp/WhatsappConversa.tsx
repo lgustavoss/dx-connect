@@ -294,6 +294,9 @@ export function WhatsappConversa() {
   const [transferAtendenteId, setTransferAtendenteId] = useState<number | ''>('')
   const [transferindo, setTransferindo] = useState(false)
   const [modalVincFuncionario, setModalVincFuncionario] = useState(false)
+  const [modalEmpresaContexto, setModalEmpresaContexto] = useState(false)
+  const [empresaContextoId, setEmpresaContextoId] = useState<number | ''>('')
+  const [salvandoEmpresaContexto, setSalvandoEmpresaContexto] = useState(false)
 
   const [setoresList, setSetoresList] = useState<Setores.Setor[]>([])
   const [atendentesDestino, setAtendentesDestino] = useState<Atendentes.Atendente[]>([])
@@ -535,6 +538,25 @@ export function WhatsappConversa() {
       setModoInterno(true)
     } else {
       setModoInterno(false)
+    }
+  }, [chat, user?.id])
+
+  useEffect(() => {
+    // 1 empresa e ainda sem contexto: preenche automaticamente sem bloquear o atendimento
+    if (!chat || !user?.id) return
+    if (chat.atendente_id !== user.id || chat.estado !== 'em_atendimento') return
+    if (chat.empresa_id) return
+    const opcoes = chat.empresas_opcoes || []
+    if (opcoes.length !== 1) return
+    let cancelled = false
+    void whatsappChats
+      .definirEmpresaContexto(chat.id, opcoes[0].id)
+      .then((atualizado) => {
+        if (!cancelled) setChat((prev) => mergeWhatsappChat(prev, atualizado))
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
     }
   }, [chat, user?.id])
 
@@ -856,6 +878,31 @@ useEffect(() => {
     )
   }
 
+  async function confirmarEmpresaContexto() {
+    if (!chat || empresaContextoId === '') {
+      toast.showWarning('Selecione a empresa do atendimento.')
+      return
+    }
+    setSalvandoEmpresaContexto(true)
+    try {
+      const atualizado = await whatsappChats.definirEmpresaContexto(chat.id, Number(empresaContextoId))
+      setChat((prev) => mergeWhatsappChat(prev, atualizado))
+      setModalEmpresaContexto(false)
+      setEmpresaContextoId('')
+      toast.showSuccess('Empresa do atendimento definida.')
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível definir a empresa.'))
+    } finally {
+      setSalvandoEmpresaContexto(false)
+    }
+  }
+
+  function abrirModalEmpresaContexto() {
+    if (!chat) return
+    setEmpresaContextoId(chat.empresa_id ?? '')
+    setModalEmpresaContexto(true)
+  }
+
 
 
   if (loading && !chat) return <div className="flex h-full items-center justify-center italic text-slate-400">Carregando workspace...</div>
@@ -876,6 +923,15 @@ useEffect(() => {
     !chat?.classificacao_demanda_pendente
 
   const podeEncerrar = !encerrado && chat?.estado === 'em_atendimento' && (isResponsavel || isAdmin)
+
+  const podeDefinirEmpresa =
+    !encerrado &&
+    Boolean(chat?.funcionario_rede_id) &&
+    (chat?.empresas_opcoes?.length ?? 0) > 0 &&
+    (isResponsavel || isAdmin)
+
+  const precisaEmpresaContexto =
+    podeDefinirEmpresa && !chat?.empresa_id && (chat?.empresas_opcoes?.length ?? 0) > 1
 
   const mostrarBannerDemandaInatividade =
     Boolean(chat?.classificacao_demanda_pendente) && (isResponsavel || isAdmin)
@@ -1099,9 +1155,32 @@ useEffect(() => {
                     {chat.funcionario_nome}
                     {chat.funcionario_tipo ? ` · ${chat.funcionario_tipo}` : ''}
                   </Link>
-                  {chat.empresa_nome && (
-                    <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
-                      {chat.empresa_nome}
+                  {chat.empresa_nome ? (
+                    podeDefinirEmpresa && (chat.empresas_opcoes?.length ?? 0) > 1 ? (
+                      <button
+                        type="button"
+                        onClick={abrirModalEmpresaContexto}
+                        className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-700 transition-colors hover:border-cyan-400 hover:text-cyan-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+                        title="Alterar empresa do atendimento"
+                      >
+                        {chat.empresa_nome}
+                      </button>
+                    ) : (
+                      <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+                        {chat.empresa_nome}
+                      </span>
+                    )
+                  ) : podeDefinirEmpresa ? (
+                    <button
+                      type="button"
+                      onClick={abrirModalEmpresaContexto}
+                      className="inline-flex rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-800 transition-colors hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                    >
+                      Definir empresa
+                    </button>
+                  ) : (
+                    <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+                      Sem empresa
                     </span>
                   )}
                 </div>
@@ -1178,6 +1257,19 @@ useEffect(() => {
             <p>{CONTATO_CLIENTE.bannerNaoVinculado}</p>
             <Button variant="primary" className="h-8 shrink-0 text-xs" onClick={() => setModalVincFuncionario(true)}>
               {CONTATO_CLIENTE.vincularEmpresa}
+            </Button>
+          </div>
+        )}
+
+        {precisaEmpresaContexto && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+            <p>
+              Este contacto pertence a mais de uma empresa. Pergunte ao cliente qual empresa deseja
+              atendimento e vincule quando souber — pode fazer isso a qualquer momento antes de
+              encerrar.
+            </p>
+            <Button variant="primary" className="h-8 shrink-0 text-xs" onClick={abrirModalEmpresaContexto}>
+              Definir empresa
             </Button>
           </div>
         )}
@@ -1577,6 +1669,57 @@ useEffect(() => {
             onClose={() => setModalVincFuncionario(false)}
             onSuccess={aplicarChatAtualizado}
           />
+        )}
+
+        {modalEmpresaContexto && chat && (
+          <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/50 p-4 sm:items-center">
+            <div
+              className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-slate-900"
+              role="dialog"
+              aria-modal
+              aria-labelledby="empresa-contexto-titulo"
+            >
+              <h2 id="empresa-contexto-titulo" className="text-lg font-bold text-slate-900 dark:text-white">
+                Empresa do atendimento
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Vincule a empresa que o cliente indicou. Pode alterar enquanto o chat não estiver
+                encerrado.
+              </p>
+              <div className="mt-4">
+                <Select
+                  label="Empresa"
+                  value={empresaContextoId}
+                  onChange={(value) => setEmpresaContextoId(value === '' ? '' : Number(value))}
+                  options={(chat.empresas_opcoes || []).map((e) => ({ value: e.id, label: e.nome }))}
+                  placeholder="Selecione a empresa"
+                  includeEmpty
+                  emptyLabel="Selecione a empresa"
+                />
+              </div>
+              <div className="mt-5 flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={salvandoEmpresaContexto}
+                  onClick={() => {
+                    setModalEmpresaContexto(false)
+                    setEmpresaContextoId('')
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  loading={salvandoEmpresaContexto}
+                  disabled={empresaContextoId === ''}
+                  onClick={() => void confirmarEmpresaContexto()}
+                >
+                  Confirmar
+                </Button>
+              </div>
+            </div>
+          </div>
         )}
 
       {chat && (
