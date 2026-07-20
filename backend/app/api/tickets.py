@@ -1365,6 +1365,12 @@ def criar_mensagem(
         .first()
     )
     assert m is not None
+    if m.tipo == "publico":
+        from app.services.portal_notificacoes import notificar_funcionario_mensagem_publica
+
+        ticket_fresh = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+        if ticket_fresh is not None:
+            notificar_funcionario_mensagem_publica(db, ticket=ticket_fresh, mensagem=m)
     emit_ticket_mensagem_from_model(db, ticket, m, exclude_atendente_id=atendente.id)
     return _mensagem_para_read(m)
 
@@ -1939,9 +1945,12 @@ def atualizar(
         setattr(ticket, k, v)
 
     acabou_de_fechar = False
+    status_portal_notify: tuple[str, str] | None = None
     if "status_id" in update:
         st = db.query(StatusTicket).filter(StatusTicket.id == ticket.status_id).first()
         slug = (st.slug or "").lower() if st else ""
+        if st is not None:
+            status_portal_notify = (st.nome or slug, slug)
         if slug == "fechado":
             if ticket.fechado_em is None:
                 acabou_de_fechar = True
@@ -1961,6 +1970,15 @@ def atualizar(
     sincronizar_sla_violado(db, ticket)
 
     db.commit()
+    if status_portal_notify is not None:
+        from app.services.portal_notificacoes import notificar_funcionario_status
+
+        notificar_funcionario_status(
+            db,
+            ticket=ticket,
+            status_nome=status_portal_notify[0],
+            status_slug=status_portal_notify[1],
+        )
     if acabou_de_fechar:
         processar_hooks_ao_fechar_ticket(db, ticket_id)
         db.commit()

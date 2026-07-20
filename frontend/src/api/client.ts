@@ -2116,6 +2116,9 @@ export namespace FuncionariosRede {
     rede_id?: number;
     empresa_id?: number;
     empresa_ids: number[];
+    portal_habilitado?: boolean;
+    must_change_password?: boolean;
+    notificar_email_portal?: boolean;
     created_at?: string | null;
     updated_at?: string | null;
   }
@@ -2129,6 +2132,8 @@ export namespace FuncionariosRede {
     rede_id?: number;
     empresa_id?: number;
     empresa_ids?: number[];
+    senha_portal?: string | null;
+    must_change_password?: boolean;
   }
   export interface Update {
     nome?: string;
@@ -2140,7 +2145,431 @@ export namespace FuncionariosRede {
     rede_id?: number;
     empresa_id?: number;
     empresa_ids?: number[];
+    senha_portal?: string | null;
+    must_change_password?: boolean;
+    notificar_email_portal?: boolean;
+    revogar_sessoes_portal?: boolean;
   }
+}
+
+/** Portal do cliente — tokens separados do painel interno (#263). */
+const PORTAL_TOKEN_KEY = 'portal_token'
+const PORTAL_REFRESH_TOKEN_KEY = 'portal_refresh_token'
+
+function getPortalToken(): string | null {
+  return sessionStorage.getItem(PORTAL_TOKEN_KEY) || localStorage.getItem(PORTAL_TOKEN_KEY)
+}
+
+function getPortalRefreshToken(): string | null {
+  return sessionStorage.getItem(PORTAL_REFRESH_TOKEN_KEY) || localStorage.getItem(PORTAL_REFRESH_TOKEN_KEY)
+}
+
+export function clearPortalAuthToken(): void {
+  sessionStorage.removeItem(PORTAL_TOKEN_KEY)
+  localStorage.removeItem(PORTAL_TOKEN_KEY)
+  sessionStorage.removeItem(PORTAL_REFRESH_TOKEN_KEY)
+  localStorage.removeItem(PORTAL_REFRESH_TOKEN_KEY)
+}
+
+function setPortalTokens(
+  tokens: { access_token: string; refresh_token?: string | null },
+  lembrarMe = true,
+) {
+  const store = lembrarMe ? localStorage : sessionStorage
+  store.setItem(PORTAL_TOKEN_KEY, tokens.access_token)
+  if (tokens.refresh_token) store.setItem(PORTAL_REFRESH_TOKEN_KEY, tokens.refresh_token)
+}
+
+function invalidatePortalAndRedirectToLogin(): void {
+  clearPortalAuthToken()
+  const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`
+  const qs =
+    returnTo && !returnTo.startsWith('/portal/login')
+      ? `?returnTo=${encodeURIComponent(returnTo)}`
+      : ''
+  window.location.replace(`/portal/login${qs}`)
+}
+
+let portalRefreshInFlight: Promise<{
+  access_token: string
+  refresh_token?: string | null
+  must_change_password?: boolean
+} | null> | null = null
+
+async function refreshPortalAccessToken(): Promise<{
+  access_token: string
+  refresh_token?: string | null
+  must_change_password?: boolean
+} | null> {
+  if (portalRefreshInFlight) return portalRefreshInFlight
+  const refresh_token = getPortalRefreshToken()
+  if (!refresh_token) return null
+  portalRefreshInFlight = (async () => {
+    try {
+      const headers: HeadersInit = { 'Content-Type': 'application/json', 'X-DX-Skip-Refresh': '1' }
+      if (isMultiTenantMode()) {
+        ;(headers as Record<string, string>)['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+      }
+      const res = await fetch(`${BASE}${API_VERSION_PREFIX}/portal/auth/refresh`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ refresh_token }),
+      })
+      if (!res.ok) return null
+      const data = (await res.json()) as {
+        access_token: string
+        refresh_token?: string | null
+        must_change_password?: boolean
+      }
+      const lembrarMe = Boolean(localStorage.getItem(PORTAL_REFRESH_TOKEN_KEY))
+      setPortalTokens(data, lembrarMe)
+      return data
+    } catch {
+      return null
+    } finally {
+      portalRefreshInFlight = null
+    }
+  })()
+  return portalRefreshInFlight
+}
+
+async function portalApi<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getPortalToken()
+  const isFormData =
+    typeof FormData !== 'undefined' && options.body != null && options.body instanceof FormData
+  const headers: HeadersInit = {
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+    ...(options.headers as object),
+  }
+  if (token) {
+    ;(headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
+  }
+  if (isMultiTenantMode()) {
+    ;(headers as Record<string, string>)['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+  }
+  const res = await fetch(`${BASE}${API_VERSION_PREFIX}${path}`, { ...options, headers })
+
+  if (res.status === 401 && path.startsWith('/portal/auth/login')) {
+    const err = await res.json().catch(() => ({}))
+    let msg = mensagemErroApi(err, 401)
+    if (msg.startsWith('Não foi possível concluir')) msg = 'E-mail ou senha inválidos.'
+    throw new ApiError(msg, 401, err)
+  }
+
+  if (res.status === 401) {
+    const err = await res.json().catch(() => ({}))
+    const skipRefresh =
+      headers instanceof Headers
+        ? headers.has('X-DX-Skip-Refresh')
+        : typeof headers === 'object' &&
+          headers != null &&
+          'X-DX-Skip-Refresh' in (headers as Record<string, unknown>)
+    if (!skipRefresh && !path.startsWith('/portal/auth/refresh')) {
+      const refreshed = await refreshPortalAccessToken()
+      if (refreshed?.access_token) {
+        return portalApi<T>(path, options)
+      }
+    }
+    invalidatePortalAndRedirectToLogin()
+    throw new ApiError(mensagemErroApi(err, 401), 401, err)
+  }
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new ApiError(mensagemErroApi(err, res.status), res.status, err)
+  }
+  if (res.status === 204) return undefined as T
+  return res.json()
+}
+
+export namespace PortalCliente {
+  export interface PublicBranding {
+    nome_exibicao: string
+    portal_titulo: string
+    logo_url: string | null
+    texto_boas_vindas: string | null
+    cor_primaria: string
+    cor_header: string
+    cor_sidebar: string
+    cor_texto_header: string
+    cor_texto_corpo: string
+    cor_fundo: string
+    cor_link: string
+    exibir_marca_deskrudder: boolean
+    chat_habilitado: boolean
+  }
+  export interface Token {
+    access_token: string
+    refresh_token?: string | null
+    must_change_password?: boolean
+  }
+  export interface Empresa {
+    id: number
+    nome: string
+    rede_id: number
+  }
+  export interface Me {
+    id: number
+    nome: string
+    email: string
+    tipo: string
+    rede_id: number | null
+    empresas: Empresa[]
+    must_change_password: boolean
+    notificar_email_portal: boolean
+  }
+  export interface Setor {
+    id: number
+    nome: string
+    slug?: string | null
+  }
+  export interface Pdv {
+    id: number
+    codigo: string
+    papel?: string | null
+    ativo: boolean
+  }
+  export interface TicketListItem {
+    id: number
+    protocolo: string
+    assunto: string
+    status_nome?: string | null
+    status_slug?: string | null
+    empresa_id?: number | null
+    empresa_nome?: string | null
+    setor_nome?: string | null
+    prioridade?: string | null
+    created_at?: string | null
+    updated_at?: string | null
+    fechado_em?: string | null
+    ultima_mensagem_em?: string | null
+  }
+  export interface TicketDetail extends TicketListItem {
+    descricao?: string | null
+    pode_responder: boolean
+    csat_token?: string | null
+    csat_pendente: boolean
+  }
+  export interface Anexo {
+    id: number
+    nome_original: string
+    content_type?: string | null
+    tamanho_bytes: number
+    mensagem_id?: number | null
+    created_at?: string | null
+    download_url: string
+  }
+  export interface Mensagem {
+    id: number
+    tipo: string
+    corpo: string
+    autor_nome?: string | null
+    autor_papel: 'equipe' | 'voce' | 'sistema'
+    created_at?: string | null
+    anexos: Anexo[]
+  }
+  export interface CreateTicket {
+    empresa_id: number
+    setor_id?: number | null
+    assunto: string
+    descricao?: string | null
+    pdv_codigo?: string | null
+    motivo_id?: number | null
+    motivo_outro_texto?: string | null
+  }
+  export interface WhatsappChatListItem {
+    id: number
+    protocolo: string
+    estado: string
+    empresa_id?: number | null
+    empresa_nome?: string | null
+    setor_nome?: string | null
+    created_at?: string | null
+    encerramento_at?: string | null
+    ultima_mensagem_em?: string | null
+    ultima_mensagem_preview?: string | null
+  }
+  export interface WhatsappChatDetail extends WhatsappChatListItem {
+    encerrado: boolean
+  }
+  export interface WhatsappMensagem {
+    id: number
+    direcao: string
+    corpo: string
+    tipo_midia?: string | null
+    midia_disponivel: boolean
+    autor_nome?: string | null
+    autor_papel: 'equipe' | 'voce' | 'sistema'
+    created_at?: string | null
+  }
+  export interface EquipeFuncionario {
+    id: number
+    nome: string
+    email?: string | null
+    telefone?: string | null
+    tipo: string
+    ativo: boolean
+    empresa_id?: number | null
+    empresa_ids: number[]
+    portal_habilitado: boolean
+    must_change_password: boolean
+    notificar_email_portal: boolean
+    editavel: boolean
+  }
+  export interface EquipeCreate {
+    nome: string
+    email: string
+    telefone?: string | null
+    tipo: 'colaborador' | 'supervisor'
+    ativo?: boolean
+    empresa_id?: number
+    empresa_ids?: number[]
+    senha_portal?: string
+    must_change_password?: boolean
+  }
+  export interface EquipeUpdate {
+    nome?: string
+    email?: string
+    telefone?: string | null
+    tipo?: 'colaborador' | 'supervisor'
+    ativo?: boolean
+    empresa_id?: number
+    empresa_ids?: number[]
+    senha_portal?: string
+    must_change_password?: boolean
+    notificar_email_portal?: boolean
+  }
+}
+
+export const portalCliente = {
+  branding: () => publicApi<PortalCliente.PublicBranding>('/portal/public/branding'),
+  logoAssetUrl: () => `${BASE}${API_VERSION_PREFIX}/kb/public/logo`,
+  login: (email: string, senha: string) =>
+    publicApi<PortalCliente.Token>('/portal/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, senha }),
+    }),
+  setSession: (tokens: PortalCliente.Token, lembrarMe = true) => {
+    setPortalTokens(tokens, lembrarMe)
+  },
+  clearSession: () => clearPortalAuthToken(),
+  hasSession: () => Boolean(getPortalToken()),
+  me: () => portalApi<PortalCliente.Me>('/portal/me'),
+  trocarSenha: (senha_atual: string, senha_nova: string) =>
+    portalApi<PortalCliente.Token>('/portal/me/trocar-senha', {
+      method: 'POST',
+      body: JSON.stringify({ senha_atual, senha_nova }),
+    }),
+  atualizarPreferencias: (data: { notificar_email_portal?: boolean }) =>
+    portalApi<PortalCliente.Me>('/portal/me/preferencias', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  listSetores: () => portalApi<PortalCliente.Setor[]>('/portal/catalogos/setores'),
+  listPdvs: (empresaId: number) =>
+    portalApi<PortalCliente.Pdv[]>(`/portal/empresas/${empresaId}/pdvs`),
+  listTickets: (params?: {
+    situacao?: string
+    busca?: string
+    offset?: number
+    limit?: number
+  }) =>
+    portalApi<{ items: PortalCliente.TicketListItem[]; total: number }>(
+      withParams('/portal/tickets', params),
+    ),
+  getTicket: (id: number) => portalApi<PortalCliente.TicketDetail>(`/portal/tickets/${id}`),
+  createTicket: (data: PortalCliente.CreateTicket) =>
+    portalApi<PortalCliente.TicketDetail>('/portal/tickets', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  listMensagens: (ticketId: number) =>
+    portalApi<PortalCliente.Mensagem[]>(`/portal/tickets/${ticketId}/mensagens`),
+  sendMensagem: (ticketId: number, corpo: string) =>
+    portalApi<PortalCliente.Mensagem>(`/portal/tickets/${ticketId}/mensagens`, {
+      method: 'POST',
+      body: JSON.stringify({ corpo }),
+    }),
+  uploadAnexo: async (ticketId: number, file: File, mensagemId?: number) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    if (mensagemId != null) fd.append('mensagem_id', String(mensagemId))
+    return portalApi<PortalCliente.Anexo>(`/portal/tickets/${ticketId}/anexos`, {
+      method: 'POST',
+      body: fd,
+    })
+  },
+  anexoDownloadUrl: (ticketId: number, anexoId: number) =>
+    `${BASE}${API_VERSION_PREFIX}/portal/tickets/${ticketId}/anexos/${anexoId}/download`,
+  fetchAnexoBlob: async (ticketId: number, anexoId: number) => {
+    const token = getPortalToken()
+    const headers: HeadersInit = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+    }
+    const res = await fetch(
+      `${BASE}${API_VERSION_PREFIX}/portal/tickets/${ticketId}/anexos/${anexoId}/download`,
+      { headers },
+    )
+    if (!res.ok) throw new ApiError('Falha ao baixar anexo', res.status, null)
+    return res.blob()
+  },
+  csatLink: (ticketId: number) =>
+    portalApi<{ link: string; expires_at: string }>(`/portal/tickets/${ticketId}/csat-link`, {
+      method: 'POST',
+    }),
+  listChats: (params?: { situacao?: string; busca?: string; offset?: number; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.situacao) q.set('situacao', params.situacao)
+    if (params?.busca) q.set('busca', params.busca)
+    if (params?.offset != null) q.set('offset', String(params.offset))
+    if (params?.limit != null) q.set('limit', String(params.limit))
+    const qs = q.toString()
+    return portalApi<{ items: PortalCliente.WhatsappChatListItem[]; total: number }>(
+      `/portal/chats${qs ? `?${qs}` : ''}`,
+    )
+  },
+  getChat: (id: number) => portalApi<PortalCliente.WhatsappChatDetail>(`/portal/chats/${id}`),
+  listChatMensagens: (chatId: number) =>
+    portalApi<PortalCliente.WhatsappMensagem[]>(`/portal/chats/${chatId}/mensagens`),
+  fetchChatMidiaBlob: async (chatId: number, mensagemId: number) => {
+    const token = getPortalToken()
+    const headers: HeadersInit = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+    }
+    const res = await fetch(
+      `${BASE}${API_VERSION_PREFIX}/portal/chats/${chatId}/mensagens/${mensagemId}/midia`,
+      { headers },
+    )
+    if (!res.ok) throw new ApiError('Falha ao abrir mídia', res.status, null)
+    return res.blob()
+  },
+  listEquipe: (params?: { incluir_inativos?: boolean; busca?: string; offset?: number; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.incluir_inativos) q.set('incluir_inativos', 'true')
+    if (params?.busca) q.set('busca', params.busca)
+    if (params?.offset != null) q.set('offset', String(params.offset))
+    if (params?.limit != null) q.set('limit', String(params.limit))
+    const qs = q.toString()
+    return portalApi<{ items: PortalCliente.EquipeFuncionario[]; total: number }>(
+      `/portal/equipe/funcionarios${qs ? `?${qs}` : ''}`,
+    )
+  },
+  listEquipeEmpresas: () => portalApi<PortalCliente.Empresa[]>('/portal/equipe/empresas'),
+  getEquipeFuncionario: (id: number) => portalApi<PortalCliente.EquipeFuncionario>(`/portal/equipe/funcionarios/${id}`),
+  createEquipeFuncionario: (data: PortalCliente.EquipeCreate) =>
+    portalApi<PortalCliente.EquipeFuncionario>('/portal/equipe/funcionarios', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateEquipeFuncionario: (id: number, data: PortalCliente.EquipeUpdate) =>
+    portalApi<PortalCliente.EquipeFuncionario>(`/portal/equipe/funcionarios/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
 }
 
 export const ticketClassificacao = {
@@ -2836,6 +3265,7 @@ export namespace Kb {
     texto_boas_vindas: string | null;
     cor_primaria: string;
     cor_header: string;
+    cor_sidebar: string;
     cor_texto_header: string;
     cor_texto_corpo: string;
     cor_fundo: string;
@@ -2915,6 +3345,7 @@ export namespace Kb {
     portal_titulo: string | null;
     texto_boas_vindas: string | null;
     cor_header: string;
+    cor_sidebar: string;
     cor_primaria: string;
     cor_texto_header: string;
     cor_texto_corpo: string;
@@ -2931,6 +3362,7 @@ export namespace Kb {
     portal_titulo?: string | null;
     texto_boas_vindas?: string | null;
     cor_header?: string;
+    cor_sidebar?: string;
     cor_primaria?: string;
     cor_texto_header?: string;
     cor_texto_corpo?: string;

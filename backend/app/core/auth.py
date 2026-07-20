@@ -26,6 +26,12 @@ def _carregar_atendente_por_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido ou expirado",
         )
+    # Token do portal do cliente não acessa rotas internas (#300)
+    if payload.get("aud") == "portal":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido para o painel interno",
+        )
     email = payload["sub"]
     token_tid = payload.get("tid")
     assert_token_tenant_matches_request(request, token_tid)

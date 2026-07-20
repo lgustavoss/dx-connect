@@ -7,6 +7,13 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Melhorias
 
+- Portal do cliente (#263 / #300–#308): funcionários da rede fazem login em **/portal**, abrem e acompanham chamados da sua empresa, respondem no fio público, anexam ficheiros, consultam a base de ajuda e recebem e-mail quando a equipe responde; o admin define a senha do portal no cadastro do funcionário
+- Portal (#600, #601): cadastro de funcionário pelo modal da Rede permite definir senha do portal na criação; sócio cadastra sem escolher empresas (escopo automático em toda a rede)
+- Portal (#604): RBAC por papel — colaborador vê só os próprios chamados; supervisor vê todos das empresas vinculadas; sócio vê toda a rede
+- Portal (#603): listagem e detalhe de atendimentos WhatsApp no `/portal` (somente leitura), com o mesmo escopo por papel e sem comentários internos da equipe
+- Portal (#602): sócio gere a equipa no `/portal` — cadastro e edição de colaboradores e supervisores (empresas, senha do portal); outros sócios listados com edição limitada; colaborador/supervisor recebem 403
+- Portal (#605): branding white-label no `/portal` — logo e cores da instância (mesmas configurações de Configurações → Base de conhecimento); login e shell aplicam a identidade do contratante, não a marca DeskRudder
+- Portal: shell alinhado ao painel DeskRudder (menu lateral com usuário/Sair, navbar com expandir/recolher); cor do menu lateral configurável (padrão = navbar); chat ao vivo no `/portal` (mesmo canal da `/kb`, isolado por instância); login com logo em destaque, ícone de olho na senha e fundo minimalista; título do portal independente da central `/kb`
 - WhatsApp (#591): no detalhe da **Empresa**, nova aba **Chats** com atendimentos filtrados por aquela empresa (busca, paginação, abrir conversa / retomar)
 - WhatsApp (#592): com funcionário em **mais de uma empresa**, o atendimento pode começar sem empresa; o atendente pergunta ao cliente e vincula (ou altera) a qualquer momento antes de encerrar — 1 empresa continua automática
 - WhatsApp (#590): na listagem **Atendimentos**, cada card mostra a **empresa** do contacto (ou «Sem empresa» quando não houver vínculo)
