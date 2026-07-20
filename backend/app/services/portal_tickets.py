@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.portal_scope import (
     assert_empresa_no_escopo,
-    empresa_ids_visiveis,
+    filtro_query_tickets_portal,
     tenant_id_do_funcionario,
     ticket_no_escopo,
 )
@@ -128,24 +128,15 @@ def listar_tickets(
     offset: int = 0,
     limit: int = 20,
 ) -> tuple[list[Ticket], int]:
-    ids = empresa_ids_visiveis(db, funcionario)
-    from app.services.funcionario_escopo import escopo_efetivo, rede_id_efetiva
-
-    rede_id = rede_id_efetiva(db, funcionario)
     q = db.query(Ticket).options(
         joinedload(Ticket.status),
         joinedload(Ticket.empresa),
         joinedload(Ticket.setor),
         joinedload(Ticket.mensagens),
     )
-    filtros = []
-    if ids:
-        filtros.append(Ticket.empresa_id.in_(ids))
-    if rede_id is not None and escopo_efetivo(funcionario) == "all":
-        filtros.append((Ticket.empresa_id.is_(None)) & (Ticket.rede_id == rede_id))
-    if not filtros:
+    q = filtro_query_tickets_portal(q, db, funcionario)
+    if q is None:
         return [], 0
-    q = q.filter(or_(*filtros))
     sit = (situacao or "abertos").strip().lower()
     if sit == "abertos":
         q = q.filter(Ticket.fechado_em.is_(None))

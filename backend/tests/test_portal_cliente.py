@@ -355,3 +355,374 @@ def test_admin_define_senha_portal_no_funcionario(client, db_session, seed_base,
     )
     assert login.status_code == 200
     assert login.json()["must_change_password"] is True
+
+
+def test_criar_socio_sem_empresa_ids_normaliza_escopo_all(client, db_session, seed_base, auth_headers):
+    from app.models.funcionario_rede import FuncionarioRede
+    from app.services.funcionario_escopo import empresa_ids_vinculados, escopo_efetivo
+
+    r = client.post(
+        "/v1/funcionarios-rede",
+        headers=auth_headers["admin"],
+        json={
+            "nome": "Sócio Rede",
+            "email": "socio.rede@example.com",
+            "tipo": "socio",
+            "rede_id": seed_base["rede"].id,
+            "ativo": True,
+        },
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["escopo_empresas"] == "all"
+    assert body["tipo"] == "socio"
+    f = db_session.query(FuncionarioRede).filter(FuncionarioRede.id == body["id"]).first()
+    assert f is not None
+    assert escopo_efetivo(f) == "all"
+    assert seed_base["empresa"].id in empresa_ids_vinculados(db_session, f)
+
+
+def test_criar_funcionario_com_senha_portal_no_create(client, seed_base, auth_headers):
+    r = client.post(
+        "/v1/funcionarios-rede",
+        headers=auth_headers["admin"],
+        json={
+            "nome": "Com portal",
+            "email": "portal.create@example.com",
+            "tipo": "colaborador",
+            "escopo_empresas": "selected",
+            "empresa_ids": [seed_base["empresa"].id],
+            "rede_id": seed_base["rede"].id,
+            "ativo": True,
+            "senha_portal": "senhaforte1",
+            "must_change_password": True,
+        },
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["portal_habilitado"] is True
+
+    login = client.post(
+        "/v1/portal/auth/login",
+        json={"email": "portal.create@example.com", "senha": "senhaforte1"},
+    )
+    assert login.status_code == 200
+    assert login.json()["must_change_password"] is True
+
+
+def _ticket_portal(client, funcionario, seed_base, *, assunto: str):
+    return client.post(
+        "/v1/portal/tickets",
+        headers=_portal_headers(funcionario),
+        json={
+            "empresa_id": seed_base["empresa"].id,
+            "setor_id": seed_base["setor1"].id,
+            "assunto": assunto,
+            "descricao": "teste rbac",
+        },
+    )
+
+
+def test_portal_rbac_tickets_por_papel(client, db_session, seed_base, auth_headers):
+    emp2 = Empresa(
+        tenant_id=1,
+        rede_id=seed_base["rede"].id,
+        nome="Empresa RBAC 2",
+        ativo=True,
+    )
+    db_session.add(emp2)
+    db_session.commit()
+
+    colab1 = _criar_funcionario(db_session, seed_base, tipo="colaborador", email="rbac.c1@example.com")
+    colab2 = _criar_funcionario(db_session, seed_base, tipo="colaborador", email="rbac.c2@example.com")
+    supervisor = _criar_funcionario(
+        db_session,
+        seed_base,
+        tipo="supervisor",
+        email="rbac.sup@example.com",
+        empresas_extra=[emp2],
+    )
+    socio = _criar_funcionario(db_session, seed_base, tipo="socio", email="rbac.so@example.com")
+
+    t1 = _ticket_portal(client, colab1, seed_base, assunto="Ticket colab 1").json()
+    t2 = _ticket_portal(client, colab2, seed_base, assunto="Ticket colab 2").json()
+    assert t1["id"] != t2["id"]
+
+    ids_c1 = {x["id"] for x in client.get("/v1/portal/tickets", headers=_portal_headers(colab1)).json()["items"]}
+    assert ids_c1 == {t1["id"]}
+    assert client.get(f"/v1/portal/tickets/{t2['id']}", headers=_portal_headers(colab1)).status_code == 404
+
+    ids_c2 = {x["id"] for x in client.get("/v1/portal/tickets", headers=_portal_headers(colab2)).json()["items"]}
+    assert ids_c2 == {t2["id"]}
+
+    ids_sup = {x["id"] for x in client.get("/v1/portal/tickets", headers=_portal_headers(supervisor)).json()["items"]}
+    assert {t1["id"], t2["id"]} <= ids_sup
+
+    ids_so = {x["id"] for x in client.get("/v1/portal/tickets", headers=_portal_headers(socio)).json()["items"]}
+    assert {t1["id"], t2["id"]} <= ids_so
+
+    interno = client.post(
+        "/v1/tickets",
+        headers=auth_headers["admin"],
+        json={
+            "empresa_id": seed_base["empresa"].id,
+            "setor_id": seed_base["setor1"].id,
+            "assunto": "Aberto pela equipe",
+            "descricao": "interno",
+            "prioridade": "normal",
+        },
+    )
+    assert interno.status_code == 201, interno.text
+    tid_interno = interno.json()["id"]
+    assert tid_interno not in ids_c1
+    assert client.get(f"/v1/portal/tickets/{tid_interno}", headers=_portal_headers(colab1)).status_code == 404
+    assert client.get(f"/v1/portal/tickets/{tid_interno}", headers=_portal_headers(supervisor)).status_code == 200
+    assert client.get(f"/v1/portal/tickets/{tid_interno}", headers=_portal_headers(socio)).status_code == 200
+
+    colab_emp2 = _criar_funcionario(
+        db_session,
+        seed_base,
+        tipo="colaborador",
+        email="rbac.emp2@example.com",
+        empresa=emp2,
+    )
+    t_emp2 = client.post(
+        "/v1/portal/tickets",
+        headers=_portal_headers(colab_emp2),
+        json={
+            "empresa_id": emp2.id,
+            "setor_id": seed_base["setor1"].id,
+            "assunto": "Só emp2",
+            "descricao": "x",
+        },
+    )
+    assert t_emp2.status_code == 201
+    tid_emp2 = t_emp2.json()["id"]
+    assert tid_emp2 not in ids_c1
+    assert client.get(f"/v1/portal/tickets/{tid_emp2}", headers=_portal_headers(supervisor)).status_code == 200
+
+
+def _webhook_whatsapp(wa_id: str, msg_id: str, text: str = "Olá"):
+    return {
+        "event": "messages.upsert",
+        "data": {
+            "messages": [
+                {
+                    "key": {
+                        "remoteJid": f"{wa_id}@s.whatsapp.net",
+                        "fromMe": False,
+                        "id": msg_id,
+                    },
+                    "message": {"conversation": text},
+                }
+            ]
+        },
+    }
+
+
+def _chat_wpp_vinculado(client, seed_base, auth_headers, funcionario_id: int, *, wa_id: str, msg_id: str, secret: str):
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": secret},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": secret}
+    client.post("/v1/webhooks/evolution", json=_webhook_whatsapp(wa_id, msg_id), headers=h)
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+    client.post(f"/v1/whatsapp/chats/{cid}/assumir", headers=auth_headers["a1"])
+    client.post(
+        f"/v1/whatsapp/chats/{cid}/vincular-funcionario",
+        json={"funcionario_rede_id": funcionario_id},
+        headers=auth_headers["a1"],
+    )
+    return cid
+
+
+def test_portal_chats_rbac_e_mensagens(client, db_session, seed_base, auth_headers):
+    colab1 = _criar_funcionario(db_session, seed_base, tipo="colaborador", email="wpp.c1@example.com")
+    colab2 = _criar_funcionario(db_session, seed_base, tipo="colaborador", email="wpp.c2@example.com")
+    supervisor = _criar_funcionario(db_session, seed_base, tipo="supervisor", email="wpp.sup@example.com")
+    socio = _criar_funcionario(db_session, seed_base, tipo="socio", email="wpp.so@example.com")
+
+    cid1 = _chat_wpp_vinculado(
+        client, seed_base, auth_headers, colab1.id, wa_id="5511888000001", msg_id="pw-1", secret="portal-wpp-1"
+    )
+    cid2 = _chat_wpp_vinculado(
+        client, seed_base, auth_headers, colab2.id, wa_id="5511888000002", msg_id="pw-2", secret="portal-wpp-2"
+    )
+
+    ids_c1 = {x["id"] for x in client.get("/v1/portal/chats", headers=_portal_headers(colab1)).json()["items"]}
+    assert ids_c1 == {cid1}
+    assert client.get(f"/v1/portal/chats/{cid2}", headers=_portal_headers(colab1)).status_code == 404
+
+    ids_sup = {x["id"] for x in client.get("/v1/portal/chats", headers=_portal_headers(supervisor)).json()["items"]}
+    assert {cid1, cid2} <= ids_sup
+
+    ids_so = {x["id"] for x in client.get("/v1/portal/chats", headers=_portal_headers(socio)).json()["items"]}
+    assert {cid1, cid2} <= ids_so
+
+    client.post(
+        f"/v1/whatsapp/chats/{cid1}/comentarios-internos",
+        headers=auth_headers["a1"],
+        json={"texto": "nota secreta"},
+    )
+
+    msgs = client.get(f"/v1/portal/chats/{cid1}/mensagens", headers=_portal_headers(colab1)).json()
+    corpos = [m["corpo"] for m in msgs]
+    assert any("Olá" in c for c in corpos)
+    assert not any("nota secreta" in c for c in corpos)
+    assert not any("INTERNO" in c for c in corpos)
+
+    det = client.get(f"/v1/portal/chats/{cid1}", headers=_portal_headers(colab1)).json()
+    assert det["protocolo"].startswith("#")
+    assert det["empresa_id"] == seed_base["empresa"].id
+
+
+def test_portal_equipe_403_nao_socio(client, db_session, seed_base):
+    colab = _criar_funcionario(db_session, seed_base, tipo="colaborador", email="eq.c@example.com")
+    supervisor = _criar_funcionario(db_session, seed_base, tipo="supervisor", email="eq.s@example.com")
+    for headers in (_portal_headers(colab), _portal_headers(supervisor)):
+        assert client.get("/v1/portal/equipe/funcionarios", headers=headers).status_code == 403
+        assert client.get("/v1/portal/equipe/empresas", headers=headers).status_code == 403
+        assert (
+            client.post(
+                "/v1/portal/equipe/funcionarios",
+                headers=headers,
+                json={
+                    "nome": "Novo",
+                    "email": "novo@example.com",
+                    "tipo": "colaborador",
+                    "empresa_id": seed_base["empresa"].id,
+                    "ativo": True,
+                },
+            ).status_code
+            == 403
+        )
+
+
+def test_portal_equipe_socio_crud_e_restricoes(client, db_session, seed_base):
+    emp2 = Empresa(
+        tenant_id=1,
+        rede_id=seed_base["rede"].id,
+        nome="Empresa Equipe 2",
+        ativo=True,
+    )
+    db_session.add(emp2)
+    db_session.commit()
+
+    socio = _criar_funcionario(db_session, seed_base, tipo="socio", email="eq.so@example.com")
+    outro_socio = _criar_funcionario(db_session, seed_base, tipo="socio", email="eq.so2@example.com")
+    headers = _portal_headers(socio)
+
+    lista = client.get("/v1/portal/equipe/funcionarios", headers=headers)
+    assert lista.status_code == 200, lista.text
+    emails = {x["email"] for x in lista.json()["items"]}
+    assert "eq.so@example.com" in emails
+    assert "eq.so2@example.com" in emails
+
+    empresas = client.get("/v1/portal/equipe/empresas", headers=headers)
+    assert empresas.status_code == 200
+    ids_emp = {e["id"] for e in empresas.json()}
+    assert seed_base["empresa"].id in ids_emp
+    assert emp2.id in ids_emp
+
+    r_socio = client.post(
+        "/v1/portal/equipe/funcionarios",
+        headers=headers,
+        json={
+            "nome": "Não pode",
+            "email": "nao.socio@example.com",
+            "tipo": "socio",
+            "ativo": True,
+        },
+    )
+    assert r_socio.status_code == 422
+
+    r_colab = client.post(
+        "/v1/portal/equipe/funcionarios",
+        headers=headers,
+        json={
+            "nome": "Colab Portal",
+            "email": "colab.portal@example.com",
+            "tipo": "colaborador",
+            "empresa_id": seed_base["empresa"].id,
+            "senha_portal": "senhaforte1",
+            "must_change_password": True,
+            "ativo": True,
+        },
+    )
+    assert r_colab.status_code == 201, r_colab.text
+    fid = r_colab.json()["id"]
+    assert r_colab.json()["portal_habilitado"] is True
+    assert r_colab.json()["tipo"] == "colaborador"
+
+    login = client.post(
+        "/v1/portal/auth/login",
+        json={"email": "colab.portal@example.com", "senha": "senhaforte1"},
+    )
+    assert login.status_code == 200
+
+    r_sup = client.patch(
+        f"/v1/portal/equipe/funcionarios/{fid}",
+        headers=headers,
+        json={
+            "tipo": "supervisor",
+            "empresa_ids": [seed_base["empresa"].id, emp2.id],
+            "nome": "Super Portal",
+        },
+    )
+    assert r_sup.status_code == 200, r_sup.text
+    assert r_sup.json()["tipo"] == "supervisor"
+    assert set(r_sup.json()["empresa_ids"]) == {seed_base["empresa"].id, emp2.id}
+
+    r_outro = client.patch(
+        f"/v1/portal/equipe/funcionarios/{outro_socio.id}",
+        headers=headers,
+        json={"nome": "Tentativa inválida", "ativo": False},
+    )
+    assert r_outro.status_code == 400, r_outro.text
+
+    r_outro_ok = client.patch(
+        f"/v1/portal/equipe/funcionarios/{outro_socio.id}",
+        headers=headers,
+        json={"ativo": False, "notificar_email_portal": False},
+    )
+    assert r_outro_ok.status_code == 200, r_outro_ok.text
+    assert r_outro_ok.json()["ativo"] is False
+    assert r_outro_ok.json()["notificar_email_portal"] is False
+
+
+def test_portal_public_branding_compartilha_settings(client, auth_headers):
+    client.put(
+        "/v1/kb/portal-settings",
+        headers=auth_headers["admin"],
+        json={
+            "portal_titulo": "Suporte ACME",
+            "cor_header": "#112233",
+            "cor_primaria": "#AABBCC",
+            "cor_texto_header": "#FFFFFF",
+            "cor_texto_corpo": "#222222",
+            "cor_fundo": "#EEEEEE",
+            "cor_link": "#0055AA",
+            "texto_boas_vindas": "Bem-vindo ao suporte ACME.",
+        },
+    )
+    kb = client.get("/v1/kb/public/branding")
+    portal = client.get("/v1/portal/public/branding")
+    assert kb.status_code == 200, kb.text
+    assert portal.status_code == 200, portal.text
+    kb_body = kb.json()
+    portal_body = portal.json()
+    assert kb_body["cor_primaria"] == "#AABBCC"
+    assert portal_body["cor_primaria"] == "#AABBCC"
+    assert kb_body["portal_titulo"] == "Suporte ACME"
+    assert portal_body["portal_titulo"] == "Portal do cliente"
+    assert portal_body["texto_boas_vindas"] == "Bem-vindo ao suporte ACME."
+
+
+def test_portal_public_branding_fallback_sem_settings(client):
+    r = client.get("/v1/portal/public/branding")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["portal_titulo"] == "Portal do cliente"
+    assert body["cor_primaria"] == "#0D9488"
+    assert body["logo_url"] is None

@@ -130,6 +130,7 @@ class KbPortalSettings(Base):
     portal_titulo = Column(String(120), nullable=True)
     texto_boas_vindas = Column(String(500), nullable=True)
     cor_header = Column(String(7), nullable=False, server_default="#0B2D4A", default="#0B2D4A")
+    cor_sidebar = Column(String(7), nullable=True)
     cor_primaria = Column(String(7), nullable=False, server_default="#0D9488", default="#0D9488")
     cor_texto_header = Column(String(7), nullable=False, server_default="#FFFFFF", default="#FFFFFF")
     cor_texto_corpo = Column(String(7), nullable=False, server_default="#0F172A", default="#0F172A")

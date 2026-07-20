@@ -4,6 +4,7 @@ import { kbPublic, type Kb } from '../../api/client'
 import { KbMarkdownPreview } from '../../components/kb/KbMarkdownPreview'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { useToast } from '../../components/ui/Toast'
+import { PortalPageHeader, portalCardClass, portalInputClass } from './portalUi'
 
 export function PortalAjudaHome() {
   const [busca, setBusca] = useState('')
@@ -42,26 +43,24 @@ export function PortalAjudaHome() {
   }, [buscaDebounced, toast])
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-900">Central de ajuda</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Consulte manuais e artigos antes de abrir um chamado.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PortalPageHeader
+        title="Central de ajuda"
+        subtitle="Consulte manuais e artigos antes de abrir um chamado."
+      />
 
       <input
         type="search"
         value={busca}
         onChange={(e) => setBusca(e.target.value)}
         placeholder="Buscar artigos…"
-        className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/25"
+        className={portalInputClass}
       />
 
       {loading ? (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-14 animate-pulse rounded-xl bg-slate-100" />
+            <div key={i} className="h-14 animate-pulse rounded-xl bg-slate-200/60" />
           ))}
         </div>
       ) : (
@@ -71,7 +70,7 @@ export function PortalAjudaHome() {
               {categorias.map((c) => (
                 <span
                   key={c.id}
-                  className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600"
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200/80"
                 >
                   {c.nome}
                 </span>
@@ -80,17 +79,14 @@ export function PortalAjudaHome() {
           ) : null}
 
           {artigos.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
+            <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm text-slate-500">
               Nenhum artigo encontrado.
-            </p>
+            </div>
           ) : (
-            <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <ul className="space-y-2">
               {artigos.map((a) => (
                 <li key={a.id}>
-                  <Link
-                    to={`/portal/ajuda/${a.slug}`}
-                    className="block px-4 py-3.5 transition hover:bg-teal-50/50"
-                  >
+                  <Link to={`/portal/ajuda/${a.slug}`} className={`block ${portalCardClass}`}>
                     <p className="font-medium text-slate-900">{a.titulo}</p>
                     {a.category_nome ? (
                       <p className="mt-0.5 text-sm text-slate-500">{a.category_nome}</p>
@@ -105,7 +101,11 @@ export function PortalAjudaHome() {
 
       <p className="text-center text-sm text-slate-500">
         Não achou o que precisava?{' '}
-        <Link to="/portal/tickets/novo" className="font-semibold text-teal-700 hover:underline">
+        <Link
+          to="/portal/tickets/novo"
+          className="font-semibold hover:underline"
+          style={{ color: 'var(--portal-link)' }}
+        >
           Abrir chamado
         </Link>
       </p>
@@ -158,18 +158,22 @@ export function PortalAjudaArtigo() {
       <Link to="/portal/ajuda" className="text-sm font-medium text-slate-500 hover:text-slate-800">
         ← Voltar à ajuda
       </Link>
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h1 className="text-xl font-semibold text-slate-900">{artigo.titulo}</h1>
+      <div className={`${portalCardClass} p-5 sm:p-6`}>
+        <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">{artigo.titulo}</h1>
         {artigo.category_nome ? (
-          <p className="mt-2 text-sm text-slate-600">{artigo.category_nome}</p>
+          <p className="mt-2 text-sm text-slate-500">{artigo.category_nome}</p>
         ) : null}
-        <div className="prose prose-slate mt-5 max-w-none prose-a:text-teal-700">
+        <div className="prose prose-slate mt-5 max-w-none prose-a:text-[var(--portal-link)]">
           <KbMarkdownPreview markdown={artigo.conteudo_markdown || ''} />
         </div>
       </div>
       <p className="text-center text-sm text-slate-500">
         Ainda com dúvida?{' '}
-        <Link to="/portal/tickets/novo" className="font-semibold text-teal-700 hover:underline">
+        <Link
+          to="/portal/tickets/novo"
+          className="font-semibold hover:underline"
+          style={{ color: 'var(--portal-link)' }}
+        >
           Abrir chamado
         </Link>
       </p>

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core.kb_public_rate_limit import check_kb_public_rate_limit
 from app.core.login_protection import check_login_rate_limit, delay_on_auth_failure
-from app.core.portal_auth import claims_portal, obter_funcionario_portal
+from app.core.portal_auth import claims_portal, exigir_socio_portal, obter_funcionario_portal
 from app.core.portal_scope import assert_empresa_no_escopo, empresa_ids_visiveis, tenant_id_do_funcionario
 from app.core.security import (
     criar_access_token,
@@ -18,6 +19,7 @@ from app.core.security import (
     verificar_senha,
 )
 from app.core.tenant_context import (
+    TenantIdDep,
     assert_token_tenant_matches_request,
     resolve_tenant_id,
 )
@@ -44,11 +46,22 @@ from app.schemas.portal import (
     PortalTicketMensagemCreate,
     PortalToken,
     PortalTrocarSenha,
+    PortalWhatsappChatDetail,
+    PortalWhatsappChatListItem,
+    PortalWhatsappMensagemRead,
+    PortalEquipeFuncionarioCreate,
+    PortalEquipeFuncionarioRead,
+    PortalEquipeFuncionarioUpdate,
+    PortalPublicBrandingRead,
 )
 from app.services import portal_tickets as portal_svc
+from app.services import portal_whatsapp as portal_wpp_svc
+from app.services import portal_equipe as portal_equipe_svc
+from app.services.instancia_branding import branding_portal_cliente
 from app.services import ticket_anexo_storage
 from app.services.funcionario_escopo import rede_id_efetiva
 from app.services.ticket_csat import criar_convite_csat
+from app.services.whatsapp_media_storage import caminho_absoluto_arquivo
 
 router = APIRouter(prefix="/portal", tags=["portal-cliente"])
 
@@ -400,6 +413,143 @@ def portal_download_anexo(
     )
 
 
+@router.get("/chats", response_model=ListaPaginada[PortalWhatsappChatListItem])
+def portal_listar_chats(
+    situacao: str = Query("abertos", description="abertos | encerrados | todos"),
+    busca: str | None = Query(None),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(_DEFAULT_PAGE, ge=1, le=_MAX_PAGE),
+    db: Session = Depends(get_db),
+    funcionario: FuncionarioRede = Depends(obter_funcionario_portal),
+):
+    rows, total = portal_wpp_svc.listar_chats(
+        db,
+        funcionario,
+        situacao=situacao,
+        busca=busca,
+        offset=offset,
+        limit=limit,
+    )
+    return ListaPaginada(
+        items=[portal_wpp_svc.chat_para_list_item(db, c) for c in rows],
+        total=total,
+    )
+
+
+@router.get("/chats/{chat_id}", response_model=PortalWhatsappChatDetail)
+def portal_obter_chat(
+    chat_id: int,
+    db: Session = Depends(get_db),
+    funcionario: FuncionarioRede = Depends(obter_funcionario_portal),
+):
+    try:
+        chat = portal_wpp_svc.obter_chat_escopo(db, funcionario, chat_id)
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    return portal_wpp_svc.chat_para_detail(db, chat)
+
+
+@router.get("/chats/{chat_id}/mensagens", response_model=list[PortalWhatsappMensagemRead])
+def portal_listar_mensagens_chat(
+    chat_id: int,
+    db: Session = Depends(get_db),
+    funcionario: FuncionarioRede = Depends(obter_funcionario_portal),
+):
+    try:
+        chat = portal_wpp_svc.obter_chat_escopo(db, funcionario, chat_id)
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    return portal_wpp_svc.listar_mensagens_visiveis(db, chat)
+
+
+@router.get("/chats/{chat_id}/mensagens/{mensagem_id}/midia")
+def portal_download_midia_chat(
+    chat_id: int,
+    mensagem_id: int,
+    db: Session = Depends(get_db),
+    funcionario: FuncionarioRede = Depends(obter_funcionario_portal),
+):
+    try:
+        chat = portal_wpp_svc.obter_chat_escopo(db, funcionario, chat_id)
+        m = portal_wpp_svc.obter_mensagem_midia(db, chat, mensagem_id)
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    path = caminho_absoluto_arquivo(m.midia_nome_arquivo)
+    if path is None or not path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ficheiro não encontrado")
+    media_type = m.mimetype or "application/octet-stream"
+    return FileResponse(path, media_type=media_type, filename=path.name)
+
+
+@router.get("/equipe/funcionarios", response_model=ListaPaginada[PortalEquipeFuncionarioRead])
+def portal_equipe_listar(
+    incluir_inativos: bool = Query(False),
+    busca: str | None = Query(None),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(_DEFAULT_PAGE, ge=1, le=_MAX_PAGE),
+    db: Session = Depends(get_db),
+    socio: FuncionarioRede = Depends(exigir_socio_portal),
+):
+    rows, total = portal_equipe_svc.listar_funcionarios(
+        db,
+        socio,
+        incluir_inativos=incluir_inativos,
+        busca=busca,
+        offset=offset,
+        limit=limit,
+    )
+    return ListaPaginada(
+        items=[portal_equipe_svc._para_read(f, socio_id=socio.id) for f in rows],
+        total=total,
+    )
+
+
+@router.get("/equipe/empresas", response_model=list[PortalEmpresaRead])
+def portal_equipe_empresas(
+    db: Session = Depends(get_db),
+    socio: FuncionarioRede = Depends(exigir_socio_portal),
+):
+    rows = portal_equipe_svc.empresas_da_rede(db, socio)
+    return [PortalEmpresaRead(id=e.id, nome=e.nome, rede_id=int(e.rede_id)) for e in rows]
+
+
+@router.get("/equipe/funcionarios/{funcionario_id}", response_model=PortalEquipeFuncionarioRead)
+def portal_equipe_obter(
+    funcionario_id: int,
+    db: Session = Depends(get_db),
+    socio: FuncionarioRede = Depends(exigir_socio_portal),
+):
+    try:
+        f = portal_equipe_svc._obter_na_rede(db, socio, funcionario_id)
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    return portal_equipe_svc._para_read(f, socio_id=socio.id)
+
+
+@router.post("/equipe/funcionarios", response_model=PortalEquipeFuncionarioRead, status_code=201)
+def portal_equipe_criar(
+    data: PortalEquipeFuncionarioCreate,
+    db: Session = Depends(get_db),
+    socio: FuncionarioRede = Depends(exigir_socio_portal),
+):
+    f = portal_equipe_svc.criar_funcionario(db, socio, data)
+    return portal_equipe_svc._para_read(f, socio_id=socio.id)
+
+
+@router.patch("/equipe/funcionarios/{funcionario_id}", response_model=PortalEquipeFuncionarioRead)
+def portal_equipe_atualizar(
+    funcionario_id: int,
+    data: PortalEquipeFuncionarioUpdate,
+    db: Session = Depends(get_db),
+    socio: FuncionarioRede = Depends(exigir_socio_portal),
+):
+    try:
+        f = portal_equipe_svc.atualizar_funcionario(db, socio, funcionario_id, data)
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    return portal_equipe_svc._para_read(f, socio_id=socio.id)
+
+
 @router.post("/tickets/{ticket_id}/csat-link")
 def portal_csat_link(
     ticket_id: int,
@@ -416,3 +566,21 @@ def portal_csat_link(
     if not result:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Avaliação já registrada ou indisponível.")
     return {"link": result["link"], "expires_at": result["expires_at"]}
+
+
+def _public_cache_headers(response: Response) -> None:
+    response.headers["Cache-Control"] = "public, max-age=60"
+
+
+@router.get("/public/branding", response_model=PortalPublicBrandingRead)
+def portal_public_branding(
+    request: Request,
+    response: Response,
+    tenant_id: TenantIdDep,
+    db: Session = Depends(get_db),
+):
+    check_kb_public_rate_limit(request)
+    _ = tenant_id
+    out = branding_portal_cliente(db, tenant_id)
+    _public_cache_headers(response)
+    return out

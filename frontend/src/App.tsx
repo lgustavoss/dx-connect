@@ -75,6 +75,7 @@ import { AcessoNegado } from './pages/AcessoNegado'
 import { KbPublicLayout } from './pages/kb-public/KbPublicLayout'
 import { KbPublicHome } from './pages/kb-public/KbPublicHome'
 import { KbPublicArtigo } from './pages/kb-public/KbPublicArtigo'
+import { PortalBrandingRoot } from './pages/portal/PortalBrandingRoot'
 import { PortalLayout } from './pages/portal/PortalLayout'
 import { PortalLogin } from './pages/portal/PortalLogin'
 import { PortalTrocarSenha } from './pages/portal/PortalTrocarSenha'
@@ -82,6 +83,10 @@ import { PortalTickets } from './pages/portal/PortalTickets'
 import { PortalTicketNovo } from './pages/portal/PortalTicketNovo'
 import { PortalTicketDetalhe } from './pages/portal/PortalTicketDetalhe'
 import { PortalAjudaHome, PortalAjudaArtigo } from './pages/portal/PortalAjuda'
+import { PortalChats } from './pages/portal/PortalChats'
+import { PortalChatDetalhe } from './pages/portal/PortalChatDetalhe'
+import { PortalEquipe } from './pages/portal/PortalEquipe'
+import { PortalEquipeForm } from './pages/portal/PortalEquipeForm'
 import { ToastProvider } from './components/ui/Toast'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { PageLoading } from './components/ui/PageLoading'
@@ -146,13 +151,18 @@ function AppRoutes() {
         <Route index element={<KbPublicHome />} />
         <Route path="a/:slug" element={<KbPublicArtigo />} />
       </Route>
-      <Route path="/portal/login" element={<PortalLogin />} />
-      <Route path="/portal" element={<PortalLayout />}>
+      <Route path="/portal/login" element={<PortalBrandingRoot><PortalLogin /></PortalBrandingRoot>} />
+      <Route path="/portal" element={<PortalBrandingRoot><PortalLayout /></PortalBrandingRoot>}>
         <Route index element={<Navigate to="/portal/tickets" replace />} />
         <Route path="trocar-senha" element={<PortalTrocarSenha />} />
         <Route path="tickets" element={<PortalTickets />} />
         <Route path="tickets/novo" element={<PortalTicketNovo />} />
         <Route path="tickets/:id" element={<PortalTicketDetalhe />} />
+        <Route path="chats" element={<PortalChats />} />
+        <Route path="chats/:id" element={<PortalChatDetalhe />} />
+        <Route path="equipe" element={<PortalEquipe />} />
+        <Route path="equipe/novo" element={<PortalEquipeForm />} />
+        <Route path="equipe/:id" element={<PortalEquipeForm />} />
         <Route path="ajuda" element={<PortalAjudaHome />} />
         <Route path="ajuda/:slug" element={<PortalAjudaArtigo />} />
       </Route>

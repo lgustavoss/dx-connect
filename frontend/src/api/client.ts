@@ -2270,6 +2270,21 @@ async function portalApi<T>(path: string, options: RequestInit = {}): Promise<T>
 }
 
 export namespace PortalCliente {
+  export interface PublicBranding {
+    nome_exibicao: string
+    portal_titulo: string
+    logo_url: string | null
+    texto_boas_vindas: string | null
+    cor_primaria: string
+    cor_header: string
+    cor_sidebar: string
+    cor_texto_header: string
+    cor_texto_corpo: string
+    cor_fundo: string
+    cor_link: string
+    exibir_marca_deskrudder: boolean
+    chat_habilitado: boolean
+  }
   export interface Token {
     access_token: string
     refresh_token?: string | null
@@ -2349,9 +2364,73 @@ export namespace PortalCliente {
     motivo_id?: number | null
     motivo_outro_texto?: string | null
   }
+  export interface WhatsappChatListItem {
+    id: number
+    protocolo: string
+    estado: string
+    empresa_id?: number | null
+    empresa_nome?: string | null
+    setor_nome?: string | null
+    created_at?: string | null
+    encerramento_at?: string | null
+    ultima_mensagem_em?: string | null
+    ultima_mensagem_preview?: string | null
+  }
+  export interface WhatsappChatDetail extends WhatsappChatListItem {
+    encerrado: boolean
+  }
+  export interface WhatsappMensagem {
+    id: number
+    direcao: string
+    corpo: string
+    tipo_midia?: string | null
+    midia_disponivel: boolean
+    autor_nome?: string | null
+    autor_papel: 'equipe' | 'voce' | 'sistema'
+    created_at?: string | null
+  }
+  export interface EquipeFuncionario {
+    id: number
+    nome: string
+    email?: string | null
+    telefone?: string | null
+    tipo: string
+    ativo: boolean
+    empresa_id?: number | null
+    empresa_ids: number[]
+    portal_habilitado: boolean
+    must_change_password: boolean
+    notificar_email_portal: boolean
+    editavel: boolean
+  }
+  export interface EquipeCreate {
+    nome: string
+    email: string
+    telefone?: string | null
+    tipo: 'colaborador' | 'supervisor'
+    ativo?: boolean
+    empresa_id?: number
+    empresa_ids?: number[]
+    senha_portal?: string
+    must_change_password?: boolean
+  }
+  export interface EquipeUpdate {
+    nome?: string
+    email?: string
+    telefone?: string | null
+    tipo?: 'colaborador' | 'supervisor'
+    ativo?: boolean
+    empresa_id?: number
+    empresa_ids?: number[]
+    senha_portal?: string
+    must_change_password?: boolean
+    notificar_email_portal?: boolean
+  }
 }
 
 export const portalCliente = {
+  branding: () => publicApi<PortalCliente.PublicBranding>('/portal/public/branding'),
+  logoAssetUrl: () => `${BASE}${API_VERSION_PREFIX}/kb/public/logo`,
   login: (email: string, senha: string) =>
     publicApi<PortalCliente.Token>('/portal/auth/login', {
       method: 'POST',
@@ -2426,6 +2505,57 @@ export const portalCliente = {
   csatLink: (ticketId: number) =>
     portalApi<{ link: string; expires_at: string }>(`/portal/tickets/${ticketId}/csat-link`, {
       method: 'POST',
+    }),
+  listChats: (params?: { situacao?: string; busca?: string; offset?: number; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.situacao) q.set('situacao', params.situacao)
+    if (params?.busca) q.set('busca', params.busca)
+    if (params?.offset != null) q.set('offset', String(params.offset))
+    if (params?.limit != null) q.set('limit', String(params.limit))
+    const qs = q.toString()
+    return portalApi<{ items: PortalCliente.WhatsappChatListItem[]; total: number }>(
+      `/portal/chats${qs ? `?${qs}` : ''}`,
+    )
+  },
+  getChat: (id: number) => portalApi<PortalCliente.WhatsappChatDetail>(`/portal/chats/${id}`),
+  listChatMensagens: (chatId: number) =>
+    portalApi<PortalCliente.WhatsappMensagem[]>(`/portal/chats/${chatId}/mensagens`),
+  fetchChatMidiaBlob: async (chatId: number, mensagemId: number) => {
+    const token = getPortalToken()
+    const headers: HeadersInit = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+    }
+    const res = await fetch(
+      `${BASE}${API_VERSION_PREFIX}/portal/chats/${chatId}/mensagens/${mensagemId}/midia`,
+      { headers },
+    )
+    if (!res.ok) throw new ApiError('Falha ao abrir mídia', res.status, null)
+    return res.blob()
+  },
+  listEquipe: (params?: { incluir_inativos?: boolean; busca?: string; offset?: number; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.incluir_inativos) q.set('incluir_inativos', 'true')
+    if (params?.busca) q.set('busca', params.busca)
+    if (params?.offset != null) q.set('offset', String(params.offset))
+    if (params?.limit != null) q.set('limit', String(params.limit))
+    const qs = q.toString()
+    return portalApi<{ items: PortalCliente.EquipeFuncionario[]; total: number }>(
+      `/portal/equipe/funcionarios${qs ? `?${qs}` : ''}`,
+    )
+  },
+  listEquipeEmpresas: () => portalApi<PortalCliente.Empresa[]>('/portal/equipe/empresas'),
+  getEquipeFuncionario: (id: number) => portalApi<PortalCliente.EquipeFuncionario>(`/portal/equipe/funcionarios/${id}`),
+  createEquipeFuncionario: (data: PortalCliente.EquipeCreate) =>
+    portalApi<PortalCliente.EquipeFuncionario>('/portal/equipe/funcionarios', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateEquipeFuncionario: (id: number, data: PortalCliente.EquipeUpdate) =>
+    portalApi<PortalCliente.EquipeFuncionario>(`/portal/equipe/funcionarios/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
     }),
 }
 
@@ -3122,6 +3252,7 @@ export namespace Kb {
     texto_boas_vindas: string | null;
     cor_primaria: string;
     cor_header: string;
+    cor_sidebar: string;
     cor_texto_header: string;
     cor_texto_corpo: string;
     cor_fundo: string;
@@ -3201,6 +3332,7 @@ export namespace Kb {
     portal_titulo: string | null;
     texto_boas_vindas: string | null;
     cor_header: string;
+    cor_sidebar: string;
     cor_primaria: string;
     cor_texto_header: string;
     cor_texto_corpo: string;
@@ -3217,6 +3349,7 @@ export namespace Kb {
     portal_titulo?: string | null;
     texto_boas_vindas?: string | null;
     cor_header?: string;
+    cor_sidebar?: string;
     cor_primaria?: string;
     cor_texto_header?: string;
     cor_texto_corpo?: string;

@@ -126,3 +126,16 @@ def obter_funcionario_portal(
             headers={"WWW-Authenticate": "Bearer"},
         )
     return _carregar_funcionario_por_token(request, credentials.credentials, db)
+
+
+def exigir_socio_portal(
+    funcionario: FuncionarioRede = Depends(obter_funcionario_portal),
+) -> FuncionarioRede:
+    from app.core.portal_scope import tipo_portal
+
+    if tipo_portal(funcionario) != "socio":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="A gestão de equipe está disponível apenas para sócios.",
+        )
+    return funcionario

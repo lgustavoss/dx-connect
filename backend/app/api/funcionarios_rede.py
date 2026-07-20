@@ -70,6 +70,15 @@ def _para_read(f: FuncionarioRede) -> FuncionarioRedeRead:
     )
 
 
+def _escopo_para_tipo(tipo: str, escopo_informado: str | None) -> str:
+    """Sócio sempre enxerga toda a rede (escopo all), mesmo se o cliente omitir o campo."""
+    tipo_eff = (tipo or "colaborador").strip().lower()
+    if tipo_eff == "socio":
+        return "all"
+    escopo = (escopo_informado or "selected").strip().lower()
+    return escopo if escopo in ("all", "selected") else "selected"
+
+
 def _aplicar_senha_portal(f: FuncionarioRede, senha: str | None, *, must_change: bool | None) -> None:
     if senha is None:
         return
@@ -177,7 +186,7 @@ def criar(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(exigir_admin),
 ):
-    escopo = (data.escopo_empresas or "selected").strip().lower()
+    escopo = _escopo_para_tipo(data.tipo, data.escopo_empresas)
     if escopo not in ("all", "selected"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="escopo_empresas deve ser all ou selected")
     empresa_ids = list(data.empresa_ids or [])
@@ -275,7 +284,7 @@ def atualizar(
         f.must_change_password = bool(must_change)
     if revogar:
         f.token_version = int(getattr(f, "token_version", 0) or 0) + 1
-    escopo = (escopo_upd or escopo_efetivo(f)).strip().lower()
+    escopo = _escopo_para_tipo(f.tipo, escopo_upd or escopo_efetivo(f))
     if escopo not in ("all", "selected"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="escopo_empresas deve ser all ou selected")
     ids = list(empresa_ids) if empresa_ids is not None else _empresa_ids_leitura(f)
