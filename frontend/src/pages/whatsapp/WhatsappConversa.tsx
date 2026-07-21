@@ -309,6 +309,8 @@ export function WhatsappConversa() {
   const [demandasReloadKey, setDemandasReloadKey] = useState(0)
   const [demandasTimeline, setDemandasTimeline] = useState<WhatsappChats.Demanda[]>([])
   const [modalEncerrar, setModalEncerrar] = useState(false)
+  const [menuMobileAberto, setMenuMobileAberto] = useState(false)
+  const menuMobileRef = useRef<HTMLDivElement>(null)
   const [filaAguardandoAberta, setFilaAguardandoAberta] = useState(false)
   const { filaCount } = useChatHub()
   const navigate = useNavigate()
@@ -344,6 +346,17 @@ export function WhatsappConversa() {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [voltarLista, modalEncerrar, activeZoomImage, arquivoPendente])
+
+  useEffect(() => {
+    if (!menuMobileAberto) return
+    const onDoc = (e: globalThis.MouseEvent) => {
+      if (menuMobileRef.current && !menuMobileRef.current.contains(e.target as Node)) {
+        setMenuMobileAberto(false)
+      }
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [menuMobileAberto])
 
   const viuEmAtendimentoRef = useRef(false)
   const inatividadeToastFeitoRef = useRef(false)
@@ -1080,9 +1093,9 @@ useEffect(() => {
 
         {/* Header do Chat */}
 
-        <header className="flex h-16 items-center justify-between border-b border-slate-100 px-4 dark:border-slate-800 shadow-sm z-10">
+        <header className="shrink-0 border-b border-slate-100 shadow-sm z-10 dark:border-slate-800">
 
-          <div className="flex items-center gap-2 min-w-0 sm:gap-3">
+          <div className="flex items-center gap-2 px-3 py-2 sm:px-4">
 
             <Button
               type="button"
@@ -1095,157 +1108,214 @@ useEffect(() => {
               <span className="hidden sm:inline"> Voltar</span>
             </Button>
 
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate font-bold text-slate-900 dark:text-white">
+                {chat?.cliente_nome || 'Atendimento'}
+              </h1>
+            </div>
 
-              <h1 className="truncate font-bold text-slate-900 dark:text-white">{chat?.cliente_nome || 'Atendimento'}</h1>
+            <div className="flex shrink-0 items-center gap-1 sm:gap-2">
 
-              <div className="flex flex-wrap items-center gap-2 text-[10px]">
-
-                <span className="min-w-0 truncate font-mono font-bold text-cyan-600" title={exibirProtocolo(chat?.protocolo)}>
-                  {exibirProtocolo(chat?.protocolo)}
-                </span>
-
-                <span className="text-slate-300">•</span>
-
-                <span className={`capitalize ${encerrado ? 'text-red-500' : 'text-emerald-500'}`}>
-                  {chat ? rotuloEstadoChat(chat.estado) : '—'}
-                </span>
-
-                {chat && (
-                  <>
-                    <span className="text-slate-300">•</span>
-                    <span className="truncate text-slate-600 dark:text-slate-300">
-                      Responsável: {rotuloResponsavelChat(chat, user?.id)}
-                    </span>
-                    {chat.setor_nome && (
-                      <>
-                        <span className="hidden sm:inline text-slate-300">•</span>
-                        <span className="hidden sm:inline truncate text-slate-500 dark:text-slate-400">
-                          {chat.setor_nome}
-                        </span>
-                      </>
-                    )}
-                  </>
-                )}
-
-              </div>
-
-              {ticketsVinculados.length > 0 && (
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {ticketsVinculados.map((t) => (
-                    <Link
-                      key={t.id}
-                      to={`/tickets/${t.id}`}
-                      className="inline-flex rounded-full border border-cyan-200/80 bg-cyan-50 px-2 py-0.5 text-[10px] font-medium text-cyan-800 dark:border-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300"
-                      title={t.assunto}
-                    >
-                      {exibirProtocolo(t.protocolo)}
-                    </Link>
-                  ))}
-                </div>
-              )}
-
-              {chat?.funcionario_rede_id && (
-                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                  <Link
-                    to={`/funcionarios-rede/${chat.funcionario_rede_id}`}
-                    className="inline-flex rounded-full border border-violet-200/80 bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-800 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-300"
-                    title={chat.funcionario_email ?? undefined}
-                  >
-                    {chat.funcionario_nome}
-                    {chat.funcionario_tipo ? ` · ${chat.funcionario_tipo}` : ''}
-                  </Link>
-                  {chat.empresa_nome ? (
-                    podeDefinirEmpresa && (chat.empresas_opcoes?.length ?? 0) > 1 ? (
-                      <button
-                        type="button"
-                        onClick={abrirModalEmpresaContexto}
-                        className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-700 transition-colors hover:border-cyan-400 hover:text-cyan-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
-                        title="Alterar empresa do atendimento"
-                      >
-                        {chat.empresa_nome}
-                      </button>
-                    ) : (
-                      <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
-                        {chat.empresa_nome}
-                      </span>
-                    )
-                  ) : podeDefinirEmpresa ? (
-                    <button
-                      type="button"
-                      onClick={abrirModalEmpresaContexto}
-                      className="inline-flex rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-800 transition-colors hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
-                    >
-                      Definir empresa
-                    </button>
-                  ) : (
-                    <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-                      Sem empresa
+              {modoHub && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="relative h-8 shrink-0 px-2.5 text-xs font-semibold md:hidden"
+                  onClick={() => setFilaAguardandoAberta(true)}
+                  aria-label={filaCount > 0 ? `Aguardando, ${filaCount} na fila` : 'Aguardando'}
+                >
+                  Aguardando
+                  {filaCount > 0 && (
+                    <span className="ml-1 inline-flex min-w-[1rem] justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-4 text-white">
+                      {filaCount > 99 ? '99+' : filaCount}
                     </span>
                   )}
-                </div>
+                </Button>
+              )}
+
+              {!encerrado && (
+                <>
+                  {isResponsavel && chat && (
+                    <div className="hidden sm:flex">
+                      <WhatsappInatividadeControle
+                        chat={chat}
+                        msgs={msgs}
+                        isResponsavel={isResponsavel}
+                        onChatUpdate={aplicarChatAtualizado}
+                      />
+                    </div>
+                  )}
+                  {podeTransferir && (
+                    <Button
+                      variant="primary"
+                      className="hidden sm:inline-flex text-xs h-8"
+                      onClick={() => setModalTransferir(true)}
+                    >
+                      Transferir
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    className="hidden sm:inline-flex text-xs h-8"
+                    onClick={() => setModalTickets(true)}
+                  >
+                    Tickets{ticketsVinculados.length > 0 ? ` (${ticketsVinculados.length})` : ''}
+                  </Button>
+
+                  {podeEncerrar && (
+                    <Button variant="danger" className="h-8 px-2.5 text-xs sm:px-3" onClick={() => setModalEncerrar(true)}>
+                      Encerrar
+                    </Button>
+                  )}
+
+                  <div className="relative sm:hidden" ref={menuMobileRef}>
+                    <button
+                      type="button"
+                      aria-label="Mais ações"
+                      aria-expanded={menuMobileAberto}
+                      onClick={() => setMenuMobileAberto((o) => !o)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-lg text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      ⋮
+                    </button>
+                    {menuMobileAberto && (
+                      <div className="absolute right-0 top-full z-30 mt-1 min-w-[12rem] rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                        {podeTransferir && (
+                          <button
+                            type="button"
+                            className="block w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                            onClick={() => {
+                              setMenuMobileAberto(false)
+                              setModalTransferir(true)
+                            }}
+                          >
+                            Transferir
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="block w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                          onClick={() => {
+                            setMenuMobileAberto(false)
+                            setModalTickets(true)
+                          }}
+                        >
+                          Tickets{ticketsVinculados.length > 0 ? ` (${ticketsVinculados.length})` : ''}
+                        </button>
+                        {podeDefinirEmpresa && (
+                          <button
+                            type="button"
+                            className="block w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                            onClick={() => {
+                              setMenuMobileAberto(false)
+                              abrirModalEmpresaContexto()
+                            }}
+                          >
+                            {chat?.empresa_id ? 'Alterar empresa' : 'Definir empresa'}
+                          </button>
+                        )}
+                        {isResponsavel && chat && (
+                          <div className="border-t border-slate-100 px-3 py-2 dark:border-slate-800">
+                            <WhatsappInatividadeControle
+                              chat={chat}
+                              msgs={msgs}
+                              isResponsavel={isResponsavel}
+                              onChatUpdate={aplicarChatAtualizado}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
 
             </div>
 
           </div>
 
+          <div className="space-y-1.5 px-3 pb-2 sm:px-4 sm:pb-3">
 
-
-          <div className="flex items-center gap-2">
-
-            {modoHub && (
-              <Button
-                type="button"
-                variant="secondary"
-                className="relative h-8 shrink-0 px-2.5 text-xs font-semibold md:hidden"
-                onClick={() => setFilaAguardandoAberta(true)}
-                aria-label={
-                  filaCount > 0 ? `Aguardando, ${filaCount} na fila` : 'Aguardando'
-                }
-              >
-                Aguardando
-                {filaCount > 0 && (
-                  <span className="ml-1 inline-flex min-w-[1rem] justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-4 text-white">
-                    {filaCount > 99 ? '99+' : filaCount}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px]">
+              <span className="min-w-0 truncate font-mono font-bold text-cyan-600" title={exibirProtocolo(chat?.protocolo)}>
+                {exibirProtocolo(chat?.protocolo)}
+              </span>
+              <span className="text-slate-300">•</span>
+              <span className={`capitalize ${encerrado ? 'text-red-500' : 'text-emerald-500'}`}>
+                {chat ? rotuloEstadoChat(chat.estado) : '—'}
+              </span>
+              {chat && (
+                <>
+                  <span className="text-slate-300">•</span>
+                  <span className="max-w-[10rem] truncate text-slate-600 sm:max-w-none dark:text-slate-300">
+                    {rotuloResponsavelChat(chat, user?.id)}
                   </span>
-                )}
-              </Button>
+                  {chat.setor_nome && (
+                    <>
+                      <span className="hidden text-slate-300 sm:inline">•</span>
+                      <span className="hidden max-w-[8rem] truncate text-slate-500 sm:inline dark:text-slate-400">
+                        {chat.setor_nome}
+                      </span>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+
+            {ticketsVinculados.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {ticketsVinculados.map((t) => (
+                  <Link
+                    key={t.id}
+                    to={`/tickets/${t.id}`}
+                    className="inline-flex rounded-full border border-cyan-200/80 bg-cyan-50 px-2 py-0.5 text-[10px] font-medium text-cyan-800 dark:border-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300"
+                    title={t.assunto}
+                  >
+                    {exibirProtocolo(t.protocolo)}
+                  </Link>
+                ))}
+              </div>
             )}
 
-            {!encerrado && (
-              <>
-                {isResponsavel && chat && (
-                  <WhatsappInatividadeControle
-                    chat={chat}
-                    msgs={msgs}
-                    isResponsavel={isResponsavel}
-                    onChatUpdate={aplicarChatAtualizado}
-                  />
-                )}
-                {podeTransferir && (
-                  <Button
-                    variant="primary"
-                    className="hidden sm:inline-flex text-xs h-8"
-                    onClick={() => setModalTransferir(true)}
-                  >
-                    Transferir
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  className="hidden sm:inline-flex text-xs h-8"
-                  onClick={() => setModalTickets(true)}
+            {chat?.funcionario_rede_id && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Link
+                  to={`/funcionarios-rede/${chat.funcionario_rede_id}`}
+                  className="inline-flex max-w-full truncate rounded-full border border-violet-200/80 bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-800 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-300"
+                  title={chat.funcionario_email ?? undefined}
                 >
-                  Tickets{ticketsVinculados.length > 0 ? ` (${ticketsVinculados.length})` : ''}
-                </Button>
-
-                {podeEncerrar && (
-                  <Button variant="danger" className="h-8 px-3 text-xs" onClick={() => setModalEncerrar(true)}>
-                    Encerrar
-                  </Button>
+                  {chat.funcionario_nome}
+                  {chat.funcionario_tipo ? ` · ${chat.funcionario_tipo}` : ''}
+                </Link>
+                {chat.empresa_nome ? (
+                  podeDefinirEmpresa && (chat.empresas_opcoes?.length ?? 0) > 1 ? (
+                    <button
+                      type="button"
+                      onClick={abrirModalEmpresaContexto}
+                      className="inline-flex max-w-full truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-700 transition-colors hover:border-cyan-400 hover:text-cyan-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+                      title="Alterar empresa do atendimento"
+                    >
+                      {chat.empresa_nome}
+                    </button>
+                  ) : (
+                    <span className="inline-flex max-w-full truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+                      {chat.empresa_nome}
+                    </span>
+                  )
+                ) : podeDefinirEmpresa ? (
+                  <button
+                    type="button"
+                    onClick={abrirModalEmpresaContexto}
+                    className="inline-flex rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-800 transition-colors hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                  >
+                    Definir empresa
+                  </button>
+                ) : (
+                  <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+                    Sem empresa
+                  </span>
                 )}
-              </>
+              </div>
             )}
 
           </div>
@@ -1479,7 +1549,7 @@ useEffect(() => {
 
         {/* Footer: Input & Mídia */}
 
-        <footer className="p-4 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800">
+        <footer className="shrink-0 border-t border-slate-100 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-slate-800 dark:bg-slate-950 sm:p-4">
 
           {msgRespondida && (
             <div className="flex items-center justify-between bg-slate-100 dark:bg-slate-900 border-l-4 border-cyan-600 px-4 py-2 rounded-t-xl mb-1 text-xs animate-in slide-in-from-bottom-2 duration-150">

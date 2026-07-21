@@ -33,6 +33,7 @@ export function WhatsappDemandasPanel({ chatId, podeRegistrar, onDemandasChange 
   const [form, setForm] = useState<DemandaFormValues>(DEMANDA_FORM_VAZIO)
   const [salvando, setSalvando] = useState(false)
   const [expandido, setExpandido] = useState(false)
+  const [listaVisivel, setListaVisivel] = useState(false)
   const [editandoId, setEditandoId] = useState<number | null>(null)
   const [excluirId, setExcluirId] = useState<number | null>(null)
 
@@ -124,7 +125,14 @@ export function WhatsappDemandasPanel({ chatId, podeRegistrar, onDemandasChange 
     <>
       <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-2 dark:border-slate-800 dark:bg-slate-900/40">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-left sm:pointer-events-none sm:cursor-default"
+            onClick={() => {
+              if (demandas.length > 0) setListaVisivel((v) => !v)
+            }}
+            aria-expanded={listaVisivel || undefined}
+          >
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
               Demandas ({demandas.length})
             </span>
@@ -141,7 +149,12 @@ export function WhatsappDemandasPanel({ chatId, podeRegistrar, onDemandasChange 
             {demandas.length > 3 && (
               <span className="text-[10px] text-slate-400">+{demandas.length - 3}</span>
             )}
-          </div>
+            {demandas.length > 0 && (
+              <span className="text-[10px] font-medium text-cyan-600 sm:hidden dark:text-cyan-400">
+                {listaVisivel ? 'Ocultar' : 'Ver lista'}
+              </span>
+            )}
+          </button>
           {podeRegistrar && (
             <Button
               type="button"
@@ -175,7 +188,7 @@ export function WhatsappDemandasPanel({ chatId, podeRegistrar, onDemandasChange 
         )}
 
         {demandas.length > 0 && (
-          <ul className="mt-2 space-y-1">
+          <ul className={`mt-2 space-y-1 ${listaVisivel ? 'block' : 'hidden sm:block'}`}>
             {demandas.map((d) => {
               const podeAlterar =
                 podeRegistrar &&
