@@ -56,10 +56,54 @@ export function KbConsultaModal({ open, onClose, onInserirReferencia, disabled }
 type ButtonProps = {
   disabled?: boolean
   onInserirReferencia?: (texto: string) => void
+  /** Barra do composer WhatsApp — botão redondo; só ícone */
+  modoComposer?: boolean
 }
 
-export function KbConsultaButton({ disabled, onInserirReferencia }: ButtonProps) {
+export function KbConsultaButton({ disabled, onInserirReferencia, modoComposer }: ButtonProps) {
   const [open, setOpen] = useState(false)
+
+  const icon = (
+    <svg className="size-5 shrink-0 sm:size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+      />
+    </svg>
+  )
+
+  if (modoComposer) {
+    return (
+      <>
+        <button
+          type="button"
+          disabled={disabled}
+          aria-label="Consultar manuais"
+          title="Consultar manuais"
+          onClick={() => setOpen(true)}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          {icon}
+        </button>
+        <KbConsultaModal
+          open={open}
+          onClose={() => setOpen(false)}
+          onInserirReferencia={
+            onInserirReferencia
+              ? (texto) => {
+                  onInserirReferencia(texto)
+                  setOpen(false)
+                }
+              : undefined
+          }
+          disabled={disabled}
+        />
+      </>
+    )
+  }
+
   return (
     <>
       <Button
@@ -69,15 +113,9 @@ export function KbConsultaButton({ disabled, onInserirReferencia }: ButtonProps)
         onClick={() => setOpen(true)}
         className="inline-flex items-center gap-2 text-xs sm:text-sm"
       >
-        <svg className="size-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-          />
-        </svg>
-        Consultar manuais
+        {icon}
+        <span className="hidden sm:inline">Consultar manuais</span>
+        <span className="sr-only sm:hidden">Consultar manuais</span>
       </Button>
       <KbConsultaModal
         open={open}

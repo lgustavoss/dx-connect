@@ -130,7 +130,7 @@ export function WhatsappComposerBar({
         />
       )}
 
-      <div className="flex items-end gap-1.5 rounded-2xl bg-slate-100 p-2 shadow-inner dark:bg-slate-900 sm:gap-2">
+      <div className="flex min-w-0 items-end gap-1 rounded-2xl bg-slate-100 p-1.5 shadow-inner dark:bg-slate-900 sm:gap-2 sm:p-2">
         <div className="relative shrink-0" ref={menuRef}>
           <button
             type="button"
@@ -184,7 +184,11 @@ export function WhatsappComposerBar({
         </div>
 
         {onInserirReferenciaKb && (
-          <KbConsultaButton disabled={encerrado} onInserirReferencia={podeDigitar ? onInserirReferenciaKb : undefined} />
+          <KbConsultaButton
+            disabled={encerrado}
+            modoComposer
+            onInserirReferencia={podeDigitar ? onInserirReferenciaKb : undefined}
+          />
         )}
 
         <textarea
@@ -203,7 +207,7 @@ export function WhatsappComposerBar({
           }
           rows={1}
           disabled={campoBloqueado}
-          className="max-h-32 min-h-[40px] flex-1 resize-none border-0 bg-transparent p-2 text-sm outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 dark:text-slate-100 placeholder:text-slate-400"
+          className="max-h-32 min-h-[44px] min-w-0 flex-1 resize-none border-0 bg-transparent px-2 py-2.5 text-base outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 sm:text-sm dark:text-slate-100 placeholder:text-slate-400"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()

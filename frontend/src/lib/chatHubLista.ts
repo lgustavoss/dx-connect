@@ -89,6 +89,35 @@ export function ordenarAtendendo(items: ChatHubItem[]): ChatHubItem[] {
   })
 }
 
+export type AtendendoSecoes = {
+  comigo: ChatHubItem[]
+  outros: ChatHubItem[]
+  /** Secções com cabeçalho quando há chats de outros atendentes */
+  mostrarSecoes: boolean
+}
+
+export function separarAtendendoPorResponsavel(
+  items: ChatHubItem[],
+  usuarioId?: number | null,
+): AtendendoSecoes {
+  if (usuarioId == null) {
+    return { comigo: ordenarAtendendo(items), outros: [], mostrarSecoes: false }
+  }
+
+  const comigo: ChatHubItem[] = []
+  const outros: ChatHubItem[] = []
+  for (const item of items) {
+    if (item.atendente_id === usuarioId) comigo.push(item)
+    else outros.push(item)
+  }
+
+  return {
+    comigo: ordenarAtendendo(comigo),
+    outros: ordenarAtendendo(outros),
+    mostrarSecoes: outros.length > 0,
+  }
+}
+
 export function rotuloResponsavelItem(item: ChatHubItem, usuarioId?: number | null): string {
   return rotuloResponsavelChat(item, usuarioId)
 }
