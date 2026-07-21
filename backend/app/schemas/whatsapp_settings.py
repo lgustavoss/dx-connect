@@ -29,9 +29,12 @@ class WhatsappSettingsRead(BaseModel):
     auto_msg_inativ_aviso_ativa: bool = True
     auto_msg_inativ_aviso_texto: str | None = None
     avaliacao_ativa: bool = False
+    avaliacao_janela_minutos: int = 30
     auto_msg_avaliacao_ativa: bool = True
     auto_msg_avaliacao_texto: str | None = None
     auto_msg_avaliacao_obrigado_texto: str | None = None
+    auto_msg_avaliacao_timeout_texto: str | None = None
+    auto_msg_avaliacao_pular_texto: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -61,9 +64,12 @@ class WhatsappSettingsUpdate(BaseModel):
     auto_msg_inativ_aviso_ativa: bool | None = None
     auto_msg_inativ_aviso_texto: str | None = None
     avaliacao_ativa: bool | None = None
+    avaliacao_janela_minutos: int | None = Field(None, ge=1, le=24 * 60)
     auto_msg_avaliacao_ativa: bool | None = None
     auto_msg_avaliacao_texto: str | None = None
     auto_msg_avaliacao_obrigado_texto: str | None = None
+    auto_msg_avaliacao_timeout_texto: str | None = None
+    auto_msg_avaliacao_pular_texto: str | None = None
 
     @field_validator("evolution_base_url", mode="before")
     @classmethod

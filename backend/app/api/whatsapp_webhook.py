@@ -437,50 +437,57 @@ def _processar_mensagem_inbound(
     chat = _chat_aberto_por_wa_id(db, wa_id)
     if not chat:
         chat_aval = _chat_aguardando_avaliacao_por_wa_id(db, wa_id)
-        # Chat a classificar demanda: só reutiliza se for resposta de avaliação (nota 1–5).
-        # Qualquer outra mensagem abre atendimento novo; o pendente permanece.
         if chat_aval is not None:
-            from app.services.whatsapp_avaliacao import parse_nota_avaliacao
-
-            pendente = bool(getattr(chat_aval, "classificacao_demanda_pendente", False))
-            nota = parse_nota_avaliacao(corpo) if (tipo or "texto") == "texto" else None
-            if pendente and nota is None:
-                chat_aval = None
-        if chat_aval is not None:
-            chat = chat_aval
-            q_prev = item.get("quoted_corpo_preview")
-            if q_prev is not None and len(str(q_prev)) > 500:
-                q_prev = str(q_prev)[:500]
-            msg = WhatsappMensagem(
-                chat_id=chat.id,
-                direcao="inbound",
-                corpo=corpo,
-                tipo_midia=tipo_midia,
-                mimetype=mimetype_val,
-                midia_nome_arquivo=midia_nome,
-                wa_message_id=wa_mid,
-                quoted_wa_message_id=item.get("quoted_wa_message_id"),
-                quoted_corpo_preview=str(q_prev).strip()[:500] if q_prev else None,
-                atendente_id=None,
+            from app.services.whatsapp_avaliacao import (
+                encerrar_avaliacao_sem_nota,
+                parse_nota_avaliacao,
+                processar_resposta_avaliacao,
             )
-            db.add(msg)
-            if push and not chat.cliente_nome:
-                chat.cliente_nome = push
-            try:
-                from app.services.whatsapp_avaliacao import processar_resposta_avaliacao
 
-                processar_resposta_avaliacao(
-                    db, chat, st, corpo, tipo_midia=tipo or "texto", msg_inbound=msg
+            nota = parse_nota_avaliacao(corpo) if (tipo or "texto") == "texto" else None
+            if nota is not None:
+                chat = chat_aval
+                q_prev = item.get("quoted_corpo_preview")
+                if q_prev is not None and len(str(q_prev)) > 500:
+                    q_prev = str(q_prev)[:500]
+                msg = WhatsappMensagem(
+                    chat_id=chat.id,
+                    direcao="inbound",
+                    corpo=corpo,
+                    tipo_midia=tipo_midia,
+                    mimetype=mimetype_val,
+                    midia_nome_arquivo=midia_nome,
+                    wa_message_id=wa_mid,
+                    quoted_wa_message_id=item.get("quoted_wa_message_id"),
+                    quoted_corpo_preview=str(q_prev).strip()[:500] if q_prev else None,
+                    atendente_id=None,
                 )
-                db.commit()
-                return 1
-            except IntegrityError:
-                db.rollback()
-                logger.info("Webhook Evolution: mensagem duplicada ignorada (wa_message_id=%s)", wa_mid)
-                return 0
-            except Exception:
-                db.rollback()
-                raise
+                db.add(msg)
+                if push and not chat.cliente_nome:
+                    chat.cliente_nome = push
+                try:
+                    resultado = processar_resposta_avaliacao(
+                        db, chat, st, corpo, tipo_midia=tipo or "texto", msg_inbound=msg
+                    )
+                    db.commit()
+                    return 1 if resultado == "nota" else 0
+                except IntegrityError:
+                    db.rollback()
+                    logger.info("Webhook Evolution: mensagem duplicada ignorada (wa_message_id=%s)", wa_mid)
+                    return 0
+                except Exception:
+                    db.rollback()
+                    raise
+            # Não é nota: encerra avaliação sem prender o cliente e segue para chat novo
+            # com esta mesma mensagem (classificação de demanda pendente permanece no chat antigo).
+            if st is not None:
+                try:
+                    encerrar_avaliacao_sem_nota(db, chat_aval, st, motivo="pular")
+                    db.flush()
+                except Exception:
+                    logger.exception(
+                        "Falha ao encerrar avaliação sem nota (chat=%s)", chat_aval.protocolo
+                    )
 
     if tipo == "texto":
         tipo_midia = "texto"

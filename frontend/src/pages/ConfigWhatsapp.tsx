@@ -81,6 +81,10 @@ const DEFAULT_MSG_INATIV_AVISO =
 const DEFAULT_MSG_AVALIACAO =
   'Como você avalia o atendimento?\n\nResponda com uma nota de *1* a *5*:\n1 — Péssimo\n2 — Ruim\n3 — Regular\n4 — Bom\n5 — Excelente'
 const DEFAULT_MSG_AVALIACAO_OBRIGADO = 'Obrigado pela sua avaliação! Atendimento encerrado.'
+const DEFAULT_MSG_AVALIACAO_PULAR =
+  'Sem problema! Vamos abrir um novo atendimento com a sua mensagem.'
+const DEFAULT_MSG_AVALIACAO_TIMEOUT =
+  'O período para avaliar o atendimento encerrou. Se precisar de ajuda, envie uma nova mensagem por aqui.'
 
 function renderQrPayload(data: Record<string, unknown> | null | undefined) {
   if (!data || typeof data !== 'object') return null
@@ -150,9 +154,12 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
   const [msgInativAvisoAtiva, setMsgInativAvisoAtiva] = useState(true)
   const [msgInativAvisoTexto, setMsgInativAvisoTexto] = useState(DEFAULT_MSG_INATIV_AVISO)
   const [avaliacaoAtiva, setAvaliacaoAtiva] = useState(false)
+  const [avaliacaoJanelaMinutos, setAvaliacaoJanelaMinutos] = useState('30')
   const [msgAvaliacaoAtiva, setMsgAvaliacaoAtiva] = useState(true)
   const [msgAvaliacaoTexto, setMsgAvaliacaoTexto] = useState(DEFAULT_MSG_AVALIACAO)
   const [msgAvaliacaoObrigadoTexto, setMsgAvaliacaoObrigadoTexto] = useState(DEFAULT_MSG_AVALIACAO_OBRIGADO)
+  const [msgAvaliacaoPularTexto, setMsgAvaliacaoPularTexto] = useState(DEFAULT_MSG_AVALIACAO_PULAR)
+  const [msgAvaliacaoTimeoutTexto, setMsgAvaliacaoTimeoutTexto] = useState(DEFAULT_MSG_AVALIACAO_TIMEOUT)
   const [nomeEmpresaExibicao, setNomeEmpresaExibicao] = useState('')
   const [horarioTimezone, setHorarioTimezone] = useState<string>('America/Sao_Paulo')
   const [usarFeriadosNacionais, setUsarFeriadosNacionais] = useState(false)
@@ -184,11 +191,19 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
         (r.auto_msg_inativ_aviso_texto ?? DEFAULT_MSG_INATIV_AVISO).trim() || DEFAULT_MSG_INATIV_AVISO,
       )
       setAvaliacaoAtiva(Boolean(r.avaliacao_ativa))
+      setAvaliacaoJanelaMinutos(String(r.avaliacao_janela_minutos ?? 30))
       setMsgAvaliacaoAtiva(Boolean(r.auto_msg_avaliacao_ativa ?? true))
       setMsgAvaliacaoTexto((r.auto_msg_avaliacao_texto ?? DEFAULT_MSG_AVALIACAO).trim() || DEFAULT_MSG_AVALIACAO)
       setMsgAvaliacaoObrigadoTexto(
         (r.auto_msg_avaliacao_obrigado_texto ?? DEFAULT_MSG_AVALIACAO_OBRIGADO).trim() ||
           DEFAULT_MSG_AVALIACAO_OBRIGADO,
+      )
+      setMsgAvaliacaoPularTexto(
+        (r.auto_msg_avaliacao_pular_texto ?? DEFAULT_MSG_AVALIACAO_PULAR).trim() || DEFAULT_MSG_AVALIACAO_PULAR,
+      )
+      setMsgAvaliacaoTimeoutTexto(
+        (r.auto_msg_avaliacao_timeout_texto ?? DEFAULT_MSG_AVALIACAO_TIMEOUT).trim() ||
+          DEFAULT_MSG_AVALIACAO_TIMEOUT,
       )
       setHorarioTimezone((r.horario_timezone ?? 'America/Sao_Paulo').trim() || 'America/Sao_Paulo')
       const identidadeSalva = (r.nome_empresa_exibicao ?? '').trim()
@@ -604,8 +619,9 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
             <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-700 dark:border-slate-800/80 dark:bg-slate-800/20 dark:text-slate-200">
               <p className="font-medium">Avaliação do atendimento</p>
               <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-                Ao encerrar o chat, o cliente recebe uma solicitação de nota de 1 a 5 antes do atendimento ser
-                finalizado. As notas aparecem no histórico de conversas.
+                Ao encerrar o chat, o cliente recebe um pedido de nota (1 a 5) por um tempo limitado. Se responder com
+                outra mensagem, abrimos um atendimento novo com esse texto — sem prender o cliente. Sem resposta, a
+                janela encerra sozinha.
               </p>
             </div>
 
@@ -617,11 +633,28 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
               statusOnText="Ativo"
               statusOffText="Inativo"
             />
+            <div>
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                Janela para enviar a nota (minutos)
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={1440}
+                disabled={!avaliacaoAtiva}
+                value={avaliacaoJanelaMinutos}
+                onChange={(e) => setAvaliacaoJanelaMinutos(e.target.value)}
+                className="mt-1 w-full max-w-xs rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+              />
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Padrão: 30 minutos a partir do encerramento. Depois disso o chat finaliza sem nota.
+              </p>
+            </div>
             <Switch
               checked={msgAvaliacaoAtiva}
               onCheckedChange={setMsgAvaliacaoAtiva}
               label="Enviar mensagens de avaliação"
-              description="Solicitação da nota e agradecimento após a resposta."
+              description="Solicitação da nota, agradecimento, mensagem ao pular e finalização por tempo."
               showStatusPill
               statusOnText="Enviar"
               statusOffText="Encerrar direto"
@@ -646,19 +679,47 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
               disabled={!avaliacaoAtiva || !msgAvaliacaoAtiva}
               className={`${TEXTAREA_FIELD_CLASS} disabled:opacity-50`}
             />
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">
+              Mensagem ao pular a nota (cliente manda outro texto)
+            </label>
+            <textarea
+              value={msgAvaliacaoPularTexto}
+              onChange={(e) => setMsgAvaliacaoPularTexto(e.target.value)}
+              rows={2}
+              disabled={!avaliacaoAtiva || !msgAvaliacaoAtiva}
+              className={`${TEXTAREA_FIELD_CLASS} disabled:opacity-50`}
+            />
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">
+              Mensagem ao expirar a janela (sem nota)
+            </label>
+            <textarea
+              value={msgAvaliacaoTimeoutTexto}
+              onChange={(e) => setMsgAvaliacaoTimeoutTexto(e.target.value)}
+              rows={2}
+              disabled={!avaliacaoAtiva || !msgAvaliacaoAtiva}
+              className={`${TEXTAREA_FIELD_CLASS} disabled:opacity-50`}
+            />
 
             <div className="flex justify-end pt-2">
               <Button
                 type="button"
                 loading={salvandoAvaliacao}
                 onClick={() => {
+                  const janela = Number.parseInt(avaliacaoJanelaMinutos, 10)
+                  if (avaliacaoAtiva && (!Number.isFinite(janela) || janela < 1)) {
+                    toast.showError('Informe a janela de avaliação em minutos (mínimo 1).')
+                    return
+                  }
                   setSalvandoAvaliacao(true)
                   whatsappSettings
                     .patch({
                       avaliacao_ativa: avaliacaoAtiva,
+                      avaliacao_janela_minutos: Number.isFinite(janela) && janela >= 1 ? janela : 30,
                       auto_msg_avaliacao_ativa: msgAvaliacaoAtiva,
                       auto_msg_avaliacao_texto: msgAvaliacaoTexto,
                       auto_msg_avaliacao_obrigado_texto: msgAvaliacaoObrigadoTexto,
+                      auto_msg_avaliacao_pular_texto: msgAvaliacaoPularTexto,
+                      auto_msg_avaliacao_timeout_texto: msgAvaliacaoTimeoutTexto,
                     })
                     .then(() => toast.showSuccess('Configurações de avaliação atualizadas.'))
                     .catch((err) => toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar.')))
