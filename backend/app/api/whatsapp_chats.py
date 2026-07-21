@@ -60,6 +60,7 @@ from app.services.whatsapp_avaliacao import mensagem_oculta_na_conversa
 from app.services.whatsapp_media_storage import caminho_absoluto_arquivo, gravar_bytes_em_disco
 from app.services.realtime_emit import emit_chat_fila_from_model, emit_chat_mensagem_from_models
 from app.services.ticket_distribuicao import pos_criar_ticket_na_fila
+from app.services.protocolo_mensal import gerar_protocolo_chat
 from app.services.whatsapp_wa_id_lock import lock_wa_id_para_chat, unlock_wa_id_para_chat
 from app.services.audit_operacional import audit_whatsapp_chat
 
