@@ -60,7 +60,7 @@ from app.services.whatsapp_avaliacao import mensagem_oculta_na_conversa
 from app.services.whatsapp_media_storage import caminho_absoluto_arquivo, gravar_bytes_em_disco
 from app.services.realtime_emit import emit_chat_fila_from_model, emit_chat_mensagem_from_models
 from app.services.ticket_distribuicao import pos_criar_ticket_na_fila
-from app.services.protocolo_mensal import gerar_protocolo_chat
+from app.services.whatsapp_wa_id_lock import lock_wa_id_para_chat, unlock_wa_id_para_chat
 from app.services.audit_operacional import audit_whatsapp_chat
 
 router = APIRouter(prefix="/whatsapp/chats", tags=["whatsapp-chats"])
@@ -1081,82 +1081,86 @@ def iniciar_chat_outbound(
     if func is not None:
         empresa_id = _resolver_empresa_contexto_opcional(db, atendente, func, data.empresa_id)
 
-    existente = _chat_aberto_por_wa_id(db, wa_id)
-    if existente:
-        if existente.estado == "em_atendimento" and existente.atendente_id not in (None, atendente.id):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Já existe um atendimento aberto deste contacto com outro responsável.",
-            )
-        estado_anterior = existente.estado
-        if existente.estado == "aguardando_atendente" or existente.atendente_id is None:
-            existente.estado = "em_atendimento"
-            existente.atendente_id = atendente.id
-            existente.atendimento_inicio_at = datetime.now(timezone.utc)
-            if func is not None and not existente.funcionario_rede_id:
-                existente.funcionario_rede_id = func.id
-            if not existente.empresa_id:
+    lock_wa_id_para_chat(db, wa_id)
+    try:
+        existente = _chat_aberto_por_wa_id(db, wa_id)
+        if existente:
+            if existente.estado == "em_atendimento" and existente.atendente_id not in (None, atendente.id):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Já existe um atendimento aberto deste contacto com outro responsável.",
+                )
+            estado_anterior = existente.estado
+            if existente.estado == "aguardando_atendente" or existente.atendente_id is None:
+                existente.estado = "em_atendimento"
+                existente.atendente_id = atendente.id
+                existente.atendimento_inicio_at = datetime.now(timezone.utc)
+                if func is not None and not existente.funcionario_rede_id:
+                    existente.funcionario_rede_id = func.id
+                if not existente.empresa_id:
+                    _aplicar_empresa_contexto_chat(db, atendente, existente, data.empresa_id)
+                audit_whatsapp_chat(
+                    db,
+                    chat_id=existente.id,
+                    action="assign",
+                    atendente_id=atendente.id,
+                    payload={"de_estado": estado_anterior, "protocolo": existente.protocolo, "origem": "iniciar_outbound"},
+                )
+                db.commit()
+                db.refresh(existente)
+                emit_chat_fila_from_model(db, existente, estado_anterior=estado_anterior)
+            elif not existente.empresa_id and (func is not None or existente.funcionario_rede_id):
+                if func is not None and not existente.funcionario_rede_id:
+                    existente.funcionario_rede_id = func.id
                 _aplicar_empresa_contexto_chat(db, atendente, existente, data.empresa_id)
-            audit_whatsapp_chat(
-                db,
-                chat_id=existente.id,
-                action="assign",
-                atendente_id=atendente.id,
-                payload={"de_estado": estado_anterior, "protocolo": existente.protocolo, "origem": "iniciar_outbound"},
-            )
-            db.commit()
-            db.refresh(existente)
-            emit_chat_fila_from_model(db, existente, estado_anterior=estado_anterior)
-        elif not existente.empresa_id and (func is not None or existente.funcionario_rede_id):
-            if func is not None and not existente.funcionario_rede_id:
-                existente.funcionario_rede_id = func.id
-            _aplicar_empresa_contexto_chat(db, atendente, existente, data.empresa_id)
-            db.commit()
-            db.refresh(existente)
+                db.commit()
+                db.refresh(existente)
+            msg_init = (data.mensagem_inicial or "").strip()
+            if msg_init:
+                try:
+                    _enviar_texto_whatsapp(db, chat=existente, texto=msg_init, atendente=atendente, evento_sistema=None)
+                except HTTPException:
+                    raise
+            c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == existente.id).first()
+            assert c is not None
+            return _chat_read(db, c)
+
+        # Garante Evolution configurada se houver mensagem inicial (criar chat sem msg ainda exige settings para uso posterior)
+        _settings_envio(db)
+
+        chat = WhatsappChat(
+            protocolo=gerar_protocolo_chat(db),
+            wa_id=wa_id,
+            cliente_nome=(func.nome if func else None),
+            estado="em_atendimento",
+            atendente_id=atendente.id,
+            atendimento_inicio_at=datetime.now(timezone.utc),
+            setor_id=None,
+            funcionario_rede_id=func.id if func else None,
+            empresa_id=empresa_id,
+        )
+        db.add(chat)
+        db.flush()
+        audit_whatsapp_chat(
+            db,
+            chat_id=chat.id,
+            action="create",
+            atendente_id=atendente.id,
+            payload={"protocolo": chat.protocolo, "origem": "iniciar_outbound", "wa_id": wa_id},
+        )
+        db.commit()
+        db.refresh(chat)
+        emit_chat_fila_from_model(db, chat, estado_anterior=None)
+
         msg_init = (data.mensagem_inicial or "").strip()
         if msg_init:
-            try:
-                _enviar_texto_whatsapp(db, chat=existente, texto=msg_init, atendente=atendente, evento_sistema=None)
-            except HTTPException:
-                raise
-        c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == existente.id).first()
+            _enviar_texto_whatsapp(db, chat=chat, texto=msg_init, atendente=atendente, evento_sistema=None)
+
+        c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat.id).first()
         assert c is not None
         return _chat_read(db, c)
-
-    # Garante Evolution configurada se houver mensagem inicial (criar chat sem msg ainda exige settings para uso posterior)
-    _settings_envio(db)
-
-    chat = WhatsappChat(
-        protocolo=gerar_protocolo_chat(db),
-        wa_id=wa_id,
-        cliente_nome=(func.nome if func else None),
-        estado="em_atendimento",
-        atendente_id=atendente.id,
-        atendimento_inicio_at=datetime.now(timezone.utc),
-        setor_id=None,
-        funcionario_rede_id=func.id if func else None,
-        empresa_id=empresa_id,
-    )
-    db.add(chat)
-    db.flush()
-    audit_whatsapp_chat(
-        db,
-        chat_id=chat.id,
-        action="create",
-        atendente_id=atendente.id,
-        payload={"protocolo": chat.protocolo, "origem": "iniciar_outbound", "wa_id": wa_id},
-    )
-    db.commit()
-    db.refresh(chat)
-    emit_chat_fila_from_model(db, chat, estado_anterior=None)
-
-    msg_init = (data.mensagem_inicial or "").strip()
-    if msg_init:
-        _enviar_texto_whatsapp(db, chat=chat, texto=msg_init, atendente=atendente, evento_sistema=None)
-
-    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat.id).first()
-    assert c is not None
-    return _chat_read(db, c)
+    finally:
+        unlock_wa_id_para_chat(db, wa_id)
 
 
 @router.get("/{chat_id}", response_model=WhatsappChatRead)
