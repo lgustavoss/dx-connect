@@ -682,9 +682,12 @@ export namespace WhatsappSettings {
     auto_msg_inativ_aviso_ativa?: boolean
     auto_msg_inativ_aviso_texto?: string | null
     avaliacao_ativa?: boolean
+    avaliacao_janela_minutos?: number
     auto_msg_avaliacao_ativa?: boolean
     auto_msg_avaliacao_texto?: string | null
     auto_msg_avaliacao_obrigado_texto?: string | null
+    auto_msg_avaliacao_timeout_texto?: string | null
+    auto_msg_avaliacao_pular_texto?: string | null
   }
   export interface ProvisionEmbutidoResult {
     instance: string
@@ -718,9 +721,12 @@ export namespace WhatsappSettings {
     auto_msg_inativ_aviso_ativa?: boolean | null
     auto_msg_inativ_aviso_texto?: string | null
     avaliacao_ativa?: boolean | null
+    avaliacao_janela_minutos?: number | null
     auto_msg_avaliacao_ativa?: boolean | null
     auto_msg_avaliacao_texto?: string | null
     auto_msg_avaliacao_obrigado_texto?: string | null
+    auto_msg_avaliacao_timeout_texto?: string | null
+    auto_msg_avaliacao_pular_texto?: string | null
   }
   export interface TesteResult {
     ok: boolean
