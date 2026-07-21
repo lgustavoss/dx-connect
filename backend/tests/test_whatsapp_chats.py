@@ -1171,3 +1171,109 @@ def test_assumir_multi_empresa_sem_bloquear(client, seed_base, auth_headers, db_
     )
     assert ctx.status_code == 200
     assert ctx.json()["empresa_id"] == multi["empresa_a"]
+
+
+def _webhook_body_multi(wa_id: str, messages: list[tuple[str, str]]):
+    return {
+        "event": "messages.upsert",
+        "data": {
+            "messages": [
+                {
+                    "key": {
+                        "remoteJid": f"{wa_id}@s.whatsapp.net",
+                        "fromMe": False,
+                        "id": msg_id,
+                    },
+                    "message": {"conversation": text},
+                }
+                for msg_id, text in messages
+            ]
+        },
+    }
+
+
+def test_webhook_duas_mensagens_mesmo_payload_um_chat(client, seed_base, auth_headers, db_session):
+    """#608 — duas mensagens inbound no mesmo payload → um chat, duas mensagens."""
+    from app.models.whatsapp_chat import WhatsappChat, WhatsappMensagem
+
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "dup-payload", "auto_msg_espera_ativa": False, "auto_msg_fora_horario_ativa": False},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "dup-payload"}
+    wa_id = "5511999000608"
+    body = _webhook_body_multi(
+        wa_id,
+        [("608-a", "Bom dia"), ("608-b", "Td bem?")],
+    )
+    r = client.post("/v1/webhooks/evolution", json=body, headers=h)
+    assert r.status_code == 200
+    assert r.json().get("processados") == 2
+
+    abertos = (
+        db_session.query(WhatsappChat)
+        .filter(
+            WhatsappChat.wa_id == wa_id,
+            WhatsappChat.estado.in_(("aguardando_atendente", "em_atendimento")),
+        )
+        .all()
+    )
+    assert len(abertos) == 1
+    msgs = (
+        db_session.query(WhatsappMensagem)
+        .filter(
+            WhatsappMensagem.chat_id == abertos[0].id,
+            WhatsappMensagem.direcao == "inbound",
+        )
+        .all()
+    )
+    assert len(msgs) == 2
+    assert {m.corpo for m in msgs} == {"Bom dia", "Td bem?"}
+
+
+def test_webhook_mensagens_paralelas_mesmo_wa_id_um_chat(client, seed_base, auth_headers, db_session):
+    """#608 — webhooks paralelos do mesmo wa_id → um único chat aberto."""
+    import threading
+
+    from app.models.whatsapp_chat import WhatsappChat
+
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "dup-race", "auto_msg_espera_ativa": False, "auto_msg_fora_horario_ativa": False},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "dup-race"}
+    wa_id = "5511999000609"
+    barrier = threading.Barrier(2)
+    errors: list[Exception] = []
+
+    def post(msg_id: str, text: str) -> None:
+        try:
+            barrier.wait(timeout=5)
+            r = client.post(
+                "/v1/webhooks/evolution",
+                json=_webhook_body(wa_id=wa_id, msg_id=msg_id, text=text),
+                headers=h,
+            )
+            assert r.status_code == 200
+        except Exception as exc:
+            errors.append(exc)
+
+    t1 = threading.Thread(target=post, args=("608-r1", "Olá"))
+    t2 = threading.Thread(target=post, args=("608-r2", "Tudo bem?"))
+    t1.start()
+    t2.start()
+    t1.join(timeout=30)
+    t2.join(timeout=30)
+    assert not errors, errors
+
+    abertos = (
+        db_session.query(WhatsappChat)
+        .filter(
+            WhatsappChat.wa_id == wa_id,
+            WhatsappChat.estado.in_(("aguardando_atendente", "em_atendimento")),
+        )
+        .all()
+    )
+    assert len(abertos) == 1
