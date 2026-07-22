@@ -906,9 +906,9 @@ export namespace WhatsappChats {
     empresa_id?: number | null
     empresa_nome?: string | null
     empresas_opcoes?: EmpresaOpcao[]
-  inatividade_pausada?: boolean
-  inatividade_retomada_em?: string | null
-  classificacao_demanda_pendente?: boolean
+    inatividade_pausada?: boolean
+    inatividade_retomada_em?: string | null
+    classificacao_demanda_pendente?: boolean
   }
   export interface EmpresaOpcao {
     id: number
