@@ -75,6 +75,11 @@ class WhatsappFuncionarioOpcaoRead(BaseModel):
     empresas: list[WhatsappEmpresaOpcaoRead] = Field(default_factory=list)
     rede_id: int | None = None
     rede_nome: str | None = None
+    similaridade: float | None = Field(
+        None,
+        description="Score 0–1 quando a listagem é por similaridade de nome (#593).",
+    )
+    similaridade_alta: bool = False
 
 
 class WhatsappContatoRead(BaseModel):
