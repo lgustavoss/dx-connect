@@ -27,6 +27,7 @@ feature/feat/<lote>  →  PR  →  main  →  (acumular)  →  PR main → stagi
 
 - **`main → staging`**: só quando houver **release** para produção (várias melhorias no `[Unreleased]`), não a cada merge na `main`.
 - **Nunca** commit direto na `main`.
+- **`staging` = produção**: o agente só **abre** o PR (`/release-staging`); **nunca** executa `gh pr merge` — aprovação e merge são **só do utilizador no GitHub**.
 
 ## Nomenclatura de branch
 
@@ -51,4 +52,4 @@ feature/feat/<lote>  →  PR  →  main  →  (acumular)  →  PR main → stagi
 ## Referências
 
 - Encerramento de issues: `.cursor/rules/issue-closure-backlog.mdc`, `docs/ISSUE_CLOSURE.md`
-- Deploy: PR `main → staging`; ver `docs/RELEASES.md` se existir
+- Deploy: `/release-staging` (PR sem merge pelo agente); ver `docs/RELEASES.md` e rule `staging-release-approval`

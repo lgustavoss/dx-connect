@@ -1,0 +1,35 @@
+---
+description: staging = produção — PR obrigatório e merge só com aprovação humana
+alwaysApply: true
+---
+
+# Release para staging (produção)
+
+## Verdade do deploy
+
+- **`staging` = branch em produção** (deploy/CalVer).
+- **`main` = branch de testes** (CI + validação do time).
+
+## Proibido ao agente (sem exceção “para facilitar”)
+
+1. **`gh pr merge`** de qualquer PR com base **`staging`**
+2. **`git push`** para `staging` / `HEAD:staging` / `origin staging`
+3. **`git merge` / `commit` / `reset`** em cima da branch local `staging` para “empurrar” release
+4. Merge automático após abrir PR **`main → staging`** — mesmo se o utilizador pediu “fazer o deploy”, “facilitar” ou “já está verde”
+5. Criar **segundo PR** paralelo e mergeá-lo no lugar do release sem o utilizador ter **aprovado explicitamente no GitHub** (botão Approve / merge por ele)
+
+## Obrigatório
+
+1. Release = **um único PR** `main` → `staging` (abrir com `/release-staging` ou pedido explícito)
+2. Se houver conflito: resolver numa branch `merge/…`, abrir **um** PR para `staging`, **parar** e entregar o URL
+3. O utilizador (Luis) **analisa e aprova/mergeia no GitHub** — o agente **não** corre `gh pr merge` nesse PR
+4. Após merge humano: deploy/CalVer segue o workflow do repo (`docs/RELEASES.md`)
+
+## Se o utilizador pedir merge em staging
+
+Responder: o PR está pronto no URL; **merge só no GitHub por ti** (staging = produção). Não executar `gh pr merge`.
+
+## Relação com `/criar-pr`
+
+- `/criar-pr` → só **`→ main`** (testes); merge automático CI verde **permitido**
+- `/release-staging` → só **abre** PR `main → staging`; **nunca** mergeia

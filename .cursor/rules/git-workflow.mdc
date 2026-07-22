@@ -1,5 +1,5 @@
 ---
-description: Fluxo Git — branch por feature, PR para main, convenções do time
+description: Fluxo Git — branch por feature, PR para main, release staging só com aprovação humana
 alwaysApply: true
 ---
 
@@ -11,7 +11,8 @@ alwaysApply: true
 - **Sempre** criar branch nova antes de codar
 - **Uma feature/lote = uma branch = um PR** para `main`
 - `main` é **branch de testes** — `/criar-pr` mergeia automaticamente após CI verde
-- Não push direto em `main` (sempre via PR)
+- **`staging` é produção** — release só via PR `main → staging`; o agente **nunca** faz o merge
+- Não push direto em `main` nem `staging` (sempre via PR)
 
 ## Após merge na `main` (obrigatório)
 
@@ -49,22 +50,39 @@ git checkout -b feat/minha-feature-123
 
 Use `/iniciar-feature` para automatizar este passo.
 
+## Após merge na `main` (obrigatório)
+
+Quando o PR do lote for **mergeado** e o desenvolvimento daquele lote estiver **fechado para testes** na `main`:
+
+1. **Não** continuar a codar na branch já mergeada
+2. **Sempre** abrir **branch nova** a partir de `main` atualizada antes do próximo trabalho
+3. Usar `/iniciar-feature` — mesmo se o próximo lote for polish ou issues pequenas
+
+Exceção: hotfix urgente na mesma linha só se o PR ainda **não** tiver sido mergeado.
+
 ## Commits
 
 - Mensagens claras, foco no **porquê**
 - Estilo do repo: `feat(tickets): ...`, `fix(frontend): ...`, `chore(deps): ...`
 - **Não commitar** sem pedido explícito do usuário
-- **Não** `--no-verify`, `--force`, `push --force` em `main`
+- **Não** `--no-verify`, `--force`, `push --force` em `main`/`staging`
 
-## Finalização
+## Finalização (feature → main)
 
 1. `/revisar-e-testar` — qualidade + testes
 2. `/criar-pr` — commit (se pendente), push, PR, CI, approve e **merge em main**
 
-## PR
+## PR → main
 
 - Base: **`main`**
 - Corpo: resumo, test plan, link da issue
 - Aguardar CI (pytest + build frontend)
 - `/criar-pr` faz merge automático quando CI passa (main = testes)
-- Para staging/produção: fluxo separado (`main → staging`)
+
+## Release → staging (produção)
+
+- Comando: **`/release-staging`**
+- Abre (ou atualiza) PR **`main` → `staging`**
+- **PROIBIDO** ao agente: `gh pr merge`, push para `staging`, “mergear para facilitar”
+- O utilizador **analisa, aprova e mergeia no GitHub**
+- Rule: `.cursor/rules/staging-release-approval.mdc`
