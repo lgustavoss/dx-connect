@@ -147,6 +147,7 @@ class KbPublicBrandingRead(BaseModel):
     texto_boas_vindas: str | None = None
     cor_primaria: str = "#0D9488"
     cor_header: str = "#0B2D4A"
+    cor_sidebar: str = "#0B2D4A"
     cor_texto_header: str = "#FFFFFF"
     cor_texto_corpo: str = "#0F172A"
     cor_fundo: str = "#F8FAFC"
@@ -160,6 +161,7 @@ class KbPortalSettingsRead(BaseModel):
     portal_titulo: str | None = None
     texto_boas_vindas: str | None = None
     cor_header: str = "#0B2D4A"
+    cor_sidebar: str = "#0B2D4A"
     cor_primaria: str = "#0D9488"
     cor_texto_header: str = "#FFFFFF"
     cor_texto_corpo: str = "#0F172A"
@@ -180,6 +182,7 @@ class KbPortalSettingsUpdate(BaseModel):
     portal_titulo: str | None = Field(None, max_length=120)
     texto_boas_vindas: str | None = Field(None, max_length=500)
     cor_header: str | None = Field(None, pattern=_HEX_COLOR)
+    cor_sidebar: str | None = Field(None, pattern=_HEX_COLOR)
     cor_primaria: str | None = Field(None, pattern=_HEX_COLOR)
     cor_texto_header: str | None = Field(None, pattern=_HEX_COLOR)
     cor_texto_corpo: str | None = Field(None, pattern=_HEX_COLOR)

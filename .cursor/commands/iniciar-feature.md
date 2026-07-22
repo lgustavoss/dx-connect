@@ -8,6 +8,10 @@ Peça se não informado:
 - número/link da issue **ou** slug da feature
 - tipo: `feat` (padrão), `fix`, `chore`, `docs`
 
+## Quando usar (obrigatório)
+
+Após um lote ser **mergeado na `main`** para testes, o próximo trabalho **sempre** começa com este comando (branch nova). Não reutilize a branch já mergeada.
+
 ## Passo 1 — Verificar estado
 
 ```bash

@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
-/* Tema escuro por classe no <html> (.dark), alinhado ao Tailwind v4 */
-@custom-variant dark (&:where(.dark, .dark *));
+/* Tema escuro por classe no <html> (.dark), alinhado ao Tailwind v4.
+   Exclui árvores com data-theme="light" (ex.: portal do cliente) para não herdar o dark do painel. */
+@custom-variant dark (&:where(.dark, .dark *):not(:where([data-theme='light'], [data-theme='light'] *)));
 
 @layer base {
   html {

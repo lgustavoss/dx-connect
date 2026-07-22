@@ -39,6 +39,9 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
   const [catalogoLoading, setCatalogoLoading] = useState(false)
 
   const [nomeCadastro, setNomeCadastro] = useState('')
+  const [debouncedNomeCadastro, setDebouncedNomeCadastro] = useState('')
+  const [similares, setSimilares] = useState<WhatsappChats.FuncionarioOpcao[]>([])
+  const [loadingSimilares, setLoadingSimilares] = useState(false)
   const [emailCadastro, setEmailCadastro] = useState('')
   const [tipoCadastro, setTipoCadastro] = useState<TipoCadastro>('colaborador')
   const [escopoCadastro, setEscopoCadastro] = useState<EscopoCadastro>('selected')
@@ -76,6 +79,11 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
   }, [busca])
 
   useEffect(() => {
+    const timer = setTimeout(() => setDebouncedNomeCadastro(nomeCadastro.trim()), 450)
+    return () => clearTimeout(timer)
+  }, [nomeCadastro])
+
+  useEffect(() => {
     if (!open) return
     setModo('vincular')
     setBusca('')
@@ -85,6 +93,8 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
     setSelecionado(null)
     setEmpresaVinculoId('')
     setNomeCadastro(chat.cliente_nome?.trim() || '')
+    setDebouncedNomeCadastro('')
+    setSimilares([])
     setEmailCadastro('')
     setTipoCadastro('colaborador')
     setEscopoCadastro('selected')
@@ -125,6 +135,30 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
   }, [debouncedBusca, modo, open])
 
   useEffect(() => {
+    if (!open || modo !== 'cadastrar' || debouncedNomeCadastro.length < 3) {
+      setSimilares([])
+      setLoadingSimilares(false)
+      return
+    }
+    let cancelled = false
+    setLoadingSimilares(true)
+    whatsappChats
+      .buscarFuncionariosSimilares(debouncedNomeCadastro, 5)
+      .then((rows) => {
+        if (!cancelled) setSimilares(rows)
+      })
+      .catch(() => {
+        if (!cancelled) setSimilares([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSimilares(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [debouncedNomeCadastro, modo, open])
+
+  useEffect(() => {
     if (!selecionado) {
       setEmpresaVinculoId('')
       return
@@ -154,6 +188,15 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
 
   function toggleEmpresaCadastro(id: number) {
     setEmpresaIdsCadastro((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
+
+  function vincularSugestao(funcionario: WhatsappChats.FuncionarioOpcao) {
+    setSelecionado(funcionario)
+    setBusca(funcionario.nome)
+    setDebouncedBusca(funcionario.nome)
+    setResultados([funcionario])
+    setErroFormulario(null)
+    setModo('vincular')
   }
 
   async function confirmarVinculo() {
@@ -424,6 +467,66 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
                   onChange={(e) => setNomeCadastro(e.target.value)}
                   required
                 />
+                {loadingSimilares && debouncedNomeCadastro.length >= 3 && (
+                  <p className="text-xs text-slate-500">A procurar nomes semelhantes…</p>
+                )}
+                {!loadingSimilares && similares.length > 0 && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-3 dark:border-amber-900/50 dark:bg-amber-950/25">
+                    <p className="text-sm font-medium text-amber-950 dark:text-amber-100">
+                      Encontrámos cadastros com nome semelhante
+                    </p>
+                    <p className="mt-0.5 text-xs text-amber-800/90 dark:text-amber-200/80">
+                      Prefira vincular ao existente para evitar duplicados. Pode ignorar e cadastrar um novo.
+                    </p>
+                    {similares.some((s) => s.similaridade_alta) && (
+                      <p className="mt-2 text-xs font-medium text-amber-900 dark:text-amber-100">
+                        Atenção: há correspondência muito próxima (quase o mesmo nome).
+                      </p>
+                    )}
+                    <ul className="mt-3 max-h-40 space-y-2 overflow-y-auto">
+                      {similares.map((funcionario) => (
+                        <li
+                          key={funcionario.id}
+                          className="rounded-lg border border-amber-200/80 bg-white/80 px-3 py-2 dark:border-amber-900/40 dark:bg-slate-900/60"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                {funcionario.nome}
+                              </p>
+                              <p className="truncate text-xs text-slate-500">
+                                {funcionario.email || funcionario.telefone || 'Sem e-mail/telefone'}
+                              </p>
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {funcionario.rede_nome && (
+                                  <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-800 dark:bg-violet-950/50 dark:text-violet-200">
+                                    {funcionario.rede_nome}
+                                  </span>
+                                )}
+                                {funcionario.empresas.map((e) => (
+                                  <span
+                                    key={e.id}
+                                    className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                                  >
+                                    {e.nome}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              className="h-8 shrink-0 px-2 text-xs"
+                              onClick={() => vincularSugestao(funcionario)}
+                            >
+                              Vincular a este cadastro
+                            </Button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 <Input
                   label="E-mail (opcional)"
                   type="email"

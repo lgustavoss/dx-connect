@@ -182,6 +182,11 @@ export function WhatsappAtendendo() {
                           {c.cliente_nome || 'Cliente'}
                         </h3>
                         <p className="font-mono text-xs text-slate-500">{c.wa_id}</p>
+                        {c.empresa_nome && (
+                          <p className="mt-1 truncate text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                            {c.empresa_nome}
+                          </p>
+                        )}
                         {c.setor_nome && (
                           <p className="mt-1 text-[10px] font-medium text-slate-500 dark:text-slate-400">
                             Setor {c.setor_nome}

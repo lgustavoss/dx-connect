@@ -117,6 +117,9 @@ def test_resposta_nota_encerra_chat(client, seed_base, auth_headers, db_session,
 
 
 def test_resposta_invalida_encerra_sem_avaliacao(client, seed_base, auth_headers, db_session, monkeypatch):
+    """API legada: encerrar_avaliacao_sem_nota com motivo invalida."""
+    from app.services.whatsapp_avaliacao import encerrar_avaliacao_sem_nota
+
     st = _configurar(db_session)
     chat = WhatsappChat(
         protocolo="WPP-AV-2",
@@ -139,7 +142,7 @@ def test_resposta_invalida_encerra_sem_avaliacao(client, seed_base, auth_headers
 
     msg = WhatsappMensagem(chat_id=chat.id, direcao="inbound", corpo="ótimo", tipo_midia="texto")
     db_session.add(msg)
-    processar_resposta_avaliacao(db_session, chat, st, "ótimo", msg_inbound=msg)
+    encerrar_avaliacao_sem_nota(db_session, chat, st, motivo="invalida", msg_inbound=msg)
     db_session.commit()
     db_session.refresh(chat)
 
@@ -148,6 +151,174 @@ def test_resposta_invalida_encerra_sem_avaliacao(client, seed_base, auth_headers
     assert msg.evento_sistema == "avaliacao_cliente_invalida"
     assert enviados
     assert "sem avaliação" in enviados[0].lower() or "encerrado" in enviados[0].lower()
+
+
+def test_processar_nao_nota_nao_altera_chat(client, seed_base, auth_headers, db_session, monkeypatch):
+    st = _configurar(db_session)
+    chat = WhatsappChat(
+        protocolo="WPP-AV-2b",
+        wa_id="5511999223355",
+        estado="aguardando_avaliacao",
+        atendente_id=1,
+        avaliacao_solicitada=True,
+    )
+    db_session.add(chat)
+    db_session.commit()
+    monkeypatch.setattr(
+        "app.services.whatsapp_avaliacao.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "x"),
+    )
+    assert processar_resposta_avaliacao(db_session, chat, st, "ótimo") == "nao_nota"
+    db_session.refresh(chat)
+    assert chat.estado == "aguardando_avaliacao"
+
+
+def test_webhook_texto_nao_nota_abre_chat_novo(client, seed_base, auth_headers, db_session, monkeypatch):
+    """#598 — texto que não é nota encerra avaliação e abre atendimento com a mensagem."""
+    from datetime import datetime, timezone
+
+    from tests.test_whatsapp_chats import _webhook_body
+
+    _configurar(db_session)
+    monkeypatch.setattr(
+        "app.services.whatsapp_avaliacao.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-pular"),
+    )
+    monkeypatch.setattr(
+        "app.api.whatsapp_webhook.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-espera"),
+    )
+    wa = "5511999000598"
+    antigo = WhatsappChat(
+        protocolo="WPP-AV-598-A",
+        wa_id=wa,
+        estado="aguardando_avaliacao",
+        atendente_id=seed_base["a1"].id,
+        avaliacao_solicitada=True,
+        encerramento_at=datetime.now(timezone.utc),
+    )
+    db_session.add(antigo)
+    db_session.commit()
+    antigo_id = antigo.id
+    db_session.close()
+
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "av-598-pular", "auto_msg_espera_ativa": False, "auto_msg_fora_horario_ativa": False},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "av-598-pular"}
+    r = client.post(
+        "/v1/webhooks/evolution",
+        json=_webhook_body(wa_id=wa, msg_id="598-nao-nota", text="Preciso de ajuda de novo"),
+        headers=h,
+    )
+    assert r.status_code == 200, r.text
+
+    db_session.expire_all()
+    antigo2 = db_session.query(WhatsappChat).filter(WhatsappChat.id == antigo_id).first()
+    assert antigo2 is not None
+    assert antigo2.estado == "encerrado"
+    assert antigo2.avaliacao_nota is None
+
+    novos = (
+        db_session.query(WhatsappChat)
+        .filter(
+            WhatsappChat.wa_id == wa,
+            WhatsappChat.estado == "aguardando_atendente",
+        )
+        .all()
+    )
+    assert len(novos) == 1
+    msgs = (
+        db_session.query(WhatsappMensagem)
+        .filter(
+            WhatsappMensagem.chat_id == novos[0].id,
+            WhatsappMensagem.direcao == "inbound",
+        )
+        .all()
+    )
+    assert len(msgs) == 1
+    assert msgs[0].corpo == "Preciso de ajuda de novo"
+
+
+def test_timeout_avaliacao_encerra_chat(client, seed_base, auth_headers, db_session, monkeypatch):
+    """#598 — após a janela, job finaliza aguardando_avaliacao."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.services.whatsapp_avaliacao import process_whatsapp_avaliacao_timeouts
+
+    st = _configurar(db_session)
+    st.avaliacao_janela_minutos = 30
+    db_session.commit()
+
+    enviados: list[str] = []
+
+    def fake_send(base, inst, key, wa, text):
+        enviados.append(text)
+        return True, None, "wa-timeout"
+
+    monkeypatch.setattr("app.services.whatsapp_avaliacao.evolution_api.evolution_send_text", fake_send)
+
+    chat = WhatsappChat(
+        protocolo="WPP-AV-TO",
+        wa_id="5511999000599",
+        estado="aguardando_avaliacao",
+        atendente_id=seed_base["a1"].id,
+        avaliacao_solicitada=True,
+        encerramento_at=datetime.now(timezone.utc) - timedelta(minutes=31),
+    )
+    db_session.add(chat)
+    db_session.commit()
+
+    n = process_whatsapp_avaliacao_timeouts(db_session, limit=50)
+    assert n == 1
+    db_session.refresh(chat)
+    assert chat.estado == "encerrado"
+    assert chat.avaliacao_nota is None
+    assert enviados
+    assert "período" in enviados[0].lower() or "encerrou" in enviados[0].lower() or "nova mensagem" in enviados[0].lower()
+
+
+def test_inbound_apos_timeout_abre_chat_novo(client, seed_base, auth_headers, db_session, monkeypatch):
+    """#598 — após timeout, próxima mensagem abre atendimento novo."""
+    from datetime import datetime, timezone
+
+    from tests.test_whatsapp_chats import _webhook_body
+
+    _configurar(db_session)
+    monkeypatch.setattr(
+        "app.api.whatsapp_webhook.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-esp"),
+    )
+    wa = "5511999000600"
+    db_session.add(
+        WhatsappChat(
+            protocolo="WPP-AV-POS-TO",
+            wa_id=wa,
+            estado="encerrado",
+            atendente_id=seed_base["a1"].id,
+            avaliacao_solicitada=True,
+            encerramento_at=datetime.now(timezone.utc),
+        )
+    )
+    db_session.commit()
+    db_session.close()
+
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "av-598-pos", "auto_msg_espera_ativa": False, "auto_msg_fora_horario_ativa": False},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "av-598-pos"}
+    r = client.post(
+        "/v1/webhooks/evolution",
+        json=_webhook_body(wa_id=wa, msg_id="598-pos-to", text="Oi de novo"),
+        headers=h,
+    )
+    assert r.status_code == 200
+    fila = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()
+    assert any(c.get("wa_id") == wa for c in fila)
 
 
 def test_mensagens_avaliacao_nao_aparecem_na_conversa(client, seed_base, auth_headers, db_session):

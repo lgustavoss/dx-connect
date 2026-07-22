@@ -50,6 +50,7 @@ from app.schemas.portal_chat import (
     PortalChatSessionRead,
 )
 from app.schemas.lista_paginada import ListaPaginada
+from app.services.instancia_branding import branding_kb_publico as montar_branding_kb_publico
 from app.services.kb import listar_artigos_sugeridos, registrar_versao_artigo, slug_disponivel
 from app.services.kb_feedback import registrar_feedback_artigo_publico
 from app.core.login_protection import client_ip
@@ -798,10 +799,12 @@ def _get_or_create_portal_settings(db: Session, tenant_id: int) -> KbPortalSetti
 
 
 def _portal_settings_read(row: KbPortalSettings) -> KbPortalSettingsRead:
+    cor_header = row.cor_header or "#0B2D4A"
     return KbPortalSettingsRead(
         portal_titulo=row.portal_titulo,
         texto_boas_vindas=row.texto_boas_vindas,
-        cor_header=row.cor_header or "#0B2D4A",
+        cor_header=cor_header,
+        cor_sidebar=(row.cor_sidebar or cor_header),
         cor_primaria=row.cor_primaria or "#0D9488",
         cor_texto_header=row.cor_texto_header or "#FFFFFF",
         cor_texto_corpo=row.cor_texto_corpo or "#0F172A",
@@ -813,49 +816,6 @@ def _portal_settings_read(row: KbPortalSettings) -> KbPortalSettingsRead:
         chat_setor_id=row.chat_setor_id,
         chat_texto_boas_vindas=row.chat_texto_boas_vindas,
         public_url_preview="/kb",
-    )
-
-
-def _nome_exibicao_empresa(row: EmpresaSistema | None) -> str:
-    if not row:
-        return "Central de ajuda"
-    for attr in ("nome_fantasia", "nome", "razao_social"):
-        val = getattr(row, attr, None)
-        if val and str(val).strip():
-            return str(val).strip()
-    return "Central de ajuda"
-
-
-def _kb_public_branding(db: Session, tenant_id: int) -> KbPublicBrandingRead:
-    row = _empresa_sistema_row(db)
-    settings = _portal_settings_row(db, tenant_id)
-    logo_url = None
-    if row and row.logo_filename and str(row.logo_filename).strip():
-        logo_url = "/v1/kb/public/logo"
-    nome = _nome_exibicao_empresa(row)
-    titulo_custom = (settings.portal_titulo or "").strip() if settings else ""
-    if titulo_custom:
-        portal_titulo = titulo_custom
-    elif nome != "Central de ajuda":
-        portal_titulo = f"Central de ajuda — {nome}"
-    else:
-        portal_titulo = "Central de ajuda"
-    cor_primaria = (settings.cor_primaria if settings else None) or "#0D9488"
-    cor_link = (settings.cor_link if settings and settings.cor_link else None) or cor_primaria
-    return KbPublicBrandingRead(
-        nome_exibicao=nome,
-        portal_titulo=portal_titulo,
-        logo_url=logo_url,
-        texto_boas_vindas=settings.texto_boas_vindas if settings else None,
-        cor_primaria=cor_primaria,
-        cor_header=(settings.cor_header if settings else None) or "#0B2D4A",
-        cor_texto_header=(settings.cor_texto_header if settings else None) or "#FFFFFF",
-        cor_texto_corpo=(settings.cor_texto_corpo if settings else None) or "#0F172A",
-        cor_fundo=(settings.cor_fundo if settings else None) or "#F8FAFC",
-        cor_link=cor_link,
-        exibir_marca_deskrudder=bool(settings.exibir_marca_deskrudder) if settings else True,
-        feedback_habilitado=bool(settings.feedback_habilitado) if settings else True,
-        chat_habilitado=bool(settings.chat_habilitado) if settings else False,
     )
 
 
@@ -898,7 +858,7 @@ def atualizar_portal_settings(
 
 
 @router.get("/public/branding", response_model=KbPublicBrandingRead)
-def branding_kb_publico(
+def branding_kb_publico_endpoint(
     request: Request,
     response: Response,
     tenant_id: TenantIdDep,
@@ -906,7 +866,7 @@ def branding_kb_publico(
 ):
     check_kb_public_rate_limit(request)
     _ = tenant_id
-    out = _kb_public_branding(db, tenant_id)
+    out = montar_branding_kb_publico(db, tenant_id)
     _public_cache_headers(response)
     return out
 

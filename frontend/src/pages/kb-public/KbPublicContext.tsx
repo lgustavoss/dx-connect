@@ -21,6 +21,7 @@ const FALLBACK_BRANDING: Kb.PublicBranding = {
   texto_boas_vindas: null,
   cor_primaria: '#0D9488',
   cor_header: '#0B2D4A',
+  cor_sidebar: '#0B2D4A',
   cor_texto_header: '#FFFFFF',
   cor_texto_corpo: '#0F172A',
   cor_fundo: '#F8FAFC',

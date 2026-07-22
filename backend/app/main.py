@@ -48,6 +48,7 @@ from app.api import (
     kb,
     chat_interno,
     portal_chats,
+    portal,
 )
 from app.config import settings
 from app.core.audit import clear_audit_request_context, set_audit_request_context
@@ -255,6 +256,7 @@ async def lifespan(app: FastAPI):
 
     def whatsapp_inactivity_loop() -> None:
         from app.database import SessionLocal
+        from app.services.whatsapp_avaliacao import process_whatsapp_avaliacao_timeouts
         from app.services.whatsapp_inactivity_worker import process_whatsapp_inactivity_closures
 
         interval = max(15, settings.WHATSAPP_INACTIVITY_WORKER_INTERVAL_SECONDS)
@@ -262,8 +264,9 @@ async def lifespan(app: FastAPI):
             db = SessionLocal()
             try:
                 process_whatsapp_inactivity_closures(db, limit=200)
+                process_whatsapp_avaliacao_timeouts(db, limit=200)
             except Exception as e:
-                logger.warning("Worker inatividade WhatsApp: %s", e)
+                logger.warning("Worker inatividade/avaliação WhatsApp: %s", e)
                 db.rollback()
             finally:
                 db.close()
@@ -460,6 +463,7 @@ app.include_router(sla.router, prefix=API_V1_PREFIX)
 app.include_router(kb.router, prefix=API_V1_PREFIX)
 app.include_router(chat_interno.router, prefix=API_V1_PREFIX)
 app.include_router(portal_chats.router, prefix=API_V1_PREFIX)
+app.include_router(portal.router, prefix=API_V1_PREFIX)
 
 
 def _app_route_paths() -> set[str]:

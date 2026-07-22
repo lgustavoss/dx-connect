@@ -51,6 +51,10 @@ export function FuncionarioRedeForm() {
   const [redeId, setRedeId] = useState<number | ''>('')
   const [empresaId, setEmpresaId] = useState<number | ''>('')
   const [empresaIds, setEmpresaIds] = useState<number[]>([])
+  const [senhaPortal, setSenhaPortal] = useState('')
+  const [mustChangePassword, setMustChangePassword] = useState(true)
+  const [portalHabilitado, setPortalHabilitado] = useState(false)
+  const [notificarEmailPortal, setNotificarEmailPortal] = useState(true)
 
   useEffect(() => {
     coletarTodasPaginas<Redes.Rede>((o, l) => redes.list({ incluir_inativos: true, offset: o, limit: l })).then(
@@ -115,6 +119,10 @@ export function FuncionarioRedeForm() {
         setRedeId(r)
         setEmpresaId(item.empresa_id ?? '')
         setEmpresaIds(item.empresa_ids ?? [])
+        setPortalHabilitado(Boolean(item.portal_habilitado))
+        setMustChangePassword(Boolean(item.must_change_password))
+        setNotificarEmailPortal(item.notificar_email_portal !== false)
+        setSenhaPortal('')
       })
       .catch((err) => {
         if (!cancelled) {
@@ -186,6 +194,9 @@ export function FuncionarioRedeForm() {
           rede_id: rid,
           empresa_id: escopo === 'selected' && tipo === 'colaborador' && ids.length === 1 ? ids[0] : undefined,
           empresa_ids: escopo === 'selected' ? ids : [],
+          notificar_email_portal: notificarEmailPortal,
+          must_change_password: mustChangePassword,
+          ...(senhaPortal.trim() ? { senha_portal: senhaPortal.trim() } : {}),
         }
         saved = await funcionariosRede.update(funcionarioId, payload)
         toast.showSuccess('Funcionário atualizado.')
@@ -200,6 +211,8 @@ export function FuncionarioRedeForm() {
           rede_id: rid,
           empresa_id: escopo === 'selected' && tipo === 'colaborador' && ids.length === 1 ? ids[0] : undefined,
           empresa_ids: escopo === 'selected' ? ids : [],
+          must_change_password: mustChangePassword,
+          ...(senhaPortal.trim() ? { senha_portal: senhaPortal.trim() } : {}),
         }
         saved = await funcionariosRede.create(payload)
         toast.showSuccess('Funcionário cadastrado.')
@@ -375,6 +388,46 @@ export function FuncionarioRedeForm() {
                   )}
                 </div>
               )}
+            </FormSection>
+
+            <FormSection title="Portal do cliente">
+              <p className="text-xs text-slate-500">
+                Com e-mail e senha, o funcionário acessa{' '}
+                <span className="font-medium text-slate-700 dark:text-slate-200">/portal</span> para abrir e
+                acompanhar chamados.
+                {isEdit && portalHabilitado ? (
+                  <span className="ml-1 text-teal-700 dark:text-teal-400">Portal já habilitado.</span>
+                ) : null}
+              </p>
+              <Input
+                label={isEdit ? 'Nova senha do portal (opcional)' : 'Senha do portal (opcional)'}
+                type="password"
+                value={senhaPortal}
+                onChange={(e) => setSenhaPortal(e.target.value)}
+                autoComplete="new-password"
+                placeholder={email.trim() ? 'Mínimo 8 caracteres' : 'Informe o e-mail primeiro'}
+                disabled={!email.trim()}
+              />
+              <Switch
+                bare
+                checked={mustChangePassword}
+                onCheckedChange={setMustChangePassword}
+                label="Exigir troca de senha no primeiro acesso"
+                showStatusPill
+                statusOnText="Sim"
+                statusOffText="Não"
+              />
+              {isEdit ? (
+                <Switch
+                  bare
+                  checked={notificarEmailPortal}
+                  onCheckedChange={setNotificarEmailPortal}
+                  label="Notificar por e-mail sobre respostas nos chamados"
+                  showStatusPill
+                  statusOnText="Sim"
+                  statusOffText="Não"
+                />
+              ) : null}
             </FormSection>
 
             <FormSection title="Situação no sistema">
