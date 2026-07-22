@@ -38,6 +38,9 @@ class FuncionarioRedeCreate(FuncionarioRedeBase):
     rede_id: int | None = None
     empresa_id: int | None = None  # legado colaborador (preferir empresa_ids)
     empresa_ids: list[int] = []  # obrigatório se escopo_empresas == selected
+    # Portal do cliente (#300): senha inicial opcional
+    senha_portal: str | None = None
+    must_change_password: bool = True
 
 
 class FuncionarioRedeUpdate(BaseModel):
@@ -50,6 +53,10 @@ class FuncionarioRedeUpdate(BaseModel):
     rede_id: int | None = None
     empresa_id: int | None = None
     empresa_ids: list[int] | None = None
+    senha_portal: str | None = None
+    must_change_password: bool | None = None
+    notificar_email_portal: bool | None = None
+    revogar_sessoes_portal: bool | None = None
 
     @field_validator("email", mode="before")
     @classmethod
@@ -67,6 +74,9 @@ class FuncionarioRedeRead(FuncionarioRedeBase):
     rede_id: int | None = None
     empresa_id: int | None = None
     empresa_ids: list[int] = []  # preenchido quando escopo_empresas == selected
+    portal_habilitado: bool = False
+    must_change_password: bool = False
+    notificar_email_portal: bool = True
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

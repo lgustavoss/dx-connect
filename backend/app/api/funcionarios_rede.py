@@ -25,6 +25,7 @@ from app.services.funcionario_rede_resolver import assert_email_unico_por_rede, 
 from app.schemas.lista_paginada import ListaPaginada
 from app.core.auth import exigir_admin
 from app.core.audit import registrar_audit
+from app.core.security import hash_senha
 
 router = APIRouter(prefix="/funcionarios-rede", tags=["funcionarios-rede"])
 
@@ -61,9 +62,42 @@ def _para_read(f: FuncionarioRede) -> FuncionarioRedeRead:
         rede_id=f.rede_id,
         empresa_id=f.empresa_id,
         empresa_ids=_empresa_ids_leitura(f),
+        portal_habilitado=bool((getattr(f, "senha_hash", None) or "").strip()),
+        must_change_password=bool(getattr(f, "must_change_password", False)),
+        notificar_email_portal=bool(getattr(f, "notificar_email_portal", True)),
         created_at=f.created_at,
         updated_at=f.updated_at,
     )
+
+
+def _escopo_para_tipo(tipo: str, escopo_informado: str | None) -> str:
+    """Sócio sempre enxerga toda a rede (escopo all), mesmo se o cliente omitir o campo."""
+    tipo_eff = (tipo or "colaborador").strip().lower()
+    if tipo_eff == "socio":
+        return "all"
+    escopo = (escopo_informado or "selected").strip().lower()
+    return escopo if escopo in ("all", "selected") else "selected"
+
+
+def _aplicar_senha_portal(f: FuncionarioRede, senha: str | None, *, must_change: bool | None) -> None:
+    if senha is None:
+        return
+    senha_limpa = senha.strip()
+    if not senha_limpa:
+        return
+    if len(senha_limpa) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A senha do portal deve ter ao menos 8 caracteres.",
+        )
+    if not (f.email or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Informe o e-mail do funcionário para habilitar o portal.",
+        )
+    f.senha_hash = hash_senha(senha_limpa)
+    f.must_change_password = True if must_change is None else bool(must_change)
+    f.token_version = int(getattr(f, "token_version", 0) or 0) + 1
 
 
 @router.get("", response_model=ListaPaginada[FuncionarioRedeRead])
@@ -152,7 +186,7 @@ def criar(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(exigir_admin),
 ):
-    escopo = (data.escopo_empresas or "selected").strip().lower()
+    escopo = _escopo_para_tipo(data.tipo, data.escopo_empresas)
     if escopo not in ("all", "selected"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="escopo_empresas deve ser all ou selected")
     empresa_ids = list(data.empresa_ids or [])
@@ -196,6 +230,7 @@ def criar(
     )
     db.add(f)
     db.flush()
+    _aplicar_senha_portal(f, data.senha_portal, must_change=data.must_change_password)
     registrar_audit(db, "funcionario_rede", f.id, "create", atendente.id)
     sincronizar_vinculos_empresas(
         db,
@@ -238,9 +273,18 @@ def atualizar(
     empresa_ids = update.pop("empresa_ids", None)
     empresa_id_upd = update.pop("empresa_id", None)
     escopo_upd = update.pop("escopo_empresas", None)
+    senha_portal = update.pop("senha_portal", None)
+    must_change = update.pop("must_change_password", None)
+    revogar = update.pop("revogar_sessoes_portal", None)
     for k, v in update.items():
         setattr(f, k, v)
-    escopo = (escopo_upd or escopo_efetivo(f)).strip().lower()
+    if senha_portal is not None:
+        _aplicar_senha_portal(f, senha_portal, must_change=must_change)
+    elif must_change is not None:
+        f.must_change_password = bool(must_change)
+    if revogar:
+        f.token_version = int(getattr(f, "token_version", 0) or 0) + 1
+    escopo = _escopo_para_tipo(f.tipo, escopo_upd or escopo_efetivo(f))
     if escopo not in ("all", "selected"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="escopo_empresas deve ser all ou selected")
     ids = list(empresa_ids) if empresa_ids is not None else _empresa_ids_leitura(f)

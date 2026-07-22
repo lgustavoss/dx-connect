@@ -15,6 +15,7 @@ type FormState = {
   portal_titulo: string
   texto_boas_vindas: string
   cor_header: string
+  cor_sidebar: string
   cor_primaria: string
   cor_texto_header: string
   cor_texto_corpo: string
@@ -31,6 +32,7 @@ function fromApi(data: Kb.PortalSettings): FormState {
     portal_titulo: data.portal_titulo ?? '',
     texto_boas_vindas: data.texto_boas_vindas ?? '',
     cor_header: data.cor_header,
+    cor_sidebar: data.cor_sidebar || data.cor_header,
     cor_primaria: data.cor_primaria,
     cor_texto_header: data.cor_texto_header,
     cor_texto_corpo: data.cor_texto_corpo,
@@ -80,6 +82,10 @@ export function KbPortalSettingsPage({ embedded = false }: { embedded?: boolean 
     () => (typeof window !== 'undefined' ? `${window.location.origin}/kb` : '/kb'),
     [],
   )
+  const portalUrl = useMemo(
+    () => (typeof window !== 'undefined' ? `${window.location.origin}/portal/login` : '/portal/login'),
+    [],
+  )
 
   const load = useCallback(() => {
     setLoading(true)
@@ -112,6 +118,7 @@ export function KbPortalSettingsPage({ embedded = false }: { embedded?: boolean 
         portal_titulo: form.portal_titulo.trim() || null,
         texto_boas_vindas: form.texto_boas_vindas.trim() || null,
         cor_header: form.cor_header,
+        cor_sidebar: form.cor_sidebar,
         cor_primaria: form.cor_primaria,
         cor_texto_header: form.cor_texto_header,
         cor_texto_corpo: form.cor_texto_corpo,
@@ -143,13 +150,20 @@ export function KbPortalSettingsPage({ embedded = false }: { embedded?: boolean 
         />
       }
       title="Base de conhecimento"
-      subtitle="Personalize o portal público /kb — cores, textos e aparência (estilo TomTicket)."
+      subtitle="Personalize a aparência white-label da instância — cores valem para /kb e /portal; o título abaixo é só da central de ajuda (/kb)."
       actions={
-        <a href="/kb" target="_blank" rel="noreferrer">
-          <Button type="button" variant="secondary">
-            Abrir preview
-          </Button>
-        </a>
+        <>
+          <a href="/kb" target="_blank" rel="noreferrer">
+            <Button type="button" variant="secondary">
+              Abrir /kb
+            </Button>
+          </a>
+          <a href="/portal/login" target="_blank" rel="noreferrer" className="ml-2 inline-block">
+            <Button type="button" variant="secondary">
+              Abrir /portal
+            </Button>
+          </a>
+        </>
       }
     >
       {loading || !form ? (
@@ -158,18 +172,22 @@ export function KbPortalSettingsPage({ embedded = false }: { embedded?: boolean 
         <form onSubmit={(e) => void salvar(e)} className="space-y-6">
           <Card className="space-y-4 p-4 sm:p-5">
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              URL pública:{' '}
+              Portal público:{' '}
               <a href="/kb" target="_blank" rel="noreferrer" className="font-medium text-teal-700 hover:underline dark:text-teal-400">
                 {publicUrl}
+              </a>
+              . Portal autenticado:{' '}
+              <a href="/portal/login" target="_blank" rel="noreferrer" className="font-medium text-teal-700 hover:underline dark:text-teal-400">
+                {portalUrl}
               </a>
               . A logo vem de Configurações → Sistema → Empresa.
             </p>
 
             <Input
-              label="Título do portal"
+              label="Título da central de ajuda (/kb)"
               value={form.portal_titulo}
               onChange={(e) => setForm({ ...form, portal_titulo: e.target.value })}
-              placeholder="Central de ajuda — Minha Empresa"
+              placeholder="Suporte — Minha Empresa"
             />
 
             <div>
@@ -209,7 +227,7 @@ export function KbPortalSettingsPage({ embedded = false }: { embedded?: boolean 
               checked={form.chat_habilitado}
               onChange={(e) => setForm({ ...form, chat_habilitado: e.target.checked })}
             >
-              Habilitar chat ao vivo para visitantes do /kb
+              Habilitar chat ao vivo no /kb e no /portal
             </CheckboxField>
             <div>
               <label htmlFor="kb-chat-setor" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -246,11 +264,16 @@ export function KbPortalSettingsPage({ embedded = false }: { embedded?: boolean 
 
           <Card className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5">
             <p className="col-span-full text-xs text-slate-500 dark:text-slate-400">
-              Estas cores afetam o portal /kb e o widget de chat ao vivo (barra superior = cor da navbar; destaque =
-              botões e suas mensagens).
+              Estas cores afetam /kb, /portal e o widget de chat. Navbar e menu lateral podem ter cores
+              independentes (por padrão o menu usa a mesma cor da navbar).
             </p>
             <ColorField label="Cor da barra superior (navbar)" value={form.cor_header} onChange={(v) => setForm({ ...form, cor_header: v })} />
-            <ColorField label="Cor do texto da navbar" value={form.cor_texto_header} onChange={(v) => setForm({ ...form, cor_texto_header: v })} />
+            <ColorField
+              label="Cor do menu lateral (/portal)"
+              value={form.cor_sidebar}
+              onChange={(v) => setForm({ ...form, cor_sidebar: v })}
+            />
+            <ColorField label="Cor do texto da navbar / menu" value={form.cor_texto_header} onChange={(v) => setForm({ ...form, cor_texto_header: v })} />
             <ColorField label="Cor de destaque (botões / seleção)" value={form.cor_primaria} onChange={(v) => setForm({ ...form, cor_primaria: v })} />
             <ColorField label="Cor dos links" value={form.cor_link} onChange={(v) => setForm({ ...form, cor_link: v })} />
             <ColorField label="Cor do texto principal" value={form.cor_texto_corpo} onChange={(v) => setForm({ ...form, cor_texto_corpo: v })} />

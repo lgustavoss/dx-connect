@@ -42,9 +42,13 @@ class WhatsappSettings(Base):
     auto_msg_inativ_aviso_ativa = Column(Boolean, nullable=False, default=True)
     auto_msg_inativ_aviso_texto = Column(Text, nullable=True)
     avaliacao_ativa = Column(Boolean, nullable=False, default=False)
+    # Janela após encerrar para o cliente enviar nota 1–5 (depois finaliza sozinho).
+    avaliacao_janela_minutos = Column(Integer, nullable=False, default=30)
     auto_msg_avaliacao_ativa = Column(Boolean, nullable=False, default=True)
     auto_msg_avaliacao_texto = Column(Text, nullable=True)
     auto_msg_avaliacao_obrigado_texto = Column(Text, nullable=True)
+    auto_msg_avaliacao_timeout_texto = Column(Text, nullable=True)
+    auto_msg_avaliacao_pular_texto = Column(Text, nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
 

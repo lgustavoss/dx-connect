@@ -17,9 +17,11 @@ function KbPublicShell() {
   return (
     <div
       className="kb-public-portal flex min-h-dvh flex-col"
+      data-theme="light"
       style={{
         backgroundColor: branding.cor_fundo,
         color: branding.cor_texto_corpo,
+        colorScheme: 'light',
         ['--kb-accent' as string]: branding.cor_primaria,
         ['--kb-header' as string]: branding.cor_header,
         ['--kb-link' as string]: branding.cor_link,

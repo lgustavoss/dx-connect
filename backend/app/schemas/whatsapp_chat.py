@@ -23,6 +23,11 @@ class WhatsappMensagemRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class WhatsappEmpresaOpcaoRead(BaseModel):
+    id: int
+    nome: str
+
+
 class WhatsappChatRead(BaseModel):
     id: int
     protocolo: str
@@ -46,16 +51,13 @@ class WhatsappChatRead(BaseModel):
     funcionario_tipo: str | None = None
     empresa_id: int | None = None
     empresa_nome: str | None = None
+    # Empresas do funcionário vinculado — útil quando falta empresa_id de contexto (#592).
+    empresas_opcoes: list[WhatsappEmpresaOpcaoRead] = Field(default_factory=list)
     inatividade_pausada: bool = False
     inatividade_retomada_em: datetime | None = None
     classificacao_demanda_pendente: bool = False
 
     model_config = {"from_attributes": True}
-
-
-class WhatsappEmpresaOpcaoRead(BaseModel):
-    id: int
-    nome: str
 
 
 class WhatsappEmpresaCatalogoRead(BaseModel):
@@ -73,6 +75,11 @@ class WhatsappFuncionarioOpcaoRead(BaseModel):
     empresas: list[WhatsappEmpresaOpcaoRead] = Field(default_factory=list)
     rede_id: int | None = None
     rede_nome: str | None = None
+    similaridade: float | None = Field(
+        None,
+        description="Score 0–1 quando a listagem é por similaridade de nome (#593).",
+    )
+    similaridade_alta: bool = False
 
 
 class WhatsappContatoRead(BaseModel):
@@ -93,6 +100,10 @@ class WhatsappIniciarChatBody(BaseModel):
         description="Número WhatsApp (dígitos). Obrigatório se funcionário sem telefone ou número avulso.",
     )
     mensagem_inicial: str | None = Field(None, max_length=4000)
+    empresa_id: int | None = Field(
+        None,
+        description="Empresa de contexto opcional. Com >1 empresas, pode ficar em branco e ser definida depois na conversa.",
+    )
 
     @field_validator("telefone", mode="before")
     @classmethod
@@ -101,6 +112,10 @@ class WhatsappIniciarChatBody(BaseModel):
             return None
         digits = "".join(ch for ch in str(v) if ch.isdigit())
         return digits or None
+
+
+class WhatsappEmpresaContextoBody(BaseModel):
+    empresa_id: int = Field(..., ge=1, description="Empresa de contexto do atendimento")
 
 
 class WhatsappRedeCatalogoRead(BaseModel):

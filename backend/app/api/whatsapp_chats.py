@@ -29,6 +29,7 @@ from app.schemas.whatsapp_chat import (
     WhatsappChatMensagemCreate,
     WhatsappChatRead,
     WhatsappContatoRead,
+    WhatsappEmpresaContextoBody,
     WhatsappIniciarChatBody,
     WhatsappMensagemRead,
     WhatsappTransferirChatBody,
@@ -60,6 +61,7 @@ from app.services.whatsapp_media_storage import caminho_absoluto_arquivo, gravar
 from app.services.realtime_emit import emit_chat_fila_from_model, emit_chat_mensagem_from_models
 from app.services.ticket_distribuicao import pos_criar_ticket_na_fila
 from app.services.protocolo_mensal import gerar_protocolo_chat
+from app.services.whatsapp_wa_id_lock import lock_wa_id_para_chat, unlock_wa_id_para_chat
 from app.services.audit_operacional import audit_whatsapp_chat
 
 router = APIRouter(prefix="/whatsapp/chats", tags=["whatsapp-chats"])
@@ -401,6 +403,33 @@ def _empresas_funcionario(db: Session, func: FuncionarioRede) -> list[WhatsappEm
     return [WhatsappEmpresaOpcaoRead(id=e.id, nome=_empresa_nome_exibicao(e) or e.nome) for e in rows]
 
 
+def _resolver_empresa_contexto_opcional(
+    db: Session,
+    atendente: Atendente,
+    func: FuncionarioRede,
+    empresa_id: int | None,
+) -> int | None:
+    """Resolve empresa de contexto sem bloquear multi-empresa (#592).
+
+    - 1 empresa → usa automaticamente
+    - >1 e sem empresa_id → None (atendente pergunta ao cliente e vincula depois)
+    - empresa_id informado → valida pertencer ao funcionário
+    """
+    emp_ids = empresa_ids_vinculados(db, func, apenas_ativas=True)
+    if not emp_ids:
+        return None
+    if len(emp_ids) == 1:
+        return next(iter(emp_ids))
+    if empresa_id is None:
+        return None
+    if int(empresa_id) not in emp_ids:
+        raise HTTPException(status_code=400, detail="Empresa inválida para este funcionário")
+    emp = db.query(Empresa).filter(Empresa.id == int(empresa_id), Empresa.tenant_id == atendente.tenant_id).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Empresa não encontrada")
+    return int(empresa_id)
+
+
 def _resolver_empresa_vinculo(
     db: Session,
     atendente: Atendente,
@@ -423,6 +452,27 @@ def _resolver_empresa_vinculo(
     if not emp:
         raise HTTPException(status_code=404, detail="Empresa não encontrada")
     return emp
+
+
+def _aplicar_empresa_contexto_chat(
+    db: Session,
+    atendente: Atendente,
+    chat: WhatsappChat,
+    empresa_id: int | None,
+    *,
+    apenas_se_vazio: bool = True,
+) -> None:
+    """Define/atualiza chat.empresa_id a partir do funcionário vinculado (#592)."""
+    if apenas_se_vazio and getattr(chat, "empresa_id", None):
+        return
+    func = getattr(chat, "funcionario_rede", None)
+    if func is None and getattr(chat, "funcionario_rede_id", None):
+        func = db.query(FuncionarioRede).filter(FuncionarioRede.id == chat.funcionario_rede_id).first()
+    if not func:
+        return
+    resolvido = _resolver_empresa_contexto_opcional(db, atendente, func, empresa_id)
+    if resolvido is not None:
+        chat.empresa_id = resolvido
 
 
 def _criar_funcionario_rede(
@@ -522,6 +572,7 @@ def _chat_read(db: Session, c: WhatsappChat, *, revelar_avaliacao: bool = False)
         funcionario_tipo=func.tipo if func else None,
         empresa_id=getattr(c, "empresa_id", None),
         empresa_nome=_empresa_nome_exibicao(emp),
+        empresas_opcoes=_empresas_funcionario(db, func) if func else [],
         inatividade_pausada=bool(getattr(c, "inatividade_pausada", False)),
         inatividade_retomada_em=getattr(c, "inatividade_retomada_em", None),
         classificacao_demanda_pendente=bool(getattr(c, "classificacao_demanda_pendente", False)),
@@ -664,6 +715,7 @@ def listar_encerrados(
     protocolo: str | None = Query(None, description="Filtro por protocolo"),
     wa_id: str | None = Query(None, description="Filtro por número ou WhatsApp ID"),
     atendente_id: int | None = Query(None, ge=1, description="Filtro por atendente que encerrou"),
+    empresa_id: int | None = Query(None, ge=1, description="Filtrar chats desta empresa (#591)"),
     encerramento_inicio: datetime | None = Query(None, description="Filtro por data de encerramento a partir de"),
     encerramento_fim: datetime | None = Query(None, description="Filtro por data de encerramento até"),
     estado: str | None = Query(
@@ -692,6 +744,15 @@ def listar_encerrados(
         )
     if atendente_id:
         q = q.filter(WhatsappChat.atendente_id == atendente_id)
+    if empresa_id is not None:
+        emp = (
+            db.query(Empresa.id)
+            .filter(Empresa.id == empresa_id, Empresa.tenant_id == atendente.tenant_id)
+            .first()
+        )
+        if not emp:
+            return ListaPaginada(items=[], total=0)
+        q = q.filter(WhatsappChat.empresa_id == empresa_id)
     ref_data = func.coalesce(
         WhatsappChat.encerramento_at,
         WhatsappChat.atendimento_inicio_at,
@@ -787,23 +848,7 @@ def buscar_funcionarios(
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
     term = f"%{busca.strip()}%"
-    rede_ids = [int(r[0]) for r in db.query(Rede.id).filter(Rede.tenant_id == atendente.tenant_id).all()]
-    empresa_ids = [int(r[0]) for r in db.query(Empresa.id).filter(Empresa.tenant_id == atendente.tenant_id).all()]
-    func_ids_junction = [
-        int(r[0])
-        for r in db.query(FuncionarioRedeEmpresa.funcionario_id)
-        .join(Empresa, Empresa.id == FuncionarioRedeEmpresa.empresa_id)
-        .filter(Empresa.tenant_id == atendente.tenant_id)
-        .distinct()
-        .all()
-    ]
-    filtros = []
-    if rede_ids:
-        filtros.append(FuncionarioRede.rede_id.in_(rede_ids))
-    if empresa_ids:
-        filtros.append(FuncionarioRede.empresa_id.in_(empresa_ids))
-    if func_ids_junction:
-        filtros.append(FuncionarioRede.id.in_(func_ids_junction))
+    filtros = _filtros_funcionario_tenant(db, atendente)
     if not filtros:
         return []
     q = (
@@ -862,6 +907,98 @@ def catalogo_funcionarios(
         redes=[WhatsappRedeCatalogoRead(id=r.id, nome=r.nome) for r in redes],
         empresas=[WhatsappEmpresaCatalogoRead(id=e.id, nome=_empresa_nome_exibicao(e) or e.nome, rede_id=int(e.rede_id)) for e in empresas],
     )
+
+
+def _filtros_funcionario_tenant(db: Session, atendente: Atendente) -> list:
+    """Filtros OR para funcionários ativos no tenant do atendente."""
+    rede_ids = [int(r[0]) for r in db.query(Rede.id).filter(Rede.tenant_id == atendente.tenant_id).all()]
+    empresa_ids = [int(r[0]) for r in db.query(Empresa.id).filter(Empresa.tenant_id == atendente.tenant_id).all()]
+    func_ids_junction = [
+        int(r[0])
+        for r in db.query(FuncionarioRedeEmpresa.funcionario_id)
+        .join(Empresa, Empresa.id == FuncionarioRedeEmpresa.empresa_id)
+        .filter(Empresa.tenant_id == atendente.tenant_id)
+        .distinct()
+        .all()
+    ]
+    filtros = []
+    if rede_ids:
+        filtros.append(FuncionarioRede.rede_id.in_(rede_ids))
+    if empresa_ids:
+        filtros.append(FuncionarioRede.empresa_id.in_(empresa_ids))
+    if func_ids_junction:
+        filtros.append(FuncionarioRede.id.in_(func_ids_junction))
+    return filtros
+
+
+@router.get("/funcionarios/similares", response_model=list[WhatsappFuncionarioOpcaoRead])
+def buscar_funcionarios_similares(
+    nome: str = Query(..., min_length=3, description="Nome digitado no cadastro"),
+    limit: int = Query(5, ge=1, le=10),
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    """Sugestões por similaridade de nome (#593) — usado na aba Cadastrar do modal."""
+    from app.services.funcionario_nome_similar import (
+        LIMIAR_ALTA,
+        LIMIAR_SIMILARIDADE,
+        normalizar_nome,
+        ranquear_similares,
+        tokens_significativos,
+    )
+
+    nome_q = nome.strip()
+    nome_norm = normalizar_nome(nome_q)
+    if len(nome_norm) < 3:
+        return []
+
+    filtros = _filtros_funcionario_tenant(db, atendente)
+    if not filtros:
+        return []
+
+    tokens = tokens_significativos(nome_norm)[:2]
+    token_filters = [FuncionarioRede.nome.ilike(f"%{t}%") for t in tokens] if tokens else []
+    q = db.query(FuncionarioRede).filter(FuncionarioRede.ativo.is_(True), or_(*filtros))
+    if token_filters:
+        q = q.filter(or_(*token_filters))
+    candidatos_rows = q.order_by(FuncionarioRede.nome.asc(), FuncionarioRede.id.asc()).limit(300).all()
+
+    candidatos: list[tuple[int, str]] = []
+    for func in candidatos_rows:
+        if _funcionario_no_tenant(db, atendente, func.id) is None:
+            continue
+        candidatos.append((int(func.id), func.nome or ""))
+
+    ranked = ranquear_similares(nome_q, candidatos, limiar=LIMIAR_SIMILARIDADE, limit=limit)
+    if not ranked:
+        return []
+
+    by_id = {int(f.id): f for f in candidatos_rows}
+    redes_cache: dict[int, str] = {
+        int(r.id): r.nome
+        for r in db.query(Rede).filter(Rede.tenant_id == atendente.tenant_id).all()
+    }
+    out: list[WhatsappFuncionarioOpcaoRead] = []
+    for fid, _nome, score in ranked:
+        func = by_id.get(fid)
+        if func is None:
+            continue
+        rid = rede_id_efetiva(db, func)
+        out.append(
+            WhatsappFuncionarioOpcaoRead(
+                id=func.id,
+                nome=func.nome,
+                email=func.email,
+                telefone=getattr(func, "telefone", None),
+                tipo=func.tipo,
+                empresas=_empresas_funcionario(db, func),
+                rede_id=rid,
+                rede_nome=redes_cache.get(int(rid)) if rid is not None else None,
+                similaridade=round(float(score), 3),
+                similaridade_alta=float(score) >= LIMIAR_ALTA,
+            )
+        )
+    return out
 
 
 def _normalize_wa_id(raw: str | None) -> str:
@@ -1019,82 +1156,88 @@ def iniciar_chat_outbound(
 
     empresa_id: int | None = None
     if func is not None:
-        emps = _empresas_funcionario(db, func)
-        if len(emps) == 1:
-            empresa_id = emps[0].id
-        elif getattr(func, "empresa_id", None):
-            empresa_id = int(func.empresa_id)
+        empresa_id = _resolver_empresa_contexto_opcional(db, atendente, func, data.empresa_id)
 
-    existente = _chat_aberto_por_wa_id(db, wa_id)
-    if existente:
-        if existente.estado == "em_atendimento" and existente.atendente_id not in (None, atendente.id):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Já existe um atendimento aberto deste contacto com outro responsável.",
-            )
-        estado_anterior = existente.estado
-        if existente.estado == "aguardando_atendente" or existente.atendente_id is None:
-            existente.estado = "em_atendimento"
-            existente.atendente_id = atendente.id
-            existente.atendimento_inicio_at = datetime.now(timezone.utc)
-            if func is not None and not existente.funcionario_rede_id:
-                existente.funcionario_rede_id = func.id
-            if empresa_id is not None and not existente.empresa_id:
-                existente.empresa_id = empresa_id
-            audit_whatsapp_chat(
-                db,
-                chat_id=existente.id,
-                action="assign",
-                atendente_id=atendente.id,
-                payload={"de_estado": estado_anterior, "protocolo": existente.protocolo, "origem": "iniciar_outbound"},
-            )
-            db.commit()
-            db.refresh(existente)
-            emit_chat_fila_from_model(db, existente, estado_anterior=estado_anterior)
+    lock_wa_id_para_chat(db, wa_id)
+    try:
+        existente = _chat_aberto_por_wa_id(db, wa_id)
+        if existente:
+            if existente.estado == "em_atendimento" and existente.atendente_id not in (None, atendente.id):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Já existe um atendimento aberto deste contacto com outro responsável.",
+                )
+            estado_anterior = existente.estado
+            if existente.estado == "aguardando_atendente" or existente.atendente_id is None:
+                existente.estado = "em_atendimento"
+                existente.atendente_id = atendente.id
+                existente.atendimento_inicio_at = datetime.now(timezone.utc)
+                if func is not None and not existente.funcionario_rede_id:
+                    existente.funcionario_rede_id = func.id
+                if not existente.empresa_id:
+                    _aplicar_empresa_contexto_chat(db, atendente, existente, data.empresa_id)
+                audit_whatsapp_chat(
+                    db,
+                    chat_id=existente.id,
+                    action="assign",
+                    atendente_id=atendente.id,
+                    payload={"de_estado": estado_anterior, "protocolo": existente.protocolo, "origem": "iniciar_outbound"},
+                )
+                db.commit()
+                db.refresh(existente)
+                emit_chat_fila_from_model(db, existente, estado_anterior=estado_anterior)
+            elif not existente.empresa_id and (func is not None or existente.funcionario_rede_id):
+                if func is not None and not existente.funcionario_rede_id:
+                    existente.funcionario_rede_id = func.id
+                _aplicar_empresa_contexto_chat(db, atendente, existente, data.empresa_id)
+                db.commit()
+                db.refresh(existente)
+            msg_init = (data.mensagem_inicial or "").strip()
+            if msg_init:
+                try:
+                    _enviar_texto_whatsapp(db, chat=existente, texto=msg_init, atendente=atendente, evento_sistema=None)
+                except HTTPException:
+                    raise
+            c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == existente.id).first()
+            assert c is not None
+            return _chat_read(db, c)
+
+        # Garante Evolution configurada se houver mensagem inicial (criar chat sem msg ainda exige settings para uso posterior)
+        _settings_envio(db)
+
+        chat = WhatsappChat(
+            protocolo=gerar_protocolo_chat(db),
+            wa_id=wa_id,
+            cliente_nome=(func.nome if func else None),
+            estado="em_atendimento",
+            atendente_id=atendente.id,
+            atendimento_inicio_at=datetime.now(timezone.utc),
+            setor_id=None,
+            funcionario_rede_id=func.id if func else None,
+            empresa_id=empresa_id,
+        )
+        db.add(chat)
+        db.flush()
+        audit_whatsapp_chat(
+            db,
+            chat_id=chat.id,
+            action="create",
+            atendente_id=atendente.id,
+            payload={"protocolo": chat.protocolo, "origem": "iniciar_outbound", "wa_id": wa_id},
+        )
+        db.commit()
+        db.refresh(chat)
+        emit_chat_fila_from_model(db, chat, estado_anterior=None)
+
         msg_init = (data.mensagem_inicial or "").strip()
         if msg_init:
-            try:
-                _enviar_texto_whatsapp(db, chat=existente, texto=msg_init, atendente=atendente, evento_sistema=None)
-            except HTTPException:
-                raise
-        c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == existente.id).first()
+            _enviar_texto_whatsapp(db, chat=chat, texto=msg_init, atendente=atendente, evento_sistema=None)
+
+        c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat.id).first()
         assert c is not None
         return _chat_read(db, c)
-
-    # Garante Evolution configurada se houver mensagem inicial (criar chat sem msg ainda exige settings para uso posterior)
-    _settings_envio(db)
-
-    chat = WhatsappChat(
-        protocolo=gerar_protocolo_chat(db),
-        wa_id=wa_id,
-        cliente_nome=(func.nome if func else None),
-        estado="em_atendimento",
-        atendente_id=atendente.id,
-        atendimento_inicio_at=datetime.now(timezone.utc),
-        setor_id=None,
-        funcionario_rede_id=func.id if func else None,
-        empresa_id=empresa_id,
-    )
-    db.add(chat)
-    db.flush()
-    audit_whatsapp_chat(
-        db,
-        chat_id=chat.id,
-        action="create",
-        atendente_id=atendente.id,
-        payload={"protocolo": chat.protocolo, "origem": "iniciar_outbound", "wa_id": wa_id},
-    )
-    db.commit()
-    db.refresh(chat)
-    emit_chat_fila_from_model(db, chat, estado_anterior=None)
-
-    msg_init = (data.mensagem_inicial or "").strip()
-    if msg_init:
-        _enviar_texto_whatsapp(db, chat=chat, texto=msg_init, atendente=atendente, evento_sistema=None)
-
-    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat.id).first()
-    assert c is not None
-    return _chat_read(db, c)
+    finally:
+        unlock_wa_id_para_chat(db, wa_id)
 
 
 @router.get("/{chat_id}", response_model=WhatsappChatRead)
@@ -1280,6 +1423,11 @@ def excluir_demanda(
 @router.post("/{chat_id}/assumir", response_model=WhatsappChatRead)
 def assumir(
     chat_id: int,
+    empresa_id: int | None = Query(
+        None,
+        ge=1,
+        description="Empresa de contexto opcional (pode ser definida depois na conversa).",
+    ),
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
@@ -1292,6 +1440,7 @@ def assumir(
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
     if c.estado != "aguardando_atendente":
         raise HTTPException(status_code=400, detail="Só é possível assumir chats na fila de espera")
+    _aplicar_empresa_contexto_chat(db, atendente, c, empresa_id)
     estado_anterior = c.estado
     c.estado = "em_atendimento"
     c.atendente_id = atendente.id
@@ -1328,6 +1477,32 @@ def assumir(
     c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
     assert c is not None
     return _chat_read(db, c)
+
+
+@router.post("/{chat_id}/empresa-contexto", response_model=WhatsappChatRead)
+def definir_empresa_contexto(
+    chat_id: int,
+    data: WhatsappEmpresaContextoBody,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    """Define ou altera a empresa de contexto a qualquer momento antes do encerramento (#592)."""
+    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not _pode_ver_chat(db, atendente, c):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este chat")
+    if c.estado in ("encerrado", "aguardando_avaliacao"):
+        raise HTTPException(status_code=400, detail="Não é possível alterar a empresa após o encerramento")
+    if not c.funcionario_rede_id:
+        raise HTTPException(status_code=400, detail="Chat sem funcionário vinculado")
+    _aplicar_empresa_contexto_chat(db, atendente, c, data.empresa_id, apenas_se_vazio=False)
+    if not c.empresa_id:
+        raise HTTPException(status_code=400, detail="Selecione a empresa do funcionário")
+    db.commit()
+    c2 = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
+    assert c2 is not None
+    return _chat_read(db, c2)
 
 
 @router.post("/{chat_id}/encerrar", response_model=WhatsappChatRead)

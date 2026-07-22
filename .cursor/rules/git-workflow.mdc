@@ -9,9 +9,19 @@ alwaysApply: true
 
 - **Nunca** implementar direto em `main` ou `staging`
 - **Sempre** criar branch nova antes de codar
-- **Uma feature = uma branch = um PR** para `main`
+- **Uma feature/lote = uma branch = um PR** para `main`
 - `main` é **branch de testes** — `/criar-pr` mergeia automaticamente após CI verde
 - Não push direto em `main` (sempre via PR)
+
+## Após merge na `main` (obrigatório)
+
+Quando o PR do lote for **mergeado** e o desenvolvimento daquele lote estiver **fechado para testes** na `main`:
+
+1. **Não** continuar a codar na branch já mergeada (ex.: `cursor/…`, `feat/portal-…`)
+2. **Sempre** abrir **branch nova** a partir de `main` atualizada antes do próximo trabalho
+3. Usar `/iniciar-feature` (ou o fluxo abaixo) — mesmo se o próximo lote for “só polish” ou issues pequenas
+
+Exceção: hotfix urgente na mesma linha só se o PR ainda **não** tiver sido mergeado.
 
 ## Nomenclatura de branch
 

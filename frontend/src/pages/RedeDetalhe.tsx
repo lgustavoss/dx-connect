@@ -176,6 +176,10 @@ export function RedeDetalhe() {
   const [ativoFuncionario, setAtivoFuncionario] = useState(true)
   const [empresaIdFuncionario, setEmpresaIdFuncionario] = useState<number | ''>('')
   const [empresaIdsFuncionario, setEmpresaIdsFuncionario] = useState<number[]>([])
+  const [senhaPortalFuncionario, setSenhaPortalFuncionario] = useState('')
+  const [mustChangePasswordFuncionario, setMustChangePasswordFuncionario] = useState(true)
+  const [portalHabilitadoFuncionario, setPortalHabilitadoFuncionario] = useState(false)
+  const [notificarEmailPortalFuncionario, setNotificarEmailPortalFuncionario] = useState(true)
   const [savingFuncionario, setSavingFuncionario] = useState(false)
 
   const empresasFiltradas = useMemo(() => {
@@ -631,6 +635,10 @@ export function RedeDetalhe() {
     setAtivoFuncionario(f.ativo)
     setEmpresaIdFuncionario(f.empresa_id ?? '')
     setEmpresaIdsFuncionario(f.empresa_ids ?? [])
+    setSenhaPortalFuncionario('')
+    setMustChangePasswordFuncionario(f.must_change_password !== false)
+    setPortalHabilitadoFuncionario(Boolean(f.portal_habilitado))
+    setNotificarEmailPortalFuncionario(f.notificar_email_portal !== false)
   }
 
   function verFuncionarioDetalhe(f: FuncionarioListaItem) {
@@ -654,6 +662,10 @@ export function RedeDetalhe() {
     setAtivoFuncionario(true)
     setEmpresaIdFuncionario('')
     setEmpresaIdsFuncionario([])
+    setSenhaPortalFuncionario('')
+    setMustChangePasswordFuncionario(true)
+    setPortalHabilitadoFuncionario(false)
+    setNotificarEmailPortalFuncionario(true)
     setAba('funcionarios')
     setModalFuncionario(true)
   }
@@ -662,6 +674,10 @@ export function RedeDetalhe() {
     setModalFuncionario(false)
     setModoFuncionario('edit')
     setEditingFuncionarioId(null)
+    setSenhaPortalFuncionario('')
+    setMustChangePasswordFuncionario(true)
+    setPortalHabilitadoFuncionario(false)
+    setNotificarEmailPortalFuncionario(true)
   }
 
   function toggleEmpresaFuncionario(id: number) {
@@ -689,16 +705,34 @@ export function RedeDetalhe() {
         return
       }
     }
+    const senhaPortal = senhaPortalFuncionario.trim()
+    if (senhaPortal) {
+      if (!emailFuncionario.trim()) {
+        toast.showWarning('Informe o e-mail do funcionário para habilitar o portal.')
+        return
+      }
+      if (senhaPortal.length < 8) {
+        toast.showWarning('A senha do portal deve ter ao menos 8 caracteres.')
+        return
+      }
+    }
+    const escopoEmpresas = tipoFuncionario === 'socio' ? 'all' : 'selected'
     setSavingFuncionario(true)
     try {
-      const payload = {
+      const payload: FuncionariosRede.Create = {
         nome: nomeFuncionario.trim(),
         email: emailFuncionario.trim(),
         tipo: tipoFuncionario,
         ativo: ativoFuncionario,
-        rede_id: tipoFuncionario === 'socio' ? redeId : undefined,
+        escopo_empresas: escopoEmpresas,
+        rede_id: redeId,
         empresa_id: tipoFuncionario === 'colaborador' ? Number(empresaIdFuncionario) : undefined,
         empresa_ids: tipoFuncionario === 'supervisor' ? empresaIdsFuncionario : undefined,
+        must_change_password: mustChangePasswordFuncionario,
+        ...(senhaPortal ? { senha_portal: senhaPortal } : {}),
+        ...(editingFuncionarioId
+          ? { notificar_email_portal: notificarEmailPortalFuncionario }
+          : {}),
       }
       const eraEdicao = editingFuncionarioId != null
       let idDetalhe: number
@@ -1669,6 +1703,50 @@ export function RedeDetalhe() {
                       )}
                     </FormSection>
                   )}
+
+                  <FormSection title="Portal do cliente">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Com e-mail e senha, o funcionário acessa{' '}
+                      <span className="font-medium text-slate-700 dark:text-slate-200">/portal</span> para abrir e
+                      acompanhar chamados.
+                      {modoFuncionario === 'edit' && portalHabilitadoFuncionario ? (
+                        <span className="ml-1 text-teal-700 dark:text-teal-400">Portal já habilitado.</span>
+                      ) : null}
+                    </p>
+                    <Input
+                      label={
+                        modoFuncionario === 'edit'
+                          ? 'Nova senha do portal (opcional)'
+                          : 'Senha do portal (opcional)'
+                      }
+                      type="password"
+                      value={senhaPortalFuncionario}
+                      onChange={(e) => setSenhaPortalFuncionario(e.target.value)}
+                      autoComplete="new-password"
+                      placeholder={emailFuncionario.trim() ? 'Mínimo 8 caracteres' : 'Informe o e-mail primeiro'}
+                      disabled={!emailFuncionario.trim()}
+                    />
+                    <Switch
+                      bare
+                      checked={mustChangePasswordFuncionario}
+                      onCheckedChange={setMustChangePasswordFuncionario}
+                      label="Exigir troca de senha no primeiro acesso"
+                      showStatusPill
+                      statusOnText="Sim"
+                      statusOffText="Não"
+                    />
+                    {modoFuncionario === 'edit' ? (
+                      <Switch
+                        bare
+                        checked={notificarEmailPortalFuncionario}
+                        onCheckedChange={setNotificarEmailPortalFuncionario}
+                        label="Notificar por e-mail sobre respostas nos chamados"
+                        showStatusPill
+                        statusOnText="Sim"
+                        statusOffText="Não"
+                      />
+                    ) : null}
+                  </FormSection>
 
                   <FormSection title="Situação no sistema">
                     <Switch

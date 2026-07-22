@@ -37,6 +37,13 @@ DEFAULT_AUTO_MSG_AVALIACAO_SEM_NOTA = (
     "Não foi possível registrar sua avaliação. O atendimento foi encerrado. "
     "Se precisar de algo mais, envie uma nova mensagem por aqui."
 )
+DEFAULT_AUTO_MSG_AVALIACAO_PULAR = (
+    "Sem problema! Vamos abrir um novo atendimento com a sua mensagem."
+)
+DEFAULT_AUTO_MSG_AVALIACAO_TIMEOUT = (
+    "O período para avaliar o atendimento encerrou. "
+    "Se precisar de ajuda, envie uma nova mensagem por aqui."
+)
 
 # Mensagens desta fase não aparecem na conversa do atendente (só no WhatsApp do cliente).
 EVENTOS_MENSAGEM_OCULTA_CONVERSA = frozenset(
@@ -44,6 +51,8 @@ EVENTOS_MENSAGEM_OCULTA_CONVERSA = frozenset(
         "auto_avaliacao_solicitacao",
         "auto_avaliacao_obrigado",
         "auto_avaliacao_sem_nota",
+        "auto_avaliacao_pular",
+        "auto_avaliacao_timeout",
         "avaliacao_cliente_nota",
         "avaliacao_cliente_invalida",
     }

@@ -24,6 +24,11 @@ class FuncionarioRede(Base):
     tipo = Column(String(20), nullable=False)  # socio | supervisor | colaborador
     escopo_empresas = Column(String(20), nullable=False, default="selected")  # all | selected
     ativo = Column(Boolean, default=True)
+    # Auth do portal do cliente (#263 / #300)
+    senha_hash = Column(String(255), nullable=True)
+    must_change_password = Column(Boolean, default=False, nullable=False)
+    token_version = Column(Integer, default=0, nullable=False)
+    notificar_email_portal = Column(Boolean, default=True, nullable=False)
     # Sócio: preenchido rede_id
     rede_id = Column(Integer, ForeignKey("redes.id"), nullable=True)
     # Colaborador: preenchido empresa_id

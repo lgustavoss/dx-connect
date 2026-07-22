@@ -51,9 +51,12 @@ def _read_out(row: WhatsappSettings | None) -> WhatsappSettingsRead:
             auto_msg_inativ_aviso_ativa=True,
             auto_msg_inativ_aviso_texto=None,
             avaliacao_ativa=False,
+            avaliacao_janela_minutos=30,
             auto_msg_avaliacao_ativa=True,
             auto_msg_avaliacao_texto=None,
             auto_msg_avaliacao_obrigado_texto=None,
+            auto_msg_avaliacao_timeout_texto=None,
+            auto_msg_avaliacao_pular_texto=None,
         )
     horario_semana = None
     raw = getattr(row, "horario_semana_json", None)
@@ -88,9 +91,12 @@ def _read_out(row: WhatsappSettings | None) -> WhatsappSettingsRead:
         auto_msg_inativ_aviso_ativa=bool(getattr(row, "auto_msg_inativ_aviso_ativa", True)),
         auto_msg_inativ_aviso_texto=getattr(row, "auto_msg_inativ_aviso_texto", None),
         avaliacao_ativa=bool(getattr(row, "avaliacao_ativa", False)),
+        avaliacao_janela_minutos=int(getattr(row, "avaliacao_janela_minutos", None) or 30),
         auto_msg_avaliacao_ativa=bool(getattr(row, "auto_msg_avaliacao_ativa", True)),
         auto_msg_avaliacao_texto=getattr(row, "auto_msg_avaliacao_texto", None),
         auto_msg_avaliacao_obrigado_texto=getattr(row, "auto_msg_avaliacao_obrigado_texto", None),
+        auto_msg_avaliacao_timeout_texto=getattr(row, "auto_msg_avaliacao_timeout_texto", None),
+        auto_msg_avaliacao_pular_texto=getattr(row, "auto_msg_avaliacao_pular_texto", None),
     )
 
 
@@ -162,9 +168,12 @@ def atualizar(
         "inativ_aviso_minutos",
         "inativ_encerramento_apos_aviso_minutos",
         "avaliacao_ativa",
+        "avaliacao_janela_minutos",
         "auto_msg_avaliacao_ativa",
         "auto_msg_avaliacao_texto",
         "auto_msg_avaliacao_obrigado_texto",
+        "auto_msg_avaliacao_timeout_texto",
+        "auto_msg_avaliacao_pular_texto",
     ):
         if k in payload:
             setattr(row, k, payload[k])
@@ -176,6 +185,13 @@ def atualizar(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Informe minutos válidos para aviso e encerramento após o aviso.",
+            )
+    if bool(getattr(row, "avaliacao_ativa", False)):
+        janela = getattr(row, "avaliacao_janela_minutos", None)
+        if not janela or int(janela) < 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Informe a janela de avaliação em minutos (mínimo 1).",
             )
     if "horario_semana" in payload:
         hs = payload["horario_semana"]
