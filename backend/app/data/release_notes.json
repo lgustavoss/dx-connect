@@ -1,23 +1,71 @@
 {
-  "current_version": "26.07.013",
-  "current_version_display": "v26.07.013",
+  "current_version": "26.07.014",
+  "current_version_display": "v26.07.014",
   "current": {
-    "version": "26.07.013",
-    "version_display": "v26.07.013",
-    "date": "2026-07-18",
+    "version": "26.07.014",
+    "version_display": "v26.07.014",
+    "date": "2026-07-22",
     "status": "published",
     "changes": [
       {
         "category": "melhorias",
-        "text": "WhatsApp (#577): countdown até o aviso e, após o aviso, até encerrar; enviar mensagem (ou o cliente falar) sai automaticamente da pausa"
+        "text": "Portal do cliente (#263 / #300–#308): funcionários da rede fazem login em **/portal**, abrem e acompanham chamados da sua empresa, respondem no fio público, anexam ficheiros, consultam a base de ajuda e recebem e-mail quando a equipe responde; o admin define a senha do portal no cadastro do funcionário"
       },
       {
         "category": "melhorias",
-        "text": "WhatsApp: após encerramento por inatividade, o chat fica em **A classificar demanda** (somente leitura) até registar, manter demandas existentes ou confirmar sem demanda; nova mensagem do mesmo cliente abre chat novo na fila"
+        "text": "Portal (#600, #601): cadastro de funcionário pelo modal da Rede permite definir senha do portal na criação; sócio cadastra sem escolher empresas (escopo automático em toda a rede)"
       },
       {
         "category": "melhorias",
-        "text": "WhatsApp (#575): ticks de entrega/leitura no painel passam a atualizar (✓✓ / ✓✓ azul) — o webhook da Evolution com `keyId` + `DELIVERY_ACK`/`READ` era ignorado; mark-as-read no WhatsApp do cliente também quando chega mensagem nova com o responsável no chat"
+        "text": "Portal (#604): RBAC por papel — colaborador vê só os próprios chamados; supervisor vê todos das empresas vinculadas; sócio vê toda a rede"
+      },
+      {
+        "category": "melhorias",
+        "text": "Portal (#603): listagem e detalhe de atendimentos WhatsApp no `/portal` (somente leitura), com o mesmo escopo por papel e sem comentários internos da equipe"
+      },
+      {
+        "category": "melhorias",
+        "text": "Portal (#602): sócio gere a equipa no `/portal` — cadastro e edição de colaboradores e supervisores (empresas, senha do portal); outros sócios listados com edição limitada; colaborador/supervisor recebem 403"
+      },
+      {
+        "category": "melhorias",
+        "text": "Portal (#605): branding white-label no `/portal` — logo e cores da instância (mesmas configurações de Configurações → Base de conhecimento); login e shell aplicam a identidade do contratante, não a marca DeskRudder"
+      },
+      {
+        "category": "melhorias",
+        "text": "Portal: shell alinhado ao painel DeskRudder (menu lateral com usuário/Sair, navbar com expandir/recolher); cor do menu lateral configurável (padrão = navbar); chat ao vivo no `/portal` (mesmo canal da `/kb`, isolado por instância); login com logo em destaque, ícone de olho na senha e fundo minimalista; título do portal independente da central `/kb`"
+      },
+      {
+        "category": "melhorias",
+        "text": "WhatsApp (#593): ao **cadastrar** contacto no chat, o sistema sugere funcionários com nome semelhante para vincular (evita duplicados); o atendente pode ignorar e criar novo"
+      },
+      {
+        "category": "melhorias",
+        "text": "WhatsApp (#591): no detalhe da **Empresa**, nova aba **Chats** com atendimentos filtrados por aquela empresa (busca, paginação, abrir conversa / retomar)"
+      },
+      {
+        "category": "melhorias",
+        "text": "WhatsApp (#592): com funcionário em **mais de uma empresa**, o atendimento pode começar sem empresa; o atendente pergunta ao cliente e vincula (ou altera) a qualquer momento antes de encerrar — 1 empresa continua automática"
+      },
+      {
+        "category": "melhorias",
+        "text": "WhatsApp (#590): na listagem **Atendimentos**, cada card mostra a **empresa** do contacto (ou «Sem empresa» quando não houver vínculo)"
+      },
+      {
+        "category": "melhorias",
+        "text": "Chat (#607): na aba **Atendendo**, secções **Comigo** e **Outros atendentes** quando o admin acompanha colegas; badge «Você» e destaque visual nos seus; nome do responsável legível nos de outros"
+      },
+      {
+        "category": "melhorias",
+        "text": "WhatsApp (#606): conversa mais utilizável no **mobile** — composer com campo largo e botão de manuais só ícone; menu **⋮** com Transferir/Tickets; metadados em linha separada; painel de demandas colapsável; `safe-area` no composer"
+      },
+      {
+        "category": "melhorias",
+        "text": "WhatsApp (#608): duas mensagens inbound seguidas do mesmo contacto deixam de abrir dois chats/protocolos — lock por `wa_id` no webhook e uma única sequência de auto-mensagens por sessão"
+      },
+      {
+        "category": "melhorias",
+        "text": "WhatsApp (#598): após encerrar com avaliação, janela de ~30 min (configurável) para a nota; se o cliente mandar outro texto, abre atendimento novo com essa mensagem; sem resposta, finaliza sozinho"
       }
     ]
   },
@@ -1003,6 +1051,74 @@
         {
           "category": "melhorias",
           "text": "WhatsApp (#575): ticks de entrega/leitura no painel passam a atualizar (✓✓ / ✓✓ azul) — o webhook da Evolution com `keyId` + `DELIVERY_ACK`/`READ` era ignorado; mark-as-read no WhatsApp do cliente também quando chega mensagem nova com o responsável no chat"
+        }
+      ]
+    },
+    {
+      "version": "26.07.014",
+      "version_display": "v26.07.014",
+      "date": "2026-07-22",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "Portal do cliente (#263 / #300–#308): funcionários da rede fazem login em **/portal**, abrem e acompanham chamados da sua empresa, respondem no fio público, anexam ficheiros, consultam a base de ajuda e recebem e-mail quando a equipe responde; o admin define a senha do portal no cadastro do funcionário"
+        },
+        {
+          "category": "melhorias",
+          "text": "Portal (#600, #601): cadastro de funcionário pelo modal da Rede permite definir senha do portal na criação; sócio cadastra sem escolher empresas (escopo automático em toda a rede)"
+        },
+        {
+          "category": "melhorias",
+          "text": "Portal (#604): RBAC por papel — colaborador vê só os próprios chamados; supervisor vê todos das empresas vinculadas; sócio vê toda a rede"
+        },
+        {
+          "category": "melhorias",
+          "text": "Portal (#603): listagem e detalhe de atendimentos WhatsApp no `/portal` (somente leitura), com o mesmo escopo por papel e sem comentários internos da equipe"
+        },
+        {
+          "category": "melhorias",
+          "text": "Portal (#602): sócio gere a equipa no `/portal` — cadastro e edição de colaboradores e supervisores (empresas, senha do portal); outros sócios listados com edição limitada; colaborador/supervisor recebem 403"
+        },
+        {
+          "category": "melhorias",
+          "text": "Portal (#605): branding white-label no `/portal` — logo e cores da instância (mesmas configurações de Configurações → Base de conhecimento); login e shell aplicam a identidade do contratante, não a marca DeskRudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Portal: shell alinhado ao painel DeskRudder (menu lateral com usuário/Sair, navbar com expandir/recolher); cor do menu lateral configurável (padrão = navbar); chat ao vivo no `/portal` (mesmo canal da `/kb`, isolado por instância); login com logo em destaque, ícone de olho na senha e fundo minimalista; título do portal independente da central `/kb`"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#593): ao **cadastrar** contacto no chat, o sistema sugere funcionários com nome semelhante para vincular (evita duplicados); o atendente pode ignorar e criar novo"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#591): no detalhe da **Empresa**, nova aba **Chats** com atendimentos filtrados por aquela empresa (busca, paginação, abrir conversa / retomar)"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#592): com funcionário em **mais de uma empresa**, o atendimento pode começar sem empresa; o atendente pergunta ao cliente e vincula (ou altera) a qualquer momento antes de encerrar — 1 empresa continua automática"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#590): na listagem **Atendimentos**, cada card mostra a **empresa** do contacto (ou «Sem empresa» quando não houver vínculo)"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat (#607): na aba **Atendendo**, secções **Comigo** e **Outros atendentes** quando o admin acompanha colegas; badge «Você» e destaque visual nos seus; nome do responsável legível nos de outros"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#606): conversa mais utilizável no **mobile** — composer com campo largo e botão de manuais só ícone; menu **⋮** com Transferir/Tickets; metadados em linha separada; painel de demandas colapsável; `safe-area` no composer"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#608): duas mensagens inbound seguidas do mesmo contacto deixam de abrir dois chats/protocolos — lock por `wa_id` no webhook e uma única sequência de auto-mensagens por sessão"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#598): após encerrar com avaliação, janela de ~30 min (configurável) para a nota; se o cliente mandar outro texto, abre atendimento novo com essa mensagem; sem resposta, finaliza sozinho"
         }
       ]
     }
