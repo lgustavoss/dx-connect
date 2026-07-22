@@ -848,23 +848,7 @@ def buscar_funcionarios(
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
     term = f"%{busca.strip()}%"
-    rede_ids = [int(r[0]) for r in db.query(Rede.id).filter(Rede.tenant_id == atendente.tenant_id).all()]
-    empresa_ids = [int(r[0]) for r in db.query(Empresa.id).filter(Empresa.tenant_id == atendente.tenant_id).all()]
-    func_ids_junction = [
-        int(r[0])
-        for r in db.query(FuncionarioRedeEmpresa.funcionario_id)
-        .join(Empresa, Empresa.id == FuncionarioRedeEmpresa.empresa_id)
-        .filter(Empresa.tenant_id == atendente.tenant_id)
-        .distinct()
-        .all()
-    ]
-    filtros = []
-    if rede_ids:
-        filtros.append(FuncionarioRede.rede_id.in_(rede_ids))
-    if empresa_ids:
-        filtros.append(FuncionarioRede.empresa_id.in_(empresa_ids))
-    if func_ids_junction:
-        filtros.append(FuncionarioRede.id.in_(func_ids_junction))
+    filtros = _filtros_funcionario_tenant(db, atendente)
     if not filtros:
         return []
     q = (
@@ -923,6 +907,98 @@ def catalogo_funcionarios(
         redes=[WhatsappRedeCatalogoRead(id=r.id, nome=r.nome) for r in redes],
         empresas=[WhatsappEmpresaCatalogoRead(id=e.id, nome=_empresa_nome_exibicao(e) or e.nome, rede_id=int(e.rede_id)) for e in empresas],
     )
+
+
+def _filtros_funcionario_tenant(db: Session, atendente: Atendente) -> list:
+    """Filtros OR para funcionários ativos no tenant do atendente."""
+    rede_ids = [int(r[0]) for r in db.query(Rede.id).filter(Rede.tenant_id == atendente.tenant_id).all()]
+    empresa_ids = [int(r[0]) for r in db.query(Empresa.id).filter(Empresa.tenant_id == atendente.tenant_id).all()]
+    func_ids_junction = [
+        int(r[0])
+        for r in db.query(FuncionarioRedeEmpresa.funcionario_id)
+        .join(Empresa, Empresa.id == FuncionarioRedeEmpresa.empresa_id)
+        .filter(Empresa.tenant_id == atendente.tenant_id)
+        .distinct()
+        .all()
+    ]
+    filtros = []
+    if rede_ids:
+        filtros.append(FuncionarioRede.rede_id.in_(rede_ids))
+    if empresa_ids:
+        filtros.append(FuncionarioRede.empresa_id.in_(empresa_ids))
+    if func_ids_junction:
+        filtros.append(FuncionarioRede.id.in_(func_ids_junction))
+    return filtros
+
+
+@router.get("/funcionarios/similares", response_model=list[WhatsappFuncionarioOpcaoRead])
+def buscar_funcionarios_similares(
+    nome: str = Query(..., min_length=3, description="Nome digitado no cadastro"),
+    limit: int = Query(5, ge=1, le=10),
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    """Sugestões por similaridade de nome (#593) — usado na aba Cadastrar do modal."""
+    from app.services.funcionario_nome_similar import (
+        LIMIAR_ALTA,
+        LIMIAR_SIMILARIDADE,
+        normalizar_nome,
+        ranquear_similares,
+        tokens_significativos,
+    )
+
+    nome_q = nome.strip()
+    nome_norm = normalizar_nome(nome_q)
+    if len(nome_norm) < 3:
+        return []
+
+    filtros = _filtros_funcionario_tenant(db, atendente)
+    if not filtros:
+        return []
+
+    tokens = tokens_significativos(nome_norm)[:2]
+    token_filters = [FuncionarioRede.nome.ilike(f"%{t}%") for t in tokens] if tokens else []
+    q = db.query(FuncionarioRede).filter(FuncionarioRede.ativo.is_(True), or_(*filtros))
+    if token_filters:
+        q = q.filter(or_(*token_filters))
+    candidatos_rows = q.order_by(FuncionarioRede.nome.asc(), FuncionarioRede.id.asc()).limit(300).all()
+
+    candidatos: list[tuple[int, str]] = []
+    for func in candidatos_rows:
+        if _funcionario_no_tenant(db, atendente, func.id) is None:
+            continue
+        candidatos.append((int(func.id), func.nome or ""))
+
+    ranked = ranquear_similares(nome_q, candidatos, limiar=LIMIAR_SIMILARIDADE, limit=limit)
+    if not ranked:
+        return []
+
+    by_id = {int(f.id): f for f in candidatos_rows}
+    redes_cache: dict[int, str] = {
+        int(r.id): r.nome
+        for r in db.query(Rede).filter(Rede.tenant_id == atendente.tenant_id).all()
+    }
+    out: list[WhatsappFuncionarioOpcaoRead] = []
+    for fid, _nome, score in ranked:
+        func = by_id.get(fid)
+        if func is None:
+            continue
+        rid = rede_id_efetiva(db, func)
+        out.append(
+            WhatsappFuncionarioOpcaoRead(
+                id=func.id,
+                nome=func.nome,
+                email=func.email,
+                telefone=getattr(func, "telefone", None),
+                tipo=func.tipo,
+                empresas=_empresas_funcionario(db, func),
+                rede_id=rid,
+                rede_nome=redes_cache.get(int(rid)) if rid is not None else None,
+                similaridade=round(float(score), 3),
+                similaridade_alta=float(score) >= LIMIAR_ALTA,
+            )
+        )
+    return out
 
 
 def _normalize_wa_id(raw: str | None) -> str:

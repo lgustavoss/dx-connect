@@ -923,6 +923,8 @@ export namespace WhatsappChats {
     empresas: EmpresaOpcao[]
     rede_id?: number | null
     rede_nome?: string | null
+    similaridade?: number | null
+    similaridade_alta?: boolean
   }
   export interface Contato {
     id: number
@@ -1219,6 +1221,13 @@ export const whatsappChats = {
   buscarFuncionarios: (busca: string, limit = 20) =>
     api<WhatsappChats.FuncionarioOpcao[]>(
       `/whatsapp/chats/funcionarios?${new URLSearchParams({ busca, limit: String(limit) }).toString()}`,
+    ),
+  buscarFuncionariosSimilares: (nome: string, limit = 5) =>
+    api<WhatsappChats.FuncionarioOpcao[]>(
+      `/whatsapp/chats/funcionarios/similares?${new URLSearchParams({
+        nome,
+        limit: String(limit),
+      }).toString()}`,
     ),
   catalogoFuncionarios: () => api<WhatsappChats.FuncionarioCatalogo>('/whatsapp/chats/funcionarios/catalogo'),
   cadastrarFuncionario: (
