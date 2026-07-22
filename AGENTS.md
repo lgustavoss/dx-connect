@@ -21,13 +21,14 @@ Guia para desenvolvimento assistido por IA no Cursor (time 2–3 devs).
 | `rbac-setor-scope` | `backend/app/api/**`, `backend/app/core/**` |
 | `alembic-migrations` | `backend/alembic/**` |
 | `git-workflow` | Sempre — branch por feature, PR para `main` |
+| `staging-release-approval` | Sempre — staging = produção; merge só humano |
 | `sse-realtime` | Arquivos SSE/realtime (backend + frontend) |
 
 ## Hooks
 
 | Hook | Evento | Função |
 |------|--------|--------|
-| `block_main_branch.py` | `beforeShellExecution` | Bloqueia commit/push em `main`/`staging` |
+| `block_main_branch.py` | `beforeShellExecution` (`git` / `gh`) | Bloqueia commit/push em `main`/`staging` e **`gh pr merge` com base staging** |
 | `format_frontend.py` | `afterFileEdit` | ESLint `--fix` em `.ts/.tsx` do frontend |
 
 Config: `.cursor/hooks.json`
@@ -43,7 +44,8 @@ Config: `.cursor/hooks.json`
 | `/revisar-e-testar` | Revisão pré-merge com testes |
 | `/subir-local` | Subir Docker, migrations, API e frontend em dev |
 | `/testar-ui` | Smoke test no navegador integrado (login, rotas, console) |
-| `/criar-pr` | PR → watch CI → approve → **merge automático em main** |
+| `/criar-pr` | PR → watch CI → approve → **merge automático em main** (nunca staging) |
+| `/release-staging` | Abre PR `main → staging`; **não mergeia** (aprovação humana) |
 
 ## Subagents (Task tool)
 
@@ -70,6 +72,8 @@ Use subagents para **paralelizar** ou **isolar** trabalho:
 ```
 
 O `/criar-pr` monitora Actions, aprova e **mergeia em `main`** quando CI passa (main = branch de testes). Em falha, corrige e re-monitora (skill **babysit**). Opt-out: pedir `/criar-pr sem merge`.
+
+Release para produção: `/release-staging` — **só abre** o PR; merge em `staging` é **sempre** manual no GitHub.
 
 Para desenvolvimento local: `/subir-local` → `/testar-ui` (navegador integrado).
 
