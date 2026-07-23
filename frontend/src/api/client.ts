@@ -3783,7 +3783,46 @@ export const saasPublic = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  contato: (data: SaasPublic.ContatoCreate) =>
+    publicApi<SaasPublic.ContatoRead>('/saas/public/contato', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };
+
+export const saasLeads = {
+  list: (params?: {
+    busca?: string;
+    status?: string;
+    ordenar_por?: 'created_at' | 'nome' | 'status';
+    ordem?: 'asc' | 'desc';
+    offset?: number;
+    limit?: number;
+  }) => listPaginated<SaasLeads.Lead>('/saas/leads', params),
+  get: (id: number) => api<SaasLeads.Lead>(`/saas/leads/${id}`),
+  update: (id: number, data: SaasLeads.Update) =>
+    api<SaasLeads.Lead>(`/saas/leads/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+};
+
+export namespace SaasLeads {
+  export type Status = 'novo' | 'em_atendimento' | 'fechado';
+  export interface Lead {
+    id: number;
+    nome: string;
+    email: string;
+    empresa?: string | null;
+    mensagem: string;
+    status: Status;
+    origem: string;
+    notas_internas?: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+  export interface Update {
+    status?: Status;
+    notas_internas?: string | null;
+  }
+}
 
 export namespace SaasPublic {
   export interface TrialCreate {
@@ -3800,6 +3839,16 @@ export namespace SaasPublic {
     slug: string;
     status: string;
     data_renovacao?: string | null;
+    mensagem: string;
+  }
+  export interface ContatoCreate {
+    nome: string;
+    email: string;
+    empresa?: string | null;
+    mensagem: string;
+  }
+  export interface ContatoRead {
+    id: number;
     mensagem: string;
   }
 }

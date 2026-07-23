@@ -78,6 +78,8 @@ import { AcessoNegado } from './pages/AcessoNegado'
 import { SaasLicencas } from './pages/saas/SaasLicencas'
 import { SaasLicencaForm } from './pages/saas/SaasLicencaForm'
 import { SaasLicencaDetalhe } from './pages/saas/SaasLicencaDetalhe'
+import { SaasLeads } from './pages/saas/SaasLeads'
+import { SaasLeadDetalhe } from './pages/saas/SaasLeadDetalhe'
 import { KbPublicLayout } from './pages/kb-public/KbPublicLayout'
 import { KbPublicHome } from './pages/kb-public/KbPublicHome'
 import { KbPublicArtigo } from './pages/kb-public/KbPublicArtigo'
@@ -276,6 +278,22 @@ function AppRoutes() {
           element={
             <AdminRoute>
               <SaasLicencas />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="saas/leads/:id"
+          element={
+            <AdminRoute>
+              <SaasLeadDetalhe />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="saas/leads"
+          element={
+            <AdminRoute>
+              <SaasLeads />
             </AdminRoute>
           }
         />

@@ -35,9 +35,18 @@ Em instâncias de clientes: deixar `SAAS_CONTROL_PLANE=false` (padrão).
 | Método | Rota | Quem |
 |--------|------|------|
 | CRUD + ações | `/v1/saas/clientes` | admin + control-plane |
+| Leads B2B | `/v1/saas/leads` | admin + control-plane |
 | Trial | `POST /v1/saas/public/trial` | público (rate limit) |
+| Contato landing | `POST /v1/saas/public/contato` | público (rate limit) |
 
-Ações: `suspender`, `reativar`, `renovar`, `registrar-instancia`, `solicitar-provisionamento`.
+Ações clientes: `suspender`, `reativar`, `renovar`, `registrar-instancia`, `solicitar-provisionamento`.
+
+## Contato comercial B2B (DR-06 / #516)
+
+- Landing: CTA «Fale conosco» / demonstração abre formulário (nome, e-mail, mensagem) → `/v1/saas/public/contato`
+- **Não** usa `/kb/public/chat/*` nem `portal_chats`
+- Inbox: `/saas/leads` (menu SaaS DeskRudder)
+- Sem control-plane: CTA continua com `mailto:` (landing não quebra)
 
 ## Provisionamento (DR-04)
 
