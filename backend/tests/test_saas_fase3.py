@@ -138,6 +138,62 @@ def test_renovar_estende_data_e_reativa(client, auth_headers, monkeypatch):
     assert body["dias_para_renovacao"] == 30
 
 
+def test_renovar_com_nova_data(client, auth_headers, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    h = auth_headers["admin"]
+    criar = client.post(
+        "/v1/saas/clientes",
+        headers=h,
+        json={
+            "nome": "Delta",
+            "slug": "delta-co",
+            "status": "ativo",
+            "data_inicio": str(date.today()),
+            "data_renovacao": str(date.today() + timedelta(days=2)),
+        },
+    )
+    cid = criar.json()["id"]
+    nova = date.today() + timedelta(days=90)
+    r = client.post(
+        f"/v1/saas/clientes/{cid}/renovar",
+        headers=h,
+        json={"nova_data": str(nova)},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["data_renovacao"] == str(nova)
+    assert r.json()["dias_para_renovacao"] == 90
+
+
+def test_trial_com_provisionamento(client, auth_headers, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    monkeypatch.setattr(settings, "SAAS_TRIAL_DAYS", 14)
+    monkeypatch.setattr(settings, "SAAS_NOTIFY_EMAIL", None)
+    monkeypatch.setattr(settings, "SAAS_PROVISION_EXEC_ENABLED", False)
+
+    r = client.post(
+        "/v1/saas/public/trial",
+        json={
+            "empresa": "Prov Soft",
+            "slug": "prov-soft",
+            "contato_nome": "Joao",
+            "contato_email": "joao@prov.example",
+            "solicitar_provisionamento": True,
+        },
+    )
+    assert r.status_code == 201, r.text
+    cid = r.json()["id"]
+    detalhe = client.get(f"/v1/saas/clientes/{cid}", headers=auth_headers["admin"])
+    assert detalhe.status_code == 200
+    d = detalhe.json()
+    assert d["provisionamento_solicitado"] is True
+    assert d["provisionamento_status"] == "pendente"
+    assert d["contato_email"] == "joao@prov.example"
+
+
 def test_worker_renovacao_suspende_vencido(client, auth_headers, monkeypatch):
     from app.config import settings
     from app.database import SessionLocal

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
 from typing import Literal
 
@@ -9,7 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, HttpUrl
 
 StatusClienteSaaS = Literal["trial", "ativo", "suspenso", "churn"]
 
-_SLUG_RE = __import__("re").compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def _validar_slug(v: str) -> str:
@@ -19,6 +21,17 @@ def _validar_slug(v: str) -> str:
     if not _SLUG_RE.match(slug):
         raise ValueError("Slug deve conter apenas letras minúsculas, números e hífens")
     return slug
+
+
+def _validar_email_opcional(v: str | None) -> str | None:
+    if v is None:
+        return None
+    email = v.strip().lower()
+    if not email:
+        return None
+    if not _EMAIL_RE.match(email):
+        raise ValueError("E-mail de contacto inválido")
+    return email
 
 
 class ClienteSaaSBase(BaseModel):
@@ -54,9 +67,14 @@ class ClienteSaaSBase(BaseModel):
         plano = v.strip()
         return plano or None
 
-    @field_validator("contato_email", "contato_nome")
+    @field_validator("contato_email")
     @classmethod
-    def strip_contato(cls, v: str | None) -> str | None:
+    def normalize_contato_email(cls, v: str | None) -> str | None:
+        return _validar_email_opcional(v)
+
+    @field_validator("contato_nome")
+    @classmethod
+    def strip_contato_nome(cls, v: str | None) -> str | None:
         if v is None:
             return None
         s = v.strip()
@@ -70,10 +88,8 @@ class ClienteSaaSBase(BaseModel):
         url = v.strip()
         if not url:
             return None
-        # Aceita host sem esquema; normaliza para https://
         if "://" not in url:
             url = f"https://{url}"
-        # Valida via HttpUrl
         return str(HttpUrl(url))
 
     @field_validator("notas")
@@ -126,9 +142,14 @@ class ClienteSaaSUpdate(BaseModel):
         plano = v.strip()
         return plano or None
 
-    @field_validator("contato_email", "contato_nome")
+    @field_validator("contato_email")
     @classmethod
-    def strip_contato(cls, v: str | None) -> str | None:
+    def normalize_contato_email(cls, v: str | None) -> str | None:
+        return _validar_email_opcional(v)
+
+    @field_validator("contato_nome")
+    @classmethod
+    def strip_contato_nome(cls, v: str | None) -> str | None:
         if v is None:
             return None
         s = v.strip()
@@ -186,3 +207,15 @@ class ClienteSaaSRead(ClienteSaaSBase):
     updated_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SaasResumoRead(BaseModel):
+    clientes_total: int = 0
+    por_status: dict[str, int] = Field(default_factory=dict)
+    vencendo_em_breve: int = 0
+    vencidas_ativas: int = 0
+    provisionamento_pendente: int = 0
+    provisionamento_falha: int = 0
+    leads_novos: int = 0
+    leads_em_atendimento: int = 0
+    janela_renovacao_dias: int = 14

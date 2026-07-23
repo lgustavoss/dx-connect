@@ -24,11 +24,13 @@ from app.schemas.saas import (
     ClienteSaaSRegistrarInstancia,
     ClienteSaaSRenovar,
     ClienteSaaSUpdate,
+    SaasResumoRead,
 )
 from app.services import saas_clientes as svc
 from app.services import saas_renovacoes
+from app.services.saas_resumo import obter_resumo
 
-router = APIRouter(prefix="/saas/clientes", tags=["saas"])
+router = APIRouter(prefix="/saas", tags=["saas"])
 
 _MAX_PAGE = 100
 _DEFAULT_PAGE = 20
@@ -57,9 +59,18 @@ def _read(row: ClienteSaaS) -> ClienteSaaSRead:
     return ClienteSaaSRead.model_validate(svc.serializar_cliente(row))
 
 
-@router.get("", response_model=ListaPaginada[ClienteSaaSRead])
+@router.get("/resumo", response_model=SaasResumoRead)
+def resumo(
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    __: Atendente = Depends(exigir_admin),
+):
+    return obter_resumo(db)
+
+
+@router.get("/clientes", response_model=ListaPaginada[ClienteSaaSRead])
 def listar(
-    busca: str | None = Query(None, description="Filtra por nome ou slug"),
+    busca: str | None = Query(None, description="Filtra por nome, slug ou e-mail de contacto"),
     status_filtro: str | None = Query(None, alias="status", description="Filtra por status"),
     offset: int = Query(0, ge=0),
     limit: int = Query(_DEFAULT_PAGE, ge=1, le=_MAX_PAGE),
@@ -72,7 +83,12 @@ def listar(
     q = db.query(ClienteSaaS)
     if busca and busca.strip():
         term = f"%{busca.strip()}%"
-        q = q.filter((ClienteSaaS.nome.ilike(term)) | (ClienteSaaS.slug.ilike(term)))
+        q = q.filter(
+            (ClienteSaaS.nome.ilike(term))
+            | (ClienteSaaS.slug.ilike(term))
+            | (ClienteSaaS.contato_email.ilike(term))
+            | (ClienteSaaS.contato_nome.ilike(term))
+        )
     if status_filtro and status_filtro.strip():
         q = q.filter(ClienteSaaS.status == status_filtro.strip().lower())
     total = q.count()
@@ -90,7 +106,7 @@ def listar(
     return ListaPaginada(items=[_read(i) for i in items], total=total)
 
 
-@router.post("", response_model=ClienteSaaSRead, status_code=201)
+@router.post("/clientes", response_model=ClienteSaaSRead, status_code=201)
 def criar(
     data: ClienteSaaSCreate,
     db: Session = Depends(get_db),
@@ -107,7 +123,7 @@ def criar(
     return _read(row)
 
 
-@router.get("/{cliente_id}", response_model=ClienteSaaSRead)
+@router.get("/clientes/{cliente_id}", response_model=ClienteSaaSRead)
 def obter(
     cliente_id: int,
     db: Session = Depends(get_db),
@@ -120,7 +136,7 @@ def obter(
         raise _http_from_saas(e) from e
 
 
-@router.patch("/{cliente_id}", response_model=ClienteSaaSRead)
+@router.patch("/clientes/{cliente_id}", response_model=ClienteSaaSRead)
 def atualizar(
     cliente_id: int,
     data: ClienteSaaSUpdate,
@@ -138,7 +154,7 @@ def atualizar(
     return _read(row)
 
 
-@router.post("/{cliente_id}/suspender", response_model=ClienteSaaSRead)
+@router.post("/clientes/{cliente_id}/suspender", response_model=ClienteSaaSRead)
 def suspender(
     cliente_id: int,
     db: Session = Depends(get_db),
@@ -155,7 +171,7 @@ def suspender(
     return _read(row)
 
 
-@router.post("/{cliente_id}/reativar", response_model=ClienteSaaSRead)
+@router.post("/clientes/{cliente_id}/reativar", response_model=ClienteSaaSRead)
 def reativar(
     cliente_id: int,
     db: Session = Depends(get_db),
@@ -172,7 +188,7 @@ def reativar(
     return _read(row)
 
 
-@router.post("/{cliente_id}/renovar", response_model=ClienteSaaSRead)
+@router.post("/clientes/{cliente_id}/renovar", response_model=ClienteSaaSRead)
 def renovar(
     cliente_id: int,
     data: ClienteSaaSRenovar,
@@ -195,7 +211,7 @@ def renovar(
     return _read(row)
 
 
-@router.post("/{cliente_id}/registrar-instancia", response_model=ClienteSaaSRead)
+@router.post("/clientes/{cliente_id}/registrar-instancia", response_model=ClienteSaaSRead)
 def registrar_instancia(
     cliente_id: int,
     data: ClienteSaaSRegistrarInstancia,
@@ -213,7 +229,7 @@ def registrar_instancia(
     return _read(row)
 
 
-@router.post("/{cliente_id}/solicitar-provisionamento", response_model=ClienteSaaSRead)
+@router.post("/clientes/{cliente_id}/solicitar-provisionamento", response_model=ClienteSaaSRead)
 def solicitar_provisionamento(
     cliente_id: int,
     db: Session = Depends(get_db),

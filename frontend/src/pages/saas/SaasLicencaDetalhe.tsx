@@ -4,6 +4,7 @@ import { ApiError, saasClientes } from '../../api/client'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { DetailRow } from '../../components/ui/DetailRow'
+import { Input } from '../../components/ui/Input'
 import { useToast } from '../../components/ui/Toast'
 import { useVoltarAnterior } from '../../hooks/useVoltarAnterior'
 import { SemPermissao } from '../SemPermissao'
@@ -25,6 +26,12 @@ function formatDate(iso: string | null | undefined): string {
   return `${day}/${m}/${y}`
 }
 
+function addDaysIso(days: number): string {
+  const d = new Date()
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
 export function SaasLicencaDetalhe() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -38,6 +45,9 @@ export function SaasLicencaDetalhe() {
   const [indisponivel, setIndisponivel] = useState(false)
   const [falha, setFalha] = useState<{ titulo: string; detalhe?: string } | null>(null)
   const [item, setItem] = useState<Awaited<ReturnType<typeof saasClientes.get>> | null>(null)
+  const [diasRenovacao, setDiasRenovacao] = useState('30')
+  const [novaDataRenovacao, setNovaDataRenovacao] = useState(addDaysIso(30))
+  const [urlInstancia, setUrlInstancia] = useState('')
 
   function carregar() {
     if (!id || Number.isNaN(clienteId)) {
@@ -51,7 +61,10 @@ export function SaasLicencaDetalhe() {
     setFalha(null)
     saasClientes
       .get(clienteId)
-      .then((c) => setItem(c))
+      .then((c) => {
+        setItem(c)
+        setUrlInstancia(c.instancia_url ?? '')
+      })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 403) {
           setForbidden(true)
@@ -87,6 +100,7 @@ export function SaasLicencaDetalhe() {
     try {
       const updated = await action()
       setItem(updated)
+      setUrlInstancia(updated.instancia_url ?? '')
       toast.showSuccess(okMsg)
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível concluir a ação.'))
@@ -155,13 +169,6 @@ export function SaasLicencaDetalhe() {
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" disabled={acting} onClick={() => navigate(`/saas/licencas/${item.id}/editar`)}>
             Editar
-          </Button>
-          <Button
-            variant="secondary"
-            disabled={acting}
-            onClick={() => runAction(() => saasClientes.renovar(item.id, { dias: 30 }), 'Licença renovada por 30 dias.')}
-          >
-            Renovar (+30 dias)
           </Button>
           {item.status !== 'suspenso' ? (
             <Button
@@ -240,6 +247,88 @@ export function SaasLicencaDetalhe() {
           <DetailRow label="Notas" value={item.notas || '—'} />
         </dl>
       </Card>
+
+      <Card title="Renovar licença">
+        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+          <div className="w-full sm:w-36">
+            <Input
+              label="Dias"
+              type="number"
+              min={1}
+              max={3650}
+              value={diasRenovacao}
+              onChange={(e) => setDiasRenovacao(e.target.value)}
+            />
+          </div>
+          <Button
+            variant="secondary"
+            disabled={acting}
+            onClick={() => {
+              const dias = parseInt(diasRenovacao, 10)
+              if (!Number.isFinite(dias) || dias < 1) {
+                toast.showError('Informe um número de dias válido.')
+                return
+              }
+              void runAction(
+                () => saasClientes.renovar(item.id, { dias }),
+                `Licença renovada por ${dias} dia(s).`,
+              )
+            }}
+          >
+            Renovar por dias
+          </Button>
+          <div className="w-full sm:w-48">
+            <Input
+              label="Nova data"
+              type="date"
+              value={novaDataRenovacao}
+              onChange={(e) => setNovaDataRenovacao(e.target.value)}
+            />
+          </div>
+          <Button
+            variant="secondary"
+            disabled={acting}
+            onClick={() => {
+              if (!novaDataRenovacao.trim()) {
+                toast.showError('Informe a nova data de renovação.')
+                return
+              }
+              void runAction(
+                () => saasClientes.renovar(item.id, { nova_data: novaDataRenovacao }),
+                'Data de renovação atualizada.',
+              )
+            }}
+          >
+            Definir data
+          </Button>
+        </div>
+      </Card>
+
+      <Card title="Registar URL da instância">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="min-w-0 flex-1">
+            <Input
+              label="URL"
+              value={urlInstancia}
+              onChange={(e) => setUrlInstancia(e.target.value)}
+              hint="Ex.: cliente01.deskrudder.com.br"
+            />
+          </div>
+          <Button
+            variant="secondary"
+            disabled={acting || !urlInstancia.trim()}
+            onClick={() =>
+              runAction(
+                () => saasClientes.registrarInstancia(item.id, { instancia_url: urlInstancia.trim() }),
+                'URL da instância registada.',
+              )
+            }
+          >
+            Guardar URL
+          </Button>
+        </div>
+      </Card>
+
       {href ? (
         <Card title="Acesso à instância">
           <a

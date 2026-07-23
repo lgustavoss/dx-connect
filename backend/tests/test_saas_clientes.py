@@ -38,6 +38,8 @@ def test_saas_crud_admin(client, auth_headers, monkeypatch):
             "data_inicio": str(date.today()),
             "data_renovacao": str(date.today()),
             "instancia_url": "duplexsoft.deskrudder.com.br",
+            "contato_nome": "Luis Duplex",
+            "contato_email": "luis@duplex.example",
             "notas": "Cliente piloto",
         },
     )
@@ -46,11 +48,17 @@ def test_saas_crud_admin(client, auth_headers, monkeypatch):
     assert body["slug"] == "duplex-soft"
     assert body["status"] == "trial"
     assert body["instancia_url"].startswith("https://")
+    assert body["contato_nome"] == "Luis Duplex"
+    assert body["contato_email"] == "luis@duplex.example"
     cid = body["id"]
 
     lista = client.get("/v1/saas/clientes", headers=h)
     assert lista.status_code == 200
     assert lista.json()["total"] >= 1
+
+    busca_email = client.get("/v1/saas/clientes?busca=luis@duplex", headers=h)
+    assert busca_email.status_code == 200
+    assert any(i["id"] == cid for i in busca_email.json()["items"])
 
     detalhe = client.get(f"/v1/saas/clientes/{cid}", headers=h)
     assert detalhe.status_code == 200
@@ -59,11 +67,19 @@ def test_saas_crud_admin(client, auth_headers, monkeypatch):
     patch = client.patch(
         f"/v1/saas/clientes/{cid}",
         headers=h,
-        json={"status": "ativo", "plano": "enterprise"},
+        json={"status": "ativo", "plano": "enterprise", "contato_email": "ops@duplex.example"},
     )
     assert patch.status_code == 200
     assert patch.json()["status"] == "ativo"
     assert patch.json()["plano"] == "enterprise"
+    assert patch.json()["contato_email"] == "ops@duplex.example"
+
+    email_invalido = client.patch(
+        f"/v1/saas/clientes/{cid}",
+        headers=h,
+        json={"contato_email": "nao-e-email"},
+    )
+    assert email_invalido.status_code == 422
 
     susp = client.post(f"/v1/saas/clientes/{cid}/suspender", headers=h)
     assert susp.status_code == 200
@@ -84,6 +100,42 @@ def test_saas_crud_admin(client, auth_headers, monkeypatch):
     prov = client.post(f"/v1/saas/clientes/{cid}/solicitar-provisionamento", headers=h)
     assert prov.status_code == 200
     assert prov.json()["provisionamento_solicitado"] is True
+
+
+def test_saas_resumo_ops(client, auth_headers, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    monkeypatch.setattr(settings, "SAAS_RENEWAL_ALERT_DAYS_BEFORE", 14)
+    h = auth_headers["admin"]
+
+    client.post(
+        "/v1/saas/clientes",
+        headers=h,
+        json={
+            "nome": "Resumo Co",
+            "slug": "resumo-co",
+            "status": "ativo",
+            "data_inicio": str(date.today()),
+            "data_renovacao": str(date.today()),
+        },
+    )
+    r = client.get("/v1/saas/resumo", headers=h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["clientes_total"] >= 1
+    assert "por_status" in body
+    assert body["janela_renovacao_dias"] == 14
+    assert "vencendo_em_breve" in body
+    assert "leads_novos" in body
+
+
+def test_saas_resumo_desligado_404(client, auth_headers, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", False)
+    r = client.get("/v1/saas/resumo", headers=auth_headers["admin"])
+    assert r.status_code == 404
 
 
 def test_saas_slug_duplicado_409(client, auth_headers, monkeypatch):

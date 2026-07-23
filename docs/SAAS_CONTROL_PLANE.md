@@ -34,12 +34,27 @@ Em instâncias de clientes: deixar `SAAS_CONTROL_PLANE=false` (padrão).
 
 | Método | Rota | Quem |
 |--------|------|------|
+| Resumo ops | `GET /v1/saas/resumo` | admin + control-plane |
 | CRUD + ações | `/v1/saas/clientes` | admin + control-plane |
 | Leads B2B | `/v1/saas/leads` | admin + control-plane |
 | Trial | `POST /v1/saas/public/trial` | público (rate limit) |
 | Contato landing | `POST /v1/saas/public/contato` | público (rate limit) |
 
-Ações clientes: `suspender`, `reativar`, `renovar`, `registrar-instancia`, `solicitar-provisionamento`.
+Ações clientes: `suspender`, `reativar`, `renovar` (`dias` ou `nova_data`), `registrar-instancia`, `solicitar-provisionamento`.
+
+Busca em `/clientes` cobre nome, slug, `contato_nome` e `contato_email`.
+
+## Checklist QA local (antes de testes manuais)
+
+1. Flags dual: `SAAS_CONTROL_PLANE=true` + `VITE_SAAS_CONTROL_PLANE=true` só na instância comercial.
+2. Migrations `078`–`080` aplicadas (`alembic upgrade head`).
+3. Login admin → menu **SaaS DeskRudder** → Licenças (resumo no topo) e Leads.
+4. Criar licença com contacto; editar; buscar por e-mail.
+5. Lead → **Criar licença** (prefill); trial em `/trial`; contacto na LP.
+6. Provisionar com `SAAS_PROVISION_EXEC_ENABLED=false` → status `aguardando_ops`.
+7. Renovar por dias e por data; suspender/reativar; registar URL.
+8. Workers activos no log do backend (`saas-provisionamento`, `saas-renovacoes`).
+9. Sem Resend: fluxo continua (notify é no-op); com Resend + `SAAS_NOTIFY_EMAIL`: e-mails de trial/renovação.
 
 ## Contato comercial B2B (DR-06 / #516)
 

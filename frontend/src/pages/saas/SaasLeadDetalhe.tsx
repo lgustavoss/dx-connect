@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { ApiError, saasLeads } from '../../api/client'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../../api/errorMessage'
 import { Button } from '../../components/ui/Button'
@@ -19,6 +19,7 @@ const STATUS_OPTS = [
 
 export function SaasLeadDetalhe() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const toast = useToast()
   const voltarAnterior = useVoltarAnterior('/saas/leads')
   const leadId = id ? parseInt(id, 10) : NaN
@@ -130,9 +131,26 @@ export function SaasLeadDetalhe() {
         <span aria-hidden>←</span> Voltar
       </button>
 
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">{item.nome}</h1>
-        <p className="text-sm text-slate-500">{item.email}</p>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">{item.nome}</h1>
+          <p className="text-sm text-slate-500">{item.email}</p>
+        </div>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            const q = new URLSearchParams({
+              nome: item.nome,
+              email: item.email,
+              contato_nome: item.nome,
+            })
+            if (item.empresa) q.set('empresa', item.empresa)
+            if (item.mensagem) q.set('notas', `Lead #${item.id}: ${item.mensagem.slice(0, 400)}`)
+            navigate(`/saas/licencas/novo?${q.toString()}`)
+          }}
+        >
+          Criar licença
+        </Button>
       </header>
 
       <Card title="Mensagem do prospect">

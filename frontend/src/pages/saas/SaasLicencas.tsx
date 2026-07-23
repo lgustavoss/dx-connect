@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { CabecalhoOrdenavel } from '../../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../../hooks/useOrdenacaoLista'
 import { ApiError, saasClientes, type SaasClientes } from '../../api/client'
@@ -43,6 +43,7 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
   const [loading, setLoading] = useState(true)
   const [forbidden, setForbidden] = useState(false)
   const [indisponivel, setIndisponivel] = useState(false)
+  const [resumo, setResumo] = useState<SaasClientes.Resumo | null>(null)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedBusca(busca.trim()), 400)
@@ -52,6 +53,13 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
   useEffect(() => {
     setPage(1)
   }, [debouncedBusca, statusFiltro, ordenarPor, ordem])
+
+  const loadResumo = useCallback(() => {
+    saasClientes
+      .resumo()
+      .then(setResumo)
+      .catch(() => setResumo(null))
+  }, [])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -91,7 +99,8 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
 
   useEffect(() => {
     load()
-  }, [load])
+    loadResumo()
+  }, [load, loadResumo])
 
   if (indisponivel) {
     return (
@@ -121,11 +130,38 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
       title="Licenças SaaS"
       actions={<Button onClick={() => navigate('/saas/licencas/novo')}>Nova licença</Button>}
     >
+      {resumo ? (
+        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <ResumoCard
+            label="Clientes"
+            value={String(resumo.clientes_total)}
+            hint={`${resumo.por_status.ativo ?? 0} ativos · ${resumo.por_status.trial ?? 0} trial`}
+          />
+          <ResumoCard
+            label="Renovação"
+            value={String(resumo.vencendo_em_breve)}
+            hint={`${resumo.vencidas_ativas} vencida(s) · janela ${resumo.janela_renovacao_dias}d`}
+            tone={resumo.vencidas_ativas > 0 ? 'warn' : undefined}
+          />
+          <ResumoCard
+            label="Provisionamento"
+            value={String(resumo.provisionamento_pendente)}
+            hint={`${resumo.provisionamento_falha} falha(s) na fila`}
+            tone={resumo.provisionamento_falha > 0 ? 'warn' : undefined}
+          />
+          <ResumoCard
+            label="Leads"
+            value={String(resumo.leads_novos)}
+            hint={`${resumo.leads_em_atendimento} em atendimento`}
+            linkTo="/saas/leads"
+          />
+        </div>
+      ) : null}
       <Card>
         <BarraBuscaPaginacao
           busca={busca}
           onBuscaChange={setBusca}
-          placeholder="Buscar por nome ou slug…"
+          placeholder="Buscar por nome, slug ou e-mail…"
           page={page}
           total={total}
           onPageChange={setPage}
@@ -272,5 +308,41 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
         )}
       </Card>
     </ConfigListPageShell>
+  )
+}
+
+function ResumoCard({
+  label,
+  value,
+  hint,
+  tone,
+  linkTo,
+}: {
+  label: string
+  value: string
+  hint: string
+  tone?: 'warn'
+  linkTo?: string
+}) {
+  const body = (
+    <div
+      className={`rounded-2xl border px-4 py-3 ${
+        tone === 'warn'
+          ? 'border-amber-200 bg-amber-50/80 dark:border-amber-800/40 dark:bg-amber-950/30'
+          : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/40'
+      }`}
+    >
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        {label}
+      </p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-50">{value}</p>
+      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{hint}</p>
+    </div>
+  )
+  if (!linkTo) return body
+  return (
+    <Link to={linkTo} className="block transition-opacity hover:opacity-90">
+      {body}
+    </Link>
   )
 }

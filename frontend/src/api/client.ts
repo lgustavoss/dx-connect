@@ -3746,6 +3746,7 @@ export const system = {
 };
 
 export const saasClientes = {
+  resumo: () => api<SaasClientes.Resumo>('/saas/resumo'),
   list: (params?: {
     busca?: string;
     status?: string;
@@ -3856,6 +3857,17 @@ export namespace SaasPublic {
 export namespace SaasClientes {
   export type Status = 'trial' | 'ativo' | 'suspenso' | 'churn';
   export type ProvisionamentoStatus = 'pendente' | 'em_progresso' | 'aguardando_ops' | 'sucesso' | 'falha';
+  export interface Resumo {
+    clientes_total: number;
+    por_status: Record<string, number>;
+    vencendo_em_breve: number;
+    vencidas_ativas: number;
+    provisionamento_pendente: number;
+    provisionamento_falha: number;
+    leads_novos: number;
+    leads_em_atendimento: number;
+    janela_renovacao_dias: number;
+  }
   export interface Cliente {
     id: number;
     nome: string;

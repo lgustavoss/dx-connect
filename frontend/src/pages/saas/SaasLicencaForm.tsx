@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ApiError, saasClientes } from '../../api/client'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
@@ -18,8 +18,19 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+function slugFromNome(nome: string): string {
+  return nome
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80)
+}
+
 export function SaasLicencaForm() {
   const { id } = useParams<{ id?: string }>()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const toast = useToast()
   const voltarAnterior = useVoltarAnterior('/saas/licencas')
@@ -35,12 +46,32 @@ export function SaasLicencaForm() {
 
   const [nome, setNome] = useState('')
   const [slug, setSlug] = useState('')
+  const [slugTouched, setSlugTouched] = useState(false)
   const [status, setStatus] = useState<StatusClienteSaaS>('trial')
   const [plano, setPlano] = useState('')
   const [dataInicio, setDataInicio] = useState(todayIso)
   const [dataRenovacao, setDataRenovacao] = useState('')
   const [instanciaUrl, setInstanciaUrl] = useState('')
+  const [contatoNome, setContatoNome] = useState('')
+  const [contatoEmail, setContatoEmail] = useState('')
   const [notas, setNotas] = useState('')
+
+  useEffect(() => {
+    if (isEdit) return
+    const preNome = searchParams.get('nome')?.trim() || ''
+    const preEmpresa = searchParams.get('empresa')?.trim() || ''
+    const preEmail = searchParams.get('email')?.trim() || ''
+    const preContato = searchParams.get('contato_nome')?.trim() || ''
+    const preNotas = searchParams.get('notas')?.trim() || ''
+    const nomeInicial = preEmpresa || preNome
+    if (nomeInicial) {
+      setNome(nomeInicial)
+      setSlug(slugFromNome(nomeInicial))
+    }
+    if (preContato || preNome) setContatoNome(preContato || preNome)
+    if (preEmail) setContatoEmail(preEmail)
+    if (preNotas) setNotas(preNotas)
+  }, [isEdit, searchParams])
 
   useEffect(() => {
     if (!isEdit) return
@@ -60,11 +91,14 @@ export function SaasLicencaForm() {
         if (cancelled) return
         setNome(c.nome)
         setSlug(c.slug)
+        setSlugTouched(true)
         setStatus(c.status)
         setPlano(c.plano ?? '')
         setDataInicio(c.data_inicio.slice(0, 10))
         setDataRenovacao(c.data_renovacao ? c.data_renovacao.slice(0, 10) : '')
         setInstanciaUrl(c.instancia_url ?? '')
+        setContatoNome(c.contato_nome ?? '')
+        setContatoEmail(c.contato_email ?? '')
         setNotas(c.notas ?? '')
       })
       .catch((err) => {
@@ -108,6 +142,8 @@ export function SaasLicencaForm() {
         data_inicio: dataInicio,
         data_renovacao: dataRenovacao.trim() || null,
         instancia_url: instanciaUrl.trim() || null,
+        contato_nome: contatoNome.trim() || null,
+        contato_email: contatoEmail.trim() || null,
         notas: notas.trim() || null,
       }
       if (isEdit && !Number.isNaN(clienteId)) {
@@ -171,11 +207,23 @@ export function SaasLicencaForm() {
         <form onSubmit={handleSubmit}>
           <div className="space-y-6">
             <FormSection title="Cliente">
-              <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
+              <Input
+                label="Nome"
+                value={nome}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setNome(v)
+                  if (!isEdit && !slugTouched) setSlug(slugFromNome(v))
+                }}
+                required
+              />
               <Input
                 label="Slug"
                 value={slug}
-                onChange={(e) => setSlug(e.target.value)}
+                onChange={(e) => {
+                  setSlugTouched(true)
+                  setSlug(e.target.value)
+                }}
                 required
                 hint="Subdomínio / identificador único (ex.: duplex-soft)"
               />
@@ -190,6 +238,19 @@ export function SaasLicencaForm() {
                 value={plano}
                 onChange={(e) => setPlano(e.target.value)}
                 hint="Texto livre (ex.: profissional, enterprise)"
+              />
+            </FormSection>
+            <FormSection title="Contacto">
+              <Input
+                label="Nome do contacto"
+                value={contatoNome}
+                onChange={(e) => setContatoNome(e.target.value)}
+              />
+              <Input
+                label="E-mail do contacto"
+                type="email"
+                value={contatoEmail}
+                onChange={(e) => setContatoEmail(e.target.value)}
               />
             </FormSection>
             <FormSection title="Vigência e instância">
