@@ -71,6 +71,16 @@ const icons: Record<string, React.ReactNode> = {
       />
     </svg>
   ),
+  saas: (
+    <svg className="size-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
+      />
+    </svg>
+  ),
   tiposNegocio: (
     <svg className="size-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
       <path
@@ -204,6 +214,8 @@ interface NavLink {
   label: string
   icon: string
   adminOnly?: boolean
+  /** Só na instância comercial (control-plane SaaS). */
+  saasOnly?: boolean
 }
 
 interface NavGroup {
@@ -212,6 +224,7 @@ interface NavGroup {
   label: string
   icon: string
   adminOnly?: boolean
+  saasOnly?: boolean
   /** Ex.: conversa aberta `/whatsapp/c/:id` mantém o grupo Chat ativo */
   extraActivePrefixes?: string[]
   children: NavLink[]
@@ -225,6 +238,7 @@ interface NavItemLink {
   /** Mantém o item ativo em rotas filhas (ex.: `/chat/c/:id`) */
   activePrefix?: string
   adminOnly?: boolean
+  saasOnly?: boolean
 }
 
 type NavItem = NavItemLink | NavGroup
@@ -252,6 +266,16 @@ const navStructure: NavItem[] = [
       { to: '/empresas', label: 'Empresas', icon: 'empresas' },
       { to: '/funcionarios-rede', label: 'Funcionários da rede', icon: 'funcionarios' },
     ],
+  },
+  {
+    type: 'group',
+    id: 'saas',
+    label: 'SaaS DeskRudder',
+    icon: 'saas',
+    adminOnly: true,
+    saasOnly: true,
+    extraActivePrefixes: ['/saas/'],
+    children: [{ to: '/saas/licencas', label: 'Licenças', icon: 'saas' }],
   },
   {
     type: 'group',
@@ -297,8 +321,12 @@ function navGroupMatchesPath(pathname: string, group: NavGroup): boolean {
   return group.extraActivePrefixes?.some((prefix) => pathname.startsWith(prefix)) ?? false
 }
 
-function navChildrenVisible(children: NavLink[], isAdmin: boolean): NavLink[] {
-  return children.filter((child) => !child.adminOnly || isAdmin)
+function navChildrenVisible(children: NavLink[], isAdmin: boolean, saasEnabled: boolean): NavLink[] {
+  return children.filter((child) => {
+    if (child.adminOnly && !isAdmin) return false
+    if (child.saasOnly && !saasEnabled) return false
+    return true
+  })
 }
 
 interface SidebarProps {
@@ -332,13 +360,16 @@ export function Sidebar({
       (import.meta.env.VITE_APP_VERSION as string | undefined)?.trim()
     return fromEnv ? (fromEnv.startsWith('v') ? fromEnv : `v${fromEnv}`) : null
   })
+  const [saasEnabled, setSaasEnabled] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     system
       .info()
       .then((info) => {
-        if (!cancelled && info.version_display) setVersionLabel(info.version_display)
+        if (cancelled) return
+        if (info.version_display) setVersionLabel(info.version_display)
+        setSaasEnabled(Boolean(info.saas_control_plane))
       })
       .catch(() => {
         /* fallback: env ou oculto */
@@ -367,6 +398,7 @@ export function Sidebar({
 
   const items = navStructure.filter((item) => {
     if ('adminOnly' in item && item.adminOnly && !isAdmin) return false
+    if ('saasOnly' in item && item.saasOnly && !saasEnabled) return false
     return true
   }) as NavItem[]
 
@@ -374,7 +406,7 @@ export function Sidebar({
   useEffect(() => {
     for (const item of navStructure) {
       if (item.type === 'group') {
-        if (!item.adminOnly || isAdmin) {
+        if ((!item.adminOnly || isAdmin) && (!item.saasOnly || saasEnabled)) {
           if (navGroupMatchesPath(location.pathname, item)) {
             setOpenGroup(item.id)
             return
@@ -382,7 +414,7 @@ export function Sidebar({
         }
       }
     }
-  }, [location.pathname, isAdmin])
+  }, [location.pathname, isAdmin, saasEnabled])
 
   // No drawer mobile usamos acordeão (não flyout); evita estado do flyout “preso”
   useEffect(() => {
@@ -438,7 +470,7 @@ export function Sidebar({
               }}
               role="menu"
             >
-              {navChildrenVisible(openFlyoutGroup.children, isAdmin).map((child) => (
+              {navChildrenVisible(openFlyoutGroup.children, isAdmin, saasEnabled).map((child) => (
                 <li key={child.to} role="none">
                   <Link
                     to={child.to}
@@ -543,7 +575,7 @@ export function Sidebar({
                       className={`min-w-0 overflow-hidden transition-all duration-200 ${open ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}
                       role="group"
                     >
-                      {navChildrenVisible(group.children, isAdmin).map((child) => (
+                      {navChildrenVisible(group.children, isAdmin, saasEnabled).map((child) => (
                         <li key={child.to} className="min-w-0 pl-4">
                           <Link
                             to={child.to}

@@ -18,6 +18,7 @@ import {
   landingShowcases,
   landingShots,
 } from '../../content/landing'
+import { isSaasControlPlaneFrontend, SAAS_LICENCAS_PATH } from '../../lib/saasControlPlane'
 import { MarketingLayout } from './MarketingLayout'
 
 function SecondaryLink({ to, children }: { to: string; children: ReactNode }) {
@@ -142,6 +143,14 @@ export function LandingPage() {
             >
               {landingHero.ctaSecondary}
             </Link>
+            {isSaasControlPlaneFrontend() ? (
+              <Link
+                to={`/login?next=${encodeURIComponent(SAAS_LICENCAS_PATH)}`}
+                className="rounded-full border border-sky-400/35 bg-sky-400/10 px-3 py-2 text-sm font-semibold text-sky-100 transition hover:border-sky-300/50 hover:bg-sky-400/20"
+              >
+                Painel de licenças
+              </Link>
+            ) : null}
             <LandingContactSlot
               variant="hero"
               label="Ver demonstração"

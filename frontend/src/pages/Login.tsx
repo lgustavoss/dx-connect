@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
@@ -263,6 +263,18 @@ function LoginCredenciais() {
   const { login } = useAuth()
   const { showError, showSuccess } = useToast()
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
+
+  function destinoAposLogin(): string {
+    const next = (searchParams.get('next') || '').trim()
+    if (next.startsWith('/') && !next.startsWith('//')) return next
+    const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from
+    if (from?.pathname && from.pathname !== '/login') {
+      return `${from.pathname}${from.search || ''}`
+    }
+    return '/'
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -288,7 +300,7 @@ function LoginCredenciais() {
         /* storage indisponível */
       }
       showSuccess('Login realizado com sucesso. Redirecionando...')
-      navigate('/', { replace: true })
+      navigate(destinoAposLogin(), { replace: true })
     } catch (err) {
       showError(mensagemFalhaParaToast(err, 'Falha no login. Verifique suas credenciais e tente novamente.'))
     } finally {

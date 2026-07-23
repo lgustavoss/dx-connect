@@ -53,6 +53,7 @@ from app.models.chat_interno import (
     MensagemInternaReacao,
     MensagemInternaOculta,
 )
+from app.models.cliente_saas import ClienteSaaS
 
 __all__ = [
     "Rede",
@@ -122,4 +123,5 @@ __all__ = [
     "MensagemInternaReacao",
     "MensagemInternaOculta",
     "ConversaInternaLeitura",
+    "ClienteSaaS",
 ]
