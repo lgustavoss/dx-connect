@@ -54,6 +54,7 @@ from app.models.chat_interno import (
     MensagemInternaOculta,
 )
 from app.models.cliente_saas import ClienteSaaS
+from app.models.saas_alerta_emitido import SaasAlertaEmitido
 
 __all__ = [
     "Rede",
@@ -124,4 +125,5 @@ __all__ = [
     "MensagemInternaOculta",
     "ConversaInternaLeitura",
     "ClienteSaaS",
+    "SaasAlertaEmitido",
 ]

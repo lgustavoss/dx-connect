@@ -8,6 +8,7 @@ import { EsqueciSenha } from './pages/EsqueciSenha'
 import { RedefinirSenha } from './pages/RedefinirSenha'
 import { AvaliarTicket } from './pages/AvaliarTicket'
 import { LandingPage } from './pages/marketing/LandingPage'
+import { TrialPage } from './pages/marketing/TrialPage'
 import { Dashboard } from './pages/Dashboard'
 import { DashboardTickets } from './pages/DashboardTickets'
 import { DashboardChats } from './pages/DashboardChats'
@@ -152,6 +153,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/auth/sessao" element={<AuthSessao />} />
+      <Route path="/trial" element={<TrialPage />} />
       <Route path="/esqueci-senha" element={<EsqueciSenha />} />
       <Route path="/redefinir-senha" element={<RedefinirSenha />} />
       <Route path="/avaliar-ticket" element={<AvaliarTicket />} />

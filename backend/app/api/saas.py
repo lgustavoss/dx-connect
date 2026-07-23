@@ -1,4 +1,4 @@
-"""API admin SaaS — clientes / licenças DeskRudder (#522).
+"""API admin SaaS — clientes / licenças DeskRudder (#522 / #524 / #528).
 
 Só disponível quando `SAAS_CONTROL_PLANE=true` (instância comercial).
 """
@@ -22,9 +22,11 @@ from app.schemas.saas import (
     ClienteSaaSCreate,
     ClienteSaaSRead,
     ClienteSaaSRegistrarInstancia,
+    ClienteSaaSRenovar,
     ClienteSaaSUpdate,
 )
 from app.services import saas_clientes as svc
+from app.services import saas_renovacoes
 
 router = APIRouter(prefix="/saas/clientes", tags=["saas"])
 
@@ -49,6 +51,10 @@ def exigir_saas_control_plane() -> None:
 
 def _http_from_saas(exc: svc.SaasErro) -> HTTPException:
     return HTTPException(status_code=exc.status_code, detail=exc.detail)
+
+
+def _read(row: ClienteSaaS) -> ClienteSaaSRead:
+    return ClienteSaaSRead.model_validate(svc.serializar_cliente(row))
 
 
 @router.get("", response_model=ListaPaginada[ClienteSaaSRead])
@@ -81,7 +87,7 @@ def listar(
     else:
         order_cols = [expr_ordem(ClienteSaaS.data_renovacao, ordem), expr_ordem(ClienteSaaS.id, ordem)]
     items = q.order_by(*order_cols).offset(offset).limit(limit).all()
-    return ListaPaginada(items=items, total=total)
+    return ListaPaginada(items=[_read(i) for i in items], total=total)
 
 
 @router.post("", response_model=ClienteSaaSRead, status_code=201)
@@ -98,7 +104,7 @@ def criar(
     registrar_audit(db, "cliente_saas", row.id, "create", atendente.id)
     db.commit()
     db.refresh(row)
-    return row
+    return _read(row)
 
 
 @router.get("/{cliente_id}", response_model=ClienteSaaSRead)
@@ -109,7 +115,7 @@ def obter(
     __: Atendente = Depends(exigir_admin),
 ):
     try:
-        return svc.obter(db, cliente_id)
+        return _read(svc.obter(db, cliente_id))
     except svc.SaasErro as e:
         raise _http_from_saas(e) from e
 
@@ -129,7 +135,7 @@ def atualizar(
     registrar_audit(db, "cliente_saas", cliente_id, "update", atendente.id)
     db.commit()
     db.refresh(row)
-    return row
+    return _read(row)
 
 
 @router.post("/{cliente_id}/suspender", response_model=ClienteSaaSRead)
@@ -146,7 +152,7 @@ def suspender(
     registrar_audit(db, "cliente_saas", cliente_id, "suspender", atendente.id)
     db.commit()
     db.refresh(row)
-    return row
+    return _read(row)
 
 
 @router.post("/{cliente_id}/reativar", response_model=ClienteSaaSRead)
@@ -163,7 +169,30 @@ def reativar(
     registrar_audit(db, "cliente_saas", cliente_id, "reativar", atendente.id)
     db.commit()
     db.refresh(row)
-    return row
+    return _read(row)
+
+
+@router.post("/{cliente_id}/renovar", response_model=ClienteSaaSRead)
+def renovar(
+    cliente_id: int,
+    data: ClienteSaaSRenovar,
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    atendente: Atendente = Depends(exigir_admin),
+):
+    try:
+        row = saas_renovacoes.renovar(
+            db,
+            cliente_id,
+            dias=data.dias,
+            nova_data=data.nova_data,
+        )
+    except svc.SaasErro as e:
+        raise _http_from_saas(e) from e
+    registrar_audit(db, "cliente_saas", cliente_id, "renovar", atendente.id)
+    db.commit()
+    db.refresh(row)
+    return _read(row)
 
 
 @router.post("/{cliente_id}/registrar-instancia", response_model=ClienteSaaSRead)
@@ -181,7 +210,7 @@ def registrar_instancia(
     registrar_audit(db, "cliente_saas", cliente_id, "registrar_instancia", atendente.id)
     db.commit()
     db.refresh(row)
-    return row
+    return _read(row)
 
 
 @router.post("/{cliente_id}/solicitar-provisionamento", response_model=ClienteSaaSRead)
@@ -198,4 +227,4 @@ def solicitar_provisionamento(
     registrar_audit(db, "cliente_saas", cliente_id, "solicitar_provisionamento", atendente.id)
     db.commit()
     db.refresh(row)
-    return row
+    return _read(row)

@@ -144,12 +144,20 @@ export function LandingPage() {
               {landingHero.ctaSecondary}
             </Link>
             {isSaasControlPlaneFrontend() ? (
-              <Link
-                to={`/login?next=${encodeURIComponent(SAAS_LICENCAS_PATH)}`}
-                className="rounded-full border border-sky-400/35 bg-sky-400/10 px-3 py-2 text-sm font-semibold text-sky-100 transition hover:border-sky-300/50 hover:bg-sky-400/20"
-              >
-                Painel de licenças
-              </Link>
+              <>
+                <Link
+                  to="/trial"
+                  className="rounded-full px-3 py-2 text-sm font-semibold text-cyan-200 transition hover:bg-white/5 hover:text-cyan-100"
+                >
+                  Pedir trial
+                </Link>
+                <Link
+                  to={`/login?next=${encodeURIComponent(SAAS_LICENCAS_PATH)}`}
+                  className="rounded-full border border-sky-400/35 bg-sky-400/10 px-3 py-2 text-sm font-semibold text-sky-100 transition hover:border-sky-300/50 hover:bg-sky-400/20"
+                >
+                  Painel de licenças
+                </Link>
+              </>
             ) : null}
             <LandingContactSlot
               variant="hero"

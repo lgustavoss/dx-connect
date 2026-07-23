@@ -15,7 +15,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Melhorias
 
-- SaaS DeskRudder (#519 / #521–#523): painel admin de **licenças** na instância comercial — cadastro de clientes (slug, status, plano, renovação, URL da instância), menu **SaaS DeskRudder → Licenças** e atalho «Painel de licenças» na landing (quando o control-plane está ligado)
+- SaaS DeskRudder (#519 / #521–#523 / #524 / #527 / #528): painel de **licenças** (CRUD, status, URL da instância); **provisionamento** em fila (scripts opcionais no host); formulário público de **trial** em `/trial`; **renovações** com alerta à equipa, destaque na UI e suspensão automática ao vencer; atalho na landing quando o control-plane está ligado
 - Comercial (#321 / #331–#335): simulador com desconto posto &lt;100k L (20% SM), override de custo/valor TEF só na proposta e snapshot imutável do pacote (catálogo TEF continua com valores padrão)
 - Comercial (#321 / #329–#334): catálogo de custos — salário mínimo com histórico por vigência (atualizar valor sem reescrever o passado), itens (% SM, valor fixo, TEF) e simulador em Cadastros → Catálogo de custos (admin)
 - Dashboard (#599): filtros de período Hoje | Esta semana (seg–dom) | Este mês | Mês passado | Personalizado no geral, tickets e WhatsApp (substitui 7/30/90); CSAT do geral respeita o intervalo

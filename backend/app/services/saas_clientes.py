@@ -77,8 +77,33 @@ def registrar_instancia(db: Session, cliente_id: int, data: ClienteSaaSRegistrar
 
 
 def solicitar_provisionamento(db: Session, cliente_id: int) -> ClienteSaaS:
-    """Stub DR-04: marca pedido sem orquestrar Docker."""
-    row = obter(db, cliente_id)
-    row.provisionamento_solicitado = True
-    db.flush()
-    return row
+    """Enfileira provisionamento (DR-04)."""
+    from app.services.saas_provisionamento import enfileirar_provisionamento
+
+    return enfileirar_provisionamento(db, cliente_id)
+
+
+def serializar_cliente(row: ClienteSaaS) -> dict:
+    from app.services.saas_renovacoes import dias_para_renovacao
+
+    return {
+        "id": row.id,
+        "nome": row.nome,
+        "slug": row.slug,
+        "status": row.status,
+        "plano": row.plano,
+        "data_inicio": row.data_inicio,
+        "data_renovacao": row.data_renovacao,
+        "instancia_url": row.instancia_url,
+        "contato_email": row.contato_email,
+        "contato_nome": row.contato_nome,
+        "api_port": row.api_port,
+        "notas": row.notas,
+        "provisionamento_solicitado": bool(row.provisionamento_solicitado),
+        "provisionamento_status": row.provisionamento_status,
+        "provisionamento_mensagem": row.provisionamento_mensagem,
+        "provisionamento_atualizado_em": row.provisionamento_atualizado_em,
+        "dias_para_renovacao": dias_para_renovacao(row.data_renovacao),
+        "created_at": row.created_at,
+        "updated_at": row.updated_at,
+    }
