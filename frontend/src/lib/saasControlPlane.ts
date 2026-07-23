@@ -19,6 +19,30 @@ export function labelStatusClienteSaaS(status: string): string {
   return STATUS_CLIENTE_SAAS.find((s) => s.value === status)?.label ?? status
 }
 
+export function labelProvisionamento(status: string | null | undefined): string {
+  switch (status) {
+    case 'pendente':
+      return 'Pendente'
+    case 'em_progresso':
+      return 'Em progresso'
+    case 'aguardando_ops':
+      return 'Aguardando ops'
+    case 'sucesso':
+      return 'Sucesso'
+    case 'falha':
+      return 'Falha'
+    default:
+      return '—'
+  }
+}
+
+export function renovacaoAlerta(dias: number | null | undefined): 'ok' | 'risco' | 'vencido' | null {
+  if (dias == null) return null
+  if (dias < 0) return 'vencido'
+  if (dias <= 14) return 'risco'
+  return 'ok'
+}
+
 export function badgeClassStatusClienteSaaS(status: string): string {
   switch (status) {
     case 'ativo':

@@ -3484,6 +3484,11 @@ export const saasClientes = {
     api<SaasClientes.Cliente>(`/saas/clientes/${id}/suspender`, { method: 'POST' }),
   reativar: (id: number) =>
     api<SaasClientes.Cliente>(`/saas/clientes/${id}/reativar`, { method: 'POST' }),
+  renovar: (id: number, data?: { dias?: number; nova_data?: string }) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}/renovar`, {
+      method: 'POST',
+      body: JSON.stringify(data ?? { dias: 30 }),
+    }),
   registrarInstancia: (id: number, data: { instancia_url: string }) =>
     api<SaasClientes.Cliente>(`/saas/clientes/${id}/registrar-instancia`, {
       method: 'POST',
@@ -3493,8 +3498,36 @@ export const saasClientes = {
     api<SaasClientes.Cliente>(`/saas/clientes/${id}/solicitar-provisionamento`, { method: 'POST' }),
 };
 
+export const saasPublic = {
+  trial: (data: SaasPublic.TrialCreate) =>
+    publicApi<SaasPublic.TrialRead>('/saas/public/trial', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+};
+
+export namespace SaasPublic {
+  export interface TrialCreate {
+    empresa: string;
+    slug: string;
+    contato_nome: string;
+    contato_email: string;
+    notas?: string | null;
+    solicitar_provisionamento?: boolean;
+  }
+  export interface TrialRead {
+    id: number;
+    nome: string;
+    slug: string;
+    status: string;
+    data_renovacao?: string | null;
+    mensagem: string;
+  }
+}
+
 export namespace SaasClientes {
   export type Status = 'trial' | 'ativo' | 'suspenso' | 'churn';
+  export type ProvisionamentoStatus = 'pendente' | 'em_progresso' | 'aguardando_ops' | 'sucesso' | 'falha';
   export interface Cliente {
     id: number;
     nome: string;
@@ -3504,7 +3537,14 @@ export namespace SaasClientes {
     data_inicio: string;
     data_renovacao?: string | null;
     instancia_url?: string | null;
+    contato_email?: string | null;
+    contato_nome?: string | null;
+    api_port?: number | null;
     provisionamento_solicitado: boolean;
+    provisionamento_status?: ProvisionamentoStatus | null;
+    provisionamento_mensagem?: string | null;
+    provisionamento_atualizado_em?: string | null;
+    dias_para_renovacao?: number | null;
     notas?: string | null;
     created_at?: string | null;
     updated_at?: string | null;
@@ -3517,6 +3557,8 @@ export namespace SaasClientes {
     data_inicio: string;
     data_renovacao?: string | null;
     instancia_url?: string | null;
+    contato_email?: string | null;
+    contato_nome?: string | null;
     notas?: string | null;
   }
   export type Update = Partial<Create>;

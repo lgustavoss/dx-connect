@@ -29,6 +29,8 @@ class ClienteSaaSBase(BaseModel):
     data_inicio: date
     data_renovacao: date | None = None
     instancia_url: str | None = Field(None, max_length=500)
+    contato_email: str | None = Field(None, max_length=255)
+    contato_nome: str | None = Field(None, max_length=200)
     notas: str | None = None
 
     @field_validator("nome")
@@ -51,6 +53,14 @@ class ClienteSaaSBase(BaseModel):
             return None
         plano = v.strip()
         return plano or None
+
+    @field_validator("contato_email", "contato_nome")
+    @classmethod
+    def strip_contato(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        s = v.strip()
+        return s or None
 
     @field_validator("instancia_url")
     @classmethod
@@ -87,6 +97,8 @@ class ClienteSaaSUpdate(BaseModel):
     data_inicio: date | None = None
     data_renovacao: date | None = None
     instancia_url: str | None = Field(None, max_length=500)
+    contato_email: str | None = Field(None, max_length=255)
+    contato_nome: str | None = Field(None, max_length=200)
     notas: str | None = None
 
     @field_validator("nome")
@@ -113,6 +125,14 @@ class ClienteSaaSUpdate(BaseModel):
             return None
         plano = v.strip()
         return plano or None
+
+    @field_validator("contato_email", "contato_nome")
+    @classmethod
+    def strip_contato(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        s = v.strip()
+        return s or None
 
     @field_validator("instancia_url")
     @classmethod
@@ -149,9 +169,19 @@ class ClienteSaaSRegistrarInstancia(BaseModel):
         return str(HttpUrl(url))
 
 
+class ClienteSaaSRenovar(BaseModel):
+    dias: int | None = Field(None, ge=1, le=3650)
+    nova_data: date | None = None
+
+
 class ClienteSaaSRead(ClienteSaaSBase):
     id: int
+    api_port: int | None = None
     provisionamento_solicitado: bool = False
+    provisionamento_status: str | None = None
+    provisionamento_mensagem: str | None = None
+    provisionamento_atualizado_em: datetime | None = None
+    dias_para_renovacao: int | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

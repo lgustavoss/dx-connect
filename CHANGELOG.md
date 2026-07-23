@@ -7,7 +7,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Melhorias
 
-- SaaS DeskRudder (#519 / #521–#523): painel admin de **licenças** na instância comercial — cadastro de clientes (slug, status, plano, renovação, URL da instância), menu **SaaS DeskRudder → Licenças** e atalho «Painel de licenças» na landing (quando o control-plane está ligado)
+- SaaS DeskRudder (#519 / #521–#523 / #524 / #527 / #528): painel de **licenças** (CRUD, status, URL da instância); **provisionamento** em fila (scripts opcionais no host); formulário público de **trial** em `/trial`; **renovações** com alerta à equipa, destaque na UI e suspensão automática ao vencer; atalho na landing quando o control-plane está ligado
 - Portal do cliente (#263 / #300–#308): funcionários da rede fazem login em **/portal**, abrem e acompanham chamados da sua empresa, respondem no fio público, anexam ficheiros, consultam a base de ajuda e recebem e-mail quando a equipe responde; o admin define a senha do portal no cadastro do funcionário
 - Portal (#600, #601): cadastro de funcionário pelo modal da Rede permite definir senha do portal na criação; sócio cadastra sem escolher empresas (escopo automático em toda a rede)
 - Portal (#604): RBAC por papel — colaborador vê só os próprios chamados; supervisor vê todos das empresas vinculadas; sócio vê toda a rede

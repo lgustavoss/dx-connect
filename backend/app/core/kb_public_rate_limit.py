@@ -60,3 +60,21 @@ def check_kb_public_chat_rate_limit(request: Request) -> None:
                 detail="Muitas mensagens no chat. Aguarde um minuto.",
             )
         bucket.append(now)
+
+
+_MAX_TRIAL_PER_HOUR_PER_IP = 5
+_trial_buckets: dict[str, list[float]] = defaultdict(list)
+
+
+def check_saas_trial_rate_limit(request: Request) -> None:
+    ip = client_ip(request)
+    now = time.monotonic()
+    with _lock:
+        bucket = _trial_buckets[ip]
+        bucket[:] = [t for t in bucket if now - t < 3600]
+        if len(bucket) >= _MAX_TRIAL_PER_HOUR_PER_IP:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Muitos pedidos de trial. Aguarde e tente novamente.",
+            )
+        bucket.append(now)

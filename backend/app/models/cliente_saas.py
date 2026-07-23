@@ -6,6 +6,7 @@ from sqlalchemy.sql import func
 from app.database import Base
 
 STATUS_CLIENTE_SAAS = ("trial", "ativo", "suspenso", "churn")
+PROVISIONAMENTO_STATUS = ("pendente", "em_progresso", "aguardando_ops", "sucesso", "falha")
 
 
 class ClienteSaaS(Base):
@@ -20,7 +21,13 @@ class ClienteSaaS(Base):
     data_inicio = Column(Date, nullable=False)
     data_renovacao = Column(Date, nullable=True)
     instancia_url = Column(String(500), nullable=True)
+    contato_email = Column(String(255), nullable=True)
+    contato_nome = Column(String(200), nullable=True)
+    api_port = Column(Integer, nullable=True)
     provisionamento_solicitado = Column(Boolean, nullable=False, default=False)
+    provisionamento_status = Column(String(32), nullable=True)
+    provisionamento_mensagem = Column(Text, nullable=True)
+    provisionamento_atualizado_em = Column(DateTime(timezone=True), nullable=True)
     notas = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

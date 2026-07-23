@@ -17,6 +17,7 @@ import {
   badgeClassStatusClienteSaaS,
   hrefInstanciaCliente,
   labelStatusClienteSaaS,
+  renovacaoAlerta,
 } from '../../lib/saasControlPlane'
 
 type Coluna = 'nome' | 'slug' | 'status' | 'data_renovacao'
@@ -223,7 +224,22 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
                         </span>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3.5 text-slate-600 sm:px-6 dark:text-slate-300">
-                        {formatDate(item.data_renovacao)}
+                        <span>{formatDate(item.data_renovacao)}</span>
+                        {(() => {
+                          const alerta = renovacaoAlerta(item.dias_para_renovacao)
+                          if (!alerta || alerta === 'ok') return null
+                          return (
+                            <span
+                              className={`mt-1 block text-xs font-medium ${
+                                alerta === 'vencido' ? 'text-amber-700 dark:text-amber-300' : 'text-sky-700 dark:text-sky-300'
+                              }`}
+                            >
+                              {alerta === 'vencido'
+                                ? `Vencida há ${Math.abs(item.dias_para_renovacao ?? 0)}d`
+                                : `Vence em ${item.dias_para_renovacao}d`}
+                            </span>
+                          )
+                        })()}
                       </td>
                       <td className="px-4 py-3.5 sm:px-6" onClick={(ev) => ev.stopPropagation()}>
                         {href ? (

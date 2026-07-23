@@ -50,6 +50,7 @@ from app.api import (
     portal_chats,
     portal,
     saas,
+    saas_public,
 )
 from app.config import settings
 from app.core.audit import clear_audit_request_context, set_audit_request_context
@@ -331,6 +332,60 @@ async def lifespan(app: FastAPI):
         name="sla-violacao",
     ).start()
 
+    if settings.SAAS_CONTROL_PLANE:
+
+        def saas_provision_loop() -> None:
+            from app.database import SessionLocal
+            from app.services.saas_provisionamento import processar_provisionamentos_pendentes
+
+            interval = max(10, settings.SAAS_PROVISION_WORKER_INTERVAL_SECONDS)
+            while True:
+                db = SessionLocal()
+                try:
+                    n = processar_provisionamentos_pendentes(db, limit=5)
+                    if n:
+                        db.commit()
+                    else:
+                        db.rollback()
+                except Exception as e:
+                    logger.warning("Worker SaaS provisionamento: %s", e)
+                    db.rollback()
+                finally:
+                    db.close()
+                time.sleep(interval)
+
+        threading.Thread(
+            target=saas_provision_loop,
+            daemon=True,
+            name="saas-provisionamento",
+        ).start()
+
+        def saas_renovacao_loop() -> None:
+            from app.database import SessionLocal
+            from app.services.saas_renovacoes import processar_renovacoes
+
+            interval = max(60, settings.SAAS_RENEWAL_WORKER_INTERVAL_SECONDS)
+            while True:
+                db = SessionLocal()
+                try:
+                    n = processar_renovacoes(db, limit=200)
+                    if n:
+                        db.commit()
+                    else:
+                        db.rollback()
+                except Exception as e:
+                    logger.warning("Worker SaaS renovações: %s", e)
+                    db.rollback()
+                finally:
+                    db.close()
+                time.sleep(interval)
+
+        threading.Thread(
+            target=saas_renovacao_loop,
+            daemon=True,
+            name="saas-renovacoes",
+        ).start()
+
     yield
 
 
@@ -466,6 +521,7 @@ app.include_router(chat_interno.router, prefix=API_V1_PREFIX)
 app.include_router(portal_chats.router, prefix=API_V1_PREFIX)
 app.include_router(portal.router, prefix=API_V1_PREFIX)
 app.include_router(saas.router, prefix=API_V1_PREFIX)
+app.include_router(saas_public.router, prefix=API_V1_PREFIX)
 
 
 def _app_route_paths() -> set[str]:

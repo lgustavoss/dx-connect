@@ -76,6 +76,21 @@ class Settings(BaseSettings):
     # Control-plane comercial DeskRudder (painel de licenças / SaaS).
     # True só na instância deskrudder.com.br — False nas instâncias dos clientes.
     SAAS_CONTROL_PLANE: bool = False
+    # Trial público (DR-07): dias até data_renovacao ao criar trial.
+    SAAS_TRIAL_DAYS: int = 14
+    # Renovações (DR-08): janela de alerta antes do vencimento.
+    SAAS_RENEWAL_ALERT_DAYS_BEFORE: int = 14
+    SAAS_RENEWAL_WORKER_INTERVAL_SECONDS: int = 3600
+    # Provisionamento (DR-04): worker + execução opcional dos scripts do host.
+    SAAS_PROVISION_WORKER_INTERVAL_SECONDS: int = 30
+    SAAS_PROVISION_EXEC_ENABLED: bool = False
+    # Domínio base dos clientes (ex.: deskrudder.com.br → slug.deskrudder.com.br).
+    SAAS_PROVISION_BASE_DOMAIN: str | None = None
+    SAAS_PROVISION_API_PORT_START: int = 8001
+    # Caixa da equipe comercial DeskRudder (trial, provisionamento, renovação).
+    SAAS_NOTIFY_EMAIL: str | None = None
+    # Raiz do repositório no host (para provision-client.sh). Vazio = parents do pacote app.
+    SAAS_REPO_ROOT: str | None = None
     # Modo legado: vários clientes no mesmo Postgres (subdomínio numérico + coluna tenant_id).
     # Produção comercial: manter False (um Postgres por cliente / deploy).
     DX_CONNECT_MULTI_TENANT: bool = False

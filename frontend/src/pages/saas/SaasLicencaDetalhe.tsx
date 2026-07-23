@@ -12,7 +12,9 @@ import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../../api/
 import {
   badgeClassStatusClienteSaaS,
   hrefInstanciaCliente,
+  labelProvisionamento,
   labelStatusClienteSaaS,
+  renovacaoAlerta,
 } from '../../lib/saasControlPlane'
 
 function formatDate(iso: string | null | undefined): string {
@@ -154,6 +156,13 @@ export function SaasLicencaDetalhe() {
           <Button variant="secondary" disabled={acting} onClick={() => navigate(`/saas/licencas/${item.id}/editar`)}>
             Editar
           </Button>
+          <Button
+            variant="secondary"
+            disabled={acting}
+            onClick={() => runAction(() => saasClientes.renovar(item.id, { dias: 30 }), 'Licença renovada por 30 dias.')}
+          >
+            Renovar (+30 dias)
+          </Button>
           {item.status !== 'suspenso' ? (
             <Button
               variant="secondary"
@@ -171,35 +180,63 @@ export function SaasLicencaDetalhe() {
               Reativar
             </Button>
           )}
-          {!item.provisionamento_solicitado ? (
+          {item.provisionamento_status !== 'sucesso' && item.provisionamento_status !== 'em_progresso' ? (
             <Button
               variant="secondary"
               disabled={acting}
               onClick={() =>
                 runAction(
                   () => saasClientes.solicitarProvisionamento(item.id),
-                  'Provisionamento solicitado (fila manual).',
+                  'Provisionamento enfileirado.',
                 )
               }
             >
-              Solicitar provisionamento
+              {item.provisionamento_solicitado ? 'Reenviar à fila' : 'Solicitar provisionamento'}
             </Button>
           ) : null}
         </div>
       </header>
+
+      {(() => {
+        const alerta = renovacaoAlerta(item.dias_para_renovacao)
+        if (!alerta || alerta === 'ok') return null
+        return (
+          <div
+            className={`rounded-2xl border px-4 py-3 text-sm ${
+              alerta === 'vencido'
+                ? 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-100'
+                : 'border-sky-300 bg-sky-50 text-sky-900 dark:border-sky-700/50 dark:bg-sky-950/40 dark:text-sky-100'
+            }`}
+          >
+            {alerta === 'vencido'
+              ? `Licença vencida há ${Math.abs(item.dias_para_renovacao ?? 0)} dia(s). Renove ou mantenha suspensa.`
+              : `Renovação em ${item.dias_para_renovacao} dia(s) (${formatDate(item.data_renovacao)}).`}
+          </div>
+        )
+      })()}
 
       <Card title="Dados da licença">
         <dl>
           <DetailRow label="ID" value={String(item.id)} mono />
           <DetailRow label="Slug" value={item.slug} mono />
           <DetailRow label="Plano" value={item.plano || '—'} />
+          <DetailRow label="Contacto" value={item.contato_nome || '—'} />
+          <DetailRow label="E-mail" value={item.contato_email || '—'} />
           <DetailRow label="Início" value={formatDate(item.data_inicio)} />
-          <DetailRow label="Renovação" value={formatDate(item.data_renovacao)} />
-          <DetailRow label="Instância" value={item.instancia_url || '—'} />
           <DetailRow
-            label="Provisionamento"
-            value={item.provisionamento_solicitado ? 'Solicitado' : 'Não solicitado'}
+            label="Renovação"
+            value={
+              item.data_renovacao
+                ? `${formatDate(item.data_renovacao)}${
+                    item.dias_para_renovacao != null ? ` (${item.dias_para_renovacao} dia(s))` : ''
+                  }`
+                : '—'
+            }
           />
+          <DetailRow label="Instância" value={item.instancia_url || '—'} />
+          <DetailRow label="Porta API" value={item.api_port != null ? String(item.api_port) : '—'} mono />
+          <DetailRow label="Provisionamento" value={labelProvisionamento(item.provisionamento_status)} />
+          <DetailRow label="Detalhe da fila" value={item.provisionamento_mensagem || '—'} />
           <DetailRow label="Notas" value={item.notas || '—'} />
         </dl>
       </Card>
