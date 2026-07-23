@@ -72,6 +72,9 @@ import { AlterarSenha } from './pages/AlterarSenha'
 import { NotificacoesPreferencias } from './pages/NotificacoesPreferencias'
 import { Sobre } from './pages/Sobre'
 import { AcessoNegado } from './pages/AcessoNegado'
+import { SaasLicencas } from './pages/saas/SaasLicencas'
+import { SaasLicencaForm } from './pages/saas/SaasLicencaForm'
+import { SaasLicencaDetalhe } from './pages/saas/SaasLicencaDetalhe'
 import { KbPublicLayout } from './pages/kb-public/KbPublicLayout'
 import { KbPublicHome } from './pages/kb-public/KbPublicHome'
 import { KbPublicArtigo } from './pages/kb-public/KbPublicArtigo'
@@ -237,6 +240,38 @@ function AppRoutes() {
         />
         <Route path="notificacoes/preferencias" element={<NotificacoesPreferencias />} />
         <Route path="sobre" element={<Sobre />} />
+        <Route
+          path="saas/licencas/novo"
+          element={
+            <AdminRoute>
+              <SaasLicencaForm />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="saas/licencas/:id/editar"
+          element={
+            <AdminRoute>
+              <SaasLicencaForm />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="saas/licencas/:id"
+          element={
+            <AdminRoute>
+              <SaasLicencaDetalhe />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="saas/licencas"
+          element={
+            <AdminRoute>
+              <SaasLicencas />
+            </AdminRoute>
+          }
+        />
         <Route path="tickets" element={<Tickets />} />
         <Route path="tickets/novo" element={<TicketNovo />} />
         <Route path="tickets/:id" element={<TicketDetalhe />} />

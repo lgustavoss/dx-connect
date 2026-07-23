@@ -1,0 +1,231 @@
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { ApiError, saasClientes } from '../../api/client'
+import { Card } from '../../components/ui/Card'
+import { Input } from '../../components/ui/Input'
+import { Select } from '../../components/ui/Select'
+import { useToast } from '../../components/ui/Toast'
+import { useVoltarAnterior } from '../../hooks/useVoltarAnterior'
+import { FormSection } from '../../components/ui/FormSection'
+import { InlineCadastroFooter } from '../../components/ui/InlineCadastroPanel'
+import { CadastroFormPageShell } from '../../components/ui/CadastroFormPageShell'
+import { SemPermissao } from '../SemPermissao'
+import { CarregamentoFalhou } from '../../components/ui/CarregamentoFalhou'
+import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../../api/errorMessage'
+import { STATUS_CLIENTE_SAAS, type StatusClienteSaaS } from '../../lib/saasControlPlane'
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+export function SaasLicencaForm() {
+  const { id } = useParams<{ id?: string }>()
+  const navigate = useNavigate()
+  const toast = useToast()
+  const voltarAnterior = useVoltarAnterior('/saas/licencas')
+
+  const clienteId = id ? parseInt(id, 10) : NaN
+  const isEdit = id != null
+
+  const [loading, setLoading] = useState(isEdit)
+  const [saving, setSaving] = useState(false)
+  const [forbidden, setForbidden] = useState(false)
+  const [indisponivel, setIndisponivel] = useState(false)
+  const [inexistente, setInexistente] = useState<{ detalhe?: string } | null>(null)
+
+  const [nome, setNome] = useState('')
+  const [slug, setSlug] = useState('')
+  const [status, setStatus] = useState<StatusClienteSaaS>('trial')
+  const [plano, setPlano] = useState('')
+  const [dataInicio, setDataInicio] = useState(todayIso)
+  const [dataRenovacao, setDataRenovacao] = useState('')
+  const [instanciaUrl, setInstanciaUrl] = useState('')
+  const [notas, setNotas] = useState('')
+
+  useEffect(() => {
+    if (!isEdit) return
+    if (!id || Number.isNaN(clienteId)) {
+      setInexistente({ detalhe: 'O identificador na URL é inválido.' })
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setForbidden(false)
+    setIndisponivel(false)
+    setInexistente(null)
+    saasClientes
+      .get(clienteId)
+      .then((c) => {
+        if (cancelled) return
+        setNome(c.nome)
+        setSlug(c.slug)
+        setStatus(c.status)
+        setPlano(c.plano ?? '')
+        setDataInicio(c.data_inicio.slice(0, 10))
+        setDataRenovacao(c.data_renovacao ? c.data_renovacao.slice(0, 10) : '')
+        setInstanciaUrl(c.instancia_url ?? '')
+        setNotas(c.notas ?? '')
+      })
+      .catch((err) => {
+        if (cancelled) return
+        if (err instanceof ApiError && err.status === 403) {
+          setForbidden(true)
+          return
+        }
+        if (err instanceof ApiError && err.status === 404) {
+          const detail =
+            typeof err.body === 'object' && err.body && 'detail' in err.body
+              ? String((err.body as { detail?: unknown }).detail ?? '')
+              : ''
+          if (detail.toLowerCase().includes('não disponível')) {
+            setIndisponivel(true)
+          } else {
+            setInexistente({})
+          }
+          return
+        }
+        const m = interpretarFalhaCarregamento(err, 'Licença não encontrada.')
+        toast.showWarning([m.titulo, m.detalhe].filter(Boolean).join(' '))
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [clienteId, id, isEdit, toast])
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      const payload = {
+        nome: nome.trim(),
+        slug: slug.trim().toLowerCase(),
+        status,
+        plano: plano.trim() || null,
+        data_inicio: dataInicio,
+        data_renovacao: dataRenovacao.trim() || null,
+        instancia_url: instanciaUrl.trim() || null,
+        notas: notas.trim() || null,
+      }
+      if (isEdit && !Number.isNaN(clienteId)) {
+        await saasClientes.update(clienteId, payload)
+        toast.showSuccess('Licença atualizada.')
+        navigate(`/saas/licencas/${clienteId}`, { replace: true })
+      } else {
+        const created = await saasClientes.create(payload)
+        toast.showSuccess('Licença cadastrada.')
+        navigate(`/saas/licencas/${created.id}`, { replace: true })
+      }
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar a licença.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <CadastroFormPageShell onVoltar={voltarAnterior}>
+        <div className="h-48 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/50" />
+      </CadastroFormPageShell>
+    )
+  }
+
+  if (indisponivel) {
+    return (
+      <SemPermissao
+        title="Painel de licenças não disponível nesta instância."
+        voltarPara="/"
+        voltarLabel="Voltar para o Dashboard"
+      />
+    )
+  }
+
+  if (forbidden) {
+    return (
+      <SemPermissao
+        title="Você não tem permissão para editar licenças SaaS."
+        voltarPara="/saas/licencas"
+        voltarLabel="Voltar para Licenças"
+      />
+    )
+  }
+
+  if (inexistente) {
+    return (
+      <CarregamentoFalhou
+        className="mx-auto max-w-5xl space-y-4 pb-10"
+        titulo="Licença não encontrada."
+        detalhe={inexistente.detalhe}
+        onVoltar={voltarAnterior}
+      />
+    )
+  }
+
+  return (
+    <CadastroFormPageShell onVoltar={voltarAnterior}>
+      <Card title={isEdit ? 'Editar licença' : 'Nova licença SaaS'}>
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-6">
+            <FormSection title="Cliente">
+              <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
+              <Input
+                label="Slug"
+                value={slug}
+                onChange={(e) => setSlug(e.target.value)}
+                required
+                hint="Subdomínio / identificador único (ex.: duplex-soft)"
+              />
+              <Select
+                label="Status"
+                value={status}
+                onChange={(v) => setStatus(String(v) as StatusClienteSaaS)}
+                options={STATUS_CLIENTE_SAAS.map((s) => ({ value: s.value, label: s.label }))}
+              />
+              <Input
+                label="Plano"
+                value={plano}
+                onChange={(e) => setPlano(e.target.value)}
+                hint="Texto livre (ex.: profissional, enterprise)"
+              />
+            </FormSection>
+            <FormSection title="Vigência e instância">
+              <Input
+                label="Data de início"
+                type="date"
+                value={dataInicio}
+                onChange={(e) => setDataInicio(e.target.value)}
+                required
+              />
+              <Input
+                label="Data de renovação"
+                type="date"
+                value={dataRenovacao}
+                onChange={(e) => setDataRenovacao(e.target.value)}
+              />
+              <Input
+                label="URL da instância"
+                value={instanciaUrl}
+                onChange={(e) => setInstanciaUrl(e.target.value)}
+                hint="Ex.: cliente01.deskrudder.com.br"
+              />
+              <label className="block space-y-1.5">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Notas</span>
+                <textarea
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  rows={3}
+                  value={notas}
+                  onChange={(e) => setNotas(e.target.value)}
+                />
+              </label>
+            </FormSection>
+          </div>
+          <InlineCadastroFooter onCancel={voltarAnterior} saving={saving} />
+        </form>
+      </Card>
+    </CadastroFormPageShell>
+  )
+}

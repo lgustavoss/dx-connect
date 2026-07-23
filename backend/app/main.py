@@ -49,6 +49,7 @@ from app.api import (
     chat_interno,
     portal_chats,
     portal,
+    saas,
 )
 from app.config import settings
 from app.core.audit import clear_audit_request_context, set_audit_request_context
@@ -464,6 +465,7 @@ app.include_router(kb.router, prefix=API_V1_PREFIX)
 app.include_router(chat_interno.router, prefix=API_V1_PREFIX)
 app.include_router(portal_chats.router, prefix=API_V1_PREFIX)
 app.include_router(portal.router, prefix=API_V1_PREFIX)
+app.include_router(saas.router, prefix=API_V1_PREFIX)
 
 
 def _app_route_paths() -> set[str]:

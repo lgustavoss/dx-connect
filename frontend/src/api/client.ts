@@ -3439,6 +3439,7 @@ export namespace System {
     version_display: string | null;
     git_sha: string | null;
     environment: string;
+    saas_control_plane?: boolean;
   }
   export interface ReleaseChange {
     category: string;
@@ -3464,3 +3465,59 @@ export const system = {
   info: () => api<System.Info>('/system/info'),
   releaseNotes: () => api<System.ReleaseNotes>('/system/release-notes'),
 };
+
+export const saasClientes = {
+  list: (params?: {
+    busca?: string;
+    status?: string;
+    ordenar_por?: 'nome' | 'slug' | 'status' | 'data_renovacao';
+    ordem?: 'asc' | 'desc';
+    offset?: number;
+    limit?: number;
+  }) => listPaginated<SaasClientes.Cliente>('/saas/clientes', params),
+  get: (id: number) => api<SaasClientes.Cliente>(`/saas/clientes/${id}`),
+  create: (data: SaasClientes.Create) =>
+    api<SaasClientes.Cliente>('/saas/clientes', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: SaasClientes.Update) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  suspender: (id: number) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}/suspender`, { method: 'POST' }),
+  reativar: (id: number) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}/reativar`, { method: 'POST' }),
+  registrarInstancia: (id: number, data: { instancia_url: string }) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}/registrar-instancia`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  solicitarProvisionamento: (id: number) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}/solicitar-provisionamento`, { method: 'POST' }),
+};
+
+export namespace SaasClientes {
+  export type Status = 'trial' | 'ativo' | 'suspenso' | 'churn';
+  export interface Cliente {
+    id: number;
+    nome: string;
+    slug: string;
+    status: Status;
+    plano?: string | null;
+    data_inicio: string;
+    data_renovacao?: string | null;
+    instancia_url?: string | null;
+    provisionamento_solicitado: boolean;
+    notas?: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+  export interface Create {
+    nome: string;
+    slug: string;
+    status?: Status;
+    plano?: string | null;
+    data_inicio: string;
+    data_renovacao?: string | null;
+    instancia_url?: string | null;
+    notas?: string | null;
+  }
+  export type Update = Partial<Create>;
+}

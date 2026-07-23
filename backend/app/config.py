@@ -73,6 +73,9 @@ class Settings(BaseSettings):
     TICKET_DISTRIBUICAO_WORKER_INTERVAL_SECONDS: int = 45
     SLA_WORKER_INTERVAL_SECONDS: int = 60
 
+    # Control-plane comercial DeskRudder (painel de licenças / SaaS).
+    # True só na instância deskrudder.com.br — False nas instâncias dos clientes.
+    SAAS_CONTROL_PLANE: bool = False
     # Modo legado: vários clientes no mesmo Postgres (subdomínio numérico + coluna tenant_id).
     # Produção comercial: manter False (um Postgres por cliente / deploy).
     DX_CONNECT_MULTI_TENANT: bool = False
