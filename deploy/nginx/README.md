@@ -2,6 +2,14 @@
 
 O **backend** já envia logs corretamente atrás de proxy (Gunicorn com `forwarded_allow_ips`). Estes ficheiros **não** são aplicados automaticamente: copie-os para o VPS e ajuste domínios e caminhos.
 
+## DeskRudder / domínio legado
+
+| Ficheiro | Uso |
+|----------|-----|
+| [`connect-duplexsoft-redirect.conf.example`](connect-duplexsoft-redirect.conf.example) | `connect.duplexsoft.com.br` → `301` `https://deskrudder.com.br$request_uri` |
+| App do cliente | `https://duplexsoft.deskrudder.com.br` |
+| API legada (manter) | `https://api.connect.duplexsoft.com.br` |
+
 ## Requisitos no VPS
 
 1. Backend a escutar **só em localhost** (ex.: `127.0.0.1:8000` — padrão do `docker compose` ao mapear `8000:8000` continua acessível no host; para fechar à internet deixe o `-p` apenas se usar rede interna; o mais comum é `ports: - "127.0.0.1:8000:8000"` no compose de produção).
