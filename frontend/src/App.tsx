@@ -3,6 +3,7 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { Layout } from './components/Layout'
 import { Login } from './pages/Login'
+import { AuthSessao } from './pages/AuthSessao'
 import { EsqueciSenha } from './pages/EsqueciSenha'
 import { RedefinirSenha } from './pages/RedefinirSenha'
 import { AvaliarTicket } from './pages/AvaliarTicket'
@@ -90,9 +91,11 @@ import { PortalEquipeForm } from './pages/portal/PortalEquipeForm'
 import { ToastProvider } from './components/ui/Toast'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { PageLoading } from './components/ui/PageLoading'
+import { isMarketingHost } from './lib/marketingHost'
 
 /**
- * `/` anônimo → landing pública; demais rotas do shell exigem login.
+ * Apex comercial (`deskrudder.com.br`): `/` anônimo → landing.
+ * Subdomínio de cliente: `/` anônimo → login do painel.
  * Autenticado → Layout + painel (index = Dashboard).
  */
 function LayoutOrLanding() {
@@ -102,7 +105,7 @@ function LayoutOrLanding() {
     return <PageLoading fullscreen label="Carregando sessão…" />
   }
   if (!user) {
-    if (location.pathname === '/' || location.pathname === '') {
+    if ((location.pathname === '/' || location.pathname === '') && isMarketingHost()) {
       return <LandingPage />
     }
     return <Navigate to="/login" replace state={{ from: location }} />
@@ -144,6 +147,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/auth/sessao" element={<AuthSessao />} />
       <Route path="/esqueci-senha" element={<EsqueciSenha />} />
       <Route path="/redefinir-senha" element={<RedefinirSenha />} />
       <Route path="/avaliar-ticket" element={<AvaliarTicket />} />

@@ -76,17 +76,17 @@ class Settings(BaseSettings):
     # Modo legado: vários clientes no mesmo Postgres (subdomínio numérico + coluna tenant_id).
     # Produção comercial: manter False (um Postgres por cliente / deploy).
     DX_CONNECT_MULTI_TENANT: bool = False
-    # URL pública do painel em single-tenant (ex.: duplexsoft.connect.duplexsoft.com.br).
+    # URL pública do painel em single-tenant (ex.: cliente01.deskrudder.com.br).
     # Se vazio, GET /tenant/atual usa {tenant_id}.CONNECT_APP_BASE_DOMAIN só em multi-tenant.
     CLIENT_APP_HOST: str | None = None
     # Validade do link de redefinição de senha (#105).
     PASSWORD_RESET_TOKEN_EXPIRE_HOURS: int = 1
 
-    # Multi-tenant: subdomínio {tenant_id}.CONNECT_APP_BASE_DOMAIN e endereços {local}@INBOUND_EMAIL_DOMAIN
-    CONNECT_APP_BASE_DOMAIN: str = "connect.duplexsoft.com.br"
-    # Domínio Resend com Receiving (ex.: notify.duplexsoft.com.br). Endereços: {setor}.t{tenant}@domínio.
-    INBOUND_EMAIL_DOMAIN: str = "notify.duplexsoft.com.br"
-    # Host sem subdomínio (ex.: connect.duplexsoft.com.br) ou dev local sem header.
+    # Multi-tenant legado: subdomínio {tenant_id}.CONNECT_APP_BASE_DOMAIN e endereços {local}@INBOUND_EMAIL_DOMAIN
+    CONNECT_APP_BASE_DOMAIN: str = "deskrudder.com.br"
+    # Domínio Resend com Receiving (ex.: notify.deskrudder.com.br). Endereços: {setor}.t{tenant}@domínio.
+    INBOUND_EMAIL_DOMAIN: str = "notify.deskrudder.com.br"
+    # Host sem subdomínio (ex.: deskrudder.com.br) ou dev local sem header.
     DEFAULT_TENANT_ID: int = 1
 
     # Webhook de ingestão de e-mail (padrão SaaS). Sem segredo, o endpoint responde 503.
@@ -101,7 +101,7 @@ class Settings(BaseSettings):
     RESEND_WEBHOOK_SECRET: str | None = None
     TRANSACTIONAL_FROM_EMAIL: str | None = None
     TRANSACTIONAL_FROM_NAME: str | None = None
-    # Respostas ao cliente: Reply-To público (ex. suporte@duplexsoft.com.br) enquanto From usa @notify na Resend.
+    # Respostas ao cliente: Reply-To público (ex. suporte@suaempresa.com.br) enquanto From usa @notify na Resend.
     SUPPORT_REPLY_TO_EMAIL: str | None = None
 
     # Diretório para logo da empresa do sistema (caminho relativo ao cwd ou absoluto).
