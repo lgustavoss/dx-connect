@@ -4,7 +4,13 @@ import { useAuth } from '../contexts/AuthContext'
 import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
-import { BrandLogo, LOGIN_EMAIL_STORAGE_KEY, LOGIN_EMAIL_STORAGE_KEY_LEGACY, brandAssets } from '../brand'
+import {
+  BrandLogo,
+  LOGIN_EMAIL_STORAGE_KEY,
+  LOGIN_EMAIL_STORAGE_KEY_LEGACY,
+  MARKETING_SITE_URL,
+  brandAssets,
+} from '../brand'
 
 const fieldClass =
   'w-full rounded-xl border border-white/10 bg-white/[0.06] px-3.5 py-3 text-[0.9375rem] text-slate-100 placeholder:text-slate-500 shadow-inner shadow-black/20 backdrop-blur-sm transition-colors focus:border-cyan-400/50 focus:outline-none focus:ring-2 focus:ring-cyan-400/25'
@@ -179,12 +185,12 @@ export function Login() {
             Use o usuário cadastrado pelo administrador. Problemas para acessar? Contate o suporte interno.
           </p>
           <p className="text-center">
-            <Link
-              to="/"
+            <a
+              href={MARKETING_SITE_URL}
               className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-sky-300 transition hover:border-sky-400/40 hover:bg-white/10 hover:text-sky-200"
             >
               ← Voltar ao site
-            </Link>
+            </a>
           </p>
         </div>
       </main>
