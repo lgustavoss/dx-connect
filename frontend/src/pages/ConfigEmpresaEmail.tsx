@@ -597,7 +597,7 @@ export function ConfigEmpresaEmail({ embedded = false, section }: ConfigEmpresaE
                     <p className="text-xs opacity-90">
                       Reply-To não definido — defina{' '}
                       <span className="font-mono">SUPPORT_REPLY_TO_EMAIL</span> no servidor (ex.{' '}
-                      <span className="font-mono">suporte@duplexsoft.com.br</span>) para as respostas do cliente
+                      <span className="font-mono">suporte@suaempresa.com.br</span>) para as respostas do cliente
                       voltarem à caixa de suporte.
                     </p>
                   )}
