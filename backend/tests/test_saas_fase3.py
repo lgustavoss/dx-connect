@@ -11,7 +11,7 @@ def test_provisionar_enfileira_sem_exec(client, auth_headers, monkeypatch):
     monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
     monkeypatch.setattr(settings, "SAAS_PROVISION_EXEC_ENABLED", False)
     monkeypatch.setattr(settings, "SAAS_PROVISION_BASE_DOMAIN", "deskrudder.com.br")
-    h = auth_headers["admin"]
+    h = auth_headers["ops"]
 
     criar = client.post(
         "/v1/saas/clientes",
@@ -75,7 +75,7 @@ def test_trial_publico_cria_licenca(client, auth_headers, monkeypatch):
     assert body["status"] == "trial"
     assert body["data_renovacao"] == str(date.today() + timedelta(days=10))
 
-    lista = client.get("/v1/saas/clientes?busca=beta", headers=auth_headers["admin"])
+    lista = client.get("/v1/saas/clientes?busca=beta", headers=auth_headers["ops"])
     assert lista.status_code == 200
     assert lista.json()["total"] >= 1
     item = next(i for i in lista.json()["items"] if i["slug"] == "beta-soft")
@@ -117,7 +117,7 @@ def test_renovar_estende_data_e_reativa(client, auth_headers, monkeypatch):
     from app.config import settings
 
     monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
-    h = auth_headers["admin"]
+    h = auth_headers["ops"]
     criar = client.post(
         "/v1/saas/clientes",
         headers=h,
@@ -142,7 +142,7 @@ def test_renovar_com_nova_data(client, auth_headers, monkeypatch):
     from app.config import settings
 
     monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
-    h = auth_headers["admin"]
+    h = auth_headers["ops"]
     criar = client.post(
         "/v1/saas/clientes",
         headers=h,
@@ -186,7 +186,7 @@ def test_trial_com_provisionamento(client, auth_headers, monkeypatch):
     )
     assert r.status_code == 201, r.text
     cid = r.json()["id"]
-    detalhe = client.get(f"/v1/saas/clientes/{cid}", headers=auth_headers["admin"])
+    detalhe = client.get(f"/v1/saas/clientes/{cid}", headers=auth_headers["ops"])
     assert detalhe.status_code == 200
     d = detalhe.json()
     assert d["provisionamento_solicitado"] is True
@@ -201,7 +201,7 @@ def test_worker_renovacao_suspende_vencido(client, auth_headers, monkeypatch):
 
     monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
     monkeypatch.setattr(settings, "SAAS_RENEWAL_ALERT_DAYS_BEFORE", 7)
-    h = auth_headers["admin"]
+    h = auth_headers["ops"]
 
     vencido = client.post(
         "/v1/saas/clientes",

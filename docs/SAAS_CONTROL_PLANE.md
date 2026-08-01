@@ -26,17 +26,38 @@ Em instâncias de clientes: deixar `SAAS_CONTROL_PLANE=false` (padrão).
 
 ## Painel
 
-- UI: `/saas/licencas` (admin)
-- Menu: **SaaS DeskRudder → Licenças**
-- Landing: atalho «Painel de licenças» e formulário de trial em `/trial`
+- UI: `/saas/licencas` (shell dedicado — role `saas_ops`)
+- Menu: Licenças e Leads comerciais (sem tickets/chat do atendimento)
+- Landing: atalho «Acessar painel admin» → `/login/admin`
+
+### Login na apex (`deskrudder.com.br`)
+
+Na raiz comercial o `/login` padrão pede **conta da empresa** e entrega a sessão no subdomínio (`{slug}.deskrudder.com.br` / `api-{slug}.deskrudder.com.br`).
+
+Para a **equipa DeskRudder** (control-plane), use:
+
+- Atalho da landing «Acessar painel admin» → `/login/admin`
+- Conta com role **`saas_ops`** (não o admin do tenant cliente)
+
+### Credenciais locais (dev)
+
+Com `SAAS_CONTROL_PLANE=true`, o seed cria:
+
+| Uso | E-mail | Senha | Role |
+|-----|--------|-------|------|
+| Painel SaaS (`/login/admin`) | `ops@deskrudder.local` | `ops123456` | `saas_ops` |
+| Admin atendimento (`/login`) | `admin@email.com` | `admin123` | `admin` |
+| Atendente (`/login`) | `atendente@email.com` | `atendente123` | `atendente` |
+
+Sem `VITE_SAAS_CONTROL_PLANE=true`, a apex continua só com login por conta.
 
 ## API
 
 | Método | Rota | Quem |
 |--------|------|------|
-| Resumo ops | `GET /v1/saas/resumo` | admin + control-plane |
-| CRUD + ações | `/v1/saas/clientes` | admin + control-plane |
-| Leads B2B | `/v1/saas/leads` | admin + control-plane |
+| Resumo ops | `GET /v1/saas/resumo` | `saas_ops` + control-plane |
+| CRUD + ações | `/v1/saas/clientes` | `saas_ops` + control-plane |
+| Leads B2B | `/v1/saas/leads` | `saas_ops` + control-plane |
 | Trial | `POST /v1/saas/public/trial` | público (rate limit) |
 | Contato landing | `POST /v1/saas/public/contato` | público (rate limit) |
 
@@ -48,8 +69,8 @@ Busca em `/clientes` cobre nome, slug, `contato_nome` e `contato_email`.
 
 1. Flags dual: `SAAS_CONTROL_PLANE=true` + `VITE_SAAS_CONTROL_PLANE=true` só na instância comercial.
 2. Migrations `078`–`080` aplicadas (`alembic upgrade head`).
-3. Login admin → menu **SaaS DeskRudder** → Licenças (resumo no topo) e Leads.
-4. Criar licença com contacto; editar; buscar por e-mail.
+3. Login ops via `/login/admin` (`ops@deskrudder.local`) → shell SaaS (Licenças / Leads), sem menu de tickets.
+4. Login atendimento via `/login` (`admin@email.com` ou `atendente@email.com`) → painel de tickets/chat (sem menu SaaS).
 5. Lead → **Criar licença** (prefill); trial em `/trial`; contacto na LP.
 6. Provisionar com `SAAS_PROVISION_EXEC_ENABLED=false` → status `aguardando_ops`.
 7. Renovar por dias e por data; suspender/reativar; registar URL.

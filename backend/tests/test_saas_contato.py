@@ -21,7 +21,7 @@ def test_contato_publico_cria_lead(client, auth_headers, monkeypatch):
     assert r.status_code == 201, r.text
     assert "recebida" in r.json()["mensagem"].lower()
 
-    lista = client.get("/v1/saas/leads", headers=auth_headers["admin"])
+    lista = client.get("/v1/saas/leads", headers=auth_headers["ops"])
     assert lista.status_code == 200
     assert lista.json()["total"] >= 1
     lead = next(i for i in lista.json()["items"] if i["email"] == "maria@empresa.example")
@@ -30,7 +30,7 @@ def test_contato_publico_cria_lead(client, auth_headers, monkeypatch):
 
     patch = client.patch(
         f"/v1/saas/leads/{lead['id']}",
-        headers=auth_headers["admin"],
+        headers=auth_headers["ops"],
         json={"status": "em_atendimento", "notas_internas": "Ligação agendada"},
     )
     assert patch.status_code == 200

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.core.audit import registrar_audit
-from app.core.auth import exigir_admin
+from app.core.auth import exigir_saas_ops
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
 from app.database import get_db
 from app.models.atendente import Atendente
@@ -47,7 +47,7 @@ def listar(
     ordem: OrdemLista = Query(OrdemLista.desc),
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
-    __: Atendente = Depends(exigir_admin),
+    __: Atendente = Depends(exigir_saas_ops),
 ):
     q = db.query(LeadComercial)
     if busca and busca.strip():
@@ -75,7 +75,7 @@ def obter(
     lead_id: int,
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
-    __: Atendente = Depends(exigir_admin),
+    __: Atendente = Depends(exigir_saas_ops),
 ):
     row = obter_lead(db, lead_id)
     if not row:
@@ -89,7 +89,7 @@ def atualizar(
     data: LeadComercialUpdate,
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_saas_ops),
 ):
     row = obter_lead(db, lead_id)
     if not row:

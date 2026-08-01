@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.core.audit import registrar_audit
-from app.core.auth import exigir_admin
+from app.core.auth import exigir_saas_ops
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
 from app.database import get_db
 from app.models.atendente import Atendente
@@ -63,7 +63,7 @@ def _read(row: ClienteSaaS) -> ClienteSaaSRead:
 def resumo(
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
-    __: Atendente = Depends(exigir_admin),
+    __: Atendente = Depends(exigir_saas_ops),
 ):
     return obter_resumo(db)
 
@@ -78,7 +78,7 @@ def listar(
     ordem: OrdemLista = Query(OrdemLista.asc),
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
-    __: Atendente = Depends(exigir_admin),
+    __: Atendente = Depends(exigir_saas_ops),
 ):
     q = db.query(ClienteSaaS)
     if busca and busca.strip():
@@ -111,7 +111,7 @@ def criar(
     data: ClienteSaaSCreate,
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_saas_ops),
 ):
     try:
         row = svc.criar(db, data)
@@ -128,7 +128,7 @@ def obter(
     cliente_id: int,
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
-    __: Atendente = Depends(exigir_admin),
+    __: Atendente = Depends(exigir_saas_ops),
 ):
     try:
         return _read(svc.obter(db, cliente_id))
@@ -142,7 +142,7 @@ def atualizar(
     data: ClienteSaaSUpdate,
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_saas_ops),
 ):
     try:
         row = svc.atualizar(db, cliente_id, data)
@@ -159,7 +159,7 @@ def suspender(
     cliente_id: int,
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_saas_ops),
 ):
     try:
         row = svc.suspender(db, cliente_id)
@@ -176,7 +176,7 @@ def reativar(
     cliente_id: int,
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_saas_ops),
 ):
     try:
         row = svc.reativar(db, cliente_id)
@@ -194,7 +194,7 @@ def renovar(
     data: ClienteSaaSRenovar,
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_saas_ops),
 ):
     try:
         row = saas_renovacoes.renovar(
@@ -217,7 +217,7 @@ def registrar_instancia(
     data: ClienteSaaSRegistrarInstancia,
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_saas_ops),
 ):
     try:
         row = svc.registrar_instancia(db, cliente_id, data)
@@ -234,7 +234,7 @@ def solicitar_provisionamento(
     cliente_id: int,
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_saas_ops),
 ):
     try:
         row = svc.solicitar_provisionamento(db, cliente_id)

@@ -269,19 +269,6 @@ const navStructure: NavItem[] = [
   },
   {
     type: 'group',
-    id: 'saas',
-    label: 'SaaS DeskRudder',
-    icon: 'saas',
-    adminOnly: true,
-    saasOnly: true,
-    extraActivePrefixes: ['/saas/'],
-    children: [
-      { to: '/saas/licencas', label: 'Licenças', icon: 'saas' },
-      { to: '/saas/leads', label: 'Leads comerciais', icon: 'saas' },
-    ],
-  },
-  {
-    type: 'group',
     id: 'ajuda',
     label: 'Ajuda',
     icon: 'ajuda',

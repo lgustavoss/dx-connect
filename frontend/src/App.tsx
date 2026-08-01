@@ -80,6 +80,7 @@ import { SaasLicencaForm } from './pages/saas/SaasLicencaForm'
 import { SaasLicencaDetalhe } from './pages/saas/SaasLicencaDetalhe'
 import { SaasLeads } from './pages/saas/SaasLeads'
 import { SaasLeadDetalhe } from './pages/saas/SaasLeadDetalhe'
+import { SaasLayout } from './pages/saas/SaasLayout'
 import { KbPublicLayout } from './pages/kb-public/KbPublicLayout'
 import { KbPublicHome } from './pages/kb-public/KbPublicHome'
 import { KbPublicArtigo } from './pages/kb-public/KbPublicArtigo'
@@ -99,9 +100,11 @@ import { ToastProvider } from './components/ui/Toast'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { PageLoading } from './components/ui/PageLoading'
 import { isMarketingHost } from './lib/marketingHost'
+import { isSaasControlPlaneFrontend } from './lib/saasControlPlane'
 
 /**
  * Apex comercial (`deskrudder.com.br`): `/` anônimo → landing.
+ * Dev local (`localhost`) e control-plane: idem, para testar LP/admin.
  * Subdomínio de cliente: `/` anônimo → login do painel.
  * Autenticado → Layout + painel (index = Dashboard).
  */
@@ -112,10 +115,18 @@ function LayoutOrLanding() {
     return <PageLoading fullscreen label="Carregando sessão…" />
   }
   if (!user) {
-    if ((location.pathname === '/' || location.pathname === '') && isMarketingHost()) {
+    const host = typeof window !== 'undefined' ? window.location.hostname : ''
+    const isLocalDev = host === 'localhost' || host === '127.0.0.1'
+    const showLanding =
+      (location.pathname === '/' || location.pathname === '') &&
+      (isMarketingHost() || isSaasControlPlaneFrontend() || isLocalDev)
+    if (showLanding) {
       return <LandingPage />
     }
     return <Navigate to="/login" replace state={{ from: location }} />
+  }
+  if (user.role === 'saas_ops') {
+    return <Navigate to="/saas/licencas" replace />
   }
   return <Layout />
 }
@@ -154,6 +165,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/login/admin" element={<Login />} />
       <Route path="/auth/sessao" element={<AuthSessao />} />
       <Route path="/trial" element={<TrialPage />} />
       <Route path="/esqueci-senha" element={<EsqueciSenha />} />
@@ -177,6 +189,15 @@ function AppRoutes() {
         <Route path="equipe/:id" element={<PortalEquipeForm />} />
         <Route path="ajuda" element={<PortalAjudaHome />} />
         <Route path="ajuda/:slug" element={<PortalAjudaArtigo />} />
+      </Route>
+      <Route path="/saas" element={<SaasLayout />}>
+        <Route index element={<Navigate to="licencas" replace />} />
+        <Route path="licencas/novo" element={<SaasLicencaForm />} />
+        <Route path="licencas/:id/editar" element={<SaasLicencaForm />} />
+        <Route path="licencas/:id" element={<SaasLicencaDetalhe />} />
+        <Route path="licencas" element={<SaasLicencas />} />
+        <Route path="leads/:id" element={<SaasLeadDetalhe />} />
+        <Route path="leads" element={<SaasLeads />} />
       </Route>
       <Route
         path="/"
@@ -249,54 +270,6 @@ function AppRoutes() {
         />
         <Route path="notificacoes/preferencias" element={<NotificacoesPreferencias />} />
         <Route path="sobre" element={<Sobre />} />
-        <Route
-          path="saas/licencas/novo"
-          element={
-            <AdminRoute>
-              <SaasLicencaForm />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="saas/licencas/:id/editar"
-          element={
-            <AdminRoute>
-              <SaasLicencaForm />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="saas/licencas/:id"
-          element={
-            <AdminRoute>
-              <SaasLicencaDetalhe />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="saas/licencas"
-          element={
-            <AdminRoute>
-              <SaasLicencas />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="saas/leads/:id"
-          element={
-            <AdminRoute>
-              <SaasLeadDetalhe />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="saas/leads"
-          element={
-            <AdminRoute>
-              <SaasLeads />
-            </AdminRoute>
-          }
-        />
         <Route path="tickets" element={<Tickets />} />
         <Route path="tickets/novo" element={<TicketNovo />} />
         <Route path="tickets/:id" element={<TicketDetalhe />} />

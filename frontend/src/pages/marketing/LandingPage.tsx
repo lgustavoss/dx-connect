@@ -18,7 +18,7 @@ import {
   landingShowcases,
   landingShots,
 } from '../../content/landing'
-import { isSaasControlPlaneFrontend, SAAS_LICENCAS_PATH } from '../../lib/saasControlPlane'
+import { isSaasControlPlaneFrontend } from '../../lib/saasControlPlane'
 import { MarketingLayout } from './MarketingLayout'
 
 function SecondaryLink({ to, children }: { to: string; children: ReactNode }) {
@@ -152,10 +152,10 @@ export function LandingPage() {
                   Pedir trial
                 </Link>
                 <Link
-                  to={`/login?next=${encodeURIComponent(SAAS_LICENCAS_PATH)}`}
+                  to="/login/admin"
                   className="rounded-full border border-sky-400/35 bg-sky-400/10 px-3 py-2 text-sm font-semibold text-sky-100 transition hover:border-sky-300/50 hover:bg-sky-400/20"
                 >
-                  Painel de licenças
+                  Painel admin
                 </Link>
               </>
             ) : null}
@@ -494,7 +494,7 @@ export function LandingPage() {
             <p className="mt-2 max-w-md text-sm text-slate-500">{landingFooter.productLine}</p>
           </div>
           <div className="flex flex-col gap-2 text-sm sm:items-end">
-            <Link to="/login" className="font-medium text-sky-300 hover:text-sky-200">
+            <Link to="/login/admin" className="font-medium text-sky-300 hover:text-sky-200">
               {landingFooter.loginLabel}
             </Link>
             <a href={`mailto:${landingContactEmail}`} className="text-slate-400 hover:text-slate-200">

@@ -9,7 +9,7 @@ def test_saas_desligado_404(client, auth_headers, monkeypatch):
     from app.config import settings
 
     monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", False)
-    r = client.get("/v1/saas/clientes", headers=auth_headers["admin"])
+    r = client.get("/v1/saas/clientes", headers=auth_headers["ops"])
     assert r.status_code == 404
 
 
@@ -21,11 +21,20 @@ def test_saas_atendente_403(client, auth_headers, monkeypatch):
     assert r.status_code == 403
 
 
+def test_saas_admin_tenant_403(client, auth_headers, monkeypatch):
+    """Admin do painel de atendimento não acede às APIs SaaS (só saas_ops)."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    r = client.get("/v1/saas/clientes", headers=auth_headers["admin"])
+    assert r.status_code == 403
+
+
 def test_saas_crud_admin(client, auth_headers, monkeypatch):
     from app.config import settings
 
     monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
-    h = auth_headers["admin"]
+    h = auth_headers["ops"]
 
     criar = client.post(
         "/v1/saas/clientes",
@@ -107,7 +116,7 @@ def test_saas_resumo_ops(client, auth_headers, monkeypatch):
 
     monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
     monkeypatch.setattr(settings, "SAAS_RENEWAL_ALERT_DAYS_BEFORE", 14)
-    h = auth_headers["admin"]
+    h = auth_headers["ops"]
 
     client.post(
         "/v1/saas/clientes",
@@ -134,7 +143,7 @@ def test_saas_resumo_desligado_404(client, auth_headers, monkeypatch):
     from app.config import settings
 
     monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", False)
-    r = client.get("/v1/saas/resumo", headers=auth_headers["admin"])
+    r = client.get("/v1/saas/resumo", headers=auth_headers["ops"])
     assert r.status_code == 404
 
 
@@ -142,7 +151,7 @@ def test_saas_slug_duplicado_409(client, auth_headers, monkeypatch):
     from app.config import settings
 
     monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
-    h = auth_headers["admin"]
+    h = auth_headers["ops"]
     payload = {
         "nome": "A",
         "slug": "mesmo-slug",
@@ -164,7 +173,7 @@ def test_saas_slug_invalido_422(client, auth_headers, monkeypatch):
     monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
     r = client.post(
         "/v1/saas/clientes",
-        headers=auth_headers["admin"],
+        headers=auth_headers["ops"],
         json={
             "nome": "X",
             "slug": "Invalid_Slug!",
@@ -179,6 +188,6 @@ def test_system_info_expõe_saas_flag(client, auth_headers, monkeypatch):
     from app.config import settings
 
     monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
-    r = client.get("/v1/system/info", headers=auth_headers["admin"])
+    r = client.get("/v1/system/info", headers=auth_headers["ops"])
     assert r.status_code == 200
     assert r.json()["saas_control_plane"] is True
