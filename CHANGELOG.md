@@ -7,6 +7,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Melhorias
 
+- Chat (#626): ícone de som junto a **Aguardando** para silenciar/reativar o alerta contínuo da fila (WhatsApp + portal); preferência guardada no browser — não afeta alertas de ticket nem do chat interno
 - Portal do cliente (#263 / #300–#308): funcionários da rede fazem login em **/portal**, abrem e acompanham chamados da sua empresa, respondem no fio público, anexam ficheiros, consultam a base de ajuda e recebem e-mail quando a equipe responde; o admin define a senha do portal no cadastro do funcionário
 - Portal (#600, #601): cadastro de funcionário pelo modal da Rede permite definir senha do portal na criação; sócio cadastra sem escolher empresas (escopo automático em toda a rede)
 - Portal (#604): RBAC por papel — colaborador vê só os próprios chamados; supervisor vê todos das empresas vinculadas; sócio vê toda a rede
@@ -35,6 +36,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Correções
 
+- Chat (#625): ao **Ver** um chat da fila Aguardando, a lista com **Atender** permanece na lateral; na conversa há CTA **Atender** (WhatsApp e portal) para assumir sem voltar à lista
+- WhatsApp (#627): com anexo pendente, **Enter** na legenda (ou no painel, em áudio) envia o anexo — equivalente a «Enviar anexo»
 - WhatsApp (#608): duas mensagens inbound seguidas do mesmo contacto deixam de abrir dois chats/protocolos — lock por `wa_id` no webhook e uma única sequência de auto-mensagens por sessão
 - WhatsApp (#598): após encerrar com avaliação, janela de ~30 min (configurável) para a nota; se o cliente mandar outro texto, abre atendimento novo com essa mensagem; sem resposta, finaliza sozinho
 - WhatsApp: após encerramento por inatividade, o chat fica em **A classificar demanda** (somente leitura) até registar, manter demandas existentes ou confirmar sem demanda; nova mensagem do mesmo cliente abre chat novo na fila

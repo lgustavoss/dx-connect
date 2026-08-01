@@ -10,6 +10,8 @@ const LS_KEY_LAST_WPP_RESP = 'dxconnect.notificacoes.last_wpp_resp'
 const LS_KEY_LAST_PORTAL_FILA = 'dxconnect.notificacoes.last_portal_fila'
 const LS_KEY_LAST_PORTAL_RESP = 'dxconnect.notificacoes.last_portal_resp'
 const LS_KEY_LAST_CHAT_INTERNO = 'dxconnect.notificacoes.last_chat_interno'
+/** Preferência local: silenciar loop/pulse da fila Aguardando (WPP + portal). */
+const LS_KEY_FILA_AGUARDANDO_MUTED = 'dxconnect.notificacoes.fila_aguardando_muted'
 const POLL_MS = 10_000
 /** Fallback de segurança quando SSE está ativo (#266). */
 const POLL_SSE_SAFETY_MS = 60_000
@@ -65,6 +67,20 @@ const mutedChatInternoIds = new Set<number>()
 let chatInternoUserId: number | null = null
 let activeChatInternoConversaId: number | null = null
 
+type ListenerFilaMuted = (muted: boolean) => void
+const listenersFilaMuted = new Set<ListenerFilaMuted>()
+
+function readFilaAguardandoMuted(): boolean {
+  try {
+    if (typeof localStorage === 'undefined') return false
+    return localStorage.getItem(LS_KEY_FILA_AGUARDANDO_MUTED) === '1'
+  } catch {
+    return false
+  }
+}
+
+let filaAguardandoMuted = readFilaAguardandoMuted()
+
 let wppFilaLoopInterval: number | null = null
 let wppFilaLoopAudio: HTMLAudioElement | null = null
 let pollTimerId: number | null = null
@@ -91,6 +107,36 @@ export function syncChatInternoMutedIds(ids: Iterable<number>) {
 export function setChatInternoMuted(conversaId: number, muted: boolean) {
   if (muted) mutedChatInternoIds.add(conversaId)
   else mutedChatInternoIds.delete(conversaId)
+}
+
+export function isFilaAguardandoMuted() {
+  return filaAguardandoMuted
+}
+
+/** Silencia/reativa só o alerta contínuo (e pulses) da fila Aguardando — não afeta tickets nem chat interno. */
+export function setFilaAguardandoMuted(muted: boolean) {
+  filaAguardandoMuted = muted
+  try {
+    localStorage.setItem(LS_KEY_FILA_AGUARDANDO_MUTED, muted ? '1' : '0')
+  } catch {
+    // ignore
+  }
+  const filaCount = currentResumo.wpp_fila_count + currentResumo.portal_fila_count
+  syncWppFilaBeep(filaCount)
+  for (const l of listenersFilaMuted) l(muted)
+}
+
+export function useFilaAguardandoMuted(): boolean {
+  const [muted, setMuted] = useState(filaAguardandoMuted)
+  useEffect(() => {
+    const listener: ListenerFilaMuted = (m) => setMuted(m)
+    listenersFilaMuted.add(listener)
+    setMuted(filaAguardandoMuted)
+    return () => {
+      listenersFilaMuted.delete(listener)
+    }
+  }, [])
+  return muted
 }
 
 function shouldPlayChatInternoSound(payload: Record<string, unknown>): boolean {
@@ -350,7 +396,7 @@ function ensureWppFilaLoop() {
 }
 
 function syncWppFilaBeep(wppFilaCount: number) {
-  if (wppFilaCount > 0) {
+  if (wppFilaCount > 0 && !filaAguardandoMuted) {
     ensureWppFilaLoop()
   } else {
     stopWppFilaLoop()
@@ -413,11 +459,17 @@ function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean, source: 'sse
       for (let i = 0; i < delta; i++) enqueueAlert('ticket_fila')
     }
 
-    if (shouldEnqueueCounterAlert('wpp_fila_pulse', prevWppFilaValue, r.wpp_fila_count)) {
+    if (
+      !filaAguardandoMuted &&
+      shouldEnqueueCounterAlert('wpp_fila_pulse', prevWppFilaValue, r.wpp_fila_count)
+    ) {
       enqueueAlert('wpp_fila_pulse')
     }
 
-    if (shouldEnqueueCounterAlert('wpp_fila_pulse', prevPortalFilaValue, r.portal_fila_count)) {
+    if (
+      !filaAguardandoMuted &&
+      shouldEnqueueCounterAlert('wpp_fila_pulse', prevPortalFilaValue, r.portal_fila_count)
+    ) {
       enqueueAlert('wpp_fila_pulse')
     }
 
