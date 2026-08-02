@@ -30,6 +30,7 @@ import {
 import { MensagemRodapeMeta } from '../../components/chat/MensagemRodapeMeta'
 import { AssumirWhatsappSetorModal } from '../../components/chat/AssumirWhatsappSetorModal'
 import { WhatsappAvatar } from '../../components/chat/WhatsappAvatar'
+import { ImageLightboxViewer } from '../../components/chat/ImageLightboxViewer'
 import { WhatsappMensagemAcoes } from '../../components/chat/WhatsappMensagemAcoes'
 import { WhatsappReacoesBar } from '../../components/chat/WhatsappReacoesBar'
 import { precisaEscolherSetorAoAssumir } from '../../lib/assumirWhatsappSetor'
@@ -359,15 +360,13 @@ function WhatsappZoomLightbox({
       {loading || !url ? (
         <p className="text-sm text-white/70 animate-pulse">Carregando imagem…</p>
       ) : (
-        <img
-          src={url}
-          alt=""
-          className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl animate-in zoom-in-95 duration-200"
-          onClick={(e) => e.stopPropagation()}
-        />
+        <ImageLightboxViewer src={url} />
       )}
       {caption && (
-        <p className="mt-4 max-w-2xl rounded-xl bg-black/40 px-4 py-2 text-center text-sm text-white backdrop-blur-md">
+        <p
+          className="mt-4 max-w-2xl rounded-xl bg-black/40 px-4 py-2 text-center text-sm text-white backdrop-blur-md"
+          onClick={(e) => e.stopPropagation()}
+        >
           {caption}
         </p>
       )}
@@ -441,6 +440,7 @@ export function WhatsappConversa() {
   const [texto, setTexto] = useState('')
 
   const [enviando, setEnviando] = useState(false)
+  const enviandoMidiaRef = useRef(false)
 
   // Estados de WhatsApp Clone (Citação e Zoom)
   const [msgRespondida, setMsgRespondida] = useState<WhatsappChats.Mensagem | null>(null)
@@ -900,7 +900,8 @@ useEffect(() => {
   function duploCliqueResponder(e: MouseEvent, m: WhatsappChats.Mensagem, isSystem: boolean) {
     if (isSystem || encerrado || !podeEnviar || modoInterno) return
     const t = e.target as HTMLElement
-    if (t.closest('button, a, input, textarea, video, audio')) return
+    // Só ao lado do balão — dentro do balão permite selecionar/copiar texto
+    if (t.closest('[data-msg-bubble], button, a, input, textarea, video, audio')) return
     iniciarResposta(m)
   }
 
@@ -1013,7 +1014,8 @@ useEffect(() => {
   }
 
   async function confirmarEnvioMidia() {
-    if (!arquivoPendente || !chat || !podeEnviar || enviando) return
+    if (!arquivoPendente || !chat || !podeEnviar || enviando || enviandoMidiaRef.current) return
+    enviandoMidiaRef.current = true
     setEnviando(true)
     try {
       await whatsappChats.enviarMidia(
@@ -1031,6 +1033,7 @@ useEffect(() => {
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Falha no envio do anexo'))
     } finally {
+      enviandoMidiaRef.current = false
       setEnviando(false)
     }
   }
@@ -1746,16 +1749,9 @@ useEffect(() => {
                     </span>
                   )}
 
-                  {!isSystem && !isInbound && (
-                    <WhatsappMensagemAcoes
-                      mensagem={m}
-                      onEditar={(texto) => editarMensagemWhatsapp(m, texto)}
-                      onApagar={() => apagarMensagemWhatsapp(m)}
-                      alinhamento="end"
-                    />
-                  )}
-
-                  <div className={`
+                  <div
+                    data-msg-bubble
+                    className={`
 
                     rounded-2xl px-4 py-2 text-sm shadow-sm relative group/bubble
 
@@ -1763,9 +1759,17 @@ useEffect(() => {
 
                       isInbound ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-tl-none ring-1 ring-slate-100 dark:ring-slate-700' :
 
-                      'bg-cyan-600 text-white rounded-tr-none'}
+                      'bg-cyan-600 text-white rounded-tr-none pr-8'}
 
                   `}>
+
+                    {!isSystem && !isInbound && (
+                      <WhatsappMensagemAcoes
+                        mensagem={m}
+                        onEditar={(texto) => editarMensagemWhatsapp(m, texto)}
+                        onApagar={() => apagarMensagemWhatsapp(m)}
+                      />
+                    )}
 
                     {m.quoted_wa_message_id && !m.apagada && (
                       <div 
@@ -1881,12 +1885,17 @@ useEffect(() => {
             <div
               className="mb-2 rounded-xl border border-cyan-200 bg-cyan-50/80 p-3 dark:border-cyan-900/40 dark:bg-cyan-950/20"
               tabIndex={arquivoPendente.type.startsWith('audio/') ? 0 : undefined}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey && !enviando && podeEnviar) {
-                  e.preventDefault()
-                  void confirmarEnvioMidia()
-                }
-              }}
+              onKeyDown={
+                arquivoPendente.type.startsWith('audio/')
+                  ? (e) => {
+                      if (e.key === 'Enter' && !e.shiftKey && !enviando && podeEnviar) {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        void confirmarEnvioMidia()
+                      }
+                    }
+                  : undefined
+              }
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
@@ -1914,6 +1923,7 @@ useEffect(() => {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault()
+                      e.stopPropagation()
                       if (!enviando && podeEnviar) void confirmarEnvioMidia()
                     }
                   }}
