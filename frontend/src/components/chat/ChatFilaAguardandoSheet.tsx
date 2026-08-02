@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChatListaEspera } from '../../pages/chat/ChatListaEspera'
+import { ChatFilaSomToggle } from './ChatFilaSomToggle'
 
 type Props = {
   open: boolean
@@ -45,9 +46,12 @@ export function ChatFilaAguardandoSheet({ open, onClose }: Props) {
         className="absolute inset-x-0 bottom-0 flex max-h-[min(85vh,32rem)] flex-col rounded-t-2xl bg-white shadow-2xl outline-none dark:bg-slate-950"
       >
         <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800">
-          <h2 id={titleId} className="text-base font-bold text-slate-900 dark:text-white">
-            Aguardando
-          </h2>
+          <div className="flex items-center gap-1">
+            <h2 id={titleId} className="text-base font-bold text-slate-900 dark:text-white">
+              Aguardando
+            </h2>
+            <ChatFilaSomToggle size="md" />
+          </div>
           <button
             type="button"
             className="rounded-lg px-2 py-1 text-2xl leading-none text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-slate-100"

@@ -3,22 +3,15 @@ import { useCallback, useEffect, useState, useRef, type MouseEvent } from 'react
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import {
-
-
+  ApiError,
   atendentes,
   tickets,
   whatsappChats,
-
   fetchWhatsAppMidiaBlob,
-
-
   type Setores,
-
   type Atendentes,
-
   type Tickets,
   type WhatsappChats,
-
 } from '../../api/client'
 
 import { resolveWhatsappMidiaObjectUrl, revokeWhatsappMidiaForChat } from '../../lib/whatsappMidiaCache'
@@ -70,6 +63,8 @@ import { useWhatsappVoltarLista } from '../../hooks/useWhatsappVoltarLista'
 import { whatsappConversaLink, resolveWhatsappListFallback, WHATSAPP_LIST_PATHS } from '../../lib/whatsappListReturn'
 import { useChatHub } from '../../contexts/ChatHubContext'
 import { ChatFilaAguardandoSheet } from '../../components/chat/ChatFilaAguardandoSheet'
+import { ChatFilaSomToggle } from '../../components/chat/ChatFilaSomToggle'
+import { chatWhatsappLink } from '../../lib/chatHubPaths'
 import { WhatsappInatividadeControle } from './WhatsappInatividadeControle'
 import { mergeTimelineChat, textoMarcoDemanda } from '../../lib/whatsappDemandaUtils'
 import { rotuloDownloadArquivo, visualTipoArquivo } from '../../lib/fileTypeIcon'
@@ -312,7 +307,8 @@ export function WhatsappConversa() {
   const [menuMobileAberto, setMenuMobileAberto] = useState(false)
   const menuMobileRef = useRef<HTMLDivElement>(null)
   const [filaAguardandoAberta, setFilaAguardandoAberta] = useState(false)
-  const { filaCount } = useChatHub()
+  const [assumindo, setAssumindo] = useState(false)
+  const { filaCount, refreshContagens } = useChatHub()
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
@@ -836,7 +832,7 @@ useEffect(() => {
   }
 
   async function confirmarEnvioMidia() {
-    if (!arquivoPendente || !chat || !podeEnviar) return
+    if (!arquivoPendente || !chat || !podeEnviar || enviando) return
     setEnviando(true)
     try {
       await whatsappChats.enviarMidia(
@@ -855,6 +851,27 @@ useEffect(() => {
       toast.showError(mensagemFalhaParaToast(err, 'Falha no envio do anexo'))
     } finally {
       setEnviando(false)
+    }
+  }
+
+  async function assumirChat() {
+    if (!chat || chat.estado !== 'aguardando_atendente' || assumindo) return
+    setAssumindo(true)
+    try {
+      const atualizado = await whatsappChats.assumir(chat.id)
+      setChat((prev) => mergeWhatsappChat(prev, atualizado))
+      void refreshContagens()
+      void refetchPendenciasResumo()
+      toast.showSuccess('Chat assumido.')
+      navigate(chatWhatsappLink(chat.id, 'atendendo'), { replace: true })
+    } catch (err) {
+      const msg =
+        err instanceof ApiError && err.status === 400
+          ? (err.body as { detail?: string })?.detail || 'Erro ao assumir.'
+          : mensagemFalhaParaToast(err)
+      toast.showWarning(msg)
+    } finally {
+      setAssumindo(false)
     }
   }
 
@@ -1117,19 +1134,34 @@ useEffect(() => {
             <div className="flex shrink-0 items-center gap-1 sm:gap-2">
 
               {modoHub && (
+                <div className="flex items-center gap-0.5 md:hidden">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="relative h-8 shrink-0 px-2.5 text-xs font-semibold"
+                    onClick={() => setFilaAguardandoAberta(true)}
+                    aria-label={filaCount > 0 ? `Aguardando, ${filaCount} na fila` : 'Aguardando'}
+                  >
+                    Aguardando
+                    {filaCount > 0 && (
+                      <span className="ml-1 inline-flex min-w-[1rem] justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-4 text-white">
+                        {filaCount > 99 ? '99+' : filaCount}
+                      </span>
+                    )}
+                  </Button>
+                  <ChatFilaSomToggle />
+                </div>
+              )}
+
+              {chat?.estado === 'aguardando_atendente' && (
                 <Button
                   type="button"
-                  variant="secondary"
-                  className="relative h-8 shrink-0 px-2.5 text-xs font-semibold md:hidden"
-                  onClick={() => setFilaAguardandoAberta(true)}
-                  aria-label={filaCount > 0 ? `Aguardando, ${filaCount} na fila` : 'Aguardando'}
+                  variant="primary"
+                  className="h-8 shrink-0 px-3 text-xs font-semibold"
+                  loading={assumindo}
+                  onClick={() => void assumirChat()}
                 >
-                  Aguardando
-                  {filaCount > 0 && (
-                    <span className="ml-1 inline-flex min-w-[1rem] justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-4 text-white">
-                      {filaCount > 99 ? '99+' : filaCount}
-                    </span>
-                  )}
+                  Atender
                 </Button>
               )}
 
@@ -1583,7 +1615,16 @@ useEffect(() => {
           )}
 
           {arquivoPendente && (
-            <div className="mb-2 rounded-xl border border-cyan-200 bg-cyan-50/80 p-3 dark:border-cyan-900/40 dark:bg-cyan-950/20">
+            <div
+              className="mb-2 rounded-xl border border-cyan-200 bg-cyan-50/80 p-3 dark:border-cyan-900/40 dark:bg-cyan-950/20"
+              tabIndex={arquivoPendente.type.startsWith('audio/') ? 0 : undefined}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && !enviando && podeEnviar) {
+                  e.preventDefault()
+                  void confirmarEnvioMidia()
+                }
+              }}
+            >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold text-cyan-800 dark:text-cyan-300">Anexo selecionado</p>
@@ -1607,6 +1648,12 @@ useEffect(() => {
                   type="text"
                   value={legendaMidia}
                   onChange={(e) => setLegendaMidia(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      if (!enviando && podeEnviar) void confirmarEnvioMidia()
+                    }
+                  }}
                   placeholder="Legenda opcional (visível no WhatsApp)"
                   className={`mt-2 ${TEXTAREA_FIELD_CLASS}`}
                   autoFocus

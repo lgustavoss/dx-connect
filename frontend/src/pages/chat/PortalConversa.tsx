@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
-import { fetchPortalMidiaBlob, portalChats, type PortalChats } from '../../api/client'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { ApiError, fetchPortalMidiaBlob, portalChats, type PortalChats } from '../../api/client'
 import { ChatCanalBadge } from '../../components/chat/ChatCanalBadge'
 import { ChatDemandasPanel } from '../../components/chat/ChatDemandasPanel'
 import { ChatEncerrarModal } from '../../components/chat/ChatEncerrarModal'
 import { ChatFilaAguardandoSheet } from '../../components/chat/ChatFilaAguardandoSheet'
+import { ChatFilaSomToggle } from '../../components/chat/ChatFilaSomToggle'
 import { ChatMensagemMidia } from '../../components/chat/ChatMensagemMidia'
 import { ChatTransferModal } from '../../components/chat/ChatTransferModal'
 import { Button } from '../../components/ui/Button'
@@ -16,7 +17,7 @@ import { useEventStream } from '../../contexts/EventStreamContext'
 import { refetchPendenciasResumo } from '../../hooks/useAlertaFilaSemResponsavel'
 import { portalDemandasApi, type ChatDemanda } from '../../lib/chatDemandasApi'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
-import { CHAT_HUB_PATHS } from '../../lib/chatHubPaths'
+import { CHAT_HUB_PATHS, chatPortalLink } from '../../lib/chatHubPaths'
 import { mensagemTransferenciaSucesso, rotuloEstadoChat, rotuloResponsavelChat } from '../../lib/whatsappChatMeta'
 import { mergeTimelineChat, textoMarcoDemanda } from '../../lib/whatsappDemandaUtils'
 import { WhatsappDemandaTimelineMarco } from '../whatsapp/WhatsappDemandaTimelineMarco'
@@ -61,6 +62,8 @@ export function PortalConversa() {
   const { chatId: chatIdParam } = useParams()
   const chatId = Number(chatIdParam)
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const fromEspera = searchParams.get('from') === 'espera'
   const toast = useToast()
   const { user } = useAuth()
   const { subscribe, useFallback } = useEventStream()
@@ -71,6 +74,7 @@ export function PortalConversa() {
   const [texto, setTexto] = useState('')
   const [loading, setLoading] = useState(true)
   const [enviando, setEnviando] = useState(false)
+  const [assumindo, setAssumindo] = useState(false)
   const [modalEncerrar, setModalEncerrar] = useState(false)
   const [modalTransferir, setModalTransferir] = useState(false)
   const [transferindo, setTransferindo] = useState(false)
@@ -219,9 +223,30 @@ export function PortalConversa() {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
+  async function assumirChat() {
+    if (!chat || chat.estado !== 'aguardando_atendente' || assumindo) return
+    setAssumindo(true)
+    try {
+      const atualizado = await portalChats.assumir(chat.id)
+      setChat(atualizado)
+      void refreshContagens()
+      void refetchPendenciasResumo()
+      toast.showSuccess('Chat assumido.')
+      navigate(chatPortalLink(chat.id), { replace: true })
+    } catch (err) {
+      const msg =
+        err instanceof ApiError && err.status === 400
+          ? (err.body as { detail?: string })?.detail || 'Erro ao assumir.'
+          : mensagemFalhaParaToast(err)
+      toast.showWarning(msg)
+    } finally {
+      setAssumindo(false)
+    }
+  }
+
   async function confirmarEnvioMidia() {
     const responsavel = chat?.estado === 'em_atendimento' && chat.atendente_id === user?.id
-    if (!arquivoPendente || !Number.isFinite(chatId) || !responsavel) return
+    if (!arquivoPendente || !Number.isFinite(chatId) || !responsavel || enviando) return
     setEnviando(true)
     try {
       const msg = await portalChats.enviarMidia(chatId, arquivoPendente, legendaMidia.trim())
@@ -319,7 +344,10 @@ export function PortalConversa() {
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white dark:bg-slate-950">
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-950">
         <div className="min-w-0">
-          <Link to={CHAT_HUB_PATHS.atendendo} className="text-xs text-cyan-600 hover:underline md:hidden">
+          <Link
+            to={fromEspera ? CHAT_HUB_PATHS.espera : CHAT_HUB_PATHS.atendendo}
+            className="text-xs text-cyan-600 hover:underline md:hidden"
+          >
             ← Voltar
           </Link>
           <div className="mt-0.5 flex flex-wrap items-center gap-2">
@@ -339,20 +367,35 @@ export function PortalConversa() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            className="relative h-8 shrink-0 px-2.5 text-xs font-semibold md:hidden"
-            onClick={() => setFilaAguardandoAberta(true)}
-            aria-label={filaCount > 0 ? `Aguardando, ${filaCount} na fila` : 'Aguardando'}
-          >
-            Aguardando
-            {filaCount > 0 && (
-              <span className="ml-1 inline-flex min-w-[1rem] justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-4 text-white">
-                {filaCount > 99 ? '99+' : filaCount}
-              </span>
-            )}
-          </Button>
+          <div className="flex items-center gap-0.5 md:hidden">
+            <Button
+              type="button"
+              variant="secondary"
+              className="relative h-8 shrink-0 px-2.5 text-xs font-semibold"
+              onClick={() => setFilaAguardandoAberta(true)}
+              aria-label={filaCount > 0 ? `Aguardando, ${filaCount} na fila` : 'Aguardando'}
+            >
+              Aguardando
+              {filaCount > 0 && (
+                <span className="ml-1 inline-flex min-w-[1rem] justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-4 text-white">
+                  {filaCount > 99 ? '99+' : filaCount}
+                </span>
+              )}
+            </Button>
+            <ChatFilaSomToggle />
+          </div>
+
+          {chat.estado === 'aguardando_atendente' && (
+            <Button
+              type="button"
+              variant="primary"
+              className="h-8 shrink-0 px-3 text-xs font-semibold"
+              loading={assumindo}
+              onClick={() => void assumirChat()}
+            >
+              Atender
+            </Button>
+          )}
 
           {!encerrado && (
             <>
@@ -496,13 +539,33 @@ export function PortalConversa() {
             : 'Este atendimento foi encerrado.'}
         </p>
       ) : chat.estado === 'aguardando_atendente' ? (
-        <p className="shrink-0 border-t border-slate-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-800 dark:border-slate-800 dark:bg-amber-950/30 dark:text-amber-200">
-          Assuma o chat na lista para responder.
-        </p>
+        <div className="flex shrink-0 flex-col items-center gap-2 border-t border-slate-200 bg-amber-50 px-4 py-3 dark:border-slate-800 dark:bg-amber-950/30">
+          <p className="text-center text-sm text-amber-800 dark:text-amber-200">
+            Este chat está na fila. Assuma para responder ao visitante.
+          </p>
+          <Button
+            type="button"
+            variant="primary"
+            className="h-9 px-4 text-sm font-semibold"
+            loading={assumindo}
+            onClick={() => void assumirChat()}
+          >
+            Atender
+          </Button>
+        </div>
       ) : (
         <div className="shrink-0 border-t border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">
           {arquivoPendente ? (
-            <div className="mb-2 rounded-xl border border-cyan-200 bg-cyan-50/80 p-3 dark:border-cyan-900/40 dark:bg-cyan-950/20">
+            <div
+              className="mb-2 rounded-xl border border-cyan-200 bg-cyan-50/80 p-3 dark:border-cyan-900/40 dark:bg-cyan-950/20"
+              tabIndex={arquivoPendente.type.startsWith('audio/') ? 0 : undefined}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && !enviando && podeEnviar) {
+                  e.preventDefault()
+                  void confirmarEnvioMidia()
+                }
+              }}
+            >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold text-cyan-800 dark:text-cyan-300">Anexo selecionado</p>
@@ -526,6 +589,12 @@ export function PortalConversa() {
                   type="text"
                   value={legendaMidia}
                   onChange={(e) => setLegendaMidia(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      if (!enviando && podeEnviar) void confirmarEnvioMidia()
+                    }
+                  }}
                   placeholder="Legenda opcional"
                   className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
                 />

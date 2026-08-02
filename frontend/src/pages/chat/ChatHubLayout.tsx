@@ -8,8 +8,8 @@ import { ChatListaEspera } from './ChatListaEspera'
 import { ChatListaContatos } from './ChatListaContatos'
 
 function ChatHubLista() {
-  const { pathname } = useLocation()
-  const modo = chatHubModoDePath(pathname)
+  const { pathname, search } = useLocation()
+  const modo = chatHubModoDePath(pathname, search)
 
   switch (modo) {
     case 'espera':
@@ -24,8 +24,8 @@ function ChatHubLista() {
 }
 
 export function ChatHubLayout() {
-  const { pathname } = useLocation()
-  const modo = chatHubModoDePath(pathname)
+  const { pathname, search } = useLocation()
+  const modo = chatHubModoDePath(pathname, search)
   const emConversa =
     /\/chat\/c\/\d+/.test(pathname) ||
     /\/chat\/portal\/\d+/.test(pathname) ||

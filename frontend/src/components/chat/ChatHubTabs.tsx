@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useChatInterno } from '../../contexts/ChatInternoContext'
 import { useChatHub } from '../../contexts/ChatHubContext'
 import { CHAT_HUB_PATHS, chatHubModoDePath } from '../../lib/chatHubPaths'
+import { ChatFilaSomToggle } from './ChatFilaSomToggle'
 
 type TabDef = {
   id: keyof typeof CHAT_HUB_PATHS
@@ -12,8 +13,8 @@ type TabDef = {
 }
 
 export function ChatHubTabs() {
-  const { pathname } = useLocation()
-  const modo = chatHubModoDePath(pathname)
+  const { pathname, search } = useLocation()
+  const modo = chatHubModoDePath(pathname, search)
   const { filaCount, atendendoCount } = useChatHub()
   const { conversas } = useChatInterno()
   const internoNaoLidas = conversas.reduce((acc, c) => acc + c.nao_lidas_count, 0)
@@ -73,17 +74,33 @@ export function ChatHubTabs() {
     <nav className="flex shrink-0 border-b border-slate-200 dark:border-slate-800" aria-label="Modos de chat">
       {tabs.map((tab) => {
         const ativo = modo === tab.id
+        const tabClass = `relative flex flex-1 flex-col items-center gap-1 border-b-2 px-0.5 py-2.5 text-[10px] font-semibold transition-colors ${
+          ativo
+            ? 'border-cyan-500 text-cyan-600 dark:text-cyan-400'
+            : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+        }`
+
+        if (tab.id === 'espera') {
+          return (
+            <div key={tab.id} className="relative flex flex-1 items-stretch">
+              <Link to={tab.to} title={tab.label} className={tabClass}>
+                <span className={ativo ? 'text-cyan-600 dark:text-cyan-400' : ''}>{tab.icon}</span>
+                <span className="hidden sm:inline">{tab.label}</span>
+                {tab.badge != null && tab.badge > 0 && (
+                  <span className="absolute right-5 top-1 min-w-[1rem] rounded-full bg-cyan-600 px-1 text-center text-[9px] font-bold leading-4 text-white sm:right-6">
+                    {tab.badge > 99 ? '99+' : tab.badge}
+                  </span>
+                )}
+              </Link>
+              <div className="absolute right-0 top-1/2 z-10 -translate-y-1/2 pr-0.5">
+                <ChatFilaSomToggle />
+              </div>
+            </div>
+          )
+        }
+
         return (
-          <Link
-            key={tab.id}
-            to={tab.to}
-            title={tab.label}
-            className={`relative flex flex-1 flex-col items-center gap-1 border-b-2 px-0.5 py-2.5 text-[10px] font-semibold transition-colors ${
-              ativo
-                ? 'border-cyan-500 text-cyan-600 dark:text-cyan-400'
-                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-            }`}
-          >
+          <Link key={tab.id} to={tab.to} title={tab.label} className={tabClass}>
             <span className={ativo ? 'text-cyan-600 dark:text-cyan-400' : ''}>{tab.icon}</span>
             <span className="hidden sm:inline">{tab.label}</span>
             {tab.badge != null && tab.badge > 0 && (

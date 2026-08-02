@@ -53,7 +53,9 @@ export function mapPortalChat(c: PortalChats.Chat): ChatHubItem {
 }
 
 export function chatHubItemLink(item: ChatHubItem, from?: ChatHubModo) {
-  if (item.canal === 'portal') return chatPortalLink(item.id)
+  if (item.canal === 'portal') {
+    return chatPortalLink(item.id, from === 'espera' ? 'espera' : undefined)
+  }
   return chatWhatsappLink(item.id, from === 'espera' ? 'espera' : 'atendendo')
 }
 
