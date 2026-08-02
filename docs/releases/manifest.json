@@ -1099,6 +1099,18 @@
           "text": "Login / site: «Voltar ao site» e hosts DeskRudder apontam para deskrudder.com.br (redirect da apex connect)"
         }
       ]
+    },
+    {
+      "version": "26.08.002",
+      "version_display": "v26.08.002",
+      "date": "2026-08-02",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "Frontend: alinhamento de `react` e `react-dom` em **19.2.8** (o Dependabot tinha subido só o `react`, o que gerava tela preta com React error #527 em produção)"
+        }
+      ]
     }
   ]
 }

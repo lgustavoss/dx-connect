@@ -5,7 +5,9 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
-### Corrigido
+## [26.08.002] - 2026-08-02
+
+### Melhorias
 
 - Frontend: alinhamento de `react` e `react-dom` em **19.2.8** (o Dependabot tinha subido só o `react`, o que gerava tela preta com React error #527 em produção)
 
