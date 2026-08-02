@@ -17,6 +17,7 @@ export type ChatHubItem = {
   atendente_id?: number | null
   atendente_nome?: string | null
   ultima_mensagem_preview?: string | null
+  foto_perfil_url?: string | null
 }
 
 export function mapWhatsappChat(c: WhatsappChats.Chat): ChatHubItem {
@@ -32,6 +33,7 @@ export function mapWhatsappChat(c: WhatsappChats.Chat): ChatHubItem {
     estado: c.estado,
     atendente_id: c.atendente_id,
     atendente_nome: c.atendente_nome,
+    foto_perfil_url: c.foto_perfil_url,
   }
 }
 

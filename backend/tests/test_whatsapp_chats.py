@@ -1277,3 +1277,161 @@ def test_webhook_mensagens_paralelas_mesmo_wa_id_um_chat(client, seed_base, auth
         .all()
     )
     assert len(abertos) == 1
+
+
+def test_assumir_define_setor_unico_e_prefixo_mensagem(client, seed_base, auth_headers, monkeypatch):
+    """#628 — 1 setor auto ao assumir; prefixo «[ Setor - Nome ]:» + texto na linha de baixo."""
+    sent: list[str] = []
+
+    def fake_send(*_a, **kwargs):
+        text = kwargs.get("text")
+        if text is None and len(_a) > 4:
+            text = _a[4]
+        sent.append(text or "")
+        return True, None, f"wa-pfx-{len(sent)}"
+
+    monkeypatch.setattr("app.api.whatsapp_chats.evolution_api.evolution_send_text", fake_send)
+
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={
+            "webhook_secret": "pfx-628",
+            "evolution_base_url": "http://evolution.test",
+            "evolution_instance_name": "inst",
+            "evolution_api_key": "key-test",
+        },
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "pfx-628"}
+    client.post(
+        "/v1/webhooks/evolution",
+        json=_webhook_body(wa_id="5511999000628", msg_id="pfx-628-1"),
+        headers=h,
+    )
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+    r_ass = client.post(f"/v1/whatsapp/chats/{cid}/assumir", headers=auth_headers["a1"])
+    assert r_ass.status_code == 200
+    assert r_ass.json()["setor_id"] == seed_base["setor1"].id
+
+    r_msg = client.post(
+        f"/v1/whatsapp/chats/{cid}/mensagens",
+        json={"texto": "Olá, em que posso ajudar?"},
+        headers=auth_headers["a1"],
+    )
+    assert r_msg.status_code == 201
+    corpo = r_msg.json()["corpo"]
+    assert corpo.startswith("[ Suporte - Atendente 1 ]:\n")
+    assert "Olá, em que posso ajudar?" in corpo
+    assert sent and sent[-1].startswith("[ Suporte - Atendente 1 ]:\n")
+
+
+def test_assumir_multi_setor_exige_setor_id(client, seed_base, auth_headers, db_session):
+    """#628 — atendente com vários setores precisa informar setor_id ao assumir."""
+    a1 = seed_base["a1"]
+    a1.setores.append(seed_base["setor2"])
+    db_session.commit()
+
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "multi-628"},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "multi-628"}
+    client.post(
+        "/v1/webhooks/evolution",
+        json=_webhook_body(wa_id="5511999000629", msg_id="multi-628-1"),
+        headers=h,
+    )
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+
+    sem = client.post(f"/v1/whatsapp/chats/{cid}/assumir", headers=auth_headers["a1"])
+    assert sem.status_code == 400
+    assert "setor" in (sem.json().get("detail") or "").lower()
+
+    ok = client.post(
+        f"/v1/whatsapp/chats/{cid}/assumir",
+        params={"setor_id": seed_base["setor2"].id},
+        headers=auth_headers["a1"],
+    )
+    assert ok.status_code == 200
+    assert ok.json()["setor_id"] == seed_base["setor2"].id
+
+
+def test_prefixo_apos_transferencia_usa_novo_setor(client, seed_base, auth_headers, monkeypatch):
+    """#628 — após transferir, novas mensagens usam o setor novo do chat."""
+    sent: list[str] = []
+
+    def fake_send(*_a, **kwargs):
+        text = kwargs.get("text")
+        if text is None and len(_a) > 4:
+            text = _a[4]
+        sent.append(text or "")
+        return True, None, f"wa-tr-{len(sent)}"
+
+    monkeypatch.setattr("app.api.whatsapp_chats.evolution_api.evolution_send_text", fake_send)
+
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={
+            "webhook_secret": "tr-pfx",
+            "evolution_base_url": "http://evolution.test",
+            "evolution_instance_name": "inst",
+            "evolution_api_key": "key-test",
+        },
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "tr-pfx"}
+    client.post(
+        "/v1/webhooks/evolution",
+        json=_webhook_body(wa_id="5511999000630", msg_id="tr-pfx-1"),
+        headers=h,
+    )
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+    client.post(f"/v1/whatsapp/chats/{cid}/assumir", headers=auth_headers["a1"])
+    tr = client.post(
+        f"/v1/whatsapp/chats/{cid}/transferir",
+        json={"setor_id": seed_base["setor2"].id, "atendente_id": None},
+        headers=auth_headers["a1"],
+    )
+    assert tr.status_code == 200
+    assert tr.json()["setor_id"] == seed_base["setor2"].id
+    ass2 = client.post(f"/v1/whatsapp/chats/{cid}/assumir", headers=auth_headers["a2"])
+    assert ass2.status_code == 200
+    r_msg = client.post(
+        f"/v1/whatsapp/chats/{cid}/mensagens",
+        json={"texto": "Sou do Financeiro"},
+        headers=auth_headers["a2"],
+    )
+    assert r_msg.status_code == 201
+    assert r_msg.json()["corpo"].startswith("[ Financeiro - Atendente 2 ]:\n")
+
+
+def test_chat_read_inclui_foto_perfil_campos(client, seed_base, auth_headers, db_session):
+    """#630 lote 1 — schema expõe foto_perfil_url / foto_perfil_atualizada_em."""
+    from datetime import datetime, timezone
+
+    from app.models import WhatsappChat
+
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "foto-630"},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "foto-630"}
+    client.post(
+        "/v1/webhooks/evolution",
+        json=_webhook_body(wa_id="5511999000631", msg_id="foto-630-1"),
+        headers=h,
+    )
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+    chat = db_session.query(WhatsappChat).filter(WhatsappChat.id == cid).first()
+    assert chat is not None
+    chat.foto_perfil_url = "https://example.test/foto.jpg"
+    chat.foto_perfil_atualizada_em = datetime.now(timezone.utc)
+    db_session.commit()
+
+    r = client.get(f"/v1/whatsapp/chats/{cid}", headers=auth_headers["a1"])
+    assert r.status_code == 200
+    body = r.json()
+    assert body["foto_perfil_url"] == "https://example.test/foto.jpg"
+    assert body.get("foto_perfil_atualizada_em")

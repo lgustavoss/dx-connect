@@ -217,10 +217,34 @@ def _rotulo_midia_outbound(tipo_db: str) -> str:
     }.get(tipo_db, "[Ficheiro enviado]")
 
 
+def _prefixo_assinatura_whatsapp(
+    db: Session,
+    chat: WhatsappChat,
+    atendente: Atendente | None,
+) -> str:
+    """Prefixo visível no WhatsApp do cliente: «[ Setor - Nome ]:» (#628)."""
+    nome = (atendente.nome if atendente else "").strip()
+    if not nome:
+        return ""
+    setor_nome: str | None = None
+    if chat.setor_id:
+        rel = getattr(chat, "setor", None)
+        if rel and (rel.nome or "").strip():
+            setor_nome = rel.nome.strip()
+        else:
+            s = db.query(Setor).filter(Setor.id == chat.setor_id).first()
+            if s and (s.nome or "").strip():
+                setor_nome = s.nome.strip()
+    if setor_nome:
+        return f"[ {setor_nome} - {nome} ]:"
+    return f"[ Atendimento - {nome} ]:"
+
+
 def _corpo_e_caption_midia_outbound(
     tipo_db: str,
     caption: str | None,
-    nome_atendente: str | None,
+    *,
+    prefixo: str | None = None,
 ) -> tuple[str, str]:
     """
     Retorna (corpo_db, caption_evolution).
@@ -231,9 +255,71 @@ def _corpo_e_caption_midia_outbound(
     cap = (caption or "").strip()
     if not cap:
         return "", ""
-    nome = (nome_atendente or "").strip()
-    texto = f"[ {nome} ]: {cap}" if nome else cap
+    pref = (prefixo or "").strip()
+    texto = f"{pref}\n{cap}" if pref else cap
     return texto, texto
+
+
+def _aplicar_setor_ao_assumir(
+    db: Session,
+    chat: WhatsappChat,
+    atendente: Atendente,
+    setor_id: int | None,
+) -> None:
+    """Opção 1 (#628): 1 setor → auto; vários → obrigatório; admin sem setores pode omitir."""
+    if chat.setor_id is not None:
+        return
+    setores_atendente = list(getattr(atendente, "setores", None) or [])
+    if setor_id is not None:
+        if atendente.role != "admin":
+            ids = {s.id for s in setores_atendente}
+            if setor_id not in ids:
+                raise HTTPException(status_code=403, detail="Sem permissão para este setor")
+        else:
+            s = db.query(Setor).filter(Setor.id == setor_id, Setor.ativo.is_(True)).first()
+            if not s:
+                raise HTTPException(status_code=400, detail="Setor inválido ou inativo")
+        chat.setor_id = setor_id
+        return
+    if len(setores_atendente) == 1:
+        chat.setor_id = setores_atendente[0].id
+        return
+    if len(setores_atendente) > 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Selecione o setor deste atendimento (atendente com vários setores).",
+        )
+
+
+FOTO_PERFIL_TTL_SEC = 7 * 24 * 3600
+
+
+def _maybe_refresh_foto_perfil(db: Session, chat: WhatsappChat, *, force: bool = False) -> bool:
+    """Atualiza cache da foto via Evolution. Retorna True se gravou alteração."""
+    now = datetime.now(timezone.utc)
+    if not force:
+        url = getattr(chat, "foto_perfil_url", None)
+        atualizada = getattr(chat, "foto_perfil_atualizada_em", None)
+        if url and atualizada is not None:
+            ts = atualizada if atualizada.tzinfo else atualizada.replace(tzinfo=timezone.utc)
+            if (now - ts).total_seconds() < FOTO_PERFIL_TTL_SEC:
+                return False
+    st = db.query(WhatsappSettings).order_by(WhatsappSettings.id.asc()).first()
+    if not st or not _evolution_configurada(st):
+        return False
+    ok, profile_url, err = evolution_api.evolution_fetch_profile_picture_url(
+        st.evolution_base_url or "",
+        st.evolution_instance_name or "",
+        st.evolution_api_key or "",
+        chat.wa_id,
+    )
+    if not ok:
+        logger.info("Foto perfil Evolution falhou (chat=%s): %s", chat.protocolo, err)
+        chat.foto_perfil_atualizada_em = now
+        return True
+    chat.foto_perfil_url = profile_url
+    chat.foto_perfil_atualizada_em = now
+    return True
 
 
 def _sanitizar_nome_ficheiro(name: str | None, fallback: str) -> str:
@@ -289,16 +375,15 @@ def _enviar_texto_whatsapp(
     texto_eff = (texto or "").strip()
     if not texto_eff:
         raise HTTPException(status_code=400, detail="Mensagem vazia")
-    # Quando o atendente envia manualmente pelo DX Connect, prefixa o nome no texto
-    # para ficar visível no WhatsApp do cliente (padrão: "[ Nome ]: mensagem").
-    # A saudação ao assumir o chat usa o mesmo prefixo do atendente (não BOT).
+    # Prefixo no WhatsApp do cliente: "[ Setor - Nome ]:\nmensagem" (#628).
+    # A saudação ao assumir usa o mesmo prefixo do atendente (não BOT).
     if atendente is not None and evento_sistema in (None, "auto_assumido"):
-        nome = (atendente.nome or "").strip()
-        if nome and not texto_eff.startswith("["):
-            texto_eff = f"[ {nome} ]: {texto_eff}"
+        prefixo = _prefixo_assinatura_whatsapp(db, chat, atendente)
+        if prefixo and not texto_eff.startswith("["):
+            texto_eff = f"{prefixo}\n{texto_eff}"
     elif evento_sistema is not None:
         if not texto_eff.startswith("["):
-            texto_eff = f"[ BOT ]: {texto_eff}"
+            texto_eff = f"[ BOT ]:\n{texto_eff}"
     if evento_sistema:
         exist = (
             db.query(WhatsappMensagem)
@@ -576,6 +661,8 @@ def _chat_read(db: Session, c: WhatsappChat, *, revelar_avaliacao: bool = False)
         inatividade_pausada=bool(getattr(c, "inatividade_pausada", False)),
         inatividade_retomada_em=getattr(c, "inatividade_retomada_em", None),
         classificacao_demanda_pendente=bool(getattr(c, "classificacao_demanda_pendente", False)),
+        foto_perfil_url=getattr(c, "foto_perfil_url", None),
+        foto_perfil_atualizada_em=getattr(c, "foto_perfil_atualizada_em", None),
     )
 
 
@@ -1256,6 +1343,32 @@ def obter(
         raise HTTPException(status_code=404, detail="Chat não encontrado")
     if not _pode_ver_chat(db, atendente, c):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este chat")
+    if _maybe_refresh_foto_perfil(db, c, force=False):
+        db.commit()
+        db.refresh(c)
+    return _chat_read(db, c)
+
+
+@router.post("/{chat_id}/foto-perfil", response_model=WhatsappChatRead)
+def atualizar_foto_perfil(
+    chat_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    """Força refresh da foto de perfil do contacto via Evolution (#630)."""
+    c = (
+        db.query(WhatsappChat)
+        .options(*_CHAT_LOAD_OPTIONS)
+        .filter(WhatsappChat.id == chat_id)
+        .first()
+    )
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not _pode_ver_chat(db, atendente, c):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este chat")
+    _maybe_refresh_foto_perfil(db, c, force=True)
+    db.commit()
+    db.refresh(c)
     return _chat_read(db, c)
 
 
@@ -1428,6 +1541,11 @@ def assumir(
         ge=1,
         description="Empresa de contexto opcional (pode ser definida depois na conversa).",
     ),
+    setor_id: int | None = Query(
+        None,
+        ge=1,
+        description="Setor do atendimento — obrigatório se o atendente tem vários setores e o chat ainda não tem setor (#628).",
+    ),
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
@@ -1441,6 +1559,7 @@ def assumir(
     if c.estado != "aguardando_atendente":
         raise HTTPException(status_code=400, detail="Só é possível assumir chats na fila de espera")
     _aplicar_empresa_contexto_chat(db, atendente, c, empresa_id)
+    _aplicar_setor_ao_assumir(db, c, atendente, setor_id)
     estado_anterior = c.estado
     c.estado = "em_atendimento"
     c.atendente_id = atendente.id
@@ -1627,8 +1746,9 @@ async def enviar_mensagem_midia(
         raise HTTPException(status_code=500, detail="Não foi possível guardar o ficheiro em disco.")
 
     cap = (caption or "").strip()
+    prefixo = _prefixo_assinatura_whatsapp(db, c, atendente) if cap else None
     corpo_eff, legenda_whatsapp = _corpo_e_caption_midia_outbound(
-        tipo_db, cap, atendente.nome
+        tipo_db, cap, prefixo=prefixo
     )
     b64 = base64.b64encode(data).decode("ascii")
     st = _settings_envio(db)

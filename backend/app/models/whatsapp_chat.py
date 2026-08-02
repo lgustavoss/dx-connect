@@ -76,6 +76,9 @@ class WhatsappChat(Base):
     inatividade_retomada_em = Column(DateTime(timezone=True), nullable=True)
     # Após encerramento por inatividade: responsável deve registar (ou confirmar sem) demanda.
     classificacao_demanda_pendente = Column(Boolean, nullable=False, default=False, server_default="false")
+    # Cache da foto de perfil WhatsApp do contacto (#630 lote 1).
+    foto_perfil_url = Column(Text, nullable=True)
+    foto_perfil_atualizada_em = Column(DateTime(timezone=True), nullable=True)
 
     atendente = relationship("Atendente", backref="whatsapp_chats_atendidos")
     setor = relationship("Setor", backref="whatsapp_chats")

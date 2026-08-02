@@ -56,6 +56,8 @@ class WhatsappChatRead(BaseModel):
     inatividade_pausada: bool = False
     inatividade_retomada_em: datetime | None = None
     classificacao_demanda_pendente: bool = False
+    foto_perfil_url: str | None = None
+    foto_perfil_atualizada_em: datetime | None = None
 
     model_config = {"from_attributes": True}
 

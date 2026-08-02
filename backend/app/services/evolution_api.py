@@ -219,6 +219,45 @@ def evolution_mark_messages_as_read(
     return False, f"HTTP {code}"
 
 
+def evolution_fetch_profile_picture_url(
+    base_url: str,
+    instance: str,
+    api_key: str,
+    number_digits: str,
+) -> tuple[bool, str | None, str | None]:
+    """POST /chat/fetchProfilePictureUrl/{instance} → (ok, url | None, err)."""
+    import re
+
+    digits = re.sub(r"\D", "", number_digits or "")
+    if not digits:
+        return False, None, "Número inválido"
+    base = base_url.rstrip("/")
+    url = f"{base}/chat/fetchProfilePictureUrl/{instance}"
+    headers = {"apikey": api_key, "Content-Type": "application/json", "Accept": "application/json"}
+    body = {"number": digits}
+    code, data, err = _request_json_with_retry("POST", url, headers=headers, body=body, timeout=30)
+    if code not in (200, 201):
+        if err:
+            return False, None, err[:800]
+        return False, None, f"HTTP {code}"
+    profile_url: str | None = None
+    if isinstance(data, dict):
+        for key in ("profilePictureUrl", "profilePicUrl", "url", "picture"):
+            raw = data.get(key)
+            if isinstance(raw, str) and raw.strip().startswith(("http://", "https://")):
+                profile_url = raw.strip()
+                break
+        if profile_url is None:
+            nested = data.get("data")
+            if isinstance(nested, dict):
+                for key in ("profilePictureUrl", "profilePicUrl", "url", "picture"):
+                    raw = nested.get(key)
+                    if isinstance(raw, str) and raw.strip().startswith(("http://", "https://")):
+                        profile_url = raw.strip()
+                        break
+    return True, profile_url, None
+
+
 def evolution_send_text(
     base_url: str,
     instance: str,

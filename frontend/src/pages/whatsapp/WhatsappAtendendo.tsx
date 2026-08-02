@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError, whatsappChats, type WhatsappChats } from '../../api/client'
+import { AssumirWhatsappSetorModal } from '../../components/chat/AssumirWhatsappSetorModal'
+import { WhatsappAvatar } from '../../components/chat/WhatsappAvatar'
 import { whatsappConversaLink, WHATSAPP_LIST_PATHS } from '../../lib/whatsappListReturn'
+import { precisaEscolherSetorAoAssumir } from '../../lib/assumirWhatsappSetor'
 import { refetchPendenciasResumo } from '../../hooks/useAlertaFilaSemResponsavel'
+import { useAuth } from '../../contexts/AuthContext'
 import { useEventStream } from '../../contexts/EventStreamContext'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -40,10 +44,13 @@ function TempoEspera({ data }: { data?: string | null }) {
 
 export function WhatsappAtendendo() {
   const toast = useToast()
+  const { user } = useAuth()
   const { subscribe, useFallback } = useEventStream()
   const [fila, setFila] = useState<WhatsappChats.Chat[]>([])
   const [meus, setMeus] = useState<WhatsappChats.Chat[]>([])
   const [loading, setLoading] = useState(true)
+  const [assumindoId, setAssumindoId] = useState<number | null>(null)
+  const [pendenteSetor, setPendenteSetor] = useState<WhatsappChats.Chat | null>(null)
   const isFirstLoad = useRef(true)
   const prevFilaCount = useRef(0)
 
@@ -90,9 +97,11 @@ export function WhatsappAtendendo() {
     prevFilaCount.current = fila.length
   }, [fila.length])
 
-  async function assumir(id: number) {
+  async function executarAssumir(chat: WhatsappChats.Chat, setorId?: number) {
+    setAssumindoId(chat.id)
     try {
-      await whatsappChats.assumir(id)
+      await whatsappChats.assumir(chat.id, setorId != null ? { setor_id: setorId } : undefined)
+      setPendenteSetor(null)
       toast.showSuccess('Chat assumido com sucesso!')
       await load(true)
       void refetchPendenciasResumo()
@@ -102,7 +111,17 @@ export function WhatsappAtendendo() {
           ? (err.body as { detail?: string })?.detail || 'Erro ao assumir.'
           : mensagemFalhaParaToast(err)
       toast.showWarning(msg)
+    } finally {
+      setAssumindoId(null)
     }
+  }
+
+  function assumir(chat: WhatsappChats.Chat) {
+    if (precisaEscolherSetorAoAssumir(user, Boolean(chat.setor_id || chat.setor_nome))) {
+      setPendenteSetor(chat)
+      return
+    }
+    void executarAssumir(chat)
   }
 
   const meusAtivos = meus.filter((c) => c.estado === 'em_atendimento')
@@ -162,8 +181,14 @@ export function WhatsappAtendendo() {
               fila.map((c) => (
                 <Card key={c.id} className="border-none p-4 shadow-sm ring-1 ring-slate-200 dark:ring-slate-800">
                   <div className="flex flex-col gap-4">
-                    <div className="flex items-start justify-between">
-                      <div className="min-w-0">
+                    <div className="flex items-start justify-between gap-3">
+                      <WhatsappAvatar
+                        nome={c.cliente_nome}
+                        fotoUrl={c.foto_perfil_url}
+                        className="h-10 w-10"
+                        fallbackClassName="bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200"
+                      />
+                      <div className="min-w-0 flex-1">
                         <div className="mb-1 flex items-center gap-2">
                           <span
                             className="min-w-0 truncate font-mono text-[10px] font-bold text-cyan-600"
@@ -204,7 +229,8 @@ export function WhatsappAtendendo() {
                         Visualizar
                       </Link>
                       <Button
-                        onClick={() => void assumir(c.id)}
+                        loading={assumindoId === c.id}
+                        onClick={() => assumir(c)}
                         className="flex-1 bg-amber-500 text-white hover:bg-amber-600"
                       >
                         Atender
@@ -323,6 +349,16 @@ export function WhatsappAtendendo() {
           </div>
         </section>
       </div>
+      <AssumirWhatsappSetorModal
+        open={pendenteSetor != null}
+        setorIds={user?.setor_ids || []}
+        loading={pendenteSetor != null && assumindoId === pendenteSetor.id}
+        onClose={() => setPendenteSetor(null)}
+        onConfirm={(setorId) => {
+          if (!pendenteSetor) return
+          void executarAssumir(pendenteSetor, setorId)
+        }}
+      />
     </div>
   )
 }
