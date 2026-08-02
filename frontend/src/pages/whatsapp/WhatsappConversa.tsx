@@ -30,6 +30,7 @@ import {
 import { MensagemRodapeMeta } from '../../components/chat/MensagemRodapeMeta'
 import { AssumirWhatsappSetorModal } from '../../components/chat/AssumirWhatsappSetorModal'
 import { WhatsappAvatar } from '../../components/chat/WhatsappAvatar'
+import { ImageLightboxViewer } from '../../components/chat/ImageLightboxViewer'
 import { WhatsappMensagemAcoes } from '../../components/chat/WhatsappMensagemAcoes'
 import { WhatsappReacoesBar } from '../../components/chat/WhatsappReacoesBar'
 import { precisaEscolherSetorAoAssumir } from '../../lib/assumirWhatsappSetor'
@@ -359,15 +360,13 @@ function WhatsappZoomLightbox({
       {loading || !url ? (
         <p className="text-sm text-white/70 animate-pulse">Carregando imagem…</p>
       ) : (
-        <img
-          src={url}
-          alt=""
-          className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl animate-in zoom-in-95 duration-200"
-          onClick={(e) => e.stopPropagation()}
-        />
+        <ImageLightboxViewer src={url} />
       )}
       {caption && (
-        <p className="mt-4 max-w-2xl rounded-xl bg-black/40 px-4 py-2 text-center text-sm text-white backdrop-blur-md">
+        <p
+          className="mt-4 max-w-2xl rounded-xl bg-black/40 px-4 py-2 text-center text-sm text-white backdrop-blur-md"
+          onClick={(e) => e.stopPropagation()}
+        >
           {caption}
         </p>
       )}

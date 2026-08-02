@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { fetchChatInternoMidiaBlob, type ChatInterno } from '../../api/client'
 import { segmentarCorpoComMencoes } from '../../lib/chatInternoMencoes'
 import { useAuth } from '../../contexts/AuthContext'
+import { ImageLightboxViewer } from '../chat/ImageLightboxViewer'
 
 const ROTULO_SEM_LEGENDA = /^(📷 Imagem|🎬 Vídeo|🎵 Áudio|📄 Documento)$/
 
@@ -205,14 +206,12 @@ export function ChatInternoConteudoMensagem({
               >
                 &times;
               </button>
-              <img
-                src={url}
-                alt=""
-                className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl animate-in zoom-in-95 duration-200"
-                onClick={(e) => e.stopPropagation()}
-              />
+              <ImageLightboxViewer src={url} />
               {legenda ? (
-                <p className="mt-4 max-w-2xl rounded-xl bg-black/40 px-4 py-2 text-center text-sm text-white backdrop-blur-md">
+                <p
+                  className="mt-4 max-w-2xl rounded-xl bg-black/40 px-4 py-2 text-center text-sm text-white backdrop-blur-md"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   {legenda}
                 </p>
               ) : null}
