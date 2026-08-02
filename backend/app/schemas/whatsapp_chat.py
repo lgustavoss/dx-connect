@@ -3,6 +3,22 @@ from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 
 
+class WhatsappReacaoRead(BaseModel):
+    emoji: str
+    count: int
+    reagiu_eu: bool = False
+    atendente_ids: list[int] = Field(default_factory=list)
+    tem_cliente: bool = False
+
+
+class WhatsappReacaoCreate(BaseModel):
+    emoji: str = Field(..., min_length=1, max_length=16)
+
+
+class WhatsappMensagemUpdate(BaseModel):
+    texto: str = Field(..., min_length=1, max_length=4000)
+
+
 class WhatsappMensagemRead(BaseModel):
     id: int
     chat_id: int
@@ -19,6 +35,12 @@ class WhatsappMensagemRead(BaseModel):
     atendente_nome: str | None = None
     status_entrega: str | None = None
     created_at: datetime | None = None
+    reacoes: list[WhatsappReacaoRead] = Field(default_factory=list)
+    editada: bool = False
+    editada_em: datetime | None = None
+    apagada: bool = False
+    pode_editar: bool = False
+    pode_apagar_para_todos: bool = False
 
     model_config = {"from_attributes": True}
 

@@ -13,7 +13,13 @@ from app.models.whatsapp_chat_read import WhatsappChatRead
 from app.models.audit_log import AuditLog
 from app.models.ibge_municipio import IbgeMunicipio
 from app.models.app_cache_meta import AppCacheMeta
-from app.models.whatsapp_chat import WhatsappChat, WhatsappChatTicket, WhatsappMensagem, WhatsappSettings
+from app.models.whatsapp_chat import (
+    WhatsappChat,
+    WhatsappChatTicket,
+    WhatsappMensagem,
+    WhatsappMensagemReacao,
+    WhatsappSettings,
+)
 from app.models.whatsapp_chat_demanda import WhatsappChatDemanda
 from app.models.empresa_sistema import EmpresaSistema
 from app.models.email_settings import EmailSettings
@@ -69,6 +75,7 @@ __all__ = [
     "WhatsappSettings",
     "WhatsappChat",
     "WhatsappMensagem",
+    "WhatsappMensagemReacao",
     "WhatsappChatTicket",
     "WhatsappChatDemanda",
     "EmpresaSistema",

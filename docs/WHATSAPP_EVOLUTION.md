@@ -71,10 +71,22 @@ Campos persistidos em `whatsapp_settings` (via **Configurações → WhatsApp**,
 3. **Encerrar** → `encerrado`, `encerramento_at`.
 4. Nova mensagem do mesmo cliente **após encerramento** → **novo** chat e novo protocolo.
 
+## Reações, editar e apagar (#630)
+
+| Ação | Endpoint Evolution (v2 típico) | Limite no DX Connect |
+|------|-------------------------------|----------------------|
+| Reagir | `POST /message/sendReaction/{instance}` | Whitelist 👍❤️😂😮😢🙏; só responsável do chat |
+| Editar texto | `POST /chat/updateMessage/{instance}` | Só outbound texto; **15 minutos** após envio |
+| Apagar para todos | `DELETE /chat/deleteMessageForEveryone/{instance}` | Só outbound; **48 horas** após envio |
+
+- Webhook inbound: `reactionMessage`, `protocolMessage` tipo `REVOKE`, e `editedMessage` atualizam a mensagem e emitem SSE `chat.mensagem`.
+- Editar legenda de mídia fica fora do escopo v1.
+- O prefixo de assinatura `[ Setor - Nome ]:` é reaplicado ao editar (ver #628).
+
 ## Riscos e limitações
 
 - Comportamento e payloads podem variar entre **versões** da Evolution; ajustar o parser em `app/services/evolution_inbound.py` ou a chamada a `getBase64FromMediaMessage` se necessário.
-- Políticas e limitações do **WhatsApp** aplicam-se ao número conectado na Evolution.
+- Políticas e limitações do **WhatsApp** aplicam-se ao número conectado na Evolution (janelas de edição/apagamento podem ser mais restritas que as do DX Connect).
 - **Localização** e **templates** não são tratados nesta versão.
 - Ficheiros muito grandes respeitam `WHATSAPP_MEDIA_MAX_BYTES` (por defeito 25 MB).
 - **Contacto** e **localização** inbound aparecem como texto legível (`[Contacto]`, `[Localização]` + link Google Maps).

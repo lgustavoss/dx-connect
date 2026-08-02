@@ -119,11 +119,41 @@ class WhatsappMensagem(Base):
     # pendente | enviada | entregue | lida | erro — apenas outbound ao cliente
     status_entrega = Column(String(20), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # #630 lote 3 — editar / apagar para todos (timestamps; corpo vira placeholder ao apagar)
+    editada_em = Column(DateTime(timezone=True), nullable=True)
+    apagada_em = Column(DateTime(timezone=True), nullable=True)
 
     chat = relationship("WhatsappChat", back_populates="mensagens")
     atendente = relationship("Atendente", backref="whatsapp_mensagens_enviadas")
+    reacoes = relationship(
+        "WhatsappMensagemReacao",
+        back_populates="mensagem",
+        cascade="all, delete-orphan",
+    )
 
     __table_args__ = (UniqueConstraint("wa_message_id", name="uq_whatsapp_mensagens_wa_message_id"),)
+
+
+class WhatsappMensagemReacao(Base):
+    """Uma reação por origem (cliente ou mesa) na mensagem alvo (#630 lote 2)."""
+
+    __tablename__ = "whatsapp_mensagem_reacoes"
+    __table_args__ = (
+        UniqueConstraint("mensagem_id", "origem", name="uq_whatsapp_mensagem_reacoes_mensagem_origem"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    mensagem_id = Column(
+        Integer, ForeignKey("whatsapp_mensagens.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # cliente | atendente
+    origem = Column(String(20), nullable=False)
+    emoji = Column(String(16), nullable=False)
+    atendente_id = Column(Integer, ForeignKey("atendentes.id", ondelete="SET NULL"), nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    mensagem = relationship("WhatsappMensagem", back_populates="reacoes")
+    atendente = relationship("Atendente", backref="whatsapp_mensagem_reacoes")
 
 
 class WhatsappChatTicket(Base):
