@@ -909,6 +909,8 @@ export namespace WhatsappChats {
   inatividade_pausada?: boolean
   inatividade_retomada_em?: string | null
   classificacao_demanda_pendente?: boolean
+  foto_perfil_url?: string | null
+  foto_perfil_atualizada_em?: string | null
   }
   export interface EmpresaOpcao {
     id: number
@@ -1174,13 +1176,19 @@ export const whatsappChats = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
-  assumir: (id: number, data?: { empresa_id?: number | null }) => {
-    const qs =
-      data?.empresa_id != null && data.empresa_id !== undefined
-        ? `?empresa_id=${encodeURIComponent(String(data.empresa_id))}`
-        : ''
+  assumir: (id: number, data?: { empresa_id?: number | null; setor_id?: number | null }) => {
+    const params = new URLSearchParams()
+    if (data?.empresa_id != null && data.empresa_id !== undefined) {
+      params.set('empresa_id', String(data.empresa_id))
+    }
+    if (data?.setor_id != null && data.setor_id !== undefined) {
+      params.set('setor_id', String(data.setor_id))
+    }
+    const qs = params.toString() ? `?${params.toString()}` : ''
     return api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/assumir${qs}`, { method: 'POST' })
   },
+  atualizarFotoPerfil: (id: number) =>
+    api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/foto-perfil`, { method: 'POST' }),
   definirEmpresaContexto: (id: number, empresa_id: number) =>
     api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/empresa-contexto`, {
       method: 'POST',
