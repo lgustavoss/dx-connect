@@ -9,7 +9,16 @@ from app.models.whatsapp_chat import WhatsappChat, WhatsappMensagem, WhatsappSet
 from app.services import evolution_api
 from app.services.whatsapp_contato_match import funcionario_por_wa_id
 from app.services.protocolo_mensal import gerar_protocolo_chat
-from app.services.evolution_inbound import iter_inbound_whatsapp_messages, iter_message_status_updates
+from app.services.evolution_inbound import (
+    iter_inbound_edits,
+    iter_inbound_reactions,
+    iter_inbound_revokes,
+    iter_inbound_whatsapp_messages,
+    iter_message_status_updates,
+)
+from app.services import whatsapp_reacoes as wpp_reacoes
+from app.services import whatsapp_edicao as wpp_edicao
+from app.services.realtime_emit import emit_chat_mensagem_from_models
 from app.services.whatsapp_media_storage import gravar_base64_em_disco
 from app.services.whatsapp_wa_id_lock import lock_wa_id_para_chat, unlock_wa_id_para_chat
 from app.services.whatsapp_auto_messages import (
@@ -18,7 +27,7 @@ from app.services.whatsapp_auto_messages import (
     resolver_nome_empresa_para_template,
 )
 from app.core.business_calendar import is_feriado_nacional_br as _is_feriado_nacional_br
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import json
 
@@ -395,6 +404,33 @@ def evolution_webhook(
 
     st_media = st
     processados = 0
+    reacoes = 0
+    revokes = 0
+    edits = 0
+    for item in iter_inbound_revokes(body):
+        wa_id = item["wa_id"]
+        lock_wa_id_para_chat(db, wa_id)
+        try:
+            revokes += _processar_revoke_inbound(db, item=item)
+        finally:
+            unlock_wa_id_para_chat(db, wa_id)
+
+    for item in iter_inbound_edits(body):
+        wa_id = item["wa_id"]
+        lock_wa_id_para_chat(db, wa_id)
+        try:
+            edits += _processar_edit_inbound(db, item=item)
+        finally:
+            unlock_wa_id_para_chat(db, wa_id)
+
+    for item in iter_inbound_reactions(body):
+        wa_id = item["wa_id"]
+        lock_wa_id_para_chat(db, wa_id)
+        try:
+            reacoes += _processar_reacao_inbound(db, item=item)
+        finally:
+            unlock_wa_id_para_chat(db, wa_id)
+
     for item in iter_inbound_whatsapp_messages(body):
         wa_id = item["wa_id"]
         lock_wa_id_para_chat(db, wa_id)
@@ -408,7 +444,134 @@ def evolution_webhook(
         finally:
             unlock_wa_id_para_chat(db, wa_id)
 
-    return {"ok": True, "processados": processados}
+    return {
+        "ok": True,
+        "processados": processados,
+        "reacoes": reacoes,
+        "revokes": revokes,
+        "edits": edits,
+    }
+
+
+def _chat_recente_por_wa_id(db: Session, wa_id: str) -> WhatsappChat | None:
+    return (
+        db.query(WhatsappChat)
+        .filter(
+            WhatsappChat.wa_id == wa_id,
+            WhatsappChat.estado.in_(
+                ("aguardando_atendente", "em_atendimento", "aguardando_avaliacao", "encerrado")
+            ),
+        )
+        .order_by(WhatsappChat.id.desc())
+        .first()
+    )
+
+
+def _mensagem_alvo(db: Session, chat: WhatsappChat, target_id: str) -> WhatsappMensagem | None:
+    return (
+        db.query(WhatsappMensagem)
+        .options(joinedload(WhatsappMensagem.reacoes), joinedload(WhatsappMensagem.atendente))
+        .filter(
+            WhatsappMensagem.chat_id == chat.id,
+            WhatsappMensagem.wa_message_id == str(target_id),
+        )
+        .first()
+    )
+
+
+def _emit_mensagem_atualizada(db: Session, chat: WhatsappChat, mensagem_id: int) -> None:
+    alvo2 = (
+        db.query(WhatsappMensagem)
+        .options(joinedload(WhatsappMensagem.reacoes), joinedload(WhatsappMensagem.atendente))
+        .filter(WhatsappMensagem.id == mensagem_id)
+        .first()
+    )
+    if alvo2:
+        emit_chat_mensagem_from_models(db, chat, alvo2)
+
+
+def _processar_revoke_inbound(db: Session, *, item: dict) -> int:
+    """Cliente ou mesa apagou mensagem para todos (#630 lote 3)."""
+    wa_id = item["wa_id"]
+    target_id = item.get("target_wa_message_id")
+    if not target_id:
+        return 0
+    chat = _chat_recente_por_wa_id(db, wa_id)
+    if not chat:
+        return 0
+    alvo = _mensagem_alvo(db, chat, str(target_id))
+    if not alvo or alvo.evento_sistema or wpp_edicao.mensagem_apagada(alvo):
+        return 0
+    try:
+        alvo.corpo = wpp_edicao.CORPO_MENSAGEM_APAGADA
+        alvo.apagada_em = datetime.now(timezone.utc)
+        alvo.midia_nome_arquivo = None
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Falha ao aplicar revoke inbound (chat=%s target=%s)", chat.protocolo, target_id)
+        return 0
+    _emit_mensagem_atualizada(db, chat, alvo.id)
+    return 1
+
+
+def _processar_edit_inbound(db: Session, *, item: dict) -> int:
+    """Cliente editou mensagem (#630 lote 3)."""
+    wa_id = item["wa_id"]
+    target_id = item.get("target_wa_message_id")
+    texto = (item.get("texto") or "").strip()
+    if not target_id or not texto:
+        return 0
+    chat = _chat_recente_por_wa_id(db, wa_id)
+    if not chat:
+        return 0
+    alvo = _mensagem_alvo(db, chat, str(target_id))
+    if not alvo or alvo.evento_sistema or wpp_edicao.mensagem_apagada(alvo):
+        return 0
+    try:
+        alvo.corpo = texto
+        alvo.editada_em = datetime.now(timezone.utc)
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Falha ao aplicar edit inbound (chat=%s target=%s)", chat.protocolo, target_id)
+        return 0
+    _emit_mensagem_atualizada(db, chat, alvo.id)
+    return 1
+
+
+def _processar_reacao_inbound(db: Session, *, item: dict) -> int:
+    """Aplica reação do cliente (ou eco fromMe) na mensagem alvo (#630)."""
+    wa_id = item["wa_id"]
+    target_id = item.get("target_wa_message_id")
+    if not target_id:
+        return 0
+    chat = _chat_recente_por_wa_id(db, wa_id)
+    if not chat:
+        return 0
+    alvo = _mensagem_alvo(db, chat, str(target_id))
+    if not alvo or alvo.evento_sistema:
+        return 0
+
+    from_me = bool(item.get("from_me"))
+    origem = wpp_reacoes.ORIGEM_ATENDENTE if from_me else wpp_reacoes.ORIGEM_CLIENTE
+    emoji = item.get("emoji")
+    try:
+        wpp_reacoes.aplicar_reacao(
+            db,
+            alvo,
+            origem=origem,
+            emoji=emoji,
+            atendente_id=chat.atendente_id if from_me else None,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Falha ao aplicar reação inbound (chat=%s target=%s)", chat.protocolo, target_id)
+        return 0
+
+    _emit_mensagem_atualizada(db, chat, alvo.id)
+    return 1
 
 
 def _processar_mensagem_inbound(

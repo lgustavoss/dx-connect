@@ -32,6 +32,9 @@ from app.schemas.whatsapp_chat import (
     WhatsappEmpresaContextoBody,
     WhatsappIniciarChatBody,
     WhatsappMensagemRead,
+    WhatsappMensagemUpdate,
+    WhatsappReacaoCreate,
+    WhatsappReacaoRead,
     WhatsappTransferirChatBody,
     WhatsappVincularFuncionarioBody,
     WhatsappCadastrarFuncionarioBody,
@@ -63,6 +66,8 @@ from app.services.ticket_distribuicao import pos_criar_ticket_na_fila
 from app.services.protocolo_mensal import gerar_protocolo_chat
 from app.services.whatsapp_wa_id_lock import lock_wa_id_para_chat, unlock_wa_id_para_chat
 from app.services.audit_operacional import audit_whatsapp_chat
+from app.services import whatsapp_reacoes as wpp_reacoes
+from app.services import whatsapp_edicao as wpp_edicao
 
 router = APIRouter(prefix="/whatsapp/chats", tags=["whatsapp-chats"])
 
@@ -735,17 +740,33 @@ def _pode_ver_chat(db: Session, atendente: Atendente, c: WhatsappChat) -> bool:
     return False
 
 
-def _mensagem_read(m: WhatsappMensagem) -> WhatsappMensagemRead:
+def _mensagem_read(
+    m: WhatsappMensagem,
+    *,
+    viewer_id: int | None = None,
+    is_responsavel: bool = False,
+) -> WhatsappMensagemRead:
     midia_ok = bool(m.midia_nome_arquivo and str(m.midia_nome_arquivo).strip())
     status = m.status_entrega if m.direcao == "outbound" and not m.evento_sistema else None
+    reacoes = [
+        WhatsappReacaoRead(
+            emoji=r.emoji,
+            count=r.count,
+            reagiu_eu=r.reagiu_eu,
+            atendente_ids=r.atendente_ids,
+            tem_cliente=r.tem_cliente,
+        )
+        for r in wpp_reacoes.agregar_reacoes(m, viewer_id)
+    ]
+    apagada = wpp_edicao.mensagem_apagada(m)
     return WhatsappMensagemRead(
         id=m.id,
         chat_id=m.chat_id,
         direcao=m.direcao,
-        corpo=m.corpo,
+        corpo=wpp_edicao.CORPO_MENSAGEM_APAGADA if apagada else m.corpo,
         tipo_midia=m.tipo_midia,
         mimetype=m.mimetype,
-        midia_disponivel=midia_ok,
+        midia_disponivel=False if apagada else midia_ok,
         evento_sistema=getattr(m, "evento_sistema", None),
         wa_message_id=m.wa_message_id,
         quoted_wa_message_id=getattr(m, "quoted_wa_message_id", None),
@@ -754,6 +775,12 @@ def _mensagem_read(m: WhatsappMensagem) -> WhatsappMensagemRead:
         atendente_nome=m.atendente.nome if m.atendente else None,
         status_entrega=status,
         created_at=m.created_at,
+        reacoes=[] if apagada else reacoes,
+        editada=wpp_edicao.mensagem_editada(m),
+        editada_em=getattr(m, "editada_em", None),
+        apagada=apagada,
+        pode_editar=wpp_edicao.pode_editar_mensagem(m, is_responsavel=is_responsavel),
+        pode_apagar_para_todos=wpp_edicao.pode_apagar_para_todos(m, is_responsavel=is_responsavel),
     )
 
 
@@ -1412,13 +1439,266 @@ def listar_mensagens(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este chat")
     rows = (
         db.query(WhatsappMensagem)
-        .options(joinedload(WhatsappMensagem.atendente))
+        .options(
+            joinedload(WhatsappMensagem.atendente),
+            joinedload(WhatsappMensagem.reacoes),
+        )
         .filter(WhatsappMensagem.chat_id == chat_id)
         .order_by(WhatsappMensagem.created_at.asc())
         .all()
     )
     visiveis = [m for m in rows if not mensagem_oculta_na_conversa(getattr(m, "evento_sistema", None))]
-    return [_mensagem_read(m) for m in visiveis]
+    is_resp = c.atendente_id == atendente.id
+    return [_mensagem_read(m, viewer_id=atendente.id, is_responsavel=is_resp) for m in visiveis]
+
+
+@router.patch("/{chat_id}/mensagens/{mensagem_id}", response_model=WhatsappMensagemRead)
+def editar_mensagem_whatsapp(
+    chat_id: int,
+    mensagem_id: int,
+    body: WhatsappMensagemUpdate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    """Edita texto outbound no WhatsApp do cliente (#630 lote 3)."""
+    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not _pode_ver_chat(db, atendente, c):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este chat")
+    _exigir_responsavel_envio_cliente(c, atendente)
+
+    m = (
+        db.query(WhatsappMensagem)
+        .options(joinedload(WhatsappMensagem.reacoes), joinedload(WhatsappMensagem.atendente))
+        .filter(WhatsappMensagem.id == mensagem_id, WhatsappMensagem.chat_id == chat_id)
+        .first()
+    )
+    if not m:
+        raise HTTPException(status_code=404, detail="Mensagem não encontrada")
+    if not wpp_edicao.pode_editar_mensagem(m, is_responsavel=True):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Não é possível editar (só texto próprio, até {wpp_edicao.JANELA_EDICAO_MINUTOS} min).",
+        )
+
+    texto_novo = (body.texto or "").strip()
+    if not texto_novo:
+        raise HTTPException(status_code=400, detail="Mensagem vazia")
+    prefixo = _prefixo_assinatura_whatsapp(db, c, atendente)
+    texto_eff = f"{prefixo}\n{texto_novo}" if prefixo and not texto_novo.startswith("[") else texto_novo
+
+    st = _settings_envio(db)
+    ok, err = evolution_api.evolution_update_message(
+        st.evolution_base_url or "",
+        st.evolution_instance_name or "",
+        st.evolution_api_key or "",
+        number_digits=c.wa_id,
+        message_id=m.wa_message_id or "",
+        text=texto_eff,
+        remote_jid=f"{c.wa_id}@s.whatsapp.net",
+    )
+    if not ok:
+        raise HTTPException(status_code=502, detail=err or "Falha ao editar na Evolution API")
+
+    m.corpo = texto_eff
+    m.editada_em = datetime.now(timezone.utc)
+    db.commit()
+    m2 = (
+        db.query(WhatsappMensagem)
+        .options(joinedload(WhatsappMensagem.reacoes), joinedload(WhatsappMensagem.atendente))
+        .filter(WhatsappMensagem.id == mensagem_id)
+        .first()
+    )
+    assert m2 is not None
+    emit_chat_mensagem_from_models(db, c, m2, exclude_atendente_id=atendente.id)
+    return _mensagem_read(m2, viewer_id=atendente.id, is_responsavel=True)
+
+
+@router.delete("/{chat_id}/mensagens/{mensagem_id}", response_model=WhatsappMensagemRead)
+def apagar_mensagem_whatsapp_para_todos(
+    chat_id: int,
+    mensagem_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    """Apaga mensagem outbound para todos no WhatsApp do cliente (#630 lote 3)."""
+    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not _pode_ver_chat(db, atendente, c):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este chat")
+    _exigir_responsavel_envio_cliente(c, atendente)
+
+    m = (
+        db.query(WhatsappMensagem)
+        .options(joinedload(WhatsappMensagem.reacoes), joinedload(WhatsappMensagem.atendente))
+        .filter(WhatsappMensagem.id == mensagem_id, WhatsappMensagem.chat_id == chat_id)
+        .first()
+    )
+    if not m:
+        raise HTTPException(status_code=404, detail="Mensagem não encontrada")
+    if not wpp_edicao.pode_apagar_para_todos(m, is_responsavel=True):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Não é possível apagar para todos (só outbound próprio, até {wpp_edicao.JANELA_APAGAR_TODOS_HORAS} h).",
+        )
+
+    st = _settings_envio(db)
+    ok, err = evolution_api.evolution_delete_message_for_everyone(
+        st.evolution_base_url or "",
+        st.evolution_instance_name or "",
+        st.evolution_api_key or "",
+        message_id=m.wa_message_id or "",
+        remote_jid=f"{c.wa_id}@s.whatsapp.net",
+        from_me=True,
+    )
+    if not ok:
+        raise HTTPException(status_code=502, detail=err or "Falha ao apagar na Evolution API")
+
+    m.corpo = wpp_edicao.CORPO_MENSAGEM_APAGADA
+    m.apagada_em = datetime.now(timezone.utc)
+    m.midia_nome_arquivo = None
+    db.commit()
+    m2 = (
+        db.query(WhatsappMensagem)
+        .options(joinedload(WhatsappMensagem.reacoes), joinedload(WhatsappMensagem.atendente))
+        .filter(WhatsappMensagem.id == mensagem_id)
+        .first()
+    )
+    assert m2 is not None
+    emit_chat_mensagem_from_models(db, c, m2, exclude_atendente_id=atendente.id)
+    return _mensagem_read(m2, viewer_id=atendente.id, is_responsavel=True)
+
+
+@router.put("/{chat_id}/mensagens/{mensagem_id}/reacoes", response_model=WhatsappMensagemRead)
+def definir_reacao_mensagem(
+    chat_id: int,
+    mensagem_id: int,
+    body: WhatsappReacaoCreate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    """Atendente responsável reage a uma mensagem no WhatsApp do cliente (#630)."""
+    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not _pode_ver_chat(db, atendente, c):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este chat")
+    _exigir_responsavel_envio_cliente(c, atendente)
+    if c.estado not in ("em_atendimento", "aguardando_avaliacao"):
+        raise HTTPException(status_code=400, detail="Só é possível reagir em chat em atendimento")
+
+    m = (
+        db.query(WhatsappMensagem)
+        .options(joinedload(WhatsappMensagem.reacoes), joinedload(WhatsappMensagem.atendente))
+        .filter(WhatsappMensagem.id == mensagem_id, WhatsappMensagem.chat_id == chat_id)
+        .first()
+    )
+    if not m:
+        raise HTTPException(status_code=404, detail="Mensagem não encontrada")
+    if m.evento_sistema:
+        raise HTTPException(status_code=400, detail="Não é possível reagir a mensagem interna/sistema")
+    if not m.wa_message_id:
+        raise HTTPException(status_code=400, detail="Mensagem sem identificador WhatsApp")
+
+    try:
+        emoji = wpp_reacoes.validar_emoji_reacao(body.emoji)
+    except wpp_reacoes.WhatsappReacaoErro as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Toggle: mesmo emoji remove
+    atual = next(
+        (r for r in (m.reacoes or []) if r.origem == wpp_reacoes.ORIGEM_ATENDENTE),
+        None,
+    )
+    remover = bool(atual and atual.emoji == emoji)
+    st = _settings_envio(db)
+    from_me = m.direcao == "outbound"
+    ok, err = evolution_api.evolution_send_reaction(
+        st.evolution_base_url or "",
+        st.evolution_instance_name or "",
+        st.evolution_api_key or "",
+        remote_jid=c.wa_id,
+        from_me=from_me,
+        message_id=m.wa_message_id,
+        reaction="" if remover else emoji,
+    )
+    if not ok:
+        raise HTTPException(status_code=502, detail=err or "Falha ao enviar reação pela Evolution API")
+
+    wpp_reacoes.aplicar_reacao(
+        db,
+        m,
+        origem=wpp_reacoes.ORIGEM_ATENDENTE,
+        emoji=None if remover else emoji,
+        atendente_id=None if remover else atendente.id,
+    )
+    db.commit()
+    m2 = (
+        db.query(WhatsappMensagem)
+        .options(joinedload(WhatsappMensagem.reacoes), joinedload(WhatsappMensagem.atendente))
+        .filter(WhatsappMensagem.id == mensagem_id)
+        .first()
+    )
+    assert m2 is not None
+    emit_chat_mensagem_from_models(db, c, m2, exclude_atendente_id=atendente.id)
+    return _mensagem_read(m2, viewer_id=atendente.id, is_responsavel=True)
+
+
+@router.delete("/{chat_id}/mensagens/{mensagem_id}/reacoes", response_model=WhatsappMensagemRead)
+def remover_reacao_mensagem(
+    chat_id: int,
+    mensagem_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    """Remove a reação do atendente na mensagem (#630)."""
+    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not _pode_ver_chat(db, atendente, c):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este chat")
+    _exigir_responsavel_envio_cliente(c, atendente)
+
+    m = (
+        db.query(WhatsappMensagem)
+        .options(joinedload(WhatsappMensagem.reacoes), joinedload(WhatsappMensagem.atendente))
+        .filter(WhatsappMensagem.id == mensagem_id, WhatsappMensagem.chat_id == chat_id)
+        .first()
+    )
+    if not m:
+        raise HTTPException(status_code=404, detail="Mensagem não encontrada")
+    if not m.wa_message_id:
+        raise HTTPException(status_code=400, detail="Mensagem sem identificador WhatsApp")
+
+    st = _settings_envio(db)
+    from_me = m.direcao == "outbound"
+    ok, err = evolution_api.evolution_send_reaction(
+        st.evolution_base_url or "",
+        st.evolution_instance_name or "",
+        st.evolution_api_key or "",
+        remote_jid=c.wa_id,
+        from_me=from_me,
+        message_id=m.wa_message_id,
+        reaction="",
+    )
+    if not ok:
+        raise HTTPException(status_code=502, detail=err or "Falha ao remover reação pela Evolution API")
+
+    wpp_reacoes.aplicar_reacao(
+        db, m, origem=wpp_reacoes.ORIGEM_ATENDENTE, emoji=None, atendente_id=None
+    )
+    db.commit()
+    m2 = (
+        db.query(WhatsappMensagem)
+        .options(joinedload(WhatsappMensagem.reacoes), joinedload(WhatsappMensagem.atendente))
+        .filter(WhatsappMensagem.id == mensagem_id)
+        .first()
+    )
+    assert m2 is not None
+    emit_chat_mensagem_from_models(db, c, m2, exclude_atendente_id=atendente.id)
+    return _mensagem_read(m2, viewer_id=atendente.id, is_responsavel=True)
 
 
 @router.get("/{chat_id}/demandas", response_model=list[WhatsappChatDemandaRead])
@@ -1701,9 +1981,14 @@ def enviar_mensagem(
         evento_sistema=None,
         quoted_wa_message_id=data.quoted_wa_message_id,
     )
-    m = db.query(WhatsappMensagem).options(joinedload(WhatsappMensagem.atendente)).filter(WhatsappMensagem.id == m.id).first()
+    m = (
+        db.query(WhatsappMensagem)
+        .options(joinedload(WhatsappMensagem.reacoes), joinedload(WhatsappMensagem.atendente))
+        .filter(WhatsappMensagem.id == m.id)
+        .first()
+    )
     assert m is not None
-    return _mensagem_read(m)
+    return _mensagem_read(m, viewer_id=atendente.id, is_responsavel=True)
 
 
 @router.post("/{chat_id}/mensagens/midia", response_model=WhatsappMensagemRead, status_code=201)
@@ -1826,13 +2111,13 @@ async def enviar_mensagem_midia(
     db.commit()
     m2 = (
         db.query(WhatsappMensagem)
-        .options(joinedload(WhatsappMensagem.atendente))
+        .options(joinedload(WhatsappMensagem.reacoes), joinedload(WhatsappMensagem.atendente))
         .filter(WhatsappMensagem.id == m.id)
         .first()
     )
     assert m2 is not None
     emit_chat_mensagem_from_models(db, c, m2, exclude_atendente_id=atendente.id)
-    return _mensagem_read(m2)
+    return _mensagem_read(m2, viewer_id=atendente.id, is_responsavel=True)
 
 
 @router.post("/{chat_id}/comentarios-internos", response_model=WhatsappMensagemRead, status_code=201)

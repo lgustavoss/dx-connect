@@ -30,6 +30,8 @@ import {
 import { MensagemRodapeMeta } from '../../components/chat/MensagemRodapeMeta'
 import { AssumirWhatsappSetorModal } from '../../components/chat/AssumirWhatsappSetorModal'
 import { WhatsappAvatar } from '../../components/chat/WhatsappAvatar'
+import { WhatsappMensagemAcoes } from '../../components/chat/WhatsappMensagemAcoes'
+import { WhatsappReacoesBar } from '../../components/chat/WhatsappReacoesBar'
 import { precisaEscolherSetorAoAssumir } from '../../lib/assumirWhatsappSetor'
 
 import { Card } from '../../components/ui/Card'
@@ -83,6 +85,20 @@ function legendaMidiaVisivel(corpo: string | null | undefined): string | null {
   return t
 }
 
+function normalizarReacoesMensagem(
+  msg: WhatsappChats.Mensagem,
+  viewerId?: number | null,
+): WhatsappChats.Mensagem {
+  if (!msg.reacoes?.length || viewerId == null) return msg
+  return {
+    ...msg,
+    reacoes: msg.reacoes.map((r) => ({
+      ...r,
+      reagiu_eu: Boolean(r.reagiu_eu || r.atendente_ids?.includes(viewerId)),
+    })),
+  }
+}
+
 
 // --- Subcomponente de Renderização de Mídia ---
 
@@ -131,7 +147,7 @@ function ConteudoMensagemWhatsApp({
 
   useEffect(() => {
 
-    if (!m.midia_disponivel || tipo === 'texto') {
+    if (m.apagada || !m.midia_disponivel || tipo === 'texto') {
 
       setUrl(null)
 
@@ -165,9 +181,13 @@ function ConteudoMensagemWhatsApp({
 
     }
 
-  }, [chatId, m.id, m.midia_disponivel, tipo])
+  }, [chatId, m.id, m.midia_disponivel, m.apagada, tipo])
 
 
+
+  if (m.apagada) {
+    return <p className="text-sm italic opacity-70">Mensagem apagada</p>
+  }
 
   const legenda = legendaMidiaVisivel(m.corpo)
 
@@ -719,20 +739,36 @@ export function WhatsappConversa() {
     const chatId = Number(id)
     const unsubMsg = subscribe('chat.mensagem', (payload) => {
       if (Number(payload.chat_id) !== chatId) return
-      const msg = payload.mensagem as WhatsappChats.Mensagem | undefined
-      if (!msg) return
+      const msg = normalizarReacoesMensagem(
+        payload.mensagem as WhatsappChats.Mensagem,
+        userIdRef.current,
+      )
+      if (!msg?.id) return
       setMsgs((prev) => {
+        const mergeMsg = (prevRow: WhatsappChats.Mensagem, incoming: WhatsappChats.Mensagem) => {
+          const merged = { ...prevRow, ...incoming }
+          // SSE omite flags por visualizador; preservar as já conhecidas
+          if (incoming.pode_editar === undefined) merged.pode_editar = prevRow.pode_editar
+          if (incoming.pode_apagar_para_todos === undefined) {
+            merged.pode_apagar_para_todos = prevRow.pode_apagar_para_todos
+          }
+          if (merged.apagada) {
+            merged.pode_editar = false
+            merged.pode_apagar_para_todos = false
+          }
+          return merged
+        }
         const idx = prev.findIndex((m) => m.id === msg.id)
         if (idx >= 0) {
           const next = [...prev]
-          next[idx] = { ...next[idx], ...msg }
+          next[idx] = mergeMsg(next[idx], msg)
           return next
         }
         if (msg.wa_message_id && prev.some((m) => m.wa_message_id === msg.wa_message_id)) {
           const widx = prev.findIndex((m) => m.wa_message_id === msg.wa_message_id)
           if (widx >= 0) {
             const next = [...prev]
-            next[widx] = { ...next[widx], ...msg }
+            next[widx] = mergeMsg(next[widx], msg)
             return next
           }
         }
@@ -1109,6 +1145,52 @@ useEffect(() => {
     isResponsavel &&
     !encerrado &&
     !chat?.classificacao_demanda_pendente
+
+  const podeReagir = Boolean(podeEnviar)
+
+  async function reagirMensagem(m: WhatsappChats.Mensagem, emoji: string) {
+    if (!chat || !podeReagir || m.evento_sistema || m.apagada) return
+    try {
+      const atualizada = await whatsappChats.definirReacao(chat.id, m.id, emoji)
+      setMsgs((prev) =>
+        prev.map((row) =>
+          row.id === atualizada.id ? normalizarReacoesMensagem(atualizada, user?.id) : row,
+        ),
+      )
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Falha ao reagir'))
+    }
+  }
+
+  async function editarMensagemWhatsapp(m: WhatsappChats.Mensagem, texto: string) {
+    if (!chat) return
+    try {
+      const atualizada = await whatsappChats.editarMensagem(chat.id, m.id, texto)
+      setMsgs((prev) =>
+        prev.map((row) =>
+          row.id === atualizada.id ? normalizarReacoesMensagem(atualizada, user?.id) : row,
+        ),
+      )
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Falha ao editar mensagem'))
+      throw err
+    }
+  }
+
+  async function apagarMensagemWhatsapp(m: WhatsappChats.Mensagem) {
+    if (!chat) return
+    try {
+      const atualizada = await whatsappChats.apagarMensagem(chat.id, m.id)
+      setMsgs((prev) =>
+        prev.map((row) =>
+          row.id === atualizada.id ? normalizarReacoesMensagem(atualizada, user?.id) : row,
+        ),
+      )
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Falha ao apagar mensagem'))
+      throw err
+    }
+  }
 
   const podeEncerrar = !encerrado && chat?.estado === 'em_atendimento' && (isResponsavel || isAdmin)
 
@@ -1644,7 +1726,7 @@ useEffect(() => {
                 onDoubleClick={(e) => duploCliqueResponder(e, m, isSystem)}
                 className={`flex w-full group cursor-default items-center gap-2 transition-all ${isInbound ? 'justify-start' : 'justify-end'}`}
               >
-                {!isInbound && !isSystem && (
+                {!isInbound && !isSystem && !m.apagada && (
                   <button
                     onClick={() => iniciarResposta(m)}
                     className="opacity-25 group-hover:opacity-100 md:opacity-0 transition-opacity p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer shrink-0"
@@ -1654,7 +1736,9 @@ useEffect(() => {
                   </button>
                 )}
 
-                <div className={`max-w-[85%] sm:max-w-[70%] space-y-1 ${isInbound ? 'items-start' : 'items-end'}`}>
+                <div
+                  className={`relative max-w-[85%] space-y-1 sm:max-w-[70%] ${isInbound ? 'items-start' : 'items-end'}`}
+                >
 
                   {isSystem && (
                     <span className="text-[9px] font-bold uppercase px-2 text-amber-600">
@@ -1662,7 +1746,14 @@ useEffect(() => {
                     </span>
                   )}
 
-                 
+                  {!isSystem && !isInbound && (
+                    <WhatsappMensagemAcoes
+                      mensagem={m}
+                      onEditar={(texto) => editarMensagemWhatsapp(m, texto)}
+                      onApagar={() => apagarMensagemWhatsapp(m)}
+                      alinhamento="end"
+                    />
+                  )}
 
                   <div className={`
 
@@ -1676,7 +1767,7 @@ useEffect(() => {
 
                   `}>
 
-                    {m.quoted_wa_message_id && (
+                    {m.quoted_wa_message_id && !m.apagada && (
                       <div 
                         onClick={() => {
                           const el = document.getElementById(`msg-${m.quoted_wa_message_id}`);
@@ -1713,15 +1804,25 @@ useEffect(() => {
                         direcao={m.direcao}
                         eventoSistema={m.evento_sistema}
                         variant={isInbound ? 'escuro' : 'claro'}
+                        editada={m.editada}
                         className={isInbound ? 'text-slate-400' : ''}
                       />
                     )}
 
                   </div>
 
+                  {!isSystem && !m.apagada && (
+                    <WhatsappReacoesBar
+                      reacoes={m.reacoes || []}
+                      podeReagir={podeReagir}
+                      onReagir={podeReagir ? (emoji) => void reagirMensagem(m, emoji) : undefined}
+                      alinhamento={isInbound ? 'start' : 'end'}
+                    />
+                  )}
+
                 </div>
 
-                {isInbound && !isSystem && (
+                {isInbound && !isSystem && !m.apagada && (
                   <button
                     onClick={() => iniciarResposta(m)}
                     className="opacity-25 group-hover:opacity-100 md:opacity-0 transition-opacity p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer shrink-0"
