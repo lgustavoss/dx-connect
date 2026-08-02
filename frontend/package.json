@@ -20,7 +20,7 @@
   },
   "devDependencies": {
     "@emnapi/core": "^1.11.2",
-    "@emnapi/runtime": "^1.11.1",
+    "@emnapi/runtime": "^1.11.3",
     "@eslint/js": "^9.39.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.1.1",
