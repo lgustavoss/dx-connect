@@ -5,7 +5,9 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
-### Corrigido
+## [26.08.003] - 2026-08-02
+
+### Melhorias
 
 - WhatsApp (#628): ao atender com vários setores, o modal «Escolher setor» voltava vazio (pedido com `limit` acima do máximo da API); a lista passa a carregar com paginação válida
 
