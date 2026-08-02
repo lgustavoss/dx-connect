@@ -441,6 +441,7 @@ export function WhatsappConversa() {
   const [texto, setTexto] = useState('')
 
   const [enviando, setEnviando] = useState(false)
+  const enviandoMidiaRef = useRef(false)
 
   // Estados de WhatsApp Clone (Citação e Zoom)
   const [msgRespondida, setMsgRespondida] = useState<WhatsappChats.Mensagem | null>(null)
@@ -1013,7 +1014,8 @@ useEffect(() => {
   }
 
   async function confirmarEnvioMidia() {
-    if (!arquivoPendente || !chat || !podeEnviar || enviando) return
+    if (!arquivoPendente || !chat || !podeEnviar || enviando || enviandoMidiaRef.current) return
+    enviandoMidiaRef.current = true
     setEnviando(true)
     try {
       await whatsappChats.enviarMidia(
@@ -1031,6 +1033,7 @@ useEffect(() => {
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Falha no envio do anexo'))
     } finally {
+      enviandoMidiaRef.current = false
       setEnviando(false)
     }
   }
@@ -1881,12 +1884,17 @@ useEffect(() => {
             <div
               className="mb-2 rounded-xl border border-cyan-200 bg-cyan-50/80 p-3 dark:border-cyan-900/40 dark:bg-cyan-950/20"
               tabIndex={arquivoPendente.type.startsWith('audio/') ? 0 : undefined}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey && !enviando && podeEnviar) {
-                  e.preventDefault()
-                  void confirmarEnvioMidia()
-                }
-              }}
+              onKeyDown={
+                arquivoPendente.type.startsWith('audio/')
+                  ? (e) => {
+                      if (e.key === 'Enter' && !e.shiftKey && !enviando && podeEnviar) {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        void confirmarEnvioMidia()
+                      }
+                    }
+                  : undefined
+              }
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
@@ -1914,6 +1922,7 @@ useEffect(() => {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault()
+                      e.stopPropagation()
                       if (!enviando && podeEnviar) void confirmarEnvioMidia()
                     }
                   }}
