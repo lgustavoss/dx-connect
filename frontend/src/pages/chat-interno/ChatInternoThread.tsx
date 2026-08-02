@@ -419,7 +419,8 @@ export function ChatInternoThread() {
 
   function duploCliqueResponder(e: MouseEvent, m: ChatInterno.Mensagem) {
     const t = e.target as HTMLElement
-    if (t.closest('button, a, input, textarea, [role="dialog"]')) return
+    // Só ao lado do balão — dentro do balão permite selecionar/copiar texto
+    if (t.closest('[data-msg-bubble], button, a, input, textarea, [role="dialog"]')) return
     iniciarResposta(m)
   }
 
@@ -633,6 +634,7 @@ export function ChatInternoThread() {
                   data-chat-msg-id={m.id}
                   onMouseEnter={() => trancarHoverMensagem(m.id)}
                   onMouseLeave={() => liberarHoverMensagem(m.id)}
+                  onDoubleClick={(e) => duploCliqueResponder(e, m)}
                 >
                 <ChatInternoMensagemAcoes
                   mensagem={m}
@@ -642,7 +644,7 @@ export function ChatInternoThread() {
                   alinhamento="start"
                 />
                 <article
-                  onDoubleClick={(e) => duploCliqueResponder(e, m)}
+                  data-msg-bubble
                   className="w-full min-w-0 overflow-hidden rounded-2xl border border-amber-200/80 bg-amber-50/95 p-5 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/40"
                 >
                   <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">
@@ -730,6 +732,7 @@ export function ChatInternoThread() {
                       alinhamento={propria ? 'end' : 'start'}
                     />
                     <div
+                      data-msg-bubble
                       className={`relative w-fit max-w-full rounded-lg px-[9px] py-[6px] text-sm shadow-sm ring-1 ring-inset ${
                         propria
                           ? 'rounded-tr-none bg-cyan-600 text-white ring-cyan-500/30'

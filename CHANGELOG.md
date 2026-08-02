@@ -7,6 +7,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Corrigido
 
+- Chat: duplo clique **dentro** do balão já não inicia resposta (dá para selecionar/copiar o texto); responder com duplo clique fica só **ao lado** do balão
+- WhatsApp: menu com seta no canto do balão para Editar/Apagar (em vez de botões flutuantes que saltavam para a mensagem de cima)
 - WhatsApp: Enter na legenda do anexo deixava de enviar a imagem **duas vezes** (o evento subia ao painel e disparava o envio de novo)
 - WhatsApp (#628): ao atender com vários setores, o modal «Escolher setor» voltava vazio (pedido com `limit` acima do máximo da API); a lista passa a carregar com paginação válida
 - Frontend: alinhamento de `react` e `react-dom` em **19.2.8** (o Dependabot tinha subido só o `react`, o que gerava tela preta com React error #527 em produção)

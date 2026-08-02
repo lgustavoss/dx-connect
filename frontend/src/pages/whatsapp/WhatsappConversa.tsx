@@ -900,7 +900,8 @@ useEffect(() => {
   function duploCliqueResponder(e: MouseEvent, m: WhatsappChats.Mensagem, isSystem: boolean) {
     if (isSystem || encerrado || !podeEnviar || modoInterno) return
     const t = e.target as HTMLElement
-    if (t.closest('button, a, input, textarea, video, audio')) return
+    // Só ao lado do balão — dentro do balão permite selecionar/copiar texto
+    if (t.closest('[data-msg-bubble], button, a, input, textarea, video, audio')) return
     iniciarResposta(m)
   }
 
@@ -1748,16 +1749,9 @@ useEffect(() => {
                     </span>
                   )}
 
-                  {!isSystem && !isInbound && (
-                    <WhatsappMensagemAcoes
-                      mensagem={m}
-                      onEditar={(texto) => editarMensagemWhatsapp(m, texto)}
-                      onApagar={() => apagarMensagemWhatsapp(m)}
-                      alinhamento="end"
-                    />
-                  )}
-
-                  <div className={`
+                  <div
+                    data-msg-bubble
+                    className={`
 
                     rounded-2xl px-4 py-2 text-sm shadow-sm relative group/bubble
 
@@ -1765,9 +1759,17 @@ useEffect(() => {
 
                       isInbound ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-tl-none ring-1 ring-slate-100 dark:ring-slate-700' :
 
-                      'bg-cyan-600 text-white rounded-tr-none'}
+                      'bg-cyan-600 text-white rounded-tr-none pr-8'}
 
                   `}>
+
+                    {!isSystem && !isInbound && (
+                      <WhatsappMensagemAcoes
+                        mensagem={m}
+                        onEditar={(texto) => editarMensagemWhatsapp(m, texto)}
+                        onApagar={() => apagarMensagemWhatsapp(m)}
+                      />
+                    )}
 
                     {m.quoted_wa_message_id && !m.apagada && (
                       <div 
