@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { setores, type Setores } from '../../api/client'
+import { coletarTodasPaginas } from '../../api/collectPages'
 import { Button } from '../ui/Button'
 import { Select } from '../ui/Select'
 
@@ -22,22 +23,40 @@ export function AssumirWhatsappSetorModal({
   const [lista, setLista] = useState<Setores.Setor[]>([])
   const [setorId, setSetorId] = useState<number | ''>('')
   const [carregando, setCarregando] = useState(false)
+  const [erroCarga, setErroCarga] = useState(false)
 
   useEffect(() => {
     if (!open) return
     setSetorId('')
+    setErroCarga(false)
     setCarregando(true)
-    void setores
-      .list({ limit: 200 })
-      .then((page) => setLista(page.items || []))
-      .catch(() => setLista([]))
-      .finally(() => setCarregando(false))
+    let cancelado = false
+    // list max limit=100; o bug era `limit: 200` → 422 e lista vazia. GET /setores/{id} é só admin.
+    void coletarTodasPaginas<Setores.Setor>((o, l) =>
+      setores.list({ incluir_inativos: false, offset: o, limit: l }),
+    )
+      .then((items) => {
+        if (cancelado) return
+        setLista(items)
+      })
+      .catch(() => {
+        if (cancelado) return
+        setLista([])
+        setErroCarga(true)
+      })
+      .finally(() => {
+        if (!cancelado) setCarregando(false)
+      })
+    return () => {
+      cancelado = true
+    }
   }, [open])
 
   const opcoes = useMemo(() => {
     const ids = new Set(setorIds)
     return lista
       .filter((s) => ids.has(s.id) && s.ativo !== false)
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
       .map((s) => ({ value: s.id, label: s.nome }))
   }, [lista, setorIds])
 
@@ -71,8 +90,19 @@ export function AssumirWhatsappSetorModal({
             placeholder={carregando ? 'Carregando…' : 'Selecione o setor'}
             includeEmpty
             emptyLabel="Selecione…"
-            disabled={carregando || loading}
+            disabled={carregando || loading || opcoes.length === 0}
           />
+          {!carregando && erroCarga && (
+            <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+              Não foi possível carregar os setores. Feche e tente de novo.
+            </p>
+          )}
+          {!carregando && !erroCarga && opcoes.length === 0 && (
+            <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+              Nenhum setor ativo encontrado no seu vínculo. Peça a um admin para rever os setores do
+              seu usuário.
+            </p>
+          )}
         </div>
         <div className="mt-5 flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
@@ -81,7 +111,7 @@ export function AssumirWhatsappSetorModal({
           <Button
             type="button"
             loading={loading}
-            disabled={setorId === '' || carregando}
+            disabled={setorId === '' || carregando || opcoes.length === 0}
             onClick={() => {
               if (setorId === '') return
               onConfirm(setorId)
