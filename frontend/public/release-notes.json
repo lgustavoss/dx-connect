@@ -1,71 +1,51 @@
 {
-  "current_version": "26.07.014",
-  "current_version_display": "v26.07.014",
+  "current_version": "26.08.001",
+  "current_version_display": "v26.08.001",
   "current": {
-    "version": "26.07.014",
-    "version_display": "v26.07.014",
-    "date": "2026-07-22",
+    "version": "26.08.001",
+    "version_display": "v26.08.001",
+    "date": "2026-08-02",
     "status": "published",
     "changes": [
       {
         "category": "melhorias",
-        "text": "Portal do cliente (#263 / #300–#308): funcionários da rede fazem login em **/portal**, abrem e acompanham chamados da sua empresa, respondem no fio público, anexam ficheiros, consultam a base de ajuda e recebem e-mail quando a equipe responde; o admin define a senha do portal no cadastro do funcionário"
+        "text": "WhatsApp (#628): no WhatsApp do cliente, mensagens do atendente saem com prefixo **setor do atendimento + nome** e o texto na linha de baixo (ex.: `[ Suporte - Ana ]:`); ao assumir, 1 setor é gravado automaticamente e vários setores pedem escolha no painel"
       },
       {
         "category": "melhorias",
-        "text": "Portal (#600, #601): cadastro de funcionário pelo modal da Rede permite definir senha do portal na criação; sócio cadastra sem escolher empresas (escopo automático em toda a rede)"
+        "text": "WhatsApp (#629): no lightbox de imagens da conversa, dá para navegar entre as fotos (botões e setas ←/→) com contador e legenda atualizada; Esc continua a fechar só a visualização"
       },
       {
         "category": "melhorias",
-        "text": "Portal (#604): RBAC por papel — colaborador vê só os próprios chamados; supervisor vê todos das empresas vinculadas; sócio vê toda a rede"
+        "text": "WhatsApp (#630): foto de perfil do contacto no header e nas listas Atendendo/Aguardando (com cache e fallback para a inicial do nome)"
       },
       {
         "category": "melhorias",
-        "text": "Portal (#603): listagem e detalhe de atendimentos WhatsApp no `/portal` (somente leitura), com o mesmo escopo por papel e sem comentários internos da equipe"
+        "text": "WhatsApp (#630): reações no chat com o cliente — ver emoji do cliente no balão e o atendente responsável pode reagir (👍 ❤️ 😂 😮 😢 🙏); clique de novo remove"
       },
       {
         "category": "melhorias",
-        "text": "Portal (#602): sócio gere a equipa no `/portal` — cadastro e edição de colaboradores e supervisores (empresas, senha do portal); outros sócios listados com edição limitada; colaborador/supervisor recebem 403"
+        "text": "WhatsApp (#630): editar (até 15 min) e apagar para todos (até 48 h) mensagens de texto enviadas pelo responsável; também sincroniza quando o cliente edita ou apaga"
       },
       {
         "category": "melhorias",
-        "text": "Portal (#605): branding white-label no `/portal` — logo e cores da instância (mesmas configurações de Configurações → Base de conhecimento); login e shell aplicam a identidade do contratante, não a marca DeskRudder"
+        "text": "WhatsApp: no header da conversa, o chip da empresa abre a página de detalhe da empresa (Voltar regressa ao chat); alterar empresa multi-empresa continua no menu ⋮"
       },
       {
         "category": "melhorias",
-        "text": "Portal: shell alinhado ao painel DeskRudder (menu lateral com usuário/Sair, navbar com expandir/recolher); cor do menu lateral configurável (padrão = navbar); chat ao vivo no `/portal` (mesmo canal da `/kb`, isolado por instância); login com logo em destaque, ícone de olho na senha e fundo minimalista; título do portal independente da central `/kb`"
+        "text": "Chat (#626): ícone de som junto a **Aguardando** para silenciar/reativar o alerta contínuo da fila (WhatsApp + portal); preferência guardada no browser — não afeta alertas de ticket nem do chat interno"
       },
       {
         "category": "melhorias",
-        "text": "WhatsApp (#593): ao **cadastrar** contacto no chat, o sistema sugere funcionários com nome semelhante para vincular (evita duplicados); o atendente pode ignorar e criar novo"
+        "text": "Chat (#625): ao **Ver** um chat da fila Aguardando, a lista com **Atender** permanece na lateral; na conversa há CTA **Atender** (WhatsApp e portal) para assumir sem voltar à lista"
       },
       {
         "category": "melhorias",
-        "text": "WhatsApp (#591): no detalhe da **Empresa**, nova aba **Chats** com atendimentos filtrados por aquela empresa (busca, paginação, abrir conversa / retomar)"
+        "text": "WhatsApp (#627): com anexo pendente, **Enter** na legenda (ou no painel, em áudio) envia o anexo — equivalente a «Enviar anexo»"
       },
       {
         "category": "melhorias",
-        "text": "WhatsApp (#592): com funcionário em **mais de uma empresa**, o atendimento pode começar sem empresa; o atendente pergunta ao cliente e vincula (ou altera) a qualquer momento antes de encerrar — 1 empresa continua automática"
-      },
-      {
-        "category": "melhorias",
-        "text": "WhatsApp (#590): na listagem **Atendimentos**, cada card mostra a **empresa** do contacto (ou «Sem empresa» quando não houver vínculo)"
-      },
-      {
-        "category": "melhorias",
-        "text": "Chat (#607): na aba **Atendendo**, secções **Comigo** e **Outros atendentes** quando o admin acompanha colegas; badge «Você» e destaque visual nos seus; nome do responsável legível nos de outros"
-      },
-      {
-        "category": "melhorias",
-        "text": "WhatsApp (#606): conversa mais utilizável no **mobile** — composer com campo largo e botão de manuais só ícone; menu **⋮** com Transferir/Tickets; metadados em linha separada; painel de demandas colapsável; `safe-area` no composer"
-      },
-      {
-        "category": "melhorias",
-        "text": "WhatsApp (#608): duas mensagens inbound seguidas do mesmo contacto deixam de abrir dois chats/protocolos — lock por `wa_id` no webhook e uma única sequência de auto-mensagens por sessão"
-      },
-      {
-        "category": "melhorias",
-        "text": "WhatsApp (#598): após encerrar com avaliação, janela de ~30 min (configurável) para a nota; se o cliente mandar outro texto, abre atendimento novo com essa mensagem; sem resposta, finaliza sozinho"
+        "text": "Login / site: «Voltar ao site» e hosts DeskRudder apontam para deskrudder.com.br (redirect da apex connect)"
       }
     ]
   },
@@ -1119,6 +1099,54 @@
         {
           "category": "melhorias",
           "text": "WhatsApp (#598): após encerrar com avaliação, janela de ~30 min (configurável) para a nota; se o cliente mandar outro texto, abre atendimento novo com essa mensagem; sem resposta, finaliza sozinho"
+        }
+      ]
+    },
+    {
+      "version": "26.08.001",
+      "version_display": "v26.08.001",
+      "date": "2026-08-02",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#628): no WhatsApp do cliente, mensagens do atendente saem com prefixo **setor do atendimento + nome** e o texto na linha de baixo (ex.: `[ Suporte - Ana ]:`); ao assumir, 1 setor é gravado automaticamente e vários setores pedem escolha no painel"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#629): no lightbox de imagens da conversa, dá para navegar entre as fotos (botões e setas ←/→) com contador e legenda atualizada; Esc continua a fechar só a visualização"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#630): foto de perfil do contacto no header e nas listas Atendendo/Aguardando (com cache e fallback para a inicial do nome)"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#630): reações no chat com o cliente — ver emoji do cliente no balão e o atendente responsável pode reagir (👍 ❤️ 😂 😮 😢 🙏); clique de novo remove"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#630): editar (até 15 min) e apagar para todos (até 48 h) mensagens de texto enviadas pelo responsável; também sincroniza quando o cliente edita ou apaga"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: no header da conversa, o chip da empresa abre a página de detalhe da empresa (Voltar regressa ao chat); alterar empresa multi-empresa continua no menu ⋮"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat (#626): ícone de som junto a **Aguardando** para silenciar/reativar o alerta contínuo da fila (WhatsApp + portal); preferência guardada no browser — não afeta alertas de ticket nem do chat interno"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat (#625): ao **Ver** um chat da fila Aguardando, a lista com **Atender** permanece na lateral; na conversa há CTA **Atender** (WhatsApp e portal) para assumir sem voltar à lista"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#627): com anexo pendente, **Enter** na legenda (ou no painel, em áudio) envia o anexo — equivalente a «Enviar anexo»"
+        },
+        {
+          "category": "melhorias",
+          "text": "Login / site: «Voltar ao site» e hosts DeskRudder apontam para deskrudder.com.br (redirect da apex connect)"
         }
       ]
     }
