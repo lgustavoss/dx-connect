@@ -13,6 +13,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Melhorias
 
+- WhatsApp: na visualização ampliada de imagens, dá para fazer zoom (+/−, scroll e duplo clique), rodar e arrastar; repor volta à vista normal (também no chat interno)
 - WhatsApp (#628): no WhatsApp do cliente, mensagens do atendente saem com prefixo **setor do atendimento + nome** e o texto na linha de baixo (ex.: `[ Suporte - Ana ]:`); ao assumir, 1 setor é gravado automaticamente e vários setores pedem escolha no painel
 - WhatsApp (#629): no lightbox de imagens da conversa, dá para navegar entre as fotos (botões e setas ←/→) com contador e legenda atualizada; Esc continua a fechar só a visualização
 - WhatsApp (#630): foto de perfil do contacto no header e nas listas Atendendo/Aguardando (com cache e fallback para a inicial do nome)
