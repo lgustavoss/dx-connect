@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ApiError, portalChats, whatsappChats } from '../../api/client'
+import { AssumirWhatsappSetorModal } from '../../components/chat/AssumirWhatsappSetorModal'
 import { ChatCanalBadge } from '../../components/chat/ChatCanalBadge'
+import { WhatsappAvatar } from '../../components/chat/WhatsappAvatar'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
+import { useAuth } from '../../contexts/AuthContext'
 import { useChatHub } from '../../contexts/ChatHubContext'
 import { useEventStream } from '../../contexts/EventStreamContext'
+import { precisaEscolherSetorAoAssumir } from '../../lib/assumirWhatsappSetor'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
 import {
   chatHubItemKey,
@@ -51,12 +55,14 @@ type Props = {
 
 export function ChatListaEspera({ ignorarBusca = false, onChatAssumido, onVerChat }: Props = {}) {
   const toast = useToast()
+  const { user } = useAuth()
   const navigate = useNavigate()
   const { busca, refreshContagens } = useChatHub()
   const { subscribe, useFallback } = useEventStream()
   const [fila, setFila] = useState<ChatHubItem[]>([])
   const [loading, setLoading] = useState(true)
   const [assumindoKey, setAssumindoKey] = useState<string | null>(null)
+  const [pendenteSetor, setPendenteSetor] = useState<ChatHubItem | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -88,17 +94,18 @@ export function ChatListaEspera({ ignorarBusca = false, onChatAssumido, onVerCha
     }
   }, [subscribe, load])
 
-  async function assumir(item: ChatHubItem) {
+  async function executarAssumir(item: ChatHubItem, setorId?: number) {
     const key = chatHubItemKey(item)
     setAssumindoKey(key)
     try {
       if (item.canal === 'whatsapp') {
-        await whatsappChats.assumir(item.id)
+        await whatsappChats.assumir(item.id, setorId != null ? { setor_id: setorId } : undefined)
         toast.showSuccess('Chat assumido.')
       } else {
         await portalChats.assumir(item.id)
         toast.showSuccess('Chat assumido.')
       }
+      setPendenteSetor(null)
       await load()
       void refreshContagens()
       void refetchPendenciasResumo()
@@ -118,6 +125,17 @@ export function ChatListaEspera({ ignorarBusca = false, onChatAssumido, onVerCha
     }
   }
 
+  function assumir(item: ChatHubItem) {
+    if (
+      item.canal === 'whatsapp' &&
+      precisaEscolherSetorAoAssumir(user, Boolean(item.setor_nome))
+    ) {
+      setPendenteSetor(item)
+      return
+    }
+    void executarAssumir(item)
+  }
+
   const lista = ignorarBusca ? fila : filtrarChatHubPorBusca(fila, busca)
 
   if (loading) {
@@ -133,13 +151,16 @@ export function ChatListaEspera({ ignorarBusca = false, onChatAssumido, onVerCha
   }
 
   return (
+    <>
     <ul className="divide-y divide-slate-100 dark:divide-slate-800">
       {lista.map((c) => (
         <li key={chatHubItemKey(c)} className="px-3 py-3">
           <div className="flex gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-sm font-bold text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
-              {c.nome.charAt(0)?.toUpperCase() || '?'}
-            </div>
+            <WhatsappAvatar
+              nome={c.nome}
+              fotoUrl={c.canal === 'whatsapp' ? c.foto_perfil_url : null}
+              fallbackClassName="bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200"
+            />
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-2">
                 <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{c.nome}</p>
@@ -176,5 +197,16 @@ export function ChatListaEspera({ ignorarBusca = false, onChatAssumido, onVerCha
         </li>
       ))}
     </ul>
+    <AssumirWhatsappSetorModal
+      open={pendenteSetor != null}
+      setorIds={user?.setor_ids || []}
+      loading={pendenteSetor != null && assumindoKey === chatHubItemKey(pendenteSetor)}
+      onClose={() => setPendenteSetor(null)}
+      onConfirm={(setorId) => {
+        if (!pendenteSetor) return
+        void executarAssumir(pendenteSetor, setorId)
+      }}
+    />
+    </>
   )
 }

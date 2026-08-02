@@ -5,6 +5,22 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### Melhorias
+
+- WhatsApp (#628): no WhatsApp do cliente, mensagens do atendente saem com prefixo **setor do atendimento + nome** e o texto na linha de baixo (ex.: `[ Suporte - Ana ]:`); ao assumir, 1 setor é gravado automaticamente e vários setores pedem escolha no painel
+- WhatsApp (#629): no lightbox de imagens da conversa, dá para navegar entre as fotos (botões e setas ←/→) com contador e legenda atualizada; Esc continua a fechar só a visualização
+- WhatsApp (#630): foto de perfil do contacto no header e nas listas Atendendo/Aguardando (com cache e fallback para a inicial do nome)
+- WhatsApp (#630): reações no chat com o cliente — ver emoji do cliente no balão e o atendente responsável pode reagir (👍 ❤️ 😂 😮 😢 🙏); clique de novo remove
+- WhatsApp (#630): editar (até 15 min) e apagar para todos (até 48 h) mensagens de texto enviadas pelo responsável; também sincroniza quando o cliente edita ou apaga
+- WhatsApp: no header da conversa, o chip da empresa abre a página de detalhe da empresa (Voltar regressa ao chat); alterar empresa multi-empresa continua no menu ⋮
+- Chat (#626): ícone de som junto a **Aguardando** para silenciar/reativar o alerta contínuo da fila (WhatsApp + portal); preferência guardada no browser — não afeta alertas de ticket nem do chat interno
+
+### Correções
+
+- Chat (#625): ao **Ver** um chat da fila Aguardando, a lista com **Atender** permanece na lateral; na conversa há CTA **Atender** (WhatsApp e portal) para assumir sem voltar à lista
+- WhatsApp (#627): com anexo pendente, **Enter** na legenda (ou no painel, em áudio) envia o anexo — equivalente a «Enviar anexo»
+- Login / site: «Voltar ao site» e hosts DeskRudder apontam para deskrudder.com.br (redirect da apex connect)
+
 ## [26.07.014] - 2026-07-22
 
 ### Melhorias

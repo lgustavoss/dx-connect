@@ -9,6 +9,15 @@ export const APP_TAGLINE = 'Organize. Foque. Direcione'
 export const APP_DESCRIPTION =
   'Plataforma de atendimento multicanal — tickets, WhatsApp e e-mail com fila, roteamento e SLA.'
 
+/**
+ * Site comercial (landing em deskrudder.com.br).
+ * Nos subdomínios de cliente, «Voltar ao site» aponta para cá — não para `/` do painel.
+ */
+export const MARKETING_SITE_URL = (
+  (import.meta.env.VITE_MARKETING_SITE_URL as string | undefined)?.trim() ||
+  'https://deskrudder.com.br'
+).replace(/\/$/, '')
+
 export const brandColors = {
   /** Profundidade / confiança — fundos escuros, gradientes. */
   navy: '#0B2D4A',

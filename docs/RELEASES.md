@@ -14,12 +14,13 @@ Bump automático no **deploy de `staging`** (fuso `America/Sao_Paulo`).
 ## Fluxo do time
 
 ```
-feature → PR main (+ CHANGELOG) → PR main → staging → deploy → /sobre
+feature → PR main (+ CHANGELOG) → PR main → staging (aprovação humana) → deploy → /sobre
 ```
 
 1. **Cada PR para `main`** com mudança de produto: inclua bullet(s) em `CHANGELOG.md` → `## [Unreleased]`
 2. **PR `main → staging`**: o `[Unreleased]` descreve **todo o lote** que será publicado
-3. **Deploy em `staging`**: consome `[Unreleased]`, gera nova CalVer, append em `docs/releases/manifest.json`, zera `[Unreleased]`
+3. **Merge em `staging`**: **só após análise e aprovação humana no GitHub** (`staging` = produção). Agentes/CI **não** mergeiam este PR automaticamente — usar `/release-staging` para abrir o PR e parar.
+4. **Deploy em `staging`**: consome `[Unreleased]`, gera nova CalVer, append em `docs/releases/manifest.json`, zera `[Unreleased]`
 
 ## Requisito de PR (obrigatório)
 
@@ -73,6 +74,7 @@ Após cada deploy, o workflow commita `VERSION`, `CHANGELOG.md`, `manifest.json`
 
 - [ ] `[Unreleased]` lista **todas** as entregas do lote
 - [ ] Revisão de redação (sem «deploy», «branch», «commit»)
+- [ ] **Aprovação e merge manuais** no GitHub (agente não executa `gh pr merge`)
 
 ## Desenvolvimento local
 

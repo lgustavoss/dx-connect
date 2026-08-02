@@ -1,0 +1,45 @@
+# Domínios legados DuplexSoft → DeskRudder (cliente piloto).
+# App:  connect.duplexsoft.com.br → duplexsoft.deskrudder.com.br
+# API:  api.connect.duplexsoft.com.br → api-duplexsoft.deskrudder.com.br
+#
+# Certificados Let's Encrypt dos hosts legados podem permanecer só para o TLS do redirect.
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name connect.duplexsoft.com.br;
+
+    ssl_certificate /etc/letsencrypt/live/connect.duplexsoft.com.br/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/connect.duplexsoft.com.br/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    return 301 https://duplexsoft.deskrudder.com.br$request_uri;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name connect.duplexsoft.com.br;
+    return 301 https://duplexsoft.deskrudder.com.br$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name api.connect.duplexsoft.com.br;
+
+    ssl_certificate /etc/letsencrypt/live/connect.duplexsoft.com.br/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/connect.duplexsoft.com.br/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    return 301 https://api-duplexsoft.deskrudder.com.br$request_uri;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name api.connect.duplexsoft.com.br;
+    return 301 https://api-duplexsoft.deskrudder.com.br$request_uri;
+}

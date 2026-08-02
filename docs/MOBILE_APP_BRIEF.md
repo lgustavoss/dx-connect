@@ -26,7 +26,7 @@ Documento para equipes/ferramentas que **não têm acesso ao GitHub**. Descreve 
 ### Base URL
 
 - **Desenvolvimento:** `http://localhost:8000/v1`
-- **Produção:** configurar por build (ex.: `https://api.connect.duplexsoft.com.br/v1`)
+- **Produção:** configurar por build (ex.: `https://api-duplexsoft.deskrudder.com.br/v1`)
 
 ### Login
 

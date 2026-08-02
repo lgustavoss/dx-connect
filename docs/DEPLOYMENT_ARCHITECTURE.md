@@ -7,7 +7,7 @@
 | Aspecto | Direção |
 |---------|---------|
 | Infra | Mesma **VPS** (ou cluster) para vários clientes |
-| URL | **Subdomínio** por cliente (ex.: `duplexsoft.connect.duplexsoft.com.br`, `clienteb.connect.duplexsoft.com.br`) |
+| URL | **Subdomínio** por cliente (ex.: `duplexsoft.deskrudder.com.br`, `cliente02.deskrudder.com.br`) |
 | Dados | **Um PostgreSQL por cliente** (`DATABASE_URL` distinta por deploy) |
 | API | **Um container Docker por cliente** (modelo adotado — ver abaixo) |
 | Código | Tratar cada deploy como **single-tenant**: sem filtrar “outro cliente” na mesma base |

@@ -370,3 +370,143 @@ def iter_inbound_text_messages(webhook_body: dict[str, Any]) -> Iterator[dict[st
             "wa_message_id": item.get("wa_message_id"),
             "push_name": item.get("push_name"),
         }
+
+
+def _reaction_payload_from_inner(inner: dict[str, Any]) -> tuple[str | None, str | None]:
+    """Retorna (target_wa_message_id, emoji_ou_vazio)."""
+    react = inner.get("reactionMessage") or inner.get("ReactionMessage")
+    if not isinstance(react, dict):
+        return None, None
+    key = react.get("key") or react.get("Key") or {}
+    if not isinstance(key, dict):
+        return None, None
+    mid = key.get("id") or key.get("Id")
+    target_id = str(mid).strip() if mid else None
+    text = react.get("text") if "text" in react else react.get("Text")
+    emoji = "" if text is None else str(text)
+    return target_id or None, emoji
+
+
+def iter_inbound_revokes(webhook_body: dict[str, Any]) -> Iterator[dict[str, Any]]:
+    """
+    Apagar para todos (protocolMessage type REVOKE) em messages.upsert.
+
+    Yields: wa_id, target_wa_message_id
+    """
+    event = webhook_body.get("event") or webhook_body.get("Event") or ""
+    ev = str(event).lower()
+    if "messages" not in ev:
+        return
+    data = webhook_body.get("data") or webhook_body.get("Data")
+    for m in _iter_message_dicts(data):
+        key = m.get("key") or m.get("Key") or {}
+        if not isinstance(key, dict):
+            continue
+        rjid = key.get("remoteJid") or key.get("RemoteJid")
+        rjid_s = str(rjid) if rjid else ""
+        if "@g.us" in rjid_s:
+            continue
+        wa_id = _only_digits_jid(rjid_s)
+        if not wa_id:
+            continue
+        inner = m.get("message") or m.get("Message")
+        if not isinstance(inner, dict):
+            continue
+        proto = inner.get("protocolMessage") or inner.get("ProtocolMessage")
+        if not isinstance(proto, dict):
+            continue
+        ptype = str(proto.get("type") or proto.get("Type") or "").upper()
+        if ptype not in ("REVOKE", "14"):
+            continue
+        pkey = proto.get("key") or proto.get("Key") or {}
+        if not isinstance(pkey, dict):
+            continue
+        mid = pkey.get("id") or pkey.get("Id")
+        target = str(mid).strip() if mid else None
+        if not target:
+            continue
+        yield {"wa_id": wa_id, "target_wa_message_id": target}
+
+
+def iter_inbound_edits(webhook_body: dict[str, Any]) -> Iterator[dict[str, Any]]:
+    """
+    Edição de mensagem (editedMessage) em messages.upsert.
+
+    Yields: wa_id, target_wa_message_id, texto
+    """
+    event = webhook_body.get("event") or webhook_body.get("Event") or ""
+    ev = str(event).lower()
+    if "messages" not in ev and "edit" not in ev:
+        return
+    data = webhook_body.get("data") or webhook_body.get("Data")
+    for m in _iter_message_dicts(data):
+        key = m.get("key") or m.get("Key") or {}
+        if not isinstance(key, dict):
+            continue
+        rjid = key.get("remoteJid") or key.get("RemoteJid")
+        rjid_s = str(rjid) if rjid else ""
+        if "@g.us" in rjid_s:
+            continue
+        wa_id = _only_digits_jid(rjid_s)
+        if not wa_id:
+            continue
+        inner = m.get("message") or m.get("Message")
+        if not isinstance(inner, dict):
+            continue
+        edited = inner.get("editedMessage") or inner.get("EditedMessage")
+        if not isinstance(edited, dict):
+            continue
+        # editedMessage.message.{conversation|extendedTextMessage}
+        nested = edited.get("message") or edited.get("Message") or edited
+        if not isinstance(nested, dict):
+            continue
+        texto = _text_from_inner(nested)
+        if not texto:
+            continue
+        # alvo: key do envelope ou editedMessage.key
+        ekey = edited.get("key") or edited.get("Key") or key
+        if not isinstance(ekey, dict):
+            ekey = key
+        mid = ekey.get("id") or ekey.get("Id")
+        target = str(mid).strip() if mid else None
+        if not target:
+            continue
+        yield {"wa_id": wa_id, "target_wa_message_id": target, "texto": texto}
+
+
+def iter_inbound_reactions(webhook_body: dict[str, Any]) -> Iterator[dict[str, Any]]:
+    """
+    Reações (cliente ou eco fromMe) em messages.upsert com reactionMessage.
+
+    Yields:
+      wa_id, target_wa_message_id, emoji ('' = remover), from_me
+    """
+    event = webhook_body.get("event") or webhook_body.get("Event") or ""
+    ev = str(event).lower()
+    if "messages" not in ev:
+        return
+    data = webhook_body.get("data") or webhook_body.get("Data")
+    for m in _iter_message_dicts(data):
+        key = m.get("key") or m.get("Key") or {}
+        if not isinstance(key, dict):
+            continue
+        rjid = key.get("remoteJid") or key.get("RemoteJid")
+        rjid_s = str(rjid) if rjid else ""
+        if "@g.us" in rjid_s:
+            continue
+        wa_id = _only_digits_jid(rjid_s)
+        if not wa_id:
+            continue
+        inner = m.get("message") or m.get("Message")
+        if not isinstance(inner, dict):
+            continue
+        target_id, emoji = _reaction_payload_from_inner(inner)
+        if not target_id:
+            continue
+        from_me = bool(key.get("fromMe") or key.get("FromMe"))
+        yield {
+            "wa_id": wa_id,
+            "target_wa_message_id": target_id,
+            "emoji": emoji if emoji is not None else "",
+            "from_me": from_me,
+        }

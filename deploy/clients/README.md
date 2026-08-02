@@ -30,7 +30,7 @@ Na **raiz do repositório** (Linux/macOS/Git Bash no Windows):
 ```bash
 bash deploy/scripts/provision-client.sh \
   --slug duplexsoft \
-  --base-domain connect.duplexsoft.com.br \
+  --base-domain deskrudder.com.br \
   --api-port 8001
 ```
 
