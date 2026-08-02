@@ -219,6 +219,135 @@ def evolution_mark_messages_as_read(
     return False, f"HTTP {code}"
 
 
+def evolution_send_reaction(
+    base_url: str,
+    instance: str,
+    api_key: str,
+    *,
+    remote_jid: str,
+    from_me: bool,
+    message_id: str,
+    reaction: str,
+) -> tuple[bool, str | None]:
+    """POST /message/sendReaction/{instance} — reaction='' remove. Retorna (ok, err)."""
+    mid = (message_id or "").strip()
+    if not mid:
+        return False, "ID da mensagem inválido"
+    jid = remote_jid if "@" in (remote_jid or "") else f"{remote_jid}@s.whatsapp.net"
+    base = base_url.rstrip("/")
+    url = f"{base}/message/sendReaction/{instance}"
+    headers = {"apikey": api_key, "Content-Type": "application/json", "Accept": "application/json"}
+    body: dict[str, Any] = {
+        "key": {"remoteJid": jid, "fromMe": bool(from_me), "id": mid},
+        "reaction": reaction if reaction is not None else "",
+    }
+    code, _data, err = _request_json_with_retry("POST", url, headers=headers, body=body, timeout=30)
+    if code in (200, 201):
+        return True, None
+    if err:
+        return False, err[:800]
+    return False, f"HTTP {code}"
+
+
+def evolution_update_message(
+    base_url: str,
+    instance: str,
+    api_key: str,
+    *,
+    number_digits: str,
+    message_id: str,
+    text: str,
+    remote_jid: str | None = None,
+) -> tuple[bool, str | None]:
+    """POST /chat/updateMessage/{instance} — edita mensagem outbound (texto)."""
+    import re
+
+    digits = re.sub(r"\D", "", number_digits or "")
+    mid = (message_id or "").strip()
+    if not digits or not mid:
+        return False, "Número ou ID da mensagem inválido"
+    jid = remote_jid if remote_jid and "@" in remote_jid else f"{digits}@s.whatsapp.net"
+    base = base_url.rstrip("/")
+    url = f"{base}/chat/updateMessage/{instance}"
+    headers = {"apikey": api_key, "Content-Type": "application/json", "Accept": "application/json"}
+    body: dict[str, Any] = {
+        "number": digits,
+        "text": text,
+        "key": {"remoteJid": jid, "fromMe": True, "id": mid},
+    }
+    code, _data, err = _request_json_with_retry("POST", url, headers=headers, body=body, timeout=30)
+    if code in (200, 201):
+        return True, None
+    if err:
+        return False, err[:800]
+    return False, f"HTTP {code}"
+
+
+def evolution_delete_message_for_everyone(
+    base_url: str,
+    instance: str,
+    api_key: str,
+    *,
+    message_id: str,
+    remote_jid: str,
+    from_me: bool = True,
+) -> tuple[bool, str | None]:
+    """DELETE /chat/deleteMessageForEveryone/{instance}."""
+    mid = (message_id or "").strip()
+    if not mid:
+        return False, "ID da mensagem inválido"
+    jid = remote_jid if "@" in (remote_jid or "") else f"{remote_jid}@s.whatsapp.net"
+    base = base_url.rstrip("/")
+    url = f"{base}/chat/deleteMessageForEveryone/{instance}"
+    headers = {"apikey": api_key, "Content-Type": "application/json", "Accept": "application/json"}
+    body: dict[str, Any] = {"id": mid, "remoteJid": jid, "fromMe": bool(from_me)}
+    code, _data, err = _request_json_with_retry("DELETE", url, headers=headers, body=body, timeout=30)
+    if code in (200, 201):
+        return True, None
+    if err:
+        return False, err[:800]
+    return False, f"HTTP {code}"
+
+
+def evolution_fetch_profile_picture_url(
+    base_url: str,
+    instance: str,
+    api_key: str,
+    number_digits: str,
+) -> tuple[bool, str | None, str | None]:
+    """POST /chat/fetchProfilePictureUrl/{instance} → (ok, url | None, err)."""
+    import re
+
+    digits = re.sub(r"\D", "", number_digits or "")
+    if not digits:
+        return False, None, "Número inválido"
+    base = base_url.rstrip("/")
+    url = f"{base}/chat/fetchProfilePictureUrl/{instance}"
+    headers = {"apikey": api_key, "Content-Type": "application/json", "Accept": "application/json"}
+    body = {"number": digits}
+    code, data, err = _request_json_with_retry("POST", url, headers=headers, body=body, timeout=30)
+    if code not in (200, 201):
+        if err:
+            return False, None, err[:800]
+        return False, None, f"HTTP {code}"
+    profile_url: str | None = None
+    if isinstance(data, dict):
+        for key in ("profilePictureUrl", "profilePicUrl", "url", "picture"):
+            raw = data.get(key)
+            if isinstance(raw, str) and raw.strip().startswith(("http://", "https://")):
+                profile_url = raw.strip()
+                break
+        if profile_url is None:
+            nested = data.get("data")
+            if isinstance(nested, dict):
+                for key in ("profilePictureUrl", "profilePicUrl", "url", "picture"):
+                    raw = nested.get(key)
+                    if isinstance(raw, str) and raw.strip().startswith(("http://", "https://")):
+                        profile_url = raw.strip()
+                        break
+    return True, profile_url, None
+
+
 def evolution_send_text(
     base_url: str,
     instance: str,

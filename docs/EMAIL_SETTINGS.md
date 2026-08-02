@@ -53,7 +53,7 @@ Fluxo: caixa do cliente (`suporte@duplexsoft.com.br`) → **encaminhamento** →
 | 1 | Resend → Domains | Domínio **`notify.duplexsoft.com.br`** com **Enable Receiving** e MX **Verified** |
 | 2 | Painel Connect | **Empresa → E-mail** → **Atualizar lista** → copiar ex.: `suporte.t1@notify.duplexsoft.com.br` |
 | 3 | Outlook / M365 | Encaminhar `suporte@` para o endereço da tabela (não o antigo `@inbound...`) |
-| 4 | Resend → Webhooks | Evento **`email.received`**, URL `POST https://api.connect.duplexsoft.com.br/v1/webhooks/resend-inbound` |
+| 4 | Resend → Webhooks | Evento **`email.received`**, URL `POST https://api-{slug}.deskrudder.com.br/v1/webhooks/resend-inbound` |
 | 5 | VPS `backend/.env` | Ver variáveis abaixo + rebuild do container API |
 
 Variáveis no servidor:

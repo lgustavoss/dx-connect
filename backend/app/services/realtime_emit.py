@@ -285,10 +285,15 @@ def emit_chat_mensagem_from_models(
 ) -> None:
     from app.api.whatsapp_chats import _mensagem_read
 
+    # Flags de permissão são por visualizador — omitir no broadcast SSE
+    # para não sobrescrever pode_editar / pode_apagar no cliente do responsável.
+    payload = _mensagem_read(mensagem).model_dump(mode="json")
+    payload.pop("pode_editar", None)
+    payload.pop("pode_apagar_para_todos", None)
     emit_chat_mensagem(
         db,
         chat,
-        _mensagem_read(mensagem).model_dump(mode="json"),
+        payload,
         exclude_atendente_id=exclude_atendente_id,
     )
 

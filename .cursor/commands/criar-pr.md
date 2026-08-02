@@ -4,11 +4,14 @@ Finalize a feature, abra Pull Request para **`main`**, acompanhe o CI, aprove e 
 
 > **`main` é branch de testes** neste repo — após CI verde, merge automático é o comportamento padrão do `/criar-pr`.
 > Para **só abrir PR sem merge**, o usuário deve pedir explicitamente: `/criar-pr sem merge`.
+>
+> **Este comando NÃO serve para `staging`.** Release para produção = `/release-staging` (abre PR `main → staging` e **para**; o utilizador mergeia no GitHub). **Nunca** `gh pr merge` com base `staging`.
 
 ## Pré-requisitos
 
 - Feature implementada e revisada (`/revisar-e-testar` recomendado)
 - Branch **não** é `main` nem `staging`
+- Base do PR será **`main`** (nunca `staging`)
 - Testes passando localmente
 - `gh` autenticado (`gh auth status`)
 

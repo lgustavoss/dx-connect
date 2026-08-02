@@ -1,4 +1,5 @@
 # Nginx — um cliente (app + API em subdomínios distintos).
+# Padrão DeskRudder: {slug}.deskrudder.com.br + api-{slug}.deskrudder.com.br
 # Copiar para /etc/nginx/sites-available/dx-connect-CLIENT_SLUG e ativar.
 #
 # Pré-requisitos:
@@ -13,7 +14,7 @@ upstream dx_connect_api_CLIENT_SLUG {
 server {
     listen 80;
     listen [::]:80;
-    server_name api-CLIENT_SLUG.connect.BASE_DOMAIN;
+    server_name api-CLIENT_SLUG.BASE_DOMAIN;
 
     client_max_body_size 25M;
 
@@ -34,7 +35,7 @@ server {
 server {
     listen 80;
     listen [::]:80;
-    server_name CLIENT_SLUG.connect.BASE_DOMAIN;
+    server_name CLIENT_SLUG.BASE_DOMAIN;
 
     root FRONTEND_DIST;
     index index.html;

@@ -909,6 +909,8 @@ export namespace WhatsappChats {
     inatividade_pausada?: boolean
     inatividade_retomada_em?: string | null
     classificacao_demanda_pendente?: boolean
+    foto_perfil_url?: string | null
+    foto_perfil_atualizada_em?: string | null
   }
   export interface EmpresaOpcao {
     id: number
@@ -957,6 +959,13 @@ export namespace WhatsappChats {
     encerramento_at?: string | null
     sem_avaliacao: boolean
   }
+  export interface ReacaoMensagem {
+    emoji: string
+    count: number
+    reagiu_eu: boolean
+    atendente_ids?: number[]
+    tem_cliente?: boolean
+  }
   export interface Mensagem {
     id: number
     chat_id: number
@@ -973,6 +982,12 @@ export namespace WhatsappChats {
     atendente_nome?: string | null
     status_entrega?: 'pendente' | 'enviada' | 'entregue' | 'lida' | 'erro' | null
     created_at?: string | null
+    reacoes?: ReacaoMensagem[]
+    editada?: boolean
+    editada_em?: string | null
+    apagada?: boolean
+    pode_editar?: boolean
+    pode_apagar_para_todos?: boolean
   }
   export interface Demanda {
     id: number
@@ -1174,13 +1189,19 @@ export const whatsappChats = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
-  assumir: (id: number, data?: { empresa_id?: number | null }) => {
-    const qs =
-      data?.empresa_id != null && data.empresa_id !== undefined
-        ? `?empresa_id=${encodeURIComponent(String(data.empresa_id))}`
-        : ''
+  assumir: (id: number, data?: { empresa_id?: number | null; setor_id?: number | null }) => {
+    const params = new URLSearchParams()
+    if (data?.empresa_id != null && data.empresa_id !== undefined) {
+      params.set('empresa_id', String(data.empresa_id))
+    }
+    if (data?.setor_id != null && data.setor_id !== undefined) {
+      params.set('setor_id', String(data.setor_id))
+    }
+    const qs = params.toString() ? `?${params.toString()}` : ''
     return api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/assumir${qs}`, { method: 'POST' })
   },
+  atualizarFotoPerfil: (id: number) =>
+    api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/foto-perfil`, { method: 'POST' }),
   definirEmpresaContexto: (id: number, empresa_id: number) =>
     api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/empresa-contexto`, {
       method: 'POST',
@@ -1198,6 +1219,24 @@ export const whatsappChats = {
     api<WhatsappChats.Mensagem>(`/whatsapp/chats/${id}/comentarios-internos`, {
       method: 'POST',
       body: JSON.stringify({ texto }),
+    }),
+  definirReacao: (chatId: number, mensagemId: number, emoji: string) =>
+    api<WhatsappChats.Mensagem>(`/whatsapp/chats/${chatId}/mensagens/${mensagemId}/reacoes`, {
+      method: 'PUT',
+      body: JSON.stringify({ emoji }),
+    }),
+  removerReacao: (chatId: number, mensagemId: number) =>
+    api<WhatsappChats.Mensagem>(`/whatsapp/chats/${chatId}/mensagens/${mensagemId}/reacoes`, {
+      method: 'DELETE',
+    }),
+  editarMensagem: (chatId: number, mensagemId: number, texto: string) =>
+    api<WhatsappChats.Mensagem>(`/whatsapp/chats/${chatId}/mensagens/${mensagemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ texto }),
+    }),
+  apagarMensagem: (chatId: number, mensagemId: number) =>
+    api<WhatsappChats.Mensagem>(`/whatsapp/chats/${chatId}/mensagens/${mensagemId}`, {
+      method: 'DELETE',
     }),
   marcarVisto: (id: number) => api<void>(`/whatsapp/chats/${id}/visto`, { method: 'POST' }),
   pausarInatividade: (id: number) =>

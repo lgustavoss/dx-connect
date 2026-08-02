@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Link, useMatch } from 'react-router-dom'
 import { portalChats, whatsappChats } from '../../api/client'
 import { ChatCanalBadge } from '../../components/chat/ChatCanalBadge'
+import { WhatsappAvatar } from '../../components/chat/WhatsappAvatar'
 import { useAuth } from '../../contexts/AuthContext'
 import { useChatHub } from '../../contexts/ChatHubContext'
 import { useEventStream } from '../../contexts/EventStreamContext'
@@ -64,13 +65,13 @@ function ChatAtendendoItem({
           variant === 'outro' ? 'border-l-2 border-slate-300 pl-[10px] dark:border-slate-600' : ''
         }`}
       >
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+        <WhatsappAvatar
+          nome={item.nome}
+          fotoUrl={item.canal === 'whatsapp' ? item.foto_perfil_url : null}
+          fallbackClassName={
             ativo ? 'bg-cyan-600 text-white' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-200'
-          }`}
-        >
-          {item.nome.charAt(0)?.toUpperCase() || '?'}
-        </div>
+          }
+        />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-1.5">

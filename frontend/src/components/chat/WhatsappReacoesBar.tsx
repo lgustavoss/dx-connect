@@ -1,0 +1,81 @@
+import type { WhatsappChats } from '../../api/client'
+import { EMOJIS_REACAO_CHAT_INTERNO } from '../../lib/chatInternoReacoes'
+
+type Props = {
+  reacoes: WhatsappChats.ReacaoMensagem[]
+  onReagir?: (emoji: string) => void
+  /** false = só chips (cliente reagiu; atendente sem permissão) */
+  podeReagir?: boolean
+  alinhamento?: 'start' | 'end'
+}
+
+/** Reações no chat WhatsApp com o cliente (#630 lote 2). */
+export function WhatsappReacoesBar({
+  reacoes,
+  onReagir,
+  podeReagir = false,
+  alinhamento = 'end',
+}: Props) {
+  const temReacoes = reacoes.length > 0
+  const alignEnd = alinhamento === 'end'
+
+  return (
+    <>
+      {podeReagir && onReagir ? (
+        <div
+          className={`pointer-events-none absolute top-full z-20 flex flex-col ${
+            alignEnd ? 'right-0 items-end' : 'left-0 items-start'
+          }`}
+        >
+          <div
+            className="h-2 w-full min-w-[10rem] group-hover:pointer-events-auto group-focus-within:pointer-events-auto"
+            aria-hidden
+          />
+          <div className="opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+            <div className="flex items-center gap-0.5 rounded-full border border-slate-200 bg-white px-1 py-0.5 shadow-md dark:border-slate-600 dark:bg-slate-800">
+              {EMOJIS_REACAO_CHAT_INTERNO.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => onReagir(emoji)}
+                  className="rounded-full px-1.5 py-0.5 text-base leading-none hover:bg-slate-100 dark:hover:bg-slate-700"
+                  aria-label={`Reagir com ${emoji}`}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {temReacoes ? (
+        <div
+          className={`relative z-[1] mt-1 flex flex-wrap gap-1 ${
+            alignEnd ? 'justify-end' : 'justify-start'
+          }`}
+        >
+          {reacoes.map((r) => (
+            <button
+              key={r.emoji}
+              type="button"
+              disabled={!podeReagir || !onReagir}
+              onClick={() => onReagir?.(r.emoji)}
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] shadow-sm transition ${
+                r.reagiu_eu
+                  ? 'border-cyan-400/60 bg-white text-slate-800 dark:bg-slate-800 dark:text-slate-100'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:hover:bg-white dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'
+              } ${!podeReagir ? 'cursor-default' : ''}`}
+              title={
+                r.reagiu_eu ? 'Remover sua reação' : podeReagir ? 'Reagir' : r.tem_cliente ? 'Cliente' : 'Reação'
+              }
+            >
+              <span>{r.emoji}</span>
+              <span className="font-medium tabular-nums">{r.count}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </>
+  )
+}

@@ -10,8 +10,10 @@ BASE_DOMAIN=""
 API_PORT=""
 
 usage() {
-  echo "Uso: $0 --slug <slug> --base-domain <connect.example.com> --api-port <porta>"
-  echo "Ex.: $0 --slug duplexsoft --base-domain connect.duplexsoft.com.br --api-port 8001"
+  echo "Uso: $0 --slug <slug> --base-domain <deskrudder.com.br> --api-port <porta>"
+  echo "Ex.: $0 --slug cliente01 --base-domain deskrudder.com.br --api-port 8001"
+  echo "  App:  https://cliente01.deskrudder.com.br"
+  echo "  API:  https://api-cliente01.deskrudder.com.br"
   exit 1
 }
 
@@ -90,7 +92,7 @@ sed -e "s/^CLIENT_SLUG=.*/CLIENT_SLUG=$SLUG/" \
     -e "s/^CONNECT_APP_BASE_DOMAIN=.*/CONNECT_APP_BASE_DOMAIN=$BASE_DOMAIN/" \
     -e "s/^SEED_ADMIN_PASSWORD=.*/SEED_ADMIN_PASSWORD=$ADMIN_PASS/" \
     -e "s/exemplo/${SLUG}/g" \
-    -e "s/connect\.duplexsoft\.com\.br/${BASE_DOMAIN}/g" \
+    -e "s/deskrudder\.com\.br/${BASE_DOMAIN}/g" \
     "$TEMPLATE/client.env.example" >"$DEST/client.env"
 
 substitute "$TEMPLATE/nginx.site.conf.example" "$DEST/nginx.site.conf"

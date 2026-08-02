@@ -1,24 +1,17 @@
-import { useCallback, useEffect, useState, useRef, type MouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef, type MouseEvent } from 'react'
 
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import {
-
-
+  ApiError,
   atendentes,
   tickets,
   whatsappChats,
-
   fetchWhatsAppMidiaBlob,
-
-
   type Setores,
-
   type Atendentes,
-
   type Tickets,
   type WhatsappChats,
-
 } from '../../api/client'
 
 import { resolveWhatsappMidiaObjectUrl, revokeWhatsappMidiaForChat } from '../../lib/whatsappMidiaCache'
@@ -35,6 +28,11 @@ import {
   scrollWhatsappToBottom,
 } from '../../lib/whatsappScrollMemory'
 import { MensagemRodapeMeta } from '../../components/chat/MensagemRodapeMeta'
+import { AssumirWhatsappSetorModal } from '../../components/chat/AssumirWhatsappSetorModal'
+import { WhatsappAvatar } from '../../components/chat/WhatsappAvatar'
+import { WhatsappMensagemAcoes } from '../../components/chat/WhatsappMensagemAcoes'
+import { WhatsappReacoesBar } from '../../components/chat/WhatsappReacoesBar'
+import { precisaEscolherSetorAoAssumir } from '../../lib/assumirWhatsappSetor'
 
 import { Card } from '../../components/ui/Card'
 import { TEXTAREA_FIELD_CLASS } from '../../components/ui/Input'
@@ -70,6 +68,8 @@ import { useWhatsappVoltarLista } from '../../hooks/useWhatsappVoltarLista'
 import { whatsappConversaLink, resolveWhatsappListFallback, WHATSAPP_LIST_PATHS } from '../../lib/whatsappListReturn'
 import { useChatHub } from '../../contexts/ChatHubContext'
 import { ChatFilaAguardandoSheet } from '../../components/chat/ChatFilaAguardandoSheet'
+import { ChatFilaSomToggle } from '../../components/chat/ChatFilaSomToggle'
+import { chatWhatsappLink } from '../../lib/chatHubPaths'
 import { WhatsappInatividadeControle } from './WhatsappInatividadeControle'
 import { mergeTimelineChat, textoMarcoDemanda } from '../../lib/whatsappDemandaUtils'
 import { rotuloDownloadArquivo, visualTipoArquivo } from '../../lib/fileTypeIcon'
@@ -83,6 +83,20 @@ function legendaMidiaVisivel(corpo: string | null | undefined): string | null {
   const t = (corpo || '').trim()
   if (!t || ROTULO_SEM_LEGENDA.test(t)) return null
   return t
+}
+
+function normalizarReacoesMensagem(
+  msg: WhatsappChats.Mensagem,
+  viewerId?: number | null,
+): WhatsappChats.Mensagem {
+  if (!msg.reacoes?.length || viewerId == null) return msg
+  return {
+    ...msg,
+    reacoes: msg.reacoes.map((r) => ({
+      ...r,
+      reagiu_eu: Boolean(r.reagiu_eu || r.atendente_ids?.includes(viewerId)),
+    })),
+  }
 }
 
 
@@ -111,7 +125,15 @@ function TextoComLinks({ texto }: { texto: string }) {
   )
 }
 
-function ConteudoMensagemWhatsApp({ chatId, m, onImageClick }: { chatId: number; m: WhatsappChats.Mensagem; onImageClick: (url: string, caption: string | null) => void }) {
+function ConteudoMensagemWhatsApp({
+  chatId,
+  m,
+  onImageClick,
+}: {
+  chatId: number
+  m: WhatsappChats.Mensagem
+  onImageClick: (msgId: number) => void
+}) {
 
   const tipo = (m.tipo_midia || 'texto').toLowerCase()
 
@@ -125,7 +147,7 @@ function ConteudoMensagemWhatsApp({ chatId, m, onImageClick }: { chatId: number;
 
   useEffect(() => {
 
-    if (!m.midia_disponivel || tipo === 'texto') {
+    if (m.apagada || !m.midia_disponivel || tipo === 'texto') {
 
       setUrl(null)
 
@@ -159,9 +181,13 @@ function ConteudoMensagemWhatsApp({ chatId, m, onImageClick }: { chatId: number;
 
     }
 
-  }, [chatId, m.id, m.midia_disponivel, tipo])
+  }, [chatId, m.id, m.midia_disponivel, m.apagada, tipo])
 
 
+
+  if (m.apagada) {
+    return <p className="text-sm italic opacity-70">Mensagem apagada</p>
+  }
 
   const legenda = legendaMidiaVisivel(m.corpo)
 
@@ -188,7 +214,7 @@ function ConteudoMensagemWhatsApp({ chatId, m, onImageClick }: { chatId: number;
           src={url}
           alt=""
           className={`${mediaClass} cursor-zoom-in transition-transform duration-200 hover:scale-[1.02]`}
-          onClick={() => onImageClick(url, legenda)}
+          onClick={() => onImageClick(m.id)}
         />
         {legenda ? <TextoComLinks texto={legenda} /> : null}
       </div>
@@ -223,6 +249,141 @@ function ConteudoMensagemWhatsApp({ chatId, m, onImageClick }: { chatId: number;
 }
 
 
+
+/** Lightbox com galeria só de imagens (#629). */
+function WhatsappZoomLightbox({
+  chatId,
+  msgs,
+  zoomMsgId,
+  onClose,
+  onChangeMsgId,
+}: {
+  chatId: number
+  msgs: WhatsappChats.Mensagem[]
+  zoomMsgId: number
+  onClose: () => void
+  onChangeMsgId: (msgId: number) => void
+}) {
+  const galeria = useMemo(
+    () =>
+      msgs.filter(
+        (m) => (m.tipo_midia || '').toLowerCase() === 'imagem' && m.midia_disponivel,
+      ),
+    [msgs],
+  )
+  const index = galeria.findIndex((m) => m.id === zoomMsgId)
+  const msgAtiva = msgs.find((m) => m.id === zoomMsgId) || null
+  const caption = msgAtiva ? legendaMidiaVisivel(msgAtiva.corpo) : null
+  const [url, setUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setUrl(null)
+    void resolveWhatsappMidiaObjectUrl(chatId, zoomMsgId, () => fetchWhatsAppMidiaBlob(chatId, zoomMsgId))
+      .then((u) => {
+        if (!cancelled) setUrl(u)
+      })
+      .catch(() => {
+        if (!cancelled) setUrl(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [chatId, zoomMsgId])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+      if (index < 0 || galeria.length <= 1) return
+      e.preventDefault()
+      e.stopPropagation()
+      if (e.key === 'ArrowLeft' && index > 0) onChangeMsgId(galeria[index - 1].id)
+      if (e.key === 'ArrowRight' && index < galeria.length - 1) onChangeMsgId(galeria[index + 1].id)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [galeria, index, onChangeMsgId])
+
+  const podePrev = index > 0
+  const podeNext = index >= 0 && index < galeria.length - 1
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/90 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <button
+        type="button"
+        className="absolute top-4 right-4 flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-white/10 text-3xl font-bold text-white transition-colors touch-manipulation hover:bg-white/20"
+        onClick={onClose}
+        aria-label="Fechar"
+      >
+        &times;
+      </button>
+      {index >= 0 && galeria.length > 1 && (
+        <p className="absolute top-5 left-1/2 -translate-x-1/2 text-sm font-medium text-white/80">
+          {index + 1} / {galeria.length}
+        </p>
+      )}
+      {podePrev && (
+        <button
+          type="button"
+          className="absolute left-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-2xl text-white hover:bg-white/20 sm:left-6"
+          onClick={(e) => {
+            e.stopPropagation()
+            onChangeMsgId(galeria[index - 1].id)
+          }}
+          aria-label="Imagem anterior"
+        >
+          ‹
+        </button>
+      )}
+      {podeNext && (
+        <button
+          type="button"
+          className="absolute right-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-2xl text-white hover:bg-white/20 sm:right-6"
+          onClick={(e) => {
+            e.stopPropagation()
+            onChangeMsgId(galeria[index + 1].id)
+          }}
+          aria-label="Próxima imagem"
+        >
+          ›
+        </button>
+      )}
+      {loading || !url ? (
+        <p className="text-sm text-white/70 animate-pulse">Carregando imagem…</p>
+      ) : (
+        <img
+          src={url}
+          alt=""
+          className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl animate-in zoom-in-95 duration-200"
+          onClick={(e) => e.stopPropagation()}
+        />
+      )}
+      {caption && (
+        <p className="mt-4 max-w-2xl rounded-xl bg-black/40 px-4 py-2 text-center text-sm text-white backdrop-blur-md">
+          {caption}
+        </p>
+      )}
+      {url && (
+        <a
+          href={url}
+          download="whatsapp-imagem.jpg"
+          className="absolute bottom-4 right-4 flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-cyan-600/30 transition-all hover:scale-105 hover:bg-cyan-700"
+          onClick={(e) => e.stopPropagation()}
+        >
+          📥 Baixar Imagem
+        </a>
+      )}
+    </div>
+  )
+}
 
 // --- Componente Principal ---
 
@@ -284,9 +445,9 @@ export function WhatsappConversa() {
   // Estados de WhatsApp Clone (Citação e Zoom)
   const [msgRespondida, setMsgRespondida] = useState<WhatsappChats.Mensagem | null>(null)
   const [focoComposerEm, setFocoComposerEm] = useState(0)
-  const [activeZoomImage, setActiveZoomImage] = useState<string | null>(null)
-  const [activeZoomImageCaption, setActiveZoomImageCaption] = useState<string | null>(null)
+  const [zoomMsgId, setZoomMsgId] = useState<number | null>(null)
   const [modoInterno, setModoInterno] = useState(false)
+  const [modalAssumirSetor, setModalAssumirSetor] = useState(false)
 
   // Transferência
   const [modalTransferir, setModalTransferir] = useState(false)
@@ -312,7 +473,8 @@ export function WhatsappConversa() {
   const [menuMobileAberto, setMenuMobileAberto] = useState(false)
   const menuMobileRef = useRef<HTMLDivElement>(null)
   const [filaAguardandoAberta, setFilaAguardandoAberta] = useState(false)
-  const { filaCount } = useChatHub()
+  const [assumindo, setAssumindo] = useState(false)
+  const { filaCount, refreshContagens } = useChatHub()
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
@@ -328,11 +490,10 @@ export function WhatsappConversa() {
       if (e.key !== 'Escape' || e.defaultPrevented || modalEncerrar) return
       const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase()
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return
-      if (activeZoomImage) {
+      if (zoomMsgId != null) {
         e.preventDefault()
         e.stopPropagation()
-        setActiveZoomImage(null)
-        setActiveZoomImageCaption(null)
+        setZoomMsgId(null)
         return
       }
       if (arquivoPendente) {
@@ -345,7 +506,7 @@ export function WhatsappConversa() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [voltarLista, modalEncerrar, activeZoomImage, arquivoPendente])
+  }, [voltarLista, modalEncerrar, zoomMsgId, arquivoPendente])
 
   useEffect(() => {
     if (!menuMobileAberto) return
@@ -578,20 +739,36 @@ export function WhatsappConversa() {
     const chatId = Number(id)
     const unsubMsg = subscribe('chat.mensagem', (payload) => {
       if (Number(payload.chat_id) !== chatId) return
-      const msg = payload.mensagem as WhatsappChats.Mensagem | undefined
-      if (!msg) return
+      const msg = normalizarReacoesMensagem(
+        payload.mensagem as WhatsappChats.Mensagem,
+        userIdRef.current,
+      )
+      if (!msg?.id) return
       setMsgs((prev) => {
+        const mergeMsg = (prevRow: WhatsappChats.Mensagem, incoming: WhatsappChats.Mensagem) => {
+          const merged = { ...prevRow, ...incoming }
+          // SSE omite flags por visualizador; preservar as já conhecidas
+          if (incoming.pode_editar === undefined) merged.pode_editar = prevRow.pode_editar
+          if (incoming.pode_apagar_para_todos === undefined) {
+            merged.pode_apagar_para_todos = prevRow.pode_apagar_para_todos
+          }
+          if (merged.apagada) {
+            merged.pode_editar = false
+            merged.pode_apagar_para_todos = false
+          }
+          return merged
+        }
         const idx = prev.findIndex((m) => m.id === msg.id)
         if (idx >= 0) {
           const next = [...prev]
-          next[idx] = { ...next[idx], ...msg }
+          next[idx] = mergeMsg(next[idx], msg)
           return next
         }
         if (msg.wa_message_id && prev.some((m) => m.wa_message_id === msg.wa_message_id)) {
           const widx = prev.findIndex((m) => m.wa_message_id === msg.wa_message_id)
           if (widx >= 0) {
             const next = [...prev]
-            next[widx] = { ...next[widx], ...msg }
+            next[widx] = mergeMsg(next[widx], msg)
             return next
           }
         }
@@ -836,7 +1013,7 @@ useEffect(() => {
   }
 
   async function confirmarEnvioMidia() {
-    if (!arquivoPendente || !chat || !podeEnviar) return
+    if (!arquivoPendente || !chat || !podeEnviar || enviando) return
     setEnviando(true)
     try {
       await whatsappChats.enviarMidia(
@@ -856,6 +1033,40 @@ useEffect(() => {
     } finally {
       setEnviando(false)
     }
+  }
+
+  async function executarAssumirChat(setorId?: number) {
+    if (!chat || chat.estado !== 'aguardando_atendente' || assumindo) return
+    setAssumindo(true)
+    try {
+      const atualizado = await whatsappChats.assumir(
+        chat.id,
+        setorId != null ? { setor_id: setorId } : undefined,
+      )
+      setChat((prev) => mergeWhatsappChat(prev, atualizado))
+      setModalAssumirSetor(false)
+      void refreshContagens()
+      void refetchPendenciasResumo()
+      toast.showSuccess('Chat assumido.')
+      navigate(chatWhatsappLink(chat.id, 'atendendo'), { replace: true })
+    } catch (err) {
+      const msg =
+        err instanceof ApiError && err.status === 400
+          ? (err.body as { detail?: string })?.detail || 'Erro ao assumir.'
+          : mensagemFalhaParaToast(err)
+      toast.showWarning(msg)
+    } finally {
+      setAssumindo(false)
+    }
+  }
+
+  function assumirChat() {
+    if (!chat || chat.estado !== 'aguardando_atendente' || assumindo) return
+    if (precisaEscolherSetorAoAssumir(user, Boolean(chat.setor_id || chat.setor_nome))) {
+      setModalAssumirSetor(true)
+      return
+    }
+    void executarAssumirChat()
   }
 
   async function enviarFigurinha(file: File) {
@@ -934,6 +1145,52 @@ useEffect(() => {
     isResponsavel &&
     !encerrado &&
     !chat?.classificacao_demanda_pendente
+
+  const podeReagir = Boolean(podeEnviar)
+
+  async function reagirMensagem(m: WhatsappChats.Mensagem, emoji: string) {
+    if (!chat || !podeReagir || m.evento_sistema || m.apagada) return
+    try {
+      const atualizada = await whatsappChats.definirReacao(chat.id, m.id, emoji)
+      setMsgs((prev) =>
+        prev.map((row) =>
+          row.id === atualizada.id ? normalizarReacoesMensagem(atualizada, user?.id) : row,
+        ),
+      )
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Falha ao reagir'))
+    }
+  }
+
+  async function editarMensagemWhatsapp(m: WhatsappChats.Mensagem, texto: string) {
+    if (!chat) return
+    try {
+      const atualizada = await whatsappChats.editarMensagem(chat.id, m.id, texto)
+      setMsgs((prev) =>
+        prev.map((row) =>
+          row.id === atualizada.id ? normalizarReacoesMensagem(atualizada, user?.id) : row,
+        ),
+      )
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Falha ao editar mensagem'))
+      throw err
+    }
+  }
+
+  async function apagarMensagemWhatsapp(m: WhatsappChats.Mensagem) {
+    if (!chat) return
+    try {
+      const atualizada = await whatsappChats.apagarMensagem(chat.id, m.id)
+      setMsgs((prev) =>
+        prev.map((row) =>
+          row.id === atualizada.id ? normalizarReacoesMensagem(atualizada, user?.id) : row,
+        ),
+      )
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Falha ao apagar mensagem'))
+      throw err
+    }
+  }
 
   const podeEncerrar = !encerrado && chat?.estado === 'em_atendimento' && (isResponsavel || isAdmin)
 
@@ -1033,13 +1290,16 @@ useEffect(() => {
 
             >
 
-              <div className={`h-8 w-8 shrink-0 rounded-full flex items-center justify-center text-xs font-bold shadow-sm
-
-                ${c.id === id ? 'bg-cyan-600 text-white' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-
-                {c.cliente_nome?.charAt(0) || '?'}
-
-              </div>
+              <WhatsappAvatar
+                nome={c.cliente_nome}
+                fotoUrl={c.foto_perfil_url}
+                className="h-8 w-8 text-xs shadow-sm"
+                fallbackClassName={
+                  c.id === id
+                    ? 'bg-cyan-600 text-white'
+                    : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                }
+              />
 
               {sidebarAberta && (
 
@@ -1108,6 +1368,12 @@ useEffect(() => {
               <span className="hidden sm:inline"> Voltar</span>
             </Button>
 
+            <WhatsappAvatar
+              nome={chat?.cliente_nome}
+              fotoUrl={chat?.foto_perfil_url}
+              className="h-9 w-9 text-sm"
+              fallbackClassName="bg-cyan-100 text-cyan-800 dark:bg-cyan-950/50 dark:text-cyan-200"
+            />
             <div className="min-w-0 flex-1">
               <h1 className="truncate font-bold text-slate-900 dark:text-white">
                 {chat?.cliente_nome || 'Atendimento'}
@@ -1117,19 +1383,34 @@ useEffect(() => {
             <div className="flex shrink-0 items-center gap-1 sm:gap-2">
 
               {modoHub && (
+                <div className="flex items-center gap-0.5 md:hidden">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="relative h-8 shrink-0 px-2.5 text-xs font-semibold"
+                    onClick={() => setFilaAguardandoAberta(true)}
+                    aria-label={filaCount > 0 ? `Aguardando, ${filaCount} na fila` : 'Aguardando'}
+                  >
+                    Aguardando
+                    {filaCount > 0 && (
+                      <span className="ml-1 inline-flex min-w-[1rem] justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-4 text-white">
+                        {filaCount > 99 ? '99+' : filaCount}
+                      </span>
+                    )}
+                  </Button>
+                  <ChatFilaSomToggle />
+                </div>
+              )}
+
+              {chat?.estado === 'aguardando_atendente' && (
                 <Button
                   type="button"
-                  variant="secondary"
-                  className="relative h-8 shrink-0 px-2.5 text-xs font-semibold md:hidden"
-                  onClick={() => setFilaAguardandoAberta(true)}
-                  aria-label={filaCount > 0 ? `Aguardando, ${filaCount} na fila` : 'Aguardando'}
+                  variant="primary"
+                  className="h-8 shrink-0 px-3 text-xs font-semibold"
+                  loading={assumindo}
+                  onClick={() => void assumirChat()}
                 >
-                  Aguardando
-                  {filaCount > 0 && (
-                    <span className="ml-1 inline-flex min-w-[1rem] justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-4 text-white">
-                      {filaCount > 99 ? '99+' : filaCount}
-                    </span>
-                  )}
+                  Atender
                 </Button>
               )}
 
@@ -1287,21 +1568,15 @@ useEffect(() => {
                   {chat.funcionario_nome}
                   {chat.funcionario_tipo ? ` · ${chat.funcionario_tipo}` : ''}
                 </Link>
-                {chat.empresa_nome ? (
-                  podeDefinirEmpresa && (chat.empresas_opcoes?.length ?? 0) > 1 ? (
-                    <button
-                      type="button"
-                      onClick={abrirModalEmpresaContexto}
-                      className="inline-flex max-w-full truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-700 transition-colors hover:border-cyan-400 hover:text-cyan-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
-                      title="Alterar empresa do atendimento"
-                    >
-                      {chat.empresa_nome}
-                    </button>
-                  ) : (
-                    <span className="inline-flex max-w-full truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
-                      {chat.empresa_nome}
-                    </span>
-                  )
+                {chat.empresa_nome && chat.empresa_id ? (
+                  <Link
+                    to={`/empresas/${chat.empresa_id}`}
+                    state={{ voltarPara: `${location.pathname}${location.search}` }}
+                    className="inline-flex max-w-full truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-700 transition-colors hover:border-cyan-400 hover:text-cyan-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-cyan-600 dark:hover:text-cyan-300"
+                    title="Ver detalhe da empresa"
+                  >
+                    {chat.empresa_nome}
+                  </Link>
                 ) : podeDefinirEmpresa ? (
                   <button
                     type="button"
@@ -1451,7 +1726,7 @@ useEffect(() => {
                 onDoubleClick={(e) => duploCliqueResponder(e, m, isSystem)}
                 className={`flex w-full group cursor-default items-center gap-2 transition-all ${isInbound ? 'justify-start' : 'justify-end'}`}
               >
-                {!isInbound && !isSystem && (
+                {!isInbound && !isSystem && !m.apagada && (
                   <button
                     onClick={() => iniciarResposta(m)}
                     className="opacity-25 group-hover:opacity-100 md:opacity-0 transition-opacity p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer shrink-0"
@@ -1461,7 +1736,9 @@ useEffect(() => {
                   </button>
                 )}
 
-                <div className={`max-w-[85%] sm:max-w-[70%] space-y-1 ${isInbound ? 'items-start' : 'items-end'}`}>
+                <div
+                  className={`relative max-w-[85%] space-y-1 sm:max-w-[70%] ${isInbound ? 'items-start' : 'items-end'}`}
+                >
 
                   {isSystem && (
                     <span className="text-[9px] font-bold uppercase px-2 text-amber-600">
@@ -1469,7 +1746,14 @@ useEffect(() => {
                     </span>
                   )}
 
-                 
+                  {!isSystem && !isInbound && (
+                    <WhatsappMensagemAcoes
+                      mensagem={m}
+                      onEditar={(texto) => editarMensagemWhatsapp(m, texto)}
+                      onApagar={() => apagarMensagemWhatsapp(m)}
+                      alinhamento="end"
+                    />
+                  )}
 
                   <div className={`
 
@@ -1483,7 +1767,7 @@ useEffect(() => {
 
                   `}>
 
-                    {m.quoted_wa_message_id && (
+                    {m.quoted_wa_message_id && !m.apagada && (
                       <div 
                         onClick={() => {
                           const el = document.getElementById(`msg-${m.quoted_wa_message_id}`);
@@ -1507,10 +1791,11 @@ useEffect(() => {
                       </div>
                     )}
 
-                    <ConteudoMensagemWhatsApp chatId={id} m={m} onImageClick={(url, caption) => {
-                      setActiveZoomImage(url)
-                      setActiveZoomImageCaption(caption)
-                    }} />
+                    <ConteudoMensagemWhatsApp
+                      chatId={id}
+                      m={m}
+                      onImageClick={(msgId) => setZoomMsgId(msgId)}
+                    />
 
                     {!isSystem && (
                       <MensagemRodapeMeta
@@ -1519,15 +1804,25 @@ useEffect(() => {
                         direcao={m.direcao}
                         eventoSistema={m.evento_sistema}
                         variant={isInbound ? 'escuro' : 'claro'}
+                        editada={m.editada}
                         className={isInbound ? 'text-slate-400' : ''}
                       />
                     )}
 
                   </div>
 
+                  {!isSystem && !m.apagada && (
+                    <WhatsappReacoesBar
+                      reacoes={m.reacoes || []}
+                      podeReagir={podeReagir}
+                      onReagir={podeReagir ? (emoji) => void reagirMensagem(m, emoji) : undefined}
+                      alinhamento={isInbound ? 'start' : 'end'}
+                    />
+                  )}
+
                 </div>
 
-                {isInbound && !isSystem && (
+                {isInbound && !isSystem && !m.apagada && (
                   <button
                     onClick={() => iniciarResposta(m)}
                     className="opacity-25 group-hover:opacity-100 md:opacity-0 transition-opacity p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer shrink-0"
@@ -1583,7 +1878,16 @@ useEffect(() => {
           )}
 
           {arquivoPendente && (
-            <div className="mb-2 rounded-xl border border-cyan-200 bg-cyan-50/80 p-3 dark:border-cyan-900/40 dark:bg-cyan-950/20">
+            <div
+              className="mb-2 rounded-xl border border-cyan-200 bg-cyan-50/80 p-3 dark:border-cyan-900/40 dark:bg-cyan-950/20"
+              tabIndex={arquivoPendente.type.startsWith('audio/') ? 0 : undefined}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && !enviando && podeEnviar) {
+                  e.preventDefault()
+                  void confirmarEnvioMidia()
+                }
+              }}
+            >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold text-cyan-800 dark:text-cyan-300">Anexo selecionado</p>
@@ -1607,6 +1911,12 @@ useEffect(() => {
                   type="text"
                   value={legendaMidia}
                   onChange={(e) => setLegendaMidia(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      if (!enviando && podeEnviar) void confirmarEnvioMidia()
+                    }
+                  }}
                   placeholder="Legenda opcional (visível no WhatsApp)"
                   className={`mt-2 ${TEXTAREA_FIELD_CLASS}`}
                   autoFocus
@@ -1816,45 +2126,23 @@ useEffect(() => {
         />
       )}
 
-      {/* Modal Zoom de Imagem */}
-      {activeZoomImage && (
-        <div 
-          className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200"
-          onClick={() => {
-            setActiveZoomImage(null)
-            setActiveZoomImageCaption(null)
-          }}
-        >
-          <button 
-            className="absolute top-4 right-4 text-white text-3xl font-bold bg-white/10 hover:bg-white/20 w-12 h-12 rounded-full flex items-center justify-center transition-colors touch-manipulation cursor-pointer"
-            onClick={() => {
-              setActiveZoomImage(null)
-              setActiveZoomImageCaption(null)
-            }}
-          >
-            &times;
-          </button>
-          <img 
-            src={activeZoomImage} 
-            alt="" 
-            className="max-h-[85vh] max-w-full rounded-lg shadow-2xl object-contain animate-in zoom-in-95 duration-200" 
-            onClick={(e) => e.stopPropagation()} 
-          />
-          {activeZoomImageCaption && (
-            <p className="mt-4 text-white text-sm max-w-2xl text-center bg-black/40 px-4 py-2 rounded-xl backdrop-blur-md">
-              {activeZoomImageCaption}
-            </p>
-          )}
-          <a 
-            href={activeZoomImage} 
-            download="whatsapp-imagem.jpg" 
-            className="absolute bottom-4 right-4 bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-lg shadow-cyan-600/30 transition-all hover:scale-105" 
-            onClick={(e) => e.stopPropagation()}
-          >
-            📥 Baixar Imagem
-          </a>
-        </div>
+      {zoomMsgId != null && (
+        <WhatsappZoomLightbox
+          chatId={id}
+          msgs={msgs}
+          zoomMsgId={zoomMsgId}
+          onClose={() => setZoomMsgId(null)}
+          onChangeMsgId={setZoomMsgId}
+        />
       )}
+
+      <AssumirWhatsappSetorModal
+        open={modalAssumirSetor}
+        setorIds={user?.setor_ids || []}
+        loading={assumindo}
+        onClose={() => setModalAssumirSetor(false)}
+        onConfirm={(setorId) => void executarAssumirChat(setorId)}
+      />
 
       {modoHub && (
         <ChatFilaAguardandoSheet
