@@ -15,6 +15,9 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Melhorias
 
+- Dashboard (#599): filtros de período Hoje | Esta semana (seg–dom) | Este mês | Mês passado | Personalizado no geral, tickets e WhatsApp (substitui 7/30/90); CSAT do geral respeita o intervalo
+- WhatsApp (#594): análise de demandas no dashboard — drill-down por natureza/motivo, ranking por empresa, insights (erro → atualização; dúvida → treinamento) e sugestão de novo motivo a partir de «Outros» repetido
+- Rede e Empresa (#595): aba Análises com tickets + demandas WhatsApp no período, insights e ranking (reutiliza #594/#599)
 - WhatsApp: na visualização ampliada de imagens, dá para fazer zoom (+/−, scroll e duplo clique), rodar e arrastar; repor volta à vista normal (também no chat interno)
 - WhatsApp (#628): no WhatsApp do cliente, mensagens do atendente saem com prefixo **setor do atendimento + nome** e o texto na linha de baixo (ex.: `[ Suporte - Ana ]:`); ao assumir, 1 setor é gravado automaticamente e vários setores pedem escolha no painel
 - WhatsApp (#629): no lightbox de imagens da conversa, dá para navegar entre as fotos (botões e setas ←/→) com contador e legenda atualizada; Esc continua a fechar só a visualização

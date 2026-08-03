@@ -54,7 +54,9 @@ import { SemPermissao } from './SemPermissao'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 
-type Aba = 'empresas' | 'funcionarios' | 'tickets'
+import { PainelAnalisesCliente } from '../components/dashboard/PainelAnalisesCliente'
+
+type Aba = 'empresas' | 'funcionarios' | 'tickets' | 'analises'
 type AbaModalEmpresa = 'geral' | 'tickets' | 'funcionarios' | 'pdvs'
 type TipoFuncionario = 'socio' | 'supervisor' | 'colaborador'
 const tipoLabel: Record<string, string> = { socio: 'Sócio', supervisor: 'Supervisor', colaborador: 'Colaborador' }
@@ -910,6 +912,18 @@ export function RedeDetalhe() {
             </button>
             <button
               type="button"
+              onClick={() => setAba('analises')}
+              aria-current={aba === 'analises' ? 'page' : undefined}
+              className={
+                aba === 'analises'
+                  ? 'border-b-2 border-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 dark:border-sky-400 dark:bg-slate-800/50 dark:text-white'
+                  : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/30 dark:hover:text-slate-200'
+              }
+            >
+              Análises
+            </button>
+            <button
+              type="button"
               onClick={() => setAba('tickets')}
               aria-current={aba === 'tickets' ? 'page' : undefined}
               className={
@@ -1593,6 +1607,21 @@ export function RedeDetalhe() {
           )}
         </Card>
       )}
+
+      {aba === 'analises' && !modalEmpresa && !modalFuncionario && Number.isFinite(redeId) ? (
+        <Card>
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Análises da rede</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Agregados de tickets e demandas WhatsApp de todas as empresas desta rede.
+            </p>
+          </div>
+          <PainelAnalisesCliente
+            redeId={redeId}
+            onVerTickets={() => setAba('tickets')}
+          />
+        </Card>
+      ) : null}
 
       {aba === 'tickets' && !modalEmpresa && !modalFuncionario && (
         <Card>
