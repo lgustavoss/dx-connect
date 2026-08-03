@@ -17,14 +17,26 @@ from app.schemas.dashboard import (
     DashboardResumo,
     DashboardTicketsResponse,
     DashboardChatsResponse,
+    DemandaDrillItem,
     StatusCount,
+    SugestaoMotivoOutrosAcao,
 )
+from app.schemas.lista_paginada import ListaPaginada
+from app.schemas.ticket_classificacao import TicketMotivoRead
 from app.services.dashboard_geral import obter_dashboard_geral as montar_dashboard_geral
 from app.services.dashboard_tickets import obter_dashboard_tickets as montar_dashboard_tickets
-from app.services.dashboard_chats import obter_dashboard_chats as montar_dashboard_chats
-from app.services.ticket_dashboard_filters import normalizar_prioridade
+from app.services.dashboard_chats import (
+    clear_dashboard_chats_cache,
+    obter_dashboard_chats as montar_dashboard_chats,
+)
+from app.services.dashboard_demandas_analise import (
+    aceitar_sugestao_motivo_outros,
+    ignorar_sugestao_motivo_outros,
+    listar_demandas_drilldown,
+)
+from app.services.ticket_dashboard_filters import normalizar_prioridade, resolve_period
 from app.schemas.ticket import TicketRead
-from app.core.auth import obter_atendente_atual
+from app.core.auth import exigir_admin, obter_atendente_atual
 from app.api.tickets import _ticket_para_read
 from app.core.setor_scope import ids_setores_visiveis_atendente
 
@@ -171,12 +183,20 @@ def obter_dashboard(
     )
 
 
-@router.get("/geral", response_model=DashboardGeralResponse)
+@router.get(
+    "/geral",
+    response_model=DashboardGeralResponse,
+    summary="Dashboard geral (filas + CSAT)",
+    description="Filas e SLA são situação atual. CSAT respeita o período (`de`/`ate`; "
+    "default sem parâmetros: últimos 7 dias inclusive).",
+)
 def obter_dashboard_geral(
+    de: date | None = Query(None, description="Início do período do CSAT"),
+    ate: date | None = Query(None, description="Fim do período do CSAT (default: hoje)"),
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    return montar_dashboard_geral(db, atendente)
+    return montar_dashboard_geral(db, atendente, de=de, ate=ate)
 
 
 @router.get(
@@ -252,3 +272,81 @@ def obter_dashboard_chats(
         drill_valor=drill_valor,
         atendente_filtro_id=atendente_filtro_id,
     )
+
+
+@router.get(
+    "/chats/demandas",
+    response_model=ListaPaginada[DemandaDrillItem],
+    summary="Drill-down de demandas WhatsApp",
+    description="Lista demandas (itens) filtradas por período, natureza, motivo, empresa e rede (#594).",
+)
+def listar_dashboard_chats_demandas(
+    de: date | None = Query(None),
+    ate: date | None = Query(None),
+    setor_id: int | None = Query(None, ge=1),
+    empresa_id: int | None = Query(None, ge=1),
+    rede_id: int | None = Query(None, ge=1),
+    natureza_id: int | None = Query(None, ge=1),
+    motivo_id: int | None = Query(None, ge=1),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    inicio, fim = resolve_period(de, ate)
+    return listar_demandas_drilldown(
+        db,
+        atendente,
+        de=inicio,
+        ate=fim,
+        setor_id=setor_id,
+        empresa_id=empresa_id,
+        rede_id=rede_id,
+        natureza_id=natureza_id,
+        motivo_id=motivo_id,
+        skip=skip,
+        limit=limit,
+    )
+
+
+@router.post(
+    "/chats/demandas/sugestoes-motivo/aceitar",
+    response_model=TicketMotivoRead,
+    summary="Aceitar sugestão de motivo a partir de Outros",
+)
+def aceitar_sugestao_motivo_demanda(
+    body: SugestaoMotivoOutrosAcao,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_admin),
+):
+    motivo = aceitar_sugestao_motivo_outros(
+        db,
+        atendente,
+        natureza_id=body.natureza_id,
+        texto_normalizado=body.texto_normalizado,
+        nome=body.nome,
+        slug=body.slug,
+    )
+    clear_dashboard_chats_cache()
+    return motivo
+
+
+@router.post(
+    "/chats/demandas/sugestoes-motivo/ignorar",
+    status_code=204,
+    summary="Ignorar sugestão de motivo a partir de Outros",
+)
+def ignorar_sugestao_motivo_demanda(
+    body: SugestaoMotivoOutrosAcao,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_admin),
+):
+    ignorar_sugestao_motivo_outros(
+        db,
+        atendente,
+        natureza_id=body.natureza_id,
+        texto_normalizado=body.texto_normalizado,
+        texto_exemplo=body.texto_exemplo,
+    )
+    clear_dashboard_chats_cache()
+    return None
