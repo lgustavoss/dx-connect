@@ -69,6 +69,9 @@ def test_dashboard_geral_admin_ve_global(client, seed_base, auth_headers, db_ses
     assert body["cache_ttl_segundos"] == CACHE_TTL_SECONDS
     assert body["csat_tickets"]["total_avaliacoes"] == 0
     assert body["csat_tickets"]["media"] is None
+    assert body["de"]
+    assert body["ate"]
+    assert body["csat_tickets"]["periodo_dias"] == 7
 
 
 def test_dashboard_geral_atendente_escopo_setor(client, seed_base, auth_headers, db_session):
@@ -110,6 +113,45 @@ def test_dashboard_geral_csat_7_dias(client, seed_base, auth_headers, db_session
     assert body["csat_tickets"]["media"] == 5.0
     assert body["csat_chats"]["total_avaliacoes"] == 1
     assert body["csat_chats"]["media"] == 4.0
+    assert body["csat_tickets"]["periodo_dias"] == 7
+
+
+def test_dashboard_geral_csat_respeita_periodo(client, seed_base, auth_headers, db_session):
+    from datetime import date
+
+    t = _criar_ticket(db_session, seed_base, setor_id=seed_base["setor1"].id, fechado=True)
+    db_session.add(
+        TicketAvaliacao(
+            ticket_id=t.id,
+            atendente_id=seed_base["admin"].id,
+            nota=5,
+            respondida_em=datetime.now(timezone.utc) - timedelta(days=10),
+        )
+    )
+    db_session.commit()
+
+    hoje = date.today()
+    r_hoje = client.get(
+        f"/v1/dashboard/geral?de={hoje.isoformat()}&ate={hoje.isoformat()}",
+        headers=auth_headers["admin"],
+    )
+    assert r_hoje.status_code == 200
+    body_hoje = r_hoje.json()
+    assert body_hoje["csat_tickets"]["total_avaliacoes"] == 0
+    assert body_hoje["de"] == hoje.isoformat()
+    assert body_hoje["ate"] == hoje.isoformat()
+    assert body_hoje["csat_tickets"]["periodo_dias"] == 1
+
+    de = (hoje - timedelta(days=14)).isoformat()
+    ate = hoje.isoformat()
+    r_amp = client.get(
+        f"/v1/dashboard/geral?de={de}&ate={ate}",
+        headers=auth_headers["admin"],
+    )
+    assert r_amp.status_code == 200
+    body_amp = r_amp.json()
+    assert body_amp["csat_tickets"]["total_avaliacoes"] == 1
+    assert body_amp["csat_tickets"]["media"] == 5.0
 
 
 def test_dashboard_geral_requer_autenticacao(client):

@@ -14,6 +14,12 @@ from app.models.atendente import Atendente
 DEFAULT_PERIOD_DAYS = 30
 MAX_PERIOD_DAYS = 366
 
+# Presets de calendário (#599). Semana = segunda → domingo (ISO weekday).
+PRESET_HOJE = "hoje"
+PRESET_ESTA_SEMANA = "esta_semana"
+PRESET_ESTE_MES = "este_mes"
+PRESET_MES_PASSADO = "mes_passado"
+
 
 def period_bounds(de: date, ate: date) -> tuple[datetime, datetime]:
     de_dt = datetime.combine(de, time.min, tzinfo=timezone.utc)
@@ -29,6 +35,50 @@ def resolve_period(de: date | None, ate: date | None) -> tuple[date, date]:
     if (fim - inicio).days > MAX_PERIOD_DAYS:
         inicio = fim - timedelta(days=MAX_PERIOD_DAYS)
     return inicio, fim
+
+
+def bounds_hoje(ref: date | None = None) -> tuple[date, date]:
+    d = ref or date.today()
+    return d, d
+
+
+def bounds_esta_semana(ref: date | None = None) -> tuple[date, date]:
+    """Segunda → domingo; se a semana ainda não acabou, o fim é `ref` (hoje)."""
+    d = ref or date.today()
+    inicio = d - timedelta(days=d.weekday())
+    fim_semana = inicio + timedelta(days=6)
+    fim = min(fim_semana, d)
+    return inicio, fim
+
+
+def bounds_este_mes(ref: date | None = None) -> tuple[date, date]:
+    d = ref or date.today()
+    return d.replace(day=1), d
+
+
+def bounds_mes_passado(ref: date | None = None) -> tuple[date, date]:
+    d = ref or date.today()
+    primeiro_este = d.replace(day=1)
+    ultimo_passado = primeiro_este - timedelta(days=1)
+    return ultimo_passado.replace(day=1), ultimo_passado
+
+
+def bounds_for_preset(preset: str, ref: date | None = None) -> tuple[date, date]:
+    """Calcula `de`/`ate` para presets de calendário (#599)."""
+    key = (preset or "").strip().lower()
+    if key == PRESET_HOJE:
+        return bounds_hoje(ref)
+    if key == PRESET_ESTA_SEMANA:
+        return bounds_esta_semana(ref)
+    if key == PRESET_ESTE_MES:
+        return bounds_este_mes(ref)
+    if key == PRESET_MES_PASSADO:
+        return bounds_mes_passado(ref)
+    raise ValueError(f"preset de período inválido: {preset}")
+
+
+def period_days_inclusive(de: date, ate: date) -> int:
+    return (ate - de).days + 1
 
 
 def normalizar_prioridade(prioridade: str | None) -> str | None:

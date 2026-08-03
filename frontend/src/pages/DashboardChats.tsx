@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Bar,
@@ -29,16 +29,16 @@ import { DashboardNav } from '../components/dashboard/DashboardNav'
 import { barClickableProps, chartTooltipProps } from '../components/dashboard/dashboardChartUtils'
 import { corDrill, useDashboardDrilldown } from '../components/dashboard/useDashboardDrilldown'
 import { NotaEstrelasMedia } from '../components/ui/NotaEstrelasMedia'
+import { DashboardDemandasAnalise } from '../components/dashboard/DashboardDemandasAnalise'
+import { DashboardPeriodoFiltro } from '../components/dashboard/DashboardPeriodoFiltro'
 import {
   MetricCard,
-  PRESET_DIAS,
-  addDays,
   formatarDiaCurto,
   formatarHoras,
+  formatarIntervaloPeriodo,
   formatarPct,
-  isoDate,
-  type PresetPeriodo,
 } from '../components/dashboard/dashboardMetrics'
+import { useDashboardPeriodo } from '../hooks/useDashboardPeriodo'
 
 const CORES_ENCERRAMENTO = ['#06b6d4', '#94a3b8']
 
@@ -59,10 +59,8 @@ function DashboardChatsSkeleton() {
 export function DashboardChats() {
   const toast = useToast()
   const { user } = useAuth()
-  const hoje = useMemo(() => new Date(), [])
-  const [preset, setPreset] = useState<PresetPeriodo>('30')
-  const [de, setDe] = useState(() => isoDate(addDays(hoje, -30)))
-  const [ate, setAte] = useState(() => isoDate(hoje))
+  const { preset, de, ate, aplicarPreset, marcarCustom, onDeChange, onAteChange } =
+    useDashboardPeriodo('este_mes')
   const [setorId, setSetorId] = useState<number | ''>('')
   const [data, setData] = useState<Dashboard.ChatsResponse | null>(null)
   const [setoresLista, setSetoresLista] = useState<Setores.Setor[]>([])
@@ -80,13 +78,6 @@ export function DashboardChats() {
     const qs = params.toString()
     return qs ? `/relatorios/chats?${qs}` : '/relatorios/chats'
   }, [de, ate, setorId])
-
-  const aplicarPreset = useCallback((p: Exclude<PresetPeriodo, 'custom'>) => {
-    setPreset(p)
-    const fim = new Date()
-    setAte(isoDate(fim))
-    setDe(isoDate(addDays(fim, -PRESET_DIAS[p])))
-  }, [])
 
   useEffect(() => {
     setores
@@ -148,16 +139,6 @@ export function DashboardChats() {
     [data],
   )
 
-  const demandasNaturezaChart = useMemo(
-    () =>
-      (data?.demandas_por_natureza ?? []).map((d) => ({
-        id: d.id,
-        nome: d.nome,
-        total: d.total,
-      })),
-    [data],
-  )
-
   const estadoChart = useMemo(
     () =>
       (data?.por_estado_atual ?? []).map((e) => ({
@@ -206,7 +187,7 @@ export function DashboardChats() {
     <PageContainer>
       <PageHeader
         title="Dashboard — WhatsApp"
-        subtitle={`Indicadores de atendimento · ${formatarDiaCurto(data.de)} a ${formatarDiaCurto(data.ate)}`}
+        subtitle={`Indicadores de atendimento · ${formatarIntervaloPeriodo(data.de, data.ate)}`}
       />
 
       <DashboardNav
@@ -235,47 +216,15 @@ export function DashboardChats() {
 
       <Card className="mb-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
-          <div className="flex flex-wrap gap-2">
-            {(['7', '30', '90'] as const).map((p) => (
-              <Button
-                key={p}
-                type="button"
-                variant={preset === p ? 'primary' : 'secondary'}
-                onClick={() => aplicarPreset(p)}
-              >
-                {p} dias
-              </Button>
-            ))}
-            <Button
-              type="button"
-              variant={preset === 'custom' ? 'primary' : 'secondary'}
-              onClick={() => setPreset('custom')}
-            >
-              Personalizado
-            </Button>
-          </div>
-          {preset === 'custom' ? (
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-400">
-                De
-                <input
-                  type="date"
-                  value={de}
-                  onChange={(e) => setDe(e.target.value)}
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-400">
-                Até
-                <input
-                  type="date"
-                  value={ate}
-                  onChange={(e) => setAte(e.target.value)}
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                />
-              </label>
-            </div>
-          ) : null}
+          <DashboardPeriodoFiltro
+            preset={preset}
+            de={de}
+            ate={ate}
+            onPreset={aplicarPreset}
+            onCustom={marcarCustom}
+            onDeChange={onDeChange}
+            onAteChange={onAteChange}
+          />
           <label className="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-400">
             Setor
             <select
@@ -475,27 +424,6 @@ export function DashboardChats() {
             </div>
           </Card>
 
-          <Card
-            title="Demandas registradas na sessão"
-            description="Naturezas informadas pelos atendentes ao resolver assuntos no chat (não inclui apenas transcript)"
-          >
-            <div className="h-72">
-              {demandasNaturezaChart.length === 0 ? (
-                <p className="text-slate-500 dark:text-slate-400">Nenhuma demanda registrada no período.</p>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={demandasNaturezaChart}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-700" />
-                    <XAxis dataKey="nome" tick={{ fontSize: 11 }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                    <Tooltip {...chartTooltipProps} />
-                    <Bar dataKey="total" name="Demandas" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </Card>
-
           {user?.role === 'admin' && atendentesChart.length > 0 ? (
             <Card
               title="Atendentes com mais chats assumidos"
@@ -537,6 +465,15 @@ export function DashboardChats() {
           ) : null}
         </div>
       )}
+
+      <DashboardDemandasAnalise
+        data={data}
+        de={de}
+        ate={ate}
+        setorId={setorId}
+        isAdmin={user?.role === 'admin'}
+        onRecarregar={() => setReloadKey((k) => k + 1)}
+      />
     </PageContainer>
   )
 }

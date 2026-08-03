@@ -58,6 +58,20 @@ export function formatarDiaCurto(iso: string): string {
   return `${day}/${m}`
 }
 
+export function formatarDiaCompleto(iso: string): string {
+  const [y, m, day] = iso.split('-')
+  return `${day}/${m}/${y}`
+}
+
+/** Intervalo efetivo para subtítulo do dashboard (#599). */
+export function formatarIntervaloPeriodo(deIso: string, ateIso: string): string {
+  if (deIso === ateIso) return formatarDiaCompleto(deIso)
+  const [dy] = deIso.split('-')
+  const [ay] = ateIso.split('-')
+  if (dy === ay) return `${formatarDiaCurto(deIso)}–${formatarDiaCompleto(ateIso)}`
+  return `${formatarDiaCompleto(deIso)}–${formatarDiaCompleto(ateIso)}`
+}
+
 export function formatarCsatMedia(media: number | null): string {
   if (media == null) return '—'
   return `${media.toFixed(1).replace('.', ',')} ★`
@@ -68,20 +82,57 @@ export function formatarPct(valor: number | null): string {
   return `${valor.toFixed(1).replace('.', ',')}%`
 }
 
-export type PresetPeriodo = '7' | '30' | '90' | 'custom'
+/** Presets de calendário (#599). Semana = segunda → domingo. */
+export type PresetPeriodo = 'hoje' | 'esta_semana' | 'este_mes' | 'mes_passado' | 'custom'
 
-export const PRESET_DIAS: Record<Exclude<PresetPeriodo, 'custom'>, number> = {
-  '7': 7,
-  '30': 30,
-  '90': 90,
-}
+export const PRESET_OPCOES: { id: Exclude<PresetPeriodo, 'custom'>; label: string }[] = [
+  { id: 'hoje', label: 'Hoje' },
+  { id: 'esta_semana', label: 'Esta semana' },
+  { id: 'este_mes', label: 'Este mês' },
+  { id: 'mes_passado', label: 'Mês passado' },
+]
 
+/** Data civil local (YYYY-MM-DD) — evita deslocamento UTC de toISOString(). */
 export function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 export function addDays(base: Date, dias: number): Date {
-  const d = new Date(base)
+  const d = new Date(base.getFullYear(), base.getMonth(), base.getDate())
   d.setDate(d.getDate() + dias)
   return d
+}
+
+export function parseIsoDateLocal(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+export function boundsForPreset(
+  preset: Exclude<PresetPeriodo, 'custom'>,
+  ref: Date = new Date(),
+): { de: string; ate: string } {
+  const hoje = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate())
+  if (preset === 'hoje') {
+    const iso = isoDate(hoje)
+    return { de: iso, ate: iso }
+  }
+  if (preset === 'esta_semana') {
+    // Monday = 0 in ISO; getDay() Sunday=0 → convert
+    const weekday = (hoje.getDay() + 6) % 7
+    const inicio = addDays(hoje, -weekday)
+    return { de: isoDate(inicio), ate: isoDate(hoje) }
+  }
+  if (preset === 'este_mes') {
+    const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
+    return { de: isoDate(inicio), ate: isoDate(hoje) }
+  }
+  // mes_passado
+  const primeiroEste = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
+  const ultimoPassado = addDays(primeiroEste, -1)
+  const primeiroPassado = new Date(ultimoPassado.getFullYear(), ultimoPassado.getMonth(), 1)
+  return { de: isoDate(primeiroPassado), ate: isoDate(ultimoPassado) }
 }

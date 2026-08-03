@@ -13,7 +13,10 @@ import { exibirProtocolo } from '../lib/exibirProtocolo'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 import { DashboardCanalComparativo, snapshotFromGeral } from '../components/dashboard/DashboardCanalComparativo'
 import { DashboardNav } from '../components/dashboard/DashboardNav'
+import { DashboardPeriodoFiltro } from '../components/dashboard/DashboardPeriodoFiltro'
+import { formatarIntervaloPeriodo } from '../components/dashboard/dashboardMetrics'
 import { NotaEstrelasMedia } from '../components/ui/NotaEstrelasMedia'
+import { useDashboardPeriodo } from '../hooks/useDashboardPeriodo'
 
 type ColunaUltimos = 'protocolo' | 'empresa' | 'assunto' | 'status'
 
@@ -80,6 +83,8 @@ function MetricCard({
 export function Dashboard() {
   const toast = useToast()
   const { ordenarPor, ordem, aoOrdenarColuna } = useOrdenacaoLista<ColunaUltimos>()
+  const { preset, de, ate, aplicarPreset, marcarCustom, onDeChange, onAteChange } =
+    useDashboardPeriodo('este_mes')
   const [geral, setGeral] = useState<Dashboard.GeralResponse | null>(null)
   const [data, setData] = useState<Awaited<ReturnType<typeof dashboard.get>> | null>(null)
   const [loading, setLoading] = useState(true)
@@ -91,7 +96,7 @@ export function Dashboard() {
     setLoading(true)
     setError(null)
     setForbidden(false)
-    Promise.all([dashboard.getGeral(), dashboard.get()])
+    Promise.all([dashboard.getGeral({ de, ate }), dashboard.get()])
       .then(([geralRes, dashRes]) => {
         setGeral(geralRes)
         setData(dashRes)
@@ -108,8 +113,8 @@ export function Dashboard() {
         toast.showError(mensagemFalhaParaToast(err, msg))
       })
       .finally(() => setLoading(false))
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- recarrega só quando reloadKey muda
-  }, [reloadKey])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast estável; recarrega com período/reload
+  }, [reloadKey, de, ate])
 
   const ultimos_tickets = useMemo(() => data?.ultimos_tickets ?? [], [data?.ultimos_tickets])
 
@@ -164,7 +169,10 @@ export function Dashboard() {
 
   return (
     <PageContainer>
-      <PageHeader title="Dashboard" />
+      <PageHeader
+        title="Dashboard"
+        subtitle={`CSAT e indicadores · ${formatarIntervaloPeriodo(geral.de, geral.ate)}`}
+      />
 
       <DashboardNav
         actions={
@@ -178,6 +186,23 @@ export function Dashboard() {
           </>
         }
       />
+
+      <Card className="mb-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
+          <DashboardPeriodoFiltro
+            preset={preset}
+            de={de}
+            ate={ate}
+            onPreset={aplicarPreset}
+            onCustom={marcarCustom}
+            onDeChange={onDeChange}
+            onAteChange={onAteChange}
+          />
+          <p className="text-xs text-slate-500 dark:text-slate-400 lg:max-w-xs">
+            Filas e SLA são situação atual. O período aplica-se à satisfação (CSAT).
+          </p>
+        </div>
+      </Card>
 
       {geral ? <DashboardCanalComparativo snapshot={snapshotFromGeral(geral)} /> : null}
 
@@ -229,7 +254,7 @@ export function Dashboard() {
         <MetricCard
           label="Satisfação — tickets"
           borderClass="border-l-4 border-l-violet-400"
-          hint={`últimos ${geral.csat_tickets.periodo_dias} dias · ${geral.csat_tickets.total_avaliacoes} avaliações`}
+          hint={`${formatarIntervaloPeriodo(geral.de, geral.ate)} · ${geral.csat_tickets.total_avaliacoes} avaliações`}
         >
           <div className="mt-2">
             <NotaEstrelasMedia media={geral.csat_tickets.media} size="lg" />
@@ -238,7 +263,7 @@ export function Dashboard() {
         <MetricCard
           label="Satisfação — WhatsApp"
           borderClass="border-l-4 border-l-pink-400"
-          hint={`últimos ${geral.csat_chats.periodo_dias} dias · ${geral.csat_chats.total_avaliacoes} avaliações`}
+          hint={`${formatarIntervaloPeriodo(geral.de, geral.ate)} · ${geral.csat_chats.total_avaliacoes} avaliações`}
         >
           <div className="mt-2">
             <NotaEstrelasMedia media={geral.csat_chats.media} size="lg" />
