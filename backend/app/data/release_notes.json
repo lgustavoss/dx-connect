@@ -1,27 +1,23 @@
 {
-  "current_version": "26.08.004",
-  "current_version_display": "v26.08.004",
+  "current_version": "26.08.005",
+  "current_version_display": "v26.08.005",
   "current": {
-    "version": "26.08.004",
-    "version_display": "v26.08.004",
-    "date": "2026-08-02",
+    "version": "26.08.005",
+    "version_display": "v26.08.005",
+    "date": "2026-08-03",
     "status": "published",
     "changes": [
       {
         "category": "melhorias",
-        "text": "WhatsApp: na visualização ampliada de imagens, dá para fazer zoom (+/−, scroll e duplo clique), rodar e arrastar; repor volta à vista normal (também no chat interno)"
+        "text": "Dashboard (#599): filtros de período Hoje | Esta semana (seg–dom) | Este mês | Mês passado | Personalizado no geral, tickets e WhatsApp (substitui 7/30/90); CSAT do geral respeita o intervalo"
       },
       {
         "category": "melhorias",
-        "text": "Chat: duplo clique **dentro** do balão já não inicia resposta (dá para selecionar/copiar o texto); responder com duplo clique fica só **ao lado** do balão"
+        "text": "WhatsApp (#594): análise de demandas no dashboard — drill-down por natureza/motivo, ranking por empresa, insights (erro → atualização; dúvida → treinamento) e sugestão de novo motivo a partir de «Outros» repetido"
       },
       {
         "category": "melhorias",
-        "text": "WhatsApp: menu com seta no canto do balão para Editar/Apagar (em vez de botões flutuantes que saltavam para a mensagem de cima)"
-      },
-      {
-        "category": "melhorias",
-        "text": "WhatsApp: Enter na legenda do anexo deixava de enviar a imagem **duas vezes** (o evento subia ao painel e disparava o envio de novo)"
+        "text": "Rede e Empresa (#595): aba Análises com tickets + demandas WhatsApp no período, insights e ranking (reutiliza #594/#599)"
       }
     ]
   },
@@ -1171,6 +1167,26 @@
         {
           "category": "melhorias",
           "text": "WhatsApp: Enter na legenda do anexo deixava de enviar a imagem **duas vezes** (o evento subia ao painel e disparava o envio de novo)"
+        }
+      ]
+    },
+    {
+      "version": "26.08.005",
+      "version_display": "v26.08.005",
+      "date": "2026-08-03",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "Dashboard (#599): filtros de período Hoje | Esta semana (seg–dom) | Este mês | Mês passado | Personalizado no geral, tickets e WhatsApp (substitui 7/30/90); CSAT do geral respeita o intervalo"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#594): análise de demandas no dashboard — drill-down por natureza/motivo, ranking por empresa, insights (erro → atualização; dúvida → treinamento) e sugestão de novo motivo a partir de «Outros» repetido"
+        },
+        {
+          "category": "melhorias",
+          "text": "Rede e Empresa (#595): aba Análises com tickets + demandas WhatsApp no período, insights e ranking (reutiliza #594/#599)"
         }
       ]
     }

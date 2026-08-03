@@ -5,6 +5,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+## [26.08.005] - 2026-08-03
+
 ### Melhorias
 
 - Dashboard (#599): filtros de período Hoje | Esta semana (seg–dom) | Este mês | Mês passado | Personalizado no geral, tickets e WhatsApp (substitui 7/30/90); CSAT do geral respeita o intervalo

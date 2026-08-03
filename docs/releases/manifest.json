@@ -1147,6 +1147,26 @@
           "text": "WhatsApp: Enter na legenda do anexo deixava de enviar a imagem **duas vezes** (o evento subia ao painel e disparava o envio de novo)"
         }
       ]
+    },
+    {
+      "version": "26.08.005",
+      "version_display": "v26.08.005",
+      "date": "2026-08-03",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "Dashboard (#599): filtros de período Hoje | Esta semana (seg–dom) | Este mês | Mês passado | Personalizado no geral, tickets e WhatsApp (substitui 7/30/90); CSAT do geral respeita o intervalo"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#594): análise de demandas no dashboard — drill-down por natureza/motivo, ranking por empresa, insights (erro → atualização; dúvida → treinamento) e sugestão de novo motivo a partir de «Outros» repetido"
+        },
+        {
+          "category": "melhorias",
+          "text": "Rede e Empresa (#595): aba Análises com tickets + demandas WhatsApp no período, insights e ranking (reutiliza #594/#599)"
+        }
+      ]
     }
   ]
 }
