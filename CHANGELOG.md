@@ -5,13 +5,16 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
-## [26.08.004] - 2026-08-02
-
 ### Melhorias
 
 - Dashboard (#599): filtros de período Hoje | Esta semana (seg–dom) | Este mês | Mês passado | Personalizado no geral, tickets e WhatsApp (substitui 7/30/90); CSAT do geral respeita o intervalo
 - WhatsApp (#594): análise de demandas no dashboard — drill-down por natureza/motivo, ranking por empresa, insights (erro → atualização; dúvida → treinamento) e sugestão de novo motivo a partir de «Outros» repetido
 - Rede e Empresa (#595): aba Análises com tickets + demandas WhatsApp no período, insights e ranking (reutiliza #594/#599)
+
+## [26.08.004] - 2026-08-02
+
+### Melhorias
+
 - WhatsApp: na visualização ampliada de imagens, dá para fazer zoom (+/−, scroll e duplo clique), rodar e arrastar; repor volta à vista normal (também no chat interno)
 - Chat: duplo clique **dentro** do balão já não inicia resposta (dá para selecionar/copiar o texto); responder com duplo clique fica só **ao lado** do balão
 - WhatsApp: menu com seta no canto do balão para Editar/Apagar (em vez de botões flutuantes que saltavam para a mensagem de cima)
