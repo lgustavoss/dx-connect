@@ -1409,7 +1409,8 @@ export const tickets = {
 
 export const dashboard = {
   get: () => api<Dashboard.Response>('/dashboard'),
-  getGeral: () => api<Dashboard.GeralResponse>('/dashboard/geral'),
+  getGeral: (params?: { de?: string; ate?: string }) =>
+    api<Dashboard.GeralResponse>(withParams('/dashboard/geral', params)),
   getTickets: (params?: {
     de?: string;
     ate?: string;
@@ -1430,6 +1431,37 @@ export const dashboard = {
     drill_tipo?: string;
     drill_valor?: string;
   }) => api<Dashboard.ChatsResponse>(withParams('/dashboard/chats', params)),
+  getChatsDemandas: (params?: {
+    de?: string;
+    ate?: string;
+    setor_id?: number;
+    empresa_id?: number;
+    rede_id?: number;
+    natureza_id?: number;
+    motivo_id?: number;
+    skip?: number;
+    limit?: number;
+  }) =>
+    api<Dashboard.DemandasDrillResponse>(withParams('/dashboard/chats/demandas', params)),
+  aceitarSugestaoMotivoOutros: (body: {
+    natureza_id: number;
+    texto_normalizado: string;
+    nome?: string;
+    slug?: string;
+  }) =>
+    api<TicketClassificacao.Motivo>('/dashboard/chats/demandas/sugestoes-motivo/aceitar', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  ignorarSugestaoMotivoOutros: (body: {
+    natureza_id: number;
+    texto_normalizado: string;
+    texto_exemplo?: string;
+  }) =>
+    api<void>('/dashboard/chats/demandas/sugestoes-motivo/ignorar', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 };
 
 export const relatorios = {
@@ -1780,6 +1812,8 @@ export namespace Dashboard {
     csat_chats: CsatResumo;
     sla_violacoes_abertas: number;
     sla_em_risco_abertas: number;
+    de: string;
+    ate: string;
     gerado_em: string;
     cache_ttl_segundos: number;
   }
@@ -1840,6 +1874,50 @@ export namespace Dashboard {
     rotulo: string;
     total: number;
   }
+  export interface DemandaEmpresaRanking {
+    empresa_id: number | null;
+    empresa_nome: string;
+    total: number;
+    natureza_dominante_id: number | null;
+    natureza_dominante_nome: string | null;
+    natureza_dominante_slug: string | null;
+  }
+  export interface DemandaInsight {
+    tipo: string;
+    titulo: string;
+    detalhe: string;
+    natureza_id: number | null;
+    motivo_id: number | null;
+    total: number;
+    limiar: number;
+  }
+  export interface SugestaoMotivoOutros {
+    natureza_id: number;
+    natureza_nome: string;
+    texto_normalizado: string;
+    texto_exemplo: string;
+    ocorrencias: number;
+    limiar: number;
+  }
+  export interface DemandaDrillItem {
+    demanda_id: number;
+    chat_id: number;
+    protocolo: string;
+    cliente_nome: string | null;
+    empresa_id: number | null;
+    empresa_nome: string | null;
+    natureza_id: number;
+    natureza_nome: string;
+    motivo_id: number | null;
+    motivo_nome: string | null;
+    desfecho: string;
+    descricao_curta: string | null;
+    created_at: string;
+  }
+  export interface DemandasDrillResponse {
+    items: DemandaDrillItem[];
+    total: number;
+  }
   export interface ChatsResponse {
     de: string;
     ate: string;
@@ -1853,6 +1931,10 @@ export namespace Dashboard {
     por_estado_atual: ContagemRotulo[];
     demandas_por_natureza: ContagemIdNome[];
     demandas_por_motivo: ContagemIdNome[];
+    demandas_por_empresa: DemandaEmpresaRanking[];
+    demanda_maior: ContagemIdNome | null;
+    insights_demandas: DemandaInsight[];
+    sugestoes_motivo_outros: SugestaoMotivoOutros[];
     snapshot: SnapshotCanais;
     gerado_em: string;
     cache_ttl_segundos: number;

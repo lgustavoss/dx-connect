@@ -59,6 +59,8 @@ class DashboardGeralResponse(BaseModel):
     csat_chats: CsAtMediaResumo
     sla_violacoes_abertas: int = Field(ge=0)
     sla_em_risco_abertas: int = Field(ge=0)
+    de: date
+    ate: date
     gerado_em: datetime
     cache_ttl_segundos: int = Field(ge=0)
 
@@ -129,6 +131,58 @@ class SnapshotCanais(BaseModel):
     chats_em_atendimento: int = Field(ge=0)
 
 
+class DemandaEmpresaRanking(BaseModel):
+    empresa_id: int | None = None
+    empresa_nome: str
+    total: int = Field(ge=0)
+    natureza_dominante_id: int | None = None
+    natureza_dominante_nome: str | None = None
+    natureza_dominante_slug: str | None = None
+
+
+class DemandaInsight(BaseModel):
+    tipo: str
+    titulo: str
+    detalhe: str
+    natureza_id: int | None = None
+    motivo_id: int | None = None
+    total: int = Field(ge=0)
+    limiar: int = Field(ge=1)
+
+
+class SugestaoMotivoOutros(BaseModel):
+    natureza_id: int
+    natureza_nome: str
+    texto_normalizado: str
+    texto_exemplo: str
+    ocorrencias: int = Field(ge=0)
+    limiar: int = Field(ge=1)
+
+
+class DemandaDrillItem(BaseModel):
+    demanda_id: int
+    chat_id: int
+    protocolo: str
+    cliente_nome: str | None = None
+    empresa_id: int | None = None
+    empresa_nome: str | None = None
+    natureza_id: int
+    natureza_nome: str
+    motivo_id: int | None = None
+    motivo_nome: str | None = None
+    desfecho: str
+    descricao_curta: str | None = None
+    created_at: datetime
+
+
+class SugestaoMotivoOutrosAcao(BaseModel):
+    natureza_id: int = Field(ge=1)
+    texto_normalizado: str = Field(min_length=1, max_length=500)
+    nome: str | None = Field(None, min_length=1, max_length=120)
+    slug: str | None = Field(None, min_length=1, max_length=50)
+    texto_exemplo: str | None = Field(None, max_length=500)
+
+
 class DashboardChatsResponse(BaseModel):
     de: date
     ate: date
@@ -142,6 +196,10 @@ class DashboardChatsResponse(BaseModel):
     por_estado_atual: list[ContagemRotulo]
     demandas_por_natureza: list[ContagemIdNome] = Field(default_factory=list)
     demandas_por_motivo: list[ContagemIdNome] = Field(default_factory=list)
+    demandas_por_empresa: list[DemandaEmpresaRanking] = Field(default_factory=list)
+    demanda_maior: ContagemIdNome | None = None
+    insights_demandas: list[DemandaInsight] = Field(default_factory=list)
+    sugestoes_motivo_outros: list[SugestaoMotivoOutros] = Field(default_factory=list)
     snapshot: SnapshotCanais
     gerado_em: datetime
     cache_ttl_segundos: int = Field(ge=0)

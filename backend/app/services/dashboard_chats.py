@@ -19,6 +19,12 @@ from app.schemas.dashboard import (
     SnapshotCanais,
 )
 from app.services.chat_dashboard_filters import apply_chat_dashboard_filters, period_bounds, resolve_period
+from app.services.dashboard_demandas_analise import (
+    gerar_insights_demandas,
+    maior_demanda_global,
+    ranking_demandas_por_empresa,
+    sugerir_motivos_outros,
+)
 from app.services.dashboard_drilldown import ChatDrillDown, apply_chat_drill_down
 from app.services.whatsapp_chat_demandas import agregar_demandas_por_motivo, agregar_demandas_por_natureza
 
@@ -357,6 +363,10 @@ def _compute(
         empresa_id=empresa_id,
         rede_id=rede_id,
     )
+    por_natureza = agregar_demandas_por_natureza(db, atendente, **filtros_demanda)
+    sugestoes = (
+        sugerir_motivos_outros(db, atendente, **filtros_demanda) if atendente.role == "admin" else []
+    )
     return DashboardChatsResponse(
         de=de,
         ate=ate,
@@ -370,8 +380,12 @@ def _compute(
         pct_com_ticket_vinculado=_pct_com_ticket_vinculado(db, atendente, de_dt, ate_dt, setor_id, drill),
         por_atendente=_por_atendente(db, atendente, de_dt, ate_dt, setor_id, drill),
         por_estado_atual=_por_estado_atual(db, atendente, setor_id, drill),
-        demandas_por_natureza=agregar_demandas_por_natureza(db, atendente, **filtros_demanda),
+        demandas_por_natureza=por_natureza,
         demandas_por_motivo=agregar_demandas_por_motivo(db, atendente, **filtros_demanda),
+        demandas_por_empresa=ranking_demandas_por_empresa(db, atendente, **filtros_demanda),
+        demanda_maior=maior_demanda_global(por_natureza),
+        insights_demandas=gerar_insights_demandas(db, atendente, **filtros_demanda),
+        sugestoes_motivo_outros=sugestoes,
         snapshot=_snapshot_canais(db, atendente),
         gerado_em=agora,
         cache_ttl_segundos=CACHE_TTL_SECONDS,

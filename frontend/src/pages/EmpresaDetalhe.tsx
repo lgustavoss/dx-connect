@@ -23,8 +23,9 @@ import { TicketsTabelaContexto } from '../components/TicketsTabelaContexto'
 import { FuncionariosEmpresaLista } from '../components/FuncionariosEmpresaLista'
 import { EmpresaPdvsPanel } from '../components/EmpresaPdvsPanel'
 import { EmpresaChatsPanel } from '../components/EmpresaChatsPanel'
+import { PainelAnalisesCliente } from '../components/dashboard/PainelAnalisesCliente'
 import { SemPermissao } from './SemPermissao'
-type Aba = 'geral' | 'tickets' | 'chats' | 'funcionarios' | 'pdvs'
+type Aba = 'geral' | 'tickets' | 'chats' | 'funcionarios' | 'pdvs' | 'analises'
 
 function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
   const v = value?.trim()
@@ -313,6 +314,7 @@ export function EmpresaDetalhe() {
         <div className="border-b border-slate-200 dark:border-slate-600">
           <nav className="flex flex-wrap gap-1 sm:gap-2" aria-label="Seções da empresa">
             {tabBtn('geral', 'Geral')}
+            {tabBtn('analises', 'Análises')}
             {tabBtn('tickets', 'Tickets')}
             {tabBtn('chats', 'Chats')}
             {tabBtn('funcionarios', 'Funcionários')}
@@ -406,6 +408,20 @@ export function EmpresaDetalhe() {
             </dl>
           </section>
         </div>
+      )}
+
+      {aba === 'analises' && (
+        <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
+          <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+            Estatísticas de tickets e demandas WhatsApp só desta empresa — use o período para treinar, priorizar
+            atualizações e evoluir o catálogo de motivos.
+          </p>
+          <PainelAnalisesCliente
+            empresaId={empresa.id}
+            onVerTickets={() => setAba('tickets')}
+            onVerChats={() => setAba('chats')}
+          />
+        </section>
       )}
 
       {aba === 'tickets' && (

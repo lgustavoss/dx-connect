@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Bar,
@@ -35,15 +35,14 @@ import { DashboardNav } from '../components/dashboard/DashboardNav'
 import { barClickableProps, chartTooltipProps } from '../components/dashboard/dashboardChartUtils'
 import { corDrill, useDashboardDrilldown } from '../components/dashboard/useDashboardDrilldown'
 import { NotaEstrelasMedia } from '../components/ui/NotaEstrelasMedia'
+import { DashboardPeriodoFiltro } from '../components/dashboard/DashboardPeriodoFiltro'
 import {
   MetricCard,
-  PRESET_DIAS,
-  addDays,
   formatarDiaCurto,
   formatarHoras,
-  isoDate,
-  type PresetPeriodo,
+  formatarIntervaloPeriodo,
 } from '../components/dashboard/dashboardMetrics'
+import { useDashboardPeriodo } from '../hooks/useDashboardPeriodo'
 
 const CORES_PRIORIDADE: Record<string, string> = {
   baixa: '#94a3b8',
@@ -87,10 +86,8 @@ function DashboardTicketsSkeleton() {
 export function DashboardTickets() {
   const toast = useToast()
   const { user } = useAuth()
-  const hoje = useMemo(() => new Date(), [])
-  const [preset, setPreset] = useState<PresetPeriodo>('30')
-  const [de, setDe] = useState(() => isoDate(addDays(hoje, -30)))
-  const [ate, setAte] = useState(() => isoDate(hoje))
+  const { preset, de, ate, aplicarPreset, marcarCustom, onDeChange, onAteChange } =
+    useDashboardPeriodo('este_mes')
   const [redeId, setRedeId] = useState<number | ''>('')
   const [setorId, setSetorId] = useState<number | ''>('')
   const [prioridade, setPrioridade] = useState('')
@@ -103,16 +100,6 @@ export function DashboardTickets() {
   const [error, setError] = useState<string | null>(null)
   const drill = useDashboardDrilldown()
   const [reloadKey, setReloadKey] = useState(0)
-
-  const aplicarPreset = useCallback(
-    (p: Exclude<PresetPeriodo, 'custom'>) => {
-      setPreset(p)
-      const fim = new Date()
-      setAte(isoDate(fim))
-      setDe(isoDate(addDays(fim, -PRESET_DIAS[p])))
-    },
-    [],
-  )
 
   useEffect(() => {
     Promise.all([
@@ -129,8 +116,11 @@ export function DashboardTickets() {
   }, [])
 
   useEffect(() => {
-    dashboard.getGeral().then((g) => setSnapshot(snapshotFromGeral(g))).catch(() => undefined)
-  }, [reloadKey])
+    dashboard
+      .getGeral({ de, ate })
+      .then((g) => setSnapshot(snapshotFromGeral(g)))
+      .catch(() => undefined)
+  }, [de, ate, reloadKey])
 
   useEffect(() => {
     setLoading(true)
@@ -269,7 +259,7 @@ export function DashboardTickets() {
     <PageContainer>
       <PageHeader
         title="Dashboard — Tickets"
-        subtitle={`Indicadores de atendimento · ${formatarDiaCurto(data.de)} a ${formatarDiaCurto(data.ate)}`}
+        subtitle={`Indicadores de atendimento · ${formatarIntervaloPeriodo(data.de, data.ate)}`}
       />
 
       <DashboardNav
@@ -295,47 +285,15 @@ export function DashboardTickets() {
 
       <Card className="mb-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
-          <div className="flex flex-wrap gap-2">
-            {(['7', '30', '90'] as const).map((p) => (
-              <Button
-                key={p}
-                type="button"
-                variant={preset === p ? 'primary' : 'secondary'}
-                onClick={() => aplicarPreset(p)}
-              >
-                {p} dias
-              </Button>
-            ))}
-            <Button
-              type="button"
-              variant={preset === 'custom' ? 'primary' : 'secondary'}
-              onClick={() => setPreset('custom')}
-            >
-              Personalizado
-            </Button>
-          </div>
-          {preset === 'custom' ? (
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-400">
-                De
-                <input
-                  type="date"
-                  value={de}
-                  onChange={(e) => setDe(e.target.value)}
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-400">
-                Até
-                <input
-                  type="date"
-                  value={ate}
-                  onChange={(e) => setAte(e.target.value)}
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                />
-              </label>
-            </div>
-          ) : null}
+          <DashboardPeriodoFiltro
+            preset={preset}
+            de={de}
+            ate={ate}
+            onPreset={aplicarPreset}
+            onCustom={marcarCustom}
+            onDeChange={onDeChange}
+            onAteChange={onAteChange}
+          />
           <label className="flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-400">
             Rede
             <select
