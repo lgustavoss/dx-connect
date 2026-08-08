@@ -46,6 +46,7 @@ const emptyItem = (): ComercialCustos.ItemCreate => ({
   valor_fixo: '',
   tef_base: '',
   tef_adicional: '',
+  aplica_tier_posto: false,
   ordem: 0,
   ativo: true,
 })
@@ -119,9 +120,21 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
   const [simSelected, setSimSelected] = useState<number[]>([])
   const [simPdvs, setSimPdvs] = useState('1')
   const [simData, setSimData] = useState(() => new Date().toISOString().slice(0, 10))
+  const [simDescontoPosto, setSimDescontoPosto] = useState(false)
+  const [simTefCustoBase, setSimTefCustoBase] = useState('')
+  const [simTefCustoAdic, setSimTefCustoAdic] = useState('')
+  const [simTefCliBase, setSimTefCliBase] = useState('')
+  const [simTefCliAdic, setSimTefCliAdic] = useState('')
   const [simResult, setSimResult] = useState<ComercialCustos.SimularResponse | null>(null)
   const [simLoading, setSimLoading] = useState(false)
   const [simCatalogLoading, setSimCatalogLoading] = useState(false)
+
+  const simTemTefSelecionado = simItens.some(
+    (i) => simSelected.includes(i.id) && i.tipo === 'composto_tef',
+  )
+  const simTemPostoTier = simItens.some(
+    (i) => simSelected.includes(i.id) && i.aplica_tier_posto,
+  )
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedBusca(busca.trim()), 400)
@@ -285,6 +298,7 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
         valor_fixo: itemForm.tipo === 'valor_fixo' ? itemForm.valor_fixo : null,
         tef_base: itemForm.tipo === 'composto_tef' ? itemForm.tef_base : null,
         tef_adicional: itemForm.tipo === 'composto_tef' ? itemForm.tef_adicional : null,
+        aplica_tier_posto: itemForm.tipo === 'percentual_sm' ? !!itemForm.aplica_tier_posto : false,
         vigencia_inicio: itemForm.vigencia_inicio || null,
         vigencia_fim: itemForm.vigencia_fim || null,
       }
@@ -323,13 +337,43 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
       return
     }
     const pdvs = Number(simPdvs) || 1
+    const temCustoOverride = simTefCustoBase.trim() !== '' || simTefCustoAdic.trim() !== ''
+    const temClienteOverride = simTefCliBase.trim() !== '' || simTefCliAdic.trim() !== ''
+    if (temCustoOverride && (simTefCustoBase.trim() === '' || simTefCustoAdic.trim() === '')) {
+      toast.showWarning('Informe base e adicional do custo TEF promocional, ou deixe ambos vazios.')
+      return
+    }
+    if (temClienteOverride && (simTefCliBase.trim() === '' || simTefCliAdic.trim() === '')) {
+      toast.showWarning('Informe base e adicional do valor TEF ao cliente, ou deixe ambos vazios.')
+      return
+    }
+    if ((temCustoOverride || temClienteOverride) && !simTemTefSelecionado) {
+      toast.showWarning('Inclua um item TEF na simulação para usar override.')
+      return
+    }
     setSimLoading(true)
     setSimResult(null)
     try {
+      const tef_override =
+        temCustoOverride || temClienteOverride
+          ? {
+              ...(temCustoOverride
+                ? { tef_custo_base: simTefCustoBase, tef_custo_adicional: simTefCustoAdic }
+                : {}),
+              ...(temClienteOverride
+                ? {
+                    tef_valor_cliente_base: simTefCliBase,
+                    tef_valor_cliente_adicional: simTefCliAdic,
+                  }
+                : {}),
+            }
+          : null
       const res = await comercialCustosItens.simular({
         item_ids: simSelected,
         quantidade_pdvs: pdvs,
         data_referencia: simData || null,
+        desconto_posto_100k: simDescontoPosto,
+        tef_override,
       })
       setSimResult(res)
     } catch (err) {
@@ -592,7 +636,9 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
                       </td>
                       <td className="px-4 py-3.5 tabular-nums text-slate-600 dark:text-slate-300 sm:px-6">
                         {item.tipo === 'percentual_sm'
-                          ? fmtPercentual(item.percentual_sm)
+                          ? `${fmtPercentual(item.percentual_sm)}${
+                              item.aplica_tier_posto ? ' · elegível desconto volume' : ''
+                            }`
                           : item.tipo === 'valor_fixo'
                             ? fmtMoney(item.valor_fixo)
                             : `${fmtMoney(item.tef_base)} + ${fmtMoney(item.tef_adicional)}/PDV`}
@@ -629,6 +675,7 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
                                 valor_fixo: item.valor_fixo ?? '',
                                 tef_base: item.tef_base ?? '',
                                 tef_adicional: item.tef_adicional ?? '',
+                                aplica_tier_posto: !!item.aplica_tier_posto,
                                 ordem: item.ordem,
                                 ativo: item.ativo,
                                 vigencia_inicio: item.vigencia_inicio ?? null,
@@ -663,7 +710,8 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
         <Card>
           <div className="space-y-4">
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Selecione perfis/módulos e a quantidade de PDVs para estimar o custo interno (não é preço de venda).
+            Selecione perfis/módulos e a quantidade de PDVs para estimar o custo interno. TEF promocional e valor ao
+            cliente são overrides só desta simulação (não alteram o catálogo).
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <Input
@@ -710,6 +758,7 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
                           <span className="font-medium text-slate-800 dark:text-slate-100">{item.nome}</span>
                           <span className="ml-2 text-xs text-slate-500" aria-hidden>
                             · {tipoLabel}
+                            {item.aplica_tier_posto ? ' · elegível desconto volume' : ''}
                           </span>
                         </span>
                       </label>
@@ -719,6 +768,72 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
               </ul>
             )}
           </fieldset>
+          {simTemPostoTier ? (
+            <Switch
+              bare
+              checked={simDescontoPosto}
+              onCheckedChange={setSimDescontoPosto}
+              label="Desconto posto menos de 100k L (20% SM)"
+              description="Só altera itens marcados como «elegível desconto volume». Se o posto passar de 100k em algum dos 3 primeiros meses, desative."
+              showStatusPill
+              statusOnText="Ativo"
+              statusOffText="Off"
+            />
+          ) : null}
+          {simTemTefSelecionado ? (
+            <div className="space-y-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                TEF na proposta (opcional)
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Deixe vazio para usar o padrão do catálogo. Preencha ao ativar oferta do fornecedor ou valor ao cliente.
+              </p>
+              {simItens.filter((i) => simSelected.includes(i.id) && i.tipo === 'composto_tef').length > 1 ? (
+                <p className="rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                  Há mais de um item TEF selecionado — o custo/valor informados abaixo aplicam-se a todos. Em
+                  propostas reais, selecione só um TEF.
+                </p>
+              ) : null}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input
+                  id="sim-tef-custo-base"
+                  label="Custo TEF base (1º PDV)"
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={simTefCustoBase}
+                  onChange={(e) => setSimTefCustoBase(e.target.value)}
+                />
+                <Input
+                  id="sim-tef-custo-adic"
+                  label="Custo TEF adicional/PDV"
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={simTefCustoAdic}
+                  onChange={(e) => setSimTefCustoAdic(e.target.value)}
+                />
+                <Input
+                  id="sim-tef-cli-base"
+                  label="Valor cliente TEF base"
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={simTefCliBase}
+                  onChange={(e) => setSimTefCliBase(e.target.value)}
+                />
+                <Input
+                  id="sim-tef-cli-adic"
+                  label="Valor cliente TEF adicional/PDV"
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={simTefCliAdic}
+                  onChange={(e) => setSimTefCliAdic(e.target.value)}
+                />
+              </div>
+            </div>
+          ) : null}
           <Button type="button" loading={simLoading} onClick={() => void executarSimulacao()}>
             Calcular estimado
           </Button>
@@ -726,18 +841,43 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
             <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-900/40">
               <p className="text-sm text-slate-600 dark:text-slate-400">
                 SM na data: {fmtMoney(simResult.salario_minimo)} · PDVs: {simResult.quantidade_pdvs}
+                {simResult.desconto_posto_100k ? ' · desconto volume ativo' : ''}
               </p>
+              {simResult.desconto_posto_100k ? (
+                <p className="mt-1 text-xs text-slate-500">
+                  20% SM só nos itens elegíveis a desconto volume; os demais mantêm o % do catálogo.
+                </p>
+              ) : null}
               <ul className="mt-3 space-y-1 text-sm">
                 {simResult.linhas.map((l) => (
-                  <li key={l.item_id} className="flex justify-between gap-4">
-                    <span>{l.nome}</span>
-                    <span className="tabular-nums font-medium">{fmtMoney(l.valor)}</span>
+                  <li key={l.item_id} className="flex flex-col gap-0.5">
+                    <div className="flex justify-between gap-4">
+                      <span>
+                        {l.nome}
+                        {l.percentual_usado != null ? (
+                          <span className="ml-1 text-xs text-slate-500">
+                            ({fmtPercentual(l.percentual_usado)})
+                          </span>
+                        ) : null}
+                        {l.override_custo ? (
+                          <span className="ml-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                            custo promo
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="tabular-nums font-medium">{fmtMoney(l.valor)}</span>
+                    </div>
+                    {l.tef_valor_cliente != null ? (
+                      <p className="text-xs text-slate-500">
+                        Valor ao cliente (TEF): {fmtMoney(l.tef_valor_cliente)} — não entra no total de custo
+                      </p>
+                    ) : null}
                   </li>
                 ))}
               </ul>
               <p className="mt-3 flex justify-between border-t border-slate-200 pt-3 text-base font-semibold dark:border-slate-700">
-                <span>Total estimado</span>
-                <span className="tabular-nums">{fmtMoney(simResult.total)}</span>
+                <span>Total custo estimado</span>
+                <span className="tabular-nums">{fmtMoney(simResult.total_custo ?? simResult.total)}</span>
               </p>
             </div>
           ) : null}
@@ -858,25 +998,37 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
                 ]}
               />
               {itemForm.tipo === 'percentual_sm' ? (
-                <Input
-                  id="item-pct"
-                  label="Percentual do SM (%)"
-                  type="number"
-                  step="1"
-                  min={0}
-                  hint="Somente números inteiros (ex.: 20)."
-                  value={String(itemForm.percentual_sm ?? '')}
-                  onChange={(e) => {
-                    const raw = e.target.value
-                    if (raw === '') {
-                      setItemForm((f) => ({ ...f, percentual_sm: '' }))
-                      return
-                    }
-                    const n = Math.round(Number(raw))
-                    if (!Number.isNaN(n)) setItemForm((f) => ({ ...f, percentual_sm: String(n) }))
-                  }}
-                  required
-                />
+                <>
+                  <Input
+                    id="item-pct"
+                    label="Percentual do SM (%)"
+                    type="number"
+                    step="1"
+                    min={0}
+                    hint="Somente números inteiros (ex.: 30). Com desconto <100k na simulação, passa a 20%."
+                    value={String(itemForm.percentual_sm ?? '')}
+                    onChange={(e) => {
+                      const raw = e.target.value
+                      if (raw === '') {
+                        setItemForm((f) => ({ ...f, percentual_sm: '' }))
+                        return
+                      }
+                      const n = Math.round(Number(raw))
+                      if (!Number.isNaN(n)) setItemForm((f) => ({ ...f, percentual_sm: String(n) }))
+                    }}
+                    required
+                  />
+                  <Switch
+                    bare
+                    checked={!!itemForm.aplica_tier_posto}
+                    onCheckedChange={(aplica_tier_posto) => setItemForm((f) => ({ ...f, aplica_tier_posto }))}
+                    label="Elegível a desconto posto <100k L"
+                    description="Marque em itens de posto: na simulação dá para ativar 20% SM quando o cliente declara volume baixo."
+                    showStatusPill
+                    statusOnText="Sim"
+                    statusOffText="Não"
+                  />
+                </>
               ) : null}
               {itemForm.tipo === 'valor_fixo' ? (
                 <Input
