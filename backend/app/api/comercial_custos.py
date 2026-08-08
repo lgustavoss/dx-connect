@@ -227,9 +227,12 @@ def simular_custo(
     db: Session = Depends(get_db),
     _: Atendente = Depends(exigir_admin),
 ):
+    """Simula pacote de custos; devolve também snapshot imutável (#331/#332/#335)."""
     return svc.simular_custo(
         db,
         item_ids=body.item_ids,
         quantidade_pdvs=body.quantidade_pdvs,
         data_referencia=body.data_referencia,
+        desconto_posto_100k=body.desconto_posto_100k,
+        tef_override=body.tef_override,
     )

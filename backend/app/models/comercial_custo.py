@@ -1,4 +1,4 @@
-"""Catálogo comercial de custos e salário mínimo (#321 / #329–#330)."""
+"""Catálogo comercial de custos e salário mínimo (#321 / #329–#335)."""
 
 from __future__ import annotations
 
@@ -52,6 +52,8 @@ class CustoCatalogoItem(Base):
     valor_fixo = Column(Numeric(12, 2), nullable=True)
     tef_base = Column(Numeric(12, 2), nullable=True)
     tef_adicional = Column(Numeric(12, 2), nullable=True)
+    # Itens % SM de posto: na simulação, desconto_posto_100k aplica 20% em vez do % do catálogo (#332)
+    aplica_tier_posto = Column(Boolean, default=False, nullable=False)
     ordem = Column(Integer, default=0, nullable=False)
     ativo = Column(Boolean, default=True, nullable=False)
     vigencia_inicio = Column(Date, nullable=True)

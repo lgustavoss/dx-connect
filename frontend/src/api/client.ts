@@ -2868,6 +2868,7 @@ export namespace ComercialCustos {
     valor_fixo?: string | null;
     tef_base?: string | null;
     tef_adicional?: string | null;
+    aplica_tier_posto?: boolean;
     ordem: number;
     ativo: boolean;
     vigencia_inicio?: string | null;
@@ -2884,6 +2885,7 @@ export namespace ComercialCustos {
     valor_fixo?: string | number | null;
     tef_base?: string | number | null;
     tef_adicional?: string | number | null;
+    aplica_tier_posto?: boolean;
     ordem?: number;
     ativo?: boolean;
     vigencia_inicio?: string | null;
@@ -2898,16 +2900,25 @@ export namespace ComercialCustos {
     valor_fixo?: string | number | null;
     tef_base?: string | number | null;
     tef_adicional?: string | number | null;
+    aplica_tier_posto?: boolean;
     ordem?: number;
     ativo?: boolean;
     vigencia_inicio?: string | null;
     vigencia_fim?: string | null;
   }
 
+  export interface TefOverride {
+    tef_custo_base?: string | number | null;
+    tef_custo_adicional?: string | number | null;
+    tef_valor_cliente_base?: string | number | null;
+    tef_valor_cliente_adicional?: string | number | null;
+  }
   export interface SimularRequest {
     item_ids: number[];
     quantidade_pdvs?: number;
     data_referencia?: string | null;
+    desconto_posto_100k?: boolean;
+    tef_override?: TefOverride | null;
   }
   export interface SimularLinha {
     item_id: number;
@@ -2915,14 +2926,20 @@ export namespace ComercialCustos {
     slug: string;
     tipo: string;
     valor: string;
+    percentual_usado?: string | null;
+    override_custo?: boolean;
+    tef_valor_cliente?: string | null;
   }
   export interface SimularResponse {
     data_referencia: string;
     salario_minimo: string | null;
     salario_minimo_id: number | null;
     quantidade_pdvs: number;
+    desconto_posto_100k?: boolean;
     linhas: SimularLinha[];
     total: string;
+    total_custo?: string;
+    snapshot?: Record<string, unknown>;
   }
 }
 
