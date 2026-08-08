@@ -2785,6 +2785,147 @@ export namespace TicketClassificacao {
   }
 }
 
+export const comercialSalarioMinimo = {
+  list: (params?: {
+    offset?: number;
+    limit?: number;
+    ordenar_por?: 'vigencia_inicio' | 'valor' | 'id';
+    ordem?: 'asc' | 'desc';
+  }) => listPaginated<ComercialCustos.SalarioMinimo>('/comercial/salario-minimo', params),
+  naData: (data: string) =>
+    api<ComercialCustos.SalarioMinimo | null>(withParams('/comercial/salario-minimo/na-data', { data })),
+  create: (data: ComercialCustos.SalarioMinimoCreate) =>
+    api<ComercialCustos.SalarioMinimo>('/comercial/salario-minimo', { method: 'POST', body: JSON.stringify(data) }),
+  /** Fecha o vigente e cria novo valor a partir da data (histórico preservado). */
+  atualizarValor: (data: ComercialCustos.SalarioMinimoAtualizarValor) =>
+    api<ComercialCustos.SalarioMinimo>('/comercial/salario-minimo/atualizar-valor', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: (id: number, data: ComercialCustos.SalarioMinimoUpdate) =>
+    api<ComercialCustos.SalarioMinimo>(`/comercial/salario-minimo/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  delete: (id: number) => api<void>(`/comercial/salario-minimo/${id}`, { method: 'DELETE' }),
+};
+
+export const comercialCustosItens = {
+  list: (params?: {
+    incluir_inativos?: boolean;
+    busca?: string;
+    tipo?: string;
+    offset?: number;
+    limit?: number;
+    ordenar_por?: 'nome' | 'slug' | 'ordem' | 'tipo' | 'ativo';
+    ordem?: 'asc' | 'desc';
+  }) => listPaginated<ComercialCustos.Item>('/comercial/custos/itens', params),
+  create: (data: ComercialCustos.ItemCreate) =>
+    api<ComercialCustos.Item>('/comercial/custos/itens', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: ComercialCustos.ItemUpdate) =>
+    api<ComercialCustos.Item>(`/comercial/custos/itens/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id: number) => api<void>(`/comercial/custos/itens/${id}`, { method: 'DELETE' }),
+  simular: (data: ComercialCustos.SimularRequest) =>
+    api<ComercialCustos.SimularResponse>('/comercial/custos/simular', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+};
+
+export namespace ComercialCustos {
+  export type Tipo = 'percentual_sm' | 'valor_fixo' | 'composto_tef';
+
+  export interface SalarioMinimo {
+    id: number;
+    valor: string;
+    vigencia_inicio: string;
+    vigencia_fim?: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+  export interface SalarioMinimoCreate {
+    valor: string | number;
+    vigencia_inicio: string;
+    vigencia_fim?: string | null;
+  }
+  export interface SalarioMinimoAtualizarValor {
+    valor: string | number;
+    vigencia_inicio: string;
+  }
+  export interface SalarioMinimoUpdate {
+    valor?: string | number;
+    vigencia_inicio?: string;
+    vigencia_fim?: string | null;
+  }
+
+  export interface Item {
+    id: number;
+    nome: string;
+    slug: string;
+    descricao?: string | null;
+    tipo: Tipo | string;
+    percentual_sm?: string | null;
+    valor_fixo?: string | null;
+    tef_base?: string | null;
+    tef_adicional?: string | null;
+    ordem: number;
+    ativo: boolean;
+    vigencia_inicio?: string | null;
+    vigencia_fim?: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+  export interface ItemCreate {
+    nome: string;
+    slug: string;
+    descricao?: string | null;
+    tipo: Tipo;
+    percentual_sm?: string | number | null;
+    valor_fixo?: string | number | null;
+    tef_base?: string | number | null;
+    tef_adicional?: string | number | null;
+    ordem?: number;
+    ativo?: boolean;
+    vigencia_inicio?: string | null;
+    vigencia_fim?: string | null;
+  }
+  export interface ItemUpdate {
+    nome?: string;
+    slug?: string;
+    descricao?: string | null;
+    tipo?: Tipo;
+    percentual_sm?: string | number | null;
+    valor_fixo?: string | number | null;
+    tef_base?: string | number | null;
+    tef_adicional?: string | number | null;
+    ordem?: number;
+    ativo?: boolean;
+    vigencia_inicio?: string | null;
+    vigencia_fim?: string | null;
+  }
+
+  export interface SimularRequest {
+    item_ids: number[];
+    quantidade_pdvs?: number;
+    data_referencia?: string | null;
+  }
+  export interface SimularLinha {
+    item_id: number;
+    nome: string;
+    slug: string;
+    tipo: string;
+    valor: string;
+  }
+  export interface SimularResponse {
+    data_referencia: string;
+    salario_minimo: string | null;
+    salario_minimo_id: number | null;
+    quantidade_pdvs: number;
+    linhas: SimularLinha[];
+    total: string;
+  }
+}
+
 export const pdvRotulos = {
   list: (params?: { incluir_inativos?: boolean; busca?: string; offset?: number; limit?: number }) =>
     listPaginated<PdvCatalogo.Item>('/pdv-rotulos', params),

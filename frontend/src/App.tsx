@@ -55,6 +55,7 @@ import { TipoNegocioForm } from './pages/TipoNegocioForm'
 import { TipoNegocioDetalhe } from './pages/TipoNegocioDetalhe'
 import { ConfigWhatsapp } from './pages/ConfigWhatsapp'
 import { ConfigPdvCatalogos } from './pages/ConfigPdvCatalogos'
+import { ConfigComercialCustos } from './pages/ConfigComercialCustos'
 import { ConfigEmpresaEmail } from './pages/ConfigEmpresaEmail'
 import { ConfigAtendimentoLayout } from './pages/config/ConfigAtendimentoLayout'
 import { ConfigCadastrosLayout } from './pages/config/ConfigCadastrosLayout'
@@ -572,6 +573,7 @@ function AppRoutes() {
           <Route index element={<Navigate to="tipos-negocio" replace />} />
           <Route path="tipos-negocio" element={<TiposNegocio embedded />} />
           <Route path="pdv" element={<ConfigPdvCatalogos embedded />} />
+          <Route path="custos" element={<ConfigComercialCustos embedded />} />
         </Route>
         <Route
           path="configuracoes/sistema"

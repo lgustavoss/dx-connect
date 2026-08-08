@@ -22,6 +22,7 @@ from app.models.whatsapp_chat import (
 )
 from app.models.whatsapp_chat_demanda import WhatsappChatDemanda
 from app.models.whatsapp_demanda_motivo_sugestao import WhatsappDemandaMotivoSugestao
+from app.models.comercial_custo import CustoCatalogoItem, SalarioMinimoReferencia
 from app.models.empresa_sistema import EmpresaSistema
 from app.models.email_settings import EmailSettings
 from app.models.protocol_sequence import ProtocolSequence
@@ -80,6 +81,8 @@ __all__ = [
     "WhatsappChatTicket",
     "WhatsappChatDemanda",
     "WhatsappDemandaMotivoSugestao",
+    "SalarioMinimoReferencia",
+    "CustoCatalogoItem",
     "EmpresaSistema",
     "EmailSettings",
     "ProtocolSequence",
