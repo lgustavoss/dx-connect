@@ -39,6 +39,7 @@ from app.api import (
     pdv_catalogos,
     ticket_catalogos,
     empresa_pdvs,
+    comercial_custos,
     system_settings,
     tenant,
     public_csat,
@@ -453,6 +454,7 @@ app.include_router(resend_inbound_webhook.router, prefix=API_V1_PREFIX)
 app.include_router(respostas_prontas.router, prefix=API_V1_PREFIX)
 app.include_router(pdv_catalogos.router, prefix=API_V1_PREFIX)
 app.include_router(ticket_catalogos.router, prefix=API_V1_PREFIX)
+app.include_router(comercial_custos.router, prefix=API_V1_PREFIX)
 app.include_router(empresa_pdvs.router, prefix=API_V1_PREFIX)
 app.include_router(system_settings.router, prefix=API_V1_PREFIX)
 app.include_router(tenant.router, prefix=API_V1_PREFIX)
