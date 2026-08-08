@@ -1,10 +1,10 @@
-"""Schemas do catálogo comercial de custos (#321)."""
+"""Schemas do catálogo comercial de custos (#321 / #329–#335)."""
 
 from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -56,6 +56,7 @@ class CustoCatalogoItemCreate(BaseModel):
     valor_fixo: Decimal | None = Field(None, ge=0)
     tef_base: Decimal | None = Field(None, ge=0)
     tef_adicional: Decimal | None = Field(None, ge=0)
+    aplica_tier_posto: bool = False
     ordem: int = 0
     ativo: bool = True
     vigencia_inicio: date | None = None
@@ -80,9 +81,13 @@ class CustoCatalogoItemCreate(BaseModel):
         elif self.tipo == "valor_fixo":
             if self.valor_fixo is None:
                 raise ValueError("valor_fixo é obrigatório para tipo valor_fixo")
+            if self.aplica_tier_posto:
+                raise ValueError("aplica_tier_posto só se aplica a itens percentual_sm")
         elif self.tipo == "composto_tef":
             if self.tef_base is None or self.tef_adicional is None:
                 raise ValueError("tef_base e tef_adicional são obrigatórios para composto_tef")
+            if self.aplica_tier_posto:
+                raise ValueError("aplica_tier_posto só se aplica a itens percentual_sm")
         return self
 
 
@@ -95,6 +100,7 @@ class CustoCatalogoItemUpdate(BaseModel):
     valor_fixo: Decimal | None = Field(None, ge=0)
     tef_base: Decimal | None = Field(None, ge=0)
     tef_adicional: Decimal | None = Field(None, ge=0)
+    aplica_tier_posto: bool | None = None
     ordem: int | None = None
     ativo: bool | None = None
     vigencia_inicio: date | None = None
@@ -111,6 +117,7 @@ class CustoCatalogoItemRead(BaseModel):
     valor_fixo: Decimal | None = None
     tef_base: Decimal | None = None
     tef_adicional: Decimal | None = None
+    aplica_tier_posto: bool = False
     ordem: int
     ativo: bool
     vigencia_inicio: date | None = None
@@ -121,10 +128,35 @@ class CustoCatalogoItemRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class CustoTefOverride(BaseModel):
+    """Override pontual na proposta: custo interno e/ou valor ao cliente (#331)."""
+
+    tef_custo_base: Decimal | None = Field(None, ge=0)
+    tef_custo_adicional: Decimal | None = Field(None, ge=0)
+    tef_valor_cliente_base: Decimal | None = Field(None, ge=0)
+    tef_valor_cliente_adicional: Decimal | None = Field(None, ge=0)
+
+    @model_validator(mode="after")
+    def _pares(self):
+        custo_parcial = (self.tef_custo_base is None) != (self.tef_custo_adicional is None)
+        if custo_parcial:
+            raise ValueError("Informe tef_custo_base e tef_custo_adicional juntos, ou nenhum.")
+        cliente_parcial = (self.tef_valor_cliente_base is None) != (self.tef_valor_cliente_adicional is None)
+        if cliente_parcial:
+            raise ValueError(
+                "Informe tef_valor_cliente_base e tef_valor_cliente_adicional juntos, ou nenhum."
+            )
+        return self
+
+
 class CustoSimularRequest(BaseModel):
     item_ids: list[int] = Field(..., min_length=1)
     quantidade_pdvs: int = Field(1, ge=1, le=500)
     data_referencia: date | None = None
+    # True = cliente declarou <100k L → aplica 20% SM nos itens com aplica_tier_posto (#332)
+    desconto_posto_100k: bool = False
+    # Override TEF na proposta (não altera o catálogo) (#331)
+    tef_override: CustoTefOverride | None = None
 
 
 class CustoSimularLinha(BaseModel):
@@ -133,6 +165,9 @@ class CustoSimularLinha(BaseModel):
     slug: str
     tipo: str
     valor: Decimal
+    percentual_usado: Decimal | None = None
+    override_custo: bool = False
+    tef_valor_cliente: Decimal | None = None
 
 
 class CustoSimularResponse(BaseModel):
@@ -140,5 +175,8 @@ class CustoSimularResponse(BaseModel):
     salario_minimo: Decimal | None
     salario_minimo_id: int | None
     quantidade_pdvs: int
+    desconto_posto_100k: bool = False
     linhas: list[CustoSimularLinha]
-    total: Decimal
+    total: Decimal  # compat lote A (= total_custo)
+    total_custo: Decimal
+    snapshot: dict[str, Any]
