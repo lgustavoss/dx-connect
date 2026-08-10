@@ -26,6 +26,7 @@ export function SaasLeadDetalhe() {
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [converting, setConverting] = useState(false)
   const [forbidden, setForbidden] = useState(false)
   const [indisponivel, setIndisponivel] = useState(false)
   const [falha, setFalha] = useState<{ titulo: string; detalhe?: string } | null>(null)
@@ -91,6 +92,20 @@ export function SaasLeadDetalhe() {
     }
   }
 
+  async function converterEmLicenca() {
+    if (!item) return
+    setConverting(true)
+    try {
+      const licenca = await saasLeads.converter(item.id, { enfileirar_provisionamento: false })
+      toast.showSuccess('Licença criada a partir do lead.')
+      navigate(`/saas/licencas/${licenca.id}`, { replace: true })
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível converter o lead.'))
+    } finally {
+      setConverting(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="mx-auto max-w-6xl space-y-6 pb-10">
@@ -136,21 +151,36 @@ export function SaasLeadDetalhe() {
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">{item.nome}</h1>
           <p className="text-sm text-slate-500">{item.email}</p>
         </div>
-        <Button
-          variant="secondary"
-          onClick={() => {
-            const q = new URLSearchParams({
-              nome: item.nome,
-              email: item.email,
-              contato_nome: item.nome,
-            })
-            if (item.empresa) q.set('empresa', item.empresa)
-            if (item.mensagem) q.set('notas', `Lead #${item.id}: ${item.mensagem.slice(0, 400)}`)
-            navigate(`/saas/licencas/novo?${q.toString()}`)
-          }}
-        >
-          Criar licença
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {item.cliente_saas_id ? (
+            <Button variant="secondary" onClick={() => navigate(`/saas/licencas/${item.cliente_saas_id}`)}>
+              Abrir licença #{item.cliente_saas_id}
+            </Button>
+          ) : (
+            <>
+              <Button disabled={converting} loading={converting} onClick={() => void converterEmLicenca()}>
+                Converter em licença
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={converting}
+                onClick={() => {
+                  const q = new URLSearchParams({
+                    lead_id: String(item.id),
+                    nome: item.nome,
+                    email: item.email,
+                    contato_nome: item.nome,
+                  })
+                  if (item.empresa) q.set('empresa', item.empresa)
+                  if (item.mensagem) q.set('notas', `Lead #${item.id}: ${item.mensagem.slice(0, 400)}`)
+                  navigate(`/saas/licencas/novo?${q.toString()}`)
+                }}
+              >
+                Prefill manual
+              </Button>
+            </>
+          )}
+        </div>
       </header>
 
       <Card title="Mensagem do prospect">

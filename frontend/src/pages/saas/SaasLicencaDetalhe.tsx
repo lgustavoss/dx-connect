@@ -290,9 +290,27 @@ export function SaasLicencaDetalhe() {
                   : '—'
             }
           />
+          <DetailRow
+            label="Lead de origem"
+            value={item.lead_comercial_id != null ? `#${item.lead_comercial_id}` : '—'}
+          />
           <DetailRow label="Notas" value={item.notas || '—'} />
         </dl>
       </Card>
+
+      {item.lead_comercial_id != null ? (
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-200">
+          Convertido do lead{' '}
+          <button
+            type="button"
+            className="font-medium text-sky-600 hover:underline dark:text-sky-400"
+            onClick={() => navigate(`/saas/leads/${item.lead_comercial_id}`)}
+          >
+            #{item.lead_comercial_id}
+          </button>
+          .
+        </div>
+      ) : null}
 
       {item.aprovacao_status === 'pendente' ? (
         <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-100">

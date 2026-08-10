@@ -35,6 +35,44 @@ def test_contato_publico_cria_lead(client, auth_headers, monkeypatch):
     )
     assert patch.status_code == 200
     assert patch.json()["status"] == "em_atendimento"
+    assert lead.get("cliente_saas_id") is None
+
+
+def test_converter_lead_em_licenca(client, auth_headers, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    monkeypatch.setattr(settings, "SAAS_NOTIFY_EMAIL", None)
+    h = auth_headers["ops"]
+
+    lead_id = client.post(
+        "/v1/saas/public/contato",
+        json={
+            "nome": "Carlos",
+            "email": "carlos@conv.example",
+            "empresa": "Conv Soft",
+            "mensagem": "Preciso de licença",
+        },
+    ).json()["id"]
+
+    conv = client.post(
+        f"/v1/saas/leads/{lead_id}/converter",
+        headers=h,
+        json={"enfileirar_provisionamento": False},
+    )
+    assert conv.status_code == 201, conv.text
+    lic = conv.json()
+    assert lic["nome"] == "Conv Soft"
+    assert lic["contato_email"] == "carlos@conv.example"
+    assert lic["lead_comercial_id"] == lead_id
+    assert lic["slug"].startswith("conv-soft")
+
+    lead = client.get(f"/v1/saas/leads/{lead_id}", headers=h).json()
+    assert lead["cliente_saas_id"] == lic["id"]
+    assert lead["status"] == "fechado"
+
+    again = client.post(f"/v1/saas/leads/{lead_id}/converter", headers=h, json={})
+    assert again.status_code == 409
 
 
 def test_contato_nao_usa_kb(client, monkeypatch):

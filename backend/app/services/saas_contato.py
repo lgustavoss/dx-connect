@@ -53,6 +53,7 @@ class LeadComercialRead(BaseModel):
     status: str
     origem: str
     notas_internas: str | None = None
+    cliente_saas_id: int | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

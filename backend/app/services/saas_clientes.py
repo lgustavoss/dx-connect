@@ -34,9 +34,15 @@ def criar(db: Session, data: ClienteSaaSCreate) -> ClienteSaaS:
     if data.status not in STATUS_CLIENTE_SAAS:
         raise SaasErro("Status inválido")
     _garantir_slug_unico(db, data.slug)
-    row = ClienteSaaS(**data.model_dump())
+    payload = data.model_dump()
+    lead_id = payload.pop("lead_comercial_id", None)
+    row = ClienteSaaS(**payload)
     db.add(row)
     db.flush()
+    if lead_id:
+        from app.services.saas_lead_convert import ligar_lead_ao_criar
+
+        ligar_lead_ao_criar(db, row, lead_id)
     return row
 
 
@@ -142,6 +148,7 @@ def serializar_cliente(row: ClienteSaaS) -> dict:
         "stack_ops_pendente": getattr(row, "stack_ops_pendente", None),
         "stack_ops_mensagem": getattr(row, "stack_ops_mensagem", None),
         "stack_ops_atualizado_em": getattr(row, "stack_ops_atualizado_em", None),
+        "lead_comercial_id": getattr(row, "lead_comercial_id", None),
         "comandos_ops": montar_comandos_ops(row),
         "comandos_stack": montar_comandos_stack(row),
         "dias_para_renovacao": dias_para_renovacao(row.data_renovacao),

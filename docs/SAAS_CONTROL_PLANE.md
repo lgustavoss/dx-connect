@@ -69,11 +69,10 @@ Busca em `/clientes` cobre nome, slug, `contato_nome` e `contato_email`.
 ## Checklist QA local (antes de testes manuais)
 
 1. Flags dual: `SAAS_CONTROL_PLANE=true` + `VITE_SAAS_CONTROL_PLANE=true` só na instância comercial.
-2. Migrations `084`–`088` aplicadas (`alembic upgrade head`).
+2. Migrations `084`–`089` aplicadas (`alembic upgrade head`).
 3. Login ops via `/login/admin` (`ops@deskrudder.local`) → shell SaaS (Licenças / Leads), sem menu de tickets.
 4. Login atendimento via `/login` (`admin@email.com` ou `atendente@email.com`) → painel de tickets/chat (sem menu SaaS).
-5. Lead → **Criar licença** (prefill); trial em `/trial`; contacto na LP.
-6. Provisionar com `SAAS_PROVISION_EXEC_ENABLED=false` → `aguardando_ops` → copiar comandos → **Confirmar provisionamento** após health.
+5. Lead → **Converter em licença** (vínculo persistido) ou prefill manual; trial em `/trial`; contacto na LP.6. Provisionar com `SAAS_PROVISION_EXEC_ENABLED=false` → `aguardando_ops` → copiar comandos → **Confirmar provisionamento** após health.
 7. Trial com aprovação pendente → **Aprovar go-live** (trial→activo) ou **Rejeitar** (churn).
 8. Suspender/reativar com stack provisionada → comandos `down`/`up` → **Confirmar stack** (ou auto-exec).
 9. Renovar por dias e por data; registar URL.
@@ -85,6 +84,8 @@ Busca em `/clientes` cobre nome, slug, `contato_nome` e `contato_email`.
 - Landing: CTA «Fale conosco» / demonstração abre formulário (nome, e-mail, mensagem) → `/v1/saas/public/contato`
 - **Não** usa `/kb/public/chat/*` nem `portal_chats`
 - Inbox: `/saas/leads` (menu SaaS DeskRudder)
+- **Converter em licença**: `POST /v1/saas/leads/{id}/converter` cria `ClienteSaaS`, grava `cliente_saas_id` no lead e `lead_comercial_id` na licença, marca o lead como `fechado`
+- Prefill manual (`/saas/licencas/novo?lead_id=…`) também persiste o vínculo ao guardar
 - Sem control-plane: CTA continua com `mailto:` (landing não quebra)
 
 ## Provisionamento (DR-04)

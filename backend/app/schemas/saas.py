@@ -103,7 +103,7 @@ class ClienteSaaSBase(BaseModel):
 
 
 class ClienteSaaSCreate(ClienteSaaSBase):
-    pass
+    lead_comercial_id: int | None = None
 
 
 class ClienteSaaSUpdate(BaseModel):
@@ -253,6 +253,7 @@ class ClienteSaaSRead(ClienteSaaSBase):
     stack_ops_pendente: str | None = None
     stack_ops_mensagem: str | None = None
     stack_ops_atualizado_em: datetime | None = None
+    lead_comercial_id: int | None = None
     comandos_ops: str | None = None
     comandos_stack: str | None = None
     dias_para_renovacao: int | None = None

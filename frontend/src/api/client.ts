@@ -3820,6 +3820,20 @@ export const saasLeads = {
   get: (id: number) => api<SaasLeads.Lead>(`/saas/leads/${id}`),
   update: (id: number, data: SaasLeads.Update) =>
     api<SaasLeads.Lead>(`/saas/leads/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  converter: (
+    id: number,
+    data?: {
+      slug?: string | null;
+      plano?: string | null;
+      status?: SaasClientes.Status;
+      enfileirar_provisionamento?: boolean;
+      notas_extra?: string | null;
+    },
+  ) =>
+    api<SaasClientes.Cliente>(`/saas/leads/${id}/converter`, {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
 };
 
 export namespace SaasLeads {
@@ -3833,6 +3847,7 @@ export namespace SaasLeads {
     status: Status;
     origem: string;
     notas_internas?: string | null;
+    cliente_saas_id?: number | null;
     created_at?: string | null;
     updated_at?: string | null;
   }
@@ -3910,6 +3925,7 @@ export namespace SaasClientes {
     stack_ops_pendente?: 'down' | 'up' | null;
     stack_ops_mensagem?: string | null;
     stack_ops_atualizado_em?: string | null;
+    lead_comercial_id?: number | null;
     comandos_ops?: string | null;
     comandos_stack?: string | null;
     dias_para_renovacao?: number | null;
@@ -3928,6 +3944,7 @@ export namespace SaasClientes {
     contato_email?: string | null;
     contato_nome?: string | null;
     notas?: string | null;
+    lead_comercial_id?: number | null;
   }
   export type Update = Partial<Create>;
 }

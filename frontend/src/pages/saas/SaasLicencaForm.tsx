@@ -55,6 +55,7 @@ export function SaasLicencaForm() {
   const [contatoNome, setContatoNome] = useState('')
   const [contatoEmail, setContatoEmail] = useState('')
   const [notas, setNotas] = useState('')
+  const [leadComercialId, setLeadComercialId] = useState<number | null>(null)
 
   useEffect(() => {
     if (isEdit) return
@@ -63,6 +64,7 @@ export function SaasLicencaForm() {
     const preEmail = searchParams.get('email')?.trim() || ''
     const preContato = searchParams.get('contato_nome')?.trim() || ''
     const preNotas = searchParams.get('notas')?.trim() || ''
+    const preLead = searchParams.get('lead_id')?.trim() || ''
     const nomeInicial = preEmpresa || preNome
     if (nomeInicial) {
       setNome(nomeInicial)
@@ -71,6 +73,10 @@ export function SaasLicencaForm() {
     if (preContato || preNome) setContatoNome(preContato || preNome)
     if (preEmail) setContatoEmail(preEmail)
     if (preNotas) setNotas(preNotas)
+    if (preLead) {
+      const n = parseInt(preLead, 10)
+      if (Number.isFinite(n)) setLeadComercialId(n)
+    }
   }, [isEdit, searchParams])
 
   useEffect(() => {
@@ -145,6 +151,7 @@ export function SaasLicencaForm() {
         contato_nome: contatoNome.trim() || null,
         contato_email: contatoEmail.trim() || null,
         notas: notas.trim() || null,
+        ...(leadComercialId != null ? { lead_comercial_id: leadComercialId } : {}),
       }
       if (isEdit && !Number.isNaN(clienteId)) {
         await saasClientes.update(clienteId, payload)
