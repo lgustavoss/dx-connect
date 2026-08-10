@@ -21,7 +21,8 @@ class TrialSolicitacaoCreate(BaseModel):
     contato_nome: str = Field(..., min_length=1, max_length=200)
     contato_email: EmailStr
     notas: str | None = None
-    solicitar_provisionamento: bool = False
+    # Legado: ignorado — o trial enfileira provisionamento sempre (ops-assisted ou auto-exec).
+    solicitar_provisionamento: bool = True
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
@@ -67,6 +68,13 @@ def criar_trial_publico(db: Session, data: TrialSolicitacaoCreate) -> ClienteSaa
     row.contato_nome = data.contato_nome.strip()
     db.flush()
 
+    # Sempre enfileira: a equipa vê a licença trial na fila e provisiona (ops ou EXEC=true).
+    try:
+        enfileirar_provisionamento(db, row.id)
+        fila_txt = "Provisionamento enfileirado automaticamente."
+    except svc.SaasErro as e:
+        fila_txt = f"Registo criado; fila de provisionamento: {e.detail}"
+
     notificar_equipe_saas(
         db,
         subject=f"[DeskRudder] Novo trial — {row.nome} ({row.slug})",
@@ -76,13 +84,8 @@ def criar_trial_publico(db: Session, data: TrialSolicitacaoCreate) -> ClienteSaa
             f"Contacto: {row.contato_nome} <{row.contato_email}>\n"
             f"Trial até: {row.data_renovacao}\n"
             f"Notas: {row.notas or '—'}\n"
+            f"{fila_txt}\n"
         ),
     )
-
-    if data.solicitar_provisionamento:
-        try:
-            enfileirar_provisionamento(db, row.id)
-        except svc.SaasErro:
-            pass
 
     return row

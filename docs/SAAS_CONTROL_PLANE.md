@@ -91,7 +91,7 @@ Fluxo padrão no control-plane: **ops-assisted** (`SAAS_PROVISION_EXEC_ENABLED=f
 
 ### Ops-assisted (recomendado)
 
-1. Em `/saas/licencas/{id}`, a equipa clica **Solicitar provisionamento** (ou o trial chega com a opção ligada).
+1. Em `/saas/licencas/{id}`, a equipa clica **Solicitar provisionamento** (ou o trial público já enfileira sozinho).
 2. Status → `pendente`; o worker aloca `api_port` e passa a `aguardando_ops`, preenchendo a URL esperada `https://{slug}.{SAAS_PROVISION_BASE_DOMAIN}`.
 3. O detalhe mostra um bloco **Comandos** (também em `comandos_ops` na API) para copiar:
    - `./deploy/scripts/provision-client.sh --slug … --base-domain … --api-port …`
@@ -120,7 +120,11 @@ Não use auto-exec a partir do container Windows/dev sem o repositório e Docker
 
 ## Trial (DR-07)
 
-Formulário público cria `ClienteSaaS` com `status=trial`, `data_renovacao = hoje + SAAS_TRIAL_DAYS`, e notifica `SAAS_NOTIFY_EMAIL` (se Resend estiver configurado).
+Formulário público (`/trial`) cria `ClienteSaaS` com `status=trial`, `data_renovacao = hoje + SAAS_TRIAL_DAYS`,
+**enfileira provisionamento automaticamente** e notifica `SAAS_NOTIFY_EMAIL` (se Resend estiver configurado).
+
+O campo legado `solicitar_provisionamento` no body é ignorado (sempre enfileira). Com
+`SAAS_PROVISION_EXEC_ENABLED=false`, a fila fica em `aguardando_ops` para a equipa correr os scripts.
 
 ## Renovações (DR-08)
 

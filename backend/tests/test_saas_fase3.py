@@ -203,6 +203,8 @@ def test_trial_publico_cria_licenca(client, auth_headers, monkeypatch):
     monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
     monkeypatch.setattr(settings, "SAAS_TRIAL_DAYS", 10)
     monkeypatch.setattr(settings, "SAAS_NOTIFY_EMAIL", None)
+    monkeypatch.setattr(settings, "SAAS_PROVISION_EXEC_ENABLED", False)
+    monkeypatch.setattr(settings, "SAAS_PROVISION_BASE_DOMAIN", "deskrudder.com.br")
 
     r = client.post(
         "/v1/saas/public/trial",
@@ -219,12 +221,16 @@ def test_trial_publico_cria_licenca(client, auth_headers, monkeypatch):
     assert body["slug"] == "beta-soft"
     assert body["status"] == "trial"
     assert body["data_renovacao"] == str(date.today() + timedelta(days=10))
+    assert "fila" in body["mensagem"].lower() or "provisionamento" in body["mensagem"].lower()
 
     lista = client.get("/v1/saas/clientes?busca=beta", headers=auth_headers["ops"])
     assert lista.status_code == 200
     assert lista.json()["total"] >= 1
     item = next(i for i in lista.json()["items"] if i["slug"] == "beta-soft")
     assert item["contato_email"] == "ana@beta.example"
+    assert item["provisionamento_solicitado"] is True
+    assert item["provisionamento_status"] == "pendente"
+    assert item["api_port"] is not None
 
 
 def test_trial_publico_slug_duplicado(client, monkeypatch):
@@ -311,13 +317,15 @@ def test_renovar_com_nova_data(client, auth_headers, monkeypatch):
     assert r.json()["dias_para_renovacao"] == 90
 
 
-def test_trial_com_provisionamento(client, auth_headers, monkeypatch):
+def test_trial_enfileira_mesmo_sem_flag_legado(client, auth_headers, monkeypatch):
+    """solicitar_provisionamento=false no body é ignorado — sempre enfileira."""
     from app.config import settings
 
     monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
     monkeypatch.setattr(settings, "SAAS_TRIAL_DAYS", 14)
     monkeypatch.setattr(settings, "SAAS_NOTIFY_EMAIL", None)
     monkeypatch.setattr(settings, "SAAS_PROVISION_EXEC_ENABLED", False)
+    monkeypatch.setattr(settings, "SAAS_PROVISION_BASE_DOMAIN", "deskrudder.com.br")
 
     r = client.post(
         "/v1/saas/public/trial",
@@ -326,7 +334,7 @@ def test_trial_com_provisionamento(client, auth_headers, monkeypatch):
             "slug": "prov-soft",
             "contato_nome": "Joao",
             "contato_email": "joao@prov.example",
-            "solicitar_provisionamento": True,
+            "solicitar_provisionamento": False,
         },
     )
     assert r.status_code == 201, r.text

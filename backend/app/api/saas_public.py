@@ -44,7 +44,8 @@ def solicitar_trial(
         status=row.status,
         data_renovacao=row.data_renovacao,
         mensagem=(
-            "Pedido de trial recebido. A equipa DeskRudder vai analisar e contactá-lo "
+            "Pedido de trial recebido. A instância entra na fila de provisionamento; "
+            "a equipa DeskRudder analisa e contactá-lo "
             f"em {row.contato_email}."
         ),
     )

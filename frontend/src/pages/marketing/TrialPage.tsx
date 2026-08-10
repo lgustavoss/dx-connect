@@ -13,7 +13,6 @@ export function TrialPage() {
   const [contatoNome, setContatoNome] = useState('')
   const [contatoEmail, setContatoEmail] = useState('')
   const [notas, setNotas] = useState('')
-  const [solicitarProv, setSolicitarProv] = useState(false)
   const [saving, setSaving] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [okMsg, setOkMsg] = useState<string | null>(null)
@@ -30,7 +29,6 @@ export function TrialPage() {
         contato_nome: contatoNome.trim(),
         contato_email: contatoEmail.trim(),
         notas: notas.trim() || null,
-        solicitar_provisionamento: solicitarProv,
       })
       setOkMsg(res.mensagem)
       setEmpresa('')
@@ -38,7 +36,6 @@ export function TrialPage() {
       setContatoNome('')
       setContatoEmail('')
       setNotas('')
-      setSolicitarProv(false)
     } catch (err) {
       setErro(mensagemFalhaParaToast(err, 'Não foi possível enviar o pedido de trial.'))
     } finally {
@@ -62,8 +59,8 @@ export function TrialPage() {
       <main className="mx-auto w-full max-w-3xl px-5 py-12 sm:px-8">
         <h1 className="text-3xl font-bold tracking-tight text-white">Pedir trial DeskRudder</h1>
         <p className="mt-3 text-slate-300">
-          Preencha os dados da sua empresa de suporte. A equipa DeskRudder analisa o pedido e entra em
-          contacto.
+          Preencha os dados da sua empresa de suporte. Criamos o registo do trial e colocamos a
+          instância na fila de provisionamento para a equipa DeskRudder aprovar e preparar o ambiente.
         </p>
 
         {!enabled ? (
@@ -133,15 +130,10 @@ export function TrialPage() {
                 className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white focus:border-sky-400/50 focus:outline-none focus:ring-2 focus:ring-sky-400/25"
               />
             </label>
-            <label className="flex items-center gap-2 text-sm text-slate-300">
-              <input
-                type="checkbox"
-                checked={solicitarProv}
-                onChange={(e) => setSolicitarProv(e.target.checked)}
-                className="rounded border-white/20"
-              />
-              Solicitar provisionamento da instância (fila para a equipa)
-            </label>
+            <p className="rounded-xl border border-sky-400/20 bg-sky-500/10 px-3 py-2 text-xs text-sky-100/90">
+              Ao enviar, a licença trial é criada e a instância entra automaticamente na fila de
+              provisionamento para a equipa DeskRudder.
+            </p>
             <button
               type="submit"
               disabled={saving}
