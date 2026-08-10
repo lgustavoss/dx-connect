@@ -168,6 +168,10 @@ def confirmar_provisionamento(
     row.provisionamento_status = "sucesso"
     row.provisionamento_mensagem = "Provisionamento confirmado pela equipa ops (health ok)"
     row.provisionamento_atualizado_em = _utcnow()
+    row.stack_status = "running"
+    row.stack_ops_pendente = None
+    row.stack_ops_mensagem = "Stack em execução após confirmação de provisionamento"
+    row.stack_ops_atualizado_em = _utcnow()
     db.flush()
     return row
 
@@ -214,6 +218,10 @@ def processar_provisionamentos_pendentes(db: Session, *, limit: int = 5) -> int:
             row.provisionamento_status = "sucesso"
             row.provisionamento_mensagem = "Instância provisionada com sucesso"
             row.provisionamento_atualizado_em = _utcnow()
+            row.stack_status = "running"
+            row.stack_ops_pendente = None
+            row.stack_ops_mensagem = "Stack em execução após provisionamento automático"
+            row.stack_ops_atualizado_em = _utcnow()
             if row.status == "trial":
                 # Mantém trial; ops ativa depois
                 pass

@@ -412,6 +412,64 @@ def test_trial_enfileira_mesmo_sem_flag_legado(client, auth_headers, monkeypatch
     assert d["contato_email"] == "joao@prov.example"
 
 
+def test_suspender_reativar_stack_ops_assisted(client, auth_headers, monkeypatch):
+    from app.config import settings
+    from app.database import SessionLocal
+    from app.services.saas_provisionamento import processar_provisionamentos_pendentes
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    monkeypatch.setattr(settings, "SAAS_PROVISION_EXEC_ENABLED", False)
+    monkeypatch.setattr(settings, "SAAS_PROVISION_BASE_DOMAIN", "deskrudder.com.br")
+    monkeypatch.setattr(settings, "SAAS_NOTIFY_EMAIL", None)
+    h = auth_headers["ops"]
+
+    cid = client.post(
+        "/v1/saas/clientes",
+        headers=h,
+        json={
+            "nome": "Stack Co",
+            "slug": "stack-co",
+            "status": "ativo",
+            "data_inicio": str(date.today()),
+        },
+    ).json()["id"]
+
+    assert client.post(f"/v1/saas/clientes/{cid}/solicitar-provisionamento", headers=h).status_code == 200
+    db = SessionLocal()
+    try:
+        processar_provisionamentos_pendentes(db, limit=5)
+        db.commit()
+    finally:
+        db.close()
+
+    conf = client.post(f"/v1/saas/clientes/{cid}/confirmar-provisionamento", headers=h, json={})
+    assert conf.status_code == 200, conf.text
+    assert conf.json()["stack_status"] == "running"
+
+    susp = client.post(f"/v1/saas/clientes/{cid}/suspender", headers=h)
+    assert susp.status_code == 200, susp.text
+    s = susp.json()
+    assert s["status"] == "suspenso"
+    assert s["stack_ops_pendente"] == "down"
+    assert s["comandos_stack"] and "stack-client.sh down" in s["comandos_stack"]
+
+    conf_down = client.post(f"/v1/saas/clientes/{cid}/confirmar-stack", headers=h)
+    assert conf_down.status_code == 200
+    assert conf_down.json()["stack_status"] == "stopped"
+    assert conf_down.json()["stack_ops_pendente"] is None
+
+    reat = client.post(f"/v1/saas/clientes/{cid}/reativar", headers=h)
+    assert reat.status_code == 200
+    r = reat.json()
+    assert r["status"] == "ativo"
+    assert r["stack_ops_pendente"] == "up"
+    assert r["comandos_stack"] and "stack-client.sh up" in r["comandos_stack"]
+
+    conf_up = client.post(f"/v1/saas/clientes/{cid}/confirmar-stack", headers=h)
+    assert conf_up.status_code == 200
+    assert conf_up.json()["stack_status"] == "running"
+
+
 def test_worker_renovacao_suspende_vencido(client, auth_headers, monkeypatch):
     from app.config import settings
     from app.database import SessionLocal

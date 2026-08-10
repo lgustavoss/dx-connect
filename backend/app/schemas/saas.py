@@ -249,7 +249,12 @@ class ClienteSaaSRead(ClienteSaaSBase):
     aprovacao_status: AprovacaoStatusSaaS = "aprovado"
     aprovacao_notas: str | None = None
     aprovacao_em: datetime | None = None
+    stack_status: str | None = None
+    stack_ops_pendente: str | None = None
+    stack_ops_mensagem: str | None = None
+    stack_ops_atualizado_em: datetime | None = None
     comandos_ops: str | None = None
+    comandos_stack: str | None = None
     dias_para_renovacao: int | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None

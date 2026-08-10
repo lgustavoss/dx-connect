@@ -305,3 +305,20 @@ def rejeitar(
     db.commit()
     db.refresh(row)
     return _read(row)
+
+
+@router.post("/clientes/{cliente_id}/confirmar-stack", response_model=ClienteSaaSRead)
+def confirmar_stack(
+    cliente_id: int,
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    atendente: Atendente = Depends(exigir_saas_ops),
+):
+    try:
+        row = svc.confirmar_stack(db, cliente_id)
+    except svc.SaasErro as e:
+        raise _http_from_saas(e) from e
+    registrar_audit(db, "cliente_saas", cliente_id, "confirmar_stack", atendente.id)
+    db.commit()
+    db.refresh(row)
+    return _read(row)

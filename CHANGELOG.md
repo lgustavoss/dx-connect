@@ -15,6 +15,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Melhorias
 
+- SaaS: **suspender/reativar** pede (ou executa) `stack-client.sh down|up` e confirmação ops
 - SaaS: trial público entra com **aprovação pendente**; painel com **Aprovar go-live** / **Rejeitar** (`aprovacao_status`)
 - SaaS DeskRudder (#519 / #516 / #521–#528): painel de **licenças** (contactos, resumo ops, renovação flexível, lead→licença); **leads comerciais** da landing (formulário «Fale conosco», inbox `/saas/leads` — sem reutilizar o chat `/kb`); **provisionamento** em fila; **trial** em `/trial`; **renovações** com alertas e suspensão ao vencer
 - Comercial (#321 / #331–#335): simulador com desconto posto &lt;100k L (20% SM), override de custo/valor TEF só na proposta e snapshot imutável do pacote (catálogo TEF continua com valores padrão)

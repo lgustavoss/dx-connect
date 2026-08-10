@@ -280,6 +280,16 @@ export function SaasLicencaDetalhe() {
           <DetailRow label="Detalhe da fila" value={item.provisionamento_mensagem || '—'} />
           <DetailRow label="Aprovação" value={labelAprovacao(item.aprovacao_status)} />
           <DetailRow label="Notas de aprovação" value={item.aprovacao_notas || '—'} />
+          <DetailRow
+            label="Stack"
+            value={
+              item.stack_status
+                ? `${item.stack_status}${item.stack_ops_pendente ? ` · pendente: ${item.stack_ops_pendente}` : ''}`
+                : item.stack_ops_pendente
+                  ? `pendente: ${item.stack_ops_pendente}`
+                  : '—'
+            }
+          />
           <DetailRow label="Notas" value={item.notas || '—'} />
         </dl>
       </Card>
@@ -289,6 +299,49 @@ export function SaasLicencaDetalhe() {
           Aprovação comercial pendente. Pode provisionar o ambiente trial; use <strong>Aprovar go-live</strong> para
           passar a activo ou <strong>Rejeitar</strong> para cancelar (churn).
         </div>
+      ) : null}
+
+      {item.stack_ops_pendente ? (
+        <Card title="Stack Docker (ops)">
+          <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
+            {item.stack_ops_mensagem ||
+              (item.stack_ops_pendente === 'down'
+                ? 'Pare a stack no host e confirme.'
+                : 'Suba a stack no host e confirme.')}
+          </p>
+          {item.comandos_stack ? (
+            <div className="mb-4 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Comandos</p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={acting}
+                  onClick={() => {
+                    void navigator.clipboard.writeText(item.comandos_stack || '').then(
+                      () => toast.showSuccess('Comandos copiados.'),
+                      () => toast.showError('Não foi possível copiar.'),
+                    )
+                  }}
+                >
+                  Copiar
+                </Button>
+              </div>
+              <pre className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-950 p-3 text-xs leading-relaxed text-slate-100 dark:border-slate-700">
+                {item.comandos_stack}
+              </pre>
+            </div>
+          ) : null}
+          <Button
+            variant="secondary"
+            disabled={acting}
+            onClick={() =>
+              runAction(() => saasClientes.confirmarStack(item.id), 'Operação de stack confirmada.')
+            }
+          >
+            Confirmar stack
+          </Button>
+        </Card>
       ) : null}
 
       {item.provisionamento_status === 'falha' || item.provisionamento_status === 'aguardando_ops' ? (

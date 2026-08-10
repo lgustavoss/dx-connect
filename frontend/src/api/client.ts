@@ -3791,6 +3791,8 @@ export const saasClientes = {
       method: 'POST',
       body: JSON.stringify(data ?? {}),
     }),
+  confirmarStack: (id: number) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}/confirmar-stack`, { method: 'POST' }),
 };
 
 export const saasPublic = {
@@ -3904,7 +3906,12 @@ export namespace SaasClientes {
     aprovacao_status?: AprovacaoStatus;
     aprovacao_notas?: string | null;
     aprovacao_em?: string | null;
+    stack_status?: string | null;
+    stack_ops_pendente?: 'down' | 'up' | null;
+    stack_ops_mensagem?: string | null;
+    stack_ops_atualizado_em?: string | null;
     comandos_ops?: string | null;
+    comandos_stack?: string | null;
     dias_para_renovacao?: number | null;
     notas?: string | null;
     created_at?: string | null;

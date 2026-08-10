@@ -61,23 +61,24 @@ Sem `VITE_SAAS_CONTROL_PLANE=true`, a apex continua só com login por conta.
 | Trial | `POST /v1/saas/public/trial` | público (rate limit) |
 | Contato landing | `POST /v1/saas/public/contato` | público (rate limit) |
 
-Ações clientes: `suspender`, `reativar`, `renovar` (`dias` ou `nova_data`), `registrar-instancia`, `solicitar-provisionamento`, `confirmar-provisionamento`, `aprovar`, `rejeitar`.
-Read de clientes inclui `comandos_ops` quando a fila está activa (`pendente` / `aguardando_ops` / `falha` / `em_progresso`), e `aprovacao_status` / `aprovacao_notas` / `aprovacao_em`.
+Ações clientes: `suspender`, `reativar`, `renovar` (`dias` ou `nova_data`), `registrar-instancia`, `solicitar-provisionamento`, `confirmar-provisionamento`, `aprovar`, `rejeitar`, `confirmar-stack`.
+Read de clientes inclui `comandos_ops` quando a fila está activa (`pendente` / `aguardando_ops` / `falha` / `em_progresso`), `comandos_stack` quando há `stack_ops_pendente` (`down`/`up`), e `aprovacao_status` / `aprovacao_notas` / `aprovacao_em`.
 
 Busca em `/clientes` cobre nome, slug, `contato_nome` e `contato_email`.
 
 ## Checklist QA local (antes de testes manuais)
 
 1. Flags dual: `SAAS_CONTROL_PLANE=true` + `VITE_SAAS_CONTROL_PLANE=true` só na instância comercial.
-2. Migrations `084`–`087` aplicadas (`alembic upgrade head`).
+2. Migrations `084`–`088` aplicadas (`alembic upgrade head`).
 3. Login ops via `/login/admin` (`ops@deskrudder.local`) → shell SaaS (Licenças / Leads), sem menu de tickets.
 4. Login atendimento via `/login` (`admin@email.com` ou `atendente@email.com`) → painel de tickets/chat (sem menu SaaS).
 5. Lead → **Criar licença** (prefill); trial em `/trial`; contacto na LP.
 6. Provisionar com `SAAS_PROVISION_EXEC_ENABLED=false` → `aguardando_ops` → copiar comandos → **Confirmar provisionamento** após health.
 7. Trial com aprovação pendente → **Aprovar go-live** (trial→activo) ou **Rejeitar** (churn).
-8. Renovar por dias e por data; suspender/reativar; registar URL.
-9. Workers activos no log do backend (`saas-provisionamento`, `saas-renovacoes`).
-10. Sem Resend: fluxo continua (notify é no-op); com Resend + `SAAS_NOTIFY_EMAIL`: e-mails de trial/renovação.
+8. Suspender/reativar com stack provisionada → comandos `down`/`up` → **Confirmar stack** (ou auto-exec).
+9. Renovar por dias e por data; registar URL.
+10. Workers activos no log do backend (`saas-provisionamento`, `saas-renovacoes`).
+11. Sem Resend: fluxo continua (notify é no-op); com Resend + `SAAS_NOTIFY_EMAIL`: e-mails de trial/renovação.
 
 ## Contato comercial B2B (DR-06 / #516)
 
@@ -140,6 +141,19 @@ Trials públicos entram com `aprovacao_status=pendente`. Licenças criadas manua
 
 O resumo ops inclui `aprovacoes_pendentes`. Provisionar o ambiente trial **não** exige aprovação prévia;
 a aprovação é o gate comercial de go-live.
+
+## Suspender / reativar (stack)
+
+Com instância provisionada (`provisionamento_status=sucesso` ou URL+porta):
+
+| Acção | `SAAS_PROVISION_EXEC_ENABLED=false` (ops) | `=true` (auto) |
+|-------|------------------------------------------|----------------|
+| Suspender | `status=suspenso` + `stack_ops_pendente=down` + comandos | corre `stack-client.sh down` |
+| Reativar | `status=ativo` + `stack_ops_pendente=up` + comandos | corre `up` (+ `health`) |
+| Confirmar | `POST …/confirmar-stack` → `stack_status` `stopped`/`running` | — |
+
+Sem stack provisionada, suspender/reativar só actualiza o estado da licença. A suspensão automática por
+renovação vencida também dispara o mesmo fluxo de stack.
 
 ## Renovações (DR-08)
 

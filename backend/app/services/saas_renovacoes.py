@@ -34,6 +34,10 @@ def renovar(db: Session, cliente_id: int, *, dias: int | None = None, nova_data:
 
     if row.status in ("suspenso", "trial"):
         row.status = "ativo"
+        db.flush()
+        from app.services.saas_stack import aplicar_reativacao_stack
+
+        return aplicar_reativacao_stack(db, row)
     db.flush()
     return row
 
@@ -91,6 +95,10 @@ def processar_renovacoes(db: Session, *, limit: int = 200) -> int:
         if ref < hoje:
             if not _ja_emitido(db, row.id, EVENTO_VENCIDO, ref):
                 row.status = "suspenso"
+                db.flush()
+                from app.services.saas_stack import aplicar_suspensao_stack
+
+                aplicar_suspensao_stack(db, row)
                 _registrar_alerta(db, row.id, EVENTO_VENCIDO, ref)
                 notificar_equipe_saas(
                     db,
