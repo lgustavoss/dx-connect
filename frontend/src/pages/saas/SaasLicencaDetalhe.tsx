@@ -248,6 +248,75 @@ export function SaasLicencaDetalhe() {
         </dl>
       </Card>
 
+      {item.provisionamento_status === 'falha' || item.provisionamento_status === 'aguardando_ops' ? (
+        <Card title="Provisionamento (ops)">
+          {item.provisionamento_status === 'falha' ? (
+            <div className="mb-4 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-700/50 dark:bg-red-950/40 dark:text-red-100">
+              {item.provisionamento_mensagem || 'Falha no provisionamento. Reenvie à fila ou corrija e confirme.'}
+            </div>
+          ) : (
+            <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
+              Execução automática desligada. Corra os scripts no host de deploy e, com health OK, confirme abaixo.
+            </p>
+          )}
+          {item.comandos_ops ? (
+            <div className="mb-4 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Comandos</p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={acting}
+                  onClick={() => {
+                    void navigator.clipboard.writeText(item.comandos_ops || '').then(
+                      () => toast.showSuccess('Comandos copiados.'),
+                      () => toast.showError('Não foi possível copiar.'),
+                    )
+                  }}
+                >
+                  Copiar
+                </Button>
+              </div>
+              <pre className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-950 p-3 text-xs leading-relaxed text-slate-100 dark:border-slate-700">
+                {item.comandos_ops}
+              </pre>
+            </div>
+          ) : null}
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <Button
+              variant="secondary"
+              disabled={acting}
+              onClick={() =>
+                runAction(
+                  () =>
+                    saasClientes.confirmarProvisionamento(
+                      item.id,
+                      urlInstancia.trim() ? { instancia_url: urlInstancia.trim() } : undefined,
+                    ),
+                  'Provisionamento confirmado.',
+                )
+              }
+            >
+              Confirmar provisionamento
+            </Button>
+            {item.provisionamento_status === 'falha' ? (
+              <Button
+                variant="secondary"
+                disabled={acting}
+                onClick={() =>
+                  runAction(
+                    () => saasClientes.solicitarProvisionamento(item.id),
+                    'Provisionamento reenviado à fila.',
+                  )
+                }
+              >
+                Reenviar à fila
+              </Button>
+            ) : null}
+          </div>
+        </Card>
+      ) : null}
+
       <Card title="Renovar licença">
         <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
           <div className="w-full sm:w-36">

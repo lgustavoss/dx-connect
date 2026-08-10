@@ -111,7 +111,8 @@ def _executar_scripts(row: ClienteSaaS) -> str:
             raise RuntimeError((r.stderr or r.stdout or "falha no provision-client.sh")[:2000])
 
     for step in ("migrate", "up", "health"):
-        cmd = ["bash", str(stack), row.slug, step]
+        # stack-client.sh <comando> <slug>
+        cmd = ["bash", str(stack), step, row.slug]
         logger.info("SaaS stack: %s", " ".join(cmd))
         r = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True, timeout=1800)
         if r.returncode != 0:
@@ -121,6 +122,54 @@ def _executar_scripts(row: ClienteSaaS) -> str:
 
     url = _montar_instancia_url(row.slug) or f"https://{row.slug}.{base}"
     return url
+
+
+def montar_comandos_ops(row: ClienteSaaS) -> str | None:
+    """Bloco shell para ops correr no host (caminho SAAS_PROVISION_EXEC_ENABLED=false)."""
+    if row.provisionamento_status not in ("pendente", "em_progresso", "aguardando_ops", "falha"):
+        return None
+    base = (settings.SAAS_PROVISION_BASE_DOMAIN or "").strip().lstrip(".") or "deskrudder.com.br"
+    port = row.api_port
+    port_txt = str(port) if port is not None else "<api_port>"
+    slug = row.slug
+    return (
+        f"# Na raiz do repositório no host de deploy\n"
+        f"./deploy/scripts/provision-client.sh --slug {slug} --base-domain {base} --api-port {port_txt}\n"
+        f"./deploy/scripts/stack-client.sh migrate {slug}\n"
+        f"./deploy/scripts/stack-client.sh up {slug}\n"
+        f"./deploy/scripts/stack-client.sh health {slug}\n"
+        f"# Se health OK, confirme no painel SaaS (ou: curl -sf http://127.0.0.1:{port_txt}/health)\n"
+    )
+
+
+def confirmar_provisionamento(
+    db: Session,
+    cliente_id: int,
+    *,
+    instancia_url: str | None = None,
+) -> ClienteSaaS:
+    """Ops confirma que a instância subiu (health ok) após scripts manuais."""
+    row = obter(db, cliente_id)
+    if row.provisionamento_status not in ("aguardando_ops", "falha"):
+        raise SaasErro(
+            "Só é possível confirmar provisionamento em status aguardando_ops ou falha",
+            400,
+        )
+    url = (instancia_url or "").strip() or None
+    if not url:
+        url = row.instancia_url or _montar_instancia_url(row.slug)
+    if not url:
+        raise SaasErro("Informe a URL da instância ou configure SAAS_PROVISION_BASE_DOMAIN")
+    if "://" not in url:
+        url = f"https://{url}"
+
+    row.instancia_url = url
+    row.provisionamento_solicitado = True
+    row.provisionamento_status = "sucesso"
+    row.provisionamento_mensagem = "Provisionamento confirmado pela equipa ops (health ok)"
+    row.provisionamento_atualizado_em = _utcnow()
+    db.flush()
+    return row
 
 
 def processar_provisionamentos_pendentes(db: Session, *, limit: int = 5) -> int:

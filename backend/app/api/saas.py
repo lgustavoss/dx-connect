@@ -19,6 +19,7 @@ from app.models.atendente import Atendente
 from app.models.cliente_saas import ClienteSaaS
 from app.schemas.lista_paginada import ListaPaginada
 from app.schemas.saas import (
+    ClienteSaaSConfirmarProvisionamento,
     ClienteSaaSCreate,
     ClienteSaaSRead,
     ClienteSaaSRegistrarInstancia,
@@ -241,6 +242,25 @@ def solicitar_provisionamento(
     except svc.SaasErro as e:
         raise _http_from_saas(e) from e
     registrar_audit(db, "cliente_saas", cliente_id, "solicitar_provisionamento", atendente.id)
+    db.commit()
+    db.refresh(row)
+    return _read(row)
+
+
+@router.post("/clientes/{cliente_id}/confirmar-provisionamento", response_model=ClienteSaaSRead)
+def confirmar_provisionamento(
+    cliente_id: int,
+    data: ClienteSaaSConfirmarProvisionamento | None = None,
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    atendente: Atendente = Depends(exigir_saas_ops),
+):
+    body = data or ClienteSaaSConfirmarProvisionamento()
+    try:
+        row = svc.confirmar_provisionamento(db, cliente_id, instancia_url=body.instancia_url)
+    except svc.SaasErro as e:
+        raise _http_from_saas(e) from e
+    registrar_audit(db, "cliente_saas", cliente_id, "confirmar_provisionamento", atendente.id)
     db.commit()
     db.refresh(row)
     return _read(row)

@@ -3776,6 +3776,11 @@ export const saasClientes = {
     }),
   solicitarProvisionamento: (id: number) =>
     api<SaasClientes.Cliente>(`/saas/clientes/${id}/solicitar-provisionamento`, { method: 'POST' }),
+  confirmarProvisionamento: (id: number, data?: { instancia_url?: string }) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}/confirmar-provisionamento`, {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
 };
 
 export const saasPublic = {
@@ -3884,6 +3889,7 @@ export namespace SaasClientes {
     provisionamento_status?: ProvisionamentoStatus | null;
     provisionamento_mensagem?: string | null;
     provisionamento_atualizado_em?: string | null;
+    comandos_ops?: string | null;
     dias_para_renovacao?: number | null;
     notas?: string | null;
     created_at?: string | null;

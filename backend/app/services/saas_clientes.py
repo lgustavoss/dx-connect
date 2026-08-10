@@ -83,7 +83,20 @@ def solicitar_provisionamento(db: Session, cliente_id: int) -> ClienteSaaS:
     return enfileirar_provisionamento(db, cliente_id)
 
 
+def confirmar_provisionamento(
+    db: Session,
+    cliente_id: int,
+    *,
+    instancia_url: str | None = None,
+) -> ClienteSaaS:
+    """Confirma provisionamento ops-assisted (DR-04)."""
+    from app.services.saas_provisionamento import confirmar_provisionamento as _confirmar
+
+    return _confirmar(db, cliente_id, instancia_url=instancia_url)
+
+
 def serializar_cliente(row: ClienteSaaS) -> dict:
+    from app.services.saas_provisionamento import montar_comandos_ops
     from app.services.saas_renovacoes import dias_para_renovacao
 
     return {
@@ -103,6 +116,7 @@ def serializar_cliente(row: ClienteSaaS) -> dict:
         "provisionamento_status": row.provisionamento_status,
         "provisionamento_mensagem": row.provisionamento_mensagem,
         "provisionamento_atualizado_em": row.provisionamento_atualizado_em,
+        "comandos_ops": montar_comandos_ops(row),
         "dias_para_renovacao": dias_para_renovacao(row.data_renovacao),
         "created_at": row.created_at,
         "updated_at": row.updated_at,

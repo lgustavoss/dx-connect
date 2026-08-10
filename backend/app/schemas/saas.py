@@ -190,6 +190,24 @@ class ClienteSaaSRegistrarInstancia(BaseModel):
         return str(HttpUrl(url))
 
 
+class ClienteSaaSConfirmarProvisionamento(BaseModel):
+    """Body opcional ao confirmar provisionamento ops-assisted (#524)."""
+
+    instancia_url: str | None = Field(None, max_length=500)
+
+    @field_validator("instancia_url")
+    @classmethod
+    def normalize_url(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        url = v.strip()
+        if not url:
+            return None
+        if "://" not in url:
+            url = f"https://{url}"
+        return str(HttpUrl(url))
+
+
 class ClienteSaaSRenovar(BaseModel):
     dias: int | None = Field(None, ge=1, le=3650)
     nova_data: date | None = None
@@ -202,6 +220,7 @@ class ClienteSaaSRead(ClienteSaaSBase):
     provisionamento_status: str | None = None
     provisionamento_mensagem: str | None = None
     provisionamento_atualizado_em: datetime | None = None
+    comandos_ops: str | None = None
     dias_para_renovacao: int | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None

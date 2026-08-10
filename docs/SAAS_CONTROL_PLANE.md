@@ -61,7 +61,8 @@ Sem `VITE_SAAS_CONTROL_PLANE=true`, a apex continua só com login por conta.
 | Trial | `POST /v1/saas/public/trial` | público (rate limit) |
 | Contato landing | `POST /v1/saas/public/contato` | público (rate limit) |
 
-Ações clientes: `suspender`, `reativar`, `renovar` (`dias` ou `nova_data`), `registrar-instancia`, `solicitar-provisionamento`.
+Ações clientes: `suspender`, `reativar`, `renovar` (`dias` ou `nova_data`), `registrar-instancia`, `solicitar-provisionamento`, `confirmar-provisionamento`.
+Read de clientes inclui `comandos_ops` quando a fila está ativa (`pendente` / `aguardando_ops` / `falha` / `em_progresso`).
 
 Busca em `/clientes` cobre nome, slug, `contato_nome` e `contato_email`.
 
@@ -72,7 +73,7 @@ Busca em `/clientes` cobre nome, slug, `contato_nome` e `contato_email`.
 3. Login ops via `/login/admin` (`ops@deskrudder.local`) → shell SaaS (Licenças / Leads), sem menu de tickets.
 4. Login atendimento via `/login` (`admin@email.com` ou `atendente@email.com`) → painel de tickets/chat (sem menu SaaS).
 5. Lead → **Criar licença** (prefill); trial em `/trial`; contacto na LP.
-6. Provisionar com `SAAS_PROVISION_EXEC_ENABLED=false` → status `aguardando_ops`.
+6. Provisionar com `SAAS_PROVISION_EXEC_ENABLED=false` → `aguardando_ops` → copiar comandos → **Confirmar provisionamento** após health.
 7. Renovar por dias e por data; suspender/reativar; registar URL.
 8. Workers activos no log do backend (`saas-provisionamento`, `saas-renovacoes`).
 9. Sem Resend: fluxo continua (notify é no-op); com Resend + `SAAS_NOTIFY_EMAIL`: e-mails de trial/renovação.
@@ -86,13 +87,34 @@ Busca em `/clientes` cobre nome, slug, `contato_nome` e `contato_email`.
 
 ## Provisionamento (DR-04)
 
-1. Admin clica **Solicitar provisionamento** (ou trial com a opção ligada).
-2. Cliente fica com `provisionamento_status=pendente` e `api_port` alocada.
-3. Worker `saas-provisionamento`:
-   - Se `SAAS_PROVISION_EXEC_ENABLED=false` (padrão): mantém na fila, grava URL esperada `https://{slug}.{SAAS_PROVISION_BASE_DOMAIN}` e notifica a equipa — ops corre os scripts manualmente.
-   - Se `true`: executa `deploy/scripts/provision-client.sh` + `stack-client.sh migrate|up|health` no host (`SAAS_REPO_ROOT`).
+Fluxo padrão no control-plane: **ops-assisted** (`SAAS_PROVISION_EXEC_ENABLED=false`).
 
-Pré-requisitos do host: Docker, scripts em `deploy/scripts/`, permissões, DNS/Nginx conforme `deploy/clients/README.md` e skill `deploy-cliente`.
+### Ops-assisted (recomendado)
+
+1. Em `/saas/licencas/{id}`, a equipa clica **Solicitar provisionamento** (ou o trial chega com a opção ligada).
+2. Status → `pendente`; o worker aloca `api_port` e passa a `aguardando_ops`, preenchendo a URL esperada `https://{slug}.{SAAS_PROVISION_BASE_DOMAIN}`.
+3. O detalhe mostra um bloco **Comandos** (também em `comandos_ops` na API) para copiar:
+   - `./deploy/scripts/provision-client.sh --slug … --base-domain … --api-port …`
+   - `./deploy/scripts/stack-client.sh migrate|up|health {slug}`
+4. No host de deploy, ops corre os scripts (Docker + DNS/Nginx — ver `deploy/clients/README.md` e #170).
+5. Com `health` OK (`curl -sf http://127.0.0.1:{api_port}/health`), no painel: **Confirmar provisionamento** → status `sucesso` (audit `confirmar_provisionamento`).
+6. Em **falha**: mensagem visível, comandos disponíveis, **Reenviar à fila** ou corrigir e **Confirmar**.
+
+### Auto-exec (host Linux com Docker)
+
+Com `SAAS_PROVISION_EXEC_ENABLED=true` e `SAAS_REPO_ROOT` apontando para o clone no host:
+
+- O worker corre `provision-client.sh` e depois `stack-client.sh` com argumentos **`<comando> <slug>`** (`migrate`, `up`, `health`).
+- Sucesso grava URL e status `sucesso`; erro grava `falha` + stderr truncado.
+
+Não use auto-exec a partir do container Windows/dev sem o repositório e Docker do host montados.
+
+### Pré-requisitos do host
+
+- Docker Compose, `bash`, `openssl` (gera segredos no provision)
+- Clone do repo com `deploy/scripts/` e `deploy/clients/_template/`
+- Permissão para criar `deploy/clients/<slug>/` e subir stacks
+- DNS / Nginx por cliente conforme `docs/DEPLOYMENT_ARCHITECTURE.md` e `deploy/clients/README.md`
 
 **Não** altera o modelo single-tenant (1 Postgres por cliente).
 

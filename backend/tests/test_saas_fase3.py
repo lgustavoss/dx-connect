@@ -50,6 +50,151 @@ def test_provisionar_enfileira_sem_exec(client, auth_headers, monkeypatch):
     assert d["provisionamento_status"] == "aguardando_ops"
     assert "Execução automática desligada" in (d["provisionamento_mensagem"] or "")
     assert d["instancia_url"] and "acme-suporte.deskrudder.com.br" in d["instancia_url"]
+    assert d.get("comandos_ops")
+    assert "provision-client.sh --slug acme-suporte" in d["comandos_ops"]
+    assert "stack-client.sh migrate acme-suporte" in d["comandos_ops"]
+    assert "stack-client.sh health acme-suporte" in d["comandos_ops"]
+
+    conf = client.post(f"/v1/saas/clientes/{cid}/confirmar-provisionamento", headers=h, json={})
+    assert conf.status_code == 200, conf.text
+    cbody = conf.json()
+    assert cbody["provisionamento_status"] == "sucesso"
+    assert cbody.get("comandos_ops") in (None, "")
+    assert "confirmado" in (cbody["provisionamento_mensagem"] or "").lower()
+
+    # Confirmar de novo (já sucesso) deve falhar
+    conf2 = client.post(f"/v1/saas/clientes/{cid}/confirmar-provisionamento", headers=h, json={})
+    assert conf2.status_code == 400
+
+
+def test_confirmar_provisionamento_rejeita_pendente(client, auth_headers, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    monkeypatch.setattr(settings, "SAAS_PROVISION_BASE_DOMAIN", "deskrudder.com.br")
+    h = auth_headers["ops"]
+
+    criar = client.post(
+        "/v1/saas/clientes",
+        headers=h,
+        json={
+            "nome": "Gamma",
+            "slug": "gamma-ops",
+            "status": "trial",
+            "data_inicio": str(date.today()),
+        },
+    )
+    assert criar.status_code == 201, criar.text
+    cid = criar.json()["id"]
+
+    r = client.post(f"/v1/saas/clientes/{cid}/solicitar-provisionamento", headers=h)
+    assert r.status_code == 200
+    assert r.json()["provisionamento_status"] == "pendente"
+
+    conf = client.post(f"/v1/saas/clientes/{cid}/confirmar-provisionamento", headers=h, json={})
+    assert conf.status_code == 400
+
+
+def test_provisionar_exec_mock_sucesso_e_falha(client, auth_headers, monkeypatch, tmp_path):
+    from app.config import settings
+    from app.database import SessionLocal
+    from app.services import saas_provisionamento as prov
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    monkeypatch.setattr(settings, "SAAS_PROVISION_EXEC_ENABLED", True)
+    monkeypatch.setattr(settings, "SAAS_PROVISION_BASE_DOMAIN", "deskrudder.com.br")
+    monkeypatch.setattr(settings, "SAAS_REPO_ROOT", str(tmp_path))
+
+    scripts = tmp_path / "deploy" / "scripts"
+    scripts.mkdir(parents=True)
+    (scripts / "provision-client.sh").write_text("#!/bin/bash\n", encoding="utf-8")
+    (scripts / "stack-client.sh").write_text("#!/bin/bash\n", encoding="utf-8")
+
+    calls: list[list[str]] = []
+
+    class _Result:
+        def __init__(self, returncode: int = 0, stderr: str = "", stdout: str = ""):
+            self.returncode = returncode
+            self.stderr = stderr
+            self.stdout = stdout
+
+    def fake_run(cmd, **kwargs):  # noqa: ANN001, ANN003
+        calls.append(list(cmd))
+        return _Result(0)
+
+    monkeypatch.setattr(prov.subprocess, "run", fake_run)
+
+    h = auth_headers["ops"]
+    criar = client.post(
+        "/v1/saas/clientes",
+        headers=h,
+        json={
+            "nome": "Delta",
+            "slug": "delta-exec",
+            "status": "trial",
+            "data_inicio": str(date.today()),
+        },
+    )
+    assert criar.status_code == 201, criar.text
+    cid = criar.json()["id"]
+
+    assert client.post(f"/v1/saas/clientes/{cid}/solicitar-provisionamento", headers=h).status_code == 200
+
+    db = SessionLocal()
+    try:
+        n = prov.processar_provisionamentos_pendentes(db, limit=5)
+        db.commit()
+    finally:
+        db.close()
+    assert n >= 1
+
+    detalhe = client.get(f"/v1/saas/clientes/{cid}", headers=h)
+    assert detalhe.status_code == 200
+    assert detalhe.json()["provisionamento_status"] == "sucesso"
+
+    # provision-client + migrate/up/health com ordem <cmd> <slug>
+    assert any("provision-client.sh" in " ".join(c) for c in calls)
+    stack_calls = [c for c in calls if any("stack-client.sh" in part for part in c)]
+    assert len(stack_calls) == 3
+    assert [c[-2] for c in stack_calls] == ["migrate", "up", "health"]
+    assert all(c[-1] == "delta-exec" for c in stack_calls)
+
+    # Segunda licença: falha no migrate
+    calls.clear()
+
+    def fail_on_migrate(cmd, **kwargs):  # noqa: ANN001, ANN003
+        calls.append(list(cmd))
+        if any(part == "migrate" for part in cmd):
+            return _Result(1, stderr="boom migrate")
+        return _Result(0)
+
+    monkeypatch.setattr(prov.subprocess, "run", fail_on_migrate)
+
+    criar2 = client.post(
+        "/v1/saas/clientes",
+        headers=h,
+        json={
+            "nome": "Epsilon",
+            "slug": "epsilon-fail",
+            "status": "trial",
+            "data_inicio": str(date.today()),
+        },
+    )
+    assert criar2.status_code == 201, criar2.text
+    cid2 = criar2.json()["id"]
+    assert client.post(f"/v1/saas/clientes/{cid2}/solicitar-provisionamento", headers=h).status_code == 200
+
+    db = SessionLocal()
+    try:
+        prov.processar_provisionamentos_pendentes(db, limit=5)
+        db.commit()
+    finally:
+        db.close()
+
+    d2 = client.get(f"/v1/saas/clientes/{cid2}", headers=h).json()
+    assert d2["provisionamento_status"] == "falha"
+    assert "migrate" in (d2["provisionamento_mensagem"] or "").lower()
+    assert d2.get("comandos_ops")
 
 
 def test_trial_publico_cria_licenca(client, auth_headers, monkeypatch):
