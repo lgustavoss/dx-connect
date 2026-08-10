@@ -167,16 +167,16 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
           onPageChange={setPage}
           disabled={loading}
           extra={
-            <div className="min-w-[10rem]">
+            <div className="min-w-[10rem] shrink-0">
               <Select
-                label="Status"
-                labelStyle="overline"
+                aria-label="Filtrar por status"
                 value={statusFiltro}
                 onChange={(v) => setStatusFiltro(String(v))}
                 options={STATUS_CLIENTE_SAAS.map((s) => ({ value: s.value, label: s.label }))}
                 includeEmpty
                 emptyLabel="Todos"
-                placeholder="Todos"
+                placeholder="Status"
+                disabled={loading}
               />
             </div>
           }
