@@ -61,7 +61,7 @@ Sem `VITE_SAAS_CONTROL_PLANE=true`, a apex continua só com login por conta.
 | Trial | `POST /v1/saas/public/trial` | público (rate limit) |
 | Contato landing | `POST /v1/saas/public/contato` | público (rate limit) |
 
-Ações clientes: `suspender`, `reativar`, `renovar` (`dias` ou `nova_data`), `registrar-instancia`, `solicitar-provisionamento`, `confirmar-provisionamento`, `aprovar`, `rejeitar`, `confirmar-stack`.
+Ações clientes: `suspender`, `reativar`, `renovar` (`dias` ou `nova_data`), `registrar-instancia`, `solicitar-provisionamento`, `confirmar-provisionamento`, `aprovar`, `rejeitar`, `confirmar-stack`, `reenviar-entrega`.
 Read de clientes inclui `comandos_ops` quando a fila está activa (`pendente` / `aguardando_ops` / `falha` / `em_progresso`), `comandos_stack` quando há `stack_ops_pendente` (`down`/`up`), e `aprovacao_status` / `aprovacao_notas` / `aprovacao_em`.
 
 Busca em `/clientes` cobre nome, slug, `contato_nome` e `contato_email`.
@@ -69,15 +69,16 @@ Busca em `/clientes` cobre nome, slug, `contato_nome` e `contato_email`.
 ## Checklist QA local (antes de testes manuais)
 
 1. Flags dual: `SAAS_CONTROL_PLANE=true` + `VITE_SAAS_CONTROL_PLANE=true` só na instância comercial.
-2. Migrations `084`–`089` aplicadas (`alembic upgrade head`).
+2. Migrations `084`–`090` aplicadas (`alembic upgrade head`).
 3. Login ops via `/login/admin` (`ops@deskrudder.local`) → shell SaaS (Licenças / Leads), sem menu de tickets.
 4. Login atendimento via `/login` (`admin@email.com` ou `atendente@email.com`) → painel de tickets/chat (sem menu SaaS).
-5. Lead → **Converter em licença** (vínculo persistido) ou prefill manual; trial em `/trial`; contacto na LP.6. Provisionar com `SAAS_PROVISION_EXEC_ENABLED=false` → `aguardando_ops` → copiar comandos → **Confirmar provisionamento** após health.
+5. Lead → **Converter em licença** (vínculo persistido) ou prefill manual; trial em `/trial`; contacto na LP.
+6. Provisionar com `SAAS_PROVISION_EXEC_ENABLED=false` → `aguardando_ops` → copiar comandos → **Confirmar provisionamento** após health (dispara e-mail de entrega ao contacto se Resend estiver ok).
 7. Trial com aprovação pendente → **Aprovar go-live** (trial→activo) ou **Rejeitar** (churn).
 8. Suspender/reativar com stack provisionada → comandos `down`/`up` → **Confirmar stack** (ou auto-exec).
-9. Renovar por dias e por data; registar URL.
+9. Renovar por dias e por data; registar URL; **Reenviar entrega** se necessário.
 10. Workers activos no log do backend (`saas-provisionamento`, `saas-renovacoes`).
-11. Sem Resend: fluxo continua (notify é no-op); com Resend + `SAAS_NOTIFY_EMAIL`: e-mails de trial/renovação.
+11. Sem Resend: fluxo continua (notify é no-op); com Resend + `SAAS_NOTIFY_EMAIL`: e-mails de trial/renovação; contacto recebe entrega pós-health.
 
 ## Contato comercial B2B (DR-06 / #516)
 
@@ -100,7 +101,7 @@ Fluxo padrão no control-plane: **ops-assisted** (`SAAS_PROVISION_EXEC_ENABLED=f
    - `./deploy/scripts/provision-client.sh --slug … --base-domain … --api-port …`
    - `./deploy/scripts/stack-client.sh migrate|up|health {slug}`
 4. No host de deploy, ops corre os scripts (Docker + DNS/Nginx — ver `deploy/clients/README.md` e #170).
-5. Com `health` OK (`curl -sf http://127.0.0.1:{api_port}/health`), no painel: **Confirmar provisionamento** → status `sucesso` (audit `confirmar_provisionamento`).
+5. Com `health` OK (`curl -sf http://127.0.0.1:{api_port}/health`), no painel: **Confirmar provisionamento** → status `sucesso` (audit `confirmar_provisionamento`). Se houver `contato_email`, envia e-mail de **entrega** (URL + link `/login`) e grava `entrega_notificada_em`.
 6. Em **falha**: mensagem visível, comandos disponíveis, **Reenviar à fila** ou corrigir e **Confirmar**.
 
 ### Auto-exec (host Linux com Docker)
@@ -155,6 +156,14 @@ Com instância provisionada (`provisionamento_status=sucesso` ou URL+porta):
 
 Sem stack provisionada, suspender/reativar só actualiza o estado da licença. A suspensão automática por
 renovação vencida também dispara o mesmo fluxo de stack.
+
+## Entrega pós-health
+
+Após `provisionamento_status=sucesso` (confirmação ops ou auto-exec), o control-plane tenta e-mail ao
+`contato_email` com a URL da instância. Ops pode **Reenviar entrega** (`POST …/reenviar-entrega`).
+
+Requer o mesmo envio de sistema (Resend) das outras notificações SaaS; sem credenciais o fluxo não falha
+na confirmação — só não grava `entrega_notificada_em`.
 
 ## Renovações (DR-08)
 

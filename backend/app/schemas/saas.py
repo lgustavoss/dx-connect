@@ -254,6 +254,7 @@ class ClienteSaaSRead(ClienteSaaSBase):
     stack_ops_mensagem: str | None = None
     stack_ops_atualizado_em: datetime | None = None
     lead_comercial_id: int | None = None
+    entrega_notificada_em: datetime | None = None
     comandos_ops: str | None = None
     comandos_stack: str | None = None
     dias_para_renovacao: int | None = None

@@ -173,6 +173,10 @@ def confirmar_provisionamento(
     row.stack_ops_mensagem = "Stack em execução após confirmação de provisionamento"
     row.stack_ops_atualizado_em = _utcnow()
     db.flush()
+
+    from app.services.saas_notify import notificar_contacto_entrega
+
+    notificar_contacto_entrega(db, row)
     return row
 
 
@@ -226,6 +230,9 @@ def processar_provisionamentos_pendentes(db: Session, *, limit: int = 5) -> int:
                 # Mantém trial; ops ativa depois
                 pass
             db.flush()
+            from app.services.saas_notify import notificar_contacto_entrega
+
+            notificar_contacto_entrega(db, row)
             notificar_equipe_saas(
                 db,
                 subject=f"[DeskRudder] Provisionamento OK — {row.slug}",

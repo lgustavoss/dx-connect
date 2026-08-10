@@ -470,6 +470,58 @@ def test_suspender_reativar_stack_ops_assisted(client, auth_headers, monkeypatch
     assert conf_up.json()["stack_status"] == "running"
 
 
+def test_entrega_pos_health_notifica_contacto(client, auth_headers, monkeypatch):
+    from app.config import settings
+    from app.database import SessionLocal
+    from app.services.saas_provisionamento import processar_provisionamentos_pendentes
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    monkeypatch.setattr(settings, "SAAS_PROVISION_EXEC_ENABLED", False)
+    monkeypatch.setattr(settings, "SAAS_PROVISION_BASE_DOMAIN", "deskrudder.com.br")
+    monkeypatch.setattr(settings, "SAAS_NOTIFY_EMAIL", "ops@deskrudder.local")
+
+    sent: list[tuple[str, str]] = []
+
+    def fake_enviar(db, *, to_addr, subject, body):
+        sent.append((to_addr, subject))
+
+    monkeypatch.setattr(
+        "app.services.saas_notify.enviar_mensagem_texto_sistema",
+        fake_enviar,
+    )
+
+    h = auth_headers["ops"]
+    cid = client.post(
+        "/v1/saas/clientes",
+        headers=h,
+        json={
+            "nome": "Entrega Co",
+            "slug": "entrega-co",
+            "status": "ativo",
+            "data_inicio": str(date.today()),
+            "contato_email": "cliente@entrega.example",
+            "contato_nome": "Ana",
+        },
+    ).json()["id"]
+
+    assert client.post(f"/v1/saas/clientes/{cid}/solicitar-provisionamento", headers=h).status_code == 200
+    db = SessionLocal()
+    try:
+        processar_provisionamentos_pendentes(db, limit=5)
+        db.commit()
+    finally:
+        db.close()
+
+    conf = client.post(f"/v1/saas/clientes/{cid}/confirmar-provisionamento", headers=h, json={})
+    assert conf.status_code == 200, conf.text
+    assert conf.json()["entrega_notificada_em"] is not None
+    assert any(addr == "cliente@entrega.example" and "ambiente pronto" in subj.lower() for addr, subj in sent)
+
+    reenv = client.post(f"/v1/saas/clientes/{cid}/reenviar-entrega", headers=h)
+    assert reenv.status_code == 200
+    assert sum(1 for a, _ in sent if a == "cliente@entrega.example") >= 2
+
+
 def test_worker_renovacao_suspende_vencido(client, auth_headers, monkeypatch):
     from app.config import settings
     from app.database import SessionLocal

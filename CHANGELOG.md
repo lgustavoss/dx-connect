@@ -15,6 +15,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Melhorias
 
+- SaaS: **entrega pós-health** ao contacto (`entrega_notificada_em` + `reenviar-entrega`)
 - SaaS: lead → licença com **vínculo persistido** (`POST …/leads/{id}/converter` + `lead_id` no formulário)
 - SaaS: **suspender/reativar** pede (ou executa) `stack-client.sh down|up` e confirmação ops
 - SaaS: trial público entra com **aprovação pendente**; painel com **Aprovar go-live** / **Rejeitar** (`aprovacao_status`)

@@ -294,6 +294,10 @@ export function SaasLicencaDetalhe() {
             label="Lead de origem"
             value={item.lead_comercial_id != null ? `#${item.lead_comercial_id}` : '—'}
           />
+          <DetailRow
+            label="Entrega ao contacto"
+            value={item.entrega_notificada_em ? formatDate(item.entrega_notificada_em) : 'Não enviada'}
+          />
           <DetailRow label="Notas" value={item.notas || '—'} />
         </dl>
       </Card>
@@ -317,6 +321,25 @@ export function SaasLicencaDetalhe() {
           Aprovação comercial pendente. Pode provisionar o ambiente trial; use <strong>Aprovar go-live</strong> para
           passar a activo ou <strong>Rejeitar</strong> para cancelar (churn).
         </div>
+      ) : null}
+
+      {item.provisionamento_status === 'sucesso' && item.contato_email ? (
+        <Card title="Entrega ao contacto">
+          <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
+            {item.entrega_notificada_em
+              ? `Último e-mail de acesso enviado em ${formatDate(item.entrega_notificada_em)} para ${item.contato_email}.`
+              : `Instância pronta. Ainda não há registo de e-mail de entrega para ${item.contato_email}.`}
+          </p>
+          <Button
+            variant="secondary"
+            disabled={acting}
+            onClick={() =>
+              runAction(() => saasClientes.reenviarEntrega(item.id), 'E-mail de entrega enviado.')
+            }
+          >
+            {item.entrega_notificada_em ? 'Reenviar entrega' : 'Enviar entrega'}
+          </Button>
+        </Card>
       ) : null}
 
       {item.stack_ops_pendente ? (

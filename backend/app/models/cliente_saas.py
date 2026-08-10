@@ -37,6 +37,7 @@ class ClienteSaaS(Base):
     stack_ops_mensagem = Column(Text, nullable=True)
     stack_ops_atualizado_em = Column(DateTime(timezone=True), nullable=True)
     lead_comercial_id = Column(Integer, nullable=True, index=True)
+    entrega_notificada_em = Column(DateTime(timezone=True), nullable=True)
     notas = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

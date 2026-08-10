@@ -3793,6 +3793,8 @@ export const saasClientes = {
     }),
   confirmarStack: (id: number) =>
     api<SaasClientes.Cliente>(`/saas/clientes/${id}/confirmar-stack`, { method: 'POST' }),
+  reenviarEntrega: (id: number) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}/reenviar-entrega`, { method: 'POST' }),
 };
 
 export const saasPublic = {
@@ -3926,6 +3928,7 @@ export namespace SaasClientes {
     stack_ops_mensagem?: string | null;
     stack_ops_atualizado_em?: string | null;
     lead_comercial_id?: number | null;
+    entrega_notificada_em?: string | null;
     comandos_ops?: string | null;
     comandos_stack?: string | null;
     dias_para_renovacao?: number | null;

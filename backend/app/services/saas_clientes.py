@@ -119,6 +119,21 @@ def confirmar_provisionamento(
     return _confirmar(db, cliente_id, instancia_url=instancia_url)
 
 
+def reenviar_entrega(db: Session, cliente_id: int) -> ClienteSaaS:
+    """Reenvia e-mail de entrega ao contacto (pós-health)."""
+    from app.services.saas_notify import notificar_contacto_entrega
+
+    row = obter(db, cliente_id)
+    if row.provisionamento_status != "sucesso":
+        raise SaasErro("Só é possível notificar entrega após provisionamento com sucesso")
+    if not (row.contato_email or "").strip():
+        raise SaasErro("Licença sem e-mail de contacto")
+    ok = notificar_contacto_entrega(db, row, forcar=True)
+    if not ok:
+        raise SaasErro("Não foi possível enviar o e-mail de entrega (verifique Resend / SMTP)")
+    return row
+
+
 def serializar_cliente(row: ClienteSaaS) -> dict:
     from app.services.saas_provisionamento import montar_comandos_ops
     from app.services.saas_renovacoes import dias_para_renovacao
@@ -149,6 +164,7 @@ def serializar_cliente(row: ClienteSaaS) -> dict:
         "stack_ops_mensagem": getattr(row, "stack_ops_mensagem", None),
         "stack_ops_atualizado_em": getattr(row, "stack_ops_atualizado_em", None),
         "lead_comercial_id": getattr(row, "lead_comercial_id", None),
+        "entrega_notificada_em": getattr(row, "entrega_notificada_em", None),
         "comandos_ops": montar_comandos_ops(row),
         "comandos_stack": montar_comandos_stack(row),
         "dias_para_renovacao": dias_para_renovacao(row.data_renovacao),

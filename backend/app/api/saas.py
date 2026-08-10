@@ -322,3 +322,20 @@ def confirmar_stack(
     db.commit()
     db.refresh(row)
     return _read(row)
+
+
+@router.post("/clientes/{cliente_id}/reenviar-entrega", response_model=ClienteSaaSRead)
+def reenviar_entrega(
+    cliente_id: int,
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    atendente: Atendente = Depends(exigir_saas_ops),
+):
+    try:
+        row = svc.reenviar_entrega(db, cliente_id)
+    except svc.SaasErro as e:
+        raise _http_from_saas(e) from e
+    registrar_audit(db, "cliente_saas", cliente_id, "reenviar_entrega", atendente.id)
+    db.commit()
+    db.refresh(row)
+    return _read(row)
