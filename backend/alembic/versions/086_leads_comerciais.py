@@ -1,15 +1,15 @@
 """Tabela leads_comerciais — canal B2B da landing (DR-06).
 
-Revision ID: 080_leads_comerciais
-Revises: 079_saas_provision_trial_renovacao
+Revision ID: 086_leads_comerciais
+Revises: 085_saas_fase3
 Create Date: 2026-07-23
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "080_leads_comerciais"
-down_revision = "079_saas_provision_trial_renovacao"
+revision = "086_leads_comerciais"
+down_revision = "085_saas_fase3"
 branch_labels = None
 depends_on = None
 

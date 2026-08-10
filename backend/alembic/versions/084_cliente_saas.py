@@ -1,15 +1,15 @@
 """Tabela clientes_saas (licenças DeskRudder / control-plane).
 
-Revision ID: 078_cliente_saas
-Revises: 077_wpp_avaliacao_janela
+Revision ID: 084_cliente_saas
+Revises: 083_comercial_custos_tier_posto
 Create Date: 2026-07-23
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "078_cliente_saas"
-down_revision = "077_wpp_avaliacao_janela"
+revision = "084_cliente_saas"
+down_revision = "083_comercial_custos_tier_posto"
 branch_labels = None
 depends_on = None
 

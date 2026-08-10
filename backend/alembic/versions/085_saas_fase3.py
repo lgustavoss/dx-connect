@@ -1,15 +1,15 @@
 """Provisionamento, trial e renovações SaaS (#524 / #527 / #528).
 
-Revision ID: 079_saas_provision_trial_renovacao
-Revises: 078_cliente_saas
+Revision ID: 085_saas_fase3
+Revises: 084_cliente_saas
 Create Date: 2026-07-23
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "079_saas_provision_trial_renovacao"
-down_revision = "078_cliente_saas"
+revision = "085_saas_fase3"
+down_revision = "084_cliente_saas"
 branch_labels = None
 depends_on = None
 

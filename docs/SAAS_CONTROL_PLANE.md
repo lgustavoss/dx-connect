@@ -68,7 +68,7 @@ Busca em `/clientes` cobre nome, slug, `contato_nome` e `contato_email`.
 ## Checklist QA local (antes de testes manuais)
 
 1. Flags dual: `SAAS_CONTROL_PLANE=true` + `VITE_SAAS_CONTROL_PLANE=true` só na instância comercial.
-2. Migrations `078`–`080` aplicadas (`alembic upgrade head`).
+2. Migrations `084`–`086` aplicadas (`alembic upgrade head`).
 3. Login ops via `/login/admin` (`ops@deskrudder.local`) → shell SaaS (Licenças / Leads), sem menu de tickets.
 4. Login atendimento via `/login` (`admin@email.com` ou `atendente@email.com`) → painel de tickets/chat (sem menu SaaS).
 5. Lead → **Criar licença** (prefill); trial em `/trial`; contacto na LP.
