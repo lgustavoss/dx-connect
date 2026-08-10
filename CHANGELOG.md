@@ -5,6 +5,10 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### Adicionado
+
+- CRM (#322 / #336–#340): perfil `comercial`, funil configurável, leads e negociações multi-CNPJ (API `/v1/crm`), timeline de atividades e simulação de custos liberada para comercial (CRUD do catálogo continua só admin)
+
 ### Corrigido
 
 - Chat: duplo clique **dentro** do balão já não inicia resposta (dá para selecionar/copiar o texto); responder com duplo clique fica só **ao lado** do balão

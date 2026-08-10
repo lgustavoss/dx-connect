@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.core.auth import exigir_admin
+from app.core.auth import exigir_admin, exigir_comercial_ou_admin
 from app.core.audit import registrar_audit
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
 from app.database import get_db
@@ -225,9 +225,9 @@ def excluir_item_custo(
 def simular_custo(
     body: CustoSimularRequest,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_comercial_ou_admin),
 ):
-    """Simula pacote de custos; devolve também snapshot imutável (#331/#332/#335)."""
+    """Simula pacote de custos; devolve também snapshot imutável (#331/#332/#335). Comercial + admin (#336)."""
     return svc.simular_custo(
         db,
         item_ids=body.item_ids,

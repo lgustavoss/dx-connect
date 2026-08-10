@@ -10,7 +10,7 @@ from app.models import Atendente, Setor
 from app.schemas.atendente import AtendenteCreate, AtendenteRead, AtendenteUpdate, TrocaSenhaPropria
 from app.schemas.ticket_csat import AtendenteAvaliacoesRead, AvaliacaoResumoRead
 from app.schemas.lista_paginada import ListaPaginada
-from app.core.auth import exigir_admin, obter_atendente_atual
+from app.core.auth import exigir_admin, obter_atendente_atual, validar_role
 from app.services.atendente_avaliacoes import calcular_avaliacoes_atendente
 from app.core.setor_scope import ids_setores_mesmo_nome, ids_setores_visiveis_atendente
 from app.core.security import hash_senha, verificar_senha
@@ -93,12 +93,13 @@ def criar_atendente(
         .first()
     ):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="E-mail já cadastrado")
+    role = validar_role(data.role)
     atendente = Atendente(
         tenant_id=atendente_logado.tenant_id,
         email=data.email,
         nome=data.nome,
         senha_hash=hash_senha(data.senha),
-        role=data.role,
+        role=role,
         ativo=data.ativo,
     )
     db.add(atendente)
@@ -220,6 +221,8 @@ def atualizar_atendente(
     if "senha" in update and update["senha"]:
         atendente.senha_hash = hash_senha(update.pop("senha"))
         atendente.must_change_password = False
+    if "role" in update and update["role"] is not None:
+        update["role"] = validar_role(update["role"])
     if "setor_ids" in update:
         setor_ids = update.pop("setor_ids")
         atendente.setores.clear()

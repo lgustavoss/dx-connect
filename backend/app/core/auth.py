@@ -110,3 +110,26 @@ def exigir_admin(atendente: Atendente = Depends(obter_atendente_atual)) -> Atend
     if atendente.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso restrito a administradores")
     return atendente
+
+
+def exigir_comercial_ou_admin(atendente: Atendente = Depends(obter_atendente_atual)) -> Atendente:
+    """CRM e simulação de custos (#336 / #322): admin ou perfil comercial."""
+    if atendente.role not in ("admin", "comercial"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso restrito a perfil comercial ou administrador",
+        )
+    return atendente
+
+
+ROLES_ATENDENTE = frozenset({"admin", "atendente", "comercial"})
+
+
+def validar_role(role: str) -> str:
+    r = (role or "").strip().lower()
+    if r not in ROLES_ATENDENTE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"role inválido: use admin, atendente ou comercial",
+        )
+    return r

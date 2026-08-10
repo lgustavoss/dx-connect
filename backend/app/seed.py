@@ -99,6 +99,29 @@ def run_seed():
             )
             db.commit()
             print("Usuário admin criado (desenvolvimento): admin@email.com / admin123 — não use em produção.")
+
+        # Demo opcional perfil comercial (#336) — só desenvolvimento
+        if not settings.is_production:
+            if not db.query(Atendente).filter(func.lower(Atendente.email) == "comercial@email.com").first():
+                db.add(
+                    Atendente(
+                        tenant_id=1,
+                        email="comercial@email.com",
+                        nome="Comercial",
+                        senha_hash=_hash_senha("comercial123"),
+                        role="comercial",
+                        ativo=True,
+                        must_change_password=False,
+                    )
+                )
+                db.commit()
+                print(
+                    "Usuário comercial criado (desenvolvimento): comercial@email.com / comercial123 — não use em produção."
+                )
+            from app.services.crm import ensure_funil_padrao
+
+            ensure_funil_padrao(db)
+            db.commit()
     finally:
         db.close()
 

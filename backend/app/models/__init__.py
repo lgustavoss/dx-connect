@@ -53,6 +53,13 @@ from app.models.chat_interno import (
     MensagemInternaReacao,
     MensagemInternaOculta,
 )
+from app.models.crm import (
+    CrmLead,
+    CrmNegociacao,
+    CrmNegociacaoAtividade,
+    CrmNegociacaoCnpjLinha,
+    FunilEstagio,
+)
 
 __all__ = [
     "Rede",
@@ -122,4 +129,9 @@ __all__ = [
     "MensagemInternaReacao",
     "MensagemInternaOculta",
     "ConversaInternaLeitura",
+    "FunilEstagio",
+    "CrmLead",
+    "CrmNegociacao",
+    "CrmNegociacaoCnpjLinha",
+    "CrmNegociacaoAtividade",
 ]

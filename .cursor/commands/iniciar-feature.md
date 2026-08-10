@@ -58,7 +58,7 @@ Informe:
 Sugira próximo passo:
 
 ```
-/implementar-issue @<arquivo-da-issue.md>
+/implementar-issue #<número-da-issue-ou-lote>
 ```
 
 **Não** escreva código de feature neste comando — só preparar Git.

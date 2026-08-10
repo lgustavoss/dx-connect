@@ -6,7 +6,9 @@ Implemente a issue ou épico indicado pelo usuário seguindo o padrão do DX Con
 
 Se o usuário não passou issue, peça:
 - número/link da issue GitHub **ou**
-- caminho do body em `.github/planning-issue-bodies/`
+- descrição do lote (ex.: «lote A do #322»)
+
+Ler o body com `gh issue view` (e issues filhas do lote). **Não** depender de ficheiros locais em `.github/planning-issue-bodies/` para o corpo da issue.
 
 Leia o body completo antes de codar. Respeite **fora de escopo** e **critérios de aceite**.
 
