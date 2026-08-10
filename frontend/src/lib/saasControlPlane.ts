@@ -36,6 +36,32 @@ export function labelProvisionamento(status: string | null | undefined): string 
   }
 }
 
+export function labelAprovacao(status: string | null | undefined): string {
+  switch (status) {
+    case 'pendente':
+      return 'Pendente'
+    case 'aprovado':
+      return 'Aprovado'
+    case 'rejeitado':
+      return 'Rejeitado'
+    default:
+      return '—'
+  }
+}
+
+export function badgeClassAprovacao(status: string | null | undefined): string {
+  switch (status) {
+    case 'aprovado':
+      return 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-600/15 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-600/30'
+    case 'pendente':
+      return 'bg-amber-50 text-amber-900 ring-1 ring-amber-600/20 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-600/30'
+    case 'rejeitado':
+      return 'bg-red-50 text-red-800 ring-1 ring-red-600/15 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-600/30'
+    default:
+      return 'bg-slate-100 text-slate-600 ring-1 ring-slate-300/60 dark:bg-slate-800 dark:text-slate-400'
+  }
+}
+
 export function renovacaoAlerta(dias: number | null | undefined): 'ok' | 'risco' | 'vencido' | null {
   if (dias == null) return null
   if (dias < 0) return 'vencido'

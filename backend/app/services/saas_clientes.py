@@ -64,6 +64,8 @@ def reativar(db: Session, cliente_id: int) -> ClienteSaaS:
     row = obter(db, cliente_id)
     if row.status == "churn":
         raise SaasErro("Cliente em churn não pode ser reativado por este atalho; edite o status")
+    if getattr(row, "aprovacao_status", None) == "rejeitado":
+        raise SaasErro("Licença rejeitada não pode ser reativada")
     row.status = "ativo"
     db.flush()
     return row
@@ -116,6 +118,9 @@ def serializar_cliente(row: ClienteSaaS) -> dict:
         "provisionamento_status": row.provisionamento_status,
         "provisionamento_mensagem": row.provisionamento_mensagem,
         "provisionamento_atualizado_em": row.provisionamento_atualizado_em,
+        "aprovacao_status": getattr(row, "aprovacao_status", None) or "aprovado",
+        "aprovacao_notas": getattr(row, "aprovacao_notas", None),
+        "aprovacao_em": getattr(row, "aprovacao_em", None),
         "comandos_ops": montar_comandos_ops(row),
         "dias_para_renovacao": dias_para_renovacao(row.data_renovacao),
         "created_at": row.created_at,

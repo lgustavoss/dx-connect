@@ -61,22 +61,23 @@ Sem `VITE_SAAS_CONTROL_PLANE=true`, a apex continua só com login por conta.
 | Trial | `POST /v1/saas/public/trial` | público (rate limit) |
 | Contato landing | `POST /v1/saas/public/contato` | público (rate limit) |
 
-Ações clientes: `suspender`, `reativar`, `renovar` (`dias` ou `nova_data`), `registrar-instancia`, `solicitar-provisionamento`, `confirmar-provisionamento`.
-Read de clientes inclui `comandos_ops` quando a fila está ativa (`pendente` / `aguardando_ops` / `falha` / `em_progresso`).
+Ações clientes: `suspender`, `reativar`, `renovar` (`dias` ou `nova_data`), `registrar-instancia`, `solicitar-provisionamento`, `confirmar-provisionamento`, `aprovar`, `rejeitar`.
+Read de clientes inclui `comandos_ops` quando a fila está activa (`pendente` / `aguardando_ops` / `falha` / `em_progresso`), e `aprovacao_status` / `aprovacao_notas` / `aprovacao_em`.
 
 Busca em `/clientes` cobre nome, slug, `contato_nome` e `contato_email`.
 
 ## Checklist QA local (antes de testes manuais)
 
 1. Flags dual: `SAAS_CONTROL_PLANE=true` + `VITE_SAAS_CONTROL_PLANE=true` só na instância comercial.
-2. Migrations `084`–`086` aplicadas (`alembic upgrade head`).
+2. Migrations `084`–`087` aplicadas (`alembic upgrade head`).
 3. Login ops via `/login/admin` (`ops@deskrudder.local`) → shell SaaS (Licenças / Leads), sem menu de tickets.
 4. Login atendimento via `/login` (`admin@email.com` ou `atendente@email.com`) → painel de tickets/chat (sem menu SaaS).
 5. Lead → **Criar licença** (prefill); trial em `/trial`; contacto na LP.
 6. Provisionar com `SAAS_PROVISION_EXEC_ENABLED=false` → `aguardando_ops` → copiar comandos → **Confirmar provisionamento** após health.
-7. Renovar por dias e por data; suspender/reativar; registar URL.
-8. Workers activos no log do backend (`saas-provisionamento`, `saas-renovacoes`).
-9. Sem Resend: fluxo continua (notify é no-op); com Resend + `SAAS_NOTIFY_EMAIL`: e-mails de trial/renovação.
+7. Trial com aprovação pendente → **Aprovar go-live** (trial→activo) ou **Rejeitar** (churn).
+8. Renovar por dias e por data; suspender/reativar; registar URL.
+9. Workers activos no log do backend (`saas-provisionamento`, `saas-renovacoes`).
+10. Sem Resend: fluxo continua (notify é no-op); com Resend + `SAAS_NOTIFY_EMAIL`: e-mails de trial/renovação.
 
 ## Contato comercial B2B (DR-06 / #516)
 
@@ -120,11 +121,25 @@ Não use auto-exec a partir do container Windows/dev sem o repositório e Docker
 
 ## Trial (DR-07)
 
-Formulário público (`/trial`) cria `ClienteSaaS` com `status=trial`, `data_renovacao = hoje + SAAS_TRIAL_DAYS`,
-**enfileira provisionamento automaticamente** e notifica `SAAS_NOTIFY_EMAIL` (se Resend estiver configurado).
+Formulário público (`/trial`) cria `ClienteSaaS` com `status=trial`, `aprovacao_status=pendente`,
+`data_renovacao = hoje + SAAS_TRIAL_DAYS`, **enfileira provisionamento automaticamente** e notifica
+`SAAS_NOTIFY_EMAIL` (se Resend estiver configurado).
 
 O campo legado `solicitar_provisionamento` no body é ignorado (sempre enfileira). Com
 `SAAS_PROVISION_EXEC_ENABLED=false`, a fila fica em `aguardando_ops` para a equipa correr os scripts.
+
+## Aprovação go-live
+
+Trials públicos entram com `aprovacao_status=pendente`. Licenças criadas manualmente no painel ficam
+`aprovado` de imediato.
+
+| Acção | Efeito |
+|-------|--------|
+| `POST …/aprovar` (`ativar=true` por omissão) | `aprovacao_status=aprovado`; se `trial`/`suspenso` → `ativo` |
+| `POST …/rejeitar` | `aprovacao_status=rejeitado`, `status=churn`; cancela fila se ainda não `sucesso` |
+
+O resumo ops inclui `aprovacoes_pendentes`. Provisionar o ambiente trial **não** exige aprovação prévia;
+a aprovação é o gate comercial de go-live.
 
 ## Renovações (DR-08)
 

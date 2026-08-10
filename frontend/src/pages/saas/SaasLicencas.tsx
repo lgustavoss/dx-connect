@@ -131,7 +131,7 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
       actions={<Button onClick={() => navigate('/saas/licencas/novo')}>Nova licença</Button>}
     >
       {resumo ? (
-        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <ResumoCard
             label="Clientes"
             value={String(resumo.clientes_total)}
@@ -148,6 +148,12 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
             value={String(resumo.provisionamento_pendente)}
             hint={`${resumo.provisionamento_falha} falha(s) na fila`}
             tone={resumo.provisionamento_falha > 0 ? 'warn' : undefined}
+          />
+          <ResumoCard
+            label="Aprovações"
+            value={String(resumo.aprovacoes_pendentes ?? 0)}
+            hint="go-live pendente"
+            tone={(resumo.aprovacoes_pendentes ?? 0) > 0 ? 'warn' : undefined}
           />
           <ResumoCard
             label="Leads"

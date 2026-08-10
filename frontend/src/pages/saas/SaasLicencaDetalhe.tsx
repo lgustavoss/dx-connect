@@ -11,8 +11,10 @@ import { SemPermissao } from '../SemPermissao'
 import { CarregamentoFalhou } from '../../components/ui/CarregamentoFalhou'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../../api/errorMessage'
 import {
+  badgeClassAprovacao,
   badgeClassStatusClienteSaaS,
   hrefInstanciaCliente,
+  labelAprovacao,
   labelProvisionamento,
   labelStatusClienteSaaS,
   renovacaoAlerta,
@@ -160,17 +162,49 @@ export function SaasLicencaDetalhe() {
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
             {item.nome}
           </h1>
-          <span
-            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeClassStatusClienteSaaS(item.status)}`}
-          >
-            {labelStatusClienteSaaS(item.status)}
-          </span>
+          <div className="flex flex-wrap gap-2">
+            <span
+              className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeClassStatusClienteSaaS(item.status)}`}
+            >
+              {labelStatusClienteSaaS(item.status)}
+            </span>
+            <span
+              className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeClassAprovacao(item.aprovacao_status)}`}
+            >
+              Aprovação: {labelAprovacao(item.aprovacao_status)}
+            </span>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" disabled={acting} onClick={() => navigate(`/saas/licencas/${item.id}/editar`)}>
             Editar
           </Button>
-          {item.status !== 'suspenso' ? (
+          {item.aprovacao_status === 'pendente' ? (
+            <>
+              <Button
+                disabled={acting}
+                onClick={() =>
+                  runAction(() => saasClientes.aprovar(item.id, { ativar: true }), 'Licença aprovada (go-live).')
+                }
+              >
+                Aprovar go-live
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={acting}
+                onClick={() => {
+                  const notas = window.prompt('Motivo da rejeição (opcional):') ?? undefined
+                  void runAction(
+                    () => saasClientes.rejeitar(item.id, { notas: notas || null }),
+                    'Licença rejeitada.',
+                  )
+                }}
+              >
+                Rejeitar
+              </Button>
+            </>
+          ) : null}
+          {item.status !== 'suspenso' && item.status !== 'churn' ? (
             <Button
               variant="secondary"
               disabled={acting}
@@ -178,7 +212,7 @@ export function SaasLicencaDetalhe() {
             >
               Suspender
             </Button>
-          ) : (
+          ) : item.status === 'suspenso' ? (
             <Button
               variant="secondary"
               disabled={acting}
@@ -186,7 +220,7 @@ export function SaasLicencaDetalhe() {
             >
               Reativar
             </Button>
-          )}
+          ) : null}
           {item.provisionamento_status !== 'sucesso' && item.provisionamento_status !== 'em_progresso' ? (
             <Button
               variant="secondary"
@@ -244,9 +278,18 @@ export function SaasLicencaDetalhe() {
           <DetailRow label="Porta API" value={item.api_port != null ? String(item.api_port) : '—'} mono />
           <DetailRow label="Provisionamento" value={labelProvisionamento(item.provisionamento_status)} />
           <DetailRow label="Detalhe da fila" value={item.provisionamento_mensagem || '—'} />
+          <DetailRow label="Aprovação" value={labelAprovacao(item.aprovacao_status)} />
+          <DetailRow label="Notas de aprovação" value={item.aprovacao_notas || '—'} />
           <DetailRow label="Notas" value={item.notas || '—'} />
         </dl>
       </Card>
+
+      {item.aprovacao_status === 'pendente' ? (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-100">
+          Aprovação comercial pendente. Pode provisionar o ambiente trial; use <strong>Aprovar go-live</strong> para
+          passar a activo ou <strong>Rejeitar</strong> para cancelar (churn).
+        </div>
+      ) : null}
 
       {item.provisionamento_status === 'falha' || item.provisionamento_status === 'aguardando_ops' ? (
         <Card title="Provisionamento (ops)">

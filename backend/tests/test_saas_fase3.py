@@ -230,7 +230,70 @@ def test_trial_publico_cria_licenca(client, auth_headers, monkeypatch):
     assert item["contato_email"] == "ana@beta.example"
     assert item["provisionamento_solicitado"] is True
     assert item["provisionamento_status"] == "pendente"
+    assert item["aprovacao_status"] == "pendente"
     assert item["api_port"] is not None
+
+
+def test_aprovar_go_live_e_rejeitar_trial(client, auth_headers, monkeypatch):
+    from app.config import settings
+    from app.core import kb_public_rate_limit as rl
+
+    rl._trial_buckets.clear()
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    monkeypatch.setattr(settings, "SAAS_TRIAL_DAYS", 14)
+    monkeypatch.setattr(settings, "SAAS_NOTIFY_EMAIL", None)
+    monkeypatch.setattr(settings, "SAAS_PROVISION_EXEC_ENABLED", False)
+    monkeypatch.setattr(settings, "SAAS_PROVISION_BASE_DOMAIN", "deskrudder.com.br")
+    h = auth_headers["ops"]
+
+    r = client.post(
+        "/v1/saas/public/trial",
+        json={
+            "empresa": "Aprova Soft",
+            "slug": "aprova-soft",
+            "contato_nome": "Lia",
+            "contato_email": "lia@aprova.example",
+        },
+    )
+    assert r.status_code == 201, r.text
+    cid = r.json()["id"]
+
+    resumo = client.get("/v1/saas/resumo", headers=h)
+    assert resumo.status_code == 200
+    assert resumo.json()["aprovacoes_pendentes"] >= 1
+
+    ok = client.post(f"/v1/saas/clientes/{cid}/aprovar", headers=h, json={"ativar": True})
+    assert ok.status_code == 200, ok.text
+    body = ok.json()
+    assert body["aprovacao_status"] == "aprovado"
+    assert body["status"] == "ativo"
+
+    # Já aprovada + ativa → erro
+    again = client.post(f"/v1/saas/clientes/{cid}/aprovar", headers=h, json={})
+    assert again.status_code == 400
+
+    # Novo trial para rejeitar
+    r2 = client.post(
+        "/v1/saas/public/trial",
+        json={
+            "empresa": "Rejeita Soft",
+            "slug": "rejeita-soft",
+            "contato_nome": "Bob",
+            "contato_email": "bob@rejeita.example",
+        },
+    )
+    cid2 = r2.json()["id"]
+    rej = client.post(
+        f"/v1/saas/clientes/{cid2}/rejeitar",
+        headers=h,
+        json={"notas": "Fora do ICP"},
+    )
+    assert rej.status_code == 200, rej.text
+    b2 = rej.json()
+    assert b2["aprovacao_status"] == "rejeitado"
+    assert b2["status"] == "churn"
+    assert b2["aprovacao_notas"] == "Fora do ICP"
+    assert b2["provisionamento_status"] == "falha"
 
 
 def test_trial_publico_slug_duplicado(client, monkeypatch):
@@ -320,7 +383,9 @@ def test_renovar_com_nova_data(client, auth_headers, monkeypatch):
 def test_trial_enfileira_mesmo_sem_flag_legado(client, auth_headers, monkeypatch):
     """solicitar_provisionamento=false no body é ignorado — sempre enfileira."""
     from app.config import settings
+    from app.core import kb_public_rate_limit as rl
 
+    rl._trial_buckets.clear()
     monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
     monkeypatch.setattr(settings, "SAAS_TRIAL_DAYS", 14)
     monkeypatch.setattr(settings, "SAAS_NOTIFY_EMAIL", None)

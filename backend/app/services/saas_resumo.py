@@ -57,6 +57,12 @@ def obter_resumo(db: Session) -> SaasResumoRead:
         .scalar()
         or 0
     )
+    aprov_pendente = (
+        db.query(func.count(ClienteSaaS.id))
+        .filter(ClienteSaaS.aprovacao_status == "pendente")
+        .scalar()
+        or 0
+    )
     leads_novos = (
         db.query(func.count(LeadComercial.id)).filter(LeadComercial.status == "novo").scalar() or 0
     )
@@ -74,6 +80,7 @@ def obter_resumo(db: Session) -> SaasResumoRead:
         vencidas_ativas=int(vencidas),
         provisionamento_pendente=int(prov_pendente),
         provisionamento_falha=int(prov_falha),
+        aprovacoes_pendentes=int(aprov_pendente),
         leads_novos=int(leads_novos),
         leads_em_atendimento=int(leads_atend),
         janela_renovacao_dias=janela,

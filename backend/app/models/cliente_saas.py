@@ -7,6 +7,7 @@ from app.database import Base
 
 STATUS_CLIENTE_SAAS = ("trial", "ativo", "suspenso", "churn")
 PROVISIONAMENTO_STATUS = ("pendente", "em_progresso", "aguardando_ops", "sucesso", "falha")
+APROVACAO_STATUS = ("pendente", "aprovado", "rejeitado")
 
 
 class ClienteSaaS(Base):
@@ -28,6 +29,9 @@ class ClienteSaaS(Base):
     provisionamento_status = Column(String(32), nullable=True)
     provisionamento_mensagem = Column(Text, nullable=True)
     provisionamento_atualizado_em = Column(DateTime(timezone=True), nullable=True)
+    aprovacao_status = Column(String(20), nullable=False, default="aprovado")
+    aprovacao_notas = Column(Text, nullable=True)
+    aprovacao_em = Column(DateTime(timezone=True), nullable=True)
     notas = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

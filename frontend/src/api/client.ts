@@ -3781,6 +3781,16 @@ export const saasClientes = {
       method: 'POST',
       body: JSON.stringify(data ?? {}),
     }),
+  aprovar: (id: number, data?: { notas?: string | null; ativar?: boolean }) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}/aprovar`, {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
+  rejeitar: (id: number, data?: { notas?: string | null }) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}/rejeitar`, {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
 };
 
 export const saasPublic = {
@@ -3862,6 +3872,7 @@ export namespace SaasPublic {
 export namespace SaasClientes {
   export type Status = 'trial' | 'ativo' | 'suspenso' | 'churn';
   export type ProvisionamentoStatus = 'pendente' | 'em_progresso' | 'aguardando_ops' | 'sucesso' | 'falha';
+  export type AprovacaoStatus = 'pendente' | 'aprovado' | 'rejeitado';
   export interface Resumo {
     clientes_total: number;
     por_status: Record<string, number>;
@@ -3869,6 +3880,7 @@ export namespace SaasClientes {
     vencidas_ativas: number;
     provisionamento_pendente: number;
     provisionamento_falha: number;
+    aprovacoes_pendentes: number;
     leads_novos: number;
     leads_em_atendimento: number;
     janela_renovacao_dias: number;
@@ -3889,6 +3901,9 @@ export namespace SaasClientes {
     provisionamento_status?: ProvisionamentoStatus | null;
     provisionamento_mensagem?: string | null;
     provisionamento_atualizado_em?: string | null;
+    aprovacao_status?: AprovacaoStatus;
+    aprovacao_notas?: string | null;
+    aprovacao_em?: string | null;
     comandos_ops?: string | null;
     dias_para_renovacao?: number | null;
     notas?: string | null;

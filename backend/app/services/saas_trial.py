@@ -66,6 +66,9 @@ def criar_trial_publico(db: Session, data: TrialSolicitacaoCreate) -> ClienteSaa
     row = svc.criar(db, create)
     row.contato_email = str(data.contato_email).strip().lower()
     row.contato_nome = data.contato_nome.strip()
+    row.aprovacao_status = "pendente"
+    row.aprovacao_notas = None
+    row.aprovacao_em = None
     db.flush()
 
     # Sempre enfileira: a equipa vê a licença trial na fila e provisiona (ops ou EXEC=true).
@@ -83,6 +86,7 @@ def criar_trial_publico(db: Session, data: TrialSolicitacaoCreate) -> ClienteSaa
             f"Slug: {row.slug}\n"
             f"Contacto: {row.contato_nome} <{row.contato_email}>\n"
             f"Trial até: {row.data_renovacao}\n"
+            f"Aprovação: pendente (go-live no painel)\n"
             f"Notas: {row.notas or '—'}\n"
             f"{fila_txt}\n"
         ),

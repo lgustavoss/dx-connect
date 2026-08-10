@@ -19,14 +19,17 @@ from app.models.atendente import Atendente
 from app.models.cliente_saas import ClienteSaaS
 from app.schemas.lista_paginada import ListaPaginada
 from app.schemas.saas import (
+    ClienteSaaSAprovar,
     ClienteSaaSConfirmarProvisionamento,
     ClienteSaaSCreate,
     ClienteSaaSRead,
     ClienteSaaSRegistrarInstancia,
+    ClienteSaaSRejeitar,
     ClienteSaaSRenovar,
     ClienteSaaSUpdate,
     SaasResumoRead,
 )
+from app.services import saas_aprovacao
 from app.services import saas_clientes as svc
 from app.services import saas_renovacoes
 from app.services.saas_resumo import obter_resumo
@@ -261,6 +264,44 @@ def confirmar_provisionamento(
     except svc.SaasErro as e:
         raise _http_from_saas(e) from e
     registrar_audit(db, "cliente_saas", cliente_id, "confirmar_provisionamento", atendente.id)
+    db.commit()
+    db.refresh(row)
+    return _read(row)
+
+
+@router.post("/clientes/{cliente_id}/aprovar", response_model=ClienteSaaSRead)
+def aprovar(
+    cliente_id: int,
+    data: ClienteSaaSAprovar | None = None,
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    atendente: Atendente = Depends(exigir_saas_ops),
+):
+    body = data or ClienteSaaSAprovar()
+    try:
+        row = saas_aprovacao.aprovar(db, cliente_id, notas=body.notas, ativar=body.ativar)
+    except svc.SaasErro as e:
+        raise _http_from_saas(e) from e
+    registrar_audit(db, "cliente_saas", cliente_id, "aprovar", atendente.id)
+    db.commit()
+    db.refresh(row)
+    return _read(row)
+
+
+@router.post("/clientes/{cliente_id}/rejeitar", response_model=ClienteSaaSRead)
+def rejeitar(
+    cliente_id: int,
+    data: ClienteSaaSRejeitar | None = None,
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    atendente: Atendente = Depends(exigir_saas_ops),
+):
+    body = data or ClienteSaaSRejeitar()
+    try:
+        row = saas_aprovacao.rejeitar(db, cliente_id, notas=body.notas)
+    except svc.SaasErro as e:
+        raise _http_from_saas(e) from e
+    registrar_audit(db, "cliente_saas", cliente_id, "rejeitar", atendente.id)
     db.commit()
     db.refresh(row)
     return _read(row)

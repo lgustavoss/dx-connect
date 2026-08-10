@@ -9,6 +9,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, HttpUrl
 
 StatusClienteSaaS = Literal["trial", "ativo", "suspenso", "churn"]
+AprovacaoStatusSaaS = Literal["pendente", "aprovado", "rejeitado"]
 
 _SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -213,6 +214,31 @@ class ClienteSaaSRenovar(BaseModel):
     nova_data: date | None = None
 
 
+class ClienteSaaSAprovar(BaseModel):
+    notas: str | None = None
+    ativar: bool = True
+
+    @field_validator("notas")
+    @classmethod
+    def strip_notas_aprovar(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        s = v.strip()
+        return s or None
+
+
+class ClienteSaaSRejeitar(BaseModel):
+    notas: str | None = None
+
+    @field_validator("notas")
+    @classmethod
+    def strip_notas_rejeitar(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        s = v.strip()
+        return s or None
+
+
 class ClienteSaaSRead(ClienteSaaSBase):
     id: int
     api_port: int | None = None
@@ -220,6 +246,9 @@ class ClienteSaaSRead(ClienteSaaSBase):
     provisionamento_status: str | None = None
     provisionamento_mensagem: str | None = None
     provisionamento_atualizado_em: datetime | None = None
+    aprovacao_status: AprovacaoStatusSaaS = "aprovado"
+    aprovacao_notas: str | None = None
+    aprovacao_em: datetime | None = None
     comandos_ops: str | None = None
     dias_para_renovacao: int | None = None
     created_at: datetime | None = None
@@ -235,6 +264,7 @@ class SaasResumoRead(BaseModel):
     vencidas_ativas: int = 0
     provisionamento_pendente: int = 0
     provisionamento_falha: int = 0
+    aprovacoes_pendentes: int = 0
     leads_novos: int = 0
     leads_em_atendimento: int = 0
     janela_renovacao_dias: int = 14
