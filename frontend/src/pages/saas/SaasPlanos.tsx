@@ -67,20 +67,18 @@ export function SaasPlanos() {
     )
   }
 
-  if (forbidden) {
-    return (
-      <SemPermissao
-        title="Você não tem permissão para gerir planos SaaS."
-        voltarPara="/saas/licencas"
-        voltarLabel="Voltar para Licenças"
-      />
-    )
-  }
-
   return (
     <ConfigListPageShell
+      forbidden={forbidden}
+      denied={
+        <SemPermissao
+          title="Você não tem permissão para gerir planos SaaS."
+          voltarPara="/saas/licencas"
+          voltarLabel="Voltar para Licenças"
+        />
+      }
       title="Planos"
-      description="Catálogo comercial — o que cada plano inclui (sem ligar features na instância)."
+      subtitle="Catálogo comercial — o que cada plano inclui (sem ligar features na instância)."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={() => navigate('/saas/modulos')}>

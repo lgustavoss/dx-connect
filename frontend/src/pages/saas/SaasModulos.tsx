@@ -112,20 +112,18 @@ export function SaasModulos() {
     )
   }
 
-  if (forbidden) {
-    return (
-      <SemPermissao
-        title="Você não tem permissão para gerir módulos."
-        voltarPara="/saas/planos"
-        voltarLabel="Voltar para Planos"
-      />
-    )
-  }
-
   return (
     <ConfigListPageShell
+      forbidden={forbidden}
+      denied={
+        <SemPermissao
+          title="Você não tem permissão para gerir módulos."
+          voltarPara="/saas/planos"
+          voltarLabel="Voltar para Planos"
+        />
+      }
       title="Módulos"
-      description="Peças do catálogo comercial que podem ser associadas a planos."
+      subtitle="Peças do catálogo comercial que podem ser associadas a planos."
       actions={
         <Button variant="secondary" onClick={() => navigate('/saas/planos')}>
           Voltar aos planos

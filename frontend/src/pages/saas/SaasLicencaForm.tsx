@@ -299,8 +299,10 @@ export function SaasLicencaForm() {
                     value: p.id,
                     label: p.ativo ? p.nome : `${p.nome} (inactivo)`,
                   }))}
-                hint="Catálogo em Licenças → Planos. Só planos activos (excepto o já atribuído)."
               />
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Catálogo em Licenças → Planos. Só planos activos (excepto o já atribuído).
+              </p>
             </FormSection>
             <FormSection title="Contacto">
               <Input
