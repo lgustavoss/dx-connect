@@ -73,6 +73,29 @@ def obter_resumo(db: Session) -> SaasResumoRead:
         or 0
     )
 
+    from app.schemas.saas import SaasInstanciaResumo
+
+    inst_rows = (
+        db.query(ClienteSaaS)
+        .filter(ClienteSaaS.api_port.isnot(None) | ClienteSaaS.provisionamento_status.isnot(None))
+        .order_by(ClienteSaaS.slug.asc())
+        .limit(80)
+        .all()
+    )
+    instancias = [
+        SaasInstanciaResumo(
+            id=r.id,
+            slug=r.slug,
+            nome=r.nome,
+            status=r.status,
+            api_port=r.api_port,
+            stack_status=getattr(r, "stack_status", None),
+            provisionamento_status=r.provisionamento_status,
+            instancia_url=r.instancia_url,
+        )
+        for r in inst_rows
+    ]
+
     return SaasResumoRead(
         clientes_total=int(total),
         por_status=por_status,
@@ -84,4 +107,8 @@ def obter_resumo(db: Session) -> SaasResumoRead:
         leads_novos=int(leads_novos),
         leads_em_atendimento=int(leads_atend),
         janela_renovacao_dias=janela,
+        base_dominio_provisionamento=(
+            (settings.SAAS_PROVISION_BASE_DOMAIN or "").strip().lstrip(".") or "deskrudder.com.br"
+        ),
+        instancias=instancias,
     )

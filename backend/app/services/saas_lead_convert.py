@@ -28,6 +28,7 @@ def slug_sugerido(texto: str) -> str:
 class LeadConverterCreate(BaseModel):
     slug: str | None = Field(None, max_length=80)
     plano: str | None = Field(None, max_length=80)
+    plano_id: int | None = None
     status: str = "trial"
     enfileirar_provisionamento: bool = False
     notas_extra: str | None = None
@@ -96,6 +97,7 @@ def converter_lead(
         slug=slug,
         status=body.status if body.status in ("trial", "ativo", "suspenso", "churn") else "trial",
         plano=body.plano,
+        plano_id=body.plano_id,
         data_inicio=date.today(),
         contato_email=lead.email,
         contato_nome=lead.nome,

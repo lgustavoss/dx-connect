@@ -12,7 +12,6 @@ from app.models.cliente_saas import ClienteSaaS
 from app.schemas.saas import ClienteSaaSCreate, _validar_slug
 from app.services import saas_clientes as svc
 from app.services.saas_notify import notificar_equipe_saas
-from app.services.saas_provisionamento import enfileirar_provisionamento
 
 
 class TrialSolicitacaoCreate(BaseModel):
@@ -21,8 +20,8 @@ class TrialSolicitacaoCreate(BaseModel):
     contato_nome: str = Field(..., min_length=1, max_length=200)
     contato_email: EmailStr
     notas: str | None = None
-    # Legado: ignorado — o trial enfileira provisionamento sempre (ops-assisted ou auto-exec).
-    solicitar_provisionamento: bool = True
+    # Legado: ignorado — o trial só regista pedido; a base é criada após aprovação.
+    solicitar_provisionamento: bool = False
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
@@ -71,13 +70,6 @@ def criar_trial_publico(db: Session, data: TrialSolicitacaoCreate) -> ClienteSaa
     row.aprovacao_em = None
     db.flush()
 
-    # Sempre enfileira: a equipa vê a licença trial na fila e provisiona (ops ou EXEC=true).
-    try:
-        enfileirar_provisionamento(db, row.id)
-        fila_txt = "Provisionamento enfileirado automaticamente."
-    except svc.SaasErro as e:
-        fila_txt = f"Registo criado; fila de provisionamento: {e.detail}"
-
     notificar_equipe_saas(
         db,
         subject=f"[DeskRudder] Novo trial — {row.nome} ({row.slug})",
@@ -86,9 +78,8 @@ def criar_trial_publico(db: Session, data: TrialSolicitacaoCreate) -> ClienteSaa
             f"Slug: {row.slug}\n"
             f"Contacto: {row.contato_nome} <{row.contato_email}>\n"
             f"Trial até: {row.data_renovacao}\n"
-            f"Aprovação: pendente (go-live no painel)\n"
+            f"Aprovação: pendente — ao aprovar no painel, a base/instância é enfileirada.\n"
             f"Notas: {row.notas or '—'}\n"
-            f"{fila_txt}\n"
         ),
     )
 

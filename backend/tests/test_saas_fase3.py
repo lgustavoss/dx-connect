@@ -152,11 +152,11 @@ def test_provisionar_exec_mock_sucesso_e_falha(client, auth_headers, monkeypatch
     assert detalhe.status_code == 200
     assert detalhe.json()["provisionamento_status"] == "sucesso"
 
-    # provision-client + migrate/up/health com ordem <cmd> <slug>
+    # provision-client + migrate/up/seed/health com ordem <cmd> <slug>
     assert any("provision-client.sh" in " ".join(c) for c in calls)
     stack_calls = [c for c in calls if any("stack-client.sh" in part for part in c)]
-    assert len(stack_calls) == 3
-    assert [c[-2] for c in stack_calls] == ["migrate", "up", "health"]
+    assert len(stack_calls) == 4
+    assert [c[-2] for c in stack_calls] == ["migrate", "up", "seed", "health"]
     assert all(c[-1] == "delta-exec" for c in stack_calls)
 
     # Segunda licença: falha no migrate
@@ -221,17 +221,17 @@ def test_trial_publico_cria_licenca(client, auth_headers, monkeypatch):
     assert body["slug"] == "beta-soft"
     assert body["status"] == "trial"
     assert body["data_renovacao"] == str(date.today() + timedelta(days=10))
-    assert "fila" in body["mensagem"].lower() or "provisionamento" in body["mensagem"].lower()
+    assert "aprov" in body["mensagem"].lower() or "base" in body["mensagem"].lower()
 
     lista = client.get("/v1/saas/clientes?busca=beta", headers=auth_headers["ops"])
     assert lista.status_code == 200
     assert lista.json()["total"] >= 1
     item = next(i for i in lista.json()["items"] if i["slug"] == "beta-soft")
     assert item["contato_email"] == "ana@beta.example"
-    assert item["provisionamento_solicitado"] is True
-    assert item["provisionamento_status"] == "pendente"
     assert item["aprovacao_status"] == "pendente"
-    assert item["api_port"] is not None
+    assert item["provisionamento_solicitado"] is False
+    assert item["provisionamento_status"] is None
+    assert item["api_port"] is None
 
 
 def test_aprovar_go_live_e_rejeitar_trial(client, auth_headers, monkeypatch):
@@ -267,12 +267,16 @@ def test_aprovar_go_live_e_rejeitar_trial(client, auth_headers, monkeypatch):
     body = ok.json()
     assert body["aprovacao_status"] == "aprovado"
     assert body["status"] == "ativo"
+    assert body["provisionamento_solicitado"] is True
+    # Com EXEC=false o worker passa logo a aguardando_ops (fila processada na aprovação).
+    assert body["provisionamento_status"] in ("pendente", "aguardando_ops")
+    assert body["api_port"] is not None
 
-    # Já aprovada + ativa → erro
+    # Já aprovada + ativa + fila → erro
     again = client.post(f"/v1/saas/clientes/{cid}/aprovar", headers=h, json={})
     assert again.status_code == 400
 
-    # Novo trial para rejeitar
+    # Novo trial para rejeitar (sem provisionamento ainda)
     r2 = client.post(
         "/v1/saas/public/trial",
         json={
@@ -293,7 +297,7 @@ def test_aprovar_go_live_e_rejeitar_trial(client, auth_headers, monkeypatch):
     assert b2["aprovacao_status"] == "rejeitado"
     assert b2["status"] == "churn"
     assert b2["aprovacao_notas"] == "Fora do ICP"
-    assert b2["provisionamento_status"] == "falha"
+    assert b2["provisionamento_status"] is None
 
 
 def test_trial_publico_slug_duplicado(client, monkeypatch):
@@ -380,8 +384,8 @@ def test_renovar_com_nova_data(client, auth_headers, monkeypatch):
     assert r.json()["dias_para_renovacao"] == 90
 
 
-def test_trial_enfileira_mesmo_sem_flag_legado(client, auth_headers, monkeypatch):
-    """solicitar_provisionamento=false no body é ignorado — sempre enfileira."""
+def test_trial_nao_enfileira_ate_aprovacao(client, auth_headers, monkeypatch):
+    """Trial público só cria pedido; provisionamento só após aprovar."""
     from app.config import settings
     from app.core import kb_public_rate_limit as rl
 
@@ -399,7 +403,7 @@ def test_trial_enfileira_mesmo_sem_flag_legado(client, auth_headers, monkeypatch
             "slug": "prov-soft",
             "contato_nome": "Joao",
             "contato_email": "joao@prov.example",
-            "solicitar_provisionamento": False,
+            "solicitar_provisionamento": True,
         },
     )
     assert r.status_code == 201, r.text
@@ -407,8 +411,9 @@ def test_trial_enfileira_mesmo_sem_flag_legado(client, auth_headers, monkeypatch
     detalhe = client.get(f"/v1/saas/clientes/{cid}", headers=auth_headers["ops"])
     assert detalhe.status_code == 200
     d = detalhe.json()
-    assert d["provisionamento_solicitado"] is True
-    assert d["provisionamento_status"] == "pendente"
+    assert d["aprovacao_status"] == "pendente"
+    assert d["provisionamento_solicitado"] is False
+    assert d["provisionamento_status"] is None
     assert d["contato_email"] == "joao@prov.example"
 
 

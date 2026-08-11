@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ApiError, saasClientes } from '../../api/client'
+import { ApiError, saasClientes, saasPlanos, type SaasCatalogo } from '../../api/client'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
@@ -12,7 +12,12 @@ import { CadastroFormPageShell } from '../../components/ui/CadastroFormPageShell
 import { SemPermissao } from '../SemPermissao'
 import { CarregamentoFalhou } from '../../components/ui/CarregamentoFalhou'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../../api/errorMessage'
-import { STATUS_CLIENTE_SAAS, type StatusClienteSaaS } from '../../lib/saasControlPlane'
+import {
+  STATUS_CLIENTE_SAAS,
+  type StatusClienteSaaS,
+  saasBaseDomain,
+  urlInstanciaFromSlug,
+} from '../../lib/saasControlPlane'
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10)
@@ -48,14 +53,15 @@ export function SaasLicencaForm() {
   const [slug, setSlug] = useState('')
   const [slugTouched, setSlugTouched] = useState(false)
   const [status, setStatus] = useState<StatusClienteSaaS>('trial')
-  const [plano, setPlano] = useState('')
+  const [planoId, setPlanoId] = useState<number | ''>('')
+  const [planosOpts, setPlanosOpts] = useState<SaasCatalogo.Plano[]>([])
   const [dataInicio, setDataInicio] = useState(todayIso)
   const [dataRenovacao, setDataRenovacao] = useState('')
-  const [instanciaUrl, setInstanciaUrl] = useState('')
   const [contatoNome, setContatoNome] = useState('')
   const [contatoEmail, setContatoEmail] = useState('')
   const [notas, setNotas] = useState('')
   const [leadComercialId, setLeadComercialId] = useState<number | null>(null)
+  const [baseDomain, setBaseDomain] = useState(saasBaseDomain())
 
   useEffect(() => {
     if (isEdit) return
@@ -80,6 +86,38 @@ export function SaasLicencaForm() {
   }, [isEdit, searchParams])
 
   useEffect(() => {
+    let cancelled = false
+    saasClientes
+      .resumo()
+      .then((r) => {
+        if (cancelled) return
+        if (r.base_dominio_provisionamento) setBaseDomain(saasBaseDomain(r.base_dominio_provisionamento))
+      })
+      .catch(() => {
+        /* domínio via env / default */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    saasPlanos
+      .list()
+      .then((planos) => {
+        if (cancelled) return
+        setPlanosOpts(planos)
+      })
+      .catch(() => {
+        /* select vazio */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
     if (!isEdit) return
     if (!id || Number.isNaN(clienteId)) {
       setInexistente({ detalhe: 'O identificador na URL é inválido.' })
@@ -99,10 +137,9 @@ export function SaasLicencaForm() {
         setSlug(c.slug)
         setSlugTouched(true)
         setStatus(c.status)
-        setPlano(c.plano ?? '')
+        setPlanoId(c.plano_id ?? '')
         setDataInicio(c.data_inicio.slice(0, 10))
         setDataRenovacao(c.data_renovacao ? c.data_renovacao.slice(0, 10) : '')
-        setInstanciaUrl(c.instancia_url ?? '')
         setContatoNome(c.contato_nome ?? '')
         setContatoEmail(c.contato_email ?? '')
         setNotas(c.notas ?? '')
@@ -140,14 +177,15 @@ export function SaasLicencaForm() {
     e.preventDefault()
     setSaving(true)
     try {
+      const urlAuto = urlInstanciaFromSlug(slug.trim().toLowerCase(), baseDomain) || null
       const payload = {
         nome: nome.trim(),
         slug: slug.trim().toLowerCase(),
         status,
-        plano: plano.trim() || null,
+        plano_id: planoId === '' ? null : Number(planoId),
         data_inicio: dataInicio,
         data_renovacao: dataRenovacao.trim() || null,
-        instancia_url: instanciaUrl.trim() || null,
+        instancia_url: urlAuto,
         contato_nome: contatoNome.trim() || null,
         contato_email: contatoEmail.trim() || null,
         notas: notas.trim() || null,
@@ -225,26 +263,43 @@ export function SaasLicencaForm() {
                 required
               />
               <Input
-                label="Slug"
+                label="Nome da base (slug)"
                 value={slug}
                 onChange={(e) => {
                   setSlugTouched(true)
                   setSlug(e.target.value)
                 }}
                 required
-                hint="Subdomínio / identificador único (ex.: duplex-soft)"
+                hint="Só o nome da base; o domínio é fixo (ex.: codewave → https://codewave.deskrudder.com.br/)"
               />
+              <div className="space-y-1.5">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">URL da instância</span>
+                <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-200">
+                  {urlInstanciaFromSlug(slug, baseDomain) || `https://{slug}.${baseDomain}/`}
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Gerada automaticamente a partir do nome da base. Não é editável.
+                </p>
+              </div>
               <Select
                 label="Status"
                 value={status}
                 onChange={(v) => setStatus(String(v) as StatusClienteSaaS)}
                 options={STATUS_CLIENTE_SAAS.map((s) => ({ value: s.value, label: s.label }))}
               />
-              <Input
+              <Select
                 label="Plano"
-                value={plano}
-                onChange={(e) => setPlano(e.target.value)}
-                hint="Texto livre (ex.: profissional, enterprise)"
+                value={planoId}
+                onChange={(v) => setPlanoId(v === '' ? '' : Number(v))}
+                includeEmpty
+                emptyLabel="Sem plano"
+                options={planosOpts
+                  .filter((p) => p.ativo || p.id === planoId)
+                  .map((p) => ({
+                    value: p.id,
+                    label: p.ativo ? p.nome : `${p.nome} (inactivo)`,
+                  }))}
+                hint="Catálogo em Licenças → Planos. Só planos activos (excepto o já atribuído)."
               />
             </FormSection>
             <FormSection title="Contacto">
@@ -260,7 +315,7 @@ export function SaasLicencaForm() {
                 onChange={(e) => setContatoEmail(e.target.value)}
               />
             </FormSection>
-            <FormSection title="Vigência e instância">
+            <FormSection title="Vigência">
               <Input
                 label="Data de início"
                 type="date"
@@ -273,12 +328,6 @@ export function SaasLicencaForm() {
                 type="date"
                 value={dataRenovacao}
                 onChange={(e) => setDataRenovacao(e.target.value)}
-              />
-              <Input
-                label="URL da instância"
-                value={instanciaUrl}
-                onChange={(e) => setInstanciaUrl(e.target.value)}
-                hint="Ex.: cliente01.deskrudder.com.br"
               />
               <label className="block space-y-1.5">
                 <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Notas</span>

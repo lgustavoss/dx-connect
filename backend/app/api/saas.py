@@ -27,9 +27,17 @@ from app.schemas.saas import (
     ClienteSaaSRejeitar,
     ClienteSaaSRenovar,
     ClienteSaaSUpdate,
+    SaasModuloCreate,
+    SaasModuloRead,
+    SaasModuloUpdate,
+    SaasPlanoCreate,
+    SaasPlanoRead,
+    SaasPlanoUpdate,
     SaasResumoRead,
+    SaasTimelineEvent,
 )
 from app.services import saas_aprovacao
+from app.services import saas_catalogo
 from app.services import saas_clientes as svc
 from app.services import saas_renovacoes
 from app.services.saas_resumo import obter_resumo
@@ -76,6 +84,16 @@ def resumo(
 def listar(
     busca: str | None = Query(None, description="Filtra por nome, slug ou e-mail de contacto"),
     status_filtro: str | None = Query(None, alias="status", description="Filtra por status"),
+    plano_id: int | None = Query(None, description="Filtra por plano comercial"),
+    aprovacao_status: str | None = Query(None, description="pendente | aprovado | rejeitado"),
+    provisionamento_status: str | None = Query(
+        None, description="pendente | em_progresso | aguardando_ops | sucesso | falha"
+    ),
+    provisionamento_fila: bool | None = Query(
+        None, description="true = estados de fila (pendente/em_progresso/aguardando_ops/falha)"
+    ),
+    vencendo: bool | None = Query(None, description="true = renovação dentro da janela de alerta"),
+    vencidas: bool | None = Query(None, description="true = renovação já passou (trial/ativo)"),
     offset: int = Query(0, ge=0),
     limit: int = Query(_DEFAULT_PAGE, ge=1, le=_MAX_PAGE),
     ordenar_por: OrdenarClientesSaaSPor | None = Query(None),
@@ -84,6 +102,8 @@ def listar(
     _: None = Depends(exigir_saas_control_plane),
     __: Atendente = Depends(exigir_saas_ops),
 ):
+    from datetime import date, timedelta
+
     q = db.query(ClienteSaaS)
     if busca and busca.strip():
         term = f"%{busca.strip()}%"
@@ -95,6 +115,32 @@ def listar(
         )
     if status_filtro and status_filtro.strip():
         q = q.filter(ClienteSaaS.status == status_filtro.strip().lower())
+    if plano_id is not None:
+        q = q.filter(ClienteSaaS.plano_id == plano_id)
+    if aprovacao_status and aprovacao_status.strip():
+        q = q.filter(ClienteSaaS.aprovacao_status == aprovacao_status.strip().lower())
+    if provisionamento_fila:
+        q = q.filter(
+            ClienteSaaS.provisionamento_status.in_(
+                ("pendente", "em_progresso", "aguardando_ops", "falha")
+            )
+        )
+    elif provisionamento_status and provisionamento_status.strip():
+        q = q.filter(ClienteSaaS.provisionamento_status == provisionamento_status.strip().lower())
+
+    if vencendo or vencidas:
+        hoje = date.today()
+        q = q.filter(
+            ClienteSaaS.status.in_(("trial", "ativo")),
+            ClienteSaaS.data_renovacao.isnot(None),
+        )
+        if vencendo:
+            janela = max(1, int(settings.SAAS_RENEWAL_ALERT_DAYS_BEFORE or 14))
+            limite = hoje + timedelta(days=janela)
+            q = q.filter(ClienteSaaS.data_renovacao >= hoje, ClienteSaaS.data_renovacao <= limite)
+        if vencidas:
+            q = q.filter(ClienteSaaS.data_renovacao < hoje)
+
     total = q.count()
     if ordenar_por is None:
         order_cols = [ClienteSaaS.nome.asc(), ClienteSaaS.id.asc()]
@@ -138,6 +184,23 @@ def obter(
         return _read(svc.obter(db, cliente_id))
     except svc.SaasErro as e:
         raise _http_from_saas(e) from e
+
+
+@router.get("/clientes/{cliente_id}/timeline", response_model=list[SaasTimelineEvent])
+def timeline_cliente(
+    cliente_id: int,
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    __: Atendente = Depends(exigir_saas_ops),
+):
+    try:
+        svc.obter(db, cliente_id)
+    except svc.SaasErro as e:
+        raise _http_from_saas(e) from e
+    from app.services import saas_catalogo
+
+    return [SaasTimelineEvent.model_validate(e) for e in saas_catalogo.listar_timeline(db, cliente_id, limit=limit)]
 
 
 @router.patch("/clientes/{cliente_id}", response_model=ClienteSaaSRead)
@@ -279,7 +342,14 @@ def aprovar(
 ):
     body = data or ClienteSaaSAprovar()
     try:
-        row = saas_aprovacao.aprovar(db, cliente_id, notas=body.notas, ativar=body.ativar)
+        row = saas_aprovacao.aprovar(
+            db,
+            cliente_id,
+            notas=body.notas,
+            ativar=body.ativar,
+            provisionar=body.provisionar,
+            plano_id=body.plano_id,
+        )
     except svc.SaasErro as e:
         raise _http_from_saas(e) from e
     registrar_audit(db, "cliente_saas", cliente_id, "aprovar", atendente.id)
@@ -339,3 +409,187 @@ def reenviar_entrega(
     db.commit()
     db.refresh(row)
     return _read(row)
+
+
+def _read_plano(row) -> SaasPlanoRead:
+    return SaasPlanoRead.model_validate(saas_catalogo.serializar_plano(row))
+
+
+@router.get("/planos", response_model=list[SaasPlanoRead])
+def listar_planos(
+    ativo: bool | None = Query(None, description="Filtra por activo/inactivo"),
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    __: Atendente = Depends(exigir_saas_ops),
+):
+    return [_read_plano(p) for p in saas_catalogo.listar_planos(db, ativo=ativo)]
+
+
+@router.post("/planos", response_model=SaasPlanoRead, status_code=201)
+def criar_plano(
+    data: SaasPlanoCreate,
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    atendente: Atendente = Depends(exigir_saas_ops),
+):
+    try:
+        row = saas_catalogo.criar_plano(db, data)
+    except svc.SaasErro as e:
+        raise _http_from_saas(e) from e
+    registrar_audit(db, "saas_plano", row.id, "create", atendente.id)
+    db.commit()
+    return _read_plano(saas_catalogo.obter_plano(db, row.id))
+
+
+@router.get("/planos/{plano_id}", response_model=SaasPlanoRead)
+def obter_plano(
+    plano_id: int,
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    __: Atendente = Depends(exigir_saas_ops),
+):
+    try:
+        return _read_plano(saas_catalogo.obter_plano(db, plano_id))
+    except svc.SaasErro as e:
+        raise _http_from_saas(e) from e
+
+
+@router.patch("/planos/{plano_id}", response_model=SaasPlanoRead)
+def atualizar_plano(
+    plano_id: int,
+    data: SaasPlanoUpdate,
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    atendente: Atendente = Depends(exigir_saas_ops),
+):
+    try:
+        row = saas_catalogo.atualizar_plano(db, plano_id, data)
+    except svc.SaasErro as e:
+        raise _http_from_saas(e) from e
+    registrar_audit(db, "saas_plano", plano_id, "update", atendente.id)
+    db.commit()
+    return _read_plano(row)
+
+
+@router.post("/planos/{plano_id}/ativar", response_model=SaasPlanoRead)
+def ativar_plano(
+    plano_id: int,
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    atendente: Atendente = Depends(exigir_saas_ops),
+):
+    try:
+        row = saas_catalogo.ativar_plano(db, plano_id)
+    except svc.SaasErro as e:
+        raise _http_from_saas(e) from e
+    registrar_audit(db, "saas_plano", plano_id, "ativar", atendente.id)
+    db.commit()
+    return _read_plano(row)
+
+
+@router.post("/planos/{plano_id}/desativar", response_model=SaasPlanoRead)
+def desativar_plano(
+    plano_id: int,
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    atendente: Atendente = Depends(exigir_saas_ops),
+):
+    try:
+        row = saas_catalogo.desativar_plano(db, plano_id)
+    except svc.SaasErro as e:
+        raise _http_from_saas(e) from e
+    registrar_audit(db, "saas_plano", plano_id, "desativar", atendente.id)
+    db.commit()
+    return _read_plano(row)
+
+
+@router.get("/modulos", response_model=list[SaasModuloRead])
+def listar_modulos(
+    ativo: bool | None = Query(None),
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    __: Atendente = Depends(exigir_saas_ops),
+):
+    return [SaasModuloRead.model_validate(m) for m in saas_catalogo.listar_modulos(db, ativo=ativo)]
+
+
+@router.post("/modulos", response_model=SaasModuloRead, status_code=201)
+def criar_modulo(
+    data: SaasModuloCreate,
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    atendente: Atendente = Depends(exigir_saas_ops),
+):
+    try:
+        row = saas_catalogo.criar_modulo(db, data)
+    except svc.SaasErro as e:
+        raise _http_from_saas(e) from e
+    registrar_audit(db, "saas_modulo", row.id, "create", atendente.id)
+    db.commit()
+    db.refresh(row)
+    return SaasModuloRead.model_validate(row)
+
+
+@router.get("/modulos/{modulo_id}", response_model=SaasModuloRead)
+def obter_modulo(
+    modulo_id: int,
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    __: Atendente = Depends(exigir_saas_ops),
+):
+    try:
+        return SaasModuloRead.model_validate(saas_catalogo.obter_modulo(db, modulo_id))
+    except svc.SaasErro as e:
+        raise _http_from_saas(e) from e
+
+
+@router.patch("/modulos/{modulo_id}", response_model=SaasModuloRead)
+def atualizar_modulo(
+    modulo_id: int,
+    data: SaasModuloUpdate,
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    atendente: Atendente = Depends(exigir_saas_ops),
+):
+    try:
+        row = saas_catalogo.atualizar_modulo(db, modulo_id, data)
+    except svc.SaasErro as e:
+        raise _http_from_saas(e) from e
+    registrar_audit(db, "saas_modulo", modulo_id, "update", atendente.id)
+    db.commit()
+    db.refresh(row)
+    return SaasModuloRead.model_validate(row)
+
+
+@router.post("/modulos/{modulo_id}/ativar", response_model=SaasModuloRead)
+def ativar_modulo(
+    modulo_id: int,
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    atendente: Atendente = Depends(exigir_saas_ops),
+):
+    try:
+        row = saas_catalogo.ativar_modulo(db, modulo_id)
+    except svc.SaasErro as e:
+        raise _http_from_saas(e) from e
+    registrar_audit(db, "saas_modulo", modulo_id, "ativar", atendente.id)
+    db.commit()
+    db.refresh(row)
+    return SaasModuloRead.model_validate(row)
+
+
+@router.post("/modulos/{modulo_id}/desativar", response_model=SaasModuloRead)
+def desativar_modulo(
+    modulo_id: int,
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    atendente: Atendente = Depends(exigir_saas_ops),
+):
+    try:
+        row = saas_catalogo.desativar_modulo(db, modulo_id)
+    except svc.SaasErro as e:
+        raise _http_from_saas(e) from e
+    registrar_audit(db, "saas_modulo", modulo_id, "desativar", atendente.id)
+    db.commit()
+    db.refresh(row)
+    return SaasModuloRead.model_validate(row)

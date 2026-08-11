@@ -47,7 +47,7 @@ def _montar_instancia_url(slug: str) -> str | None:
     base = (settings.SAAS_PROVISION_BASE_DOMAIN or "").strip().lstrip(".")
     if not base:
         return None
-    return f"https://{slug}.{base}"
+    return f"https://{slug}.{base}/"
 
 
 def enfileirar_provisionamento(db: Session, cliente_id: int) -> ClienteSaaS:
@@ -80,6 +80,29 @@ def enfileirar_provisionamento(db: Session, cliente_id: int) -> ClienteSaaS:
     return row
 
 
+def _escrever_modulos_no_client_env(root, row: ClienteSaaS) -> None:
+    """Grava SAAS_MODULOS no client.env a partir do snapshot / plano da licença."""
+    mods = list(getattr(row, "modulos_snapshot", None) or [])
+    if not mods:
+        mods = ["helpdesk"]
+    env_path = root / "deploy" / "clients" / row.slug / "client.env"
+    if not env_path.is_file():
+        return
+    line = f"SAAS_MODULOS={','.join(mods)}"
+    text = env_path.read_text(encoding="utf-8")
+    if "SAAS_MODULOS=" in text:
+        lines = []
+        for ln in text.splitlines():
+            if ln.startswith("SAAS_MODULOS="):
+                lines.append(line)
+            else:
+                lines.append(ln)
+        env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    else:
+        env_path.write_text(text.rstrip() + f"\n\n# Módulos do plano comercial\n{line}\n", encoding="utf-8")
+    logger.info("SAAS_MODULOS escrito em %s: %s", env_path, line)
+
+
 def _executar_scripts(row: ClienteSaaS) -> str:
     root = _repo_root()
     provision = root / "deploy" / "scripts" / "provision-client.sh"
@@ -110,17 +133,20 @@ def _executar_scripts(row: ClienteSaaS) -> str:
         if r.returncode != 0:
             raise RuntimeError((r.stderr or r.stdout or "falha no provision-client.sh")[:2000])
 
-    for step in ("migrate", "up", "health"):
+    _escrever_modulos_no_client_env(root, row)
+
+    for step in ("migrate", "up", "seed", "health"):
         # stack-client.sh <comando> <slug>
         cmd = ["bash", str(stack), step, row.slug]
         logger.info("SaaS stack: %s", " ".join(cmd))
         r = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True, timeout=1800)
-        if r.returncode != 0:
+        # seed pode falhar se já existir admin — não bloqueia health
+        if r.returncode != 0 and step != "seed":
             raise RuntimeError(
                 f"Falha em stack-client.sh {step}: {(r.stderr or r.stdout or '')[:2000]}"
             )
 
-    url = _montar_instancia_url(row.slug) or f"https://{row.slug}.{base}"
+    url = _montar_instancia_url(row.slug) or f"https://{row.slug}.{base}/"
     return url
 
 
@@ -138,6 +164,7 @@ def montar_comandos_ops(row: ClienteSaaS) -> str | None:
         f"./deploy/scripts/stack-client.sh migrate {slug}\n"
         f"./deploy/scripts/stack-client.sh up {slug}\n"
         f"./deploy/scripts/stack-client.sh health {slug}\n"
+        f"# Após provision, confirme SAAS_MODULOS no client.env (módulos do plano)\n"
         f"# Se health OK, confirme no painel SaaS (ou: curl -sf http://127.0.0.1:{port_txt}/health)\n"
     )
 

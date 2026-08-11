@@ -78,6 +78,9 @@ import { AcessoNegado } from './pages/AcessoNegado'
 import { SaasLicencas } from './pages/saas/SaasLicencas'
 import { SaasLicencaForm } from './pages/saas/SaasLicencaForm'
 import { SaasLicencaDetalhe } from './pages/saas/SaasLicencaDetalhe'
+import { SaasPlanos } from './pages/saas/SaasPlanos'
+import { SaasPlanoForm } from './pages/saas/SaasPlanoForm'
+import { SaasModulos } from './pages/saas/SaasModulos'
 import { SaasLeads } from './pages/saas/SaasLeads'
 import { SaasLeadDetalhe } from './pages/saas/SaasLeadDetalhe'
 import { SaasLayout } from './pages/saas/SaasLayout'
@@ -196,6 +199,10 @@ function AppRoutes() {
         <Route path="licencas/:id/editar" element={<SaasLicencaForm />} />
         <Route path="licencas/:id" element={<SaasLicencaDetalhe />} />
         <Route path="licencas" element={<SaasLicencas />} />
+        <Route path="planos/novo" element={<SaasPlanoForm />} />
+        <Route path="planos/:id" element={<SaasPlanoForm />} />
+        <Route path="planos" element={<SaasPlanos />} />
+        <Route path="modulos" element={<SaasModulos />} />
         <Route path="leads/:id" element={<SaasLeadDetalhe />} />
         <Route path="leads" element={<SaasLeads />} />
       </Route>

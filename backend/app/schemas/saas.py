@@ -40,6 +40,7 @@ class ClienteSaaSBase(BaseModel):
     slug: str = Field(..., min_length=1, max_length=80)
     status: StatusClienteSaaS = "trial"
     plano: str | None = Field(None, max_length=80)
+    plano_id: int | None = None
     data_inicio: date
     data_renovacao: date | None = None
     instancia_url: str | None = Field(None, max_length=500)
@@ -111,6 +112,7 @@ class ClienteSaaSUpdate(BaseModel):
     slug: str | None = Field(None, min_length=1, max_length=80)
     status: StatusClienteSaaS | None = None
     plano: str | None = Field(None, max_length=80)
+    plano_id: int | None = None
     data_inicio: date | None = None
     data_renovacao: date | None = None
     instancia_url: str | None = Field(None, max_length=500)
@@ -217,6 +219,9 @@ class ClienteSaaSRenovar(BaseModel):
 class ClienteSaaSAprovar(BaseModel):
     notas: str | None = None
     ativar: bool = True
+    # Por omissão cria/enfileira a base Docker do cliente após aprovação.
+    provisionar: bool = True
+    plano_id: int | None = None
 
     @field_validator("notas")
     @classmethod
@@ -239,6 +244,29 @@ class ClienteSaaSRejeitar(BaseModel):
         return s or None
 
 
+# --- Catálogo comercial: módulos e planos ---
+
+_CODIGO_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+
+def _validar_codigo(v: str) -> str:
+    codigo = (v or "").strip().lower()
+    if not codigo or len(codigo) > 80:
+        raise ValueError("Código deve ter entre 1 e 80 caracteres")
+    if not _CODIGO_RE.match(codigo):
+        raise ValueError("Código deve conter apenas letras minúsculas, números e hífens")
+    return codigo
+
+
+class SaasModuloBrief(BaseModel):
+    id: int
+    codigo: str
+    nome: str
+    ativo: bool = True
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ClienteSaaSRead(ClienteSaaSBase):
     id: int
     api_port: int | None = None
@@ -258,10 +286,34 @@ class ClienteSaaSRead(ClienteSaaSBase):
     comandos_ops: str | None = None
     comandos_stack: str | None = None
     dias_para_renovacao: int | None = None
+    plano_modulos: list[SaasModuloBrief] = Field(default_factory=list)
+    modulos_snapshot: list[str] = Field(default_factory=list)
+    max_postos: int | None = None
+    max_usuarios: int | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SaasInstanciaResumo(BaseModel):
+    id: int
+    slug: str
+    nome: str
+    status: str
+    api_port: int | None = None
+    stack_status: str | None = None
+    provisionamento_status: str | None = None
+    instancia_url: str | None = None
+
+
+class SaasTimelineEvent(BaseModel):
+    id: int
+    action: str
+    label: str
+    atendente_id: int | None = None
+    payload: dict | None = None
+    created_at: datetime | None = None
 
 
 class SaasResumoRead(BaseModel):
@@ -275,3 +327,144 @@ class SaasResumoRead(BaseModel):
     leads_novos: int = 0
     leads_em_atendimento: int = 0
     janela_renovacao_dias: int = 14
+    base_dominio_provisionamento: str = "deskrudder.com.br"
+    instancias: list[SaasInstanciaResumo] = Field(default_factory=list)
+
+
+class SaasModuloCreate(BaseModel):
+    codigo: str = Field(..., min_length=1, max_length=80)
+    nome: str = Field(..., min_length=1, max_length=120)
+    descricao: str | None = None
+
+    @field_validator("codigo")
+    @classmethod
+    def normalize_codigo(cls, v: str) -> str:
+        return _validar_codigo(v)
+
+    @field_validator("nome")
+    @classmethod
+    def strip_nome(cls, v: str) -> str:
+        nome = (v or "").strip()
+        if not nome:
+            raise ValueError("Nome é obrigatório")
+        return nome
+
+    @field_validator("descricao")
+    @classmethod
+    def strip_descricao(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        s = v.strip()
+        return s or None
+
+
+class SaasModuloUpdate(BaseModel):
+    nome: str | None = Field(None, min_length=1, max_length=120)
+    descricao: str | None = None
+
+    @field_validator("nome")
+    @classmethod
+    def strip_nome(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        nome = v.strip()
+        if not nome:
+            raise ValueError("Nome é obrigatório")
+        return nome
+
+    @field_validator("descricao")
+    @classmethod
+    def strip_descricao(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        s = v.strip()
+        return s or None
+
+
+class SaasModuloRead(BaseModel):
+    id: int
+    codigo: str
+    nome: str
+    descricao: str | None = None
+    ativo: bool = True
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SaasPlanoCreate(BaseModel):
+    codigo: str = Field(..., min_length=1, max_length=80)
+    nome: str = Field(..., min_length=1, max_length=120)
+    descricao: str | None = None
+    ordem: int = 0
+    preco_mensal: float | None = Field(None, ge=0)
+    max_postos: int | None = Field(None, ge=0)
+    max_usuarios: int | None = Field(None, ge=0)
+    modulo_ids: list[int] = Field(default_factory=list)
+
+    @field_validator("codigo")
+    @classmethod
+    def normalize_codigo(cls, v: str) -> str:
+        return _validar_codigo(v)
+
+    @field_validator("nome")
+    @classmethod
+    def strip_nome(cls, v: str) -> str:
+        nome = (v or "").strip()
+        if not nome:
+            raise ValueError("Nome é obrigatório")
+        return nome
+
+    @field_validator("descricao")
+    @classmethod
+    def strip_descricao(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        s = v.strip()
+        return s or None
+
+
+class SaasPlanoUpdate(BaseModel):
+    nome: str | None = Field(None, min_length=1, max_length=120)
+    descricao: str | None = None
+    ordem: int | None = None
+    preco_mensal: float | None = Field(None, ge=0)
+    max_postos: int | None = Field(None, ge=0)
+    max_usuarios: int | None = Field(None, ge=0)
+    modulo_ids: list[int] | None = None
+
+    @field_validator("nome")
+    @classmethod
+    def strip_nome(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        nome = v.strip()
+        if not nome:
+            raise ValueError("Nome é obrigatório")
+        return nome
+
+    @field_validator("descricao")
+    @classmethod
+    def strip_descricao(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        s = v.strip()
+        return s or None
+
+
+class SaasPlanoRead(BaseModel):
+    id: int
+    codigo: str
+    nome: str
+    descricao: str | None = None
+    ativo: bool = True
+    ordem: int = 0
+    preco_mensal: float | None = None
+    max_postos: int | None = None
+    max_usuarios: int | None = None
+    modulos: list[SaasModuloBrief] = Field(default_factory=list)
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)

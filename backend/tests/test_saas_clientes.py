@@ -34,6 +34,7 @@ def test_saas_crud_admin(client, auth_headers, monkeypatch):
     from app.config import settings
 
     monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    monkeypatch.setattr(settings, "SAAS_PROVISION_BASE_DOMAIN", "deskrudder.com.br")
     h = auth_headers["ops"]
 
     criar = client.post(
@@ -46,7 +47,6 @@ def test_saas_crud_admin(client, auth_headers, monkeypatch):
             "plano": "profissional",
             "data_inicio": str(date.today()),
             "data_renovacao": str(date.today()),
-            "instancia_url": "duplexsoft.deskrudder.com.br",
             "contato_nome": "Luis Duplex",
             "contato_email": "luis@duplex.example",
             "notas": "Cliente piloto",
@@ -56,7 +56,7 @@ def test_saas_crud_admin(client, auth_headers, monkeypatch):
     body = criar.json()
     assert body["slug"] == "duplex-soft"
     assert body["status"] == "trial"
-    assert body["instancia_url"].startswith("https://")
+    assert body["instancia_url"] == "https://duplex-soft.deskrudder.com.br/"
     assert body["contato_nome"] == "Luis Duplex"
     assert body["contato_email"] == "luis@duplex.example"
     cid = body["id"]
@@ -82,6 +82,7 @@ def test_saas_crud_admin(client, auth_headers, monkeypatch):
     assert patch.json()["status"] == "ativo"
     assert patch.json()["plano"] == "enterprise"
     assert patch.json()["contato_email"] == "ops@duplex.example"
+    assert patch.json()["instancia_url"] == "https://duplex-soft.deskrudder.com.br/"
 
     email_invalido = client.patch(
         f"/v1/saas/clientes/{cid}",
@@ -98,13 +99,14 @@ def test_saas_crud_admin(client, auth_headers, monkeypatch):
     assert reat.status_code == 200
     assert reat.json()["status"] == "ativo"
 
+    # Body livre é ignorado: URL vem sempre do slug + domínio base.
     reg = client.post(
         f"/v1/saas/clientes/{cid}/registrar-instancia",
         headers=h,
         json={"instancia_url": "https://cliente01.deskrudder.com.br"},
     )
     assert reg.status_code == 200
-    assert "cliente01.deskrudder.com.br" in reg.json()["instancia_url"]
+    assert reg.json()["instancia_url"] == "https://duplex-soft.deskrudder.com.br/"
 
     prov = client.post(f"/v1/saas/clientes/{cid}/solicitar-provisionamento", headers=h)
     assert prov.status_code == 200
@@ -137,6 +139,7 @@ def test_saas_resumo_ops(client, auth_headers, monkeypatch):
     assert body["janela_renovacao_dias"] == 14
     assert "vencendo_em_breve" in body
     assert "leads_novos" in body
+    assert body.get("base_dominio_provisionamento")
 
 
 def test_saas_resumo_desligado_404(client, auth_headers, monkeypatch):

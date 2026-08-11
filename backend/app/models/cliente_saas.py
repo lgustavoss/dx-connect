@@ -1,6 +1,6 @@
 """Cliente SaaS / licença DeskRudder (control-plane comercial) — #521."""
 
-from sqlalchemy import Boolean, Column, Date, DateTime, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.sql import func
 
 from app.database import Base
@@ -18,7 +18,12 @@ class ClienteSaaS(Base):
     nome = Column(String(200), nullable=False)
     slug = Column(String(80), nullable=False, index=True)
     status = Column(String(20), nullable=False, default="trial")
-    plano = Column(String(80), nullable=True)
+    plano = Column(String(80), nullable=True)  # rótulo denormalizado do plano
+    plano_id = Column(Integer, ForeignKey("saas_planos.id", ondelete="SET NULL"), nullable=True, index=True)
+    # Snapshot comercial no momento da atribuição (enforcement / entrega).
+    modulos_snapshot = Column(JSON, nullable=True)
+    max_postos = Column(Integer, nullable=True)
+    max_usuarios = Column(Integer, nullable=True)
     data_inicio = Column(Date, nullable=False)
     data_renovacao = Column(Date, nullable=True)
     instancia_url = Column(String(500), nullable=True)

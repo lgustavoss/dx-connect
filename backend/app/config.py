@@ -91,6 +91,9 @@ class Settings(BaseSettings):
     SAAS_NOTIFY_EMAIL: str | None = None
     # Raiz do repositório no host (para provision-client.sh). Vazio = parents do pacote app.
     SAAS_REPO_ROOT: str | None = None
+    # Módulos comerciais activos nesta instância (códigos separados por vírgula, ex.: helpdesk,whatsapp).
+    # Preenchido no client.env pelo provisionamento a partir do plano da licença.
+    SAAS_MODULOS: str = "helpdesk"
     # Modo legado: vários clientes no mesmo Postgres (subdomínio numérico + coluna tenant_id).
     # Produção comercial: manter False (um Postgres por cliente / deploy).
     DX_CONNECT_MULTI_TENANT: bool = False

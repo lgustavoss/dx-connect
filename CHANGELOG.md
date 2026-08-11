@@ -15,6 +15,12 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Melhorias
 
+- SaaS: **controle de licenças** — histórico/timeline na ficha, snapshot de módulos + limites na licença, preço/limites nos planos, e-mail de entrega com plano/módulos/acesso, conversão de lead com plano, `SAAS_MODULOS` no provisionamento e lista de instâncias no resumo
+- SaaS: catálogo comercial de **planos e módulos** (CRUD, activar/desactivar, seed Trial/Profissional/Enterprise); licença escolhe plano em vez de texto livre
+- SaaS: lista de licenças com **filtros** (plano, aprovação, provisionamento, renovação), cartões do resumo clicáveis e **escolha de plano** ao aprovar go-live
+- SaaS: após aprovar trial, em local Windows use `./deploy/scripts/saas-drain-queue.sh` para criar a base no host (a API no Docker não tem Docker socket)
+- SaaS: URL da instância deixa de ser campo livre — só o **nome da base (slug)**; URL = `https://{slug}.{domínio}/`; em local o «Abrir» usa a porta API (DNS público não resolve)
+- SaaS: trial só **pede aprovação**; **Aprovar e criar base** enfileira a criação da instância/Postgres
 - SaaS: **entrega pós-health** ao contacto (`entrega_notificada_em` + `reenviar-entrega`)
 - SaaS: lead → licença com **vínculo persistido** (`POST …/leads/{id}/converter` + `lead_id` no formulário)
 - SaaS: **suspender/reativar** pede (ou executa) `stack-client.sh down|up` e confirmação ops

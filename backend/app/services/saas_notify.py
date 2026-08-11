@@ -47,14 +47,37 @@ def notificar_contacto_entrega(
     if url and "://" not in url and not url.startswith("("):
         url = f"https://{url}"
     nome = (row.contato_nome or row.nome or "olá").strip()
+    plano_nome = (row.plano or "").strip() or "—"
+    mods = list(getattr(row, "modulos_snapshot", None) or [])
+    if not mods and getattr(row, "plano_id", None):
+        try:
+            from app.services.saas_catalogo import sincronizar_snapshot_licenca
+
+            sincronizar_snapshot_licenca(db, row)
+            mods = list(getattr(row, "modulos_snapshot", None) or [])
+        except Exception:
+            mods = []
+    mods_txt = ", ".join(mods) if mods else "helpdesk (base)"
+    limites = []
+    if getattr(row, "max_postos", None) is not None:
+        limites.append(f"postos: {row.max_postos}")
+    if getattr(row, "max_usuarios", None) is not None:
+        limites.append(f"utilizadores: {row.max_usuarios}")
+    limites_txt = (", ".join(limites)) if limites else "sem limites comerciais definidos"
     subject = f"DeskRudder — ambiente pronto ({row.nome})"
     body = (
         f"Olá {nome},\n\n"
         f"O ambiente DeskRudder de «{row.nome}» está disponível.\n\n"
         f"Acesso: {url}\n"
         f"Login da equipa: {url.rstrip('/')}/login\n\n"
-        "As credenciais iniciais (admin) são as definidas no provisionamento; "
-        "se ainda não as recebeu, a equipa DeskRudder envia-as em seguida.\n\n"
+        f"Plano: {plano_nome}\n"
+        f"Módulos incluídos: {mods_txt}\n"
+        f"Limites: {limites_txt}\n\n"
+        "As credenciais iniciais (admin) são as definidas no provisionamento "
+        f"(SEED_ADMIN_EMAIL no client.env do slug «{row.slug}»). "
+        "Se ainda não as recebeu, a equipa DeskRudder envia-as em seguida.\n\n"
+        "Em ambiente local, o domínio público pode não resolver DNS — "
+        "use a porta API (health) indicada pela equipa DeskRudder.\n\n"
         "— Equipa DeskRudder\n"
     )
     try:

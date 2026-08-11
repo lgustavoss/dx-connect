@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { CabecalhoOrdenavel } from '../../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../../hooks/useOrdenacaoLista'
-import { ApiError, saasClientes, type SaasClientes } from '../../api/client'
+import { ApiError, saasClientes, saasPlanos, type SaasCatalogo, type SaasClientes } from '../../api/client'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Select } from '../../components/ui/Select'
@@ -15,12 +15,26 @@ import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import {
   STATUS_CLIENTE_SAAS,
   badgeClassStatusClienteSaaS,
-  hrefInstanciaCliente,
+  hrefAcessoCliente,
   labelStatusClienteSaaS,
   renovacaoAlerta,
 } from '../../lib/saasControlPlane'
 
 type Coluna = 'nome' | 'slug' | 'status' | 'data_renovacao'
+
+const APROVACAO_OPTS = [
+  { value: 'pendente', label: 'Aprovação pendente' },
+  { value: 'aprovado', label: 'Aprovado' },
+  { value: 'rejeitado', label: 'Rejeitado' },
+]
+
+const PROV_OPTS = [
+  { value: 'pendente', label: 'Pendente' },
+  { value: 'aguardando_ops', label: 'Aguardando ops' },
+  { value: 'em_progresso', label: 'Em progresso' },
+  { value: 'sucesso', label: 'Sucesso' },
+  { value: 'falha', label: 'Falha' },
+]
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—'
@@ -30,8 +44,13 @@ function formatDate(iso: string | null | undefined): string {
   return `${day}/${m}/${y}`
 }
 
+function boolParam(v: string | null): boolean {
+  return v === '1' || v === 'true'
+}
+
 export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const toast = useToast()
   const { ordenarPor, ordem, aoOrdenarColuna, sortParams } = useOrdenacaoLista<Coluna>()
   const [list, setList] = useState<SaasClientes.Cliente[]>([])
@@ -39,11 +58,68 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
   const [page, setPage] = useState(1)
   const [busca, setBusca] = useState('')
   const [debouncedBusca, setDebouncedBusca] = useState('')
-  const [statusFiltro, setStatusFiltro] = useState<string>('')
+  const [planos, setPlanos] = useState<SaasCatalogo.Plano[]>([])
   const [loading, setLoading] = useState(true)
   const [forbidden, setForbidden] = useState(false)
   const [indisponivel, setIndisponivel] = useState(false)
   const [resumo, setResumo] = useState<SaasClientes.Resumo | null>(null)
+
+  const statusFiltro = searchParams.get('status') || ''
+  const planoFiltro = searchParams.get('plano_id') || ''
+  const aprovacaoFiltro = searchParams.get('aprovacao_status') || ''
+  const provStatusFiltro = searchParams.get('provisionamento_status') || ''
+  const provFila = boolParam(searchParams.get('provisionamento_fila'))
+  const vencendo = boolParam(searchParams.get('vencendo'))
+  const vencidas = boolParam(searchParams.get('vencidas'))
+
+  function patchFiltros(next: Record<string, string | null>) {
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev)
+        for (const [k, v] of Object.entries(next)) {
+          if (v == null || v === '') p.delete(k)
+          else p.set(k, v)
+        }
+        return p
+      },
+      { replace: true },
+    )
+    setPage(1)
+  }
+
+  function aplicarAtalhoResumo(kind: 'renovacao' | 'provisionamento' | 'aprovacoes') {
+    if (kind === 'renovacao') {
+      patchFiltros({
+        vencendo: '1',
+        vencidas: null,
+        aprovacao_status: null,
+        provisionamento_fila: null,
+        provisionamento_status: null,
+        status: null,
+        plano_id: null,
+      })
+      return
+    }
+    if (kind === 'aprovacoes') {
+      patchFiltros({
+        aprovacao_status: 'pendente',
+        vencendo: null,
+        vencidas: null,
+        provisionamento_fila: null,
+        provisionamento_status: null,
+      })
+      return
+    }
+    // provisionamento
+    const preferFalha = (resumo?.provisionamento_falha ?? 0) > 0
+    patchFiltros({
+      provisionamento_fila: preferFalha ? null : '1',
+      provisionamento_status: preferFalha ? 'falha' : null,
+      vencendo: null,
+      vencidas: null,
+      aprovacao_status: null,
+    })
+  }
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedBusca(busca.trim()), 400)
@@ -52,7 +128,25 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedBusca, statusFiltro, ordenarPor, ordem])
+  }, [
+    debouncedBusca,
+    statusFiltro,
+    planoFiltro,
+    aprovacaoFiltro,
+    provStatusFiltro,
+    provFila,
+    vencendo,
+    vencidas,
+    ordenarPor,
+    ordem,
+  ])
+
+  useEffect(() => {
+    saasPlanos
+      .list()
+      .then(setPlanos)
+      .catch(() => setPlanos([]))
+  }, [])
 
   const loadResumo = useCallback(() => {
     saasClientes
@@ -69,6 +163,12 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
       .list({
         busca: debouncedBusca || undefined,
         status: statusFiltro || undefined,
+        plano_id: planoFiltro ? Number(planoFiltro) : undefined,
+        aprovacao_status: aprovacaoFiltro || undefined,
+        provisionamento_status: provFila ? undefined : provStatusFiltro || undefined,
+        provisionamento_fila: provFila || undefined,
+        vencendo: vencendo || undefined,
+        vencidas: vencidas || undefined,
         ...sortParams,
         offset: (page - 1) * PAGE_SIZE_PADRAO,
         limit: PAGE_SIZE_PADRAO,
@@ -95,7 +195,19 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
         setTotal(0)
       })
       .finally(() => setLoading(false))
-  }, [debouncedBusca, page, sortParams, statusFiltro, toast])
+  }, [
+    aprovacaoFiltro,
+    debouncedBusca,
+    page,
+    planoFiltro,
+    provFila,
+    provStatusFiltro,
+    sortParams,
+    statusFiltro,
+    toast,
+    vencendo,
+    vencidas,
+  ])
 
   useEffect(() => {
     load()
@@ -140,20 +252,23 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
           <ResumoCard
             label="Renovação"
             value={String(resumo.vencendo_em_breve)}
-            hint={`${resumo.vencidas_ativas} vencida(s) · janela ${resumo.janela_renovacao_dias}d`}
-            tone={resumo.vencidas_ativas > 0 ? 'warn' : undefined}
+            hint={`${resumo.vencidas_ativas} vencida(s) · janela ${resumo.janela_renovacao_dias}d · clicar para filtrar`}
+            tone={resumo.vencidas_ativas > 0 || resumo.vencendo_em_breve > 0 ? 'warn' : undefined}
+            onClick={() => aplicarAtalhoResumo('renovacao')}
           />
           <ResumoCard
             label="Provisionamento"
             value={String(resumo.provisionamento_pendente)}
-            hint={`${resumo.provisionamento_falha} falha(s) na fila`}
-            tone={resumo.provisionamento_falha > 0 ? 'warn' : undefined}
+            hint={`${resumo.provisionamento_falha} falha(s) · clicar para filtrar fila`}
+            tone={resumo.provisionamento_falha > 0 || resumo.provisionamento_pendente > 0 ? 'warn' : undefined}
+            onClick={() => aplicarAtalhoResumo('provisionamento')}
           />
           <ResumoCard
             label="Aprovações"
             value={String(resumo.aprovacoes_pendentes ?? 0)}
-            hint="go-live pendente"
+            hint="go-live pendente · clicar para filtrar"
             tone={(resumo.aprovacoes_pendentes ?? 0) > 0 ? 'warn' : undefined}
+            onClick={() => aplicarAtalhoResumo('aprovacoes')}
           />
           <ResumoCard
             label="Leads"
@@ -162,6 +277,68 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
             linkTo="/saas/leads"
           />
         </div>
+      ) : null}
+      {resumo?.instancias && resumo.instancias.length > 0 ? (
+        <Card title="Instâncias (porta / stack)" className="mb-4">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[36rem] text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700">
+                  <th className="py-2 pr-3 font-medium">Slug</th>
+                  <th className="py-2 pr-3 font-medium">Status</th>
+                  <th className="py-2 pr-3 font-medium">Porta</th>
+                  <th className="py-2 pr-3 font-medium">Stack</th>
+                  <th className="py-2 pr-3 font-medium">Provisionamento</th>
+                  <th className="py-2 font-medium">Acesso</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resumo.instancias.map((inst) => {
+                  const acesso = hrefAcessoCliente({
+                    instanciaUrl: inst.instancia_url,
+                    slug: inst.slug,
+                    apiPort: inst.api_port,
+                    baseDomain: resumo.base_dominio_provisionamento,
+                  })
+                  return (
+                    <tr
+                      key={inst.id}
+                      className="border-b border-slate-100 dark:border-slate-800"
+                    >
+                      <td className="py-2 pr-3">
+                        <Link
+                          to={`/saas/licencas/${inst.id}`}
+                          className="font-medium text-sky-600 hover:underline dark:text-sky-400"
+                        >
+                          {inst.slug}
+                        </Link>
+                        <span className="ml-2 text-slate-500">{inst.nome}</span>
+                      </td>
+                      <td className="py-2 pr-3">{labelStatusClienteSaaS(inst.status)}</td>
+                      <td className="py-2 pr-3 font-mono text-xs">{inst.api_port ?? '—'}</td>
+                      <td className="py-2 pr-3">{inst.stack_status || '—'}</td>
+                      <td className="py-2 pr-3">{inst.provisionamento_status || '—'}</td>
+                      <td className="py-2">
+                        {acesso ? (
+                          <a
+                            href={acesso.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sky-600 hover:underline dark:text-sky-400"
+                          >
+                            Abrir
+                          </a>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       ) : null}
       <Card>
         <BarraBuscaPaginacao
@@ -173,27 +350,107 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
           onPageChange={setPage}
           disabled={loading}
           extra={
-            <div className="min-w-[10rem] shrink-0">
-              <Select
-                aria-label="Filtrar por status"
-                value={statusFiltro}
-                onChange={(v) => setStatusFiltro(String(v))}
-                options={STATUS_CLIENTE_SAAS.map((s) => ({ value: s.value, label: s.label }))}
-                includeEmpty
-                emptyLabel="Todos"
-                placeholder="Status"
-                disabled={loading}
-              />
+            <div className="flex min-w-0 flex-wrap gap-2">
+              <div className="min-w-[9rem] shrink-0">
+                <Select
+                  aria-label="Filtrar por status"
+                  value={statusFiltro}
+                  onChange={(v) => patchFiltros({ status: String(v) || null })}
+                  options={STATUS_CLIENTE_SAAS.map((s) => ({ value: s.value, label: s.label }))}
+                  includeEmpty
+                  emptyLabel="Todos"
+                  placeholder="Status"
+                  disabled={loading}
+                />
+              </div>
+              <div className="min-w-[9rem] shrink-0">
+                <Select
+                  aria-label="Filtrar por plano"
+                  value={planoFiltro}
+                  onChange={(v) => patchFiltros({ plano_id: v === '' ? null : String(v) })}
+                  options={planos.map((p) => ({ value: String(p.id), label: p.nome }))}
+                  includeEmpty
+                  emptyLabel="Todos os planos"
+                  placeholder="Plano"
+                  disabled={loading}
+                />
+              </div>
+              <div className="min-w-[10rem] shrink-0">
+                <Select
+                  aria-label="Filtrar por aprovação"
+                  value={aprovacaoFiltro}
+                  onChange={(v) => patchFiltros({ aprovacao_status: String(v) || null })}
+                  options={APROVACAO_OPTS}
+                  includeEmpty
+                  emptyLabel="Qualquer aprovação"
+                  placeholder="Aprovação"
+                  disabled={loading}
+                />
+              </div>
+              <div className="min-w-[10rem] shrink-0">
+                <Select
+                  aria-label="Filtrar por provisionamento"
+                  value={provFila ? 'fila' : provStatusFiltro}
+                  onChange={(v) => {
+                    const s = String(v)
+                    if (s === 'fila') {
+                      patchFiltros({ provisionamento_fila: '1', provisionamento_status: null })
+                    } else if (!s) {
+                      patchFiltros({ provisionamento_fila: null, provisionamento_status: null })
+                    } else {
+                      patchFiltros({ provisionamento_fila: null, provisionamento_status: s })
+                    }
+                  }}
+                  options={[{ value: 'fila', label: 'Em fila / falha' }, ...PROV_OPTS]}
+                  includeEmpty
+                  emptyLabel="Qualquer prov."
+                  placeholder="Provisionamento"
+                  disabled={loading}
+                />
+              </div>
+              {(statusFiltro ||
+                planoFiltro ||
+                aprovacaoFiltro ||
+                provStatusFiltro ||
+                provFila ||
+                vencendo ||
+                vencidas) && (
+                <Button
+                  variant="secondary"
+                  disabled={loading}
+                  onClick={() =>
+                    patchFiltros({
+                      status: null,
+                      plano_id: null,
+                      aprovacao_status: null,
+                      provisionamento_status: null,
+                      provisionamento_fila: null,
+                      vencendo: null,
+                      vencidas: null,
+                    })
+                  }
+                >
+                  Limpar filtros
+                </Button>
+              )}
             </div>
           }
         />
+        {vencendo || vencidas ? (
+          <p className="mb-3 text-xs text-amber-800 dark:text-amber-200">
+            Filtro activo:{' '}
+            {vencendo ? 'renovação na janela de alerta' : null}
+            {vencendo && vencidas ? ' · ' : null}
+            {vencidas ? 'renovação vencida' : null}
+          </p>
+        ) : null}
         {loading ? (
           <p className="text-slate-500 dark:text-slate-400">Carregando...</p>
         ) : list.length === 0 ? (
           <p className="text-slate-500 dark:text-slate-400">Nenhuma licença cadastrada.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
+            <table className="w-full min-w-[800px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
                   <CabecalhoOrdenavel
@@ -210,6 +467,9 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
                     ordem={ordem}
                     aoOrdenar={aoOrdenarColuna}
                   />
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6 dark:text-slate-400">
+                    Plano
+                  </th>
                   <CabecalhoOrdenavel
                     coluna="status"
                     rotulo="Status"
@@ -234,7 +494,12 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {list.map((item) => {
-                  const href = hrefInstanciaCliente(item.instancia_url)
+                  const acesso = hrefAcessoCliente({
+                    instanciaUrl: item.instancia_url,
+                    slug: item.slug,
+                    apiPort: item.api_port,
+                    baseDomain: resumo?.base_dominio_provisionamento,
+                  })
                   return (
                     <tr
                       key={item.id}
@@ -251,12 +516,17 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
                     >
                       <td className="px-4 py-3.5 sm:px-6">
                         <span className="font-medium text-slate-800 dark:text-slate-100">{item.nome}</span>
-                        {item.plano ? (
-                          <span className="mt-0.5 block text-xs text-slate-500">{item.plano}</span>
+                        {item.aprovacao_status === 'pendente' ? (
+                          <span className="mt-0.5 block text-xs font-medium text-amber-700 dark:text-amber-300">
+                            Aprovação pendente
+                          </span>
                         ) : null}
                       </td>
                       <td className="px-4 py-3.5 font-mono text-xs text-slate-600 sm:px-6 dark:text-slate-300">
                         {item.slug}
+                      </td>
+                      <td className="px-4 py-3.5 text-slate-600 sm:px-6 dark:text-slate-300">
+                        {item.plano || '—'}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3.5 sm:px-6">
                         <span
@@ -273,7 +543,9 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
                           return (
                             <span
                               className={`mt-1 block text-xs font-medium ${
-                                alerta === 'vencido' ? 'text-amber-700 dark:text-amber-300' : 'text-sky-700 dark:text-sky-300'
+                                alerta === 'vencido'
+                                  ? 'text-amber-700 dark:text-amber-300'
+                                  : 'text-sky-700 dark:text-sky-300'
                               }`}
                             >
                               {alerta === 'vencido'
@@ -284,11 +556,16 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
                         })()}
                       </td>
                       <td className="px-4 py-3.5 sm:px-6" onClick={(ev) => ev.stopPropagation()}>
-                        {href ? (
+                        {acesso ? (
                           <a
-                            href={href}
+                            href={acesso.href}
                             target="_blank"
                             rel="noopener noreferrer"
+                            title={
+                              acesso.modo === 'local'
+                                ? 'Local: health na porta API (DNS público não resolve)'
+                                : acesso.label
+                            }
                             className="text-sky-600 hover:underline dark:text-sky-400"
                           >
                             Abrir
@@ -323,12 +600,14 @@ function ResumoCard({
   hint,
   tone,
   linkTo,
+  onClick,
 }: {
   label: string
   value: string
   hint: string
   tone?: 'warn'
   linkTo?: string
+  onClick?: () => void
 }) {
   const body = (
     <div
@@ -336,7 +615,7 @@ function ResumoCard({
         tone === 'warn'
           ? 'border-amber-200 bg-amber-50/80 dark:border-amber-800/40 dark:bg-amber-950/30'
           : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/40'
-      }`}
+      } ${onClick || linkTo ? 'transition hover:ring-2 hover:ring-sky-400/40' : ''}`}
     >
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
         {label}
@@ -345,10 +624,19 @@ function ResumoCard({
       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{hint}</p>
     </div>
   )
-  if (!linkTo) return body
-  return (
-    <Link to={linkTo} className="block transition-opacity hover:opacity-90">
-      {body}
-    </Link>
-  )
+  if (linkTo) {
+    return (
+      <Link to={linkTo} className="block">
+        {body}
+      </Link>
+    )
+  }
+  if (onClick) {
+    return (
+      <button type="button" className="block w-full text-left" onClick={onClick}>
+        {body}
+      </button>
+    )
+  }
+  return body
 }

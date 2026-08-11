@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ApiError, saasClientes } from '../../api/client'
+import { ApiError, saasClientes, saasPlanos, type SaasCatalogo } from '../../api/client'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { DetailRow } from '../../components/ui/DetailRow'
 import { Input } from '../../components/ui/Input'
+import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 import { useVoltarAnterior } from '../../hooks/useVoltarAnterior'
 import { SemPermissao } from '../SemPermissao'
@@ -13,11 +14,13 @@ import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../../api/
 import {
   badgeClassAprovacao,
   badgeClassStatusClienteSaaS,
-  hrefInstanciaCliente,
+  hrefAcessoCliente,
   labelAprovacao,
   labelProvisionamento,
   labelStatusClienteSaaS,
   renovacaoAlerta,
+  saasBaseDomain,
+  urlInstanciaFromSlug,
 } from '../../lib/saasControlPlane'
 
 function formatDate(iso: string | null | undefined): string {
@@ -49,7 +52,12 @@ export function SaasLicencaDetalhe() {
   const [item, setItem] = useState<Awaited<ReturnType<typeof saasClientes.get>> | null>(null)
   const [diasRenovacao, setDiasRenovacao] = useState('30')
   const [novaDataRenovacao, setNovaDataRenovacao] = useState(addDaysIso(30))
-  const [urlInstancia, setUrlInstancia] = useState('')
+  const [baseDomain, setBaseDomain] = useState(saasBaseDomain())
+  const [planos, setPlanos] = useState<SaasCatalogo.Plano[]>([])
+  const [planoAprovarId, setPlanoAprovarId] = useState<number | ''>('')
+  const [timeline, setTimeline] = useState<
+    Awaited<ReturnType<typeof saasClientes.timeline>>
+  >([])
 
   function carregar() {
     if (!id || Number.isNaN(clienteId)) {
@@ -61,11 +69,18 @@ export function SaasLicencaDetalhe() {
     setForbidden(false)
     setIndisponivel(false)
     setFalha(null)
-    saasClientes
-      .get(clienteId)
-      .then((c) => {
+    Promise.all([
+      saasClientes.get(clienteId),
+      saasClientes.resumo().catch(() => null),
+      saasClientes.timeline(clienteId).catch(() => []),
+    ])
+      .then(([c, resumo, events]) => {
         setItem(c)
-        setUrlInstancia(c.instancia_url ?? '')
+        setTimeline(events)
+        if (resumo?.base_dominio_provisionamento) {
+          setBaseDomain(saasBaseDomain(resumo.base_dominio_provisionamento))
+        }
+        setPlanoAprovarId(c.plano_id ?? '')
       })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 403) {
@@ -94,6 +109,21 @@ export function SaasLicencaDetalhe() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- recarrega só quando muda o id
   }, [id, clienteId])
 
+  useEffect(() => {
+    saasPlanos
+      .list()
+      .then((list) => {
+        setPlanos(list)
+        setPlanoAprovarId((cur) => {
+          if (cur !== '') return cur
+          const trial = list.find((p) => p.codigo === 'trial' && p.ativo)
+          const pro = list.find((p) => p.codigo === 'profissional' && p.ativo)
+          return trial?.id ?? pro?.id ?? list.find((p) => p.ativo)?.id ?? ''
+        })
+      })
+      .catch(() => setPlanos([]))
+  }, [])
+
   async function runAction(
     action: () => Promise<Awaited<ReturnType<typeof saasClientes.get>>>,
     okMsg: string,
@@ -102,7 +132,6 @@ export function SaasLicencaDetalhe() {
     try {
       const updated = await action()
       setItem(updated)
-      setUrlInstancia(updated.instancia_url ?? '')
       toast.showSuccess(okMsg)
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível concluir a ação.'))
@@ -145,7 +174,14 @@ export function SaasLicencaDetalhe() {
 
   if (!item) return null
 
-  const href = hrefInstanciaCliente(item.instancia_url)
+  const urlPublica =
+    item.instancia_url || urlInstanciaFromSlug(item.slug, baseDomain) || ''
+  const acesso = hrefAcessoCliente({
+    instanciaUrl: urlPublica,
+    slug: item.slug,
+    apiPort: item.api_port,
+    baseDomain,
+  })
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-10">
@@ -181,13 +217,37 @@ export function SaasLicencaDetalhe() {
           </Button>
           {item.aprovacao_status === 'pendente' ? (
             <>
+              <div className="min-w-[12rem]">
+                <Select
+                  label="Plano no go-live"
+                  value={planoAprovarId}
+                  onChange={(v) => setPlanoAprovarId(v === '' ? '' : Number(v))}
+                  options={planos
+                    .filter((p) => p.ativo || p.id === planoAprovarId)
+                    .map((p) => ({
+                      value: p.id,
+                      label: p.ativo ? p.nome : `${p.nome} (inactivo)`,
+                    }))}
+                  includeEmpty
+                  emptyLabel="Manter actual"
+                  disabled={acting}
+                />
+              </div>
               <Button
                 disabled={acting}
                 onClick={() =>
-                  runAction(() => saasClientes.aprovar(item.id, { ativar: true }), 'Licença aprovada (go-live).')
+                  runAction(
+                    () =>
+                      saasClientes.aprovar(item.id, {
+                        ativar: true,
+                        provisionar: true,
+                        plano_id: planoAprovarId === '' ? null : Number(planoAprovarId),
+                      }),
+                    'Licença aprovada — criação da base enfileirada.',
+                  )
                 }
               >
-                Aprovar go-live
+                Aprovar e criar base
               </Button>
               <Button
                 variant="secondary"
@@ -261,6 +321,28 @@ export function SaasLicencaDetalhe() {
           <DetailRow label="ID" value={String(item.id)} mono />
           <DetailRow label="Slug" value={item.slug} mono />
           <DetailRow label="Plano" value={item.plano || '—'} />
+          {item.plano_modulos && item.plano_modulos.length > 0 ? (
+            <DetailRow
+              label="Módulos do plano"
+              value={item.plano_modulos.map((m) => m.nome).join(', ')}
+            />
+          ) : null}
+          {item.modulos_snapshot && item.modulos_snapshot.length > 0 ? (
+            <DetailRow label="Snapshot módulos" value={item.modulos_snapshot.join(', ')} mono />
+          ) : null}
+          <DetailRow
+            label="Limites"
+            value={
+              item.max_postos != null || item.max_usuarios != null
+                ? [
+                    item.max_postos != null ? `${item.max_postos} postos` : null,
+                    item.max_usuarios != null ? `${item.max_usuarios} utilizadores` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')
+                : '—'
+            }
+          />
           <DetailRow label="Contacto" value={item.contato_nome || '—'} />
           <DetailRow label="E-mail" value={item.contato_email || '—'} />
           <DetailRow label="Início" value={formatDate(item.data_inicio)} />
@@ -274,7 +356,7 @@ export function SaasLicencaDetalhe() {
                 : '—'
             }
           />
-          <DetailRow label="Instância" value={item.instancia_url || '—'} />
+          <DetailRow label="Instância" value={urlPublica || '—'} />
           <DetailRow label="Porta API" value={item.api_port != null ? String(item.api_port) : '—'} mono />
           <DetailRow label="Provisionamento" value={labelProvisionamento(item.provisionamento_status)} />
           <DetailRow label="Detalhe da fila" value={item.provisionamento_mensagem || '—'} />
@@ -318,8 +400,10 @@ export function SaasLicencaDetalhe() {
 
       {item.aprovacao_status === 'pendente' ? (
         <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-100">
-          Aprovação comercial pendente. Pode provisionar o ambiente trial; use <strong>Aprovar go-live</strong> para
-          passar a activo ou <strong>Rejeitar</strong> para cancelar (churn).
+          Aprovação comercial pendente. Use <strong>Aprovar e criar base</strong> para activar a licença e
+          enfileirar a criação da base, ou <strong>Rejeitar</strong> para cancelar. Em local (Windows), se ficar
+          em «aguardando ops», corra no host{' '}
+          <code className="text-xs">./deploy/scripts/saas-drain-queue.sh</code>.
         </div>
       ) : null}
 
@@ -425,11 +509,7 @@ export function SaasLicencaDetalhe() {
               disabled={acting}
               onClick={() =>
                 runAction(
-                  () =>
-                    saasClientes.confirmarProvisionamento(
-                      item.id,
-                      urlInstancia.trim() ? { instancia_url: urlInstancia.trim() } : undefined,
-                    ),
+                  () => saasClientes.confirmarProvisionamento(item.id),
                   'Provisionamento confirmado.',
                 )
               }
@@ -510,43 +590,71 @@ export function SaasLicencaDetalhe() {
         </div>
       </Card>
 
-      <Card title="Registar URL da instância">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="min-w-0 flex-1">
-            <Input
-              label="URL"
-              value={urlInstancia}
-              onChange={(e) => setUrlInstancia(e.target.value)}
-              hint="Ex.: cliente01.deskrudder.com.br"
-            />
-          </div>
-          <Button
-            variant="secondary"
-            disabled={acting || !urlInstancia.trim()}
-            onClick={() =>
-              runAction(
-                () => saasClientes.registrarInstancia(item.id, { instancia_url: urlInstancia.trim() }),
-                'URL da instância registada.',
-              )
+      <Card title="URL da instância">
+        <p className="mb-1 font-mono text-sm text-slate-800 dark:text-slate-100">
+          {urlPublica || '—'}
+        </p>
+        <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
+          Derivada do nome da base (<code className="text-xs">{item.slug}</code>
+          .{baseDomain}). Em ambiente local o DNS público não resolve — use o acesso pela porta API.
+        </p>
+        <Button
+          variant="secondary"
+          disabled={acting}
+          onClick={() => {
+            const url = urlInstanciaFromSlug(item.slug, baseDomain)
+            if (!url) {
+              toast.showError('Não foi possível montar a URL a partir do slug.')
+              return
             }
-          >
-            Guardar URL
-          </Button>
-        </div>
+            void runAction(
+              () => saasClientes.registrarInstancia(item.id, { instancia_url: url }),
+              'URL sincronizada a partir do slug.',
+            )
+          }}
+        >
+          Sincronizar URL do slug
+        </Button>
       </Card>
 
-      {href ? (
+      {acesso ? (
         <Card title="Acesso à instância">
+          {acesso.modo === 'local' ? (
+            <p className="mb-3 text-sm text-amber-800 dark:text-amber-200">
+              Ambiente local: <code className="text-xs">*.{baseDomain}</code> não tem DNS. Abrindo health
+              na porta API. Em Windows, pode mapear no ficheiro hosts se precisar do domínio público.
+            </p>
+          ) : null}
           <a
-            href={href}
+            href={acesso.href}
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm font-medium text-sky-600 hover:underline dark:text-sky-400"
           >
-            Abrir {item.instancia_url}
+            Abrir {acesso.label}
           </a>
         </Card>
       ) : null}
+
+      <Card title="Histórico">
+        {timeline.length === 0 ? (
+          <p className="text-sm text-slate-500">Sem eventos de auditoria para esta licença.</p>
+        ) : (
+          <ul className="space-y-3">
+            {timeline.map((ev) => (
+              <li key={ev.id} className="border-l-2 border-sky-300 pl-3 dark:border-sky-700">
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{ev.label}</p>
+                <p className="text-xs text-slate-500">
+                  {ev.created_at
+                    ? new Date(ev.created_at).toLocaleString('pt-BR')
+                    : '—'}
+                  {ev.atendente_id != null ? ` · atendente #${ev.atendente_id}` : ''}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
     </div>
   )
 }

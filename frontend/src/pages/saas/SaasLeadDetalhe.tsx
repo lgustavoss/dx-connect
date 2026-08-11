@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ApiError, saasLeads } from '../../api/client'
+import { ApiError, saasLeads, saasPlanos, type SaasCatalogo } from '../../api/client'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../../api/errorMessage'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
@@ -33,6 +33,19 @@ export function SaasLeadDetalhe() {
   const [item, setItem] = useState<Awaited<ReturnType<typeof saasLeads.get>> | null>(null)
   const [status, setStatus] = useState('novo')
   const [notas, setNotas] = useState('')
+  const [planos, setPlanos] = useState<SaasCatalogo.Plano[]>([])
+  const [planoId, setPlanoId] = useState<number | ''>('')
+
+  useEffect(() => {
+    saasPlanos
+      .list({ ativo: true })
+      .then((list) => {
+        setPlanos(list)
+        const trial = list.find((p) => p.codigo === 'trial')
+        setPlanoId(trial?.id ?? list[0]?.id ?? '')
+      })
+      .catch(() => setPlanos([]))
+  }, [])
 
   useEffect(() => {
     if (!id || Number.isNaN(leadId)) {
@@ -96,7 +109,10 @@ export function SaasLeadDetalhe() {
     if (!item) return
     setConverting(true)
     try {
-      const licenca = await saasLeads.converter(item.id, { enfileirar_provisionamento: false })
+      const licenca = await saasLeads.converter(item.id, {
+        enfileirar_provisionamento: false,
+        plano_id: planoId === '' ? null : Number(planoId),
+      })
       toast.showSuccess('Licença criada a partir do lead.')
       navigate(`/saas/licencas/${licenca.id}`, { replace: true })
     } catch (err) {
@@ -158,6 +174,17 @@ export function SaasLeadDetalhe() {
             </Button>
           ) : (
             <>
+              <div className="min-w-[11rem]">
+                <Select
+                  label="Plano"
+                  value={planoId}
+                  onChange={(v) => setPlanoId(v === '' ? '' : Number(v))}
+                  options={planos.map((p) => ({ value: p.id, label: p.nome }))}
+                  includeEmpty
+                  emptyLabel="Sem plano"
+                  disabled={converting}
+                />
+              </div>
               <Button disabled={converting} loading={converting} onClick={() => void converterEmLicenca()}>
                 Converter em licença
               </Button>

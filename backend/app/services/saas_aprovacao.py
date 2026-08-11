@@ -14,21 +14,62 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def aprovar(db: Session, cliente_id: int, *, notas: str | None = None, ativar: bool = True) -> ClienteSaaS:
+def aprovar(
+    db: Session,
+    cliente_id: int,
+    *,
+    notas: str | None = None,
+    ativar: bool = True,
+    provisionar: bool = True,
+    plano_id: int | None = None,
+) -> ClienteSaaS:
+    """Aprova a licença e, por omissão, enfileira a criação da base/instância."""
     row = obter(db, cliente_id)
-    if row.aprovacao_status == "aprovado" and (not ativar or row.status == "ativo"):
-        raise SaasErro("Licença já está aprovada")
     if row.aprovacao_status == "rejeitado":
         raise SaasErro("Licença rejeitada — edite o registo ou crie nova licença")
+
+    ja_aprovada = row.aprovacao_status == "aprovado"
+    ja_provisionada = row.provisionamento_status in (
+        "pendente",
+        "em_progresso",
+        "aguardando_ops",
+        "sucesso",
+        "falha",
+    )
+    if ja_aprovada and (not ativar or row.status == "ativo") and (not provisionar or ja_provisionada):
+        raise SaasErro("Licença já está aprovada")
+
+    if plano_id is not None:
+        from app.services.saas_catalogo import aplicar_plano_em_cliente, sincronizar_snapshot_licenca
+
+        pid, nome, _codigos, _mp, _mu = aplicar_plano_em_cliente(
+            db,
+            plano_id=plano_id,
+            plano_actual_id=getattr(row, "plano_id", None),
+        )
+        row.plano_id = pid
+        row.plano = nome
+        sincronizar_snapshot_licenca(db, row)
 
     row.aprovacao_status = "aprovado"
     row.aprovacao_em = _utcnow()
     if notas is not None:
         row.aprovacao_notas = (notas.strip() or None)
     if ativar and row.status in ("trial", "suspenso"):
-        # Go-live: trial/suspenso → ativo após aprovação comercial
+        # Go-live comercial: trial/suspenso → ativo após aprovação
         row.status = "ativo"
     db.flush()
+
+    if provisionar and row.provisionamento_status not in ("sucesso", "em_progresso"):
+        from app.services.saas_provisionamento import enfileirar_provisionamento
+
+        enfileirar_provisionamento(db, row.id)
+        # Tenta processar já neste pedido (cria base se EXEC=true; senão → aguardando_ops).
+        from app.services.saas_provisionamento import processar_provisionamentos_pendentes
+
+        processar_provisionamentos_pendentes(db, limit=5)
+        db.refresh(row)
+
     return row
 
 

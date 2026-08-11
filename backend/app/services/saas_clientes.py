@@ -30,15 +30,48 @@ def _garantir_slug_unico(db: Session, slug: str, excluir_id: int | None = None) 
         raise SaasErro("Já existe um cliente com este slug", 409)
 
 
+def _url_do_slug(slug: str) -> str | None:
+    from app.services.saas_provisionamento import _montar_instancia_url
+
+    return _montar_instancia_url(slug)
+
+
 def criar(db: Session, data: ClienteSaaSCreate) -> ClienteSaaS:
     if data.status not in STATUS_CLIENTE_SAAS:
         raise SaasErro("Status inválido")
     _garantir_slug_unico(db, data.slug)
     payload = data.model_dump()
     lead_id = payload.pop("lead_comercial_id", None)
+    # URL pública é sempre derivada do slug (+ domínio base); não é campo livre.
+    payload["instancia_url"] = _url_do_slug(data.slug) or payload.get("instancia_url")
+
+    from app.services.saas_catalogo import aplicar_plano_em_cliente
+
+    plano_id = payload.pop("plano_id", None)
+    # Texto livre `plano` só como fallback legado; preferir plano_id.
+    if plano_id is not None:
+        pid, nome, codigos, max_p, max_u = aplicar_plano_em_cliente(db, plano_id=plano_id)
+        payload["plano_id"] = pid
+        payload["plano"] = nome
+        payload["modulos_snapshot"] = codigos
+        payload["max_postos"] = max_p
+        payload["max_usuarios"] = max_u
+    elif payload.get("plano"):
+        # Trial / legado: tentar resolver por código ou deixar só o rótulo.
+        from app.services.saas_catalogo import obter_plano_por_codigo, sincronizar_snapshot_licenca
+
+        p = obter_plano_por_codigo(db, str(payload["plano"]))
+        if p is not None:
+            payload["plano_id"] = p.id
+            payload["plano"] = p.nome
+
     row = ClienteSaaS(**payload)
     db.add(row)
     db.flush()
+    if getattr(row, "plano_id", None) and not payload.get("modulos_snapshot"):
+        from app.services.saas_catalogo import sincronizar_snapshot_licenca
+
+        sincronizar_snapshot_licenca(db, row)
     if lead_id:
         from app.services.saas_lead_convert import ligar_lead_ao_criar
 
@@ -53,8 +86,39 @@ def atualizar(db: Session, cliente_id: int, data: ClienteSaaSUpdate) -> ClienteS
         raise SaasErro("Status inválido")
     if "slug" in payload:
         _garantir_slug_unico(db, payload["slug"], excluir_id=cliente_id)
+    # instancia_url deixa de ser editável à mão — sempre acompanha o slug.
+    payload.pop("instancia_url", None)
+
+    if "plano_id" in payload:
+        from app.services.saas_catalogo import aplicar_plano_em_cliente
+
+        pid, nome, codigos, max_p, max_u = aplicar_plano_em_cliente(
+            db,
+            plano_id=payload["plano_id"],
+            plano_actual_id=getattr(row, "plano_id", None),
+        )
+        payload["plano_id"] = pid
+        payload["plano"] = nome
+        payload["modulos_snapshot"] = codigos
+        payload["max_postos"] = max_p
+        payload["max_usuarios"] = max_u
+    elif "plano" in payload and payload.get("plano"):
+        from app.services.saas_catalogo import obter_plano_por_codigo, sincronizar_snapshot_licenca
+
+        p = obter_plano_por_codigo(db, str(payload["plano"]))
+        if p is not None:
+            payload["plano_id"] = p.id
+            payload["plano"] = p.nome
+
     for k, v in payload.items():
         setattr(row, k, v)
+    auto = _url_do_slug(row.slug)
+    if auto:
+        row.instancia_url = auto
+    if "plano_id" in payload or ("plano" in payload and getattr(row, "plano_id", None)):
+        from app.services.saas_catalogo import sincronizar_snapshot_licenca
+
+        sincronizar_snapshot_licenca(db, row)
     db.flush()
     return row
 
@@ -94,8 +158,10 @@ def confirmar_stack(db: Session, cliente_id: int) -> ClienteSaaS:
 
 
 def registrar_instancia(db: Session, cliente_id: int, data: ClienteSaaSRegistrarInstancia) -> ClienteSaaS:
+    """Sincroniza a URL pública a partir do slug (body opcional é ignorado se o domínio base existir)."""
     row = obter(db, cliente_id)
-    row.instancia_url = data.instancia_url
+    auto = _url_do_slug(row.slug)
+    row.instancia_url = auto or data.instancia_url
     db.flush()
     return row
 
@@ -135,9 +201,22 @@ def reenviar_entrega(db: Session, cliente_id: int) -> ClienteSaaS:
 
 
 def serializar_cliente(row: ClienteSaaS) -> dict:
+    from sqlalchemy.orm import object_session
+
+    from app.services import saas_catalogo
     from app.services.saas_provisionamento import montar_comandos_ops
     from app.services.saas_renovacoes import dias_para_renovacao
     from app.services.saas_stack import montar_comandos_stack
+
+    plano_modulos: list[dict] = []
+    plano_id = getattr(row, "plano_id", None)
+    sess = object_session(row)
+    if plano_id and sess is not None:
+        try:
+            plano = saas_catalogo.obter_plano(sess, plano_id)
+            plano_modulos = saas_catalogo.serializar_plano(plano).get("modulos") or []
+        except SaasErro:
+            plano_modulos = []
 
     return {
         "id": row.id,
@@ -145,6 +224,11 @@ def serializar_cliente(row: ClienteSaaS) -> dict:
         "slug": row.slug,
         "status": row.status,
         "plano": row.plano,
+        "plano_id": plano_id,
+        "plano_modulos": plano_modulos,
+        "modulos_snapshot": list(getattr(row, "modulos_snapshot", None) or []),
+        "max_postos": getattr(row, "max_postos", None),
+        "max_usuarios": getattr(row, "max_usuarios", None),
         "data_inicio": row.data_inicio,
         "data_renovacao": row.data_renovacao,
         "instancia_url": row.instancia_url,

@@ -3750,12 +3750,22 @@ export const saasClientes = {
   list: (params?: {
     busca?: string;
     status?: string;
+    plano_id?: number;
+    aprovacao_status?: string;
+    provisionamento_status?: string;
+    provisionamento_fila?: boolean;
+    vencendo?: boolean;
+    vencidas?: boolean;
     ordenar_por?: 'nome' | 'slug' | 'status' | 'data_renovacao';
     ordem?: 'asc' | 'desc';
     offset?: number;
     limit?: number;
   }) => listPaginated<SaasClientes.Cliente>('/saas/clientes', params),
   get: (id: number) => api<SaasClientes.Cliente>(`/saas/clientes/${id}`),
+  timeline: (id: number, params?: { limit?: number }) =>
+    api<SaasClientes.TimelineEvent[]>(
+      withParams(`/saas/clientes/${id}/timeline`, params),
+    ),
   create: (data: SaasClientes.Create) =>
     api<SaasClientes.Cliente>('/saas/clientes', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: number, data: SaasClientes.Update) =>
@@ -3781,7 +3791,10 @@ export const saasClientes = {
       method: 'POST',
       body: JSON.stringify(data ?? {}),
     }),
-  aprovar: (id: number, data?: { notas?: string | null; ativar?: boolean }) =>
+  aprovar: (
+    id: number,
+    data?: { notas?: string | null; ativar?: boolean; provisionar?: boolean; plano_id?: number | null },
+  ) =>
     api<SaasClientes.Cliente>(`/saas/clientes/${id}/aprovar`, {
       method: 'POST',
       body: JSON.stringify(data ?? {}),
@@ -3795,6 +3808,42 @@ export const saasClientes = {
     api<SaasClientes.Cliente>(`/saas/clientes/${id}/confirmar-stack`, { method: 'POST' }),
   reenviarEntrega: (id: number) =>
     api<SaasClientes.Cliente>(`/saas/clientes/${id}/reenviar-entrega`, { method: 'POST' }),
+};
+
+export const saasPlanos = {
+  list: (params?: { ativo?: boolean }) => {
+    const q = new URLSearchParams()
+    if (params?.ativo != null) q.set('ativo', String(params.ativo))
+    const qs = q.toString()
+    return api<SaasCatalogo.Plano[]>(`/saas/planos${qs ? `?${qs}` : ''}`)
+  },
+  get: (id: number) => api<SaasCatalogo.Plano>(`/saas/planos/${id}`),
+  create: (data: SaasCatalogo.PlanoCreate) =>
+    api<SaasCatalogo.Plano>('/saas/planos', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: SaasCatalogo.PlanoUpdate) =>
+    api<SaasCatalogo.Plano>(`/saas/planos/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  ativar: (id: number) =>
+    api<SaasCatalogo.Plano>(`/saas/planos/${id}/ativar`, { method: 'POST' }),
+  desativar: (id: number) =>
+    api<SaasCatalogo.Plano>(`/saas/planos/${id}/desativar`, { method: 'POST' }),
+};
+
+export const saasModulos = {
+  list: (params?: { ativo?: boolean }) => {
+    const q = new URLSearchParams()
+    if (params?.ativo != null) q.set('ativo', String(params.ativo))
+    const qs = q.toString()
+    return api<SaasCatalogo.Modulo[]>(`/saas/modulos${qs ? `?${qs}` : ''}`)
+  },
+  get: (id: number) => api<SaasCatalogo.Modulo>(`/saas/modulos/${id}`),
+  create: (data: SaasCatalogo.ModuloCreate) =>
+    api<SaasCatalogo.Modulo>('/saas/modulos', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: SaasCatalogo.ModuloUpdate) =>
+    api<SaasCatalogo.Modulo>(`/saas/modulos/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  ativar: (id: number) =>
+    api<SaasCatalogo.Modulo>(`/saas/modulos/${id}/ativar`, { method: 'POST' }),
+  desativar: (id: number) =>
+    api<SaasCatalogo.Modulo>(`/saas/modulos/${id}/desativar`, { method: 'POST' }),
 };
 
 export const saasPublic = {
@@ -3827,6 +3876,7 @@ export const saasLeads = {
     data?: {
       slug?: string | null;
       plano?: string | null;
+      plano_id?: number | null;
       status?: SaasClientes.Status;
       enfileirar_provisionamento?: boolean;
       notas_extra?: string | null;
@@ -3903,6 +3953,25 @@ export namespace SaasClientes {
     leads_novos: number;
     leads_em_atendimento: number;
     janela_renovacao_dias: number;
+    base_dominio_provisionamento?: string;
+    instancias?: Array<{
+      id: number;
+      slug: string;
+      nome: string;
+      status: string;
+      api_port?: number | null;
+      stack_status?: string | null;
+      provisionamento_status?: string | null;
+      instancia_url?: string | null;
+    }>;
+  }
+  export interface TimelineEvent {
+    id: number;
+    action: string;
+    label: string;
+    atendente_id?: number | null;
+    payload?: Record<string, unknown> | null;
+    created_at?: string | null;
   }
   export interface Cliente {
     id: number;
@@ -3910,6 +3979,11 @@ export namespace SaasClientes {
     slug: string;
     status: Status;
     plano?: string | null;
+    plano_id?: number | null;
+    plano_modulos?: Array<{ id: number; codigo: string; nome: string; ativo?: boolean }>;
+    modulos_snapshot?: string[];
+    max_postos?: number | null;
+    max_usuarios?: number | null;
     data_inicio: string;
     data_renovacao?: string | null;
     instancia_url?: string | null;
@@ -3941,6 +4015,7 @@ export namespace SaasClientes {
     slug: string;
     status?: Status;
     plano?: string | null;
+    plano_id?: number | null;
     data_inicio: string;
     data_renovacao?: string | null;
     instancia_url?: string | null;
@@ -3950,4 +4025,53 @@ export namespace SaasClientes {
     lead_comercial_id?: number | null;
   }
   export type Update = Partial<Create>;
+}
+
+export namespace SaasCatalogo {
+  export interface Modulo {
+    id: number;
+    codigo: string;
+    nome: string;
+    descricao?: string | null;
+    ativo: boolean;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+  export interface ModuloBrief {
+    id: number;
+    codigo: string;
+    nome: string;
+    ativo?: boolean;
+  }
+  export interface Plano {
+    id: number;
+    codigo: string;
+    nome: string;
+    descricao?: string | null;
+    ativo: boolean;
+    ordem: number;
+    preco_mensal?: number | null;
+    max_postos?: number | null;
+    max_usuarios?: number | null;
+    modulos: ModuloBrief[];
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+  export interface PlanoCreate {
+    codigo: string;
+    nome: string;
+    descricao?: string | null;
+    ordem?: number;
+    preco_mensal?: number | null;
+    max_postos?: number | null;
+    max_usuarios?: number | null;
+    modulo_ids?: number[];
+  }
+  export type PlanoUpdate = Partial<Omit<PlanoCreate, 'codigo'>>;
+  export interface ModuloCreate {
+    codigo: string;
+    nome: string;
+    descricao?: string | null;
+  }
+  export type ModuloUpdate = Partial<Omit<ModuloCreate, 'codigo'>>;
 }

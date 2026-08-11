@@ -535,6 +535,11 @@ def _app_route_paths() -> set[str]:
 
 def _app_capabilities() -> dict[str, bool]:
     paths = _app_route_paths()
+    mods = {
+        m.strip().lower()
+        for m in (settings.SAAS_MODULOS or "helpdesk").split(",")
+        if m.strip()
+    }
     return {
         "settings_empresa_sistema": "/v1/settings/empresa-sistema" in paths,
         "settings_email": "/v1/settings/email" in paths,
@@ -547,6 +552,11 @@ def _app_capabilities() -> dict[str, bool]:
         "evolution_embutida": settings.evolution_embutida_disponivel,
         "system_info": "/v1/system/info" in paths,
         "system_release_notes": "/v1/system/release-notes" in paths,
+        "saas_control_plane": bool(settings.SAAS_CONTROL_PLANE),
+        "modulo_helpdesk": "helpdesk" in mods or not mods,
+        "modulo_whatsapp": "whatsapp" in mods,
+        "modulo_contratos": "contratos" in mods,
+        "modulo_boletos": "boletos" in mods,
     }
 
 

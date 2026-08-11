@@ -6,6 +6,22 @@ export function isSaasControlPlaneFrontend(): boolean {
 
 export const SAAS_LICENCAS_PATH = '/saas/licencas'
 
+const DEFAULT_BASE_DOMAIN = 'deskrudder.com.br'
+
+/** Domínio base das instâncias (ex.: deskrudder.com.br). */
+export function saasBaseDomain(override?: string | null): string {
+  const fromEnv = (import.meta.env.VITE_SAAS_PROVISION_BASE_DOMAIN as string | undefined)?.trim()
+  const raw = (override || fromEnv || DEFAULT_BASE_DOMAIN).trim().replace(/^\.+/, '')
+  return raw || DEFAULT_BASE_DOMAIN
+}
+
+/** URL pública canónica a partir do slug (único campo escolhido pelo ops/cliente). */
+export function urlInstanciaFromSlug(slug: string | null | undefined, baseDomain?: string | null): string {
+  const s = (slug || '').trim().toLowerCase()
+  if (!s) return ''
+  return `https://${s}.${saasBaseDomain(baseDomain)}/`
+}
+
 export const STATUS_CLIENTE_SAAS = [
   { value: 'trial', label: 'Trial' },
   { value: 'ativo', label: 'Ativo' },
@@ -84,10 +100,48 @@ export function badgeClassStatusClienteSaaS(status: string): string {
   }
 }
 
-/** Normaliza URL para abrir em nova aba. */
+/** Normaliza URL pública para abrir em nova aba. */
 export function hrefInstanciaCliente(url: string | null | undefined): string | null {
   const raw = (url || '').trim()
   if (!raw) return null
   if (/^https?:\/\//i.test(raw)) return raw
   return `https://${raw}`
+}
+
+/** Em local, a URL pública (*.deskrudder.com.br) não resolve DNS — usar a API na porta. */
+export function hrefAcessoLocalApi(apiPort: number | null | undefined): string | null {
+  if (apiPort == null || !Number.isFinite(apiPort) || apiPort < 1) return null
+  return `http://127.0.0.1:${apiPort}/health`
+}
+
+export function isAmbienteLocalBrowser(): boolean {
+  if (typeof window === 'undefined') return false
+  const host = window.location.hostname
+  return host === 'localhost' || host === '127.0.0.1'
+}
+
+/** Melhor link para abrir a instância (local → porta API; produção → URL pública). */
+export function hrefAcessoCliente(opts: {
+  instanciaUrl?: string | null
+  slug?: string | null
+  apiPort?: number | null
+  baseDomain?: string | null
+}): { href: string; label: string; modo: 'local' | 'publico' } | null {
+  const urlPublica =
+    hrefInstanciaCliente(opts.instanciaUrl) ||
+    hrefInstanciaCliente(urlInstanciaFromSlug(opts.slug, opts.baseDomain))
+
+  if (isAmbienteLocalBrowser()) {
+    const local = hrefAcessoLocalApi(opts.apiPort)
+    if (local) {
+      return {
+        href: local,
+        label: `http://127.0.0.1:${opts.apiPort}/health`,
+        modo: 'local',
+      }
+    }
+  }
+
+  if (!urlPublica) return null
+  return { href: urlPublica, label: urlPublica, modo: 'publico' }
 }
