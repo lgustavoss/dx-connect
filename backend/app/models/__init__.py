@@ -53,6 +53,10 @@ from app.models.chat_interno import (
     MensagemInternaReacao,
     MensagemInternaOculta,
 )
+from app.models.cliente_saas import ClienteSaaS
+from app.models.saas_alerta_emitido import SaasAlertaEmitido
+from app.models.lead_comercial import LeadComercial
+from app.models.saas_plano import SaasModulo, SaasPlano, SaasPlanoModulo
 
 __all__ = [
     "Rede",
@@ -122,4 +126,7 @@ __all__ = [
     "MensagemInternaReacao",
     "MensagemInternaOculta",
     "ConversaInternaLeitura",
+    "ClienteSaaS",
+    "SaasAlertaEmitido",
+    "LeadComercial",
 ]
