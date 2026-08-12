@@ -8,6 +8,7 @@ import { useAlertaFilaSemResponsavel, setChatInternoAlertUserId } from '../hooks
 import { EventStreamProvider, useEventStream } from '../contexts/EventStreamContext'
 import { BrandLogo } from '../brand'
 import { useTheme } from '../contexts/ThemeContext'
+import { AlertaDesktopPermissaoBanner } from './AlertaDesktopPermissaoBanner'
 
 function perfilExibicao(role: string | undefined): string {
   if (role === 'admin') return 'Administrador'
@@ -104,6 +105,8 @@ function LayoutInner() {
               <p className="truncate text-xs text-slate-500 dark:text-slate-400">{perfilExibicao(user?.role)}</p>
             </div>
           </header>
+
+          {notificacoesEnabled ? <AlertaDesktopPermissaoBanner enabled /> : null}
 
           <main className="min-h-0 flex-1 overflow-hidden">
             <div
