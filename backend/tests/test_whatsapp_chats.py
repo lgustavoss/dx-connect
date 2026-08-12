@@ -1009,6 +1009,102 @@ def test_iniciar_chat_409_outro_responsavel(client, seed_base, auth_headers, mon
     assert r2.status_code == 409
 
 
+def test_inbound_apos_outbound_nao_abre_fila_com_variante_wa_id(
+    client, seed_base, auth_headers, monkeypatch
+):
+    """
+    Atendente inicia com número digitado; cliente responde com variante (sem nono dígito).
+    Não deve criar chat novo em aguardando_atendente (alerta de fila).
+    """
+    monkeypatch.setattr(
+        "app.api.whatsapp_chats.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-out-var"),
+    )
+    _evolution_settings(client, auth_headers, "iniciar-var")
+
+    r = client.post(
+        "/v1/whatsapp/chats/iniciar",
+        json={"telefone": "11988770011", "mensagem_inicial": "Olá"},
+        headers=auth_headers["a1"],
+    )
+    assert r.status_code == 200
+    chat = r.json()
+    assert chat["estado"] == "em_atendimento"
+    assert chat["wa_id"] == "5511988770011"
+    cid = chat["id"]
+
+    h = {"X-Dx-Webhook-Secret": "iniciar-var"}
+    # Evolution / WhatsApp pode devolver sem o nono dígito
+    wr = client.post(
+        "/v1/webhooks/evolution",
+        json=_webhook_body(wa_id="551188770011", msg_id="reply-var-1", text="Oi, recebi"),
+        headers=h,
+    )
+    assert wr.status_code == 200
+    assert wr.json().get("processados", 0) >= 1
+
+    fila = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()
+    assert not any(c["wa_id"] in ("5511988770011", "551188770011") for c in fila), fila
+
+    detalhe = client.get(f"/v1/whatsapp/chats/{cid}", headers=auth_headers["a1"])
+    assert detalhe.status_code == 200
+    assert detalhe.json()["estado"] == "em_atendimento"
+
+    msgs = client.get(f"/v1/whatsapp/chats/{cid}/mensagens", headers=auth_headers["a1"]).json()
+    corpos = [m["corpo"] for m in (msgs if isinstance(msgs, list) else msgs.get("items", []))]
+    assert any("Oi, recebi" in (c or "") for c in corpos), msgs
+
+
+def test_inbound_apos_outbound_resolve_lid_com_sender_pn(
+    client, seed_base, auth_headers, monkeypatch
+):
+    """Resposta com remoteJid @lid + senderPn deve reutilizar o chat outbound."""
+    monkeypatch.setattr(
+        "app.api.whatsapp_chats.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-out-lid"),
+    )
+    _evolution_settings(client, auth_headers, "iniciar-lid")
+
+    r = client.post(
+        "/v1/whatsapp/chats/iniciar",
+        json={"telefone": "5511999000044", "mensagem_inicial": "Retorno"},
+        headers=auth_headers["a1"],
+    )
+    assert r.status_code == 200
+    cid = r.json()["id"]
+
+    body = {
+        "event": "messages.upsert",
+        "data": {
+            "messages": [
+                {
+                    "key": {
+                        "remoteJid": "98765432109876@lid",
+                        "fromMe": False,
+                        "id": "reply-lid-1",
+                        "senderPn": "5511999000044@s.whatsapp.net",
+                    },
+                    "message": {"conversation": "Resposta via LID"},
+                }
+            ]
+        },
+    }
+    wr = client.post(
+        "/v1/webhooks/evolution",
+        json=body,
+        headers={"X-Dx-Webhook-Secret": "iniciar-lid"},
+    )
+    assert wr.status_code == 200
+    assert wr.json().get("processados", 0) >= 1
+
+    fila = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()
+    assert not any(c["id"] == cid or c.get("wa_id") == "5511999000044" for c in fila), fila
+    assert not any(c.get("wa_id") == "98765432109876" for c in fila), fila
+
+    detalhe = client.get(f"/v1/whatsapp/chats/{cid}", headers=auth_headers["a1"])
+    assert detalhe.json()["estado"] == "em_atendimento"
+
+
 def test_iniciar_chat_funcionario_sem_telefone_exige_numero(client, seed_base, auth_headers, db_session, monkeypatch):
     monkeypatch.setattr(
         "app.api.whatsapp_chats.evolution_api.evolution_send_text",

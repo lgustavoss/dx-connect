@@ -7,6 +7,12 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Corrigido
 
+- WhatsApp: ao iniciar conversa com número avulso e o cliente responder, deixa de abrir chat novo na fila (alerta de «novo atendimento») quando o `wa_id` chega em variante (DDI / nono dígito BR) ou como `@lid` com `senderPn` / `remoteJidAlt`
+- WhatsApp (#667): em Atendimentos (e Avaliações), **Próxima** / **Anterior** deixam de voltar sozinhas para a página 1; o `offset` da URL é respeitado ao abrir/recarregar
+- Chat (#651): **Silenciar** na fila Aguardando corta o alerta na hora (loop + pulse); o toque passa a tocar completo e a reiniciar em sequência, sem intervalo de silêncio
+- WhatsApp (#653): **Esc** na conversa já não percorre o histórico do browser (evita reabrir chat encerrado); fecha overlays locais e, ao sair, vai à lista de origem (Atendendo / Aguardando / etc.)
+- Chat (#652): com a aba em segundo plano, novo chat na fila dispara notificação do sistema (se permitida) e o áudio é desbloqueado no primeiro clique; ao voltar à aba o alerta retoma de imediato
+- Chat (#652): banner no painel pede permissão de notificações («Ativar alertas») para avisar novos chats na fila mesmo com outra aba ou o navegador minimizado
 - Chat: duplo clique **dentro** do balão já não inicia resposta (dá para selecionar/copiar o texto); responder com duplo clique fica só **ao lado** do balão
 - WhatsApp: menu com seta no canto do balão para Editar/Apagar (em vez de botões flutuantes que saltavam para a mensagem de cima)
 - WhatsApp: Enter na legenda do anexo deixava de enviar a imagem **duas vezes** (o evento subia ao painel e disparava o envio de novo)

@@ -6,7 +6,7 @@ Cada evento usa um arquivo distinto para não se misturar na reprodução:
   ticket-mensagem.mp3 — nova mensagem em ticket já atribuído
                         (fallback: notification.mp3, se faltar o ficheiro)
   alerta.mp3         — cliente aguardando na fila WhatsApp / Portal
-                        (loop enquanto houver fila — «novo chat»)
+                        (toca completo e reinicia em sequência enquanto houver fila)
   wpp-mensagem.mp3   — nova mensagem do cliente em chat em atendimento
                         (fallback: notification.mp3)
 
