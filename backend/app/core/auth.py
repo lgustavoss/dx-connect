@@ -110,3 +110,13 @@ def exigir_admin(atendente: Atendente = Depends(obter_atendente_atual)) -> Atend
     if atendente.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso restrito a administradores")
     return atendente
+
+
+def exigir_saas_ops(atendente: Atendente = Depends(obter_atendente_atual)) -> Atendente:
+    """Equipa comercial DeskRudder (control-plane) — distinto do admin da instância do cliente."""
+    if atendente.role != "saas_ops":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso restrito à equipa SaaS DeskRudder",
+        )
+    return atendente

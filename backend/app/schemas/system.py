@@ -23,6 +23,7 @@ class SystemInfoRead(BaseModel):
     version_display: str | None = None
     git_sha: str | None = None
     environment: str
+    saas_control_plane: bool = False
 
 
 class ReleaseNotesRead(BaseModel):

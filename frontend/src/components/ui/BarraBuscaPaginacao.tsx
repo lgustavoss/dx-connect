@@ -32,20 +32,20 @@ export function BarraBuscaPaginacao({
   const fim = Math.min(page * pageSize, total)
 
   return (
-    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-      <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-md sm:flex-row sm:items-center">
+    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+      <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-2xl sm:flex-row sm:items-end">
         <input
           type="search"
           value={busca}
           onChange={(e) => onBuscaChange(e.target.value)}
           placeholder={placeholder}
           disabled={disabled}
-          className={`${INPUT_FIELD_CLASS} text-sm`}
+          className={`${INPUT_FIELD_CLASS} min-h-[2.5rem] text-sm`}
           aria-label="Buscar na listagem"
         />
         {extra}
       </div>
-      <div className="flex flex-wrap items-center justify-end gap-2 text-sm text-slate-600 dark:text-slate-300">
+      <div className="flex min-h-[2.5rem] flex-wrap items-center justify-end gap-2 text-sm text-slate-600 dark:text-slate-300">
         <span className="whitespace-nowrap">
           {total > 0 ? `${inicio}–${fim} de ${total}` : '0 resultados'}
         </span>

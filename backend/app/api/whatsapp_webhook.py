@@ -7,7 +7,12 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models.whatsapp_chat import WhatsappChat, WhatsappMensagem, WhatsappSettings
 from app.services import evolution_api
-from app.services.whatsapp_contato_match import funcionario_por_wa_id
+from app.services.whatsapp_contato_match import (
+    chat_aberto_por_wa_id,
+    chat_aguardando_avaliacao_por_wa_id,
+    funcionario_por_wa_id,
+    variantes_wa_id,
+)
 from app.services.protocolo_mensal import gerar_protocolo_chat
 from app.services.evolution_inbound import (
     iter_inbound_edits,
@@ -101,28 +106,11 @@ def _baixar_midia_inbound(
 
 def _chat_aberto_por_wa_id(db: Session, wa_id: str) -> WhatsappChat | None:
     """Chat ativo para conversa (fila ou em atendimento). Não inclui pós-inatividade a classificar."""
-    return (
-        db.query(WhatsappChat)
-        .filter(
-            WhatsappChat.wa_id == wa_id,
-            WhatsappChat.estado.in_(("aguardando_atendente", "em_atendimento")),
-            WhatsappChat.classificacao_demanda_pendente.is_(False),
-        )
-        .order_by(WhatsappChat.id.desc())
-        .first()
-    )
+    return chat_aberto_por_wa_id(db, wa_id, excluir_classificacao_pendente=True)
 
 
 def _chat_aguardando_avaliacao_por_wa_id(db: Session, wa_id: str) -> WhatsappChat | None:
-    return (
-        db.query(WhatsappChat)
-        .filter(
-            WhatsappChat.wa_id == wa_id,
-            WhatsappChat.estado == "aguardando_avaliacao",
-        )
-        .order_by(WhatsappChat.id.desc())
-        .first()
-    )
+    return chat_aguardando_avaliacao_por_wa_id(db, wa_id)
 
 
 def _fmt_data_abertura(dt: datetime | None, tz: ZoneInfo) -> str:
@@ -454,10 +442,13 @@ def evolution_webhook(
 
 
 def _chat_recente_por_wa_id(db: Session, wa_id: str) -> WhatsappChat | None:
+    targets = variantes_wa_id(wa_id)
+    if not targets:
+        return None
     return (
         db.query(WhatsappChat)
         .filter(
-            WhatsappChat.wa_id == wa_id,
+            WhatsappChat.wa_id.in_(targets),
             WhatsappChat.estado.in_(
                 ("aguardando_atendente", "em_atendimento", "aguardando_avaliacao", "encerrado")
             ),

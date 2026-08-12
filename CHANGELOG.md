@@ -5,6 +5,30 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### Corrigido
+
+- WhatsApp: ao iniciar conversa com número avulso e o cliente responder, deixa de abrir chat novo na fila (alerta de «novo atendimento») quando o `wa_id` chega em variante (DDI / nono dígito BR) ou como `@lid` com `senderPn` / `remoteJidAlt`
+- WhatsApp (#667): em Atendimentos (e Avaliações), **Próxima** / **Anterior** deixam de voltar sozinhas para a página 1; o `offset` da URL é respeitado ao abrir/recarregar
+- Chat (#651): **Silenciar** na fila Aguardando corta o alerta na hora (loop + pulse); o toque passa a tocar completo e a reiniciar em sequência, sem intervalo de silêncio
+- WhatsApp (#653): **Esc** na conversa já não percorre o histórico do browser (evita reabrir chat encerrado); fecha overlays locais e, ao sair, vai à lista de origem (Atendendo / Aguardando / etc.)
+- Chat (#652): com a aba em segundo plano, novo chat na fila dispara notificação do sistema (se permitida) e o áudio é desbloqueado no primeiro clique; ao voltar à aba o alerta retoma de imediato
+- Chat (#652): banner no painel pede permissão de notificações («Ativar alertas») para avisar novos chats na fila mesmo com outra aba ou o navegador minimizado
+
+### Melhorias
+
+- SaaS: **controle de licenças** — histórico/timeline na ficha, snapshot de módulos + limites na licença, preço/limites nos planos, e-mail de entrega com plano/módulos/acesso, conversão de lead com plano, `SAAS_MODULOS` no provisionamento e lista de instâncias no resumo
+- SaaS: catálogo comercial de **planos e módulos** (CRUD, activar/desactivar, seed Trial/Profissional/Enterprise); licença escolhe plano em vez de texto livre
+- SaaS: lista de licenças com **filtros** (plano, aprovação, provisionamento, renovação), cartões do resumo clicáveis e **escolha de plano** ao aprovar go-live
+- SaaS: URL da instância deixa de ser campo livre — só o **nome da base (slug)**; URL = `https://{slug}.{domínio}/`; em local o «Abrir» usa a porta API (DNS público não resolve)
+- SaaS: trial só **pede aprovação**; **Aprovar e criar base** enfileira a criação da instância/Postgres
+- SaaS: **entrega pós-health** ao contacto (`entrega_notificada_em` + `reenviar-entrega`)
+- SaaS: lead → licença com **vínculo persistido** (`POST ./leads/{id}/converter` + `lead_id` no formulário)
+- SaaS: **suspender/reativar** pede (ou executa) `stack-client.sh down|up` e confirmação ops
+- SaaS: trial público entra com **aprovação pendente**; painel com **Aprovar go-live** / **Rejeitar** (`aprovacao_status`)
+- SaaS DeskRudder (#519 / #516 / #521–#528): painel de **licenças** (contactos, resumo ops, renovação flexível, lead→licença); **leads comerciais** da landing (formulário «Fale conosco», inbox `/saas/leads`); **provisionamento** em fila; **trial** em `/trial`; **renovações** com alertas e suspensão ao vencer
+- Comercial (#321 / #331–#335): simulador com desconto posto <100k L (20% SM), override de custo/valor TEF só na proposta e snapshot imutável do pacote (catálogo TEF continua com valores padrão)
+- Comercial (#321 / #329–#334): catálogo de custos — salário mínimo com histórico por vigência (atualizar valor sem reescrever o passado), itens (% SM, valor fixo, TEF) e simulador em Cadastros → Catálogo de custos (admin)
+
 ## [26.08.005] - 2026-08-03
 
 ### Melhorias

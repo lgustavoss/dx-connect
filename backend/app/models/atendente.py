@@ -24,7 +24,7 @@ class Atendente(Base):
     email = Column(String(255), nullable=False, index=True)
     senha_hash = Column(String(255), nullable=False)
     nome = Column(String(255), nullable=False)
-    role = Column(String(20), nullable=False, default="atendente")  # admin | atendente
+    role = Column(String(20), nullable=False, default="atendente")  # admin | atendente | saas_ops
     ativo = Column(Boolean, default=True)
     must_change_password = Column(Boolean, nullable=False, default=False)
     # Presença online (#546+): heartbeat gravado no DB (funciona com Gunicorn N>1).

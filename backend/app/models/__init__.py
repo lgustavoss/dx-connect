@@ -22,6 +22,7 @@ from app.models.whatsapp_chat import (
 )
 from app.models.whatsapp_chat_demanda import WhatsappChatDemanda
 from app.models.whatsapp_demanda_motivo_sugestao import WhatsappDemandaMotivoSugestao
+from app.models.comercial_custo import CustoCatalogoItem, SalarioMinimoReferencia
 from app.models.empresa_sistema import EmpresaSistema
 from app.models.email_settings import EmailSettings
 from app.models.protocol_sequence import ProtocolSequence
@@ -52,6 +53,10 @@ from app.models.chat_interno import (
     MensagemInternaReacao,
     MensagemInternaOculta,
 )
+from app.models.cliente_saas import ClienteSaaS
+from app.models.saas_alerta_emitido import SaasAlertaEmitido
+from app.models.lead_comercial import LeadComercial
+from app.models.saas_plano import SaasModulo, SaasPlano, SaasPlanoModulo
 
 __all__ = [
     "Rede",
@@ -80,6 +85,8 @@ __all__ = [
     "WhatsappChatTicket",
     "WhatsappChatDemanda",
     "WhatsappDemandaMotivoSugestao",
+    "SalarioMinimoReferencia",
+    "CustoCatalogoItem",
     "EmpresaSistema",
     "EmailSettings",
     "ProtocolSequence",
@@ -119,4 +126,7 @@ __all__ = [
     "MensagemInternaReacao",
     "MensagemInternaOculta",
     "ConversaInternaLeitura",
+    "ClienteSaaS",
+    "SaasAlertaEmitido",
+    "LeadComercial",
 ]
