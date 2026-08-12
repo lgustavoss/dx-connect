@@ -814,7 +814,6 @@ function notifyFilaDesktop(filaCount: number) {
     const n = new Notification(APP_NAME, {
       body,
       tag: 'dx-connect-fila-aguardando',
-      renotify: true,
       silent: false,
     })
     n.onclick = () => {
