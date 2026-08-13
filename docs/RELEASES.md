@@ -1,6 +1,6 @@
-# Releases — DX Connect (#400)
+# Releases — DX Connect (#400 / #672)
 
-Guia de versionamento, CHANGELOG e o que o usuário vê em **Sobre** (`/sobre`).
+Guia de versionamento, CHANGELOG e o que o usuário vê em **Sobre**.
 
 ## CalVer (`YY.MM.NNN`)
 
@@ -11,43 +11,80 @@ Guia de versionamento, CHANGELOG e o que o usuário vê em **Sobre** (`/sobre`).
 
 Bump automático no **deploy de `staging`** (fuso `America/Sao_Paulo`).
 
+## Dois produtos, um deploy
+
+Uma CalVer por merge `main → staging`, mas **dois feeds** de notas:
+
+| Produto | Código no manifest | Onde o usuário vê | API |
+|---------|--------------------|-------------------|-----|
+| DeskRudder (helpdesk na instância) | `deskrudder` | `/sobre` | `GET /v1/system/release-notes` |
+| SaaS Control Plane | `saas` | `/saas/sobre` | `GET /v1/saas/release-notes` (RBAC `saas_ops`) |
+
+- **Comercial** (CM/FN, simulador, custos) = DeskRudder (roda no cliente).
+- **Landing / trial / leads B2B / licenças / planos** = SaaS.
+
 ## Fluxo do time
 
 ```
-feature → PR main (+ CHANGELOG) → PR main → staging (aprovação humana) → deploy → /sobre
+feature → PR main (+ CHANGELOG por produto) → PR main → staging (aprovação humana) → deploy → /sobre e /saas/sobre
 ```
 
-1. **Cada PR para `main`** com mudança de produto: inclua bullet(s) em `CHANGELOG.md` → `## [Unreleased]`
+1. **Cada PR para `main`** com mudança de produto: bullets em `CHANGELOG.md` → `## [Unreleased]` na **subseção do produto** certo
 2. **PR `main → staging`**: o `[Unreleased]` descreve **todo o lote** que será publicado
 3. **Merge em `staging`**: **só após análise e aprovação humana no GitHub** (`staging` = produção). Agentes/CI **não** mergeiam este PR automaticamente — usar `/release-staging` para abrir o PR e parar.
-4. **Deploy em `staging`**: consome `[Unreleased]`, gera nova CalVer, append em `docs/releases/manifest.json`, zera `[Unreleased]`
+4. **Deploy em `staging`**: consome `[Unreleased]`, gera nova CalVer, append em `docs/releases/manifest.json` (cada bullet com `product`), zera `[Unreleased]`
+
+## Formato do CHANGELOG
+
+```markdown
+## [Unreleased]
+
+### DeskRudder
+
+#### Melhorias
+
+- Descrição curta para o atendente/admin (#123)
+
+#### Correções
+
+- …
+
+### SaaS Control Plane
+
+#### Melhorias
+
+- Descrição curta para a equipe ops (#456)
+```
+
+Compatibilidade: bullets só com `### Melhorias` / `### Corrigido` (sem produto) → tratados como **DeskRudder** + warning no pipeline.
 
 ## Requisito de PR (obrigatório)
 
-Se o PR altera código de produto (`backend/`, `frontend/src/`, etc.), **`CHANGELOG.md` deve ter bullets em `[Unreleased]`**.
+Se o PR altera código de produto, **`CHANGELOG.md` deve ter bullets em `[Unreleased]`** na subseção correta:
 
-- Texto para o **usuário final** (curto, claro)
-- Agrupe em `### Melhorias`, `### Correções` ou `### Interno / Infra`
-- Um bullet por entrega relevante; referência `(#issue)` opcional
+| Paths (heurística CI) | Subseção exigida |
+|-----------------------|------------------|
+| `frontend/src/pages/saas/`, `backend/app/api/saas*`, `backend/app/services/saas_*`, … | `### SaaS Control Plane` |
+| Demais `backend/`, `frontend/src/`, … | `### DeskRudder` |
+| Diff misto | **ambas** as subseções |
 
 O CI executa `scripts/check_changelog.py` e **bloqueia merge** se faltar.
 
 Isento (sem exigir CHANGELOG): só docs internos, planning, artefatos de release gerados, etc.
 
-## O que o usuário vê em `/sobre`
+## O que o usuário vê
+
+### `/sobre` (DeskRudder)
 
 | Seção | Conteúdo |
 |-------|----------|
-| **Versão atual** | CalVer em produção (`v26.06.002`) |
-| **O que há de novo nesta versão** | Bullets publicados na **última** release |
-| **Histórico** | Releases anteriores (`v26.06.001`, …) com os **mesmos bullets** de quando foram publicadas |
+| **Versão atual** | CalVer do deploy |
+| **O que há de novo** | Só bullets `product=deskrudder` da release atual |
+| **Histórico** | Releases anteriores **sem** cards que só tinham itens SaaS |
 
-Exemplo após publicar `v26.06.002`:
+### `/saas/sobre` (ops)
 
-- **O que há de novo** → itens do lote de `.002`
-- **Histórico** → card `v26.06.001` com o texto que estava em «O que há de novo» antes
-
-O histórico vem de `docs/releases/manifest.json`, append a cada deploy (nunca sobrescreve releases antigas).
+Mesma CalVer; só bullets `product=saas` (licenças, planos, provisionamento, leads).
 
 ## Arquivos
 
@@ -55,24 +92,26 @@ O histórico vem de `docs/releases/manifest.json`, append a cada deploy (nunca s
 |---------|--------|
 | `CHANGELOG.md` | Fonte editada pelo time; `[Unreleased]` → próxima release |
 | `VERSION` | Versão publicada (sem `v`) |
-| `docs/releases/manifest.json` | Histórico estruturado de todas as releases |
+| `docs/releases/manifest.json` | Histórico estruturado (`product` por bullet) |
 | `backend/app/data/release_notes.json` | Payload da API (gerado no deploy) |
+| `scripts/migrate_release_notes_product.py` | One-off / idempotente para taguear histórico (#676) |
 
 Após cada deploy, o workflow commita `VERSION`, `CHANGELOG.md`, `manifest.json` e JSONs em `staging` (mensagem com `[skip ci]` para não redeployar).
 
 ## API (autenticada)
 
 - `GET /v1/system/info` — versão em execução
-- `GET /v1/system/release-notes` — release atual + array `releases` (histórico)
+- `GET /v1/system/release-notes` — feed DeskRudder
+- `GET /v1/saas/release-notes` — feed SaaS (`saas_ops` + control plane ligado)
 
 ## Checklist — PR para `main`
 
-- [ ] Bullets em `CHANGELOG.md` → `[Unreleased]` (se mudou produto)
-- [ ] Texto compreensível para atendente/admin, não jargão de dev
+- [ ] Bullets em `CHANGELOG.md` → `[Unreleased]` na subseção do produto (se mudou produto)
+- [ ] Texto compreensível para o público certo (atendente vs ops), não jargão de dev
 
 ## Checklist — PR `main → staging`
 
-- [ ] `[Unreleased]` lista **todas** as entregas do lote
+- [ ] `[Unreleased]` lista **todas** as entregas do lote (por produto)
 - [ ] Revisão de redação (sem «deploy», «branch», «commit»)
 - [ ] **Aprovação e merge manuais** no GitHub (agente não executa `gh pr merge`)
 
@@ -88,4 +127,10 @@ Simular publicação (cuidado — altera arquivos):
 
 ```bash
 python scripts/prepare_release.py --deploy
+```
+
+Reclassificar histórico do manifest:
+
+```bash
+python scripts/migrate_release_notes_product.py
 ```

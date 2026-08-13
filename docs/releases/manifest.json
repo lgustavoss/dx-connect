@@ -8,31 +8,1499 @@
       "changes": [
         {
           "category": "melhorias",
-          "text": "Versão e notas de atualização no painel (página Sobre) (#404)"
+          "text": "Versão e notas de atualização no painel (página Sobre) (#404)",
+          "product": "deskrudder"
         },
         {
           "category": "melhorias",
-          "text": "Distribuição automática de tickets na fila — modos manual, após timeout e imediato; estratégias round-robin e menor carga (#399)"
+          "text": "Distribuição automática de tickets na fila — modos manual, após timeout e imediato; estratégias round-robin e menor carga (#399)",
+          "product": "deskrudder"
         },
         {
           "category": "melhorias",
-          "text": "Exibição do solicitante no detalhe do ticket e reconciliação inbound pós-cadastro (#392)"
+          "text": "Exibição do solicitante no detalhe do ticket e reconciliação inbound pós-cadastro (#392)",
+          "product": "deskrudder"
         },
         {
           "category": "melhorias",
-          "text": "Relatórios de tickets e chats WhatsApp com exportação CSV (#390)"
+          "text": "Relatórios de tickets e chats WhatsApp com exportação CSV (#390)",
+          "product": "deskrudder"
         },
         {
           "category": "correcoes",
-          "text": "E-mail de resposta ao cliente no Postgres (worker de outbox com timezone) (#397)"
+          "text": "E-mail de resposta ao cliente no Postgres (worker de outbox com timezone) (#397)",
+          "product": "deskrudder"
         },
         {
           "category": "correcoes",
-          "text": "Notificações: paridade entre badge e itens do dropdown (#395)"
+          "text": "Notificações: paridade entre badge e itens do dropdown (#395)",
+          "product": "deskrudder"
         },
         {
           "category": "correcoes",
-          "text": "Health check e capabilities com FastAPI 0.137+ (#394)"
+          "text": "Health check e capabilities com FastAPI 0.137+ (#394)",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.06.002",
+      "version_display": "v26.06.002",
+      "date": "2026-06-22",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "Histórico completo de atualizações no painel Sobre (versões anteriores permanecem visíveis)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "CHANGELOG obrigatório em PRs com mudança de produto (validação automática no CI)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Persistência do manifest de releases após cada deploy em staging",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.06.003",
+      "version_display": "v26.06.003",
+      "date": "2026-06-23",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "Som de ticket novo na fila sem responsável tocava múltiplas vezes por emissões SSE duplicadas e hook de alerta montado em mais de um componente (#406)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#277): políticas por setor e prioridade, calendário comercial compartilhado e snapshot de metas na criação de tickets",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#278): cálculo com horário comercial, estados dentro/em risco/violado, worker periódico e endpoint de detalhe do SLA por ticket",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#279): alertas de SLA em risco e violado por e-mail e SSE, com preferências opt-in/out e debounce por ticket/meta",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#280): painel admin em Configurações → Atendimento → SLA para CRUD de políticas por setor/prioridade",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#281): badges e filtros na listagem de tickets e card de SLA no detalhe com countdown",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Motor de roteamento automático: regras configuráveis por admin (setor, prioridade, natureza, motivo, atendente) com avaliação em e-mail inbound e criação manual de tickets",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Audit log e histórico do ticket quando uma regra de roteamento é aplicada em runtime",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "`aplicar_roteamento` restrito a administradores para sobrescrever setor explícito",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "UI em Configurações → Atendimento → Roteamento com simulador de teste seco",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Histórico completo de atualizações no painel Sobre (versões anteriores permanecem visíveis)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "CHANGELOG obrigatório em PRs com mudança de produto (validação automática no CI)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Persistência do manifest de releases após cada deploy em staging",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.06.004",
+      "version_display": "v26.06.004",
+      "date": "2026-06-25",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "Som de ticket novo na fila sem responsável tocava múltiplas vezes por emissões SSE duplicadas e hook de alerta montado em mais de um componente (#406)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Base de conhecimento (#293–#299): menu **Ajuda** para consultar manuais durante o atendimento; gestão de categorias e artigos (admin); consulta integrada em tickets e WhatsApp; manuais «só para a equipe»; imagens no texto; histórico de versões; reordenar categorias arrastando; manuais consultados ficam disponíveis offline neste computador",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Auditoria (#290–#292): registro detalhado de ações no sistema (atribuição e transferência de tickets, chats WhatsApp, e-mails ao cliente, credenciais PDV e exportações)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Auditoria: filtros por ação, período e atendente; exportação CSV; painel com detalhes do registro",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Página Sobre: badges de categoria (Melhorias, Correções, etc.) com texto centralizado e alinhamento uniforme na lista (#426)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat WhatsApp (#403): administradores acompanham chats alheios apenas com comentário interno; envio ao cliente restrito ao operador responsável",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat WhatsApp (#423): registro de demandas por sessão (natureza/motivo), auto-registro ao abrir ticket e agregação no dashboard de chats",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#418): pausa automática da contagem quando o ticket está em status «Aguardando cliente» (ativado por padrão)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA: políticas opcionais por natureza do ticket; filtro «em risco» e dashboard usam calendário comercial e pausa; prazo efetivo no card SLA",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Dashboard geral: card com quantidade de tickets abertos em violação de SLA, com atalho para a listagem filtrada (#416)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Dashboard geral: card com tickets abertos em risco de SLA, com atalho para a listagem filtrada",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#417): calendários comerciais em Configurações → Atendimento → SLA (horário semanal e feriados nacionais)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Configurações WhatsApp: editor de horário semanal reutilizado (mesmo componente dos calendários SLA)",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.06.005",
+      "version_display": "v26.06.005",
+      "date": "2026-06-27",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#431): mídia recebida (imagem, áudio, vídeo, documento, figurinha) gravada corretamente no webhook; fallback e retry na Evolution API; UI deixa de ficar presa em «Carregando mídia…» quando o ficheiro não está disponível",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#432): barra de anexos com ações visíveis (imagem, vídeo, áudio, documento, gravar áudio), pré-visualização antes do envio e legenda opcional",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#433): banner e badge «Sem vínculo» para contactos não cadastrados; botão vincular visível em mobile",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: mensagens de contacto e localização recebidas passam a aparecer como texto legível no chat",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Identidade visual DeskRudder no painel (logos, login, favicon e componentes de marca)",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.06.006",
+      "version_display": "v26.06.006",
+      "date": "2026-06-28",
+      "status": "published",
+      "changes": [
+        {
+          "category": "interno",
+          "text": "Atualização do sistema",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.06.007",
+      "version_display": "v26.06.007",
+      "date": "2026-06-28",
+      "status": "published",
+      "changes": [
+        {
+          "category": "interno",
+          "text": "Atualização do sistema",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.06.008",
+      "version_display": "v26.06.008",
+      "date": "2026-06-29",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#473): modal de encerramento deixava de carregar demandas — polling da conversa refazia o fetch e mantinha «A carregar demandas…» em loop; demanda passa a ser opcional quando o chat encerra por inatividade",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#472): banner «contato não identificado» persistia após vincular/cadastrar — polling/SSE com snapshot antigo sobrescrevia o vínculo; sidebar e header atualizam na hora",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#471): cache de mídia por mensagem reduz refetch de blobs e mitiga `ERR_INSUFFICIENT_RESOURCES` no carregamento de anexos",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: aviso de inatividade duplicado quando vários workers processavam o mesmo chat em paralelo (Gunicorn)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#443/#454): painel de emoji e envio de figurinhas no composer; Histórico e Avaliações preservam posição de scroll ao voltar da conversa",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#449): corrigido link do Histórico/Avaliações para conversa — query `?from=` separada do `pathname` (React Router v7)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Notificações (#452): pendências de mensagem não lida abrem o ticket ou chat concreto (`/tickets/{id}`, `/whatsapp/c/{id}`) — removido fallback genérico para listagens",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#447): terminologia «contato do cliente» no chat e tickets — distingue colaborador da rede de atendente interno",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#453): ícones por tipo de ficheiro (PDF, Word, Excel, etc.) nas mensagens de documento",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#446): marco «Demanda registada» na timeline via evento interno + SSE em tempo real; removido ao excluir demanda",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#455): Histórico lista chats em atendimento — colegas do setor consultam e comentam internamente; ordenação e filtros de data corrigidos",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#443): barra de composição estilo WhatsApp Web (+ anexos, emoji e figurinhas, microfone à direita)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#445): modal de encerramento substitui `confirm()` nativo — registo/edição de demandas, aviso quando houve conversa após última demanda, marco na timeline e `ConfirmDialog` reutilizável",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#449): botão Voltar na conversa regressa à lista de origem (Atendimento, Histórico ou Avaliações), com filtros na URL e atalho Escape",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#448): abas Histórico e Avaliações — filtros coerentes (finalizados incluem aguardando avaliação; avaliações só com nota respondida)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#444): cadastro de funcionário no chat com e-mail opcional; erros de validação visíveis dentro do modal (não atrás do overlay); toasts acima de modais",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#442): mensagens inbound passam a aparecer sem reload — polling de segurança na conversa e na fila, complementando SSE em deploy multi-worker",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#441): áudio gravado pelo atendente enviado como nota de voz via `sendWhatsAppAudio` (encoding Evolution); falha explícita se a API não confirmar entrega",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#431): mídia recebida (imagem, áudio, vídeo, documento, figurinha) gravada corretamente no webhook; fallback e retry na Evolution API; UI deixa de ficar presa em «Carregando mídia…» quando o ficheiro não está disponível",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#432): barra de anexos com ações visíveis (imagem, vídeo, áudio, documento, gravar áudio), pré-visualização antes do envio e legenda opcional",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#433): banner e badge «Sem vínculo» para contactos não cadastrados; botão vincular visível em mobile",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: mensagens de contacto e localização recebidas passam a aparecer como texto legível no chat",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Som de ticket novo na fila sem responsável tocava múltiplas vezes por emissões SSE duplicadas e hook de alerta montado em mais de um componente (#406)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#470): áudio gravado na barra de composição é enviado automaticamente ao terminar a gravação (estilo WhatsApp Web)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Identidade visual (#434): painel lateral do login e assets legados DX/Duplexsoft removidos — marca DeskRudder em todo o painel",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Base de conhecimento (#296): admin vincula manuais a natureza/motivo; até 5 sugestões na classificação de tickets e demandas WhatsApp",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Base de conhecimento (#465/#466): portal público `/kb` com logo e nome da empresa (Configurações → Empresa); listagem, busca e leitura de artigos sem login",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Base de conhecimento (#467): personalização do portal em Configurações → Sistema → Base de conhecimento (cores da navbar, textos, links); menu lateral de categorias/subcategorias expansível no /kb; navbar com título centralizado, logo sem fundo branco e menu hamburger",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Base de conhecimento (#293–#299): menu **Ajuda** para consultar manuais durante o atendimento; gestão de categorias e artigos (admin); consulta integrada em tickets e WhatsApp; manuais «só para a equipe»; imagens no texto; histórico de versões; reordenar categorias arrastando; manuais consultados ficam disponíveis offline neste computador",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Auditoria (#290–#292): trail expandido com payload, IP, request-id e user-agent; registro de atribuição, transferência, fechamento e reabertura de tickets, ações em chats WhatsApp, envio de e-mail ao cliente, visualização de credencial PDV e exportação de relatórios",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Auditoria: filtros por ação, período e atendente; exportação CSV; painel com detalhes do payload e request-id",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Página Sobre: badges de categoria (Melhorias, Correções, etc.) com texto centralizado e alinhamento uniforme na lista (#426)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat WhatsApp (#403): administradores acompanham chats alheios apenas com comentário interno; envio ao cliente restrito ao operador responsável",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat WhatsApp (#423): registro de demandas por sessão (natureza/motivo), auto-registro ao abrir ticket e agregação no dashboard de chats; edição via `PATCH`, marco na timeline e fluxo completo no modal de encerramento (#445)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#418): pausa automática da contagem quando o ticket está em status configurado (flag `pausa_sla`; «Aguardando cliente» ativado por padrão)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA: políticas opcionais por natureza do ticket; filtro «em risco» e dashboard usam o motor completo (calendário + pausa); prazo efetivo no card SLA",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#277): políticas por setor e prioridade, calendário comercial compartilhado e snapshot de metas na criação de tickets",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#278): cálculo com horário comercial, estados dentro/em risco/violado, worker periódico e endpoint de detalhe do SLA por ticket",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#279): alertas de SLA em risco e violado por e-mail e SSE, com preferências opt-in/out e debounce por ticket/meta",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#280): painel admin em Configurações → Atendimento → SLA para CRUD de políticas por setor/prioridade",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#281): badges e filtros na listagem de tickets e card de SLA no detalhe com countdown",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Dashboard geral: card com quantidade de tickets abertos em violação de SLA, com atalho para a listagem filtrada (#416)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Dashboard geral: card com tickets abertos em risco de SLA, com atalho para a listagem filtrada",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#417): CRUD de calendários comerciais em Configurações → Atendimento → SLA → Calendários (horário semanal e feriados nacionais)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Configurações WhatsApp: editor de horário semanal reutilizado (mesmo componente dos calendários SLA)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Motor de roteamento automático: regras configuráveis por admin (setor, prioridade, natureza, motivo, atendente) com avaliação em e-mail inbound e criação manual de tickets",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Audit log e histórico do ticket quando uma regra de roteamento é aplicada em runtime",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "`aplicar_roteamento` restrito a administradores para sobrescrever setor explícito",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "UI em Configurações → Atendimento → Roteamento com simulador de teste seco",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Histórico completo de atualizações no painel Sobre (versões anteriores permanecem visíveis)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "CHANGELOG obrigatório em PRs com mudança de produto (validação automática no CI)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Persistência do manifest de releases após cada deploy em staging",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.07.001",
+      "version_display": "v26.07.001",
+      "date": "2026-07-11",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#473): modal de encerramento deixava de carregar demandas — polling da conversa refazia o fetch e mantinha «A carregar demandas…» em loop; demanda passa a ser opcional quando o chat encerra por inatividade",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#472): banner «contato não identificado» persistia após vincular/cadastrar — polling/SSE com snapshot antigo sobrescrevia o vínculo; sidebar e header atualizam na hora",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#471): cache de mídia por mensagem reduz refetch de blobs e mitiga `ERR_INSUFFICIENT_RESOURCES` no carregamento de anexos",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: aviso de inatividade duplicado quando vários workers processavam o mesmo chat em paralelo (Gunicorn)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#443/#454): painel de emoji e envio de figurinhas no composer; Histórico e Avaliações preservam posição de scroll ao voltar da conversa",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#449): corrigido link do Histórico/Avaliações para conversa — query `?from=` separada do `pathname` (React Router v7)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Notificações (#452): pendências de mensagem não lida abrem o ticket ou chat concreto (`/tickets/{id}`, `/whatsapp/c/{id}`) — removido fallback genérico para listagens",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#447): terminologia «contato do cliente» no chat e tickets — distingue colaborador da rede de atendente interno",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#453): ícones por tipo de ficheiro (PDF, Word, Excel, etc.) nas mensagens de documento",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#446): marco «Demanda registada» na timeline via evento interno + SSE em tempo real; removido ao excluir demanda",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#455): Histórico lista chats em atendimento — colegas do setor consultam e comentam internamente; ordenação e filtros de data corrigidos",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#443): barra de composição estilo WhatsApp Web (+ anexos, emoji e figurinhas, microfone à direita)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#445): modal de encerramento substitui `confirm()` nativo — registo/edição de demandas, aviso quando houve conversa após última demanda, marco na timeline e `ConfirmDialog` reutilizável",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#449): botão Voltar na conversa regressa à lista de origem (Atendimento, Histórico ou Avaliações), com filtros na URL e atalho Escape",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#448): abas Histórico e Avaliações — filtros coerentes (finalizados incluem aguardando avaliação; avaliações só com nota respondida)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#444): cadastro de funcionário no chat com e-mail opcional; erros de validação visíveis dentro do modal (não atrás do overlay); toasts acima de modais",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#442): mensagens inbound passam a aparecer sem reload — polling de segurança na conversa e na fila, complementando SSE em deploy multi-worker",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#441): áudio gravado pelo atendente enviado como nota de voz via `sendWhatsAppAudio` (encoding Evolution); falha explícita se a API não confirmar entrega",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#431): mídia recebida (imagem, áudio, vídeo, documento, figurinha) gravada corretamente no webhook; fallback e retry na Evolution API; UI deixa de ficar presa em «Carregando mídia…» quando o ficheiro não está disponível",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#432): barra de anexos com ações visíveis (imagem, vídeo, áudio, documento, gravar áudio), pré-visualização antes do envio e legenda opcional",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#433): banner e badge «Sem vínculo» para contactos não cadastrados; botão vincular visível em mobile",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: mensagens de contacto e localização recebidas passam a aparecer como texto legível no chat",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Som de ticket novo na fila sem responsável tocava múltiplas vezes por emissões SSE duplicadas e hook de alerta montado em mais de um componente (#406)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno (IC-F1): API backend para conversas diretas entre atendentes e canal de comunicados por setor — inbox, mensagens, leitura (`/v1/chat-interno`); conversas diretas privadas (admin não vê conversas de terceiros)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno (IC-F2): mensagens internas no sino de notificações e evento SSE `chat.interno.mensagem`; contador `chat_interno_nao_lidas_count` no badge do navbar",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno (IC-F3): inbox unificada, conversas diretas e canais de setor no menu Chat interno; comunicados com visual distinto; link no detalhe do setor; layout com lista lateral fixa para alternar conversas e ver não lidas",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno (#495): anexos e mídia — upload, download, pré-visualização no painel e colar imagem (Ctrl+V) no composer",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat operacional: hub unificado em `/chat` com abas Atendendo, Espera e Interno; Histórico permanece em menu separado",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno e WhatsApp: indicadores de envio, entrega e leitura nas mensagens (✓ / ✓✓)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Notificações: pendência do chat interno abre direto em `/chat/interno/{id}`",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno (#503): editar e apagar mensagens de texto — autor ou admin; exclusão lógica com «Mensagem apagada»",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno (#502): reações rápidas (👍 ❤️ 😂 😮 😢 🙏) em conversas diretas e canais de setor",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno: editar e apagar para todos só nos primeiros 5 minutos; depois «apagar para mim»; opção de limpar conversa só para você",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno: ao ler o histórico o scroll não volta sozinho para o fim; ao reabrir a conversa retoma na última mensagem visualizada",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno (#505): paginação infinita — carrega mensagens recentes e busca histórico ao rolar para cima (50 por vez)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno (#506): editar legenda de mensagens com mídia (mesma janela de 5 minutos)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno (#507): grupos personalizados com até 50 atendentes; criador e admins promovidos gerenciam membros",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#470): áudio gravado na barra de composição é enviado automaticamente ao terminar a gravação (estilo WhatsApp Web)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Identidade visual (#434): painel lateral do login e assets legados DX/Duplexsoft removidos — marca DeskRudder em todo o painel",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Base de conhecimento (#296): admin vincula manuais a natureza/motivo; até 5 sugestões na classificação de tickets e demandas WhatsApp",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Base de conhecimento (#465/#466): portal público `/kb` com logo e nome da empresa (Configurações → Empresa); listagem, busca e leitura de artigos sem login",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Base de conhecimento (#467): personalização do portal em Configurações → Sistema → Base de conhecimento (cores da navbar, textos, links); menu lateral de categorias/subcategorias expansível no /kb; navbar com título centralizado, logo sem fundo branco e menu hamburger",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Base de conhecimento (#293–#299): menu **Ajuda** para consultar manuais durante o atendimento; gestão de categorias e artigos (admin); consulta integrada em tickets e WhatsApp; manuais «só para a equipe»; imagens no texto; histórico de versões; reordenar categorias arrastando; manuais consultados ficam disponíveis offline neste computador",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Auditoria (#290–#292): trail expandido com payload, IP, request-id e user-agent; registro de atribuição, transferência, fechamento e reabertura de tickets, ações em chats WhatsApp, envio de e-mail ao cliente, visualização de credencial PDV e exportação de relatórios",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Auditoria: filtros por ação, período e atendente; exportação CSV; painel com detalhes do payload e request-id",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Página Sobre: badges de categoria (Melhorias, Correções, etc.) com texto centralizado e alinhamento uniforme na lista (#426)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat WhatsApp (#403): administradores acompanham chats alheios apenas com comentário interno; envio ao cliente restrito ao operador responsável",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat WhatsApp (#423): registro de demandas por sessão (natureza/motivo), auto-registro ao abrir ticket e agregação no dashboard de chats; edição via `PATCH`, marco na timeline e fluxo completo no modal de encerramento (#445)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#418): pausa automática da contagem quando o ticket está em status configurado (flag `pausa_sla`; «Aguardando cliente» ativado por padrão)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA: políticas opcionais por natureza do ticket; filtro «em risco» e dashboard usam o motor completo (calendário + pausa); prazo efetivo no card SLA",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#277): políticas por setor e prioridade, calendário comercial compartilhado e snapshot de metas na criação de tickets",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#278): cálculo com horário comercial, estados dentro/em risco/violado, worker periódico e endpoint de detalhe do SLA por ticket",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#279): alertas de SLA em risco e violado por e-mail e SSE, com preferências opt-in/out e debounce por ticket/meta",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#280): painel admin em Configurações → Atendimento → SLA para CRUD de políticas por setor/prioridade",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#281): badges e filtros na listagem de tickets e card de SLA no detalhe com countdown",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Dashboard geral: card com quantidade de tickets abertos em violação de SLA, com atalho para a listagem filtrada (#416)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Dashboard geral: card com tickets abertos em risco de SLA, com atalho para a listagem filtrada",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SLA (#417): CRUD de calendários comerciais em Configurações → Atendimento → SLA → Calendários (horário semanal e feriados nacionais)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Configurações WhatsApp: editor de horário semanal reutilizado (mesmo componente dos calendários SLA)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Motor de roteamento automático: regras configuráveis por admin (setor, prioridade, natureza, motivo, atendente) com avaliação em e-mail inbound e criação manual de tickets",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Audit log e histórico do ticket quando uma regra de roteamento é aplicada em runtime",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "`aplicar_roteamento` restrito a administradores para sobrescrever setor explícito",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "UI em Configurações → Atendimento → Roteamento com simulador de teste seco",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Histórico completo de atualizações no painel Sobre (versões anteriores permanecem visíveis)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "CHANGELOG obrigatório em PRs com mudança de produto (validação automática no CI)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Persistência do manifest de releases após cada deploy em staging",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.07.002",
+      "version_display": "v26.07.002",
+      "date": "2026-07-11",
+      "status": "published",
+      "changes": [
+        {
+          "category": "interno",
+          "text": "Atualização do sistema",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.07.003",
+      "version_display": "v26.07.003",
+      "date": "2026-07-14",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: conversa em atendimento disparava loop de pedidos a `/demandas` (e esgotava recursos do browser com `ERR_INSUFFICIENT_RESOURCES`) — o painel de demandas já não notifica o pai no carregamento inicial",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Base de conhecimento (#468): chat ao vivo no portal `/kb` — widget para visitantes; atendimento na mesma inbox WhatsApp (abas Aguardando/Atendendo) com badge Portal; protocolo unificado `#C`; mensagens automáticas, avaliação ao encerrar, anexos e áudio como no WhatsApp; transferência, demandas e encerramento com revisão",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.07.004",
+      "version_display": "v26.07.004",
+      "date": "2026-07-15",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#531): aba **Contatos** no hub de chat — lista funcionários com empresa e telefone; iniciar conversa (ou número avulso / retomar no Histórico); chat já fica em atendimento com o iniciador; telefone no cadastro do funcionário da rede",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Sons de alerta: toque de **abertura de ticket** e de **novo chat** (fila WhatsApp/Portal) estavam trocados — ticket usa `notification.mp3` e chat na fila usa `alerta.mp3`",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.07.005",
+      "version_display": "v26.07.005",
+      "date": "2026-07-15",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#534): identificar/cadastrar contato do cliente também em atendimento **encerrado** (Histórico); o número do WhatsApp passa a ser gravado no telefone do cadastro para retomar pela aba Contatos",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.07.006",
+      "version_display": "v26.07.006",
+      "date": "2026-07-15",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "Chat (#539): após enviar mensagem (WhatsApp e chat interno), o cursor permanece no campo de texto; painel de emoji fica aberto ao escolher vários; **Responder** mensagem no chat interno (direta, equipe e grupo)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: na busca «Vincular existente», cada resultado mostra **rede** e **empresa(s)** para distinguir homônimos",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp / modais: ao digitar na descrição da demanda no **Encerrar atendimento**, o campo perdia o foco a cada atualização da conversa — diálogo já não refoca o painel; formulário não é limpo pelo poll",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.07.007",
+      "version_display": "v26.07.007",
+      "date": "2026-07-16",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: removido botão duplicado «Identificar contato» no header — fica só o do banner enquanto o contacto não está vinculado; após vincular o CTA some",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: encerramento por inatividade só conta a partir da última mensagem do cliente quando o chat já está em atendimento e o atendente já enviou mensagem humana (auto_assumido/BOT não disparam o timer)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: Ctrl+V no composer cola imagem/ficheiro do clipboard (pré-visualização antes de enviar), como no chat interno",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat: removida a borda branca de foco no campo de mensagem e nos demais inputs/textareas (outline nativo + alinhamento ao design system)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno: contraste no hover de Responder/Editar/Apagar; duplo clique na mensagem (ou ao lado do balão) inicia resposta e foca o composer — também no WhatsApp",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.07.008",
+      "version_display": "v26.07.008",
+      "date": "2026-07-16",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "Equipe online (#545–#547): administradores veem quem está com o painel aberto e desde quando (menu **Equipe online**), para coordenar atendimento de chats e tickets",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat (#539): após enviar mensagem (WhatsApp e chat interno), o cursor permanece no campo de texto; painel de emoji fica aberto ao escolher vários; **Responder** mensagem no chat interno (direta, equipe e grupo)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: na busca «Vincular existente», cada resultado mostra **rede** e **empresa(s)** para distinguir homónimos",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#534): identificar/cadastrar contato do cliente também em atendimento **encerrado** (Histórico); o número do WhatsApp passa a ser gravado no telefone do cadastro para retomar pela aba Contatos",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#531): aba **Contatos** no hub de chat — lista funcionários com empresa e telefone; iniciar conversa (ou número avulso / retomar no Histórico); chat já fica em atendimento com o iniciador; telefone no cadastro do funcionário da rede",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: o feed deixa de puxar sozinho para o fim enquanto você lê mensagens acima; ao reabrir a conversa, retoma a posição em que parou",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno: ações (Responder/Editar/Apagar) e reações ficam fora do balão da mensagem",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno: clique na imagem abre visualização em tela cheia (antes só tinha o cursor de zoom, sem ação)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Anexos de ticket: ficheiros deixam de desaparecer após atualização do sistema; se o arquivo já tiver sido perdido, o aviso deixa isso claro",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.07.009",
+      "version_display": "v26.07.009",
+      "date": "2026-07-16",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "Chat interno (grupos/canal): menções com `@` — autocomplete de participantes e `@all` (todos); destaque visual na mensagem",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Equipe online: lista funciona com vários workers do servidor (presença gravada no banco); admin pode **Forçar saída** de um atendente conectado",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno: balões mais próximos — opções/reações só no hover; em grupos, avatar e cor por pessoa para distinguir quem fala",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Equipe online: «0 online» mesmo com painel aberto (lista lia só a memória do worker errado)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno: espaço excessivo entre mensagens após colocar ações/reações fora do balão",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.07.010",
+      "version_display": "v26.07.010",
+      "date": "2026-07-17",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "Chat interno: alerta sonoro ao receber nova mensagem; em grupos, opção de **Silenciar** / **Ativar som** (preferência por pessoa)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat interno: ao passar o mouse em mensagens próximas, as opções (Responder/Editar/Apagar) e reações não “saltam” mais para a mensagem de cima",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.07.011",
+      "version_display": "v26.07.011",
+      "date": "2026-07-17",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "PDVs: código editável na edição (ex.: 001 ↔ 002 ao trocar equipamento); listagem mostra só o código, sem prefixo «PDV»; colunas separadas de acesso remoto, ID e senha (copiar ID/senha; revelar senha com o olho)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Modo escuro: texto digitado nos campos de pesquisa (listagens e chat interno) volta a ficar legível",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.07.012",
+      "version_display": "v26.07.012",
+      "date": "2026-07-18",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#577): encerramento por inatividade conta desde a **última mensagem** (cliente ou atendente); botão **Pausar/Retomar** com countdown no chat",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#575): ✓✓ azul no WhatsApp do cliente só quando o **atendente responsável** abre o chat no painel",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#568): ao anexar imagem, só o campo de legenda fica visível (sem o composer por baixo)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#569/#572/#574): legenda de mídia com a mesma fonte do texto; PDF/vídeo mostram legenda; sem placeholder «[Imagem enviada]» quando não há legenda",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#571): Esc no zoom da imagem fecha só a visualização, sem sair do chat",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#576): cancelar gravação de áudio já não envia o ficheiro",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#573): ao reabrir o chat, o scroll volta à última posição vista (não salta para o início)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#570): contacto já vinculado é reconhecido em chats novos do mesmo número",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.07.013",
+      "version_display": "v26.07.013",
+      "date": "2026-07-18",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#577): countdown até o aviso e, após o aviso, até encerrar; enviar mensagem (ou o cliente falar) sai automaticamente da pausa",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: após encerramento por inatividade, o chat fica em **A classificar demanda** (somente leitura) até registar, manter demandas existentes ou confirmar sem demanda; nova mensagem do mesmo cliente abre chat novo na fila",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#575): ticks de entrega/leitura no painel passam a atualizar (✓✓ / ✓✓ azul) — o webhook da Evolution com `keyId` + `DELIVERY_ACK`/`READ` era ignorado; mark-as-read no WhatsApp do cliente também quando chega mensagem nova com o responsável no chat",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.07.014",
+      "version_display": "v26.07.014",
+      "date": "2026-07-22",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "Portal do cliente (#263 / #300–#308): funcionários da rede fazem login em **/portal**, abrem e acompanham chamados da sua empresa, respondem no fio público, anexam ficheiros, consultam a base de ajuda e recebem e-mail quando a equipe responde; o admin define a senha do portal no cadastro do funcionário",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Portal (#600, #601): cadastro de funcionário pelo modal da Rede permite definir senha do portal na criação; sócio cadastra sem escolher empresas (escopo automático em toda a rede)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Portal (#604): RBAC por papel — colaborador vê só os próprios chamados; supervisor vê todos das empresas vinculadas; sócio vê toda a rede",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Portal (#603): listagem e detalhe de atendimentos WhatsApp no `/portal` (somente leitura), com o mesmo escopo por papel e sem comentários internos da equipe",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Portal (#602): sócio gere a equipa no `/portal` — cadastro e edição de colaboradores e supervisores (empresas, senha do portal); outros sócios listados com edição limitada; colaborador/supervisor recebem 403",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Portal (#605): branding white-label no `/portal` — logo e cores da instância (mesmas configurações de Configurações → Base de conhecimento); login e shell aplicam a identidade do contratante, não a marca DeskRudder",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Portal: shell alinhado ao painel DeskRudder (menu lateral com usuário/Sair, navbar com expandir/recolher); cor do menu lateral configurável (padrão = navbar); chat ao vivo no `/portal` (mesmo canal da `/kb`, isolado por instância); login com logo em destaque, ícone de olho na senha e fundo minimalista; título do portal independente da central `/kb`",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#593): ao **cadastrar** contacto no chat, o sistema sugere funcionários com nome semelhante para vincular (evita duplicados); o atendente pode ignorar e criar novo",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#591): no detalhe da **Empresa**, nova aba **Chats** com atendimentos filtrados por aquela empresa (busca, paginação, abrir conversa / retomar)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#592): com funcionário em **mais de uma empresa**, o atendimento pode começar sem empresa; o atendente pergunta ao cliente e vincula (ou altera) a qualquer momento antes de encerrar — 1 empresa continua automática",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#590): na listagem **Atendimentos**, cada card mostra a **empresa** do contacto (ou «Sem empresa» quando não houver vínculo)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat (#607): na aba **Atendendo**, secções **Comigo** e **Outros atendentes** quando o admin acompanha colegas; badge «Você» e destaque visual nos seus; nome do responsável legível nos de outros",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#606): conversa mais utilizável no **mobile** — composer com campo largo e botão de manuais só ícone; menu **⋮** com Transferir/Tickets; metadados em linha separada; painel de demandas colapsável; `safe-area` no composer",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#608): duas mensagens inbound seguidas do mesmo contacto deixam de abrir dois chats/protocolos — lock por `wa_id` no webhook e uma única sequência de auto-mensagens por sessão",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#598): após encerrar com avaliação, janela de ~30 min (configurável) para a nota; se o cliente mandar outro texto, abre atendimento novo com essa mensagem; sem resposta, finaliza sozinho",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.08.001",
+      "version_display": "v26.08.001",
+      "date": "2026-08-02",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#628): no WhatsApp do cliente, mensagens do atendente saem com prefixo **setor do atendimento + nome** e o texto na linha de baixo (ex.: `[ Suporte - Ana ]:`); ao assumir, 1 setor é gravado automaticamente e vários setores pedem escolha no painel",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#629): no lightbox de imagens da conversa, dá para navegar entre as fotos (botões e setas ←/→) com contador e legenda atualizada; Esc continua a fechar só a visualização",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#630): foto de perfil do contacto no header e nas listas Atendendo/Aguardando (com cache e fallback para a inicial do nome)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#630): reações no chat com o cliente — ver emoji do cliente no balão e o atendente responsável pode reagir (👍 ❤️ 😂 😮 😢 🙏); clique de novo remove",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#630): editar (até 15 min) e apagar para todos (até 48 h) mensagens de texto enviadas pelo responsável; também sincroniza quando o cliente edita ou apaga",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: no header da conversa, o chip da empresa abre a página de detalhe da empresa (Voltar regressa ao chat); alterar empresa multi-empresa continua no menu ⋮",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat (#626): ícone de som junto a **Aguardando** para silenciar/reativar o alerta contínuo da fila (WhatsApp + portal); preferência guardada no browser — não afeta alertas de ticket nem do chat interno",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat (#625): ao **Ver** um chat da fila Aguardando, a lista com **Atender** permanece na lateral; na conversa há CTA **Atender** (WhatsApp e portal) para assumir sem voltar à lista",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#627): com anexo pendente, **Enter** na legenda (ou no painel, em áudio) envia o anexo — equivalente a «Enviar anexo»",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Login / site: «Voltar ao site» e hosts DeskRudder apontam para deskrudder.com.br (redirect da apex connect)",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.08.002",
+      "version_display": "v26.08.002",
+      "date": "2026-08-02",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "Frontend: alinhamento de `react` e `react-dom` em **19.2.8** (o Dependabot tinha subido só o `react`, o que gerava tela preta com React error #527 em produção)",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.08.003",
+      "version_display": "v26.08.003",
+      "date": "2026-08-02",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#628): ao atender com vários setores, o modal «Escolher setor» voltava vazio (pedido com `limit` acima do máximo da API); a lista passa a carregar com paginação válida",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.08.004",
+      "version_display": "v26.08.004",
+      "date": "2026-08-02",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: na visualização ampliada de imagens, dá para fazer zoom (+/−, scroll e duplo clique), rodar e arrastar; repor volta à vista normal (também no chat interno)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat: duplo clique **dentro** do balão já não inicia resposta (dá para selecionar/copiar o texto); responder com duplo clique fica só **ao lado** do balão",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: menu com seta no canto do balão para Editar/Apagar (em vez de botões flutuantes que saltavam para a mensagem de cima)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: Enter na legenda do anexo deixava de enviar a imagem **duas vezes** (o evento subia ao painel e disparava o envio de novo)",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.08.005",
+      "version_display": "v26.08.005",
+      "date": "2026-08-03",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "Dashboard (#599): filtros de período Hoje | Esta semana (seg–dom) | Este mês | Mês passado | Personalizado no geral, tickets e WhatsApp (substitui 7/30/90); CSAT do geral respeita o intervalo",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#594): análise de demandas no dashboard — drill-down por natureza/motivo, ranking por empresa, insights (erro → atualização; dúvida → treinamento) e sugestão de novo motivo a partir de «Outros» repetido",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Rede e Empresa (#595): aba Análises com tickets + demandas WhatsApp no período, insights e ranking (reutiliza #594/#599)",
+          "product": "deskrudder"
+        }
+      ]
+    },
+    {
+      "version": "26.08.006",
+      "version_display": "v26.08.006",
+      "date": "2026-08-12",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: ao iniciar conversa com número avulso e o cliente responder, deixa de abrir chat novo na fila (alerta de «novo atendimento») quando o `wa_id` chega em variante (DDI / nono dígito BR) ou como `@lid` com `senderPn` / `remoteJidAlt`",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#667): em Atendimentos (e Avaliações), **Próxima** / **Anterior** deixam de voltar sozinhas para a página 1; o `offset` da URL é respeitado ao abrir/recarregar",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat (#651): **Silenciar** na fila Aguardando corta o alerta na hora (loop + pulse); o toque passa a tocar completo e a reiniciar em sequência, sem intervalo de silêncio",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#653): **Esc** na conversa já não percorre o histórico do browser (evita reabrir chat encerrado); fecha overlays locais e, ao sair, vai à lista de origem (Atendendo / Aguardando / etc.)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat (#652): com a aba em segundo plano, novo chat na fila dispara notificação do sistema (se permitida) e o áudio é desbloqueado no primeiro clique; ao voltar à aba o alerta retoma de imediato",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat (#652): banner no painel pede permissão de notificações («Ativar alertas») para avisar novos chats na fila mesmo com outra aba ou o navegador minimizado",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "SaaS: **controle de licenças** — histórico/timeline na ficha, snapshot de módulos + limites na licença, preço/limites nos planos, e-mail de entrega com plano/módulos/acesso, conversão de lead com plano, `SAAS_MODULOS` no provisionamento e lista de instâncias no resumo",
+          "product": "saas"
+        },
+        {
+          "category": "melhorias",
+          "text": "SaaS: catálogo comercial de **planos e módulos** (CRUD, activar/desactivar, seed Trial/Profissional/Enterprise); licença escolhe plano em vez de texto livre",
+          "product": "saas"
+        },
+        {
+          "category": "melhorias",
+          "text": "SaaS: lista de licenças com **filtros** (plano, aprovação, provisionamento, renovação), cartões do resumo clicáveis e **escolha de plano** ao aprovar go-live",
+          "product": "saas"
+        },
+        {
+          "category": "melhorias",
+          "text": "SaaS: URL da instância deixa de ser campo livre — só o **nome da base (slug)**; URL = `https://{slug}.{domínio}/`; em local o «Abrir» usa a porta API (DNS público não resolve)",
+          "product": "saas"
+        },
+        {
+          "category": "melhorias",
+          "text": "SaaS: trial só **pede aprovação**; **Aprovar e criar base** enfileira a criação da instância/Postgres",
+          "product": "saas"
+        },
+        {
+          "category": "melhorias",
+          "text": "SaaS: **entrega pós-health** ao contacto (`entrega_notificada_em` + `reenviar-entrega`)",
+          "product": "saas"
+        },
+        {
+          "category": "melhorias",
+          "text": "SaaS: lead → licença com **vínculo persistido** (`POST ./leads/{id}/converter` + `lead_id` no formulário)",
+          "product": "saas"
+        },
+        {
+          "category": "melhorias",
+          "text": "SaaS: **suspender/reativar** pede (ou executa) `stack-client.sh down|up` e confirmação ops",
+          "product": "saas"
+        },
+        {
+          "category": "melhorias",
+          "text": "SaaS: trial público entra com **aprovação pendente**; painel com **Aprovar go-live** / **Rejeitar** (`aprovacao_status`)",
+          "product": "saas"
+        },
+        {
+          "category": "melhorias",
+          "text": "SaaS DeskRudder (#519 / #516 / #521–#528): painel de **licenças** (contactos, resumo ops, renovação flexível, lead→licença); **leads comerciais** da landing (formulário «Fale conosco», inbox `/saas/leads`); **provisionamento** em fila; **trial** em `/trial`; **renovações** com alertas e suspensão ao vencer",
+          "product": "saas"
+        },
+        {
+          "category": "melhorias",
+          "text": "Comercial (#321 / #331–#335): simulador com desconto posto <100k L (20% SM), override de custo/valor TEF só na proposta e snapshot imutável do pacote (catálogo TEF continua com valores padrão)",
+          "product": "deskrudder"
+        },
+        {
+          "category": "melhorias",
+          "text": "Comercial (#321 / #329–#334): catálogo de custos — salário mínimo com histórico por vigência (atualizar valor sem reescrever o passado), itens (% SM, valor fixo, TEF) e simulador em Cadastros → Catálogo de custos (admin)",
+          "product": "deskrudder"
         }
       ]
     }

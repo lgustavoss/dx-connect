@@ -3723,6 +3723,7 @@ export namespace System {
   export interface ReleaseChange {
     category: string;
     text: string;
+    product?: string | null;
   }
   export interface Release {
     version: string;
@@ -3743,6 +3744,11 @@ export namespace System {
 export const system = {
   info: () => api<System.Info>('/system/info'),
   releaseNotes: () => api<System.ReleaseNotes>('/system/release-notes'),
+};
+
+/** Release notes do control-plane (RBAC saas_ops). */
+export const saasReleaseNotes = {
+  get: () => api<System.ReleaseNotes>('/saas/release-notes'),
 };
 
 export const saasClientes = {

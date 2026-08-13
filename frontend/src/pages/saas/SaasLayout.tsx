@@ -146,6 +146,9 @@ export function SaasLayout() {
           <NavLink to="/saas/leads" className={navLinkClass}>
             <span className="truncate">{sidebarExpanded || sidebarMobileOpen ? 'Leads comerciais' : 'Leads'}</span>
           </NavLink>
+          <NavLink to="/saas/sobre" className={navLinkClass}>
+            <span className="truncate">{sidebarExpanded || sidebarMobileOpen ? 'Sobre' : 'Info'}</span>
+          </NavLink>
         </nav>
         <div className="border-t border-slate-200 p-3 dark:border-slate-800">
           {sidebarExpanded || sidebarMobileOpen ? (

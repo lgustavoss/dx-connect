@@ -1,4 +1,4 @@
-"""Versão CalVer e release notes (#401)."""
+"""Versão CalVer e release notes (#401 / #673)."""
 
 from __future__ import annotations
 
@@ -13,6 +13,10 @@ from app.config import settings
 
 _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 _REPO_ROOT = Path(__file__).resolve().parents[3]
+
+PRODUCT_DESKRUDDER = "deskrudder"
+PRODUCT_SAAS = "saas"
+VALID_PRODUCTS = frozenset({PRODUCT_DESKRUDDER, PRODUCT_SAAS})
 
 _LEGACY_BRAND_RE = re.compile(r"DX/Duplexsoft|Duplexsoft|DX Connect|DX-Connect", re.IGNORECASE)
 
@@ -86,10 +90,48 @@ def reload_release_notes_cache() -> None:
     _load_release_notes_raw.cache_clear()
 
 
-def release_notes_payload(*, version_override: str | None = None) -> dict[str, Any]:
+def _change_product(ch: dict[str, Any]) -> str:
+    raw = ch.get("product")
+    if isinstance(raw, str) and raw.strip().lower() in VALID_PRODUCTS:
+        return raw.strip().lower()
+    return PRODUCT_DESKRUDDER
+
+
+def _filter_release_for_product(rel: dict[str, Any], product: str) -> dict[str, Any] | None:
+    changes = []
+    for ch in rel.get("changes") or []:
+        if not isinstance(ch, dict):
+            continue
+        if _change_product(ch) != product:
+            continue
+        item = dict(ch)
+        item["product"] = product
+        changes.append(item)
+    if not changes:
+        return None
+    out = dict(rel)
+    out["changes"] = changes
+    return out
+
+
+def release_notes_payload(
+    *,
+    version_override: str | None = None,
+    product: str = PRODUCT_DESKRUDDER,
+) -> dict[str, Any]:
+    product_key = (product or PRODUCT_DESKRUDDER).strip().lower()
+    if product_key not in VALID_PRODUCTS:
+        product_key = PRODUCT_DESKRUDDER
+
     raw = _load_release_notes_raw()
     version = version_override or resolve_app_version()
-    releases: list[dict[str, Any]] = [_sanitize_release(r) or r for r in (raw.get("releases") or [])]
+    releases_all: list[dict[str, Any]] = [_sanitize_release(r) or r for r in (raw.get("releases") or [])]
+
+    releases: list[dict[str, Any]] = []
+    for rel in releases_all:
+        filtered = _filter_release_for_product(rel, product_key)
+        if filtered is not None:
+            releases.append(filtered)
 
     current = None
     if version:
@@ -97,6 +139,13 @@ def release_notes_payload(*, version_override: str | None = None) -> dict[str, A
             if rel.get("version") == version:
                 current = rel
                 break
+        if current is None:
+            # Versão atual pode não ter bullets deste produto — ainda assim
+            # tente achar a release bruta só para metadados (sem misturar produtos).
+            for rel in releases_all:
+                if rel.get("version") == version:
+                    current = _filter_release_for_product(rel, product_key)
+                    break
         if current is None and releases:
             current = releases[-1]
 

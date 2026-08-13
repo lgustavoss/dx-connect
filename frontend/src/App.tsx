@@ -84,6 +84,7 @@ import { SaasModulos } from './pages/saas/SaasModulos'
 import { SaasLeads } from './pages/saas/SaasLeads'
 import { SaasLeadDetalhe } from './pages/saas/SaasLeadDetalhe'
 import { SaasLayout } from './pages/saas/SaasLayout'
+import { SaasSobre } from './pages/saas/SaasSobre'
 import { KbPublicLayout } from './pages/kb-public/KbPublicLayout'
 import { KbPublicHome } from './pages/kb-public/KbPublicHome'
 import { KbPublicArtigo } from './pages/kb-public/KbPublicArtigo'
@@ -205,6 +206,7 @@ function AppRoutes() {
         <Route path="modulos" element={<SaasModulos />} />
         <Route path="leads/:id" element={<SaasLeadDetalhe />} />
         <Route path="leads" element={<SaasLeads />} />
+        <Route path="sobre" element={<SaasSobre />} />
       </Route>
       <Route
         path="/"

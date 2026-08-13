@@ -34,6 +34,21 @@ export function isMarketingHost(hostname = typeof window !== 'undefined' ? windo
   return host === apex || host === `www.${apex}`
 }
 
+/**
+ * Destino de «Voltar ao site» (#677).
+ * Em apex/www/localhost o `/` já é a LP → SPA.
+ * Em subdomínio de cliente → URL absoluta da apex (evita loop `/` → `/login`).
+ */
+export function marketingHomeHref(
+  hostname = typeof window !== 'undefined' ? window.location.hostname : '',
+): { mode: 'spa'; to: '/' } | { mode: 'external'; href: string } {
+  const host = hostname.toLowerCase()
+  if (isMarketingHost(host) || host === 'localhost' || host === '127.0.0.1') {
+    return { mode: 'spa', to: '/' }
+  }
+  return { mode: 'external', href: `${MARKETING_SITE_URL}/` }
+}
+
 /** Normaliza e valida slug da conta (subdomínio). Retorna null se inválido. */
 export function normalizeClientSlug(raw: string): string | null {
   const slug = raw.trim().toLowerCase()
