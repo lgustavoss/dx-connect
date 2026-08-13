@@ -1,23 +1,83 @@
 {
-  "current_version": "26.08.005",
-  "current_version_display": "v26.08.005",
+  "current_version": "26.08.006",
+  "current_version_display": "v26.08.006",
   "current": {
-    "version": "26.08.005",
-    "version_display": "v26.08.005",
-    "date": "2026-08-03",
+    "version": "26.08.006",
+    "version_display": "v26.08.006",
+    "date": "2026-08-12",
     "status": "published",
     "changes": [
       {
         "category": "melhorias",
-        "text": "Dashboard (#599): filtros de período Hoje | Esta semana (seg–dom) | Este mês | Mês passado | Personalizado no geral, tickets e WhatsApp (substitui 7/30/90); CSAT do geral respeita o intervalo"
+        "text": "WhatsApp: ao iniciar conversa com número avulso e o cliente responder, deixa de abrir chat novo na fila (alerta de «novo atendimento») quando o `wa_id` chega em variante (DDI / nono dígito BR) ou como `@lid` com `senderPn` / `remoteJidAlt`"
       },
       {
         "category": "melhorias",
-        "text": "WhatsApp (#594): análise de demandas no dashboard — drill-down por natureza/motivo, ranking por empresa, insights (erro → atualização; dúvida → treinamento) e sugestão de novo motivo a partir de «Outros» repetido"
+        "text": "WhatsApp (#667): em Atendimentos (e Avaliações), **Próxima** / **Anterior** deixam de voltar sozinhas para a página 1; o `offset` da URL é respeitado ao abrir/recarregar"
       },
       {
         "category": "melhorias",
-        "text": "Rede e Empresa (#595): aba Análises com tickets + demandas WhatsApp no período, insights e ranking (reutiliza #594/#599)"
+        "text": "Chat (#651): **Silenciar** na fila Aguardando corta o alerta na hora (loop + pulse); o toque passa a tocar completo e a reiniciar em sequência, sem intervalo de silêncio"
+      },
+      {
+        "category": "melhorias",
+        "text": "WhatsApp (#653): **Esc** na conversa já não percorre o histórico do browser (evita reabrir chat encerrado); fecha overlays locais e, ao sair, vai à lista de origem (Atendendo / Aguardando / etc.)"
+      },
+      {
+        "category": "melhorias",
+        "text": "Chat (#652): com a aba em segundo plano, novo chat na fila dispara notificação do sistema (se permitida) e o áudio é desbloqueado no primeiro clique; ao voltar à aba o alerta retoma de imediato"
+      },
+      {
+        "category": "melhorias",
+        "text": "Chat (#652): banner no painel pede permissão de notificações («Ativar alertas») para avisar novos chats na fila mesmo com outra aba ou o navegador minimizado"
+      },
+      {
+        "category": "melhorias",
+        "text": "SaaS: **controle de licenças** — histórico/timeline na ficha, snapshot de módulos + limites na licença, preço/limites nos planos, e-mail de entrega com plano/módulos/acesso, conversão de lead com plano, `SAAS_MODULOS` no provisionamento e lista de instâncias no resumo"
+      },
+      {
+        "category": "melhorias",
+        "text": "SaaS: catálogo comercial de **planos e módulos** (CRUD, activar/desactivar, seed Trial/Profissional/Enterprise); licença escolhe plano em vez de texto livre"
+      },
+      {
+        "category": "melhorias",
+        "text": "SaaS: lista de licenças com **filtros** (plano, aprovação, provisionamento, renovação), cartões do resumo clicáveis e **escolha de plano** ao aprovar go-live"
+      },
+      {
+        "category": "melhorias",
+        "text": "SaaS: URL da instância deixa de ser campo livre — só o **nome da base (slug)**; URL = `https://{slug}.{domínio}/`; em local o «Abrir» usa a porta API (DNS público não resolve)"
+      },
+      {
+        "category": "melhorias",
+        "text": "SaaS: trial só **pede aprovação**; **Aprovar e criar base** enfileira a criação da instância/Postgres"
+      },
+      {
+        "category": "melhorias",
+        "text": "SaaS: **entrega pós-health** ao contacto (`entrega_notificada_em` + `reenviar-entrega`)"
+      },
+      {
+        "category": "melhorias",
+        "text": "SaaS: lead → licença com **vínculo persistido** (`POST ./leads/{id}/converter` + `lead_id` no formulário)"
+      },
+      {
+        "category": "melhorias",
+        "text": "SaaS: **suspender/reativar** pede (ou executa) `stack-client.sh down|up` e confirmação ops"
+      },
+      {
+        "category": "melhorias",
+        "text": "SaaS: trial público entra com **aprovação pendente**; painel com **Aprovar go-live** / **Rejeitar** (`aprovacao_status`)"
+      },
+      {
+        "category": "melhorias",
+        "text": "SaaS DeskRudder (#519 / #516 / #521–#528): painel de **licenças** (contactos, resumo ops, renovação flexível, lead→licença); **leads comerciais** da landing (formulário «Fale conosco», inbox `/saas/leads`); **provisionamento** em fila; **trial** em `/trial`; **renovações** com alertas e suspensão ao vencer"
+      },
+      {
+        "category": "melhorias",
+        "text": "Comercial (#321 / #331–#335): simulador com desconto posto <100k L (20% SM), override de custo/valor TEF só na proposta e snapshot imutável do pacote (catálogo TEF continua com valores padrão)"
+      },
+      {
+        "category": "melhorias",
+        "text": "Comercial (#321 / #329–#334): catálogo de custos — salário mínimo com histórico por vigência (atualizar valor sem reescrever o passado), itens (% SM, valor fixo, TEF) e simulador em Cadastros → Catálogo de custos (admin)"
       }
     ]
   },
@@ -1187,6 +1247,86 @@
         {
           "category": "melhorias",
           "text": "Rede e Empresa (#595): aba Análises com tickets + demandas WhatsApp no período, insights e ranking (reutiliza #594/#599)"
+        }
+      ]
+    },
+    {
+      "version": "26.08.006",
+      "version_display": "v26.08.006",
+      "date": "2026-08-12",
+      "status": "published",
+      "changes": [
+        {
+          "category": "melhorias",
+          "text": "WhatsApp: ao iniciar conversa com número avulso e o cliente responder, deixa de abrir chat novo na fila (alerta de «novo atendimento») quando o `wa_id` chega em variante (DDI / nono dígito BR) ou como `@lid` com `senderPn` / `remoteJidAlt`"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#667): em Atendimentos (e Avaliações), **Próxima** / **Anterior** deixam de voltar sozinhas para a página 1; o `offset` da URL é respeitado ao abrir/recarregar"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat (#651): **Silenciar** na fila Aguardando corta o alerta na hora (loop + pulse); o toque passa a tocar completo e a reiniciar em sequência, sem intervalo de silêncio"
+        },
+        {
+          "category": "melhorias",
+          "text": "WhatsApp (#653): **Esc** na conversa já não percorre o histórico do browser (evita reabrir chat encerrado); fecha overlays locais e, ao sair, vai à lista de origem (Atendendo / Aguardando / etc.)"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat (#652): com a aba em segundo plano, novo chat na fila dispara notificação do sistema (se permitida) e o áudio é desbloqueado no primeiro clique; ao voltar à aba o alerta retoma de imediato"
+        },
+        {
+          "category": "melhorias",
+          "text": "Chat (#652): banner no painel pede permissão de notificações («Ativar alertas») para avisar novos chats na fila mesmo com outra aba ou o navegador minimizado"
+        },
+        {
+          "category": "melhorias",
+          "text": "SaaS: **controle de licenças** — histórico/timeline na ficha, snapshot de módulos + limites na licença, preço/limites nos planos, e-mail de entrega com plano/módulos/acesso, conversão de lead com plano, `SAAS_MODULOS` no provisionamento e lista de instâncias no resumo"
+        },
+        {
+          "category": "melhorias",
+          "text": "SaaS: catálogo comercial de **planos e módulos** (CRUD, activar/desactivar, seed Trial/Profissional/Enterprise); licença escolhe plano em vez de texto livre"
+        },
+        {
+          "category": "melhorias",
+          "text": "SaaS: lista de licenças com **filtros** (plano, aprovação, provisionamento, renovação), cartões do resumo clicáveis e **escolha de plano** ao aprovar go-live"
+        },
+        {
+          "category": "melhorias",
+          "text": "SaaS: URL da instância deixa de ser campo livre — só o **nome da base (slug)**; URL = `https://{slug}.{domínio}/`; em local o «Abrir» usa a porta API (DNS público não resolve)"
+        },
+        {
+          "category": "melhorias",
+          "text": "SaaS: trial só **pede aprovação**; **Aprovar e criar base** enfileira a criação da instância/Postgres"
+        },
+        {
+          "category": "melhorias",
+          "text": "SaaS: **entrega pós-health** ao contacto (`entrega_notificada_em` + `reenviar-entrega`)"
+        },
+        {
+          "category": "melhorias",
+          "text": "SaaS: lead → licença com **vínculo persistido** (`POST ./leads/{id}/converter` + `lead_id` no formulário)"
+        },
+        {
+          "category": "melhorias",
+          "text": "SaaS: **suspender/reativar** pede (ou executa) `stack-client.sh down|up` e confirmação ops"
+        },
+        {
+          "category": "melhorias",
+          "text": "SaaS: trial público entra com **aprovação pendente**; painel com **Aprovar go-live** / **Rejeitar** (`aprovacao_status`)"
+        },
+        {
+          "category": "melhorias",
+          "text": "SaaS DeskRudder (#519 / #516 / #521–#528): painel de **licenças** (contactos, resumo ops, renovação flexível, lead→licença); **leads comerciais** da landing (formulário «Fale conosco», inbox `/saas/leads`); **provisionamento** em fila; **trial** em `/trial`; **renovações** com alertas e suspensão ao vencer"
+        },
+        {
+          "category": "melhorias",
+          "text": "Comercial (#321 / #331–#335): simulador com desconto posto <100k L (20% SM), override de custo/valor TEF só na proposta e snapshot imutável do pacote (catálogo TEF continua com valores padrão)"
+        },
+        {
+          "category": "melhorias",
+          "text": "Comercial (#321 / #329–#334): catálogo de custos — salário mínimo com histórico por vigência (atualizar valor sem reescrever o passado), itens (% SM, valor fixo, TEF) e simulador em Cadastros → Catálogo de custos (admin)"
         }
       ]
     }
