@@ -35,6 +35,41 @@ def _only_digits_jid(jid: str | None) -> str | None:
     return digits or None
 
 
+def _wa_id_from_message_key(key: dict[str, Any], envelope: dict[str, Any]) -> str | None:
+    """
+    Extrai wa_id (só dígitos) do key da mensagem.
+
+    Quando remoteJid é @lid (WhatsApp Linked ID), prefere remoteJidAlt / senderPn
+    com o número real — senão o inbound não casa com chats abertos por telefone.
+    """
+    rjid = key.get("remoteJid") or key.get("RemoteJid")
+    rjid_s = str(rjid) if rjid else ""
+    if not rjid_s:
+        return None
+    if "@g.us" in rjid_s:
+        return None
+
+    if "@lid" in rjid_s.lower():
+        for src in (key, envelope):
+            for alt_key in (
+                "remoteJidAlt",
+                "RemoteJidAlt",
+                "senderPn",
+                "SenderPn",
+                "participantPn",
+                "ParticipantPn",
+            ):
+                alt = src.get(alt_key)
+                if alt:
+                    digits = _only_digits_jid(str(alt))
+                    if digits:
+                        return digits
+        # Sem telefone alternativo: LID opaco (último recurso)
+        return _only_digits_jid(rjid_s)
+
+    return _only_digits_jid(rjid_s)
+
+
 def _text_from_inner(inner: dict[str, Any]) -> str | None:
     if "conversation" in inner:
         v = inner.get("conversation")
@@ -236,11 +271,7 @@ def iter_inbound_whatsapp_messages(webhook_body: dict[str, Any]) -> Iterator[dic
             continue
         if key.get("fromMe") or key.get("FromMe"):
             continue
-        rjid = key.get("remoteJid") or key.get("RemoteJid")
-        rjid_s = str(rjid) if rjid else ""
-        if "@g.us" in rjid_s:
-            continue
-        wa_id = _only_digits_jid(rjid_s)
+        wa_id = _wa_id_from_message_key(key, m)
         if not wa_id:
             continue
         mid = key.get("id") or key.get("Id")
@@ -402,11 +433,7 @@ def iter_inbound_revokes(webhook_body: dict[str, Any]) -> Iterator[dict[str, Any
         key = m.get("key") or m.get("Key") or {}
         if not isinstance(key, dict):
             continue
-        rjid = key.get("remoteJid") or key.get("RemoteJid")
-        rjid_s = str(rjid) if rjid else ""
-        if "@g.us" in rjid_s:
-            continue
-        wa_id = _only_digits_jid(rjid_s)
+        wa_id = _wa_id_from_message_key(key, m)
         if not wa_id:
             continue
         inner = m.get("message") or m.get("Message")
@@ -443,11 +470,7 @@ def iter_inbound_edits(webhook_body: dict[str, Any]) -> Iterator[dict[str, Any]]
         key = m.get("key") or m.get("Key") or {}
         if not isinstance(key, dict):
             continue
-        rjid = key.get("remoteJid") or key.get("RemoteJid")
-        rjid_s = str(rjid) if rjid else ""
-        if "@g.us" in rjid_s:
-            continue
-        wa_id = _only_digits_jid(rjid_s)
+        wa_id = _wa_id_from_message_key(key, m)
         if not wa_id:
             continue
         inner = m.get("message") or m.get("Message")
@@ -490,11 +513,7 @@ def iter_inbound_reactions(webhook_body: dict[str, Any]) -> Iterator[dict[str, A
         key = m.get("key") or m.get("Key") or {}
         if not isinstance(key, dict):
             continue
-        rjid = key.get("remoteJid") or key.get("RemoteJid")
-        rjid_s = str(rjid) if rjid else ""
-        if "@g.us" in rjid_s:
-            continue
-        wa_id = _only_digits_jid(rjid_s)
+        wa_id = _wa_id_from_message_key(key, m)
         if not wa_id:
             continue
         inner = m.get("message") or m.get("Message")

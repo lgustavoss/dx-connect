@@ -109,7 +109,16 @@ def seed_base(db_session):
         ativo=True,
         must_change_password=False,
     )
-    db_session.add_all([admin, a1, a2])
+    ops = Atendente(
+        tenant_id=1,
+        email="ops@test.local",
+        nome="Ops SaaS",
+        senha_hash=hash_senha("ops123456"),
+        role="saas_ops",
+        ativo=True,
+        must_change_password=False,
+    )
+    db_session.add_all([admin, a1, a2, ops])
     db_session.flush()
 
     # Vínculos de setor (admin sem setores; atendentes em setores distintos)
@@ -127,6 +136,7 @@ def seed_base(db_session):
         "admin": admin,
         "a1": a1,
         "a2": a2,
+        "ops": ops,
     }
 
 
@@ -146,4 +156,5 @@ def auth_headers(seed_base):
         "admin": headers_for(seed_base["admin"].email),
         "a1": headers_for(seed_base["a1"].email),
         "a2": headers_for(seed_base["a2"].email),
+        "ops": headers_for(seed_base["ops"].email),
     }

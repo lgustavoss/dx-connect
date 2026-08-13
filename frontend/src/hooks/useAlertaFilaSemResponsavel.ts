@@ -81,8 +81,15 @@ function readFilaAguardandoMuted(): boolean {
 
 let filaAguardandoMuted = readFilaAguardandoMuted()
 
-let wppFilaLoopInterval: number | null = null
 let wppFilaLoopAudio: HTMLAudioElement | null = null
+/** Loop contínuo activo (fila > 0 e não silenciado). */
+let wppFilaLoopWanted = false
+let wppFilaLoopEndedHandler: (() => void) | null = null
+let wppFilaLoopRetryTimer: number | null = null
+/** Áudio «desbloqueado» por gesto do utilizador — melhora play em aba em background (#652). */
+let audioUnlocked = false
+let audioUnlockInstalled = false
+let lastFilaDesktopNotifyAt = 0
 let pollTimerId: number | null = null
 let sseSlowPollMode = false
 let sseListenerCount = 0
@@ -121,8 +128,14 @@ export function setFilaAguardandoMuted(muted: boolean) {
   } catch {
     // ignore
   }
-  const filaCount = currentResumo.wpp_fila_count + currentResumo.portal_fila_count
-  syncWppFilaBeep(filaCount)
+  if (muted) {
+    // Corta na hora: loop + pulse one-shot na fila de alertas (#651)
+    stopWppFilaLoop()
+    stopWppFilaOneShots()
+  } else {
+    const filaCount = currentResumo.wpp_fila_count + currentResumo.portal_fila_count
+    syncWppFilaBeep(filaCount)
+  }
   for (const l of listenersFilaMuted) l(muted)
 }
 
@@ -357,42 +370,124 @@ async function drainAlertQueue() {
   while (alertQueue.length > 0) {
     const kind = alertQueue.shift()
     if (!kind) continue
+    if (kind === 'wpp_fila_pulse' && (filaAguardandoMuted || wppFilaLoopWanted)) continue
     await playAlertKind(kind)
     await new Promise((r) => window.setTimeout(r, 180))
   }
   drainingAlerts = false
+  // One-shot pode ter adiado o loop da fila — retoma se ainda houver pendências
+  if (wppFilaLoopWanted && !filaAguardandoMuted) {
+    ensureWppFilaLoop()
+  }
 }
 
-function playWppFilaLoopPulse() {
-  if (oneShotPlaying) return
+function clearWppFilaLoopRetry() {
+  if (wppFilaLoopRetryTimer != null) {
+    window.clearTimeout(wppFilaLoopRetryTimer)
+    wppFilaLoopRetryTimer = null
+  }
+}
 
+function getWppFilaLoopAudio(): HTMLAudioElement {
   const src = SOUND_WPP_FILA
   if (!wppFilaLoopAudio) {
     wppFilaLoopAudio = getAudioElement(audioKey('wpp_fila_loop', src), src)
   }
-  const audio = wppFilaLoopAudio
-  audio.pause()
-  audio.currentTime = 0
+  return wppFilaLoopAudio
+}
+
+function startFilaLoopPlayback() {
+  if (!wppFilaLoopWanted || filaAguardandoMuted) return
+  if (oneShotPlaying) {
+    clearWppFilaLoopRetry()
+    wppFilaLoopRetryTimer = window.setTimeout(() => {
+      wppFilaLoopRetryTimer = null
+      startFilaLoopPlayback()
+    }, 250)
+    return
+  }
+
+  const audio = getWppFilaLoopAudio()
+  try {
+    audio.pause()
+    audio.currentTime = 0
+  } catch {
+    // ignore
+  }
   audio.volume = 0.38
-  audio.play().catch(() => {
-    if (!oneShotPlaying) synthForKind('wpp_fila_pulse')
-  })
+  const playPromise = audio.play()
+  if (playPromise && typeof playPromise.then === 'function') {
+    playPromise.catch(() => {
+      if (!wppFilaLoopWanted || filaAguardandoMuted || oneShotPlaying) return
+      // Em aba oculta o browser bloqueia play — notifica no SO e retenta ao voltar (#652)
+      const filaCount = currentResumo.wpp_fila_count + currentResumo.portal_fila_count
+      notifyFilaDesktop(filaCount)
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        synthForKind('wpp_fila_pulse')
+        clearWppFilaLoopRetry()
+        wppFilaLoopRetryTimer = window.setTimeout(() => {
+          wppFilaLoopRetryTimer = null
+          if (wppFilaLoopWanted && !filaAguardandoMuted) startFilaLoopPlayback()
+        }, 400)
+      }
+    })
+  }
+}
+
+function onFilaLoopEnded() {
+  if (!wppFilaLoopWanted || filaAguardandoMuted) return
+  // Recomeça na sequência, sem intervalo fixo (sem silêncio artificial)
+  startFilaLoopPlayback()
+}
+
+/** Remove pulses enfileirados e corta o one-shot da fila que estiver a tocar. */
+function stopWppFilaOneShots() {
+  for (let i = alertQueue.length - 1; i >= 0; i--) {
+    if (alertQueue[i] === 'wpp_fila_pulse') alertQueue.splice(i, 1)
+  }
+  const pulseKey = audioKey('wpp_fila_pulse', SOUND_WPP_FILA)
+  const pulseAudio = audioByKey.get(pulseKey)
+  if (pulseAudio && !pulseAudio.paused) {
+    pulseAudio.pause()
+    try {
+      pulseAudio.currentTime = 0
+    } catch {
+      // ignore
+    }
+    // Liberta playSrcOnce que espera 'ended'
+    pulseAudio.dispatchEvent(new Event('ended'))
+  }
 }
 
 function stopWppFilaLoop() {
-  if (wppFilaLoopInterval != null) {
-    window.clearInterval(wppFilaLoopInterval)
-    wppFilaLoopInterval = null
+  wppFilaLoopWanted = false
+  clearWppFilaLoopRetry()
+  const audio = wppFilaLoopAudio
+  if (audio && wppFilaLoopEndedHandler) {
+    audio.removeEventListener('ended', wppFilaLoopEndedHandler)
+    wppFilaLoopEndedHandler = null
   }
-  wppFilaLoopAudio?.pause()
+  if (audio) {
+    audio.pause()
+    try {
+      audio.currentTime = 0
+    } catch {
+      // ignore
+    }
+  }
 }
 
 function ensureWppFilaLoop() {
-  if (wppFilaLoopInterval != null) return
-  playWppFilaLoopPulse()
-  wppFilaLoopInterval = window.setInterval(() => {
-    playWppFilaLoopPulse()
-  }, 5200)
+  if (filaAguardandoMuted) return
+  wppFilaLoopWanted = true
+  const audio = getWppFilaLoopAudio()
+  if (!wppFilaLoopEndedHandler) {
+    wppFilaLoopEndedHandler = onFilaLoopEnded
+    audio.addEventListener('ended', wppFilaLoopEndedHandler)
+  }
+  // Já a tocar até ao fim — não reinicia a meio (deixa o 'ended' encadear)
+  if (!audio.paused && !audio.ended) return
+  startFilaLoopPlayback()
 }
 
 function syncWppFilaBeep(wppFilaCount: number) {
@@ -463,14 +558,22 @@ function applyResumo(r: Notificacoes.Resumo, atualizarSom: boolean, source: 'sse
       !filaAguardandoMuted &&
       shouldEnqueueCounterAlert('wpp_fila_pulse', prevWppFilaValue, r.wpp_fila_count)
     ) {
-      enqueueAlert('wpp_fila_pulse')
+      // Loop contínuo já cobre o alerta; pulse só se o loop ainda não estiver activo
+      if (!wppFilaLoopWanted) enqueueAlert('wpp_fila_pulse')
     }
 
     if (
       !filaAguardandoMuted &&
       shouldEnqueueCounterAlert('wpp_fila_pulse', prevPortalFilaValue, r.portal_fila_count)
     ) {
-      enqueueAlert('wpp_fila_pulse')
+      if (!wppFilaLoopWanted) enqueueAlert('wpp_fila_pulse')
+    }
+
+    const filaTotal = r.wpp_fila_count + r.portal_fila_count
+    const prevFilaTotal = (prevWppFilaValue ?? 0) + (prevPortalFilaValue ?? 0)
+    if (!filaAguardandoMuted && filaTotal > prevFilaTotal) {
+      // Aba em 2º plano: garantir alerta via Notification do SO (#652)
+      notifyFilaDesktop(filaTotal)
     }
 
     if (shouldEnqueueCounterAlert('ticket_mensagem', prevNao, r.nao_lidas_count)) {
@@ -580,6 +683,152 @@ function preloadSounds() {
   }
 }
 
+/** Desbloqueia reprodução após gesto do utilizador (autoplay / aba em background). */
+export function unlockAlertAudio() {
+  if (audioUnlocked) return
+  audioUnlocked = true
+  const sources = [
+    SOUND_TICKET_FILA,
+    SOUND_TICKET_MENSAGEM,
+    SOUND_WPP_FILA,
+    SOUND_WPP_MENSAGEM,
+    SOUND_CHAT_INTERNO,
+  ]
+  for (const src of sources) {
+    const audio = getAudioElement(`preload:${src}`, src)
+    const wasMuted = audio.muted
+    audio.muted = true
+    void audio
+      .play()
+      .then(() => {
+        audio.pause()
+        try {
+          audio.currentTime = 0
+        } catch {
+          // ignore
+        }
+        audio.muted = wasMuted
+      })
+      .catch(() => {
+        audio.muted = wasMuted
+      })
+  }
+  try {
+    const Ctx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (Ctx) {
+      const ctx = new Ctx()
+      void ctx.resume().finally(() => {
+        void ctx.close().catch(() => {})
+      })
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export type AlertasDesktopResultado = 'granted' | 'denied' | 'default' | 'unsupported'
+
+/**
+ * Pedido explícito (gesto do utilizador no banner): desbloqueia áudio + permissão
+ * de notificação do SO para alertar com aba em 2º plano / browser minimizado (#652).
+ */
+export async function ativarAlertasEmSegundoPlano(): Promise<AlertasDesktopResultado> {
+  unlockAlertAudio()
+  if (typeof Notification === 'undefined') return 'unsupported'
+  if (Notification.permission === 'granted') {
+    // Confirmação curta — o utilizador acabou de autorizar / já tinha
+    try {
+      const n = new Notification(APP_NAME, {
+        body: 'Alertas activos mesmo com a aba em segundo plano.',
+        tag: 'dx-connect-fila-perm-ok',
+        silent: false,
+      })
+      window.setTimeout(() => n.close(), 4000)
+    } catch {
+      // ignore
+    }
+    return 'granted'
+  }
+  if (Notification.permission === 'denied') return 'denied'
+  try {
+    const p = await Notification.requestPermission()
+    if (p === 'granted') {
+      try {
+        const n = new Notification(APP_NAME, {
+          body: 'Alertas activos mesmo com a aba em segundo plano.',
+          tag: 'dx-connect-fila-perm-ok',
+          silent: false,
+        })
+        window.setTimeout(() => n.close(), 4000)
+      } catch {
+        // ignore
+      }
+      return 'granted'
+    }
+    return p === 'denied' ? 'denied' : 'default'
+  } catch {
+    return 'denied'
+  }
+}
+
+export function getNotificationPermission(): AlertasDesktopResultado {
+  if (typeof Notification === 'undefined') return 'unsupported'
+  const p = Notification.permission
+  if (p === 'granted' || p === 'denied' || p === 'default') return p
+  return 'unsupported'
+}
+
+function installAudioUnlockListeners() {
+  if (audioUnlockInstalled || typeof window === 'undefined') return
+  audioUnlockInstalled = true
+  const onGesture = () => {
+    unlockAlertAudio()
+    window.removeEventListener('pointerdown', onGesture)
+    window.removeEventListener('keydown', onGesture)
+    window.removeEventListener('touchstart', onGesture)
+  }
+  window.addEventListener('pointerdown', onGesture, { passive: true })
+  window.addEventListener('keydown', onGesture)
+  window.addEventListener('touchstart', onGesture, { passive: true })
+}
+
+/**
+ * Notificação do SO quando a aba está oculta — browsers bloqueiam audio.play() em background.
+ * Respeita silenciar da fila. Dedup ~4s para não spammar.
+ */
+function notifyFilaDesktop(filaCount: number) {
+  if (filaAguardandoMuted || filaCount <= 0) return
+  if (typeof document === 'undefined' || document.visibilityState === 'visible') return
+  if (typeof Notification === 'undefined') return
+  if (Notification.permission !== 'granted') return
+  const now = Date.now()
+  if (now - lastFilaDesktopNotifyAt < 4000) return
+  lastFilaDesktopNotifyAt = now
+  try {
+    const body =
+      filaCount === 1
+        ? 'Há 1 chat aguardando atendimento'
+        : `Há ${filaCount} chats aguardando atendimento`
+    const n = new Notification(APP_NAME, {
+      body,
+      tag: 'dx-connect-fila-aguardando',
+      silent: false,
+    })
+    n.onclick = () => {
+      try {
+        window.focus()
+      } catch {
+        // ignore
+      }
+      n.close()
+    }
+  } catch {
+    // ignore
+  }
+}
+
 function ensureStarted() {
   if (started) return
   started = true
@@ -592,12 +841,16 @@ function ensureStarted() {
   prevChatInterno = getStoredNumber(LS_KEY_LAST_CHAT_INTERNO)
 
   preloadSounds()
+  installAudioUnlockListeners()
 
   void poll()
   restartPollTimer()
 
   const onFocusOrVisible = () => {
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+    // Retoma o loop imediatamente ao voltar à aba (#652), sem esperar o poll
+    const fila = currentResumo.wpp_fila_count + currentResumo.portal_fila_count
+    syncWppFilaBeep(fila)
     void poll()
   }
   window.addEventListener('focus', onFocusOrVisible)

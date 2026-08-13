@@ -1140,16 +1140,9 @@ def _preencher_telefone_do_chat(func: FuncionarioRede, wa_id: str | None) -> Non
 
 
 def _chat_aberto_por_wa_id(db: Session, wa_id: str) -> WhatsappChat | None:
-    return (
-        db.query(WhatsappChat)
-        .options(*_CHAT_LOAD_OPTIONS)
-        .filter(
-            WhatsappChat.wa_id == wa_id,
-            WhatsappChat.estado.in_(("aguardando_atendente", "em_atendimento")),
-        )
-        .order_by(WhatsappChat.id.desc())
-        .first()
-    )
+    from app.services.whatsapp_contato_match import chat_aberto_por_wa_id as _find
+
+    return _find(db, wa_id, load_options=_CHAT_LOAD_OPTIONS)
 
 
 @router.get("/contatos", response_model=ListaPaginada[WhatsappContatoRead])

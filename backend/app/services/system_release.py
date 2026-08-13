@@ -116,4 +116,5 @@ def system_info_payload() -> dict[str, Any]:
         "version_display": version_display(version) if version else None,
         "git_sha": (os.environ.get("DX_CONNECT_GIT_SHA") or "").strip() or None,
         "environment": settings.ENVIRONMENT,
+        "saas_control_plane": bool(settings.SAAS_CONTROL_PLANE),
     }

@@ -2785,6 +2785,164 @@ export namespace TicketClassificacao {
   }
 }
 
+export const comercialSalarioMinimo = {
+  list: (params?: {
+    offset?: number;
+    limit?: number;
+    ordenar_por?: 'vigencia_inicio' | 'valor' | 'id';
+    ordem?: 'asc' | 'desc';
+  }) => listPaginated<ComercialCustos.SalarioMinimo>('/comercial/salario-minimo', params),
+  naData: (data: string) =>
+    api<ComercialCustos.SalarioMinimo | null>(withParams('/comercial/salario-minimo/na-data', { data })),
+  create: (data: ComercialCustos.SalarioMinimoCreate) =>
+    api<ComercialCustos.SalarioMinimo>('/comercial/salario-minimo', { method: 'POST', body: JSON.stringify(data) }),
+  /** Fecha o vigente e cria novo valor a partir da data (histórico preservado). */
+  atualizarValor: (data: ComercialCustos.SalarioMinimoAtualizarValor) =>
+    api<ComercialCustos.SalarioMinimo>('/comercial/salario-minimo/atualizar-valor', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: (id: number, data: ComercialCustos.SalarioMinimoUpdate) =>
+    api<ComercialCustos.SalarioMinimo>(`/comercial/salario-minimo/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  delete: (id: number) => api<void>(`/comercial/salario-minimo/${id}`, { method: 'DELETE' }),
+};
+
+export const comercialCustosItens = {
+  list: (params?: {
+    incluir_inativos?: boolean;
+    busca?: string;
+    tipo?: string;
+    offset?: number;
+    limit?: number;
+    ordenar_por?: 'nome' | 'slug' | 'ordem' | 'tipo' | 'ativo';
+    ordem?: 'asc' | 'desc';
+  }) => listPaginated<ComercialCustos.Item>('/comercial/custos/itens', params),
+  create: (data: ComercialCustos.ItemCreate) =>
+    api<ComercialCustos.Item>('/comercial/custos/itens', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: ComercialCustos.ItemUpdate) =>
+    api<ComercialCustos.Item>(`/comercial/custos/itens/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id: number) => api<void>(`/comercial/custos/itens/${id}`, { method: 'DELETE' }),
+  simular: (data: ComercialCustos.SimularRequest) =>
+    api<ComercialCustos.SimularResponse>('/comercial/custos/simular', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+};
+
+export namespace ComercialCustos {
+  export type Tipo = 'percentual_sm' | 'valor_fixo' | 'composto_tef';
+
+  export interface SalarioMinimo {
+    id: number;
+    valor: string;
+    vigencia_inicio: string;
+    vigencia_fim?: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+  export interface SalarioMinimoCreate {
+    valor: string | number;
+    vigencia_inicio: string;
+    vigencia_fim?: string | null;
+  }
+  export interface SalarioMinimoAtualizarValor {
+    valor: string | number;
+    vigencia_inicio: string;
+  }
+  export interface SalarioMinimoUpdate {
+    valor?: string | number;
+    vigencia_inicio?: string;
+    vigencia_fim?: string | null;
+  }
+
+  export interface Item {
+    id: number;
+    nome: string;
+    slug: string;
+    descricao?: string | null;
+    tipo: Tipo | string;
+    percentual_sm?: string | null;
+    valor_fixo?: string | null;
+    tef_base?: string | null;
+    tef_adicional?: string | null;
+    aplica_tier_posto?: boolean;
+    ordem: number;
+    ativo: boolean;
+    vigencia_inicio?: string | null;
+    vigencia_fim?: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+  export interface ItemCreate {
+    nome: string;
+    slug: string;
+    descricao?: string | null;
+    tipo: Tipo;
+    percentual_sm?: string | number | null;
+    valor_fixo?: string | number | null;
+    tef_base?: string | number | null;
+    tef_adicional?: string | number | null;
+    aplica_tier_posto?: boolean;
+    ordem?: number;
+    ativo?: boolean;
+    vigencia_inicio?: string | null;
+    vigencia_fim?: string | null;
+  }
+  export interface ItemUpdate {
+    nome?: string;
+    slug?: string;
+    descricao?: string | null;
+    tipo?: Tipo;
+    percentual_sm?: string | number | null;
+    valor_fixo?: string | number | null;
+    tef_base?: string | number | null;
+    tef_adicional?: string | number | null;
+    aplica_tier_posto?: boolean;
+    ordem?: number;
+    ativo?: boolean;
+    vigencia_inicio?: string | null;
+    vigencia_fim?: string | null;
+  }
+
+  export interface TefOverride {
+    tef_custo_base?: string | number | null;
+    tef_custo_adicional?: string | number | null;
+    tef_valor_cliente_base?: string | number | null;
+    tef_valor_cliente_adicional?: string | number | null;
+  }
+  export interface SimularRequest {
+    item_ids: number[];
+    quantidade_pdvs?: number;
+    data_referencia?: string | null;
+    desconto_posto_100k?: boolean;
+    tef_override?: TefOverride | null;
+  }
+  export interface SimularLinha {
+    item_id: number;
+    nome: string;
+    slug: string;
+    tipo: string;
+    valor: string;
+    percentual_usado?: string | null;
+    override_custo?: boolean;
+    tef_valor_cliente?: string | null;
+  }
+  export interface SimularResponse {
+    data_referencia: string;
+    salario_minimo: string | null;
+    salario_minimo_id: number | null;
+    quantidade_pdvs: number;
+    desconto_posto_100k?: boolean;
+    linhas: SimularLinha[];
+    total: string;
+    total_custo?: string;
+    snapshot?: Record<string, unknown>;
+  }
+}
+
 export const pdvRotulos = {
   list: (params?: { incluir_inativos?: boolean; busca?: string; offset?: number; limit?: number }) =>
     listPaginated<PdvCatalogo.Item>('/pdv-rotulos', params),
@@ -3560,6 +3718,7 @@ export namespace System {
     version_display: string | null;
     git_sha: string | null;
     environment: string;
+    saas_control_plane?: boolean;
   }
   export interface ReleaseChange {
     category: string;
@@ -3585,3 +3744,334 @@ export const system = {
   info: () => api<System.Info>('/system/info'),
   releaseNotes: () => api<System.ReleaseNotes>('/system/release-notes'),
 };
+
+export const saasClientes = {
+  resumo: () => api<SaasClientes.Resumo>('/saas/resumo'),
+  list: (params?: {
+    busca?: string;
+    status?: string;
+    plano_id?: number;
+    aprovacao_status?: string;
+    provisionamento_status?: string;
+    provisionamento_fila?: boolean;
+    vencendo?: boolean;
+    vencidas?: boolean;
+    ordenar_por?: 'nome' | 'slug' | 'status' | 'data_renovacao';
+    ordem?: 'asc' | 'desc';
+    offset?: number;
+    limit?: number;
+  }) => listPaginated<SaasClientes.Cliente>('/saas/clientes', params),
+  get: (id: number) => api<SaasClientes.Cliente>(`/saas/clientes/${id}`),
+  timeline: (id: number, params?: { limit?: number }) =>
+    api<SaasClientes.TimelineEvent[]>(
+      withParams(`/saas/clientes/${id}/timeline`, params),
+    ),
+  create: (data: SaasClientes.Create) =>
+    api<SaasClientes.Cliente>('/saas/clientes', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: SaasClientes.Update) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  suspender: (id: number) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}/suspender`, { method: 'POST' }),
+  reativar: (id: number) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}/reativar`, { method: 'POST' }),
+  renovar: (id: number, data?: { dias?: number; nova_data?: string }) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}/renovar`, {
+      method: 'POST',
+      body: JSON.stringify(data ?? { dias: 30 }),
+    }),
+  registrarInstancia: (id: number, data: { instancia_url: string }) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}/registrar-instancia`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  solicitarProvisionamento: (id: number) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}/solicitar-provisionamento`, { method: 'POST' }),
+  confirmarProvisionamento: (id: number, data?: { instancia_url?: string }) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}/confirmar-provisionamento`, {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
+  aprovar: (
+    id: number,
+    data?: { notas?: string | null; ativar?: boolean; provisionar?: boolean; plano_id?: number | null },
+  ) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}/aprovar`, {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
+  rejeitar: (id: number, data?: { notas?: string | null }) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}/rejeitar`, {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
+  confirmarStack: (id: number) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}/confirmar-stack`, { method: 'POST' }),
+  reenviarEntrega: (id: number) =>
+    api<SaasClientes.Cliente>(`/saas/clientes/${id}/reenviar-entrega`, { method: 'POST' }),
+};
+
+export const saasPlanos = {
+  list: (params?: { ativo?: boolean }) => {
+    const q = new URLSearchParams()
+    if (params?.ativo != null) q.set('ativo', String(params.ativo))
+    const qs = q.toString()
+    return api<SaasCatalogo.Plano[]>(`/saas/planos${qs ? `?${qs}` : ''}`)
+  },
+  get: (id: number) => api<SaasCatalogo.Plano>(`/saas/planos/${id}`),
+  create: (data: SaasCatalogo.PlanoCreate) =>
+    api<SaasCatalogo.Plano>('/saas/planos', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: SaasCatalogo.PlanoUpdate) =>
+    api<SaasCatalogo.Plano>(`/saas/planos/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  ativar: (id: number) =>
+    api<SaasCatalogo.Plano>(`/saas/planos/${id}/ativar`, { method: 'POST' }),
+  desativar: (id: number) =>
+    api<SaasCatalogo.Plano>(`/saas/planos/${id}/desativar`, { method: 'POST' }),
+};
+
+export const saasModulos = {
+  list: (params?: { ativo?: boolean }) => {
+    const q = new URLSearchParams()
+    if (params?.ativo != null) q.set('ativo', String(params.ativo))
+    const qs = q.toString()
+    return api<SaasCatalogo.Modulo[]>(`/saas/modulos${qs ? `?${qs}` : ''}`)
+  },
+  get: (id: number) => api<SaasCatalogo.Modulo>(`/saas/modulos/${id}`),
+  create: (data: SaasCatalogo.ModuloCreate) =>
+    api<SaasCatalogo.Modulo>('/saas/modulos', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: SaasCatalogo.ModuloUpdate) =>
+    api<SaasCatalogo.Modulo>(`/saas/modulos/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  ativar: (id: number) =>
+    api<SaasCatalogo.Modulo>(`/saas/modulos/${id}/ativar`, { method: 'POST' }),
+  desativar: (id: number) =>
+    api<SaasCatalogo.Modulo>(`/saas/modulos/${id}/desativar`, { method: 'POST' }),
+};
+
+export const saasPublic = {
+  trial: (data: SaasPublic.TrialCreate) =>
+    publicApi<SaasPublic.TrialRead>('/saas/public/trial', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  contato: (data: SaasPublic.ContatoCreate) =>
+    publicApi<SaasPublic.ContatoRead>('/saas/public/contato', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+};
+
+export const saasLeads = {
+  list: (params?: {
+    busca?: string;
+    status?: string;
+    ordenar_por?: 'created_at' | 'nome' | 'status';
+    ordem?: 'asc' | 'desc';
+    offset?: number;
+    limit?: number;
+  }) => listPaginated<SaasLeads.Lead>('/saas/leads', params),
+  get: (id: number) => api<SaasLeads.Lead>(`/saas/leads/${id}`),
+  update: (id: number, data: SaasLeads.Update) =>
+    api<SaasLeads.Lead>(`/saas/leads/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  converter: (
+    id: number,
+    data?: {
+      slug?: string | null;
+      plano?: string | null;
+      plano_id?: number | null;
+      status?: SaasClientes.Status;
+      enfileirar_provisionamento?: boolean;
+      notas_extra?: string | null;
+    },
+  ) =>
+    api<SaasClientes.Cliente>(`/saas/leads/${id}/converter`, {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
+};
+
+export namespace SaasLeads {
+  export type Status = 'novo' | 'em_atendimento' | 'fechado';
+  export interface Lead {
+    id: number;
+    nome: string;
+    email: string;
+    empresa?: string | null;
+    mensagem: string;
+    status: Status;
+    origem: string;
+    notas_internas?: string | null;
+    cliente_saas_id?: number | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+  export interface Update {
+    status?: Status;
+    notas_internas?: string | null;
+  }
+}
+
+export namespace SaasPublic {
+  export interface TrialCreate {
+    empresa: string;
+    slug: string;
+    contato_nome: string;
+    contato_email: string;
+    notas?: string | null;
+    solicitar_provisionamento?: boolean;
+  }
+  export interface TrialRead {
+    id: number;
+    nome: string;
+    slug: string;
+    status: string;
+    data_renovacao?: string | null;
+    mensagem: string;
+  }
+  export interface ContatoCreate {
+    nome: string;
+    email: string;
+    empresa?: string | null;
+    mensagem: string;
+  }
+  export interface ContatoRead {
+    id: number;
+    mensagem: string;
+  }
+}
+
+export namespace SaasClientes {
+  export type Status = 'trial' | 'ativo' | 'suspenso' | 'churn';
+  export type ProvisionamentoStatus = 'pendente' | 'em_progresso' | 'aguardando_ops' | 'sucesso' | 'falha';
+  export type AprovacaoStatus = 'pendente' | 'aprovado' | 'rejeitado';
+  export interface Resumo {
+    clientes_total: number;
+    por_status: Record<string, number>;
+    vencendo_em_breve: number;
+    vencidas_ativas: number;
+    provisionamento_pendente: number;
+    provisionamento_falha: number;
+    aprovacoes_pendentes: number;
+    leads_novos: number;
+    leads_em_atendimento: number;
+    janela_renovacao_dias: number;
+    base_dominio_provisionamento?: string;
+    instancias?: Array<{
+      id: number;
+      slug: string;
+      nome: string;
+      status: string;
+      api_port?: number | null;
+      stack_status?: string | null;
+      provisionamento_status?: string | null;
+      instancia_url?: string | null;
+    }>;
+  }
+  export interface TimelineEvent {
+    id: number;
+    action: string;
+    label: string;
+    atendente_id?: number | null;
+    payload?: Record<string, unknown> | null;
+    created_at?: string | null;
+  }
+  export interface Cliente {
+    id: number;
+    nome: string;
+    slug: string;
+    status: Status;
+    plano?: string | null;
+    plano_id?: number | null;
+    plano_modulos?: Array<{ id: number; codigo: string; nome: string; ativo?: boolean }>;
+    modulos_snapshot?: string[];
+    max_postos?: number | null;
+    max_usuarios?: number | null;
+    data_inicio: string;
+    data_renovacao?: string | null;
+    instancia_url?: string | null;
+    contato_email?: string | null;
+    contato_nome?: string | null;
+    api_port?: number | null;
+    provisionamento_solicitado: boolean;
+    provisionamento_status?: ProvisionamentoStatus | null;
+    provisionamento_mensagem?: string | null;
+    provisionamento_atualizado_em?: string | null;
+    aprovacao_status?: AprovacaoStatus;
+    aprovacao_notas?: string | null;
+    aprovacao_em?: string | null;
+    stack_status?: string | null;
+    stack_ops_pendente?: 'down' | 'up' | null;
+    stack_ops_mensagem?: string | null;
+    stack_ops_atualizado_em?: string | null;
+    lead_comercial_id?: number | null;
+    entrega_notificada_em?: string | null;
+    comandos_ops?: string | null;
+    comandos_stack?: string | null;
+    dias_para_renovacao?: number | null;
+    notas?: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+  export interface Create {
+    nome: string;
+    slug: string;
+    status?: Status;
+    plano?: string | null;
+    plano_id?: number | null;
+    data_inicio: string;
+    data_renovacao?: string | null;
+    instancia_url?: string | null;
+    contato_email?: string | null;
+    contato_nome?: string | null;
+    notas?: string | null;
+    lead_comercial_id?: number | null;
+  }
+  export type Update = Partial<Create>;
+}
+
+export namespace SaasCatalogo {
+  export interface Modulo {
+    id: number;
+    codigo: string;
+    nome: string;
+    descricao?: string | null;
+    ativo: boolean;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+  export interface ModuloBrief {
+    id: number;
+    codigo: string;
+    nome: string;
+    ativo?: boolean;
+  }
+  export interface Plano {
+    id: number;
+    codigo: string;
+    nome: string;
+    descricao?: string | null;
+    ativo: boolean;
+    ordem: number;
+    preco_mensal?: number | null;
+    max_postos?: number | null;
+    max_usuarios?: number | null;
+    modulos: ModuloBrief[];
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+  export interface PlanoCreate {
+    codigo: string;
+    nome: string;
+    descricao?: string | null;
+    ordem?: number;
+    preco_mensal?: number | null;
+    max_postos?: number | null;
+    max_usuarios?: number | null;
+    modulo_ids?: number[];
+  }
+  export type PlanoUpdate = Partial<Omit<PlanoCreate, 'codigo'>>;
+  export interface ModuloCreate {
+    codigo: string;
+    nome: string;
+    descricao?: string | null;
+  }
+  export type ModuloUpdate = Partial<Omit<ModuloCreate, 'codigo'>>;
+}

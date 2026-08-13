@@ -478,7 +478,7 @@ export function WhatsappConversa() {
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
-  const voltarLista = useWhatsappVoltarLista()
+  const { voltarLista, sairParaListaSegura } = useWhatsappVoltarLista()
   const listaRetorno = resolveWhatsappListFallback(
     location.state,
     searchParams.get('from'),
@@ -490,6 +490,7 @@ export function WhatsappConversa() {
       if (e.key !== 'Escape' || e.defaultPrevented || modalEncerrar) return
       const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase()
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+      // Overlays locais primeiro — não sair da conversa (#571 / #653)
       if (zoomMsgId != null) {
         e.preventDefault()
         e.stopPropagation()
@@ -502,11 +503,30 @@ export function WhatsappConversa() {
         setLegendaMidia('')
         return
       }
-      voltarLista()
+      if (filaAguardandoAberta) {
+        e.preventDefault()
+        setFilaAguardandoAberta(false)
+        return
+      }
+      if (menuMobileAberto) {
+        e.preventDefault()
+        setMenuMobileAberto(false)
+        return
+      }
+      // Sai para lista segura — nunca history.back pela pilha de chats (#653)
+      e.preventDefault()
+      sairParaListaSegura()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [voltarLista, modalEncerrar, zoomMsgId, arquivoPendente])
+  }, [
+    sairParaListaSegura,
+    modalEncerrar,
+    zoomMsgId,
+    arquivoPendente,
+    filaAguardandoAberta,
+    menuMobileAberto,
+  ])
 
   useEffect(() => {
     if (!menuMobileAberto) return

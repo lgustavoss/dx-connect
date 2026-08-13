@@ -100,9 +100,12 @@ export function WhatsappHistorico() {
 
   useWhatsappListScrollRestore('historico', historicoReturnPath, !loading)
 
+  // Carga inicial (respeita ?offset=). Paginação e «Filtrar» chamam load() explicitamente —
+  // não reagir a [load], senão Próxima volta à página 1 (#667).
   useEffect(() => {
-    void load(0)
-  }, [load])
+    void load(offset)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só mount
+  }, [])
 
   useEffect(() => {
     void atendentes

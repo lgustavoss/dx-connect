@@ -44,3 +44,42 @@ def test_inbound_localizacao():
     assert item["tipo"] == "texto"
     assert "[Localização]" in item["corpo"]
     assert "maps.google.com" in item["corpo"]
+
+
+def test_inbound_resolve_lid_via_sender_pn():
+    body = {
+        "event": "messages.upsert",
+        "data": {
+            "key": {
+                "remoteJid": "11122233344455@lid",
+                "fromMe": False,
+                "id": "lid1",
+                "senderPn": "5511987654321@s.whatsapp.net",
+            },
+            "message": {"conversation": "oi"},
+        },
+    }
+    item = _one(body)
+    assert item["wa_id"] == "5511987654321"
+    assert item["corpo"] == "oi"
+
+
+def test_inbound_resolve_lid_via_remote_jid_alt():
+    body = {
+        "event": "messages.upsert",
+        "data": {
+            "messages": [
+                {
+                    "key": {
+                        "remoteJid": "99988877766655@lid",
+                        "remoteJidAlt": "5511888777666@s.whatsapp.net",
+                        "fromMe": False,
+                        "id": "lid2",
+                    },
+                    "message": {"conversation": "alt"},
+                }
+            ]
+        },
+    }
+    item = _one(body)
+    assert item["wa_id"] == "5511888777666"
