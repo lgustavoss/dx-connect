@@ -36,11 +36,13 @@ from app.schemas.saas import (
     SaasResumoRead,
     SaasTimelineEvent,
 )
+from app.schemas.system import ReleaseNotesRead
 from app.services import saas_aprovacao
 from app.services import saas_catalogo
 from app.services import saas_clientes as svc
 from app.services import saas_renovacoes
 from app.services.saas_resumo import obter_resumo
+from app.services.system_release import PRODUCT_SAAS, release_notes_payload
 
 router = APIRouter(prefix="/saas", tags=["saas"])
 
@@ -61,6 +63,15 @@ def exigir_saas_control_plane() -> None:
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Painel SaaS não disponível nesta instância",
         )
+
+
+@router.get("/release-notes", response_model=ReleaseNotesRead)
+def obter_saas_release_notes(
+    _: None = Depends(exigir_saas_control_plane),
+    __: Atendente = Depends(exigir_saas_ops),
+):
+    """Notas do control-plane SaaS — só bullets product=saas (#675)."""
+    return ReleaseNotesRead(**release_notes_payload(product=PRODUCT_SAAS))
 
 
 def _http_from_saas(exc: svc.SaasErro) -> HTTPException:

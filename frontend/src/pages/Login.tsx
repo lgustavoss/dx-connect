@@ -15,6 +15,7 @@ import {
   buildSessionHandoffUrl,
   isMarketingHost,
   loginAgainstClientInstance,
+  marketingHomeHref,
   normalizeClientSlug,
   readRememberedAccount,
   writeRememberedAccount,
@@ -26,6 +27,23 @@ const fieldClass =
 
 const secondaryLinkClass =
   'inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-medium transition hover:border-sky-400/40 hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40'
+
+/** «Voltar ao site» — LP na apex; em tenant aponta para a apex absoluta (#677). */
+function VoltarAoSiteLink({ className }: { className: string }) {
+  const dest = marketingHomeHref()
+  if (dest.mode === 'spa') {
+    return (
+      <Link to={dest.to} className={className}>
+        ← Voltar ao site
+      </Link>
+    )
+  }
+  return (
+    <a href={dest.href} className={className}>
+      ← Voltar ao site
+    </a>
+  )
+}
 
 function readRememberedEmail(): string {
   try {
@@ -172,9 +190,7 @@ function LoginConta() {
             Após validar, você entra direto no painel da sua empresa.
           </p>
           <div className="flex flex-col gap-2.5 sm:flex-row sm:justify-center">
-            <Link to="/" className={`${secondaryLinkClass} text-sky-300 hover:text-sky-200 sm:w-auto`}>
-              ← Voltar ao site
-            </Link>
+            <VoltarAoSiteLink className={`${secondaryLinkClass} text-sky-300 hover:text-sky-200 sm:w-auto`} />
             <a
               href={landingMailtoHref()}
               className={`${secondaryLinkClass} text-cyan-300 hover:text-cyan-200 sm:w-auto`}
@@ -362,9 +378,7 @@ function LoginCredenciais({ variant = 'tenant' }: { variant?: 'tenant' | 'ops' }
               </p>
             ) : null}
             <p className="text-center">
-              <Link to="/" className={`${secondaryLinkClass} text-sky-300 hover:text-sky-200`}>
-                ← Voltar ao site
-              </Link>
+              <VoltarAoSiteLink className={`${secondaryLinkClass} text-sky-300 hover:text-sky-200`} />
             </p>
           </div>
         </>
