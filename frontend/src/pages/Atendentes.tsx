@@ -15,7 +15,11 @@ import { mensagemFalhaParaToast } from '../api/errorMessage'
 
 type ColunaAtendente = 'nome' | 'email' | 'role'
 
-const roleLabel: Record<string, string> = { admin: 'Administrador', atendente: 'Atendente' }
+const roleLabel: Record<string, string> = {
+  admin: 'Administrador',
+  atendente: 'Atendente',
+  comercial: 'Comercial',
+}
 
 export function Atendentes({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate()

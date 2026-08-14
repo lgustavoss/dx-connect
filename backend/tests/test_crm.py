@@ -166,6 +166,10 @@ def test_comercial_pode_simular_custos(client, auth_headers):
     )
     assert item.status_code == 201, item.text
 
+    lst = client.get("/v1/comercial/custos/itens", headers=h_com)
+    assert lst.status_code == 200, lst.text
+    assert lst.json()["total"] >= 1
+
     sim = client.post(
         "/v1/comercial/custos/simular",
         headers=h_com,

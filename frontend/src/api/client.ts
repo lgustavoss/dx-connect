@@ -2943,6 +2943,233 @@ export namespace ComercialCustos {
   }
 }
 
+export const crmFunil = {
+  list: (params?: { incluir_inativos?: boolean }) =>
+    api<Crm.FunilEstagio[]>(withParams('/crm/funil-estagios', params)),
+  create: (data: Crm.FunilEstagioCreate) =>
+    api<Crm.FunilEstagio>('/crm/funil-estagios', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: Crm.FunilEstagioUpdate) =>
+    api<Crm.FunilEstagio>(`/crm/funil-estagios/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+};
+
+export const crmLeads = {
+  list: (params?: {
+    offset?: number;
+    limit?: number;
+    q?: string;
+    responsavel_id?: number;
+    estagio_id?: number;
+    so_minhas?: boolean;
+    ativo?: boolean;
+  }) => listPaginated<Crm.Lead>('/crm/leads', params),
+  get: (id: number) => api<Crm.Lead>(`/crm/leads/${id}`),
+  create: (data: Crm.LeadCreate) =>
+    api<Crm.Lead>('/crm/leads', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: Crm.LeadUpdate) =>
+    api<Crm.Lead>(`/crm/leads/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+};
+
+export const crmNegociacoes = {
+  list: (params?: {
+    offset?: number;
+    limit?: number;
+    lead_id?: number;
+    responsavel_id?: number;
+    estagio_id?: number;
+    ativa?: boolean;
+    q?: string;
+    so_minhas?: boolean;
+  }) => listPaginated<Crm.Negociacao>('/crm/negociacoes', params),
+  get: (id: number) => api<Crm.Negociacao>(`/crm/negociacoes/${id}`),
+  create: (data: Crm.NegociacaoCreate) =>
+    api<Crm.Negociacao>('/crm/negociacoes', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: Crm.NegociacaoUpdate) =>
+    api<Crm.Negociacao>(`/crm/negociacoes/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  moverEstagio: (id: number, data: Crm.MoverEstagioRequest) =>
+    api<Crm.Negociacao>(`/crm/negociacoes/${id}/mover-estagio`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  addLinha: (negociacaoId: number, data: Crm.LinhaCreate) =>
+    api<Crm.Linha>(`/crm/negociacoes/${negociacaoId}/linhas`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateLinha: (negociacaoId: number, linhaId: number, data: Crm.LinhaUpdate) =>
+    api<Crm.Linha>(`/crm/negociacoes/${negociacaoId}/linhas/${linhaId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteLinha: (negociacaoId: number, linhaId: number) =>
+    api<void>(`/crm/negociacoes/${negociacaoId}/linhas/${linhaId}`, { method: 'DELETE' }),
+  listAtividades: (negociacaoId: number, params?: { offset?: number; limit?: number }) =>
+    listPaginated<Crm.Atividade>(`/crm/negociacoes/${negociacaoId}/atividades`, params),
+  addAtividade: (negociacaoId: number, data: Crm.AtividadeCreate) =>
+    api<Crm.Atividade>(`/crm/negociacoes/${negociacaoId}/atividades`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+};
+
+export namespace Crm {
+  export interface FunilEstagio {
+    id: number;
+    slug: string;
+    nome: string;
+    ordem: number;
+    tipo: string;
+    ativo: boolean;
+  }
+
+  export interface FunilEstagioCreate {
+    slug: string;
+    nome: string;
+    ordem?: number;
+    tipo?: string;
+    ativo?: boolean;
+  }
+
+  export interface FunilEstagioUpdate {
+    nome?: string;
+    ordem?: number;
+    tipo?: string;
+    ativo?: boolean;
+  }
+
+  export interface Lead {
+    id: number;
+    nome: string;
+    telefone?: string | null;
+    email?: string | null;
+    empresa_texto?: string | null;
+    origem?: string | null;
+    notas?: string | null;
+    responsavel_id: number;
+    estagio_id: number;
+    estagio_slug?: string | null;
+    estagio_nome?: string | null;
+    perdido_em?: string | null;
+    ativo: boolean;
+    negociacao_ativa_id?: number | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+
+  export interface LeadCreate {
+    nome: string;
+    telefone?: string | null;
+    email?: string | null;
+    empresa_texto?: string | null;
+    origem?: string | null;
+    notas?: string | null;
+    responsavel_id?: number | null;
+    criar_negociacao?: boolean;
+    titulo_negociacao?: string | null;
+  }
+
+  export interface LeadUpdate {
+    nome?: string;
+    telefone?: string | null;
+    email?: string | null;
+    empresa_texto?: string | null;
+    origem?: string | null;
+    notas?: string | null;
+    responsavel_id?: number | null;
+    ativo?: boolean;
+  }
+
+  export interface Linha {
+    id: number;
+    negociacao_id: number;
+    cnpj?: string | null;
+    razao_social?: string | null;
+    item_ids: number[];
+    quantidade_pdvs: number;
+    desconto_posto_100k: boolean;
+    tef_override?: Record<string, unknown> | null;
+    valor_negociado: string;
+    snapshot_custo?: Record<string, unknown> | null;
+    total_custo?: string | null;
+    margem_calculada?: string | null;
+    empresa_id?: number | null;
+    ordem: number;
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+
+  export interface LinhaCreate {
+    cnpj?: string | null;
+    razao_social?: string | null;
+    item_ids?: number[];
+    quantidade_pdvs?: number;
+    desconto_posto_100k?: boolean;
+    tef_override?: ComercialCustos.TefOverride | null;
+    valor_negociado?: string | number;
+    ordem?: number;
+  }
+
+  export interface LinhaUpdate {
+    cnpj?: string | null;
+    razao_social?: string | null;
+    item_ids?: number[];
+    quantidade_pdvs?: number;
+    desconto_posto_100k?: boolean;
+    tef_override?: ComercialCustos.TefOverride | null;
+    limpar_tef_override?: boolean;
+    valor_negociado?: string | number;
+    ordem?: number;
+  }
+
+  export interface Negociacao {
+    id: number;
+    lead_id: number;
+    responsavel_id: number;
+    estagio_id: number;
+    estagio_slug?: string | null;
+    estagio_nome?: string | null;
+    ativa: boolean;
+    titulo?: string | null;
+    linhas: Linha[];
+    created_at?: string | null;
+    updated_at?: string | null;
+  }
+
+  export interface NegociacaoCreate {
+    lead_id: number;
+    titulo?: string | null;
+    responsavel_id?: number | null;
+    linhas?: LinhaCreate[];
+  }
+
+  export interface NegociacaoUpdate {
+    titulo?: string | null;
+    responsavel_id?: number | null;
+  }
+
+  export interface MoverEstagioRequest {
+    estagio_id?: number | null;
+    estagio_slug?: string | null;
+    nota?: string | null;
+  }
+
+  export interface Atividade {
+    id: number;
+    negociacao_id: number;
+    autor_id: number;
+    tipo: string;
+    texto: string;
+    created_at?: string | null;
+  }
+
+  export interface AtividadeCreate {
+    tipo?: string;
+    texto: string;
+  }
+}
+
 export const pdvRotulos = {
   list: (params?: { incluir_inativos?: boolean; busca?: string; offset?: number; limit?: number }) =>
     listPaginated<PdvCatalogo.Item>('/pdv-rotulos', params),

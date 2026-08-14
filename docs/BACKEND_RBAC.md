@@ -31,8 +31,9 @@ Dependência: `exigir_comercial_ou_admin` em `app.core.auth`.
 | Tipos de negócio (detalhe / mutação) | `GET/POST/PATCH/DELETE /v1/tipos-negocio/{id}`, `POST /v1/tipos-negocio` |
 | Auditoria | `GET /v1/audit` |
 | Cadastro auxiliar (IBGE) | `POST /v1/cadastro-aux/municipios/sincronizar` |
-| Catálogo comercial (CRUD) | `GET/POST/PATCH/DELETE /v1/comercial/salario-minimo*`, `GET/POST/PATCH/DELETE /v1/comercial/custos/itens*` |
-| Funil CRM (mutação) | `POST/PATCH /v1/crm/funil-estagios` |
+| Catálogo comercial (CRUD) | `POST/PATCH/DELETE /v1/comercial/salario-minimo*`, `POST/PATCH/DELETE /v1/comercial/custos/itens*` |
+| Catálogo comercial (leitura itens) | `GET /v1/comercial/custos/itens` — também comercial (montar pacote na negociação) |
+| Funil CRM (mutação) | `POST/PATCH /v1/crm/funil-estagios` — UI em Configurações → Cadastros → Funil CRM |
 
 ## Comercial ou administrador (`exigir_comercial_ou_admin`)
 
@@ -40,7 +41,8 @@ Dependência: `exigir_comercial_ou_admin` em `app.core.auth`.
 |---------|----------------|
 | **CRM** | `GET/POST/PATCH /v1/crm/leads`, `GET/POST/PATCH /v1/crm/negociacoes*`, atividades, mover estágio. Listagem vê **todas** as leads/negociações; filtro opcional `so_minhas=true`. |
 | **Funil (leitura)** | `GET /v1/crm/funil-estagios` |
-| **Simular custos** | `POST /v1/comercial/custos/simular` (CRUD do catálogo continua só admin) |
+| **Simular custos** | `POST /v1/comercial/custos/simular` |
+| **Listar itens catálogo** | `GET /v1/comercial/custos/itens` (mutações continuam só admin) |
 
 ## Autenticado com escopo de setor (`obter_atendente_atual`)
 
@@ -68,4 +70,4 @@ Dependência: `exigir_comercial_ou_admin` em `app.core.auth`.
 - **Rotas**: páginas de cadastro usam `AdminRoute` em `App.tsx` — atendente vê `AcessoNegado` se aceder por URL.
 - **Tickets / novo ticket**: listas de **setores** e **empresas** seguem o filtro da API; não se recorta setor no cliente por `setor_ids` do `/me` (homônimos). Quando o atendente ainda não tem empresas no escopo, o UI explica o critério da rede com ticket nos setores dele.
 - **403**: mensagens vêm do corpo da API (`api/client` + `errorMessage.ts`).
-- **CRM UI** (#341–#344): ainda não entregue — lote B do épico #322.
+- **CRM UI** (#341–#344): menu **CRM** e rotas `/crm/leads`, `/crm/negociacoes/:id` para `admin` e `comercial`.

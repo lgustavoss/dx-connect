@@ -151,8 +151,9 @@ def listar_itens_custo(
     ordenar_por: OrdenarItem | None = Query(OrdenarItem.ordem),
     ordem: OrdemLista = Query(OrdemLista.asc),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_comercial_ou_admin),
 ):
+    """Lista itens do catálogo — leitura para montar pacote na negociação (#343). Mutações continuam admin."""
     q = db.query(CustoCatalogoItem)
     if not incluir_inativos:
         q = q.filter(CustoCatalogoItem.ativo.is_(True))

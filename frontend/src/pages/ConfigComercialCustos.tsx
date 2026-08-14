@@ -386,7 +386,7 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
   if (forbidden) {
     return (
       <SemPermissao
-        title="Apenas administradores podem gerir o catálogo comercial de custos."
+        title="Apenas administradores podem gerenciar o catálogo comercial de custos."
         voltarPara="/"
         voltarLabel="Voltar"
       />

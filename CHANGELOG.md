@@ -7,7 +7,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### Adicionado
 
-- CRM (#322 / #336–#340): perfil `comercial`, funil configurável, leads e negociações multi-CNPJ (API `/v1/crm`), timeline de atividades e simulação de custos liberada para comercial (CRUD do catálogo continua só admin)
+- CRM (#322 / #336–#344): perfil `comercial`, funil, leads e negociações multi-CNPJ (API + UI — lista/Kanban com scrollbar discreta, reordenação e rename de colunas no board para admin, detalhe com custos/margem e timeline); configuração dos estágios do funil em Cadastros; simulação e leitura do catálogo de custos para comercial (CRUD do catálogo continua só admin)
 
 ### Corrigido
 
