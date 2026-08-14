@@ -1,15 +1,15 @@
-"""CRM — funil, leads e negociações (#322 / #083 → #084).
+"""CRM — funil, leads e negociações (#322 / #093).
 
-Revision ID: 084_crm_leads_negociacao
-Revises: 083_comercial_custos_tier_posto
+Revision ID: 093_crm_leads_negociacao
+Revises: 092_saas_licenca_completa
 Create Date: 2026-08-10
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "084_crm_leads_negociacao"
-down_revision = "083_comercial_custos_tier_posto"
+revision = "093_crm_leads_negociacao"
+down_revision = "092_saas_licenca_completa"
 branch_labels = None
 depends_on = None
 
