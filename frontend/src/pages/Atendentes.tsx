@@ -19,6 +19,7 @@ const roleLabel: Record<string, string> = {
   admin: 'Administrador',
   atendente: 'Atendente',
   comercial: 'Comercial',
+  saas_ops: 'Ops SaaS',
 }
 
 export function Atendentes({ embedded = false }: { embedded?: boolean }) {

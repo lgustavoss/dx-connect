@@ -71,6 +71,16 @@ const icons: Record<string, React.ReactNode> = {
       />
     </svg>
   ),
+  saas: (
+    <svg className="size-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
+      />
+    </svg>
+  ),
   tiposNegocio: (
     <svg className="size-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
       <path
@@ -208,6 +218,8 @@ interface NavLink {
   comercialOuAdmin?: boolean
   /** Mantém o item ativo em rotas filhas (ex.: `/crm/negociacoes/:id`) */
   activePrefix?: string
+  /** Só na instância comercial (control-plane SaaS). */
+  saasOnly?: boolean
 }
 
 interface NavGroup {
@@ -217,6 +229,7 @@ interface NavGroup {
   icon: string
   adminOnly?: boolean
   comercialOuAdmin?: boolean
+  saasOnly?: boolean
   /** Ex.: conversa aberta `/whatsapp/c/:id` mantém o grupo Chat ativo */
   extraActivePrefixes?: string[]
   children: NavLink[]
@@ -231,6 +244,7 @@ interface NavItemLink {
   activePrefix?: string
   adminOnly?: boolean
   comercialOuAdmin?: boolean
+  saasOnly?: boolean
 }
 
 type NavItem = NavItemLink | NavGroup
@@ -321,12 +335,14 @@ function navGroupMatchesPath(pathname: string, group: NavGroup): boolean {
 }
 
 function navItemVisivel(
-  item: { adminOnly?: boolean; comercialOuAdmin?: boolean },
+  item: { adminOnly?: boolean; comercialOuAdmin?: boolean; saasOnly?: boolean },
   isAdmin: boolean,
   isComercialOuAdmin: boolean,
+  saasEnabled: boolean,
 ): boolean {
   if (item.adminOnly && !isAdmin) return false
   if (item.comercialOuAdmin && !isComercialOuAdmin) return false
+  if (item.saasOnly && !saasEnabled) return false
   return true
 }
 
@@ -334,8 +350,9 @@ function navChildrenVisible(
   children: NavLink[],
   isAdmin: boolean,
   isComercialOuAdmin: boolean,
+  saasEnabled: boolean,
 ): NavLink[] {
-  return children.filter((child) => navItemVisivel(child, isAdmin, isComercialOuAdmin))
+  return children.filter((child) => navItemVisivel(child, isAdmin, isComercialOuAdmin, saasEnabled))
 }
 
 interface SidebarProps {
@@ -371,13 +388,16 @@ export function Sidebar({
       (import.meta.env.VITE_APP_VERSION as string | undefined)?.trim()
     return fromEnv ? (fromEnv.startsWith('v') ? fromEnv : `v${fromEnv}`) : null
   })
+  const [saasEnabled, setSaasEnabled] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     system
       .info()
       .then((info) => {
-        if (!cancelled && info.version_display) setVersionLabel(info.version_display)
+        if (cancelled) return
+        if (info.version_display) setVersionLabel(info.version_display)
+        setSaasEnabled(Boolean(info.saas_control_plane))
       })
       .catch(() => {
         /* fallback: env ou oculto */
@@ -405,14 +425,14 @@ export function Sidebar({
   )
 
   const items = navStructure.filter((item) =>
-    navItemVisivel(item, isAdmin, isComercialOuAdmin),
+    navItemVisivel(item, isAdmin, isComercialOuAdmin, saasEnabled),
   ) as NavItem[]
 
   // Abrir grupo automaticamente quando a rota pertence a ele
   useEffect(() => {
     for (const item of navStructure) {
       if (item.type === 'group') {
-        if (navItemVisivel(item, isAdmin, isComercialOuAdmin)) {
+        if (navItemVisivel(item, isAdmin, isComercialOuAdmin, saasEnabled)) {
           if (navGroupMatchesPath(location.pathname, item)) {
             setOpenGroup(item.id)
             return
@@ -420,7 +440,7 @@ export function Sidebar({
         }
       }
     }
-  }, [location.pathname, isAdmin, isComercialOuAdmin])
+  }, [location.pathname, isAdmin, isComercialOuAdmin, saasEnabled])
 
   // No drawer mobile usamos acordeão (não flyout); evita estado do flyout “preso”
   useEffect(() => {
@@ -476,7 +496,12 @@ export function Sidebar({
               }}
               role="menu"
             >
-              {navChildrenVisible(openFlyoutGroup.children, isAdmin, isComercialOuAdmin).map((child) => (
+              {navChildrenVisible(
+                openFlyoutGroup.children,
+                isAdmin,
+                isComercialOuAdmin,
+                saasEnabled,
+              ).map((child) => (
                 <li key={child.to} role="none">
                   <Link
                     to={child.to}
@@ -586,7 +611,8 @@ export function Sidebar({
                       }`}
                       role="group"
                     >
-                      {navChildrenVisible(group.children, isAdmin, isComercialOuAdmin).map((child) => (
+                      {navChildrenVisible(group.children, isAdmin, isComercialOuAdmin, saasEnabled).map(
+                        (child) => (
                         <li key={child.to} className="min-w-0 border-l border-slate-200 pl-3 ml-4 dark:border-slate-700">
                           <Link
                             to={child.to}

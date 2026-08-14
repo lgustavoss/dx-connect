@@ -9,6 +9,8 @@ interface AuthContextValue {
   refreshUser: () => Promise<void>
   isAdmin: boolean
   isComercialOuAdmin: boolean
+  /** Equipa comercial DeskRudder (control-plane SaaS). */
+  isSaasOps: boolean
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -75,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshUser,
     isAdmin: user?.role === 'admin',
     isComercialOuAdmin: user?.role === 'admin' || user?.role === 'comercial',
+    isSaasOps: user?.role === 'saas_ops',
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

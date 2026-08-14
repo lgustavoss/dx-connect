@@ -5,7 +5,7 @@ from datetime import datetime
 class AtendenteBase(BaseModel):
     email: EmailStr
     nome: str
-    role: str = "atendente"  # admin | atendente | comercial
+    role: str = "atendente"  # admin | atendente | comercial | saas_ops
     ativo: bool = True
 
 

@@ -85,23 +85,57 @@ def run_seed():
                     f"Usuário admin criado: {seed_email} — troque a senha no primeiro acesso "
                     "(must_change_password ativo)."
                 )
-        elif not db.query(Atendente).filter(func.lower(Atendente.email) == "admin@email.com").first():
-            db.add(
-                Atendente(
-                    tenant_id=1,
-                    email="admin@email.com",
-                    nome="Administrador",
-                    senha_hash=_hash_senha("admin123"),
-                    role="admin",
-                    ativo=True,
-                    must_change_password=False,
+        else:
+            if not db.query(Atendente).filter(func.lower(Atendente.email) == "admin@email.com").first():
+                db.add(
+                    Atendente(
+                        tenant_id=1,
+                        email="admin@email.com",
+                        nome="Administrador",
+                        senha_hash=_hash_senha("admin123"),
+                        role="admin",
+                        ativo=True,
+                        must_change_password=False,
+                    )
                 )
-            )
-            db.commit()
-            print("Usuário admin criado (desenvolvimento): admin@email.com / admin123 — não use em produção.")
-
-        # Demo opcional perfil comercial (#336) — só desenvolvimento
-        if not settings.is_production:
+                db.commit()
+                print(
+                    "Usuário admin do atendimento (dev): admin@email.com / admin123 — não use em produção."
+                )
+            if not db.query(Atendente).filter(func.lower(Atendente.email) == "atendente@email.com").first():
+                db.add(
+                    Atendente(
+                        tenant_id=1,
+                        email="atendente@email.com",
+                        nome="Atendente Demo",
+                        senha_hash=_hash_senha("atendente123"),
+                        role="atendente",
+                        ativo=True,
+                        must_change_password=False,
+                    )
+                )
+                db.commit()
+                print(
+                    "Usuário atendente (dev): atendente@email.com / atendente123 — não use em produção."
+                )
+            if settings.SAAS_CONTROL_PLANE and not db.query(Atendente).filter(
+                func.lower(Atendente.email) == "ops@deskrudder.local"
+            ).first():
+                db.add(
+                    Atendente(
+                        tenant_id=1,
+                        email="ops@deskrudder.local",
+                        nome="Ops SaaS DeskRudder",
+                        senha_hash=_hash_senha("ops123456"),
+                        role="saas_ops",
+                        ativo=True,
+                        must_change_password=False,
+                    )
+                )
+                db.commit()
+                print(
+                    "Usuário ops SaaS (dev): ops@deskrudder.local / ops123456 — painel /login/admin."
+                )
             if not db.query(Atendente).filter(func.lower(Atendente.email) == "comercial@email.com").first():
                 db.add(
                     Atendente(

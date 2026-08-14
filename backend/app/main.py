@@ -51,6 +51,9 @@ from app.api import (
     chat_interno,
     portal_chats,
     portal,
+    saas,
+    saas_public,
+    saas_leads,
 )
 from app.config import settings
 from app.core.audit import clear_audit_request_context, set_audit_request_context
@@ -332,6 +335,60 @@ async def lifespan(app: FastAPI):
         name="sla-violacao",
     ).start()
 
+    if settings.SAAS_CONTROL_PLANE:
+
+        def saas_provision_loop() -> None:
+            from app.database import SessionLocal
+            from app.services.saas_provisionamento import processar_provisionamentos_pendentes
+
+            interval = max(10, settings.SAAS_PROVISION_WORKER_INTERVAL_SECONDS)
+            while True:
+                db = SessionLocal()
+                try:
+                    n = processar_provisionamentos_pendentes(db, limit=5)
+                    if n:
+                        db.commit()
+                    else:
+                        db.rollback()
+                except Exception as e:
+                    logger.warning("Worker SaaS provisionamento: %s", e)
+                    db.rollback()
+                finally:
+                    db.close()
+                time.sleep(interval)
+
+        threading.Thread(
+            target=saas_provision_loop,
+            daemon=True,
+            name="saas-provisionamento",
+        ).start()
+
+        def saas_renovacao_loop() -> None:
+            from app.database import SessionLocal
+            from app.services.saas_renovacoes import processar_renovacoes
+
+            interval = max(60, settings.SAAS_RENEWAL_WORKER_INTERVAL_SECONDS)
+            while True:
+                db = SessionLocal()
+                try:
+                    n = processar_renovacoes(db, limit=200)
+                    if n:
+                        db.commit()
+                    else:
+                        db.rollback()
+                except Exception as e:
+                    logger.warning("Worker SaaS renovações: %s", e)
+                    db.rollback()
+                finally:
+                    db.close()
+                time.sleep(interval)
+
+        threading.Thread(
+            target=saas_renovacao_loop,
+            daemon=True,
+            name="saas-renovacoes",
+        ).start()
+
     yield
 
 
@@ -468,6 +525,9 @@ app.include_router(kb.router, prefix=API_V1_PREFIX)
 app.include_router(chat_interno.router, prefix=API_V1_PREFIX)
 app.include_router(portal_chats.router, prefix=API_V1_PREFIX)
 app.include_router(portal.router, prefix=API_V1_PREFIX)
+app.include_router(saas.router, prefix=API_V1_PREFIX)
+app.include_router(saas_public.router, prefix=API_V1_PREFIX)
+app.include_router(saas_leads.router, prefix=API_V1_PREFIX)
 
 
 def _app_route_paths() -> set[str]:
@@ -477,6 +537,11 @@ def _app_route_paths() -> set[str]:
 
 def _app_capabilities() -> dict[str, bool]:
     paths = _app_route_paths()
+    mods = {
+        m.strip().lower()
+        for m in (settings.SAAS_MODULOS or "helpdesk").split(",")
+        if m.strip()
+    }
     return {
         "settings_empresa_sistema": "/v1/settings/empresa-sistema" in paths,
         "settings_email": "/v1/settings/email" in paths,
@@ -489,6 +554,11 @@ def _app_capabilities() -> dict[str, bool]:
         "evolution_embutida": settings.evolution_embutida_disponivel,
         "system_info": "/v1/system/info" in paths,
         "system_release_notes": "/v1/system/release-notes" in paths,
+        "saas_control_plane": bool(settings.SAAS_CONTROL_PLANE),
+        "modulo_helpdesk": "helpdesk" in mods or not mods,
+        "modulo_whatsapp": "whatsapp" in mods,
+        "modulo_contratos": "contratos" in mods,
+        "modulo_boletos": "boletos" in mods,
     }
 
 

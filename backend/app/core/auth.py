@@ -122,6 +122,16 @@ def exigir_comercial_ou_admin(atendente: Atendente = Depends(obter_atendente_atu
     return atendente
 
 
+def exigir_saas_ops(atendente: Atendente = Depends(obter_atendente_atual)) -> Atendente:
+    """Equipa comercial DeskRudder (control-plane) — distinto do admin da instância do cliente."""
+    if atendente.role != "saas_ops":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso restrito à equipa SaaS DeskRudder",
+        )
+    return atendente
+
+
 ROLES_ATENDENTE = frozenset({"admin", "atendente", "comercial"})
 
 
@@ -130,6 +140,6 @@ def validar_role(role: str) -> str:
     if r not in ROLES_ATENDENTE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"role inválido: use admin, atendente ou comercial",
+            detail="role inválido: use admin, atendente ou comercial",
         )
     return r

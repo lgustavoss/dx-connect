@@ -102,9 +102,12 @@ export function WhatsappAvaliacoes() {
 
   useWhatsappListScrollRestore('avaliacoes', avaliacoesReturnPath, !loading)
 
+  // Carga inicial (respeita ?offset=). Paginação e «Filtrar» chamam load() explicitamente —
+  // mesmo padrão de #667 (Atendimentos).
   useEffect(() => {
-    void load(0)
-  }, [load])
+    void load(offset)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só mount
+  }, [])
 
   useEffect(() => {
     void atendentes
