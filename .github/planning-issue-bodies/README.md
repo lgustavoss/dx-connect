@@ -4,22 +4,26 @@
 
 | Tipo | Onde |
 |------|------|
-| Issues abertas (texto, aceite, comentários) | **GitHub** — fonte da verdade |
-| Índice de épicos e números | [`ISSUES_CRIADAS.md`](ISSUES_CRIADAS.md) |
-| Análises / spikes de viabilidade | [`analises/`](analises/) — inclui SaaS vs produto |
+| Issues, aceite, decisões, comentários de plano | **GitHub** — fonte da verdade |
+| Índice opcional de épicos/números | [`ISSUES_CRIADAS.md`](ISSUES_CRIADAS.md) (só links — sem duplicar corpo) |
+| Análises antigas (legado) | [`analises/`](analises/) — **não criar novos** por defeito; preferir comentário/issue no GitHub |
 
 Épico SaaS DeskRudder (licenças/instâncias): [#519](https://github.com/lgustavoss/dx-connect/issues/519).
 
-Não mantemos cópias locais do **corpo** de issues já publicadas no GitHub. Isso evita divergência entre repositório e o que o time revisa na issue.
+Não mantemos cópias locais do **corpo** de issues nem planos de feature em `.md`. Isso evita divergência e acumulação de rascunhos.
 
 ## Como abrir issues novas
 
 1. Criar direto no GitHub ou com `gh issue create`.
 2. Usar labels e vincular ao épico/meta-issue relevante ([#16](https://github.com/lgustavoss/dx-connect/issues/16) para melhorias de produto).
-3. Se fizer parte de um lote planejado, adicionar uma linha em [`ISSUES_CRIADAS.md`](ISSUES_CRIADAS.md) (só link e título — sem duplicar o corpo).
+3. Se fizer parte de um lote, opcionalmente uma linha em [`ISSUES_CRIADAS.md`](ISSUES_CRIADAS.md) (só link e título).
 
-Para issues recorrentes (bug, feature), considere no futuro templates em `.github/ISSUE_TEMPLATE/` — padrão comum da comunidade para **orientar quem abre**, não para armazenar specs fechadas.
+## Como planear (`/planejar-feature`)
+
+1. Plano no **chat**.
+2. Decisões confirmadas → `gh issue comment` na issue/épico.
+3. Sem ficheiro local em `analises/` ou `followups/`.
 
 ## Histórico
 
-Antes desta pasta continha rascunhos `.md` + scripts (`create_planning_issues.py`, `create_commercial_planning_issues.py`) usados para criar issues em lote. Após criação e revisão no GitHub (#256–#308, #321–#375, etc.), os rascunhos foram removidos; permanecem apenas o índice e análises.
+Antes havia rascunhos `.md` + scripts para criar issues em lote. Após publicação no GitHub, os corpos locais foram removidos. A pasta `analises/` ainda tem docs legados; novos planos vão para o GitHub.

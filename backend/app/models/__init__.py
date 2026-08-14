@@ -53,6 +53,13 @@ from app.models.chat_interno import (
     MensagemInternaReacao,
     MensagemInternaOculta,
 )
+from app.models.crm import (
+    CrmLead,
+    CrmNegociacao,
+    CrmNegociacaoAtividade,
+    CrmNegociacaoCnpjLinha,
+    FunilEstagio,
+)
 from app.models.cliente_saas import ClienteSaaS
 from app.models.saas_alerta_emitido import SaasAlertaEmitido
 from app.models.lead_comercial import LeadComercial
@@ -126,6 +133,11 @@ __all__ = [
     "MensagemInternaReacao",
     "MensagemInternaOculta",
     "ConversaInternaLeitura",
+    "FunilEstagio",
+    "CrmLead",
+    "CrmNegociacao",
+    "CrmNegociacaoCnpjLinha",
+    "CrmNegociacaoAtividade",
     "ClienteSaaS",
     "SaasAlertaEmitido",
     "LeadComercial",

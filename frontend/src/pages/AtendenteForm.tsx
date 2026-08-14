@@ -35,7 +35,7 @@ export function AtendenteForm() {
   const [nome, setNome] = useState('')
   const [senha, setSenha] = useState('')
   const [mostrarSenha, setMostrarSenha] = useState(false)
-  const [role, setRole] = useState<'admin' | 'atendente'>('atendente')
+  const [role, setRole] = useState<'admin' | 'atendente' | 'comercial'>('atendente')
   const [ativo, setAtivo] = useState(true)
   const [setorIds, setSetorIds] = useState<number[]>([])
 
@@ -64,7 +64,7 @@ export function AtendenteForm() {
         setNome(a.nome)
         setSenha('')
         setMostrarSenha(false)
-        setRole((a.role as 'admin') || 'atendente')
+        setRole((a.role as 'admin' | 'atendente' | 'comercial') || 'atendente')
         setAtivo(a.ativo)
         setSetorIds(a.setor_ids ?? [])
       })
@@ -186,9 +186,12 @@ export function AtendenteForm() {
               <Select
                 label="Perfil"
                 value={role}
-                onChange={(v) => setRole(v === 'admin' ? 'admin' : 'atendente')}
+                onChange={(v) =>
+                  setRole(v === 'admin' ? 'admin' : v === 'comercial' ? 'comercial' : 'atendente')
+                }
                 options={[
                   { value: 'atendente', label: 'Atendente' },
+                  { value: 'comercial', label: 'Comercial' },
                   { value: 'admin', label: 'Administrador' },
                 ]}
               />

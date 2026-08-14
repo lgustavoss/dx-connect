@@ -11,8 +11,8 @@ Ao **fechar** uma issue ou épico (merge do PR + fechamento no GitHub):
 
 1. **Escopo da issue atual** — só o que estava nos critérios de aceite; não expandir no mesmo PR.
 2. **Identificar lacunas** — stubs, «fora de escopo v1», melhorias descobertas na implementação, débito explícito.
-3. **Abrir issues novas** — uma issue por follow-up, com corpo em `.github/planning-issue-bodies/followups/` quando fizer sentido.
-4. **Referenciar origem** — seção «Origem» no corpo: issue/épico que motivou o follow-up.
+3. **Abrir issues novas** — uma issue por follow-up via `gh issue create` (corpo no GitHub; **não** gravar em `.github/planning-issue-bodies/followups/`).
+4. **Referenciar origem** — seção «Origem» no corpo da issue: issue/épico que motivou o follow-up.
 5. **Comentário ao fechar** — no PR ou na issue fechada, listar links `#NNN` dos follow-ups criados.
 
 ## Checklist (obrigatório antes de fechar)

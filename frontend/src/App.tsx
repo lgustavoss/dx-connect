@@ -18,6 +18,9 @@ import { PresencaOnline } from './pages/PresencaOnline'
 import { Tickets } from './pages/Tickets'
 import { TicketNovo } from './pages/TicketNovo'
 import { TicketDetalhe } from './pages/TicketDetalhe'
+import { CrmLeads } from './pages/CrmLeads'
+import { CrmNegociacaoDetalhe } from './pages/CrmNegociacaoDetalhe'
+import { ConfigCrmFunil } from './pages/ConfigCrmFunil'
 import { Redes } from './pages/Redes'
 import { RedeDetalhe } from './pages/RedeDetalhe'
 import { RedeForm } from './pages/RedeForm'
@@ -145,6 +148,25 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   }
   if (user.role !== 'admin') {
     return <AcessoNegado />
+  }
+  return <>{children}</>
+}
+
+function ComercialOuAdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth()
+  if (loading) {
+    return <PageLoading fullscreen label="Carregando sessão…" />
+  }
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+  if (user.role !== 'admin' && user.role !== 'comercial') {
+    return (
+      <AcessoNegado
+        title="Área exclusiva para comercial ou administradores"
+        detail="Você está autenticado, mas esta página só pode ser acessada por usuários com perfil comercial ou administrador."
+      />
+    )
   }
   return <>{children}</>
 }
@@ -282,6 +304,22 @@ function AppRoutes() {
         <Route path="tickets" element={<Tickets />} />
         <Route path="tickets/novo" element={<TicketNovo />} />
         <Route path="tickets/:id" element={<TicketDetalhe />} />
+        <Route
+          path="crm/leads"
+          element={
+            <ComercialOuAdminRoute>
+              <CrmLeads />
+            </ComercialOuAdminRoute>
+          }
+        />
+        <Route
+          path="crm/negociacoes/:id"
+          element={
+            <ComercialOuAdminRoute>
+              <CrmNegociacaoDetalhe />
+            </ComercialOuAdminRoute>
+          }
+        />
         <Route path="chat" element={<ChatHubShell />}>
           <Route element={<ChatHubLayout />}>
             <Route index element={<Navigate to="atendendo" replace />} />
@@ -611,6 +649,7 @@ function AppRoutes() {
           <Route path="tipos-negocio" element={<TiposNegocio embedded />} />
           <Route path="pdv" element={<ConfigPdvCatalogos embedded />} />
           <Route path="custos" element={<ConfigComercialCustos embedded />} />
+          <Route path="funil-crm" element={<ConfigCrmFunil embedded />} />
         </Route>
         <Route
           path="configuracoes/sistema"

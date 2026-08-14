@@ -13,6 +13,8 @@ import { AlertaDesktopPermissaoBanner } from './AlertaDesktopPermissaoBanner'
 function perfilExibicao(role: string | undefined): string {
   if (role === 'admin') return 'Administrador'
   if (role === 'atendente') return 'Atendente'
+  if (role === 'comercial') return 'Comercial'
+  if (role === 'saas_ops') return 'Ops SaaS'
   return role?.trim() || '—'
 }
 
@@ -23,7 +25,7 @@ const menuIcon = (
 )
 
 function LayoutInner() {
-  const { user, logout, isAdmin } = useAuth()
+  const { user, logout, isAdmin, isComercialOuAdmin } = useAuth()
   const { subscribe } = useEventStream()
   const location = useLocation()
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
@@ -70,6 +72,7 @@ function LayoutInner() {
         mobileOpen={sidebarMobileOpen}
         onMobileClose={() => setSidebarMobileOpen(false)}
         isAdmin={isAdmin ?? false}
+        isComercialOuAdmin={isComercialOuAdmin ?? false}
         userNome={user?.nome ?? ''}
         userRole={perfilExibicao(user?.role)}
         onLogout={logout}
