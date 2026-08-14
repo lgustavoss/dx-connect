@@ -109,6 +109,8 @@ class WhatsappMensagem(Base):
     mimetype = Column(String(128), nullable=True)
     # Nome do ficheiro dentro de WHATSAPP_MEDIA_DIR (apenas inbound com mídia obtida da Evolution)
     midia_nome_arquivo = Column(String(500), nullable=True)
+    # Nome amigável para UI/download (#679); storage em disco continua com UUID
+    midia_nome_original = Column(String(255), nullable=True)
     # Identifica mensagens automáticas disparadas pelo sistema (evita duplicação e ajuda auditoria).
     evento_sistema = Column(String(40), nullable=True, index=True)
     wa_message_id = Column(String(128), nullable=True, index=True)

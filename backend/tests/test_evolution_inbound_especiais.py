@@ -46,6 +46,44 @@ def test_inbound_localizacao():
     assert "maps.google.com" in item["corpo"]
 
 
+def test_inbound_documento_com_file_name():
+    body = {
+        "event": "messages.upsert",
+        "data": {
+            "key": {"remoteJid": "5511999999999@s.whatsapp.net", "fromMe": False, "id": "doc1"},
+            "message": {
+                "documentMessage": {
+                    "fileName": "SPED_Fiscal_2026.txt",
+                    "mimetype": "text/plain",
+                    "caption": "Segue SPED",
+                }
+            },
+        },
+    }
+    item = _one(body)
+    assert item["tipo"] == "documento"
+    assert item["file_name"] == "SPED_Fiscal_2026.txt"
+    assert item["corpo"] == "Segue SPED"
+    assert item["mimetype"] == "text/plain"
+
+
+def test_inbound_documento_sanitiza_path_no_file_name():
+    body = {
+        "event": "messages.upsert",
+        "data": {
+            "key": {"remoteJid": "5511999999999@s.whatsapp.net", "fromMe": False, "id": "doc2"},
+            "message": {
+                "documentMessage": {
+                    "fileName": "../../etc/passwd.pdf",
+                    "mimetype": "application/pdf",
+                }
+            },
+        },
+    }
+    item = _one(body)
+    assert item["file_name"] == "passwd.pdf"
+
+
 def test_inbound_resolve_lid_via_sender_pn():
     body = {
         "event": "messages.upsert",

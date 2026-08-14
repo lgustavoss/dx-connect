@@ -974,6 +974,7 @@ export namespace WhatsappChats {
     tipo_midia?: string | null
     mimetype?: string | null
     midia_disponivel?: boolean
+    midia_nome_original?: string | null
     evento_sistema?: string | null
     wa_message_id?: string | null
     quoted_wa_message_id?: string | null
