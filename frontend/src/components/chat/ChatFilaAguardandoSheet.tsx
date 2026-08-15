@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChatListaEspera } from '../../pages/chat/ChatListaEspera'
+import { chatPortalLink, chatWhatsappLink } from '../../lib/chatHubPaths'
 import { ChatFilaSomToggle } from './ChatFilaSomToggle'
 
 type Props = {
@@ -65,7 +66,11 @@ export function ChatFilaAguardandoSheet({ open, onClose }: Props) {
           <ChatListaEspera
             ignorarBusca
             onChatAssumido={(canal, chatId) => {
-              navigate(canal === 'portal' ? `/chat/portal/${chatId}` : `/chat/c/${chatId}`)
+              navigate(
+                canal === 'portal'
+                  ? chatPortalLink(chatId, 'atendendo')
+                  : chatWhatsappLink(chatId, 'atendendo'),
+              )
               onClose()
             }}
             onVerChat={onClose}

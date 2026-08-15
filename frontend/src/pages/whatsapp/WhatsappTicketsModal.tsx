@@ -22,6 +22,7 @@ import { SelectComPesquisa } from '../../components/ui/SelectComPesquisa'
 import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
+import { marcarTicketAtivo, TICKETS_PATH } from '../../lib/ticketAtivo'
 
 type Modo = 'vincular' | 'abrir'
 
@@ -160,9 +161,12 @@ export function WhatsappTicketsModal({ chat, open, onClose, onSuccess }: Props) 
               {chat.ticket_ids.map((tid) => (
                 <Link
                   key={tid}
-                  to={`/tickets/${tid}`}
+                  to={TICKETS_PATH}
                   className="inline-flex rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-0.5 text-xs font-medium text-cyan-800 dark:border-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300"
-                  onClick={onClose}
+                  onClick={() => {
+                    marcarTicketAtivo(tid)
+                    onClose()
+                  }}
                 >
                   Ticket #{tid}
                 </Link>

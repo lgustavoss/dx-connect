@@ -9,7 +9,12 @@ import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
 import { rotuloAvaliacaoChat } from '../../lib/whatsappChatMeta'
-import { buildAvaliacoesReturnPath, saveWhatsappListScroll, whatsappConversaLink } from '../../lib/whatsappListReturn'
+import {
+  buildAvaliacoesReturnPath,
+  marcarWhatsappChatAtivo,
+  saveWhatsappListScroll,
+  whatsappConversaLink,
+} from '../../lib/whatsappListReturn'
 import { useWhatsappListScrollRestore } from '../../hooks/useWhatsappListScrollRestore'
 import { CheckboxField } from '../../components/ui/CheckboxField'
 
@@ -200,8 +205,11 @@ export function WhatsappAvaliacoes() {
                       : '—'}
                   </p>
                   <Link
-                    to={whatsappConversaLink(a.chat_id, avaliacoesReturnPath, 'avaliacoes')}
-                    onClick={() => saveWhatsappListScroll('avaliacoes', avaliacoesReturnPath)}
+                    to={whatsappConversaLink(avaliacoesReturnPath, 'avaliacoes')}
+                    onClick={() => {
+                      marcarWhatsappChatAtivo(a.chat_id)
+                      saveWhatsappListScroll('avaliacoes', avaliacoesReturnPath)
+                    }}
                     className="mt-1 inline-block text-xs font-medium text-cyan-600 hover:underline dark:text-cyan-400"
                   >
                     Ver conversa

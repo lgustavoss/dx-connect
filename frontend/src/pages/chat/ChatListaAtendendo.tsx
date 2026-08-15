@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { Link, useMatch } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { portalChats, whatsappChats } from '../../api/client'
 import { ChatCanalBadge } from '../../components/chat/ChatCanalBadge'
 import { WhatsappAvatar } from '../../components/chat/WhatsappAvatar'
@@ -51,6 +51,7 @@ function ChatAtendendoItem({
   variant: ItemVariant
   usuarioId?: number | null
 }) {
+  const { abrirChat } = useChatHub()
   const key = chatHubItemKey(item)
   const responsavel =
     item.atendente_nome?.trim() || (item.atendente_id != null ? `Atendente #${item.atendente_id}` : 'Sem responsável')
@@ -58,7 +59,8 @@ function ChatAtendendoItem({
   return (
     <li key={key}>
       <Link
-        to={chatHubItemLink(item, 'atendendo')}
+        to={chatHubItemLink('atendendo')}
+        onClick={() => abrirChat(item.canal, item.id)}
         className={`flex gap-3 px-3 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900/50 ${
           ativo ? 'bg-cyan-50/80 dark:bg-cyan-950/30' : ''
         } ${variant === 'proprio' ? 'border-l-2 border-cyan-500 pl-[10px]' : ''} ${
@@ -115,18 +117,11 @@ function ChatAtendendoItem({
 
 export function ChatListaAtendendo() {
   const { user } = useAuth()
-  const { busca } = useChatHub()
+  const { busca, chatAtivo } = useChatHub()
   const { subscribe, useFallback } = useEventStream()
   const [meus, setMeus] = useState<ChatHubItem[]>([])
   const [loading, setLoading] = useState(true)
-  const matchWpp = useMatch('/chat/c/:chatId')
-  const matchPortal = useMatch('/chat/portal/:chatId')
-  const chatAtivoKey =
-    matchWpp?.params.chatId != null
-      ? `whatsapp-${matchWpp.params.chatId}`
-      : matchPortal?.params.chatId != null
-        ? `portal-${matchPortal.params.chatId}`
-        : null
+  const chatAtivoKey = chatAtivo ? `${chatAtivo.canal}-${chatAtivo.id}` : null
 
   const load = useCallback(async () => {
     try {

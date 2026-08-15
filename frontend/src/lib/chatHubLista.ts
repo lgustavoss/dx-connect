@@ -1,5 +1,5 @@
 import type { PortalChats, WhatsappChats } from '../api/client'
-import { chatPortalLink, chatWhatsappLink, type ChatHubModo } from './chatHubPaths'
+import { chatHubPathParaModo, type ChatHubModo } from './chatHubPaths'
 import { rotuloResponsavelChat } from './whatsappChatMeta'
 
 export type ChatHubCanal = 'whatsapp' | 'portal'
@@ -54,11 +54,11 @@ export function mapPortalChat(c: PortalChats.Chat): ChatHubItem {
   }
 }
 
-export function chatHubItemLink(item: ChatHubItem, from?: ChatHubModo) {
-  if (item.canal === 'portal') {
-    return chatPortalLink(item.id, from === 'espera' ? 'espera' : undefined)
-  }
-  return chatWhatsappLink(item.id, from === 'espera' ? 'espera' : 'atendendo')
+/** Só o path da aba — gravar chat ativo no onClick via `abrirChat` (#654). */
+export function chatHubItemLink(from?: ChatHubModo) {
+  const modo: ChatHubModo =
+    from === 'espera' ? 'espera' : from === 'contatos' ? 'contatos' : 'atendendo'
+  return { pathname: chatHubPathParaModo(modo), search: '' }
 }
 
 export function chatHubItemKey(item: ChatHubItem) {
