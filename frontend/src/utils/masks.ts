@@ -26,6 +26,25 @@ export function formatTelefoneBrExibicao(value: string | null | undefined): stri
   return maskTelefoneBr(value)
 }
 
+/**
+ * Formata `wa_id` WhatsApp para exibição na mesa (#684).
+ * Ex.: `5511987654321` → `+55 (11) 98765-4321`
+ */
+export function formatWaIdExibicao(waId: string | null | undefined): string {
+  if (!waId?.trim()) return ''
+  const raw = waId.trim().split('@')[0] || waId.trim()
+  const digits = raw.replace(/\D/g, '')
+  if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
+    const local = formatTelefoneBrExibicao(digits.slice(2))
+    return local ? `+55 ${local}` : `+${digits}`
+  }
+  if (digits.length >= 10 && digits.length <= 11) {
+    return formatTelefoneBrExibicao(digits)
+  }
+  if (raw.startsWith('+')) return raw
+  return digits ? `+${digits}` : raw
+}
+
 /** IE alfanumérica comum (apenas letras e números, máx. 20). */
 export function maskInscricaoEstadual(value: string): string {
   return value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 20).toUpperCase()

@@ -160,6 +160,20 @@ def _mimetype_de_obj_midia(obj: dict[str, Any]) -> str | None:
     return None
 
 
+def _file_name_de_obj_midia(obj: dict[str, Any]) -> str | None:
+    """Nome original do documento/mídia (Baileys/Evolution) (#679)."""
+    for k in ("fileName", "filename", "FileName", "title", "Title", "name", "Name"):
+        v = obj.get(k)
+        if v and str(v).strip():
+            # Evita path traversal e caracteres de controlo
+            raw = str(v).strip().replace("\\", "/").split("/")[-1]
+            safe = "".join(ch for ch in raw if ch.isprintable() and ch not in '<>:"|?*')
+            safe = safe.strip().strip(".")
+            if safe:
+                return safe[:200]
+    return None
+
+
 def _caption_de_obj_midia(obj: dict[str, Any]) -> str | None:
     for k in ("caption", "Caption"):
         v = obj.get(k)
@@ -292,6 +306,7 @@ def iter_inbound_whatsapp_messages(webhook_body: dict[str, Any]) -> Iterator[dic
             kind, obj = media
             mime = _mimetype_de_obj_midia(obj)
             cap = _caption_de_obj_midia(obj)
+            file_name = _file_name_de_obj_midia(obj)
             corpo = cap if cap else _ROTULO_TIPO.get(kind, "[Mídia]")
             yield {
                 "wa_id": wa_id,
@@ -300,6 +315,7 @@ def iter_inbound_whatsapp_messages(webhook_body: dict[str, Any]) -> Iterator[dic
                 "tipo": kind,
                 "corpo": corpo,
                 "mimetype": mime,
+                "file_name": file_name,
                 "raw_envelope": m,
                 "quoted_wa_message_id": q_wid,
                 "quoted_corpo_preview": q_prev,

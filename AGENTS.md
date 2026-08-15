@@ -16,6 +16,7 @@ Guia para desenvolvimento assistido por IA no Cursor (time 2–3 devs).
 | Rule | Quando |
 |------|--------|
 | `project-core` | Sempre |
+| `planning-github-source` | Sempre — planos/decisões no GitHub, sem `.md` locais de rascunho |
 | `backend-fastapi` | Arquivos em `backend/**` |
 | `frontend-react` | Arquivos em `frontend/**` |
 | `rbac-setor-scope` | `backend/app/api/**`, `backend/app/core/**` |
@@ -63,10 +64,10 @@ Use subagents para **paralelizar** ou **isolar** trabalho:
 ### Padrão recomendado por feature
 
 ```
-1. /planejar-feature @IC-02-backend-api-chat-interno.md
-2. revisar plano (RBAC, SSE, migrations)
-3. /iniciar-feature                    → branch feat/chat-interno-api-ic02
-4. /implementar-issue @IC-02-backend-api-chat-interno.md
+1. /planejar-feature #322
+2. revisar plano (RBAC, SSE, migrations) — decisões → comentário na issue
+3. /iniciar-feature                    → branch feat/...
+4. /implementar-issue #336-340         → lote
 5. /revisar-e-testar
 6. /criar-pr                           → PR + CI + approve + merge em main
 ```
@@ -95,4 +96,5 @@ Skills futuras sugeridas:
 - `docs/REALTIME_SSE.md`
 - `docs/ALEMBIC_MIGRATIONS.md`
 - `docs/DEPLOYMENT_ARCHITECTURE.md`
-- `.github/planning-issue-bodies/`
+- Issues e decisões de produto no **GitHub**
+- Índice opcional: `.github/planning-issue-bodies/ISSUES_CRIADAS.md`

@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.core.auth import exigir_admin
+from app.core.auth import exigir_admin, exigir_comercial_ou_admin
 from app.core.audit import registrar_audit
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
 from app.database import get_db
@@ -151,8 +151,9 @@ def listar_itens_custo(
     ordenar_por: OrdenarItem | None = Query(OrdenarItem.ordem),
     ordem: OrdemLista = Query(OrdemLista.asc),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_comercial_ou_admin),
 ):
+    """Lista itens do catálogo — leitura para montar pacote na negociação (#343). Mutações continuam admin."""
     q = db.query(CustoCatalogoItem)
     if not incluir_inativos:
         q = q.filter(CustoCatalogoItem.ativo.is_(True))
@@ -225,9 +226,9 @@ def excluir_item_custo(
 def simular_custo(
     body: CustoSimularRequest,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_comercial_ou_admin),
 ):
-    """Simula pacote de custos; devolve também snapshot imutável (#331/#332/#335)."""
+    """Simula pacote de custos; devolve também snapshot imutável (#331/#332/#335). Comercial + admin (#336)."""
     return svc.simular_custo(
         db,
         item_ids=body.item_ids,

@@ -34,6 +34,7 @@ import { ImageLightboxViewer } from '../../components/chat/ImageLightboxViewer'
 import { WhatsappMensagemAcoes } from '../../components/chat/WhatsappMensagemAcoes'
 import { WhatsappReacoesBar } from '../../components/chat/WhatsappReacoesBar'
 import { precisaEscolherSetorAoAssumir } from '../../lib/assumirWhatsappSetor'
+import { formatWaIdExibicao } from '../../utils/masks'
 
 import { Card } from '../../components/ui/Card'
 import { TEXTAREA_FIELD_CLASS } from '../../components/ui/Input'
@@ -130,10 +131,12 @@ function ConteudoMensagemWhatsApp({
   chatId,
   m,
   onImageClick,
+  onVideoClick,
 }: {
   chatId: number
   m: WhatsappChats.Mensagem
   onImageClick: (msgId: number) => void
+  onVideoClick: (msgId: number) => void
 }) {
 
   const tipo = (m.tipo_midia || 'texto').toLowerCase()
@@ -227,22 +230,32 @@ function ConteudoMensagemWhatsApp({
   if (tipo === 'video') {
     return (
       <div className="space-y-1">
-        <video controls src={url} className={mediaClass} />
+        <div className="relative inline-block max-w-full">
+          <video controls src={url} className={mediaClass} />
+          <button
+            type="button"
+            className="absolute bottom-2 right-2 rounded-md bg-black/65 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm backdrop-blur-sm transition hover:bg-black/80"
+            onClick={() => onVideoClick(m.id)}
+          >
+            Expandir
+          </button>
+        </div>
         {legenda ? <TextoComLinks texto={legenda} /> : null}
       </div>
     )
   }
 
-  const downloadLabel = rotuloDownloadArquivo(null, m.mimetype, tipo)
-  const fileVisual = visualTipoArquivo(null, m.mimetype)
+  const downloadLabel = rotuloDownloadArquivo(m.midia_nome_original, m.mimetype, tipo)
+  const fileVisual = visualTipoArquivo(m.midia_nome_original, m.mimetype)
+  const downloadName = (m.midia_nome_original || '').trim() || undefined
 
   return (
     <div className="space-y-1">
-      <a href={url} download className="flex items-center gap-2 text-xs font-bold underline">
+      <a href={url} download={downloadName} className="flex items-center gap-2 text-xs font-bold underline">
         <span className="text-base" aria-hidden>
           {fileVisual.emoji}
         </span>
-        <span>{downloadLabel.replace(/^\S+\s*/, '')}</span>
+        <span className="min-w-0 break-all">{downloadLabel.replace(/^\S+\s*/, '')}</span>
       </a>
       {legenda ? <TextoComLinks texto={legenda} /> : null}
     </div>
@@ -384,6 +397,139 @@ function WhatsappZoomLightbox({
   )
 }
 
+/** Overlay ampliado para vídeos da mesa (#680). */
+function WhatsappVideoLightbox({
+  chatId,
+  msgId,
+  caption,
+  onClose,
+}: {
+  chatId: number
+  msgId: number
+  caption: string | null
+  onClose: () => void
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [url, setUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setUrl(null)
+    void resolveWhatsappMidiaObjectUrl(chatId, msgId, () => fetchWhatsAppMidiaBlob(chatId, msgId))
+      .then((u) => {
+        if (!cancelled) setUrl(u)
+      })
+      .catch(() => {
+        if (!cancelled) setUrl(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [chatId, msgId])
+
+  async function entrarTelaCheia() {
+    const el = videoRef.current
+    if (!el) return
+    try {
+      if (el.requestFullscreen) await el.requestFullscreen()
+      else if ('webkitRequestFullscreen' in el) {
+        await (el as HTMLVideoElement & { webkitRequestFullscreen: () => Promise<void> }).webkitRequestFullscreen()
+      }
+    } catch {
+      /* browser bloqueou — overlay já é o fallback */
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/90 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <button
+        type="button"
+        className="absolute top-4 right-4 flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-white/10 text-3xl font-bold text-white transition-colors touch-manipulation hover:bg-white/20"
+        onClick={onClose}
+        aria-label="Fechar"
+      >
+        &times;
+      </button>
+      {loading || !url ? (
+        <p className="animate-pulse text-sm text-white/70">Carregando vídeo…</p>
+      ) : (
+        <div className="flex max-h-[90vh] w-full max-w-5xl flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
+          <video
+            ref={videoRef}
+            controls
+            autoPlay
+            src={url}
+            className="max-h-[min(80vh,48rem)] w-full rounded-xl bg-black shadow-2xl"
+          />
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              className="rounded-xl bg-white/15 px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/25"
+              onClick={() => void entrarTelaCheia()}
+            >
+              Tela cheia
+            </button>
+            <a
+              href={url}
+              download="whatsapp-video.mp4"
+              className="rounded-xl bg-cyan-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-cyan-700"
+            >
+              Baixar vídeo
+            </a>
+          </div>
+          {caption ? (
+            <p className="max-w-2xl rounded-xl bg-black/40 px-4 py-2 text-center text-sm text-white backdrop-blur-md">
+              {caption}
+            </p>
+          ) : null}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Foto do contacto em overlay (#681). */
+function WhatsappFotoPerfilLightbox({ src, nome, onClose }: { src: string; nome?: string | null; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/90 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={onClose}
+      role="presentation"
+    >
+      <button
+        type="button"
+        className="absolute top-4 right-4 flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-white/10 text-3xl font-bold text-white transition-colors touch-manipulation hover:bg-white/20"
+        onClick={onClose}
+        aria-label="Fechar"
+      >
+        &times;
+      </button>
+      <img
+        src={src}
+        alt={nome ? `Foto de ${nome}` : 'Foto do contacto'}
+        className="max-h-[85vh] max-w-full rounded-2xl object-contain shadow-2xl"
+        referrerPolicy="no-referrer"
+        onClick={(e) => e.stopPropagation()}
+      />
+      {nome ? (
+        <p className="mt-4 text-sm font-medium text-white/90" onClick={(e) => e.stopPropagation()}>
+          {nome}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+const WA_DETALHES_SESSION_KEY = 'deskrudder-wa-conversa-detalhes'
+
 // --- Componente Principal ---
 
 export function WhatsappConversa() {
@@ -446,6 +592,16 @@ export function WhatsappConversa() {
   const [msgRespondida, setMsgRespondida] = useState<WhatsappChats.Mensagem | null>(null)
   const [focoComposerEm, setFocoComposerEm] = useState(0)
   const [zoomMsgId, setZoomMsgId] = useState<number | null>(null)
+  const [videoZoomMsgId, setVideoZoomMsgId] = useState<number | null>(null)
+  const [fotoPerfilAberta, setFotoPerfilAberta] = useState(false)
+  const [numeroCopiado, setNumeroCopiado] = useState(false)
+  const [detalhesMobileAbertos, setDetalhesMobileAbertos] = useState(() => {
+    try {
+      return sessionStorage.getItem(WA_DETALHES_SESSION_KEY) !== '0'
+    } catch {
+      return true
+    }
+  })
   const [modoInterno, setModoInterno] = useState(false)
   const [modalAssumirSetor, setModalAssumirSetor] = useState(false)
 
@@ -497,6 +653,18 @@ export function WhatsappConversa() {
         setZoomMsgId(null)
         return
       }
+      if (videoZoomMsgId != null) {
+        e.preventDefault()
+        e.stopPropagation()
+        setVideoZoomMsgId(null)
+        return
+      }
+      if (fotoPerfilAberta) {
+        e.preventDefault()
+        e.stopPropagation()
+        setFotoPerfilAberta(false)
+        return
+      }
       if (arquivoPendente) {
         e.preventDefault()
         setArquivoPendente(null)
@@ -523,6 +691,8 @@ export function WhatsappConversa() {
     sairParaListaSegura,
     modalEncerrar,
     zoomMsgId,
+    videoZoomMsgId,
+    fotoPerfilAberta,
     arquivoPendente,
     filaAguardandoAberta,
     menuMobileAberto,
@@ -934,10 +1104,8 @@ useEffect(() => {
     try {
       if (modoInterno) {
         await whatsappChats.comentarInterno(chat.id, texto.trim())
-        toast.showSuccess('Comentário interno registrado.')
       } else {
         await whatsappChats.enviar(chat.id, texto.trim(), msgRespondida?.wa_message_id || null)
-        toast.showSuccess('Mensagem enviada.')
       }
 
       setTexto('')
@@ -1012,7 +1180,6 @@ useEffect(() => {
         msgRespondida?.wa_message_id || null,
       )
       setMsgRespondida(null)
-      toast.showSuccess('Áudio enviado.')
       stickToBottomRef.current = true
       await carregar()
     } catch (err) {
@@ -1047,7 +1214,6 @@ useEffect(() => {
       setMsgRespondida(null)
       setArquivoPendente(null)
       setLegendaMidia('')
-      toast.showSuccess('Anexo enviado!')
       stickToBottomRef.current = true
       await carregar()
     } catch (err) {
@@ -1098,7 +1264,6 @@ useEffect(() => {
     try {
       await whatsappChats.enviarFigurinha(chat.id, file, msgRespondida?.wa_message_id || null)
       setMsgRespondida(null)
-      toast.showSuccess('Figurinha enviada!')
       stickToBottomRef.current = true
       await carregar()
     } catch (err) {
@@ -1396,12 +1561,53 @@ useEffect(() => {
               fotoUrl={chat?.foto_perfil_url}
               className="h-9 w-9 text-sm"
               fallbackClassName="bg-cyan-100 text-cyan-800 dark:bg-cyan-950/50 dark:text-cyan-200"
+              onFotoClick={
+                chat?.foto_perfil_url ? () => setFotoPerfilAberta(true) : undefined
+              }
             />
             <div className="min-w-0 flex-1">
               <h1 className="truncate font-bold text-slate-900 dark:text-white">
                 {chat?.cliente_nome || 'Atendimento'}
               </h1>
+              {chat?.wa_id ? (
+                <button
+                  type="button"
+                  className="mt-0.5 max-w-full truncate font-mono text-[11px] text-slate-500 transition hover:text-cyan-700 dark:text-slate-400 dark:hover:text-cyan-300"
+                  title={numeroCopiado ? 'Copiado' : 'Clique para copiar o número'}
+                  onClick={() => {
+                    const raw = chat.wa_id
+                    void navigator.clipboard?.writeText(raw).then(() => {
+                      setNumeroCopiado(true)
+                      window.setTimeout(() => setNumeroCopiado(false), 1500)
+                    })
+                  }}
+                >
+                  {numeroCopiado ? 'Copiado!' : formatWaIdExibicao(chat.wa_id)}
+                </button>
+              ) : null}
             </div>
+
+            <button
+              type="button"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 md:hidden dark:hover:bg-slate-800 dark:hover:text-slate-100"
+              aria-expanded={detalhesMobileAbertos}
+              aria-label={detalhesMobileAbertos ? 'Ocultar detalhes' : 'Mostrar detalhes'}
+              onClick={() => {
+                setDetalhesMobileAbertos((aberto) => {
+                  const next = !aberto
+                  try {
+                    sessionStorage.setItem(WA_DETALHES_SESSION_KEY, next ? '1' : '0')
+                  } catch {
+                    /* ignore */
+                  }
+                  return next
+                })
+              }}
+            >
+              <span className="text-lg leading-none" aria-hidden>
+                {detalhesMobileAbertos ? '▴' : '▾'}
+              </span>
+            </button>
 
             <div className="flex shrink-0 items-center gap-1 sm:gap-2">
 
@@ -1538,7 +1744,9 @@ useEffect(() => {
 
           </div>
 
-          <div className="space-y-1.5 px-3 pb-2 sm:px-4 sm:pb-3">
+          <div
+            className={`space-y-1.5 px-3 pb-2 sm:px-4 sm:pb-3 ${detalhesMobileAbertos ? '' : 'hidden md:block'}`}
+          >
 
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px]">
               <span className="min-w-0 truncate font-mono font-bold text-cyan-600" title={exibirProtocolo(chat?.protocolo)}>
@@ -1678,12 +1886,14 @@ useEffect(() => {
 
 
         {chat && chat.estado === 'em_atendimento' && (
-          <WhatsappDemandasPanel
-            key={chat.id}
-            chatId={chat.id}
-            podeRegistrar={isResponsavel || isAdmin}
-            onDemandasChange={refrescarTimelineDemandas}
-          />
+          <div className={detalhesMobileAbertos ? '' : 'hidden md:block'}>
+            <WhatsappDemandasPanel
+              key={chat.id}
+              chatId={chat.id}
+              podeRegistrar={isResponsavel || isAdmin}
+              onDemandasChange={refrescarTimelineDemandas}
+            />
+          </div>
         )}
 
 
@@ -1819,6 +2029,7 @@ useEffect(() => {
                       chatId={id}
                       m={m}
                       onImageClick={(msgId) => setZoomMsgId(msgId)}
+                      onVideoClick={(msgId) => setVideoZoomMsgId(msgId)}
                     />
 
                     {!isSystem && (
@@ -2165,6 +2376,28 @@ useEffect(() => {
           onChangeMsgId={setZoomMsgId}
         />
       )}
+
+      {videoZoomMsgId != null && (
+        <WhatsappVideoLightbox
+          chatId={id}
+          msgId={videoZoomMsgId}
+          caption={
+            (() => {
+              const m = msgs.find((x) => x.id === videoZoomMsgId)
+              return m ? legendaMidiaVisivel(m.corpo) : null
+            })()
+          }
+          onClose={() => setVideoZoomMsgId(null)}
+        />
+      )}
+
+      {fotoPerfilAberta && chat?.foto_perfil_url ? (
+        <WhatsappFotoPerfilLightbox
+          src={chat.foto_perfil_url}
+          nome={chat.cliente_nome}
+          onClose={() => setFotoPerfilAberta(false)}
+        />
+      ) : null}
 
       <AssumirWhatsappSetorModal
         open={modalAssumirSetor}

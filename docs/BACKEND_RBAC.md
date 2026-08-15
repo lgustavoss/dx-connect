@@ -1,6 +1,16 @@
 # RBAC no backend (API v1)
 
-Política alinhada à issue **#38**: perfis **admin** e **atendente**, com escopo por **setor** (inclui setores homônimos — ver `app.core.setor_scope`).
+Política alinhada à issue **#38** (admin / atendente + setor) e **#336** (perfil **comercial** para CRM).
+
+## Perfis
+
+| Role | Uso |
+|------|-----|
+| `admin` | Cadastros, configuração, visão total, CRM e catálogo de custos. |
+| `atendente` | Tickets / chats no escopo de setor; **sem** CRM nem catálogo de custos. |
+| `comercial` | CRM (leads/negociações) + `POST /v1/comercial/custos/simular`; **sem** CRUD de catálogo nem cadastros admin. |
+
+Dependência: `exigir_comercial_ou_admin` em `app.core.auth`.
 
 ## Autenticação
 
@@ -21,6 +31,18 @@ Política alinhada à issue **#38**: perfis **admin** e **atendente**, com escop
 | Tipos de negócio (detalhe / mutação) | `GET/POST/PATCH/DELETE /v1/tipos-negocio/{id}`, `POST /v1/tipos-negocio` |
 | Auditoria | `GET /v1/audit` |
 | Cadastro auxiliar (IBGE) | `POST /v1/cadastro-aux/municipios/sincronizar` |
+| Catálogo comercial (CRUD) | `POST/PATCH/DELETE /v1/comercial/salario-minimo*`, `POST/PATCH/DELETE /v1/comercial/custos/itens*` |
+| Catálogo comercial (leitura itens) | `GET /v1/comercial/custos/itens` — também comercial (montar pacote na negociação) |
+| Funil CRM (mutação) | `POST/PATCH /v1/crm/funil-estagios` — UI em Configurações → Cadastros → Funil CRM |
+
+## Comercial ou administrador (`exigir_comercial_ou_admin`)
+
+| Recurso | Comportamento |
+|---------|----------------|
+| **CRM** | `GET/POST/PATCH /v1/crm/leads`, `GET/POST/PATCH /v1/crm/negociacoes*`, atividades, mover estágio. Listagem vê **todas** as leads/negociações; filtro opcional `so_minhas=true`. |
+| **Funil (leitura)** | `GET /v1/crm/funil-estagios` |
+| **Simular custos** | `POST /v1/comercial/custos/simular` |
+| **Listar itens catálogo** | `GET /v1/comercial/custos/itens` (mutações continuam só admin) |
 
 ## Autenticado com escopo de setor (`obter_atendente_atual`)
 
@@ -38,9 +60,9 @@ Política alinhada à issue **#38**: perfis **admin** e **atendente**, com escop
 
 ## Referência de código
 
-- `app.core.auth`: `obter_atendente_atual`, `exigir_admin`.
+- `app.core.auth`: `obter_atendente_atual`, `exigir_admin`, `exigir_comercial_ou_admin`, `validar_role`.
 - `app.core.setor_scope`: `ids_setores_visiveis_atendente`, `ids_setores_mesmo_nome`, `responsavel_elegivel_para_setor_do_ticket`, `select_rede_ids_com_ticket_nos_setores`.
-- Testes: `backend/tests/test_rbac_tickets.py`, `test_rbac_catalogos.py`, `test_rbac_admin_only.py`.
+- Testes: `backend/tests/test_rbac_tickets.py`, `test_rbac_catalogos.py`, `test_rbac_admin_only.py`, `test_crm.py`.
 
 ## Frontend (alinhamento)
 
@@ -48,3 +70,4 @@ Política alinhada à issue **#38**: perfis **admin** e **atendente**, com escop
 - **Rotas**: páginas de cadastro usam `AdminRoute` em `App.tsx` — atendente vê `AcessoNegado` se aceder por URL.
 - **Tickets / novo ticket**: listas de **setores** e **empresas** seguem o filtro da API; não se recorta setor no cliente por `setor_ids` do `/me` (homônimos). Quando o atendente ainda não tem empresas no escopo, o UI explica o critério da rede com ticket nos setores dele.
 - **403**: mensagens vêm do corpo da API (`api/client` + `errorMessage.ts`).
+- **CRM UI** (#341–#344): menu **CRM** e rotas `/crm/leads`, `/crm/negociacoes/:id` para `admin` e `comercial`.

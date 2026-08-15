@@ -14,7 +14,7 @@ atendente_setor = Table(
 
 
 class Atendente(Base):
-    """Usuário interno: admin ou atendente. Atendente vê apenas tickets do(s) seu(s) setor(es)."""
+    """Usuário interno: admin, atendente, comercial ou saas_ops."""
 
     __tablename__ = "atendentes"
     __table_args__ = (UniqueConstraint("tenant_id", "email", name="uq_atendentes_tenant_email"),)
@@ -24,7 +24,7 @@ class Atendente(Base):
     email = Column(String(255), nullable=False, index=True)
     senha_hash = Column(String(255), nullable=False)
     nome = Column(String(255), nullable=False)
-    role = Column(String(20), nullable=False, default="atendente")  # admin | atendente | saas_ops
+    role = Column(String(20), nullable=False, default="atendente")  # admin | atendente | comercial | saas_ops
     ativo = Column(Boolean, default=True)
     must_change_password = Column(Boolean, nullable=False, default=False)
     # Presença online (#546+): heartbeat gravado no DB (funciona com Gunicorn N>1).

@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { system, type System } from '../api/client'
-import { mensagemFalhaParaToast } from '../api/errorMessage'
-import { APP_DESCRIPTION, APP_NAME } from '../brand'
-import { ReleaseNotesView } from '../components/release/ReleaseNotesView'
-import { useToast } from '../components/ui/Toast'
+import { saasReleaseNotes, system, type System } from '../../api/client'
+import { mensagemFalhaParaToast } from '../../api/errorMessage'
+import { ReleaseNotesView } from '../../components/release/ReleaseNotesView'
+import { useToast } from '../../components/ui/Toast'
+import { SAAS_LICENCAS_PATH } from '../../lib/saasControlPlane'
 
-/** Página Sobre do DeskRudder — só notas product=deskrudder (#674). */
-export function Sobre() {
+/** Novidades do control-plane SaaS (#675). */
+export function SaasSobre() {
   const toast = useToast()
   const [loading, setLoading] = useState(true)
   const [info, setInfo] = useState<System.Info | null>(null)
@@ -15,7 +15,7 @@ export function Sobre() {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    Promise.all([system.info(), system.releaseNotes()])
+    Promise.all([system.info(), saasReleaseNotes.get()])
       .then(([i, n]) => {
         if (!cancelled) {
           setInfo(i)
@@ -24,7 +24,7 @@ export function Sobre() {
       })
       .catch((err) => {
         if (!cancelled) {
-          toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar informações da versão.'))
+          toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar as novidades do SaaS.'))
         }
       })
       .finally(() => {
@@ -44,13 +44,15 @@ export function Sobre() {
 
   return (
     <ReleaseNotesView
-      backTo="/"
-      title="Sobre"
-      brandCaption={APP_DESCRIPTION}
-      description={`Consulte a versão em uso e o que mudou nas atualizações do ${APP_NAME} nesta instância (helpdesk). Melhorias do painel SaaS não aparecem aqui.`}
+      backTo={SAAS_LICENCAS_PATH}
+      backLabel="Voltar às licenças"
+      title="Sobre / Novidades"
+      brandCaption="Painel admin SaaS — licenças, planos e provisionamento."
+      description="Atualizações do control-plane DeskRudder (ops). Notas do helpdesk nas instâncias dos clientes ficam em Sobre no painel de atendimento."
       versionLabel={versionLabel}
       notes={notes}
       loading={loading}
+      showBrandLogo
     />
   )
 }

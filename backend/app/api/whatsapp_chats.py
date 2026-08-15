@@ -767,6 +767,7 @@ def _mensagem_read(
         tipo_midia=m.tipo_midia,
         mimetype=m.mimetype,
         midia_disponivel=False if apagada else midia_ok,
+        midia_nome_original=None if apagada else (getattr(m, "midia_nome_original", None) or None),
         evento_sistema=getattr(m, "evento_sistema", None),
         wa_message_id=m.wa_message_id,
         quoted_wa_message_id=getattr(m, "quoted_wa_message_id", None),
@@ -1416,7 +1417,8 @@ def obter_midia_da_mensagem(
     if not path:
         raise HTTPException(status_code=404, detail="Ficheiro não encontrado em disco")
     media_type = m.mimetype or "application/octet-stream"
-    return FileResponse(path, media_type=media_type, filename=path.name)
+    download_name = (getattr(m, "midia_nome_original", None) or "").strip() or path.name
+    return FileResponse(path, media_type=media_type, filename=download_name)
 
 
 @router.get("/{chat_id}/mensagens", response_model=list[WhatsappMensagemRead])
@@ -2092,6 +2094,7 @@ async def enviar_mensagem_midia(
         tipo_midia=tipo_db,
         mimetype=mime,
         midia_nome_arquivo=nome_guardado,
+        midia_nome_original=fname,
         wa_message_id=sent_wa_id,
         quoted_wa_message_id=q_wa,
         quoted_corpo_preview=q_prev,

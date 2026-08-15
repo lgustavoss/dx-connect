@@ -11,7 +11,11 @@ import { SemPermissao } from './SemPermissao'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 import { interpretarFalhaCarregamento } from '../api/errorMessage'
 
-const roleLabel: Record<string, string> = { admin: 'Administrador', atendente: 'Atendente' }
+const roleLabel: Record<string, string> = {
+  admin: 'Administrador',
+  atendente: 'Atendente',
+  comercial: 'Comercial',
+}
 
 function fmtMediaAvaliacao(media: number | null): string {
   if (media == null) return '—'

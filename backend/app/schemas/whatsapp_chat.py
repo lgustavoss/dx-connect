@@ -27,6 +27,7 @@ class WhatsappMensagemRead(BaseModel):
     tipo_midia: str | None = None
     mimetype: str | None = None
     midia_disponivel: bool = False
+    midia_nome_original: str | None = None
     evento_sistema: str | None = None
     wa_message_id: str | None = None
     quoted_wa_message_id: str | None = None

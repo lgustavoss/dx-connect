@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Prepara manifest de releases e release-notes.json (#401).
+Prepara manifest de releases e release-notes.json (#401 / #673).
 
 Modo --deploy: bump CalVer, consome seção [Unreleased] do CHANGELOG e atualiza artefatos.
+Suporta subseções por produto (DeskRudder vs SaaS Control Plane).
 """
 
 from __future__ import annotations
@@ -28,18 +29,42 @@ MANIFEST_FILE = ROOT / "docs" / "releases" / "manifest.json"
 BACKEND_DATA = ROOT / "backend" / "app" / "data" / "release_notes.json"
 FRONTEND_PUBLIC = ROOT / "frontend" / "public" / "release-notes.json"
 
+PRODUCT_DESKRUDDER = "deskrudder"
+PRODUCT_SAAS = "saas"
+
+PRODUCT_MAP = {
+    "deskrudder": PRODUCT_DESKRUDDER,
+    "saas control plane": PRODUCT_SAAS,
+    "saas": PRODUCT_SAAS,
+}
+
+PRODUCT_TITLE = {
+    PRODUCT_DESKRUDDER: "DeskRudder",
+    PRODUCT_SAAS: "SaaS Control Plane",
+}
+
 CATEGORY_MAP = {
     "melhorias": "melhorias",
     "melhoria": "melhorias",
     "added": "melhorias",
+    "changed": "melhorias",
     "correcoes": "correcoes",
+    "correções": "correcoes",
     "correção": "correcoes",
     "correcao": "correcoes",
+    "corrigido": "correcoes",
+    "corrigidos": "correcoes",
     "fixed": "correcoes",
     "interno": "interno",
+    "interno / infra": "interno",
     "infra": "interno",
     "internal": "interno",
-    "changed": "melhorias",
+}
+
+CATEGORY_TITLE = {
+    "melhorias": "Melhorias",
+    "correcoes": "Correções",
+    "interno": "Interno / Infra",
 }
 
 _LEGACY_BRAND_RE = re.compile(r"DX/Duplexsoft|Duplexsoft|DX Connect|DX-Connect", re.IGNORECASE)
@@ -83,49 +108,123 @@ def _save_manifest(data: dict) -> None:
     MANIFEST_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def parse_changelog_unreleased(text: str) -> list[dict[str, str]]:
-    """Extrai bullets da seção [Unreleased] agrupados por ### categoria."""
+def _norm_header(raw: str) -> str:
+    return re.sub(r"\s+", " ", raw.strip().lower())
+
+
+def _is_product_header(title: str) -> str | None:
+    return PRODUCT_MAP.get(_norm_header(title))
+
+
+def _is_category_header(title: str) -> str | None:
+    key = _norm_header(title)
+    if key in CATEGORY_MAP:
+        return CATEGORY_MAP[key]
+    return None
+
+
+def parse_changelog_unreleased(
+    text: str,
+    *,
+    warn_legacy: bool = True,
+) -> list[dict[str, str]]:
+    """Extrai bullets de [Unreleased] com product + category.
+
+    Formato preferido (#673)::
+
+        ### DeskRudder
+        #### Melhorias
+        - …
+
+        ### SaaS Control Plane
+        #### Correções
+        - …
+
+    Legado (só ### Melhorias / ### Corrigido): product=deskrudder + warning.
+    """
     m = re.search(r"## \[Unreleased\](.*?)(?=\n## \[|\Z)", text, re.DOTALL | re.IGNORECASE)
     if not m:
         return []
     body = m.group(1)
     changes: list[dict[str, str]] = []
+    current_product: str | None = None
     current_cat = "melhorias"
+    saw_legacy_category = False
     for line in body.splitlines():
-        hdr = re.match(r"^###\s+(.+)$", line.strip())
-        if hdr:
-            key = hdr.group(1).strip().lower()
-            current_cat = CATEGORY_MAP.get(key, "melhorias")
+        stripped = line.strip()
+        h4 = re.match(r"^####\s+(.+)$", stripped)
+        if h4:
+            cat = _is_category_header(h4.group(1))
+            current_cat = cat or "melhorias"
             continue
-        bullet = re.match(r"^-\s+(.+)$", line.strip())
+        h3 = re.match(r"^###\s+(.+)$", stripped)
+        if h3:
+            title = h3.group(1)
+            product = _is_product_header(title)
+            if product is not None:
+                current_product = product
+                continue
+            cat = _is_category_header(title)
+            if cat is not None:
+                current_cat = cat
+                if current_product is None:
+                    saw_legacy_category = True
+                continue
+            # Cabeçalho desconhecido sob produto ativo → trata como categoria genérica
+            if current_product is not None:
+                current_cat = "melhorias"
+            else:
+                saw_legacy_category = True
+                current_cat = "melhorias"
+            continue
+        bullet = re.match(r"^-\s+(.+)$", stripped)
         if bullet:
+            product = current_product or PRODUCT_DESKRUDDER
             changes.append(
-                {"category": current_cat, "text": sanitize_release_text(bullet.group(1).strip())}
+                {
+                    "product": product,
+                    "category": current_cat,
+                    "text": sanitize_release_text(bullet.group(1).strip()),
+                }
             )
+    if warn_legacy and saw_legacy_category and any(c["product"] == PRODUCT_DESKRUDDER for c in changes):
+        print(
+            "::warning::CHANGELOG [Unreleased] sem subseção de produto — "
+            "bullets legados tratados como DeskRudder. "
+            "Use ### DeskRudder / ### SaaS Control Plane (docs/RELEASES.md).",
+            file=sys.stderr,
+        )
     return changes
 
 
 def finalize_changelog_release(text: str, version: str, date: str) -> str:
-    """Move [Unreleased] para [version] e recria [Unreleased] vazio."""
-    unreleased = parse_changelog_unreleased(text)
+    """Move [Unreleased] para [version] (com produtos) e recria [Unreleased] vazio."""
+    unreleased = parse_changelog_unreleased(text, warn_legacy=False)
     if not unreleased:
         return text
+
     block_lines = [f"## [{version}] - {date}", ""]
-    by_cat: dict[str, list[str]] = {}
+    # Mantém ordem DeskRudder → SaaS; categorias na ordem de aparição
+    by_product: dict[str, dict[str, list[str]]] = {}
+    product_order: list[str] = []
     for c in unreleased:
-        label = c["category"]
-        cat_title = {
-            "melhorias": "Melhorias",
-            "correcoes": "Correções",
-            "interno": "Interno / Infra",
-        }.get(label, "Melhorias")
-        by_cat.setdefault(cat_title, []).append(c["text"])
-    for cat_title, items in by_cat.items():
-        block_lines.append(f"### {cat_title}")
+        prod = c["product"]
+        if prod not in by_product:
+            by_product[prod] = {}
+            product_order.append(prod)
+        cat_title = CATEGORY_TITLE.get(c["category"], "Melhorias")
+        by_product[prod].setdefault(cat_title, []).append(c["text"])
+
+    for prod in product_order:
+        block_lines.append(f"### {PRODUCT_TITLE.get(prod, prod)}")
         block_lines.append("")
-        for item in items:
-            block_lines.append(f"- {item}")
-        block_lines.append("")
+        for cat_title, items in by_product[prod].items():
+            block_lines.append(f"#### {cat_title}")
+            block_lines.append("")
+            for item in items:
+                block_lines.append(f"- {item}")
+            block_lines.append("")
+
     new_block = "\n".join(block_lines).rstrip() + "\n"
 
     without_unreleased = re.sub(
@@ -135,7 +234,6 @@ def finalize_changelog_release(text: str, version: str, date: str) -> str:
         count=1,
         flags=re.DOTALL | re.IGNORECASE,
     )
-    # Insere release após cabeçalho Unreleased
     parts = without_unreleased.split("## [Unreleased]", 1)
     if len(parts) != 2:
         return text
