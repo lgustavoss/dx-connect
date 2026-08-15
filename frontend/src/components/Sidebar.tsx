@@ -214,6 +214,10 @@ interface NavLink {
   label: string
   icon: string
   adminOnly?: boolean
+  /** Visível para admin ou comercial (CRM). */
+  comercialOuAdmin?: boolean
+  /** Mantém o item ativo em rotas filhas (ex.: `/crm/negociacoes/:id`) */
+  activePrefix?: string
   /** Só na instância comercial (control-plane SaaS). */
   saasOnly?: boolean
 }
@@ -224,6 +228,7 @@ interface NavGroup {
   label: string
   icon: string
   adminOnly?: boolean
+  comercialOuAdmin?: boolean
   saasOnly?: boolean
   /** Ex.: conversa aberta `/whatsapp/c/:id` mantém o grupo Chat ativo */
   extraActivePrefixes?: string[]
@@ -238,6 +243,7 @@ interface NavItemLink {
   /** Mantém o item ativo em rotas filhas (ex.: `/chat/c/:id`) */
   activePrefix?: string
   adminOnly?: boolean
+  comercialOuAdmin?: boolean
   saasOnly?: boolean
 }
 
@@ -253,6 +259,23 @@ const navStructure: NavItem[] = [
     adminOnly: true,
   },
   { type: 'link', to: '/tickets', label: 'Tickets', icon: 'tickets' },
+  {
+    type: 'group',
+    id: 'comercial',
+    label: 'Comercial',
+    icon: 'tiposNegocio',
+    comercialOuAdmin: true,
+    extraActivePrefixes: ['/crm/'],
+    children: [
+      {
+        to: '/crm/leads',
+        label: 'CRM',
+        icon: 'tiposNegocio',
+        comercialOuAdmin: true,
+        activePrefix: '/crm/',
+      },
+    ],
+  },
   { type: 'link', to: '/chat/atendendo', label: 'Chat', icon: 'chat', activePrefix: '/chat/' },
   { type: 'link', to: '/whatsapp/historico', label: 'Atendimentos', icon: 'chatHistory' },
   {
@@ -311,12 +334,25 @@ function navGroupMatchesPath(pathname: string, group: NavGroup): boolean {
   return group.extraActivePrefixes?.some((prefix) => pathname.startsWith(prefix)) ?? false
 }
 
-function navChildrenVisible(children: NavLink[], isAdmin: boolean, saasEnabled: boolean): NavLink[] {
-  return children.filter((child) => {
-    if (child.adminOnly && !isAdmin) return false
-    if (child.saasOnly && !saasEnabled) return false
-    return true
-  })
+function navItemVisivel(
+  item: { adminOnly?: boolean; comercialOuAdmin?: boolean; saasOnly?: boolean },
+  isAdmin: boolean,
+  isComercialOuAdmin: boolean,
+  saasEnabled: boolean,
+): boolean {
+  if (item.adminOnly && !isAdmin) return false
+  if (item.comercialOuAdmin && !isComercialOuAdmin) return false
+  if (item.saasOnly && !saasEnabled) return false
+  return true
+}
+
+function navChildrenVisible(
+  children: NavLink[],
+  isAdmin: boolean,
+  isComercialOuAdmin: boolean,
+  saasEnabled: boolean,
+): NavLink[] {
+  return children.filter((child) => navItemVisivel(child, isAdmin, isComercialOuAdmin, saasEnabled))
 }
 
 interface SidebarProps {
@@ -324,6 +360,7 @@ interface SidebarProps {
   mobileOpen: boolean
   onMobileClose: () => void
   isAdmin: boolean
+  isComercialOuAdmin: boolean
   userNome: string
   userRole: string
   onLogout: () => void
@@ -334,6 +371,7 @@ export function Sidebar({
   mobileOpen,
   onMobileClose,
   isAdmin,
+  isComercialOuAdmin,
   userNome,
   userRole,
   onLogout,
@@ -386,17 +424,15 @@ export function Sidebar({
     [closeFlyout, openFlyout]
   )
 
-  const items = navStructure.filter((item) => {
-    if ('adminOnly' in item && item.adminOnly && !isAdmin) return false
-    if ('saasOnly' in item && item.saasOnly && !saasEnabled) return false
-    return true
-  }) as NavItem[]
+  const items = navStructure.filter((item) =>
+    navItemVisivel(item, isAdmin, isComercialOuAdmin, saasEnabled),
+  ) as NavItem[]
 
   // Abrir grupo automaticamente quando a rota pertence a ele
   useEffect(() => {
     for (const item of navStructure) {
       if (item.type === 'group') {
-        if ((!item.adminOnly || isAdmin) && (!item.saasOnly || saasEnabled)) {
+        if (navItemVisivel(item, isAdmin, isComercialOuAdmin, saasEnabled)) {
           if (navGroupMatchesPath(location.pathname, item)) {
             setOpenGroup(item.id)
             return
@@ -404,7 +440,7 @@ export function Sidebar({
         }
       }
     }
-  }, [location.pathname, isAdmin, saasEnabled])
+  }, [location.pathname, isAdmin, isComercialOuAdmin, saasEnabled])
 
   // No drawer mobile usamos acordeão (não flyout); evita estado do flyout “preso”
   useEffect(() => {
@@ -460,7 +496,12 @@ export function Sidebar({
               }}
               role="menu"
             >
-              {navChildrenVisible(openFlyoutGroup.children, isAdmin, saasEnabled).map((child) => (
+              {navChildrenVisible(
+                openFlyoutGroup.children,
+                isAdmin,
+                isComercialOuAdmin,
+                saasEnabled,
+              ).map((child) => (
                 <li key={child.to} role="none">
                   <Link
                     to={child.to}
@@ -535,6 +576,7 @@ export function Sidebar({
             const group = item
             const open = isGroupOpen(group.id)
             const active = navGroupMatchesPath(location.pathname, group)
+            const childActive = group.children.some((c) => isLinkActive(c.to, c.activePrefix))
 
             const menuExpandido = expanded || mobileOpen
 
@@ -547,9 +589,11 @@ export function Sidebar({
                       type="button"
                       onClick={() => setOpenGroup(open ? null : group.id)}
                       className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors touch-manipulation min-h-[44px] ${
-                        active
+                        active && !childActive
                           ? 'bg-cyan-50/80 text-slate-900 ring-1 ring-cyan-200/50 dark:bg-cyan-950/30 dark:text-slate-100 dark:ring-cyan-800/40'
-                          : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800/80'
+                          : active && childActive
+                            ? 'text-slate-800 dark:text-slate-100'
+                            : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800/80'
                       }`}
                       aria-expanded={open}
                       aria-controls={`nav-group-${group.id}`}
@@ -562,15 +606,18 @@ export function Sidebar({
                     </button>
                     <ul
                       id={`nav-group-${group.id}`}
-                      className={`min-w-0 overflow-hidden transition-all duration-200 ${open ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}
+                      className={`min-w-0 space-y-0.5 overflow-hidden transition-all duration-200 ${
+                        open ? 'mt-1 max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
+                      }`}
                       role="group"
                     >
-                      {navChildrenVisible(group.children, isAdmin, saasEnabled).map((child) => (
-                        <li key={child.to} className="min-w-0 pl-4">
+                      {navChildrenVisible(group.children, isAdmin, isComercialOuAdmin, saasEnabled).map(
+                        (child) => (
+                        <li key={child.to} className="min-w-0 border-l border-slate-200 pl-3 ml-4 dark:border-slate-700">
                           <Link
                             to={child.to}
                             onClick={onMobileClose}
-                            className={linkClass(child.to, 'flex')}
+                            className={linkClass(child.to, child.activePrefix)}
                           >
                             {icons[child.icon]}
                             <span className="truncate">{child.label}</span>

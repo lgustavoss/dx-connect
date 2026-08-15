@@ -8,6 +8,7 @@ interface AuthContextValue {
   logout: () => void
   refreshUser: () => Promise<void>
   isAdmin: boolean
+  isComercialOuAdmin: boolean
   /** Equipa comercial DeskRudder (control-plane SaaS). */
   isSaasOps: boolean
 }
@@ -75,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     refreshUser,
     isAdmin: user?.role === 'admin',
+    isComercialOuAdmin: user?.role === 'admin' || user?.role === 'comercial',
     isSaasOps: user?.role === 'saas_ops',
   }
 

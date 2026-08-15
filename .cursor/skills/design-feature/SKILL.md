@@ -5,29 +5,31 @@ description: Planeja features do DX Connect — camadas, RBAC, SSE, migrations e
 
 # Design Feature — DX Connect
 
-Playbook para **planejar** antes de implementar. Não escreva código nesta fase — produza um plano revisável.
+Playbook para **planear** antes de implementar. Não escreva código nesta fase — produza um plano revisável **no chat**.
 
 ## Quando usar
 
-- Épico ou issue nova em `.github/planning-issue-bodies/`
+- Épico ou issue no **GitHub** (`gh issue view`)
 - Feature que cruza backend + frontend + tempo real
 - Dúvida sobre onde colocar lógica ou como aplicar RBAC
 
+**Não** criar ficheiros em `.github/planning-issue-bodies/` para o plano — ver rule `planning-github-source`.
+
 ## Fase 1 — Ler e delimitar
 
-1. Ler body completo da issue/épico
+1. Ler body completo da issue/épico no GitHub
 2. Extrair:
    - **Objetivo** (1 frase)
    - **Dentro do escopo** / **Fora do escopo**
    - **Dependências** (issues bloqueantes)
    - **Critérios de aceite**
-3. Identificar bounded context: tickets, chats, notificações, cadastro, WhatsApp, etc.
+3. Identificar bounded context: tickets, chats, notificações, cadastro, WhatsApp, comercial, etc.
 
 Se faltar escopo, pergunte uma vez com opções — não assuma.
 
 ## Fase 2 — Mapa técnico
 
-Preencha mentalmente (e no output) esta tabela:
+Preencha mentalmente (e no output do chat) esta tabela:
 
 | Camada | Arquivos prováveis | Necessário? |
 |--------|-------------------|-------------|
@@ -47,28 +49,26 @@ Consultar e aplicar:
 
 | Tema | Onde decidir | Pergunta-chave |
 |------|--------------|----------------|
-| RBAC | `docs/BACKEND_RBAC.md`, `setor_scope` | Admin-only ou escopo por setor? |
+| RBAC | `docs/BACKEND_RBAC.md`, `setor_scope` | Admin-only, comercial, ou escopo por setor? |
 | SSE | `docs/REALTIME_SSE.md` | Quem recebe o evento? Payload? |
 | Deploy | `docs/DEPLOYMENT_ARCHITECTURE.md` | Afeta multi-cliente / migration? |
 | Tenant | `project-core` rule | Não modelar em cima de `tenant_id` legado |
 
 ### Checklist RBAC
 
-- [ ] Rotas de cadastro usam `exigir_admin`
-- [ ] Operação usa `obter_atendente_atual` + `setor_scope`
+- [ ] Rotas de cadastro usam `exigir_admin` (ou papel adequado)
+- [ ] Operação usa `obter_atendente_atual` + `setor_scope` quando aplicável
 - [ ] Homônimos considerados (não filtrar só no frontend)
 - [ ] Testes 403 documentados
 
 ### Checklist tempo real
 
-- [ ] Tipo de evento definido (`chat.mensagem`, `ticket.fila`, etc.)
+- [ ] Tipo de evento definido
 - [ ] Publicação **após commit** DB
 - [ ] Destinatários filtrados por RBAC
-- [ ] Frontend consome via `EventStreamContext` (sem SSE duplicado)
+- [ ] Frontend via `EventStreamContext` (sem SSE duplicado)
 
 ## Fase 4 — Ordem de implementação
-
-Ordem padrão para features full-stack:
 
 ```
 1. Model + migration (alembic heads único)
@@ -83,11 +83,11 @@ Ordem padrão para features full-stack:
 10. Build frontend
 ```
 
-Quebrar em **issues/sub-PRs** quando possível (ex.: IC-01 → IC-02 → IC-03).
+Agrupar em **lotes/PRs** conforme `main-pr-batch-delivery` (não micro-PR por issue).
 
 ## Fase 5 — Output do plano
 
-Entregar neste formato:
+Entregar **no chat**. Após confirmação do utilizador → `gh issue comment` na issue/épico.
 
 ```markdown
 ## Resumo
@@ -105,27 +105,23 @@ Entregar neste formato:
 
 ## RBAC
 - Admin: ...
-- Atendente: ...
+- Atendente / comercial: ...
 - Casos 403: ...
 
 ## SSE (se houver)
-- Tipo: ...
-- Payload: ...
-- Quem recebe: ...
+- ...
 
 ## Ordem de implementação
 1. ...
-2. ...
 
 ## Testes
-- [ ] ...
 - [ ] ...
 
 ## Riscos / dúvidas
 - ...
 
 ## Próximo passo
-→ `/implementar-issue @<arquivo-da-issue.md>`
+→ `/iniciar-feature` + `/implementar-issue #<issue-ou-lote>`
 ```
 
 ## Referências
@@ -133,4 +129,4 @@ Entregar neste formato:
 - `docs/BACKEND_RBAC.md`
 - `docs/REALTIME_SSE.md`
 - `docs/ALEMBIC_MIGRATIONS.md`
-- `.github/planning-issue-bodies/`
+- Issues no GitHub (não cópias locais de bodies)

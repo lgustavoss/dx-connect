@@ -1,0 +1,34 @@
+---
+description: Planejamento e issues — GitHub é a fonte da verdade; não acumular .md locais
+alwaysApply: true
+---
+
+# Planejamento — sem lixo local
+
+## Fonte da verdade
+
+- **Issues / épicos / aceite / decisões de produto** → **GitHub** (`gh issue view`, `gh issue comment`, `gh issue create`)
+- **Índice de números** (opcional) → `.github/planning-issue-bodies/ISSUES_CRIADAS.md` (só links, sem duplicar corpo)
+
+## Proibido ao agente (padrão)
+
+1. Criar ou atualizar ficheiros em `.github/planning-issue-bodies/` para planos, spikes ou corpos de issue **só porque estamos a planear no chat**
+2. Commitar rascunhos de planeamento «para não perder» — usar comentário na issue
+3. Pedir commit de `.md` de análise quando a decisão já pode ir no GitHub
+
+## O que fazer em `/planejar-feature`
+
+1. Ler a issue/épico no GitHub
+2. Apresentar o plano **no chat**
+3. Quando o utilizador confirmar decisões → `gh issue comment <n>` com o resumo (decisões, escopo, ordem de lotes)
+4. **Não** gravar `analises/*.md` nem `followups/*.md` locais
+
+## Follow-ups ao fechar issue
+
+- Abrir com `gh issue create` (corpo no comando / ficheiro temp apagado a seguir)
+- Comentar na issue/PR fechada com os `#NNN`
+- **Não** exigir body em `.github/planning-issue-bodies/followups/`
+
+## Exceção (rara)
+
+Só escrever/commitar em `analises/` se o utilizador pedir **explicitamente** um doc durável no repo (ex.: decisão arquitectónica multi-épico que não cabe num comentário). Preferir sempre comentário ou issue dedicada.

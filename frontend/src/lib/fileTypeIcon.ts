@@ -76,6 +76,11 @@ export function rotuloDownloadArquivo(
   tipoMidia?: string | null,
 ): string {
   const tipo = (tipoMidia ?? '').toLowerCase()
+  const nomeLimpo = (nome ?? '').trim()
+  if (nomeLimpo) {
+    const v = visualTipoArquivo(nomeLimpo, mime)
+    return `${v.emoji} ${nomeLimpo}`
+  }
   if (tipo === 'audio') return '🔊 Baixar áudio'
   if (tipo === 'video') return '🎬 Baixar vídeo'
   if (tipo === 'imagem' || tipo === 'figurinha') return '📷 Baixar imagem'

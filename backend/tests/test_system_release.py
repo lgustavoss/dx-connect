@@ -180,6 +180,77 @@ def test_system_release_notes_sanitize_legacy_brand(client, auth_headers, monkey
     assert "DeskRudder" in text
 
 
+def test_system_release_notes_filters_by_product(client, auth_headers, monkeypatch, tmp_path):
+    data_path = tmp_path / "release_notes.json"
+    payload = {
+        "current_version": "26.08.006",
+        "current_version_display": "v26.08.006",
+        "releases": [
+            {
+                "version": "26.08.006",
+                "version_display": "v26.08.006",
+                "date": "2026-08-13",
+                "status": "published",
+                "changes": [
+                    {"product": "deskrudder", "category": "correcoes", "text": "Chat fila"},
+                    {"product": "saas", "category": "melhorias", "text": "SaaS: licenças"},
+                ],
+            }
+        ],
+        "upcoming": [],
+    }
+    data_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    import app.services.system_release as sr
+
+    monkeypatch.setattr(sr, "_DATA_DIR", tmp_path)
+    reload_release_notes_cache()
+    monkeypatch.setenv("DX_CONNECT_VERSION", "26.08.006")
+
+    body = client.get("/v1/system/release-notes", headers=auth_headers["admin"]).json()
+    texts = [c["text"] for c in body["current"]["changes"]]
+    assert texts == ["Chat fila"]
+    assert all(c.get("product") == "deskrudder" for c in body["current"]["changes"])
+
+
+def test_saas_release_notes_rbac_and_filter(client, auth_headers, monkeypatch, tmp_path):
+    from app.config import settings
+
+    data_path = tmp_path / "release_notes.json"
+    payload = {
+        "current_version": "26.08.006",
+        "releases": [
+            {
+                "version": "26.08.006",
+                "version_display": "v26.08.006",
+                "date": "2026-08-13",
+                "status": "published",
+                "changes": [
+                    {"product": "deskrudder", "category": "correcoes", "text": "Chat fila"},
+                    {"product": "saas", "category": "melhorias", "text": "SaaS: licenças"},
+                ],
+            }
+        ],
+        "upcoming": [],
+    }
+    data_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    import app.services.system_release as sr
+
+    monkeypatch.setattr(sr, "_DATA_DIR", tmp_path)
+    reload_release_notes_cache()
+    monkeypatch.setenv("DX_CONNECT_VERSION", "26.08.006")
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+
+    assert client.get("/v1/saas/release-notes", headers=auth_headers["a1"]).status_code == 403
+    assert client.get("/v1/saas/release-notes", headers=auth_headers["admin"]).status_code == 403
+
+    ok = client.get("/v1/saas/release-notes", headers=auth_headers["ops"])
+    assert ok.status_code == 200, ok.text
+    texts = [c["text"] for c in ok.json()["current"]["changes"]]
+    assert texts == ["SaaS: licenças"]
+
+
 def test_health_includes_version(client, monkeypatch):
     monkeypatch.setenv("DX_CONNECT_VERSION", "26.06.000")
     r = client.get("/health")

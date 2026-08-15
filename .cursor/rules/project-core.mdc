@@ -21,7 +21,7 @@ Sistema interno de helpdesk para redes de postos (tickets, WhatsApp, e-mail, SSE
 - SSE: `docs/REALTIME_SSE.md`
 - Migrations: `docs/ALEMBIC_MIGRATIONS.md`
 - Deploy: `docs/DEPLOYMENT_ARCHITECTURE.md`
-- Planejamento: `.github/planning-issue-bodies/`
+- Planejamento: issues no **GitHub** (ver rule `planning-github-source`); índice opcional em `.github/planning-issue-bodies/ISSUES_CRIADAS.md`
 
 ## Dev e testes (Docker-first)
 

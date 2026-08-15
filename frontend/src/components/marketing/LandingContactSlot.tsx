@@ -1,4 +1,5 @@
 import { useEffect, useId, useState, type FormEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { saasPublic } from '../../api/client'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { landingMailtoHref } from '../../content/landing'
@@ -81,8 +82,13 @@ function ContatoComercialModal({ titleId, onClose }: { titleId: string; onClose:
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
     }
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = prevOverflow
+      window.removeEventListener('keydown', onKey)
+    }
   }, [onClose])
 
   async function onSubmit(e: FormEvent) {
@@ -112,9 +118,9 @@ function ContatoComercialModal({ titleId, onClose }: { titleId: string; onClose:
   const field =
     'w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-sky-400/50 focus:outline-none focus:ring-2 focus:ring-sky-400/25'
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-end justify-center bg-black/70 p-4 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm"
       role="presentation"
       onClick={onClose}
     >
@@ -122,7 +128,7 @@ function ContatoComercialModal({ titleId, onClose }: { titleId: string; onClose:
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#0b1c2b] p-5 shadow-2xl sm:p-6"
+        className="my-auto max-h-[min(90vh,40rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/10 bg-[#0b1c2b] p-5 shadow-2xl sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -199,6 +205,7 @@ function ContatoComercialModal({ titleId, onClose }: { titleId: string; onClose:
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

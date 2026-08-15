@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict
 class ReleaseChangeRead(BaseModel):
     category: str
     text: str
+    product: str | None = None
 
 
 class ReleaseRead(BaseModel):
