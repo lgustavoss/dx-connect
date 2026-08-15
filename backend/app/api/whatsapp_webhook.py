@@ -580,6 +580,11 @@ def _processar_mensagem_inbound(
 
     tipo_midia = tipo
     mimetype_val = item.get("mimetype")
+    midia_nome_original = item.get("file_name")
+    if isinstance(midia_nome_original, str):
+        midia_nome_original = midia_nome_original.strip()[:255] or None
+    else:
+        midia_nome_original = None
     midia_nome = _baixar_midia_inbound(
         item=item,
         st_media=st_media,
@@ -611,6 +616,7 @@ def _processar_mensagem_inbound(
                     tipo_midia=tipo_midia,
                     mimetype=mimetype_val,
                     midia_nome_arquivo=midia_nome,
+                    midia_nome_original=midia_nome_original,
                     wa_message_id=wa_mid,
                     quoted_wa_message_id=item.get("quoted_wa_message_id"),
                     quoted_corpo_preview=str(q_prev).strip()[:500] if q_prev else None,
@@ -687,6 +693,7 @@ def _processar_mensagem_inbound(
         tipo_midia=tipo_midia,
         mimetype=mimetype_val,
         midia_nome_arquivo=midia_nome,
+        midia_nome_original=midia_nome_original,
         wa_message_id=wa_mid,
         quoted_wa_message_id=item.get("quoted_wa_message_id"),
         quoted_corpo_preview=str(q_prev).strip()[:500] if q_prev else None,
