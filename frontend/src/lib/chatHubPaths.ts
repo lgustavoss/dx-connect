@@ -1,4 +1,4 @@
-import { gravarChatAtivoSession, type ChatAtivoCanal } from './chatAtivo'
+import type { ChatAtivoCanal } from './chatAtivo'
 
 export const CHAT_HUB_PATHS = {
   atendendo: '/chat/atendendo',
@@ -35,27 +35,32 @@ export function chatHubModoDePath(pathname: string, search?: string): ChatHubMod
 }
 
 /**
- * Abre WhatsApp no hub: grava id na sessão e devolve path estável (#654).
- * Chamar no click / navigate (não em render de lista).
+ * Só o path da aba WhatsApp no hub — sem gravar sessão (#698).
+ * No clique: `abrirChat('whatsapp', id)` (ou `gravarChatAtivoSession`) e depois `navigate`.
  */
-export function chatWhatsappLink(chatId: number, from?: ChatHubModo) {
-  gravarChatAtivoSession({ canal: 'whatsapp', id: chatId })
+export function chatWhatsappLink(from?: ChatHubModo) {
   return {
     pathname: chatHubPathParaModo(from),
     search: '',
   }
 }
 
-export function chatPortalLink(chatId: number, from?: ChatHubModo) {
-  gravarChatAtivoSession({ canal: 'portal', id: chatId })
+/**
+ * Só o path da aba portal no hub — sem gravar sessão (#698).
+ * No clique: `abrirChat('portal', id)` e depois `navigate`.
+ */
+export function chatPortalLink(from?: ChatHubModo) {
   return {
     pathname: chatHubPathParaModo(from === 'espera' ? 'espera' : 'atendendo'),
     search: '',
   }
 }
 
-export function chatInternoLink(conversaId: number) {
-  gravarChatAtivoSession({ canal: 'interno', id: conversaId })
+/**
+ * Só o path do inbox interno — sem gravar sessão (#698).
+ * No clique: `abrirChat('interno', id)` e depois `navigate`.
+ */
+export function chatInternoLink() {
   return CHAT_HUB_PATHS.interno
 }
 

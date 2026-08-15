@@ -641,7 +641,7 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
   const menuMobileRef = useRef<HTMLDivElement>(null)
   const [filaAguardandoAberta, setFilaAguardandoAberta] = useState(false)
   const [assumindo, setAssumindo] = useState(false)
-  const { filaCount, refreshContagens } = useChatHub()
+  const { filaCount, refreshContagens, abrirChat } = useChatHub()
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
@@ -1248,7 +1248,8 @@ useEffect(() => {
       void refreshContagens()
       void refetchPendenciasResumo()
       toast.showSuccess('Chat assumido.')
-      navigate(chatWhatsappLink(chat.id, 'atendendo'), { replace: true })
+      abrirChat('whatsapp', chat.id)
+      navigate(chatWhatsappLink('atendendo'), { replace: true })
     } catch (err) {
       const msg =
         err instanceof ApiError && err.status === 400

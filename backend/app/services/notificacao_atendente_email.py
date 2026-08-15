@@ -38,9 +38,9 @@ def _debounce_minutes() -> int:
     return max(1, int(settings.NOTIFICACAO_EMAIL_DEBOUNCE_MINUTES))
 
 
-def _ticket_link(ticket_id: int) -> str:
+def _ticket_link() -> str:
     origin = _public_app_origin().rstrip("/")
-    return f"{origin}/tickets/{ticket_id}"
+    return f"{origin}/tickets"
 
 
 def obter_ou_criar_preferencias(db: Session, atendente_id: int) -> AtendenteNotificacaoPreferencias:
@@ -178,7 +178,7 @@ def notificar_ticket_atribuido(
     if not atendente:
         return
     proto = ticket.protocolo or str(ticket.id)
-    link = _ticket_link(ticket.id)
+    link = _ticket_link()
     subject = f"Chamado atribuído a você — {proto}"
     body = (
         f"Olá {atendente.nome},\n\n"
@@ -225,7 +225,7 @@ def notificar_nova_mensagem_ticket(
         return
 
     proto = ticket.protocolo or str(ticket.id)
-    link = _ticket_link(ticket.id)
+    link = _ticket_link()
     preview = (mensagem.corpo or "").strip().replace("\n", " ")[:200]
     if len((mensagem.corpo or "").strip()) > 200:
         preview += "…"
@@ -272,7 +272,7 @@ def notificar_sla_alerta_email(
     if ticket.fechado_em is not None:
         return
     proto = ticket.protocolo or str(ticket.id)
-    link = _ticket_link(ticket.id)
+    link = _ticket_link()
     tipo = TIPO_SLA_EM_RISCO if evento == "em_risco" else TIPO_SLA_VIOLADO
     subject = f"SLA {evento_label} — {proto} ({meta_label})"
     body = (

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { notificacoes, type Notificacoes } from '../api/client'
 import { usePendenciasResumo } from '../hooks/useAlertaFilaSemResponsavel'
 import { useEventStream } from '../contexts/EventStreamContext'
+import { aplicarAtivoDaNotificacao } from '../lib/notificacaoNavegacao'
 
 const POLL_ITENS_MS = 30_000
 const POLL_ITENS_SSE_MS = 60_000
@@ -81,12 +82,15 @@ function ListaPendencias({
   return (
     <ul className="space-y-2 sm:space-y-0.5">
       {itens.map((item, idx) => (
-        <li key={`${item.tipo}-${item.conversa_id ?? item.ticket_id ?? 'fila'}-${idx}`}>
+        <li key={`${item.tipo}-${item.conversa_id ?? item.chat_id ?? item.ticket_id ?? 'fila'}-${idx}`}>
           <Link
             role="menuitem"
             to={item.href}
             className="flex gap-3 rounded-2xl border border-slate-200/90 bg-white px-4 py-3 text-left text-sm shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-800/80 dark:bg-slate-900/50 dark:hover:bg-slate-800/80 sm:gap-2 sm:rounded-lg sm:border-0 sm:bg-transparent sm:px-2 sm:py-2 sm:shadow-none sm:hover:bg-slate-50 dark:sm:hover:bg-slate-800/80"
-            onClick={onNavigate}
+            onClick={() => {
+              aplicarAtivoDaNotificacao(item)
+              onNavigate()
+            }}
           >
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium text-slate-900 dark:text-slate-100">{item.titulo}</p>

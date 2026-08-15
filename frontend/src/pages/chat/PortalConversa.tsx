@@ -70,7 +70,7 @@ export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
   const toast = useToast()
   const { user } = useAuth()
   const { subscribe, useFallback } = useEventStream()
-  const { refreshContagens, filaCount, fecharChat } = useChatHub()
+  const { refreshContagens, filaCount, fecharChat, abrirChat } = useChatHub()
   const [chat, setChat] = useState<PortalChats.Chat | null>(null)
   const [mensagens, setMensagens] = useState<PortalChats.Mensagem[]>([])
   const [demandasTimeline, setDemandasTimeline] = useState<ChatDemanda[]>([])
@@ -235,7 +235,8 @@ export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
       void refreshContagens()
       void refetchPendenciasResumo()
       toast.showSuccess('Chat assumido.')
-      navigate(chatPortalLink(chat.id), { replace: true })
+      abrirChat('portal', chat.id)
+      navigate(chatPortalLink(), { replace: true })
     } catch (err) {
       const msg =
         err instanceof ApiError && err.status === 400

@@ -4,6 +4,7 @@ import { atendentes, chatInterno } from '../../api/client'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { useAuth } from '../../contexts/AuthContext'
 import { useChatInterno } from '../../contexts/ChatInternoContext'
+import { useChatHub } from '../../contexts/ChatHubContext'
 import { Button } from '../ui/Button'
 import { INPUT_FIELD_CLASS } from '../ui/Input'
 import { useToast } from '../ui/Toast'
@@ -22,6 +23,7 @@ export function ChatInternoNovaConversaModal({ open, onClose }: Props) {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { carregar } = useChatInterno()
+  const { abrirChat } = useChatHub()
   const [modo, setModo] = useState<Modo>('direta')
   const [busca, setBusca] = useState('')
   const [tituloGrupo, setTituloGrupo] = useState('')
@@ -68,7 +70,8 @@ export function ChatInternoNovaConversaModal({ open, onClose }: Props) {
       const conv = await chatInterno.criarDireta(atendenteId)
       onClose()
       await carregar(true)
-      navigate(chatInternoLink(conv.id))
+      abrirChat('interno', conv.id)
+      navigate(chatInternoLink())
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível iniciar a conversa.'))
     } finally {
@@ -84,7 +87,8 @@ export function ChatInternoNovaConversaModal({ open, onClose }: Props) {
       const conv = await chatInterno.criarGrupo(titulo, selecionados)
       onClose()
       await carregar(true)
-      navigate(chatInternoLink(conv.id))
+      abrirChat('interno', conv.id)
+      navigate(chatInternoLink())
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível criar o grupo.'))
     } finally {
