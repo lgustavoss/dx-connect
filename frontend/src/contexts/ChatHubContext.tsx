@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useLocation } from 'react-router-dom'
 import { portalChats, whatsappChats } from '../api/client'
 import {
+  CHAT_ATIVO_EVENT,
   gravarChatAtivoSession,
   lerChatAtivoSession,
   type ChatAtivo,
@@ -43,11 +44,17 @@ export function ChatHubProvider({ children }: { children: ReactNode }) {
     setChatAtivo(null)
   }, [])
 
-  /** Sync após navigate com `chatWhatsappLink` (grava sessão antes do path) (#654). */
+  /** Sync após clique que grava sessão (sininho / helpers sem side-effect) (#654 / #697 / #698). */
   useEffect(() => {
     if (!location.pathname.startsWith('/chat')) return
     setChatAtivo(lerChatAtivoSession())
   }, [location.pathname, location.key])
+
+  useEffect(() => {
+    const sync = () => setChatAtivo(lerChatAtivoSession())
+    window.addEventListener(CHAT_ATIVO_EVENT, sync)
+    return () => window.removeEventListener(CHAT_ATIVO_EVENT, sync)
+  }, [])
 
   const refreshContagens = useCallback(async () => {
     try {

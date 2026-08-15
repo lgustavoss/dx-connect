@@ -177,7 +177,7 @@ function RedirectKbArtigoEditar() {
 }
 
 /**
- * Rotas legadas com id na URL (`/chat/c/:id`, `/whatsapp/c/:id`, notificações):
+ * Rotas legadas com id na URL (`/chat/c/:id`, `/whatsapp/c/:id`, e-mails antigos):
  * guardam a conversa como ativa e caem na aba fixa do hub (#654).
  */
 function RedirectChatConversa({ canal }: { canal: ChatAtivoCanal }) {

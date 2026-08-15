@@ -9,6 +9,8 @@ export type ChatAtivo = {
 
 export const CHAT_ATIVO_SESSION_KEY = 'deskrudder-chat-ativo'
 
+export const CHAT_ATIVO_EVENT = 'deskrudder-chat-ativo'
+
 export function lerChatAtivoSession(): ChatAtivo | null {
   try {
     const raw = sessionStorage.getItem(CHAT_ATIVO_SESSION_KEY)
@@ -32,10 +34,13 @@ export function gravarChatAtivoSession(ativo: ChatAtivo | null): void {
   try {
     if (!ativo) {
       sessionStorage.removeItem(CHAT_ATIVO_SESSION_KEY)
-      return
+    } else {
+      sessionStorage.setItem(CHAT_ATIVO_SESSION_KEY, JSON.stringify(ativo))
     }
-    sessionStorage.setItem(CHAT_ATIVO_SESSION_KEY, JSON.stringify(ativo))
   } catch {
     /* ignore */
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(CHAT_ATIVO_EVENT))
   }
 }

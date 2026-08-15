@@ -28,7 +28,7 @@ import { rotuloPrioridade, classeBadgePrioridade } from '../lib/ticketPrioridade
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 import { SlaBadge } from '../components/tickets/SlaBadge'
 import { TicketDetalhe } from './TicketDetalhe'
-import { gravarTicketAtivoSession, lerTicketAtivoSession } from '../lib/ticketAtivo'
+import { gravarTicketAtivoSession, lerTicketAtivoSession, TICKET_ATIVO_EVENT } from '../lib/ticketAtivo'
 
 type ColunaOrdenacao =
   | 'protocolo'
@@ -118,7 +118,10 @@ export function Tickets() {
   const [ticketAtivoId, setTicketAtivoId] = useState<number | null>(() => lerTicketAtivoSession())
 
   useEffect(() => {
-    setTicketAtivoId(lerTicketAtivoSession())
+    const sync = () => setTicketAtivoId(lerTicketAtivoSession())
+    sync()
+    window.addEventListener(TICKET_ATIVO_EVENT, sync)
+    return () => window.removeEventListener(TICKET_ATIVO_EVENT, sync)
   }, [location.key])
 
   const abrirTicket = useCallback((id: number) => {

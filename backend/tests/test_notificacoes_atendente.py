@@ -57,6 +57,9 @@ def test_atribuicao_enfileira_email(client, seed_base, auth_headers, db_session)
     assert row is not None
     assert row.atendente_id == seed_base["a1"].id
     assert row.status == "pendente"
+    assert "Acesse:" in row.body
+    assert f"/tickets/{t['id']}" not in row.body
+    assert row.body.rstrip().endswith("/tickets")
 
 
 def test_atribuicao_respeita_preferencias(client, seed_base, auth_headers, db_session):

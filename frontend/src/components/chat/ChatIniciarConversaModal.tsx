@@ -7,6 +7,8 @@ import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { chatWhatsappLink } from '../../lib/chatHubPaths'
+import { gravarChatAtivoSession } from '../../lib/chatAtivo'
+import { useChatHubOpcional } from '../../contexts/ChatHubContext'
 
 type Props = {
   open: boolean
@@ -31,6 +33,7 @@ export function ChatIniciarConversaModal({
 }: Props) {
   const toast = useToast()
   const navigate = useNavigate()
+  const hub = useChatHubOpcional()
   const [telefone, setTelefone] = useState('')
   const [mensagem, setMensagem] = useState('')
   const [empresaId, setEmpresaId] = useState<number | ''>('')
@@ -78,7 +81,9 @@ export function ChatIniciarConversaModal({
         empresa_id: empresaId === '' ? undefined : Number(empresaId),
       })
       onClose()
-      navigate(chatWhatsappLink(chat.id, 'contatos'))
+      if (hub) hub.abrirChat('whatsapp', chat.id)
+      else gravarChatAtivoSession({ canal: 'whatsapp', id: chat.id })
+      navigate(chatWhatsappLink('contatos'))
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível iniciar a conversa.'))
     } finally {
