@@ -1,19 +1,17 @@
 import { useMemo, useState } from 'react'
-import { Link, useMatch } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { Button } from '../ui/Button'
 import { useChatHub } from '../../contexts/ChatHubContext'
 import { useChatInterno } from '../../contexts/ChatInternoContext'
 import { formatarHoraRelativa, previewTexto } from '../../lib/chatInternoUtils'
-import { chatInternoLink } from '../../lib/chatHubPaths'
+import { CHAT_HUB_PATHS, chatAtivoIgual } from '../../lib/chatHubPaths'
 import { ChatInternoNovaConversaModal } from './ChatInternoNovaConversaModal'
 import { CHAT_INTERNO_FILTRO_VAZIO, ChatInternoFiltroTipo } from './ChatInternoFiltroTipo'
 
 export function ChatInternoLista() {
   const { filtradas, filtro, loading, erro, carregar } = useChatInterno()
-  const { busca } = useChatHub()
+  const { busca, chatAtivo, abrirChat } = useChatHub()
   const [modalAberto, setModalAberto] = useState(false)
-  const match = useMatch('/chat/interno/:conversaId')
-  const conversaAtivaId = match?.params.conversaId ? Number(match.params.conversaId) : null
 
   const lista = useMemo(() => {
     const q = busca.trim().toLowerCase()
@@ -54,11 +52,12 @@ export function ChatInternoLista() {
         ) : (
           <ul className="divide-y divide-slate-100 dark:divide-slate-800">
             {lista.map((c) => {
-              const ativa = conversaAtivaId === c.id
+              const ativa = chatAtivoIgual(chatAtivo, 'interno', c.id)
               return (
                 <li key={c.id}>
                   <Link
-                    to={chatInternoLink(c.id)}
+                    to={CHAT_HUB_PATHS.interno}
+                    onClick={() => abrirChat('interno', c.id)}
                     className={`flex gap-3 px-3 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900/50 ${
                       ativa ? 'bg-cyan-50/80 dark:bg-cyan-950/30' : ''
                     }`}

@@ -16,10 +16,14 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - WhatsApp (#682): no telemóvel, dá para ocultar detalhes (protocolo, tags, demandas) e ver mais o chat
 - WhatsApp (#680): vídeos da conversa abrem em overlay ampliado, com opção de tela cheia nativa
 - WhatsApp (#679): documentos mostram e descarregam com o **nome original** do ficheiro (envio e recebimento)
+- Chat (#654): a mesa de atendimento fica sempre no mesmo endereço (`/chat/atendendo`, `/chat/espera`, `/chat/interno`) — o número da conversa deixa de aparecer na barra do navegador e a conversa aberta continua no painel ao trocar de aba
+- Tickets (#655): abrir um chamado mantém o endereço `/tickets`, sem o número do ticket na barra do navegador; ao voltar, a lista preserva filtros e página
 
 #### Correções
 
 - Login (#677): em subdomínio do cliente, **Voltar ao site** abre a landing DeskRudder (apex) em vez de voltar ao próprio login
+- Funcionários da rede (#685): ao editar/criar, o formulário volta a mostrar o topo e a rolar até ao fim — sem espaço vazio abaixo dos botões nem conteúdo preso fora do ecrã
+- Links antigos (#654 / #655): endereços com número (chat da fila, conversa do WhatsApp, notificações de ticket) continuam a funcionar e abrem o item certo no novo formato
 - WhatsApp (#683): envio de mensagem/áudio/anexo já não mostra toast verde que cobria o botão de enviar (erros continuam)
 
 ### SaaS Control Plane

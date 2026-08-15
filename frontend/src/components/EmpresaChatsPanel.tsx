@@ -9,7 +9,7 @@ import { useToast } from './ui/Toast'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { exibirProtocolo } from '../lib/exibirProtocolo'
 import { rotuloEstadoChat } from '../lib/whatsappChatMeta'
-import { whatsappConversaLink } from '../lib/whatsappListReturn'
+import { marcarWhatsappChatAtivo, whatsappConversaLink } from '../lib/whatsappListReturn'
 import { ChatIniciarConversaModal } from './chat/ChatIniciarConversaModal'
 
 type Props = {
@@ -183,7 +183,8 @@ export function EmpresaChatsPanel({ empresaId }: Props) {
                     </div>
                   </div>
                   <Link
-                    to={whatsappConversaLink(c.id, returnPath)}
+                    to={whatsappConversaLink(returnPath)}
+                    onClick={() => marcarWhatsappChatAtivo(c.id)}
                     className="rounded-full bg-slate-100 p-2 text-slate-400 transition-all hover:bg-cyan-600 hover:text-white dark:bg-slate-800 dark:hover:bg-cyan-700"
                     title="Ver conversa"
                   >

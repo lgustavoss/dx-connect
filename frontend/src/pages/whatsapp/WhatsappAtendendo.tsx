@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ApiError, whatsappChats, type WhatsappChats } from '../../api/client'
 import { AssumirWhatsappSetorModal } from '../../components/chat/AssumirWhatsappSetorModal'
 import { WhatsappAvatar } from '../../components/chat/WhatsappAvatar'
-import { whatsappConversaLink, WHATSAPP_LIST_PATHS } from '../../lib/whatsappListReturn'
+import { marcarWhatsappChatAtivo, whatsappConversaLink, WHATSAPP_LIST_PATHS } from '../../lib/whatsappListReturn'
 import { precisaEscolherSetorAoAssumir } from '../../lib/assumirWhatsappSetor'
 import { refetchPendenciasResumo } from '../../hooks/useAlertaFilaSemResponsavel'
 import { useAuth } from '../../contexts/AuthContext'
@@ -223,7 +223,8 @@ export function WhatsappAtendendo() {
 
                     <div className="flex items-center gap-2 border-t pt-3 dark:border-slate-800">
                       <Link
-                        to={whatsappConversaLink(c.id, WHATSAPP_LIST_PATHS.atendendo, 'atendendo')}
+                        to={whatsappConversaLink(WHATSAPP_LIST_PATHS.atendendo, 'atendendo')}
+                        onClick={() => marcarWhatsappChatAtivo(c.id)}
                         className="flex-1 rounded-lg bg-slate-100 py-2 text-center text-xs font-bold text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                       >
                         Visualizar
@@ -253,7 +254,8 @@ export function WhatsappAtendendo() {
                 {meusAClassificar.map((c) => (
                   <Link
                     key={c.id}
-                    to={whatsappConversaLink(c.id, WHATSAPP_LIST_PATHS.atendendo, 'atendendo')}
+                    to={whatsappConversaLink(WHATSAPP_LIST_PATHS.atendendo, 'atendendo')}
+                    onClick={() => marcarWhatsappChatAtivo(c.id)}
                     className="group"
                   >
                     <Card className="h-full border-none p-5 shadow-sm ring-1 ring-amber-300 transition-all group-hover:ring-amber-500 dark:ring-amber-800">
@@ -305,7 +307,8 @@ export function WhatsappAtendendo() {
                 meusAtivos.map((c) => (
                   <Link
                     key={c.id}
-                    to={whatsappConversaLink(c.id, WHATSAPP_LIST_PATHS.atendendo, 'atendendo')}
+                    to={whatsappConversaLink(WHATSAPP_LIST_PATHS.atendendo, 'atendendo')}
+                    onClick={() => marcarWhatsappChatAtivo(c.id)}
                     className="group"
                   >
                     <Card className="h-full border-none p-5 shadow-sm ring-1 ring-slate-200 transition-all group-hover:ring-cyan-500 dark:ring-slate-800">

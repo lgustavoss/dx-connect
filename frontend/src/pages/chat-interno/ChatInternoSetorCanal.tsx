@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ApiError, chatInterno } from '../../api/client'
+import { chatInternoLink } from '../../lib/chatHubPaths'
 import { SemPermissao } from '../SemPermissao'
 
 export function ChatInternoSetorCanal() {
@@ -18,7 +19,7 @@ export function ChatInternoSetorCanal() {
     ;(async () => {
       try {
         const canal = await chatInterno.obterCanalSetor(setorId)
-        if (!cancelled) navigate(`/chat/interno/${canal.id}`, { replace: true })
+        if (!cancelled) navigate(chatInternoLink(canal.id), { replace: true })
       } catch (err) {
         if (!cancelled && err instanceof ApiError && err.status === 403) {
           setForbidden(true)

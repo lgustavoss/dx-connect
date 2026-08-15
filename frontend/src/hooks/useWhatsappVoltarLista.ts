@@ -1,10 +1,16 @@
 import { useCallback } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 
-import { resolveWhatsappListFallback, WHATSAPP_LIST_PATHS } from '../lib/whatsappListReturn'
+import { useChatHubOpcional } from '../contexts/ChatHubContext'
+import { CHAT_HUB_PATHS } from '../lib/chatHubPaths'
+import {
+  resolveWhatsappListFallback,
+  WHATSAPP_LIST_PATHS,
+  type WhatsappListReturnState,
+} from '../lib/whatsappListReturn'
 
 type VoltarListaApi = {
-  /** Botão Voltar (#449): history.back no SPA quando possível; senão lista segura. */
+  /** Botão Voltar: fecha o painel; se veio de Histórico/etc., regressa a essa lista. */
   voltarLista: () => void
   /**
    * Esc / sair sem percorrer pilha de chats (#653): sempre lista de origem
@@ -13,28 +19,43 @@ type VoltarListaApi = {
   sairParaListaSegura: () => void
 }
 
+function estaNaAbaDoHub(pathname: string): boolean {
+  return (Object.values(CHAT_HUB_PATHS) as string[]).some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  )
+}
+
 /**
  * Navegação de saída da conversa WhatsApp.
- * Voltar UI pode usar histórico; Esc deve ir à lista segura (#653).
+ * Com URL fixa (#654) o pathname já é a aba: Voltar só fecha o painel, senão
+ * o history.back saía do módulo chat.
  */
 export function useWhatsappVoltarLista(fallbackPath = WHATSAPP_LIST_PATHS.atendendo): VoltarListaApi {
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
+  const hub = useChatHubOpcional()
+  const fecharChat = hub?.fecharChat
 
   const sairParaListaSegura = useCallback(() => {
-    navigate(
-      resolveWhatsappListFallback(location.state, searchParams.get('from'), fallbackPath),
-    )
-  }, [navigate, location.state, searchParams, fallbackPath])
-
-  const voltarLista = useCallback(() => {
-    if (typeof window !== 'undefined' && window.history.length > 1) {
-      navigate(-1)
+    fecharChat?.()
+    const destino = resolveWhatsappListFallback(location.state, searchParams.get('from'), fallbackPath)
+    if (destino === location.pathname || (estaNaAbaDoHub(location.pathname) && destino.startsWith('/chat/'))) {
       return
     }
+    navigate(destino)
+  }, [fecharChat, navigate, location.state, location.pathname, searchParams, fallbackPath])
+
+  const voltarLista = useCallback(() => {
+    fecharChat?.()
+    const returnPath = (location.state as WhatsappListReturnState | null)?.whatsappListReturn?.trim()
+    if (returnPath && returnPath !== location.pathname) {
+      navigate(returnPath)
+      return
+    }
+    if (estaNaAbaDoHub(location.pathname)) return
     sairParaListaSegura()
-  }, [navigate, sairParaListaSegura])
+  }, [fecharChat, location.pathname, location.state, navigate, sairParaListaSegura])
 
   return { voltarLista, sairParaListaSegura }
 }
