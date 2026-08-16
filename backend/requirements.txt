@@ -8,7 +8,7 @@ sqlalchemy==2.0.51
 psycopg2-binary==2.9.12
 alembic==1.19.0
 pydantic[email]==2.13.4
-pydantic-settings==2.14.2
+pydantic-settings==2.15.0
 PyJWT[crypto]==2.13.0
 cryptography>=50.0.0
 bcrypt>=5.0.0,<6
