@@ -28,6 +28,8 @@ import { rotuloPrioridade, classeBadgePrioridade } from '../lib/ticketPrioridade
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 import { SlaBadge } from '../components/tickets/SlaBadge'
 import { TicketDetalhe } from './TicketDetalhe'
+import { useMesaPanelHistory } from '../hooks/useMesaPanelHistory'
+import { popMesaPanelState } from '../lib/mesaHistory'
 import { gravarTicketAtivoSession, lerTicketAtivoSession, TICKET_ATIVO_EVENT } from '../lib/ticketAtivo'
 
 type ColunaOrdenacao =
@@ -129,10 +131,16 @@ export function Tickets() {
     setTicketAtivoId(id)
   }, [])
 
-  const fecharTicket = useCallback(() => {
+  const fecharTicket = useCallback((opts?: { fromPopstate?: boolean }) => {
     gravarTicketAtivoSession(null)
     setTicketAtivoId(null)
+    if (opts?.fromPopstate) return
+    popMesaPanelState()
   }, [])
+
+  useMesaPanelHistory('ticket', ticketAtivoId != null, () => {
+    fecharTicket({ fromPopstate: true })
+  })
 
   const situacao = useMemo<'abertos' | 'fechados'>(() => {
     const s = searchParams.get('situacao')

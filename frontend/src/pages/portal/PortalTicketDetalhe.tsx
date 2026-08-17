@@ -19,9 +19,14 @@ function formatData(iso?: string | null) {
   }
 }
 
-export function PortalTicketDetalhe() {
+type PortalTicketDetalheProps = {
+  ticketIdProp?: number
+  onVoltar?: () => void
+}
+
+export function PortalTicketDetalhe({ ticketIdProp, onVoltar }: PortalTicketDetalheProps = {}) {
   const { id } = useParams<{ id: string }>()
-  const ticketId = Number(id)
+  const ticketId = ticketIdProp ?? Number(id)
   const [ticket, setTicket] = useState<PortalCliente.TicketDetail | null>(null)
   const [mensagens, setMensagens] = useState<PortalCliente.Mensagem[]>([])
   const [loading, setLoading] = useState(true)
@@ -31,6 +36,14 @@ export function PortalTicketDetalhe() {
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const toast = useToast()
   const navigate = useNavigate()
+
+  const voltarLista = useCallback(() => {
+    if (onVoltar) {
+      onVoltar()
+      return
+    }
+    navigate('/portal/tickets')
+  }, [onVoltar, navigate])
 
   const carregar = useCallback(async () => {
     if (!Number.isFinite(ticketId)) return
@@ -49,7 +62,7 @@ export function PortalTicketDetalhe() {
       .catch((err) => {
         if (!cancelled) {
           toast.showError(mensagemFalhaParaToast(err, 'Chamado não encontrado.'))
-          navigate('/portal/tickets', { replace: true })
+          voltarLista()
         }
       })
       .finally(() => {
@@ -58,7 +71,7 @@ export function PortalTicketDetalhe() {
     return () => {
       cancelled = true
     }
-  }, [carregar, navigate, toast])
+  }, [carregar, voltarLista, toast])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
@@ -139,7 +152,7 @@ export function PortalTicketDetalhe() {
       <div>
         <button
           type="button"
-          onClick={() => navigate('/portal/tickets')}
+          onClick={voltarLista}
           className="mb-2 text-sm font-medium text-slate-500 hover:text-slate-800"
         >
           ← Voltar

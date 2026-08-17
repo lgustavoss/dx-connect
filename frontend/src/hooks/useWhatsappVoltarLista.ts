@@ -38,7 +38,8 @@ export function useWhatsappVoltarLista(fallbackPath = WHATSAPP_LIST_PATHS.atende
   const fecharChat = hub?.fecharChat
 
   const sairParaListaSegura = useCallback(() => {
-    fecharChat?.()
+    const consumiuHistorico = fecharChat?.() === true
+    if (consumiuHistorico) return
     const destino = resolveWhatsappListFallback(location.state, searchParams.get('from'), fallbackPath)
     if (destino === location.pathname || (estaNaAbaDoHub(location.pathname) && destino.startsWith('/chat/'))) {
       return
@@ -47,7 +48,8 @@ export function useWhatsappVoltarLista(fallbackPath = WHATSAPP_LIST_PATHS.atende
   }, [fecharChat, navigate, location.state, location.pathname, searchParams, fallbackPath])
 
   const voltarLista = useCallback(() => {
-    fecharChat?.()
+    const consumiuHistorico = fecharChat?.() === true
+    if (consumiuHistorico) return
     const returnPath = (location.state as WhatsappListReturnState | null)?.whatsappListReturn?.trim()
     if (returnPath && returnPath !== location.pathname) {
       navigate(returnPath)

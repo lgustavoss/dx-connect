@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
 import { portalChats, whatsappChats } from '../api/client'
+import { useMesaPanelHistory } from '../hooks/useMesaPanelHistory'
 import {
   CHAT_ATIVO_EVENT,
   gravarChatAtivoSession,
@@ -8,6 +9,7 @@ import {
   type ChatAtivo,
   type ChatAtivoCanal,
 } from '../lib/chatAtivo'
+import { popMesaPanelState } from '../lib/mesaHistory'
 import { useEventStream } from './EventStreamContext'
 
 type ChatHubContextValue = {
@@ -19,7 +21,8 @@ type ChatHubContextValue = {
   /** Conversa aberta no painel (sem id na URL) (#654). */
   chatAtivo: ChatAtivo | null
   abrirChat: (canal: ChatAtivoCanal, id: number) => void
-  fecharChat: () => void
+  /** Limpa o painel. Devolve true se consumiu o Voltar extra do histórico (#699). */
+  fecharChat: () => boolean
 }
 
 const ChatHubContext = createContext<ChatHubContextValue | null>(null)
@@ -39,10 +42,16 @@ export function ChatHubProvider({ children }: { children: ReactNode }) {
     setChatAtivo(next)
   }, [])
 
-  const fecharChat = useCallback(() => {
+  const fecharChat = useCallback((opts?: { fromPopstate?: boolean }) => {
     gravarChatAtivoSession(null)
     setChatAtivo(null)
+    if (opts?.fromPopstate) return true
+    return popMesaPanelState()
   }, [])
+
+  useMesaPanelHistory('chat', chatAtivo != null, () => {
+    void fecharChat({ fromPopstate: true })
+  })
 
   /** Sync após clique que grava sessão (sininho / helpers sem side-effect) (#654 / #697 / #698). */
   useEffect(() => {
