@@ -138,7 +138,7 @@ export function PortalSidebar({
       </div>
 
       <nav
-        className={`min-w-0 flex-1 overflow-x-hidden overflow-y-auto py-3 px-2 ${!expanded ? 'md:px-2' : ''}`}
+        className={`dx-scrollbar min-w-0 flex-1 overflow-x-hidden overflow-y-auto py-3 px-2 ${!expanded ? 'md:px-2' : ''}`}
         aria-label="Menu do portal"
       >
         <ul className={`min-w-0 space-y-0.5 px-2 ${!expanded ? 'md:px-0' : ''}`}>
