@@ -22,6 +22,9 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
+- WhatsApp (#712): após registar demanda no chat aberto, o encerramento por inatividade continua a contar e o worker fecha o atendimento quando o prazo esgota (marco de demanda já não “prende” o relógio em 00:00)
+- Dark mode (#713): texto e caixa de confirmação ao concluir sem demanda ficam legíveis no tema escuro
+- Sobre (#672): notas antigas que começam com «SaaS» deixam de aparecer em `/sobre` mesmo se o histórico foi publicado antes da separação por produto
 - Login (#677): em subdomínio do cliente, **Voltar ao site** abre a landing DeskRudder (apex) em vez de voltar ao próprio login
 - Funcionários da rede (#685): ao editar/criar, o formulário volta a mostrar o topo e a rolar até ao fim — sem espaço vazio abaixo dos botões nem conteúdo preso fora do ecrã
 - Links antigos (#654 / #655): endereços com número (chat da fila, conversa do WhatsApp, detalhe de ticket) continuam a funcionar e abrem o item certo no novo formato
