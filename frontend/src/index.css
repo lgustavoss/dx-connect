@@ -161,14 +161,14 @@
   @apply border-slate-200;
 }
 
-/* Scrollbar discreta (Kanban CRM e listas horizontais) — evita a barra nativa do Windows */
+/* Scrollbar discreta (sidebar, Kanban CRM) — evita a barra nativa do Windows */
 .dx-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: rgb(148 163 184 / 0.55) transparent;
 }
 
 .dark .dx-scrollbar {
-  scrollbar-color: rgb(100 116 139 / 0.7) transparent;
+  scrollbar-color: rgb(148 163 184 / 0.45) transparent;
 }
 
 .dx-scrollbar::-webkit-scrollbar {
@@ -191,11 +191,11 @@
 }
 
 .dark .dx-scrollbar::-webkit-scrollbar-thumb {
-  background: rgb(100 116 139 / 0.7);
+  background: rgb(148 163 184 / 0.45);
 }
 
 .dark .dx-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgb(148 163 184 / 0.55);
+  background: rgb(203 213 225 / 0.6);
 }
 
 .dx-scrollbar::-webkit-scrollbar-button {
