@@ -55,8 +55,9 @@ export function WhatsappInatividadeControle({ chat, msgs, isResponsavel, onChatU
     void tick
     if (!ativa || chat.estado !== 'em_atendimento') return null
 
-    const semComentario = msgs.filter((m) => m.evento_sistema !== 'comentario_interno')
-    const lastAny = semComentario[semComentario.length - 1]
+    const IGNORAR_ATIVIDADE = new Set(['comentario_interno', 'demanda_registrada', 'demanda_escalada'])
+    const semMarcoInterno = msgs.filter((m) => !IGNORAR_ATIVIDADE.has(m.evento_sistema ?? ''))
+    const lastAny = semMarcoInterno[semMarcoInterno.length - 1]
     const posAvisoAtivo = lastAny?.evento_sistema === 'auto_inativ_aviso'
 
     if (chat.inatividade_pausada) {

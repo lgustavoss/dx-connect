@@ -136,6 +136,59 @@ def test_worker_encerra_apos_aviso(client, seed_base, auth_headers, db_session, 
     assert marco is not None
 
 
+def test_worker_encerra_apos_aviso_mesmo_com_marco_demanda(
+    client, seed_base, auth_headers, db_session, monkeypatch
+):
+    """#712: demanda registada depois do aviso não anula o encerramento automático."""
+    _configurar_evolution(db_session)
+    chat = _chat_em_atendimento(db_session, wa_id="5511999001122")
+    agora = datetime.now(timezone.utc)
+    db_session.add(
+        WhatsappMensagem(
+            chat_id=chat.id,
+            direcao="outbound",
+            corpo="[ Atendente ]: Aguardando",
+            tipo_midia="texto",
+            atendente_id=1,
+            created_at=agora - timedelta(minutes=20),
+        )
+    )
+    db_session.add(
+        WhatsappMensagem(
+            chat_id=chat.id,
+            direcao="outbound",
+            corpo="[ BOT ]: Aviso de encerramento",
+            tipo_midia="texto",
+            evento_sistema="auto_inativ_aviso",
+            created_at=agora - timedelta(minutes=8),
+        )
+    )
+    db_session.add(
+        WhatsappMensagem(
+            chat_id=chat.id,
+            direcao="outbound",
+            corpo="Demanda registada: Dúvida — Resolvido na sessão",
+            tipo_midia="texto",
+            evento_sistema="demanda_registrada",
+            created_at=agora - timedelta(minutes=1),
+        )
+    )
+    db_session.commit()
+
+    monkeypatch.setattr(
+        "app.services.whatsapp_inactivity_worker.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-out-dem-inativ"),
+    )
+
+    n = process_whatsapp_inactivity_closures(db_session)
+    db_session.commit()
+    db_session.refresh(chat)
+
+    assert n == 1
+    assert chat.estado == "encerrado"
+    assert chat.classificacao_demanda_pendente is False
+
+
 def test_pode_registrar_demanda_apos_encerramento_inatividade(
     client, seed_base, auth_headers, db_session, monkeypatch
 ):

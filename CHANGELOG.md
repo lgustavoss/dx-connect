@@ -22,6 +22,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
+- WhatsApp (#712): após **registar demanda** com o chat ainda aberto, o encerramento por inatividade volta a fechar sozinho (o marco da demanda já não zera o relógio nem trava o worker)
+- Encerrar chat (#713): em modo escuro, o texto «Confirmo concluir sem classificar» volta a ser legível
 - Login (#677): em subdomínio do cliente, **Voltar ao site** abre a landing DeskRudder (apex) em vez de voltar ao próprio login
 - Funcionários da rede (#685): ao editar/criar, o formulário volta a mostrar o topo e a rolar até ao fim — sem espaço vazio abaixo dos botões nem conteúdo preso fora do ecrã
 - Links antigos (#654 / #655): endereços com número (chat da fila, conversa do WhatsApp, detalhe de ticket) continuam a funcionar e abrem o item certo no novo formato

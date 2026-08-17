@@ -16,6 +16,13 @@ from app.services.whatsapp_auto_messages import (
 
 logger = logging.getLogger(__name__)
 
+# Marcos internos: não são silêncio do cliente nem actividade que reinicia o prazo.
+_EVENTOS_NAO_ATIVIDADE = (
+    "comentario_interno",
+    "demanda_registrada",
+    "demanda_escalada",
+)
+
 
 def _evolution_configurada(st: WhatsappSettings | None) -> bool:
     return bool(
@@ -37,7 +44,7 @@ def _mensagens_relevantes_q(db: Session, chat_id: int):
         WhatsappMensagem.chat_id == chat_id,
         or_(
             WhatsappMensagem.evento_sistema.is_(None),
-            WhatsappMensagem.evento_sistema != "comentario_interno",
+            WhatsappMensagem.evento_sistema.notin_(_EVENTOS_NAO_ATIVIDADE),
         ),
     )
 
@@ -72,7 +79,7 @@ def _referencia_inatividade_cliente(db: Session, chat: WhatsappChat) -> datetime
     humana do atendente), desde que já exista pelo menos uma outbound humana
     (não dispara na fila / só com auto_assumido/BOT).
 
-    Comentários internos e eventos de sistema não contam como atividade.
+    Comentários internos e marcos de demanda não contam como atividade.
     """
     last_out = _ultima_outbound_humana(db, chat.id)
     if not last_out or last_out.created_at is None:
@@ -178,7 +185,16 @@ def _encerrar_por_inatividade(db: Session, chat: WhatsappChat, st: WhatsappSetti
     from app.services.whatsapp_avaliacao import finalizar_atendimento_whatsapp
 
     finalizar_atendimento_whatsapp(db, chat, st, evento_encerrado="auto_encerrado_inatividade")
-    chat.classificacao_demanda_pendente = True
+    ja_classificado = (
+        db.query(WhatsappMensagem.id)
+        .filter(
+            WhatsappMensagem.chat_id == chat.id,
+            WhatsappMensagem.evento_sistema.in_(("demanda_registrada", "demanda_escalada")),
+        )
+        .limit(1)
+        .first()
+    )
+    chat.classificacao_demanda_pendente = not bool(ja_classificado)
     # Com avaliação ativa o evento_encerrado não é gravado — marco interno para o painel pedir demanda.
     ja_tem = (
         db.query(WhatsappMensagem.id)
