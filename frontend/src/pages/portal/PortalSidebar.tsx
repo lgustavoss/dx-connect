@@ -49,7 +49,7 @@ const icons = {
 
 const NAV_ITEMS: NavItem[] = [
   { to: '/portal/tickets', label: 'Chamados', end: true, icon: icons.tickets },
-  { to: '/portal/chats', label: 'Atendimentos', icon: icons.chats },
+  { to: '/portal/chats', label: 'Atendimentos', end: true, icon: icons.chats },
   { to: '/portal/equipe', label: 'Usuários', icon: icons.users, socioOnly: true },
   { to: '/portal/ajuda', label: 'Ajuda', icon: icons.help },
 ]

@@ -94,10 +94,8 @@ import { PortalLogin } from './pages/portal/PortalLogin'
 import { PortalTrocarSenha } from './pages/portal/PortalTrocarSenha'
 import { PortalTickets } from './pages/portal/PortalTickets'
 import { PortalTicketNovo } from './pages/portal/PortalTicketNovo'
-import { PortalTicketDetalhe } from './pages/portal/PortalTicketDetalhe'
 import { PortalAjudaHome, PortalAjudaArtigo } from './pages/portal/PortalAjuda'
 import { PortalChats } from './pages/portal/PortalChats'
-import { PortalChatDetalhe } from './pages/portal/PortalChatDetalhe'
 import { PortalEquipe } from './pages/portal/PortalEquipe'
 import { PortalEquipeForm } from './pages/portal/PortalEquipeForm'
 import { ToastProvider } from './components/ui/Toast'
@@ -107,6 +105,12 @@ import { isMarketingHost } from './lib/marketingHost'
 import { isSaasControlPlaneFrontend } from './lib/saasControlPlane'
 import { gravarChatAtivoSession, type ChatAtivoCanal } from './lib/chatAtivo'
 import { chatHubModoDePath, chatHubPathParaModo } from './lib/chatHubPaths'
+import {
+  gravarPortalChatAtivoSession,
+  gravarPortalTicketAtivoSession,
+  PORTAL_CHATS_PATH,
+  PORTAL_TICKETS_PATH,
+} from './lib/portalAtivo'
 import { gravarTicketAtivoSession } from './lib/ticketAtivo'
 
 /**
@@ -204,6 +208,28 @@ function RedirectTicketDetalhe() {
   return <Navigate to="/tickets" replace state={location.state} />
 }
 
+/** `/portal/tickets/:id` legado: sessão + URL fixa `#700`. */
+function RedirectPortalTicketDetalhe() {
+  const { id } = useParams<{ id: string }>()
+  const location = useLocation()
+  const ticketId = Number(id)
+  if (Number.isFinite(ticketId) && ticketId > 0) {
+    gravarPortalTicketAtivoSession(ticketId)
+  }
+  return <Navigate to={PORTAL_TICKETS_PATH} replace state={location.state} />
+}
+
+/** `/portal/chats/:id` legado: sessão + URL fixa `#700`. */
+function RedirectPortalChatDetalhe() {
+  const { id } = useParams<{ id: string }>()
+  const location = useLocation()
+  const chatId = Number(id)
+  if (Number.isFinite(chatId) && chatId > 0) {
+    gravarPortalChatAtivoSession(chatId)
+  }
+  return <Navigate to={PORTAL_CHATS_PATH} replace state={location.state} />
+}
+
 function RedirectLegacyChatInterno() {
   const location = useLocation()
   const path = location.pathname.replace(/^\/chat-interno/, '/chat/interno')
@@ -230,9 +256,9 @@ function AppRoutes() {
         <Route path="trocar-senha" element={<PortalTrocarSenha />} />
         <Route path="tickets" element={<PortalTickets />} />
         <Route path="tickets/novo" element={<PortalTicketNovo />} />
-        <Route path="tickets/:id" element={<PortalTicketDetalhe />} />
+        <Route path="tickets/:id" element={<RedirectPortalTicketDetalhe />} />
         <Route path="chats" element={<PortalChats />} />
-        <Route path="chats/:id" element={<PortalChatDetalhe />} />
+        <Route path="chats/:id" element={<RedirectPortalChatDetalhe />} />
         <Route path="equipe" element={<PortalEquipe />} />
         <Route path="equipe/novo" element={<PortalEquipeForm />} />
         <Route path="equipe/:id" element={<PortalEquipeForm />} />
