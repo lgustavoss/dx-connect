@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { ApiError, tickets, empresas, setores, redes, type Empresas, type Setores, type Redes, type Tickets } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
@@ -15,13 +15,14 @@ import { CheckboxField } from '../components/ui/CheckboxField'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { PRIORIDADE_OPCOES, type PrioridadeTicket } from '../lib/ticketPrioridade'
+import { useAbrirTicket } from '../lib/ticketAtivo'
 const MAX_ANEXO_BYTES = 25 * 1024 * 1024
 const MAX_ANEXOS_COUNT = 10
 
 export function TicketNovo() {
   const { isAdmin } = useAuth()
   const toast = useToast()
-  const navigate = useNavigate()
+  const abrirTicket = useAbrirTicket()
   const [searchParams] = useSearchParams()
   const voltarAnterior = useVoltarAnterior('/tickets')
   const [forbidden, setForbidden] = useState(false)
@@ -223,7 +224,7 @@ export function TicketNovo() {
       } else {
         toast.showSuccess('Ticket criado.')
       }
-      navigate(`/tickets/${created.id}`)
+      abrirTicket(created.id)
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível localizar os dados para criar o ticket.'))
     } finally {

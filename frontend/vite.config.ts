@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { VitePWA } from 'vite-plugin-pwa'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -16,7 +17,38 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        injectRegister: 'auto',
+        includeAssets: ['favicon.ico', 'deskrudder-pwa-180.png', 'deskrudder-pwa-192.png', 'deskrudder-pwa-512.png'],
+        manifest: {
+          name: 'DeskRudder',
+          short_name: 'DeskRudder',
+          description: 'Atendimento no telemóvel — chats WhatsApp e tickets, no endereço da sua instância.',
+          lang: 'pt-BR',
+          start_url: '/',
+          scope: '/',
+          display: 'standalone',
+          background_color: '#0B2D4A',
+          theme_color: '#f8fafc',
+          icons: [
+            { src: '/deskrudder-pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+            { src: '/deskrudder-pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+            { src: '/deskrudder-pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+            { src: '/deskrudder-pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          ],
+        },
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,webmanifest}'],
+          navigateFallback: '/index.html',
+          navigateFallbackDenylist: [/^\/api/, /^\/v1/, /^\/docs/, /^\/health/, /^\/openapi/],
+        },
+        devOptions: { enabled: false },
+      }),
+    ],
     resolve: {
       // react e react-dom devem ser a mesma versão exata (erro React #527 se divergirem).
       dedupe: ['react', 'react-dom'],

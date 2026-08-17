@@ -1,8 +1,15 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
 import { portalCliente, type PortalCliente } from '../../api/client'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { useToast } from '../../components/ui/Toast'
+import { useMesaPanelHistory } from '../../hooks/useMesaPanelHistory'
+import { popMesaPanelState } from '../../lib/mesaHistory'
+import {
+  gravarPortalChatAtivoSession,
+  lerPortalChatAtivoSession,
+  PORTAL_CHAT_ATIVO_EVENT,
+} from '../../lib/portalAtivo'
+import { PortalChatDetalhe } from './PortalChatDetalhe'
 import {
   PortalPageHeader,
   PortalSegmentedControl,
@@ -51,6 +58,29 @@ export function PortalChats() {
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const toast = useToast()
+  const [chatAtivoId, setChatAtivoId] = useState<number | null>(() => lerPortalChatAtivoSession())
+
+  const abrirChat = useCallback((id: number) => {
+    gravarPortalChatAtivoSession(id)
+    setChatAtivoId(id)
+  }, [])
+
+  const fecharChat = useCallback((opts?: { fromPopstate?: boolean }) => {
+    gravarPortalChatAtivoSession(null)
+    setChatAtivoId(null)
+    if (opts?.fromPopstate) return
+    popMesaPanelState()
+  }, [])
+
+  useMesaPanelHistory('portal-chat', chatAtivoId != null, () => {
+    fecharChat({ fromPopstate: true })
+  })
+
+  useEffect(() => {
+    const sync = () => setChatAtivoId(lerPortalChatAtivoSession())
+    window.addEventListener(PORTAL_CHAT_ATIVO_EVENT, sync)
+    return () => window.removeEventListener(PORTAL_CHAT_ATIVO_EVENT, sync)
+  }, [])
 
   useEffect(() => {
     const t = window.setTimeout(() => setBuscaDebounced(busca.trim()), 300)
@@ -82,6 +112,10 @@ export function PortalChats() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [situacao, buscaDebounced])
+
+  if (chatAtivoId != null) {
+    return <PortalChatDetalhe chatIdProp={chatAtivoId} onVoltar={fecharChat} />
+  }
 
   return (
     <div className="space-y-6">
@@ -126,7 +160,7 @@ export function PortalChats() {
         <ul className="space-y-3">
           {items.map((c) => (
             <li key={c.id}>
-              <Link to={`/portal/chats/${c.id}`} className={`block ${portalCardClass}`}>
+              <button type="button" onClick={() => abrirChat(c.id)} className={`block w-full text-left ${portalCardClass}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-mono text-xs font-semibold tracking-wide text-[var(--portal-primary)]">
@@ -144,7 +178,7 @@ export function PortalChats() {
                   </span>
                 </div>
                 <p className="mt-3 text-xs text-slate-400">{formatData(c.ultima_mensagem_em || c.created_at)}</p>
-              </Link>
+              </button>
             </li>
           ))}
         </ul>

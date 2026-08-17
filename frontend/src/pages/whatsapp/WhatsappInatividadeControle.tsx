@@ -55,10 +55,6 @@ export function WhatsappInatividadeControle({ chat, msgs, isResponsavel, onChatU
     void tick
     if (!ativa || chat.estado !== 'em_atendimento') return null
 
-    const semComentario = msgs.filter((m) => m.evento_sistema !== 'comentario_interno')
-    const lastAny = semComentario[semComentario.length - 1]
-    const posAvisoAtivo = lastAny?.evento_sistema === 'auto_inativ_aviso'
-
     if (chat.inatividade_pausada) {
       return {
         restanteSec: avisoMin * 60,
@@ -68,8 +64,25 @@ export function WhatsappInatividadeControle({ chat, msgs, isResponsavel, onChatU
       }
     }
 
-    if (posAvisoAtivo && lastAny?.created_at) {
-      const elapsed = (Date.now() - new Date(lastAny.created_at).getTime()) / 1000
+    // Só actividade humana reinicia o ciclo — marcos de demanda/sistema não (#712).
+    const relevant = msgs.filter(
+      (m) =>
+        m.evento_sistema !== 'comentario_interno' &&
+        (m.direcao === 'inbound' || (m.direcao === 'outbound' && !m.evento_sistema)),
+    )
+    const lastHuman = relevant[relevant.length - 1]
+    const candidatos: number[] = []
+    if (lastHuman?.created_at) candidatos.push(new Date(lastHuman.created_at).getTime())
+    if (chat.inatividade_retomada_em) candidatos.push(new Date(chat.inatividade_retomada_em).getTime())
+    const refMs = candidatos.length > 0 ? Math.max(...candidatos) : 0
+
+    const avisos = msgs.filter((m) => m.evento_sistema === 'auto_inativ_aviso' && m.created_at)
+    const lastAviso = avisos[avisos.length - 1]
+    const avisoMs = lastAviso?.created_at ? new Date(lastAviso.created_at).getTime() : 0
+    const posAvisoAtivo = Boolean(lastAviso?.created_at && avisoMs >= refMs)
+
+    if (posAvisoAtivo && lastAviso?.created_at) {
+      const elapsed = (Date.now() - avisoMs) / 1000
       return {
         restanteSec: Math.max(0, posAvisoMin * 60 - elapsed),
         label: 'Tempo até encerrar por inatividade (após aviso)',
@@ -78,15 +91,6 @@ export function WhatsappInatividadeControle({ chat, msgs, isResponsavel, onChatU
       }
     }
 
-    const relevant = msgs.filter(
-      (m) =>
-        m.evento_sistema !== 'comentario_interno' &&
-        (m.direcao === 'inbound' || (m.direcao === 'outbound' && !m.evento_sistema)),
-    )
-    const last = relevant[relevant.length - 1]
-    const candidatos: number[] = []
-    if (last?.created_at) candidatos.push(new Date(last.created_at).getTime())
-    if (chat.inatividade_retomada_em) candidatos.push(new Date(chat.inatividade_retomada_em).getTime())
     if (candidatos.length === 0) {
       return {
         restanteSec: avisoMin * 60,
@@ -96,7 +100,6 @@ export function WhatsappInatividadeControle({ chat, msgs, isResponsavel, onChatU
       }
     }
 
-    const refMs = Math.max(...candidatos)
     const elapsed = (Date.now() - refMs) / 1000
     return {
       restanteSec: Math.max(0, avisoMin * 60 - elapsed),

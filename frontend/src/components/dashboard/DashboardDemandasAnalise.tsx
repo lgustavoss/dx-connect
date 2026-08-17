@@ -17,6 +17,8 @@ import { Card } from '../ui/Card'
 import { barClickableProps, chartTooltipProps } from './dashboardChartUtils'
 import { corDrill } from './useDashboardDrilldown'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
+import { CHAT_HUB_PATHS } from '../../lib/chatHubPaths'
+import { marcarWhatsappChatAtivo } from '../../lib/whatsappListReturn'
 
 type FiltroDemanda = {
   naturezaId: number | null
@@ -341,7 +343,8 @@ export function DashboardDemandasAnalise({
                   <li key={item.demanda_id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
                     <div className="min-w-0">
                       <Link
-                        to={`/chat/c/${item.chat_id}`}
+                        to={CHAT_HUB_PATHS.atendendo}
+                        onClick={() => marcarWhatsappChatAtivo(item.chat_id)}
                         className="font-medium text-cyan-700 hover:text-cyan-800 dark:text-cyan-400"
                       >
                         {exibirProtocolo(item.protocolo)}

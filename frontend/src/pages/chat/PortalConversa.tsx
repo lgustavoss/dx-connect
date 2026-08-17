@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { ApiError, fetchPortalMidiaBlob, portalChats, type PortalChats } from '../../api/client'
 import { ChatCanalBadge } from '../../components/chat/ChatCanalBadge'
 import { ChatDemandasPanel } from '../../components/chat/ChatDemandasPanel'
@@ -58,16 +58,19 @@ function formatarHora(iso?: string | null) {
   })
 }
 
-export function PortalConversa() {
+type PortalConversaProps = {
+  /** Conversa aberta pelo hub (sem id na URL) (#654). */
+  chatIdProp?: number
+}
+
+export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
   const { chatId: chatIdParam } = useParams()
-  const chatId = Number(chatIdParam)
+  const chatId = chatIdProp ?? Number(chatIdParam)
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const fromEspera = searchParams.get('from') === 'espera'
   const toast = useToast()
   const { user } = useAuth()
   const { subscribe, useFallback } = useEventStream()
-  const { refreshContagens, filaCount } = useChatHub()
+  const { refreshContagens, filaCount, fecharChat, abrirChat } = useChatHub()
   const [chat, setChat] = useState<PortalChats.Chat | null>(null)
   const [mensagens, setMensagens] = useState<PortalChats.Mensagem[]>([])
   const [demandasTimeline, setDemandasTimeline] = useState<ChatDemanda[]>([])
@@ -232,7 +235,8 @@ export function PortalConversa() {
       void refreshContagens()
       void refetchPendenciasResumo()
       toast.showSuccess('Chat assumido.')
-      navigate(chatPortalLink(chat.id), { replace: true })
+      abrirChat('portal', chat.id)
+      navigate(chatPortalLink(), { replace: true })
     } catch (err) {
       const msg =
         err instanceof ApiError && err.status === 400
@@ -300,6 +304,7 @@ export function PortalConversa() {
       void refetchPendenciasResumo()
       toast.showSuccess(mensagemTransferenciaSucesso(atualizado))
       if (atualizado.atendente_id !== user?.id && atualizado.estado === 'em_atendimento') {
+        fecharChat()
         navigate(CHAT_HUB_PATHS.atendendo)
       }
     } catch (err) {
@@ -318,6 +323,7 @@ export function PortalConversa() {
       return
     }
     toast.showSuccess('Atendimento encerrado.')
+    fecharChat()
     navigate(CHAT_HUB_PATHS.atendendo)
   }
 
@@ -344,12 +350,13 @@ export function PortalConversa() {
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white dark:bg-slate-950">
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-950">
         <div className="min-w-0">
-          <Link
-            to={fromEspera ? CHAT_HUB_PATHS.espera : CHAT_HUB_PATHS.atendendo}
+          <button
+            type="button"
+            onClick={fecharChat}
             className="text-xs text-cyan-600 hover:underline md:hidden"
           >
             ← Voltar
-          </Link>
+          </button>
           <div className="mt-0.5 flex flex-wrap items-center gap-2">
             <h1 className="truncate text-base font-semibold text-slate-900 dark:text-slate-100">
               {chat.visitante_nome}

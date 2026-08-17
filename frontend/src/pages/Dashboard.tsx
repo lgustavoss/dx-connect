@@ -10,6 +10,9 @@ import { useToast } from '../components/ui/Toast'
 import { SemPermissao } from './SemPermissao'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { exibirProtocolo } from '../lib/exibirProtocolo'
+import { CHAT_HUB_PATHS } from '../lib/chatHubPaths'
+import { marcarTicketAtivo, TICKETS_PATH } from '../lib/ticketAtivo'
+import { marcarWhatsappChatAtivo } from '../lib/whatsappListReturn'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 import { DashboardCanalComparativo, snapshotFromGeral } from '../components/dashboard/DashboardCanalComparativo'
 import { DashboardNav } from '../components/dashboard/DashboardNav'
@@ -390,7 +393,8 @@ export function Dashboard() {
                     <td className="py-3 pr-4">{t.status_nome ?? t.status_id}</td>
                     <td className="py-3">
                       <Link
-                        to={`/tickets/${t.id}`}
+                        to={TICKETS_PATH}
+                        onClick={() => marcarTicketAtivo(t.id)}
                         aria-label="Ver ticket"
                         className="inline-flex shrink-0"
                       >
@@ -437,7 +441,10 @@ export function Dashboard() {
                       <td className="py-3 pr-4">{c.cliente_nome ?? '—'}</td>
                       <td className="py-3 pr-4">{rotuloEstadoChat(c.estado)}</td>
                       <td className="py-3">
-                        <Link to={`/chat/c/${c.id}`}>
+                        <Link
+                          to={CHAT_HUB_PATHS.atendendo}
+                          onClick={() => marcarWhatsappChatAtivo(c.id)}
+                        >
                           <Button type="button" variant="ghost" className="text-sm">
                             Abrir
                           </Button>

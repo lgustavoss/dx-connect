@@ -42,14 +42,6 @@ def _mensagens_relevantes_q(db: Session, chat_id: int):
     )
 
 
-def _ultima_mensagem_relevante(db: Session, chat_id: int) -> WhatsappMensagem | None:
-    return (
-        _mensagens_relevantes_q(db, chat_id)
-        .order_by(desc(WhatsappMensagem.created_at), desc(WhatsappMensagem.id))
-        .first()
-    )
-
-
 def _ultima_outbound_humana(db: Session, chat_id: int) -> WhatsappMensagem | None:
     """Mensagem enviada pelo atendente (não BOT / auto_assumido / avisos de sistema)."""
     return (
@@ -110,19 +102,18 @@ def _normalizar_utc(dt: datetime) -> datetime:
     return dt
 
 
-def _aviso_ja_enviado_no_ciclo(db: Session, chat_id: int, referencia: datetime) -> bool:
-    """Evita reenvio do aviso quando vários workers processam o mesmo chat em paralelo."""
+def _ultimo_aviso_no_ciclo(db: Session, chat_id: int, referencia: datetime) -> WhatsappMensagem | None:
+    """Último auto_inativ_aviso do ciclo actual (após a referência de silêncio humano)."""
     ref = _normalizar_utc(referencia)
     return (
-        db.query(WhatsappMensagem.id)
+        db.query(WhatsappMensagem)
         .filter(
             WhatsappMensagem.chat_id == chat_id,
             WhatsappMensagem.evento_sistema == "auto_inativ_aviso",
             WhatsappMensagem.created_at >= ref,
         )
-        .limit(1)
+        .order_by(desc(WhatsappMensagem.created_at), desc(WhatsappMensagem.id))
         .first()
-        is not None
     )
 
 
@@ -224,21 +215,20 @@ def _processar_chat_inatividade(
     if aviso_min < 1 or pos_aviso_min < 1:
         return False
 
-    last = _ultima_mensagem_relevante(db, chat.id)
-    if last and last.evento_sistema == "auto_inativ_aviso":
-        if _minutos_desde(last.created_at, now) >= pos_aviso_min:
-            _encerrar_por_inatividade(db, chat, st)
-            return True
-        return False
-
+    # Relógio e fase pós-aviso usam só actividade humana (cliente/atendente).
+    # Marcos de sistema (ex.: demanda_registrada) NÃO substituem o auto_inativ_aviso (#712).
     referencia = _referencia_inatividade_cliente(db, chat)
     if referencia is None:
         return False
 
-    if _minutos_desde(referencia, now) < aviso_min:
+    aviso = _ultimo_aviso_no_ciclo(db, chat.id, referencia)
+    if aviso is not None:
+        if _minutos_desde(aviso.created_at, now) >= pos_aviso_min:
+            _encerrar_por_inatividade(db, chat, st)
+            return True
         return False
 
-    if _aviso_ja_enviado_no_ciclo(db, chat.id, referencia):
+    if _minutos_desde(referencia, now) < aviso_min:
         return False
 
     if not bool(getattr(st, "auto_msg_inativ_aviso_ativa", True)):

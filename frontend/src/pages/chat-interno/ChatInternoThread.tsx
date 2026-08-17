@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { ApiError, atendentes, chatInterno, type ChatInterno } from '../../api/client'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { ChatInternoComposerBar } from '../../components/chat-interno/ChatInternoComposerBar'
@@ -8,6 +8,7 @@ import { ChatInternoConteudoMensagem } from '../../components/chat-interno/ChatI
 import { ChatInternoMensagemAcoes } from '../../components/chat-interno/ChatInternoMensagemAcoes'
 import { ChatInternoReacoesBar } from '../../components/chat-interno/ChatInternoReacoesBar'
 import { MensagemRodapeMeta } from '../../components/chat/MensagemRodapeMeta'
+import { useChatHub } from '../../contexts/ChatHubContext'
 import { useChatInterno } from '../../contexts/ChatInternoContext'
 import { useToast } from '../../components/ui/Toast'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
@@ -39,13 +40,19 @@ function formatarHoraMensagem(iso: string): string {
   return d.toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
-export function ChatInternoThread() {
+type ChatInternoThreadProps = {
+  /** Conversa aberta pelo hub (sem id na URL) (#654). */
+  conversaIdProp?: number
+}
+
+export function ChatInternoThread({ conversaIdProp }: ChatInternoThreadProps = {}) {
   const { conversaId: conversaIdParam } = useParams()
-  const conversaId = Number(conversaIdParam)
+  const conversaId = conversaIdProp ?? Number(conversaIdParam)
   const navigate = useNavigate()
   const toast = useToast()
   const { user } = useAuth()
   const { subscribe, useFallback } = useEventStream()
+  const { fecharChat } = useChatHub()
   const { obterConversa, carregar: refreshInbox } = useChatInterno()
 
   const meta = obterConversa(conversaId)
@@ -176,6 +183,7 @@ export function ChatInternoThread() {
 
   useEffect(() => {
     if (!Number.isFinite(conversaId) || conversaId <= 0) {
+      fecharChat()
       navigate('/chat/interno', { replace: true })
       return
     }
@@ -184,7 +192,7 @@ export function ChatInternoThread() {
     setTemMaisAntigas(false)
     setLoading(true)
     void carregar()
-  }, [conversaId, carregar, navigate])
+  }, [conversaId, carregar, navigate, fecharChat])
 
   useEffect(() => {
     if (loading || mensagens.length === 0 || initialScrollRestoredRef.current) return
@@ -396,6 +404,7 @@ export function ChatInternoThread() {
       setMensagens([])
       setTemMaisAntigas(false)
       void refreshInbox(true)
+      fecharChat()
       navigate('/chat/interno', { replace: true })
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível limpar a conversa.'))
@@ -512,15 +521,16 @@ export function ChatInternoThread() {
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
       <header className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900 md:px-6 lg:px-8">
-        <Link
-          to="/chat/interno"
+        <button
+          type="button"
+          onClick={fecharChat}
           className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 md:hidden"
           aria-label="Voltar à lista"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
             <path d="M15 18l-6-6 6-6" />
           </svg>
-        </Link>
+        </button>
         <div
           className={`hidden h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white md:flex ${
             isSetor ? 'bg-amber-500' : isGrupo ? 'bg-violet-600' : 'bg-cyan-600'

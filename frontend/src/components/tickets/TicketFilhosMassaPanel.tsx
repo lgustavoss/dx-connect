@@ -6,6 +6,7 @@ import { CheckboxField } from '../ui/CheckboxField'
 import { Input } from '../ui/Input'
 import { useToast } from '../ui/Toast'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
+import { marcarTicketAtivo, TICKETS_PATH } from '../../lib/ticketAtivo'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 
 interface Props {
@@ -174,7 +175,8 @@ export function TicketFilhosMassaPanel({ ticketId, disabled, onCriados }: Props)
           {ultimosCriados.map((c) => (
             <li key={c.id}>
               <Link
-                to={`/tickets/${c.id}`}
+                to={TICKETS_PATH}
+                onClick={() => marcarTicketAtivo(c.id)}
                 className="font-medium text-emerald-800 underline hover:text-emerald-950 dark:text-emerald-300 dark:hover:text-emerald-200"
               >
                 {exibirProtocolo(c.protocolo)}

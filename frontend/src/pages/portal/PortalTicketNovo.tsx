@@ -5,6 +5,7 @@ import { usePortalAuth } from '../../contexts/PortalAuthContext'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
+import { gravarPortalTicketAtivoSession, PORTAL_TICKETS_PATH } from '../../lib/portalAtivo'
 
 const fieldClass =
   'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/25'
@@ -93,7 +94,8 @@ export function PortalTicketNovo() {
         }
       }
       toast.showSuccess('Chamado aberto com sucesso.')
-      navigate(`/portal/tickets/${ticket.id}`, { replace: true })
+      gravarPortalTicketAtivoSession(ticket.id)
+      navigate(PORTAL_TICKETS_PATH, { replace: true })
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível abrir o chamado.'))
     } finally {

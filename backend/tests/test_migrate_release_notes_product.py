@@ -42,3 +42,24 @@ def test_migrate_manifest_idempotent():
     again, stats2 = migrate_manifest(migrated)
     assert again == migrated
     assert stats2["kept"] == 3
+
+
+def test_migrate_reclassify_saas_overrides_wrong_tag():
+    data = {
+        "releases": [
+            {
+                "version": "26.08.006",
+                "changes": [
+                    {"product": "deskrudder", "category": "melhorias", "text": "SaaS: planos"},
+                    {"product": "deskrudder", "category": "correcoes", "text": "Chat (#651)"},
+                ],
+            }
+        ]
+    }
+    migrated, stats = migrate_manifest(data, reclassify_saas=True)
+    changes = migrated["releases"][0]["changes"]
+    assert changes[0]["product"] == "saas"
+    assert changes[1]["product"] == "deskrudder"
+    assert stats["reclassified_to_saas"] == 1
+    assert stats["saas"] == 1
+    assert stats["deskrudder"] == 1

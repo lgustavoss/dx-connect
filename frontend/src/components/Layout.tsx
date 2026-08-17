@@ -9,6 +9,8 @@ import { EventStreamProvider, useEventStream } from '../contexts/EventStreamCont
 import { BrandLogo } from '../brand'
 import { useTheme } from '../contexts/ThemeContext'
 import { AlertaDesktopPermissaoBanner } from './AlertaDesktopPermissaoBanner'
+import { PwaInstallBanner } from './PwaInstallBanner'
+import { lerTicketAtivoSession, TICKET_ATIVO_EVENT } from '../lib/ticketAtivo'
 
 function perfilExibicao(role: string | undefined): string {
   if (role === 'admin') return 'Administrador'
@@ -53,9 +55,23 @@ function LayoutInner() {
 
   const sidebarW = sidebarExpanded ? '280px' : '80px'
   const isChatHub = location.pathname.startsWith('/chat')
+  const naListaTickets = location.pathname === '/tickets' || location.pathname === '/tickets/'
+  const [ticketDetalheAberto, setTicketDetalheAberto] = useState(
+    () => naListaTickets && lerTicketAtivoSession() != null,
+  )
+  useEffect(() => {
+    const sync = () => {
+      const naLista = location.pathname === '/tickets' || location.pathname === '/tickets/'
+      setTicketDetalheAberto(naLista && lerTicketAtivoSession() != null)
+    }
+    sync()
+    window.addEventListener(TICKET_ATIVO_EVENT, sync)
+    return () => window.removeEventListener(TICKET_ATIVO_EVENT, sync)
+  }, [location.pathname])
   const scrollInternoNaPagina =
     /^\/tickets\/\d+\/?$/.test(location.pathname) ||
     location.pathname === '/tickets/novo' ||
+    ticketDetalheAberto ||
     isChatHub
 
   return (
@@ -109,6 +125,7 @@ function LayoutInner() {
             </div>
           </header>
 
+          {notificacoesEnabled ? <PwaInstallBanner enabled /> : null}
           {notificacoesEnabled ? <AlertaDesktopPermissaoBanner enabled /> : null}
 
           <main className="min-h-0 flex-1 overflow-hidden">

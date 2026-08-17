@@ -213,6 +213,41 @@ def test_system_release_notes_filters_by_product(client, auth_headers, monkeypat
     assert all(c.get("product") == "deskrudder" for c in body["current"]["changes"])
 
 
+def test_system_release_notes_hides_saas_prefix_even_if_wrongly_tagged(
+    client, auth_headers, monkeypatch, tmp_path
+):
+    """Histórico em produção: bullet «SaaS:…» sem tag ou com product=deskrudder."""
+    data_path = tmp_path / "release_notes.json"
+    payload = {
+        "current_version": "26.08.006",
+        "releases": [
+            {
+                "version": "26.08.006",
+                "version_display": "v26.08.006",
+                "date": "2026-08-13",
+                "status": "published",
+                "changes": [
+                    {"category": "melhorias", "text": "WhatsApp: fila"},
+                    {"product": "deskrudder", "category": "melhorias", "text": "SaaS: licenças"},
+                    {"category": "melhorias", "text": "SaaS DeskRudder (#519): painel"},
+                ],
+            }
+        ],
+        "upcoming": [],
+    }
+    data_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    import app.services.system_release as sr
+
+    monkeypatch.setattr(sr, "_DATA_DIR", tmp_path)
+    reload_release_notes_cache()
+    monkeypatch.setenv("DX_CONNECT_VERSION", "26.08.006")
+
+    body = client.get("/v1/system/release-notes", headers=auth_headers["admin"]).json()
+    texts = [c["text"] for c in body["current"]["changes"]]
+    assert texts == ["WhatsApp: fila"]
+
+
 def test_saas_release_notes_rbac_and_filter(client, auth_headers, monkeypatch, tmp_path):
     from app.config import settings
 

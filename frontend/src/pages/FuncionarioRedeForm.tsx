@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ApiError, funcionariosRede, redes, empresas, type FuncionariosRede, type Redes, type Empresas } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
@@ -30,6 +30,7 @@ export function FuncionarioRedeForm() {
   const navigate = useNavigate()
   const toast = useToast()
   const voltarAnterior = useVoltarAnterior('/funcionarios-rede')
+  const topoRef = useRef<HTMLDivElement>(null)
 
   const funcionarioId = id ? parseInt(id, 10) : NaN
   const isEdit = id != null
@@ -146,6 +147,17 @@ export function FuncionarioRedeForm() {
     }
   }, [id, isEdit, funcionarioId, toast, empresasList])
 
+  /** #685: após carregar, garantir topo visível no scroll do Layout (sem sticky a “roubar” o viewport). */
+  useEffect(() => {
+    if (loading) return
+    const root = topoRef.current
+    if (!root) return
+    const scrollParent = root.closest('.overflow-y-auto')
+    if (scrollParent instanceof HTMLElement) {
+      scrollParent.scrollTop = 0
+    }
+  }, [loading, id])
+
   const empresasDaRede = useMemo(
     () => empresasList.filter((em) => em.rede_id === Number(redeId) && (em.ativo || em.id === empresaId || empresaIds.includes(em.id))),
     [empresasList, redeId, empresaId, empresaIds],
@@ -259,7 +271,7 @@ export function FuncionarioRedeForm() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 pb-10">
+    <div ref={topoRef} className="mx-auto max-w-5xl space-y-6 pb-10">
       <div className="flex items-center justify-between gap-3">
         <button
           type="button"
@@ -443,7 +455,7 @@ export function FuncionarioRedeForm() {
             </FormSection>
           </div>
 
-          <div className="sticky bottom-0 -mx-6 mt-6 border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
+          <div className="mt-6 border-t border-slate-200 pt-4 dark:border-slate-800">
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button type="button" variant="secondary" onClick={voltarAnterior} className="w-full sm:w-auto">
                 Cancelar

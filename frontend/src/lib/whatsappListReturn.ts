@@ -1,3 +1,5 @@
+import { gravarChatAtivoSession } from './chatAtivo'
+
 export const WHATSAPP_LIST_PATHS = {
   atendendo: '/chat/atendendo',
   historico: '/whatsapp/historico',
@@ -41,9 +43,18 @@ export function whatsappConversaState(returnPath: string): WhatsappListReturnSta
   return { whatsappListReturn: returnPath }
 }
 
-export function whatsappConversaLink(chatId: number, returnPath: string, from?: WhatsappListOrigin) {
+/**
+ * Marca a conversa como ativa na mesa. Chamar no `onClick` do link — nunca no
+ * render da lista, senão o último item renderizado ganharia o painel (#654).
+ */
+export function marcarWhatsappChatAtivo(chatId: number): void {
+  gravarChatAtivoSession({ canal: 'whatsapp', id: chatId })
+}
+
+/** Aba fixa do hub + caminho de retorno; o id da conversa vai na sessão (#654). */
+export function whatsappConversaLink(returnPath: string, from?: WhatsappListOrigin) {
   return {
-    pathname: `/chat/c/${chatId}`,
+    pathname: WHATSAPP_LIST_PATHS.atendendo,
     search: from ? `?from=${from}` : '',
     state: whatsappConversaState(returnPath),
   }

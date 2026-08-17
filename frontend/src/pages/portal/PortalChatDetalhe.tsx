@@ -26,15 +26,27 @@ function estadoLabel(estado: string) {
   return estado || '—'
 }
 
-export function PortalChatDetalhe() {
+type PortalChatDetalheProps = {
+  chatIdProp?: number
+  onVoltar?: () => void
+}
+
+export function PortalChatDetalhe({ chatIdProp, onVoltar }: PortalChatDetalheProps = {}) {
   const { id } = useParams<{ id: string }>()
-  const chatId = Number(id)
+  const chatId = chatIdProp ?? Number(id)
   const [chat, setChat] = useState<PortalCliente.WhatsappChatDetail | null>(null)
   const [mensagens, setMensagens] = useState<PortalCliente.WhatsappMensagem[]>([])
   const [loading, setLoading] = useState(true)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const toast = useToast()
   const navigate = useNavigate()
+  const voltarLista = useCallback(() => {
+    if (onVoltar) {
+      onVoltar()
+      return
+    }
+    navigate('/portal/chats')
+  }, [onVoltar, navigate])
 
   const carregar = useCallback(async () => {
     if (!Number.isFinite(chatId)) return
@@ -53,7 +65,7 @@ export function PortalChatDetalhe() {
       .catch((err) => {
         if (!cancelled) {
           toast.showError(mensagemFalhaParaToast(err, 'Atendimento não encontrado.'))
-          navigate('/portal/chats', { replace: true })
+          voltarLista()
         }
       })
       .finally(() => {
@@ -62,7 +74,7 @@ export function PortalChatDetalhe() {
     return () => {
       cancelled = true
     }
-  }, [carregar, navigate, toast])
+  }, [carregar, voltarLista, toast])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
@@ -102,7 +114,7 @@ export function PortalChatDetalhe() {
       <div>
         <button
           type="button"
-          onClick={() => navigate('/portal/chats')}
+          onClick={voltarLista}
           className="mb-2 text-sm font-medium text-slate-500 hover:text-slate-800"
         >
           ← Voltar
