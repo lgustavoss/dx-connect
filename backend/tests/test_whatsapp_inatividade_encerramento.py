@@ -35,6 +35,38 @@ def _chat_em_atendimento(db_session, *, wa_id: str = "5511999887766", atendente_
     return chat
 
 
+def _seed_aviso_apos_humano(
+    db_session,
+    chat: WhatsappChat,
+    *,
+    minutos_aviso: int = 8,
+    minutos_humano: int = 20,
+    atendente_id: int = 1,
+) -> None:
+    """Outbound humana + aviso BOT — referência do ciclo (#712)."""
+    agora = datetime.now(timezone.utc)
+    db_session.add(
+        WhatsappMensagem(
+            chat_id=chat.id,
+            direcao="outbound",
+            corpo="[ Atendente ]: Alguma dúvida?",
+            tipo_midia="texto",
+            atendente_id=atendente_id,
+            created_at=agora - timedelta(minutes=minutos_humano),
+        )
+    )
+    db_session.add(
+        WhatsappMensagem(
+            chat_id=chat.id,
+            direcao="outbound",
+            corpo="[ BOT ]: Aviso de encerramento",
+            tipo_midia="texto",
+            evento_sistema="auto_inativ_aviso",
+            created_at=agora - timedelta(minutes=minutos_aviso),
+        )
+    )
+
+
 def test_settings_exige_minutos_quando_inatividade_ativa(client, seed_base, auth_headers):
     r = client.patch(
         "/v1/settings/whatsapp",
@@ -99,17 +131,7 @@ def test_worker_envia_aviso_apos_inatividade(client, seed_base, auth_headers, db
 def test_worker_encerra_apos_aviso(client, seed_base, auth_headers, db_session, monkeypatch):
     _configurar_evolution(db_session)
     chat = _chat_em_atendimento(db_session, wa_id="5511999776655")
-    antiga_aviso = datetime.now(timezone.utc) - timedelta(minutes=8)
-    db_session.add(
-        WhatsappMensagem(
-            chat_id=chat.id,
-            direcao="outbound",
-            corpo="[ BOT ]: Aviso de encerramento",
-            tipo_midia="texto",
-            evento_sistema="auto_inativ_aviso",
-            created_at=antiga_aviso,
-        )
-    )
+    _seed_aviso_apos_humano(db_session, chat)
     db_session.commit()
 
     monkeypatch.setattr(
@@ -136,6 +158,39 @@ def test_worker_encerra_apos_aviso(client, seed_base, auth_headers, db_session, 
     assert marco is not None
 
 
+def test_worker_encerra_apos_aviso_mesmo_com_marco_demanda_depois(
+    client, seed_base, auth_headers, db_session, monkeypatch
+):
+    """#712: demanda_registrada após o aviso não impede o encerramento automático."""
+    _configurar_evolution(db_session)
+    chat = _chat_em_atendimento(db_session, wa_id="5511999001122")
+    _seed_aviso_apos_humano(db_session, chat, minutos_aviso=8, minutos_humano=25)
+    db_session.add(
+        WhatsappMensagem(
+            chat_id=chat.id,
+            direcao="outbound",
+            corpo="Demanda registada na sessão",
+            tipo_midia="texto",
+            evento_sistema="demanda_registrada",
+            created_at=datetime.now(timezone.utc) - timedelta(minutes=3),
+        )
+    )
+    db_session.commit()
+
+    monkeypatch.setattr(
+        "app.services.whatsapp_inactivity_worker.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-out-dem-ciclo"),
+    )
+
+    n = process_whatsapp_inactivity_closures(db_session)
+    db_session.commit()
+    db_session.refresh(chat)
+
+    assert n == 1
+    assert chat.estado == "encerrado"
+    assert chat.classificacao_demanda_pendente is True
+
+
 def test_pode_registrar_demanda_apos_encerramento_inatividade(
     client, seed_base, auth_headers, db_session, monkeypatch
 ):
@@ -144,17 +199,7 @@ def test_pode_registrar_demanda_apos_encerramento_inatividade(
     _configurar_evolution(db_session)
     a1_id = seed_base["a1"].id
     chat = _chat_em_atendimento(db_session, wa_id="5511999112233", atendente_id=a1_id)
-    antiga_aviso = datetime.now(timezone.utc) - timedelta(minutes=8)
-    db_session.add(
-        WhatsappMensagem(
-            chat_id=chat.id,
-            direcao="outbound",
-            corpo="[ BOT ]: Aviso",
-            tipo_midia="texto",
-            evento_sistema="auto_inativ_aviso",
-            created_at=antiga_aviso,
-        )
-    )
+    _seed_aviso_apos_humano(db_session, chat, atendente_id=a1_id)
     nat = TicketNatureza(nome="Nat Inativ", slug="nat-inativ-test", ordem=1, ativo=True)
     db_session.add(nat)
     db_session.flush()
@@ -186,17 +231,7 @@ def test_concluir_classificacao_sem_demanda(client, seed_base, auth_headers, db_
     _configurar_evolution(db_session)
     a1_id = seed_base["a1"].id
     chat = _chat_em_atendimento(db_session, wa_id="5511999223344", atendente_id=a1_id)
-    antiga_aviso = datetime.now(timezone.utc) - timedelta(minutes=8)
-    db_session.add(
-        WhatsappMensagem(
-            chat_id=chat.id,
-            direcao="outbound",
-            corpo="[ BOT ]: Aviso",
-            tipo_midia="texto",
-            evento_sistema="auto_inativ_aviso",
-            created_at=antiga_aviso,
-        )
-    )
+    _seed_aviso_apos_humano(db_session, chat, atendente_id=a1_id)
     db_session.commit()
     monkeypatch.setattr(
         "app.services.whatsapp_inactivity_worker.evolution_api.evolution_send_text",
@@ -230,17 +265,7 @@ def test_inbound_abre_chat_novo_quando_pendente_classificacao(
     a1_id = seed_base["a1"].id
     wa = "5511888001122"
     chat = _chat_em_atendimento(db_session, wa_id=wa, atendente_id=a1_id)
-    antiga_aviso = datetime.now(timezone.utc) - timedelta(minutes=8)
-    db_session.add(
-        WhatsappMensagem(
-            chat_id=chat.id,
-            direcao="outbound",
-            corpo="[ BOT ]: Aviso",
-            tipo_midia="texto",
-            evento_sistema="auto_inativ_aviso",
-            created_at=antiga_aviso,
-        )
-    )
+    _seed_aviso_apos_humano(db_session, chat, atendente_id=a1_id)
     db_session.commit()
     monkeypatch.setattr(
         "app.services.whatsapp_inactivity_worker.evolution_api.evolution_send_text",
@@ -562,17 +587,7 @@ def test_concluir_classificacao_com_demandas_existentes(
     _configurar_evolution(db_session)
     a1_id = seed_base["a1"].id
     chat = _chat_em_atendimento(db_session, wa_id="5511999554433", atendente_id=a1_id)
-    antiga_aviso = datetime.now(timezone.utc) - timedelta(minutes=8)
-    db_session.add(
-        WhatsappMensagem(
-            chat_id=chat.id,
-            direcao="outbound",
-            corpo="[ BOT ]: Aviso",
-            tipo_midia="texto",
-            evento_sistema="auto_inativ_aviso",
-            created_at=antiga_aviso,
-        )
-    )
+    _seed_aviso_apos_humano(db_session, chat, atendente_id=a1_id)
     nat = TicketNatureza(nome="Nat Manter", slug="nat-manter-inativ", ordem=1, ativo=True)
     db_session.add(nat)
     db_session.flush()
