@@ -21,6 +21,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Notificações (#697): o sininho e o e-mail interno do painel já não põem o número do chamado ou da conversa no endereço; o clique abre o item certo na mesa ou em tickets
 - Chat e tickets (#699): o Voltar do navegador fecha o painel da conversa ou do chamado e permanece na mesa (`/chat/…`, `/tickets`), sem o número na barra
 - Portal (#700): chamados e atendimentos WhatsApp ficam em `/portal/tickets` e `/portal/chats`, sem o número na barra; links antigos com id continuam a abrir o item certo
+- Mobile (#690 / #691): o painel no endereço do cliente pode ser **adicionado à tela inicial** (PWA); o brief mobile descreve PWA primeiro, depois lojas
 
 #### Correções
 

@@ -9,6 +9,7 @@ import { EventStreamProvider, useEventStream } from '../contexts/EventStreamCont
 import { BrandLogo } from '../brand'
 import { useTheme } from '../contexts/ThemeContext'
 import { AlertaDesktopPermissaoBanner } from './AlertaDesktopPermissaoBanner'
+import { PwaInstallBanner } from './PwaInstallBanner'
 import { lerTicketAtivoSession, TICKET_ATIVO_EVENT } from '../lib/ticketAtivo'
 
 function perfilExibicao(role: string | undefined): string {
@@ -124,6 +125,7 @@ function LayoutInner() {
             </div>
           </header>
 
+          {notificacoesEnabled ? <PwaInstallBanner enabled /> : null}
           {notificacoesEnabled ? <AlertaDesktopPermissaoBanner enabled /> : null}
 
           <main className="min-h-0 flex-1 overflow-hidden">
