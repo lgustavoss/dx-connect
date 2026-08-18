@@ -38,7 +38,11 @@ Antes de editar código:
 - [ ] Teste em `backend/tests/`
 - [ ] Evento SSE pós-commit, se feature for tempo real
 
-Rodar: `docker compose run --rm --no-deps backend pytest -q`
+Rodar pytest **só se o lote tocou backend/scripts/CI** (mesma regra do `/revisar-e-testar`):
+
+```bash
+docker compose run --rm --no-deps backend pytest -q
+```
 
 ## Fase 3 — Frontend (se aplicável)
 

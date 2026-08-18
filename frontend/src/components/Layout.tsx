@@ -137,7 +137,7 @@ function LayoutInner() {
                   ? isChatHub
                     ? 'flex h-full min-h-0 flex-col overflow-hidden'
                     : 'flex h-full min-h-0 flex-col overflow-hidden px-4 pt-4 md:px-6 md:pt-6'
-                  : 'h-full min-h-0 overflow-x-hidden overflow-y-auto p-4 md:p-6'
+                  : 'dx-scrollbar h-full min-h-0 overflow-x-hidden overflow-y-auto p-4 md:p-6'
               }
             >
               <Outlet />

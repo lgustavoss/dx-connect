@@ -1,15 +1,12 @@
 """
-Teste de integração com tempo real (#140): janela de graça, edição e reagendamento.
+Teste de integração da janela de graça (#140): edição reagenda o envio.
 
-Requer grace curto via monkeypatch (8s). Demora ~20–25s no total.
+Relógio controlado via monkeypatch de `_utcnow` — sem `time.sleep`.
 """
 
 from __future__ import annotations
 
-import time
-from datetime import datetime, timezone
-
-import pytest
+from datetime import datetime, timedelta, timezone
 
 from app.models.ticket import TicketMensagem
 from app.services.ticket_mensagem_email_outbox import (
@@ -19,6 +16,17 @@ from app.services.ticket_mensagem_email_outbox import (
     process_pending_ticket_mensagem_emails,
 )
 from app.services.system_email_config import TransactionalEmailConfig
+
+
+class _Clock:
+    def __init__(self, now: datetime):
+        self.now = now
+
+    def utcnow(self) -> datetime:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now = self.now + timedelta(seconds=seconds)
 
 
 def _rfc822(mid: str = "<grace-timing@dx.local>") -> str:
@@ -52,11 +60,13 @@ def _mock_resend(monkeypatch):
 def test_janela_edicao_reinicia_contagem_e_envia_depois(client, seed_base, auth_headers, monkeypatch, db_session):
     """
     1) Agenda envio em +8s
-    2) Após 3s ainda pendente (dá tempo de editar)
+    2) Aos +3s ainda pendente (dá tempo de editar)
     3) Editar reinicia scheduled_at (~+8s a partir da edição)
     4) Só envia após o novo scheduled_at
     """
     grace = 8
+    clock = _Clock(datetime(2026, 6, 1, 12, 0, 0, tzinfo=timezone.utc))
+    monkeypatch.setattr("app.services.ticket_mensagem_email_outbox._utcnow", clock.utcnow)
     monkeypatch.setattr("app.config.settings.TICKET_MENSAGEM_EMAIL_GRACE_SECONDS", grace)
     monkeypatch.setattr("app.config.settings.EMAIL_INBOUND_WEBHOOK_SECRET", "gracet")
     monkeypatch.setattr("app.config.settings.EMAIL_INBOUND_DEFAULT_EMPRESA_ID", seed_base["empresa"].id)
@@ -71,7 +81,6 @@ def test_janela_edicao_reinicia_contagem_e_envia_depois(client, seed_base, auth_
     assert r0.status_code == 200
     tid = r0.json()["ticket_id"]
 
-    t0 = time.perf_counter()
     r1 = client.post(
         f"/v1/tickets/{tid}/mensagens",
         headers=auth_headers["admin"],
@@ -85,8 +94,10 @@ def test_janela_edicao_reinicia_contagem_e_envia_depois(client, seed_base, auth_
     mid = r1.json()["id"]
     sched1 = _as_utc(datetime.fromisoformat(r1.json()["scheduled_at"].replace("Z", "+00:00")))
     assert r1.json()["status"] == EMAIL_STATUS_PENDENTE
+    assert sched1 is not None
+    assert abs((sched1 - clock.now).total_seconds() - grace) < 1
 
-    time.sleep(3)
+    clock.advance(3)
     process_pending_ticket_mensagem_emails(db_session, limit=10)
     db_session.commit()
     m = db_session.query(TicketMensagem).filter(TicketMensagem.id == mid).first()
@@ -99,7 +110,6 @@ def test_janela_edicao_reinicia_contagem_e_envia_depois(client, seed_base, auth_
     )
     assert r_edit.status_code == 200
     token = r_edit.json()["edit_lock_token"]
-    t_antes_patch = time.perf_counter()
     r_patch = client.patch(
         f"/v1/tickets/{tid}/mensagens/{mid}",
         headers=auth_headers["admin"],
@@ -111,22 +121,15 @@ def test_janela_edicao_reinicia_contagem_e_envia_depois(client, seed_base, auth_
     assert m is not None and m.scheduled_at is not None
     sched2 = _as_utc(m.scheduled_at)
     assert sched2 and sched1 and sched2 > sched1, "Edição deve reagendar para depois do horário original"
-    seg_ate_envio = (sched2 - datetime.now(timezone.utc)).total_seconds()
-    assert seg_ate_envio >= grace - 2, "Novo envio ~grace segundos após salvar edição"
+    assert abs((sched2 - clock.now).total_seconds() - grace) < 1
 
-    # Antes do novo prazo: ainda pendente
-    wait_until = seg_ate_envio - 1.5
-    if wait_until > 0:
-        time.sleep(wait_until)
+    clock.advance(grace - 1.5)
     process_pending_ticket_mensagem_emails(db_session, limit=10)
     db_session.commit()
     db_session.refresh(m)
     assert m.email_status == EMAIL_STATUS_PENDENTE, "Ainda não deve enviar antes do scheduled_at reagendado"
 
-    # Após o prazo reagendado: envia
-    restante = (sched2 - datetime.now(timezone.utc)).total_seconds() + 0.5
-    if restante > 0:
-        time.sleep(restante)
+    clock.advance(2)
     n = process_pending_ticket_mensagem_emails(db_session, limit=10)
     db_session.commit()
     db_session.refresh(m)
@@ -134,12 +137,3 @@ def test_janela_edicao_reinicia_contagem_e_envia_depois(client, seed_base, auth_
     assert m.email_status == EMAIL_STATUS_ENVIADA
     assert m.corpo == "Versão 2 — texto corrigido"
     assert m.sent_at is not None
-
-    elapsed = time.perf_counter() - t0
-    elapsed_edit = time.perf_counter() - t_antes_patch
-    print(
-        f"\n[grace-timing] total={elapsed:.1f}s | "
-        f"editou aos ~{t_antes_patch - t0:.1f}s | "
-        f"enviou após reagendamento (grace={grace}s)\n"
-    )
-    assert elapsed >= grace + 3, "Tempo total cobre grace inicial + reagendamento após edição"

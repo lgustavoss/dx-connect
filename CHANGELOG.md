@@ -24,6 +24,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Mobile (#690 / #691): o painel no endereço do cliente pode ser **adicionado à tela inicial** (PWA); o brief mobile descreve PWA primeiro, depois lojas
 - Mobile (#692): no telemóvel, WhatsApp e tickets dão para operar por completo — assumir, responder (texto/mídia), transferir, encerrar, abrir ticket; fila e detalhe do chamado com botões grandes e teclado que não cobre o campo de mensagem
 - WhatsApp (#723): quem abre um chat em atendimento (colega ou admin) também vê o cronômetro de inatividade; Pausar/Retomar continua só com o responsável
+- Menu (#716): a barra de rolagem da sidebar (painel e portal) fica fina e alinhada ao tema, sem o visual nativo do Windows
+- CI: testes do backend deixam de repetir bcrypt lento em cada caso; PRs só de interface já não esperam o pytest, e o contrário também (job do lado inalterado conclui em segundos)
 
 #### Correções
 

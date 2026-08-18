@@ -76,7 +76,7 @@ Exceção: hotfix urgente na mesma linha só se o PR ainda **não** tiver sido m
 
 - Base: **`main`**
 - Corpo: resumo, test plan, link da issue
-- Aguardar CI (pytest + build frontend)
+- Aguardar CI (`backend` / `frontend` podem concluir em segundos se o diff não toca esse lado — isso é verde)
 - `/criar-pr` faz merge automático quando CI passa (main = testes)
 
 ## Release → staging (produção)
