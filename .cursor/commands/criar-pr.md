@@ -76,7 +76,11 @@ Capture: `PR_NUMBER`, `PR_URL`.
 
 ## Passo 5 — Acompanhar CI (obrigatório)
 
-Workflow esperado: **`CI`** (jobs: `changelog`, `backend`, `frontend`).
+Workflow esperado: **`CI`** (jobs: `changes`, `changelog`, `backend`, `frontend`).
+
+Os jobs `backend` e `frontend` **sempre** aparecem (branch protection). Se o diff não toca nesse lado, o job conclui em segundos com “omitido” — isso é **sucesso**, não falha. Não trate skip rápido como CI quebrada.
+
+Pushes seguidos no mesmo PR **cancelam** a CI anterior (`concurrency`). `gh pr checks --watch` deve seguir o run mais recente.
 
 ### Monitorar até concluir
 
