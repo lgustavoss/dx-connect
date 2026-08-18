@@ -113,7 +113,7 @@ export function SelectComPesquisa({
             aria-label={`Buscar em ${label}`}
           />
           <p className="px-3 py-1.5 text-xs text-slate-400 dark:text-slate-500">{hint}</p>
-          <ul className="max-h-52 overflow-y-auto py-1">
+          <ul className="dx-scrollbar max-h-52 overflow-y-auto py-1">
             {displayed.length === 0 ? (
               <li className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">Nenhum resultado.</li>
             ) : (
