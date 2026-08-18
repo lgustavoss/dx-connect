@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ClipboardEvent } from 'react'
 import { Button } from '../../components/ui/Button'
 import { KbConsultaButton } from '../../components/KbConsultaModal'
+import { RespostasProntasPicker } from '../../components/RespostasProntasPicker'
 import type { TipoAnexoPicker } from './WhatsappBarraAnexos'
 import { WhatsappGravadorAudioInline } from './WhatsappGravadorAudioInline'
 import { WhatsappEmojiFigurinhaPanel } from './WhatsappEmojiFigurinhaPanel'
@@ -16,6 +17,8 @@ type Props = {
   onEnviarFigurinha: (file: File) => void
   /** Ctrl+V / colar ficheiro do clipboard (imagem, etc.) */
   onColarArquivo?: (file: File) => void
+  /** Setor do chat para respostas prontas; omitir esconde o botão. */
+  setorId?: number | null
   enviando: boolean
   encerrado: boolean
   podeEnviar: boolean
@@ -47,6 +50,7 @@ export function WhatsappComposerBar({
   onInserirEmoji,
   onEnviarFigurinha,
   onColarArquivo,
+  setorId,
   enviando,
   encerrado,
   podeEnviar,
@@ -182,6 +186,17 @@ export function WhatsappComposerBar({
             />
           )}
         </div>
+
+        {setorId != null && (
+          <div className="relative shrink-0">
+            <RespostasProntasPicker
+              setorId={setorId}
+              modoComposer
+              disabled={acoesBloqueadas || modoInterno || !podeEnviar}
+              onInserir={inserirEmojiNoCursor}
+            />
+          </div>
+        )}
 
         {onInserirReferenciaKb && (
           <KbConsultaButton

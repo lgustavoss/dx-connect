@@ -27,6 +27,9 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Notificações (#693 / #694): no telemóvel podes receber alertas mesmo com a app fechada — fila de espera e mensagens nos chats/tickets já teus. Activa em Notificações; o silêncio da fila na mesa também vale com a app fechada
 - Mobile (#695): no iPhone, o painel explica que os alertas com a app fechada só funcionam depois de adicionar o DeskRudder à tela inicial (Safari 16.4+)
 - Menu (#716): a barra de rolagem da sidebar (painel e portal) fica fina e alinhada ao tema, sem o visual nativo do Windows
+- WhatsApp (#728): no modal da empresa do atendimento dá para **pesquisar pelo nome do posto**, em vez de só rolar a lista
+- WhatsApp (#729): arrastar um ficheiro para a conversa abre a pré-visualização (como colar com Ctrl+V)
+- WhatsApp (#730): no compositor há um atalho para **respostas prontas** do setor (insere o texto; o envio continua a ser teu)
 - CI: testes do backend deixam de repetir bcrypt lento em cada caso; PRs só de interface já não esperam o pytest, e o contrário também (job do lado inalterado conclui em segundos)
 
 #### Correções

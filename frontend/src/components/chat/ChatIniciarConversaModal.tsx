@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { whatsappChats, type WhatsappChats } from '../../api/client'
 import { Button } from '../../components/ui/Button'
 import { Input, TEXTAREA_FIELD_CLASS } from '../../components/ui/Input'
-import { Select } from '../../components/ui/Select'
+import { SelectComPesquisa } from '../../components/ui/SelectComPesquisa'
 import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { chatWhatsappLink } from '../../lib/chatHubPaths'
@@ -118,14 +118,13 @@ export function ChatIniciarConversaModal({
           />
           {multiEmpresa && (
             <div className="space-y-1">
-              <Select
+              <SelectComPesquisa
                 label="Empresa do atendimento (opcional)"
                 value={empresaId}
-                onChange={(value) => setEmpresaId(value === '' ? '' : Number(value))}
-                options={empresasLista.map((e) => ({ value: e.id, label: e.nome }))}
+                onChange={(id) => setEmpresaId(id)}
+                items={empresasLista.map((e) => ({ id: e.id, label: e.nome }))}
                 placeholder="Definir depois na conversa"
-                includeEmpty
-                emptyLabel="Definir depois na conversa"
+                hint="Digite parte do nome do posto"
               />
               <p className="text-[11px] text-slate-500">
                 Se ainda não souber, pergunte ao cliente na conversa e vincule a empresa a qualquer

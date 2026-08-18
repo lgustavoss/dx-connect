@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useRef, type MouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef, type DragEvent, type MouseEvent } from 'react'
 
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
@@ -42,6 +42,7 @@ import { TEXTAREA_FIELD_CLASS } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 
 import { Select } from '../../components/ui/Select'
+import { SelectComPesquisa } from '../../components/ui/SelectComPesquisa'
 
 import { useToast } from '../../components/ui/Toast'
 
@@ -569,6 +570,8 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
 
   const [pickerAnexo, setPickerAnexo] = useState<TipoAnexoPicker>('imagem')
   const [arquivoPendente, setArquivoPendente] = useState<File | null>(null)
+  const [dragAtivo, setDragAtivo] = useState(false)
+  const dragDepthRef = useRef(0)
   const [legendaMidia, setLegendaMidia] = useState('')
 
 
@@ -1456,6 +1459,52 @@ useEffect(() => {
 
   const modoHub = chatIdProp != null || location.pathname.startsWith('/chat/')
 
+  const podeAceitarDrop = Boolean(podeEnviar && !encerrado && !modoInterno && !enviando)
+
+  function resetDrag() {
+    dragDepthRef.current = 0
+    setDragAtivo(false)
+  }
+
+  function handleDragEnter(e: DragEvent<HTMLElement>) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (![...e.dataTransfer.types].includes('Files')) return
+    dragDepthRef.current += 1
+    if (podeAceitarDrop) setDragAtivo(true)
+  }
+
+  function handleDragOver(e: DragEvent<HTMLElement>) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (![...e.dataTransfer.types].includes('Files')) return
+    e.dataTransfer.dropEffect = podeAceitarDrop ? 'copy' : 'none'
+  }
+
+  function handleDragLeave(e: DragEvent<HTMLElement>) {
+    e.preventDefault()
+    e.stopPropagation()
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+    if (dragDepthRef.current === 0) setDragAtivo(false)
+  }
+
+  function handleDrop(e: DragEvent<HTMLElement>) {
+    e.preventDefault()
+    e.stopPropagation()
+    resetDrag()
+    const files = Array.from(e.dataTransfer.files || [])
+    if (files.length === 0) return
+    if (!podeAceitarDrop) {
+      toast.showWarning(motivoAnexoDesabilitado || 'Não é possível anexar neste chat.')
+      return
+    }
+    setArquivoPendente(files[0])
+    setLegendaMidia('')
+    if (files.length > 1) {
+      toast.showWarning('Só é possível anexar um ficheiro de cada vez. Foi usado o primeiro.')
+    }
+  }
+
   return (
 
     <div
@@ -1575,7 +1624,23 @@ useEffect(() => {
 
       {/* ÁREA DE CONVERSA */}
 
-      <main className="flex flex-1 flex-col min-w-0 bg-white dark:bg-slate-950">
+      <main
+        className="relative flex min-w-0 flex-1 flex-col bg-white dark:bg-slate-950"
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {dragAtivo && podeAceitarDrop && (
+          <div
+            className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center border-2 border-dashed border-cyan-500 bg-cyan-950/40"
+            aria-hidden
+          >
+            <p className="rounded-xl bg-white/95 px-4 py-2 text-sm font-semibold text-cyan-800 shadow-sm dark:bg-slate-900/95 dark:text-cyan-200">
+              Solte o ficheiro para anexar
+            </p>
+          </div>
+        )}
 
        
 
@@ -2250,6 +2315,7 @@ useEffect(() => {
                 setArquivoPendente(file)
                 setLegendaMidia('')
               }}
+              setorId={chat?.setor_id}
               onInserirReferenciaKb={inserirReferenciaKb}
               focoPedidoEm={focoComposerEm}
               placeholder={composerPlaceholder}
@@ -2359,14 +2425,14 @@ useEffect(() => {
                 encerrado.
               </p>
               <div className="mt-4">
-                <Select
+                <SelectComPesquisa
                   label="Empresa"
                   value={empresaContextoId}
-                  onChange={(value) => setEmpresaContextoId(value === '' ? '' : Number(value))}
-                  options={(chat.empresas_opcoes || []).map((e) => ({ value: e.id, label: e.nome }))}
+                  onChange={(id) => setEmpresaContextoId(id)}
+                  items={(chat.empresas_opcoes || []).map((e) => ({ id: e.id, label: e.nome }))}
                   placeholder="Selecione a empresa"
-                  includeEmpty
-                  emptyLabel="Selecione a empresa"
+                  hint="Digite parte do nome do posto"
+                  required
                 />
               </div>
               <div className="mt-5 flex justify-end gap-2">
