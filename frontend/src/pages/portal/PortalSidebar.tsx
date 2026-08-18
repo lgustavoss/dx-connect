@@ -49,7 +49,7 @@ const icons = {
 
 const NAV_ITEMS: NavItem[] = [
   { to: '/portal/tickets', label: 'Chamados', end: true, icon: icons.tickets },
-  { to: '/portal/chats', label: 'Atendimentos', icon: icons.chats },
+  { to: '/portal/chats', label: 'Atendimentos', end: true, icon: icons.chats },
   { to: '/portal/equipe', label: 'Usuários', icon: icons.users, socioOnly: true },
   { to: '/portal/ajuda', label: 'Ajuda', icon: icons.help },
 ]
@@ -138,7 +138,7 @@ export function PortalSidebar({
       </div>
 
       <nav
-        className={`min-w-0 flex-1 overflow-x-hidden overflow-y-auto py-3 px-2 ${!expanded ? 'md:px-2' : ''}`}
+        className={`dx-scrollbar min-w-0 flex-1 overflow-x-hidden overflow-y-auto py-3 px-2 ${!expanded ? 'md:px-2' : ''}`}
         aria-label="Menu do portal"
       >
         <ul className={`min-w-0 space-y-0.5 px-2 ${!expanded ? 'md:px-0' : ''}`}>

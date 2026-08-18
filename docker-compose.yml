@@ -107,6 +107,8 @@ services:
     volumes:
       # Código + tests + pytest.ini do host (evita rebuild só por alteração em tests/).
       - ./backend:/app
+      # scripts/ na raiz (check_changelog, ci_detect_changes) — pytest no Docker importa daqui.
+      - ./scripts:/scripts:ro
 
 volumes:
   postgres_data:

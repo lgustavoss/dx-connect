@@ -1,8 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { portalCliente, type PortalCliente } from '../../api/client'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { useToast } from '../../components/ui/Toast'
+import { useMesaPanelHistory } from '../../hooks/useMesaPanelHistory'
+import { popMesaPanelState } from '../../lib/mesaHistory'
+import {
+  gravarPortalTicketAtivoSession,
+  lerPortalTicketAtivoSession,
+  PORTAL_TICKET_ATIVO_EVENT,
+} from '../../lib/portalAtivo'
+import { PortalTicketDetalhe } from './PortalTicketDetalhe'
 import {
   PortalPageHeader,
   PortalSegmentedControl,
@@ -43,6 +51,29 @@ export function PortalTickets() {
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const toast = useToast()
+  const [ticketAtivoId, setTicketAtivoId] = useState<number | null>(() => lerPortalTicketAtivoSession())
+
+  const abrirTicket = useCallback((id: number) => {
+    gravarPortalTicketAtivoSession(id)
+    setTicketAtivoId(id)
+  }, [])
+
+  const fecharTicket = useCallback((opts?: { fromPopstate?: boolean }) => {
+    gravarPortalTicketAtivoSession(null)
+    setTicketAtivoId(null)
+    if (opts?.fromPopstate) return
+    popMesaPanelState()
+  }, [])
+
+  useMesaPanelHistory('portal-ticket', ticketAtivoId != null, () => {
+    fecharTicket({ fromPopstate: true })
+  })
+
+  useEffect(() => {
+    const sync = () => setTicketAtivoId(lerPortalTicketAtivoSession())
+    window.addEventListener(PORTAL_TICKET_ATIVO_EVENT, sync)
+    return () => window.removeEventListener(PORTAL_TICKET_ATIVO_EVENT, sync)
+  }, [])
 
   useEffect(() => {
     const t = window.setTimeout(() => setBuscaDebounced(busca.trim()), 300)
@@ -74,6 +105,10 @@ export function PortalTickets() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [situacao, buscaDebounced])
+
+  if (ticketAtivoId != null) {
+    return <PortalTicketDetalhe ticketIdProp={ticketAtivoId} onVoltar={fecharTicket} />
+  }
 
   return (
     <div className="space-y-6">
@@ -131,7 +166,7 @@ export function PortalTickets() {
         <ul className="space-y-3">
           {items.map((t) => (
             <li key={t.id}>
-              <Link to={`/portal/tickets/${t.id}`} className={`block ${portalCardClass}`}>
+              <button type="button" onClick={() => abrirTicket(t.id)} className={`block w-full text-left ${portalCardClass}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-mono text-xs font-semibold tracking-wide text-[var(--portal-primary)]">
@@ -149,7 +184,7 @@ export function PortalTickets() {
                 <p className="mt-3 text-xs text-slate-400">
                   Atualizado {formatData(t.ultima_mensagem_em || t.updated_at || t.created_at)}
                 </p>
-              </Link>
+              </button>
             </li>
           ))}
         </ul>

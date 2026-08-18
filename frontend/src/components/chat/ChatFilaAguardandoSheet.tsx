@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChatListaEspera } from '../../pages/chat/ChatListaEspera'
+import { chatHubItemLink } from '../../lib/chatHubLista'
+import { useChatHub } from '../../contexts/ChatHubContext'
 import { ChatFilaSomToggle } from './ChatFilaSomToggle'
 
 type Props = {
@@ -10,6 +12,7 @@ type Props = {
 
 export function ChatFilaAguardandoSheet({ open, onClose }: Props) {
   const navigate = useNavigate()
+  const { abrirChat } = useChatHub()
   const titleId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -65,7 +68,8 @@ export function ChatFilaAguardandoSheet({ open, onClose }: Props) {
           <ChatListaEspera
             ignorarBusca
             onChatAssumido={(canal, chatId) => {
-              navigate(canal === 'portal' ? `/chat/portal/${chatId}` : `/chat/c/${chatId}`)
+              abrirChat(canal, chatId)
+              navigate(chatHubItemLink('atendendo'))
               onClose()
             }}
             onVerChat={onClose}

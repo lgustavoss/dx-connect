@@ -10,7 +10,12 @@ import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
 import { AvaliacaoEstrelas } from '../../components/ui/AvaliacaoEstrelas'
 import { rotuloEstadoChat } from '../../lib/whatsappChatMeta'
-import { buildHistoricoReturnPath, saveWhatsappListScroll, whatsappConversaLink } from '../../lib/whatsappListReturn'
+import {
+  buildHistoricoReturnPath,
+  marcarWhatsappChatAtivo,
+  saveWhatsappListScroll,
+  whatsappConversaLink,
+} from '../../lib/whatsappListReturn'
 import { useWhatsappListScrollRestore } from '../../hooks/useWhatsappListScrollRestore'
 import { ChatIniciarConversaModal } from '../../components/chat/ChatIniciarConversaModal'
 
@@ -275,8 +280,11 @@ export function WhatsappHistorico() {
                     </div>
 
                     <Link
-                      to={whatsappConversaLink(c.id, historicoReturnPath, 'historico')}
-                      onClick={() => saveWhatsappListScroll('historico', historicoReturnPath)}
+                      to={whatsappConversaLink(historicoReturnPath, 'historico')}
+                      onClick={() => {
+                        marcarWhatsappChatAtivo(c.id)
+                        saveWhatsappListScroll('historico', historicoReturnPath)
+                      }}
                       className="rounded-full bg-slate-100 p-2 text-slate-400 transition-all hover:bg-cyan-600 hover:text-white dark:bg-slate-800 dark:hover:bg-cyan-700"
                       title="Ver conversa"
                     >

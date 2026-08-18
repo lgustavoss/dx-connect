@@ -30,14 +30,35 @@ Confirme que a branch **não** é `main`/`staging`. Se for, avise para usar `/in
 - [ ] Eventos publicados após commit DB
 - [ ] Payload compatível com consumidores existentes
 
-## Executar testes
+## Executar testes (só o que o diff toca)
+
+Mesma regra do GitHub Actions (`scripts/ci_detect_changes.py`): pytest do backend **não** corre em PR só de frontend, e `npm run build` **não** corre em PR só de backend.
 
 ```bash
+git fetch origin
+python scripts/ci_detect_changes.py --base origin/main --include-working-tree
+```
+
+Interprete `backend=true` / `frontend=true` e execute **apenas** o que aplicar:
+
+```bash
+# se backend=true
 docker compose run --rm --no-deps backend pytest -q
+
+# se frontend=true
 cd frontend && npm run build
 ```
 
-Se algum teste falhar, corrija antes de concluir a revisão.
+- `backend=false` → **não** rode pytest; no relatório: `pytest: omitido (diff sem backend/scripts/CI)`
+- `frontend=false` → **não** rode `npm run build`; no relatório: `npm run build: omitido (diff sem frontend/CI)`
+- Os dois `true` → rode os dois
+- Os dois `false` (só docs/Cursor) → não rode testes pesados; diga isso no relatório
+
+Se o script falhar (sem `origin/main`), assuma os dois `true`.
+
+Se algum teste **executado** falhar, corrija antes de concluir a revisão.
+
+Após mudar `backend/requirements-dev.txt`, faça `docker compose build backend` antes do pytest (a imagem precisa de `pytest-xdist`).
 
 ## Formato do relatório
 
@@ -55,8 +76,8 @@ Se algum teste falhar, corrija antes de concluir a revisão.
 - ...
 
 ## Testes executados
-- pytest: [passou/falhou]
-- npm run build: [passou/falhou]
+- pytest: [passou / falhou / omitido — motivo]
+- npm run build: [passou / falhou / omitido — motivo]
 ```
 
 Se revisão OK, sugira:

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useId, useCallback } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import {
   tickets,
   statusTicket,
@@ -27,6 +27,10 @@ import { exibirProtocolo } from '../lib/exibirProtocolo'
 import { rotuloPrioridade, classeBadgePrioridade } from '../lib/ticketPrioridade'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 import { SlaBadge } from '../components/tickets/SlaBadge'
+import { TicketDetalhe } from './TicketDetalhe'
+import { useMesaPanelHistory } from '../hooks/useMesaPanelHistory'
+import { popMesaPanelState } from '../lib/mesaHistory'
+import { gravarTicketAtivoSession, lerTicketAtivoSession, TICKET_ATIVO_EVENT } from '../lib/ticketAtivo'
 
 type ColunaOrdenacao =
   | 'protocolo'
@@ -107,11 +111,36 @@ function IndicadoresFilaTicket({ ticket, className = '' }: { ticket: Tickets.Tic
 }
 
 export function Tickets() {
-  const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const toast = useToast()
   const { isAdmin } = useAuth()
   const [forbidden, setForbidden] = useState(false)
+  /** Ticket aberto no lugar da lista — a URL continua `/tickets` (#655). */
+  const [ticketAtivoId, setTicketAtivoId] = useState<number | null>(() => lerTicketAtivoSession())
+
+  useEffect(() => {
+    const sync = () => setTicketAtivoId(lerTicketAtivoSession())
+    sync()
+    window.addEventListener(TICKET_ATIVO_EVENT, sync)
+    return () => window.removeEventListener(TICKET_ATIVO_EVENT, sync)
+  }, [location.key])
+
+  const abrirTicket = useCallback((id: number) => {
+    gravarTicketAtivoSession(id)
+    setTicketAtivoId(id)
+  }, [])
+
+  const fecharTicket = useCallback((opts?: { fromPopstate?: boolean }) => {
+    gravarTicketAtivoSession(null)
+    setTicketAtivoId(null)
+    if (opts?.fromPopstate) return
+    popMesaPanelState()
+  }, [])
+
+  useMesaPanelHistory('ticket', ticketAtivoId != null, () => {
+    fecharTicket({ fromPopstate: true })
+  })
 
   const situacao = useMemo<'abertos' | 'fechados'>(() => {
     const s = searchParams.get('situacao')
@@ -362,6 +391,10 @@ export function Tickets() {
     sortParamsEfetivos,
     toast,
   ])
+
+  if (ticketAtivoId != null) {
+    return <TicketDetalhe ticketIdProp={ticketAtivoId} onVoltar={fecharTicket} />
+  }
 
   if (forbidden) {
     return (
@@ -735,7 +768,7 @@ export function Tickets() {
                   <button
                     key={t.id}
                     type="button"
-                    onClick={() => navigate(`/tickets/${t.id}`)}
+                    onClick={() => abrirTicket(t.id)}
                     className={`w-full px-4 py-4 text-left transition-colors hover:bg-slate-50/80 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-white/40 dark:focus-visible:bg-slate-800/60 ${
                       proximoAuto
                         ? 'bg-amber-50/70 ring-1 ring-inset ring-amber-200/70 dark:bg-amber-950/25 dark:ring-amber-800/40'
@@ -945,11 +978,11 @@ export function Tickets() {
                     key={t.id}
                     role="button"
                     tabIndex={0}
-                    onClick={() => navigate(`/tickets/${t.id}`)}
+                    onClick={() => abrirTicket(t.id)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()
-                        navigate(`/tickets/${t.id}`)
+                        abrirTicket(t.id)
                       }
                     }}
                     className={`cursor-pointer transition-colors hover:bg-slate-50/90 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-white/50 dark:focus-visible:bg-slate-800/60 ${

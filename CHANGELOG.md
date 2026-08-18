@@ -1,9 +1,31 @@
-# Changelog
+﻿# Changelog
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging`.
 
 ## [Unreleased]
+
+### DeskRudder
+
+#### Melhorias
+
+- Chat (#654): a mesa de atendimento fica sempre no mesmo endereço (`/chat/atendendo`, `/chat/espera`, `/chat/interno`) — o número da conversa deixa de aparecer na barra do navegador e a conversa aberta continua no painel ao trocar de aba
+- Tickets (#655): abrir um chamado mantém o endereço `/tickets`, sem o número do ticket na barra do navegador; ao voltar, a lista preserva filtros e página
+- Notificações (#697): o sininho e o e-mail interno do painel já não põem o número do chamado ou da conversa no endereço; o clique abre o item certo na mesa ou em tickets
+- Chat e tickets (#699): o Voltar do navegador fecha o painel da conversa ou do chamado e permanece na mesa (`/chat/…`, `/tickets`), sem o número na barra
+- Portal (#700): chamados e atendimentos WhatsApp ficam em `/portal/tickets` e `/portal/chats`, sem o número na barra; links antigos com id continuam a abrir o item certo
+- Mobile (#690 / #691): o painel no endereço do cliente pode ser **adicionado à tela inicial** (PWA); o brief mobile descreve PWA primeiro, depois lojas
+- Menu (#716): a barra de rolagem da sidebar (painel e portal) fica fina e alinhada ao tema, sem o visual nativo do Windows
+- CI: testes do backend deixam de repetir bcrypt lento em cada caso; PRs só de interface já não esperam o pytest, e o contrário também (job do lado inalterado conclui em segundos)
+
+#### Correções
+
+- WhatsApp (#712): após registar demanda no chat aberto, o encerramento por inatividade continua a contar e o worker fecha o atendimento quando o prazo esgota (marco de demanda já não “prende” o relógio em 00:00)
+- Dark mode (#713): texto e caixa de confirmação ao concluir sem demanda ficam legíveis no tema escuro
+- Sobre (#672): notas antigas que começam com «SaaS» deixam de aparecer em `/sobre` mesmo se o histórico foi publicado antes da separação por produto
+- Funcionários da rede (#685): ao editar/criar, o formulário volta a mostrar o topo e a rolar até ao fim — sem espaço vazio abaixo dos botões nem conteúdo preso fora do ecrã
+- Links antigos (#654 / #655 / #700): endereços com número (chat da fila, conversa do WhatsApp, detalhe de ticket no painel ou no portal) continuam a funcionar e abrem o item certo no novo formato
+- Chat (#698): a mesa deixa de gravar a conversa aberta só por desenhar a lista — só o clique (ou o sininho) muda o painel
 
 ## [26.08.007] - 2026-08-14
 

@@ -34,7 +34,7 @@ Registrar rota em `app/main.py` se for módulo novo.
 
 - Novo endpoint ou regra de negócio → teste em `backend/tests/test_<area>.py`
 - Usar fixtures de `conftest.py` (`DX_CONNECT_TESTING=1`, SQLite in-memory)
-- Rodar: `docker compose run --rm --no-deps backend pytest -q`
+- Rodar (quando o diff toca backend): `docker compose run --rm --no-deps backend pytest -q` (`pytest.ini` já usa `-n auto`)
 
 ## SSE (se aplicável)
 

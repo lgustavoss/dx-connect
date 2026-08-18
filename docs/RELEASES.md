@@ -94,7 +94,9 @@ Mesma CalVer; só bullets `product=saas` (licenças, planos, provisionamento, le
 | `VERSION` | Versão publicada (sem `v`) |
 | `docs/releases/manifest.json` | Histórico estruturado (`product` por bullet) |
 | `backend/app/data/release_notes.json` | Payload da API (gerado no deploy) |
-| `scripts/migrate_release_notes_product.py` | One-off / idempotente para taguear histórico (#676) |
+| `scripts/migrate_release_notes_product.py` | One-off / idempotente para taguear histórico (#676); `--reclassify-saas` corrige bullets «SaaS…» tagueados como DeskRudder |
+
+A API `/v1/system/release-notes` também **reclassifica em runtime** bullets cujo texto começa com «SaaS» (histórico em produção anterior à migração).
 
 Após cada deploy, o workflow commita `VERSION`, `CHANGELOG.md`, `manifest.json` e JSONs em `staging` (mensagem com `[skip ci]` para não redeployar).
 
