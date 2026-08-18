@@ -209,10 +209,11 @@ export function WhatsappComposerBar({
           disabled={campoBloqueado}
           className="max-h-32 min-h-[44px] min-w-0 flex-1 resize-none border-0 bg-transparent px-2 py-2.5 text-base outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 sm:text-sm dark:text-slate-100 placeholder:text-slate-400"
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              if (!acoesBloqueadas && temTexto) enviar()
-            }
+            if (e.key !== 'Enter' || e.shiftKey) return
+            const tecladoFisico = window.matchMedia('(min-width: 768px)').matches
+            if (!tecladoFisico) return
+            e.preventDefault()
+            if (!acoesBloqueadas && temTexto) enviar()
           }}
           onPaste={handlePaste}
         />

@@ -189,13 +189,13 @@ export function ChatListaEspera({ ignorarBusca = false, onChatAssumido, onVerCha
                     abrirChat(c.canal, c.id)
                     onVerChat?.()
                   }}
-                  className="flex-1 rounded-lg border border-slate-200 py-1.5 text-center text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  className="flex min-h-11 flex-1 items-center justify-center rounded-lg border border-slate-200 py-2.5 text-center text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   Ver
                 </Link>
                 <Button
                   type="button"
-                  className="flex-1 py-1.5 text-xs"
+                  className="min-h-11 flex-1 py-2.5 text-sm"
                   loading={assumindoKey === chatHubItemKey(c)}
                   onClick={() => void assumir(c)}
                 >

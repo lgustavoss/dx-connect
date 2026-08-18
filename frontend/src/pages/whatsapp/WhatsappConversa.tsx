@@ -75,7 +75,6 @@ import {
 } from '../../lib/whatsappListReturn'
 import { useChatHub } from '../../contexts/ChatHubContext'
 import { ChatFilaAguardandoSheet } from '../../components/chat/ChatFilaAguardandoSheet'
-import { ChatFilaSomToggle } from '../../components/chat/ChatFilaSomToggle'
 import { chatWhatsappLink } from '../../lib/chatHubPaths'
 import { marcarTicketAtivo, TICKETS_PATH } from '../../lib/ticketAtivo'
 import { WhatsappInatividadeControle } from './WhatsappInatividadeControle'
@@ -608,9 +607,9 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
   const [numeroCopiado, setNumeroCopiado] = useState(false)
   const [detalhesMobileAbertos, setDetalhesMobileAbertos] = useState(() => {
     try {
-      return sessionStorage.getItem(WA_DETALHES_SESSION_KEY) !== '0'
+      return sessionStorage.getItem(WA_DETALHES_SESSION_KEY) === '1'
     } catch {
-      return true
+      return false
     }
   })
   const [modoInterno, setModoInterno] = useState(false)
@@ -1562,7 +1561,7 @@ useEffect(() => {
             <Button
               type="button"
               variant="ghost"
-              className="h-9 shrink-0 px-2 text-xs font-medium"
+              className="h-11 shrink-0 px-2 text-xs font-medium md:h-9"
               onClick={voltarLista}
               aria-label="Voltar à lista"
             >
@@ -1603,7 +1602,7 @@ useEffect(() => {
 
             <button
               type="button"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 md:hidden dark:hover:bg-slate-800 dark:hover:text-slate-100"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 md:hidden dark:hover:bg-slate-800 dark:hover:text-slate-100"
               aria-expanded={detalhesMobileAbertos}
               aria-label={detalhesMobileAbertos ? 'Ocultar detalhes' : 'Mostrar detalhes'}
               onClick={() => {
@@ -1623,25 +1622,24 @@ useEffect(() => {
               </span>
             </button>
 
-            <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            <div className="flex shrink-0 items-center gap-1 md:gap-2">
 
               {modoHub && (
                 <div className="flex items-center gap-0.5 md:hidden">
                   <Button
                     type="button"
                     variant="secondary"
-                    className="relative h-8 shrink-0 px-2.5 text-xs font-semibold"
+                    className="relative h-11 min-w-11 shrink-0 px-2.5 text-xs font-semibold"
                     onClick={() => setFilaAguardandoAberta(true)}
                     aria-label={filaCount > 0 ? `Aguardando, ${filaCount} na fila` : 'Aguardando'}
                   >
-                    Aguardando
+                    Fila
                     {filaCount > 0 && (
                       <span className="ml-1 inline-flex min-w-[1rem] justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-4 text-white">
                         {filaCount > 99 ? '99+' : filaCount}
                       </span>
                     )}
                   </Button>
-                  <ChatFilaSomToggle />
                 </div>
               )}
 
@@ -1649,7 +1647,7 @@ useEffect(() => {
                 <Button
                   type="button"
                   variant="primary"
-                  className="h-8 shrink-0 px-3 text-xs font-semibold"
+                  className="h-11 shrink-0 px-3 text-xs font-semibold"
                   loading={assumindo}
                   onClick={() => void assumirChat()}
                 >
@@ -1659,8 +1657,8 @@ useEffect(() => {
 
               {!encerrado && (
                 <>
-                  {isResponsavel && chat && (
-                    <div className="hidden sm:flex">
+                  {chat && (
+                    <div className="hidden md:flex">
                       <WhatsappInatividadeControle
                         chat={chat}
                         msgs={msgs}
@@ -1672,7 +1670,7 @@ useEffect(() => {
                   {podeTransferir && (
                     <Button
                       variant="primary"
-                      className="hidden sm:inline-flex text-xs h-8"
+                      className="hidden md:inline-flex h-8 text-xs"
                       onClick={() => setModalTransferir(true)}
                     >
                       Transferir
@@ -1680,25 +1678,25 @@ useEffect(() => {
                   )}
                   <Button
                     variant="ghost"
-                    className="hidden sm:inline-flex text-xs h-8"
+                    className="hidden md:inline-flex h-8 text-xs"
                     onClick={() => setModalTickets(true)}
                   >
                     Tickets{ticketsVinculados.length > 0 ? ` (${ticketsVinculados.length})` : ''}
                   </Button>
 
                   {podeEncerrar && (
-                    <Button variant="danger" className="h-8 px-2.5 text-xs sm:px-3" onClick={() => setModalEncerrar(true)}>
+                    <Button variant="danger" className="hidden h-8 px-3 text-xs md:inline-flex" onClick={() => setModalEncerrar(true)}>
                       Encerrar
                     </Button>
                   )}
 
-                  <div className="relative sm:hidden" ref={menuMobileRef}>
+                  <div className="relative md:hidden" ref={menuMobileRef}>
                     <button
                       type="button"
                       aria-label="Mais ações"
                       aria-expanded={menuMobileAberto}
                       onClick={() => setMenuMobileAberto((o) => !o)}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-lg text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                      className="flex h-11 w-11 items-center justify-center rounded-lg text-lg text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                     >
                       ⋮
                     </button>
@@ -1707,7 +1705,7 @@ useEffect(() => {
                         {podeTransferir && (
                           <button
                             type="button"
-                            className="block w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                            className="block min-h-11 w-full px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
                             onClick={() => {
                               setMenuMobileAberto(false)
                               setModalTransferir(true)
@@ -1718,7 +1716,7 @@ useEffect(() => {
                         )}
                         <button
                           type="button"
-                          className="block w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                          className="block min-h-11 w-full px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
                           onClick={() => {
                             setMenuMobileAberto(false)
                             setModalTickets(true)
@@ -1726,10 +1724,22 @@ useEffect(() => {
                         >
                           Tickets{ticketsVinculados.length > 0 ? ` (${ticketsVinculados.length})` : ''}
                         </button>
+                        {podeEncerrar && (
+                          <button
+                            type="button"
+                            className="block min-h-11 w-full px-4 py-3 text-left text-sm text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                            onClick={() => {
+                              setMenuMobileAberto(false)
+                              setModalEncerrar(true)
+                            }}
+                          >
+                            Encerrar
+                          </button>
+                        )}
                         {podeDefinirEmpresa && (
                           <button
                             type="button"
-                            className="block w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                            className="block min-h-11 w-full px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
                             onClick={() => {
                               setMenuMobileAberto(false)
                               abrirModalEmpresaContexto()
@@ -1738,15 +1748,14 @@ useEffect(() => {
                             {chat?.empresa_id ? 'Alterar empresa' : 'Definir empresa'}
                           </button>
                         )}
-                        {isResponsavel && chat && (
-                          <div className="border-t border-slate-100 px-3 py-2 dark:border-slate-800">
-                            <WhatsappInatividadeControle
-                              chat={chat}
-                              msgs={msgs}
-                              isResponsavel={isResponsavel}
-                              onChatUpdate={aplicarChatAtualizado}
-                            />
-                          </div>
+                        {chat && (
+                          <WhatsappInatividadeControle
+                            chat={chat}
+                            msgs={msgs}
+                            isResponsavel={isResponsavel}
+                            onChatUpdate={aplicarChatAtualizado}
+                            className="border-t border-slate-100 px-3 py-2 dark:border-slate-800"
+                          />
                         )}
                       </div>
                     )}
@@ -1977,7 +1986,7 @@ useEffect(() => {
                 {!isInbound && !isSystem && !m.apagada && (
                   <button
                     onClick={() => iniciarResposta(m)}
-                    className="opacity-25 group-hover:opacity-100 md:opacity-0 transition-opacity p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer shrink-0"
+                    className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full p-1.5 text-slate-400 opacity-100 transition-opacity hover:bg-slate-200 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200 md:h-auto md:w-auto md:opacity-0 md:group-hover:opacity-100"
                     title="Responder"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
@@ -2075,7 +2084,7 @@ useEffect(() => {
                 {isInbound && !isSystem && !m.apagada && (
                   <button
                     onClick={() => iniciarResposta(m)}
-                    className="opacity-25 group-hover:opacity-100 md:opacity-0 transition-opacity p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer shrink-0"
+                    className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full p-1.5 text-slate-400 opacity-100 transition-opacity hover:bg-slate-200 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200 md:h-auto md:w-auto md:opacity-0 md:group-hover:opacity-100"
                     title="Responder"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
@@ -2167,11 +2176,11 @@ useEffect(() => {
                   value={legendaMidia}
                   onChange={(e) => setLegendaMidia(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      if (!enviando && podeEnviar) void confirmarEnvioMidia()
-                    }
+                    if (e.key !== 'Enter' || e.shiftKey) return
+                    if (!window.matchMedia('(min-width: 768px)').matches) return
+                    e.preventDefault()
+                    e.stopPropagation()
+                    if (!enviando && podeEnviar) void confirmarEnvioMidia()
                   }}
                   placeholder="Legenda opcional (visível no WhatsApp)"
                   className={`mt-2 ${TEXTAREA_FIELD_CLASS}`}
@@ -2235,8 +2244,8 @@ useEffect(() => {
       {/* Modais (Vincular exemplo) */}
 
       {modalTransferir && (
-  <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
-    <Card className="w-full max-w-lg p-6">
+  <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-900/50 p-0 backdrop-blur-sm md:items-center md:p-4">
+    <Card className="max-h-[min(92dvh,var(--vv-height,92dvh))] w-full max-w-lg overflow-y-auto rounded-b-none p-6 md:rounded-2xl">
       <h3 className="text-lg font-bold">Transferir Atendimento</h3>
       {chat && (
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
