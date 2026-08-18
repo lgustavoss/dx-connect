@@ -1657,7 +1657,7 @@ useEffect(() => {
 
               {!encerrado && (
                 <>
-                  {isResponsavel && chat && (
+                  {chat && (
                     <div className="hidden md:flex">
                       <WhatsappInatividadeControle
                         chat={chat}
@@ -1748,15 +1748,14 @@ useEffect(() => {
                             {chat?.empresa_id ? 'Alterar empresa' : 'Definir empresa'}
                           </button>
                         )}
-                        {isResponsavel && chat && (
-                          <div className="border-t border-slate-100 px-3 py-2 dark:border-slate-800">
-                            <WhatsappInatividadeControle
-                              chat={chat}
-                              msgs={msgs}
-                              isResponsavel={isResponsavel}
-                              onChatUpdate={aplicarChatAtualizado}
-                            />
-                          </div>
+                        {chat && (
+                          <WhatsappInatividadeControle
+                            chat={chat}
+                            msgs={msgs}
+                            isResponsavel={isResponsavel}
+                            onChatUpdate={aplicarChatAtualizado}
+                            className="border-t border-slate-100 px-3 py-2 dark:border-slate-800"
+                          />
                         )}
                       </div>
                     )}
