@@ -1,71 +1,81 @@
 {
-  "current_version": "26.08.007",
-  "current_version_display": "v26.08.007",
+  "current_version": "26.08.008",
+  "current_version_display": "v26.08.008",
   "current": {
-    "version": "26.08.007",
-    "version_display": "v26.08.007",
-    "date": "2026-08-14",
+    "version": "26.08.008",
+    "version_display": "v26.08.008",
+    "date": "2026-08-17",
     "status": "published",
     "changes": [
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "CRM (#322 / #336–#344): perfil comercial, funil, leads e negociações multi-CNPJ (API + UI — lista/Kanban, detalhe com custos/margem e timeline); configuração dos estágios em Cadastros; simulação e leitura do catálogo de custos para comercial (CRUD do catálogo continua só admin)"
+        "text": "Chat (#654): a mesa de atendimento fica sempre no mesmo endereço (`/chat/atendendo`, `/chat/espera`, `/chat/interno`) — o número da conversa deixa de aparecer na barra do navegador e a conversa aberta continua no painel ao trocar de aba"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "Sobre: as notas de atualização passam a mostrar só o que mudou no helpdesk nesta instância; melhorias do painel SaaS deixam de aparecer misturadas (#672 / #674)"
+        "text": "Tickets (#655): abrir um chamado mantém o endereço `/tickets`, sem o número do ticket na barra do navegador; ao voltar, a lista preserva filtros e página"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "WhatsApp (#684): número do contacto visível no header da conversa (com copiar)"
+        "text": "Notificações (#697): o sininho e o e-mail interno do painel já não põem o número do chamado ou da conversa no endereço; o clique abre o item certo na mesa ou em tickets"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "WhatsApp (#681): clique na foto do contacto abre a imagem em tela cheia"
+        "text": "Chat e tickets (#699): o Voltar do navegador fecha o painel da conversa ou do chamado e permanece na mesa (`/chat/…`, `/tickets`), sem o número na barra"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "WhatsApp (#682): no telemóvel, dá para ocultar detalhes (protocolo, tags, demandas) e ver mais o chat"
+        "text": "Portal (#700): chamados e atendimentos WhatsApp ficam em `/portal/tickets` e `/portal/chats`, sem o número na barra; links antigos com id continuam a abrir o item certo"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "WhatsApp (#680): vídeos da conversa abrem em overlay ampliado, com opção de tela cheia nativa"
+        "text": "Mobile (#690 / #691): o painel no endereço do cliente pode ser **adicionado à tela inicial** (PWA); o brief mobile descreve PWA primeiro, depois lojas"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "WhatsApp (#679): documentos mostram e descarregam com o **nome original** do ficheiro (envio e recebimento)"
+        "text": "Menu (#716): a barra de rolagem da sidebar (painel e portal) fica fina e alinhada ao tema, sem o visual nativo do Windows"
+      },
+      {
+        "product": "deskrudder",
+        "category": "melhorias",
+        "text": "CI: testes do backend deixam de repetir bcrypt lento em cada caso; PRs só de interface já não esperam o pytest, e o contrário também (job do lado inalterado conclui em segundos)"
       },
       {
         "product": "deskrudder",
         "category": "correcoes",
-        "text": "Login (#677): em subdomínio do cliente, **Voltar ao site** abre a landing DeskRudder (apex) em vez de voltar ao próprio login"
+        "text": "WhatsApp (#712): após registar demanda no chat aberto, o encerramento por inatividade continua a contar e o worker fecha o atendimento quando o prazo esgota (marco de demanda já não “prende” o relógio em 00:00)"
       },
       {
         "product": "deskrudder",
         "category": "correcoes",
-        "text": "WhatsApp (#683): envio de mensagem/áudio/anexo já não mostra toast verde que cobria o botão de enviar (erros continuam)"
+        "text": "Dark mode (#713): texto e caixa de confirmação ao concluir sem demanda ficam legíveis no tema escuro"
       },
       {
-        "product": "saas",
-        "category": "melhorias",
-        "text": "Painel SaaS: página **Sobre / Novidades** com o histórico só de entregas do control-plane (licenças, planos, provisionamento) (#672 / #675)"
-      },
-      {
-        "product": "saas",
-        "category": "melhorias",
-        "text": "Release notes: CHANGELOG e API separam DeskRudder e SaaS no mesmo deploy CalVer (#672 / #673 / #676)"
-      },
-      {
-        "product": "saas",
+        "product": "deskrudder",
         "category": "correcoes",
-        "text": "Landing (#668): modal «Quero ver uma demonstração» fica centrado na tela, com scroll se o formulário for alto (deixa de cortar Nome/E-mail)"
+        "text": "Sobre (#672): notas antigas que começam com «SaaS» deixam de aparecer em `/sobre` mesmo se o histórico foi publicado antes da separação por produto"
+      },
+      {
+        "product": "deskrudder",
+        "category": "correcoes",
+        "text": "Funcionários da rede (#685): ao editar/criar, o formulário volta a mostrar o topo e a rolar até ao fim — sem espaço vazio abaixo dos botões nem conteúdo preso fora do ecrã"
+      },
+      {
+        "product": "deskrudder",
+        "category": "correcoes",
+        "text": "Links antigos (#654 / #655 / #700): endereços com número (chat da fila, conversa do WhatsApp, detalhe de ticket no painel ou no portal) continuam a funcionar e abrem o item certo no novo formato"
+      },
+      {
+        "product": "deskrudder",
+        "category": "correcoes",
+        "text": "Chat (#698): a mesa deixa de gravar a conversa aberta só por desenhar a lista — só o clique (ou o sininho) muda o painel"
       }
     ]
   },
@@ -2851,6 +2861,84 @@
           "product": "saas",
           "category": "correcoes",
           "text": "Landing (#668): modal «Quero ver uma demonstração» fica centrado na tela, com scroll se o formulário for alto (deixa de cortar Nome/E-mail)"
+        }
+      ]
+    },
+    {
+      "version": "26.08.008",
+      "version_display": "v26.08.008",
+      "date": "2026-08-17",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Chat (#654): a mesa de atendimento fica sempre no mesmo endereço (`/chat/atendendo`, `/chat/espera`, `/chat/interno`) — o número da conversa deixa de aparecer na barra do navegador e a conversa aberta continua no painel ao trocar de aba"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Tickets (#655): abrir um chamado mantém o endereço `/tickets`, sem o número do ticket na barra do navegador; ao voltar, a lista preserva filtros e página"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Notificações (#697): o sininho e o e-mail interno do painel já não põem o número do chamado ou da conversa no endereço; o clique abre o item certo na mesa ou em tickets"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Chat e tickets (#699): o Voltar do navegador fecha o painel da conversa ou do chamado e permanece na mesa (`/chat/…`, `/tickets`), sem o número na barra"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Portal (#700): chamados e atendimentos WhatsApp ficam em `/portal/tickets` e `/portal/chats`, sem o número na barra; links antigos com id continuam a abrir o item certo"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Mobile (#690 / #691): o painel no endereço do cliente pode ser **adicionado à tela inicial** (PWA); o brief mobile descreve PWA primeiro, depois lojas"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Menu (#716): a barra de rolagem da sidebar (painel e portal) fica fina e alinhada ao tema, sem o visual nativo do Windows"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "CI: testes do backend deixam de repetir bcrypt lento em cada caso; PRs só de interface já não esperam o pytest, e o contrário também (job do lado inalterado conclui em segundos)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp (#712): após registar demanda no chat aberto, o encerramento por inatividade continua a contar e o worker fecha o atendimento quando o prazo esgota (marco de demanda já não “prende” o relógio em 00:00)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Dark mode (#713): texto e caixa de confirmação ao concluir sem demanda ficam legíveis no tema escuro"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Sobre (#672): notas antigas que começam com «SaaS» deixam de aparecer em `/sobre` mesmo se o histórico foi publicado antes da separação por produto"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Funcionários da rede (#685): ao editar/criar, o formulário volta a mostrar o topo e a rolar até ao fim — sem espaço vazio abaixo dos botões nem conteúdo preso fora do ecrã"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Links antigos (#654 / #655 / #700): endereços com número (chat da fila, conversa do WhatsApp, detalhe de ticket no painel ou no portal) continuam a funcionar e abrem o item certo no novo formato"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Chat (#698): a mesa deixa de gravar a conversa aberta só por desenhar a lista — só o clique (ou o sininho) muda o painel"
         }
       ]
     }
