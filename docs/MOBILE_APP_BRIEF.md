@@ -392,7 +392,7 @@ O painel **já usa SSE**, não só polling.
 
 Documentação: `docs/REALTIME_SSE.md`.
 
-Web Push (app fechado) é **lote posterior** (L3/L4) — não substitui o SSE com a PWA aberta.
+Web Push com a app fechada está em **L3/L4** (`/v1/web-push`, worker `push_outbox`) — não substitui o SSE com a PWA aberta.
 
 ### Cliente HTTP (pseudocódigo)
 

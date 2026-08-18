@@ -10,7 +10,9 @@ import { BrandLogo } from '../brand'
 import { useTheme } from '../contexts/ThemeContext'
 import { AlertaDesktopPermissaoBanner } from './AlertaDesktopPermissaoBanner'
 import { PwaInstallBanner } from './PwaInstallBanner'
+import { WebPushOptInBanner } from './WebPushOptInBanner'
 import { useVisualViewportCss } from '../hooks/useVisualViewportCss'
+import { useWebPushSession } from '../hooks/useWebPush'
 import { lerTicketAtivoSession, TICKET_ATIVO_EVENT } from '../lib/ticketAtivo'
 
 function perfilExibicao(role: string | undefined): string {
@@ -39,6 +41,7 @@ function LayoutInner() {
 
   const notificacoesEnabled = Boolean(user && !user.must_change_password)
   useAlertaFilaSemResponsavel(notificacoesEnabled)
+  useWebPushSession(notificacoesEnabled)
 
   useEffect(() => {
     setChatInternoAlertUserId(user?.id ?? null)
@@ -129,6 +132,7 @@ function LayoutInner() {
 
           {notificacoesEnabled ? <PwaInstallBanner enabled /> : null}
           {notificacoesEnabled ? <AlertaDesktopPermissaoBanner enabled /> : null}
+          {notificacoesEnabled ? <WebPushOptInBanner enabled /> : null}
 
           <main className="min-h-0 flex-1 overflow-hidden">
             <div

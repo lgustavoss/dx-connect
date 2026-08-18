@@ -1570,6 +1570,8 @@ export namespace Notificacoes {
     email_nova_mensagem: boolean;
     email_sla_em_risco: boolean;
     email_sla_violado: boolean;
+    push_habilitado: boolean;
+    push_fila: boolean;
   }
 }
 
@@ -1585,6 +1587,38 @@ export const notificacoes = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+};
+
+export namespace WebPush {
+  export interface Vapid {
+    configurado: boolean
+    public_key: string | null
+  }
+  export interface Subscription {
+    id: number
+    endpoint: string
+    user_agent: string | null
+  }
+  export interface RegistrarBody {
+    endpoint: string
+    p256dh: string
+    auth: string
+    user_agent?: string | null
+  }
+}
+
+export const webPush = {
+  vapid: () => api<WebPush.Vapid>('/web-push/vapid'),
+  listar: () => api<WebPush.Subscription[]>('/web-push/subscriptions'),
+  registrar: (body: WebPush.RegistrarBody) =>
+    api<WebPush.Subscription>('/web-push/subscriptions', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  apagar: (id: number) =>
+    api<void>(`/web-push/subscriptions/${id}`, { method: 'DELETE' }),
+  apagarEndpoint: (endpoint: string) =>
+    api<void>(`/web-push/subscriptions?endpoint=${encodeURIComponent(endpoint)}`, { method: 'DELETE' }),
 };
 
 export namespace ChatInterno {

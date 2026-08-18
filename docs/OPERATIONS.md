@@ -43,6 +43,7 @@ Guia para quem opera o DX Connect em staging/produção: healthchecks, filas de 
 | `notificacao-email-outbox` | `NOTIFICACAO_EMAIL_WORKER_INTERVAL_SECONDS` (10s) | E-mails de notificação a atendentes |
 | `ticket-mensagem-email-outbox` | `TICKET_MENSAGEM_EMAIL_WORKER_INTERVAL_SECONDS` (5s) | Respostas públicas ao cliente por e-mail |
 | `webhook-outbox` | `WEBHOOK_OUTBOX_WORKER_INTERVAL_SECONDS` (15s) | POST HTTP ao fechar ticket (#119) |
+| `web-push-outbox` | `WEB_PUSH_WORKER_INTERVAL_SECONDS` (5s) | Web Push (fila e mensagens meus) (#693) |
 
 Todos fazem **commit** após cada ciclo (mesmo com 0 envios), para persistir tentativas e retries.
 
@@ -69,6 +70,16 @@ Payload mínimo:
 ```
 
 Fila: tabela `webhook_outbox` (mesma política de 5 tentativas que e-mail).
+
+## Web Push (VAPID) — #693
+
+Variáveis **por stack** do cliente (não globais na VPS):
+
+- `WEB_PUSH_VAPID_PUBLIC_KEY` / `WEB_PUSH_VAPID_PRIVATE_KEY` — par VAPID; vazio = push desligado
+- `WEB_PUSH_VAPID_SUBJECT` — `mailto:` de contacto (claim VAPID)
+- `WEB_PUSH_WORKER_INTERVAL_SECONDS` — intervalo do worker (padrão 5s)
+
+Fila: tabela `push_outbox`. Subscriptions em `push_subscription` (só do JWT; revogadas no logout do dispositivo e ao forçar saída).
 
 ## Retry Evolution API (WhatsApp)
 

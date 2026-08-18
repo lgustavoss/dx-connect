@@ -37,6 +37,7 @@ from app.models.ticket_classificacao import TicketMotivo, TicketNatureza
 from app.models.ticket_avaliacao import TicketAvaliacao, TicketCsatInvite
 from app.models.atendente_notificacao import AtendenteNotificacaoPreferencias, NotificacaoEmailOutbox
 from app.models.webhook_outbox import WebhookOutbox
+from app.models.web_push import PushOutbox, PushSubscription
 from app.models.routing_rule import RoutingRule
 from app.models.business_calendar import BusinessCalendar
 from app.models.sla_policy import SlaPolicy
@@ -111,6 +112,8 @@ __all__ = [
     "AtendenteNotificacaoPreferencias",
     "NotificacaoEmailOutbox",
     "WebhookOutbox",
+    "PushSubscription",
+    "PushOutbox",
     "RoutingRule",
     "BusinessCalendar",
     "SlaPolicy",
