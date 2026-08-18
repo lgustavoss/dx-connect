@@ -49,7 +49,8 @@ Legenda: **OK** atendido no repositório | **Você** validação manual no servi
 | Item | Status |
 |------|--------|
 | Frontend fala com API fora do localhost | **Você** — definir `VITE_API_URL` pública e publicar o `dist/`. |
-| CORS correto | **Você** — `CORS_ORIGINS` com a origem HTTPS exata do site (com/sem `www`). |
+| CORS correto | **Você** — `CORS_ORIGINS` com a origem HTTPS exata do site (com/sem `www`). Para Web Push, tem de ser a origem da PWA (`https://{slug}.…`). |
+| Web Push (VAPID) por stack | **Você** — gerar par VAPID e pôr em `client.env`; vazio = push desligado. Ver `docs/OPERATIONS.md`. |
 | Login + fluxo principal | **Você** — testar em HTTPS após deploy. |
 
 ## Segurança mínima

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { notificacoes, webPush } from '../api/client'
 import { Button } from './ui/Button'
 import { syncWebPushSubscription } from '../hooks/useWebPush'
+import { webPushRequerPwaIos } from '../lib/pwaDisplay'
 
 const LS_DISMISS = 'deskrudder-web-push-optin-dismissed'
 
@@ -27,14 +28,23 @@ type Props = { enabled: boolean }
 export function WebPushOptInBanner({ enabled }: Props) {
   const [visible, setVisible] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [feedback, setFeedback] = useState<'ok' | 'negado' | 'sem_vapid' | null>(null)
+  const [feedback, setFeedback] = useState<'ok' | 'negado' | 'sem_vapid' | 'ios_pwa' | null>(null)
 
   const reavaliar = useCallback(async () => {
-    if (!enabled || typeof window === 'undefined' || !('Notification' in window) || !('PushManager' in window)) {
+    if (!enabled || typeof window === 'undefined') {
       setVisible(false)
       return
     }
     if (readDismissed()) {
+      setVisible(false)
+      return
+    }
+    if (webPushRequerPwaIos()) {
+      setVisible(true)
+      setFeedback('ios_pwa')
+      return
+    }
+    if (!('Notification' in window) || !('PushManager' in window)) {
       setVisible(false)
       return
     }
@@ -72,7 +82,33 @@ export function WebPushOptInBanner({ enabled }: Props) {
     return null
   }
 
-  if (!visible && feedback !== 'negado' && feedback !== 'sem_vapid') return null
+  if (!visible && feedback !== 'negado' && feedback !== 'sem_vapid' && feedback !== 'ios_pwa') return null
+
+  if (feedback === 'ios_pwa') {
+    return (
+      <div
+        role="status"
+        className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm text-slate-800 dark:border-indigo-900/40 dark:bg-indigo-950/30 dark:text-slate-100"
+      >
+        <p className="min-w-0 flex-1">
+          No iPhone/iPad, os alertas com a app fechada só funcionam depois de <strong>Adicionar ao Ecrã Início</strong>{' '}
+          (Safari 16.4 ou posterior). Abre o atalho e activa os alertas aí.
+        </p>
+        <Button
+          type="button"
+          variant="ghost"
+          className="h-8 shrink-0 px-2 text-xs"
+          onClick={() => {
+            writeDismissed()
+            setVisible(false)
+            setFeedback(null)
+          }}
+        >
+          Entendi
+        </Button>
+      </div>
+    )
+  }
 
   if (feedback === 'negado') {
     return (
@@ -135,6 +171,8 @@ export function WebPushOptInBanner({ enabled }: Props) {
                   window.setTimeout(() => setFeedback(null), 5000)
                 } else if (r === 'negado') {
                   setFeedback('negado')
+                } else if (r === 'ios_pwa') {
+                  setFeedback('ios_pwa')
                 } else {
                   setFeedback('sem_vapid')
                   setVisible(false)

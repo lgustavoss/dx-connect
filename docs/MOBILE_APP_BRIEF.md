@@ -143,7 +143,7 @@ Sistema de **helpdesk** para **redes de postos/empresas**:
 **Install (híbrido C):** PWA por `{slug}` agora; nas lojas será **1 app** + campo Conta → `api-{slug}`.  
 **Infra:** 1 VPS; **novo container/stack por cliente** (não há PWA global `app.` nesta fase).
 
-**Push v1 (L3/L4):** fila **e** mensagens em chats/tickets **já meus**, com a PWA fechada (Android/Chrome primeiro).
+**Push v1 (L3/L4, hardening L5):** fila **e** mensagens em chats/tickets **já meus**, com a PWA fechada. **Android/Chrome** é o piloto. **iOS Safari:** só com a app na tela inicial (iOS 16.4+); na aba do Safari o push não é fiável.
 
 ### Fase 1 — Core (login + tempo real)
 
@@ -394,6 +394,8 @@ Documentação: `docs/REALTIME_SSE.md`.
 
 Web Push com a app fechada está em **L3/L4** (`/v1/web-push`, worker `push_outbox`) — não substitui o SSE com a PWA aberta.
 
+**iOS Safari:** Web Push exige iOS 16.4+ e PWA adicionada ao ecrã inicial. Sem isso, o iPhone não entrega o alerta com a app fechada. Ver `docs/OPERATIONS.md` (checklist piloto).
+
 ### Cliente HTTP (pseudocódigo)
 
 ```typescript
@@ -446,7 +448,7 @@ Somente ambiente local (nunca produção):
 > **Mobile v1:** PWA no SPA actual para **atendentes** (WhatsApp + tickets). Não RN na v1.  
 > **Install:** PWA por `https://{slug}.deskrudder.com.br`; lojas depois (Capacitor + campo Conta).  
 > **Infra:** 1 VPS, um container/stack por cliente.  
-> **Tempo real:** SSE `GET /v1/events/stream` (já no web). Push com app fechado = lote seguinte.  
+> **Tempo real:** SSE `GET /v1/events/stream` (já no web). Push com app fechada = Web Push VAPID (Android/Chrome; iOS só PWA no ecrã inicial, 16.4+).  
 > **Começar por:** Login → Fila WhatsApp → Conversa (assumir/enviar/encerrar) e lista/detalhe de tickets.  
 > **Auth:** `POST /v1/auth/login` → Bearer token → `GET /v1/atendentes/me`.  
 > **APIs:** `/notificacoes/resumo`, `/whatsapp/chats/fila`, `/whatsapp/chats/meus`, `/whatsapp/chats/{id}/mensagens`, `/tickets?situacao=abertos`.  

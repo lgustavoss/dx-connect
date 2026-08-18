@@ -4,9 +4,16 @@ import { notificacoes, webPush } from '../api/client'
 import { isFilaAguardandoMuted } from './useAlertaFilaSemResponsavel'
 import { aplicarAberturaWebPush } from '../lib/webPushDeepLink'
 import { urlBase64ToUint8Array } from '../lib/webPushKeys'
+import { webPushRequerPwaIos } from '../lib/pwaDisplay'
 
-export async function syncWebPushSubscription(opts?: { ativar?: boolean }): Promise<'ok' | 'sem_vapid' | 'negado' | 'indisponivel'> {
-  if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+export async function syncWebPushSubscription(
+  opts?: { ativar?: boolean },
+): Promise<'ok' | 'sem_vapid' | 'negado' | 'indisponivel' | 'ios_pwa'> {
+  if (typeof window === 'undefined') return 'indisponivel'
+  if (opts?.ativar !== false && webPushRequerPwaIos()) {
+    return 'ios_pwa'
+  }
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     return 'indisponivel'
   }
   const vapid = await webPush.vapid()

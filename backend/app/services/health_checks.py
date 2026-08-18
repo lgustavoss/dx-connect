@@ -40,6 +40,7 @@ def integrations_status() -> dict[str, Any]:
         "email_inbound": email_inbound,
         "evolution_whatsapp": "configured" if evolution else "missing",
         "ticket_closed_webhook": "configured" if bool((settings.TICKET_CLOSED_WEBHOOK_URL or "").strip()) else "missing",
+        "web_push": "configured" if bool((settings.WEB_PUSH_VAPID_PUBLIC_KEY or "").strip() and (settings.WEB_PUSH_VAPID_PRIVATE_KEY or "").strip()) else "missing",
     }
 
 
