@@ -456,7 +456,7 @@ export function Tickets() {
                         { replace: true },
                       )
                     }}
-                    className={`min-h-[2.25rem] flex-1 rounded-xl px-3 py-2 text-center text-xs font-medium transition-all duration-200 sm:flex-none sm:px-4 sm:text-sm ${
+                    className={`min-h-11 flex-1 rounded-xl px-3 py-2 text-center text-xs font-medium transition-all duration-200 sm:min-h-[2.25rem] sm:flex-none sm:px-4 sm:text-sm ${
                       ativo
                         ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-700 dark:text-slate-50 dark:ring-slate-600/50'
                         : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
@@ -488,7 +488,7 @@ export function Tickets() {
                 }}
                 placeholder="Buscar por protocolo (ex.: #T202605-0001), assunto ou empresa…"
                 disabled={loading}
-                className="w-full rounded-xl border-0 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-900 shadow-inner ring-1 ring-slate-200/80 transition-shadow placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-400/25 dark:bg-slate-900/60 dark:text-slate-100 dark:ring-slate-700 dark:placeholder:text-slate-500 dark:focus:bg-slate-900"
+                className="w-full rounded-xl border-0 bg-slate-50 py-2.5 pl-10 pr-4 text-base text-slate-900 shadow-inner ring-1 ring-slate-200/80 transition-shadow placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-400/25 dark:bg-slate-900/60 dark:text-slate-100 dark:ring-slate-700 dark:placeholder:text-slate-500 dark:focus:bg-slate-900 sm:text-sm"
                 aria-label="Buscar tickets"
               />
             </div>
@@ -558,7 +558,7 @@ export function Tickets() {
                       if (id !== '') setFiltroAtendente('')
                       resetarPagina()
                     }}
-                    className={`min-h-[2.25rem] flex-1 rounded-xl px-3 py-2 text-center text-xs font-medium transition-all duration-200 sm:flex-none sm:px-4 sm:text-sm ${
+                    className={`min-h-11 flex-1 rounded-xl px-3 py-2 text-center text-xs font-medium transition-all duration-200 sm:min-h-[2.25rem] sm:flex-none sm:px-4 sm:text-sm ${
                       ativo
                         ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-700 dark:text-slate-50 dark:ring-slate-600/50'
                         : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
@@ -603,7 +603,7 @@ export function Tickets() {
                         setFiltroSla(id)
                         resetarPagina()
                       }}
-                      className={`min-h-[2.25rem] flex-1 rounded-xl px-3 py-2 text-center text-xs font-medium transition-all duration-200 sm:flex-none sm:px-4 sm:text-sm ${
+                      className={`min-h-11 flex-1 rounded-xl px-3 py-2 text-center text-xs font-medium transition-all duration-200 sm:min-h-[2.25rem] sm:flex-none sm:px-4 sm:text-sm ${
                         ativo
                           ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-700 dark:text-slate-50 dark:ring-slate-600/50'
                           : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'

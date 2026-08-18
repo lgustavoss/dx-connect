@@ -57,7 +57,7 @@ export function ChatFilaAguardandoSheet({ open, onClose }: Props) {
           </div>
           <button
             type="button"
-            className="rounded-lg px-2 py-1 text-2xl leading-none text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+            className="flex h-11 w-11 items-center justify-center rounded-lg text-2xl leading-none text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-slate-100"
             onClick={onClose}
             aria-label="Fechar"
           >

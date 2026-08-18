@@ -1274,7 +1274,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
     ? new Date(ticket.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : '—'
 
-  const classeBtnAcao = 'h-9 w-full px-3 text-xs lg:w-auto sm:h-auto sm:text-sm'
+  const classeBtnAcao = 'min-h-11 w-full px-3 text-sm lg:min-h-9 lg:w-auto'
 
   const linkVoltar = (
     <button
@@ -1342,7 +1342,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
       {!ticket.fechado_em && (
         <>
           <span
-            className="hidden h-7 w-px shrink-0 bg-slate-200 dark:bg-slate-700 sm:inline-block"
+            className="hidden h-7 w-px shrink-0 bg-slate-200 dark:bg-slate-700 lg:inline-block"
             aria-hidden
           />
           <Button
@@ -1468,7 +1468,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
             )}
 
             {podeAtribuirAMim && (
-              <p className="mt-1.5 hidden text-xs text-slate-500 sm:block dark:text-slate-400">
+              <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
                 Na fila sem responsável — atribua a você para dar andamento.
               </p>
             )}
@@ -1826,7 +1826,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
             </ul>
           )}
 
-          <div className="border-t border-slate-200 pt-4 dark:border-slate-800/90">
+          <div className="sticky bottom-0 z-10 -mx-3 border-t border-slate-200 bg-white px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-slate-800/90 dark:bg-slate-950 sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-4 dark:sm:bg-transparent">
             <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">Nova mensagem</p>
             {ticket.fechado_em ? (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-800/60 dark:bg-emerald-950/25 dark:text-emerald-100">
@@ -1881,7 +1881,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
                   ? 'Anotação visível apenas para atendentes…'
                   : 'Descreva o que foi feito, testado ou o que falta…'
               }
-              className={`w-full rounded-xl border-0 px-3 py-2 text-sm text-slate-900 shadow-inner ring-1 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-100 dark:placeholder:text-slate-500 ${
+              className={`w-full rounded-xl border-0 px-3 py-2 text-base text-slate-900 shadow-inner ring-1 placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-100 dark:placeholder:text-slate-500 sm:text-sm ${
                 tipoNovaMensagem === 'interno' || !podeMensagemPublica
                   ? 'bg-amber-50 ring-amber-200/90 focus:bg-amber-50 focus:ring-amber-400/30 dark:bg-amber-950/25 dark:ring-amber-800/60 dark:focus:bg-amber-950/25 dark:focus:ring-amber-700/35'
                   : 'bg-slate-50 ring-slate-200/90 focus:bg-white focus:ring-slate-400/35 dark:bg-slate-900/80 dark:ring-slate-600 dark:focus:bg-slate-900 dark:focus:ring-slate-500/50'
@@ -1950,6 +1950,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
                 onClick={handleEnviarMensagem}
                 loading={enviandoMensagem || enviandoAnexos}
                 disabled={Boolean(ticket.fechado_em)}
+                className="w-full sm:w-auto"
               >
                 Enviar
               </Button>
