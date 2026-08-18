@@ -669,7 +669,7 @@ export function Sidebar({
         <Link
           to="/notificacoes/preferencias"
           onClick={onMobileClose}
-          title="Notificações por e-mail"
+          title="Notificações"
           className={`mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-600 hover:bg-slate-100 active:bg-slate-200 touch-manipulation min-h-[44px] dark:text-slate-400 dark:hover:bg-slate-800 dark:active:bg-slate-700 ${
             expanded ? '' : 'md:justify-center md:px-2'
           }`}

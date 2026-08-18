@@ -14,6 +14,8 @@ class AtendenteNotificacaoPreferencias(Base):
     email_nova_mensagem = Column(Boolean, nullable=False, default=True)
     email_sla_em_risco = Column(Boolean, nullable=False, default=True)
     email_sla_violado = Column(Boolean, nullable=False, default=True)
+    push_habilitado = Column(Boolean, nullable=False, default=False)
+    push_fila = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 

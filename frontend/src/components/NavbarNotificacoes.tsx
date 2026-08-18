@@ -260,7 +260,7 @@ export function NavbarNotificacoes({ enabled }: { enabled: boolean }) {
                 className="text-xs font-medium text-cyan-700 hover:underline dark:text-cyan-400"
                 onClick={() => setAberto(false)}
               >
-                Preferências de e-mail
+                Preferências de notificações
               </Link>
             </div>
           </div>,
@@ -293,7 +293,7 @@ export function NavbarNotificacoes({ enabled }: { enabled: boolean }) {
               className="text-xs font-medium text-cyan-700 hover:underline dark:text-cyan-400"
               onClick={() => setAberto(false)}
             >
-              Preferências de e-mail
+              Preferências de notificações
             </Link>
           </div>
         </div>

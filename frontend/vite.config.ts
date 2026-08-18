@@ -21,6 +21,9 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       VitePWA({
+        strategies: 'injectManifest',
+        srcDir: 'src',
+        filename: 'sw.ts',
         registerType: 'autoUpdate',
         injectRegister: 'auto',
         includeAssets: ['favicon.ico', 'deskrudder-pwa-180.png', 'deskrudder-pwa-192.png', 'deskrudder-pwa-512.png'],
@@ -41,12 +44,10 @@ export default defineConfig(({ mode }) => {
             { src: '/deskrudder-pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
           ],
         },
-        workbox: {
+        injectManifest: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,webmanifest}'],
-          navigateFallback: '/index.html',
-          navigateFallbackDenylist: [/^\/api/, /^\/v1/, /^\/docs/, /^\/health/, /^\/openapi/],
         },
-        devOptions: { enabled: false },
+        devOptions: { enabled: true, type: 'module' },
       }),
     ],
     resolve: {

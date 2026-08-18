@@ -54,6 +54,7 @@ from app.api import (
     saas,
     saas_public,
     saas_leads,
+    web_push,
 )
 from app.config import settings
 from app.core.audit import clear_audit_request_context, set_audit_request_context
@@ -257,6 +258,29 @@ async def lifespan(app: FastAPI):
         target=webhook_outbox_loop,
         daemon=True,
         name="webhook-outbox",
+    ).start()
+
+    def web_push_outbox_loop() -> None:
+        from app.database import SessionLocal
+        from app.services.web_push_outbox import process_pending_web_push
+
+        interval = max(3, settings.WEB_PUSH_WORKER_INTERVAL_SECONDS)
+        while True:
+            db = SessionLocal()
+            try:
+                process_pending_web_push(db, limit=40)
+                db.commit()
+            except Exception as e:
+                logger.warning("Worker Web Push outbox: %s", e)
+                db.rollback()
+            finally:
+                db.close()
+            time.sleep(interval)
+
+    threading.Thread(
+        target=web_push_outbox_loop,
+        daemon=True,
+        name="web-push-outbox",
     ).start()
 
     def whatsapp_inactivity_loop() -> None:
@@ -504,6 +528,7 @@ app.include_router(cadastro_aux.router, prefix=API_V1_PREFIX)
 app.include_router(notificacoes.router, prefix=API_V1_PREFIX)
 app.include_router(events.router, prefix=API_V1_PREFIX)
 app.include_router(presenca.router, prefix=API_V1_PREFIX)
+app.include_router(web_push.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_settings.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_chats.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_webhook.router, prefix=API_V1_PREFIX)

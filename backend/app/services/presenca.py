@@ -103,6 +103,9 @@ async def forcar_saida(db: Session, *, admin: Atendente, alvo_id: int) -> None:
     alvo.presenca_online_desde = None
     alvo.presenca_heartbeat_em = None
     db.add(alvo)
+    from app.services.web_push import revogar_todas
+
+    revogar_todas(db, alvo.id)
     db.commit()
 
     try:

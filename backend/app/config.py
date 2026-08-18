@@ -67,6 +67,11 @@ class Settings(BaseSettings):
     # Webhook de saída ao fechar ticket (#119). URL vazia = desligado.
     TICKET_CLOSED_WEBHOOK_URL: str | None = None
     TICKET_CLOSED_WEBHOOK_SECRET: str | None = None
+    # Web Push (VAPID) — um par por stack/cliente (#693). Vazio = push desligado.
+    WEB_PUSH_VAPID_PUBLIC_KEY: str | None = None
+    WEB_PUSH_VAPID_PRIVATE_KEY: str | None = None
+    WEB_PUSH_VAPID_SUBJECT: str = "mailto:ops@deskrudder.com.br"
+    WEB_PUSH_WORKER_INTERVAL_SECONDS: int = 5
     # Tentativas HTTP para Evolution API (falhas transitórias).
     EVOLUTION_HTTP_MAX_ATTEMPTS: int = 3
     WHATSAPP_INACTIVITY_WORKER_INTERVAL_SECONDS: int = 60
