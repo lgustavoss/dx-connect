@@ -309,7 +309,7 @@ def build_notificacao_itens(
                 titulo="Chats na fila",
                 descricao="WhatsApp — aguardando atendimento",
                 count=wpp_fila,
-                href="/whatsapp/atendendo",
+                href="/chat/espera",
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -339,10 +339,11 @@ def build_notificacao_itens(
             NotificacaoItem(
                 tipo="wpp_chats_com_resposta",
                 ticket_id=None,
+                chat_id=c.id,
                 titulo=f"{c.protocolo} — {nome}",
                 descricao="WhatsApp — cliente respondeu",
                 count=uc,
-                href=f"/whatsapp/c/{c.id}",
+                href="/chat/atendendo",
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -377,7 +378,7 @@ def build_notificacao_itens(
                 titulo=f"{t.protocolo} — {assunto[:80]}{'…' if len(assunto) > 80 else ''}",
                 descricao=descricao,
                 count=uc,
-                href=f"/tickets/{t.id}",
+                href="/tickets",
                 created_at=t.updated_at or t.created_at,
             )
         )
@@ -396,7 +397,7 @@ def build_notificacao_itens(
                 titulo=resumo.titulo,
                 descricao=descricao,
                 count=resumo.nao_lidas_count,
-                href=f"/chat/interno/{resumo.conversa.id}",
+                href="/chat/interno",
                 created_at=resumo.ultima_mensagem_em or resumo.conversa.created_at,
             )
         )

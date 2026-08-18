@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { Tickets } from '../api/client'
 import { exibirProtocolo } from '../lib/exibirProtocolo'
+import { marcarTicketAtivo, TICKETS_PATH } from '../lib/ticketAtivo'
 import { Button } from './ui/Button'
 import { IconEye } from './ui/IconEye'
 
@@ -81,7 +82,11 @@ export function TicketsTabelaContexto({
                 {t.atendente_nome ?? '—'}
               </td>
               <td className="px-4 py-3 text-right sm:px-6">
-                <Link to={`/tickets/${t.id}`} aria-label={`Ver ticket ${exibirProtocolo(t.protocolo)}`}>
+                <Link
+                  to={TICKETS_PATH}
+                  onClick={() => marcarTicketAtivo(t.id)}
+                  aria-label={`Ver ticket ${exibirProtocolo(t.protocolo)}`}
+                >
                   <Button
                     type="button"
                     variant="ghost"

@@ -67,11 +67,17 @@ import { ACCEPT_ANEXO, type TipoAnexoPicker } from './WhatsappBarraAnexos'
 import { WhatsappComposerBar } from './WhatsappComposerBar'
 import { WhatsappPreviaAnexo } from './WhatsappPreviaAnexo'
 import { useWhatsappVoltarLista } from '../../hooks/useWhatsappVoltarLista'
-import { whatsappConversaLink, resolveWhatsappListFallback, WHATSAPP_LIST_PATHS } from '../../lib/whatsappListReturn'
+import {
+  marcarWhatsappChatAtivo,
+  whatsappConversaLink,
+  resolveWhatsappListFallback,
+  WHATSAPP_LIST_PATHS,
+} from '../../lib/whatsappListReturn'
 import { useChatHub } from '../../contexts/ChatHubContext'
 import { ChatFilaAguardandoSheet } from '../../components/chat/ChatFilaAguardandoSheet'
 import { ChatFilaSomToggle } from '../../components/chat/ChatFilaSomToggle'
 import { chatWhatsappLink } from '../../lib/chatHubPaths'
+import { marcarTicketAtivo, TICKETS_PATH } from '../../lib/ticketAtivo'
 import { WhatsappInatividadeControle } from './WhatsappInatividadeControle'
 import { mergeTimelineChat, textoMarcoDemanda } from '../../lib/whatsappDemandaUtils'
 import { rotuloDownloadArquivo, visualTipoArquivo } from '../../lib/fileTypeIcon'
@@ -532,11 +538,16 @@ const WA_DETALHES_SESSION_KEY = 'deskrudder-wa-conversa-detalhes'
 
 // --- Componente Principal ---
 
-export function WhatsappConversa() {
+type WhatsappConversaProps = {
+  /** Conversa aberta pelo hub (sem id na URL) (#654). */
+  chatIdProp?: number
+}
+
+export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
 
   const { chatId } = useParams<{ chatId: string }>()
 
-  const id = Number(chatId)
+  const id = chatIdProp ?? Number(chatId)
 
   const toast = useToast()
 
@@ -630,7 +641,7 @@ export function WhatsappConversa() {
   const menuMobileRef = useRef<HTMLDivElement>(null)
   const [filaAguardandoAberta, setFilaAguardandoAberta] = useState(false)
   const [assumindo, setAssumindo] = useState(false)
-  const { filaCount, refreshContagens } = useChatHub()
+  const { filaCount, refreshContagens, abrirChat } = useChatHub()
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
@@ -1237,7 +1248,8 @@ useEffect(() => {
       void refreshContagens()
       void refetchPendenciasResumo()
       toast.showSuccess('Chat assumido.')
-      navigate(chatWhatsappLink(chat.id, 'atendendo'), { replace: true })
+      abrirChat('whatsapp', chat.id)
+      navigate(chatWhatsappLink('atendendo'), { replace: true })
     } catch (err) {
       const msg =
         err instanceof ApiError && err.status === 400
@@ -1416,7 +1428,7 @@ useEffect(() => {
           ? `Este chat está com ${chat.atendente_nome || 'outro atendente'}.`
           : undefined
 
-  const modoHub = location.pathname.startsWith('/chat/c/')
+  const modoHub = chatIdProp != null || location.pathname.startsWith('/chat/')
 
   return (
 
@@ -1472,7 +1484,9 @@ useEffect(() => {
 
               key={c.id}
 
-              to={whatsappConversaLink(c.id, listaRetorno)}
+              to={whatsappConversaLink(listaRetorno)}
+
+              onClick={() => marcarWhatsappChatAtivo(c.id)}
 
               className={`flex items-center p-4 gap-3 transition-colors ${c.id === id ? 'bg-white shadow-sm dark:bg-slate-800' : 'hover:bg-white/40 dark:hover:bg-slate-900/50'}`}
 
@@ -1779,7 +1793,8 @@ useEffect(() => {
                 {ticketsVinculados.map((t) => (
                   <Link
                     key={t.id}
-                    to={`/tickets/${t.id}`}
+                    to={TICKETS_PATH}
+                    onClick={() => marcarTicketAtivo(t.id)}
                     className="inline-flex rounded-full border border-cyan-200/80 bg-cyan-50 px-2 py-0.5 text-[10px] font-medium text-cyan-800 dark:border-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300"
                     title={t.assunto}
                   >

@@ -1553,6 +1553,7 @@ export namespace Notificacoes {
       | 'wpp_chats_com_resposta'
       | 'chat_interno';
     ticket_id: number | null;
+    chat_id?: number | null;
     conversa_id?: number | null;
     titulo: string;
     descricao: string;

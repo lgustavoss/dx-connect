@@ -6,6 +6,7 @@ Infra de testes (#46): variáveis de ambiente antes de importar `app`.
 from __future__ import annotations
 
 import os
+from functools import lru_cache
 
 # Sobrescreve .env local: SQLite em memória e modo de teste.
 os.environ["DX_CONNECT_TESTING"] = "1"
@@ -14,6 +15,19 @@ os.environ["SECRET_KEY"] = "01234567890123456789012345678901"
 os.environ["ENVIRONMENT"] = "development"
 os.environ["DEFAULT_TENANT_ID"] = "1"
 os.environ["INBOUND_EMAIL_DOMAIN"] = "inbound.dx.test"
+
+from app.core import security as _security
+
+_hash_senha_real = _security.hash_senha
+
+
+@lru_cache(maxsize=64)
+def hash_senha_teste(senha: str) -> str:
+    """bcrypt real, mas uma vez por senha distinta (gensalt é ~1s e o seed corre em quase todo teste)."""
+    return _hash_senha_real(senha)
+
+
+_security.hash_senha = hash_senha_teste
 
 import pytest
 from starlette.testclient import TestClient

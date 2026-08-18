@@ -11,6 +11,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useChatHub } from '../../contexts/ChatHubContext'
 import { useEventStream } from '../../contexts/EventStreamContext'
 import { precisaEscolherSetorAoAssumir } from '../../lib/assumirWhatsappSetor'
+import { chatAtivoIgual } from '../../lib/chatHubPaths'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
 import {
   chatHubItemKey,
@@ -57,7 +58,7 @@ export function ChatListaEspera({ ignorarBusca = false, onChatAssumido, onVerCha
   const toast = useToast()
   const { user } = useAuth()
   const navigate = useNavigate()
-  const { busca, refreshContagens } = useChatHub()
+  const { busca, refreshContagens, chatAtivo, abrirChat } = useChatHub()
   const { subscribe, useFallback } = useEventStream()
   const [fila, setFila] = useState<ChatHubItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -111,8 +112,9 @@ export function ChatListaEspera({ ignorarBusca = false, onChatAssumido, onVerCha
       void refetchPendenciasResumo()
       if (onChatAssumido) {
         onChatAssumido(item.canal, item.id)
-      } else if (item.canal === 'portal') {
-        navigate(chatHubItemLink(item, 'atendendo'))
+      } else {
+        abrirChat(item.canal, item.id)
+        navigate(chatHubItemLink('atendendo'))
       }
     } catch (err) {
       const msg =
@@ -154,7 +156,12 @@ export function ChatListaEspera({ ignorarBusca = false, onChatAssumido, onVerCha
     <>
     <ul className="divide-y divide-slate-100 dark:divide-slate-800">
       {lista.map((c) => (
-        <li key={chatHubItemKey(c)} className="px-3 py-3">
+        <li
+          key={chatHubItemKey(c)}
+          className={`px-3 py-3 ${
+            chatAtivoIgual(chatAtivo, c.canal, c.id) ? 'bg-cyan-50/80 dark:bg-cyan-950/30' : ''
+          }`}
+        >
           <div className="flex gap-3">
             <WhatsappAvatar
               nome={c.nome}
@@ -177,8 +184,11 @@ export function ChatListaEspera({ ignorarBusca = false, onChatAssumido, onVerCha
               {c.setor_nome && <p className="text-[11px] text-slate-400">Setor {c.setor_nome}</p>}
               <div className="mt-2 flex gap-2">
                 <Link
-                  to={chatHubItemLink(c, 'espera')}
-                  onClick={() => onVerChat?.()}
+                  to={chatHubItemLink('espera')}
+                  onClick={() => {
+                    abrirChat(c.canal, c.id)
+                    onVerChat?.()
+                  }}
                   className="flex-1 rounded-lg border border-slate-200 py-1.5 text-center text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   Ver

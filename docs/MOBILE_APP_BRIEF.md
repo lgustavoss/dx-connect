@@ -15,7 +15,7 @@ Documento para equipes/ferramentas que **não têm acesso ao GitHub**. Descreve 
 | **Prefixo API** | `/v1` |
 | **Docs interativas** | `{API_URL}/docs` (Swagger) |
 
-**Frontend web existente:** React 18 + Vite + TypeScript + Tailwind (referência de telas e chamadas em `frontend/src/`).
+**Frontend web existente:** React 19 + Vite + TypeScript + Tailwind (referência de telas e chamadas em `frontend/src/`). O mesmo SPA é o **PWA** na instância do cliente (`https://{slug}.deskrudder.com.br`).
 
 **Público do app mobile (v1):** **atendentes internos** (suporte/financeiro) — mesmo perfil do painel web. Portal para funcionários de postos é **futuro** (issues #263+).
 
@@ -125,16 +125,35 @@ Sistema de **helpdesk** para **redes de postos/empresas**:
 
 ---
 
-## 5. MVP mobile recomendado (fases)
+## 5. MVP mobile (PWA no SPA actual → lojas)
 
-### Fase 1 — Core
+**Público v1:** atendentes internos (`setor_scope` igual ao web).
+
+**Escopo UI v1:** operação completa **só** em **WhatsApp (chats)** + **tickets**.  
+**Fora da v1:** admin/cadastros, dashboards pesados, chat interno, portal do posto.
+
+**Stack:**
+
+| Fase | Stack |
+|------|--------|
+| Agora | **PWA** no frontend React actual (mesmo `/v1`, mesma origem do painel) |
+| Depois | **Capacitor** → Play Store / App Store + FCM/APNs |
+| Não na v1 | React Native / Flutter |
+
+**Install (híbrido C):** PWA por `{slug}` agora; nas lojas será **1 app** + campo Conta → `api-{slug}`.  
+**Infra:** 1 VPS; **novo container/stack por cliente** (não há PWA global `app.` nesta fase).
+
+**Push v1 (L3/L4):** fila **e** mensagens em chats/tickets **já meus**, com a PWA fechada (Android/Chrome primeiro).
+
+### Fase 1 — Core (login + tempo real)
 
 | Tela | Rotas API |
 |------|-----------|
 | Login | `POST /auth/login` |
 | Trocar senha (se `must_change_password`) | `POST /atendentes/me/trocar-senha` |
-| Dashboard resumo | `GET /dashboard` |
+| Home / atalhos | mesa `/chat/atendendo` e `/tickets` (não dashboard pesado na v1) |
 | Notificações (badge + lista) | `GET /notificacoes/resumo`, `GET /notificacoes/itens` |
+| Tempo real | `GET /events/stream` (SSE) — ver secção 9 |
 
 ### Fase 2 — WhatsApp (prioridade operacional)
 
@@ -165,8 +184,10 @@ Estados do chat: `aguardando_atendente` | `em_atendimento` | `encerrado`
 ### Fora do MVP mobile v1
 
 - Cadastros admin (redes, empresas, atendentes, config WhatsApp)
-- Relatórios/dashboards avançados (#260)
-- Portal do cliente (#263)
+- Relatórios/dashboards avançados
+- Portal do cliente / funcionários de posto
+- Chat interno
+- Capacitor / lojas (L6 do épico #689)
 
 ---
 
@@ -205,6 +226,8 @@ Estados do chat: `aguardando_atendente` | `em_atendimento` | `encerrado`
 ```
 
 ### Notificações — `GET /v1/notificacoes/resumo`
+
+O painel usa estes contadores no sininho. No mobile, o **Web Push** (L3/L4) reutiliza a mesma ideia: alerta de **fila** e de **mensagem nova nos atendimentos já meus** (não um segundo produto de notificação).
 
 ```json
 {
@@ -315,6 +338,7 @@ Retorna objeto `WhatsappChatRead` atualizado (`estado`: `em_atendimento`).
 | Atendentes | `/v1/atendentes/*` | JWT |
 | Dashboard | `/v1/dashboard` | JWT |
 | Notificações | `/v1/notificacoes/*` | JWT |
+| Tempo real (SSE) | `/v1/events/stream` | JWT |
 | Tickets | `/v1/tickets/*` | JWT |
 | WhatsApp chats | `/v1/whatsapp/chats/*` | JWT |
 | Setores | `/v1/setores` | JWT (lista filtrada) |
@@ -346,17 +370,29 @@ OpenAPI completo: `{API_URL}/docs`
 
 ---
 
-## 9. Abordagem técnica mobile (resposta à AI Studio)
+## 9. Abordagem técnica mobile
 
-O projeto web já é **React + TypeScript**. Opções:
+O projecto web já é **React + TypeScript**. Ordem fechada no épico #689:
 
-| Abordagem | Prós |
-|-----------|------|
-| **PWA / SPA mobile-first + Capacitor** | Reutiliza mental model React; empacota `.apk`/`.ipa`; API idêntica |
-| **React Native (Expo)** | UX nativa; lógica de serviços/state portável do web |
-| **Flutter / nativo** | Consome mesma REST API documentada acima |
+| Fase | Abordagem |
+|------|-----------|
+| **PWA no SPA actual** | Reutiliza o painel; instalável em `https://{slug}.…`; API `/v1` na mesma instância |
+| **Capacitor (lojas)** | Empacota o mesmo frontend; campo Conta resolve `api-{slug}` |
+| React Native / Flutter | **Fora da v1** |
 
-**Recomendação do time:** React Native ou Capacitor consumindo **REST JSON** (Fetch/Axios), **não** GraphQL.
+### Tempo real: SSE (já existe)
+
+O painel **já usa SSE**, não só polling.
+
+- `GET /v1/events/stream` — `text/event-stream`
+- Auth: `Authorization: Bearer` (preferido) ou `?token=`
+- Eventos relevantes ao mobile v1: `chat.mensagem`, `chat.fila`, `ticket.mensagem`, `ticket.fila`, `notificacao.contagem`
+- Frontend: `EventStreamContext` / `useEventStream()`; após 3 falhas de reconexão, `useFallback` (polling mais frequente)
+- Há **polling de segurança** nas conversas WhatsApp mesmo com SSE ligado (hub v1 in-process)
+
+Documentação: `docs/REALTIME_SSE.md`.
+
+Web Push (app fechado) é **lote posterior** (L3/L4) — não substitui o SSE com a PWA aberta.
 
 ### Cliente HTTP (pseudocódigo)
 
@@ -381,7 +417,7 @@ async function api(path: string, options: RequestInit = {}) {
 
 ### Polling vs tempo real
 
-Hoje o web usa **polling** para chat/notificações. Roadmap: **SSE** (#256) — mobile pode começar com polling (15–30s) e evoluir.
+Com a PWA **aberta**, o cliente deve usar **SSE** (`/v1/events/stream`) como o web. Polling (15–30 s) só como fallback. Com a PWA **fechada**, o alerta vem de **Web Push** (L3/L4) — não de SSE.
 
 ---
 
@@ -405,11 +441,13 @@ Somente ambiente local (nunca produção):
 
 ## 12. Resposta pronta para colar na AI Studio
 
-> **Projeto:** DX Connect — helpdesk para redes de postos.  
+> **Projeto:** DeskRudder (DX Connect) — helpdesk para redes de postos.  
 > **Backend:** FastAPI + JWT em `/v1` (não Django).  
-> **Mobile v1:** app para **atendentes** (login, dashboard, notificações, **WhatsApp prioritário**, tickets).  
-> **Começar por:** Login → Dashboard → Fila WhatsApp → Conversa (assumir/enviar/encerrar).  
+> **Mobile v1:** PWA no SPA actual para **atendentes** (WhatsApp + tickets). Não RN na v1.  
+> **Install:** PWA por `https://{slug}.deskrudder.com.br`; lojas depois (Capacitor + campo Conta).  
+> **Infra:** 1 VPS, um container/stack por cliente.  
+> **Tempo real:** SSE `GET /v1/events/stream` (já no web). Push com app fechado = lote seguinte.  
+> **Começar por:** Login → Fila WhatsApp → Conversa (assumir/enviar/encerrar) e lista/detalhe de tickets.  
 > **Auth:** `POST /v1/auth/login` → Bearer token → `GET /v1/atendentes/me`.  
-> **APIs principais:** `/dashboard`, `/notificacoes/resumo`, `/whatsapp/chats/fila`, `/whatsapp/chats/{id}/mensagens`, `/tickets`.  
-> **Stack sugerida:** React Native ou Capacitor + TypeScript, Fetch/Axios, design mobile-first com bottom nav.  
-> **Ver exemplos JSON completos** neste documento (secção 6).
+> **APIs:** `/notificacoes/resumo`, `/whatsapp/chats/fila`, `/whatsapp/chats/meus`, `/whatsapp/chats/{id}/mensagens`, `/tickets?situacao=abertos`.  
+> **Ver exemplos JSON** neste documento (secção 6).

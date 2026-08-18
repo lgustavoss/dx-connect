@@ -18,6 +18,10 @@ PRODUCT_DESKRUDDER = "deskrudder"
 PRODUCT_SAAS = "saas"
 VALID_PRODUCTS = frozenset({PRODUCT_DESKRUDDER, PRODUCT_SAAS})
 
+# Histórico publicado antes da separação por produto (#672/#676): bullets SaaS
+# sem tag (ou tagueados como DeskRudder) ainda apareciam em /sobre.
+_SAAS_BULLET_RE = re.compile(r"(?i)^\s*saas\b")
+
 _LEGACY_BRAND_RE = re.compile(r"DX/Duplexsoft|Duplexsoft|DX Connect|DX-Connect", re.IGNORECASE)
 
 
@@ -90,7 +94,16 @@ def reload_release_notes_cache() -> None:
     _load_release_notes_raw.cache_clear()
 
 
+def looks_like_saas_bullet(text: str) -> bool:
+    """Heurística alinhada a scripts/migrate_release_notes_product.py."""
+    return bool(_SAAS_BULLET_RE.match((text or "").strip()))
+
+
 def _change_product(ch: dict[str, Any]) -> str:
+    text = str(ch.get("text") or "")
+    # Prefixo «SaaS» manda no histórico — corrige JSON antigo em produção.
+    if looks_like_saas_bullet(text):
+        return PRODUCT_SAAS
     raw = ch.get("product")
     if isinstance(raw, str) and raw.strip().lower() in VALID_PRODUCTS:
         return raw.strip().lower()

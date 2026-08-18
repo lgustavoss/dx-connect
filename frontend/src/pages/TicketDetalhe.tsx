@@ -34,6 +34,9 @@ import { SemPermissao } from './SemPermissao'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 import { exibirProtocolo } from '../lib/exibirProtocolo'
+import { CHAT_HUB_PATHS } from '../lib/chatHubPaths'
+import { marcarTicketAtivo, TICKETS_PATH } from '../lib/ticketAtivo'
+import { marcarWhatsappChatAtivo } from '../lib/whatsappListReturn'
 import { MODAL_PANEL_COMPACT, MODAL_PANEL_SCROLLABLE } from '../lib/modalPanel'
 import { autorRodapeMensagem, corpoMensagemEmailVisivel } from '../lib/ticketMensagemEmail'
 import { mensagemEmFilaEmail } from '../lib/ticketMensagemEmailOutbox'
@@ -199,10 +202,19 @@ function TicketCsatEstrelas({ nota }: { nota: number }) {
   )
 }
 
-export function TicketDetalhe() {
-  const { id } = useParams<{ id: string }>()
+type TicketDetalheProps = {
+  /** Ticket aberto pela listagem (sem id na URL) (#655). */
+  ticketIdProp?: number
+  /** Fechar o detalhe e voltar à lista quando aberto sem rota própria. */
+  onVoltar?: () => void
+}
+
+export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {}) {
+  const { id: idParam } = useParams<{ id: string }>()
+  const id = ticketIdProp != null ? String(ticketIdProp) : idParam
   const navigate = useNavigate()
-  const voltarAnterior = useVoltarAnterior('/tickets')
+  const voltarPadrao = useVoltarAnterior('/tickets')
+  const voltarAnterior = onVoltar ?? voltarPadrao
   const toast = useToast()
   const { isAdmin, user } = useAuth()
   const [atribuindo, setAtribuindo] = useState(false)
@@ -1232,6 +1244,7 @@ export function TicketDetalhe() {
           detail="Este chamado pertence a um setor fora do seu escopo. Se precisar, peça ao administrador para ajustar seus vínculos de setor."
           voltarPara="/tickets"
           voltarLabel="Voltar para Tickets"
+          onVoltar={onVoltar}
         />
       </div>
     )
@@ -1607,7 +1620,8 @@ export function TicketDetalhe() {
                 {chatsWhatsapp.map((c) => (
                   <Link
                     key={c.id}
-                    to={`/chat/c/${c.id}`}
+                    to={CHAT_HUB_PATHS.atendendo}
+                    onClick={() => marcarWhatsappChatAtivo(c.id)}
                     className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-cyan-700 sm:text-xs dark:border-slate-800 dark:bg-slate-900/40 dark:text-cyan-400"
                   >
                     WA {exibirProtocolo(c.protocolo)}
@@ -1638,7 +1652,8 @@ export function TicketDetalhe() {
                     <p className="mt-0.5 text-slate-500 dark:text-slate-400">Nenhum.</p>
                   ) : (
                     <Link
-                      to={`/tickets/${ticket.parent_ticket_id}`}
+                      to={TICKETS_PATH}
+                      onClick={() => marcarTicketAtivo(ticket.parent_ticket_id as number)}
                       className="mt-0.5 inline-block font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
                     >
                       {ticket.parent
@@ -1656,7 +1671,8 @@ export function TicketDetalhe() {
                       {ticket.children.map((c) => (
                         <li key={c.id}>
                           <Link
-                            to={`/tickets/${c.id}`}
+                            to={TICKETS_PATH}
+                            onClick={() => marcarTicketAtivo(c.id)}
                             className="font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
                           >
                             {exibirProtocolo(c.protocolo)}
@@ -2118,9 +2134,12 @@ export function TicketDetalhe() {
                   ) : (
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <Link
-                        to={`/tickets/${ticket.parent_ticket_id}`}
+                        to={TICKETS_PATH}
                         className="font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
-                        onClick={() => setModalGerirAberto(false)}
+                        onClick={() => {
+                          marcarTicketAtivo(ticket.parent_ticket_id as number)
+                          setModalGerirAberto(false)
+                        }}
                       >
                         {ticket.parent
                           ? `${exibirProtocolo(ticket.parent.protocolo)} — ${ticket.parent.assunto}`
@@ -2153,9 +2172,12 @@ export function TicketDetalhe() {
                         <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
                           <div className="min-w-0">
                             <Link
-                              to={`/tickets/${c.id}`}
+                              to={TICKETS_PATH}
                               className="font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
-                              onClick={() => setModalGerirAberto(false)}
+                              onClick={() => {
+                                marcarTicketAtivo(c.id)
+                                setModalGerirAberto(false)
+                              }}
                             >
                               {exibirProtocolo(c.protocolo)}
                             </Link>
@@ -2274,9 +2296,12 @@ export function TicketDetalhe() {
                           <div className="min-w-0">
                             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{v.rotulo}</span>
                             <Link
-                              to={`/tickets/${v.outro_ticket.id}`}
+                              to={TICKETS_PATH}
                               className="ml-2 font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
-                              onClick={() => setModalGerirAberto(false)}
+                              onClick={() => {
+                                marcarTicketAtivo(v.outro_ticket.id)
+                                setModalGerirAberto(false)
+                              }}
                             >
                               {exibirProtocolo(v.outro_ticket.protocolo)} — {v.outro_ticket.assunto}
                             </Link>

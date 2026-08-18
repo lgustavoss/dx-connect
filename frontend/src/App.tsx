@@ -17,7 +17,6 @@ import { RelatoriosChats } from './pages/RelatoriosChats'
 import { PresencaOnline } from './pages/PresencaOnline'
 import { Tickets } from './pages/Tickets'
 import { TicketNovo } from './pages/TicketNovo'
-import { TicketDetalhe } from './pages/TicketDetalhe'
 import { CrmLeads } from './pages/CrmLeads'
 import { CrmNegociacaoDetalhe } from './pages/CrmNegociacaoDetalhe'
 import { ConfigCrmFunil } from './pages/ConfigCrmFunil'
@@ -67,13 +66,11 @@ import { ConfigSistemaLayout } from './pages/config/ConfigSistemaLayout'
 import { WhatsappLayout } from './pages/whatsapp/WhatsappLayout'
 import { WhatsappHistorico } from './pages/whatsapp/WhatsappHistorico'
 import { WhatsappAvaliacoes } from './pages/whatsapp/WhatsappAvaliacoes'
-import { WhatsappConversa } from './pages/whatsapp/WhatsappConversa'
-import { ChatInternoThread } from './pages/chat-interno/ChatInternoThread'
 import { ChatInternoSetorCanal } from './pages/chat-interno/ChatInternoSetorCanal'
 import { ChatHubShell } from './pages/chat/ChatHubShell'
 import { ChatHubLayout } from './pages/chat/ChatHubLayout'
+import { ChatHubPainel } from './pages/chat/ChatHubPainel'
 import { ChatHubPlaceholder } from './pages/chat/ChatHubPlaceholder'
-import { PortalConversa } from './pages/chat/PortalConversa'
 import { AlterarSenha } from './pages/AlterarSenha'
 import { NotificacoesPreferencias } from './pages/NotificacoesPreferencias'
 import { Sobre } from './pages/Sobre'
@@ -97,10 +94,8 @@ import { PortalLogin } from './pages/portal/PortalLogin'
 import { PortalTrocarSenha } from './pages/portal/PortalTrocarSenha'
 import { PortalTickets } from './pages/portal/PortalTickets'
 import { PortalTicketNovo } from './pages/portal/PortalTicketNovo'
-import { PortalTicketDetalhe } from './pages/portal/PortalTicketDetalhe'
 import { PortalAjudaHome, PortalAjudaArtigo } from './pages/portal/PortalAjuda'
 import { PortalChats } from './pages/portal/PortalChats'
-import { PortalChatDetalhe } from './pages/portal/PortalChatDetalhe'
 import { PortalEquipe } from './pages/portal/PortalEquipe'
 import { PortalEquipeForm } from './pages/portal/PortalEquipeForm'
 import { ToastProvider } from './components/ui/Toast'
@@ -108,6 +103,15 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { PageLoading } from './components/ui/PageLoading'
 import { isMarketingHost } from './lib/marketingHost'
 import { isSaasControlPlaneFrontend } from './lib/saasControlPlane'
+import { gravarChatAtivoSession, type ChatAtivoCanal } from './lib/chatAtivo'
+import { chatHubModoDePath, chatHubPathParaModo } from './lib/chatHubPaths'
+import {
+  gravarPortalChatAtivoSession,
+  gravarPortalTicketAtivoSession,
+  PORTAL_CHATS_PATH,
+  PORTAL_TICKETS_PATH,
+} from './lib/portalAtivo'
+import { gravarTicketAtivoSession } from './lib/ticketAtivo'
 
 /**
  * Apex comercial (`deskrudder.com.br`): `/` anônimo → landing.
@@ -176,9 +180,54 @@ function RedirectKbArtigoEditar() {
   return <Navigate to={`/ajuda/artigos/${id}/editar`} replace />
 }
 
-function RedirectWhatsappConversa() {
-  const { chatId } = useParams<{ chatId: string }>()
-  return <Navigate to={`/chat/c/${chatId}`} replace />
+/**
+ * Rotas legadas com id na URL (`/chat/c/:id`, `/whatsapp/c/:id`, e-mails antigos):
+ * guardam a conversa como ativa e caem na aba fixa do hub (#654).
+ */
+function RedirectChatConversa({ canal }: { canal: ChatAtivoCanal }) {
+  const params = useParams<{ chatId?: string; conversaId?: string }>()
+  const location = useLocation()
+  const id = Number(params.chatId ?? params.conversaId)
+  if (Number.isFinite(id) && id > 0) {
+    gravarChatAtivoSession({ canal, id })
+  }
+  const destino = chatHubPathParaModo(chatHubModoDePath(location.pathname, location.search))
+  return (
+    <Navigate to={{ pathname: destino, search: location.search }} replace state={location.state} />
+  )
+}
+
+/** `/tickets/:id` deixa de existir: id vai para a sessão e a URL fica `/tickets` (#655). */
+function RedirectTicketDetalhe() {
+  const { id } = useParams<{ id: string }>()
+  const location = useLocation()
+  const ticketId = Number(id)
+  if (Number.isFinite(ticketId) && ticketId > 0) {
+    gravarTicketAtivoSession(ticketId)
+  }
+  return <Navigate to="/tickets" replace state={location.state} />
+}
+
+/** `/portal/tickets/:id` legado: sessão + URL fixa `#700`. */
+function RedirectPortalTicketDetalhe() {
+  const { id } = useParams<{ id: string }>()
+  const location = useLocation()
+  const ticketId = Number(id)
+  if (Number.isFinite(ticketId) && ticketId > 0) {
+    gravarPortalTicketAtivoSession(ticketId)
+  }
+  return <Navigate to={PORTAL_TICKETS_PATH} replace state={location.state} />
+}
+
+/** `/portal/chats/:id` legado: sessão + URL fixa `#700`. */
+function RedirectPortalChatDetalhe() {
+  const { id } = useParams<{ id: string }>()
+  const location = useLocation()
+  const chatId = Number(id)
+  if (Number.isFinite(chatId) && chatId > 0) {
+    gravarPortalChatAtivoSession(chatId)
+  }
+  return <Navigate to={PORTAL_CHATS_PATH} replace state={location.state} />
 }
 
 function RedirectLegacyChatInterno() {
@@ -207,9 +256,9 @@ function AppRoutes() {
         <Route path="trocar-senha" element={<PortalTrocarSenha />} />
         <Route path="tickets" element={<PortalTickets />} />
         <Route path="tickets/novo" element={<PortalTicketNovo />} />
-        <Route path="tickets/:id" element={<PortalTicketDetalhe />} />
+        <Route path="tickets/:id" element={<RedirectPortalTicketDetalhe />} />
         <Route path="chats" element={<PortalChats />} />
-        <Route path="chats/:id" element={<PortalChatDetalhe />} />
+        <Route path="chats/:id" element={<RedirectPortalChatDetalhe />} />
         <Route path="equipe" element={<PortalEquipe />} />
         <Route path="equipe/novo" element={<PortalEquipeForm />} />
         <Route path="equipe/:id" element={<PortalEquipeForm />} />
@@ -303,7 +352,7 @@ function AppRoutes() {
         <Route path="sobre" element={<Sobre />} />
         <Route path="tickets" element={<Tickets />} />
         <Route path="tickets/novo" element={<TicketNovo />} />
-        <Route path="tickets/:id" element={<TicketDetalhe />} />
+        <Route path="tickets/:id" element={<RedirectTicketDetalhe />} />
         <Route
           path="crm/leads"
           element={
@@ -326,44 +375,60 @@ function AppRoutes() {
             <Route
               path="atendendo"
               element={
-                <ChatHubPlaceholder
-                  titulo="Atendendo"
-                  subtitulo="Selecione um dos seus chats em atendimento na lista ao lado."
+                <ChatHubPainel
+                  placeholder={
+                    <ChatHubPlaceholder
+                      titulo="Atendendo"
+                      subtitulo="Selecione um dos seus chats em atendimento na lista ao lado."
+                    />
+                  }
                 />
               }
             />
             <Route
               path="espera"
               element={
-                <ChatHubPlaceholder
-                  titulo="Aguardando"
-                  subtitulo="Chats na fila — assuma um novo atendimento."
+                <ChatHubPainel
+                  placeholder={
+                    <ChatHubPlaceholder
+                      titulo="Aguardando"
+                      subtitulo="Chats na fila — assuma um novo atendimento."
+                    />
+                  }
                 />
               }
             />
             <Route
               path="contatos"
               element={
-                <ChatHubPlaceholder
-                  titulo="Contatos"
-                  subtitulo="Escolha um contacto ou número avulso para iniciar conversa no WhatsApp."
+                <ChatHubPainel
+                  placeholder={
+                    <ChatHubPlaceholder
+                      titulo="Contatos"
+                      subtitulo="Escolha um contacto ou número avulso para iniciar conversa no WhatsApp."
+                    />
+                  }
                 />
               }
             />
             <Route path="portal" element={<Navigate to="/chat/espera" replace />} />
-            <Route path="portal/:chatId" element={<PortalConversa />} />
+            <Route path="portal/:chatId" element={<RedirectChatConversa canal="portal" />} />
             <Route
               path="interno"
               element={
-                <ChatHubPlaceholder
-                  titulo="Chat interno"
-                  subtitulo="Converse com colegas ou acesse o canal do seu setor."
+                <ChatHubPainel
+                  placeholder={
+                    <ChatHubPlaceholder
+                      titulo="Chat interno"
+                      subtitulo="Converse com colegas ou acesse o canal do seu setor."
+                    />
+                  }
                 />
               }
             />
             <Route path="interno/setor/:setorId" element={<ChatInternoSetorCanal />} />
-            <Route path="interno/:conversaId" element={<ChatInternoThread />} />
-            <Route path="c/:chatId" element={<WhatsappConversa />} />
+            <Route path="interno/:conversaId" element={<RedirectChatConversa canal="interno" />} />
+            <Route path="c/:chatId" element={<RedirectChatConversa canal="whatsapp" />} />
           </Route>
         </Route>
         <Route path="chat/historico" element={<Navigate to="/whatsapp/historico" replace />} />
@@ -373,7 +438,7 @@ function AppRoutes() {
           <Route path="historico" element={<WhatsappHistorico />} />
           <Route path="fila" element={<Navigate to="/chat/espera" replace />} />
           <Route path="meus" element={<Navigate to="/chat/atendendo" replace />} />
-          <Route path="c/:chatId" element={<RedirectWhatsappConversa />} />
+          <Route path="c/:chatId" element={<RedirectChatConversa canal="whatsapp" />} />
           <Route
             path="avaliacoes"
             element={

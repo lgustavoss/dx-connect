@@ -2,6 +2,7 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { ChatHubTabs } from '../../components/chat/ChatHubTabs'
 import { ChatHubSearch } from '../../components/chat/ChatHubSearch'
 import { ChatInternoLista } from '../../components/chat-interno/ChatInternoLista'
+import { useChatHub } from '../../contexts/ChatHubContext'
 import { chatHubModoDePath } from '../../lib/chatHubPaths'
 import { ChatListaAtendendo } from './ChatListaAtendendo'
 import { ChatListaEspera } from './ChatListaEspera'
@@ -25,12 +26,10 @@ function ChatHubLista() {
 
 export function ChatHubLayout() {
   const { pathname, search } = useLocation()
+  const { chatAtivo } = useChatHub()
   const modo = chatHubModoDePath(pathname, search)
-  const emConversa =
-    /\/chat\/c\/\d+/.test(pathname) ||
-    /\/chat\/portal\/\d+/.test(pathname) ||
-    /\/chat\/interno\/\d+/.test(pathname) ||
-    /\/chat\/interno\/setor\/\d+/.test(pathname)
+  /** Conversa aberta vem do estado, não da URL (#654). */
+  const emConversa = Boolean(chatAtivo) || /\/chat\/interno\/setor\/\d+/.test(pathname)
 
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden bg-slate-50 dark:bg-slate-950">

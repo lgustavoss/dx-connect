@@ -42,6 +42,7 @@ class NotificacaoItem(BaseModel):
         "chat_interno",
     ]
     ticket_id: int | None = None
+    chat_id: int | None = None
     conversa_id: int | None = None
     titulo: str
     descricao: str
