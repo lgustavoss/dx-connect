@@ -18,7 +18,12 @@ import { refetchPendenciasResumo } from '../../hooks/useAlertaFilaSemResponsavel
 import { portalDemandasApi, type ChatDemanda } from '../../lib/chatDemandasApi'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
 import { CHAT_HUB_PATHS, chatPortalLink } from '../../lib/chatHubPaths'
-import { mensagemTransferenciaSucesso, rotuloEstadoChat, rotuloResponsavelChat } from '../../lib/whatsappChatMeta'
+import {
+  classeCorEstadoChat,
+  mensagemTransferenciaSucesso,
+  rotuloEstadoChat,
+  rotuloResponsavelChat,
+} from '../../lib/whatsappChatMeta'
 import { mergeTimelineChat, textoMarcoDemanda } from '../../lib/whatsappDemandaUtils'
 import { WhatsappDemandaTimelineMarco } from '../whatsapp/WhatsappDemandaTimelineMarco'
 import { ACCEPT_ANEXO, type TipoAnexoPicker } from '../whatsapp/WhatsappBarraAnexos'
@@ -315,16 +320,14 @@ export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
   }
 
   async function handleEncerrado(atualizado: PortalChats.Chat) {
-    setChat(atualizado)
     void refreshContagens()
     void refetchPendenciasResumo()
-    if (atualizado.estado === 'aguardando_avaliacao') {
-      toast.showSuccess('Atendimento encerrado. Aguardando avaliação do visitante.')
-      return
-    }
-    toast.showSuccess('Atendimento encerrado.')
+    toast.showSuccess(
+      atualizado.estado === 'aguardando_avaliacao'
+        ? 'Atendimento encerrado. Aguardando avaliação do visitante.'
+        : 'Atendimento encerrado.',
+    )
     fecharChat()
-    navigate(CHAT_HUB_PATHS.atendendo)
   }
 
   if (!Number.isFinite(chatId)) {
@@ -364,8 +367,8 @@ export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
             <ChatCanalBadge canal="portal" />
           </div>
           <p className="truncate text-xs text-cyan-600 dark:text-cyan-400">{exibirProtocolo(chat.protocolo)}</p>
-          <p className="truncate text-xs text-slate-500">
-            {rotuloEstadoChat(chat.estado)}
+          <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+            <span className={classeCorEstadoChat(chat.estado)}>{rotuloEstadoChat(chat.estado)}</span>
             {chat.setor_nome ? ` · ${chat.setor_nome}` : ''}
             {' · '}
             {rotuloResponsavelChat(chat, user?.id)}

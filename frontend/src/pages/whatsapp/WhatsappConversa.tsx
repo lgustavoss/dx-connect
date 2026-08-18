@@ -54,6 +54,7 @@ import { useEventStream } from '../../contexts/EventStreamContext'
 import { refetchPendenciasResumo } from '../../hooks/useAlertaFilaSemResponsavel'
 import { CustomAudioPlayer } from '../../components/CustomAudioPlayer'
 import {
+  classeCorEstadoChat,
   mensagemTransferenciaSucesso,
   rotuloEstadoChat,
   rotuloResponsavelChat,
@@ -721,15 +722,22 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
 
   const viuEmAtendimentoRef = useRef(false)
   const inatividadeToastFeitoRef = useRef(false)
+  const fechouPainelAposEncerrarRef = useRef(false)
 
   useEffect(() => {
-    if (chat?.estado === 'em_atendimento') {
+    viuEmAtendimentoRef.current = false
+    inatividadeToastFeitoRef.current = false
+    fechouPainelAposEncerrarRef.current = false
+  }, [id])
+
+  useEffect(() => {
+    if (chat?.id === id && chat.estado === 'em_atendimento') {
       viuEmAtendimentoRef.current = true
     }
-  }, [chat?.estado])
+  }, [chat?.id, chat?.estado, id])
 
   useEffect(() => {
-    if (!chat || inatividadeToastFeitoRef.current) return
+    if (!chat || chat.id !== id || inatividadeToastFeitoRef.current) return
     if (!viuEmAtendimentoRef.current) return
 
     const fechado = chat.estado === 'encerrado' || chat.estado === 'aguardando_avaliacao'
@@ -744,7 +752,17 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
     toast.showSuccess(
       'Atendimento encerrado por inatividade. Pode reler a conversa e registar a demanda no aviso abaixo.',
     )
-  }, [chat, msgs, user?.id, user?.role, toast])
+  }, [chat, id, msgs, user?.id, user?.role, toast])
+
+  useEffect(() => {
+    if (!chat || chat.id !== id || fechouPainelAposEncerrarRef.current) return
+    const naMesa = chatIdProp != null || location.pathname.startsWith('/chat/')
+    if (!naMesa || !viuEmAtendimentoRef.current) return
+    const fechado = chat.estado === 'encerrado' || chat.estado === 'aguardando_avaliacao'
+    if (!fechado || chat.classificacao_demanda_pendente) return
+    fechouPainelAposEncerrarRef.current = true
+    voltarLista()
+  }, [chat, id, chatIdProp, location.pathname, voltarLista])
 
   const refrescarTimelineDemandas = useCallback(() => {
     setDemandasReloadKey((k) => k + 1)
@@ -1287,9 +1305,6 @@ useEffect(() => {
 
 
   async function handleEncerrado(atualizado: WhatsappChats.Chat) {
-    setChat(atualizado)
-    await Promise.all([carregar(), carregarSidebar()])
-    refrescarTimelineDemandas()
     toast.showSuccess(
       atualizado.estado === 'aguardando_avaliacao' && atualizado.classificacao_demanda_pendente
         ? 'Atendimento encerrado. Aguardando avaliação do cliente.'
@@ -1299,6 +1314,18 @@ useEffect(() => {
             ? 'Atendimento encerrado. Aguardando avaliação do cliente.'
             : 'Atendimento encerrado.',
     )
+    void refreshContagens()
+    void refetchPendenciasResumo()
+    const naMesa = chatIdProp != null || location.pathname.startsWith('/chat/')
+    // Demanda pendente: o painel fica aberto para classificar. Caso contrário, fecha como Voltar.
+    if (naMesa && !atualizado.classificacao_demanda_pendente) {
+      fechouPainelAposEncerrarRef.current = true
+      voltarLista()
+      return
+    }
+    setChat(atualizado)
+    await Promise.all([carregar(), carregarSidebar()])
+    refrescarTimelineDemandas()
   }
 
   async function confirmarEmpresaContexto() {
@@ -1776,7 +1803,7 @@ useEffect(() => {
                 {exibirProtocolo(chat?.protocolo)}
               </span>
               <span className="text-slate-300">•</span>
-              <span className={`capitalize ${encerrado ? 'text-red-500' : 'text-emerald-500'}`}>
+              <span className={classeCorEstadoChat(chat?.estado ?? '')}>
                 {chat ? rotuloEstadoChat(chat.estado) : '—'}
               </span>
               {chat && (
