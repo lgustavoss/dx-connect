@@ -6,6 +6,7 @@ import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Switch } from '../components/ui/Switch'
 import { useToast } from '../components/ui/Toast'
+import { syncWebPushSubscription } from '../hooks/useWebPush'
 
 export function NotificacoesPreferencias() {
   const toast = useToast()
@@ -17,6 +18,8 @@ export function NotificacoesPreferencias() {
     email_nova_mensagem: true,
     email_sla_em_risco: true,
     email_sla_violado: true,
+    push_habilitado: false,
+    push_fila: true,
   })
 
   useEffect(() => {
@@ -72,11 +75,11 @@ export function NotificacoesPreferencias() {
           <span aria-hidden>←</span> Voltar
         </Link>
         <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
-          Notificações por e-mail
+          Notificações
         </h1>
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-          Escolha quando deseja receber e-mails sobre atividade nos seus chamados. Os alertas in-app (sino no topo)
-          continuam independentes — fila, mensagens não lidas e WhatsApp.
+          Escolha quando deseja receber e-mails e alertas no telemóvel. Os avisos in-app (sino no topo) continuam
+          independentes — fila, mensagens não lidas e WhatsApp.
         </p>
       </div>
 
@@ -96,12 +99,63 @@ export function NotificacoesPreferencias() {
             atinge 80% do prazo ou estoura a meta de primeira resposta ou resolução.
           </li>
           <li>
-            Em desenvolvimento, sem SMTP configurado, o sistema simula o envio e registra no log do backend.
+            <strong>Telemóvel</strong> — com a app fechada, alertas de fila e de mensagens nos teus atendimentos. No
+            iPhone, primeiro adiciona o DeskRudder ao ecrã inicial (Safari 16.4+).
           </li>
         </ul>
       </div>
 
-      <Card title="Preferências">
+      <Card title="Telemóvel (app fechada)">
+        <div className="space-y-4">
+          <Switch
+            checked={prefs.push_habilitado}
+            onCheckedChange={(v) => {
+              void (async () => {
+                try {
+                  const r = await syncWebPushSubscription({ ativar: v })
+                  if (v && r !== 'ok') {
+                    const msg =
+                      r === 'negado'
+                        ? 'Permita notificações neste browser para activar os alertas.'
+                        : r === 'sem_vapid'
+                          ? 'Alertas no telemóvel ainda não estão configurados nesta instância.'
+                          : r === 'ios_pwa'
+                            ? 'No iPhone, adiciona o DeskRudder ao ecrã inicial e activa os alertas a partir desse atalho.'
+                            : 'Este browser não suporta alertas com a app fechada.'
+                    toast.showError(msg)
+                    return
+                  }
+                  setPrefs((p) => ({ ...p, push_habilitado: v }))
+                } catch (err) {
+                  toast.showError(mensagemFalhaParaToast(err, 'Não foi possível actualizar o push.'))
+                }
+              })()
+            }}
+            label="Alertas no telemóvel"
+            description="Fila e mensagens nos teus chats e tickets, mesmo com a app fechada. No iPhone só no atalho da tela inicial."
+            showStatusPill
+            statusOnText="Ativo"
+            statusOffText="Inativo"
+          />
+          <Switch
+            checked={prefs.push_fila}
+            onCheckedChange={(v) => {
+              setPrefs((p) => ({ ...p, push_fila: v }))
+              void notificacoes.preferenciasUpdate({ push_fila: v }).catch((err) => {
+                toast.showError(mensagemFalhaParaToast(err, 'Não foi possível actualizar o alerta da fila.'))
+              })
+            }}
+            label="Avisar fila de espera"
+            description="O mesmo silêncio do botão de som na mesa também vale com a app fechada."
+            disabled={!prefs.push_habilitado}
+            showStatusPill
+            statusOnText="Sim"
+            statusOffText="Não"
+          />
+        </div>
+      </Card>
+
+      <Card title="E-mail">
         <form onSubmit={handleSave} className="space-y-5">
           <Switch
             checked={prefs.email_habilitado}

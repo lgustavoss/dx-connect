@@ -210,6 +210,15 @@ def emit_notificacao_after_counter_change(db: Session) -> None:
     _emit_notificacao_after_counter_change(db)
 
 
+def _enfileirar_web_push(**kwargs) -> None:
+    try:
+        from app.services.web_push_outbox import enfileirar_para_atendentes
+
+        enfileirar_para_atendentes(**kwargs)
+    except Exception:
+        logger.exception("Web Push: falha ao enfileirar")
+
+
 def emit_chat_mensagem(
     db: Session,
     chat: WhatsappChat,
@@ -223,6 +232,19 @@ def emit_chat_mensagem(
     payload = {"chat_id": chat.id, "mensagem": mensagem_payload}
     _publish_to_atendentes(recipients, "chat.mensagem", payload)
     _emit_notificacao_after_counter_change(db)
+    if chat.atendente_id and chat.estado == "em_atendimento":
+        direcao = (mensagem_payload or {}).get("direcao")
+        if direcao == "inbound":
+            nome = chat.cliente_nome or "WhatsApp"
+            _enfileirar_web_push(
+                atendente_ids={chat.atendente_id},
+                event_type="chat.mensagem",
+                entity_id=int((mensagem_payload or {}).get("id") or chat.id),
+                titulo=f"WhatsApp · {nome}",
+                url_path="/chat/atendendo",
+                corpo=str((mensagem_payload or {}).get("corpo") or "Nova mensagem")[:180],
+                exclude_atendente_id=exclude_atendente_id,
+            )
 
 
 def emit_chat_fila(
@@ -244,6 +266,16 @@ def emit_chat_fila(
         payload["chat"] = chat_payload
     _publish_to_atendentes(recipients, "chat.fila", payload)
     _emit_notificacao_after_counter_change(db)
+    if chat.estado == "aguardando_atendente":
+        nome = (chat_payload or {}).get("cliente_nome") or chat.cliente_nome or "cliente"
+        _enfileirar_web_push(
+            atendente_ids=recipients,
+            event_type="chat.fila",
+            entity_id=chat.id,
+            titulo="Cliente na fila WhatsApp",
+            url_path="/chat/espera",
+            corpo=str(nome)[:180],
+        )
 
 
 def emit_ticket_mensagem(
@@ -261,6 +293,16 @@ def emit_ticket_mensagem(
     _publish_to_atendentes(recipients, "ticket.mensagem", payload)
     if emit_notificacao:
         _emit_notificacao_after_counter_change(db)
+    if ticket.atendente_id:
+        _enfileirar_web_push(
+            atendente_ids={ticket.atendente_id},
+            event_type="ticket.mensagem",
+            entity_id=int((mensagem_payload or {}).get("id") or ticket.id),
+            titulo=f"Ticket {ticket.protocolo}",
+            url_path="/tickets",
+            corpo=str((mensagem_payload or {}).get("corpo") or ticket.assunto or "Nova mensagem")[:180],
+            exclude_atendente_id=exclude_atendente_id,
+        )
 
 
 def emit_ticket_fila(db: Session, ticket: Ticket) -> None:
@@ -274,6 +316,14 @@ def emit_ticket_fila(db: Session, ticket: Ticket) -> None:
     }
     _publish_to_atendentes(recipients, "ticket.fila", payload)
     _emit_notificacao_after_counter_change(db)
+    _enfileirar_web_push(
+        atendente_ids=recipients,
+        event_type="ticket.fila",
+        entity_id=ticket.id,
+        titulo="Chamado na fila",
+        url_path="/tickets",
+        corpo=str(ticket.protocolo or ticket.assunto or "")[:180],
+    )
 
 
 def emit_chat_mensagem_from_models(
@@ -327,6 +377,18 @@ def emit_portal_chat_mensagem(
     payload = {"chat_id": chat.id, "mensagem": mensagem_payload}
     _publish_to_atendentes(recipients, "portal.chat.mensagem", payload)
     _emit_notificacao_after_counter_change(db)
+    if chat.atendente_id and chat.estado == "em_atendimento":
+        direcao = (mensagem_payload or {}).get("direcao")
+        if direcao == "inbound":
+            _enfileirar_web_push(
+                atendente_ids={chat.atendente_id},
+                event_type="portal.chat.mensagem",
+                entity_id=int((mensagem_payload or {}).get("id") or chat.id),
+                titulo="Portal · nova mensagem",
+                url_path="/chat/atendendo",
+                corpo=str((mensagem_payload or {}).get("corpo") or "Nova mensagem")[:180],
+                exclude_atendente_id=exclude_atendente_id,
+            )
 
 
 def emit_portal_chat_fila(
@@ -348,6 +410,15 @@ def emit_portal_chat_fila(
         payload["chat"] = chat_payload
     _publish_to_atendentes(recipients, "portal.chat.fila", payload)
     _emit_notificacao_after_counter_change(db)
+    if chat.estado == "aguardando_atendente":
+        _enfileirar_web_push(
+            atendente_ids=recipients,
+            event_type="portal.chat.fila",
+            entity_id=chat.id,
+            titulo="Cliente na fila do portal",
+            url_path="/chat/espera",
+            corpo="Novo atendimento no portal",
+        )
 
 
 def emit_portal_chat_mensagem_from_models(

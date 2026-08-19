@@ -136,8 +136,8 @@ export function WhatsappTicketsModal({ chat, open, onClose, onSuccess }: Props) 
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
-      <Card className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden p-0 animate-in zoom-in-95">
+    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-900/50 p-0 backdrop-blur-sm md:items-center md:p-4">
+      <Card className="flex max-h-[min(92dvh,var(--vv-height,92dvh))] w-full max-w-lg flex-col overflow-hidden rounded-b-none p-0 animate-in zoom-in-95 md:rounded-2xl">
         <div className="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
           <div className="flex items-start justify-between gap-4">
             <div>

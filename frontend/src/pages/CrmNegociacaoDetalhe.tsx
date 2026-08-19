@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   ApiError,
@@ -20,6 +20,7 @@ import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { SemPermissao } from './SemPermissao'
+import { CrmPropostaCard } from '../components/crm/CrmPropostaCard'
 
 const TIPO_ATIVIDADE_LABEL: Record<string, string> = {
   nota: 'Nota',
@@ -107,6 +108,7 @@ export function CrmNegociacaoDetalhe() {
 
   const [notaTexto, setNotaTexto] = useState('')
   const [savingNota, setSavingNota] = useState(false)
+  const loadedOnceRef = useRef(false)
 
   const load = useCallback(async () => {
     if (!id || Number.isNaN(negociacaoId)) {
@@ -114,7 +116,7 @@ export function CrmNegociacaoDetalhe() {
       setLoading(false)
       return
     }
-    setLoading(true)
+    if (!loadedOnceRef.current) setLoading(true)
     setForbidden(false)
     setFalha(null)
     try {
@@ -129,6 +131,7 @@ export function CrmNegociacaoDetalhe() {
       setLead(l)
       setEstagios(funil)
       setAtividades(acts.items)
+      loadedOnceRef.current = true
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) {
         setForbidden(true)
@@ -449,6 +452,8 @@ export function CrmNegociacaoDetalhe() {
           </div>
         )}
       </Card>
+
+      <CrmPropostaCard negociacao={neg} onChanged={() => void load()} />
 
       <Card title="Histórico">
         <form onSubmit={handleAddNota} className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end">

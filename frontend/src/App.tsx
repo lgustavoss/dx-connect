@@ -20,6 +20,7 @@ import { TicketNovo } from './pages/TicketNovo'
 import { CrmLeads } from './pages/CrmLeads'
 import { CrmNegociacaoDetalhe } from './pages/CrmNegociacaoDetalhe'
 import { ConfigCrmFunil } from './pages/ConfigCrmFunil'
+import { ConfigPropostaTemplates } from './pages/ConfigPropostaTemplates'
 import { Redes } from './pages/Redes'
 import { RedeDetalhe } from './pages/RedeDetalhe'
 import { RedeForm } from './pages/RedeForm'
@@ -715,6 +716,7 @@ function AppRoutes() {
           <Route path="pdv" element={<ConfigPdvCatalogos embedded />} />
           <Route path="custos" element={<ConfigComercialCustos embedded />} />
           <Route path="funil-crm" element={<ConfigCrmFunil embedded />} />
+          <Route path="propostas" element={<ConfigPropostaTemplates embedded />} />
         </Route>
         <Route
           path="configuracoes/sistema"

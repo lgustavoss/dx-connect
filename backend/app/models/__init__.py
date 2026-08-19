@@ -37,6 +37,7 @@ from app.models.ticket_classificacao import TicketMotivo, TicketNatureza
 from app.models.ticket_avaliacao import TicketAvaliacao, TicketCsatInvite
 from app.models.atendente_notificacao import AtendenteNotificacaoPreferencias, NotificacaoEmailOutbox
 from app.models.webhook_outbox import WebhookOutbox
+from app.models.web_push import PushOutbox, PushSubscription
 from app.models.routing_rule import RoutingRule
 from app.models.business_calendar import BusinessCalendar
 from app.models.sla_policy import SlaPolicy
@@ -60,6 +61,7 @@ from app.models.crm import (
     CrmNegociacaoCnpjLinha,
     FunilEstagio,
 )
+from app.models.comercial_proposta import Proposta, PropostaTemplate
 from app.models.cliente_saas import ClienteSaaS
 from app.models.saas_alerta_emitido import SaasAlertaEmitido
 from app.models.lead_comercial import LeadComercial
@@ -111,6 +113,8 @@ __all__ = [
     "AtendenteNotificacaoPreferencias",
     "NotificacaoEmailOutbox",
     "WebhookOutbox",
+    "PushSubscription",
+    "PushOutbox",
     "RoutingRule",
     "BusinessCalendar",
     "SlaPolicy",
@@ -138,6 +142,8 @@ __all__ = [
     "CrmNegociacao",
     "CrmNegociacaoCnpjLinha",
     "CrmNegociacaoAtividade",
+    "PropostaTemplate",
+    "Proposta",
     "ClienteSaaS",
     "SaasAlertaEmitido",
     "LeadComercial",

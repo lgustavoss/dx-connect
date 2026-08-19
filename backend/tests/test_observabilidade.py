@@ -23,6 +23,7 @@ def test_health_liveness(client):
     assert body.get("status") == "ok"
     assert "capabilities" in body
     assert "integrations" in body
+    assert "web_push" in body["integrations"]
     assert "environment" in body
 
 

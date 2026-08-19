@@ -10,6 +10,9 @@ import { BrandLogo } from '../brand'
 import { useTheme } from '../contexts/ThemeContext'
 import { AlertaDesktopPermissaoBanner } from './AlertaDesktopPermissaoBanner'
 import { PwaInstallBanner } from './PwaInstallBanner'
+import { WebPushOptInBanner } from './WebPushOptInBanner'
+import { useVisualViewportCss } from '../hooks/useVisualViewportCss'
+import { useWebPushSession } from '../hooks/useWebPush'
 import { lerTicketAtivoSession, TICKET_ATIVO_EVENT } from '../lib/ticketAtivo'
 
 function perfilExibicao(role: string | undefined): string {
@@ -30,6 +33,7 @@ function LayoutInner() {
   const { user, logout, isAdmin, isComercialOuAdmin } = useAuth()
   const { subscribe } = useEventStream()
   const location = useLocation()
+  useVisualViewportCss()
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false)
   const { resolved } = useTheme()
@@ -37,6 +41,7 @@ function LayoutInner() {
 
   const notificacoesEnabled = Boolean(user && !user.must_change_password)
   useAlertaFilaSemResponsavel(notificacoesEnabled)
+  useWebPushSession(notificacoesEnabled)
 
   useEffect(() => {
     setChatInternoAlertUserId(user?.id ?? null)
@@ -76,7 +81,7 @@ function LayoutInner() {
 
   return (
     <div
-      className="flex h-dvh max-h-dvh min-h-0 overflow-hidden bg-gradient-to-b from-slate-50 to-slate-100/90 dark:from-slate-950 dark:to-slate-900/95 md:grid md:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-200 md:ease-out"
+      className="flex h-[var(--vv-height,100dvh)] max-h-[var(--vv-height,100dvh)] min-h-0 overflow-hidden bg-gradient-to-b from-slate-50 to-slate-100/90 dark:from-slate-950 dark:to-slate-900/95 md:grid md:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-200 md:ease-out"
       style={
         {
           ['--sidebar-w' as never]: sidebarW,
@@ -127,6 +132,7 @@ function LayoutInner() {
 
           {notificacoesEnabled ? <PwaInstallBanner enabled /> : null}
           {notificacoesEnabled ? <AlertaDesktopPermissaoBanner enabled /> : null}
+          {notificacoesEnabled ? <WebPushOptInBanner enabled /> : null}
 
           <main className="min-h-0 flex-1 overflow-hidden">
             <div
