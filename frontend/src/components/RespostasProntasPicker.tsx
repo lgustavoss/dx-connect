@@ -9,9 +9,11 @@ type Props = {
   setorId: number
   disabled?: boolean
   onInserir: (texto: string) => void
+  /** Ícone compacto para a barra do compositor WhatsApp. */
+  modoComposer?: boolean
 }
 
-export function RespostasProntasPicker({ setorId, disabled, onInserir }: Props) {
+export function RespostasProntasPicker({ setorId, disabled, onInserir, modoComposer = false }: Props) {
   const toast = useToast()
   const [aberto, setAberto] = useState(false)
   const [busca, setBusca] = useState('')
@@ -59,20 +61,38 @@ export function RespostasProntasPicker({ setorId, disabled, onInserir }: Props) 
     setBusca('')
   }
 
+  const icone = (
+    <svg className="size-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+  )
+
   return (
     <div className="relative" ref={painelRef}>
-      <Button
-        type="button"
-        variant="secondary"
-        disabled={disabled}
-        onClick={() => setAberto((v) => !v)}
-        className="inline-flex items-center gap-2 text-xs sm:text-sm"
-      >
-        <svg className="size-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-        Respostas prontas
-      </Button>
+      {modoComposer ? (
+        <button
+          type="button"
+          disabled={disabled}
+          title="Respostas prontas"
+          aria-label="Respostas prontas"
+          aria-expanded={aberto}
+          onClick={() => setAberto((v) => !v)}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-600 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          {icone}
+        </button>
+      ) : (
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={disabled}
+          onClick={() => setAberto((v) => !v)}
+          className="inline-flex items-center gap-2 text-xs sm:text-sm"
+        >
+          {icone}
+          Respostas prontas
+        </Button>
+      )}
       {aberto ? (
         <div className="absolute bottom-full left-0 z-30 mb-2 w-[min(100vw-2rem,22rem)] rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-slate-800 dark:bg-slate-900">
           <Input
@@ -82,7 +102,7 @@ export function RespostasProntasPicker({ setorId, disabled, onInserir }: Props) 
             className="mb-2 text-sm"
             autoFocus
           />
-          <div className="max-h-56 overflow-y-auto">
+          <div className="dx-scrollbar max-h-56 overflow-y-auto">
             {loading ? (
               <p className="py-4 text-center text-xs text-slate-500 dark:text-slate-400">Carregando…</p>
             ) : itens.length === 0 ? (

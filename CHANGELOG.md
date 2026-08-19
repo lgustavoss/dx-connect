@@ -5,6 +5,24 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### DeskRudder
+
+#### Melhorias
+
+- Proposta comercial (#323 / #345–#348): modelos HTML versionados, geração a partir da negociação (CNPJs à escolha), preview, PDF e marcar como enviada (com opção de avançar o funil) — sem custo/margem no documento do cliente
+- Mobile (#692): no telemóvel, WhatsApp e tickets dão para operar por completo — assumir, responder (texto/mídia), transferir, encerrar, abrir ticket; fila e detalhe do chamado com botões grandes e teclado que não cobre o campo de mensagem
+- WhatsApp (#723): quem abre um chat em atendimento (colega ou admin) também vê o cronômetro de inatividade; Pausar/Retomar continua só com o responsável
+- Notificações (#693 / #694): no telemóvel podes receber alertas mesmo com a app fechada — fila de espera e mensagens nos chats/tickets já teus. Activa em Notificações; o silêncio da fila na mesa também vale com a app fechada
+- Mobile (#695): no iPhone, o painel explica que os alertas com a app fechada só funcionam depois de adicionar o DeskRudder à tela inicial (Safari 16.4+)
+- WhatsApp (#728): no modal da empresa do atendimento dá para **pesquisar pelo nome do posto**, em vez de só rolar a lista
+- WhatsApp (#729): arrastar um ficheiro para a conversa abre a pré-visualização (como colar com Ctrl+V)
+- WhatsApp (#730): no compositor há um atalho para **respostas prontas** do setor (insere o texto; o envio continua a ser teu)
+
+#### Correções
+
+- Chat: ao encerrar o atendimento na mesa, o painel fecha (como Voltar), em vez de ficar aberto com a lista vazia; se ainda falta classificar a demanda, o painel permanece
+- Chat: o estado «Aguardando avaliação» passa a âmbar; «Encerrado» usa vermelho mais legível no tema escuro
+
 ## [26.08.008] - 2026-08-17
 
 ### DeskRudder

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ClipboardEvent } from 'react'
 import { Button } from '../../components/ui/Button'
 import { KbConsultaButton } from '../../components/KbConsultaModal'
+import { RespostasProntasPicker } from '../../components/RespostasProntasPicker'
 import type { TipoAnexoPicker } from './WhatsappBarraAnexos'
 import { WhatsappGravadorAudioInline } from './WhatsappGravadorAudioInline'
 import { WhatsappEmojiFigurinhaPanel } from './WhatsappEmojiFigurinhaPanel'
@@ -16,6 +17,8 @@ type Props = {
   onEnviarFigurinha: (file: File) => void
   /** Ctrl+V / colar ficheiro do clipboard (imagem, etc.) */
   onColarArquivo?: (file: File) => void
+  /** Setor do chat para respostas prontas; omitir esconde o botão. */
+  setorId?: number | null
   enviando: boolean
   encerrado: boolean
   podeEnviar: boolean
@@ -47,6 +50,7 @@ export function WhatsappComposerBar({
   onInserirEmoji,
   onEnviarFigurinha,
   onColarArquivo,
+  setorId,
   enviando,
   encerrado,
   podeEnviar,
@@ -183,6 +187,17 @@ export function WhatsappComposerBar({
           )}
         </div>
 
+        {setorId != null && (
+          <div className="relative shrink-0">
+            <RespostasProntasPicker
+              setorId={setorId}
+              modoComposer
+              disabled={acoesBloqueadas || modoInterno || !podeEnviar}
+              onInserir={inserirEmojiNoCursor}
+            />
+          </div>
+        )}
+
         {onInserirReferenciaKb && (
           <KbConsultaButton
             disabled={encerrado}
@@ -209,10 +224,11 @@ export function WhatsappComposerBar({
           disabled={campoBloqueado}
           className="max-h-32 min-h-[44px] min-w-0 flex-1 resize-none border-0 bg-transparent px-2 py-2.5 text-base outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 sm:text-sm dark:text-slate-100 placeholder:text-slate-400"
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              if (!acoesBloqueadas && temTexto) enviar()
-            }
+            if (e.key !== 'Enter' || e.shiftKey) return
+            const tecladoFisico = window.matchMedia('(min-width: 768px)').matches
+            if (!tecladoFisico) return
+            e.preventDefault()
+            if (!acoesBloqueadas && temTexto) enviar()
           }}
           onPaste={handlePaste}
         />

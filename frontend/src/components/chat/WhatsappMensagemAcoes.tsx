@@ -62,10 +62,10 @@ export function WhatsappMensagemAcoes({ mensagem, onEditar, onApagar }: Props) {
           aria-expanded={menuAberto}
           aria-haspopup="menu"
           title="Ações"
-          className={`flex h-6 w-6 items-center justify-center rounded-full text-white transition-opacity ${
+          className={`flex h-8 w-8 items-center justify-center rounded-full text-white transition-opacity md:h-6 md:w-6 ${
             menuAberto
               ? 'bg-black/30 opacity-100'
-              : 'bg-black/15 opacity-0 group-hover/bubble:opacity-100 group-focus-within/bubble:opacity-100 hover:bg-black/25'
+              : 'bg-black/15 opacity-100 hover:bg-black/25 md:opacity-0 md:group-hover/bubble:opacity-100 md:group-focus-within/bubble:opacity-100'
           }`}
           onClick={() => setMenuAberto((o) => !o)}
         >

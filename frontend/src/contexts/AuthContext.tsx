@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { atendentes, clearAuthToken, getAuthToken, ApiError, type Atendentes } from '../api/client'
+import { revogarWebPushNoLogout } from '../hooks/useWebPush'
 
 interface AuthContextValue {
   user: Atendentes.Atendente | null
@@ -65,8 +66,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshUser])
 
   const logout = useCallback(() => {
-    clearAuthToken()
-    setUser(null)
+    let finished = false
+    const done = () => {
+      if (finished) return
+      finished = true
+      clearAuthToken()
+      setUser(null)
+    }
+    const timer = window.setTimeout(done, 2500)
+    void revogarWebPushNoLogout()
+      .catch(() => undefined)
+      .finally(() => {
+        window.clearTimeout(timer)
+        done()
+      })
   }, [])
 
   const value: AuthContextValue = {

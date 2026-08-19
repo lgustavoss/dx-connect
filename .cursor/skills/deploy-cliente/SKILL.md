@@ -28,7 +28,7 @@ Gera `deploy/clients/NOME_CLIENTE/` (não commitar secrets).
 
 ### Checklist pós-provision
 
-1. Editar `client.env`: CORS, ALLOWED_HOSTS, RESEND, SEED_ADMIN
+1. Editar `client.env`: CORS (origem HTTPS da PWA), ALLOWED_HOSTS, RESEND, SEED_ADMIN, **VAPID** (`WEB_PUSH_VAPID_*`)
 2. `bash deploy/scripts/stack-client.sh NOME_CLIENTE migrate`
 3. `bash deploy/scripts/stack-client.sh NOME_CLIENTE up`
 4. `bash deploy/scripts/stack-client.sh NOME_CLIENTE seed`

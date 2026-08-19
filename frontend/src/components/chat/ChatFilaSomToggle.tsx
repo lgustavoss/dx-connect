@@ -1,3 +1,4 @@
+import { notificacoes } from '../../api/client'
 import {
   setFilaAguardandoMuted,
   useFilaAguardandoMuted,
@@ -6,13 +7,13 @@ import {
 type Props = {
   className?: string
   /** Compacto para caber no header mobile / tabs */
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'md' | 'lg'
 }
 
 export function ChatFilaSomToggle({ className = '', size = 'sm' }: Props) {
   const muted = useFilaAguardandoMuted()
-  const dim = size === 'md' ? 'h-8 w-8' : 'h-7 w-7'
-  const icon = size === 'md' ? 18 : 16
+  const dim = size === 'lg' ? 'h-11 w-11' : size === 'md' ? 'h-8 w-8' : 'h-7 w-7'
+  const icon = size === 'lg' ? 20 : size === 'md' ? 18 : 16
 
   return (
     <button
@@ -27,7 +28,9 @@ export function ChatFilaSomToggle({ className = '', size = 'sm' }: Props) {
       onClick={(e) => {
         e.preventDefault()
         e.stopPropagation()
-        setFilaAguardandoMuted(!muted)
+        const nextMuted = !muted
+        setFilaAguardandoMuted(nextMuted)
+        void notificacoes.preferenciasUpdate({ push_fila: !nextMuted }).catch(() => undefined)
       }}
       className={`inline-flex ${dim} shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 ${
         muted ? 'text-amber-600 dark:text-amber-400' : ''

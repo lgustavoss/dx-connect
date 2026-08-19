@@ -64,6 +64,8 @@ def preferencias_para_dict(p: AtendenteNotificacaoPreferencias) -> dict:
         "email_nova_mensagem": bool(p.email_nova_mensagem),
         "email_sla_em_risco": bool(getattr(p, "email_sla_em_risco", True)),
         "email_sla_violado": bool(getattr(p, "email_sla_violado", True)),
+        "push_habilitado": bool(getattr(p, "push_habilitado", False)),
+        "push_fila": bool(getattr(p, "push_fila", True)),
     }
 
 

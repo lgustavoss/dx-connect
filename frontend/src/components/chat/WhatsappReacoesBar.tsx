@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { WhatsappChats } from '../../api/client'
 import { EMOJIS_REACAO_CHAT_INTERNO } from '../../lib/chatInternoReacoes'
 
@@ -18,34 +19,68 @@ export function WhatsappReacoesBar({
 }: Props) {
   const temReacoes = reacoes.length > 0
   const alignEnd = alinhamento === 'end'
+  const [pickerAberto, setPickerAberto] = useState(false)
 
   return (
     <>
       {podeReagir && onReagir ? (
         <div
-          className={`pointer-events-none absolute top-full z-20 flex flex-col ${
-            alignEnd ? 'right-0 items-end' : 'left-0 items-start'
-          }`}
+          className={`z-20 flex flex-col ${
+            alignEnd ? 'items-end' : 'items-start'
+          } ${temReacoes ? 'relative mt-1' : 'absolute top-full'}`}
         >
+          <button
+            type="button"
+            className="flex h-9 min-w-9 items-center justify-center rounded-full border border-slate-200 bg-white px-2 text-sm shadow-sm md:hidden dark:border-slate-600 dark:bg-slate-800"
+            aria-label="Reagir"
+            aria-expanded={pickerAberto}
+            onClick={() => setPickerAberto((o) => !o)}
+          >
+            😊
+          </button>
           <div
-            className="h-2 w-full min-w-[10rem] group-hover:pointer-events-auto group-focus-within:pointer-events-auto"
-            aria-hidden
-          />
-          <div className="opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
-            <div className="flex items-center gap-0.5 rounded-full border border-slate-200 bg-white px-1 py-0.5 shadow-md dark:border-slate-600 dark:bg-slate-800">
+            className={`pointer-events-none absolute top-full z-20 mt-1 hidden flex-col md:flex ${
+              alignEnd ? 'right-0 items-end' : 'left-0 items-start'
+            }`}
+          >
+            <div
+              className="h-2 w-full min-w-[10rem] group-hover:pointer-events-auto group-focus-within:pointer-events-auto"
+              aria-hidden
+            />
+            <div className="opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+              <div className="flex items-center gap-0.5 rounded-full border border-slate-200 bg-white px-1 py-0.5 shadow-md dark:border-slate-600 dark:bg-slate-800">
+                {EMOJIS_REACAO_CHAT_INTERNO.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => onReagir(emoji)}
+                    className="rounded-full px-1.5 py-0.5 text-base leading-none hover:bg-slate-100 dark:hover:bg-slate-700"
+                    aria-label={`Reagir com ${emoji}`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          {pickerAberto ? (
+            <div className="mt-1 flex items-center gap-0.5 rounded-full border border-slate-200 bg-white px-1 py-0.5 shadow-md md:hidden dark:border-slate-600 dark:bg-slate-800">
               {EMOJIS_REACAO_CHAT_INTERNO.map((emoji) => (
                 <button
                   key={emoji}
                   type="button"
-                  onClick={() => onReagir(emoji)}
-                  className="rounded-full px-1.5 py-0.5 text-base leading-none hover:bg-slate-100 dark:hover:bg-slate-700"
+                  onClick={() => {
+                    onReagir(emoji)
+                    setPickerAberto(false)
+                  }}
+                  className="min-h-9 min-w-9 rounded-full px-1.5 py-0.5 text-base leading-none hover:bg-slate-100 dark:hover:bg-slate-700"
                   aria-label={`Reagir com ${emoji}`}
                 >
                   {emoji}
                 </button>
               ))}
             </div>
-          </div>
+          ) : null}
         </div>
       ) : null}
 

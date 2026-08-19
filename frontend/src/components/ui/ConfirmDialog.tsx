@@ -53,7 +53,7 @@ export function ConfirmDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[110] flex items-end justify-center bg-slate-900/50 p-0 backdrop-blur-sm md:items-center md:p-4"
       role="presentation"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onCancel()
@@ -62,12 +62,12 @@ export function ConfirmDialog({
       <div
         ref={dialogRef}
         tabIndex={-1}
-        className="w-full max-w-lg outline-none"
+        className="w-full max-w-lg outline-none md:max-h-[min(92dvh,var(--vv-height,92dvh))]"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
       >
-        <Card className="animate-in zoom-in-95 border-none p-0 shadow-xl ring-1 ring-slate-200 dark:ring-slate-800">
+        <Card className="max-h-[min(92dvh,var(--vv-height,92dvh))] animate-in zoom-in-95 overflow-y-auto rounded-b-none border-none p-0 shadow-xl ring-1 ring-slate-200 md:rounded-2xl dark:ring-slate-800">
           <div className="p-6">
             <div className="flex items-start justify-between gap-3">
               <h3 id={titleId} className="text-lg font-bold text-slate-900 dark:text-white">

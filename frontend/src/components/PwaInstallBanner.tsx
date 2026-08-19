@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { isMarketingHost } from '../lib/marketingHost'
 import { isSaasControlPlaneFrontend } from '../lib/saasControlPlane'
+import { isIosSafari, isStandaloneDisplay } from '../lib/pwaDisplay'
 import { Button } from './ui/Button'
 
 const LS_DISMISS = 'deskrudder-pwa-install-dismissed'
@@ -24,22 +25,6 @@ function writeDismissed() {
   } catch {
     /* ignore */
   }
-}
-
-function isStandaloneDisplay(): boolean {
-  if (typeof window === 'undefined') return false
-  if (window.matchMedia('(display-mode: standalone)').matches) return true
-  const nav = window.navigator as Navigator & { standalone?: boolean }
-  return nav.standalone === true
-}
-
-function isIosSafari(): boolean {
-  if (typeof navigator === 'undefined') return false
-  const ua = navigator.userAgent
-  const iOS =
-    /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-  if (!iOS) return false
-  return /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua)
 }
 
 type Props = {

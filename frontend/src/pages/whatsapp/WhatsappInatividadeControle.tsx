@@ -9,6 +9,7 @@ type Props = {
   msgs: WhatsappChats.Mensagem[]
   isResponsavel: boolean
   onChatUpdate: (c: WhatsappChats.Chat) => void
+  className?: string
 }
 
 function formatMmSs(totalSec: number): string {
@@ -18,8 +19,14 @@ function formatMmSs(totalSec: number): string {
   return `${mm}:${ss}`
 }
 
-/** Controlo de inatividade: countdown + pausar/retomar (#577). */
-export function WhatsappInatividadeControle({ chat, msgs, isResponsavel, onChatUpdate }: Props) {
+/** Countdown de inatividade para quem vê o chat; pausar/retomar só o responsável (#577 / #723). */
+export function WhatsappInatividadeControle({
+  chat,
+  msgs,
+  isResponsavel,
+  onChatUpdate,
+  className = '',
+}: Props) {
   const toast = useToast()
   const [avisoMin, setAvisoMin] = useState(15)
   const [posAvisoMin, setPosAvisoMin] = useState(5)
@@ -109,7 +116,7 @@ export function WhatsappInatividadeControle({ chat, msgs, isResponsavel, onChatU
     }
   }, [ativa, chat, msgs, avisoMin, posAvisoMin, tick])
 
-  if (!ativa || chat.estado !== 'em_atendimento' || !isResponsavel || fase == null) {
+  if (!ativa || chat.estado !== 'em_atendimento' || fase == null) {
     return null
   }
 
@@ -128,7 +135,7 @@ export function WhatsappInatividadeControle({ chat, msgs, isResponsavel, onChatU
   }
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className={`flex items-center gap-1.5 ${className}`.trim()}>
       <span
         className={`tabular-nums text-xs font-semibold ${
           fase.pausada
@@ -141,7 +148,7 @@ export function WhatsappInatividadeControle({ chat, msgs, isResponsavel, onChatU
       >
         {formatMmSs(fase.restanteSec)}
       </span>
-      {!fase.posAviso && (
+      {isResponsavel && !fase.posAviso && (
         <Button
           type="button"
           variant="ghost"

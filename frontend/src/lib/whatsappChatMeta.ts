@@ -13,6 +13,14 @@ export function rotuloEstadoChat(estado: string): string {
   return estado.replace(/_/g, ' ')
 }
 
+/** Cor do rótulo de estado no header da conversa (contraste no tema claro e escuro). */
+export function classeCorEstadoChat(estado: string): string {
+  if (estado === 'aguardando_avaliacao') return 'text-amber-600 dark:text-amber-400'
+  if (estado === 'encerrado') return 'text-red-700 dark:text-red-400'
+  if (estado === 'em_atendimento') return 'text-emerald-600 dark:text-emerald-400'
+  return 'text-slate-600 dark:text-slate-300'
+}
+
 export function rotuloResponsavelChat(chat: ChatResumo, usuarioId?: number | null): string {
   if (chat.estado === 'aguardando_atendente') {
     return chat.setor_nome ? `Fila • ${chat.setor_nome}` : 'Na fila'
