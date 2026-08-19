@@ -8,11 +8,15 @@ backend/data/
 # Frontend
 frontend/node_modules
 frontend/dist
+frontend/dev-dist
 frontend/.env.production
 frontend/.env.production.local
 frontend/.playwright-browsers
 frontend/public/_crop-*.png
 frontend/public/_debug-*.png
+
+# Python
+**/__pycache__/
 
 # IDE / OS
 .idea

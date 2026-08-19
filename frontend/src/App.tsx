@@ -17,10 +17,12 @@ import { RelatoriosChats } from './pages/RelatoriosChats'
 import { PresencaOnline } from './pages/PresencaOnline'
 import { Tickets } from './pages/Tickets'
 import { TicketNovo } from './pages/TicketNovo'
+import { ConfigPropostaTemplates } from './pages/ConfigPropostaTemplates'
+import { ConfigContratoTemplates } from './pages/ConfigContratoTemplates'
 import { CrmLeads } from './pages/CrmLeads'
 import { CrmNegociacaoDetalhe } from './pages/CrmNegociacaoDetalhe'
+import { CrmContratos } from './pages/CrmContratos'
 import { ConfigCrmFunil } from './pages/ConfigCrmFunil'
-import { ConfigPropostaTemplates } from './pages/ConfigPropostaTemplates'
 import { Redes } from './pages/Redes'
 import { RedeDetalhe } from './pages/RedeDetalhe'
 import { RedeForm } from './pages/RedeForm'
@@ -367,6 +369,14 @@ function AppRoutes() {
           element={
             <ComercialOuAdminRoute>
               <CrmNegociacaoDetalhe />
+            </ComercialOuAdminRoute>
+          }
+        />
+        <Route
+          path="crm/contratos"
+          element={
+            <ComercialOuAdminRoute>
+              <CrmContratos />
             </ComercialOuAdminRoute>
           }
         />
@@ -717,6 +727,7 @@ function AppRoutes() {
           <Route path="custos" element={<ConfigComercialCustos embedded />} />
           <Route path="funil-crm" element={<ConfigCrmFunil embedded />} />
           <Route path="propostas" element={<ConfigPropostaTemplates embedded />} />
+          <Route path="contratos" element={<ConfigContratoTemplates embedded />} />
         </Route>
         <Route
           path="configuracoes/sistema"

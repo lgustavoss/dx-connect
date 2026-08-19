@@ -35,6 +35,7 @@ Dependência: `exigir_comercial_ou_admin` em `app.core.auth`.
 | Catálogo comercial (leitura itens) | `GET /v1/comercial/custos/itens` — também comercial (montar pacote na negociação) |
 | Funil CRM (mutação) | `POST/PATCH /v1/crm/funil-estagios` — UI em Configurações → Cadastros → Funil CRM |
 | Modelos de proposta (CRUD) | `POST/PATCH /v1/comercial/proposta-templates`, `POST /v1/comercial/proposta-templates/preview` — UI em Cadastros → Modelos de proposta |
+| Modelos de contrato (CRUD) | `POST/PATCH /v1/comercial/contrato-templates`, `POST /v1/comercial/contrato-templates/preview` |
 
 ## Comercial ou administrador (`exigir_comercial_ou_admin`)
 
@@ -45,6 +46,7 @@ Dependência: `exigir_comercial_ou_admin` em `app.core.auth`.
 | **Simular custos** | `POST /v1/comercial/custos/simular` |
 | **Listar itens catálogo** | `GET /v1/comercial/custos/itens` (mutações continuam só admin) |
 | **Proposta comercial** | `GET /v1/comercial/proposta-templates` (ativos), `POST/GET /v1/comercial/propostas*`, `GET .../pdf`, `POST .../marcar-enviada` |
+| **Contrato comercial** | `GET /v1/comercial/contrato-templates` (ativos), `POST/GET /v1/comercial/contratos*`, `GET .../pdf`, `POST .../marcar-enviado`, `POST .../marcar-assinado`, `POST .../cancelar`. Lista global: comercial só os das próprias negociações; admin todos (filtros `so_minhas` e `responsavel_id`) |
 
 ## Autenticado com escopo de setor (`obter_atendente_atual`)
 
@@ -74,3 +76,4 @@ Dependência: `exigir_comercial_ou_admin` em `app.core.auth`.
 - **403**: mensagens vêm do corpo da API (`api/client` + `errorMessage.ts`).
 - **CRM UI** (#341–#344): menu **CRM** e rotas `/crm/leads`, `/crm/negociacoes/:id` para `admin` e `comercial`.
 - **Proposta** (#345–#348): card na negociação para comercial/admin; CRUD de templates só admin.
+- **Contrato** (#349–#356): card na negociação, lista `/crm/contratos` (comercial: próprias; admin: todas); CRUD de templates em Cadastros (só admin).
