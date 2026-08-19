@@ -2979,6 +2979,111 @@ export namespace ComercialCustos {
   }
 }
 
+export namespace ComercialProposta {
+  export interface Template {
+    id: number;
+    nome: string;
+    versao: number;
+    conteudo_html: string;
+    vigencia_inicio?: string | null;
+    ativo: boolean;
+    created_at: string;
+  }
+  export interface TemplateCreate {
+    nome: string;
+    conteudo_html: string;
+    vigencia_inicio?: string | null;
+    ativo?: boolean;
+  }
+  export interface TemplateUpdate {
+    nome?: string;
+    conteudo_html?: string;
+    vigencia_inicio?: string | null;
+    ativo?: boolean;
+  }
+  export interface Proposta {
+    id: number;
+    negociacao_id: number;
+    template_id: number;
+    template_nome?: string | null;
+    template_versao?: number | null;
+    gerado_por_id: number;
+    status: 'rascunho' | 'enviada' | 'substituida' | string;
+    conteudo_html_snapshot: string;
+    conteudo_hash: string;
+    linha_ids: number[];
+    canal?: string | null;
+    enviado_em?: string | null;
+    created_at: string;
+  }
+  export interface GerarRequest {
+    negociacao_id: number;
+    template_id?: number | null;
+    linha_ids?: number[] | null;
+    condicoes?: string | null;
+  }
+  export interface MarcarEnviadaRequest {
+    canal: 'email' | 'impresso' | 'outro';
+    enviado_em?: string | null;
+    avancar_funil?: boolean;
+  }
+}
+
+export const comercialPropostaTemplates = {
+  list: (params?: { incluir_inativos?: boolean }) =>
+    api<ComercialProposta.Template[]>(withParams('/comercial/proposta-templates', params)),
+  create: (data: ComercialProposta.TemplateCreate) =>
+    api<ComercialProposta.Template>('/comercial/proposta-templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: (id: number, data: ComercialProposta.TemplateUpdate) =>
+    api<ComercialProposta.Template>(`/comercial/proposta-templates/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  preview: (conteudo_html: string) =>
+    api<{ html: string }>('/comercial/proposta-templates/preview', {
+      method: 'POST',
+      body: JSON.stringify({ conteudo_html }),
+    }),
+};
+
+export const comercialPropostas = {
+  list: (negociacao_id: number) =>
+    api<ComercialProposta.Proposta[]>(withParams('/comercial/propostas', { negociacao_id })),
+  get: (id: number) => api<ComercialProposta.Proposta>(`/comercial/propostas/${id}`),
+  gerar: (data: ComercialProposta.GerarRequest) =>
+    api<ComercialProposta.Proposta>('/comercial/propostas', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  marcarEnviada: (id: number, data: ComercialProposta.MarcarEnviadaRequest) =>
+    api<ComercialProposta.Proposta>(`/comercial/propostas/${id}/marcar-enviada`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  downloadPdf: async (id: number) => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
+    }
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const url = `${BASE}${API_VERSION_PREFIX}/comercial/propostas/${id}/pdf`;
+    const res = await fetch(url, { headers });
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin();
+      throw new ApiError('Sessão expirada ou inválida.', 401, {});
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody);
+    }
+    return res.blob();
+  },
+};
+
 export const crmFunil = {
   list: (params?: { incluir_inativos?: boolean }) =>
     api<Crm.FunilEstagio[]>(withParams('/crm/funil-estagios', params)),
