@@ -3267,7 +3267,7 @@ export const comercialContratos = {
       headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
     }
     if (token) headers.Authorization = `Bearer ${token}`;
-    const url = `${BASE}${API_VERSION_PREFIX}/comercial/contratos/${id}/pdf${
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}/comercial/contratos/${id}/pdf${
       pdfId != null ? `?pdf_id=${pdfId}` : ''
     }`;
     const res = await fetch(url, { headers });
