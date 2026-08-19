@@ -61,6 +61,7 @@ from app.models.crm import (
     CrmNegociacaoCnpjLinha,
     FunilEstagio,
 )
+from app.models.comercial_proposta import Proposta, PropostaTemplate
 from app.models.cliente_saas import ClienteSaaS
 from app.models.saas_alerta_emitido import SaasAlertaEmitido
 from app.models.lead_comercial import LeadComercial
@@ -141,6 +142,8 @@ __all__ = [
     "CrmNegociacao",
     "CrmNegociacaoCnpjLinha",
     "CrmNegociacaoAtividade",
+    "PropostaTemplate",
+    "Proposta",
     "ClienteSaaS",
     "SaasAlertaEmitido",
     "LeadComercial",
