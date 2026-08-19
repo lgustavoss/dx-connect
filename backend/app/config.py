@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     # Em produção o validador exige no máximo 30 (sessão curta; mitiga vazamento de token).
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     # Origens CORS separadas por vírgula (ex.: https://app.exemplo.com,https://www.exemplo.com)
-    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
+    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,https://localhost"
     LOG_LEVEL: str = "INFO"
     # Cache de municípios (IBGE): intervalo entre verificações em background e idade máxima antes de re-sync completo.
     IBGE_MUNICIPIOS_SYNC_INTERVAL_SECONDS: int = 86400

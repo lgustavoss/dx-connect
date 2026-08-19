@@ -40,7 +40,7 @@ Isto cria `deploy/clients/duplexsoft/` com `client.env` (senhas geradas), `docke
 
 Edite `deploy/clients/duplexsoft/client.env`:
 
-- `CORS_ORIGINS` / `ALLOWED_HOSTS` alinhados aos domínios reais (`CORS_ORIGINS` = origem HTTPS da PWA)
+- `CORS_ORIGINS` / `ALLOWED_HOSTS` alinhados aos domínios reais (`CORS_ORIGINS` = origem HTTPS da PWA **e** `https://localhost` para o APK Capacitor)
 - Par **VAPID** (`WEB_PUSH_VAPID_*`) desta stack — gerar uma vez; vazio = push desligado (`docs/OPERATIONS.md`)
 - `DX_CONNECT_MULTI_TENANT=false` (padrão) e `CLIENT_APP_HOST={slug}.connect...`
 - `RESEND_API_KEY`, e-mail transaccional, webhooks
