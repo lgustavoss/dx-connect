@@ -105,6 +105,18 @@ Reiniciar o stack (`stack-client.sh SLUG up`) depois de gravar o env.
 
 O subscribe corre no browser em `https://{slug}.…`. `CORS_ORIGINS` tem de incluir **exactamente** essa origem (com `https://`, sem barra final). `ALLOWED_HOSTS` é o hostname da **API** (`api-{slug}.…`).
 
+App Capacitor Android (#735 / #736): origem do WebView `https://localhost`. Cada instância (`api-{slug}`) precisa desse valor em `CORS_ORIGINS` do **`client.env` no VPS** (não basta o default do `config.py` se o env já define CORS). Recriar o contentor da API depois de gravar.
+
+Exemplo Duplex:
+
+```bash
+# No VPS, em deploy/clients/duplexsoft/client.env — manter a origem HTTPS do painel:
+CORS_ORIGINS=https://duplexsoft.deskrudder.com.br,https://localhost
+
+# Recarregar env (compose lê o ficheiro na criação do contentor):
+bash deploy/scripts/stack-client.sh duplexsoft up
+```
+
 ### iOS Safari (#695)
 
 Web Push no iPhone/iPad exige **iOS 16.4+** e a PWA **instalada** (Partilhar → Adicionar ao Ecrã Início). Na aba Safari o sistema não entrega push. Android/Chrome (instalado ou não, com permissão) é o caminho do piloto.
