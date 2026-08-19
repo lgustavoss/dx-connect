@@ -49,15 +49,15 @@ Edite `deploy/clients/duplexsoft/client.env`:
 ### 2. Subir stack + migrações + seed
 
 ```bash
-bash deploy/scripts/stack-client.sh duplexsoft migrate
-bash deploy/scripts/stack-client.sh duplexsoft up
-bash deploy/scripts/stack-client.sh duplexsoft seed
+bash deploy/scripts/stack-client.sh migrate duplexsoft
+bash deploy/scripts/stack-client.sh up duplexsoft
+bash deploy/scripts/stack-client.sh seed duplexsoft
 ```
 
 Confirme:
 
 ```bash
-bash deploy/scripts/stack-client.sh duplexsoft health
+bash deploy/scripts/stack-client.sh health duplexsoft
 ```
 
 ### 3. Frontend
@@ -100,8 +100,8 @@ No VPS, no clone do repositório:
 ```bash
 git pull
 export DX_CONNECT_GIT_SHA=$(git rev-parse --short HEAD)
-bash deploy/scripts/stack-client.sh duplexsoft migrate
-bash deploy/scripts/stack-client.sh duplexsoft up
+bash deploy/scripts/stack-client.sh migrate duplexsoft
+bash deploy/scripts/stack-client.sh up duplexsoft
 ```
 
 ### Volume `/app/data` (anexos e mídia)

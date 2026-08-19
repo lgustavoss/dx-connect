@@ -145,3 +145,11 @@ export function writeRememberedAccount(slug: string): void {
     /* storage indisponível */
   }
 }
+
+export function clearRememberedAccount(): void {
+  try {
+    localStorage.removeItem(LOGIN_ACCOUNT_STORAGE_KEY)
+  } catch {
+    /* storage indisponível */
+  }
+}

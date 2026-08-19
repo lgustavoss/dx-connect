@@ -1,16 +1,39 @@
 import { mensagemErroApi } from './errorMessage'
+import { isCapacitorNative } from '../lib/capacitorNative'
+import { clientApiOrigin, readRememberedAccount } from '../lib/marketingHost'
 import { isMultiTenantMode, resolveTenantIdFromHostname } from '../lib/tenant'
 
-function apiBaseUrl(): string {
-  if (import.meta.env.DEV) return '/api'
+function bakedApiUrl(): string | undefined {
   const url = import.meta.env.VITE_API_URL as string | undefined
-  if (!url?.trim()) {
+  return url?.trim() || undefined
+}
+
+function apiBaseUrl(): string {
+  if (isCapacitorNative()) {
+    // APK debug com VITE_API_URL (emulador/LAN) fala com essa API; o slug só escolhe a instância no APK de loja.
+    const baked = bakedApiUrl()
+    if (baked) return baked.replace(/\/+$/, '')
+    const slug = readRememberedAccount()
+    if (slug) {
+      try {
+        return clientApiOrigin(slug)
+      } catch {
+        /* slug inválido no storage */
+      }
+    }
+    return ''
+  }
+  if (import.meta.env.DEV) return '/api'
+  const url = bakedApiUrl()
+  if (!url) {
     throw new Error('VITE_API_URL não definido — o build de produção deveria ter falhado no vite.config.')
   }
   return url.replace(/\/+$/, '')
 }
 
-const BASE = apiBaseUrl()
+function apiOrigin(): string {
+  return apiBaseUrl()
+}
 
 /** Prefixo de versão da API (ex.: dev: `/api` + `/v1` + `/auth/login` → `/v1/auth/login` no backend). */
 export const API_VERSION_PREFIX = '/v1'
@@ -103,6 +126,9 @@ export async function api<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
+  if (!apiOrigin()) {
+    throw new ApiError('Informe a conta da empresa para ligar ao painel.', 0, null)
+  }
   const token = getToken();
   const isFormData =
     typeof FormData !== 'undefined' && options.body != null && options.body instanceof FormData
@@ -116,7 +142,16 @@ export async function api<T>(
   if (isMultiTenantMode()) {
     ;(headers as Record<string, string>)['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
   }
-  const res = await fetch(`${BASE}${API_VERSION_PREFIX}${path}`, { ...options, headers });
+  let res: Response
+  try {
+    res = await fetch(`${apiOrigin()}${API_VERSION_PREFIX}${path}`, { ...options, headers });
+  } catch {
+    throw new ApiError(
+      'Não foi possível contactar o painel desta conta. Verifique o identificador ou a ligação à internet.',
+      0,
+      null,
+    )
+  }
 
   // Tratamento especial para login: não redirecionar nem recarregar a página,
   // apenas devolver a mensagem para o formulário exibir via toast.
@@ -156,6 +191,9 @@ export async function api<T>(
 
 /** Chamadas públicas (sem token nem redirect em 401). */
 async function publicApi<T>(path: string, options: RequestInit = {}): Promise<T> {
+  if (!apiOrigin()) {
+    throw new ApiError('Informe a conta da empresa para ligar ao painel.', 0, null)
+  }
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...(options.headers as object),
@@ -163,7 +201,7 @@ async function publicApi<T>(path: string, options: RequestInit = {}): Promise<T>
   if (isMultiTenantMode()) {
     ;(headers as Record<string, string>)['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
   }
-  const res = await fetch(`${BASE}${API_VERSION_PREFIX}${path}`, { ...options, headers })
+  const res = await fetch(`${apiOrigin()}${API_VERSION_PREFIX}${path}`, { ...options, headers })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new ApiError(mensagemErroApi(err, res.status), res.status, err)
@@ -174,7 +212,7 @@ async function publicApi<T>(path: string, options: RequestInit = {}): Promise<T>
 
 export const kbPublic = {
   branding: () => publicApi<Kb.PublicBranding>('/kb/public/branding'),
-  logoAssetUrl: () => `${BASE}${API_VERSION_PREFIX}/kb/public/logo`,
+  logoAssetUrl: () => `${apiOrigin()}${API_VERSION_PREFIX}/kb/public/logo`,
   listCategories: () => publicApi<Kb.Category[]>('/kb/public/categories'),
   listArticles: (params?: { busca?: string; category_id?: number; limit?: number }) =>
     publicApi<Kb.ArticleBrief[]>(withParams('/kb/public/articles', params)),
@@ -225,7 +263,7 @@ export const kbPublic = {
     });
   },
   midiaChatUrl: (mensagemId: number) =>
-    `${BASE}${API_VERSION_PREFIX}/kb/public/chat/mensagens/${mensagemId}/midia`,
+    `${apiOrigin()}${API_VERSION_PREFIX}/kb/public/chat/mensagens/${mensagemId}/midia`,
 }
 
 export const publicCsat = {
@@ -635,7 +673,7 @@ export const audit = {
       headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
     }
     if (token) headers.Authorization = `Bearer ${token}`;
-    const url = `${BASE}${API_VERSION_PREFIX}${withParams('/audit', { ...params, format: 'csv' })}`;
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}${withParams('/audit', { ...params, format: 'csv' })}`;
     const res = await fetch(url, { headers });
     if (res.status === 401) {
       invalidateSessionAndRedirectToLogin();
@@ -868,7 +906,7 @@ export async function fetchEmpresaSistemaLogoBlob(): Promise<Blob | null> {
     headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
   }
   if (token) headers.Authorization = `Bearer ${token}`
-  const res = await fetch(`${BASE}${API_VERSION_PREFIX}/settings/empresa-sistema/logo`, { headers })
+  const res = await fetch(`${apiOrigin()}${API_VERSION_PREFIX}/settings/empresa-sistema/logo`, { headers })
   if (res.status === 404) return null
   if (res.status === 401) {
     invalidateSessionAndRedirectToLogin()
@@ -1022,7 +1060,7 @@ export async function fetchWhatsAppMidiaBlob(chatId: number, mensagemId: number)
   const headers: Record<string, string> = {}
   if (token) headers.Authorization = `Bearer ${token}`
   const res = await fetch(
-    `${BASE}${API_VERSION_PREFIX}/whatsapp/chats/${chatId}/mensagens/${mensagemId}/midia`,
+    `${apiOrigin()}${API_VERSION_PREFIX}/whatsapp/chats/${chatId}/mensagens/${mensagemId}/midia`,
     { headers },
   )
   if (res.status === 401) {
@@ -1041,7 +1079,7 @@ export async function fetchPortalMidiaBlob(chatId: number, mensagemId: number): 
   const headers: Record<string, string> = {}
   if (token) headers.Authorization = `Bearer ${token}`
   const res = await fetch(
-    `${BASE}${API_VERSION_PREFIX}/portal-chats/${chatId}/mensagens/${mensagemId}/midia`,
+    `${apiOrigin()}${API_VERSION_PREFIX}/portal-chats/${chatId}/mensagens/${mensagemId}/midia`,
     { headers },
   )
   if (res.status === 401) {
@@ -1060,7 +1098,7 @@ export async function fetchPortalPublicMidiaBlob(
   mensagemId: number,
 ): Promise<Blob> {
   const res = await fetch(
-    `${BASE}${API_VERSION_PREFIX}/kb/public/chat/mensagens/${mensagemId}/midia`,
+    `${apiOrigin()}${API_VERSION_PREFIX}/kb/public/chat/mensagens/${mensagemId}/midia`,
     { headers: { 'X-Portal-Visitor-Token': visitorToken } },
   )
   if (!res.ok) {
@@ -1075,7 +1113,7 @@ export async function fetchChatInternoMidiaBlob(conversaId: number, mensagemId: 
   const headers: Record<string, string> = {}
   if (token) headers.Authorization = `Bearer ${token}`
   const res = await fetch(
-    `${BASE}${API_VERSION_PREFIX}/chat-interno/conversas/${conversaId}/mensagens/${mensagemId}/download`,
+    `${apiOrigin()}${API_VERSION_PREFIX}/chat-interno/conversas/${conversaId}/mensagens/${mensagemId}/download`,
     { headers },
   )
   if (res.status === 401) {
@@ -1094,7 +1132,7 @@ export async function fetchTicketAnexoBlob(ticketId: number, anexoId: number): P
   const headers: Record<string, string> = {}
   if (token) headers.Authorization = `Bearer ${token}`
   const res = await fetch(
-    `${BASE}${API_VERSION_PREFIX}/tickets/${ticketId}/anexos/${anexoId}/download`,
+    `${apiOrigin()}${API_VERSION_PREFIX}/tickets/${ticketId}/anexos/${anexoId}/download`,
     { headers },
   )
   if (res.status === 401) {
@@ -1488,7 +1526,7 @@ export const relatorios = {
       headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
     }
     if (token) headers.Authorization = `Bearer ${token}`;
-    const url = `${BASE}${API_VERSION_PREFIX}${withParams('/relatorios/tickets', { ...params, format: 'csv' })}`;
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}${withParams('/relatorios/tickets', { ...params, format: 'csv' })}`;
     const res = await fetch(url, { headers });
     if (res.status === 401) {
       invalidateSessionAndRedirectToLogin();
@@ -1520,7 +1558,7 @@ export const relatorios = {
       headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
     }
     if (token) headers.Authorization = `Bearer ${token}`;
-    const url = `${BASE}${API_VERSION_PREFIX}${withParams('/relatorios/chats', { ...params, format: 'csv' })}`;
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}${withParams('/relatorios/chats', { ...params, format: 'csv' })}`;
     const res = await fetch(url, { headers });
     if (res.status === 401) {
       invalidateSessionAndRedirectToLogin();
@@ -2382,7 +2420,7 @@ async function refreshPortalAccessToken(): Promise<{
       if (isMultiTenantMode()) {
         ;(headers as Record<string, string>)['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
       }
-      const res = await fetch(`${BASE}${API_VERSION_PREFIX}/portal/auth/refresh`, {
+      const res = await fetch(`${apiOrigin()}${API_VERSION_PREFIX}/portal/auth/refresh`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ refresh_token }),
@@ -2419,7 +2457,7 @@ async function portalApi<T>(path: string, options: RequestInit = {}): Promise<T>
   if (isMultiTenantMode()) {
     ;(headers as Record<string, string>)['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
   }
-  const res = await fetch(`${BASE}${API_VERSION_PREFIX}${path}`, { ...options, headers })
+  const res = await fetch(`${apiOrigin()}${API_VERSION_PREFIX}${path}`, { ...options, headers })
 
   if (res.status === 401 && path.startsWith('/portal/auth/login')) {
     const err = await res.json().catch(() => ({}))
@@ -2615,7 +2653,7 @@ export namespace PortalCliente {
 
 export const portalCliente = {
   branding: () => publicApi<PortalCliente.PublicBranding>('/portal/public/branding'),
-  logoAssetUrl: () => `${BASE}${API_VERSION_PREFIX}/kb/public/logo`,
+  logoAssetUrl: () => `${apiOrigin()}${API_VERSION_PREFIX}/kb/public/logo`,
   login: (email: string, senha: string) =>
     publicApi<PortalCliente.Token>('/portal/auth/login', {
       method: 'POST',
@@ -2672,7 +2710,7 @@ export const portalCliente = {
     })
   },
   anexoDownloadUrl: (ticketId: number, anexoId: number) =>
-    `${BASE}${API_VERSION_PREFIX}/portal/tickets/${ticketId}/anexos/${anexoId}/download`,
+    `${apiOrigin()}${API_VERSION_PREFIX}/portal/tickets/${ticketId}/anexos/${anexoId}/download`,
   fetchAnexoBlob: async (ticketId: number, anexoId: number) => {
     const token = getPortalToken()
     const headers: HeadersInit = {}
@@ -2681,7 +2719,7 @@ export const portalCliente = {
       headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
     }
     const res = await fetch(
-      `${BASE}${API_VERSION_PREFIX}/portal/tickets/${ticketId}/anexos/${anexoId}/download`,
+      `${apiOrigin()}${API_VERSION_PREFIX}/portal/tickets/${ticketId}/anexos/${anexoId}/download`,
       { headers },
     )
     if (!res.ok) throw new ApiError('Falha ao baixar anexo', res.status, null)
@@ -2713,7 +2751,7 @@ export const portalCliente = {
       headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
     }
     const res = await fetch(
-      `${BASE}${API_VERSION_PREFIX}/portal/chats/${chatId}/mensagens/${mensagemId}/midia`,
+      `${apiOrigin()}${API_VERSION_PREFIX}/portal/chats/${chatId}/mensagens/${mensagemId}/midia`,
       { headers },
     )
     if (!res.ok) throw new ApiError('Falha ao abrir mídia', res.status, null)
@@ -3070,7 +3108,7 @@ export const comercialPropostas = {
       headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
     }
     if (token) headers.Authorization = `Bearer ${token}`;
-    const url = `${BASE}${API_VERSION_PREFIX}/comercial/propostas/${id}/pdf`;
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}/comercial/propostas/${id}/pdf`;
     const res = await fetch(url, { headers });
     if (res.status === 401) {
       invalidateSessionAndRedirectToLogin();
@@ -3229,7 +3267,7 @@ export const comercialContratos = {
       headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
     }
     if (token) headers.Authorization = `Bearer ${token}`;
-    const url = `${BASE}${API_VERSION_PREFIX}/comercial/contratos/${id}/pdf${
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}/comercial/contratos/${id}/pdf${
       pdfId != null ? `?pdf_id=${pdfId}` : ''
     }`;
     const res = await fetch(url, { headers });

@@ -8,6 +8,7 @@ import { useAlertaFilaSemResponsavel, setChatInternoAlertUserId } from '../hooks
 import { EventStreamProvider, useEventStream } from '../contexts/EventStreamContext'
 import { BrandLogo } from '../brand'
 import { useTheme } from '../contexts/ThemeContext'
+import { isCapacitorNative } from '../lib/capacitorNative'
 import { AlertaDesktopPermissaoBanner } from './AlertaDesktopPermissaoBanner'
 import { PwaInstallBanner } from './PwaInstallBanner'
 import { WebPushOptInBanner } from './WebPushOptInBanner'
@@ -130,9 +131,9 @@ function LayoutInner() {
             </div>
           </header>
 
-          {notificacoesEnabled ? <PwaInstallBanner enabled /> : null}
-          {notificacoesEnabled ? <AlertaDesktopPermissaoBanner enabled /> : null}
-          {notificacoesEnabled ? <WebPushOptInBanner enabled /> : null}
+          {notificacoesEnabled && !isCapacitorNative() ? <PwaInstallBanner enabled /> : null}
+          {notificacoesEnabled && !isCapacitorNative() ? <AlertaDesktopPermissaoBanner enabled /> : null}
+          {notificacoesEnabled && !isCapacitorNative() ? <WebPushOptInBanner enabled /> : null}
 
           <main className="min-h-0 flex-1 overflow-hidden">
             <div
