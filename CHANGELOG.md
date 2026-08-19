@@ -7,6 +7,10 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### DeskRudder
 
+#### Interno / Infra
+
+- Deploy CI (#734): SSH para o VPS força IPv4, o log mostra o IP do runner e, se der timeout, o GitHub tenta sozinho noutro job (sem clicar em Re-run)
+
 #### Melhorias
 
 - Proposta comercial (#323 / #345–#348): modelos HTML versionados, geração a partir da negociação (CNPJs à escolha), preview, PDF e marcar como enviada (com opção de avançar o funil) — sem custo/margem no documento do cliente
