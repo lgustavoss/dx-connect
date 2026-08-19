@@ -3084,6 +3084,167 @@ export const comercialPropostas = {
   },
 };
 
+export namespace ComercialContrato {
+  export interface Template {
+    id: number;
+    nome: string;
+    versao: number;
+    conteudo_html: string;
+    vigencia_inicio?: string | null;
+    ativo: boolean;
+    created_at: string;
+  }
+  export interface TemplateCreate {
+    nome: string;
+    conteudo_html: string;
+    vigencia_inicio?: string | null;
+    ativo?: boolean;
+  }
+  export interface TemplateUpdate {
+    nome?: string;
+    conteudo_html?: string;
+    vigencia_inicio?: string | null;
+    ativo?: boolean;
+  }
+  export interface Interno {
+    total_custo?: string | number | null;
+    margem_calculada?: string | number | null;
+    margem_percentual?: string | number | null;
+    lucro_bruto?: string | number | null;
+  }
+  export interface Pdf {
+    id: number;
+    contrato_id: number;
+    gerado_por_id: number;
+    conteudo_hash: string;
+    created_at: string;
+  }
+  export interface Contrato {
+    id: number;
+    negociacao_linha_cnpj_id: number;
+    negociacao_id?: number | null;
+    empresa_id?: number | null;
+    template_id: number;
+    template_nome?: string | null;
+    template_versao?: number | null;
+    gerado_por_id: number;
+    status: 'rascunho' | 'enviado' | 'assinado' | 'cancelado' | 'renovado' | string;
+    valor_mensalidade: string | number;
+    snapshot_itens: unknown[];
+    data_inicio: string;
+    data_fim_fidelidade: string;
+    fidelidade_meses: number;
+    setup_valor?: string | number | null;
+    setup_isento: boolean;
+    deslocamento_cliente: boolean;
+    alimentacao_cliente: boolean;
+    hospedagem_cliente: boolean;
+    multa_max_mensalidades: number;
+    enviado_em?: string | null;
+    assinado_em?: string | null;
+    created_at: string;
+    pdf_atual_id?: number | null;
+    pdfs: Pdf[];
+    cnpj?: string | null;
+    razao_social?: string | null;
+    responsavel_id?: number | null;
+    responsavel_nome?: string | null;
+    lead_nome?: string | null;
+    conteudo_html_snapshot?: string | null;
+    dias_restantes_fidelidade?: number | null;
+    interno?: Interno | null;
+  }
+  export interface GerarRequest {
+    linha_id: number;
+    template_id?: number | null;
+    data_inicio?: string | null;
+    fidelidade_meses?: number;
+    setup_valor?: string | null;
+    setup_isento?: boolean;
+    deslocamento_cliente?: boolean;
+    alimentacao_cliente?: boolean;
+    hospedagem_cliente?: boolean;
+    multa_max_mensalidades?: number;
+  }
+  export interface MarcarEnviadoRequest {
+    enviado_em?: string | null;
+  }
+  export interface MarcarAssinadoRequest {
+    assinado_em?: string | null;
+    avancar_funil?: boolean;
+  }
+}
+
+export const comercialContratoTemplates = {
+  list: (params?: { incluir_inativos?: boolean }) =>
+    api<ComercialContrato.Template[]>(withParams('/comercial/contrato-templates', params)),
+  create: (data: ComercialContrato.TemplateCreate) =>
+    api<ComercialContrato.Template>('/comercial/contrato-templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: (id: number, data: ComercialContrato.TemplateUpdate) =>
+    api<ComercialContrato.Template>(`/comercial/contrato-templates/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  preview: (conteudo_html: string) =>
+    api<{ html: string }>('/comercial/contrato-templates/preview', {
+      method: 'POST',
+      body: JSON.stringify({ conteudo_html }),
+    }),
+};
+
+export const comercialContratos = {
+  list: (params?: {
+    negociacao_id?: number;
+    status?: string;
+    cnpj?: string;
+    so_minhas?: boolean;
+    responsavel_id?: number;
+  }) =>
+    api<ComercialContrato.Contrato[]>(withParams('/comercial/contratos', params)),
+  get: (id: number) => api<ComercialContrato.Contrato>(`/comercial/contratos/${id}`),
+  gerar: (data: ComercialContrato.GerarRequest) =>
+    api<ComercialContrato.Contrato>('/comercial/contratos', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  marcarEnviado: (id: number, data: ComercialContrato.MarcarEnviadoRequest = {}) =>
+    api<ComercialContrato.Contrato>(`/comercial/contratos/${id}/marcar-enviado`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  marcarAssinado: (id: number, data: ComercialContrato.MarcarAssinadoRequest = {}) =>
+    api<ComercialContrato.Contrato>(`/comercial/contratos/${id}/marcar-assinado`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  cancelar: (id: number) =>
+    api<ComercialContrato.Contrato>(`/comercial/contratos/${id}/cancelar`, { method: 'POST' }),
+  downloadPdf: async (id: number, pdfId?: number) => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
+    }
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const url = `${BASE}${API_VERSION_PREFIX}/comercial/contratos/${id}/pdf${
+      pdfId != null ? `?pdf_id=${pdfId}` : ''
+    }`;
+    const res = await fetch(url, { headers });
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin();
+      throw new ApiError('Sessão expirada ou inválida.', 401, {});
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody);
+    }
+    return res.blob();
+  },
+};
+
 export const crmFunil = {
   list: (params?: { incluir_inativos?: boolean }) =>
     api<Crm.FunilEstagio[]>(withParams('/crm/funil-estagios', params)),

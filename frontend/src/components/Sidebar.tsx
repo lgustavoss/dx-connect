@@ -272,7 +272,14 @@ const navStructure: NavItem[] = [
         label: 'CRM',
         icon: 'tiposNegocio',
         comercialOuAdmin: true,
-        activePrefix: '/crm/',
+        activePrefix: '/crm/leads',
+      },
+      {
+        to: '/crm/contratos',
+        label: 'Contratos',
+        icon: 'tiposNegocio',
+        comercialOuAdmin: true,
+        activePrefix: '/crm/contratos',
       },
     ],
   },
@@ -460,6 +467,7 @@ export function Sidebar({
 
   const isLinkActive = (to: string, activePrefix?: string) => {
     if (location.pathname === to) return true
+    if (to === '/crm/leads' && location.pathname.startsWith('/crm/negociacoes')) return true
     if (activePrefix && location.pathname.startsWith(activePrefix)) return true
     if (to !== '/' && location.pathname.startsWith(`${to}/`)) return true
     return false

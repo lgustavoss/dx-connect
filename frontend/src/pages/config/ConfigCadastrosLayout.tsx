@@ -8,6 +8,7 @@ const TABS = [
   { to: '/configuracoes/cadastros/custos', label: 'Catálogo de custos' },
   { to: '/configuracoes/cadastros/funil-crm', label: 'Funil CRM' },
   { to: '/configuracoes/cadastros/propostas', label: 'Modelos de proposta' },
+  { to: '/configuracoes/cadastros/contratos', label: 'Modelos de contrato' },
 ] as const
 
 const TAB_HINTS: Record<string, string> = {
@@ -16,6 +17,7 @@ const TAB_HINTS: Record<string, string> = {
   custos: 'Salário mínimo com vigência, perfis/módulos de custo e simulador estimado para negociação.',
   'funil-crm': 'Estágios do funil comercial (Lead, Em negociação…). Usados na lista e no Kanban do CRM.',
   propostas: 'HTML dos modelos da proposta comercial. Placeholders são preenchidos na negociação.',
+  contratos: 'HTML dos modelos do contrato comercial. Placeholders (fidelidade, setup, cláusulas) são preenchidos na negociação.',
 }
 
 function abaAtiva(pathname: string): string {
@@ -29,7 +31,7 @@ export function ConfigCadastrosLayout() {
 
   return (
     <PageContainer>
-      <PageHeader title="Cadastros" subtitle="Tipos de negócio, catálogos de PDV, custos, funil CRM e modelos de proposta." />
+      <PageHeader title="Cadastros" subtitle="Tipos de negócio, catálogos de PDV, custos, funil CRM e modelos de proposta e contrato." />
       <ConfigSectionTabs tabs={[...TABS]} ariaLabel="Seções de cadastros" />
       {hint ? <p className="text-sm text-slate-600 dark:text-slate-400">{hint}</p> : null}
       <Outlet />

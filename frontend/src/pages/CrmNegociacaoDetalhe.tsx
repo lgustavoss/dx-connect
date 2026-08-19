@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
   ApiError,
+  comercialContratos,
   comercialCustosItens,
+  comercialPropostas,
   crmFunil,
   crmLeads,
   crmNegociacoes,
@@ -14,13 +16,18 @@ import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/err
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
+import { CollapsibleCard } from '../components/ui/CollapsibleCard'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import { IconPencil } from '../components/ui/IconPencil'
+import { IconTrash } from '../components/ui/IconTrash'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { SemPermissao } from './SemPermissao'
 import { CrmPropostaCard } from '../components/crm/CrmPropostaCard'
+import { CrmContratoCard } from '../components/crm/CrmContratoCard'
+import { maskCnpjCpf } from '../utils/maskCnpjCpf'
 
 const TIPO_ATIVIDADE_LABEL: Record<string, string> = {
   nota: 'Nota',
@@ -35,6 +42,22 @@ const TIPO_CUSTO_LABEL: Record<string, string> = {
   valor_fixo: 'Valor fixo',
   composto_tef: 'TEF (base + adicional)',
 }
+
+const PROPOSTA_STATUS_LABEL: Record<string, string> = {
+  rascunho: 'Rascunho',
+  enviada: 'Enviada',
+  substituida: 'Substituída',
+}
+
+const CONTRATO_STATUS_LABEL: Record<string, string> = {
+  rascunho: 'Rascunho',
+  enviado: 'Enviado',
+  assinado: 'Assinado',
+  cancelado: 'Cancelado',
+  renovado: 'Renovado',
+}
+
+const CONTRATO_ATIVO = new Set(['rascunho', 'enviado', 'assinado'])
 
 function rotuloItemCusto(item: ComercialCustos.Item): string {
   const tipo = TIPO_CUSTO_LABEL[item.tipo] || null
@@ -85,6 +108,7 @@ const emptyLinhaForm = (): LinhaForm => ({
 export function CrmNegociacaoDetalhe() {
   const { id } = useParams<{ id: string }>()
   const negociacaoId = id ? parseInt(id, 10) : NaN
+  const navigate = useNavigate()
   const voltar = useVoltarAnterior('/crm/leads')
   const toast = useToast()
 
@@ -109,6 +133,13 @@ export function CrmNegociacaoDetalhe() {
   const [notaTexto, setNotaTexto] = useState('')
   const [savingNota, setSavingNota] = useState(false)
   const loadedOnceRef = useRef(false)
+
+  const [propostaAberta, setPropostaAberta] = useState(false)
+  const [contratoAberto, setContratoAberto] = useState(true)
+  const [historicoAberto, setHistoricoAberto] = useState(false)
+  const docInitRef = useRef(false)
+  const [propostaBadge, setPropostaBadge] = useState<string | null>(null)
+  const [contratoBadge, setContratoBadge] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     if (!id || Number.isNaN(negociacaoId)) {
@@ -147,6 +178,39 @@ export function CrmNegociacaoDetalhe() {
   useEffect(() => {
     void load()
   }, [load])
+
+  const refreshDocBadges = useCallback(async () => {
+    if (Number.isNaN(negociacaoId)) return
+    try {
+      const [ps, cs] = await Promise.all([
+        comercialPropostas.list(negociacaoId),
+        comercialContratos.list({ negociacao_id: negociacaoId }),
+      ])
+      const proposta =
+        ps.find((p) => p.status === 'rascunho') || ps.find((p) => p.status === 'enviada') || ps[0]
+      const contrato = cs.find((c) => CONTRATO_ATIVO.has(c.status)) || cs[0]
+      setPropostaBadge(proposta ? PROPOSTA_STATUS_LABEL[proposta.status] || proposta.status : null)
+      setContratoBadge(contrato ? CONTRATO_STATUS_LABEL[contrato.status] || contrato.status : null)
+      if (!docInitRef.current) {
+        docInitRef.current = true
+        setPropostaAberta(!contrato)
+        setContratoAberto(true)
+        setHistoricoAberto(false)
+      }
+    } catch {
+      setPropostaBadge(null)
+      setContratoBadge(null)
+    }
+  }, [negociacaoId])
+
+  useEffect(() => {
+    void refreshDocBadges()
+  }, [refreshDocBadges])
+
+  function handleDocsChanged() {
+    void load()
+    void refreshDocBadges()
+  }
 
   useEffect(() => {
     coletarTodasPaginas<ComercialCustos.Item>((offset, limit) =>
@@ -306,32 +370,25 @@ export function CrmNegociacaoDetalhe() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 pb-10">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <button
-            type="button"
-            onClick={voltar}
-            className="text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-          >
-            ← Voltar
-          </button>
-          <h1 className="mt-1 text-xl font-semibold text-slate-900 dark:text-slate-100">
-            {neg.titulo || `Negociação #${neg.id}`}
-          </h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Lead:{' '}
-            <span className="font-medium text-slate-700 dark:text-slate-200">{lead?.nome || `#${neg.lead_id}`}</span>
-            {' · '}
-            Estágio: <span className="font-medium">{neg.estagio_nome || '—'}</span>
-            {!neg.ativa ? ' · encerrada' : null}
-          </p>
-        </div>
-        <Link
-          to="/crm/leads"
-          className="text-sm font-medium text-cyan-700 hover:underline dark:text-cyan-400"
-        >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button variant="secondary" onClick={voltar}>
+          ← Voltar
+        </Button>
+        <Button variant="secondary" onClick={() => navigate('/crm/leads')}>
           Lista de leads
-        </Link>
+        </Button>
+      </div>
+      <div>
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+          {neg.titulo || `Negociação #${neg.id}`}
+        </h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Lead:{' '}
+          <span className="font-medium text-slate-700 dark:text-slate-200">{lead?.nome || `#${neg.lead_id}`}</span>
+          {' · '}
+          Estágio: <span className="font-medium">{neg.estagio_nome || '—'}</span>
+          {!neg.ativa ? ' · encerrada' : null}
+        </p>
       </div>
 
       <Card title="Avançar estágio">
@@ -368,7 +425,10 @@ export function CrmNegociacaoDetalhe() {
 
       <Card title="Linhas por CNPJ">
         <div className="mb-3 flex justify-end">
-          <Button variant="secondary" onClick={openCreateLinha}>
+          <Button onClick={openCreateLinha}>
+            <span aria-hidden className="text-lg leading-none">
+              +
+            </span>
             Adicionar linha
           </Button>
         </div>
@@ -414,7 +474,7 @@ export function CrmNegociacaoDetalhe() {
                       {ln.razao_social || 'Sem razão social'}
                     </div>
                     <div className="text-xs text-slate-500">
-                      CNPJ: {ln.cnpj || '— (opcional até Documentação)'} · PDVs: {ln.quantidade_pdvs}
+                      CNPJ: {ln.cnpj ? maskCnpjCpf(ln.cnpj) : '— (opcional até Documentação)'} · PDVs: {ln.quantidade_pdvs}
                       {ln.desconto_posto_100k ? ' · desconto posto <100k' : ''}
                     </div>
                     <div className="mt-1 text-xs text-slate-500">
@@ -427,10 +487,12 @@ export function CrmNegociacaoDetalhe() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="ghost" onClick={() => openEditLinha(ln)}>
+                    <Button variant="secondary" onClick={() => openEditLinha(ln)}>
+                      <IconPencil className="size-4" />
                       Editar
                     </Button>
-                    <Button variant="ghost" onClick={() => setDeleteLinhaId(ln.id)}>
+                    <Button variant="danger" onClick={() => setDeleteLinhaId(ln.id)}>
+                      <IconTrash className="size-5" />
                       Remover
                     </Button>
                   </div>
@@ -453,9 +515,30 @@ export function CrmNegociacaoDetalhe() {
         )}
       </Card>
 
-      <CrmPropostaCard negociacao={neg} onChanged={() => void load()} />
+      <CollapsibleCard
+        title="Proposta comercial"
+        badge={propostaBadge}
+        open={propostaAberta}
+        onOpenChange={setPropostaAberta}
+      >
+        <CrmPropostaCard negociacao={neg} onChanged={handleDocsChanged} embedded />
+      </CollapsibleCard>
 
-      <Card title="Histórico">
+      <CollapsibleCard
+        title="Contrato comercial"
+        badge={contratoBadge}
+        open={contratoAberto}
+        onOpenChange={setContratoAberto}
+      >
+        <CrmContratoCard negociacao={neg} onChanged={handleDocsChanged} embedded />
+      </CollapsibleCard>
+
+      <CollapsibleCard
+        title="Histórico"
+        badge={atividades.length > 0 ? String(atividades.length) : null}
+        open={historicoAberto}
+        onOpenChange={setHistoricoAberto}
+      >
         <form onSubmit={handleAddNota} className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end">
           <div className="flex-1">
             <Input
@@ -489,7 +572,7 @@ export function CrmNegociacaoDetalhe() {
             ))}
           </ul>
         )}
-      </Card>
+      </CollapsibleCard>
 
       {linhaModal ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
