@@ -95,23 +95,30 @@ Em cada deploy o workflow executa `alembic upgrade head` antes do `up --build`. 
 
 ### SSH timeout intermitente (`Connection timed out`)
 
-**Sintoma** no log do job:
+**Sintoma** no log (job `deploy` ou `deploy-retry`):
 
 ```text
 ssh: connect to host *** port 22: Connection timed out
 ```
 
-Costuma aparecer nas etapas **Rsync - frontend dist para VPS** ou **Git pull + Alembic + Docker Compose**. O build do frontend no runner pode ter passado normalmente.
+O job **`build`** (frontend + CalVer) pode ter passado; a falha é só na ligação **runner → VPS**.
 
-**Causa provável:** falha de rede **transitória** entre o runner do GitHub Actions e o VPS. Não indica, por si só, chave SSH errada ou VPS fora do ar — o mesmo deploy costuma funcionar na segunda tentativa.
+**Causa provável:** IPv6/rota transitória entre um IP do GitHub Actions e o VPS (Hostinger). **Não** é, por si só, chave SSH errada — `Permission denied` é outro caso e **não** dispara retry.
 
-**O que fazer (em ordem):**
+**O que o workflow faz sozinho (#734):**
 
-1. **Aguarde o retry automático** — `rsync` e `ssh` usam [`deploy/scripts/retry.sh`](../deploy/scripts/retry.sh) com até **5 tentativas** e **15 s** entre elas (opções `ConnectTimeout=30`, keepalive SSH).
-2. **Se o job ainda falhar:** no GitHub, abra **Actions → Deploy → run com falha → Re-run failed jobs** (ou **Re-run all jobs**). Historicamente isso resolve na segunda execução.
-3. **Se persistir em vários re-runs:** confira firewall do VPS (porta SSH acessível), serviço `sshd` ativo, `DEPLOY_HOST` / `DEPLOY_SSH_PORT` corretos e se o IP do servidor não mudou.
+1. SSH/`rsync`/`ssh-keyscan` forçam **IPv4** (`ssh -4`, `AddressFamily=inet`).
+2. O log imprime o **IPv4 público do runner** (`api.ipify.org`) para cruzar com firewall.
+3. `ssh-keyscan` **sem** `|| true`: timeout → exit 42; recusa/DNS → falha clara sem segundo job.
+4. Até **5 tentativas** no mesmo runner (15 s, depois +15 s).
+5. Se o timeout persistir: job **`deploy-retry`** noutro `ubuntu-latest` (outro IP), **reutiliza o artefacto** do frontend — sem rebuild e **sem** segundo retry.
 
-**Disparo manual alternativo:** **Actions → Deploy → Run workflow** na branch `staging` (equivalente a um novo deploy completo).
+**O que fazer se ainda falhar:**
+
+1. Confira no log se foi timeout (há retry) vs `Permission denied` / git / alembic (não há).
+2. Firewall Hostinger: permitir SSH dos IPs do runner (o IPv4 está no log).
+3. **Actions → Deploy → Run workflow** na branch `staging` (deploy completo).
+4. Confira `DEPLOY_HOST` / `DEPLOY_SSH_PORT` e `sshd` no VPS.
 
 ### Outros erros comuns
 

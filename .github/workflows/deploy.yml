@@ -11,10 +11,8 @@
 #   DEPLOY_SSH_PORT       - porta SSH (padrao 22)
 #   DEPLOY_GIT_REF        - branch no VPS (padrao staging; so usado se o workflow nao tiver github.ref_name)
 #
-# Opcional: crie um Environment "production" com estes secrets e descomente "environment: production" abaixo.
-#
-# SSH intermitente: git pull e rsync usam retry inline (5 tentativas, 15s entre elas).
-# Se ainda falhar com "Connection timed out", re-run do job no GitHub Actions - ver deploy/github-actions.md.
+# SSH: IPv4 obrigatório; timeout no mesmo runner (5x) e, se persistir, segundo job noutro IP.
+# Ver deploy/github-actions.md (#734).
 
 name: Deploy
 
@@ -33,6 +31,7 @@ on:
       - "frontend/**"
       - "docker-compose.prod.yml"
       - ".github/workflows/deploy.yml"
+      - "deploy/scripts/**"
       - "VERSION"
       - "CHANGELOG.md"
       - "scripts/**"
@@ -42,27 +41,27 @@ concurrency:
   group: deploy-production
   cancel-in-progress: false
 
+env:
+  DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+  DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+  DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+  DEPLOY_FRONTEND_DIST: ${{ secrets.DEPLOY_FRONTEND_DIST }}
+  VITE_API_URL: ${{ secrets.VITE_API_URL }}
+  SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
+  DEPLOY_GIT_REF: ${{ secrets.DEPLOY_GIT_REF }}
+  EVENT_REF: ${{ github.ref_name }}
+  DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+  SKIP_MIGRATIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_migrations == true || false }}
+
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]'))
     permissions:
-      contents: write
-    # environment: production
-
-    env:
-      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-      DEPLOY_FRONTEND_DIST: ${{ secrets.DEPLOY_FRONTEND_DIST }}
-      VITE_API_URL: ${{ secrets.VITE_API_URL }}
-      SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
-      DEPLOY_GIT_REF: ${{ secrets.DEPLOY_GIT_REF }}
-      EVENT_REF: ${{ github.ref_name }}
-      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-      # workflow_dispatch: checkbox; push: primeiro termo e false (short-circuit, nao avalia inputs)
-      SKIP_MIGRATIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_migrations == true || false }}
-
+      contents: read
+    outputs:
+      expected_sha: ${{ steps.sha.outputs.sha }}
+      dx_version: ${{ steps.release.outputs.dx_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -70,16 +69,19 @@ jobs:
           fetch-depth: 0
 
       - name: Resolver SHA esperado no ref deployado
+        id: sha
         run: |
           REF="${EVENT_REF:-${DEPLOY_GIT_REF:-staging}}"
           git fetch origin "${REF}"
           SHA="$(git rev-parse --short "origin/${REF}")"
-          echo "EXPECTED_DEPLOY_SHA=${SHA}" >> "$GITHUB_ENV"
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
           echo "SHA esperado em producao (origin/${REF}): ${SHA}"
 
       - name: Preparar release (CalVer + release notes)
+        id: release
         run: |
           python3 scripts/prepare_release.py --deploy --write-env >> "$GITHUB_ENV"
+          echo "dx_version=$(tr -d '\n\r' < VERSION)" >> "$GITHUB_OUTPUT"
 
       - name: Build do frontend
         working-directory: frontend
@@ -105,225 +107,106 @@ jobs:
             exit 1
           fi
 
-      - name: SSH - known_hosts e chave
+      - name: Empacotar artefactos
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-dist
+          path: |
+            frontend/dist/
+            VERSION
+            CHANGELOG.md
+            docs/releases/manifest.json
+            backend/app/data/release_notes.json
+            frontend/public/release-notes.json
+          retention-days: 2
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      ssh_timeout: ${{ steps.classify.outputs.ssh_timeout }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Descarregar artefactos
+        uses: actions/download-artifact@v4
+        with:
+          name: deploy-dist
+
+      - name: Deploy no VPS (IPv4)
+        id: vps
+        env:
+          EXPECTED_DEPLOY_SHA: ${{ needs.build.outputs.expected_sha }}
+          DX_CONNECT_VERSION: ${{ needs.build.outputs.dx_version }}
         run: |
-          mkdir -p ~/.ssh
-          echo "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          P="${SSH_PORT:-22}"
-          ssh-keyscan -p "$P" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
-          echo "SSH_PORT=${P}" >> "$GITHUB_ENV"
-          echo "DEPLOY_KEY_PATH=${HOME}/.ssh/deploy_key" >> "$GITHUB_ENV"
-          echo "SSH_MUX_PATH=${HOME}/.ssh/cm-%r@%h:%p" >> "$GITHUB_ENV"
+          chmod +x deploy/scripts/gha-deploy-vps.sh
+          set +e
+          bash deploy/scripts/gha-deploy-vps.sh
+          code=$?
+          echo "code=${code}" >> "$GITHUB_OUTPUT"
+          exit 0
 
-      - name: Git pull no VPS
+      - name: Classificar falha SSH
+        id: classify
         run: |
-          REF="${EVENT_REF:-${DEPLOY_GIT_REF:-staging}}"
-          echo "Deploy ref no VPS: ${REF}"
-
-          ssh_base() {
-            ssh -i "$DEPLOY_KEY_PATH" \
-              -o StrictHostKeyChecking=accept-new \
-              -o ConnectTimeout=20 \
-              -o ServerAliveInterval=15 \
-              -o ServerAliveCountMax=3 \
-              -o ControlMaster=auto \
-              -o "ControlPath=${SSH_MUX_PATH}" \
-              -o ControlPersist=120 \
-              -p "${SSH_PORT}" \
-              "${DEPLOY_USER}@${DEPLOY_HOST}" "$@"
-          }
-
-          retry() {
-            local attempt=1 max=5 delay=15
-            while true; do
-              if "$@"; then return 0; fi
-              if [ "$attempt" -ge "$max" ]; then
-                echo "::error::Comando falhou apos ${max} tentativas."
-                return 1
-              fi
-              echo "Tentativa ${attempt}/${max} falhou; nova em ${delay}s (runner GitHub -> VPS)..."
-              sleep "$delay"
-              attempt=$((attempt + 1))
-              delay=$((delay + 15))
-            done
-          }
-
-          retry ssh_base \
-            "REF='${REF}' DEPLOY_PATH='${DEPLOY_PATH}' bash -s" << 'REMOTE_SCRIPT'
-          set -ex
-          cd "$DEPLOY_PATH"
-          echo "==> Deploy branch/ref: $REF"
-          git fetch origin
-          git checkout "$REF"
-          git reset --hard "origin/$REF"
-          REMOTE_SCRIPT
-
-      - name: Rsync - artefatos de release para VPS
-        run: |
-          ssh_rsync_release() {
-            rsync -avz \
-              -e "ssh -i ${DEPLOY_KEY_PATH} -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 -o ControlMaster=auto -o ControlPath=${SSH_MUX_PATH} -o ControlPersist=120 -p ${SSH_PORT}" \
-              "$1" "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/$2"
-          }
-
-          retry() {
-            local attempt=1 max=5 delay=15
-            while true; do
-              if "$@"; then return 0; fi
-              if [ "$attempt" -ge "$max" ]; then
-                echo "::error::Rsync release falhou apos ${max} tentativas."
-                return 1
-              fi
-              echo "Tentativa ${attempt}/${max} falhou; nova em ${delay}s..."
-              sleep "$delay"
-              attempt=$((attempt + 1))
-              delay=$((delay + 15))
-            done
-          }
-
-          retry ssh_rsync_release "VERSION" ""
-          retry ssh_rsync_release "CHANGELOG.md" ""
-          retry ssh_rsync_release "docs/releases/manifest.json" "docs/releases/"
-          retry ssh_rsync_release "backend/app/data/release_notes.json" "backend/app/data/"
-          retry ssh_rsync_release "frontend/public/release-notes.json" "frontend/public/"
-
-      - name: Alembic + Docker Compose no VPS
-        run: |
-          REF="${EVENT_REF:-${DEPLOY_GIT_REF:-staging}}"
-
-          ssh_base() {
-            ssh -i "$DEPLOY_KEY_PATH" \
-              -o StrictHostKeyChecking=accept-new \
-              -o ConnectTimeout=20 \
-              -o ServerAliveInterval=15 \
-              -o ServerAliveCountMax=3 \
-              -o ControlMaster=auto \
-              -o "ControlPath=${SSH_MUX_PATH}" \
-              -o ControlPersist=120 \
-              -p "${SSH_PORT}" \
-              "${DEPLOY_USER}@${DEPLOY_HOST}" "$@"
-          }
-
-          retry() {
-            local attempt=1 max=5 delay=15
-            while true; do
-              if "$@"; then return 0; fi
-              if [ "$attempt" -ge "$max" ]; then
-                echo "::error::Comando falhou apos ${max} tentativas."
-                return 1
-              fi
-              echo "Tentativa ${attempt}/${max} falhou; nova em ${delay}s (runner GitHub -> VPS)..."
-              sleep "$delay"
-              attempt=$((attempt + 1))
-              delay=$((delay + 15))
-            done
-          }
-
-          retry ssh_base \
-            "REF='${REF}' DEPLOY_PATH='${DEPLOY_PATH}' SKIP_MIGRATIONS='${SKIP_MIGRATIONS}' WEBHOOK_BASE_URL='${VITE_API_URL}' DX_CONNECT_VERSION='${DX_CONNECT_VERSION:-}' bash -s" << 'REMOTE_SCRIPT'
-          set -ex
-          cd "$DEPLOY_PATH"
-          export DX_CONNECT_GIT_SHA="$(git rev-parse --short HEAD)"
-          echo "==> Commit: $DX_CONNECT_GIT_SHA"
-          if [ -z "${DX_CONNECT_VERSION:-}" ] && [ -f VERSION ]; then
-            export DX_CONNECT_VERSION="$(tr -d '\n\r' < VERSION)"
+          code="${{ steps.vps.outputs.code }}"
+          if [ "$code" = "0" ]; then
+            echo "ssh_timeout=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
-          echo "==> Versão: ${DX_CONNECT_VERSION:-n/a}"
-          WEBHOOK_BASE_URL="${WEBHOOK_BASE_URL:-}" bash deploy/scripts/ensure-evolution-env.sh backend/.env
-          COMPOSE="docker compose --env-file backend/.env -f docker-compose.prod.yml"
-          if [ "$SKIP_MIGRATIONS" != "true" ]; then
-            $COMPOSE build --no-cache backend
-            # -T + /dev/null: evita que `compose run` consuma o restante do script (heredoc via bash -s)
-            $COMPOSE run --rm -T backend alembic upgrade head < /dev/null
-          else
-            $COMPOSE build --no-cache backend
+          if [ "$code" = "42" ]; then
+            echo "ssh_timeout=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::Timeout SSH neste runner — job deploy-retry noutro IP."
+            exit 0
           fi
-          WEBHOOK_BASE_URL="${WEBHOOK_BASE_URL:-}" bash deploy/scripts/restart-backend-prod.sh "$DEPLOY_PATH"
-          PUBLIC_HEALTH="$(curl -sf "${WEBHOOK_BASE_URL%/}/health")"
-          echo "Health publico (mesmo host): ${PUBLIC_HEALTH}"
-          echo "${PUBLIC_HEALTH}" | DX_CONNECT_GIT_SHA="${DX_CONNECT_GIT_SHA}" python3 -c "
-          import json, os, sys
-          body = json.load(sys.stdin)
-          caps = body.get('capabilities') or {}
-          missing = [k for k in ('pdv_catalogos', 'empresa_pdvs') if not caps.get(k)]
-          if missing:
-              print(f'::error::URL publica sem rotas PDV: faltam {missing}', file=sys.stderr)
-              sys.exit(1)
-          expected = os.environ.get('DX_CONNECT_GIT_SHA', '')
-          actual = (body.get('git_sha') or '') or ''
-          if expected and actual and actual != expected:
-              print(f'::error::git_sha publico {actual!r} != commit {expected!r}', file=sys.stderr)
-              sys.exit(1)
-          print('OK: health publico no VPS', actual, caps)
-          "
-          for i in 1 2 3 4 5 6; do
-            curl -sf "http://127.0.0.1:8080" >/dev/null && { echo "Evolution API: OK (8080)"; break; }
-            sleep 5
-          done
-          curl -sf "http://127.0.0.1:8080" >/dev/null || echo "Evolution API: aguardar ou conferir logs (docker logs dx-connect-evolution-api)"
-          REMOTE_SCRIPT
+          echo "ssh_timeout=false" >> "$GITHUB_OUTPUT"
+          echo "::error::Deploy falhou (exit ${code}); não é timeout SSH — sem retry noutro runner."
+          exit 1
 
-      - name: Rsync - frontend dist para VPS
+      - name: Persistir manifest e CHANGELOG em staging
+        if: github.ref == 'refs/heads/staging' && steps.vps.outputs.code == '0'
         run: |
-          ssh_rsync() {
-            rsync -avz --delete \
-              -e "ssh -i ${DEPLOY_KEY_PATH} -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 -o ControlMaster=auto -o ControlPath=${SSH_MUX_PATH} -o ControlPersist=120 -p ${SSH_PORT}" \
-              frontend/dist/ "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_FRONTEND_DIST}/"
-          }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add VERSION CHANGELOG.md docs/releases/manifest.json \
+            backend/app/data/release_notes.json frontend/public/release-notes.json
+          if git diff --staged --quiet; then
+            echo "Nenhum artefato de release para commitar."
+            exit 0
+          fi
+          VER="$(tr -d '\n\r' < VERSION)"
+          git commit -m "chore(release): publica v${VER} [skip ci]"
+          git push origin HEAD:staging
 
-          retry() {
-            local attempt=1 max=5 delay=15
-            while true; do
-              if "$@"; then return 0; fi
-              if [ "$attempt" -ge "$max" ]; then
-                echo "::error::Rsync falhou apos ${max} tentativas."
-                return 1
-              fi
-              echo "Tentativa ${attempt}/${max} falhou; nova em ${delay}s..."
-              sleep "$delay"
-              attempt=$((attempt + 1))
-              delay=$((delay + 15))
-            done
-          }
+  deploy-retry:
+    needs: [build, deploy]
+    if: always() && needs.build.result == 'success' && needs.deploy.result == 'success' && needs.deploy.outputs.ssh_timeout == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
-          retry ssh_rsync
+      - name: Descarregar artefactos (sem rebuild)
+        uses: actions/download-artifact@v4
+        with:
+          name: deploy-dist
 
-      - name: Verificar rotas da API (health)
+      - name: Retry deploy noutro runner (IPv4)
+        env:
+          EXPECTED_DEPLOY_SHA: ${{ needs.build.outputs.expected_sha }}
+          DX_CONNECT_VERSION: ${{ needs.build.outputs.dx_version }}
         run: |
-          API_BASE="${VITE_API_URL%/}"
-          echo "GET ${API_BASE}/health"
-          export HEALTH_JSON="$(curl -sf "${API_BASE}/health")"
-          echo "$HEALTH_JSON"
-          python3 <<'PY'
-          import json, os, sys
-          body = json.loads(os.environ["HEALTH_JSON"])
-          caps = body.get("capabilities") or {}
-          need = (
-              "settings_empresa_sistema",
-              "tenant_atual",
-              "settings_email",
-              "pdv_catalogos",
-              "empresa_pdvs",
-          )
-          missing = [k for k in need if not caps.get(k)]
-          if missing:
-              print(
-                  f"::error::API sem rotas esperadas (backend antigo?): faltam {missing}. git_sha={body.get('git_sha')!r}",
-                  file=sys.stderr,
-              )
-              sys.exit(1)
-          expected_sha = os.environ.get("EXPECTED_DEPLOY_SHA", "") or os.environ.get("GITHUB_SHA", "")[:7]
-          actual_sha = (body.get("git_sha") or "") or ""
-          if expected_sha and actual_sha and actual_sha != expected_sha:
-              print(
-                  f"::error::git_sha em producao ({actual_sha!r}) difere do commit deployado ({expected_sha!r}). "
-                  "Processo antigo pode ainda estar na porta 8000.",
-                  file=sys.stderr,
-              )
-              sys.exit(1)
-          print("OK: capabilities", caps, "git_sha", body.get("git_sha"), "expected", expected_sha)
-          PY
+          chmod +x deploy/scripts/gha-deploy-vps.sh
+          bash deploy/scripts/gha-deploy-vps.sh
 
       - name: Persistir manifest e CHANGELOG em staging
         if: github.ref == 'refs/heads/staging'
