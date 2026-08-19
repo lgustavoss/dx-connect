@@ -10,17 +10,27 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  if (mode === 'production' && !env.VITE_API_URL?.trim()) {
+  // APK Capacitor: o SW da PWA no WebView nativo compete com o runtime (#735).
+  const capacitorNative = process.env.VITE_CAPACITOR === 'true'
+  if (capacitorNative) {
+    process.env.VITE_CAPACITOR = 'true'
+  }
+
+  if (mode === 'production' && !capacitorNative && !env.VITE_API_URL?.trim()) {
     throw new Error(
       'Build de produção exige VITE_API_URL. Crie frontend/.env.production (veja frontend/.env.example).',
     )
   }
 
   return {
+    define: {
+      __DX_CONNECT_CAPACITOR__: capacitorNative,
+    },
     plugins: [
       react(),
       tailwindcss(),
       VitePWA({
+        disable: capacitorNative,
         strategies: 'injectManifest',
         srcDir: 'src',
         filename: 'sw.ts',

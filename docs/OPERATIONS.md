@@ -99,7 +99,7 @@ docker compose run --rm --no-deps backend python -c "from py_vapid import Vapid;
 
 Copiar as duas linhas para `WEB_PUSH_VAPID_PUBLIC_KEY` / `WEB_PUSH_VAPID_PRIVATE_KEY` no `client.env` **daquele** slug. Não reutilizar o mesmo par em outro cliente.
 
-Reiniciar o stack (`stack-client.sh SLUG up`) depois de gravar o env.
+Reiniciar o stack (`stack-client.sh up SLUG`) depois de gravar o env.
 
 ### CORS / origem da PWA
 
@@ -114,7 +114,7 @@ Exemplo Duplex:
 CORS_ORIGINS=https://duplexsoft.deskrudder.com.br,https://localhost
 
 # Recarregar env (compose lê o ficheiro na criação do contentor):
-bash deploy/scripts/stack-client.sh duplexsoft up
+bash deploy/scripts/stack-client.sh up duplexsoft
 ```
 
 ### iOS Safari (#695)

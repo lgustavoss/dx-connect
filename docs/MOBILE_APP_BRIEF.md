@@ -137,7 +137,8 @@ Sistema de **helpdesk** para **redes de postos/empresas**:
 | Fase | Stack |
 |------|--------|
 | Agora | **PWA** no frontend React actual (mesmo `/v1`, mesma origem do painel) |
-| Depois | **Capacitor** → Play Store / App Store + FCM/APNs |
+| Em curso | **Capacitor** Android: 1 APK + campo Conta → `api-{slug}` (tickets e chat) |
+| Depois | Play Store / App Store + FCM/APNs |
 | Não na v1 | React Native / Flutter |
 
 **Install (híbrido C):** PWA por `{slug}` agora; nas lojas será **1 app** + campo Conta → `api-{slug}`.  
@@ -378,6 +379,8 @@ O projecto web já é **React + TypeScript**. Ordem fechada no épico #689:
 |------|-----------|
 | **PWA no SPA actual** | Reutiliza o painel; instalável em `https://{slug}.…`; API `/v1` na mesma instância |
 | **Capacitor (lojas)** | Empacota o mesmo frontend; campo Conta resolve `api-{slug}` |
+
+Como construir o APK debug: **`docs/MOBILE_CAPACITOR.md`** (issue #735).
 | React Native / Flutter | **Fora da v1** |
 
 ### Tempo real: SSE (já existe)

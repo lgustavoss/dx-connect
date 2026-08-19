@@ -115,10 +115,12 @@ import {
   PORTAL_TICKETS_PATH,
 } from './lib/portalAtivo'
 import { gravarTicketAtivoSession } from './lib/ticketAtivo'
+import { isCapacitorNative } from './lib/capacitorNative'
 
 /**
  * Apex comercial (`deskrudder.com.br`): `/` anônimo → landing.
  * Dev local (`localhost`) e control-plane: idem, para testar LP/admin.
+ * App Capacitor: o WebView também usa `localhost`, mas abre o **login do painel** (mesma API do desktop).
  * Subdomínio de cliente: `/` anônimo → login do painel.
  * Autenticado → Layout + painel (index = Dashboard).
  */
@@ -132,6 +134,7 @@ function LayoutOrLanding() {
     const host = typeof window !== 'undefined' ? window.location.hostname : ''
     const isLocalDev = host === 'localhost' || host === '127.0.0.1'
     const showLanding =
+      !isCapacitorNative() &&
       (location.pathname === '/' || location.pathname === '') &&
       (isMarketingHost() || isSaasControlPlaneFrontend() || isLocalDev)
     if (showLanding) {

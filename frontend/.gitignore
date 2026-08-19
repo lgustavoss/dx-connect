@@ -24,3 +24,17 @@ dist-ssr
 *.sw?
 
 .ux-screenshots/
+
+# Capacitor / Android (#735)
+android/app/build
+android/.gradle
+android/local.properties
+android/captures
+android/.idea
+android/*.iml
+android/app/.cxx
+*.apk
+*.aab
+*.ap_
+dev-dist/
+android-emu*.png
