@@ -28,6 +28,7 @@ import { SemPermissao } from './SemPermissao'
 import { CrmPropostaCard } from '../components/crm/CrmPropostaCard'
 import { CrmContratoCard } from '../components/crm/CrmContratoCard'
 import { maskCnpjCpf } from '../utils/maskCnpjCpf'
+import { linhaProntaParaContrato } from '../components/crm/crmFiscais'
 
 const TIPO_ATIVIDADE_LABEL: Record<string, string> = {
   nota: 'Nota',
@@ -140,6 +141,9 @@ export function CrmNegociacaoDetalhe() {
   const docInitRef = useRef(false)
   const [propostaBadge, setPropostaBadge] = useState<string | null>(null)
   const [contratoBadge, setContratoBadge] = useState<string | null>(null)
+  const [linhasAssinadas, setLinhasAssinadas] = useState<Set<number>>(() => new Set())
+  const [nomeBase, setNomeBase] = useState('')
+  const [savingNomeBase, setSavingNomeBase] = useState(false)
 
   const load = useCallback(async () => {
     if (!id || Number.isNaN(negociacaoId)) {
@@ -153,6 +157,7 @@ export function CrmNegociacaoDetalhe() {
     try {
       const n = await crmNegociacoes.get(negociacaoId)
       setNeg(n)
+      setNomeBase(n.nome_base_webposto || '')
       setDestinoEstagio('')
       const [l, funil, acts] = await Promise.all([
         crmLeads.get(n.lead_id),
@@ -191,6 +196,7 @@ export function CrmNegociacaoDetalhe() {
       const contrato = cs.find((c) => CONTRATO_ATIVO.has(c.status)) || cs[0]
       setPropostaBadge(proposta ? PROPOSTA_STATUS_LABEL[proposta.status] || proposta.status : null)
       setContratoBadge(contrato ? CONTRATO_STATUS_LABEL[contrato.status] || contrato.status : null)
+      setLinhasAssinadas(new Set(cs.filter((c) => c.status === 'assinado').map((c) => c.negociacao_linha_cnpj_id)))
       if (!docInitRef.current) {
         docInitRef.current = true
         setPropostaAberta(!contrato)
@@ -339,6 +345,25 @@ export function CrmNegociacaoDetalhe() {
     }
   }
 
+  async function saveNomeBase() {
+    if (!neg || linhasAssinadas.size > 0) return
+    const proximo = nomeBase.trim() || null
+    const atual = (neg.nome_base_webposto || '').trim() || null
+    if (proximo === atual) return
+    setSavingNomeBase(true)
+    try {
+      const n = await crmNegociacoes.update(neg.id, {
+        nome_base_webposto: proximo,
+      })
+      setNeg(n)
+      setNomeBase(n.nome_base_webposto || '')
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar o nome da Rede.'))
+    } finally {
+      setSavingNomeBase(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="mx-auto max-w-5xl pb-10">
@@ -389,6 +414,27 @@ export function CrmNegociacaoDetalhe() {
           Estágio: <span className="font-medium">{neg.estagio_nome || '—'}</span>
           {!neg.ativa ? ' · encerrada' : null}
         </p>
+        <div className="mt-3 max-w-lg">
+          <Input
+            label="Nome da Rede (base WebPosto)"
+            value={nomeBase}
+            onChange={(e) => setNomeBase(e.target.value)}
+            onBlur={() => void saveNomeBase()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                void saveNomeBase()
+              }
+            }}
+            placeholder="Ex.: Rede Postos Norte"
+            disabled={linhasAssinadas.size > 0 || savingNomeBase || !neg.ativa}
+            hint={
+              linhasAssinadas.size > 0
+                ? 'Bloqueado após o contrato assinado — este nome é o da Rede no cadastro.'
+                : 'Salvo ao sair do campo. Vários CNPJs desta venda partilham a mesma Rede.'
+            }
+          />
+        </div>
       </div>
 
       <Card title="Avançar estágio">
@@ -476,6 +522,11 @@ export function CrmNegociacaoDetalhe() {
                     <div className="text-xs text-slate-500">
                       CNPJ: {ln.cnpj ? maskCnpjCpf(ln.cnpj) : '— (opcional até Documentação)'} · PDVs: {ln.quantidade_pdvs}
                       {ln.desconto_posto_100k ? ' · desconto posto <100k' : ''}
+                      {linhasAssinadas.has(ln.id)
+                        ? ' · contrato assinado (edição bloqueada)'
+                        : linhaProntaParaContrato(ln)
+                          ? ' · dados fiscais ok'
+                          : ' · dados fiscais no gerar contrato'}
                     </div>
                     <div className="mt-1 text-xs text-slate-500">
                       Pacote:{' '}
@@ -487,14 +538,22 @@ export function CrmNegociacaoDetalhe() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="secondary" onClick={() => openEditLinha(ln)}>
-                      <IconPencil className="size-4" />
-                      Editar
-                    </Button>
-                    <Button variant="danger" onClick={() => setDeleteLinhaId(ln.id)}>
-                      <IconTrash className="size-5" />
-                      Remover
-                    </Button>
+                    {linhasAssinadas.has(ln.id) ? (
+                      <p className="max-w-[14rem] text-right text-xs text-slate-500">
+                        Pacote e valores ficam só de leitura para coincidir com o contrato assinado.
+                      </p>
+                    ) : (
+                      <>
+                        <Button variant="secondary" onClick={() => openEditLinha(ln)}>
+                          <IconPencil className="size-4" />
+                          Editar
+                        </Button>
+                        <Button variant="danger" onClick={() => setDeleteLinhaId(ln.id)}>
+                          <IconTrash className="size-5" />
+                          Remover
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="mt-2 grid gap-2 text-sm sm:grid-cols-3">
@@ -530,7 +589,7 @@ export function CrmNegociacaoDetalhe() {
         open={contratoAberto}
         onOpenChange={setContratoAberto}
       >
-        <CrmContratoCard negociacao={neg} onChanged={handleDocsChanged} embedded />
+        <CrmContratoCard negociacao={neg} lead={lead} onChanged={handleDocsChanged} embedded />
       </CollapsibleCard>
 
       <CollapsibleCard
@@ -576,7 +635,7 @@ export function CrmNegociacaoDetalhe() {
 
       {linhaModal ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
-          <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl dark:bg-slate-900 sm:max-w-lg sm:rounded-2xl">
+          <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl dark:bg-slate-900 sm:max-w-2xl sm:rounded-2xl">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
               {linhaModal === 'create' ? 'Nova linha CNPJ' : 'Editar linha'}
             </h2>
@@ -592,6 +651,9 @@ export function CrmNegociacaoDetalhe() {
                 value={linhaForm.razao_social}
                 onChange={(e) => setLinhaForm((p) => ({ ...p, razao_social: e.target.value }))}
               />
+              <p className="text-xs text-slate-500">
+                Endereço, responsável legal e contacto da empresa são preenchidos ao gerar o contrato.
+              </p>
               <Input
                 label="Valor negociado (R$)"
                 value={linhaForm.valor_negociado}

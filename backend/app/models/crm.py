@@ -95,6 +95,7 @@ class CrmNegociacao(Base):
     # True = negociação ativa do lead (no máximo uma por lead)
     ativa = Column(Boolean, nullable=False, default=True, index=True)
     titulo = Column(String(255), nullable=True)
+    nome_base_webposto = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -131,6 +132,7 @@ class CrmNegociacaoCnpjLinha(Base):
     snapshot_custo = Column(JSON, nullable=True)
     total_custo = Column(Numeric(14, 2), nullable=True)
     margem_calculada = Column(Numeric(14, 2), nullable=True)
+    dados_fiscais = Column(JSON, nullable=True)
     # Preenchido pós-contrato (#324)
     empresa_id = Column(Integer, ForeignKey("empresas.id", ondelete="SET NULL"), nullable=True)
     ordem = Column(Integer, nullable=False, default=0)

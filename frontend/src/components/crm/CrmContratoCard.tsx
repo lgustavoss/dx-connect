@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
+  comercialContratoPolitica,
   comercialContratoTemplates,
   comercialContratos,
+  crmNegociacoes,
   type ComercialContrato,
   type Crm,
 } from '../../api/client'
@@ -13,6 +16,8 @@ import { Input } from '../ui/Input'
 import { Select } from '../ui/Select'
 import { useToast } from '../ui/Toast'
 import { maskCnpjCpf } from '../../utils/maskCnpjCpf'
+import { CrmDadosFiscaisFields } from './CrmDadosFiscaisFields'
+import { emptyFiscal, fiscaisDaLinha, fiscalPayload, formatPercentualPt, parsePercentualPt } from './crmFiscais'
 
 const STATUS_LABEL: Record<string, string> = {
   rascunho: 'Rascunho',
@@ -33,9 +38,9 @@ function money(v: string | number | null | undefined): string {
 
 function percent(v: string | number | null | undefined): string {
   if (v == null || v === '') return '—'
-  const n = typeof v === 'number' ? v : Number(v)
+  const n = typeof v === 'number' ? v : parsePercentualPt(String(v))
   if (Number.isNaN(n)) return String(v)
-  return `${n.toLocaleString('pt-BR', { maximumFractionDigits: 1, minimumFractionDigits: 0 })}%`
+  return `${formatPercentualPt(n)}%`
 }
 
 function formatDate(iso: string | null | undefined): string {
@@ -72,14 +77,17 @@ export function textoDiasFidelidade(dias: number | null | undefined): string {
 
 type Props = {
   negociacao: Crm.Negociacao
+  lead?: Crm.Lead | null
   onChanged: () => void
   /** Sem o Card externo — o título fica no acordeão da página. */
   embedded?: boolean
 }
 
-export function CrmContratoCard({ negociacao, onChanged, embedded = false }: Props) {
+export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded = false }: Props) {
   const toast = useToast()
+  const navigate = useNavigate()
   const linhas = negociacao.linhas || []
+  const pdfInputRef = useRef<HTMLInputElement>(null)
 
   const [templates, setTemplates] = useState<ComercialContrato.Template[]>([])
   const [contratos, setContratos] = useState<ComercialContrato.Contrato[]>([])
@@ -93,22 +101,34 @@ export function CrmContratoCard({ negociacao, onChanged, embedded = false }: Pro
   const [alimentacao, setAlimentacao] = useState(true)
   const [hospedagem, setHospedagem] = useState(true)
   const [multaMax, setMultaMax] = useState('3')
+  const [semReajuste, setSemReajuste] = useState(false)
+  const [reajustePct, setReajustePct] = useState('')
+  const [reajusteRotulo, setReajusteRotulo] = useState('')
+  const [politica, setPolitica] = useState<ComercialContrato.Politica | null>(null)
   const [gerando, setGerando] = useState(false)
   const [preview, setPreview] = useState<ComercialContrato.Contrato | null>(null)
   const [baixandoId, setBaixandoId] = useState<number | null>(null)
+  const [baixandoAssinadoId, setBaixandoAssinadoId] = useState<number | null>(null)
   const [enviandoId, setEnviandoId] = useState<number | null>(null)
   const [assinandoId, setAssinandoId] = useState<number | null>(null)
   const [avancarFunil, setAvancarFunil] = useState(true)
+  const [pdfFile, setPdfFile] = useState<File | null>(null)
+  const [referenciaAnexo, setReferenciaAnexo] = useState('')
+  const [anexandoPdf, setAnexandoPdf] = useState(false)
   const [cancelarId, setCancelarId] = useState<number | null>(null)
   const [cancelando, setCancelando] = useState(false)
+  const [fiscais, setFiscais] = useState<Crm.DadosFiscais>(emptyFiscal)
+  const [editarGeracao, setEditarGeracao] = useState(false)
 
   const load = useCallback(async () => {
-    const [tmpls, rows] = await Promise.all([
+    const [tmpls, rows, pol] = await Promise.all([
       comercialContratoTemplates.list(),
       comercialContratos.list({ negociacao_id: negociacao.id }),
+      comercialContratoPolitica.get(),
     ])
     setTemplates(tmpls)
     setContratos(rows)
+    setPolitica(pol)
     setTemplateId((prev) => {
       if (prev !== '' && tmpls.some((t) => t.id === prev)) return prev
       return tmpls[0]?.id ?? ''
@@ -155,6 +175,19 @@ export function CrmContratoCard({ negociacao, onChanged, embedded = false }: Pro
   )
   const podeGerar =
     linhaId !== '' && (!contratoDaLinha || contratoDaLinha.status === 'rascunho')
+  const mostrarFormularioGeracao = podeGerar && (!contratoDaLinha || editarGeracao)
+
+  useEffect(() => {
+    setEditarGeracao(false)
+  }, [linhaId])
+
+  useEffect(() => {
+    if (!linhaSel) {
+      setFiscais(emptyFiscal())
+      return
+    }
+    setFiscais(fiscaisDaLinha(linhaSel, lead))
+  }, [linhaId, lead?.email, lead?.telefone, JSON.stringify(linhaSel?.dados_fiscais)])
 
   useEffect(() => {
     if (!preview?.conteudo_html_snapshot && preview?.id) {
@@ -180,8 +213,18 @@ export function CrmContratoCard({ negociacao, onChanged, embedded = false }: Pro
       toast.showWarning('Multa deve ser entre 0 e 12 mensalidades.')
       return
     }
+    if (!semReajuste && reajustePct.trim()) {
+      const n = parsePercentualPt(reajustePct)
+      if (!Number.isFinite(n) || n < 0 || n > 100) {
+        toast.showWarning('O percentual de reajuste deve estar entre 0 e 100.')
+        return
+      }
+    }
     setGerando(true)
     try {
+      await crmNegociacoes.updateLinha(negociacao.id, linhaId, {
+        dados_fiscais: fiscalPayload(fiscais),
+      })
       const row = await comercialContratos.gerar({
         linha_id: linhaId,
         template_id: templateId === '' ? null : templateId,
@@ -193,8 +236,12 @@ export function CrmContratoCard({ negociacao, onChanged, embedded = false }: Pro
         alimentacao_cliente: alimentacao,
         hospedagem_cliente: hospedagem,
         multa_max_mensalidades: multa,
+        sem_reajuste: semReajuste,
+        reajuste_percentual: semReajuste || !reajustePct.trim() ? null : String(parsePercentualPt(reajustePct)),
+        reajuste_rotulo: reajusteRotulo.trim() || null,
       })
       setPreview(row)
+      setEditarGeracao(false)
       toast.showSuccess(
         contratoDaLinha ? 'Contrato atualizado. Revise o preview.' : 'Contrato gerado. Revise o preview.',
       )
@@ -219,6 +266,39 @@ export function CrmContratoCard({ negociacao, onChanged, embedded = false }: Pro
     }
   }
 
+  async function handlePdfAssinado(id: number, nome?: string | null) {
+    setBaixandoAssinadoId(id)
+    try {
+      const blob = await comercialContratos.downloadPdfAssinado(id)
+      downloadBlob(blob, nome || `contrato-${id}-assinado.pdf`)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível baixar o PDF assinado.'))
+    } finally {
+      setBaixandoAssinadoId(null)
+    }
+  }
+
+  async function handleAnexarPdf(id: number) {
+    if (!pdfFile) {
+      toast.showWarning('Escolha o PDF assinado para anexar.')
+      return
+    }
+    setAnexandoPdf(true)
+    try {
+      const row = await comercialContratos.anexarPdfAssinado(id, pdfFile, referenciaAnexo)
+      setPreview(row)
+      setPdfFile(null)
+      if (pdfInputRef.current) pdfInputRef.current.value = ''
+      toast.showSuccess('PDF assinado anexado. Já podes marcar o contrato como assinado.')
+      await load()
+      onChanged()
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível anexar o PDF assinado.'))
+    } finally {
+      setAnexandoPdf(false)
+    }
+  }
+
   async function handleEnviado(id: number) {
     setEnviandoId(id)
     try {
@@ -235,12 +315,21 @@ export function CrmContratoCard({ negociacao, onChanged, embedded = false }: Pro
   }
 
   async function handleAssinado(id: number) {
+    const atual = contratos.find((c) => c.id === id) || preview
+    if (!atual?.tem_pdf_assinado) {
+      toast.showWarning('Anexe o PDF assinado antes de marcar o contrato como assinado.')
+      return
+    }
     setAssinandoId(id)
     try {
-      const row = await comercialContratos.marcarAssinado(id, { avancar_funil: avancarFunil })
+      const row = await comercialContratos.marcarAssinado(id, {
+        avancar_funil: avancarFunil,
+      })
       setPreview(row)
       toast.showSuccess(
-        avancarFunil ? 'Contrato assinado e funil atualizado.' : 'Contrato marcado como assinado.',
+        avancarFunil
+          ? 'Contrato assinado, Rede/Empresa vinculadas e funil atualizado.'
+          : 'Contrato marcado como assinado. Rede e Empresa foram criadas ou vinculadas.',
       )
       setAssinandoId(null)
       await load()
@@ -274,7 +363,7 @@ export function CrmContratoCard({ negociacao, onChanged, embedded = false }: Pro
     <>
       <p className="mb-3 text-sm text-slate-500">
         Um contrato por CNPJ. O PDF do cliente não inclui custo nem margem — esses valores ficam só neste
-        painel.
+        painel. O nome da Rede (acima) e os dados fiscais abaixo são obrigatórios para gerar.
       </p>
 
       {linhas.length === 0 ? (
@@ -293,7 +382,12 @@ export function CrmContratoCard({ negociacao, onChanged, embedded = false }: Pro
               Para gerar outro, cancele o atual (não é possível após assinado).
             </p>
           ) : null}
-          {podeGerar ? (
+          {podeGerar && contratoDaLinha?.status === 'rascunho' && !editarGeracao ? (
+            <Button variant="secondary" onClick={() => setEditarGeracao(true)}>
+              Alterar rascunho
+            </Button>
+          ) : null}
+          {mostrarFormularioGeracao ? (
             <>
           {templateOptions.length > 0 ? (
             <Select
@@ -351,6 +445,44 @@ export function CrmContratoCard({ negociacao, onChanged, embedded = false }: Pro
               Setup isento
             </label>
           </div>
+          <div className="space-y-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Reajuste anual</p>
+            <p className="text-xs text-slate-500">
+              Padrão da instância:{' '}
+              {politica
+                ? Number(politica.reajuste_percentual) > 0
+                  ? `${percent(politica.reajuste_percentual)}${politica.reajuste_rotulo ? ` · ${politica.reajuste_rotulo}` : ''}`
+                  : politica.reajuste_rotulo || 'sem reajuste'
+                : '—'}
+              . O admin altera em Cadastros → Modelos de contrato. Sem consulta automática a índice.
+            </p>
+            <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+              <input
+                type="checkbox"
+                checked={semReajuste}
+                onChange={(e) => setSemReajuste(e.target.checked)}
+                className="size-4 rounded border-slate-300"
+              />
+              Sem reajuste neste contrato
+            </label>
+            {semReajuste ? null : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input
+                  label="Percentual (override)"
+                  inputMode="decimal"
+                  value={reajustePct}
+                  onChange={(e) => setReajustePct(e.target.value.replace(/[^\d,.]/g, ''))}
+                  hint="Vazio = padrão da instância. Ex.: 5,5"
+                />
+                <Input
+                  label="Rótulo (override)"
+                  value={reajusteRotulo}
+                  onChange={(e) => setReajusteRotulo(e.target.value)}
+                  placeholder={politica?.reajuste_rotulo || 'Ex.: IGPM'}
+                />
+              </div>
+            )}
+          </div>
           <div className="flex flex-wrap gap-4 text-sm text-slate-700 dark:text-slate-300">
             <label className="inline-flex items-center gap-2">
               <input
@@ -380,6 +512,11 @@ export function CrmContratoCard({ negociacao, onChanged, embedded = false }: Pro
               Hospedagem por conta do cliente
             </label>
           </div>
+          <CrmDadosFiscaisFields
+            value={fiscais}
+            onChange={(patch) => setFiscais((p) => ({ ...p, ...patch }))}
+            disabled={gerando}
+          />
           <Button onClick={() => void handleGerar()} disabled={gerando}>
             {gerando
               ? 'Gerando…'
@@ -422,7 +559,27 @@ export function CrmContratoCard({ negociacao, onChanged, embedded = false }: Pro
                 {preview.razao_social || '—'} · {preview.cnpj ? maskCnpjCpf(preview.cnpj) : 'sem CNPJ'} · mensalidade{' '}
                 {money(preview.valor_mensalidade)} · fidelidade {preview.fidelidade_meses} meses (
                 {textoDiasFidelidade(preview.dias_restantes_fidelidade)})
+                {Number(preview.reajuste_percentual) > 0
+                  ? ` · reajuste ${percent(preview.reajuste_percentual)}${preview.reajuste_rotulo ? ` ${preview.reajuste_rotulo}` : ''}`
+                  : ' · sem reajuste'}
               </p>
+              {preview.empresa_id || preview.rede_id ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {preview.empresa_id ? (
+                    <Button
+                      variant="secondary"
+                      onClick={() => navigate(`/empresas/${preview.empresa_id}`)}
+                    >
+                      Abrir empresa
+                    </Button>
+                  ) : null}
+                  {preview.rede_id ? (
+                    <Button variant="secondary" onClick={() => navigate(`/redes/${preview.rede_id}`)}>
+                      Abrir rede
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -443,7 +600,11 @@ export function CrmContratoCard({ negociacao, onChanged, embedded = false }: Pro
               ) : null}
               {preview.status === 'rascunho' || preview.status === 'enviado' ? (
                 <>
-                  <Button variant="secondary" onClick={() => setAssinandoId(preview.id)}>
+                  <Button
+                    variant="secondary"
+                    onClick={() => setAssinandoId(preview.id)}
+                    disabled={!preview.tem_pdf_assinado}
+                  >
                     Marcar assinado
                   </Button>
                   <Button variant="ghost" onClick={() => setCancelarId(preview.id)}>
@@ -459,6 +620,67 @@ export function CrmContratoCard({ negociacao, onChanged, embedded = false }: Pro
             srcDoc={preview.conteudo_html_snapshot || ''}
             className="h-80 w-full rounded-lg border border-slate-200 bg-white dark:border-slate-700"
           />
+        </div>
+      ) : null}
+
+      {preview && (preview.status === 'rascunho' || preview.status === 'enviado' || preview.tem_pdf_assinado) ? (
+        <div className="mt-3 space-y-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">PDF assinado</p>
+          <p className="text-xs text-slate-500">
+            Exporte o PDF gerado, assine no ClickSign ou outro e anexe aqui. Referência/protocolo é opcional.
+            Marcar assinado só fica disponível depois do anexo — isso cria ou vincula Rede e Empresa (sem PDVs).
+          </p>
+          {preview.tem_pdf_assinado ? (
+            <p className="text-sm text-slate-700 dark:text-slate-300">
+              Anexado: {preview.pdf_assinado_nome_original || 'PDF'}
+              {preview.referencia_externa ? ` · ref. ${preview.referencia_externa}` : ''}
+            </p>
+          ) : null}
+          {preview.tem_pdf_assinado ? (
+            <Button
+              variant="secondary"
+              onClick={() => void handlePdfAssinado(preview.id, preview.pdf_assinado_nome_original)}
+              disabled={baixandoAssinadoId === preview.id}
+            >
+              {baixandoAssinadoId === preview.id ? 'Baixando…' : 'Baixar PDF assinado'}
+            </Button>
+          ) : null}
+          {preview.status === 'rascunho' || preview.status === 'enviado' ? (
+            <div className="space-y-3">
+              <input
+                ref={pdfInputRef}
+                id="contrato-pdf-assinado"
+                type="file"
+                accept="application/pdf,.pdf"
+                className="sr-only"
+                aria-label="Ficheiro PDF assinado"
+                onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => pdfInputRef.current?.click()}
+                >
+                  {preview.tem_pdf_assinado ? 'Escolher outro PDF' : 'Anexar PDF assinado'}
+                </Button>
+                {pdfFile ? (
+                  <span className="text-sm text-slate-600 dark:text-slate-300">{pdfFile.name}</span>
+                ) : (
+                  <span className="text-xs text-slate-500">Só ficheiros PDF</span>
+                )}
+              </div>
+              <Input
+                label="Referência / protocolo (opcional)"
+                value={referenciaAnexo}
+                onChange={(e) => setReferenciaAnexo(e.target.value)}
+                placeholder="Ex.: envelope ClickSign"
+              />
+              <Button onClick={() => void handleAnexarPdf(preview.id)} disabled={anexandoPdf || !pdfFile}>
+                {anexandoPdf ? 'Anexando…' : preview.tem_pdf_assinado ? 'Substituir PDF assinado' : 'Enviar anexo'}
+              </Button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -505,17 +727,25 @@ export function CrmContratoCard({ negociacao, onChanged, embedded = false }: Pro
           <div className="w-full rounded-t-2xl bg-white p-5 shadow-xl dark:bg-slate-900 sm:max-w-md sm:rounded-2xl">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Marcar contrato como assinado</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Registro manual — a assinatura eletrónica (ClickSign) fica para um lote seguinte.
+              Confirma o PDF anexado
+              {preview?.referencia_externa ? ` (ref. ${preview.referencia_externa})` : ''}. A Rede e a
+              Empresa do CNPJ são criadas ou vinculadas; PDVs ficam para a implantação.
             </p>
-            <label className="mt-4 inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-              <input
-                type="checkbox"
-                checked={avancarFunil}
-                onChange={(e) => setAvancarFunil(e.target.checked)}
-                className="size-4 rounded border-slate-300"
-              />
-              Avançar funil para «Contrato assinado»
-            </label>
+            <div className="mt-4 space-y-1">
+              <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={avancarFunil}
+                  onChange={(e) => setAvancarFunil(e.target.checked)}
+                  className="size-4 rounded border-slate-300"
+                />
+                Avançar funil para «Contrato assinado»
+              </label>
+              <p className="pl-6 text-xs text-slate-500">
+                Pode pular proposta ou outros estágios — há cliente que manda a documentação e já fecha o
+                contrato. Desmarque só se quiser deixar o funil onde está.
+              </p>
+            </div>
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="secondary" onClick={() => setAssinandoId(null)}>
                 Voltar

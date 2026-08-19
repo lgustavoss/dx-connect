@@ -85,6 +85,11 @@ class Contrato(Base):
     alimentacao_cliente = Column(Boolean, nullable=False, default=True)
     hospedagem_cliente = Column(Boolean, nullable=False, default=True)
     multa_max_mensalidades = Column(Integer, nullable=False, default=MULTA_MAX_MENSALIDADES_PADRAO)
+    reajuste_percentual = Column(Numeric(7, 4), nullable=False, default=0)
+    reajuste_rotulo = Column(String(80), nullable=False, default="")
+    pdf_assinado_storage_key = Column(String(255), nullable=True)
+    pdf_assinado_nome_original = Column(String(255), nullable=True)
+    referencia_externa = Column(String(120), nullable=True)
     enviado_em = Column(DateTime(timezone=True), nullable=True)
     assinado_em = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
@@ -118,3 +123,14 @@ class ContratoPdf(Base):
 
     contrato = relationship("Contrato", back_populates="pdfs")
     gerado_por = relationship("Atendente", foreign_keys=[gerado_por_id])
+
+
+class ContratoPolitica(Base):
+    """Singleton da instância: reajuste padrão dos contratos (#354)."""
+
+    __tablename__ = "comercial_contrato_politica"
+
+    id = Column(Integer, primary_key=True)
+    reajuste_percentual = Column(Numeric(7, 4), nullable=False, default=0)
+    reajuste_rotulo = Column(String(80), nullable=False, default="")
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())

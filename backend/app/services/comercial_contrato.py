@@ -11,7 +11,7 @@ from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy import func
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, object_session
 
 from app.models.atendente import Atendente
 from app.models.comercial_contrato import (
@@ -24,9 +24,13 @@ from app.models.comercial_contrato import (
     MULTA_MAX_MENSALIDADES_PADRAO,
     Contrato,
     ContratoPdf,
+    ContratoPolitica,
     ContratoTemplate,
 )
 from app.models.crm import ATIVIDADE_DOCUMENTO, CrmNegociacao, CrmNegociacaoAtividade, CrmNegociacaoCnpjLinha
+from app.models.empresa import Empresa
+from app.models.empresa_sistema import EmpresaSistema
+from app.models.rede import Rede
 from app.schemas.comercial_contrato import (
     ContratoGerarIn,
     ContratoMarcarAssinadoIn,
@@ -36,7 +40,7 @@ from app.schemas.comercial_contrato import (
 )
 from app.services import comercial_proposta as proposta_svc
 from app.services import crm as crm_svc
-from app.services.ticket_anexo_storage import caminho_absoluto_arquivo, gravar_bytes_em_disco
+from app.services.ticket_anexo_storage import caminho_absoluto_arquivo, gravar_bytes_em_disco, validar_upload
 
 TEMPLATE_PADRAO_HTML = """<!DOCTYPE html>
 <html lang="pt-BR">
@@ -58,6 +62,9 @@ TEMPLATE_PADRAO_HTML = """<!DOCTYPE html>
   <p class="muted">{{empresa_sistema}}</p>
   <h1>Contrato de prestação de serviços</h1>
   <p><strong>Contratante:</strong> {{razao_social}} &nbsp; <strong>CNPJ:</strong> {{cnpj}}</p>
+  <p>{{endereco_contratante}}</p>
+  <p>{{resp_legal}}</p>
+  <p class="muted">Base WebPosto: {{nome_base_webposto}}</p>
   <h2>Objeto e valores</h2>
   {{itens}}
   <p><strong>Mensalidade:</strong> {{valor_mensalidade}}</p>
@@ -66,7 +73,7 @@ TEMPLATE_PADRAO_HTML = """<!DOCTYPE html>
   <p>Início: {{data_inicio}} &nbsp; Fim da fidelidade: {{data_fim_fidelidade}} ({{fidelidade_meses}} meses).</p>
   <div>{{fidelidade}}</div>
   <div>{{multa}}</div>
-  <div>{{igpm}}</div>
+  <div>{{reajuste}}</div>
   <h2>Implantação</h2>
   {{clausula_deslocamento}}
   {{clausula_alimentacao}}
@@ -74,6 +81,127 @@ TEMPLATE_PADRAO_HTML = """<!DOCTYPE html>
 </body>
 </html>
 """
+
+
+CAMPOS_FISCAIS_OBRIGATORIOS = (
+    "endereco",
+    "numero",
+    "bairro",
+    "cidade",
+    "estado",
+    "cep",
+    "resp_legal_nome",
+    "resp_legal_cpf",
+)
+
+
+def _digits(valor: str | None) -> str:
+    return "".join(c for c in str(valor or "") if c.isdigit())
+
+
+def _fiscal_dict(linha: CrmNegociacaoCnpjLinha) -> dict[str, str]:
+    raw = linha.dados_fiscais if isinstance(linha.dados_fiscais, dict) else {}
+    out: dict[str, str] = {}
+    for k, v in raw.items():
+        if v is None:
+            continue
+        s = str(v).strip()
+        if s:
+            out[str(k)] = s
+    return out
+
+
+def assert_pronto_para_contrato(db: Session, linha: CrmNegociacaoCnpjLinha) -> CrmNegociacao:
+    neg = linha.negociacao or crm_svc.obter_negociacao(db, linha.negociacao_id)
+    if not (neg.nome_base_webposto or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Informe o nome da base WebPosto na negociação antes de gerar o contrato.",
+        )
+    if not (linha.razao_social or "").strip() or not _digits(linha.cnpj):
+        raise HTTPException(
+            status_code=400,
+            detail="A linha precisa de razão social e CNPJ para gerar o contrato.",
+        )
+    fiscal = _fiscal_dict(linha)
+    if any(not fiscal.get(c) for c in CAMPOS_FISCAIS_OBRIGATORIOS):
+        raise HTTPException(
+            status_code=400,
+            detail="Preencha os dados fiscais da linha (endereço completo e responsável legal) antes de gerar o contrato.",
+        )
+    return neg
+
+
+def garantir_politica(db: Session) -> ContratoPolitica:
+    row = db.query(ContratoPolitica).order_by(ContratoPolitica.id.asc()).first()
+    if row:
+        return row
+    row = ContratoPolitica(id=1, reajuste_percentual=Decimal("0"), reajuste_rotulo="")
+    db.add(row)
+    db.flush()
+    return row
+
+
+def atualizar_politica(db: Session, data) -> ContratoPolitica:
+    row = garantir_politica(db)
+    payload = data.model_dump(exclude_unset=True)
+    if "reajuste_percentual" in payload and payload["reajuste_percentual"] is not None:
+        row.reajuste_percentual = payload["reajuste_percentual"]
+    if "reajuste_rotulo" in payload and payload["reajuste_rotulo"] is not None:
+        row.reajuste_rotulo = payload["reajuste_rotulo"].strip()
+    db.flush()
+    return row
+
+
+def _resolver_reajuste(db: Session, data: ContratoGerarIn) -> tuple[Decimal, str]:
+    pol = garantir_politica(db)
+    rotulo_pol = (pol.reajuste_rotulo or "").strip()
+    if data.sem_reajuste:
+        rotulo = (data.reajuste_rotulo or "").strip()
+        return Decimal("0"), rotulo
+    if data.reajuste_percentual is not None:
+        rotulo = data.reajuste_rotulo.strip() if data.reajuste_rotulo is not None else rotulo_pol
+        return Decimal(str(data.reajuste_percentual)), rotulo
+    rotulo = data.reajuste_rotulo.strip() if data.reajuste_rotulo is not None else rotulo_pol
+    return Decimal(str(pol.reajuste_percentual or 0)), rotulo
+
+
+def _fmt_pct(valor: Decimal) -> str:
+    q = valor.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return f"{q}".replace(".", ",")
+
+
+def _endereco_formatado(fiscal: dict[str, str], *, prefixo: str = "") -> str:
+    def g(chave: str) -> str:
+        return fiscal.get(f"{prefixo}{chave}" if prefixo else chave, "") or fiscal.get(chave, "")
+
+    linha1 = " ".join(p for p in (g("endereco"), g("numero"), g("complemento")) if p)
+    cid = " / ".join(p for p in (g("cidade"), g("estado")) if p)
+    partes = [p for p in (linha1, g("bairro"), cid, g("cep")) if p]
+    return html.escape(" · ".join(partes) if partes else "—")
+
+
+def _bloco_empresa_sistema(db: Session) -> str:
+    emp = db.query(EmpresaSistema).order_by(EmpresaSistema.id.asc()).first()
+    if not emp:
+        return ""
+    nomes = [p for p in (emp.razao_social, emp.nome_fantasia or emp.nome) if p]
+    fiscal = {
+        "endereco": emp.endereco or "",
+        "numero": emp.numero or "",
+        "complemento": emp.complemento or "",
+        "bairro": emp.bairro or "",
+        "cidade": emp.cidade or "",
+        "estado": emp.estado or "",
+        "cep": emp.cep or "",
+    }
+    bits = [html.escape(" · ".join(dict.fromkeys(nomes)))]
+    if emp.cnpj:
+        bits.append(html.escape(f"CNPJ {proposta_svc._formatar_cnpj(emp.cnpj)}"))
+    end = _endereco_formatado(fiscal)
+    if end and end != "—":
+        bits.append(end)
+    return " — ".join(bits)
 
 
 def sanitize_html(fragment: str) -> str:
@@ -170,7 +298,12 @@ def atualizar_template(db: Session, row: ContratoTemplate, data: ContratoTemplat
 
 
 def obter_linha(db: Session, linha_id: int) -> CrmNegociacaoCnpjLinha:
-    row = db.query(CrmNegociacaoCnpjLinha).filter(CrmNegociacaoCnpjLinha.id == linha_id).first()
+    row = (
+        db.query(CrmNegociacaoCnpjLinha)
+        .options(joinedload(CrmNegociacaoCnpjLinha.negociacao))
+        .filter(CrmNegociacaoCnpjLinha.id == linha_id)
+        .first()
+    )
     if not row:
         raise HTTPException(status_code=404, detail="Linha CNPJ da negociação não encontrada.")
     return row
@@ -202,7 +335,7 @@ def _opts_contrato():
     )
 
 
-def obter_contrato(db: Session, contrato_id: int) -> Contrato:
+def obter_contrato(db: Session, contrato_id: int, *, atendente: Atendente | None = None) -> Contrato:
     row = (
         db.query(Contrato)
         .options(*_opts_contrato())
@@ -211,7 +344,23 @@ def obter_contrato(db: Session, contrato_id: int) -> Contrato:
     )
     if not row:
         raise HTTPException(status_code=404, detail="Contrato não encontrado.")
+    _assert_acesso_contrato(row, atendente)
     return row
+
+
+def _assert_acesso_negociacao(neg: CrmNegociacao | None, atendente: Atendente | None) -> None:
+    if atendente is None or atendente.role == "admin":
+        return
+    if neg is None or neg.responsavel_id != atendente.id:
+        raise HTTPException(status_code=403, detail="Você não tem permissão para este contrato.")
+
+
+def _assert_acesso_contrato(row: Contrato, atendente: Atendente | None) -> None:
+    if atendente is None or atendente.role == "admin":
+        return
+    linha = row.linha
+    neg = linha.negociacao if linha else None
+    _assert_acesso_negociacao(neg, atendente)
 
 
 def listar_contratos(
@@ -263,6 +412,19 @@ def _setup_bloco(*, setup_isento: bool, setup_valor: Decimal | None) -> str:
     return _p("Setup de implantação: conforme negociação (fora da mensalidade).")
 
 
+def _clausula_reajuste(pct: Decimal, rotulo: str) -> str:
+    if pct <= 0:
+        return _p(
+            "Após o período de fidelidade, a renovação é automática, sem nova fidelidade e "
+            "sem reajuste de mensalidade neste contrato."
+        )
+    rot = html.escape(rotulo or "índice informado neste contrato")
+    return _p(
+        f"Após o período de fidelidade, a renovação é automática, sem nova fidelidade, "
+        f"com reajuste de {_fmt_pct(pct)}% ({rot})."
+    )
+
+
 def _clausula_custo_cliente(ativo: bool, titulo: str) -> str:
     if not ativo:
         return ""
@@ -283,11 +445,28 @@ def preencher_template(db: Session, template_html: str, contrato: Contrato, linh
     )
     fid = int(contrato.fidelidade_meses or FIDELIDADE_MESES_PADRAO)
     multa_n = int(contrato.multa_max_mensalidades or MULTA_MAX_MENSALIDADES_PADRAO)
+    fiscal = _fiscal_dict(linha)
+    neg = linha.negociacao
+    nome_base = (neg.nome_base_webposto if neg else "") or ""
+    reaj = _clausula_reajuste(
+        Decimal(str(contrato.reajuste_percentual or 0)),
+        contrato.reajuste_rotulo or "",
+    )
+    resp = fiscal.get("resp_legal_nome") or ""
+    cpf = fiscal.get("resp_legal_cpf") or ""
+    resp_txt = "—"
+    if resp:
+        resp_txt = html.escape(resp)
+        if cpf:
+            resp_txt += html.escape(f" · CPF {cpf}")
     valores = {
         "logo": proposta_svc._logo_html(db),
-        "empresa_sistema": proposta_svc._empresa_sistema_texto(db),
+        "empresa_sistema": _bloco_empresa_sistema(db) or proposta_svc._empresa_sistema_texto(db),
         "razao_social": html.escape(linha.razao_social or "—"),
         "cnpj": html.escape(proposta_svc._formatar_cnpj(linha.cnpj)),
+        "endereco_contratante": _endereco_formatado(fiscal),
+        "resp_legal": resp_txt,
+        "nome_base_webposto": html.escape(nome_base.strip() or "—"),
         "itens": tabela,
         "valor_mensalidade": html.escape(proposta_svc._money_br(contrato.valor_mensalidade)),
         "data_inicio": html.escape(contrato.data_inicio.strftime("%d/%m/%Y")),
@@ -306,10 +485,8 @@ def preencher_template(db: Session, template_html: str, contrato: Contrato, linh
                 "a validar juridicamente."
             )
         ),
-        "igpm": _p(
-            "Após o período de fidelidade, a renovação é automática, sem nova fidelidade, "
-            "com reajuste pelo IGPM acumulado em 12 meses."
-        ),
+        "igpm": reaj,
+        "reajuste": reaj,
         "clausula_deslocamento": _clausula_custo_cliente(bool(contrato.deslocamento_cliente), "Deslocamento"),
         "clausula_alimentacao": _clausula_custo_cliente(bool(contrato.alimentacao_cliente), "Alimentação"),
         "clausula_hospedagem": _clausula_custo_cliente(bool(contrato.hospedagem_cliente), "Hospedagem"),
@@ -325,13 +502,24 @@ def preencher_template(db: Session, template_html: str, contrato: Contrato, linh
     return html_out
 
 
-def _montar_snapshots(db: Session, linha: CrmNegociacaoCnpjLinha, data: ContratoGerarIn) -> dict[str, Any]:
+def _montar_snapshots(
+    db: Session,
+    linha: CrmNegociacaoCnpjLinha,
+    data: ContratoGerarIn,
+    *,
+    reajuste_percentual: Decimal,
+    reajuste_rotulo: str,
+    nome_base: str,
+) -> dict[str, Any]:
     nomes = proposta_svc._nomes_itens_cliente(db, linha)
     snap_custo = linha.snapshot_custo if isinstance(linha.snapshot_custo, dict) else None
+    fiscal = _fiscal_dict(linha)
     return {
         "valor_mensalidade": Decimal(str(linha.valor_negociado or 0)),
         "snapshot_custo": snap_custo,
         "snapshot_itens": [{"nome": n} for n in nomes],
+        "reajuste_percentual": reajuste_percentual,
+        "reajuste_rotulo": reajuste_rotulo,
         "snapshot_comercial": {
             "valor_mensalidade": str(Decimal(str(linha.valor_negociado or 0))),
             "setup_valor": str(data.setup_valor) if data.setup_valor is not None else None,
@@ -341,6 +529,10 @@ def _montar_snapshots(db: Session, linha: CrmNegociacaoCnpjLinha, data: Contrato
             "deslocamento_cliente": data.deslocamento_cliente,
             "alimentacao_cliente": data.alimentacao_cliente,
             "hospedagem_cliente": data.hospedagem_cliente,
+            "reajuste_percentual": str(reajuste_percentual),
+            "reajuste_rotulo": reajuste_rotulo,
+            "nome_base_webposto": nome_base,
+            "dados_fiscais": fiscal,
         },
     }
 
@@ -365,6 +557,8 @@ def _aplicar_campos_geracao(row: Contrato, data: ContratoGerarIn, snaps: dict[st
     row.alimentacao_cliente = data.alimentacao_cliente
     row.hospedagem_cliente = data.hospedagem_cliente
     row.multa_max_mensalidades = data.multa_max_mensalidades
+    row.reajuste_percentual = snaps["reajuste_percentual"]
+    row.reajuste_rotulo = snaps["reajuste_rotulo"]
 
 
 def _gravar_pdf_versao(db: Session, contrato: Contrato, html_doc: str, ator: Atendente) -> ContratoPdf:
@@ -381,8 +575,8 @@ def _gravar_pdf_versao(db: Session, contrato: Contrato, html_doc: str, ator: Ate
 
 def gerar_contrato(db: Session, data: ContratoGerarIn, ator: Atendente) -> Contrato:
     linha = obter_linha(db, data.linha_id)
-    if not (linha.razao_social or "").strip() or not (linha.cnpj or "").strip():
-        raise HTTPException(status_code=400, detail="A linha precisa de razão social e CNPJ para gerar o contrato.")
+    neg = assert_pronto_para_contrato(db, linha)
+    _assert_acesso_negociacao(neg, ator)
     if data.template_id:
         tmpl = obter_template(db, data.template_id, apenas_ativos=True)
     else:
@@ -400,7 +594,15 @@ def gerar_contrato(db: Session, data: ContratoGerarIn, ator: Atendente) -> Contr
             detail="Contrato já enviado. Não é possível regenerar; cancele ou marque como assinado.",
         )
 
-    snaps = _montar_snapshots(db, linha, data)
+    pct, rotulo = _resolver_reajuste(db, data)
+    snaps = _montar_snapshots(
+        db,
+        linha,
+        data,
+        reajuste_percentual=pct,
+        reajuste_rotulo=rotulo,
+        nome_base=(neg.nome_base_webposto or "").strip(),
+    )
     if existente:
         row = existente
         _aplicar_campos_geracao(row, data, snaps, tmpl)
@@ -482,9 +684,17 @@ def marcar_enviado(db: Session, row: Contrato, data: ContratoMarcarEnviadoIn, at
 def marcar_assinado(db: Session, row: Contrato, data: ContratoMarcarAssinadoIn, ator: Atendente) -> Contrato:
     if row.status not in {CONTRATO_RASCUNHO, CONTRATO_ENVIADO}:
         raise HTTPException(status_code=400, detail="Só rascunho ou enviado podem ser marcados como assinados.")
+    if not (row.pdf_assinado_storage_key or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Anexe o PDF assinado antes de marcar o contrato como assinado.",
+        )
+    if data.referencia_externa is not None:
+        row.referencia_externa = data.referencia_externa.strip() or None
     row.status = CONTRATO_ASSINADO
     row.assinado_em = data.assinado_em or datetime.now(timezone.utc)
     linha = row.linha or obter_linha(db, row.negociacao_linha_cnpj_id)
+    converter_pos_assinatura(db, row, linha, ator)
     db.add(
         CrmNegociacaoAtividade(
             negociacao_id=linha.negociacao_id,
@@ -505,7 +715,7 @@ def marcar_assinado(db: Session, row: Contrato, data: ContratoMarcarAssinadoIn, 
                 nota="Contrato assinado (registro manual).",
             )
     db.flush()
-    return row
+    return obter_contrato(db, row.id)
 
 
 def cancelar_contrato(db: Session, row: Contrato, ator: Atendente) -> Contrato:
@@ -562,11 +772,19 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
         template_versao = int(versao_snapshot) if versao_snapshot is not None else (tmpl.versao if tmpl else None)
     except (TypeError, ValueError):
         template_versao = tmpl.versao if tmpl else None
+    rede_id = None
+    if row.empresa_id:
+        sess = object_session(row)
+        if sess is not None:
+            emp = sess.query(Empresa).filter(Empresa.id == row.empresa_id).first()
+            if emp is not None:
+                rede_id = emp.rede_id
     return {
         "id": row.id,
         "negociacao_linha_cnpj_id": row.negociacao_linha_cnpj_id,
         "negociacao_id": linha.negociacao_id if linha else None,
         "empresa_id": row.empresa_id,
+        "rede_id": rede_id,
         "template_id": row.template_id,
         "template_nome": tmpl.nome if tmpl else None,
         "template_versao": template_versao,
@@ -583,6 +801,11 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
         "alimentacao_cliente": row.alimentacao_cliente,
         "hospedagem_cliente": row.hospedagem_cliente,
         "multa_max_mensalidades": row.multa_max_mensalidades,
+        "reajuste_percentual": row.reajuste_percentual,
+        "reajuste_rotulo": row.reajuste_rotulo or "",
+        "pdf_assinado_nome_original": row.pdf_assinado_nome_original,
+        "tem_pdf_assinado": bool(row.pdf_assinado_storage_key),
+        "referencia_externa": row.referencia_externa,
         "enviado_em": row.enviado_em,
         "assinado_em": row.assinado_em,
         "created_at": row.created_at,
@@ -606,3 +829,226 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
         "dias_restantes_fidelidade": dias,
         "interno": _interno_read(row, linha),
     }
+
+
+def anexar_pdf_assinado(
+    db: Session,
+    row: Contrato,
+    *,
+    conteudo: bytes,
+    nome_original: str | None,
+    content_type: str | None,
+    referencia_externa: str | None,
+    ator: Atendente,
+) -> Contrato:
+    if row.status not in {CONTRATO_RASCUNHO, CONTRATO_ENVIADO}:
+        raise HTTPException(
+            status_code=400,
+            detail="Só é possível anexar o PDF assinado em contrato rascunho ou enviado.",
+        )
+    try:
+        nome, mime = validar_upload(nome_original, content_type, len(conteudo))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if mime and mime != "application/pdf":
+        raise HTTPException(status_code=400, detail="O anexo assinado deve ser um PDF.")
+    if not (nome.lower().endswith(".pdf") or mime == "application/pdf"):
+        raise HTTPException(status_code=400, detail="O anexo assinado deve ser um PDF.")
+    try:
+        key = gravar_bytes_em_disco(conteudo, mimetype="application/pdf", nome_original=nome)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    row.pdf_assinado_storage_key = key
+    row.pdf_assinado_nome_original = nome
+    if referencia_externa is not None:
+        row.referencia_externa = referencia_externa.strip() or None
+    linha = row.linha or obter_linha(db, row.negociacao_linha_cnpj_id)
+    db.add(
+        CrmNegociacaoAtividade(
+            negociacao_id=linha.negociacao_id,
+            autor_id=ator.id,
+            tipo=ATIVIDADE_DOCUMENTO,
+            texto=f"PDF assinado anexado ao contrato #{row.id}.",
+        )
+    )
+    db.flush()
+    return obter_contrato(db, row.id)
+
+
+def bytes_pdf_assinado(row: Contrato) -> tuple[bytes, str]:
+    if not row.pdf_assinado_storage_key:
+        raise HTTPException(status_code=404, detail="Este contrato ainda não tem PDF assinado anexado.")
+    path = caminho_absoluto_arquivo(row.pdf_assinado_storage_key)
+    if not path:
+        raise HTTPException(status_code=404, detail="Ficheiro do PDF assinado não encontrado.")
+    nome = row.pdf_assinado_nome_original or f"contrato-{row.id}-assinado.pdf"
+    return path.read_bytes(), nome
+
+
+def _contato_conversao(fiscal: dict[str, str], lead: Any) -> tuple[str | None, str | None]:
+    email = (fiscal.get("email") or "").strip()
+    if not email and lead is not None:
+        email = (getattr(lead, "email", None) or "").strip()
+    email = email.lower() or None
+    tel = _digits(fiscal.get("telefone"))
+    if not tel and lead is not None:
+        tel = _digits(getattr(lead, "telefone", None))
+    tel = tel[:20] or None
+    return email, tel
+
+
+def _aplicar_contato_empresa(empresa: Empresa, email: str | None, telefone: str | None) -> None:
+    if email and not (empresa.email or "").strip():
+        empresa.email = email[:255]
+    if telefone and not _digits(empresa.telefone):
+        empresa.telefone = telefone[:20]
+
+
+def _vincular_contato_chat(db: Session, empresa: Empresa, rede: Rede, fiscal: dict[str, str], lead: Any) -> None:
+    """Cria ou reutiliza um colaborador com e-mail/telefone para o chat encontrar o posto."""
+    from app.models.funcionario_rede import FuncionarioRede
+    from app.services.funcionario_escopo import sincronizar_vinculos_empresas
+    from app.services.funcionario_rede_resolver import assert_email_unico_por_rede
+
+    email, telefone = _contato_conversao(fiscal, lead)
+    if not email and not telefone:
+        return
+    nome = (fiscal.get("resp_legal_nome") or "").strip()
+    if not nome and lead is not None:
+        nome = (getattr(lead, "nome", None) or "").strip()
+    if not nome:
+        nome = (empresa.nome or "").strip() or "Contacto comercial"
+    existente = None
+    if telefone:
+        for f in db.query(FuncionarioRede).filter(FuncionarioRede.ativo.is_(True), FuncionarioRede.rede_id == rede.id):
+            if _digits(f.telefone) == telefone:
+                existente = f
+                break
+    if existente is None and email:
+        existente = (
+            db.query(FuncionarioRede)
+            .filter(
+                FuncionarioRede.ativo.is_(True),
+                FuncionarioRede.rede_id == rede.id,
+                func.lower(FuncionarioRede.email) == email,
+            )
+            .first()
+        )
+    if existente:
+        if not _digits(existente.telefone) and telefone:
+            existente.telefone = telefone
+        if not (existente.email or "").strip() and email:
+            existente.email = email
+        return
+    email_func = email
+    if email_func:
+        try:
+            assert_email_unico_por_rede(db, email=email_func, rede_id=rede.id)
+        except ValueError:
+            email_func = None
+        if not email_func and not telefone:
+            return
+    f = FuncionarioRede(
+        nome=nome[:255],
+        email=email_func,
+        telefone=telefone,
+        tipo="colaborador",
+        escopo_empresas="selected",
+        ativo=True,
+        rede_id=rede.id,
+        empresa_id=empresa.id,
+    )
+    db.add(f)
+    db.flush()
+    sincronizar_vinculos_empresas(db, f, escopo="selected", rede_id=rede.id, empresa_ids=[empresa.id])
+
+
+def converter_pos_assinatura(db: Session, contrato: Contrato, linha: CrmNegociacaoCnpjLinha, ator: Atendente) -> None:
+    """Cria ou vincula Rede + Empresa a partir do snapshot da linha (#357). Sem PDVs."""
+    if contrato.empresa_id and linha.empresa_id:
+        return
+    neg = linha.negociacao or crm_svc.obter_negociacao(db, linha.negociacao_id)
+    nome_base = (neg.nome_base_webposto or "").strip()
+    if not nome_base:
+        raise HTTPException(
+            status_code=400,
+            detail="Informe o nome da base WebPosto na negociação para criar a Rede.",
+        )
+    cnpj_digits = _digits(linha.cnpj)
+    if not cnpj_digits:
+        raise HTTPException(status_code=400, detail="A linha precisa de CNPJ para criar a Empresa.")
+    tenant_id = ator.tenant_id
+    fiscal = _fiscal_dict(linha)
+    snap = contrato.snapshot_comercial if isinstance(contrato.snapshot_comercial, dict) else {}
+    if isinstance(snap.get("dados_fiscais"), dict):
+        fiscal = {**fiscal, **{k: str(v).strip() for k, v in snap["dados_fiscais"].items() if v}}
+    lead = neg.lead
+    email_contato, telefone_contato = _contato_conversao(fiscal, lead)
+
+    rede = (
+        db.query(Rede)
+        .filter(Rede.tenant_id == tenant_id, func.lower(Rede.nome) == nome_base.lower())
+        .order_by(Rede.id.asc())
+        .first()
+    )
+    if not rede:
+        rede = Rede(tenant_id=tenant_id, nome=nome_base, ativo=True)
+        db.add(rede)
+        db.flush()
+
+    existente = None
+    for emp in db.query(Empresa).filter(Empresa.tenant_id == tenant_id).all():
+        if _digits(emp.cnpj_cpf) == cnpj_digits:
+            existente = emp
+            break
+    if existente:
+        _aplicar_contato_empresa(existente, email_contato, telefone_contato)
+        contrato.empresa_id = existente.id
+        linha.empresa_id = existente.id
+        _vincular_contato_chat(db, existente, rede, fiscal, lead)
+        db.flush()
+        return
+
+    nome_emp = fiscal.get("nome") or fiscal.get("nome_fantasia") or (linha.razao_social or "").strip() or nome_base
+    empresa = Empresa(
+        tenant_id=tenant_id,
+        rede_id=rede.id,
+        nome=nome_emp[:255],
+        cnpj_cpf=proposta_svc._formatar_cnpj(cnpj_digits) if len(cnpj_digits) == 14 else cnpj_digits,
+        razao_social=(linha.razao_social or "").strip() or None,
+        nome_fantasia=fiscal.get("nome_fantasia") or None,
+        inscricao_estadual=fiscal.get("inscricao_estadual") or None,
+        endereco=fiscal.get("endereco") or None,
+        numero=fiscal.get("numero") or None,
+        complemento=fiscal.get("complemento") or None,
+        bairro=fiscal.get("bairro") or None,
+        cidade=fiscal.get("cidade") or None,
+        estado=(fiscal.get("estado") or "")[:2] or None,
+        cep=fiscal.get("cep") or None,
+        email=email_contato,
+        telefone=telefone_contato,
+        resp_legal_nome=fiscal.get("resp_legal_nome") or None,
+        resp_legal_cpf=fiscal.get("resp_legal_cpf") or None,
+        resp_legal_rg=fiscal.get("resp_legal_rg") or None,
+        resp_legal_orgao_emissor=fiscal.get("resp_legal_orgao_emissor") or None,
+        resp_legal_nacionalidade=fiscal.get("resp_legal_nacionalidade") or None,
+        resp_legal_estado_civil=fiscal.get("resp_legal_estado_civil") or None,
+        resp_legal_cargo=fiscal.get("resp_legal_cargo") or None,
+        resp_legal_email=fiscal.get("resp_legal_email") or None,
+        resp_legal_telefone=fiscal.get("resp_legal_telefone") or None,
+        resp_legal_endereco=fiscal.get("resp_legal_endereco") or None,
+        resp_legal_numero=fiscal.get("resp_legal_numero") or None,
+        resp_legal_complemento=fiscal.get("resp_legal_complemento") or None,
+        resp_legal_bairro=fiscal.get("resp_legal_bairro") or None,
+        resp_legal_cidade=fiscal.get("resp_legal_cidade") or None,
+        resp_legal_estado=(fiscal.get("resp_legal_estado") or "")[:2] or None,
+        resp_legal_cep=fiscal.get("resp_legal_cep") or None,
+        ativo=True,
+    )
+    db.add(empresa)
+    db.flush()
+    contrato.empresa_id = empresa.id
+    linha.empresa_id = empresa.id
+    _vincular_contato_chat(db, empresa, rede, fiscal, lead)
+    db.flush()
+

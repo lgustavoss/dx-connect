@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ApiError, comercialContratoTemplates, type ComercialContrato } from '../api/client'
+import { ApiError, comercialContratoPolitica, comercialContratoTemplates, type ComercialContrato } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -9,6 +9,7 @@ import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { IconPencil } from '../components/ui/IconPencil'
 import { useToast } from '../components/ui/Toast'
 import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
+import { formatPercentualPt, parsePercentualPt } from '../components/crm/crmFiscais'
 import { SemPermissao } from './SemPermissao'
 
 const PLACEHOLDERS = [
@@ -23,6 +24,10 @@ const PLACEHOLDERS = [
   '{{fidelidade}}',
   '{{multa}}',
   '{{igpm}}',
+  '{{reajuste}}',
+  '{{endereco_contratante}}',
+  '{{resp_legal}}',
+  '{{nome_base_webposto}}',
   '{{clausula_deslocamento}}',
   '{{clausula_alimentacao}}',
   '{{clausula_hospedagem}}',
@@ -52,6 +57,9 @@ export function ConfigContratoTemplates({ embedded = false }: { embedded?: boole
   const [form, setForm] = useState<FormState>(emptyForm())
   const [saving, setSaving] = useState(false)
   const [previewHtml, setPreviewHtml] = useState<string | null>(null)
+  const [politicaPct, setPoliticaPct] = useState('0')
+  const [politicaRotulo, setPoliticaRotulo] = useState('')
+  const [savingPolitica, setSavingPolitica] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -74,6 +82,19 @@ export function ConfigContratoTemplates({ embedded = false }: { embedded?: boole
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    comercialContratoPolitica
+      .get()
+      .then((p) => {
+        setPoliticaPct(formatPercentualPt(p.reajuste_percentual ?? '0'))
+        setPoliticaRotulo(p.reajuste_rotulo || '')
+      })
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 403) return
+        toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível carregar o reajuste padrão.'))
+      })
+  }, [toast])
 
   function openCreate() {
     setForm(emptyForm())
@@ -136,6 +157,29 @@ export function ConfigContratoTemplates({ embedded = false }: { embedded?: boole
     }
   }
 
+  async function handleSavePolitica(e: React.FormEvent) {
+    e.preventDefault()
+    const pct = parsePercentualPt(politicaPct)
+    if (Number.isNaN(pct) || pct < 0 || pct > 100) {
+      toast.showWarning('O percentual de reajuste deve estar entre 0 e 100.')
+      return
+    }
+    setSavingPolitica(true)
+    try {
+      const p = await comercialContratoPolitica.update({
+        reajuste_percentual: pct,
+        reajuste_rotulo: politicaRotulo.trim(),
+      })
+      setPoliticaPct(formatPercentualPt(p.reajuste_percentual ?? '0'))
+      setPoliticaRotulo(p.reajuste_rotulo || '')
+      toast.showSuccess('Reajuste padrão salvo. Contratos já gerados não mudam.')
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar o reajuste padrão.'))
+    } finally {
+      setSavingPolitica(false)
+    }
+  }
+
   const denied = (
     <SemPermissao
       title="Você não tem permissão para configurar modelos de contrato."
@@ -157,6 +201,34 @@ export function ConfigContratoTemplates({ embedded = false }: { embedded?: boole
         HTML usado ao gerar o contrato na negociação. Não inclua custo ou margem — esses dados são internos.
         Editar o HTML sobe a versão do modelo; o PDF já gerado permanece na versão gravada no contrato.
       </p>
+      <Card title="Reajuste anual padrão" className="mb-3">
+        <p className="mb-3 text-sm text-slate-500">
+          Usado ao gerar contratos, salvo override ou «sem reajuste» na negociação. Não consulta índice (IGPM)
+          automaticamente. O recálculo anual na data de aniversário entra numa versão seguinte.
+        </p>
+        <form onSubmit={(e) => void handleSavePolitica(e)} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="sm:w-40">
+            <Input
+              label="Percentual"
+              inputMode="decimal"
+              value={politicaPct}
+              onChange={(e) => setPoliticaPct(e.target.value.replace(/[^\d,.]/g, ''))}
+              hint="Ex.: 0 ou 5,5"
+            />
+          </div>
+          <div className="flex-1">
+            <Input
+              label="Rótulo"
+              value={politicaRotulo}
+              onChange={(e) => setPoliticaRotulo(e.target.value)}
+              placeholder="Ex.: IGPM"
+            />
+          </div>
+          <Button type="submit" disabled={savingPolitica}>
+            {savingPolitica ? 'Salvando…' : 'Salvar'}
+          </Button>
+        </form>
+      </Card>
       <details className="mb-3 rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700">
         <summary className="cursor-pointer font-medium text-slate-700 dark:text-slate-200">
           Placeholders disponíveis
