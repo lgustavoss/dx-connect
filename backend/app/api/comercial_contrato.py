@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
@@ -14,6 +14,8 @@ from app.schemas.comercial_contrato import (
     ContratoGerarIn,
     ContratoMarcarAssinadoIn,
     ContratoMarcarEnviadoIn,
+    ContratoPoliticaRead,
+    ContratoPoliticaUpdate,
     ContratoRead,
     ContratoTemplateCreate,
     ContratoTemplatePreviewIn,
@@ -76,6 +78,29 @@ def atualizar_template(
     return row
 
 
+@router.get("/contrato-politica", response_model=ContratoPoliticaRead)
+def obter_politica(
+    db: Session = Depends(get_db),
+    _: Atendente = Depends(exigir_comercial_ou_admin),
+):
+    row = svc.garantir_politica(db)
+    db.commit()
+    return row
+
+
+@router.patch("/contrato-politica", response_model=ContratoPoliticaRead)
+def atualizar_politica(
+    data: ContratoPoliticaUpdate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_admin),
+):
+    row = svc.atualizar_politica(db, data)
+    registrar_audit(db, "comercial_contrato_politica", row.id, "update", atendente.id)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
 @router.get("/contratos", response_model=list[ContratoRead])
 def listar_contratos(
     negociacao_id: int | None = Query(None),
@@ -87,7 +112,7 @@ def listar_contratos(
     atendente: Atendente = Depends(exigir_comercial_ou_admin),
 ):
     filtrar_minhas = so_minhas
-    if negociacao_id is None and atendente.role != "admin":
+    if atendente.role != "admin":
         filtrar_minhas = True
     elif filtrar_minhas is None:
         filtrar_minhas = False
@@ -123,16 +148,16 @@ def gerar_contrato(
     )
     db.commit()
     db.refresh(row)
-    return svc.contrato_para_read(svc.obter_contrato(db, row.id), incluir_html=True)
+    return svc.contrato_para_read(svc.obter_contrato(db, row.id, atendente=atendente), incluir_html=True)
 
 
 @router.get("/contratos/{contrato_id}", response_model=ContratoRead)
 def obter_contrato(
     contrato_id: int,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_comercial_ou_admin),
 ):
-    return svc.contrato_para_read(svc.obter_contrato(db, contrato_id), incluir_html=True)
+    return svc.contrato_para_read(svc.obter_contrato(db, contrato_id, atendente=atendente), incluir_html=True)
 
 
 @router.get("/contratos/{contrato_id}/pdf")
@@ -140,15 +165,61 @@ def baixar_pdf(
     contrato_id: int,
     pdf_id: int | None = Query(None),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_comercial_ou_admin),
 ):
-    row = svc.obter_contrato(db, contrato_id)
+    row = svc.obter_contrato(db, contrato_id, atendente=atendente)
     pdf_row, pdf = svc.garantir_pdf(db, row, pdf_id=pdf_id)
     db.commit()
     return Response(
         content=pdf,
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="contrato-{row.id}-{pdf_row.id}.pdf"'},
+    )
+
+
+@router.post("/contratos/{contrato_id}/pdf-assinado", response_model=ContratoRead)
+def anexar_pdf_assinado(
+    contrato_id: int,
+    arquivo: UploadFile = File(...),
+    referencia_externa: str | None = Form(None),
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+):
+    row = svc.obter_contrato(db, contrato_id, atendente=atendente)
+    conteudo = arquivo.file.read()
+    row = svc.anexar_pdf_assinado(
+        db,
+        row,
+        conteudo=conteudo,
+        nome_original=arquivo.filename,
+        content_type=arquivo.content_type,
+        referencia_externa=referencia_externa,
+        ator=atendente,
+    )
+    registrar_audit(
+        db,
+        "comercial_contrato",
+        row.id,
+        "update",
+        atendente.id,
+        payload={"pdf_assinado": True},
+    )
+    db.commit()
+    return svc.contrato_para_read(svc.obter_contrato(db, row.id, atendente=atendente), incluir_html=True)
+
+
+@router.get("/contratos/{contrato_id}/pdf-assinado")
+def baixar_pdf_assinado(
+    contrato_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+):
+    row = svc.obter_contrato(db, contrato_id, atendente=atendente)
+    pdf, nome = svc.bytes_pdf_assinado(row)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{nome}"'},
     )
 
 
@@ -159,7 +230,7 @@ def marcar_enviado(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(exigir_comercial_ou_admin),
 ):
-    row = svc.obter_contrato(db, contrato_id)
+    row = svc.obter_contrato(db, contrato_id, atendente=atendente)
     row = svc.marcar_enviado(db, row, data, atendente)
     registrar_audit(
         db,
@@ -171,7 +242,7 @@ def marcar_enviado(
     )
     db.commit()
     db.refresh(row)
-    return svc.contrato_para_read(svc.obter_contrato(db, row.id), incluir_html=True)
+    return svc.contrato_para_read(svc.obter_contrato(db, row.id, atendente=atendente), incluir_html=True)
 
 
 @router.post("/contratos/{contrato_id}/marcar-assinado", response_model=ContratoRead)
@@ -181,7 +252,7 @@ def marcar_assinado(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(exigir_comercial_ou_admin),
 ):
-    row = svc.obter_contrato(db, contrato_id)
+    row = svc.obter_contrato(db, contrato_id, atendente=atendente)
     row = svc.marcar_assinado(db, row, data, atendente)
     registrar_audit(
         db,
@@ -193,7 +264,7 @@ def marcar_assinado(
     )
     db.commit()
     db.refresh(row)
-    return svc.contrato_para_read(svc.obter_contrato(db, row.id), incluir_html=True)
+    return svc.contrato_para_read(svc.obter_contrato(db, row.id, atendente=atendente), incluir_html=True)
 
 
 @router.post("/contratos/{contrato_id}/cancelar", response_model=ContratoRead)
@@ -202,7 +273,7 @@ def cancelar_contrato(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(exigir_comercial_ou_admin),
 ):
-    row = svc.obter_contrato(db, contrato_id)
+    row = svc.obter_contrato(db, contrato_id, atendente=atendente)
     row = svc.cancelar_contrato(db, row, atendente)
     registrar_audit(
         db,
@@ -214,4 +285,4 @@ def cancelar_contrato(
     )
     db.commit()
     db.refresh(row)
-    return svc.contrato_para_read(svc.obter_contrato(db, row.id), incluir_html=True)
+    return svc.contrato_para_read(svc.obter_contrato(db, row.id, atendente=atendente), incluir_html=True)

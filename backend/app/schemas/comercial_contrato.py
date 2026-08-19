@@ -53,6 +53,21 @@ class ContratoGerarIn(BaseModel):
     alimentacao_cliente: bool = True
     hospedagem_cliente: bool = True
     multa_max_mensalidades: int = Field(3, ge=0, le=12)
+    sem_reajuste: bool = False
+    reajuste_percentual: Decimal | None = Field(None, ge=0, le=100)
+    reajuste_rotulo: str | None = Field(None, max_length=80)
+
+
+class ContratoPoliticaRead(BaseModel):
+    reajuste_percentual: Decimal
+    reajuste_rotulo: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ContratoPoliticaUpdate(BaseModel):
+    reajuste_percentual: Decimal | None = Field(None, ge=0, le=100)
+    reajuste_rotulo: str | None = Field(None, max_length=80)
 
 
 class ContratoMarcarEnviadoIn(BaseModel):
@@ -62,6 +77,7 @@ class ContratoMarcarEnviadoIn(BaseModel):
 class ContratoMarcarAssinadoIn(BaseModel):
     assinado_em: datetime | None = None
     avancar_funil: bool = False
+    referencia_externa: str | None = Field(None, max_length=120)
 
 
 class ContratoPdfRead(BaseModel):
@@ -86,6 +102,7 @@ class ContratoRead(BaseModel):
     negociacao_linha_cnpj_id: int
     negociacao_id: int | None = None
     empresa_id: int | None = None
+    rede_id: int | None = None
     template_id: int
     template_nome: str | None = None
     template_versao: int | None = None
@@ -102,6 +119,11 @@ class ContratoRead(BaseModel):
     alimentacao_cliente: bool
     hospedagem_cliente: bool
     multa_max_mensalidades: int
+    reajuste_percentual: Decimal
+    reajuste_rotulo: str
+    pdf_assinado_nome_original: str | None = None
+    tem_pdf_assinado: bool = False
+    referencia_externa: str | None = None
     enviado_em: datetime | None = None
     assinado_em: datetime | None = None
     created_at: datetime

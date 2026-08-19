@@ -3162,6 +3162,7 @@ export namespace ComercialContrato {
     negociacao_linha_cnpj_id: number;
     negociacao_id?: number | null;
     empresa_id?: number | null;
+    rede_id?: number | null;
     template_id: number;
     template_nome?: string | null;
     template_versao?: number | null;
@@ -3178,6 +3179,11 @@ export namespace ComercialContrato {
     alimentacao_cliente: boolean;
     hospedagem_cliente: boolean;
     multa_max_mensalidades: number;
+    reajuste_percentual?: string | number;
+    reajuste_rotulo?: string;
+    pdf_assinado_nome_original?: string | null;
+    tem_pdf_assinado?: boolean;
+    referencia_externa?: string | null;
     enviado_em?: string | null;
     assinado_em?: string | null;
     created_at: string;
@@ -3203,6 +3209,9 @@ export namespace ComercialContrato {
     alimentacao_cliente?: boolean;
     hospedagem_cliente?: boolean;
     multa_max_mensalidades?: number;
+    sem_reajuste?: boolean;
+    reajuste_percentual?: string | number | null;
+    reajuste_rotulo?: string | null;
   }
   export interface MarcarEnviadoRequest {
     enviado_em?: string | null;
@@ -3210,6 +3219,11 @@ export namespace ComercialContrato {
   export interface MarcarAssinadoRequest {
     assinado_em?: string | null;
     avancar_funil?: boolean;
+    referencia_externa?: string | null;
+  }
+  export interface Politica {
+    reajuste_percentual: string | number;
+    reajuste_rotulo: string;
   }
 }
 
@@ -3260,6 +3274,15 @@ export const comercialContratos = {
     }),
   cancelar: (id: number) =>
     api<ComercialContrato.Contrato>(`/comercial/contratos/${id}/cancelar`, { method: 'POST' }),
+  anexarPdfAssinado: (id: number, file: File, referenciaExterna?: string) => {
+    const fd = new FormData()
+    fd.append('arquivo', file)
+    if (referenciaExterna?.trim()) fd.append('referencia_externa', referenciaExterna.trim())
+    return api<ComercialContrato.Contrato>(`/comercial/contratos/${id}/pdf-assinado`, {
+      method: 'POST',
+      body: fd,
+    })
+  },
   downloadPdf: async (id: number, pdfId?: number) => {
     const token = getAuthToken();
     const headers: Record<string, string> = {};
@@ -3281,6 +3304,34 @@ export const comercialContratos = {
     }
     return res.blob();
   },
+  downloadPdfAssinado: async (id: number) => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
+    }
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}/comercial/contratos/${id}/pdf-assinado`;
+    const res = await fetch(url, { headers });
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin();
+      throw new ApiError('Sessão expirada ou inválida.', 401, {});
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody);
+    }
+    return res.blob();
+  },
+};
+
+export const comercialContratoPolitica = {
+  get: () => api<ComercialContrato.Politica>('/comercial/contrato-politica'),
+  update: (data: Partial<ComercialContrato.Politica>) =>
+    api<ComercialContrato.Politica>('/comercial/contrato-politica', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
 };
 
 export const crmFunil = {
@@ -3421,11 +3472,43 @@ export namespace Crm {
     ativo?: boolean;
   }
 
+  export interface DadosFiscais {
+    nome?: string | null;
+    nome_fantasia?: string | null;
+    inscricao_estadual?: string | null;
+    endereco?: string | null;
+    numero?: string | null;
+    complemento?: string | null;
+    bairro?: string | null;
+    cidade?: string | null;
+    estado?: string | null;
+    cep?: string | null;
+    email?: string | null;
+    telefone?: string | null;
+    resp_legal_nome?: string | null;
+    resp_legal_cpf?: string | null;
+    resp_legal_rg?: string | null;
+    resp_legal_orgao_emissor?: string | null;
+    resp_legal_nacionalidade?: string | null;
+    resp_legal_estado_civil?: string | null;
+    resp_legal_cargo?: string | null;
+    resp_legal_email?: string | null;
+    resp_legal_telefone?: string | null;
+    resp_legal_endereco?: string | null;
+    resp_legal_numero?: string | null;
+    resp_legal_complemento?: string | null;
+    resp_legal_bairro?: string | null;
+    resp_legal_cidade?: string | null;
+    resp_legal_estado?: string | null;
+    resp_legal_cep?: string | null;
+  }
+
   export interface Linha {
     id: number;
     negociacao_id: number;
     cnpj?: string | null;
     razao_social?: string | null;
+    dados_fiscais?: DadosFiscais | null;
     item_ids: number[];
     quantidade_pdvs: number;
     desconto_posto_100k: boolean;
@@ -3443,6 +3526,7 @@ export namespace Crm {
   export interface LinhaCreate {
     cnpj?: string | null;
     razao_social?: string | null;
+    dados_fiscais?: DadosFiscais | null;
     item_ids?: number[];
     quantidade_pdvs?: number;
     desconto_posto_100k?: boolean;
@@ -3454,6 +3538,7 @@ export namespace Crm {
   export interface LinhaUpdate {
     cnpj?: string | null;
     razao_social?: string | null;
+    dados_fiscais?: DadosFiscais | null;
     item_ids?: number[];
     quantidade_pdvs?: number;
     desconto_posto_100k?: boolean;
@@ -3472,6 +3557,7 @@ export namespace Crm {
     estagio_nome?: string | null;
     ativa: boolean;
     titulo?: string | null;
+    nome_base_webposto?: string | null;
     linhas: Linha[];
     created_at?: string | null;
     updated_at?: string | null;
@@ -3486,6 +3572,7 @@ export namespace Crm {
 
   export interface NegociacaoUpdate {
     titulo?: string | null;
+    nome_base_webposto?: string | null;
     responsavel_id?: number | null;
   }
 
