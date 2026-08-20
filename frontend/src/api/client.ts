@@ -21,6 +21,7 @@ function apiBaseUrl(): string {
         /* slug inválido no storage */
       }
     }
+    // Vazio de propósito: api()/SSE recusam pedidos — evita fetch relativo a https://localhost.
     return ''
   }
   if (import.meta.env.DEV) return '/api'
@@ -29,6 +30,12 @@ function apiBaseUrl(): string {
     throw new Error('VITE_API_URL não definido — o build de produção deveria ter falhado no vite.config.')
   }
   return url.replace(/\/+$/, '')
+}
+
+/** Capacitor: há alvo de API (slug gravado ou VITE_API_URL de debug). */
+export function hasNativeApiTarget(): boolean {
+  if (!isCapacitorNative()) return true
+  return Boolean(apiBaseUrl())
 }
 
 function apiOrigin(): string {
@@ -3239,6 +3246,11 @@ export namespace ComercialContrato {
     vigencia_inicio?: string | null;
     ativo?: boolean;
   }
+  export interface ChaveCatalogo {
+    grupo: string;
+    chave: string;
+    descricao: string;
+  }
   export interface Interno {
     total_custo?: string | number | null;
     margem_calculada?: string | number | null;
@@ -3325,6 +3337,7 @@ export namespace ComercialContrato {
 export const comercialContratoTemplates = {
   list: (params?: { incluir_inativos?: boolean }) =>
     api<ComercialContrato.Template[]>(withParams('/comercial/contrato-templates', params)),
+  chaves: () => api<ComercialContrato.ChaveCatalogo[]>('/comercial/contrato-templates/chaves'),
   create: (data: ComercialContrato.TemplateCreate) =>
     api<ComercialContrato.Template>('/comercial/contrato-templates', {
       method: 'POST',

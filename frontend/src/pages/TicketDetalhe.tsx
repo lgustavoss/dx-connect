@@ -273,6 +273,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
   const [tipoNovaMensagem, setTipoNovaMensagem] = useState<'publico' | 'interno'>('publico')
   const [notificarClienteEmail, setNotificarClienteEmail] = useState(false)
   const [enviandoMensagem, setEnviandoMensagem] = useState(false)
+  const enviandoMensagemRef = useRef(false)
   const [anexosSelecionados, setAnexosSelecionados] = useState<File[]>([])
   const [enviandoAnexos, setEnviandoAnexos] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -1123,8 +1124,25 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
     if (tipoNovaMensagem === 'interno') setNotificarClienteEmail(false)
   }, [tipoNovaMensagem])
 
+  /** Teclado virtual: manter o composer visível (paridade com WhatsApp #751). */
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const onVv = () => {
+      requestAnimationFrame(() => {
+        textareaRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      })
+    }
+    vv.addEventListener('resize', onVv)
+    vv.addEventListener('scroll', onVv)
+    return () => {
+      vv.removeEventListener('resize', onVv)
+      vv.removeEventListener('scroll', onVv)
+    }
+  }, [])
+
   async function handleEnviarMensagem() {
-    if (!ticket) return
+    if (!ticket || enviandoMensagem || enviandoMensagemRef.current) return
     if (ticket.fechado_em) {
       toast.showWarning('Ticket fechado. Apenas admin pode reabrir para enviar mensagens.')
       return
@@ -1135,6 +1153,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
       return
     }
     const tipo = podeMensagemPublica ? tipoNovaMensagem : 'interno'
+    enviandoMensagemRef.current = true
     setEnviandoMensagem(true)
     try {
       const payload: Tickets.MensagemCreate = { corpo: texto, tipo }
@@ -1174,6 +1193,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
     } catch (err) {
       toast.showWarning(err instanceof Error ? err.message : 'Erro ao enviar')
     } finally {
+      enviandoMensagemRef.current = false
       setEnviandoMensagem(false)
     }
   }
@@ -1826,7 +1846,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
             </ul>
           )}
 
-          <div className="sticky bottom-0 z-10 -mx-3 border-t border-slate-200 bg-white px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-slate-800/90 dark:bg-slate-950 sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-4 dark:sm:bg-transparent">
+          <div className="sticky bottom-0 z-10 -mx-3 border-t border-slate-200 bg-white px-3 pt-3 pb-3 dark:border-slate-800/90 dark:bg-slate-950 sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-4 dark:sm:bg-transparent [:is(html[data-vv-keyboard='0'])_&]:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">Nova mensagem</p>
             {ticket.fechado_em ? (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-800/60 dark:bg-emerald-950/25 dark:text-emerald-100">

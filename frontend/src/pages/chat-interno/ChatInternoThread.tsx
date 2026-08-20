@@ -60,6 +60,7 @@ export function ChatInternoThread({ conversaIdProp }: ChatInternoThreadProps = {
   const [texto, setTexto] = useState('')
   const [loading, setLoading] = useState(true)
   const [enviando, setEnviando] = useState(false)
+  const enviandoRef = useRef(false)
   const [msgRespondida, setMsgRespondida] = useState<ChatInterno.Mensagem | null>(null)
   const [focoComposerEm, setFocoComposerEm] = useState(0)
   const [forbidden, setForbidden] = useState(false)
@@ -434,7 +435,8 @@ export function ChatInternoThread({ conversaIdProp }: ChatInternoThreadProps = {
   }
 
   async function enviarMidia(file: File, caption?: string) {
-    if (enviando) return
+    if (enviando || enviandoRef.current) return
+    enviandoRef.current = true
     setEnviando(true)
     try {
       const msg = await chatInterno.enviarMidia(conversaId, file, caption, msgRespondida?.id ?? null)
@@ -452,13 +454,15 @@ export function ChatInternoThread({ conversaIdProp }: ChatInternoThreadProps = {
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível enviar o arquivo.'))
     } finally {
+      enviandoRef.current = false
       setEnviando(false)
     }
   }
 
   async function enviar() {
     const corpo = texto.trim()
-    if (!corpo || enviando) return
+    if (!corpo || enviando || enviandoRef.current) return
+    enviandoRef.current = true
     setEnviando(true)
     try {
       const mencoes = montarMencoesDoCorpo(corpo, mencionaveis)
@@ -482,6 +486,7 @@ export function ChatInternoThread({ conversaIdProp }: ChatInternoThreadProps = {
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível enviar a mensagem.'))
     } finally {
+      enviandoRef.current = false
       setEnviando(false)
     }
   }

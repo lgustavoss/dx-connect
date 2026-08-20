@@ -11,6 +11,7 @@ from app.core.auth import exigir_admin, exigir_comercial_ou_admin
 from app.database import get_db
 from app.models.atendente import Atendente
 from app.schemas.comercial_contrato import (
+    ContratoChaveCatalogoItem,
     ContratoGerarIn,
     ContratoMarcarAssinadoIn,
     ContratoMarcarEnviadoIn,
@@ -26,6 +27,14 @@ from app.schemas.comercial_contrato import (
 from app.services import comercial_contrato as svc
 
 router = APIRouter(prefix="/comercial", tags=["comercial-contratos"])
+
+
+@router.get("/contrato-templates/chaves", response_model=list[ContratoChaveCatalogoItem])
+def listar_chaves_template(
+    _: Atendente = Depends(exigir_comercial_ou_admin),
+):
+    """Catálogo de placeholders {{chave}} para o modelo HTML do contrato."""
+    return svc.catalogo_chaves_contrato()
 
 
 @router.get("/contrato-templates", response_model=list[ContratoTemplateRead])
@@ -58,9 +67,10 @@ def criar_template(
 @router.post("/contrato-templates/preview", response_model=ContratoTemplatePreviewOut)
 def preview_template(
     data: ContratoTemplatePreviewIn,
+    db: Session = Depends(get_db),
     _: Atendente = Depends(exigir_admin),
 ):
-    return ContratoTemplatePreviewOut(html=svc.sanitize_html(data.conteudo_html))
+    return ContratoTemplatePreviewOut(html=svc.preencher_template_preview(db, data.conteudo_html))
 
 
 @router.patch("/contrato-templates/{template_id}", response_model=ContratoTemplateRead)

@@ -138,7 +138,7 @@ Sistema de **helpdesk** para **redes de postos/empresas**:
 |------|--------|
 | Agora | **PWA** no frontend React actual (mesmo `/v1`, mesma origem do painel) |
 | Em curso | **Capacitor** Android: 1 APK + campo Conta → `api-{slug}` (tickets e chat) |
-| Depois | Play Store / App Store + FCM/APNs |
+| Depois | Play Store / App Store + UnifiedPush (VAPID) no Android / APNs no iOS |
 | Não na v1 | React Native / Flutter |
 
 **Install (híbrido C):** PWA por `{slug}` agora; nas lojas será **1 app** + campo Conta → `api-{slug}`.  
@@ -187,8 +187,10 @@ Estados do chat: `aguardando_atendente` | `em_atendimento` | `encerrado`
 - Cadastros admin (redes, empresas, atendentes, config WhatsApp)
 - Relatórios/dashboards avançados
 - Portal do cliente / funcionários de posto
-- Chat interno
-- Capacitor / lojas (L6 do épico #689)
+- Chat interno (há suporte parcial no APK; fora do MVP PWA inicial)
+- Capacitor iOS / listing nas lojas (#738 / #739)
+
+**Capacitor Android** (L6.1–L6.3): feito — ver `docs/MOBILE_CAPACITOR.md`.
 
 ---
 
@@ -378,10 +380,10 @@ O projecto web já é **React + TypeScript**. Ordem fechada no épico #689:
 | Fase | Abordagem |
 |------|-----------|
 | **PWA no SPA actual** | Reutiliza o painel; instalável em `https://{slug}.…`; API `/v1` na mesma instância |
-| **Capacitor (lojas)** | Empacota o mesmo frontend; campo Conta resolve `api-{slug}` |
-
-Como construir o APK debug: **`docs/MOBILE_CAPACITOR.md`** (issue #735).
+| **Capacitor (lojas)** | Android na `main` (Conta → `api-{slug}` + push UnifiedPush); iOS/listing → #738 / #739 |
 | React Native / Flutter | **Fora da v1** |
+
+Como construir o APK, validar e gerar AAB: **`docs/MOBILE_CAPACITOR.md`** (#696 / #735–#737 / #784).
 
 ### Tempo real: SSE (já existe)
 

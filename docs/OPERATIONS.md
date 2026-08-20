@@ -107,6 +107,8 @@ O subscribe corre no browser em `https://{slug}.…`. `CORS_ORIGINS` tem de incl
 
 App Capacitor Android (#735 / #736): origem do WebView `https://localhost`. Cada instância (`api-{slug}`) precisa desse valor em `CORS_ORIGINS` do **`client.env` no VPS** (não basta o default do `config.py` se o env já define CORS). Recriar o contentor da API depois de gravar.
 
+O APK Android (#737) **não usa Firebase**. Os alertas com a app fechada reutilizam o mesmo par VAPID e o worker `web-push-outbox`. Não há variável FCM extra no `client.env`.
+
 Exemplo Duplex:
 
 ```bash
@@ -125,7 +127,7 @@ Web Push no iPhone/iPad exige **iOS 16.4+** e a PWA **instalada** (Partilhar →
 
 1. Release na `staging` / stack do cliente com migration `095_web_push`
 2. Gerar VAPID e preencher o `client.env`; CORS = origem HTTPS do SPA
-3. Atendente no Android/Chrome: Notificações → activar alertas; fechar a app; pôr um chat na fila
+3. Atendente no Android/Chrome **ou** no APK DeskRudder: Notificações → activar alertas; fechar a app; pôr um chat na fila
 4. Tocar no alerta e confirmar que abre a mesa certa
 5. Silenciar a fila na mesa e confirmar que **não** chega push de fila
 

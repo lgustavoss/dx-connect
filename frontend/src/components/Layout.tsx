@@ -106,6 +106,7 @@ function LayoutInner() {
         {
           ['--sidebar-w' as never]: sidebarW,
           marginTop: 'var(--vv-offset-top, 0px)',
+          paddingTop: isCapacitorNative() ? 'env(safe-area-inset-top, 0px)' : undefined,
         } as React.CSSProperties
       }
     >
@@ -159,9 +160,7 @@ function LayoutInner() {
         {notificacoesEnabled && !isCapacitorNative() && !ocultarHeaderMobile ? (
           <AlertaDesktopPermissaoBanner enabled />
         ) : null}
-        {notificacoesEnabled && !isCapacitorNative() && !ocultarHeaderMobile ? (
-          <WebPushOptInBanner enabled />
-        ) : null}
+        {notificacoesEnabled && !ocultarHeaderMobile ? <WebPushOptInBanner enabled /> : null}
         <PontoAlertasBanner />
 
         <main className="min-h-0 flex-1 overflow-hidden">
