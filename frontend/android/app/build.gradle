@@ -15,8 +15,9 @@ android {
         applicationId "br.com.deskrudder.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
+        // Bump versionCode (+1) e versionName a cada upload Play — ver docs/MOBILE_STORE_RELEASE.md (#739)
         versionCode 1
-        versionName "1.0"
+        versionName "1.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
