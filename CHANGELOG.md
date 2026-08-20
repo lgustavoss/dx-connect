@@ -1,7 +1,7 @@
 # Changelog
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
-Versão CalVer (YY.MM.NNN) é atribuída automaticamente no deploy de staging.
+Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging`.
 
 ## [Unreleased]
 
@@ -9,15 +9,16 @@ Versão CalVer (YY.MM.NNN) é atribuída automaticamente no deploy de staging.
 
 #### Melhorias
 
-- Mobile (#739): runbook de publicação na Play Store (textos de listing, checklist AAB, versão Android) e página pública de **privacidade** em /privacidade (URL para a Console)
+- WhatsApp (#788): gravação de áudio deixa de ficar presa em «A preparar microfone…» (o compositor reiniciava o MediaRecorder a cada render) e rejeita blobs vazios/truncados antes do envio; MIME preferido ogg/webm opus
+- Mobile (#739): runbook de publicação na Play Store (textos de listing, checklist AAB, versão Android) e página pública de **privacidade** em `/privacidade` (URL para a Console)
 - Controle de ponto (#761–#765 / #770–#772): entrada e saída pelo próprio utilizador; histórico com totais; admin vê a equipe e a visão do dia; no cadastro do atendente há flag **Usa escala** e ciclo personalizável (horas trabalhadas × horas de folga, ex. 12×36) com data de início
 - Ponto (#766–#768): pausas (almoço) sem fechar o dia; ajustes manuais do admin com motivo e auditoria; exportação CSV da equipe
 - Ponto (#769 / #773 / #774): banner de lembretes (online sem ponto / jornada longa / dia de escala sem entrada); indicador «Online sem ponto» na visão do dia; justificativas do utilizador com aprovação do admin
 - Ponto (#778–#782): horário previsto e tolerância de atraso; feriados (nacionais + extras da instância) sem contar falta; banco de horas simples; digest diário do admin; fecho automático overnight opcional (desligado por padrão)
-- Mobile: documentação do APK Android (checklist de validação + gerar AAB) e o build ignora o VITE_API_URL placeholder da CI
+- Mobile: documentação do APK Android (checklist de validação + gerar AAB) e o build ignora o `VITE_API_URL` placeholder da CI
 - Mobile: correções no APK — Conta/login sem ficar na empresa errada após falha ou «Trocar»; toque no alerta abre a conversa uma só vez; teclado no Android e no composer de tickets; envio sem double-tap (figurinha, portal, interno); safe area e rotas desconhecidas no app nativo
-- Contratos (#355): ao rescindir contrato assinado, o sistema mostra estimativa de multa (mín(meses de fidelidade restantes, teto) × mensalidade) com aviso de que é só ajuda operacional — não é cobrança; a estimativa aparece também no cartão do contrato assinado; contrato cancelado deixa de mostrar dias de fidelidade restantes; ao assinar, CNPJ já cadastrado noutra Rede vincula a Empresa existente (sem erro)
-- Contratos (#775): nos modelos de contrato, catálogo de chaves copiáveis ({{contratada.*}}, {{contratante.*}}, {{contrato.*}}) para o sistema preencher o HTML do cliente; multa e fidelidade passam a ser só dados (a cláusula fica no texto do modelo); preview com dados de exemplo
+- Contratos (#355): ao rescindir contrato assinado, o sistema mostra estimativa de multa (`mín(meses de fidelidade restantes, teto) × mensalidade`) com aviso de que é só ajuda operacional — não é cobrança; a estimativa aparece também no cartão do contrato assinado; contrato cancelado deixa de mostrar dias de fidelidade restantes; ao assinar, CNPJ já cadastrado noutra Rede vincula a Empresa existente (sem erro)
+- Contratos (#775): nos modelos de contrato, catálogo de chaves copiáveis (`{{contratada.*}}`, `{{contratante.*}}`, `{{contrato.*}}`) para o sistema preencher o HTML do cliente; multa e fidelidade passam a ser só dados (a cláusula fica no texto do modelo); preview com dados de exemplo
 - Mobile chat (#747–#759): lista a 100% da largura; teclado sem vão/corte no campo; composer estilo WhatsApp; reagir pelo menu da seta; demanda e modais em folha inferior; header da app oculto na conversa; Encerrar/empresa/setor no telemóvel; empty states úteis; ícones PWA legíveis (fundo claro + contorno branco no desktop)
 - Mobile (#737): no **app Android**, os alertas com a app fechada usam o mesmo canal da instância (sem Firebase); o clique abre a mesa certa
 - Mobile (#735 / #736): app Android (instalação pelo APK) focado em **tickets e chat**; na primeira vez escolhes a **conta da empresa** (ex. duplexsoft) e nas seguintes o login já usa essa base
@@ -25,11 +26,10 @@ Versão CalVer (YY.MM.NNN) é atribuída automaticamente no deploy de staging.
 
 #### Interno
 
-- Mobile: brief (MOBILE_APP_BRIEF.md) alinhado ao estado real do épico #689 / L6 Android (PWA + Capacitor + listing docs; iOS = #738)
+- Mobile: brief (`MOBILE_APP_BRIEF.md`) alinhado ao estado real do épico #689 / L6 Android (PWA + Capacitor + listing docs; iOS = #738)
 - Deploy (#734): ligação SSH ao VPS em IPv4, diagnóstico do IP do runner e segunda tentativa noutro runner só em timeout de rede
-- Mobile (#735): CORS_ORIGINS das instâncias passa a incluir https://localhost (origem do WebView Android)
-- Mobile (#735): projecto Capacitor Android no rontend/ (
-pm run build:android); stack-client.sh documentado como <comando> <slug>
+- Mobile (#735): `CORS_ORIGINS` das instâncias passa a incluir `https://localhost` (origem do WebView Android)
+- Mobile (#735): projecto Capacitor Android no `frontend/` (`npm run build:android`); `stack-client.sh` documentado como `<comando> <slug>`
 
 
 ## [26.08.009] - 2026-08-18
