@@ -9,7 +9,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
-- Menu: o grupo do chat no menu lateral passa a chamar-se **Atendimentos**, com **Chat** e **Histórico**
+- Menu: grupo **Atendimentos** no menu lateral com **Chat**, **Tickets** e **Histórico** (toda a operação de atendimento junta)
 - Menu (#793): **Ponto** (Meu ponto / Equipe online / Ponto da equipe) e **Chat** (Chat / Atendimentos) passam a ser grupos expansíveis no menu lateral, no mesmo padrão de Configurações
 - WhatsApp (#788): gravação de áudio deixa de ficar presa em «A preparar microfone…» (o compositor reiniciava o MediaRecorder a cada render) e rejeita blobs vazios/truncados antes do envio; MIME preferido ogg/webm opus
 - Mobile (#739): runbook de publicação na Play Store (textos de listing, checklist AAB, versão Android) e página pública de **privacidade** em `/privacidade` (URL para a Console)
