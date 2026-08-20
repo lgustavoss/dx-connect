@@ -711,6 +711,34 @@ export const ponto = {
   calendarioAdmin: (atendenteId: number, ano: number, mes: number) =>
     api<Ponto.Calendario>(withParams('/ponto/calendario', { atendente_id: atendenteId, ano, mes })),
   hoje: () => api<Ponto.HojeLista>('/ponto/hoje'),
+  criarAjuste: (data: Ponto.AjusteCreate) =>
+    api<Ponto.Batida>('/ponto/batidas', { method: 'POST', body: JSON.stringify(data) }),
+  atualizarAjuste: (id: number, data: Ponto.AjusteUpdate) =>
+    api<Ponto.Batida>(`/ponto/batidas/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  anular: (id: number, motivo: string) =>
+    api<Ponto.Batida>(`/ponto/batidas/${id}/anular`, {
+      method: 'POST',
+      body: JSON.stringify({ motivo }),
+    }),
+  exportCsv: async (params?: { atendente_id?: number; desde?: string; ate?: string }) => {
+    const token = getAuthToken()
+    const headers: Record<string, string> = {}
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+    }
+    if (token) headers.Authorization = `Bearer ${token}`
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}${withParams('/ponto/batidas/export.csv', params)}`
+    const res = await fetch(url, { headers })
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin()
+      throw new ApiError('Sessão expirada ou inválida.', 401, {})
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+    }
+    return res.blob()
+  },
 };
 
 export namespace WhatsappSettings {
@@ -4399,8 +4427,8 @@ export namespace Presenca {
 }
 
 export namespace Ponto {
-  export type Tipo = 'entrada' | 'saida'
-  export type Origem = 'web' | 'mobile'
+  export type Tipo = 'entrada' | 'saida' | 'pausa_inicio' | 'pausa_fim'
+  export type Origem = 'web' | 'mobile' | 'admin'
   export interface Bater {
     tipo: Tipo
     origem?: Origem
@@ -4411,6 +4439,7 @@ export namespace Ponto {
     tipo: Tipo | string
     registrado_em: string
     origem: string | null
+    anulada?: boolean
   }
   export interface BatidaAdmin {
     id: number
@@ -4419,16 +4448,19 @@ export namespace Ponto {
     tipo: string
     registrado_em: string
     origem: string | null
+    anulada?: boolean
   }
   export interface Intervalo {
     data: string
     entrada_em: string
     saida_em: string | null
     duracao_segundos: number | null
+    segundos_pausa?: number
     aberto: boolean
   }
   export interface EstadoMe {
     em_jornada: boolean
+    em_pausa?: boolean
     entrada_aberta_em: string | null
     ultima_batida: Batida | null
     usa_escala: boolean
@@ -4438,6 +4470,7 @@ export namespace Ponto {
   export interface Historico {
     intervalos: Intervalo[]
     total_segundos_fechados: number
+    total_segundos_pausa?: number
     total: number
   }
   export interface DiaCalendario {
@@ -4460,12 +4493,24 @@ export namespace Ponto {
     nome: string
     esperado: boolean
     em_jornada: boolean
+    em_pausa?: boolean
     entrada_em: string | null
     status: 'ok' | 'falta' | 'parcial' | 'folga' | 'folga_com_ponto' | 'livre'
   }
   export interface HojeLista {
     data: string
     itens: HojeItem[]
+  }
+  export interface AjusteCreate {
+    atendente_id: number
+    tipo: Tipo
+    registrado_em: string
+    motivo: string
+  }
+  export interface AjusteUpdate {
+    tipo?: Tipo
+    registrado_em?: string
+    motivo: string
   }
 }
 

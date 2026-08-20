@@ -79,11 +79,17 @@ export function MeuPonto() {
     return () => window.removeEventListener('focus', onFocus)
   }, [carregar])
 
-  async function bater(tipo: 'entrada' | 'saida') {
+  async function bater(tipo: Ponto.Tipo) {
     setBatendo(true)
     try {
       await ponto.bater({ tipo, origem: 'web' })
-      toast.showSuccess(tipo === 'entrada' ? 'Entrada registrada.' : 'Saída registrada.')
+      const msgs: Record<Ponto.Tipo, string> = {
+        entrada: 'Entrada registrada.',
+        saida: 'Saída registrada.',
+        pausa_inicio: 'Pausa iniciada.',
+        pausa_fim: 'Pausa encerrada.',
+      }
+      toast.showSuccess(msgs[tipo])
       await carregar(true)
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível bater o ponto.'))
@@ -103,11 +109,14 @@ export function MeuPonto() {
     return estado.escala_rotulo ? `Escala ${estado.escala_rotulo}` : null
   }, [estado])
 
+  const emJornada = !!estado?.em_jornada
+  const emPausa = !!estado?.em_pausa
+
   return (
     <PageContainer>
       <PageHeader
         title="Meu ponto"
-        description="Registre entrada e saída da jornada. A presença online do painel é independente."
+        subtitle="Registre entrada, pausas e saída. A presença online do painel é independente."
       />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,22rem)_1fr]">
@@ -119,9 +128,9 @@ export function MeuPonto() {
               <div>
                 <p className="text-sm text-slate-500 dark:text-slate-400">Estado</p>
                 <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                  {estado?.em_jornada ? 'Em jornada' : 'Fora'}
+                  {!emJornada ? 'Fora' : emPausa ? 'Em pausa' : 'Em jornada'}
                 </p>
-                {estado?.em_jornada && estado.entrada_aberta_em && (
+                {emJornada && estado?.entrada_aberta_em && (
                   <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                     Desde {formatarHora(estado.entrada_aberta_em)}
                   </p>
@@ -131,17 +140,29 @@ export function MeuPonto() {
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  disabled={batendo || !!estado?.em_jornada}
-                  onClick={() => void bater('entrada')}
-                >
+                <Button type="button" disabled={batendo || emJornada} onClick={() => void bater('entrada')}>
                   Entrada
                 </Button>
                 <Button
                   type="button"
                   variant="secondary"
-                  disabled={batendo || !estado?.em_jornada}
+                  disabled={batendo || !emJornada || emPausa}
+                  onClick={() => void bater('pausa_inicio')}
+                >
+                  Pausar
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={batendo || !emPausa}
+                  onClick={() => void bater('pausa_fim')}
+                >
+                  Retomar
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={batendo || !emJornada || emPausa}
                   onClick={() => void bater('saida')}
                 >
                   Saída
@@ -161,8 +182,13 @@ export function MeuPonto() {
           </div>
           {historico && (
             <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
-              Total no período (intervalos fechados):{' '}
-              <strong>{formatarDuracao(historico.total_segundos_fechados)}</strong>
+              Trabalhado (sem pausas): <strong>{formatarDuracao(historico.total_segundos_fechados)}</strong>
+              {historico.total_segundos_pausa != null && historico.total_segundos_pausa > 0 && (
+                <>
+                  {' '}
+                  · Pausas: <strong>{formatarDuracao(historico.total_segundos_pausa)}</strong>
+                </>
+              )}
             </p>
           )}
           <div className="overflow-x-auto">
@@ -171,13 +197,14 @@ export function MeuPonto() {
                 <tr>
                   <th className="py-2 pr-3 font-medium">Entrada</th>
                   <th className="py-2 pr-3 font-medium">Saída</th>
-                  <th className="py-2 font-medium">Duração</th>
+                  <th className="py-2 pr-3 font-medium">Pausas</th>
+                  <th className="py-2 font-medium">Trabalhado</th>
                 </tr>
               </thead>
               <tbody>
                 {(historico?.intervalos ?? []).length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="py-6 text-slate-500 dark:text-slate-400">
+                    <td colSpan={4} className="py-6 text-slate-500 dark:text-slate-400">
                       Nenhuma batida neste período.
                     </td>
                   </tr>
@@ -195,6 +222,7 @@ export function MeuPonto() {
                           formatarHora(it.saida_em)
                         )}
                       </td>
+                      <td className="py-2 pr-3">{formatarDuracao(it.segundos_pausa ?? 0)}</td>
                       <td className="py-2">{formatarDuracao(it.duracao_segundos)}</td>
                     </tr>
                   ))

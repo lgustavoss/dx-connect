@@ -1,4 +1,4 @@
-"""Schemas de controle de ponto (#761)."""
+"""Schemas de controle de ponto (#761+)."""
 
 from __future__ import annotations
 
@@ -7,9 +7,11 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+TipoBatida = Literal["entrada", "saida", "pausa_inicio", "pausa_fim"]
+
 
 class PontoBaterRequest(BaseModel):
-    tipo: Literal["entrada", "saida"]
+    tipo: TipoBatida
     origem: Literal["web", "mobile"] | None = "web"
 
 
@@ -19,12 +21,14 @@ class PontoBatidaRead(BaseModel):
     tipo: str
     registrado_em: datetime
     origem: str | None = None
+    anulada: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class PontoEstadoRead(BaseModel):
     em_jornada: bool
+    em_pausa: bool = False
     entrada_aberta_em: datetime | None = None
     ultima_batida: PontoBatidaRead | None = None
     usa_escala: bool = False
@@ -37,13 +41,15 @@ class PontoIntervaloRead(BaseModel):
     entrada_em: datetime
     saida_em: datetime | None = None
     duracao_segundos: int | None = None
+    segundos_pausa: int = 0
     aberto: bool = False
 
 
 class PontoHistoricoRead(BaseModel):
     intervalos: list[PontoIntervaloRead]
     total_segundos_fechados: int
-    total: int  # nº de intervalos (paginação)
+    total_segundos_pausa: int = 0
+    total: int
 
 
 class PontoBatidaAdminItem(BaseModel):
@@ -53,6 +59,7 @@ class PontoBatidaAdminItem(BaseModel):
     tipo: str
     registrado_em: datetime
     origem: str | None = None
+    anulada: bool = False
 
 
 class PontoCalendarioDia(BaseModel):
@@ -77,6 +84,7 @@ class PontoHojeItem(BaseModel):
     nome: str
     esperado: bool
     em_jornada: bool
+    em_pausa: bool = False
     entrada_em: datetime | None = None
     status: Literal["ok", "falta", "parcial", "folga", "folga_com_ponto", "livre"]
 
@@ -86,10 +94,18 @@ class PontoHojeRead(BaseModel):
     itens: list[PontoHojeItem]
 
 
-class EscalaCampos(BaseModel):
-    """Campos de escala embutidos no atendente (create/update)."""
+class PontoAjusteCreate(BaseModel):
+    atendente_id: int
+    tipo: TipoBatida
+    registrado_em: datetime
+    motivo: str = Field(..., min_length=3, max_length=500)
 
-    usa_escala: bool = False
-    escala_horas_trabalho: int | None = Field(default=None, ge=1, le=168)
-    escala_horas_folga: int | None = Field(default=None, ge=1, le=336)
-    escala_inicio_em: date | None = None
+
+class PontoAjusteUpdate(BaseModel):
+    tipo: TipoBatida | None = None
+    registrado_em: datetime | None = None
+    motivo: str = Field(..., min_length=3, max_length=500)
+
+
+class PontoAnularBody(BaseModel):
+    motivo: str = Field(..., min_length=3, max_length=500)

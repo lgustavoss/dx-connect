@@ -52,6 +52,11 @@ function rotuloStatus(s: Ponto.HojeItem['status']): string {
   }
 }
 
+function toDatetimeLocalValue(d = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export function PontoEquipe() {
   const toast = useToast()
   const { user } = useAuth()
@@ -64,6 +69,11 @@ export function PontoEquipe() {
   const [ate, setAte] = useState(hojeIso)
   const [loading, setLoading] = useState(true)
   const [semPermissao, setSemPermissao] = useState(false)
+  const [ajusteAtendente, setAjusteAtendente] = useState('')
+  const [ajusteTipo, setAjusteTipo] = useState<Ponto.Tipo>('entrada')
+  const [ajusteQuando, setAjusteQuando] = useState(toDatetimeLocalValue())
+  const [ajusteMotivo, setAjusteMotivo] = useState('')
+  const [salvandoAjuste, setSalvandoAjuste] = useState(false)
 
   const carregar = useCallback(
     async (silencioso = false) => {
@@ -106,6 +116,60 @@ export function PontoEquipe() {
     void carregar()
   }, [carregar])
 
+  async function exportarCsv() {
+    try {
+      const blob = await ponto.exportCsv({
+        atendente_id: atendenteId ? Number(atendenteId) : undefined,
+        desde,
+        ate,
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'ponto_batidas.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível exportar o CSV.'))
+    }
+  }
+
+  async function salvarAjuste() {
+    if (!ajusteAtendente || !ajusteMotivo.trim()) {
+      toast.showWarning('Informe atendente e motivo do ajuste.')
+      return
+    }
+    setSalvandoAjuste(true)
+    try {
+      const iso = new Date(ajusteQuando).toISOString()
+      await ponto.criarAjuste({
+        atendente_id: Number(ajusteAtendente),
+        tipo: ajusteTipo,
+        registrado_em: iso,
+        motivo: ajusteMotivo.trim(),
+      })
+      toast.showSuccess('Ajuste registrado.')
+      setAjusteMotivo('')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar o ajuste.'))
+    } finally {
+      setSalvandoAjuste(false)
+    }
+  }
+
+  async function anularBatida(id: number) {
+    const motivo = window.prompt('Motivo da anulação (obrigatório):')
+    if (!motivo || motivo.trim().length < 3) return
+    try {
+      await ponto.anular(id, motivo.trim())
+      toast.showSuccess('Batida anulada.')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível anular.'))
+    }
+  }
+
   if (user?.role !== 'admin' || semPermissao) {
     return (
       <SemPermissao
@@ -120,7 +184,7 @@ export function PontoEquipe() {
     <PageContainer>
       <PageHeader
         title="Ponto da equipe"
-        description="Batidas por período e visão do dia (esperado × realizado quando há escala)."
+        subtitle="Batidas, visão do dia, ajustes auditados e exportação CSV."
       />
 
       <div className="space-y-4">
@@ -141,7 +205,12 @@ export function PontoEquipe() {
                 <tbody>
                   {(hoje?.itens ?? []).map((item) => (
                     <tr key={item.atendente_id} className="border-b border-slate-100 dark:border-slate-800/80">
-                      <td className="py-2 pr-3">{item.nome}</td>
+                      <td className="py-2 pr-3">
+                        {item.nome}
+                        {item.em_pausa ? (
+                          <span className="ml-2 text-xs text-amber-700 dark:text-amber-300">pausa</span>
+                        ) : null}
+                      </td>
                       <td className="py-2 pr-3">{item.esperado ? 'Trabalho' : '—'}</td>
                       <td className="py-2 pr-3">{rotuloStatus(item.status)}</td>
                       <td className="py-2">{formatarHora(item.entrada_em)}</td>
@@ -153,12 +222,52 @@ export function PontoEquipe() {
           )}
         </Card>
 
+        <Card title="Ajuste manual">
+          <div className="flex flex-wrap items-end gap-3">
+            <Select
+              label="Atendente"
+              value={ajusteAtendente}
+              onChange={(v) => setAjusteAtendente(String(v))}
+              options={[
+                { value: '', label: 'Selecione' },
+                ...equipe.map((a) => ({ value: String(a.id), label: a.nome })),
+              ]}
+            />
+            <Select
+              label="Tipo"
+              value={ajusteTipo}
+              onChange={(v) => setAjusteTipo(String(v) as Ponto.Tipo)}
+              options={[
+                { value: 'entrada', label: 'Entrada' },
+                { value: 'saida', label: 'Saída' },
+                { value: 'pausa_inicio', label: 'Início de pausa' },
+                { value: 'pausa_fim', label: 'Fim de pausa' },
+              ]}
+            />
+            <Input
+              label="Data/hora"
+              type="datetime-local"
+              value={ajusteQuando}
+              onChange={(e) => setAjusteQuando(e.target.value)}
+            />
+            <Input
+              label="Motivo"
+              value={ajusteMotivo}
+              onChange={(e) => setAjusteMotivo(e.target.value)}
+              placeholder="Obrigatório"
+            />
+            <Button type="button" disabled={salvandoAjuste} onClick={() => void salvarAjuste()}>
+              Registrar ajuste
+            </Button>
+          </div>
+        </Card>
+
         <Card title="Histórico">
           <div className="mb-4 flex flex-wrap items-end gap-3">
             <Select
               label="Atendente"
               value={atendenteId}
-              onChange={setAtendenteId}
+              onChange={(v) => setAtendenteId(String(v))}
               options={[
                 { value: '', label: 'Todos' },
                 ...equipe.map((a) => ({ value: String(a.id), label: a.nome })),
@@ -168,6 +277,9 @@ export function PontoEquipe() {
             <Input label="Até" type="date" value={ate} onChange={(e) => setAte(e.target.value)} />
             <Button type="button" variant="secondary" onClick={() => void carregar()}>
               Filtrar
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => void exportarCsv()}>
+              Exportar CSV
             </Button>
           </div>
           <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
@@ -180,13 +292,14 @@ export function PontoEquipe() {
                   <th className="py-2 pr-3 font-medium">Atendente</th>
                   <th className="py-2 pr-3 font-medium">Tipo</th>
                   <th className="py-2 pr-3 font-medium">Horário</th>
-                  <th className="py-2 font-medium">Origem</th>
+                  <th className="py-2 pr-3 font-medium">Origem</th>
+                  <th className="py-2 font-medium">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="py-6 text-slate-500">
+                    <td colSpan={5} className="py-6 text-slate-500">
                       Nenhuma batida neste filtro.
                     </td>
                   </tr>
@@ -194,9 +307,14 @@ export function PontoEquipe() {
                   items.map((b) => (
                     <tr key={b.id} className="border-b border-slate-100 dark:border-slate-800/80">
                       <td className="py-2 pr-3">{b.atendente_nome}</td>
-                      <td className="py-2 pr-3 capitalize">{b.tipo}</td>
+                      <td className="py-2 pr-3">{b.tipo.replace('_', ' ')}</td>
                       <td className="py-2 pr-3">{formatarHora(b.registrado_em)}</td>
-                      <td className="py-2">{b.origem ?? '—'}</td>
+                      <td className="py-2 pr-3">{b.origem ?? '—'}</td>
+                      <td className="py-2">
+                        <Button type="button" variant="ghost" onClick={() => void anularBatida(b.id)}>
+                          Anular
+                        </Button>
+                      </td>
                     </tr>
                   ))
                 )}

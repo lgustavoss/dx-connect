@@ -149,3 +149,78 @@ def test_ponto_hoje_admin(client, seed_base, auth_headers):
     assert "itens" in r.json()
     r403 = client.get("/v1/ponto/hoje", headers=auth_headers["a1"])
     assert r403.status_code == 403
+
+
+def test_ponto_pausas_excluem_do_total(client, seed_base, auth_headers):
+    h = auth_headers["a1"]
+    assert client.post("/v1/ponto/bater", headers=h, json={"tipo": "entrada"}).status_code == 200
+    assert client.post("/v1/ponto/bater", headers=h, json={"tipo": "pausa_inicio"}).status_code == 200
+    me = client.get("/v1/ponto/me", headers=h).json()
+    assert me["em_jornada"] is True
+    assert me["em_pausa"] is True
+    assert client.post("/v1/ponto/bater", headers=h, json={"tipo": "saida"}).status_code == 400
+    assert client.post("/v1/ponto/bater", headers=h, json={"tipo": "pausa_fim"}).status_code == 200
+    assert client.post("/v1/ponto/bater", headers=h, json={"tipo": "saida"}).status_code == 200
+
+    hist = client.get("/v1/ponto/me/batidas", headers=h).json()
+    assert hist["total"] >= 1
+    it = hist["intervalos"][0]
+    assert it["aberto"] is False
+    assert "segundos_pausa" in it
+    assert hist["total_segundos_pausa"] >= 0
+
+
+def test_ponto_ajuste_admin_e_403(client, seed_base, auth_headers):
+    a1 = seed_base["a1"]
+    r403 = client.post(
+        "/v1/ponto/batidas",
+        headers=auth_headers["a1"],
+        json={
+            "atendente_id": a1.id,
+            "tipo": "entrada",
+            "registrado_em": "2026-08-20T12:00:00+00:00",
+            "motivo": "esquecimento",
+        },
+    )
+    assert r403.status_code == 403
+
+    r = client.post(
+        "/v1/ponto/batidas",
+        headers=auth_headers["admin"],
+        json={
+            "atendente_id": a1.id,
+            "tipo": "entrada",
+            "registrado_em": "2026-08-20T12:00:00+00:00",
+            "motivo": "esquecimento de batida",
+        },
+    )
+    assert r.status_code == 201, r.text
+    bid = r.json()["id"]
+
+    r2 = client.patch(
+        f"/v1/ponto/batidas/{bid}",
+        headers=auth_headers["admin"],
+        json={"registrado_em": "2026-08-20T12:05:00+00:00", "motivo": "hora errada"},
+    )
+    assert r2.status_code == 200
+
+    r3 = client.post(
+        f"/v1/ponto/batidas/{bid}/anular",
+        headers=auth_headers["admin"],
+        json={"motivo": "batida duplicada"},
+    )
+    assert r3.status_code == 200
+    assert r3.json()["anulada"] is True
+
+
+def test_ponto_export_csv(client, seed_base, auth_headers):
+    client.post("/v1/ponto/bater", headers=auth_headers["a1"], json={"tipo": "entrada"})
+    client.post("/v1/ponto/bater", headers=auth_headers["a1"], json={"tipo": "saida"})
+    r = client.get("/v1/ponto/batidas/export.csv", headers=auth_headers["admin"])
+    assert r.status_code == 200
+    assert "text/csv" in r.headers.get("content-type", "")
+    text = r.content.decode("utf-8-sig")
+    assert "atendente" in text
+    assert "trabalhado_min" in text
+    r403 = client.get("/v1/ponto/batidas/export.csv", headers=auth_headers["a1"])
+    assert r403.status_code == 403

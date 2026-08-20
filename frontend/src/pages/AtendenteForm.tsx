@@ -106,15 +106,16 @@ export function AtendenteForm() {
     setSetorIds((prev) => (prev.includes(setorId) ? prev.filter((x) => x !== setorId) : [...prev, setorId]))
   }
 
-  function aplicarPreset(v: string) {
-    setPresetEscala(v)
-    if (v === '12x36') {
+  function aplicarPreset(v: string | number | '') {
+    const s = String(v)
+    setPresetEscala(s)
+    if (s === '12x36') {
       setEscalaHorasTrabalho('12')
       setEscalaHorasFolga('36')
-    } else if (v === '6x18') {
+    } else if (s === '6x18') {
       setEscalaHorasTrabalho('6')
       setEscalaHorasFolga('18')
-    } else if (v === '24x48') {
+    } else if (s === '24x48') {
       setEscalaHorasTrabalho('24')
       setEscalaHorasFolga('48')
     }

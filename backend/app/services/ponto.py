@@ -1,13 +1,16 @@
-"""Serviço de batidas de ponto (#762)."""
+"""Serviço de batidas de ponto (#762 / #766 / #767 / #768)."""
 
 from __future__ import annotations
 
+import csv
+import io
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.audit import registrar_audit
 from app.core.auth import ROLES_ATENDENTE
 from app.models.atendente import Atendente
 from app.models.ponto_batida import PontoBatida
@@ -25,6 +28,8 @@ from app.schemas.ponto import (
 from app.services import escala as escala_svc
 
 PONTO_TZ = ZoneInfo("America/Sao_Paulo")
+TIPOS_VALIDOS = frozenset({"entrada", "saida", "pausa_inicio", "pausa_fim"})
+TIPOS_EM_JORNADA = frozenset({"entrada", "pausa_inicio", "pausa_fim"})
 
 
 def exigir_acesso_ponto(atendente: Atendente) -> Atendente:
@@ -60,25 +65,54 @@ def _bounds_periodo(desde: date | None, ate: date | None) -> tuple[datetime | No
     return inicio, fim
 
 
+def _q_ativas(db: Session):
+    return db.query(PontoBatida).filter(PontoBatida.anulada.is_(False))
+
+
 def ultima_batida(db: Session, atendente_id: int) -> PontoBatida | None:
     return (
-        db.query(PontoBatida)
+        _q_ativas(db)
         .filter(PontoBatida.atendente_id == atendente_id)
         .order_by(PontoBatida.registrado_em.desc(), PontoBatida.id.desc())
         .first()
     )
 
 
-def entrada_aberta(db: Session, atendente_id: int) -> PontoBatida | None:
-    ultima = ultima_batida(db, atendente_id)
-    if ultima and ultima.tipo == "entrada":
-        return ultima
+def _entrada_da_jornada_aberta(db: Session, atendente_id: int) -> PontoBatida | None:
+    """Retorna a entrada que abriu a jornada atual (se houver)."""
+    batidas = (
+        _q_ativas(db)
+        .filter(PontoBatida.atendente_id == atendente_id)
+        .order_by(PontoBatida.registrado_em.desc(), PontoBatida.id.desc())
+        .limit(200)
+        .all()
+    )
+    for b in batidas:
+        if b.tipo == "saida":
+            return None
+        if b.tipo == "entrada":
+            return b
     return None
+
+
+def em_jornada_aberta(db: Session, atendente_id: int) -> bool:
+    ultima = ultima_batida(db, atendente_id)
+    return bool(ultima and ultima.tipo in TIPOS_EM_JORNADA)
+
+
+def em_pausa_aberta(db: Session, atendente_id: int) -> bool:
+    ultima = ultima_batida(db, atendente_id)
+    return bool(ultima and ultima.tipo == "pausa_inicio")
+
+
+def entrada_aberta(db: Session, atendente_id: int) -> PontoBatida | None:
+    """Compat: entrada da jornada aberta (não necessariamente a última batida)."""
+    return _entrada_da_jornada_aberta(db, atendente_id)
 
 
 def estado_atual(db: Session, atendente: Atendente) -> PontoEstadoRead:
     ultima = ultima_batida(db, atendente.id)
-    aberta = entrada_aberta(db, atendente.id)
+    entrada = _entrada_da_jornada_aberta(db, atendente.id)
     hoje = datetime.now(PONTO_TZ).date()
     hoje_esp = None
     rotulo = None
@@ -86,8 +120,9 @@ def estado_atual(db: Session, atendente: Atendente) -> PontoEstadoRead:
         hoje_esp = escala_svc.eh_dia_de_trabalho(atendente, hoje)
         rotulo = escala_svc.rotulo_escala(atendente.escala_horas_trabalho, atendente.escala_horas_folga)
     return PontoEstadoRead(
-        em_jornada=aberta is not None,
-        entrada_aberta_em=aberta.registrado_em if aberta else None,
+        em_jornada=entrada is not None,
+        em_pausa=bool(ultima and ultima.tipo == "pausa_inicio"),
+        entrada_aberta_em=entrada.registrado_em if entrada else None,
         ultima_batida=PontoBatidaRead.model_validate(ultima) if ultima else None,
         usa_escala=bool(getattr(atendente, "usa_escala", False)),
         hoje_esperado=hoje_esp,
@@ -103,84 +138,132 @@ def bater(
     origem: str | None = "web",
     ip: str | None = None,
     user_agent: str | None = None,
+    registrado_em: datetime | None = None,
+    commit: bool = True,
 ) -> PontoBatida:
     exigir_acesso_ponto(atendente)
-    aberta = entrada_aberta(db, atendente.id)
+    if tipo not in TIPOS_VALIDOS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tipo inválido de batida.")
+
+    ultima = ultima_batida(db, atendente.id)
+    em_jornada = bool(ultima and ultima.tipo in TIPOS_EM_JORNADA)
+    em_pausa = bool(ultima and ultima.tipo == "pausa_inicio")
+
     if tipo == "entrada":
-        if aberta is not None:
+        if em_jornada:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Já existe uma entrada aberta. Registre a saída antes de uma nova entrada.",
+                detail="Já existe uma jornada aberta. Registre a saída antes de uma nova entrada.",
             )
     elif tipo == "saida":
-        if aberta is None:
+        if not em_jornada:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Não há entrada aberta para registrar saída.",
+                detail="Não há jornada aberta para registrar saída.",
             )
-    else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tipo inválido: use entrada ou saida")
+        if em_pausa:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Encerre a pausa antes de registrar a saída.",
+            )
+    elif tipo == "pausa_inicio":
+        if not em_jornada:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Só é possível pausar com jornada aberta.",
+            )
+        if em_pausa:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Já existe uma pausa em andamento.",
+            )
+    elif tipo == "pausa_fim":
+        if not em_pausa:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Não há pausa aberta para retomar.",
+            )
 
+    when = registrado_em or _agora_utc()
     batida = PontoBatida(
         tenant_id=atendente.tenant_id,
         atendente_id=atendente.id,
         tipo=tipo,
-        registrado_em=_agora_utc(),
+        registrado_em=_as_utc(when),
         origem=origem or "web",
         ip=ip,
         user_agent=(user_agent or "")[:512] or None,
+        anulada=False,
     )
     db.add(batida)
-    db.commit()
-    db.refresh(batida)
+    if commit:
+        db.commit()
+        db.refresh(batida)
+    else:
+        db.flush()
     return batida
 
 
+def _segundos_pausas_no_bloco(bloco: list[PontoBatida]) -> int:
+    total = 0
+    pendente: PontoBatida | None = None
+    for b in bloco:
+        if b.tipo == "pausa_inicio":
+            pendente = b
+        elif b.tipo == "pausa_fim" and pendente is not None:
+            total += max(0, int((_as_utc(b.registrado_em) - _as_utc(pendente.registrado_em)).total_seconds()))
+            pendente = None
+    return total
+
+
 def _intervalos_de_batidas(batidas: list[PontoBatida]) -> list[PontoIntervaloRead]:
-    """Emparelha entrada→saída em ordem cronológica (ideia dx-ponto / Periods)."""
+    """Emparelha entrada→saída; pausas reduzem o tempo trabalhado."""
     ordenadas = sorted(batidas, key=lambda b: (_as_utc(b.registrado_em), b.id))
     intervalos: list[PontoIntervaloRead] = []
-    pendente: PontoBatida | None = None
-    for b in ordenadas:
-        if b.tipo == "entrada":
-            if pendente is not None:
-                # Entrada órfã anterior — fecha como aberto sem saída
-                intervalos.append(
-                    PontoIntervaloRead(
-                        data=_data_negocio(pendente.registrado_em),
-                        entrada_em=pendente.registrado_em,
-                        saida_em=None,
-                        duracao_segundos=None,
-                        aberto=True,
-                    )
+    i = 0
+    while i < len(ordenadas):
+        b = ordenadas[i]
+        if b.tipo != "entrada":
+            i += 1
+            continue
+        entrada = b
+        bloco: list[PontoBatida] = [entrada]
+        saida: PontoBatida | None = None
+        i += 1
+        while i < len(ordenadas):
+            cur = ordenadas[i]
+            if cur.tipo == "entrada":
+                break
+            bloco.append(cur)
+            i += 1
+            if cur.tipo == "saida":
+                saida = cur
+                break
+        pausas = _segundos_pausas_no_bloco(bloco)
+        if saida is None:
+            intervalos.append(
+                PontoIntervaloRead(
+                    data=_data_negocio(entrada.registrado_em),
+                    entrada_em=entrada.registrado_em,
+                    saida_em=None,
+                    duracao_segundos=None,
+                    segundos_pausa=pausas,
+                    aberto=True,
                 )
-            pendente = b
-        elif b.tipo == "saida":
-            if pendente is None:
-                continue
-            entrada = pendente
-            saida = b
-            dur = int((_as_utc(saida.registrado_em) - _as_utc(entrada.registrado_em)).total_seconds())
+            )
+        else:
+            bruto = max(0, int((_as_utc(saida.registrado_em) - _as_utc(entrada.registrado_em)).total_seconds()))
+            trabalhado = max(0, bruto - pausas)
             intervalos.append(
                 PontoIntervaloRead(
                     data=_data_negocio(entrada.registrado_em),
                     entrada_em=entrada.registrado_em,
                     saida_em=saida.registrado_em,
-                    duracao_segundos=max(0, dur),
+                    duracao_segundos=trabalhado,
+                    segundos_pausa=pausas,
                     aberto=False,
                 )
             )
-            pendente = None
-    if pendente is not None:
-        intervalos.append(
-            PontoIntervaloRead(
-                data=_data_negocio(pendente.registrado_em),
-                entrada_em=pendente.registrado_em,
-                saida_em=None,
-                duracao_segundos=None,
-                aberto=True,
-            )
-        )
     return intervalos
 
 
@@ -193,7 +276,7 @@ def historico(
     offset: int = 0,
     limit: int = 50,
 ) -> PontoHistoricoRead:
-    q = db.query(PontoBatida).filter(PontoBatida.atendente_id == atendente.id)
+    q = _q_ativas(db).filter(PontoBatida.atendente_id == atendente.id)
     inicio, fim = _bounds_periodo(desde, ate)
     if inicio is not None:
         q = q.filter(PontoBatida.registrado_em >= inicio)
@@ -202,10 +285,12 @@ def historico(
     batidas = q.order_by(PontoBatida.registrado_em.asc(), PontoBatida.id.asc()).all()
     intervalos = _intervalos_de_batidas(batidas)
     total_seg = sum(i.duracao_segundos or 0 for i in intervalos if not i.aberto)
+    total_pausa = sum(i.segundos_pausa for i in intervalos)
     page = intervalos[offset : offset + limit]
     return PontoHistoricoRead(
         intervalos=page,
         total_segundos_fechados=total_seg,
+        total_segundos_pausa=total_pausa,
         total=len(intervalos),
     )
 
@@ -219,12 +304,15 @@ def listar_batidas_admin(
     ate: date | None,
     offset: int,
     limit: int,
+    incluir_anuladas: bool = False,
 ) -> tuple[list[PontoBatidaAdminItem], int]:
     q = (
         db.query(PontoBatida, Atendente)
         .join(Atendente, Atendente.id == PontoBatida.atendente_id)
         .filter(PontoBatida.tenant_id == admin.tenant_id)
     )
+    if not incluir_anuladas:
+        q = q.filter(PontoBatida.anulada.is_(False))
     if atendente_id is not None:
         q = q.filter(PontoBatida.atendente_id == atendente_id)
     inicio, fim = _bounds_periodo(desde, ate)
@@ -247,6 +335,7 @@ def listar_batidas_admin(
             tipo=b.tipo,
             registrado_em=b.registrado_em,
             origem=b.origem,
+            anulada=bool(b.anulada),
         )
         for b, a in rows
     ]
@@ -289,7 +378,7 @@ def calendario(
     desde, ate = dias_mes[0], dias_mes[-1]
     inicio, fim = _bounds_periodo(desde, ate)
     batidas = (
-        db.query(PontoBatida)
+        _q_ativas(db)
         .filter(
             PontoBatida.atendente_id == atendente.id,
             PontoBatida.registrado_em >= inicio,
@@ -352,10 +441,10 @@ def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
     for a in atendentes:
         usa = escala_svc.escala_configurada(a)
         esperado = escala_svc.eh_dia_de_trabalho(a, hoje) if usa else False
-        aberta = entrada_aberta(db, a.id)
+        entrada = _entrada_da_jornada_aberta(db, a.id)
         inicio, fim = _bounds_periodo(hoje, hoje)
         bats = (
-            db.query(PontoBatida)
+            _q_ativas(db)
             .filter(
                 PontoBatida.atendente_id == a.id,
                 PontoBatida.registrado_em >= inicio,
@@ -371,9 +460,173 @@ def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
                 atendente_id=a.id,
                 nome=a.nome,
                 esperado=esperado,
-                em_jornada=aberta is not None,
-                entrada_em=aberta.registrado_em if aberta else None,
+                em_jornada=entrada is not None,
+                em_pausa=em_pausa_aberta(db, a.id),
+                entrada_em=entrada.registrado_em if entrada else None,
                 status=st,  # type: ignore[arg-type]
             )
         )
     return PontoHojeRead(data=hoje, itens=itens)
+
+
+def _atendente_do_tenant(db: Session, tenant_id: int, atendente_id: int) -> Atendente:
+    alvo = (
+        db.query(Atendente)
+        .filter(Atendente.id == atendente_id, Atendente.tenant_id == tenant_id)
+        .first()
+    )
+    if not alvo:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atendente não encontrado")
+    return alvo
+
+
+def admin_criar_batida(
+    db: Session,
+    admin: Atendente,
+    *,
+    atendente_id: int,
+    tipo: str,
+    registrado_em: datetime,
+    motivo: str,
+) -> PontoBatida:
+    alvo = _atendente_do_tenant(db, admin.tenant_id, atendente_id)
+    if tipo not in TIPOS_VALIDOS:
+        raise HTTPException(status_code=400, detail="Tipo inválido")
+    batida = PontoBatida(
+        tenant_id=admin.tenant_id,
+        atendente_id=alvo.id,
+        tipo=tipo,
+        registrado_em=_as_utc(registrado_em),
+        origem="admin",
+        anulada=False,
+    )
+    db.add(batida)
+    db.flush()
+    registrar_audit(
+        db,
+        "ponto_batida",
+        batida.id,
+        "create_ajuste",
+        admin.id,
+        payload={
+            "motivo": motivo,
+            "atendente_id": alvo.id,
+            "tipo": tipo,
+            "registrado_em": _as_utc(registrado_em).isoformat(),
+        },
+    )
+    db.commit()
+    db.refresh(batida)
+    return batida
+
+
+def admin_atualizar_batida(
+    db: Session,
+    admin: Atendente,
+    batida_id: int,
+    *,
+    tipo: str | None,
+    registrado_em: datetime | None,
+    motivo: str,
+) -> PontoBatida:
+    batida = (
+        db.query(PontoBatida)
+        .filter(PontoBatida.id == batida_id, PontoBatida.tenant_id == admin.tenant_id)
+        .first()
+    )
+    if not batida or batida.anulada:
+        raise HTTPException(status_code=404, detail="Batida não encontrada")
+    antes = {"tipo": batida.tipo, "registrado_em": batida.registrado_em.isoformat()}
+    if tipo is not None:
+        if tipo not in TIPOS_VALIDOS:
+            raise HTTPException(status_code=400, detail="Tipo inválido")
+        batida.tipo = tipo
+    if registrado_em is not None:
+        batida.registrado_em = _as_utc(registrado_em)
+    batida.origem = batida.origem or "admin"
+    registrar_audit(
+        db,
+        "ponto_batida",
+        batida.id,
+        "update_ajuste",
+        admin.id,
+        payload={"motivo": motivo, "antes": antes, "depois": {"tipo": batida.tipo, "registrado_em": batida.registrado_em.isoformat()}},
+    )
+    db.commit()
+    db.refresh(batida)
+    return batida
+
+
+def admin_anular_batida(db: Session, admin: Atendente, batida_id: int, *, motivo: str) -> PontoBatida:
+    batida = (
+        db.query(PontoBatida)
+        .filter(PontoBatida.id == batida_id, PontoBatida.tenant_id == admin.tenant_id)
+        .first()
+    )
+    if not batida or batida.anulada:
+        raise HTTPException(status_code=404, detail="Batida não encontrada")
+    batida.anulada = True
+    registrar_audit(
+        db,
+        "ponto_batida",
+        batida.id,
+        "anular",
+        admin.id,
+        payload={
+            "motivo": motivo,
+            "tipo": batida.tipo,
+            "registrado_em": batida.registrado_em.isoformat(),
+            "atendente_id": batida.atendente_id,
+        },
+    )
+    db.commit()
+    db.refresh(batida)
+    return batida
+
+
+def export_csv_admin(
+    db: Session,
+    admin: Atendente,
+    *,
+    atendente_id: int | None,
+    desde: date | None,
+    ate: date | None,
+) -> str:
+    """CSV UTF-8 com BOM: intervalos (entrada/saída/pausas/trabalhado)."""
+    q = _q_ativas(db).filter(PontoBatida.tenant_id == admin.tenant_id)
+    if atendente_id is not None:
+        q = q.filter(PontoBatida.atendente_id == atendente_id)
+    inicio, fim = _bounds_periodo(desde, ate)
+    if inicio is not None:
+        q = q.filter(PontoBatida.registrado_em >= inicio)
+    if fim is not None:
+        q = q.filter(PontoBatida.registrado_em < fim)
+    batidas = q.order_by(PontoBatida.atendente_id.asc(), PontoBatida.registrado_em.asc(), PontoBatida.id.asc()).all()
+
+    nomes = {
+        a.id: a.nome
+        for a in db.query(Atendente).filter(Atendente.tenant_id == admin.tenant_id).all()
+    }
+
+    por_atendente: dict[int, list[PontoBatida]] = {}
+    for b in batidas:
+        por_atendente.setdefault(b.atendente_id, []).append(b)
+
+    buf = io.StringIO()
+    buf.write("\ufeff")
+    writer = csv.writer(buf, delimiter=";")
+    writer.writerow(["atendente", "data", "entrada", "saida", "pausas_min", "trabalhado_min", "aberto"])
+    for aid, bats in por_atendente.items():
+        for it in _intervalos_de_batidas(bats):
+            writer.writerow(
+                [
+                    nomes.get(aid, str(aid)),
+                    it.data.isoformat(),
+                    _as_utc(it.entrada_em).astimezone(PONTO_TZ).strftime("%Y-%m-%d %H:%M"),
+                    _as_utc(it.saida_em).astimezone(PONTO_TZ).strftime("%Y-%m-%d %H:%M") if it.saida_em else "",
+                    round((it.segundos_pausa or 0) / 60, 2),
+                    round((it.duracao_segundos or 0) / 60, 2) if it.duracao_segundos is not None else "",
+                    "sim" if it.aberto else "nao",
+                ]
+            )
+    return buf.getvalue()
