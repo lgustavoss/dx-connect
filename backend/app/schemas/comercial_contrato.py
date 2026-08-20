@@ -42,6 +42,12 @@ class ContratoTemplatePreviewOut(BaseModel):
     html: str
 
 
+class ContratoChaveCatalogoItem(BaseModel):
+    grupo: str
+    chave: str
+    descricao: str
+
+
 class ContratoGerarIn(BaseModel):
     linha_id: int
     template_id: int | None = None

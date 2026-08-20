@@ -58,29 +58,89 @@ TEMPLATE_PADRAO_HTML = """<!DOCTYPE html>
   </style>
 </head>
 <body>
-  <div class="logo">{{logo}}</div>
-  <p class="muted">{{empresa_sistema}}</p>
+  <div class="logo">{{contratada.logo}}</div>
   <h1>Contrato de prestação de serviços</h1>
-  <p><strong>Contratante:</strong> {{razao_social}} &nbsp; <strong>CNPJ:</strong> {{cnpj}}</p>
-  <p>{{endereco_contratante}}</p>
-  <p>{{resp_legal}}</p>
-  <p class="muted">Base WebPosto: {{nome_base_webposto}}</p>
+  <h2>Contratada</h2>
+  <p><strong>{{contratada.razao_social}}</strong> &nbsp; CNPJ {{contratada.cnpj}}</p>
+  <p>{{contratada.endereco}}</p>
+  <h2>Contratante</h2>
+  <p><strong>{{contratante.razao_social}}</strong> &nbsp; CNPJ {{contratante.cnpj}}</p>
+  <p>{{contratante.endereco}}</p>
+  <p>Responsável legal: {{contratante.resp_legal}}</p>
+  <p class="muted">Base WebPosto: {{contratante.nome_base_webposto}}</p>
   <h2>Objeto e valores</h2>
-  {{itens}}
-  <p><strong>Mensalidade:</strong> {{valor_mensalidade}}</p>
-  {{setup_bloco}}
+  {{contrato.itens}}
+  <p><strong>Mensalidade:</strong> {{contrato.valor_mensalidade}}</p>
+  {{contrato.setup_bloco}}
   <h2>Vigência e fidelidade</h2>
-  <p>Início: {{data_inicio}} &nbsp; Fim da fidelidade: {{data_fim_fidelidade}} ({{fidelidade_meses}} meses).</p>
-  <div>{{fidelidade}}</div>
-  <div>{{multa}}</div>
-  <div>{{reajuste}}</div>
+  <p>Início: {{contrato.data_inicio}} &nbsp; Fim da fidelidade: {{contrato.data_fim_fidelidade}}
+    ({{contrato.fidelidade_meses}} meses).</p>
+  <p>Em caso de rescisão antecipada, multa de até {{contrato.multa_max_mensalidades}} mensalidade(s)
+    — ajuste este texto conforme o parecer do seu advogado.</p>
+  <p>Após a fidelidade, renovação automática: {{contrato.reajuste}}.</p>
   <h2>Implantação</h2>
-  {{clausula_deslocamento}}
-  {{clausula_alimentacao}}
-  {{clausula_hospedagem}}
+  {{contrato.clausula_deslocamento}}
+  {{contrato.clausula_alimentacao}}
+  {{contrato.clausula_hospedagem}}
 </body>
 </html>
 """
+
+# Catálogo documentado na UI / GET .../contrato-templates/chaves (fonte única).
+CATALOGO_CHAVES_CONTRATO: tuple[dict[str, str], ...] = (
+    {"grupo": "contratada", "chave": "contratada.logo", "descricao": "Logo da empresa nas configurações do DeskRudder"},
+    {"grupo": "contratada", "chave": "contratada.razao_social", "descricao": "Razão social da contratada (empresa do sistema)"},
+    {"grupo": "contratada", "chave": "contratada.nome_fantasia", "descricao": "Nome fantasia da contratada"},
+    {"grupo": "contratada", "chave": "contratada.cnpj", "descricao": "CNPJ da contratada"},
+    {"grupo": "contratada", "chave": "contratada.email", "descricao": "E-mail da contratada"},
+    {"grupo": "contratada", "chave": "contratada.telefone", "descricao": "Telefone da contratada"},
+    {"grupo": "contratada", "chave": "contratada.endereco", "descricao": "Endereço completo formatado da contratada"},
+    {"grupo": "contratada", "chave": "contratada.bloco", "descricao": "Bloco resumo (nome, CNPJ e endereço) da contratada"},
+    {"grupo": "contratante", "chave": "contratante.razao_social", "descricao": "Razão social da linha CNPJ / lead"},
+    {"grupo": "contratante", "chave": "contratante.cnpj", "descricao": "CNPJ do contratante"},
+    {"grupo": "contratante", "chave": "contratante.endereco", "descricao": "Endereço fiscal do contratante"},
+    {"grupo": "contratante", "chave": "contratante.email", "descricao": "E-mail (dados fiscais ou lead)"},
+    {"grupo": "contratante", "chave": "contratante.telefone", "descricao": "Telefone (dados fiscais ou lead)"},
+    {"grupo": "contratante", "chave": "contratante.resp_legal_nome", "descricao": "Nome do responsável legal"},
+    {"grupo": "contratante", "chave": "contratante.resp_legal_cpf", "descricao": "CPF do responsável legal"},
+    {"grupo": "contratante", "chave": "contratante.resp_legal", "descricao": "Responsável legal (nome · CPF)"},
+    {"grupo": "contratante", "chave": "contratante.nome_base_webposto", "descricao": "Nome da base WebPosto (Rede)"},
+    {"grupo": "contrato", "chave": "contrato.itens", "descricao": "Tabela HTML com itens e mensalidade"},
+    {"grupo": "contrato", "chave": "contrato.valor_mensalidade", "descricao": "Mensalidade formatada (R$)"},
+    {"grupo": "contrato", "chave": "contrato.data_inicio", "descricao": "Data de início (dd/mm/aaaa)"},
+    {"grupo": "contrato", "chave": "contrato.data_fim_fidelidade", "descricao": "Fim do período de fidelidade"},
+    {"grupo": "contrato", "chave": "contrato.fidelidade_meses", "descricao": "Meses de fidelidade (número)"},
+    {"grupo": "contrato", "chave": "contrato.multa_max_mensalidades", "descricao": "Teto de multa em mensalidades (número; use no texto do seu modelo)"},
+    {"grupo": "contrato", "chave": "contrato.reajuste_percentual", "descricao": "Percentual de reajuste (ex.: 5,50)"},
+    {"grupo": "contrato", "chave": "contrato.reajuste_rotulo", "descricao": "Rótulo do reajuste (ex.: IGPM)"},
+    {"grupo": "contrato", "chave": "contrato.reajuste", "descricao": "Resumo curto: «8,50% (IGPM)» ou «sem reajuste»"},
+    {"grupo": "contrato", "chave": "contrato.setup_valor", "descricao": "Valor do setup (ou — se isento/ausente)"},
+    {"grupo": "contrato", "chave": "contrato.setup_isento", "descricao": "«sim» ou «não»"},
+    {"grupo": "contrato", "chave": "contrato.setup_bloco", "descricao": "Parágrafo HTML pronto sobre setup/implantação"},
+    {"grupo": "contrato", "chave": "contrato.clausula_deslocamento", "descricao": "Linha HTML se deslocamento for do contratante"},
+    {"grupo": "contrato", "chave": "contrato.clausula_alimentacao", "descricao": "Linha HTML se alimentação for do contratante"},
+    {"grupo": "contrato", "chave": "contrato.clausula_hospedagem", "descricao": "Linha HTML se hospedagem for do contratante"},
+    {"grupo": "legado", "chave": "logo", "descricao": "Alias de contratada.logo"},
+    {"grupo": "legado", "chave": "empresa_sistema", "descricao": "Alias de contratada.bloco"},
+    {"grupo": "legado", "chave": "razao_social", "descricao": "Alias de contratante.razao_social"},
+    {"grupo": "legado", "chave": "cnpj", "descricao": "Alias de contratante.cnpj"},
+    {"grupo": "legado", "chave": "endereco_contratante", "descricao": "Alias de contratante.endereco"},
+    {"grupo": "legado", "chave": "resp_legal", "descricao": "Alias de contratante.resp_legal"},
+    {"grupo": "legado", "chave": "nome_base_webposto", "descricao": "Alias de contratante.nome_base_webposto"},
+    {"grupo": "legado", "chave": "itens", "descricao": "Alias de contrato.itens"},
+    {"grupo": "legado", "chave": "valor_mensalidade", "descricao": "Alias de contrato.valor_mensalidade"},
+    {"grupo": "legado", "chave": "data_inicio", "descricao": "Alias de contrato.data_inicio"},
+    {"grupo": "legado", "chave": "data_fim_fidelidade", "descricao": "Alias de contrato.data_fim_fidelidade"},
+    {"grupo": "legado", "chave": "fidelidade_meses", "descricao": "Alias de contrato.fidelidade_meses"},
+    {"grupo": "legado", "chave": "fidelidade", "descricao": "Alias numérico (meses); não gera cláusula jurídica"},
+    {"grupo": "legado", "chave": "multa", "descricao": "Alias de contrato.multa_max_mensalidades (só o número)"},
+    {"grupo": "legado", "chave": "igpm", "descricao": "Alias de contrato.reajuste"},
+    {"grupo": "legado", "chave": "reajuste", "descricao": "Alias de contrato.reajuste"},
+    {"grupo": "legado", "chave": "setup_bloco", "descricao": "Alias de contrato.setup_bloco"},
+    {"grupo": "legado", "chave": "clausula_deslocamento", "descricao": "Alias de contrato.clausula_deslocamento"},
+    {"grupo": "legado", "chave": "clausula_alimentacao", "descricao": "Alias de contrato.clausula_alimentacao"},
+    {"grupo": "legado", "chave": "clausula_hospedagem", "descricao": "Alias de contrato.clausula_hospedagem"},
+)
 
 
 CAMPOS_FISCAIS_OBRIGATORIOS = (
@@ -300,7 +360,9 @@ def atualizar_template(db: Session, row: ContratoTemplate, data: ContratoTemplat
 def obter_linha(db: Session, linha_id: int) -> CrmNegociacaoCnpjLinha:
     row = (
         db.query(CrmNegociacaoCnpjLinha)
-        .options(joinedload(CrmNegociacaoCnpjLinha.negociacao))
+        .options(
+            joinedload(CrmNegociacaoCnpjLinha.negociacao).joinedload(CrmNegociacao.lead),
+        )
         .filter(CrmNegociacaoCnpjLinha.id == linha_id)
         .first()
     )
@@ -412,17 +474,12 @@ def _setup_bloco(*, setup_isento: bool, setup_valor: Decimal | None) -> str:
     return _p("Setup de implantação: conforme negociação (fora da mensalidade).")
 
 
-def _clausula_reajuste(pct: Decimal, rotulo: str) -> str:
+def _reajuste_curto(pct: Decimal, rotulo: str) -> str:
+    """Valor curto para o modelo — a cláusula jurídica fica no HTML do cliente."""
     if pct <= 0:
-        return _p(
-            "Após o período de fidelidade, a renovação é automática, sem nova fidelidade e "
-            "sem reajuste de mensalidade neste contrato."
-        )
-    rot = html.escape(rotulo or "índice informado neste contrato")
-    return _p(
-        f"Após o período de fidelidade, a renovação é automática, sem nova fidelidade, "
-        f"com reajuste de {_fmt_pct(pct)}% ({rot})."
-    )
+        return "sem reajuste"
+    rot = (rotulo or "").strip() or "índice do contrato"
+    return f"{_fmt_pct(pct)}% ({html.escape(rot)})"
 
 
 def _clausula_custo_cliente(ativo: bool, titulo: str) -> str:
@@ -431,7 +488,19 @@ def _clausula_custo_cliente(ativo: bool, titulo: str) -> str:
     return _p(html.escape(f"{titulo} por conta do contratante."))
 
 
-def preencher_template(db: Session, template_html: str, contrato: Contrato, linha: CrmNegociacaoCnpjLinha) -> str:
+def _empresa_sistema_row(db: Session) -> EmpresaSistema | None:
+    return db.query(EmpresaSistema).order_by(EmpresaSistema.id.asc()).first()
+
+
+def _esc(valor: str | None, *, default: str = "—") -> str:
+    s = (valor or "").strip()
+    return html.escape(s) if s else default
+
+
+def montar_valores_template(
+    db: Session, contrato: Contrato, linha: CrmNegociacaoCnpjLinha
+) -> dict[str, str]:
+    """Mapa chave → valor para substituição {{chave}} (prefixos + aliases legados)."""
     nomes = proposta_svc._nomes_itens_cliente(db, linha)
     itens_txt = html.escape(", ".join(nomes) if nomes else "—")
     tabela = (
@@ -448,58 +517,246 @@ def preencher_template(db: Session, template_html: str, contrato: Contrato, linh
     fiscal = _fiscal_dict(linha)
     neg = linha.negociacao
     nome_base = (neg.nome_base_webposto if neg else "") or ""
-    reaj = _clausula_reajuste(
-        Decimal(str(contrato.reajuste_percentual or 0)),
-        contrato.reajuste_rotulo or "",
-    )
-    resp = fiscal.get("resp_legal_nome") or ""
-    cpf = fiscal.get("resp_legal_cpf") or ""
+    pct = Decimal(str(contrato.reajuste_percentual or 0))
+    reaj = _reajuste_curto(pct, contrato.reajuste_rotulo or "")
+    resp_nome = fiscal.get("resp_legal_nome") or ""
+    resp_cpf = fiscal.get("resp_legal_cpf") or ""
     resp_txt = "—"
-    if resp:
-        resp_txt = html.escape(resp)
-        if cpf:
-            resp_txt += html.escape(f" · CPF {cpf}")
-    valores = {
-        "logo": proposta_svc._logo_html(db),
-        "empresa_sistema": _bloco_empresa_sistema(db) or proposta_svc._empresa_sistema_texto(db),
-        "razao_social": html.escape(linha.razao_social or "—"),
-        "cnpj": html.escape(proposta_svc._formatar_cnpj(linha.cnpj)),
-        "endereco_contratante": _endereco_formatado(fiscal),
-        "resp_legal": resp_txt,
-        "nome_base_webposto": html.escape(nome_base.strip() or "—"),
-        "itens": tabela,
-        "valor_mensalidade": html.escape(proposta_svc._money_br(contrato.valor_mensalidade)),
-        "data_inicio": html.escape(contrato.data_inicio.strftime("%d/%m/%Y")),
-        "data_fim_fidelidade": html.escape(contrato.data_fim_fidelidade.strftime("%d/%m/%Y")),
-        "fidelidade_meses": html.escape(str(fid)),
-        "setup_bloco": _setup_bloco(setup_isento=bool(contrato.setup_isento), setup_valor=contrato.setup_valor),
-        "fidelidade": _p(
-            html.escape(
-                f"O contratante permanece vinculado por {fid} meses de fidelidade, "
-                "contados da data de início."
-            )
-        ),
-        "multa": _p(
-            html.escape(
-                f"Em caso de rescisão antecipada, a multa é de até {multa_n} mensalidade(s), "
-                "a validar juridicamente."
-            )
-        ),
-        "igpm": reaj,
-        "reajuste": reaj,
-        "clausula_deslocamento": _clausula_custo_cliente(bool(contrato.deslocamento_cliente), "Deslocamento"),
-        "clausula_alimentacao": _clausula_custo_cliente(bool(contrato.alimentacao_cliente), "Alimentação"),
-        "clausula_hospedagem": _clausula_custo_cliente(bool(contrato.hospedagem_cliente), "Hospedagem"),
+    if resp_nome:
+        resp_txt = html.escape(resp_nome)
+        if resp_cpf:
+            resp_txt += html.escape(f" · CPF {resp_cpf}")
+
+    emp = _empresa_sistema_row(db)
+    emp_fiscal = {
+        "endereco": (emp.endereco if emp else "") or "",
+        "numero": (emp.numero if emp else "") or "",
+        "complemento": (emp.complemento if emp else "") or "",
+        "bairro": (emp.bairro if emp else "") or "",
+        "cidade": (emp.cidade if emp else "") or "",
+        "estado": (emp.estado if emp else "") or "",
+        "cep": (emp.cep if emp else "") or "",
     }
+    logo = proposta_svc._logo_html(db)
+    bloco_emp = _bloco_empresa_sistema(db) or proposta_svc._empresa_sistema_texto(db)
+    endereco_contratante = _endereco_formatado(fiscal)
+    endereco_contratada = _endereco_formatado(emp_fiscal)
+    setup_bloco = _setup_bloco(setup_isento=bool(contrato.setup_isento), setup_valor=contrato.setup_valor)
+    setup_valor_txt = (
+        "—"
+        if contrato.setup_isento or contrato.setup_valor is None
+        else html.escape(proposta_svc._money_br(contrato.setup_valor))
+    )
+    email_ctr = fiscal.get("email") or (neg.lead.email if neg and neg.lead else "") or ""
+    tel_ctr = fiscal.get("telefone") or (neg.lead.telefone if neg and neg.lead else "") or ""
+
+    contratada = {
+        "contratada.logo": logo,
+        "contratada.razao_social": _esc(emp.razao_social if emp else None),
+        "contratada.nome_fantasia": _esc((emp.nome_fantasia or emp.nome) if emp else None),
+        "contratada.cnpj": (
+            html.escape(proposta_svc._formatar_cnpj(emp.cnpj)) if emp and emp.cnpj else "—"
+        ),
+        "contratada.email": _esc(emp.email if emp else None),
+        "contratada.telefone": _esc(emp.telefone if emp else None),
+        "contratada.endereco": endereco_contratada,
+        "contratada.bloco": bloco_emp or "—",
+    }
+    contratante = {
+        "contratante.razao_social": html.escape(linha.razao_social or "—"),
+        "contratante.cnpj": html.escape(proposta_svc._formatar_cnpj(linha.cnpj)),
+        "contratante.endereco": endereco_contratante,
+        "contratante.email": _esc(email_ctr),
+        "contratante.telefone": _esc(tel_ctr),
+        "contratante.resp_legal_nome": _esc(resp_nome),
+        "contratante.resp_legal_cpf": _esc(resp_cpf),
+        "contratante.resp_legal": resp_txt,
+        "contratante.nome_base_webposto": html.escape(nome_base.strip() or "—"),
+    }
+    contrato_vals = {
+        "contrato.itens": tabela,
+        "contrato.valor_mensalidade": html.escape(proposta_svc._money_br(contrato.valor_mensalidade)),
+        "contrato.data_inicio": html.escape(contrato.data_inicio.strftime("%d/%m/%Y")),
+        "contrato.data_fim_fidelidade": html.escape(contrato.data_fim_fidelidade.strftime("%d/%m/%Y")),
+        "contrato.fidelidade_meses": html.escape(str(fid)),
+        "contrato.multa_max_mensalidades": html.escape(str(multa_n)),
+        "contrato.reajuste_percentual": html.escape(_fmt_pct(pct)),
+        "contrato.reajuste_rotulo": html.escape((contrato.reajuste_rotulo or "").strip() or "—"),
+        "contrato.reajuste": reaj,
+        "contrato.setup_valor": setup_valor_txt,
+        "contrato.setup_isento": "sim" if contrato.setup_isento else "não",
+        "contrato.setup_bloco": setup_bloco,
+        "contrato.clausula_deslocamento": _clausula_custo_cliente(
+            bool(contrato.deslocamento_cliente), "Deslocamento"
+        ),
+        "contrato.clausula_alimentacao": _clausula_custo_cliente(
+            bool(contrato.alimentacao_cliente), "Alimentação"
+        ),
+        "contrato.clausula_hospedagem": _clausula_custo_cliente(
+            bool(contrato.hospedagem_cliente), "Hospedagem"
+        ),
+    }
+    legado = {
+        "logo": contratada["contratada.logo"],
+        "empresa_sistema": contratada["contratada.bloco"],
+        "razao_social": contratante["contratante.razao_social"],
+        "cnpj": contratante["contratante.cnpj"],
+        "endereco_contratante": contratante["contratante.endereco"],
+        "resp_legal": contratante["contratante.resp_legal"],
+        "nome_base_webposto": contratante["contratante.nome_base_webposto"],
+        "itens": contrato_vals["contrato.itens"],
+        "valor_mensalidade": contrato_vals["contrato.valor_mensalidade"],
+        "data_inicio": contrato_vals["contrato.data_inicio"],
+        "data_fim_fidelidade": contrato_vals["contrato.data_fim_fidelidade"],
+        "fidelidade_meses": contrato_vals["contrato.fidelidade_meses"],
+        "fidelidade": contrato_vals["contrato.fidelidade_meses"],
+        "multa": contrato_vals["contrato.multa_max_mensalidades"],
+        "igpm": contrato_vals["contrato.reajuste"],
+        "reajuste": contrato_vals["contrato.reajuste"],
+        "setup_bloco": contrato_vals["contrato.setup_bloco"],
+        "clausula_deslocamento": contrato_vals["contrato.clausula_deslocamento"],
+        "clausula_alimentacao": contrato_vals["contrato.clausula_alimentacao"],
+        "clausula_hospedagem": contrato_vals["contrato.clausula_hospedagem"],
+    }
+    return {**contratada, **contratante, **contrato_vals, **legado}
+
+
+def catalogo_chaves_contrato() -> list[dict[str, str]]:
+    return [dict(item) for item in CATALOGO_CHAVES_CONTRATO]
+
+
+def _aplicar_valores_no_html(template_html: str, valores: dict[str, str]) -> str:
     html_out = sanitize_html(template_html)
-    for chave, valor in valores.items():
-        html_out = html_out.replace("{{" + chave + "}}", valor)
+    for chave in sorted(valores.keys(), key=lambda k: (-k.count("."), -len(k), k)):
+        html_out = html_out.replace("{{" + chave + "}}", valores[chave])
     if proposta_svc._VAZAMENTO.search(html_out):
         raise HTTPException(
             status_code=500,
             detail="O contrato gerado continha dados internos e foi bloqueado. Contacte o suporte.",
         )
     return html_out
+
+
+def montar_valores_preview_exemplo(db: Session) -> dict[str, str]:
+    """Mesmas chaves da geração, com dados fictícios (contratada real da instância quando existir)."""
+    emp = _empresa_sistema_row(db)
+    emp_fiscal = {
+        "endereco": (emp.endereco if emp else "") or "Av. Exemplo",
+        "numero": (emp.numero if emp else "") or "100",
+        "complemento": (emp.complemento if emp else "") or "",
+        "bairro": (emp.bairro if emp else "") or "Centro",
+        "cidade": (emp.cidade if emp else "") or "São Paulo",
+        "estado": (emp.estado if emp else "") or "SP",
+        "cep": (emp.cep if emp else "") or "01000-000",
+    }
+    logo = proposta_svc._logo_html(db)
+    bloco_emp = _bloco_empresa_sistema(db) or proposta_svc._empresa_sistema_texto(db)
+    if not bloco_emp:
+        bloco_emp = html.escape("Empresa Exemplo LTDA · CNPJ 00.000.000/0001-91")
+
+    razao_ctr = "Posto Exemplo LTDA"
+    cnpj_ctr = "12.345.678/0001-95"
+    itens_txt = "Licença mensal, Suporte"
+    tabela = (
+        "<table><thead><tr><th>Razão social</th><th>CNPJ</th><th>Itens</th><th>Mensalidade</th></tr></thead>"
+        "<tbody><tr>"
+        f"<td>{html.escape(razao_ctr)}</td>"
+        f"<td>{html.escape(cnpj_ctr)}</td>"
+        f"<td>{html.escape(itens_txt)}</td>"
+        f"<td>{html.escape('R$ 1.200,00')}</td>"
+        "</tr></tbody></table>"
+    )
+    setup_bloco = _setup_bloco(setup_isento=False, setup_valor=Decimal("1500.00"))
+    reaj = _reajuste_curto(Decimal("5.5"), "IGPM")
+    endereco_contratante = _endereco_formatado(
+        {
+            "endereco": "Rua do Cliente",
+            "numero": "50",
+            "complemento": "Sala 2",
+            "bairro": "Industrial",
+            "cidade": "Campinas",
+            "estado": "SP",
+            "cep": "13000-000",
+        }
+    )
+    resp_txt = html.escape("Maria Silva · CPF 123.456.789-00")
+
+    contratada = {
+        "contratada.logo": logo,
+        "contratada.razao_social": _esc(emp.razao_social if emp else None, default=html.escape("Empresa Exemplo LTDA")),
+        "contratada.nome_fantasia": _esc(
+            (emp.nome_fantasia or emp.nome) if emp else None,
+            default=html.escape("Empresa Exemplo"),
+        ),
+        "contratada.cnpj": (
+            html.escape(proposta_svc._formatar_cnpj(emp.cnpj))
+            if emp and emp.cnpj
+            else html.escape("00.000.000/0001-91")
+        ),
+        "contratada.email": _esc(emp.email if emp else None, default=html.escape("contato@exemplo.com")),
+        "contratada.telefone": _esc(emp.telefone if emp else None, default=html.escape("(11) 3000-0000")),
+        "contratada.endereco": _endereco_formatado(emp_fiscal),
+        "contratada.bloco": bloco_emp or "—",
+    }
+    contratante = {
+        "contratante.razao_social": html.escape(razao_ctr),
+        "contratante.cnpj": html.escape(cnpj_ctr),
+        "contratante.endereco": endereco_contratante,
+        "contratante.email": html.escape("cliente@exemplo.com"),
+        "contratante.telefone": html.escape("(19) 98888-0000"),
+        "contratante.resp_legal_nome": html.escape("Maria Silva"),
+        "contratante.resp_legal_cpf": html.escape("123.456.789-00"),
+        "contratante.resp_legal": resp_txt,
+        "contratante.nome_base_webposto": html.escape("base_exemplo"),
+    }
+    contrato_vals = {
+        "contrato.itens": tabela,
+        "contrato.valor_mensalidade": html.escape("R$ 1.200,00"),
+        "contrato.data_inicio": html.escape("01/01/2026"),
+        "contrato.data_fim_fidelidade": html.escape("01/01/2027"),
+        "contrato.fidelidade_meses": html.escape("12"),
+        "contrato.multa_max_mensalidades": html.escape("3"),
+        "contrato.reajuste_percentual": html.escape("5,50"),
+        "contrato.reajuste_rotulo": html.escape("IGPM"),
+        "contrato.reajuste": reaj,
+        "contrato.setup_valor": html.escape("R$ 1.500,00"),
+        "contrato.setup_isento": "não",
+        "contrato.setup_bloco": setup_bloco,
+        "contrato.clausula_deslocamento": _clausula_custo_cliente(True, "Deslocamento"),
+        "contrato.clausula_alimentacao": _clausula_custo_cliente(True, "Alimentação"),
+        "contrato.clausula_hospedagem": _clausula_custo_cliente(True, "Hospedagem"),
+    }
+    legado = {
+        "logo": contratada["contratada.logo"],
+        "empresa_sistema": contratada["contratada.bloco"],
+        "razao_social": contratante["contratante.razao_social"],
+        "cnpj": contratante["contratante.cnpj"],
+        "endereco_contratante": contratante["contratante.endereco"],
+        "resp_legal": contratante["contratante.resp_legal"],
+        "nome_base_webposto": contratante["contratante.nome_base_webposto"],
+        "itens": contrato_vals["contrato.itens"],
+        "valor_mensalidade": contrato_vals["contrato.valor_mensalidade"],
+        "data_inicio": contrato_vals["contrato.data_inicio"],
+        "data_fim_fidelidade": contrato_vals["contrato.data_fim_fidelidade"],
+        "fidelidade_meses": contrato_vals["contrato.fidelidade_meses"],
+        "fidelidade": contrato_vals["contrato.fidelidade_meses"],
+        "multa": contrato_vals["contrato.multa_max_mensalidades"],
+        "igpm": contrato_vals["contrato.reajuste"],
+        "reajuste": contrato_vals["contrato.reajuste"],
+        "setup_bloco": contrato_vals["contrato.setup_bloco"],
+        "clausula_deslocamento": contrato_vals["contrato.clausula_deslocamento"],
+        "clausula_alimentacao": contrato_vals["contrato.clausula_alimentacao"],
+        "clausula_hospedagem": contrato_vals["contrato.clausula_hospedagem"],
+    }
+    return {**contratada, **contratante, **contrato_vals, **legado}
+
+
+def preencher_template_preview(db: Session, template_html: str) -> str:
+    return _aplicar_valores_no_html(template_html, montar_valores_preview_exemplo(db))
+
+
+def preencher_template(db: Session, template_html: str, contrato: Contrato, linha: CrmNegociacaoCnpjLinha) -> str:
+    return _aplicar_valores_no_html(template_html, montar_valores_template(db, contrato, linha))
 
 
 def _montar_snapshots(
