@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { whatsappChats, type WhatsappChats } from '../../api/client'
 import { Button } from '../../components/ui/Button'
+import { ChatBottomSheet } from '../../components/ui/ChatBottomSheet'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
@@ -23,6 +24,31 @@ type Props = {
 const DESFECHO_ROTULO: Record<string, string> = {
   resolvido_sessao: 'Resolvido na sessão',
   escalado_ticket: 'Escalado para ticket',
+}
+
+function FormularioDemanda({
+  editandoId,
+  form,
+  setForm,
+  salvando,
+  onSalvar,
+  idPrefix,
+}: {
+  editandoId: number | null
+  form: DemandaFormValues
+  setForm: (v: DemandaFormValues) => void
+  salvando: boolean
+  onSalvar: () => void
+  idPrefix: string
+}) {
+  return (
+    <div className="space-y-3">
+      <WhatsappDemandaFormFields values={form} onChange={setForm} disabled={salvando} idPrefix={idPrefix} />
+      <Button type="button" className="h-11 w-full shrink-0 sm:h-9 sm:w-auto" onClick={onSalvar} loading={salvando}>
+        {editandoId != null ? 'Guardar alterações' : 'Registrar'}
+      </Button>
+    </div>
+  )
 }
 
 export function WhatsappDemandasPanel({ chatId, podeRegistrar, onDemandasChange }: Props) {
@@ -121,6 +147,8 @@ export function WhatsappDemandasPanel({ chatId, podeRegistrar, onDemandasChange 
     )
   }
 
+  const tituloForm = editandoId != null ? 'Editar demanda' : 'Nova demanda'
+
   return (
     <>
       <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-2 dark:border-slate-800 dark:bg-slate-900/40">
@@ -175,15 +203,18 @@ export function WhatsappDemandasPanel({ chatId, podeRegistrar, onDemandasChange 
           )}
         </div>
 
+        {/* Desktop: formulário inline */}
         {expandido && podeRegistrar && (
-          <div className="mt-2 space-y-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-            <p className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              {editandoId != null ? 'Editar demanda' : 'Nova demanda'}
-            </p>
-            <WhatsappDemandaFormFields values={form} onChange={setForm} disabled={salvando} idPrefix="panel" />
-            <Button type="button" className="h-9 shrink-0" onClick={() => void salvar()} loading={salvando}>
-              {editandoId != null ? 'Guardar alterações' : 'Registrar'}
-            </Button>
+          <div className="mt-2 hidden space-y-3 rounded-xl border border-slate-200 bg-white p-3 md:block dark:border-slate-800 dark:bg-slate-900">
+            <p className="text-xs font-medium text-slate-600 dark:text-slate-300">{tituloForm}</p>
+            <FormularioDemanda
+              editandoId={editandoId}
+              form={form}
+              setForm={setForm}
+              salvando={salvando}
+              onSalvar={() => void salvar()}
+              idPrefix="panel"
+            />
           </div>
         )}
 
@@ -234,6 +265,25 @@ export function WhatsappDemandasPanel({ chatId, podeRegistrar, onDemandasChange 
             })}
           </ul>
         )}
+      </div>
+
+      {/* Mobile: folha inferior (#752) */}
+      <div className="md:hidden">
+        <ChatBottomSheet
+          open={expandido && podeRegistrar}
+          title={tituloForm}
+          onClose={resetFormulario}
+          zClassName="z-[120]"
+        >
+          <FormularioDemanda
+            editandoId={editandoId}
+            form={form}
+            setForm={setForm}
+            salvando={salvando}
+            onSalvar={() => void salvar()}
+            idPrefix="panel-mobile"
+          />
+        </ChatBottomSheet>
       </div>
 
       <ConfirmDialog

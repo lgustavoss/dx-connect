@@ -68,7 +68,7 @@ export const brandGradients = {
 } as const
 
 /** Versão de cache bust para PNGs de marca em public/. */
-export const BRAND_ASSET_VERSION = '22'
+export const BRAND_ASSET_VERSION = '24'
 
 /** Assets estaticos em public/ (logo v2 — agente 3D no D). */
 export const brandAssets = {

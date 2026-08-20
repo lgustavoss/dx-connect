@@ -291,8 +291,14 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-      <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 animate-in zoom-in-95">
+    <div
+      className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-900/50 p-0 backdrop-blur-sm md:items-center md:p-4"
+      role="presentation"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <Card className="max-h-[min(90dvh,var(--vv-height,90dvh))] w-full max-w-lg overflow-y-auto rounded-t-2xl rounded-b-none p-6 md:rounded-2xl">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h3 className="text-lg font-bold">{CONTATO_CLIENTE.modalTitulo}</h3>

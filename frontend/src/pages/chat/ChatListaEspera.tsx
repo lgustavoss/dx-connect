@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { ApiError, portalChats, whatsappChats } from '../../api/client'
 import { AssumirWhatsappSetorModal } from '../../components/chat/AssumirWhatsappSetorModal'
 import { ChatCanalBadge } from '../../components/chat/ChatCanalBadge'
+import { ChatHubEmptyState } from '../../components/chat/ChatHubEmptyState'
 import { WhatsappAvatar } from '../../components/chat/WhatsappAvatar'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
@@ -58,7 +59,7 @@ export function ChatListaEspera({ ignorarBusca = false, onChatAssumido, onVerCha
   const toast = useToast()
   const { user } = useAuth()
   const navigate = useNavigate()
-  const { busca, refreshContagens, chatAtivo, abrirChat } = useChatHub()
+  const { busca, setBusca, refreshContagens, chatAtivo, abrirChat } = useChatHub()
   const { subscribe, useFallback } = useEventStream()
   const [fila, setFila] = useState<ChatHubItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -145,10 +146,24 @@ export function ChatListaEspera({ ignorarBusca = false, onChatAssumido, onVerCha
   }
 
   if (lista.length === 0) {
+    if (busca.trim()) {
+      return (
+        <ChatHubEmptyState
+          title="Nenhum chat na fila com esse filtro"
+          description="Tente outro termo ou limpe a pesquisa."
+          actions={[{ type: 'button', label: 'Limpar pesquisa', onClick: () => setBusca('') }]}
+        />
+      )
+    }
     return (
-      <p className="p-6 text-center text-sm text-slate-400">
-        {busca.trim() ? 'Nenhum chat na fila com esse filtro.' : 'Fila vazia.'}
-      </p>
+      <ChatHubEmptyState
+        title="Nenhum chat na fila"
+        description="Novos contactos aparecem aqui quando pedem atendimento."
+        actions={[
+          { type: 'link', to: '/chat/atendendo', label: 'Ver Atendendo' },
+          { type: 'link', to: '/chat/contatos', label: 'Contatos' },
+        ]}
+      />
     )
   }
 
