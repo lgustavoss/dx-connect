@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { Button } from '../../components/ui/Button'
+import {
+  TAMANHO_MIN_AUDIO_BYTES,
+  criarMediaRecorder,
+  ficheiroDeBlobGravacao,
+} from '../../lib/gravacaoAudio'
 
 type Props = {
   disabled?: boolean
@@ -16,8 +21,12 @@ export function WhatsappGravadorAudio({ disabled, onConcluido, onCancelar }: Pro
   const streamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<number | null>(null)
-
   const canceladoRef = useRef(false)
+  const onConcluidoRef = useRef(onConcluido)
+
+  useEffect(() => {
+    onConcluidoRef.current = onConcluido
+  }, [onConcluido])
 
   const pararStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop())
@@ -28,48 +37,90 @@ export function WhatsappGravadorAudio({ disabled, onConcluido, onCancelar }: Pro
     }
   }, [])
 
-  useEffect(() => () => pararStream(), [pararStream])
+  const pararRecorder = useCallback(() => {
+    const rec = recorderRef.current
+    if (!rec || rec.state === 'inactive') return
+    try {
+      if (rec.state === 'recording') rec.requestData()
+    } catch {
+      /* ignore */
+    }
+    try {
+      rec.stop()
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  useEffect(() => () => {
+    canceladoRef.current = true
+    const rec = recorderRef.current
+    if (rec && rec.state !== 'inactive') {
+      pararRecorder()
+    } else {
+      pararStream()
+    }
+  }, [pararRecorder, pararStream])
 
   async function iniciar() {
     if (disabled || gravando) return
     setErro(null)
     canceladoRef.current = false
     chunksRef.current = []
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setErro('Microfone não suportado neste browser (use HTTPS).')
+      return
+    }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          channelCount: 1,
+        },
+      })
       streamRef.current = stream
-      const mime =
-        MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-          ? 'audio/webm;codecs=opus'
-          : MediaRecorder.isTypeSupported('audio/webm')
-            ? 'audio/webm'
-            : ''
-      const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream)
+      let recorder: MediaRecorder
+      try {
+        recorder = criarMediaRecorder(stream)
+      } catch {
+        stream.getTracks().forEach((t) => t.stop())
+        streamRef.current = null
+        setErro('Gravação de áudio não suportada neste browser.')
+        return
+      }
       recorderRef.current = recorder
       recorder.ondataavailable = (ev) => {
         if (canceladoRef.current) return
-        if (ev.data.size > 0) chunksRef.current.push(ev.data)
+        if (ev.data && ev.data.size > 0) chunksRef.current.push(ev.data)
+      }
+      recorder.onerror = () => {
+        setErro('Falha na gravação. Tente novamente.')
+        setGravando(false)
+        setSegundos(0)
+        pararStream()
       }
       recorder.onstop = () => {
         pararStream()
+        recorderRef.current = null
         if (canceladoRef.current) {
           chunksRef.current = []
           setGravando(false)
           setSegundos(0)
           return
         }
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' })
-        if (blob.size === 0) {
-          setErro('Gravação vazia. Tente novamente.')
+        const mime = recorder.mimeType || chunksRef.current[0]?.type || 'audio/webm'
+        const blob = new Blob(chunksRef.current, { type: mime })
+        chunksRef.current = []
+        if (blob.size < TAMANHO_MIN_AUDIO_BYTES) {
+          setErro('Gravação vazia ou demasiado curta. Tente novamente.')
           setGravando(false)
           setSegundos(0)
           return
         }
-        const ext = blob.type.includes('ogg') ? 'ogg' : 'webm'
-        const file = new File([blob], `audio-${Date.now()}.${ext}`, { type: blob.type || 'audio/webm' })
         setGravando(false)
         setSegundos(0)
-        onConcluido(file)
+        onConcluidoRef.current(ficheiroDeBlobGravacao(blob))
       }
       recorder.start(250)
       setGravando(true)
@@ -83,19 +134,20 @@ export function WhatsappGravadorAudio({ disabled, onConcluido, onCancelar }: Pro
 
   function parar() {
     canceladoRef.current = false
-    const rec = recorderRef.current
-    if (rec && rec.state !== 'inactive') rec.stop()
-    recorderRef.current = null
+    pararRecorder()
   }
 
   function cancelar() {
     canceladoRef.current = true
     if (gravando) {
       const rec = recorderRef.current
-      if (rec && rec.state !== 'inactive') rec.stop()
-      recorderRef.current = null
+      if (rec && rec.state !== 'inactive') {
+        pararRecorder()
+      } else {
+        pararStream()
+        recorderRef.current = null
+      }
       chunksRef.current = []
-      pararStream()
       setGravando(false)
       setSegundos(0)
     }
