@@ -23,9 +23,6 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
-    define: {
-      __DX_CONNECT_CAPACITOR__: capacitorNative,
-    },
     plugins: [
       react(),
       tailwindcss(),

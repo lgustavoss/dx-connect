@@ -4,7 +4,6 @@ import { Link, useLocation } from 'react-router-dom'
 import { system } from '../api/client'
 import { BrandLogo } from '../brand'
 import { useTheme } from '../contexts/ThemeContext'
-import { isCapacitorNative } from '../lib/capacitorNative'
 
 const icons: Record<string, React.ReactNode> = {
   dashboard: (
@@ -231,8 +230,6 @@ interface NavLink {
   activePrefix?: string
   /** Só na instância comercial (control-plane SaaS). */
   saasOnly?: boolean
-  /** Oculto no app Capacitor (foco em tickets e chat). */
-  hideOnNative?: boolean
 }
 
 interface NavGroup {
@@ -243,7 +240,6 @@ interface NavGroup {
   adminOnly?: boolean
   comercialOuAdmin?: boolean
   saasOnly?: boolean
-  hideOnNative?: boolean
   /** Ex.: conversa aberta `/whatsapp/c/:id` mantém o grupo Chat ativo */
   extraActivePrefixes?: string[]
   children: NavLink[]
@@ -259,13 +255,12 @@ interface NavItemLink {
   adminOnly?: boolean
   comercialOuAdmin?: boolean
   saasOnly?: boolean
-  hideOnNative?: boolean
 }
 
 type NavItem = NavItemLink | NavGroup
 
 const navStructure: NavItem[] = [
-  { type: 'link', to: '/', label: 'Dashboard', icon: 'dashboard', hideOnNative: true },
+  { type: 'link', to: '/', label: 'Dashboard', icon: 'dashboard' },
   {
     type: 'group',
     id: 'ponto',
@@ -279,14 +274,12 @@ const navStructure: NavItem[] = [
         label: 'Equipe online',
         icon: 'equipeOnline',
         adminOnly: true,
-        hideOnNative: true,
       },
       {
         to: '/equipe/ponto',
         label: 'Ponto da equipe',
         icon: 'equipeOnline',
         adminOnly: true,
-        hideOnNative: true,
       },
     ],
   },
@@ -324,7 +317,6 @@ const navStructure: NavItem[] = [
     label: 'Comercial',
     icon: 'tiposNegocio',
     comercialOuAdmin: true,
-    hideOnNative: true,
     extraActivePrefixes: ['/crm/'],
     children: [
       {
@@ -349,7 +341,6 @@ const navStructure: NavItem[] = [
     label: 'Clientes',
     icon: 'clientes',
     adminOnly: true,
-    hideOnNative: true,
     children: [
       { to: '/redes', label: 'Redes', icon: 'redes' },
       { to: '/empresas', label: 'Empresas', icon: 'empresas' },
@@ -361,7 +352,6 @@ const navStructure: NavItem[] = [
     id: 'ajuda',
     label: 'Ajuda',
     icon: 'ajuda',
-    hideOnNative: true,
     extraActivePrefixes: ['/ajuda/artigos/', '/ajuda/categorias'],
     children: [
       { to: '/ajuda/consultar', label: 'Consultar', icon: 'ajudaConsultar' },
@@ -375,7 +365,6 @@ const navStructure: NavItem[] = [
     label: 'Configurações',
     icon: 'configuracoes',
     adminOnly: true,
-    hideOnNative: true,
     extraActivePrefixes: [
       '/configuracoes/',
       '/setores',
@@ -410,13 +399,11 @@ function navGroupMatchesPath(pathname: string, group: NavGroup): boolean {
 }
 
 function navItemVisivel(
-  item: { adminOnly?: boolean; comercialOuAdmin?: boolean; saasOnly?: boolean; hideOnNative?: boolean },
+  item: { adminOnly?: boolean; comercialOuAdmin?: boolean; saasOnly?: boolean },
   isAdmin: boolean,
   isComercialOuAdmin: boolean,
   saasEnabled: boolean,
-  nativeApp: boolean,
 ): boolean {
-  if (nativeApp && item.hideOnNative) return false
   if (item.adminOnly && !isAdmin) return false
   if (item.comercialOuAdmin && !isComercialOuAdmin) return false
   if (item.saasOnly && !saasEnabled) return false
@@ -428,9 +415,8 @@ function navChildrenVisible(
   isAdmin: boolean,
   isComercialOuAdmin: boolean,
   saasEnabled: boolean,
-  nativeApp: boolean,
 ): NavLink[] {
-  return children.filter((child) => navItemVisivel(child, isAdmin, isComercialOuAdmin, saasEnabled, nativeApp))
+  return children.filter((child) => navItemVisivel(child, isAdmin, isComercialOuAdmin, saasEnabled))
 }
 
 interface SidebarProps {
@@ -457,7 +443,6 @@ export function Sidebar({
   const location = useLocation()
   const { resolved } = useTheme()
   const logoOnDark = resolved === 'dark'
-  const nativeApp = isCapacitorNative()
   const [openGroup, setOpenGroup] = useState<string | null>(null)
   const [openFlyout, setOpenFlyout] = useState<string | null>(null)
   const [flyoutTop, setFlyoutTop] = useState<number | null>(null)
@@ -504,14 +489,14 @@ export function Sidebar({
   )
 
   const items = navStructure.filter((item) =>
-    navItemVisivel(item, isAdmin, isComercialOuAdmin, saasEnabled, nativeApp),
+    navItemVisivel(item, isAdmin, isComercialOuAdmin, saasEnabled),
   ) as NavItem[]
 
   // Abrir grupo automaticamente quando a rota pertence a ele
   useEffect(() => {
     for (const item of navStructure) {
       if (item.type === 'group') {
-        if (navItemVisivel(item, isAdmin, isComercialOuAdmin, saasEnabled, nativeApp)) {
+        if (navItemVisivel(item, isAdmin, isComercialOuAdmin, saasEnabled)) {
           if (navGroupMatchesPath(location.pathname, item)) {
             setOpenGroup(item.id)
             return
@@ -519,7 +504,7 @@ export function Sidebar({
         }
       }
     }
-  }, [location.pathname, isAdmin, isComercialOuAdmin, saasEnabled, nativeApp])
+  }, [location.pathname, isAdmin, isComercialOuAdmin, saasEnabled])
 
   // No drawer mobile usamos acordeão (não flyout); evita estado do flyout “preso”
   useEffect(() => {
@@ -581,7 +566,6 @@ export function Sidebar({
                 isAdmin,
                 isComercialOuAdmin,
                 saasEnabled,
-                nativeApp,
               ).map((child) => (
                 <li key={child.to} role="none">
                   <Link
@@ -610,7 +594,7 @@ export function Sidebar({
         className={`flex h-16 min-h-[64px] shrink-0 items-center border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${expanded ? 'px-3' : 'justify-center md:px-2'}`}
       >
         <Link
-          to={nativeApp ? '/chat/atendendo' : '/'}
+          to="/"
           onClick={onMobileClose}
           title="Início"
           className={`flex items-center overflow-visible rounded-lg ${expanded ? 'min-w-0 w-full' : 'md:w-full md:justify-center'}`}
@@ -692,7 +676,7 @@ export function Sidebar({
                       }`}
                       role="group"
                     >
-                      {navChildrenVisible(group.children, isAdmin, isComercialOuAdmin, saasEnabled, nativeApp).map(
+                      {navChildrenVisible(group.children, isAdmin, isComercialOuAdmin, saasEnabled).map(
                         (child) => (
                         <li key={child.to} className="min-w-0 border-l border-slate-200 pl-3 ml-4 dark:border-slate-700">
                           <Link
