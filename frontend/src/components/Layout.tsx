@@ -161,8 +161,8 @@ function LayoutInner() {
         ) : null}
         {notificacoesEnabled && !isCapacitorNative() && !ocultarHeaderMobile ? (
           <WebPushOptInBanner enabled />
-          <PontoAlertasBanner />
         ) : null}
+        <PontoAlertasBanner />
 
         <main className="min-h-0 flex-1 overflow-hidden">
           <div
