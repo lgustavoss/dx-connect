@@ -158,9 +158,7 @@ function LayoutInner() {
         {notificacoesEnabled && !isCapacitorNative() && !ocultarHeaderMobile ? (
           <AlertaDesktopPermissaoBanner enabled />
         ) : null}
-        {notificacoesEnabled && !isCapacitorNative() && !ocultarHeaderMobile ? (
-          <WebPushOptInBanner enabled />
-        ) : null}
+        {notificacoesEnabled && !ocultarHeaderMobile ? <WebPushOptInBanner enabled /> : null}
 
         <main className="min-h-0 flex-1 overflow-hidden">
           <div

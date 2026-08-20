@@ -116,12 +116,12 @@ export function NotificacoesPreferencias() {
                   if (v && r !== 'ok') {
                     const msg =
                       r === 'negado'
-                        ? 'Permita notificações neste browser para activar os alertas.'
+                        ? 'Permita notificações neste dispositivo para activar os alertas.'
                         : r === 'sem_vapid'
                           ? 'Alertas no telemóvel ainda não estão configurados nesta instância.'
                           : r === 'ios_pwa'
                             ? 'No iPhone, adiciona o DeskRudder ao ecrã inicial e activa os alertas a partir desse atalho.'
-                            : 'Este browser não suporta alertas com a app fechada.'
+                            : 'Este dispositivo não suporta alertas com a app fechada.'
                     toast.showError(msg)
                     return
                   }
@@ -132,7 +132,7 @@ export function NotificacoesPreferencias() {
               })()
             }}
             label="Alertas no telemóvel"
-            description="Fila e mensagens nos teus chats e tickets, mesmo com a app fechada. No iPhone só no atalho da tela inicial."
+            description="Fila e mensagens nos teus chats e tickets, mesmo com a app fechada. No app Android usa o mesmo canal da instância; no iPhone, o atalho da tela inicial (Safari 16.4+)."
             showStatusPill
             statusOnText="Ativo"
             statusOffText="Inativo"
