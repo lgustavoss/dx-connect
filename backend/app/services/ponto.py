@@ -426,7 +426,11 @@ def calendario(
 
 
 def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
+    from app.services.presenca import PRESENCA_TTL_SEC
+
     hoje = datetime.now(PONTO_TZ).date()
+    agora = _agora_utc()
+    limite_online = agora - timedelta(seconds=PRESENCA_TTL_SEC)
     atendentes = (
         db.query(Atendente)
         .filter(
@@ -455,6 +459,11 @@ def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
         te = any(b.tipo == "entrada" for b in bats)
         ts = any(b.tipo == "saida" for b in bats)
         st = _status_dia(usa_escala=usa, esperado=esperado, tem_entrada=te, tem_saida=ts)
+        hb = a.presenca_heartbeat_em
+        if hb is not None and hb.tzinfo is None:
+            hb = hb.replace(tzinfo=timezone.utc)
+        online = bool(hb and hb >= limite_online)
+        online_sem = online and entrada is None
         itens.append(
             PontoHojeItem(
                 atendente_id=a.id,
@@ -464,9 +473,76 @@ def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
                 em_pausa=em_pausa_aberta(db, a.id),
                 entrada_em=entrada.registrado_em if entrada else None,
                 status=st,  # type: ignore[arg-type]
+                online=online,
+                online_sem_ponto=online_sem,
             )
         )
     return PontoHojeRead(data=hoje, itens=itens)
+
+
+JORNADA_ALERTA_HORAS = 12.0
+
+
+def alertas_me(db: Session, atendente: Atendente) -> "PontoAlertasMe":
+    from app.schemas.ponto import PontoAlertasMe
+    from app.services.presenca import PRESENCA_TTL_SEC
+
+    exigir_acesso_ponto(atendente)
+    hoje = datetime.now(PONTO_TZ).date()
+    agora = _agora_utc()
+    msgs: list[str] = []
+    sem_entrada = False
+    online_sem = False
+    jornada_longa = False
+    horas_aberta: float | None = None
+
+    esperado = None
+    if escala_svc.escala_configurada(atendente):
+        esperado = escala_svc.eh_dia_de_trabalho(atendente, hoje)
+
+    entrada = _entrada_da_jornada_aberta(db, atendente.id)
+    inicio, fim = _bounds_periodo(hoje, hoje)
+    tem_entrada_hoje = (
+        _q_ativas(db)
+        .filter(
+            PontoBatida.atendente_id == atendente.id,
+            PontoBatida.tipo == "entrada",
+            PontoBatida.registrado_em >= inicio,
+            PontoBatida.registrado_em < fim,
+        )
+        .first()
+        is not None
+    )
+
+    hb = atendente.presenca_heartbeat_em
+    if hb is not None and hb.tzinfo is None:
+        hb = hb.replace(tzinfo=timezone.utc)
+    online = bool(hb and hb >= agora - timedelta(seconds=PRESENCA_TTL_SEC))
+
+    if esperado is True and not tem_entrada_hoje and entrada is None:
+        sem_entrada = True
+        msgs.append("Hoje é dia de trabalho na sua escala e ainda não há entrada registrada.")
+
+    if online and entrada is None:
+        online_sem = True
+        if "ainda não há entrada" not in " ".join(msgs).lower():
+            msgs.append("Você está online no painel sem jornada de ponto aberta.")
+
+    if entrada is not None:
+        horas_aberta = (_as_utc(agora) - _as_utc(entrada.registrado_em)).total_seconds() / 3600.0
+        if horas_aberta >= JORNADA_ALERTA_HORAS:
+            jornada_longa = True
+            msgs.append(
+                f"Jornada aberta há cerca de {horas_aberta:.0f} h — lembre-se de registrar a saída."
+            )
+
+    return PontoAlertasMe(
+        sem_entrada_em_dia_escala=sem_entrada,
+        online_sem_ponto=online_sem,
+        jornada_aberta_longa=jornada_longa,
+        horas_jornada_aberta=horas_aberta,
+        mensagens=msgs,
+    )
 
 
 def _atendente_do_tenant(db: Session, tenant_id: int, atendente_id: int) -> Atendente:
@@ -488,6 +564,7 @@ def admin_criar_batida(
     tipo: str,
     registrado_em: datetime,
     motivo: str,
+    commit: bool = True,
 ) -> PontoBatida:
     alvo = _atendente_do_tenant(db, admin.tenant_id, atendente_id)
     if tipo not in TIPOS_VALIDOS:
@@ -515,8 +592,9 @@ def admin_criar_batida(
             "registrado_em": _as_utc(registrado_em).isoformat(),
         },
     )
-    db.commit()
-    db.refresh(batida)
+    if commit:
+        db.commit()
+        db.refresh(batida)
     return batida
 
 

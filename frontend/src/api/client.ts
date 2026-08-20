@@ -711,6 +711,7 @@ export const ponto = {
   calendarioAdmin: (atendenteId: number, ano: number, mes: number) =>
     api<Ponto.Calendario>(withParams('/ponto/calendario', { atendente_id: atendenteId, ano, mes })),
   hoje: () => api<Ponto.HojeLista>('/ponto/hoje'),
+  alertas: () => api<Ponto.AlertasMe>('/ponto/me/alertas'),
   criarAjuste: (data: Ponto.AjusteCreate) =>
     api<Ponto.Batida>('/ponto/batidas', { method: 'POST', body: JSON.stringify(data) }),
   atualizarAjuste: (id: number, data: Ponto.AjusteUpdate) =>
@@ -719,6 +720,16 @@ export const ponto = {
     api<Ponto.Batida>(`/ponto/batidas/${id}/anular`, {
       method: 'POST',
       body: JSON.stringify({ motivo }),
+    }),
+  criarJustificativa: (data: Ponto.JustificativaCreate) =>
+    api<Ponto.Justificativa>('/ponto/justificativas', { method: 'POST', body: JSON.stringify(data) }),
+  minhasJustificativas: () => api<Ponto.Justificativa[]>('/ponto/justificativas/me'),
+  justificativasAdmin: (estado?: string) =>
+    api<Ponto.Justificativa[]>(withParams('/ponto/justificativas', { estado })),
+  decidirJustificativa: (id: number, data: Ponto.JustificativaDecisao) =>
+    api<Ponto.Justificativa>(`/ponto/justificativas/${id}/decidir`, {
+      method: 'POST',
+      body: JSON.stringify(data),
     }),
   exportCsv: async (params?: { atendente_id?: number; desde?: string; ate?: string }) => {
     const token = getAuthToken()
@@ -4496,10 +4507,19 @@ export namespace Ponto {
     em_pausa?: boolean
     entrada_em: string | null
     status: 'ok' | 'falta' | 'parcial' | 'folga' | 'folga_com_ponto' | 'livre'
+    online?: boolean
+    online_sem_ponto?: boolean
   }
   export interface HojeLista {
     data: string
     itens: HojeItem[]
+  }
+  export interface AlertasMe {
+    sem_entrada_em_dia_escala: boolean
+    online_sem_ponto: boolean
+    jornada_aberta_longa: boolean
+    horas_jornada_aberta: number | null
+    mensagens: string[]
   }
   export interface AjusteCreate {
     atendente_id: number
@@ -4511,6 +4531,29 @@ export namespace Ponto {
     tipo?: Tipo
     registrado_em?: string
     motivo: string
+  }
+  export interface JustificativaCreate {
+    data_ref: string
+    tipo: 'falta' | 'esquecimento' | 'folga_com_ponto' | 'outro'
+    motivo: string
+  }
+  export interface Justificativa {
+    id: number
+    atendente_id: number
+    atendente_nome?: string | null
+    data_ref: string
+    tipo: string
+    motivo: string
+    estado: string
+    decisao_motivo?: string | null
+    decidido_por_id?: number | null
+    decidido_em?: string | null
+    created_at?: string | null
+  }
+  export interface JustificativaDecisao {
+    estado: 'aprovada' | 'rejeitada'
+    decisao_motivo: string
+    aplicar_batidas?: { tipo: Tipo; registrado_em: string; motivo: string }[]
   }
 }
 

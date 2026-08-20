@@ -87,6 +87,8 @@ class PontoHojeItem(BaseModel):
     em_pausa: bool = False
     entrada_em: datetime | None = None
     status: Literal["ok", "falta", "parcial", "folga", "folga_com_ponto", "livre"]
+    online: bool = False
+    online_sem_ponto: bool = False
 
 
 class PontoHojeRead(BaseModel):
@@ -109,3 +111,47 @@ class PontoAjusteUpdate(BaseModel):
 
 class PontoAnularBody(BaseModel):
     motivo: str = Field(..., min_length=3, max_length=500)
+
+
+class PontoAlertasMe(BaseModel):
+    """Lembretes ao utilizador — sem batida automática (#773 / #769)."""
+
+    sem_entrada_em_dia_escala: bool = False
+    online_sem_ponto: bool = False
+    jornada_aberta_longa: bool = False
+    horas_jornada_aberta: float | None = None
+    mensagens: list[str] = []
+
+
+class PontoJustificativaCreate(BaseModel):
+    data_ref: date
+    tipo: Literal["falta", "esquecimento", "folga_com_ponto", "outro"]
+    motivo: str = Field(..., min_length=3, max_length=1000)
+
+
+class PontoJustificativaRead(BaseModel):
+    id: int
+    atendente_id: int
+    atendente_nome: str | None = None
+    data_ref: date
+    tipo: str
+    motivo: str
+    estado: str
+    decisao_motivo: str | None = None
+    decidido_por_id: int | None = None
+    decidido_em: datetime | None = None
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PontoJustificativaDecisao(BaseModel):
+    estado: Literal["aprovada", "rejeitada"]
+    decisao_motivo: str = Field(..., min_length=3, max_length=1000)
+
+    class BatidaAplicar(BaseModel):
+        tipo: TipoBatida
+        registrado_em: datetime
+        motivo: str = Field(..., min_length=3, max_length=500)
+
+    aplicar_batidas: list[BatidaAplicar] | None = None

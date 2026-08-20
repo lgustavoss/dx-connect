@@ -74,11 +74,12 @@ export function PontoEquipe() {
   const [ajusteQuando, setAjusteQuando] = useState(toDatetimeLocalValue())
   const [ajusteMotivo, setAjusteMotivo] = useState('')
   const [salvandoAjuste, setSalvandoAjuste] = useState(false)
+  const [justifs, setJustifs] = useState<Ponto.Justificativa[]>([])
 
   const carregar = useCallback(
     async (silencioso = false) => {
       try {
-        const [hist, dia] = await Promise.all([
+        const [hist, dia, js] = await Promise.all([
           ponto.batidasAdmin({
             atendente_id: atendenteId ? Number(atendenteId) : undefined,
             desde,
@@ -86,10 +87,12 @@ export function PontoEquipe() {
             limit: 100,
           }),
           ponto.hoje(),
+          ponto.justificativasAdmin('pendente'),
         ])
         setItems(hist.items)
         setTotal(hist.total)
         setHoje(dia)
+        setJustifs(js)
         setSemPermissao(false)
       } catch (err) {
         if (err instanceof ApiError && err.status === 403) {
@@ -170,6 +173,18 @@ export function PontoEquipe() {
     }
   }
 
+  async function decidirJust(id: number, estado: 'aprovada' | 'rejeitada') {
+    const motivo = window.prompt(estado === 'aprovada' ? 'Motivo da aprovação:' : 'Motivo da rejeição:')
+    if (!motivo || motivo.trim().length < 3) return
+    try {
+      await ponto.decidirJustificativa(id, { estado, decisao_motivo: motivo.trim() })
+      toast.showSuccess(estado === 'aprovada' ? 'Justificativa aprovada.' : 'Justificativa rejeitada.')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível decidir.'))
+    }
+  }
+
   if (user?.role !== 'admin' || semPermissao) {
     return (
       <SemPermissao
@@ -197,6 +212,7 @@ export function PontoEquipe() {
                 <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-700">
                   <tr>
                     <th className="py-2 pr-3 font-medium">Nome</th>
+                    <th className="py-2 pr-3 font-medium">Online</th>
                     <th className="py-2 pr-3 font-medium">Esperado</th>
                     <th className="py-2 pr-3 font-medium">Status</th>
                     <th className="py-2 font-medium">Entrada</th>
@@ -211,6 +227,15 @@ export function PontoEquipe() {
                           <span className="ml-2 text-xs text-amber-700 dark:text-amber-300">pausa</span>
                         ) : null}
                       </td>
+                      <td className="py-2 pr-3">
+                        {item.online_sem_ponto ? (
+                          <span className="text-amber-700 dark:text-amber-300">Online sem ponto</span>
+                        ) : item.online ? (
+                          'Online'
+                        ) : (
+                          '—'
+                        )}
+                      </td>
                       <td className="py-2 pr-3">{item.esperado ? 'Trabalho' : '—'}</td>
                       <td className="py-2 pr-3">{rotuloStatus(item.status)}</td>
                       <td className="py-2">{formatarHora(item.entrada_em)}</td>
@@ -219,6 +244,36 @@ export function PontoEquipe() {
                 </tbody>
               </table>
             </div>
+          )}
+        </Card>
+
+        <Card title="Justificativas pendentes">
+          {justifs.length === 0 ? (
+            <p className="text-sm text-slate-500">Nenhuma pendente.</p>
+          ) : (
+            <ul className="space-y-3">
+              {justifs.map((j) => (
+                <li
+                  key={j.id}
+                  className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800"
+                >
+                  <div className="text-sm">
+                    <p className="font-medium">
+                      {j.atendente_nome ?? j.atendente_id} · {j.data_ref} · {j.tipo}
+                    </p>
+                    <p className="text-slate-600 dark:text-slate-300">{j.motivo}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="secondary" onClick={() => void decidirJust(j.id, 'aprovada')}>
+                      Aprovar
+                    </Button>
+                    <Button type="button" variant="ghost" onClick={() => void decidirJust(j.id, 'rejeitada')}>
+                      Rejeitar
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
         </Card>
 

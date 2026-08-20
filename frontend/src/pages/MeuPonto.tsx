@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
+import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
 
 function formatarHora(iso: string | null | undefined): string {
@@ -48,16 +49,23 @@ export function MeuPonto() {
   const [ate, setAte] = useState(hojeIso)
   const [loading, setLoading] = useState(true)
   const [batendo, setBatendo] = useState(false)
+  const [justifs, setJustifs] = useState<Ponto.Justificativa[]>([])
+  const [justData, setJustData] = useState(hojeIso)
+  const [justTipo, setJustTipo] = useState<Ponto.JustificativaCreate['tipo']>('esquecimento')
+  const [justMotivo, setJustMotivo] = useState('')
+  const [enviandoJust, setEnviandoJust] = useState(false)
 
   const carregar = useCallback(
     async (silencioso = false) => {
       try {
-        const [me, hist] = await Promise.all([
+        const [me, hist, js] = await Promise.all([
           ponto.me(),
           ponto.minhasBatidas({ desde, ate, limit: 100 }),
+          ponto.minhasJustificativas(),
         ])
         setEstado(me)
         setHistorico(hist)
+        setJustifs(js)
       } catch (err) {
         if (!silencioso) {
           toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar o ponto.'))
@@ -95,6 +103,28 @@ export function MeuPonto() {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível bater o ponto.'))
     } finally {
       setBatendo(false)
+    }
+  }
+
+  async function enviarJustificativa() {
+    if (!justMotivo.trim()) {
+      toast.showWarning('Informe o motivo da justificativa.')
+      return
+    }
+    setEnviandoJust(true)
+    try {
+      await ponto.criarJustificativa({
+        data_ref: justData,
+        tipo: justTipo,
+        motivo: justMotivo.trim(),
+      })
+      toast.showSuccess('Justificativa enviada para aprovação.')
+      setJustMotivo('')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível enviar a justificativa.'))
+    } finally {
+      setEnviandoJust(false)
     }
   }
 
@@ -230,6 +260,53 @@ export function MeuPonto() {
               </tbody>
             </table>
           </div>
+        </Card>
+      </div>
+
+      <div className="mt-4">
+        <Card title="Justificativas">
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <Input label="Data" type="date" value={justData} onChange={(e) => setJustData(e.target.value)} />
+            <Select
+              label="Tipo"
+              value={justTipo}
+              onChange={(v) => setJustTipo(String(v) as Ponto.JustificativaCreate['tipo'])}
+              options={[
+                { value: 'esquecimento', label: 'Esquecimento de batida' },
+                { value: 'falta', label: 'Falta' },
+                { value: 'folga_com_ponto', label: 'Ponto em dia de folga' },
+                { value: 'outro', label: 'Outro' },
+              ]}
+            />
+            <Input
+              label="Motivo"
+              value={justMotivo}
+              onChange={(e) => setJustMotivo(e.target.value)}
+              placeholder="Descreva o ocorrido"
+            />
+            <Button type="button" disabled={enviandoJust} onClick={() => void enviarJustificativa()}>
+              Enviar
+            </Button>
+          </div>
+          <ul className="space-y-2 text-sm">
+            {justifs.length === 0 ? (
+              <li className="text-slate-500">Nenhuma justificativa enviada.</li>
+            ) : (
+              justifs.map((j) => (
+                <li
+                  key={j.id}
+                  className="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800"
+                >
+                  <span className="font-medium">{j.data_ref}</span> · {j.tipo} ·{' '}
+                  <span className="capitalize">{j.estado}</span>
+                  <p className="text-slate-600 dark:text-slate-300">{j.motivo}</p>
+                  {j.decisao_motivo && (
+                    <p className="text-xs text-slate-500">Decisão: {j.decisao_motivo}</p>
+                  )}
+                </li>
+              ))
+            )}
+          </ul>
         </Card>
       </div>
     </PageContainer>

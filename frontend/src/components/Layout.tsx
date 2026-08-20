@@ -12,6 +12,7 @@ import { isCapacitorNative } from '../lib/capacitorNative'
 import { AlertaDesktopPermissaoBanner } from './AlertaDesktopPermissaoBanner'
 import { PwaInstallBanner } from './PwaInstallBanner'
 import { WebPushOptInBanner } from './WebPushOptInBanner'
+import { PontoAlertasBanner } from './PontoAlertasBanner'
 import { useVisualViewportCss } from '../hooks/useVisualViewportCss'
 import { useWebPushSession } from '../hooks/useWebPush'
 import { lerTicketAtivoSession, TICKET_ATIVO_EVENT } from '../lib/ticketAtivo'
@@ -160,6 +161,7 @@ function LayoutInner() {
         ) : null}
         {notificacoesEnabled && !isCapacitorNative() && !ocultarHeaderMobile ? (
           <WebPushOptInBanner enabled />
+          <PontoAlertasBanner />
         ) : null}
 
         <main className="min-h-0 flex-1 overflow-hidden">

@@ -14,6 +14,7 @@ from app.schemas.lista_paginada import ListaPaginada
 from app.schemas.ponto import (
     PontoAjusteCreate,
     PontoAjusteUpdate,
+    PontoAlertasMe,
     PontoAnularBody,
     PontoBatidaAdminItem,
     PontoBatidaRead,
@@ -22,8 +23,12 @@ from app.schemas.ponto import (
     PontoEstadoRead,
     PontoHistoricoRead,
     PontoHojeRead,
+    PontoJustificativaCreate,
+    PontoJustificativaDecisao,
+    PontoJustificativaRead,
 )
 from app.services import ponto as ponto_svc
+from app.services import ponto_justificativa as just_svc
 
 router = APIRouter(prefix="/ponto", tags=["ponto"])
 
@@ -74,6 +79,14 @@ def meu_historico(
 ):
     ponto_svc.exigir_acesso_ponto(atendente)
     return ponto_svc.historico(db, atendente, desde=desde, ate=ate, offset=offset, limit=limit)
+
+
+@router.get("/me/alertas", response_model=PontoAlertasMe)
+def meus_alertas(
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    return ponto_svc.alertas_me(db, atendente)
 
 
 @router.get("/me/calendario", response_model=PontoCalendarioRead)
@@ -197,3 +210,52 @@ def visao_hoje(
     admin: Atendente = Depends(exigir_admin),
 ):
     return ponto_svc.visao_hoje(db, admin)
+
+
+@router.post("/justificativas", response_model=PontoJustificativaRead, status_code=201)
+def criar_justificativa(
+    data: PontoJustificativaCreate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    return just_svc.criar(
+        db,
+        atendente,
+        data_ref=data.data_ref,
+        tipo=data.tipo,
+        motivo=data.motivo,
+    )
+
+
+@router.get("/justificativas/me", response_model=list[PontoJustificativaRead])
+def minhas_justificativas(
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    return just_svc.listar_me(db, atendente)
+
+
+@router.get("/justificativas", response_model=list[PontoJustificativaRead])
+def listar_justificativas_admin(
+    estado: str | None = Query("pendente"),
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return just_svc.listar_admin(db, admin, estado=estado)
+
+
+@router.post("/justificativas/{justificativa_id}/decidir", response_model=PontoJustificativaRead)
+def decidir_justificativa(
+    justificativa_id: int,
+    data: PontoJustificativaDecisao,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return just_svc.decidir(
+        db,
+        admin,
+        justificativa_id,
+        estado=data.estado,
+        decisao_motivo=data.decisao_motivo,
+        aplicar_batidas=data.aplicar_batidas,
+    )

@@ -224,3 +224,63 @@ def test_ponto_export_csv(client, seed_base, auth_headers):
     assert "trabalhado_min" in text
     r403 = client.get("/v1/ponto/batidas/export.csv", headers=auth_headers["a1"])
     assert r403.status_code == 403
+
+
+def test_ponto_justificativa_fluxo(client, seed_base, auth_headers):
+    a1 = seed_base["a1"]
+    r = client.post(
+        "/v1/ponto/justificativas",
+        headers=auth_headers["a1"],
+        json={"data_ref": "2026-08-19", "tipo": "esquecimento", "motivo": "Esqueci de bater saída"},
+    )
+    assert r.status_code == 201, r.text
+    jid = r.json()["id"]
+
+    r_me = client.get("/v1/ponto/justificativas/me", headers=auth_headers["a1"])
+    assert r_me.status_code == 200
+    assert any(j["id"] == jid for j in r_me.json())
+
+    r403 = client.post(
+        f"/v1/ponto/justificativas/{jid}/decidir",
+        headers=auth_headers["a1"],
+        json={"estado": "aprovada", "decisao_motivo": "ok"},
+    )
+    assert r403.status_code == 403
+
+    r_ok = client.post(
+        f"/v1/ponto/justificativas/{jid}/decidir",
+        headers=auth_headers["admin"],
+        json={
+            "estado": "aprovada",
+            "decisao_motivo": "Confirmado com o gestor",
+            "aplicar_batidas": [
+                {
+                    "tipo": "saida",
+                    "registrado_em": "2026-08-19T21:00:00+00:00",
+                    "motivo": "saída esquecida",
+                }
+            ],
+        },
+    )
+    assert r_ok.status_code == 200, r_ok.text
+    assert r_ok.json()["estado"] == "aprovada"
+
+
+def test_ponto_alertas_me(client, seed_base, auth_headers, db_session):
+    a1 = seed_base["a1"]
+    a1.usa_escala = True
+    a1.escala_horas_trabalho = 12
+    a1.escala_horas_folga = 36
+    a1.escala_inicio_em = date(2026, 8, 1)
+    from datetime import datetime, timezone
+
+    a1.presenca_heartbeat_em = datetime.now(timezone.utc)
+    a1.presenca_online_desde = a1.presenca_heartbeat_em
+    db_session.add(a1)
+    db_session.commit()
+
+    r = client.get("/v1/ponto/me/alertas", headers=auth_headers["a1"])
+    assert r.status_code == 200
+    body = r.json()
+    assert "mensagens" in body
+    assert body["online_sem_ponto"] is True
