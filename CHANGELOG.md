@@ -47,6 +47,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Interno
 
+- Mobile: brief (`MOBILE_APP_BRIEF.md`) alinhado ao estado real do épico #689 / L6 Android (PWA + Capacitor + listing docs; iOS = #738)
 - Deploy (#734): ligação SSH ao VPS em IPv4, diagnóstico do IP do runner e segunda tentativa noutro runner só em timeout de rede
 - Mobile (#735): `CORS_ORIGINS` das instâncias passa a incluir `https://localhost` (origem do WebView Android)
 - Mobile (#735): projecto Capacitor Android no `frontend/` (`npm run build:android`); `stack-client.sh` documentado como `<comando> <slug>`
