@@ -469,7 +469,7 @@ def test_lista_so_minhas_e_interno_nao_vai_no_pdf(client, auth_headers, seed_bas
     assert client.get(f"/v1/comercial/contratos/{alheio}", headers=h_admin).status_code == 200
 
 
-def test_cancelar_rascunho_e_bloqueia_assinado(client, auth_headers, seed_base):
+def test_cancelar_rascunho_e_rescindir_assinado(client, auth_headers, seed_base):
     h = auth_headers["comercial"]
     _, linha = _negociacao_com_linha(client, h)
     c = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": linha["id"]})
@@ -479,14 +479,66 @@ def test_cancelar_rascunho_e_bloqueia_assinado(client, auth_headers, seed_base):
     assert cancelado.json()["status"] == "cancelado"
     assert client.post(f"/v1/comercial/contratos/{cid}/cancelar", headers=h).status_code == 400
 
-    novo = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": linha["id"]})
+    novo = client.post(
+        "/v1/comercial/contratos",
+        headers=h,
+        json={"linha_id": linha["id"], "multa_max_mensalidades": 3, "fidelidade_meses": 12},
+    )
     assert novo.status_code == 201, novo.text
     nid = novo.json()["id"]
     assert nid != cid
+    det = client.get(f"/v1/comercial/contratos/{nid}", headers=h).json()
+    assert det["multa_rescisao"]["multa_max_mensalidades"] == 3
+    assert det["multa_rescisao"]["aviso"]
+
     _anexar_pdf_assinado(client, h, nid)
     ass = client.post(f"/v1/comercial/contratos/{nid}/marcar-assinado", headers=h, json={})
     assert ass.status_code == 200
-    assert client.post(f"/v1/comercial/contratos/{nid}/cancelar", headers=h).status_code == 400
+    ass_body = ass.json()
+    assert ass_body["status"] == "assinado"
+    mr = ass_body["multa_rescisao"]
+    assert mr["dentro_fidelidade"] is True
+    assert mr["aplicavel"] is True
+    assert mr["mensalidades_estimadas"] == min(mr["meses_restantes"], 3)
+    assert mr["meses_restantes"] <= 12
+    assert float(mr["valor_estimado"]) == float(mr["valor_mensalidade"]) * mr["mensalidades_estimadas"]
+
+    resc = client.post(f"/v1/comercial/contratos/{nid}/cancelar", headers=h)
+    assert resc.status_code == 200, resc.text
+    assert resc.json()["status"] == "cancelado"
+
+    # Linha livre para novo contrato após rescisão
+    outro = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": linha["id"]})
+    assert outro.status_code == 201, outro.text
+
+
+def test_estimativa_multa_sem_teto_ou_fora_fidelidade(client, auth_headers, seed_base):
+    from datetime import date, timedelta
+
+    from app.services import comercial_contrato as svc
+
+    h = auth_headers["comercial"]
+    _, linha = _negociacao_com_linha(client, h)
+    sem = client.post(
+        "/v1/comercial/contratos",
+        headers=h,
+        json={"linha_id": linha["id"], "multa_max_mensalidades": 0, "fidelidade_meses": 12},
+    )
+    assert sem.status_code == 201, sem.text
+    mr0 = sem.json()["multa_rescisao"]
+    assert mr0["aplicavel"] is False
+    assert mr0["dentro_fidelidade"] is True
+    assert mr0["valor_estimado"] is None
+
+    class Fake:
+        data_fim_fidelidade = date.today() - timedelta(days=1)
+        multa_max_mensalidades = 3
+        valor_mensalidade = "900.00"
+
+    est = svc.estimar_multa_rescisao(Fake())  # type: ignore[arg-type]
+    assert est["dentro_fidelidade"] is False
+    assert est["aplicavel"] is False
+    assert est["meses_restantes"] == 0
 
 
 def test_versao_do_modelo_fica_gravada_no_contrato(client, auth_headers, seed_base):
@@ -625,6 +677,47 @@ def test_conversao_idempotente_mesma_rede_dois_cnpjs(client, auth_headers, seed_
         files={"arquivo": ("x.pdf", b"%PDF-1.4", "application/pdf")},
     )
     assert again.status_code == 400
+
+
+def test_conversao_cnpj_existente_vincula_rede_da_empresa(
+    client, auth_headers, seed_base, db_session
+):
+    """CNPJ já noutra Rede: assinar vincula a Empresa existente (não cria Rede do nome_base)."""
+    h = auth_headers["comercial"]
+    h_admin = auth_headers["admin"]
+    emp_seed = seed_base["empresa"]
+    cnpj = "11.222.333/0001-81"
+    emp_seed.cnpj_cpf = cnpj
+    db_session.commit()
+
+    lead = client.post("/v1/crm/leads", headers=h, json={"nome": "Lead CNPJ Existente"}).json()
+    neg_id = lead["negociacao_ativa_id"]
+    client.patch(
+        f"/v1/crm/negociacoes/{neg_id}",
+        headers=h,
+        json={"nome_base_webposto": "base_nova_nao_deve_criar_rede"},
+    )
+    ln = client.post(
+        f"/v1/crm/negociacoes/{neg_id}/linhas",
+        headers=h,
+        json={
+            "razao_social": "Posto Ja Existe Ltda",
+            "cnpj": cnpj,
+            "valor_negociado": "100",
+            "dados_fiscais": DADOS_FISCAIS_OK,
+        },
+    ).json()
+    cid = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": ln["id"]}).json()["id"]
+    _anexar_pdf_assinado(client, h, cid)
+    ass = client.post(f"/v1/comercial/contratos/{cid}/marcar-assinado", headers=h, json={})
+    assert ass.status_code == 200, ass.text
+    body = ass.json()
+    assert body["empresa_id"] == emp_seed.id
+    emp = client.get(f"/v1/empresas/{body['empresa_id']}", headers=h_admin).json()
+    assert emp["rede_id"] == seed_base["rede"].id
+    redes = client.get("/v1/redes", headers=h_admin, params={"page_size": 100}).json()
+    nomes = {r["nome"] for r in redes["items"]}
+    assert "base_nova_nao_deve_criar_rede" not in nomes
 
 
 def test_conversao_copia_contato_e_cria_colaborador(client, auth_headers, seed_base):

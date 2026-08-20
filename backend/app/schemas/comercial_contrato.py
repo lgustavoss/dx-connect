@@ -103,6 +103,19 @@ class ContratoInternoRead(BaseModel):
     lucro_bruto: Decimal | None = None
 
 
+class MultaRescisaoEstimativa(BaseModel):
+    """Ajuda operacional — não é cobrança nem parecer jurídico."""
+
+    aplicavel: bool
+    dentro_fidelidade: bool
+    meses_restantes: int
+    multa_max_mensalidades: int
+    mensalidades_estimadas: int
+    valor_mensalidade: Decimal
+    valor_estimado: Decimal | None = None
+    aviso: str
+
+
 class ContratoRead(BaseModel):
     id: int
     negociacao_linha_cnpj_id: int
@@ -142,6 +155,7 @@ class ContratoRead(BaseModel):
     lead_nome: str | None = None
     conteudo_html_snapshot: str | None = None
     dias_restantes_fidelidade: int | None = None
+    multa_rescisao: MultaRescisaoEstimativa | None = None
     interno: ContratoInternoRead | None = None
 
     model_config = ConfigDict(from_attributes=True)

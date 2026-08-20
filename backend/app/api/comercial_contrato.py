@@ -284,14 +284,29 @@ def cancelar_contrato(
     atendente: Atendente = Depends(exigir_comercial_ou_admin),
 ):
     row = svc.obter_contrato(db, contrato_id, atendente=atendente)
+    era_assinado = row.status == "assinado"
+    estimativa = svc.estimar_multa_rescisao(row) if era_assinado else None
     row = svc.cancelar_contrato(db, row, atendente)
+    payload_multa = None
+    if estimativa is not None:
+        payload_multa = {
+            **estimativa,
+            "valor_mensalidade": str(estimativa["valor_mensalidade"]),
+            "valor_estimado": (
+                str(estimativa["valor_estimado"]) if estimativa["valor_estimado"] is not None else None
+            ),
+        }
     registrar_audit(
         db,
         "comercial_contrato",
         row.id,
         "update",
         atendente.id,
-        payload={"status": row.status},
+        payload={
+            "status": row.status,
+            "rescisao": era_assinado,
+            "multa_rescisao": payload_multa,
+        },
     )
     db.commit()
     db.refresh(row)

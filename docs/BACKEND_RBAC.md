@@ -47,7 +47,7 @@ Dependência: `exigir_comercial_ou_admin` em `app.core.auth`.
 | **Simular custos** | `POST /v1/comercial/custos/simular` |
 | **Listar itens catálogo** | `GET /v1/comercial/custos/itens` (mutações continuam só admin) |
 | **Proposta comercial** | `GET /v1/comercial/proposta-templates` (ativos), `POST/GET /v1/comercial/propostas*`, `GET .../pdf`, `POST .../marcar-enviada` |
-| **Contrato comercial** | `GET /v1/comercial/contrato-templates` (ativos), `GET /v1/comercial/contrato-templates/chaves`, `GET /v1/comercial/contrato-politica`, `POST/GET /v1/comercial/contratos*`, `GET .../pdf`, `POST/GET .../pdf-assinado`, `POST .../marcar-enviado`, `POST .../marcar-assinado`, `POST .../cancelar`. Lista e detalhe (incl. PDF): comercial só as próprias negociações; admin todos (filtros `so_minhas` e `responsavel_id`). Marcar assinado cria/vincula Rede e Empresa internamente — comercial **não** ganha CRUD de Rede/Empresa. |
+| **Contrato comercial** | `GET /v1/comercial/contrato-templates` (ativos), `GET /v1/comercial/contrato-templates/chaves`, `GET /v1/comercial/contrato-politica`, `POST/GET /v1/comercial/contratos*`, `GET .../pdf`, `POST/GET .../pdf-assinado`, `POST .../marcar-enviado`, `POST .../marcar-assinado`, `POST .../cancelar` (também rescinde assinado com estimativa de multa no payload/atividade). Lista e detalhe (incl. PDF e `multa_rescisao`): comercial só as próprias negociações; admin todos (filtros `so_minhas` e `responsavel_id`). Marcar assinado cria/vincula Rede e Empresa internamente — comercial **não** ganha CRUD de Rede/Empresa. |
 
 ## Autenticado com escopo de setor (`obter_atendente_atual`)
 
