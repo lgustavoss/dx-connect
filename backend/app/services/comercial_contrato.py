@@ -976,23 +976,93 @@ def marcar_assinado(db: Session, row: Contrato, data: ContratoMarcarAssinadoIn, 
 
 
 def cancelar_contrato(db: Session, row: Contrato, ator: Atendente) -> Contrato:
-    if row.status in {CONTRATO_CANCELADO, CONTRATO_ASSINADO}:
+    if row.status == CONTRATO_CANCELADO:
+        raise HTTPException(status_code=400, detail="Este contrato já está cancelado.")
+    if row.status not in {CONTRATO_RASCUNHO, CONTRATO_ENVIADO, CONTRATO_ASSINADO}:
         raise HTTPException(
             status_code=400,
-            detail="Contrato assinado ou já cancelado não pode ser cancelado nesta tela.",
+            detail="Só é possível cancelar ou rescindir contratos em rascunho, enviado ou assinado.",
         )
+
+    era_assinado = row.status == CONTRATO_ASSINADO
+    estimativa = estimar_multa_rescisao(row) if era_assinado else None
     row.status = CONTRATO_CANCELADO
     linha = row.linha or obter_linha(db, row.negociacao_linha_cnpj_id)
+
+    if era_assinado and estimativa is not None:
+        if estimativa["aplicavel"] and estimativa["valor_estimado"] is not None:
+            texto = (
+                f"Contrato #{row.id} rescindido. Estimativa de multa: "
+                f"{estimativa['mensalidades_estimadas']} mensalidade(s) = "
+                f"{proposta_svc._money_br(estimativa['valor_estimado'])} "
+                f"(ajuda operacional; não é cobrança)."
+            )
+        elif estimativa["dentro_fidelidade"] and estimativa["multa_max_mensalidades"] <= 0:
+            texto = (
+                f"Contrato #{row.id} rescindido dentro da fidelidade; "
+                "teto de multa é 0 — sem estimativa."
+            )
+        else:
+            texto = (
+                f"Contrato #{row.id} rescindido fora do período de fidelidade "
+                "(ou sem meses restantes) — sem estimativa de multa."
+            )
+    else:
+        texto = f"Contrato #{row.id} cancelado."
+
     db.add(
         CrmNegociacaoAtividade(
             negociacao_id=linha.negociacao_id,
             autor_id=ator.id,
             tipo=ATIVIDADE_DOCUMENTO,
-            texto=f"Contrato #{row.id} cancelado.",
+            texto=texto,
         )
     )
     db.flush()
     return row
+
+
+AVISO_MULTA_RESCISAO = (
+    "Estimativa operacional do DeskRudder. Não constitui cobrança, boleto nem parecer jurídico — "
+    "confirme com o contrato do cliente e o processo interno."
+)
+
+
+def _meses_restantes_fidelidade(data_fim: date, hoje: date) -> int:
+    """Meses restantes aproximados (teto por 30 dias), para estimativa de multa."""
+    dias = (data_fim - hoje).days
+    if dias <= 0:
+        return 0
+    return (dias + 29) // 30
+
+
+def estimar_multa_rescisao(row: Contrato, *, hoje: date | None = None) -> dict[str, Any]:
+    """
+    Ajuda operacional: min(meses_restantes, multa_max) × mensalidade.
+    Só aplicável dentro da fidelidade e com teto > 0.
+    """
+    ref = hoje or date.today()
+    fim = row.data_fim_fidelidade
+    max_m = int(row.multa_max_mensalidades or 0)
+    valor = Decimal(str(row.valor_mensalidade or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    meses = _meses_restantes_fidelidade(fim, ref) if fim else 0
+    fid = int(getattr(row, "fidelidade_meses", None) or 0)
+    if fid > 0:
+        meses = min(meses, fid)
+    dentro = meses > 0
+    aplicavel = dentro and max_m > 0
+    cobradas = min(meses, max_m) if aplicavel else 0
+    estimado = (valor * Decimal(cobradas)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if aplicavel else None
+    return {
+        "aplicavel": aplicavel,
+        "dentro_fidelidade": dentro,
+        "meses_restantes": meses,
+        "multa_max_mensalidades": max_m,
+        "mensalidades_estimadas": cobradas,
+        "valor_mensalidade": valor,
+        "valor_estimado": estimado,
+        "aviso": AVISO_MULTA_RESCISAO,
+    }
 
 
 def _interno_read(row: Contrato, linha: CrmNegociacaoCnpjLinha | None) -> dict[str, Any] | None:
@@ -1084,6 +1154,7 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
         "lead_nome": neg.lead.nome if neg and neg.lead else None,
         "conteudo_html_snapshot": atual.conteudo_html_snapshot if incluir_html and atual else None,
         "dias_restantes_fidelidade": dias,
+        "multa_rescisao": estimar_multa_rescisao(row),
         "interno": _interno_read(row, linha),
     }
 
@@ -1242,6 +1313,30 @@ def converter_pos_assinatura(db: Session, contrato: Contrato, linha: CrmNegociac
     lead = neg.lead
     email_contato, telefone_contato = _contato_conversao(fiscal, lead)
 
+    existente = None
+    for emp in db.query(Empresa).filter(Empresa.tenant_id == tenant_id).all():
+        if _digits(emp.cnpj_cpf) == cnpj_digits:
+            existente = emp
+            break
+    if existente:
+        # CNPJ já cadastrado: vincula a Empresa existente e o contacto na Rede dela
+        # (não forçar a Rede do nome_base_webposto se for outra).
+        _aplicar_contato_empresa(existente, email_contato, telefone_contato)
+        contrato.empresa_id = existente.id
+        linha.empresa_id = existente.id
+        rede_emp = db.query(Rede).filter(Rede.id == existente.rede_id).first()
+        if rede_emp is None:
+            raise HTTPException(
+                status_code=400,
+                detail="A Empresa deste CNPJ não tem Rede válida no cadastro.",
+            )
+        try:
+            _vincular_contato_chat(db, existente, rede_emp, fiscal, lead)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        db.flush()
+        return
+
     rede = (
         db.query(Rede)
         .filter(Rede.tenant_id == tenant_id, func.lower(Rede.nome) == nome_base.lower())
@@ -1252,19 +1347,6 @@ def converter_pos_assinatura(db: Session, contrato: Contrato, linha: CrmNegociac
         rede = Rede(tenant_id=tenant_id, nome=nome_base, ativo=True)
         db.add(rede)
         db.flush()
-
-    existente = None
-    for emp in db.query(Empresa).filter(Empresa.tenant_id == tenant_id).all():
-        if _digits(emp.cnpj_cpf) == cnpj_digits:
-            existente = emp
-            break
-    if existente:
-        _aplicar_contato_empresa(existente, email_contato, telefone_contato)
-        contrato.empresa_id = existente.id
-        linha.empresa_id = existente.id
-        _vincular_contato_chat(db, existente, rede, fiscal, lead)
-        db.flush()
-        return
 
     nome_emp = fiscal.get("nome") or fiscal.get("nome_fantasia") or (linha.razao_social or "").strip() or nome_base
     empresa = Empresa(
@@ -1306,6 +1388,9 @@ def converter_pos_assinatura(db: Session, contrato: Contrato, linha: CrmNegociac
     db.flush()
     contrato.empresa_id = empresa.id
     linha.empresa_id = empresa.id
-    _vincular_contato_chat(db, empresa, rede, fiscal, lead)
+    try:
+        _vincular_contato_chat(db, empresa, rede, fiscal, lead)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     db.flush()
 

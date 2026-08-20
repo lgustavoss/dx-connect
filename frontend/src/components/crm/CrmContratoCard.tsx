@@ -36,6 +36,10 @@ function money(v: string | number | null | undefined): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
+function pluralPt(n: number, singular: string, plural: string): string {
+  return `${n} ${n === 1 ? singular : plural}`
+}
+
 function percent(v: string | number | null | undefined): string {
   if (v == null || v === '') return '—'
   const n = typeof v === 'number' ? v : parsePercentualPt(String(v))
@@ -342,11 +346,13 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
 
   async function handleCancelar() {
     if (cancelarId == null) return
+    const eraRescisao = preview?.id === cancelarId && preview.status === 'assinado'
     setCancelando(true)
     try {
-      await comercialContratos.cancelar(cancelarId)
-      toast.showSuccess('Contrato cancelado.')
+      const row = await comercialContratos.cancelar(cancelarId)
+      toast.showSuccess(eraRescisao ? 'Contrato rescindido.' : 'Contrato cancelado.')
       setCancelarId(null)
+      setPreview(row)
       await load()
       onChanged()
     } catch (err) {
@@ -355,6 +361,10 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
       setCancelando(false)
     }
   }
+
+  const cancelandoAssinado =
+    cancelarId != null && (preview?.id === cancelarId ? preview.status === 'assinado' : false)
+  const multaPreview = cancelandoAssinado ? preview?.multa_rescisao : null
 
   const interno = preview?.interno
   const linhaInterno = linhaSel
@@ -379,7 +389,9 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
           {contratoDaLinha && contratoDaLinha.status !== 'rascunho' ? (
             <p className="text-xs text-amber-800 dark:text-amber-200">
               Esta linha já tem contrato {STATUS_LABEL[contratoDaLinha.status] || contratoDaLinha.status}.
-              Para gerar outro, cancele o atual (não é possível após assinado).
+              {contratoDaLinha.status === 'assinado'
+                ? ' Para gerar outro, rescinda o atual (com estimativa de multa, se aplicável).'
+                : ' Para gerar outro, cancele o atual.'}
             </p>
           ) : null}
           {podeGerar && contratoDaLinha?.status === 'rascunho' && !editarGeracao ? (
@@ -557,12 +569,55 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
               </p>
               <p className="text-xs text-slate-500">
                 {preview.razao_social || '—'} · {preview.cnpj ? maskCnpjCpf(preview.cnpj) : 'sem CNPJ'} · mensalidade{' '}
-                {money(preview.valor_mensalidade)} · fidelidade {preview.fidelidade_meses} meses (
-                {textoDiasFidelidade(preview.dias_restantes_fidelidade)})
+                {money(preview.valor_mensalidade)} · fidelidade {preview.fidelidade_meses} meses
+                {preview.status === 'cancelado'
+                  ? ' · contrato cancelado'
+                  : ` (${textoDiasFidelidade(preview.dias_restantes_fidelidade)})`}
                 {Number(preview.reajuste_percentual) > 0
                   ? ` · reajuste ${percent(preview.reajuste_percentual)}${preview.reajuste_rotulo ? ` ${preview.reajuste_rotulo}` : ''}`
                   : ' · sem reajuste'}
               </p>
+              {preview.status === 'assinado' && preview.multa_rescisao ? (
+                <div className="mt-2 max-w-xl space-y-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100">
+                  {preview.multa_rescisao.aplicavel && preview.multa_rescisao.valor_estimado != null ? (
+                    <p>
+                      Estimativa de multa se rescindir agora:{' '}
+                      <strong>
+                        {pluralPt(
+                          preview.multa_rescisao.mensalidades_estimadas,
+                          'mensalidade',
+                          'mensalidades',
+                        )}
+                      </strong>
+                      {' × '}
+                      {money(preview.multa_rescisao.valor_mensalidade)}
+                      {' = '}
+                      <strong>{money(preview.multa_rescisao.valor_estimado)}</strong>
+                      {' '}
+                      (
+                      {pluralPt(
+                        preview.multa_rescisao.meses_restantes,
+                        'mês restante',
+                        'meses restantes',
+                      )}
+                      ; teto {preview.multa_rescisao.multa_max_mensalidades}).
+                    </p>
+                  ) : preview.multa_rescisao.dentro_fidelidade ? (
+                    <p>
+                      Dentro da fidelidade (
+                      {pluralPt(
+                        preview.multa_rescisao.meses_restantes,
+                        'mês restante',
+                        'meses restantes',
+                      )}
+                      ), mas o teto de multa é 0 — sem estimativa.
+                    </p>
+                  ) : (
+                    <p>Fora da fidelidade — sem estimativa de multa na rescisão.</p>
+                  )}
+                  <p className="opacity-90">{preview.multa_rescisao.aviso}</p>
+                </div>
+              ) : null}
               {preview.empresa_id || preview.rede_id ? (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {preview.empresa_id ? (
@@ -611,6 +666,11 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
                     Cancelar contrato
                   </Button>
                 </>
+              ) : null}
+              {preview.status === 'assinado' ? (
+                <Button variant="ghost" onClick={() => setCancelarId(preview.id)}>
+                  Rescindir
+                </Button>
               ) : null}
             </div>
           </div>
@@ -758,15 +818,46 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
 
       <ConfirmDialog
         open={cancelarId != null}
-        title="Cancelar contrato?"
-        message="O rascunho ou o enviado deixa de valer. Depois de assinado não dá para cancelar nesta tela."
-        confirmLabel="Cancelar contrato"
+        title={cancelandoAssinado ? 'Rescindir contrato assinado?' : 'Cancelar contrato?'}
+        message={
+          cancelandoAssinado
+            ? 'O contrato deixa de estar ativo. Rede e Empresa já criadas não são removidas.'
+            : 'O rascunho ou o enviado deixa de valer.'
+        }
+        confirmLabel={cancelandoAssinado ? 'Rescindir' : 'Cancelar contrato'}
         cancelLabel="Voltar"
         variant="danger"
         loading={cancelando}
         onConfirm={() => void handleCancelar()}
         onCancel={() => setCancelarId(null)}
-      />
+      >
+        {multaPreview ? (
+          <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100">
+            {multaPreview.aplicavel && multaPreview.valor_estimado != null ? (
+              <p>
+                Estimativa de multa:{' '}
+                <strong>{pluralPt(multaPreview.mensalidades_estimadas, 'mensalidade', 'mensalidades')}</strong>
+                {' × '}
+                {money(multaPreview.valor_mensalidade)}
+                {' = '}
+                <strong>{money(multaPreview.valor_estimado)}</strong>
+                {' '}
+                ({pluralPt(multaPreview.meses_restantes, 'mês restante', 'meses restantes')} na
+                fidelidade; teto {multaPreview.multa_max_mensalidades}).
+              </p>
+            ) : multaPreview.dentro_fidelidade ? (
+              <p>
+                Dentro da fidelidade (
+                {pluralPt(multaPreview.meses_restantes, 'mês restante', 'meses restantes')}), mas o
+                teto de multa neste contrato é 0 — sem estimativa.
+              </p>
+            ) : (
+              <p>Fora do período de fidelidade (ou sem meses restantes) — sem estimativa de multa.</p>
+            )}
+            <p className="text-xs opacity-90">{multaPreview.aviso}</p>
+          </div>
+        ) : null}
+      </ConfirmDialog>
     </>
   )
 

@@ -3264,6 +3264,16 @@ export namespace ComercialContrato {
     conteudo_hash: string;
     created_at: string;
   }
+  export interface MultaRescisao {
+    aplicavel: boolean;
+    dentro_fidelidade: boolean;
+    meses_restantes: number;
+    multa_max_mensalidades: number;
+    mensalidades_estimadas: number;
+    valor_mensalidade: string | number;
+    valor_estimado?: string | number | null;
+    aviso: string;
+  }
   export interface Contrato {
     id: number;
     negociacao_linha_cnpj_id: number;
@@ -3303,6 +3313,7 @@ export namespace ComercialContrato {
     lead_nome?: string | null;
     conteudo_html_snapshot?: string | null;
     dias_restantes_fidelidade?: number | null;
+    multa_rescisao?: MultaRescisao | null;
     interno?: Interno | null;
   }
   export interface GerarRequest {
