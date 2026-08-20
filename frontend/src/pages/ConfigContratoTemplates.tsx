@@ -1,5 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
-import { ApiError, comercialContratoPolitica, comercialContratoTemplates, type ComercialContrato } from '../api/client'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  ApiError,
+  comercialContratoPolitica,
+  comercialContratoTemplates,
+  type ComercialContrato,
+} from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -12,28 +17,12 @@ import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
 import { formatPercentualPt, parsePercentualPt } from '../components/crm/crmFiscais'
 import { SemPermissao } from './SemPermissao'
 
-const PLACEHOLDERS = [
-  '{{razao_social}}',
-  '{{cnpj}}',
-  '{{itens}}',
-  '{{valor_mensalidade}}',
-  '{{setup_bloco}}',
-  '{{data_inicio}}',
-  '{{data_fim_fidelidade}}',
-  '{{fidelidade_meses}}',
-  '{{fidelidade}}',
-  '{{multa}}',
-  '{{igpm}}',
-  '{{reajuste}}',
-  '{{endereco_contratante}}',
-  '{{resp_legal}}',
-  '{{nome_base_webposto}}',
-  '{{clausula_deslocamento}}',
-  '{{clausula_alimentacao}}',
-  '{{clausula_hospedagem}}',
-  '{{logo}}',
-  '{{empresa_sistema}}',
-] as const
+const GRUPO_LABEL: Record<string, string> = {
+  contratada: 'Contratada (empresa nas configurações)',
+  contratante: 'Contratante (lead / linha CNPJ)',
+  contrato: 'Contrato (valores da geração)',
+  legado: 'Aliases antigos (ainda funcionam)',
+}
 
 type FormState = {
   nome: string
@@ -50,6 +39,7 @@ const emptyForm = (): FormState => ({
 export function ConfigContratoTemplates({ embedded = false }: { embedded?: boolean }) {
   const toast = useToast()
   const [list, setList] = useState<ComercialContrato.Template[]>([])
+  const [chaves, setChaves] = useState<ComercialContrato.ChaveCatalogo[]>([])
   const [loading, setLoading] = useState(true)
   const [forbidden, setForbidden] = useState(false)
   const [incluirInativos, setIncluirInativos] = useState(false)
@@ -61,12 +51,33 @@ export function ConfigContratoTemplates({ embedded = false }: { embedded?: boole
   const [politicaRotulo, setPoliticaRotulo] = useState('')
   const [savingPolitica, setSavingPolitica] = useState(false)
 
+  const chavesPorGrupo = useMemo(() => {
+    const ord = ['contratada', 'contratante', 'contrato', 'legado']
+    const map = new Map<string, ComercialContrato.ChaveCatalogo[]>()
+    for (const item of chaves) {
+      const arr = map.get(item.grupo) || []
+      arr.push(item)
+      map.set(item.grupo, arr)
+    }
+    return ord.filter((g) => map.has(g)).map((g) => ({ grupo: g, itens: map.get(g)! }))
+  }, [chaves])
+
   const load = useCallback(() => {
     setLoading(true)
     setForbidden(false)
-    comercialContratoTemplates
-      .list({ incluir_inativos: incluirInativos })
-      .then(setList)
+    Promise.all([
+      comercialContratoTemplates.list({ incluir_inativos: incluirInativos }),
+      comercialContratoTemplates.chaves().catch(() => [] as ComercialContrato.ChaveCatalogo[]),
+      comercialContratoPolitica.get().catch(() => null),
+    ])
+      .then(([templates, catalogo, pol]) => {
+        setList(templates)
+        setChaves(catalogo)
+        if (pol) {
+          setPoliticaPct(formatPercentualPt(pol.reajuste_percentual ?? '0'))
+          setPoliticaRotulo(pol.reajuste_rotulo || '')
+        }
+      })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 403) {
           setForbidden(true)
@@ -82,19 +93,6 @@ export function ConfigContratoTemplates({ embedded = false }: { embedded?: boole
   useEffect(() => {
     load()
   }, [load])
-
-  useEffect(() => {
-    comercialContratoPolitica
-      .get()
-      .then((p) => {
-        setPoliticaPct(formatPercentualPt(p.reajuste_percentual ?? '0'))
-        setPoliticaRotulo(p.reajuste_rotulo || '')
-      })
-      .catch((err) => {
-        if (err instanceof ApiError && err.status === 403) return
-        toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível carregar o reajuste padrão.'))
-      })
-  }, [toast])
 
   function openCreate() {
     setForm(emptyForm())
@@ -113,10 +111,6 @@ export function ConfigContratoTemplates({ embedded = false }: { embedded?: boole
   }
 
   async function handlePreview() {
-    if (!form.conteudo_html.trim()) {
-      toast.showWarning('Informe o HTML do modelo.')
-      return
-    }
     try {
       const r = await comercialContratoTemplates.preview(form.conteudo_html)
       setPreviewHtml(r.html)
@@ -127,10 +121,6 @@ export function ConfigContratoTemplates({ embedded = false }: { embedded?: boole
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.nome.trim() || !form.conteudo_html.trim()) {
-      toast.showWarning('Informe nome e HTML do modelo.')
-      return
-    }
     setSaving(true)
     try {
       if (modal === 'create') {
@@ -146,7 +136,7 @@ export function ConfigContratoTemplates({ embedded = false }: { embedded?: boole
           conteudo_html: form.conteudo_html,
           ativo: form.ativo,
         })
-        toast.showSuccess('Modelo atualizado. A versão sobe se o HTML mudar; contratos já gerados não mudam.')
+        toast.showSuccess('Modelo atualizado.')
       }
       setModal(null)
       load()
@@ -180,6 +170,16 @@ export function ConfigContratoTemplates({ embedded = false }: { embedded?: boole
     }
   }
 
+  async function copiarChave(chave: string) {
+    const token = `{{${chave}}}`
+    try {
+      await navigator.clipboard.writeText(token)
+      toast.showSuccess(`Copiado: ${token}`)
+    } catch {
+      toast.showWarning(`Não foi possível copiar. Use: ${token}`)
+    }
+  }
+
   const denied = (
     <SemPermissao
       title="Você não tem permissão para configurar modelos de contrato."
@@ -198,13 +198,15 @@ export function ConfigContratoTemplates({ embedded = false }: { embedded?: boole
       actions={<Button onClick={openCreate}>Novo modelo</Button>}
     >
       <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
-        HTML usado ao gerar o contrato na negociação. Não inclua custo ou margem — esses dados são internos.
-        Editar o HTML sobe a versão do modelo; o PDF já gerado permanece na versão gravada no contrato.
+        Cole o HTML do contrato aprovado pelo advogado do cliente. Use as chaves abaixo para o
+        DeskRudder preencher contratada (empresa nas configurações), contratante (lead/CNPJ) e
+        valores do contrato. Não inclua custo ou margem — esses dados são internos. Editar o HTML
+        sobe a versão do modelo; o PDF já gerado permanece na versão gravada no contrato.
       </p>
       <Card title="Reajuste anual padrão" className="mb-3">
         <p className="mb-3 text-sm text-slate-500">
-          Usado ao gerar contratos, salvo override ou «sem reajuste» na negociação. Não consulta índice (IGPM)
-          automaticamente. O recálculo anual na data de aniversário entra numa versão seguinte.
+          Usado ao gerar contratos, salvo override ou «sem reajuste» na negociação. Não consulta índice
+          (IGPM) automaticamente. O recálculo anual na data de aniversário entra numa versão seguinte.
         </p>
         <form onSubmit={(e) => void handleSavePolitica(e)} className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="sm:w-40">
@@ -229,19 +231,43 @@ export function ConfigContratoTemplates({ embedded = false }: { embedded?: boole
           </Button>
         </form>
       </Card>
-      <details className="mb-3 rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700">
+      <details className="mb-3 rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700" open>
         <summary className="cursor-pointer font-medium text-slate-700 dark:text-slate-200">
-          Placeholders disponíveis
+          Chaves do modelo (clique para copiar)
         </summary>
-        <ul className="mt-2 flex flex-wrap gap-1.5">
-          {PLACEHOLDERS.map((p) => (
-            <li key={p}>
-              <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-800 dark:bg-slate-800 dark:text-slate-200">
-                {p}
-              </code>
-            </li>
-          ))}
-        </ul>
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          Exemplo: <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">{'{{contratante.cnpj}}'}</code> vira
+          o CNPJ do lead. A cláusula de multa/fidelidade deve estar no seu HTML; as chaves só
+          substituem números e dados.
+        </p>
+        {chavesPorGrupo.length === 0 ? (
+          <p className="mt-2 text-slate-500">Catálogo indisponível.</p>
+        ) : (
+          <div className="mt-3 space-y-4">
+            {chavesPorGrupo.map(({ grupo, itens }) => (
+              <div key={grupo}>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  {GRUPO_LABEL[grupo] || grupo}
+                </p>
+                <ul className="flex flex-col gap-1.5">
+                  {itens.map((item) => (
+                    <li key={item.chave} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                      <button
+                        type="button"
+                        onClick={() => void copiarChave(item.chave)}
+                        className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-cyan-800 hover:bg-cyan-50 dark:bg-slate-800 dark:text-cyan-300 dark:hover:bg-slate-700"
+                        title="Copiar"
+                      >
+                        {`{{${item.chave}}}`}
+                      </button>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">{item.descricao}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
       </details>
       <Card>
         <div className="mb-3">
@@ -322,7 +348,8 @@ export function ConfigContratoTemplates({ embedded = false }: { embedded?: boole
               {previewHtml ? (
                 <div>
                   <p className="mb-1 text-xs text-slate-500">
-                    Sanitiza o HTML. Placeholders só são preenchidos ao gerar o contrato na negociação.
+                    Preview com dados de exemplo (contratada da instância quando existir). Sanitiza o HTML
+                    e preenche as chaves como na geração do contrato.
                   </p>
                   <iframe
                     title="Preview do modelo"

@@ -3144,6 +3144,11 @@ export namespace ComercialContrato {
     vigencia_inicio?: string | null;
     ativo?: boolean;
   }
+  export interface ChaveCatalogo {
+    grupo: string;
+    chave: string;
+    descricao: string;
+  }
   export interface Interno {
     total_custo?: string | number | null;
     margem_calculada?: string | number | null;
@@ -3230,6 +3235,7 @@ export namespace ComercialContrato {
 export const comercialContratoTemplates = {
   list: (params?: { incluir_inativos?: boolean }) =>
     api<ComercialContrato.Template[]>(withParams('/comercial/contrato-templates', params)),
+  chaves: () => api<ComercialContrato.ChaveCatalogo[]>('/comercial/contrato-templates/chaves'),
   create: (data: ComercialContrato.TemplateCreate) =>
     api<ComercialContrato.Template>('/comercial/contrato-templates', {
       method: 'POST',

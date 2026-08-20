@@ -132,12 +132,14 @@ def test_admin_crud_contrato_template_e_preview(client, auth_headers):
     prev = client.post(
         "/v1/comercial/contrato-templates/preview",
         headers=h,
-        json={"conteudo_html": '<p onclick="x()">Oi</p><iframe src="x"></iframe>'},
+        json={"conteudo_html": '<p onclick="x()">Oi {{contratante.cnpj}}</p><iframe src="x"></iframe>'},
     )
     assert prev.status_code == 200
     html = prev.json()["html"]
     assert "onclick" not in html.lower()
     assert "iframe" not in html.lower()
+    assert "{{" not in html
+    assert "12.345.678/0001-95" in html
 
     patched = client.patch(
         f"/v1/comercial/contrato-templates/{body['id']}",
@@ -155,6 +157,90 @@ def test_admin_crud_contrato_template_e_preview(client, auth_headers):
     )
     assert mesmo_html.status_code == 200
     assert mesmo_html.json()["versao"] == 2
+
+
+def test_catalogo_chaves_contrato(client, auth_headers):
+    h = auth_headers["admin"]
+    r = client.get("/v1/comercial/contrato-templates/chaves", headers=h)
+    assert r.status_code == 200, r.text
+    chaves = {item["chave"] for item in r.json()}
+    assert "contratada.cnpj" in chaves
+    assert "contratante.razao_social" in chaves
+    assert "contrato.multa_max_mensalidades" in chaves
+    assert "cnpj" in chaves  # alias legado
+    assert client.get("/v1/comercial/contrato-templates/chaves", headers=auth_headers["a1"]).status_code == 403
+
+
+def test_preview_preenche_chaves_exemplo(client, auth_headers):
+    h = auth_headers["admin"]
+    r = client.post(
+        "/v1/comercial/contrato-templates/preview",
+        headers=h,
+        json={
+            "conteudo_html": (
+                "<p>{{contratada.razao_social}}</p>"
+                "<p>{{contratante.razao_social}}</p>"
+                "<p>{{contrato.valor_mensalidade}}</p>"
+                "<p>{{contrato.reajuste}}</p>"
+                "<p>{{cnpj}}</p>"
+            ),
+        },
+    )
+    assert r.status_code == 200, r.text
+    html = r.json()["html"]
+    assert "{{" not in html
+    assert "Posto Exemplo LTDA" in html
+    assert "1.200" in html
+    assert "5,50%" in html or "IGPM" in html
+    assert "12.345.678/0001-95" in html
+    assert client.post(
+        "/v1/comercial/contrato-templates/preview",
+        headers=auth_headers["comercial"],
+        json={"conteudo_html": "<p>{{cnpj}}</p>"},
+    ).status_code == 403
+
+
+def test_chaves_prefixadas_e_aliases_no_html(client, auth_headers, seed_base):
+    h_admin = auth_headers["admin"]
+    h = auth_headers["comercial"]
+    tmpl = client.post(
+        "/v1/comercial/contrato-templates",
+        headers=h_admin,
+        json={
+            "nome": "Chaves prefixadas",
+            "conteudo_html": (
+                "<p>CTR={{contratante.cnpj}}</p>"
+                "<p>LEG={{cnpj}}</p>"
+                "<p>FID={{contrato.fidelidade_meses}}</p>"
+                "<p>MUL={{contrato.multa_max_mensalidades}}</p>"
+                "<p>OLD_MUL={{multa}}</p>"
+                "<p>REA={{contrato.reajuste}}</p>"
+            ),
+        },
+    )
+    assert tmpl.status_code == 201, tmpl.text
+    _, linha = _negociacao_com_linha(client, h)
+    gerada = client.post(
+        "/v1/comercial/contratos",
+        headers=h,
+        json={
+            "linha_id": linha["id"],
+            "template_id": tmpl.json()["id"],
+            "fidelidade_meses": 12,
+            "multa_max_mensalidades": 3,
+            "sem_reajuste": True,
+        },
+    )
+    assert gerada.status_code == 201, gerada.text
+    html = gerada.json()["conteudo_html_snapshot"] or ""
+    assert "CTR=" in html and "{{" not in html
+    assert "LEG=" in html
+    assert "FID=12" in html
+    assert "MUL=3" in html
+    assert "OLD_MUL=3" in html
+    assert "REA=sem reajuste" in html
+    assert "a validar juridicamente" not in html.lower()
+    assert "permanece vinculado" not in html.lower()
 
 
 def test_comercial_gera_contrato_sem_custo_e_pdf(client, auth_headers, seed_base):

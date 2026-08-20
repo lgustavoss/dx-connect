@@ -9,6 +9,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Contratos (#775): nos modelos de contrato, catálogo de chaves copiáveis (`{{contratada.*}}`, `{{contratante.*}}`, `{{contrato.*}}`) para o sistema preencher o HTML do cliente; multa e fidelidade passam a ser só dados (a cláusula fica no texto do modelo); preview com dados de exemplo
 - Mobile chat (#747–#759): lista a 100% da largura; teclado sem vão/corte no campo; composer estilo WhatsApp; reagir pelo menu da seta; demanda e modais em folha inferior; header da app oculto na conversa; Encerrar/empresa/setor no telemóvel; empty states úteis; ícones PWA legíveis (fundo claro + contorno branco no desktop)
 - Mobile (#737): no **app Android**, os alertas com a app fechada usam o mesmo canal da instância (sem Firebase); o clique abre a mesa certa
 - Mobile (#735 / #736): app Android (instalação pelo APK) focado em **tickets e chat**; na primeira vez escolhes a **conta da empresa** (ex. duplexsoft) e nas seguintes o login já usa essa base
