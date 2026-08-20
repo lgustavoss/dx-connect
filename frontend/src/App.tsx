@@ -15,6 +15,8 @@ import { DashboardChats } from './pages/DashboardChats'
 import { RelatoriosTickets } from './pages/RelatoriosTickets'
 import { RelatoriosChats } from './pages/RelatoriosChats'
 import { PresencaOnline } from './pages/PresencaOnline'
+import { MeuPonto } from './pages/MeuPonto'
+import { PontoEquipe } from './pages/PontoEquipe'
 import { Tickets } from './pages/Tickets'
 import { TicketNovo } from './pages/TicketNovo'
 import { ConfigPropostaTemplates } from './pages/ConfigPropostaTemplates'
@@ -292,11 +294,20 @@ function AppRoutes() {
         <Route index element={<Dashboard />} />
         <Route path="dashboard/tickets" element={<DashboardTickets />} />
         <Route path="dashboard/chats" element={<DashboardChats />} />
+        <Route path="ponto" element={<MeuPonto />} />
         <Route
           path="equipe/online"
           element={
             <AdminRoute>
               <PresencaOnline />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="equipe/ponto"
+          element={
+            <AdminRoute>
+              <PontoEquipe />
             </AdminRoute>
           }
         />

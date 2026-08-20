@@ -30,6 +30,7 @@ from app.api import (
     notificacoes,
     events,
     presenca,
+    ponto,
     whatsapp_settings,
     whatsapp_chats,
     whatsapp_webhook,
@@ -361,6 +362,32 @@ async def lifespan(app: FastAPI):
         name="sla-violacao",
     ).start()
 
+    def ponto_fecho_loop() -> None:
+        from app.database import SessionLocal
+        from app.services.ponto_settings import processar_fecho_automatico
+
+        interval = 300
+        while True:
+            db = SessionLocal()
+            try:
+                n = processar_fecho_automatico(db, limit=100)
+                if n:
+                    db.commit()
+                else:
+                    db.rollback()
+            except Exception as e:
+                logger.warning("Worker ponto fecho automático: %s", e)
+                db.rollback()
+            finally:
+                db.close()
+            time.sleep(interval)
+
+    threading.Thread(
+        target=ponto_fecho_loop,
+        daemon=True,
+        name="ponto-fecho-automatico",
+    ).start()
+
     if settings.SAAS_CONTROL_PLANE:
 
         def saas_provision_loop() -> None:
@@ -530,6 +557,7 @@ app.include_router(cadastro_aux.router, prefix=API_V1_PREFIX)
 app.include_router(notificacoes.router, prefix=API_V1_PREFIX)
 app.include_router(events.router, prefix=API_V1_PREFIX)
 app.include_router(presenca.router, prefix=API_V1_PREFIX)
+app.include_router(ponto.router, prefix=API_V1_PREFIX)
 app.include_router(web_push.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_settings.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_chats.router, prefix=API_V1_PREFIX)

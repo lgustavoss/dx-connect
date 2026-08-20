@@ -700,6 +700,80 @@ export const presenca = {
     api<void>(`/presenca/online/${atendenteId}/forcar-saida`, { method: 'POST' }),
 };
 
+export const ponto = {
+  bater: (data: Ponto.Bater) =>
+    api<Ponto.Batida>('/ponto/bater', { method: 'POST', body: JSON.stringify(data) }),
+  me: () => api<Ponto.EstadoMe>('/ponto/me'),
+  minhasBatidas: (params?: { desde?: string; ate?: string; offset?: number; limit?: number }) =>
+    api<Ponto.Historico>(withParams('/ponto/me/batidas', params)),
+  meuCalendario: (ano: number, mes: number) =>
+    api<Ponto.Calendario>(withParams('/ponto/me/calendario', { ano, mes })),
+  meuBancoHoras: (desde: string, ate: string) =>
+    api<Ponto.BancoHoras>(withParams('/ponto/me/banco-horas', { desde, ate })),
+  bancoHorasAdmin: (atendenteId: number, desde: string, ate: string) =>
+    api<Ponto.BancoHoras>(
+      withParams('/ponto/banco-horas', { atendente_id: atendenteId, desde, ate }),
+    ),
+  batidasAdmin: (params?: {
+    atendente_id?: number;
+    desde?: string;
+    ate?: string;
+    offset?: number;
+    limit?: number;
+  }) => listPaginated<Ponto.BatidaAdmin>('/ponto/batidas', params),
+  calendarioAdmin: (atendenteId: number, ano: number, mes: number) =>
+    api<Ponto.Calendario>(withParams('/ponto/calendario', { atendente_id: atendenteId, ano, mes })),
+  hoje: () => api<Ponto.HojeLista>('/ponto/hoje'),
+  digest: () => api<Ponto.Digest>('/ponto/digest'),
+  alertas: () => api<Ponto.AlertasMe>('/ponto/me/alertas'),
+  settings: () => api<Ponto.Settings>('/ponto/settings'),
+  updateSettings: (data: Ponto.SettingsUpdate) =>
+    api<Ponto.Settings>('/ponto/settings', { method: 'PATCH', body: JSON.stringify(data) }),
+  feriados: (ano?: number) => api<Ponto.Feriado[]>(withParams('/ponto/feriados', { ano })),
+  criarFeriado: (data: Ponto.FeriadoCreate) =>
+    api<Ponto.Feriado>('/ponto/feriados', { method: 'POST', body: JSON.stringify(data) }),
+  removerFeriado: (id: number) =>
+    api<void>(`/ponto/feriados/${id}`, { method: 'DELETE' }),
+  criarAjuste: (data: Ponto.AjusteCreate) =>
+    api<Ponto.Batida>('/ponto/batidas', { method: 'POST', body: JSON.stringify(data) }),
+  atualizarAjuste: (id: number, data: Ponto.AjusteUpdate) =>
+    api<Ponto.Batida>(`/ponto/batidas/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  anular: (id: number, motivo: string) =>
+    api<Ponto.Batida>(`/ponto/batidas/${id}/anular`, {
+      method: 'POST',
+      body: JSON.stringify({ motivo }),
+    }),
+  criarJustificativa: (data: Ponto.JustificativaCreate) =>
+    api<Ponto.Justificativa>('/ponto/justificativas', { method: 'POST', body: JSON.stringify(data) }),
+  minhasJustificativas: () => api<Ponto.Justificativa[]>('/ponto/justificativas/me'),
+  justificativasAdmin: (estado?: string) =>
+    api<Ponto.Justificativa[]>(withParams('/ponto/justificativas', { estado })),
+  decidirJustificativa: (id: number, data: Ponto.JustificativaDecisao) =>
+    api<Ponto.Justificativa>(`/ponto/justificativas/${id}/decidir`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  exportCsv: async (params?: { atendente_id?: number; desde?: string; ate?: string }) => {
+    const token = getAuthToken()
+    const headers: Record<string, string> = {}
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+    }
+    if (token) headers.Authorization = `Bearer ${token}`
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}${withParams('/ponto/batidas/export.csv', params)}`
+    const res = await fetch(url, { headers })
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin()
+      throw new ApiError('Sessão expirada ou inválida.', 401, {})
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+    }
+    return res.blob()
+  },
+};
+
 export namespace WhatsappSettings {
   export interface Read {
     evolution_base_url: string | null
@@ -2292,6 +2366,13 @@ export namespace Atendentes {
     ativo: boolean;
     setor_ids: number[];
     must_change_password?: boolean;
+    usa_escala?: boolean;
+    escala_horas_trabalho?: number | null;
+    escala_horas_folga?: number | null;
+    escala_inicio_em?: string | null;
+    horario_previsto_entrada?: string | null;
+    horario_previsto_saida?: string | null;
+    tolerancia_atraso_minutos?: number;
   }
   export interface Create {
     email: string;
@@ -2300,6 +2381,13 @@ export namespace Atendentes {
     role?: string;
     ativo?: boolean;
     setor_ids?: number[];
+    usa_escala?: boolean;
+    escala_horas_trabalho?: number | null;
+    escala_horas_folga?: number | null;
+    escala_inicio_em?: string | null;
+    horario_previsto_entrada?: string | null;
+    horario_previsto_saida?: string | null;
+    tolerancia_atraso_minutos?: number;
   }
   export interface Update {
     email?: string;
@@ -2308,6 +2396,13 @@ export namespace Atendentes {
     role?: string;
     ativo?: boolean;
     setor_ids?: number[];
+    usa_escala?: boolean;
+    escala_horas_trabalho?: number | null;
+    escala_horas_folga?: number | null;
+    escala_inicio_em?: string | null;
+    horario_previsto_entrada?: string | null;
+    horario_previsto_saida?: string | null;
+    tolerancia_atraso_minutos?: number;
   }
   export interface AvaliacaoResumo {
     media: number | null;
@@ -4376,6 +4471,180 @@ export namespace Presenca {
   }
   export interface ListaOnline {
     itens: ItemOnline[];
+  }
+}
+
+export namespace Ponto {
+  export type Tipo = 'entrada' | 'saida' | 'pausa_inicio' | 'pausa_fim'
+  export type Origem = 'web' | 'mobile' | 'admin' | 'sistema'
+  export type StatusDia =
+    | 'ok'
+    | 'falta'
+    | 'parcial'
+    | 'folga'
+    | 'folga_com_ponto'
+    | 'livre'
+    | 'atraso'
+    | 'feriado'
+  export interface Bater {
+    tipo: Tipo
+    origem?: Origem
+  }
+  export interface Batida {
+    id: number
+    atendente_id: number
+    tipo: Tipo | string
+    registrado_em: string
+    origem: string | null
+    anulada?: boolean
+  }
+  export interface BatidaAdmin {
+    id: number
+    atendente_id: number
+    atendente_nome: string
+    tipo: string
+    registrado_em: string
+    origem: string | null
+    anulada?: boolean
+  }
+  export interface Intervalo {
+    data: string
+    entrada_em: string
+    saida_em: string | null
+    duracao_segundos: number | null
+    segundos_pausa?: number
+    aberto: boolean
+  }
+  export interface EstadoMe {
+    em_jornada: boolean
+    em_pausa?: boolean
+    entrada_aberta_em: string | null
+    ultima_batida: Batida | null
+    usa_escala: boolean
+    hoje_esperado: boolean | null
+    escala_rotulo: string | null
+  }
+  export interface Historico {
+    intervalos: Intervalo[]
+    total_segundos_fechados: number
+    total_segundos_pausa?: number
+    total: number
+  }
+  export interface DiaCalendario {
+    data: string
+    esperado: boolean
+    tem_entrada: boolean
+    tem_saida: boolean
+    status: StatusDia
+    atrasado?: boolean
+    feriado?: boolean
+  }
+  export interface Calendario {
+    atendente_id: number
+    ano: number
+    mes: number
+    usa_escala: boolean
+    escala_rotulo: string | null
+    dias: DiaCalendario[]
+  }
+  export interface HojeItem {
+    atendente_id: number
+    nome: string
+    esperado: boolean
+    em_jornada: boolean
+    em_pausa?: boolean
+    entrada_em: string | null
+    status: StatusDia
+    online?: boolean
+    online_sem_ponto?: boolean
+    atrasado?: boolean
+    feriado?: boolean
+  }
+  export interface HojeLista {
+    data: string
+    itens: HojeItem[]
+  }
+  export interface BancoHoras {
+    atendente_id: number
+    atendente_nome?: string | null
+    desde: string
+    ate: string
+    segundos_esperados: number
+    segundos_realizados: number
+    saldo_segundos: number
+    dias_escala: number
+    dias_feriado?: number
+  }
+  export interface Digest {
+    data: string
+    faltas: number
+    atrasos: number
+    jornadas_abertas: number
+    online_sem_ponto: number
+    justificativas_pendentes: number
+    itens: HojeItem[]
+  }
+  export interface Settings {
+    usar_feriados_nacionais: boolean
+    fecho_automatico_ativo: boolean
+    fecho_apos_horas: number
+  }
+  export interface SettingsUpdate {
+    usar_feriados_nacionais?: boolean
+    fecho_automatico_ativo?: boolean
+    fecho_apos_horas?: number
+  }
+  export interface Feriado {
+    id: number
+    data: string
+    nome: string
+    ativo: boolean
+  }
+  export interface FeriadoCreate {
+    data: string
+    nome: string
+    ativo?: boolean
+  }
+  export interface AlertasMe {
+    sem_entrada_em_dia_escala: boolean
+    online_sem_ponto: boolean
+    jornada_aberta_longa: boolean
+    horas_jornada_aberta: number | null
+    mensagens: string[]
+  }
+  export interface AjusteCreate {
+    atendente_id: number
+    tipo: Tipo
+    registrado_em: string
+    motivo: string
+  }
+  export interface AjusteUpdate {
+    tipo?: Tipo
+    registrado_em?: string
+    motivo: string
+  }
+  export interface JustificativaCreate {
+    data_ref: string
+    tipo: 'falta' | 'esquecimento' | 'folga_com_ponto' | 'outro'
+    motivo: string
+  }
+  export interface Justificativa {
+    id: number
+    atendente_id: number
+    atendente_nome?: string | null
+    data_ref: string
+    tipo: string
+    motivo: string
+    estado: string
+    decisao_motivo?: string | null
+    decidido_por_id?: number | null
+    decidido_em?: string | null
+    created_at?: string | null
+  }
+  export interface JustificativaDecisao {
+    estado: 'aprovada' | 'rejeitada'
+    decisao_motivo: string
+    aplicar_batidas?: { tipo: Tipo; registrado_em: string; motivo: string }[]
   }
 }
 

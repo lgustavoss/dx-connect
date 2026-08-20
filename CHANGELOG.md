@@ -9,6 +9,10 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Controle de ponto (#761–#765 / #770–#772): entrada e saída pelo próprio utilizador; histórico com totais; admin vê a equipe e a visão do dia; no cadastro do atendente há flag **Usa escala** e ciclo personalizável (horas trabalhadas × horas de folga, ex. 12×36) com data de início
+- Ponto (#766–#768): pausas (almoço) sem fechar o dia; ajustes manuais do admin com motivo e auditoria; exportação CSV da equipe
+- Ponto (#769 / #773 / #774): banner de lembretes (online sem ponto / jornada longa / dia de escala sem entrada); indicador «Online sem ponto» na visão do dia; justificativas do utilizador com aprovação do admin
+- Ponto (#778–#782): horário previsto e tolerância de atraso; feriados (nacionais + extras da instância) sem contar falta; banco de horas simples; digest diário do admin; fecho automático overnight opcional (desligado por padrão)
 - Mobile: documentação do APK Android (checklist de validação + gerar AAB) e o build ignora o `VITE_API_URL` placeholder da CI
 - Mobile: correções no APK — Conta/login sem ficar na empresa errada após falha ou «Trocar»; toque no alerta abre a conversa uma só vez; teclado no Android e no composer de tickets; envio sem double-tap (figurinha, portal, interno); safe area e rotas desconhecidas no app nativo
 - Contratos (#775): nos modelos de contrato, catálogo de chaves copiáveis (`{{contratada.*}}`, `{{contratante.*}}`, `{{contrato.*}}`) para o sistema preencher o HTML do cliente; multa e fidelidade passam a ser só dados (a cláusula fica no texto do modelo); preview com dados de exemplo
