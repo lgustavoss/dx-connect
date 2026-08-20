@@ -9,6 +9,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Mobile: ícone do APK Android alinhado ao da PWA/computador (mark DeskRudder no fundo Deck)
 - Mobile: no APK, **Meu ponto** (`/ponto`) abre de facto — deixava de cair na mesa de chat por falta de rota nativa
 - Menu: grupo **Atendimentos** no menu lateral com **Chat**, **Tickets** e **Histórico** (toda a operação de atendimento junta)
 - Menu (#793): **Ponto** (Meu ponto / Equipe online / Ponto da equipe) e **Chat** (Chat / Atendimentos) passam a ser grupos expansíveis no menu lateral, no mesmo padrão de Configurações

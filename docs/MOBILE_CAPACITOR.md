@@ -120,6 +120,6 @@ O worker `web-push-outbox` já existente envia para PWA **e** APK. Mute da fila 
 
 O distribuidor embutido usa os servidores de push da Google só como transporte nos telemóveis com Play Services. Sem Play Services, o alerta com a app fechada não chega (a PWA no Chrome continua a funcionar).
 
-Ícones de loja: `frontend/public/deskrudder-pwa-512.png` (e outline) — ver `MOBILE_STORE_RELEASE.md`. Opcional: regenerar splash nativo com `@capacitor/assets`.
+Ícones de loja: `frontend/public/deskrudder-pwa-512.png` (e outline) — ver `MOBILE_STORE_RELEASE.md`. Os mipmaps Android (`ic_launcher*`) devem usar o mesmo mark PWA (fundo Deck `#F8FAFC`); regenerar a partir de `deskrudder-pwa-512.png` se o asset de marca mudar. Opcional: splash nativo com `@capacitor/assets`.
 
 No Windows, se a pasta do clone tiver acentos (ex. `Repositórios`), o Gradle precisa de `android.overridePathCheck=true` em `frontend/android/gradle.properties` (já no repo).
