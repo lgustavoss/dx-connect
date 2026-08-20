@@ -1,6 +1,6 @@
 # App Android (Capacitor) — L6 (#696 / #735–#737)
 
-O APK é um WebView Capacitor com um **SPA mais leve**: login, **tickets** e **chat** (mesa WhatsApp / hub). Não leva landing, SaaS, CRM, cadastros nem dashboards.
+O APK é um WebView Capacitor com um **SPA mais leve**: login, **tickets**, **chat** (mesa WhatsApp / hub) e **meu ponto**. Não leva landing, SaaS, CRM, cadastros nem dashboards.
 
 **Estado (Android):** L6.1–L6.3 + hotfix Conta/teclado na `main`. **Listing / release lojas** → [`docs/MOBILE_STORE_RELEASE.md`](MOBILE_STORE_RELEASE.md) (#739). **iOS** → #738.
 
@@ -93,7 +93,8 @@ Correr após `npm run build:android` + instalar no emulador/dispositivo (**sem**
 | 8 | Toque na notificação | Abre a mesa/conversa **uma** vez |
 | 9 | Ticket: teclado no composer | Campo visível; double-tap no enviar não duplica |
 | 10 | WhatsApp: texto + figurinha | Envio único; teclado sem cortar o campo |
-| 11 | Voltar Android | Volta na navegação; na raiz pode sair da app |
+| 11 | Menu → Meu ponto | Abre `/ponto` (bater ponto / histórico); não volta ao chat |
+| 12 | Voltar Android | Volta na navegação; na raiz pode sair da app |
 
 Cada instância precisa de `VAPID_*` no `client.env` e `https://localhost` em `CORS_ORIGINS`.
 

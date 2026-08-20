@@ -32,6 +32,7 @@ const WhatsappLayout = lazy(() => import('./pages/whatsapp/WhatsappLayout').then
 const WhatsappHistorico = lazy(() =>
   import('./pages/whatsapp/WhatsappHistorico').then((m) => ({ default: m.WhatsappHistorico })),
 )
+const MeuPonto = lazy(() => import('./pages/MeuPonto').then((m) => ({ default: m.MeuPonto })))
 
 function LayoutNative() {
   const { user, loading } = useAuth()
@@ -82,7 +83,7 @@ function NativeUnknownRoute() {
   if (!user) {
     return <Navigate to="/login" replace />
   }
-  // App nativo só tem tickets/chat — rotas de admin/CRM/etc. caem na mesa.
+  // App nativo: tickets/chat/ponto — rotas de admin/CRM/etc. caem na mesa.
   return <Navigate to="/chat/atendendo" replace />
 }
 
@@ -100,6 +101,7 @@ function NativeRoutes() {
           <Route path="tickets" element={<Tickets />} />
           <Route path="tickets/novo" element={<TicketNovo />} />
           <Route path="tickets/:id" element={<RedirectTicketDetalhe />} />
+          <Route path="ponto" element={<MeuPonto />} />
           <Route path="chat" element={<ChatHubShell />}>
             <Route element={<ChatHubLayout />}>
               <Route index element={<Navigate to="atendendo" replace />} />
@@ -179,7 +181,7 @@ function NativeRoutes() {
   )
 }
 
-/** Shell Capacitor: tickets + chat, sem landing/SaaS/cadastros (#735 / #736). */
+/** Shell Capacitor: tickets + chat + meu ponto, sem landing/SaaS/cadastros (#735 / #736). */
 export default function AppNative() {
   return (
     <ErrorBoundary>
