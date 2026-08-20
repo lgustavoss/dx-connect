@@ -187,8 +187,10 @@ Estados do chat: `aguardando_atendente` | `em_atendimento` | `encerrado`
 - Cadastros admin (redes, empresas, atendentes, config WhatsApp)
 - Relatórios/dashboards avançados
 - Portal do cliente / funcionários de posto
-- Chat interno
-- Capacitor / lojas (L6 do épico #689)
+- Chat interno (há suporte parcial no APK; fora do MVP PWA inicial)
+- Capacitor iOS / listing nas lojas (#738 / #739)
+
+**Capacitor Android** (L6.1–L6.3): feito — ver `docs/MOBILE_CAPACITOR.md`.
 
 ---
 
@@ -378,10 +380,10 @@ O projecto web já é **React + TypeScript**. Ordem fechada no épico #689:
 | Fase | Abordagem |
 |------|-----------|
 | **PWA no SPA actual** | Reutiliza o painel; instalável em `https://{slug}.…`; API `/v1` na mesma instância |
-| **Capacitor (lojas)** | Empacota o mesmo frontend; campo Conta resolve `api-{slug}` |
-
-Como construir o APK debug e o push nativo (VAPID + UnifiedPush, sem Firebase): **`docs/MOBILE_CAPACITOR.md`** (#735 / #737).
+| **Capacitor (lojas)** | Android na `main` (Conta → `api-{slug}` + push UnifiedPush); iOS/listing → #738 / #739 |
 | React Native / Flutter | **Fora da v1** |
+
+Como construir o APK, validar e gerar AAB: **`docs/MOBILE_CAPACITOR.md`** (#696 / #735–#737 / #784).
 
 ### Tempo real: SSE (já existe)
 
