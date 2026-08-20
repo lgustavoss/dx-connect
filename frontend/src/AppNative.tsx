@@ -74,6 +74,18 @@ function RedirectLegacyChatInterno() {
   return <Navigate to={`${path}${location.search}${location.hash}`} replace />
 }
 
+function NativeUnknownRoute() {
+  const { user, loading } = useAuth()
+  if (loading) {
+    return <PageLoading fullscreen label="Carregando…" />
+  }
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+  // App nativo só tem tickets/chat — rotas de admin/CRM/etc. caem na mesa.
+  return <Navigate to="/chat/atendendo" replace />
+}
+
 function NativeRoutes() {
   return (
     <Suspense fallback={<PageLoading fullscreen label="Carregando…" />}>
@@ -161,7 +173,7 @@ function NativeRoutes() {
           </Route>
           <Route path="chat-interno/*" element={<RedirectLegacyChatInterno />} />
         </Route>
-        <Route path="*" element={<Navigate to="/chat/atendendo" replace />} />
+        <Route path="*" element={<NativeUnknownRoute />} />
       </Routes>
     </Suspense>
   )

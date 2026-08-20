@@ -184,9 +184,16 @@ export function useWebPushSession(enabled: boolean) {
               })
               .catch(() => undefined)
           })
-          const openHandle = await DeskRudderUnifiedPush.addListener('open', (data) => {
+          let lastOpenKey = ''
+          const abrir = (data: { tipo?: string; id?: number; url_path?: string }) => {
             if (!temAbertura(data)) return
+            const key = `${data.tipo ?? ''}:${data.id ?? ''}:${data.url_path ?? ''}`
+            if (key === lastOpenKey) return
+            lastOpenKey = key
             navigate(aplicarAberturaWebPush(data))
+          }
+          const openHandle = await DeskRudderUnifiedPush.addListener('open', (data) => {
+            abrir(data)
           })
           removeEndpoint = () => {
             void endpointHandle.remove()
@@ -195,9 +202,7 @@ export function useWebPushSession(enabled: boolean) {
             void openHandle.remove()
           }
           const pending = await DeskRudderUnifiedPush.consumePendingOpen()
-          if (!cancelled && temAbertura(pending)) {
-            navigate(aplicarAberturaWebPush(pending))
-          }
+          if (!cancelled) abrir(pending)
           const prefs = await notificacoes.preferenciasGet()
           if (cancelled) return
           const muted = isFilaAguardandoMuted()

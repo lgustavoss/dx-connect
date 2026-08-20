@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
+import { clearAuthToken } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import {
   BrandLogo,
@@ -304,6 +305,7 @@ function LoginCapacitor() {
 
   function pedirOutraEmpresa() {
     clearRememberedAccount()
+    clearAuthToken()
     setConta('')
     setTrocarEmpresa(true)
   }
@@ -325,8 +327,10 @@ function LoginCapacitor() {
     }
 
     setLoading(true)
+    const slugAnterior = readRememberedAccount()
+    // Precisa do slug no storage para apiBaseUrl() apontar à instância; só fica se o login OK.
+    writeRememberedAccount(slug)
     try {
-      writeRememberedAccount(slug)
       await login(email.trim(), senha, lembrarMe)
       try {
         if (lembrarMe) {
@@ -341,6 +345,8 @@ function LoginCapacitor() {
       showSuccess('Login realizado com sucesso.')
       navigate('/chat/atendendo', { replace: true })
     } catch (err) {
+      if (slugAnterior) writeRememberedAccount(slugAnterior)
+      else clearRememberedAccount()
       showError(mensagemFalhaParaToast(err, 'Falha no login. Verifique conta, e-mail e senha.'))
     } finally {
       setLoading(false)

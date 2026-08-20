@@ -87,6 +87,9 @@ class UnifiedPushPlugin : Plugin() {
     override fun handleOnNewIntent(intent: Intent?) {
         super.handleOnNewIntent(intent)
         val raw = intent?.getStringExtra(UnifiedPushStore.EXTRA_PAYLOAD) ?: return
+        // Limpar EXTRA para o consumePendingOpen no JS não reabrir o mesmo deep link.
+        intent.removeExtra(UnifiedPushStore.EXTRA_PAYLOAD)
+        activity?.intent?.removeExtra(UnifiedPushStore.EXTRA_PAYLOAD)
         emitOpen(raw)
     }
 

@@ -1317,7 +1317,8 @@ useEffect(() => {
   }
 
   async function enviarFigurinha(file: File) {
-    if (!chat || !podeEnviar) return
+    if (!chat || !podeEnviar || enviando || enviandoMidiaRef.current) return
+    enviandoMidiaRef.current = true
     setEnviando(true)
     try {
       await whatsappChats.enviarFigurinha(chat.id, file, msgRespondida?.wa_message_id || null)
@@ -1327,6 +1328,7 @@ useEffect(() => {
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Falha ao enviar figurinha'))
     } finally {
+      enviandoMidiaRef.current = false
       setEnviando(false)
     }
   }
