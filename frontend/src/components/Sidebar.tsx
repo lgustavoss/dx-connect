@@ -267,26 +267,28 @@ type NavItem = NavItemLink | NavGroup
 const navStructure: NavItem[] = [
   { type: 'link', to: '/', label: 'Dashboard', icon: 'dashboard', hideOnNative: true },
   {
-    type: 'link',
-    to: '/ponto',
-    label: 'Meu ponto',
+    type: 'group',
+    id: 'ponto',
+    label: 'Ponto',
     icon: 'ponto',
-  },
-  {
-    type: 'link',
-    to: '/equipe/online',
-    label: 'Equipe online',
-    icon: 'equipeOnline',
-    adminOnly: true,
-    hideOnNative: true,
-  },
-  {
-    type: 'link',
-    to: '/equipe/ponto',
-    label: 'Ponto da equipe',
-    icon: 'equipeOnline',
-    adminOnly: true,
-    hideOnNative: true,
+    extraActivePrefixes: ['/ponto', '/equipe/online', '/equipe/ponto'],
+    children: [
+      { to: '/ponto', label: 'Meu ponto', icon: 'ponto' },
+      {
+        to: '/equipe/online',
+        label: 'Equipe online',
+        icon: 'equipeOnline',
+        adminOnly: true,
+        hideOnNative: true,
+      },
+      {
+        to: '/equipe/ponto',
+        label: 'Ponto da equipe',
+        icon: 'equipeOnline',
+        adminOnly: true,
+        hideOnNative: true,
+      },
+    ],
   },
   { type: 'link', to: '/tickets', label: 'Tickets', icon: 'tickets' },
   {
@@ -314,8 +316,28 @@ const navStructure: NavItem[] = [
       },
     ],
   },
-  { type: 'link', to: '/chat/atendendo', label: 'Chat', icon: 'chat', activePrefix: '/chat/' },
-  { type: 'link', to: '/whatsapp/historico', label: 'Atendimentos', icon: 'chatHistory' },
+  {
+    type: 'group',
+    id: 'chat',
+    label: 'Chat',
+    icon: 'chat',
+    /** Hub `/chat/*`, histórico/avaliações e rotas legadas `/whatsapp/c/:id` */
+    extraActivePrefixes: ['/chat/', '/whatsapp/'],
+    children: [
+      {
+        to: '/chat/atendendo',
+        label: 'Chat',
+        icon: 'chat',
+        activePrefix: '/chat/',
+      },
+      {
+        to: '/whatsapp/historico',
+        label: 'Atendimentos',
+        icon: 'chatHistory',
+        activePrefix: '/whatsapp/',
+      },
+    ],
+  },
   {
     type: 'group',
     id: 'clientes',
@@ -368,7 +390,14 @@ const navStructure: NavItem[] = [
 
 function navGroupMatchesPath(pathname: string, group: NavGroup): boolean {
   if (
-    group.children.some((c) => pathname === c.to || (c.to !== '/' && pathname.startsWith(c.to)))
+    group.children.some(
+      (c) =>
+        pathname === c.to ||
+        (c.activePrefix != null &&
+          c.activePrefix !== '' &&
+          pathname.startsWith(c.activePrefix)) ||
+        (c.to !== '/' && pathname.startsWith(c.to)),
+    )
   ) {
     return true
   }
