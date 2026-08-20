@@ -290,7 +290,34 @@ const navStructure: NavItem[] = [
       },
     ],
   },
-  { type: 'link', to: '/tickets', label: 'Tickets', icon: 'tickets' },
+  {
+    type: 'group',
+    id: 'atendimentos',
+    label: 'Atendimentos',
+    icon: 'chat',
+    /** Hub `/chat/*`, tickets, histórico/avaliações e rotas legadas `/whatsapp/c/:id` */
+    extraActivePrefixes: ['/chat/', '/whatsapp/', '/tickets'],
+    children: [
+      {
+        to: '/chat/atendendo',
+        label: 'Chat',
+        icon: 'chat',
+        activePrefix: '/chat/',
+      },
+      {
+        to: '/tickets',
+        label: 'Tickets',
+        icon: 'tickets',
+        activePrefix: '/tickets',
+      },
+      {
+        to: '/whatsapp/historico',
+        label: 'Histórico',
+        icon: 'chatHistory',
+        activePrefix: '/whatsapp/',
+      },
+    ],
+  },
   {
     type: 'group',
     id: 'comercial',
@@ -313,28 +340,6 @@ const navStructure: NavItem[] = [
         icon: 'tiposNegocio',
         comercialOuAdmin: true,
         activePrefix: '/crm/contratos',
-      },
-    ],
-  },
-  {
-    type: 'group',
-    id: 'chat',
-    label: 'Chat',
-    icon: 'chat',
-    /** Hub `/chat/*`, histórico/avaliações e rotas legadas `/whatsapp/c/:id` */
-    extraActivePrefixes: ['/chat/', '/whatsapp/'],
-    children: [
-      {
-        to: '/chat/atendendo',
-        label: 'Chat',
-        icon: 'chat',
-        activePrefix: '/chat/',
-      },
-      {
-        to: '/whatsapp/historico',
-        label: 'Atendimentos',
-        icon: 'chatHistory',
-        activePrefix: '/whatsapp/',
       },
     ],
   },
