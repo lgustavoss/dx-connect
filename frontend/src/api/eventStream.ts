@@ -31,11 +31,13 @@ function setAccessToken(accessToken: string): void {
 async function refreshAccessTokenForStream(): Promise<string | null> {
   const refresh_token = getRefreshToken()
   if (!refresh_token) return null
+  const base = resolvedApiBaseUrl()
+  if (!base) return null
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (isMultiTenantMode()) {
     headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
   }
-  const res = await fetch(`${resolvedApiBaseUrl()}${API_VERSION_PREFIX}/auth/refresh`, {
+  const res = await fetch(`${base}${API_VERSION_PREFIX}/auth/refresh`, {
     method: 'POST',
     headers,
     body: JSON.stringify({ refresh_token }),
@@ -48,7 +50,11 @@ async function refreshAccessTokenForStream(): Promise<string | null> {
 }
 
 export function buildEventStreamUrl(): string {
-  return `${resolvedApiBaseUrl()}${API_VERSION_PREFIX}/events/stream`
+  const base = resolvedApiBaseUrl()
+  if (!base) {
+    throw new Error('Informe a conta da empresa para ligar ao painel.')
+  }
+  return `${base}${API_VERSION_PREFIX}/events/stream`
 }
 
 function authHeaders(token: string): Record<string, string> {

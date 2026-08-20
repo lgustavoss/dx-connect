@@ -105,6 +105,7 @@ function LayoutInner() {
         {
           ['--sidebar-w' as never]: sidebarW,
           marginTop: 'var(--vv-offset-top, 0px)',
+          paddingTop: isCapacitorNative() ? 'env(safe-area-inset-top, 0px)' : undefined,
         } as React.CSSProperties
       }
     >

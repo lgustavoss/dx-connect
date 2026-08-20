@@ -1,5 +1,12 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
-import { atendentes, clearAuthToken, getAuthToken, ApiError, type Atendentes } from '../api/client'
+import {
+  atendentes,
+  clearAuthToken,
+  getAuthToken,
+  hasNativeApiTarget,
+  ApiError,
+  type Atendentes,
+} from '../api/client'
 import { revogarWebPushNoLogout } from '../hooks/useWebPush'
 
 interface AuthContextValue {
@@ -25,6 +32,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const seq = ++refreshSeq.current
     const token = getAuthToken()
     if (!token) {
+      setUser(null)
+      setLoading(false)
+      return
+    }
+    // APK sem conta (após Trocar): não chamar /me nem SSE em https://localhost.
+    if (!hasNativeApiTarget()) {
+      clearAuthToken()
       setUser(null)
       setLoading(false)
       return

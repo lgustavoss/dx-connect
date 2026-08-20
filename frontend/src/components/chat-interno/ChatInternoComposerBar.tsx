@@ -362,7 +362,7 @@ export function ChatInternoComposerBar({
 
 
 
-      <div className="shrink-0 border-t border-slate-200 bg-white px-3 py-3 dark:border-slate-800 dark:bg-slate-900 md:px-5 lg:px-6">
+      <div className="shrink-0 border-t border-slate-200 bg-white px-3 py-3 dark:border-slate-800 dark:bg-slate-900 md:px-5 lg:px-6 [:is(html[data-vv-keyboard='0'])_&]:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
 
         {gravando && (
 

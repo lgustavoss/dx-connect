@@ -21,6 +21,7 @@ function apiBaseUrl(): string {
         /* slug inválido no storage */
       }
     }
+    // Vazio de propósito: api()/SSE recusam pedidos — evita fetch relativo a https://localhost.
     return ''
   }
   if (import.meta.env.DEV) return '/api'
@@ -29,6 +30,12 @@ function apiBaseUrl(): string {
     throw new Error('VITE_API_URL não definido — o build de produção deveria ter falhado no vite.config.')
   }
   return url.replace(/\/+$/, '')
+}
+
+/** Capacitor: há alvo de API (slug gravado ou VITE_API_URL de debug). */
+export function hasNativeApiTarget(): boolean {
+  if (!isCapacitorNative()) return true
+  return Boolean(apiBaseUrl())
 }
 
 function apiOrigin(): string {

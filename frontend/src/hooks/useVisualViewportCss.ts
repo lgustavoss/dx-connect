@@ -1,22 +1,27 @@
 import { useEffect } from 'react'
+import { isCapacitorNative } from '../lib/capacitorNative'
 
 /**
  * Expõe a altura e o offset do visualViewport (teclado virtual) em CSS:
  * `--vv-height`, `--vv-offset-top`, `--vv-keyboard` (1 se teclado aberto).
  * Usado pelo shell e pelo composer do chat (#692 / #751).
+ *
+ * No Capacitor Android com `adjustResize`, o offsetTop costuma duplicar o
+ * deslocamento — aí só publicamos altura (offset = 0).
  */
 export function useVisualViewportCss(): void {
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
+    const native = isCapacitorNative()
     const apply = () => {
       const root = document.documentElement
       const height = Math.round(vv.height)
-      const offsetTop = Math.round(vv.offsetTop)
+      const offsetTop = native ? 0 : Math.round(vv.offsetTop)
       root.style.setProperty('--vv-height', `${height}px`)
       root.style.setProperty('--vv-offset-top', `${offsetTop}px`)
       // Heurística: teclado quando a viewport encolhe face a innerHeight
-      const keyboardOpen = window.innerHeight - height > 80 || offsetTop > 0
+      const keyboardOpen = window.innerHeight - height > 80 || (!native && vv.offsetTop > 0)
       root.style.setProperty('--vv-keyboard', keyboardOpen ? '1' : '0')
       root.dataset.vvKeyboard = keyboardOpen ? '1' : '0'
     }

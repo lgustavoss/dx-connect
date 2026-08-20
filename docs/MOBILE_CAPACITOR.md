@@ -14,7 +14,9 @@ O app grava essa conta no aparelho e passa a chamar:
 https://api-{slug}.deskrudder.com.br
 ```
 
-Nas vezes seguintes o ecrã de login já mostra essa empresa (e-mail/senha apenas). **Trocar** limpa a conta gravada.
+Nas vezes seguintes o ecrã de login já mostra essa empresa (e-mail/senha apenas). **Trocar** limpa a conta gravada **e os tokens** da sessão anterior (evita pedidos à API sem alvo ou à instância errada).
+
+O login **só mantém** o slug no aparelho se a autenticação for bem-sucedida; se falhar (conta/senha errada), a conta anterior (se houver) é restaurada.
 
 O Android usa **Capacitor HTTP** (pedido nativo), para o login não depender do CORS do browser. Mesmo assim, cada instância deve incluir `https://localhost` em `CORS_ORIGINS` (SSE e ferramentas web).
 
@@ -47,9 +49,9 @@ npm run build:android
 npm run cap:open
 ```
 
-Sem `VITE_API_URL`, o APK pede a conta no login (produção / várias empresas).
+Sem `VITE_API_URL`, o APK pede a conta no login (produção / várias empresas). **Builds de loja não devem definir `VITE_API_URL`** — senão o ecrã Conta é ignorado e todos os pedidos vão para essa URL fixa de debug.
 
-API **local** (mesmo Postgres do `docker compose` / painel no browser), só enquanto ainda não houver conta gravada — ou depois de **Trocar** empresa:
+API **local** (mesmo Postgres do `docker compose` / painel no browser), só em builds de desenvolvimento:
 
 ```bash
 # Emulador
@@ -59,7 +61,7 @@ $env:VITE_API_URL = "http://192.168.x.x:8000"
 npm run build:android
 ```
 
-Se o utilizador informar um slug (ex. `duplexsoft`), os pedidos vão para `https://api-duplexsoft.…`, não para o Docker.
+Com `VITE_API_URL` definido, essa base **tem prioridade** sobre o slug (útil no emulador). Sem essa variável, o slug escolhe `https://api-{slug}.…`.
 
 O `Host` da API no telemóvel, no modo local, é o IP do PC; o WebView continua origem `https://localhost`. Firewall do Windows tem de deixar TCP 8000 na LAN. HTTP claro no emulador: o manifesto debug do Capacitor já permite cleartext.
 
