@@ -693,6 +693,26 @@ export const presenca = {
     api<void>(`/presenca/online/${atendenteId}/forcar-saida`, { method: 'POST' }),
 };
 
+export const ponto = {
+  bater: (data: Ponto.Bater) =>
+    api<Ponto.Batida>('/ponto/bater', { method: 'POST', body: JSON.stringify(data) }),
+  me: () => api<Ponto.EstadoMe>('/ponto/me'),
+  minhasBatidas: (params?: { desde?: string; ate?: string; offset?: number; limit?: number }) =>
+    api<Ponto.Historico>(withParams('/ponto/me/batidas', params)),
+  meuCalendario: (ano: number, mes: number) =>
+    api<Ponto.Calendario>(withParams('/ponto/me/calendario', { ano, mes })),
+  batidasAdmin: (params?: {
+    atendente_id?: number;
+    desde?: string;
+    ate?: string;
+    offset?: number;
+    limit?: number;
+  }) => listPaginated<Ponto.BatidaAdmin>('/ponto/batidas', params),
+  calendarioAdmin: (atendenteId: number, ano: number, mes: number) =>
+    api<Ponto.Calendario>(withParams('/ponto/calendario', { atendente_id: atendenteId, ano, mes })),
+  hoje: () => api<Ponto.HojeLista>('/ponto/hoje'),
+};
+
 export namespace WhatsappSettings {
   export interface Read {
     evolution_base_url: string | null
@@ -2285,6 +2305,10 @@ export namespace Atendentes {
     ativo: boolean;
     setor_ids: number[];
     must_change_password?: boolean;
+    usa_escala?: boolean;
+    escala_horas_trabalho?: number | null;
+    escala_horas_folga?: number | null;
+    escala_inicio_em?: string | null;
   }
   export interface Create {
     email: string;
@@ -2293,6 +2317,10 @@ export namespace Atendentes {
     role?: string;
     ativo?: boolean;
     setor_ids?: number[];
+    usa_escala?: boolean;
+    escala_horas_trabalho?: number | null;
+    escala_horas_folga?: number | null;
+    escala_inicio_em?: string | null;
   }
   export interface Update {
     email?: string;
@@ -2301,6 +2329,10 @@ export namespace Atendentes {
     role?: string;
     ativo?: boolean;
     setor_ids?: number[];
+    usa_escala?: boolean;
+    escala_horas_trabalho?: number | null;
+    escala_horas_folga?: number | null;
+    escala_inicio_em?: string | null;
   }
   export interface AvaliacaoResumo {
     media: number | null;
@@ -4363,6 +4395,77 @@ export namespace Presenca {
   }
   export interface ListaOnline {
     itens: ItemOnline[];
+  }
+}
+
+export namespace Ponto {
+  export type Tipo = 'entrada' | 'saida'
+  export type Origem = 'web' | 'mobile'
+  export interface Bater {
+    tipo: Tipo
+    origem?: Origem
+  }
+  export interface Batida {
+    id: number
+    atendente_id: number
+    tipo: Tipo | string
+    registrado_em: string
+    origem: string | null
+  }
+  export interface BatidaAdmin {
+    id: number
+    atendente_id: number
+    atendente_nome: string
+    tipo: string
+    registrado_em: string
+    origem: string | null
+  }
+  export interface Intervalo {
+    data: string
+    entrada_em: string
+    saida_em: string | null
+    duracao_segundos: number | null
+    aberto: boolean
+  }
+  export interface EstadoMe {
+    em_jornada: boolean
+    entrada_aberta_em: string | null
+    ultima_batida: Batida | null
+    usa_escala: boolean
+    hoje_esperado: boolean | null
+    escala_rotulo: string | null
+  }
+  export interface Historico {
+    intervalos: Intervalo[]
+    total_segundos_fechados: number
+    total: number
+  }
+  export interface DiaCalendario {
+    data: string
+    esperado: boolean
+    tem_entrada: boolean
+    tem_saida: boolean
+    status: 'ok' | 'falta' | 'parcial' | 'folga' | 'folga_com_ponto' | 'livre'
+  }
+  export interface Calendario {
+    atendente_id: number
+    ano: number
+    mes: number
+    usa_escala: boolean
+    escala_rotulo: string | null
+    dias: DiaCalendario[]
+  }
+  export interface HojeItem {
+    atendente_id: number
+    nome: string
+    esperado: boolean
+    em_jornada: boolean
+    entrada_em: string | null
+    status: 'ok' | 'falta' | 'parcial' | 'folga' | 'folga_com_ponto' | 'livre'
+  }
+  export interface HojeLista {
+    data: string
+    itens: HojeItem[]
   }
 }
 

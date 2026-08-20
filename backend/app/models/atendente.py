@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Table, ForeignKey, UniqueConstraint
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Table, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -32,6 +32,11 @@ class Atendente(Base):
     presenca_heartbeat_em = Column(DateTime(timezone=True), nullable=True, index=True)
     # Incrementado ao forçar saída — invalida access/refresh tokens com claim "ver" antigo.
     token_version = Column(Integer, nullable=False, default=0, server_default="0")
+    # Controle de ponto / escala (#761+): flag + ciclo horas trabalhadas × horas de folga.
+    usa_escala = Column(Boolean, nullable=False, default=False, server_default="false")
+    escala_horas_trabalho = Column(Integer, nullable=True)
+    escala_horas_folga = Column(Integer, nullable=True)
+    escala_inicio_em = Column(Date, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -43,6 +48,7 @@ class Atendente(Base):
     tickets_atendidos = relationship("Ticket", back_populates="atendente")
     historicos = relationship("TicketHistorico", back_populates="atendente")
     ticket_mensagens = relationship("TicketMensagem", back_populates="atendente")
+    ponto_batidas = relationship("PontoBatida", back_populates="atendente")
 
 
 # Alias para uso nos models (Setor usa "atendente_setor" como secondary string)

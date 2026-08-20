@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
-from datetime import datetime
+from datetime import date, datetime
 
 
 class AtendenteBase(BaseModel):
@@ -7,6 +7,10 @@ class AtendenteBase(BaseModel):
     nome: str
     role: str = "atendente"  # admin | atendente | comercial | saas_ops
     ativo: bool = True
+    usa_escala: bool = False
+    escala_horas_trabalho: int | None = Field(default=None, ge=1, le=168)
+    escala_horas_folga: int | None = Field(default=None, ge=1, le=720)
+    escala_inicio_em: date | None = None
 
 
 class AtendenteCreate(AtendenteBase):
@@ -21,6 +25,10 @@ class AtendenteUpdate(BaseModel):
     role: str | None = None
     ativo: bool | None = None
     setor_ids: list[int] | None = None
+    usa_escala: bool | None = None
+    escala_horas_trabalho: int | None = Field(default=None, ge=1, le=168)
+    escala_horas_folga: int | None = Field(default=None, ge=1, le=720)
+    escala_inicio_em: date | None = None
 
 
 class AtendenteRead(AtendenteBase):

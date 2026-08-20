@@ -9,6 +9,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Controle de ponto (#761–#765 / #770–#772): entrada e saída pelo próprio utilizador; histórico com totais; admin vê a equipe e a visão do dia; no cadastro do atendente há flag **Usa escala** e ciclo personalizável (horas trabalhadas × horas de folga, ex. 12×36) com data de início
 - Mobile chat (#747–#759): lista a 100% da largura; teclado sem vão/corte no campo; composer estilo WhatsApp; reagir pelo menu da seta; demanda e modais em folha inferior; header da app oculto na conversa; Encerrar/empresa/setor no telemóvel; empty states úteis; ícones PWA legíveis (fundo claro + contorno branco no desktop)
 - Contratos comerciais (#324 / #349–#357): gerar PDF por CNPJ (fidelidade, setup, cláusulas, dados fiscais e nome da base WebPosto); reajuste padrão da instância ou override no contrato; anexar PDF assinado (ClickSign ou outro) com referência opcional; ao marcar assinado, cria ou vincula Rede e Empresa pelo CNPJ (sem PDVs), copia e-mail/telefone e cria contacto na rede para o chat; rascunho → enviado → assinado; lista com filtro por responsável; painel interno com custo, lucro e margem %; modelos em Cadastros. Na negociação, os dados fiscais ficam no gerar contrato; depois de assinado, a linha e o nome da Rede não se editam
 - Proposta comercial (#323 / #345–#348): modelos HTML versionados, geração a partir da negociação (CNPJs à escolha), preview, PDF e marcar como enviada (com opção de avançar o funil) — sem custo/margem no documento do cliente

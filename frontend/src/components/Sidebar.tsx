@@ -52,6 +52,16 @@ const icons: Record<string, React.ReactNode> = {
       />
     </svg>
   ),
+  ponto: (
+    <svg className="size-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+      />
+    </svg>
+  ),
   whatsapp: (
     <svg className="size-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
       <path
@@ -258,8 +268,22 @@ const navStructure: NavItem[] = [
   { type: 'link', to: '/', label: 'Dashboard', icon: 'dashboard', hideOnNative: true },
   {
     type: 'link',
+    to: '/ponto',
+    label: 'Meu ponto',
+    icon: 'ponto',
+  },
+  {
+    type: 'link',
     to: '/equipe/online',
     label: 'Equipe online',
+    icon: 'equipeOnline',
+    adminOnly: true,
+    hideOnNative: true,
+  },
+  {
+    type: 'link',
+    to: '/equipe/ponto',
+    label: 'Ponto da equipe',
     icon: 'equipeOnline',
     adminOnly: true,
     hideOnNative: true,
