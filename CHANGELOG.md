@@ -5,6 +5,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+## [26.08.010] - 2026-08-20
+
 ### DeskRudder
 
 #### Melhorias
@@ -24,13 +26,12 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Mobile (#735 / #736): app Android (instalação pelo APK) focado em **tickets e chat**; na primeira vez escolhes a **conta da empresa** (ex. duplexsoft) e nas seguintes o login já usa essa base
 - Contratos comerciais (#324 / #349–#357): gerar PDF por CNPJ (fidelidade, setup, cláusulas, dados fiscais e nome da base WebPosto); reajuste padrão da instância ou override no contrato; anexar PDF assinado (ClickSign ou outro) com referência opcional; ao marcar assinado, cria ou vincula Rede e Empresa pelo CNPJ (sem PDVs), copia e-mail/telefone e cria contacto na rede para o chat; rascunho → enviado → assinado; lista com filtro por responsável; painel interno com custo, lucro e margem %; modelos em Cadastros. Na negociação, os dados fiscais ficam no gerar contrato; depois de assinado, a linha e o nome da Rede não se editam
 
-#### Interno
+#### Interno / Infra
 
 - Mobile: brief (`MOBILE_APP_BRIEF.md`) alinhado ao estado real do épico #689 / L6 Android (PWA + Capacitor + listing docs; iOS = #738)
 - Deploy (#734): ligação SSH ao VPS em IPv4, diagnóstico do IP do runner e segunda tentativa noutro runner só em timeout de rede
 - Mobile (#735): `CORS_ORIGINS` das instâncias passa a incluir `https://localhost` (origem do WebView Android)
 - Mobile (#735): projecto Capacitor Android no `frontend/` (`npm run build:android`); `stack-client.sh` documentado como `<comando> <slug>`
-
 
 ## [26.08.009] - 2026-08-18
 

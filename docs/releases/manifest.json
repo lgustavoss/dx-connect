@@ -2919,6 +2919,104 @@
           "text": "Chat: o estado «Aguardando avaliação» passa a âmbar; «Encerrado» usa vermelho mais legível no tema escuro"
         }
       ]
+    },
+    {
+      "version": "26.08.010",
+      "version_display": "v26.08.010",
+      "date": "2026-08-20",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "WhatsApp (#788): gravação de áudio deixa de ficar presa em «A preparar microfone…» (o compositor reiniciava o MediaRecorder a cada render) e rejeita blobs vazios/truncados antes do envio; MIME preferido ogg/webm opus"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Mobile (#739): runbook de publicação na Play Store (textos de listing, checklist AAB, versão Android) e página pública de **privacidade** em `/privacidade` (URL para a Console)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Controle de ponto (#761–#765 / #770–#772): entrada e saída pelo próprio utilizador; histórico com totais; admin vê a equipe e a visão do dia; no cadastro do atendente há flag **Usa escala** e ciclo personalizável (horas trabalhadas × horas de folga, ex. 12×36) com data de início"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#766–#768): pausas (almoço) sem fechar o dia; ajustes manuais do admin com motivo e auditoria; exportação CSV da equipe"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#769 / #773 / #774): banner de lembretes (online sem ponto / jornada longa / dia de escala sem entrada); indicador «Online sem ponto» na visão do dia; justificativas do utilizador com aprovação do admin"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#778–#782): horário previsto e tolerância de atraso; feriados (nacionais + extras da instância) sem contar falta; banco de horas simples; digest diário do admin; fecho automático overnight opcional (desligado por padrão)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Mobile: documentação do APK Android (checklist de validação + gerar AAB) e o build ignora o `VITE_API_URL` placeholder da CI"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Mobile: correções no APK — Conta/login sem ficar na empresa errada após falha ou «Trocar»; toque no alerta abre a conversa uma só vez; teclado no Android e no composer de tickets; envio sem double-tap (figurinha, portal, interno); safe area e rotas desconhecidas no app nativo"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Contratos (#355): ao rescindir contrato assinado, o sistema mostra estimativa de multa (`mín(meses de fidelidade restantes, teto) × mensalidade`) com aviso de que é só ajuda operacional — não é cobrança; a estimativa aparece também no cartão do contrato assinado; contrato cancelado deixa de mostrar dias de fidelidade restantes; ao assinar, CNPJ já cadastrado noutra Rede vincula a Empresa existente (sem erro)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Contratos (#775): nos modelos de contrato, catálogo de chaves copiáveis (`{{contratada.*}}`, `{{contratante.*}}`, `{{contrato.*}}`) para o sistema preencher o HTML do cliente; multa e fidelidade passam a ser só dados (a cláusula fica no texto do modelo); preview com dados de exemplo"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Mobile chat (#747–#759): lista a 100% da largura; teclado sem vão/corte no campo; composer estilo WhatsApp; reagir pelo menu da seta; demanda e modais em folha inferior; header da app oculto na conversa; Encerrar/empresa/setor no telemóvel; empty states úteis; ícones PWA legíveis (fundo claro + contorno branco no desktop)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Mobile (#737): no **app Android**, os alertas com a app fechada usam o mesmo canal da instância (sem Firebase); o clique abre a mesa certa"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Mobile (#735 / #736): app Android (instalação pelo APK) focado em **tickets e chat**; na primeira vez escolhes a **conta da empresa** (ex. duplexsoft) e nas seguintes o login já usa essa base"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Contratos comerciais (#324 / #349–#357): gerar PDF por CNPJ (fidelidade, setup, cláusulas, dados fiscais e nome da base WebPosto); reajuste padrão da instância ou override no contrato; anexar PDF assinado (ClickSign ou outro) com referência opcional; ao marcar assinado, cria ou vincula Rede e Empresa pelo CNPJ (sem PDVs), copia e-mail/telefone e cria contacto na rede para o chat; rascunho → enviado → assinado; lista com filtro por responsável; painel interno com custo, lucro e margem %; modelos em Cadastros. Na negociação, os dados fiscais ficam no gerar contrato; depois de assinado, a linha e o nome da Rede não se editam"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "Mobile: brief (`MOBILE_APP_BRIEF.md`) alinhado ao estado real do épico #689 / L6 Android (PWA + Capacitor + listing docs; iOS = #738)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "Deploy (#734): ligação SSH ao VPS em IPv4, diagnóstico do IP do runner e segunda tentativa noutro runner só em timeout de rede"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "Mobile (#735): `CORS_ORIGINS` das instâncias passa a incluir `https://localhost` (origem do WebView Android)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "Mobile (#735): projecto Capacitor Android no `frontend/` (`npm run build:android`); `stack-client.sh` documentado como `<comando> <slug>`"
+        }
+      ]
     }
   ]
 }
