@@ -8,6 +8,7 @@ import { EsqueciSenha } from './pages/EsqueciSenha'
 import { RedefinirSenha } from './pages/RedefinirSenha'
 import { AvaliarTicket } from './pages/AvaliarTicket'
 import { LandingPage } from './pages/marketing/LandingPage'
+import { PrivacidadePage } from './pages/marketing/PrivacidadePage'
 import { TrialPage } from './pages/marketing/TrialPage'
 import { Dashboard } from './pages/Dashboard'
 import { DashboardTickets } from './pages/DashboardTickets'
@@ -15,12 +16,16 @@ import { DashboardChats } from './pages/DashboardChats'
 import { RelatoriosTickets } from './pages/RelatoriosTickets'
 import { RelatoriosChats } from './pages/RelatoriosChats'
 import { PresencaOnline } from './pages/PresencaOnline'
+import { MeuPonto } from './pages/MeuPonto'
+import { PontoEquipe } from './pages/PontoEquipe'
 import { Tickets } from './pages/Tickets'
 import { TicketNovo } from './pages/TicketNovo'
+import { ConfigPropostaTemplates } from './pages/ConfigPropostaTemplates'
+import { ConfigContratoTemplates } from './pages/ConfigContratoTemplates'
 import { CrmLeads } from './pages/CrmLeads'
 import { CrmNegociacaoDetalhe } from './pages/CrmNegociacaoDetalhe'
+import { CrmContratos } from './pages/CrmContratos'
 import { ConfigCrmFunil } from './pages/ConfigCrmFunil'
-import { ConfigPropostaTemplates } from './pages/ConfigPropostaTemplates'
 import { Redes } from './pages/Redes'
 import { RedeDetalhe } from './pages/RedeDetalhe'
 import { RedeForm } from './pages/RedeForm'
@@ -113,10 +118,12 @@ import {
   PORTAL_TICKETS_PATH,
 } from './lib/portalAtivo'
 import { gravarTicketAtivoSession } from './lib/ticketAtivo'
+import { isCapacitorNative } from './lib/capacitorNative'
 
 /**
  * Apex comercial (`deskrudder.com.br`): `/` anônimo → landing.
  * Dev local (`localhost`) e control-plane: idem, para testar LP/admin.
+ * App Capacitor: o WebView também usa `localhost`, mas abre o **login do painel** (mesma API do desktop).
  * Subdomínio de cliente: `/` anônimo → login do painel.
  * Autenticado → Layout + painel (index = Dashboard).
  */
@@ -130,6 +137,7 @@ function LayoutOrLanding() {
     const host = typeof window !== 'undefined' ? window.location.hostname : ''
     const isLocalDev = host === 'localhost' || host === '127.0.0.1'
     const showLanding =
+      !isCapacitorNative() &&
       (location.pathname === '/' || location.pathname === '') &&
       (isMarketingHost() || isSaasControlPlaneFrontend() || isLocalDev)
     if (showLanding) {
@@ -244,6 +252,7 @@ function AppRoutes() {
       <Route path="/login/admin" element={<Login />} />
       <Route path="/auth/sessao" element={<AuthSessao />} />
       <Route path="/trial" element={<TrialPage />} />
+      <Route path="/privacidade" element={<PrivacidadePage />} />
       <Route path="/esqueci-senha" element={<EsqueciSenha />} />
       <Route path="/redefinir-senha" element={<RedefinirSenha />} />
       <Route path="/avaliar-ticket" element={<AvaliarTicket />} />
@@ -287,11 +296,20 @@ function AppRoutes() {
         <Route index element={<Dashboard />} />
         <Route path="dashboard/tickets" element={<DashboardTickets />} />
         <Route path="dashboard/chats" element={<DashboardChats />} />
+        <Route path="ponto" element={<MeuPonto />} />
         <Route
           path="equipe/online"
           element={
             <AdminRoute>
               <PresencaOnline />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="equipe/ponto"
+          element={
+            <AdminRoute>
+              <PontoEquipe />
             </AdminRoute>
           }
         />
@@ -367,6 +385,14 @@ function AppRoutes() {
           element={
             <ComercialOuAdminRoute>
               <CrmNegociacaoDetalhe />
+            </ComercialOuAdminRoute>
+          }
+        />
+        <Route
+          path="crm/contratos"
+          element={
+            <ComercialOuAdminRoute>
+              <CrmContratos />
             </ComercialOuAdminRoute>
           }
         />
@@ -717,6 +743,7 @@ function AppRoutes() {
           <Route path="custos" element={<ConfigComercialCustos embedded />} />
           <Route path="funil-crm" element={<ConfigCrmFunil embedded />} />
           <Route path="propostas" element={<ConfigPropostaTemplates embedded />} />
+          <Route path="contratos" element={<ConfigContratoTemplates embedded />} />
         </Route>
         <Route
           path="configuracoes/sistema"

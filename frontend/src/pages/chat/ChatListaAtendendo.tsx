@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { portalChats, whatsappChats } from '../../api/client'
 import { ChatCanalBadge } from '../../components/chat/ChatCanalBadge'
+import { ChatHubEmptyState } from '../../components/chat/ChatHubEmptyState'
 import { WhatsappAvatar } from '../../components/chat/WhatsappAvatar'
 import { useAuth } from '../../contexts/AuthContext'
 import { useChatHub } from '../../contexts/ChatHubContext'
@@ -117,7 +118,7 @@ function ChatAtendendoItem({
 
 export function ChatListaAtendendo() {
   const { user } = useAuth()
-  const { busca, chatAtivo } = useChatHub()
+  const { busca, setBusca, chatAtivo, filaCount } = useChatHub()
   const { subscribe, useFallback } = useEventStream()
   const [meus, setMeus] = useState<ChatHubItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -172,10 +173,25 @@ export function ChatListaAtendendo() {
   }
 
   if (lista.length === 0) {
+    if (busca.trim()) {
+      return (
+        <ChatHubEmptyState
+          title="Nenhum chat encontrado"
+          description="Tente outro termo ou limpe a pesquisa."
+          actions={[{ type: 'button', label: 'Limpar pesquisa', onClick: () => setBusca('') }]}
+        />
+      )
+    }
     return (
-      <p className="p-6 text-center text-sm text-slate-400">
-        {busca.trim() ? 'Nenhum chat encontrado.' : 'Nenhum atendimento em curso.'}
-      </p>
+      <ChatHubEmptyState
+        title="Nenhum atendimento seu"
+        description="Quando assumires um chat, ele aparece aqui."
+        actions={
+          filaCount > 0
+            ? [{ type: 'link', to: '/chat/espera', label: `Ir para Aguardando (${filaCount > 99 ? '99+' : filaCount})` }]
+            : [{ type: 'link', to: '/chat/espera', label: 'Ir para Aguardando' }]
+        }
+      />
     )
   }
 

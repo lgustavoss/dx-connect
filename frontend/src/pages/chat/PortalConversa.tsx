@@ -82,6 +82,7 @@ export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
   const [texto, setTexto] = useState('')
   const [loading, setLoading] = useState(true)
   const [enviando, setEnviando] = useState(false)
+  const enviandoRef = useRef(false)
   const [assumindo, setAssumindo] = useState(false)
   const [modalEncerrar, setModalEncerrar] = useState(false)
   const [modalTransferir, setModalTransferir] = useState(false)
@@ -196,7 +197,8 @@ export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
 
   async function enviar() {
     const corpo = texto.trim()
-    if (!corpo || !Number.isFinite(chatId)) return
+    if (!corpo || !Number.isFinite(chatId) || enviando || enviandoRef.current) return
+    enviandoRef.current = true
     setEnviando(true)
     try {
       const msg = await portalChats.enviar(chatId, corpo)
@@ -210,6 +212,7 @@ export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível enviar a mensagem.'))
     } finally {
+      enviandoRef.current = false
       setEnviando(false)
     }
   }
@@ -255,7 +258,8 @@ export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
 
   async function confirmarEnvioMidia() {
     const responsavel = chat?.estado === 'em_atendimento' && chat.atendente_id === user?.id
-    if (!arquivoPendente || !Number.isFinite(chatId) || !responsavel || enviando) return
+    if (!arquivoPendente || !Number.isFinite(chatId) || !responsavel || enviando || enviandoRef.current) return
+    enviandoRef.current = true
     setEnviando(true)
     try {
       const msg = await portalChats.enviarMidia(chatId, arquivoPendente, legendaMidia.trim())
@@ -271,6 +275,7 @@ export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Falha no envio do anexo'))
     } finally {
+      enviandoRef.current = false
       setEnviando(false)
     }
   }

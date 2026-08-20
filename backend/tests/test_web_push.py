@@ -56,6 +56,25 @@ def test_registrar_listar_apagar_subscription(client, seed_base, auth_headers, d
     assert db_session.query(PushSubscription).count() == 0
 
 
+def test_registra_subscription_formato_unifiedpush(client, auth_headers, monkeypatch):
+    """APK Android (#737): endpoint Web Push + chaves base64url, sem Firebase."""
+    monkeypatch.setattr("app.config.settings.WEB_PUSH_VAPID_PUBLIC_KEY", "BNpublic")
+    monkeypatch.setattr("app.config.settings.WEB_PUSH_VAPID_PRIVATE_KEY", "priv")
+    payload = {
+        "endpoint": "https://fcm.googleapis.com/wp/eid-abc",
+        "p256dh": "BNabcdefghijklmnopqrstuvwxyz0123456789-_xx",
+        "auth": "dGVzdGF1dGg",
+        "user_agent": "DeskRudder-Android-UnifiedPush",
+    }
+    r = client.post("/v1/web-push/subscriptions", headers=auth_headers["a1"], json=payload)
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["endpoint"] == payload["endpoint"]
+    r = client.post("/v1/web-push/subscriptions", headers=auth_headers["a1"], json=payload)
+    assert r.status_code == 201
+    assert r.json()["id"] == body["id"]
+
+
 def test_nao_registra_endpoint_de_outro_utilizador(client, seed_base, auth_headers, db_session):
     a1 = seed_base["a1"]
     db_session.add(

@@ -40,7 +40,7 @@ Isto cria `deploy/clients/duplexsoft/` com `client.env` (senhas geradas), `docke
 
 Edite `deploy/clients/duplexsoft/client.env`:
 
-- `CORS_ORIGINS` / `ALLOWED_HOSTS` alinhados aos domínios reais (`CORS_ORIGINS` = origem HTTPS da PWA)
+- `CORS_ORIGINS` / `ALLOWED_HOSTS` alinhados aos domínios reais (`CORS_ORIGINS` = origem HTTPS da PWA **e** `https://localhost` para o APK Capacitor)
 - Par **VAPID** (`WEB_PUSH_VAPID_*`) desta stack — gerar uma vez; vazio = push desligado (`docs/OPERATIONS.md`)
 - `DX_CONNECT_MULTI_TENANT=false` (padrão) e `CLIENT_APP_HOST={slug}.connect...`
 - `RESEND_API_KEY`, e-mail transaccional, webhooks
@@ -49,15 +49,15 @@ Edite `deploy/clients/duplexsoft/client.env`:
 ### 2. Subir stack + migrações + seed
 
 ```bash
-bash deploy/scripts/stack-client.sh duplexsoft migrate
-bash deploy/scripts/stack-client.sh duplexsoft up
-bash deploy/scripts/stack-client.sh duplexsoft seed
+bash deploy/scripts/stack-client.sh migrate duplexsoft
+bash deploy/scripts/stack-client.sh up duplexsoft
+bash deploy/scripts/stack-client.sh seed duplexsoft
 ```
 
 Confirme:
 
 ```bash
-bash deploy/scripts/stack-client.sh duplexsoft health
+bash deploy/scripts/stack-client.sh health duplexsoft
 ```
 
 ### 3. Frontend
@@ -100,8 +100,8 @@ No VPS, no clone do repositório:
 ```bash
 git pull
 export DX_CONNECT_GIT_SHA=$(git rev-parse --short HEAD)
-bash deploy/scripts/stack-client.sh duplexsoft migrate
-bash deploy/scripts/stack-client.sh duplexsoft up
+bash deploy/scripts/stack-client.sh migrate duplexsoft
+bash deploy/scripts/stack-client.sh up duplexsoft
 ```
 
 ### Volume `/app/data` (anexos e mídia)

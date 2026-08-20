@@ -2,6 +2,9 @@ from app.models.rede import Rede
 from app.models.empresa import Empresa
 from app.models.tipo_negocio import TipoNegocio
 from app.models.atendente import Atendente, AtendenteSetor
+from app.models.ponto_batida import PontoBatida
+from app.models.ponto_justificativa import PontoJustificativa
+from app.models.ponto_settings import PontoFeriado, PontoSettings
 from app.models.setor import Setor
 from app.models.setor_distribuicao_round_robin import SetorDistribuicaoRoundRobin
 from app.models.funcionario_rede import FuncionarioRede, FuncionarioRedeEmpresa
@@ -62,6 +65,7 @@ from app.models.crm import (
     FunilEstagio,
 )
 from app.models.comercial_proposta import Proposta, PropostaTemplate
+from app.models.comercial_contrato import Contrato, ContratoPdf, ContratoPolitica, ContratoTemplate
 from app.models.cliente_saas import ClienteSaaS
 from app.models.saas_alerta_emitido import SaasAlertaEmitido
 from app.models.lead_comercial import LeadComercial
@@ -75,6 +79,10 @@ __all__ = [
     "SetorDistribuicaoRoundRobin",
     "Atendente",
     "AtendenteSetor",
+    "PontoBatida",
+    "PontoJustificativa",
+    "PontoSettings",
+    "PontoFeriado",
     "FuncionarioRede",
     "FuncionarioRedeEmpresa",
     "StatusTicket",
@@ -144,6 +152,10 @@ __all__ = [
     "CrmNegociacaoAtividade",
     "PropostaTemplate",
     "Proposta",
+    "ContratoTemplate",
+    "Contrato",
+    "ContratoPdf",
+    "ContratoPolitica",
     "ClienteSaaS",
     "SaasAlertaEmitido",
     "LeadComercial",

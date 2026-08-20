@@ -87,7 +87,7 @@ sed -e "s/^CLIENT_SLUG=.*/CLIENT_SLUG=$SLUG/" \
     -e "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$PG_PASS/" \
     -e "s/^POSTGRES_DB=.*/POSTGRES_DB=$POSTGRES_DB/" \
     -e "s/^SECRET_KEY=.*/SECRET_KEY=$SECRET_KEY/" \
-    -e "s|^CORS_ORIGINS=.*|CORS_ORIGINS=$APP_ORIGIN|" \
+    -e "s|^CORS_ORIGINS=.*|CORS_ORIGINS=$APP_ORIGIN,https://localhost|" \
     -e "s/^ALLOWED_HOSTS=.*/ALLOWED_HOSTS=$API_HOST,127.0.0.1,localhost/" \
     -e "s/^CONNECT_APP_BASE_DOMAIN=.*/CONNECT_APP_BASE_DOMAIN=$BASE_DOMAIN/" \
     -e "s/^SEED_ADMIN_PASSWORD=.*/SEED_ADMIN_PASSWORD=$ADMIN_PASS/" \
@@ -117,7 +117,7 @@ echo "  SEED_ADMIN_PASSWORD=$ADMIN_PASS  (guarde em local seguro)"
 echo ""
 echo "Próximos passos:"
 echo "  1. Edite $DEST/client.env (Resend, e-mail, etc.)"
-echo "  2. bash deploy/scripts/stack-client.sh $SLUG migrate"
-echo "  3. bash deploy/scripts/stack-client.sh $SLUG up"
-echo "  4. bash deploy/scripts/stack-client.sh $SLUG seed"
+echo "  2. bash deploy/scripts/stack-client.sh migrate $SLUG"
+echo "  3. bash deploy/scripts/stack-client.sh up $SLUG"
+echo "  4. bash deploy/scripts/stack-client.sh seed $SLUG"
 echo "  5. Build frontend + Nginx (ver deploy/clients/README.md)"

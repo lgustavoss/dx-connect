@@ -92,9 +92,41 @@ class CrmLeadRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class DadosFiscaisLinha(BaseModel):
+    nome: str | None = Field(None, max_length=255)
+    nome_fantasia: str | None = Field(None, max_length=255)
+    inscricao_estadual: str | None = Field(None, max_length=20)
+    endereco: str | None = Field(None, max_length=255)
+    numero: str | None = Field(None, max_length=20)
+    complemento: str | None = Field(None, max_length=100)
+    bairro: str | None = Field(None, max_length=100)
+    cidade: str | None = Field(None, max_length=100)
+    estado: str | None = Field(None, max_length=2)
+    cep: str | None = Field(None, max_length=10)
+    email: str | None = Field(None, max_length=255)
+    telefone: str | None = Field(None, max_length=20)
+    resp_legal_nome: str | None = Field(None, max_length=255)
+    resp_legal_cpf: str | None = Field(None, max_length=14)
+    resp_legal_rg: str | None = Field(None, max_length=20)
+    resp_legal_orgao_emissor: str | None = Field(None, max_length=30)
+    resp_legal_nacionalidade: str | None = Field(None, max_length=50)
+    resp_legal_estado_civil: str | None = Field(None, max_length=30)
+    resp_legal_cargo: str | None = Field(None, max_length=100)
+    resp_legal_email: str | None = Field(None, max_length=255)
+    resp_legal_telefone: str | None = Field(None, max_length=20)
+    resp_legal_endereco: str | None = Field(None, max_length=255)
+    resp_legal_numero: str | None = Field(None, max_length=20)
+    resp_legal_complemento: str | None = Field(None, max_length=100)
+    resp_legal_bairro: str | None = Field(None, max_length=100)
+    resp_legal_cidade: str | None = Field(None, max_length=100)
+    resp_legal_estado: str | None = Field(None, max_length=2)
+    resp_legal_cep: str | None = Field(None, max_length=10)
+
+
 class CrmLinhaCreate(BaseModel):
     cnpj: str | None = None
     razao_social: str | None = Field(None, max_length=255)
+    dados_fiscais: DadosFiscaisLinha | None = None
     item_ids: list[int] = Field(default_factory=list)
     quantidade_pdvs: int = Field(1, ge=1, le=500)
     desconto_posto_100k: bool = False
@@ -111,6 +143,7 @@ class CrmLinhaCreate(BaseModel):
 class CrmLinhaUpdate(BaseModel):
     cnpj: str | None = None
     razao_social: str | None = Field(None, max_length=255)
+    dados_fiscais: DadosFiscaisLinha | None = None
     item_ids: list[int] | None = None
     quantidade_pdvs: int | None = Field(None, ge=1, le=500)
     desconto_posto_100k: bool | None = None
@@ -133,6 +166,7 @@ class CrmLinhaRead(BaseModel):
     negociacao_id: int
     cnpj: str | None = None
     razao_social: str | None = None
+    dados_fiscais: dict[str, Any] | None = None
     item_ids: list[int] = Field(default_factory=list)
     quantidade_pdvs: int
     desconto_posto_100k: bool
@@ -158,6 +192,7 @@ class CrmNegociacaoCreate(BaseModel):
 
 class CrmNegociacaoUpdate(BaseModel):
     titulo: str | None = Field(None, max_length=255)
+    nome_base_webposto: str | None = Field(None, max_length=255)
     responsavel_id: int | None = None
 
 
@@ -170,6 +205,7 @@ class CrmNegociacaoRead(BaseModel):
     estagio_nome: str | None = None
     ativa: bool
     titulo: str | None = None
+    nome_base_webposto: str | None = None
     linhas: list[CrmLinhaRead] = Field(default_factory=list)
     created_at: datetime | None = None
     updated_at: datetime | None = None

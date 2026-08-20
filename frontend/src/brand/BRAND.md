@@ -59,6 +59,16 @@ Gradiente primário: `135deg, #14B8A6 → #0D9488 → #0284C7`
 
 Manter área livre equivalente a **½** da altura do tile ao redor do mark em materiais impressos.
 
+## Ícones PWA / ecrã inicial (#758 / #759)
+
+| Asset | Uso |
+|-------|-----|
+| `public/deskrudder-pwa-{180,192,512}.png` | iOS / Android — mark no fundo Deck `#F8FAFC` (legível em wallpaper escuro) |
+| `public/deskrudder-pwa-{192,512}-outline.png` | Desktop / monochrome — silhueta com contorno branco fino |
+| Manifest `background_color` | `#F8FAFC` (não navy) |
+
+Após regenerar PNGs, subir `BRAND_ASSET_VERSION` e o `?v=` do `apple-touch-icon` em `index.html`.
+
 ## O que não fazer
 
 - Esticar ou rotacionar o leme

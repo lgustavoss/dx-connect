@@ -11,6 +11,7 @@ import { Card } from '../ui/Card'
 import { Input, TEXTAREA_FIELD_CLASS } from '../ui/Input'
 import { Select } from '../ui/Select'
 import { useToast } from '../ui/Toast'
+import { maskCnpjCpf } from '../../utils/maskCnpjCpf'
 
 const STATUS_LABEL: Record<string, string> = {
   rascunho: 'Rascunho',
@@ -43,9 +44,11 @@ function downloadBlob(blob: Blob, filename: string) {
 type Props = {
   negociacao: Crm.Negociacao
   onChanged: () => void
+  /** Sem o Card externo — o título fica no acordeão da página. */
+  embedded?: boolean
 }
 
-export function CrmPropostaCard({ negociacao, onChanged }: Props) {
+export function CrmPropostaCard({ negociacao, onChanged, embedded = false }: Props) {
   const toast = useToast()
   const linhas = negociacao.linhas || []
 
@@ -165,8 +168,8 @@ export function CrmPropostaCard({ negociacao, onChanged }: Props) {
     }
   }
 
-  return (
-    <Card title="Proposta comercial">
+  const inner = (
+    <>
       <p className="mb-3 text-sm text-slate-500">
         O documento enviado ao cliente mostra só itens e valores negociados — custo e margem ficam só nesta tela.
       </p>
@@ -186,7 +189,7 @@ export function CrmPropostaCard({ negociacao, onChanged }: Props) {
                   className="size-4 rounded border-slate-300"
                 />
                 <span>
-                  {ln.razao_social || 'Sem razão social'} · {ln.cnpj || 'sem CNPJ'}
+                  {ln.razao_social || 'Sem razão social'} · {ln.cnpj ? maskCnpjCpf(ln.cnpj) : 'sem CNPJ'}
                 </span>
               </label>
             ))}
@@ -326,6 +329,9 @@ export function CrmPropostaCard({ negociacao, onChanged }: Props) {
           </div>
         </div>
       ) : null}
-    </Card>
+    </>
   )
+
+  if (embedded) return inner
+  return <Card title="Proposta comercial">{inner}</Card>
 }

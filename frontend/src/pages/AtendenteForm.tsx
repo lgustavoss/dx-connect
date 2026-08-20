@@ -38,6 +38,14 @@ export function AtendenteForm() {
   const [role, setRole] = useState<'admin' | 'atendente' | 'comercial'>('atendente')
   const [ativo, setAtivo] = useState(true)
   const [setorIds, setSetorIds] = useState<number[]>([])
+  const [usaEscala, setUsaEscala] = useState(false)
+  const [escalaHorasTrabalho, setEscalaHorasTrabalho] = useState('12')
+  const [escalaHorasFolga, setEscalaHorasFolga] = useState('36')
+  const [escalaInicioEm, setEscalaInicioEm] = useState('')
+  const [presetEscala, setPresetEscala] = useState('12x36')
+  const [horarioEntrada, setHorarioEntrada] = useState('')
+  const [horarioSaida, setHorarioSaida] = useState('')
+  const [toleranciaAtraso, setToleranciaAtraso] = useState('0')
 
   useEffect(() => {
     coletarTodasPaginas<Setores.Setor>((o, l) =>
@@ -67,6 +75,17 @@ export function AtendenteForm() {
         setRole((a.role as 'admin' | 'atendente' | 'comercial') || 'atendente')
         setAtivo(a.ativo)
         setSetorIds(a.setor_ids ?? [])
+        setUsaEscala(Boolean(a.usa_escala))
+        setEscalaHorasTrabalho(a.escala_horas_trabalho != null ? String(a.escala_horas_trabalho) : '12')
+        setEscalaHorasFolga(a.escala_horas_folga != null ? String(a.escala_horas_folga) : '36')
+        setEscalaInicioEm(a.escala_inicio_em ?? '')
+        setHorarioEntrada(a.horario_previsto_entrada ?? '')
+        setHorarioSaida(a.horario_previsto_saida ?? '')
+        setToleranciaAtraso(String(a.tolerancia_atraso_minutos ?? 0))
+        if (a.escala_horas_trabalho === 12 && a.escala_horas_folga === 36) setPresetEscala('12x36')
+        else if (a.escala_horas_trabalho === 6 && a.escala_horas_folga === 18) setPresetEscala('6x18')
+        else if (a.escala_horas_trabalho === 24 && a.escala_horas_folga === 48) setPresetEscala('24x48')
+        else setPresetEscala('custom')
       })
       .catch((err) => {
         if (cancelled) return
@@ -93,10 +112,49 @@ export function AtendenteForm() {
     setSetorIds((prev) => (prev.includes(setorId) ? prev.filter((x) => x !== setorId) : [...prev, setorId]))
   }
 
+  function aplicarPreset(v: string | number | '') {
+    const s = String(v)
+    setPresetEscala(s)
+    if (s === '12x36') {
+      setEscalaHorasTrabalho('12')
+      setEscalaHorasFolga('36')
+    } else if (s === '6x18') {
+      setEscalaHorasTrabalho('6')
+      setEscalaHorasFolga('18')
+    } else if (s === '24x48') {
+      setEscalaHorasTrabalho('24')
+      setEscalaHorasFolga('48')
+    }
+  }
+
+  function payloadEscala() {
+    if (!usaEscala) {
+      return {
+        usa_escala: false,
+        escala_horas_trabalho: null,
+        escala_horas_folga: null,
+        escala_inicio_em: null,
+        horario_previsto_entrada: null,
+        horario_previsto_saida: null,
+        tolerancia_atraso_minutos: 0,
+      }
+    }
+    return {
+      usa_escala: true,
+      escala_horas_trabalho: Number(escalaHorasTrabalho) || null,
+      escala_horas_folga: Number(escalaHorasFolga) || null,
+      escala_inicio_em: escalaInicioEm || null,
+      horario_previsto_entrada: horarioEntrada.trim() || null,
+      horario_previsto_saida: horarioSaida.trim() || null,
+      tolerancia_atraso_minutos: Math.max(0, Number(toleranciaAtraso) || 0),
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     try {
+      const escala = payloadEscala()
       if (isEdit && !Number.isNaN(atendenteId)) {
         await atendentes.update(atendenteId, {
           email,
@@ -104,6 +162,7 @@ export function AtendenteForm() {
           role,
           ativo,
           setor_ids: setorIds,
+          ...escala,
           ...(senha ? { senha } : {}),
         })
         toast.showSuccess('Atendente atualizado.')
@@ -117,6 +176,7 @@ export function AtendenteForm() {
           role,
           setor_ids: setorIds,
           ativo,
+          ...escala,
         })
         toast.showSuccess('Atendente cadastrado.')
         navigate(`/atendentes/${created.id}`, { replace: true })
@@ -223,6 +283,90 @@ export function AtendenteForm() {
                 statusOnText="Ativo"
                 statusOffText="Inativo"
               />
+            </FormSection>
+            <FormSection title="Escala de trabalho">
+              <Switch
+                bare
+                checked={usaEscala}
+                onCheckedChange={setUsaEscala}
+                label="Usa escala"
+                description="Quando ativo, o sistema calcula dias de trabalho e folga a partir do ciclo horas × horas."
+                showStatusPill
+                statusOnText="Sim"
+                statusOffText="Não"
+              />
+              {usaEscala && (
+                <div className="mt-4 space-y-3">
+                  <Select
+                    label="Preset"
+                    value={presetEscala}
+                    onChange={aplicarPreset}
+                    options={[
+                      { value: '12x36', label: '12×36 (comum em plantão)' },
+                      { value: '6x18', label: '6×18' },
+                      { value: '24x48', label: '24×48' },
+                      { value: 'custom', label: 'Personalizado' },
+                    ]}
+                  />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Input
+                      label="Horas trabalhadas"
+                      type="number"
+                      min={1}
+                      value={escalaHorasTrabalho}
+                      onChange={(e) => {
+                        setPresetEscala('custom')
+                        setEscalaHorasTrabalho(e.target.value)
+                      }}
+                      required
+                    />
+                    <Input
+                      label="Horas de folga"
+                      type="number"
+                      min={1}
+                      value={escalaHorasFolga}
+                      onChange={(e) => {
+                        setPresetEscala('custom')
+                        setEscalaHorasFolga(e.target.value)
+                      }}
+                      required
+                    />
+                  </div>
+                  <Input
+                    label="Início da escala"
+                    type="date"
+                    value={escalaInicioEm}
+                    onChange={(e) => setEscalaInicioEm(e.target.value)}
+                    required
+                  />
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <Input
+                      label="Entrada prevista"
+                      type="time"
+                      value={horarioEntrada}
+                      onChange={(e) => setHorarioEntrada(e.target.value)}
+                    />
+                    <Input
+                      label="Saída prevista"
+                      type="time"
+                      value={horarioSaida}
+                      onChange={(e) => setHorarioSaida(e.target.value)}
+                    />
+                    <Input
+                      label="Tolerância atraso (min)"
+                      type="number"
+                      min={0}
+                      max={120}
+                      value={toleranciaAtraso}
+                      onChange={(e) => setToleranciaAtraso(e.target.value)}
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Ciclo contínuo a partir desta data (ex.: 12 h de trabalho e 36 h de folga, repetindo). Horário
+                    previsto é opcional e sinaliza atraso na conformidade.
+                  </p>
+                </div>
+              )}
             </FormSection>
           </div>
           <InlineCadastroFooter onCancel={voltarAnterior} saving={saving} />

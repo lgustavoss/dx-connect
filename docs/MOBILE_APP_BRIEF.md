@@ -136,14 +136,16 @@ Sistema de **helpdesk** para **redes de postos/empresas**:
 
 | Fase | Stack |
 |------|--------|
-| Agora | **PWA** no frontend React actual (mesmo `/v1`, mesma origem do painel) |
-| Depois | **Capacitor** → Play Store / App Store + FCM/APNs |
+| Feito | **PWA** no frontend React (mesmo `/v1`, mesma origem do painel) — L0–L5 |
+| Feito | **Capacitor Android**: 1 APK + Conta → `api-{slug}` (tickets/chat) + UnifiedPush/VAPID — L6.1–L6.3 |
+| Feito (docs) | Listing Play + privacidade — `docs/MOBILE_STORE_RELEASE.md` (#739); upload AAB = conta Google (ops) |
+| Follow-up | **iOS** Capacitor + APNs — #738 (Mac + Apple Developer) |
 | Não na v1 | React Native / Flutter |
 
-**Install (híbrido C):** PWA por `{slug}` agora; nas lojas será **1 app** + campo Conta → `api-{slug}`.  
-**Infra:** 1 VPS; **novo container/stack por cliente** (não há PWA global `app.` nesta fase).
+**Install (híbrido C):** PWA por `{slug}`; nas lojas **1 app** Android + campo Conta → `api-{slug}` (sem PWA global `app.`).  
+**Infra:** 1 VPS; **novo container/stack por cliente**.
 
-**Push v1 (L3/L4, hardening L5):** fila **e** mensagens em chats/tickets **já meus**, com a PWA fechada. **Android/Chrome** é o piloto. **iOS Safari:** só com a app na tela inicial (iOS 16.4+); na aba do Safari o push não é fiável.
+**Push:** fila **e** mensagens em chats/tickets **já meus**, com a app/PWA fechada — Web Push VAPID (PWA) e o mesmo canal no APK (UnifiedPush). **iOS Safari:** só com a app na tela inicial (iOS 16.4+).
 
 ### Fase 1 — Core (login + tempo real)
 
@@ -186,8 +188,10 @@ Estados do chat: `aguardando_atendente` | `em_atendimento` | `encerrado`
 - Cadastros admin (redes, empresas, atendentes, config WhatsApp)
 - Relatórios/dashboards avançados
 - Portal do cliente / funcionários de posto
-- Chat interno
-- Capacitor / lojas (L6 do épico #689)
+- Chat interno (há suporte parcial no APK; fora do MVP PWA inicial)
+- Capacitor iOS (#738); listing Play documentado em `MOBILE_STORE_RELEASE.md` (#739)
+
+**Capacitor Android** (L6.1–L6.3): feito — ver `docs/MOBILE_CAPACITOR.md`.
 
 ---
 
@@ -377,8 +381,10 @@ O projecto web já é **React + TypeScript**. Ordem fechada no épico #689:
 | Fase | Abordagem |
 |------|-----------|
 | **PWA no SPA actual** | Reutiliza o painel; instalável em `https://{slug}.…`; API `/v1` na mesma instância |
-| **Capacitor (lojas)** | Empacota o mesmo frontend; campo Conta resolve `api-{slug}` |
+| **Capacitor (lojas)** | Android na `main` (Conta → `api-{slug}` + push UnifiedPush); listing Play → #739 / `MOBILE_STORE_RELEASE.md`; iOS → #738 |
 | React Native / Flutter | **Fora da v1** |
+
+Como construir o APK, validar e gerar AAB: **`docs/MOBILE_CAPACITOR.md`**. Listing e privacidade da loja: **`docs/MOBILE_STORE_RELEASE.md`** (#739).
 
 ### Tempo real: SSE (já existe)
 
@@ -445,10 +451,10 @@ Somente ambiente local (nunca produção):
 
 > **Projeto:** DeskRudder (DX Connect) — helpdesk para redes de postos.  
 > **Backend:** FastAPI + JWT em `/v1` (não Django).  
-> **Mobile v1:** PWA no SPA actual para **atendentes** (WhatsApp + tickets). Não RN na v1.  
-> **Install:** PWA por `https://{slug}.deskrudder.com.br`; lojas depois (Capacitor + campo Conta).  
+> **Mobile v1:** PWA + APK Capacitor Android para **atendentes** (WhatsApp + tickets). Não RN na v1.  
+> **Install:** PWA por `https://{slug}.deskrudder.com.br`; lojas = 1 app + campo Conta → `api-{slug}` (listing: `MOBILE_STORE_RELEASE.md`).  
 > **Infra:** 1 VPS, um container/stack por cliente.  
-> **Tempo real:** SSE `GET /v1/events/stream` (já no web). Push com app fechada = Web Push VAPID (Android/Chrome; iOS só PWA no ecrã inicial, 16.4+).  
+> **Tempo real:** SSE `GET /v1/events/stream`. Push com app fechada = Web Push VAPID (PWA + UnifiedPush no Android). iOS nativo = #738.  
 > **Começar por:** Login → Fila WhatsApp → Conversa (assumir/enviar/encerrar) e lista/detalhe de tickets.  
 > **Auth:** `POST /v1/auth/login` → Bearer token → `GET /v1/atendentes/me`.  
 > **APIs:** `/notificacoes/resumo`, `/whatsapp/chats/fila`, `/whatsapp/chats/meus`, `/whatsapp/chats/{id}/mensagens`, `/tickets?situacao=abertos`.  

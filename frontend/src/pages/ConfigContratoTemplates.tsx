@@ -1,0 +1,379 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  ApiError,
+  comercialContratoPolitica,
+  comercialContratoTemplates,
+  type ComercialContrato,
+} from '../api/client'
+import { mensagemFalhaParaToast } from '../api/errorMessage'
+import { Button } from '../components/ui/Button'
+import { Card } from '../components/ui/Card'
+import { Input, TEXTAREA_FIELD_CLASS } from '../components/ui/Input'
+import { Switch } from '../components/ui/Switch'
+import { FiltroInativos } from '../components/ui/FiltroInativos'
+import { IconPencil } from '../components/ui/IconPencil'
+import { useToast } from '../components/ui/Toast'
+import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
+import { formatPercentualPt, parsePercentualPt } from '../components/crm/crmFiscais'
+import { SemPermissao } from './SemPermissao'
+
+const GRUPO_LABEL: Record<string, string> = {
+  contratada: 'Contratada (empresa nas configurações)',
+  contratante: 'Contratante (lead / linha CNPJ)',
+  contrato: 'Contrato (valores da geração)',
+  legado: 'Aliases antigos (ainda funcionam)',
+}
+
+type FormState = {
+  nome: string
+  conteudo_html: string
+  ativo: boolean
+}
+
+const emptyForm = (): FormState => ({
+  nome: '',
+  conteudo_html: '',
+  ativo: true,
+})
+
+export function ConfigContratoTemplates({ embedded = false }: { embedded?: boolean }) {
+  const toast = useToast()
+  const [list, setList] = useState<ComercialContrato.Template[]>([])
+  const [chaves, setChaves] = useState<ComercialContrato.ChaveCatalogo[]>([])
+  const [loading, setLoading] = useState(true)
+  const [forbidden, setForbidden] = useState(false)
+  const [incluirInativos, setIncluirInativos] = useState(false)
+  const [modal, setModal] = useState<'create' | ComercialContrato.Template | null>(null)
+  const [form, setForm] = useState<FormState>(emptyForm())
+  const [saving, setSaving] = useState(false)
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null)
+  const [politicaPct, setPoliticaPct] = useState('0')
+  const [politicaRotulo, setPoliticaRotulo] = useState('')
+  const [savingPolitica, setSavingPolitica] = useState(false)
+
+  const chavesPorGrupo = useMemo(() => {
+    const ord = ['contratada', 'contratante', 'contrato', 'legado']
+    const map = new Map<string, ComercialContrato.ChaveCatalogo[]>()
+    for (const item of chaves) {
+      const arr = map.get(item.grupo) || []
+      arr.push(item)
+      map.set(item.grupo, arr)
+    }
+    return ord.filter((g) => map.has(g)).map((g) => ({ grupo: g, itens: map.get(g)! }))
+  }, [chaves])
+
+  const load = useCallback(() => {
+    setLoading(true)
+    setForbidden(false)
+    Promise.all([
+      comercialContratoTemplates.list({ incluir_inativos: incluirInativos }),
+      comercialContratoTemplates.chaves().catch(() => [] as ComercialContrato.ChaveCatalogo[]),
+      comercialContratoPolitica.get().catch(() => null),
+    ])
+      .then(([templates, catalogo, pol]) => {
+        setList(templates)
+        setChaves(catalogo)
+        if (pol) {
+          setPoliticaPct(formatPercentualPt(pol.reajuste_percentual ?? '0'))
+          setPoliticaRotulo(pol.reajuste_rotulo || '')
+        }
+      })
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 403) {
+          setForbidden(true)
+          setList([])
+          return
+        }
+        toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível carregar os modelos.'))
+        setList([])
+      })
+      .finally(() => setLoading(false))
+  }, [incluirInativos, toast])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  function openCreate() {
+    setForm(emptyForm())
+    setPreviewHtml(null)
+    setModal('create')
+  }
+
+  function openEdit(row: ComercialContrato.Template) {
+    setForm({
+      nome: row.nome,
+      conteudo_html: row.conteudo_html,
+      ativo: row.ativo,
+    })
+    setPreviewHtml(null)
+    setModal(row)
+  }
+
+  async function handlePreview() {
+    try {
+      const r = await comercialContratoTemplates.preview(form.conteudo_html)
+      setPreviewHtml(r.html)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível gerar o preview.'))
+    }
+  }
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      if (modal === 'create') {
+        await comercialContratoTemplates.create({
+          nome: form.nome.trim(),
+          conteudo_html: form.conteudo_html,
+          ativo: form.ativo,
+        })
+        toast.showSuccess('Modelo criado.')
+      } else if (modal && typeof modal === 'object') {
+        await comercialContratoTemplates.update(modal.id, {
+          nome: form.nome.trim(),
+          conteudo_html: form.conteudo_html,
+          ativo: form.ativo,
+        })
+        toast.showSuccess('Modelo atualizado.')
+      }
+      setModal(null)
+      load()
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar o modelo.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleSavePolitica(e: React.FormEvent) {
+    e.preventDefault()
+    const pct = parsePercentualPt(politicaPct)
+    if (Number.isNaN(pct) || pct < 0 || pct > 100) {
+      toast.showWarning('O percentual de reajuste deve estar entre 0 e 100.')
+      return
+    }
+    setSavingPolitica(true)
+    try {
+      const p = await comercialContratoPolitica.update({
+        reajuste_percentual: pct,
+        reajuste_rotulo: politicaRotulo.trim(),
+      })
+      setPoliticaPct(formatPercentualPt(p.reajuste_percentual ?? '0'))
+      setPoliticaRotulo(p.reajuste_rotulo || '')
+      toast.showSuccess('Reajuste padrão salvo. Contratos já gerados não mudam.')
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar o reajuste padrão.'))
+    } finally {
+      setSavingPolitica(false)
+    }
+  }
+
+  async function copiarChave(chave: string) {
+    const token = `{{${chave}}}`
+    try {
+      await navigator.clipboard.writeText(token)
+      toast.showSuccess(`Copiado: ${token}`)
+    } catch {
+      toast.showWarning(`Não foi possível copiar. Use: ${token}`)
+    }
+  }
+
+  const denied = (
+    <SemPermissao
+      title="Você não tem permissão para configurar modelos de contrato."
+      detail="Apenas administradores gerem os templates do contrato comercial."
+      voltarPara="/"
+      voltarLabel="Voltar para o Dashboard"
+    />
+  )
+
+  return (
+    <ConfigListPageShell
+      embedded={embedded}
+      forbidden={forbidden}
+      denied={denied}
+      title="Modelos de contrato"
+      actions={<Button onClick={openCreate}>Novo modelo</Button>}
+    >
+      <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
+        Cole o HTML do contrato aprovado pelo advogado do cliente. Use as chaves abaixo para o
+        DeskRudder preencher contratada (empresa nas configurações), contratante (lead/CNPJ) e
+        valores do contrato. Não inclua custo ou margem — esses dados são internos. Editar o HTML
+        sobe a versão do modelo; o PDF já gerado permanece na versão gravada no contrato.
+      </p>
+      <Card title="Reajuste anual padrão" className="mb-3">
+        <p className="mb-3 text-sm text-slate-500">
+          Usado ao gerar contratos, salvo override ou «sem reajuste» na negociação. Não consulta índice
+          (IGPM) automaticamente. O recálculo anual na data de aniversário entra numa versão seguinte.
+        </p>
+        <form onSubmit={(e) => void handleSavePolitica(e)} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="sm:w-40">
+            <Input
+              label="Percentual"
+              inputMode="decimal"
+              value={politicaPct}
+              onChange={(e) => setPoliticaPct(e.target.value.replace(/[^\d,.]/g, ''))}
+              hint="Ex.: 0 ou 5,5"
+            />
+          </div>
+          <div className="flex-1">
+            <Input
+              label="Rótulo"
+              value={politicaRotulo}
+              onChange={(e) => setPoliticaRotulo(e.target.value)}
+              placeholder="Ex.: IGPM"
+            />
+          </div>
+          <Button type="submit" disabled={savingPolitica}>
+            {savingPolitica ? 'Salvando…' : 'Salvar'}
+          </Button>
+        </form>
+      </Card>
+      <details className="mb-3 rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700" open>
+        <summary className="cursor-pointer font-medium text-slate-700 dark:text-slate-200">
+          Chaves do modelo (clique para copiar)
+        </summary>
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          Exemplo: <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">{'{{contratante.cnpj}}'}</code> vira
+          o CNPJ do lead. A cláusula de multa/fidelidade deve estar no seu HTML; as chaves só
+          substituem números e dados.
+        </p>
+        {chavesPorGrupo.length === 0 ? (
+          <p className="mt-2 text-slate-500">Catálogo indisponível.</p>
+        ) : (
+          <div className="mt-3 space-y-4">
+            {chavesPorGrupo.map(({ grupo, itens }) => (
+              <div key={grupo}>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  {GRUPO_LABEL[grupo] || grupo}
+                </p>
+                <ul className="flex flex-col gap-1.5">
+                  {itens.map((item) => (
+                    <li key={item.chave} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                      <button
+                        type="button"
+                        onClick={() => void copiarChave(item.chave)}
+                        className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-cyan-800 hover:bg-cyan-50 dark:bg-slate-800 dark:text-cyan-300 dark:hover:bg-slate-700"
+                        title="Copiar"
+                      >
+                        {`{{${item.chave}}}`}
+                      </button>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">{item.descricao}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+      </details>
+      <Card>
+        <div className="mb-3">
+          <FiltroInativos incluirInativos={incluirInativos} onChange={setIncluirInativos} />
+        </div>
+        {loading ? (
+          <p className="text-slate-500">Carregando…</p>
+        ) : list.length === 0 ? (
+          <p className="text-slate-500">Nenhum modelo encontrado.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
+                  <th className="px-3 py-2 font-medium text-slate-600 dark:text-slate-300">Nome</th>
+                  <th className="px-3 py-2 font-medium text-slate-600 dark:text-slate-300">Versão</th>
+                  <th className="px-3 py-2 font-medium text-slate-600 dark:text-slate-300">Ativo</th>
+                  <th className="px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((row) => (
+                  <tr key={row.id} className="border-b border-slate-100 dark:border-slate-800/80">
+                    <td className="px-3 py-2.5 font-medium text-slate-900 dark:text-slate-100">{row.nome}</td>
+                    <td className="px-3 py-2.5 text-slate-600">v{row.versao}</td>
+                    <td className="px-3 py-2.5">{row.ativo ? 'Sim' : 'Não'}</td>
+                    <td className="px-3 py-2.5 text-right">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(row)}
+                        className="inline-flex size-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                        aria-label={`Editar ${row.nome}`}
+                      >
+                        <IconPencil />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {modal ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
+          <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl dark:bg-slate-900 sm:max-w-2xl sm:rounded-2xl">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+              {modal === 'create' ? 'Novo modelo' : 'Editar modelo'}
+            </h2>
+            <form onSubmit={handleSave} className="mt-4 space-y-3">
+              <Input
+                label="Nome"
+                value={form.nome}
+                onChange={(e) => setForm((p) => ({ ...p, nome: e.target.value }))}
+                required
+              />
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                HTML
+                <textarea
+                  value={form.conteudo_html}
+                  onChange={(e) => setForm((p) => ({ ...p, conteudo_html: e.target.value }))}
+                  rows={12}
+                  required
+                  className={`mt-1 font-mono text-xs ${TEXTAREA_FIELD_CLASS}`}
+                />
+              </label>
+              <Switch
+                bare
+                checked={form.ativo}
+                onCheckedChange={(ativo) => setForm((p) => ({ ...p, ativo }))}
+                label="Modelo ativo"
+                description="Inativos não aparecem na geração do contrato."
+                showStatusPill
+                statusOnText="Ativo"
+                statusOffText="Inativo"
+              />
+              {previewHtml ? (
+                <div>
+                  <p className="mb-1 text-xs text-slate-500">
+                    Preview com dados de exemplo (contratada da instância quando existir). Sanitiza o HTML
+                    e preenche as chaves como na geração do contrato.
+                  </p>
+                  <iframe
+                    title="Preview do modelo"
+                    sandbox=""
+                    srcDoc={previewHtml}
+                    className="h-64 w-full rounded-lg border border-slate-200 bg-white dark:border-slate-700"
+                  />
+                </div>
+              ) : null}
+              <div className="flex flex-wrap justify-end gap-2 pt-2">
+                <Button type="button" variant="secondary" onClick={() => setModal(null)} disabled={saving}>
+                  Cancelar
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => void handlePreview()} disabled={saving}>
+                  Preview
+                </Button>
+                <Button type="submit" disabled={saving}>
+                  {saving ? 'Salvando…' : 'Salvar'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+    </ConfigListPageShell>
+  )
+}

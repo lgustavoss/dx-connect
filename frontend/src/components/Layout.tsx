@@ -8,12 +8,15 @@ import { useAlertaFilaSemResponsavel, setChatInternoAlertUserId } from '../hooks
 import { EventStreamProvider, useEventStream } from '../contexts/EventStreamContext'
 import { BrandLogo } from '../brand'
 import { useTheme } from '../contexts/ThemeContext'
+import { isCapacitorNative } from '../lib/capacitorNative'
 import { AlertaDesktopPermissaoBanner } from './AlertaDesktopPermissaoBanner'
 import { PwaInstallBanner } from './PwaInstallBanner'
 import { WebPushOptInBanner } from './WebPushOptInBanner'
+import { PontoAlertasBanner } from './PontoAlertasBanner'
 import { useVisualViewportCss } from '../hooks/useVisualViewportCss'
 import { useWebPushSession } from '../hooks/useWebPush'
 import { lerTicketAtivoSession, TICKET_ATIVO_EVENT } from '../lib/ticketAtivo'
+import { CHAT_ATIVO_EVENT, lerChatAtivoSession } from '../lib/chatAtivo'
 
 function perfilExibicao(role: string | undefined): string {
   if (role === 'admin') return 'Administrador'
@@ -73,6 +76,23 @@ function LayoutInner() {
     window.addEventListener(TICKET_ATIVO_EVENT, sync)
     return () => window.removeEventListener(TICKET_ATIVO_EVENT, sync)
   }, [location.pathname])
+
+  /** Conversa aberta no hub — ocultar chrome da app no telemóvel (#753). */
+  const [chatDetalheAberto, setChatDetalheAberto] = useState(
+    () => isChatHub && lerChatAtivoSession() != null,
+  )
+  useEffect(() => {
+    const sync = () => {
+      const noHub = location.pathname.startsWith('/chat')
+      const setorInterno = /\/chat\/interno\/setor\/\d+/.test(location.pathname)
+      setChatDetalheAberto(noHub && (lerChatAtivoSession() != null || setorInterno))
+    }
+    sync()
+    window.addEventListener(CHAT_ATIVO_EVENT, sync)
+    return () => window.removeEventListener(CHAT_ATIVO_EVENT, sync)
+  }, [location.pathname])
+
+  const ocultarHeaderMobile = chatDetalheAberto
   const scrollInternoNaPagina =
     /^\/tickets\/\d+\/?$/.test(location.pathname) ||
     location.pathname === '/tickets/novo' ||
@@ -85,6 +105,8 @@ function LayoutInner() {
       style={
         {
           ['--sidebar-w' as never]: sidebarW,
+          marginTop: 'var(--vv-offset-top, 0px)',
+          paddingTop: isCapacitorNative() ? 'env(safe-area-inset-top, 0px)' : undefined,
         } as React.CSSProperties
       }
     >
@@ -100,53 +122,60 @@ function LayoutInner() {
       />
 
       <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden md:col-start-2 md:row-start-1">
-          <header className="z-30 flex h-16 min-h-[64px] shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-4 shadow-sm dark:border-slate-800 dark:bg-slate-950 md:gap-3 md:px-6">
-            <button
-              type="button"
-              onClick={() => {
-                if (typeof window !== 'undefined' && window.innerWidth >= 768) {
-                  setSidebarExpanded((e) => !e)
-                } else {
-                  setSidebarMobileOpen((o) => !o)
-                }
-              }}
-              className="flex size-10 shrink-0 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 active:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800 dark:active:bg-slate-700 touch-manipulation md:size-9"
-              aria-label="Abrir ou recolher menu"
-              aria-expanded={sidebarMobileOpen}
-            >
-              {menuIcon}
-            </button>
-
-            <div className="flex items-center gap-2 overflow-hidden rounded-lg md:hidden">
-              <BrandLogo variant="full" size="sm" markVariant={logoOnDark ? 'onDark' : 'default'} className="min-w-0" />
-            </div>
-
-            <div className="min-w-0 flex-1" />
-            <NavbarNotificacoes enabled={notificacoesEnabled} />
-            <ThemeToggle />
-            <div className="hidden min-w-0 text-right sm:block">
-              <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{user?.nome}</p>
-              <p className="truncate text-xs text-slate-500 dark:text-slate-400">{perfilExibicao(user?.role)}</p>
-            </div>
-          </header>
-
-          {notificacoesEnabled ? <PwaInstallBanner enabled /> : null}
-          {notificacoesEnabled ? <AlertaDesktopPermissaoBanner enabled /> : null}
-          {notificacoesEnabled ? <WebPushOptInBanner enabled /> : null}
-
-          <main className="min-h-0 flex-1 overflow-hidden">
-            <div
-              className={
-                scrollInternoNaPagina
-                  ? isChatHub
-                    ? 'flex h-full min-h-0 flex-col overflow-hidden'
-                    : 'flex h-full min-h-0 flex-col overflow-hidden px-4 pt-4 md:px-6 md:pt-6'
-                  : 'dx-scrollbar h-full min-h-0 overflow-x-hidden overflow-y-auto p-4 md:p-6'
+        <header
+          className={`z-30 h-16 min-h-[64px] shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-4 shadow-sm dark:border-slate-800 dark:bg-slate-950 md:flex md:gap-3 md:px-6 ${
+            ocultarHeaderMobile ? 'hidden' : 'flex'
+          }`}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+                setSidebarExpanded((e) => !e)
+              } else {
+                setSidebarMobileOpen((o) => !o)
               }
-            >
-              <Outlet />
-            </div>
-          </main>
+            }}
+            className="flex size-10 shrink-0 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 active:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800 dark:active:bg-slate-700 touch-manipulation md:size-9"
+            aria-label="Abrir ou recolher menu"
+            aria-expanded={sidebarMobileOpen}
+          >
+            {menuIcon}
+          </button>
+
+          <div className="flex items-center gap-2 overflow-hidden rounded-lg md:hidden">
+            <BrandLogo variant="full" size="sm" markVariant={logoOnDark ? 'onDark' : 'default'} className="min-w-0" />
+          </div>
+
+          <div className="min-w-0 flex-1" />
+          <NavbarNotificacoes enabled={notificacoesEnabled} />
+          <ThemeToggle />
+          <div className="hidden min-w-0 text-right sm:block">
+            <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{user?.nome}</p>
+            <p className="truncate text-xs text-slate-500 dark:text-slate-400">{perfilExibicao(user?.role)}</p>
+          </div>
+        </header>
+
+        {notificacoesEnabled && !isCapacitorNative() && !ocultarHeaderMobile ? <PwaInstallBanner enabled /> : null}
+        {notificacoesEnabled && !isCapacitorNative() && !ocultarHeaderMobile ? (
+          <AlertaDesktopPermissaoBanner enabled />
+        ) : null}
+        {notificacoesEnabled && !ocultarHeaderMobile ? <WebPushOptInBanner enabled /> : null}
+        <PontoAlertasBanner />
+
+        <main className="min-h-0 flex-1 overflow-hidden">
+          <div
+            className={
+              scrollInternoNaPagina
+                ? isChatHub
+                  ? 'flex h-full min-h-0 flex-col overflow-hidden'
+                  : 'flex h-full min-h-0 flex-col overflow-hidden px-4 pt-4 md:px-6 md:pt-6'
+                : 'dx-scrollbar h-full min-h-0 overflow-x-hidden overflow-y-auto p-4 md:p-6'
+            }
+          >
+            <Outlet />
+          </div>
+        </main>
       </div>
     </div>
   )

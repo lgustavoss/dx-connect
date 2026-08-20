@@ -29,10 +29,10 @@ Gera `deploy/clients/NOME_CLIENTE/` (não commitar secrets).
 ### Checklist pós-provision
 
 1. Editar `client.env`: CORS (origem HTTPS da PWA), ALLOWED_HOSTS, RESEND, SEED_ADMIN, **VAPID** (`WEB_PUSH_VAPID_*`)
-2. `bash deploy/scripts/stack-client.sh NOME_CLIENTE migrate`
-3. `bash deploy/scripts/stack-client.sh NOME_CLIENTE up`
-4. `bash deploy/scripts/stack-client.sh NOME_CLIENTE seed`
-5. `bash deploy/scripts/stack-client.sh NOME_CLIENTE health`
+2. `bash deploy/scripts/stack-client.sh migrate NOME_CLIENTE`
+3. `bash deploy/scripts/stack-client.sh up NOME_CLIENTE`
+4. `bash deploy/scripts/stack-client.sh seed NOME_CLIENTE`
+5. `bash deploy/scripts/stack-client.sh health NOME_CLIENTE`
 6. Build frontend com `VITE_API_URL` / `VITE_CLIENT_APP_HOST` corretos
 7. Nginx + DNS + TLS (Certbot)
 
@@ -54,8 +54,8 @@ No VPS:
 ```bash
 git pull
 export DX_CONNECT_GIT_SHA=$(git rev-parse --short HEAD)
-bash deploy/scripts/stack-client.sh SLUG migrate
-bash deploy/scripts/stack-client.sh SLUG up
+bash deploy/scripts/stack-client.sh migrate SLUG
+bash deploy/scripts/stack-client.sh up SLUG
 ```
 
 **Sempre** rodar `migrate` antes de `up` quando houver migrations novas.

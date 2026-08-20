@@ -246,6 +246,7 @@ def negociacao_to_read(neg: CrmNegociacao) -> dict:
         "estagio_nome": est.nome if est else None,
         "ativa": neg.ativa,
         "titulo": neg.titulo,
+        "nome_base_webposto": neg.nome_base_webposto,
         "linhas": linhas,
         "created_at": neg.created_at,
         "updated_at": neg.updated_at,
@@ -449,8 +450,43 @@ def criar_negociacao(db: Session, data: CrmNegociacaoCreate, ator: Atendente) ->
     return obter_negociacao(db, neg.id)
 
 
+def _linha_tem_contrato_assinado(db: Session, linha_id: int) -> bool:
+    from app.models.comercial_contrato import CONTRATO_ASSINADO, Contrato
+
+    return (
+        db.query(Contrato.id)
+        .filter(Contrato.negociacao_linha_cnpj_id == linha_id, Contrato.status == CONTRATO_ASSINADO)
+        .first()
+        is not None
+    )
+
+
+def _negociacao_tem_contrato_assinado(db: Session, negociacao_id: int) -> bool:
+    from app.models.comercial_contrato import CONTRATO_ASSINADO, Contrato
+
+    return (
+        db.query(Contrato.id)
+        .join(CrmNegociacaoCnpjLinha, Contrato.negociacao_linha_cnpj_id == CrmNegociacaoCnpjLinha.id)
+        .filter(
+            CrmNegociacaoCnpjLinha.negociacao_id == negociacao_id,
+            Contrato.status == CONTRATO_ASSINADO,
+        )
+        .first()
+        is not None
+    )
+
+
 def atualizar_negociacao(db: Session, neg: CrmNegociacao, data: CrmNegociacaoUpdate) -> CrmNegociacao:
     payload = data.model_dump(exclude_unset=True)
+    if "nome_base_webposto" in payload:
+        atual = (neg.nome_base_webposto or "").strip() or None
+        raw = payload.get("nome_base_webposto")
+        novo = str(raw).strip() or None if raw is not None else None
+        if novo != atual and _negociacao_tem_contrato_assinado(db, neg.id):
+            raise HTTPException(
+                status_code=400,
+                detail="O nome da Rede não pode ser alterado depois de um contrato assinado.",
+            )
     if "responsavel_id" in payload and payload["responsavel_id"] is not None:
         _assert_responsavel_comercial(db, payload["responsavel_id"])
     for k, v in payload.items():
@@ -467,6 +503,7 @@ def add_linha(db: Session, neg: CrmNegociacao, data: CrmLinhaCreate) -> CrmNegoc
         negociacao_id=neg.id,
         cnpj=data.cnpj,
         razao_social=data.razao_social,
+        dados_fiscais=(data.dados_fiscais.model_dump(exclude_none=True) if data.dados_fiscais else {}),
         item_ids=list(data.item_ids or []),
         quantidade_pdvs=data.quantidade_pdvs,
         desconto_posto_100k=data.desconto_posto_100k,
@@ -482,9 +519,20 @@ def add_linha(db: Session, neg: CrmNegociacao, data: CrmLinhaCreate) -> CrmNegoc
 
 
 def atualizar_linha(db: Session, linha: CrmNegociacaoCnpjLinha, data: CrmLinhaUpdate) -> CrmNegociacaoCnpjLinha:
+    if _linha_tem_contrato_assinado(db, linha.id):
+        raise HTTPException(
+            status_code=400,
+            detail="Esta linha tem contrato assinado. Pacote, valores e dados fiscais não podem ser alterados.",
+        )
     neg = obter_negociacao(db, linha.negociacao_id)
     est = obter_estagio(db, estagio_id=neg.estagio_id)
     payload = data.model_dump(exclude_unset=True, exclude={"limpar_tef_override", "tef_override"})
+    if "dados_fiscais" in payload and payload["dados_fiscais"] is not None:
+        payload["dados_fiscais"] = (
+            payload["dados_fiscais"]
+            if isinstance(payload["dados_fiscais"], dict)
+            else data.dados_fiscais.model_dump(exclude_none=True)
+        )
     if data.limpar_tef_override:
         linha.tef_override = None
     elif data.tef_override is not None:
@@ -499,6 +547,11 @@ def atualizar_linha(db: Session, linha: CrmNegociacaoCnpjLinha, data: CrmLinhaUp
 
 
 def excluir_linha(db: Session, linha: CrmNegociacaoCnpjLinha) -> None:
+    if _linha_tem_contrato_assinado(db, linha.id):
+        raise HTTPException(
+            status_code=400,
+            detail="Não é possível remover uma linha com contrato assinado.",
+        )
     neg = obter_negociacao(db, linha.negociacao_id)
     est = obter_estagio(db, estagio_id=neg.estagio_id)
     restantes = [

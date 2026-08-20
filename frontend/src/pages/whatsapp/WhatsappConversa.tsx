@@ -37,6 +37,7 @@ import { precisaEscolherSetorAoAssumir } from '../../lib/assumirWhatsappSetor'
 import { formatWaIdExibicao } from '../../utils/masks'
 
 import { Card } from '../../components/ui/Card'
+import { ChatBottomSheet } from '../../components/ui/ChatBottomSheet'
 import { TEXTAREA_FIELD_CLASS } from '../../components/ui/Input'
 
 import { Button } from '../../components/ui/Button'
@@ -600,7 +601,9 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
   const [texto, setTexto] = useState('')
 
   const [enviando, setEnviando] = useState(false)
+  const enviandoRef = useRef(false)
   const enviandoMidiaRef = useRef(false)
+  const [reagirMsgId, setReagirMsgId] = useState<number | null>(null)
 
   // Estados de WhatsApp Clone (Citação e Zoom)
   const [msgRespondida, setMsgRespondida] = useState<WhatsappChats.Mensagem | null>(null)
@@ -807,6 +810,25 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
       if (el) scrollWhatsappToBottom(el)
     })
   }, [msgs, loading])
+
+  /** #751: ao abrir o teclado, manter a última mensagem acima do composer. */
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const onVv = () => {
+      if (!stickToBottomRef.current) return
+      requestAnimationFrame(() => {
+        const el = scrollRef.current
+        if (el) scrollWhatsappToBottom(el)
+      })
+    }
+    vv.addEventListener('resize', onVv)
+    vv.addEventListener('scroll', onVv)
+    return () => {
+      vv.removeEventListener('resize', onVv)
+      vv.removeEventListener('scroll', onVv)
+    }
+  }, [])
   useEffect(() => {
     const el = scrollRef.current
     if (!el || !id) return
@@ -1128,8 +1150,9 @@ useEffect(() => {
 
   async function enviar() {
 
-    if (!chat || !texto.trim() || enviando || (!modoInterno && !podeEnviar)) return
+    if (!chat || !texto.trim() || enviando || enviandoRef.current || (!modoInterno && !podeEnviar)) return
 
+    enviandoRef.current = true
     setEnviando(true)
 
     try {
@@ -1149,7 +1172,10 @@ useEffect(() => {
 
       toast.showError(mensagemFalhaParaToast(err))
 
-    } finally { setEnviando(false) }
+    } finally {
+      enviandoRef.current = false
+      setEnviando(false)
+    }
 
   }
 
@@ -1291,7 +1317,8 @@ useEffect(() => {
   }
 
   async function enviarFigurinha(file: File) {
-    if (!chat || !podeEnviar) return
+    if (!chat || !podeEnviar || enviando || enviandoMidiaRef.current) return
+    enviandoMidiaRef.current = true
     setEnviando(true)
     try {
       await whatsappChats.enviarFigurinha(chat.id, file, msgRespondida?.wa_message_id || null)
@@ -1301,6 +1328,7 @@ useEffect(() => {
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Falha ao enviar figurinha'))
     } finally {
+      enviandoMidiaRef.current = false
       setEnviando(false)
     }
   }
@@ -1716,25 +1744,6 @@ useEffect(() => {
 
             <div className="flex shrink-0 items-center gap-1 md:gap-2">
 
-              {modoHub && (
-                <div className="flex items-center gap-0.5 md:hidden">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="relative h-11 min-w-11 shrink-0 px-2.5 text-xs font-semibold"
-                    onClick={() => setFilaAguardandoAberta(true)}
-                    aria-label={filaCount > 0 ? `Aguardando, ${filaCount} na fila` : 'Aguardando'}
-                  >
-                    Fila
-                    {filaCount > 0 && (
-                      <span className="ml-1 inline-flex min-w-[1rem] justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-4 text-white">
-                        {filaCount > 99 ? '99+' : filaCount}
-                      </span>
-                    )}
-                  </Button>
-                </div>
-              )}
-
               {chat?.estado === 'aguardando_atendente' && (
                 <Button
                   type="button"
@@ -1840,6 +1849,18 @@ useEffect(() => {
                             {chat?.empresa_id ? 'Alterar empresa' : 'Definir empresa'}
                           </button>
                         )}
+                        {modoHub && filaCount > 0 && (
+                          <button
+                            type="button"
+                            className="block min-h-11 w-full border-t border-slate-100 px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
+                            onClick={() => {
+                              setMenuMobileAberto(false)
+                              setFilaAguardandoAberta(true)
+                            }}
+                          >
+                            Aguardando ({filaCount > 99 ? '99+' : filaCount})
+                          </button>
+                        )}
                         {chat && (
                           <WhatsappInatividadeControle
                             chat={chat}
@@ -1879,8 +1900,8 @@ useEffect(() => {
                   </span>
                   {chat.setor_nome && (
                     <>
-                      <span className="hidden text-slate-300 sm:inline">•</span>
-                      <span className="hidden max-w-[8rem] truncate text-slate-500 sm:inline dark:text-slate-400">
+                      <span className="text-slate-300">•</span>
+                      <span className="max-w-[10rem] truncate text-slate-500 dark:text-slate-400">
                         {chat.setor_nome}
                       </span>
                     </>
@@ -2103,17 +2124,20 @@ useEffect(() => {
 
                     ${isSystem ? 'bg-amber-50 text-amber-900 border border-amber-100 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-900/50' :
 
-                      isInbound ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-tl-none ring-1 ring-slate-100 dark:ring-slate-700' :
+                      isInbound ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-tl-none ring-1 ring-slate-100 dark:ring-slate-700 pr-8' :
 
                       'bg-cyan-600 text-white rounded-tr-none pr-8'}
 
                   `}>
 
-                    {!isSystem && !isInbound && (
+                    {!isSystem && !m.apagada && (
                       <WhatsappMensagemAcoes
                         mensagem={m}
-                        onEditar={(texto) => editarMensagemWhatsapp(m, texto)}
-                        onApagar={() => apagarMensagemWhatsapp(m)}
+                        onEditar={!isInbound ? (texto) => editarMensagemWhatsapp(m, texto) : undefined}
+                        onApagar={!isInbound ? () => apagarMensagemWhatsapp(m) : undefined}
+                        podeReagir={podeReagir}
+                        onReagirMenu={podeReagir ? () => setReagirMsgId(m.id) : undefined}
+                        tomClaro={isInbound}
                       />
                     )}
 
@@ -2168,6 +2192,8 @@ useEffect(() => {
                       podeReagir={podeReagir}
                       onReagir={podeReagir ? (emoji) => void reagirMensagem(m, emoji) : undefined}
                       alinhamento={isInbound ? 'start' : 'end'}
+                      pickerExternoAberto={reagirMsgId === m.id}
+                      onPickerExternoClose={() => setReagirMsgId(null)}
                     />
                   )}
 
@@ -2195,7 +2221,7 @@ useEffect(() => {
 
         {/* Footer: Input & Mídia */}
 
-        <footer className="shrink-0 border-t border-slate-100 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-slate-800 dark:bg-slate-950 sm:p-4">
+        <footer className="shrink-0 border-t border-slate-100 bg-white p-3 dark:border-slate-800 dark:bg-slate-950 sm:p-4 [:is(html[data-vv-keyboard='0'])_&]:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
 
           {msgRespondida && (
             <div className="flex items-center justify-between bg-slate-100 dark:bg-slate-900 border-l-4 border-cyan-600 px-4 py-2 rounded-t-xl mb-1 text-xs animate-in slide-in-from-bottom-2 duration-150">
@@ -2410,54 +2436,50 @@ useEffect(() => {
         )}
 
         {modalEmpresaContexto && chat && (
-          <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/50 p-4 sm:items-center">
-            <div
-              className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-slate-900"
-              role="dialog"
-              aria-modal
-              aria-labelledby="empresa-contexto-titulo"
-            >
-              <h2 id="empresa-contexto-titulo" className="text-lg font-bold text-slate-900 dark:text-white">
-                Empresa do atendimento
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Vincule a empresa que o cliente indicou. Pode alterar enquanto o chat não estiver
-                encerrado.
-              </p>
-              <div className="mt-4">
-                <SelectComPesquisa
-                  label="Empresa"
-                  value={empresaContextoId}
-                  onChange={(id) => setEmpresaContextoId(id)}
-                  items={(chat.empresas_opcoes || []).map((e) => ({ id: e.id, label: e.nome }))}
-                  placeholder="Selecione a empresa"
-                  hint="Digite parte do nome do posto"
-                  required
-                />
-              </div>
-              <div className="mt-5 flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={salvandoEmpresaContexto}
-                  onClick={() => {
-                    setModalEmpresaContexto(false)
-                    setEmpresaContextoId('')
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="button"
-                  loading={salvandoEmpresaContexto}
-                  disabled={empresaContextoId === ''}
-                  onClick={() => void confirmarEmpresaContexto()}
-                >
-                  Confirmar
-                </Button>
-              </div>
+          <ChatBottomSheet
+            open={modalEmpresaContexto}
+            title="Empresa do atendimento"
+            onClose={() => {
+              setModalEmpresaContexto(false)
+              setEmpresaContextoId('')
+            }}
+            zClassName="z-[120]"
+          >
+            <p className="mb-4 text-sm text-slate-500">
+              Vincule a empresa que o cliente indicou. Pode alterar enquanto o chat não estiver
+              encerrado.
+            </p>
+            <SelectComPesquisa
+              label="Empresa"
+              value={empresaContextoId}
+              onChange={(id) => setEmpresaContextoId(id)}
+              items={(chat.empresas_opcoes || []).map((e) => ({ id: e.id, label: e.nome }))}
+              placeholder="Selecione a empresa"
+              hint="Digite parte do nome do posto"
+              required
+            />
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={salvandoEmpresaContexto}
+                onClick={() => {
+                  setModalEmpresaContexto(false)
+                  setEmpresaContextoId('')
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                loading={salvandoEmpresaContexto}
+                disabled={empresaContextoId === ''}
+                onClick={() => void confirmarEmpresaContexto()}
+              >
+                Confirmar
+              </Button>
             </div>
-          </div>
+          </ChatBottomSheet>
         )}
 
       {chat && (

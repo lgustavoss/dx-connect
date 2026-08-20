@@ -1,16 +1,46 @@
 import { mensagemErroApi } from './errorMessage'
+import { isCapacitorNative } from '../lib/capacitorNative'
+import { clientApiOrigin, readRememberedAccount } from '../lib/marketingHost'
 import { isMultiTenantMode, resolveTenantIdFromHostname } from '../lib/tenant'
 
-function apiBaseUrl(): string {
-  if (import.meta.env.DEV) return '/api'
+function bakedApiUrl(): string | undefined {
   const url = import.meta.env.VITE_API_URL as string | undefined
-  if (!url?.trim()) {
+  return url?.trim() || undefined
+}
+
+function apiBaseUrl(): string {
+  if (isCapacitorNative()) {
+    // APK debug com VITE_API_URL (emulador/LAN) fala com essa API; o slug só escolhe a instância no APK de loja.
+    const baked = bakedApiUrl()
+    if (baked) return baked.replace(/\/+$/, '')
+    const slug = readRememberedAccount()
+    if (slug) {
+      try {
+        return clientApiOrigin(slug)
+      } catch {
+        /* slug inválido no storage */
+      }
+    }
+    // Vazio de propósito: api()/SSE recusam pedidos — evita fetch relativo a https://localhost.
+    return ''
+  }
+  if (import.meta.env.DEV) return '/api'
+  const url = bakedApiUrl()
+  if (!url) {
     throw new Error('VITE_API_URL não definido — o build de produção deveria ter falhado no vite.config.')
   }
   return url.replace(/\/+$/, '')
 }
 
-const BASE = apiBaseUrl()
+/** Capacitor: há alvo de API (slug gravado ou VITE_API_URL de debug). */
+export function hasNativeApiTarget(): boolean {
+  if (!isCapacitorNative()) return true
+  return Boolean(apiBaseUrl())
+}
+
+function apiOrigin(): string {
+  return apiBaseUrl()
+}
 
 /** Prefixo de versão da API (ex.: dev: `/api` + `/v1` + `/auth/login` → `/v1/auth/login` no backend). */
 export const API_VERSION_PREFIX = '/v1'
@@ -103,6 +133,9 @@ export async function api<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
+  if (!apiOrigin()) {
+    throw new ApiError('Informe a conta da empresa para ligar ao painel.', 0, null)
+  }
   const token = getToken();
   const isFormData =
     typeof FormData !== 'undefined' && options.body != null && options.body instanceof FormData
@@ -116,7 +149,16 @@ export async function api<T>(
   if (isMultiTenantMode()) {
     ;(headers as Record<string, string>)['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
   }
-  const res = await fetch(`${BASE}${API_VERSION_PREFIX}${path}`, { ...options, headers });
+  let res: Response
+  try {
+    res = await fetch(`${apiOrigin()}${API_VERSION_PREFIX}${path}`, { ...options, headers });
+  } catch {
+    throw new ApiError(
+      'Não foi possível contactar o painel desta conta. Verifique o identificador ou a ligação à internet.',
+      0,
+      null,
+    )
+  }
 
   // Tratamento especial para login: não redirecionar nem recarregar a página,
   // apenas devolver a mensagem para o formulário exibir via toast.
@@ -156,6 +198,9 @@ export async function api<T>(
 
 /** Chamadas públicas (sem token nem redirect em 401). */
 async function publicApi<T>(path: string, options: RequestInit = {}): Promise<T> {
+  if (!apiOrigin()) {
+    throw new ApiError('Informe a conta da empresa para ligar ao painel.', 0, null)
+  }
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...(options.headers as object),
@@ -163,7 +208,7 @@ async function publicApi<T>(path: string, options: RequestInit = {}): Promise<T>
   if (isMultiTenantMode()) {
     ;(headers as Record<string, string>)['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
   }
-  const res = await fetch(`${BASE}${API_VERSION_PREFIX}${path}`, { ...options, headers })
+  const res = await fetch(`${apiOrigin()}${API_VERSION_PREFIX}${path}`, { ...options, headers })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new ApiError(mensagemErroApi(err, res.status), res.status, err)
@@ -174,7 +219,7 @@ async function publicApi<T>(path: string, options: RequestInit = {}): Promise<T>
 
 export const kbPublic = {
   branding: () => publicApi<Kb.PublicBranding>('/kb/public/branding'),
-  logoAssetUrl: () => `${BASE}${API_VERSION_PREFIX}/kb/public/logo`,
+  logoAssetUrl: () => `${apiOrigin()}${API_VERSION_PREFIX}/kb/public/logo`,
   listCategories: () => publicApi<Kb.Category[]>('/kb/public/categories'),
   listArticles: (params?: { busca?: string; category_id?: number; limit?: number }) =>
     publicApi<Kb.ArticleBrief[]>(withParams('/kb/public/articles', params)),
@@ -225,7 +270,7 @@ export const kbPublic = {
     });
   },
   midiaChatUrl: (mensagemId: number) =>
-    `${BASE}${API_VERSION_PREFIX}/kb/public/chat/mensagens/${mensagemId}/midia`,
+    `${apiOrigin()}${API_VERSION_PREFIX}/kb/public/chat/mensagens/${mensagemId}/midia`,
 }
 
 export const publicCsat = {
@@ -635,7 +680,7 @@ export const audit = {
       headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
     }
     if (token) headers.Authorization = `Bearer ${token}`;
-    const url = `${BASE}${API_VERSION_PREFIX}${withParams('/audit', { ...params, format: 'csv' })}`;
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}${withParams('/audit', { ...params, format: 'csv' })}`;
     const res = await fetch(url, { headers });
     if (res.status === 401) {
       invalidateSessionAndRedirectToLogin();
@@ -653,6 +698,80 @@ export const presenca = {
   online: () => api<Presenca.ListaOnline>('/presenca/online'),
   forcarSaida: (atendenteId: number) =>
     api<void>(`/presenca/online/${atendenteId}/forcar-saida`, { method: 'POST' }),
+};
+
+export const ponto = {
+  bater: (data: Ponto.Bater) =>
+    api<Ponto.Batida>('/ponto/bater', { method: 'POST', body: JSON.stringify(data) }),
+  me: () => api<Ponto.EstadoMe>('/ponto/me'),
+  minhasBatidas: (params?: { desde?: string; ate?: string; offset?: number; limit?: number }) =>
+    api<Ponto.Historico>(withParams('/ponto/me/batidas', params)),
+  meuCalendario: (ano: number, mes: number) =>
+    api<Ponto.Calendario>(withParams('/ponto/me/calendario', { ano, mes })),
+  meuBancoHoras: (desde: string, ate: string) =>
+    api<Ponto.BancoHoras>(withParams('/ponto/me/banco-horas', { desde, ate })),
+  bancoHorasAdmin: (atendenteId: number, desde: string, ate: string) =>
+    api<Ponto.BancoHoras>(
+      withParams('/ponto/banco-horas', { atendente_id: atendenteId, desde, ate }),
+    ),
+  batidasAdmin: (params?: {
+    atendente_id?: number;
+    desde?: string;
+    ate?: string;
+    offset?: number;
+    limit?: number;
+  }) => listPaginated<Ponto.BatidaAdmin>('/ponto/batidas', params),
+  calendarioAdmin: (atendenteId: number, ano: number, mes: number) =>
+    api<Ponto.Calendario>(withParams('/ponto/calendario', { atendente_id: atendenteId, ano, mes })),
+  hoje: () => api<Ponto.HojeLista>('/ponto/hoje'),
+  digest: () => api<Ponto.Digest>('/ponto/digest'),
+  alertas: () => api<Ponto.AlertasMe>('/ponto/me/alertas'),
+  settings: () => api<Ponto.Settings>('/ponto/settings'),
+  updateSettings: (data: Ponto.SettingsUpdate) =>
+    api<Ponto.Settings>('/ponto/settings', { method: 'PATCH', body: JSON.stringify(data) }),
+  feriados: (ano?: number) => api<Ponto.Feriado[]>(withParams('/ponto/feriados', { ano })),
+  criarFeriado: (data: Ponto.FeriadoCreate) =>
+    api<Ponto.Feriado>('/ponto/feriados', { method: 'POST', body: JSON.stringify(data) }),
+  removerFeriado: (id: number) =>
+    api<void>(`/ponto/feriados/${id}`, { method: 'DELETE' }),
+  criarAjuste: (data: Ponto.AjusteCreate) =>
+    api<Ponto.Batida>('/ponto/batidas', { method: 'POST', body: JSON.stringify(data) }),
+  atualizarAjuste: (id: number, data: Ponto.AjusteUpdate) =>
+    api<Ponto.Batida>(`/ponto/batidas/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  anular: (id: number, motivo: string) =>
+    api<Ponto.Batida>(`/ponto/batidas/${id}/anular`, {
+      method: 'POST',
+      body: JSON.stringify({ motivo }),
+    }),
+  criarJustificativa: (data: Ponto.JustificativaCreate) =>
+    api<Ponto.Justificativa>('/ponto/justificativas', { method: 'POST', body: JSON.stringify(data) }),
+  minhasJustificativas: () => api<Ponto.Justificativa[]>('/ponto/justificativas/me'),
+  justificativasAdmin: (estado?: string) =>
+    api<Ponto.Justificativa[]>(withParams('/ponto/justificativas', { estado })),
+  decidirJustificativa: (id: number, data: Ponto.JustificativaDecisao) =>
+    api<Ponto.Justificativa>(`/ponto/justificativas/${id}/decidir`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  exportCsv: async (params?: { atendente_id?: number; desde?: string; ate?: string }) => {
+    const token = getAuthToken()
+    const headers: Record<string, string> = {}
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+    }
+    if (token) headers.Authorization = `Bearer ${token}`
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}${withParams('/ponto/batidas/export.csv', params)}`
+    const res = await fetch(url, { headers })
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin()
+      throw new ApiError('Sessão expirada ou inválida.', 401, {})
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+    }
+    return res.blob()
+  },
 };
 
 export namespace WhatsappSettings {
@@ -868,7 +987,7 @@ export async function fetchEmpresaSistemaLogoBlob(): Promise<Blob | null> {
     headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
   }
   if (token) headers.Authorization = `Bearer ${token}`
-  const res = await fetch(`${BASE}${API_VERSION_PREFIX}/settings/empresa-sistema/logo`, { headers })
+  const res = await fetch(`${apiOrigin()}${API_VERSION_PREFIX}/settings/empresa-sistema/logo`, { headers })
   if (res.status === 404) return null
   if (res.status === 401) {
     invalidateSessionAndRedirectToLogin()
@@ -1022,7 +1141,7 @@ export async function fetchWhatsAppMidiaBlob(chatId: number, mensagemId: number)
   const headers: Record<string, string> = {}
   if (token) headers.Authorization = `Bearer ${token}`
   const res = await fetch(
-    `${BASE}${API_VERSION_PREFIX}/whatsapp/chats/${chatId}/mensagens/${mensagemId}/midia`,
+    `${apiOrigin()}${API_VERSION_PREFIX}/whatsapp/chats/${chatId}/mensagens/${mensagemId}/midia`,
     { headers },
   )
   if (res.status === 401) {
@@ -1041,7 +1160,7 @@ export async function fetchPortalMidiaBlob(chatId: number, mensagemId: number): 
   const headers: Record<string, string> = {}
   if (token) headers.Authorization = `Bearer ${token}`
   const res = await fetch(
-    `${BASE}${API_VERSION_PREFIX}/portal-chats/${chatId}/mensagens/${mensagemId}/midia`,
+    `${apiOrigin()}${API_VERSION_PREFIX}/portal-chats/${chatId}/mensagens/${mensagemId}/midia`,
     { headers },
   )
   if (res.status === 401) {
@@ -1060,7 +1179,7 @@ export async function fetchPortalPublicMidiaBlob(
   mensagemId: number,
 ): Promise<Blob> {
   const res = await fetch(
-    `${BASE}${API_VERSION_PREFIX}/kb/public/chat/mensagens/${mensagemId}/midia`,
+    `${apiOrigin()}${API_VERSION_PREFIX}/kb/public/chat/mensagens/${mensagemId}/midia`,
     { headers: { 'X-Portal-Visitor-Token': visitorToken } },
   )
   if (!res.ok) {
@@ -1075,7 +1194,7 @@ export async function fetchChatInternoMidiaBlob(conversaId: number, mensagemId: 
   const headers: Record<string, string> = {}
   if (token) headers.Authorization = `Bearer ${token}`
   const res = await fetch(
-    `${BASE}${API_VERSION_PREFIX}/chat-interno/conversas/${conversaId}/mensagens/${mensagemId}/download`,
+    `${apiOrigin()}${API_VERSION_PREFIX}/chat-interno/conversas/${conversaId}/mensagens/${mensagemId}/download`,
     { headers },
   )
   if (res.status === 401) {
@@ -1094,7 +1213,7 @@ export async function fetchTicketAnexoBlob(ticketId: number, anexoId: number): P
   const headers: Record<string, string> = {}
   if (token) headers.Authorization = `Bearer ${token}`
   const res = await fetch(
-    `${BASE}${API_VERSION_PREFIX}/tickets/${ticketId}/anexos/${anexoId}/download`,
+    `${apiOrigin()}${API_VERSION_PREFIX}/tickets/${ticketId}/anexos/${anexoId}/download`,
     { headers },
   )
   if (res.status === 401) {
@@ -1488,7 +1607,7 @@ export const relatorios = {
       headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
     }
     if (token) headers.Authorization = `Bearer ${token}`;
-    const url = `${BASE}${API_VERSION_PREFIX}${withParams('/relatorios/tickets', { ...params, format: 'csv' })}`;
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}${withParams('/relatorios/tickets', { ...params, format: 'csv' })}`;
     const res = await fetch(url, { headers });
     if (res.status === 401) {
       invalidateSessionAndRedirectToLogin();
@@ -1520,7 +1639,7 @@ export const relatorios = {
       headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
     }
     if (token) headers.Authorization = `Bearer ${token}`;
-    const url = `${BASE}${API_VERSION_PREFIX}${withParams('/relatorios/chats', { ...params, format: 'csv' })}`;
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}${withParams('/relatorios/chats', { ...params, format: 'csv' })}`;
     const res = await fetch(url, { headers });
     if (res.status === 401) {
       invalidateSessionAndRedirectToLogin();
@@ -2247,6 +2366,13 @@ export namespace Atendentes {
     ativo: boolean;
     setor_ids: number[];
     must_change_password?: boolean;
+    usa_escala?: boolean;
+    escala_horas_trabalho?: number | null;
+    escala_horas_folga?: number | null;
+    escala_inicio_em?: string | null;
+    horario_previsto_entrada?: string | null;
+    horario_previsto_saida?: string | null;
+    tolerancia_atraso_minutos?: number;
   }
   export interface Create {
     email: string;
@@ -2255,6 +2381,13 @@ export namespace Atendentes {
     role?: string;
     ativo?: boolean;
     setor_ids?: number[];
+    usa_escala?: boolean;
+    escala_horas_trabalho?: number | null;
+    escala_horas_folga?: number | null;
+    escala_inicio_em?: string | null;
+    horario_previsto_entrada?: string | null;
+    horario_previsto_saida?: string | null;
+    tolerancia_atraso_minutos?: number;
   }
   export interface Update {
     email?: string;
@@ -2263,6 +2396,13 @@ export namespace Atendentes {
     role?: string;
     ativo?: boolean;
     setor_ids?: number[];
+    usa_escala?: boolean;
+    escala_horas_trabalho?: number | null;
+    escala_horas_folga?: number | null;
+    escala_inicio_em?: string | null;
+    horario_previsto_entrada?: string | null;
+    horario_previsto_saida?: string | null;
+    tolerancia_atraso_minutos?: number;
   }
   export interface AvaliacaoResumo {
     media: number | null;
@@ -2382,7 +2522,7 @@ async function refreshPortalAccessToken(): Promise<{
       if (isMultiTenantMode()) {
         ;(headers as Record<string, string>)['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
       }
-      const res = await fetch(`${BASE}${API_VERSION_PREFIX}/portal/auth/refresh`, {
+      const res = await fetch(`${apiOrigin()}${API_VERSION_PREFIX}/portal/auth/refresh`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ refresh_token }),
@@ -2419,7 +2559,7 @@ async function portalApi<T>(path: string, options: RequestInit = {}): Promise<T>
   if (isMultiTenantMode()) {
     ;(headers as Record<string, string>)['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
   }
-  const res = await fetch(`${BASE}${API_VERSION_PREFIX}${path}`, { ...options, headers })
+  const res = await fetch(`${apiOrigin()}${API_VERSION_PREFIX}${path}`, { ...options, headers })
 
   if (res.status === 401 && path.startsWith('/portal/auth/login')) {
     const err = await res.json().catch(() => ({}))
@@ -2615,7 +2755,7 @@ export namespace PortalCliente {
 
 export const portalCliente = {
   branding: () => publicApi<PortalCliente.PublicBranding>('/portal/public/branding'),
-  logoAssetUrl: () => `${BASE}${API_VERSION_PREFIX}/kb/public/logo`,
+  logoAssetUrl: () => `${apiOrigin()}${API_VERSION_PREFIX}/kb/public/logo`,
   login: (email: string, senha: string) =>
     publicApi<PortalCliente.Token>('/portal/auth/login', {
       method: 'POST',
@@ -2672,7 +2812,7 @@ export const portalCliente = {
     })
   },
   anexoDownloadUrl: (ticketId: number, anexoId: number) =>
-    `${BASE}${API_VERSION_PREFIX}/portal/tickets/${ticketId}/anexos/${anexoId}/download`,
+    `${apiOrigin()}${API_VERSION_PREFIX}/portal/tickets/${ticketId}/anexos/${anexoId}/download`,
   fetchAnexoBlob: async (ticketId: number, anexoId: number) => {
     const token = getPortalToken()
     const headers: HeadersInit = {}
@@ -2681,7 +2821,7 @@ export const portalCliente = {
       headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
     }
     const res = await fetch(
-      `${BASE}${API_VERSION_PREFIX}/portal/tickets/${ticketId}/anexos/${anexoId}/download`,
+      `${apiOrigin()}${API_VERSION_PREFIX}/portal/tickets/${ticketId}/anexos/${anexoId}/download`,
       { headers },
     )
     if (!res.ok) throw new ApiError('Falha ao baixar anexo', res.status, null)
@@ -2713,7 +2853,7 @@ export const portalCliente = {
       headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
     }
     const res = await fetch(
-      `${BASE}${API_VERSION_PREFIX}/portal/chats/${chatId}/mensagens/${mensagemId}/midia`,
+      `${apiOrigin()}${API_VERSION_PREFIX}/portal/chats/${chatId}/mensagens/${mensagemId}/midia`,
       { headers },
     )
     if (!res.ok) throw new ApiError('Falha ao abrir mídia', res.status, null)
@@ -3070,7 +3210,7 @@ export const comercialPropostas = {
       headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
     }
     if (token) headers.Authorization = `Bearer ${token}`;
-    const url = `${BASE}${API_VERSION_PREFIX}/comercial/propostas/${id}/pdf`;
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}/comercial/propostas/${id}/pdf`;
     const res = await fetch(url, { headers });
     if (res.status === 401) {
       invalidateSessionAndRedirectToLogin();
@@ -3082,6 +3222,235 @@ export const comercialPropostas = {
     }
     return res.blob();
   },
+};
+
+export namespace ComercialContrato {
+  export interface Template {
+    id: number;
+    nome: string;
+    versao: number;
+    conteudo_html: string;
+    vigencia_inicio?: string | null;
+    ativo: boolean;
+    created_at: string;
+  }
+  export interface TemplateCreate {
+    nome: string;
+    conteudo_html: string;
+    vigencia_inicio?: string | null;
+    ativo?: boolean;
+  }
+  export interface TemplateUpdate {
+    nome?: string;
+    conteudo_html?: string;
+    vigencia_inicio?: string | null;
+    ativo?: boolean;
+  }
+  export interface ChaveCatalogo {
+    grupo: string;
+    chave: string;
+    descricao: string;
+  }
+  export interface Interno {
+    total_custo?: string | number | null;
+    margem_calculada?: string | number | null;
+    margem_percentual?: string | number | null;
+    lucro_bruto?: string | number | null;
+  }
+  export interface Pdf {
+    id: number;
+    contrato_id: number;
+    gerado_por_id: number;
+    conteudo_hash: string;
+    created_at: string;
+  }
+  export interface MultaRescisao {
+    aplicavel: boolean;
+    dentro_fidelidade: boolean;
+    meses_restantes: number;
+    multa_max_mensalidades: number;
+    mensalidades_estimadas: number;
+    valor_mensalidade: string | number;
+    valor_estimado?: string | number | null;
+    aviso: string;
+  }
+  export interface Contrato {
+    id: number;
+    negociacao_linha_cnpj_id: number;
+    negociacao_id?: number | null;
+    empresa_id?: number | null;
+    rede_id?: number | null;
+    template_id: number;
+    template_nome?: string | null;
+    template_versao?: number | null;
+    gerado_por_id: number;
+    status: 'rascunho' | 'enviado' | 'assinado' | 'cancelado' | 'renovado' | string;
+    valor_mensalidade: string | number;
+    snapshot_itens: unknown[];
+    data_inicio: string;
+    data_fim_fidelidade: string;
+    fidelidade_meses: number;
+    setup_valor?: string | number | null;
+    setup_isento: boolean;
+    deslocamento_cliente: boolean;
+    alimentacao_cliente: boolean;
+    hospedagem_cliente: boolean;
+    multa_max_mensalidades: number;
+    reajuste_percentual?: string | number;
+    reajuste_rotulo?: string;
+    pdf_assinado_nome_original?: string | null;
+    tem_pdf_assinado?: boolean;
+    referencia_externa?: string | null;
+    enviado_em?: string | null;
+    assinado_em?: string | null;
+    created_at: string;
+    pdf_atual_id?: number | null;
+    pdfs: Pdf[];
+    cnpj?: string | null;
+    razao_social?: string | null;
+    responsavel_id?: number | null;
+    responsavel_nome?: string | null;
+    lead_nome?: string | null;
+    conteudo_html_snapshot?: string | null;
+    dias_restantes_fidelidade?: number | null;
+    multa_rescisao?: MultaRescisao | null;
+    interno?: Interno | null;
+  }
+  export interface GerarRequest {
+    linha_id: number;
+    template_id?: number | null;
+    data_inicio?: string | null;
+    fidelidade_meses?: number;
+    setup_valor?: string | null;
+    setup_isento?: boolean;
+    deslocamento_cliente?: boolean;
+    alimentacao_cliente?: boolean;
+    hospedagem_cliente?: boolean;
+    multa_max_mensalidades?: number;
+    sem_reajuste?: boolean;
+    reajuste_percentual?: string | number | null;
+    reajuste_rotulo?: string | null;
+  }
+  export interface MarcarEnviadoRequest {
+    enviado_em?: string | null;
+  }
+  export interface MarcarAssinadoRequest {
+    assinado_em?: string | null;
+    avancar_funil?: boolean;
+    referencia_externa?: string | null;
+  }
+  export interface Politica {
+    reajuste_percentual: string | number;
+    reajuste_rotulo: string;
+  }
+}
+
+export const comercialContratoTemplates = {
+  list: (params?: { incluir_inativos?: boolean }) =>
+    api<ComercialContrato.Template[]>(withParams('/comercial/contrato-templates', params)),
+  chaves: () => api<ComercialContrato.ChaveCatalogo[]>('/comercial/contrato-templates/chaves'),
+  create: (data: ComercialContrato.TemplateCreate) =>
+    api<ComercialContrato.Template>('/comercial/contrato-templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: (id: number, data: ComercialContrato.TemplateUpdate) =>
+    api<ComercialContrato.Template>(`/comercial/contrato-templates/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  preview: (conteudo_html: string) =>
+    api<{ html: string }>('/comercial/contrato-templates/preview', {
+      method: 'POST',
+      body: JSON.stringify({ conteudo_html }),
+    }),
+};
+
+export const comercialContratos = {
+  list: (params?: {
+    negociacao_id?: number;
+    status?: string;
+    cnpj?: string;
+    so_minhas?: boolean;
+    responsavel_id?: number;
+  }) =>
+    api<ComercialContrato.Contrato[]>(withParams('/comercial/contratos', params)),
+  get: (id: number) => api<ComercialContrato.Contrato>(`/comercial/contratos/${id}`),
+  gerar: (data: ComercialContrato.GerarRequest) =>
+    api<ComercialContrato.Contrato>('/comercial/contratos', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  marcarEnviado: (id: number, data: ComercialContrato.MarcarEnviadoRequest = {}) =>
+    api<ComercialContrato.Contrato>(`/comercial/contratos/${id}/marcar-enviado`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  marcarAssinado: (id: number, data: ComercialContrato.MarcarAssinadoRequest = {}) =>
+    api<ComercialContrato.Contrato>(`/comercial/contratos/${id}/marcar-assinado`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  cancelar: (id: number) =>
+    api<ComercialContrato.Contrato>(`/comercial/contratos/${id}/cancelar`, { method: 'POST' }),
+  anexarPdfAssinado: (id: number, file: File, referenciaExterna?: string) => {
+    const fd = new FormData()
+    fd.append('arquivo', file)
+    if (referenciaExterna?.trim()) fd.append('referencia_externa', referenciaExterna.trim())
+    return api<ComercialContrato.Contrato>(`/comercial/contratos/${id}/pdf-assinado`, {
+      method: 'POST',
+      body: fd,
+    })
+  },
+  downloadPdf: async (id: number, pdfId?: number) => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
+    }
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}/comercial/contratos/${id}/pdf${
+      pdfId != null ? `?pdf_id=${pdfId}` : ''
+    }`;
+    const res = await fetch(url, { headers });
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin();
+      throw new ApiError('Sessão expirada ou inválida.', 401, {});
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody);
+    }
+    return res.blob();
+  },
+  downloadPdfAssinado: async (id: number) => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
+    }
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}/comercial/contratos/${id}/pdf-assinado`;
+    const res = await fetch(url, { headers });
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin();
+      throw new ApiError('Sessão expirada ou inválida.', 401, {});
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody);
+    }
+    return res.blob();
+  },
+};
+
+export const comercialContratoPolitica = {
+  get: () => api<ComercialContrato.Politica>('/comercial/contrato-politica'),
+  update: (data: Partial<ComercialContrato.Politica>) =>
+    api<ComercialContrato.Politica>('/comercial/contrato-politica', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
 };
 
 export const crmFunil = {
@@ -3222,11 +3591,43 @@ export namespace Crm {
     ativo?: boolean;
   }
 
+  export interface DadosFiscais {
+    nome?: string | null;
+    nome_fantasia?: string | null;
+    inscricao_estadual?: string | null;
+    endereco?: string | null;
+    numero?: string | null;
+    complemento?: string | null;
+    bairro?: string | null;
+    cidade?: string | null;
+    estado?: string | null;
+    cep?: string | null;
+    email?: string | null;
+    telefone?: string | null;
+    resp_legal_nome?: string | null;
+    resp_legal_cpf?: string | null;
+    resp_legal_rg?: string | null;
+    resp_legal_orgao_emissor?: string | null;
+    resp_legal_nacionalidade?: string | null;
+    resp_legal_estado_civil?: string | null;
+    resp_legal_cargo?: string | null;
+    resp_legal_email?: string | null;
+    resp_legal_telefone?: string | null;
+    resp_legal_endereco?: string | null;
+    resp_legal_numero?: string | null;
+    resp_legal_complemento?: string | null;
+    resp_legal_bairro?: string | null;
+    resp_legal_cidade?: string | null;
+    resp_legal_estado?: string | null;
+    resp_legal_cep?: string | null;
+  }
+
   export interface Linha {
     id: number;
     negociacao_id: number;
     cnpj?: string | null;
     razao_social?: string | null;
+    dados_fiscais?: DadosFiscais | null;
     item_ids: number[];
     quantidade_pdvs: number;
     desconto_posto_100k: boolean;
@@ -3244,6 +3645,7 @@ export namespace Crm {
   export interface LinhaCreate {
     cnpj?: string | null;
     razao_social?: string | null;
+    dados_fiscais?: DadosFiscais | null;
     item_ids?: number[];
     quantidade_pdvs?: number;
     desconto_posto_100k?: boolean;
@@ -3255,6 +3657,7 @@ export namespace Crm {
   export interface LinhaUpdate {
     cnpj?: string | null;
     razao_social?: string | null;
+    dados_fiscais?: DadosFiscais | null;
     item_ids?: number[];
     quantidade_pdvs?: number;
     desconto_posto_100k?: boolean;
@@ -3273,6 +3676,7 @@ export namespace Crm {
     estagio_nome?: string | null;
     ativa: boolean;
     titulo?: string | null;
+    nome_base_webposto?: string | null;
     linhas: Linha[];
     created_at?: string | null;
     updated_at?: string | null;
@@ -3287,6 +3691,7 @@ export namespace Crm {
 
   export interface NegociacaoUpdate {
     titulo?: string | null;
+    nome_base_webposto?: string | null;
     responsavel_id?: number | null;
   }
 
@@ -4077,6 +4482,180 @@ export namespace Presenca {
   }
   export interface ListaOnline {
     itens: ItemOnline[];
+  }
+}
+
+export namespace Ponto {
+  export type Tipo = 'entrada' | 'saida' | 'pausa_inicio' | 'pausa_fim'
+  export type Origem = 'web' | 'mobile' | 'admin' | 'sistema'
+  export type StatusDia =
+    | 'ok'
+    | 'falta'
+    | 'parcial'
+    | 'folga'
+    | 'folga_com_ponto'
+    | 'livre'
+    | 'atraso'
+    | 'feriado'
+  export interface Bater {
+    tipo: Tipo
+    origem?: Origem
+  }
+  export interface Batida {
+    id: number
+    atendente_id: number
+    tipo: Tipo | string
+    registrado_em: string
+    origem: string | null
+    anulada?: boolean
+  }
+  export interface BatidaAdmin {
+    id: number
+    atendente_id: number
+    atendente_nome: string
+    tipo: string
+    registrado_em: string
+    origem: string | null
+    anulada?: boolean
+  }
+  export interface Intervalo {
+    data: string
+    entrada_em: string
+    saida_em: string | null
+    duracao_segundos: number | null
+    segundos_pausa?: number
+    aberto: boolean
+  }
+  export interface EstadoMe {
+    em_jornada: boolean
+    em_pausa?: boolean
+    entrada_aberta_em: string | null
+    ultima_batida: Batida | null
+    usa_escala: boolean
+    hoje_esperado: boolean | null
+    escala_rotulo: string | null
+  }
+  export interface Historico {
+    intervalos: Intervalo[]
+    total_segundos_fechados: number
+    total_segundos_pausa?: number
+    total: number
+  }
+  export interface DiaCalendario {
+    data: string
+    esperado: boolean
+    tem_entrada: boolean
+    tem_saida: boolean
+    status: StatusDia
+    atrasado?: boolean
+    feriado?: boolean
+  }
+  export interface Calendario {
+    atendente_id: number
+    ano: number
+    mes: number
+    usa_escala: boolean
+    escala_rotulo: string | null
+    dias: DiaCalendario[]
+  }
+  export interface HojeItem {
+    atendente_id: number
+    nome: string
+    esperado: boolean
+    em_jornada: boolean
+    em_pausa?: boolean
+    entrada_em: string | null
+    status: StatusDia
+    online?: boolean
+    online_sem_ponto?: boolean
+    atrasado?: boolean
+    feriado?: boolean
+  }
+  export interface HojeLista {
+    data: string
+    itens: HojeItem[]
+  }
+  export interface BancoHoras {
+    atendente_id: number
+    atendente_nome?: string | null
+    desde: string
+    ate: string
+    segundos_esperados: number
+    segundos_realizados: number
+    saldo_segundos: number
+    dias_escala: number
+    dias_feriado?: number
+  }
+  export interface Digest {
+    data: string
+    faltas: number
+    atrasos: number
+    jornadas_abertas: number
+    online_sem_ponto: number
+    justificativas_pendentes: number
+    itens: HojeItem[]
+  }
+  export interface Settings {
+    usar_feriados_nacionais: boolean
+    fecho_automatico_ativo: boolean
+    fecho_apos_horas: number
+  }
+  export interface SettingsUpdate {
+    usar_feriados_nacionais?: boolean
+    fecho_automatico_ativo?: boolean
+    fecho_apos_horas?: number
+  }
+  export interface Feriado {
+    id: number
+    data: string
+    nome: string
+    ativo: boolean
+  }
+  export interface FeriadoCreate {
+    data: string
+    nome: string
+    ativo?: boolean
+  }
+  export interface AlertasMe {
+    sem_entrada_em_dia_escala: boolean
+    online_sem_ponto: boolean
+    jornada_aberta_longa: boolean
+    horas_jornada_aberta: number | null
+    mensagens: string[]
+  }
+  export interface AjusteCreate {
+    atendente_id: number
+    tipo: Tipo
+    registrado_em: string
+    motivo: string
+  }
+  export interface AjusteUpdate {
+    tipo?: Tipo
+    registrado_em?: string
+    motivo: string
+  }
+  export interface JustificativaCreate {
+    data_ref: string
+    tipo: 'falta' | 'esquecimento' | 'folga_com_ponto' | 'outro'
+    motivo: string
+  }
+  export interface Justificativa {
+    id: number
+    atendente_id: number
+    atendente_nome?: string | null
+    data_ref: string
+    tipo: string
+    motivo: string
+    estado: string
+    decisao_motivo?: string | null
+    decidido_por_id?: number | null
+    decidido_em?: string | null
+    created_at?: string | null
+  }
+  export interface JustificativaDecisao {
+    estado: 'aprovada' | 'rejeitada'
+    decisao_motivo: string
+    aplicar_batidas?: { tipo: Tipo; registrado_em: string; motivo: string }[]
   }
 }
 

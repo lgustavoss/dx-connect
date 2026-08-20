@@ -64,14 +64,14 @@ export function AssumirWhatsappSetorModal({
 
   return (
     <div
-      className="fixed inset-0 z-[180] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[180] flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm md:items-center md:p-4"
       role="dialog"
       aria-modal
       aria-labelledby="assumir-setor-titulo"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-slate-900"
+        className="w-full max-w-md rounded-t-2xl bg-white p-5 shadow-xl md:rounded-2xl dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="assumir-setor-titulo" className="text-lg font-bold text-slate-900 dark:text-white">

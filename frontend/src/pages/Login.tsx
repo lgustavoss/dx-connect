@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
+import { clearAuthToken } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import {
   BrandLogo,
@@ -13,6 +14,7 @@ import {
 import { landingMailtoHref } from '../content/landing'
 import {
   buildSessionHandoffUrl,
+  clearRememberedAccount,
   isMarketingHost,
   loginAgainstClientInstance,
   marketingHomeHref,
@@ -20,6 +22,7 @@ import {
   readRememberedAccount,
   writeRememberedAccount,
 } from '../lib/marketingHost'
+import { isCapacitorNative } from '../lib/capacitorNative'
 import { isSaasControlPlaneFrontend, SAAS_LICENCAS_PATH } from '../lib/saasControlPlane'
 
 const fieldClass =
@@ -286,6 +289,179 @@ function LoginConta() {
   )
 }
 
+/** App Capacitor: conta (slug) persiste no aparelho e os pedidos vão para `api-{slug}` (#736). */
+function LoginCapacitor() {
+  const remembered = readRememberedAccount()
+  const [conta, setConta] = useState(remembered)
+  const [trocarEmpresa, setTrocarEmpresa] = useState(!remembered)
+  const [email, setEmail] = useState(readRememberedEmail)
+  const [senha, setSenha] = useState('')
+  const [lembrarMe, setLembrarMe] = useState(() => !!readRememberedEmail())
+  const [mostrarSenha, setMostrarSenha] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const { login } = useAuth()
+  const { showError, showSuccess } = useToast()
+  const navigate = useNavigate()
+
+  function pedirOutraEmpresa() {
+    clearRememberedAccount()
+    clearAuthToken()
+    setConta('')
+    setTrocarEmpresa(true)
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const slug = normalizeClientSlug(conta)
+    if (!slug) {
+      showError('Informe a conta da empresa (ex.: duplexsoft), só letras minúsculas, números e hífen.')
+      return
+    }
+    if (!email.trim() || !senha.trim()) {
+      showError('Informe e-mail e senha.')
+      return
+    }
+    if (!email.includes('@')) {
+      showError('Informe um e-mail válido.')
+      return
+    }
+
+    setLoading(true)
+    const slugAnterior = readRememberedAccount()
+    // Precisa do slug no storage para apiBaseUrl() apontar à instância; só fica se o login OK.
+    writeRememberedAccount(slug)
+    try {
+      await login(email.trim(), senha, lembrarMe)
+      try {
+        if (lembrarMe) {
+          localStorage.setItem(LOGIN_EMAIL_STORAGE_KEY, email.trim())
+        } else {
+          localStorage.removeItem(LOGIN_EMAIL_STORAGE_KEY)
+          localStorage.removeItem(LOGIN_EMAIL_STORAGE_KEY_LEGACY)
+        }
+      } catch {
+        /* storage indisponível */
+      }
+      showSuccess('Login realizado com sucesso.')
+      navigate('/chat/atendendo', { replace: true })
+    } catch (err) {
+      if (slugAnterior) writeRememberedAccount(slugAnterior)
+      else clearRememberedAccount()
+      showError(mensagemFalhaParaToast(err, 'Falha no login. Verifique conta, e-mail e senha.'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const mostrarCampoConta = trocarEmpresa || !remembered
+
+  return (
+    <LoginShell
+      footer={
+        <p className="text-center text-xs leading-relaxed text-slate-500">
+          Use o usuário cadastrado pelo administrador desta empresa.
+        </p>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+        {mostrarCampoConta ? (
+          <div>
+            <label htmlFor="login-conta-nativo" className="mb-1.5 block text-sm font-medium text-slate-300">
+              Conta da empresa
+            </label>
+            <input
+              id="login-conta-nativo"
+              type="text"
+              value={conta}
+              onChange={(e) => setConta(e.target.value.toLowerCase())}
+              autoComplete="organization"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder="ex.: duplexsoft"
+              className={fieldClass}
+            />
+            <p className="mt-2 text-xs leading-relaxed text-slate-500">
+              O mesmo identificador do endereço do painel (ex.: duplexsoft.deskrudder.com.br).
+            </p>
+          </div>
+        ) : (
+          <div className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-3">
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Empresa</p>
+              <p className="truncate font-medium text-slate-100">{remembered}</p>
+            </div>
+            <button
+              type="button"
+              onClick={pedirOutraEmpresa}
+              className="shrink-0 text-sm font-medium text-cyan-300 hover:text-cyan-200"
+            >
+              Trocar
+            </button>
+          </div>
+        )}
+
+        <div>
+          <label htmlFor="login-email-nativo" className="mb-1.5 block text-sm font-medium text-slate-300">
+            E-mail
+          </label>
+          <input
+            id="login-email-nativo"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            placeholder="nome@empresa.com"
+            className={fieldClass}
+          />
+        </div>
+
+        <div>
+          <label htmlFor="login-senha-nativo" className="mb-1.5 block text-sm font-medium text-slate-300">
+            Senha
+          </label>
+          <div className="relative">
+            <input
+              id="login-senha-nativo"
+              type={mostrarSenha ? 'text' : 'password'}
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              autoComplete="current-password"
+              placeholder="••••••••"
+              className={`${fieldClass} pr-12`}
+            />
+            <PasswordToggle mostrarSenha={mostrarSenha} onToggle={() => setMostrarSenha((v) => !v)} />
+          </div>
+        </div>
+
+        <div className="text-right">
+          <Link to="/esqueci-senha" className="text-sm text-cyan-400/90 transition-colors hover:text-cyan-300">
+            Esqueci minha senha
+          </Link>
+        </div>
+
+        <label className="flex cursor-pointer items-start gap-3 text-sm text-slate-400">
+          <input
+            type="checkbox"
+            checked={lembrarMe}
+            onChange={(e) => setLembrarMe(e.target.checked)}
+            className="mt-0.5 size-4 shrink-0 rounded border-white/20 bg-white/[0.06] text-cyan-500 accent-cyan-500 focus:ring-2 focus:ring-cyan-400/30"
+          />
+          <span>Lembrar-me neste dispositivo</span>
+        </label>
+
+        <Button
+          type="submit"
+          className="w-full rounded-xl py-3 text-base font-semibold shadow-lg shadow-cyan-500/25 focus-visible:ring-offset-[#050810] disabled:opacity-60"
+          loading={loading}
+        >
+          Entrar
+        </Button>
+      </form>
+    </LoginShell>
+  )
+}
+
 /** Credenciais locais: subdomínio do cliente, ou painel admin SaaS na apex (`/login/admin`). */
 function LoginCredenciais({ variant = 'tenant' }: { variant?: 'tenant' | 'ops' }) {
   const isOps = variant === 'ops'
@@ -458,6 +634,9 @@ function LoginCredenciais({ variant = 'tenant' }: { variant?: 'tenant' | 'ops' }
 export function Login() {
   const [searchParams] = useSearchParams()
   const { pathname } = useLocation()
+  if (isCapacitorNative()) {
+    return <LoginCapacitor />
+  }
   // Apex: conta da empresa. Admin SaaS: `/login/admin`, `?ops=1` ou `?next=/saas…`.
   if (wantsOpsLogin(searchParams, pathname)) {
     return <LoginCredenciais variant="ops" />

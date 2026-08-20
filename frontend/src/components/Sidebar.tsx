@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { system } from '../api/client'
 import { BrandLogo } from '../brand'
 import { useTheme } from '../contexts/ThemeContext'
+import { isCapacitorNative } from '../lib/capacitorNative'
 
 const icons: Record<string, React.ReactNode> = {
   dashboard: (
@@ -48,6 +49,16 @@ const icons: Record<string, React.ReactNode> = {
         strokeLinejoin="round"
         strokeWidth={2}
         d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+      />
+    </svg>
+  ),
+  ponto: (
+    <svg className="size-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
       />
     </svg>
   ),
@@ -220,6 +231,8 @@ interface NavLink {
   activePrefix?: string
   /** Só na instância comercial (control-plane SaaS). */
   saasOnly?: boolean
+  /** Oculto no app Capacitor (foco em tickets e chat). */
+  hideOnNative?: boolean
 }
 
 interface NavGroup {
@@ -230,6 +243,7 @@ interface NavGroup {
   adminOnly?: boolean
   comercialOuAdmin?: boolean
   saasOnly?: boolean
+  hideOnNative?: boolean
   /** Ex.: conversa aberta `/whatsapp/c/:id` mantém o grupo Chat ativo */
   extraActivePrefixes?: string[]
   children: NavLink[]
@@ -245,18 +259,34 @@ interface NavItemLink {
   adminOnly?: boolean
   comercialOuAdmin?: boolean
   saasOnly?: boolean
+  hideOnNative?: boolean
 }
 
 type NavItem = NavItemLink | NavGroup
 
 const navStructure: NavItem[] = [
-  { type: 'link', to: '/', label: 'Dashboard', icon: 'dashboard' },
+  { type: 'link', to: '/', label: 'Dashboard', icon: 'dashboard', hideOnNative: true },
+  {
+    type: 'link',
+    to: '/ponto',
+    label: 'Meu ponto',
+    icon: 'ponto',
+  },
   {
     type: 'link',
     to: '/equipe/online',
     label: 'Equipe online',
     icon: 'equipeOnline',
     adminOnly: true,
+    hideOnNative: true,
+  },
+  {
+    type: 'link',
+    to: '/equipe/ponto',
+    label: 'Ponto da equipe',
+    icon: 'equipeOnline',
+    adminOnly: true,
+    hideOnNative: true,
   },
   { type: 'link', to: '/tickets', label: 'Tickets', icon: 'tickets' },
   {
@@ -265,6 +295,7 @@ const navStructure: NavItem[] = [
     label: 'Comercial',
     icon: 'tiposNegocio',
     comercialOuAdmin: true,
+    hideOnNative: true,
     extraActivePrefixes: ['/crm/'],
     children: [
       {
@@ -272,7 +303,14 @@ const navStructure: NavItem[] = [
         label: 'CRM',
         icon: 'tiposNegocio',
         comercialOuAdmin: true,
-        activePrefix: '/crm/',
+        activePrefix: '/crm/leads',
+      },
+      {
+        to: '/crm/contratos',
+        label: 'Contratos',
+        icon: 'tiposNegocio',
+        comercialOuAdmin: true,
+        activePrefix: '/crm/contratos',
       },
     ],
   },
@@ -284,6 +322,7 @@ const navStructure: NavItem[] = [
     label: 'Clientes',
     icon: 'clientes',
     adminOnly: true,
+    hideOnNative: true,
     children: [
       { to: '/redes', label: 'Redes', icon: 'redes' },
       { to: '/empresas', label: 'Empresas', icon: 'empresas' },
@@ -295,6 +334,7 @@ const navStructure: NavItem[] = [
     id: 'ajuda',
     label: 'Ajuda',
     icon: 'ajuda',
+    hideOnNative: true,
     extraActivePrefixes: ['/ajuda/artigos/', '/ajuda/categorias'],
     children: [
       { to: '/ajuda/consultar', label: 'Consultar', icon: 'ajudaConsultar' },
@@ -308,6 +348,7 @@ const navStructure: NavItem[] = [
     label: 'Configurações',
     icon: 'configuracoes',
     adminOnly: true,
+    hideOnNative: true,
     extraActivePrefixes: [
       '/configuracoes/',
       '/setores',
@@ -335,11 +376,13 @@ function navGroupMatchesPath(pathname: string, group: NavGroup): boolean {
 }
 
 function navItemVisivel(
-  item: { adminOnly?: boolean; comercialOuAdmin?: boolean; saasOnly?: boolean },
+  item: { adminOnly?: boolean; comercialOuAdmin?: boolean; saasOnly?: boolean; hideOnNative?: boolean },
   isAdmin: boolean,
   isComercialOuAdmin: boolean,
   saasEnabled: boolean,
+  nativeApp: boolean,
 ): boolean {
+  if (nativeApp && item.hideOnNative) return false
   if (item.adminOnly && !isAdmin) return false
   if (item.comercialOuAdmin && !isComercialOuAdmin) return false
   if (item.saasOnly && !saasEnabled) return false
@@ -351,8 +394,9 @@ function navChildrenVisible(
   isAdmin: boolean,
   isComercialOuAdmin: boolean,
   saasEnabled: boolean,
+  nativeApp: boolean,
 ): NavLink[] {
-  return children.filter((child) => navItemVisivel(child, isAdmin, isComercialOuAdmin, saasEnabled))
+  return children.filter((child) => navItemVisivel(child, isAdmin, isComercialOuAdmin, saasEnabled, nativeApp))
 }
 
 interface SidebarProps {
@@ -379,6 +423,7 @@ export function Sidebar({
   const location = useLocation()
   const { resolved } = useTheme()
   const logoOnDark = resolved === 'dark'
+  const nativeApp = isCapacitorNative()
   const [openGroup, setOpenGroup] = useState<string | null>(null)
   const [openFlyout, setOpenFlyout] = useState<string | null>(null)
   const [flyoutTop, setFlyoutTop] = useState<number | null>(null)
@@ -425,14 +470,14 @@ export function Sidebar({
   )
 
   const items = navStructure.filter((item) =>
-    navItemVisivel(item, isAdmin, isComercialOuAdmin, saasEnabled),
+    navItemVisivel(item, isAdmin, isComercialOuAdmin, saasEnabled, nativeApp),
   ) as NavItem[]
 
   // Abrir grupo automaticamente quando a rota pertence a ele
   useEffect(() => {
     for (const item of navStructure) {
       if (item.type === 'group') {
-        if (navItemVisivel(item, isAdmin, isComercialOuAdmin, saasEnabled)) {
+        if (navItemVisivel(item, isAdmin, isComercialOuAdmin, saasEnabled, nativeApp)) {
           if (navGroupMatchesPath(location.pathname, item)) {
             setOpenGroup(item.id)
             return
@@ -440,7 +485,7 @@ export function Sidebar({
         }
       }
     }
-  }, [location.pathname, isAdmin, isComercialOuAdmin, saasEnabled])
+  }, [location.pathname, isAdmin, isComercialOuAdmin, saasEnabled, nativeApp])
 
   // No drawer mobile usamos acordeão (não flyout); evita estado do flyout “preso”
   useEffect(() => {
@@ -460,6 +505,7 @@ export function Sidebar({
 
   const isLinkActive = (to: string, activePrefix?: string) => {
     if (location.pathname === to) return true
+    if (to === '/crm/leads' && location.pathname.startsWith('/crm/negociacoes')) return true
     if (activePrefix && location.pathname.startsWith(activePrefix)) return true
     if (to !== '/' && location.pathname.startsWith(`${to}/`)) return true
     return false
@@ -501,6 +547,7 @@ export function Sidebar({
                 isAdmin,
                 isComercialOuAdmin,
                 saasEnabled,
+                nativeApp,
               ).map((child) => (
                 <li key={child.to} role="none">
                   <Link
@@ -529,7 +576,7 @@ export function Sidebar({
         className={`flex h-16 min-h-[64px] shrink-0 items-center border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${expanded ? 'px-3' : 'justify-center md:px-2'}`}
       >
         <Link
-          to="/"
+          to={nativeApp ? '/chat/atendendo' : '/'}
           onClick={onMobileClose}
           title="Início"
           className={`flex items-center overflow-visible rounded-lg ${expanded ? 'min-w-0 w-full' : 'md:w-full md:justify-center'}`}
@@ -611,7 +658,7 @@ export function Sidebar({
                       }`}
                       role="group"
                     >
-                      {navChildrenVisible(group.children, isAdmin, isComercialOuAdmin, saasEnabled).map(
+                      {navChildrenVisible(group.children, isAdmin, isComercialOuAdmin, saasEnabled, nativeApp).map(
                         (child) => (
                         <li key={child.to} className="min-w-0 border-l border-slate-200 pl-3 ml-4 dark:border-slate-700">
                           <Link

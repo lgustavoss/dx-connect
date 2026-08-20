@@ -26,11 +26,15 @@ export function Button({
   type = 'button',
   ...props
 }: ButtonProps) {
+  // Se o caller passa `hidden` / `md:inline-flex`, não forçar `inline-flex` na base
+  // (sem twMerge, utilitários de display competem e o botão fica visível — #748).
+  const callerControlsDisplay = /\b(hidden|inline-flex|flex|block|inline-block)\b/.test(className)
+  const displayClass = callerControlsDisplay ? '' : 'inline-flex'
   return (
     <button
       type={type}
       className={`
-        inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium
+        ${displayClass} items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium
         focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed
         ${variants[variant]}
         ${className}
