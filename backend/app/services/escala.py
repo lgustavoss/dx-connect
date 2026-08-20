@@ -95,3 +95,33 @@ def validar_campos_escala(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Informe a data de início da escala.",
         )
+
+
+def validar_horario_previsto(entrada: str | None, saida: str | None) -> None:
+    from app.core.business_calendar import parse_hhmm
+
+    for label, val in (("entrada", entrada), ("saída", saida)):
+        if val is None or not str(val).strip():
+            continue
+        if parse_hhmm(val) is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Horário previsto de {label} inválido (use HH:MM).",
+            )
+
+
+def segundos_esperados_dia(atendente: Atendente) -> int:
+    """Duração esperada de um dia de trabalho (horário previsto ou horas do ciclo)."""
+    from app.core.business_calendar import parse_hhmm
+
+    pe = parse_hhmm(getattr(atendente, "horario_previsto_entrada", None))
+    ps = parse_hhmm(getattr(atendente, "horario_previsto_saida", None))
+    if pe and ps:
+        ini = pe[0] * 3600 + pe[1] * 60
+        fim = ps[0] * 3600 + ps[1] * 60
+        if fim > ini:
+            return fim - ini
+    if atendente.escala_horas_trabalho:
+        return int(atendente.escala_horas_trabalho) * 3600
+    return 0
+

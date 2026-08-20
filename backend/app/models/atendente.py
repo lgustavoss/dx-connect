@@ -37,6 +37,9 @@ class Atendente(Base):
     escala_horas_trabalho = Column(Integer, nullable=True)
     escala_horas_folga = Column(Integer, nullable=True)
     escala_inicio_em = Column(Date, nullable=True)
+    horario_previsto_entrada = Column(String(5), nullable=True)  # HH:MM
+    horario_previsto_saida = Column(String(5), nullable=True)
+    tolerancia_atraso_minutos = Column(Integer, nullable=False, default=0, server_default="0")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

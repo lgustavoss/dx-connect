@@ -362,6 +362,32 @@ async def lifespan(app: FastAPI):
         name="sla-violacao",
     ).start()
 
+    def ponto_fecho_loop() -> None:
+        from app.database import SessionLocal
+        from app.services.ponto_settings import processar_fecho_automatico
+
+        interval = 300
+        while True:
+            db = SessionLocal()
+            try:
+                n = processar_fecho_automatico(db, limit=100)
+                if n:
+                    db.commit()
+                else:
+                    db.rollback()
+            except Exception as e:
+                logger.warning("Worker ponto fecho automático: %s", e)
+                db.rollback()
+            finally:
+                db.close()
+            time.sleep(interval)
+
+    threading.Thread(
+        target=ponto_fecho_loop,
+        daemon=True,
+        name="ponto-fecho-automatico",
+    ).start()
+
     if settings.SAAS_CONTROL_PLANE:
 
         def saas_provision_loop() -> None:

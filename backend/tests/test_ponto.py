@@ -284,3 +284,154 @@ def test_ponto_alertas_me(client, seed_base, auth_headers, db_session):
     body = r.json()
     assert "mensagens" in body
     assert body["online_sem_ponto"] is True
+
+
+def test_ponto_horario_atraso_e_feriado(client, seed_base, auth_headers):
+    a1 = seed_base["a1"]
+    r = client.patch(
+        f"/v1/atendentes/{a1.id}",
+        headers=auth_headers["admin"],
+        json={
+            "usa_escala": True,
+            "escala_horas_trabalho": 12,
+            "escala_horas_folga": 36,
+            "escala_inicio_em": "2026-01-01",
+            "horario_previsto_entrada": "08:00",
+            "horario_previsto_saida": "20:00",
+            "tolerancia_atraso_minutos": 10,
+        },
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["horario_previsto_entrada"] == "08:00"
+    assert r.json()["tolerancia_atraso_minutos"] == 10
+
+    r_ent = client.post(
+        "/v1/ponto/batidas",
+        headers=auth_headers["admin"],
+        json={
+            "atendente_id": a1.id,
+            "tipo": "entrada",
+            "registrado_em": "2026-01-03T12:00:00-03:00",
+            "motivo": "entrada de teste atraso",
+        },
+    )
+    assert r_ent.status_code == 201, r_ent.text
+    r_sai = client.post(
+        "/v1/ponto/batidas",
+        headers=auth_headers["admin"],
+        json={
+            "atendente_id": a1.id,
+            "tipo": "saida",
+            "registrado_em": "2026-01-03T20:00:00-03:00",
+            "motivo": "saída de teste",
+        },
+    )
+    assert r_sai.status_code == 201, r_sai.text
+
+    cal = client.get(
+        "/v1/ponto/me/calendario",
+        headers=auth_headers["a1"],
+        params={"ano": 2026, "mes": 1},
+    )
+    assert cal.status_code == 200
+    dia = next(d for d in cal.json()["dias"] if d["data"] == "2026-01-03")
+    assert dia["atrasado"] is True
+    assert dia["status"] == "atraso"
+
+    fer = client.post(
+        "/v1/ponto/feriados",
+        headers=auth_headers["admin"],
+        json={"data": "2026-01-05", "nome": "Feriado teste"},
+    )
+    assert fer.status_code == 201, fer.text
+    cal2 = client.get(
+        "/v1/ponto/me/calendario",
+        headers=auth_headers["a1"],
+        params={"ano": 2026, "mes": 1},
+    )
+    dia_f = next(d for d in cal2.json()["dias"] if d["data"] == "2026-01-05")
+    assert dia_f["feriado"] is True
+    assert dia_f["status"] == "feriado"
+
+
+def test_ponto_banco_digest_settings_fecho(client, seed_base, auth_headers, db_session):
+    a1 = seed_base["a1"]
+    client.patch(
+        f"/v1/atendentes/{a1.id}",
+        headers=auth_headers["admin"],
+        json={
+            "usa_escala": True,
+            "escala_horas_trabalho": 8,
+            "escala_horas_folga": 40,
+            "escala_inicio_em": "2026-08-01",
+            "horario_previsto_entrada": "09:00",
+            "horario_previsto_saida": "17:00",
+        },
+    )
+    client.post(
+        "/v1/ponto/batidas",
+        headers=auth_headers["admin"],
+        json={
+            "atendente_id": a1.id,
+            "tipo": "entrada",
+            "registrado_em": "2026-08-03T09:00:00-03:00",
+            "motivo": "banco entrada",
+        },
+    )
+    client.post(
+        "/v1/ponto/batidas",
+        headers=auth_headers["admin"],
+        json={
+            "atendente_id": a1.id,
+            "tipo": "saida",
+            "registrado_em": "2026-08-03T18:00:00-03:00",
+            "motivo": "banco saída",
+        },
+    )
+
+    bh = client.get(
+        "/v1/ponto/me/banco-horas",
+        headers=auth_headers["a1"],
+        params={"desde": "2026-08-01", "ate": "2026-08-31"},
+    )
+    assert bh.status_code == 200, bh.text
+    body = bh.json()
+    assert body["segundos_realizados"] > 0
+    assert "saldo_segundos" in body
+
+    dig = client.get("/v1/ponto/digest", headers=auth_headers["admin"])
+    assert dig.status_code == 200
+    assert "faltas" in dig.json()
+    assert "justificativas_pendentes" in dig.json()
+
+    st = client.get("/v1/ponto/settings", headers=auth_headers["admin"])
+    assert st.status_code == 200
+    assert st.json()["fecho_automatico_ativo"] is False
+
+    st2 = client.patch(
+        "/v1/ponto/settings",
+        headers=auth_headers["admin"],
+        json={"fecho_automatico_ativo": True, "fecho_apos_horas": 4},
+    )
+    assert st2.status_code == 200
+    assert st2.json()["fecho_automatico_ativo"] is True
+
+    from datetime import datetime, timedelta, timezone
+
+    from app.services.ponto_settings import processar_fecho_automatico
+
+    client.post(
+        "/v1/ponto/batidas",
+        headers=auth_headers["admin"],
+        json={
+            "atendente_id": a1.id,
+            "tipo": "entrada",
+            "registrado_em": (datetime.now(timezone.utc) - timedelta(hours=5)).isoformat(),
+            "motivo": "jornada antiga",
+        },
+    )
+    n = processar_fecho_automatico(db_session, limit=10)
+    assert n >= 1
+    db_session.commit()
+    me = client.get("/v1/ponto/me", headers=auth_headers["a1"])
+    assert me.json()["em_jornada"] is False

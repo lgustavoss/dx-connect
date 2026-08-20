@@ -16,19 +16,26 @@ from app.schemas.ponto import (
     PontoAjusteUpdate,
     PontoAlertasMe,
     PontoAnularBody,
+    PontoBancoHorasRead,
     PontoBatidaAdminItem,
     PontoBatidaRead,
     PontoBaterRequest,
     PontoCalendarioRead,
+    PontoDigestRead,
     PontoEstadoRead,
+    PontoFeriadoCreate,
+    PontoFeriadoRead,
     PontoHistoricoRead,
     PontoHojeRead,
     PontoJustificativaCreate,
     PontoJustificativaDecisao,
     PontoJustificativaRead,
+    PontoSettingsRead,
+    PontoSettingsUpdate,
 )
 from app.services import ponto as ponto_svc
 from app.services import ponto_justificativa as just_svc
+from app.services import ponto_settings as ponto_settings_svc
 
 router = APIRouter(prefix="/ponto", tags=["ponto"])
 
@@ -210,6 +217,90 @@ def visao_hoje(
     admin: Atendente = Depends(exigir_admin),
 ):
     return ponto_svc.visao_hoje(db, admin)
+
+
+@router.get("/digest", response_model=PontoDigestRead)
+def digest_diario(
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return ponto_svc.digest_hoje(db, admin)
+
+
+@router.get("/me/banco-horas", response_model=PontoBancoHorasRead)
+def meu_banco_horas(
+    desde: date = Query(...),
+    ate: date = Query(...),
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    ponto_svc.exigir_acesso_ponto(atendente)
+    return ponto_svc.banco_horas(db, atendente, desde=desde, ate=ate)
+
+
+@router.get("/banco-horas", response_model=PontoBancoHorasRead)
+def banco_horas_admin(
+    atendente_id: int = Query(...),
+    desde: date = Query(...),
+    ate: date = Query(...),
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    alvo = (
+        db.query(Atendente)
+        .filter(Atendente.id == atendente_id, Atendente.tenant_id == admin.tenant_id)
+        .first()
+    )
+    if not alvo:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atendente não encontrado")
+    return ponto_svc.banco_horas(db, alvo, desde=desde, ate=ate)
+
+
+@router.get("/settings", response_model=PontoSettingsRead)
+def ler_settings_ponto(
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    out = ponto_settings_svc.settings_read(db, admin.tenant_id)
+    db.commit()
+    return out
+
+
+@router.patch("/settings", response_model=PontoSettingsRead)
+def atualizar_settings_ponto(
+    data: PontoSettingsUpdate,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return ponto_settings_svc.settings_update(db, admin, data)
+
+
+@router.get("/feriados", response_model=list[PontoFeriadoRead])
+def listar_feriados(
+    ano: int | None = Query(None, ge=2000, le=2100),
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return ponto_settings_svc.listar_feriados(db, admin.tenant_id, ano=ano)
+
+
+@router.post("/feriados", response_model=PontoFeriadoRead, status_code=201)
+def criar_feriado(
+    data: PontoFeriadoCreate,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return ponto_settings_svc.criar_feriado(db, admin, data)
+
+
+@router.delete("/feriados/{feriado_id}", status_code=204)
+def remover_feriado(
+    feriado_id: int,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    ponto_settings_svc.remover_feriado(db, admin, feriado_id)
+    return Response(status_code=204)
 
 
 @router.post("/justificativas", response_model=PontoJustificativaRead, status_code=201)

@@ -43,6 +43,9 @@ export function AtendenteForm() {
   const [escalaHorasFolga, setEscalaHorasFolga] = useState('36')
   const [escalaInicioEm, setEscalaInicioEm] = useState('')
   const [presetEscala, setPresetEscala] = useState('12x36')
+  const [horarioEntrada, setHorarioEntrada] = useState('')
+  const [horarioSaida, setHorarioSaida] = useState('')
+  const [toleranciaAtraso, setToleranciaAtraso] = useState('0')
 
   useEffect(() => {
     coletarTodasPaginas<Setores.Setor>((o, l) =>
@@ -76,6 +79,9 @@ export function AtendenteForm() {
         setEscalaHorasTrabalho(a.escala_horas_trabalho != null ? String(a.escala_horas_trabalho) : '12')
         setEscalaHorasFolga(a.escala_horas_folga != null ? String(a.escala_horas_folga) : '36')
         setEscalaInicioEm(a.escala_inicio_em ?? '')
+        setHorarioEntrada(a.horario_previsto_entrada ?? '')
+        setHorarioSaida(a.horario_previsto_saida ?? '')
+        setToleranciaAtraso(String(a.tolerancia_atraso_minutos ?? 0))
         if (a.escala_horas_trabalho === 12 && a.escala_horas_folga === 36) setPresetEscala('12x36')
         else if (a.escala_horas_trabalho === 6 && a.escala_horas_folga === 18) setPresetEscala('6x18')
         else if (a.escala_horas_trabalho === 24 && a.escala_horas_folga === 48) setPresetEscala('24x48')
@@ -128,6 +134,9 @@ export function AtendenteForm() {
         escala_horas_trabalho: null,
         escala_horas_folga: null,
         escala_inicio_em: null,
+        horario_previsto_entrada: null,
+        horario_previsto_saida: null,
+        tolerancia_atraso_minutos: 0,
       }
     }
     return {
@@ -135,6 +144,9 @@ export function AtendenteForm() {
       escala_horas_trabalho: Number(escalaHorasTrabalho) || null,
       escala_horas_folga: Number(escalaHorasFolga) || null,
       escala_inicio_em: escalaInicioEm || null,
+      horario_previsto_entrada: horarioEntrada.trim() || null,
+      horario_previsto_saida: horarioSaida.trim() || null,
+      tolerancia_atraso_minutos: Math.max(0, Number(toleranciaAtraso) || 0),
     }
   }
 
@@ -327,8 +339,31 @@ export function AtendenteForm() {
                     onChange={(e) => setEscalaInicioEm(e.target.value)}
                     required
                   />
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <Input
+                      label="Entrada prevista"
+                      type="time"
+                      value={horarioEntrada}
+                      onChange={(e) => setHorarioEntrada(e.target.value)}
+                    />
+                    <Input
+                      label="Saída prevista"
+                      type="time"
+                      value={horarioSaida}
+                      onChange={(e) => setHorarioSaida(e.target.value)}
+                    />
+                    <Input
+                      label="Tolerância atraso (min)"
+                      type="number"
+                      min={0}
+                      max={120}
+                      value={toleranciaAtraso}
+                      onChange={(e) => setToleranciaAtraso(e.target.value)}
+                    />
+                  </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Ciclo contínuo a partir desta data (ex.: 12 h de trabalho e 36 h de folga, repetindo).
+                    Ciclo contínuo a partir desta data (ex.: 12 h de trabalho e 36 h de folga, repetindo). Horário
+                    previsto é opcional e sinaliza atraso na conformidade.
                   </p>
                 </div>
               )}

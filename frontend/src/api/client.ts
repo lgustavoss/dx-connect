@@ -701,6 +701,12 @@ export const ponto = {
     api<Ponto.Historico>(withParams('/ponto/me/batidas', params)),
   meuCalendario: (ano: number, mes: number) =>
     api<Ponto.Calendario>(withParams('/ponto/me/calendario', { ano, mes })),
+  meuBancoHoras: (desde: string, ate: string) =>
+    api<Ponto.BancoHoras>(withParams('/ponto/me/banco-horas', { desde, ate })),
+  bancoHorasAdmin: (atendenteId: number, desde: string, ate: string) =>
+    api<Ponto.BancoHoras>(
+      withParams('/ponto/banco-horas', { atendente_id: atendenteId, desde, ate }),
+    ),
   batidasAdmin: (params?: {
     atendente_id?: number;
     desde?: string;
@@ -711,7 +717,16 @@ export const ponto = {
   calendarioAdmin: (atendenteId: number, ano: number, mes: number) =>
     api<Ponto.Calendario>(withParams('/ponto/calendario', { atendente_id: atendenteId, ano, mes })),
   hoje: () => api<Ponto.HojeLista>('/ponto/hoje'),
+  digest: () => api<Ponto.Digest>('/ponto/digest'),
   alertas: () => api<Ponto.AlertasMe>('/ponto/me/alertas'),
+  settings: () => api<Ponto.Settings>('/ponto/settings'),
+  updateSettings: (data: Ponto.SettingsUpdate) =>
+    api<Ponto.Settings>('/ponto/settings', { method: 'PATCH', body: JSON.stringify(data) }),
+  feriados: (ano?: number) => api<Ponto.Feriado[]>(withParams('/ponto/feriados', { ano })),
+  criarFeriado: (data: Ponto.FeriadoCreate) =>
+    api<Ponto.Feriado>('/ponto/feriados', { method: 'POST', body: JSON.stringify(data) }),
+  removerFeriado: (id: number) =>
+    api<void>(`/ponto/feriados/${id}`, { method: 'DELETE' }),
   criarAjuste: (data: Ponto.AjusteCreate) =>
     api<Ponto.Batida>('/ponto/batidas', { method: 'POST', body: JSON.stringify(data) }),
   atualizarAjuste: (id: number, data: Ponto.AjusteUpdate) =>
@@ -2348,6 +2363,9 @@ export namespace Atendentes {
     escala_horas_trabalho?: number | null;
     escala_horas_folga?: number | null;
     escala_inicio_em?: string | null;
+    horario_previsto_entrada?: string | null;
+    horario_previsto_saida?: string | null;
+    tolerancia_atraso_minutos?: number;
   }
   export interface Create {
     email: string;
@@ -2360,6 +2378,9 @@ export namespace Atendentes {
     escala_horas_trabalho?: number | null;
     escala_horas_folga?: number | null;
     escala_inicio_em?: string | null;
+    horario_previsto_entrada?: string | null;
+    horario_previsto_saida?: string | null;
+    tolerancia_atraso_minutos?: number;
   }
   export interface Update {
     email?: string;
@@ -2372,6 +2393,9 @@ export namespace Atendentes {
     escala_horas_trabalho?: number | null;
     escala_horas_folga?: number | null;
     escala_inicio_em?: string | null;
+    horario_previsto_entrada?: string | null;
+    horario_previsto_saida?: string | null;
+    tolerancia_atraso_minutos?: number;
   }
   export interface AvaliacaoResumo {
     media: number | null;
@@ -4439,7 +4463,16 @@ export namespace Presenca {
 
 export namespace Ponto {
   export type Tipo = 'entrada' | 'saida' | 'pausa_inicio' | 'pausa_fim'
-  export type Origem = 'web' | 'mobile' | 'admin'
+  export type Origem = 'web' | 'mobile' | 'admin' | 'sistema'
+  export type StatusDia =
+    | 'ok'
+    | 'falta'
+    | 'parcial'
+    | 'folga'
+    | 'folga_com_ponto'
+    | 'livre'
+    | 'atraso'
+    | 'feriado'
   export interface Bater {
     tipo: Tipo
     origem?: Origem
@@ -4489,7 +4522,9 @@ export namespace Ponto {
     esperado: boolean
     tem_entrada: boolean
     tem_saida: boolean
-    status: 'ok' | 'falta' | 'parcial' | 'folga' | 'folga_com_ponto' | 'livre'
+    status: StatusDia
+    atrasado?: boolean
+    feriado?: boolean
   }
   export interface Calendario {
     atendente_id: number
@@ -4506,13 +4541,56 @@ export namespace Ponto {
     em_jornada: boolean
     em_pausa?: boolean
     entrada_em: string | null
-    status: 'ok' | 'falta' | 'parcial' | 'folga' | 'folga_com_ponto' | 'livre'
+    status: StatusDia
     online?: boolean
     online_sem_ponto?: boolean
+    atrasado?: boolean
+    feriado?: boolean
   }
   export interface HojeLista {
     data: string
     itens: HojeItem[]
+  }
+  export interface BancoHoras {
+    atendente_id: number
+    atendente_nome?: string | null
+    desde: string
+    ate: string
+    segundos_esperados: number
+    segundos_realizados: number
+    saldo_segundos: number
+    dias_escala: number
+    dias_feriado?: number
+  }
+  export interface Digest {
+    data: string
+    faltas: number
+    atrasos: number
+    jornadas_abertas: number
+    online_sem_ponto: number
+    justificativas_pendentes: number
+    itens: HojeItem[]
+  }
+  export interface Settings {
+    usar_feriados_nacionais: boolean
+    fecho_automatico_ativo: boolean
+    fecho_apos_horas: number
+  }
+  export interface SettingsUpdate {
+    usar_feriados_nacionais?: boolean
+    fecho_automatico_ativo?: boolean
+    fecho_apos_horas?: number
+  }
+  export interface Feriado {
+    id: number
+    data: string
+    nome: string
+    ativo: boolean
+  }
+  export interface FeriadoCreate {
+    data: string
+    nome: string
+    ativo?: boolean
   }
   export interface AlertasMe {
     sem_entrada_em_dia_escala: boolean

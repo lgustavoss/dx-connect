@@ -54,18 +54,21 @@ export function MeuPonto() {
   const [justTipo, setJustTipo] = useState<Ponto.JustificativaCreate['tipo']>('esquecimento')
   const [justMotivo, setJustMotivo] = useState('')
   const [enviandoJust, setEnviandoJust] = useState(false)
+  const [banco, setBanco] = useState<Ponto.BancoHoras | null>(null)
 
   const carregar = useCallback(
     async (silencioso = false) => {
       try {
-        const [me, hist, js] = await Promise.all([
+        const [me, hist, js, bh] = await Promise.all([
           ponto.me(),
           ponto.minhasBatidas({ desde, ate, limit: 100 }),
           ponto.minhasJustificativas(),
+          ponto.meuBancoHoras(desde, ate),
         ])
         setEstado(me)
         setHistorico(hist)
         setJustifs(js)
+        setBanco(bh)
       } catch (err) {
         if (!silencioso) {
           toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar o ponto.'))
@@ -217,6 +220,21 @@ export function MeuPonto() {
                 <>
                   {' '}
                   · Pausas: <strong>{formatarDuracao(historico.total_segundos_pausa)}</strong>
+                </>
+              )}
+              {banco && (
+                <>
+                  {' '}
+                  · Banco:{' '}
+                  <strong className={banco.saldo_segundos < 0 ? 'text-amber-700 dark:text-amber-300' : undefined}>
+                    {banco.saldo_segundos >= 0 ? '+' : '−'}
+                    {formatarDuracao(Math.abs(banco.saldo_segundos))}
+                  </strong>
+                  <span className="text-slate-500">
+                    {' '}
+                    (esperado {formatarDuracao(banco.segundos_esperados)} · realizado{' '}
+                    {formatarDuracao(banco.segundos_realizados)})
+                  </span>
                 </>
               )}
             </p>

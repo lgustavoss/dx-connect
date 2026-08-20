@@ -62,12 +62,26 @@ class PontoBatidaAdminItem(BaseModel):
     anulada: bool = False
 
 
+StatusDiaPonto = Literal[
+    "ok",
+    "falta",
+    "parcial",
+    "folga",
+    "folga_com_ponto",
+    "livre",
+    "atraso",
+    "feriado",
+]
+
+
 class PontoCalendarioDia(BaseModel):
     data: date
     esperado: bool
     tem_entrada: bool
     tem_saida: bool
-    status: Literal["ok", "falta", "parcial", "folga", "folga_com_ponto", "livre"]
+    status: StatusDiaPonto
+    atrasado: bool = False
+    feriado: bool = False
 
 
 class PontoCalendarioRead(BaseModel):
@@ -86,14 +100,67 @@ class PontoHojeItem(BaseModel):
     em_jornada: bool
     em_pausa: bool = False
     entrada_em: datetime | None = None
-    status: Literal["ok", "falta", "parcial", "folga", "folga_com_ponto", "livre"]
+    status: StatusDiaPonto
     online: bool = False
     online_sem_ponto: bool = False
+    atrasado: bool = False
+    feriado: bool = False
 
 
 class PontoHojeRead(BaseModel):
     data: date
     itens: list[PontoHojeItem]
+
+
+class PontoBancoHorasRead(BaseModel):
+    atendente_id: int
+    atendente_nome: str | None = None
+    desde: date
+    ate: date
+    segundos_esperados: int
+    segundos_realizados: int
+    saldo_segundos: int
+    dias_escala: int
+    dias_feriado: int = 0
+
+
+class PontoDigestRead(BaseModel):
+    data: date
+    faltas: int
+    atrasos: int
+    jornadas_abertas: int
+    online_sem_ponto: int
+    justificativas_pendentes: int
+    itens: list[PontoHojeItem]
+
+
+class PontoSettingsRead(BaseModel):
+    usar_feriados_nacionais: bool = True
+    fecho_automatico_ativo: bool = False
+    fecho_apos_horas: int = 14
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PontoSettingsUpdate(BaseModel):
+    usar_feriados_nacionais: bool | None = None
+    fecho_automatico_ativo: bool | None = None
+    fecho_apos_horas: int | None = Field(default=None, ge=4, le=48)
+
+
+class PontoFeriadoCreate(BaseModel):
+    data: date
+    nome: str = Field(..., min_length=1, max_length=255)
+    ativo: bool | None = True
+
+
+class PontoFeriadoRead(BaseModel):
+    id: int
+    data: date
+    nome: str
+    ativo: bool = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PontoAjusteCreate(BaseModel):

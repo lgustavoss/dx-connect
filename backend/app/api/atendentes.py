@@ -12,7 +12,7 @@ from app.schemas.ticket_csat import AtendenteAvaliacoesRead, AvaliacaoResumoRead
 from app.schemas.lista_paginada import ListaPaginada
 from app.core.auth import exigir_admin, obter_atendente_atual, validar_role
 from app.services.atendente_avaliacoes import calcular_avaliacoes_atendente
-from app.services.escala import validar_campos_escala
+from app.services.escala import validar_campos_escala, validar_horario_previsto
 from app.core.setor_scope import ids_setores_mesmo_nome, ids_setores_visiveis_atendente
 from app.core.security import hash_senha, verificar_senha
 from app.core.audit import registrar_audit
@@ -45,6 +45,9 @@ def _atendente_para_read(atendente: Atendente) -> AtendenteRead:
         escala_horas_trabalho=getattr(atendente, "escala_horas_trabalho", None),
         escala_horas_folga=getattr(atendente, "escala_horas_folga", None),
         escala_inicio_em=getattr(atendente, "escala_inicio_em", None),
+        horario_previsto_entrada=getattr(atendente, "horario_previsto_entrada", None),
+        horario_previsto_saida=getattr(atendente, "horario_previsto_saida", None),
+        tolerancia_atraso_minutos=int(getattr(atendente, "tolerancia_atraso_minutos", 0) or 0),
     )
 
 
@@ -105,6 +108,7 @@ def criar_atendente(
         escala_horas_folga=data.escala_horas_folga,
         escala_inicio_em=data.escala_inicio_em,
     )
+    validar_horario_previsto(data.horario_previsto_entrada, data.horario_previsto_saida)
     atendente = Atendente(
         tenant_id=atendente_logado.tenant_id,
         email=data.email,
@@ -116,6 +120,11 @@ def criar_atendente(
         escala_horas_trabalho=data.escala_horas_trabalho if data.usa_escala else None,
         escala_horas_folga=data.escala_horas_folga if data.usa_escala else None,
         escala_inicio_em=data.escala_inicio_em if data.usa_escala else None,
+        horario_previsto_entrada=data.horario_previsto_entrada if data.usa_escala else None,
+        horario_previsto_saida=data.horario_previsto_saida if data.usa_escala else None,
+        tolerancia_atraso_minutos=(
+            int(data.tolerancia_atraso_minutos or 0) if data.usa_escala else 0
+        ),
     )
     db.add(atendente)
     db.flush()
@@ -262,6 +271,17 @@ def atualizar_atendente(
             update["escala_horas_trabalho"] = None
             update["escala_horas_folga"] = None
             update["escala_inicio_em"] = None
+            update["horario_previsto_entrada"] = None
+            update["horario_previsto_saida"] = None
+            update["tolerancia_atraso_minutos"] = 0
+
+    he = update.get("horario_previsto_entrada", getattr(atendente, "horario_previsto_entrada", None))
+    hs = update.get("horario_previsto_saida", getattr(atendente, "horario_previsto_saida", None))
+    if any(
+        k in update
+        for k in ("horario_previsto_entrada", "horario_previsto_saida", "tolerancia_atraso_minutos")
+    ):
+        validar_horario_previsto(he, hs)
 
     for k, v in update.items():
         setattr(atendente, k, v)

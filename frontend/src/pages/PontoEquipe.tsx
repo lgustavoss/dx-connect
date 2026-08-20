@@ -45,11 +45,23 @@ function rotuloStatus(s: Ponto.HojeItem['status']): string {
       return 'Folga'
     case 'folga_com_ponto':
       return 'Folga c/ ponto'
+    case 'atraso':
+      return 'Atraso'
+    case 'feriado':
+      return 'Feriado'
     case 'ok':
       return 'Ok'
     default:
       return 'Livre'
   }
+}
+
+function formatarDuracao(segundos: number | null | undefined): string {
+  if (segundos == null || segundos < 0) return '—'
+  const h = Math.floor(segundos / 3600)
+  const m = Math.floor((segundos % 3600) / 60)
+  if (h <= 0) return `${m} min`
+  return `${h} h ${String(m).padStart(2, '0')} min`
 }
 
 function toDatetimeLocalValue(d = new Date()): string {
@@ -75,11 +87,18 @@ export function PontoEquipe() {
   const [ajusteMotivo, setAjusteMotivo] = useState('')
   const [salvandoAjuste, setSalvandoAjuste] = useState(false)
   const [justifs, setJustifs] = useState<Ponto.Justificativa[]>([])
+  const [digest, setDigest] = useState<Ponto.Digest | null>(null)
+  const [banco, setBanco] = useState<Ponto.BancoHoras | null>(null)
+  const [settings, setSettings] = useState<Ponto.Settings | null>(null)
+  const [feriados, setFeriados] = useState<Ponto.Feriado[]>([])
+  const [feriadoData, setFeriadoData] = useState('')
+  const [feriadoNome, setFeriadoNome] = useState('')
+  const [salvandoSettings, setSalvandoSettings] = useState(false)
 
   const carregar = useCallback(
     async (silencioso = false) => {
       try {
-        const [hist, dia, js] = await Promise.all([
+        const [hist, dia, js, dig, st, fer] = await Promise.all([
           ponto.batidasAdmin({
             atendente_id: atendenteId ? Number(atendenteId) : undefined,
             desde,
@@ -88,12 +107,24 @@ export function PontoEquipe() {
           }),
           ponto.hoje(),
           ponto.justificativasAdmin('pendente'),
+          ponto.digest(),
+          ponto.settings(),
+          ponto.feriados(new Date().getFullYear()),
         ])
         setItems(hist.items)
         setTotal(hist.total)
         setHoje(dia)
         setJustifs(js)
+        setDigest(dig)
+        setSettings(st)
+        setFeriados(fer)
         setSemPermissao(false)
+        if (atendenteId) {
+          const bh = await ponto.bancoHorasAdmin(Number(atendenteId), desde, ate)
+          setBanco(bh)
+        } else {
+          setBanco(null)
+        }
       } catch (err) {
         if (err instanceof ApiError && err.status === 403) {
           setSemPermissao(true)
@@ -185,6 +216,49 @@ export function PontoEquipe() {
     }
   }
 
+  async function salvarSettings() {
+    if (!settings) return
+    setSalvandoSettings(true)
+    try {
+      const st = await ponto.updateSettings({
+        usar_feriados_nacionais: settings.usar_feriados_nacionais,
+        fecho_automatico_ativo: settings.fecho_automatico_ativo,
+        fecho_apos_horas: settings.fecho_apos_horas,
+      })
+      setSettings(st)
+      toast.showSuccess('Configurações de ponto salvas.')
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar as configurações.'))
+    } finally {
+      setSalvandoSettings(false)
+    }
+  }
+
+  async function adicionarFeriado() {
+    if (!feriadoData || !feriadoNome.trim()) {
+      toast.showWarning('Informe data e nome do feriado.')
+      return
+    }
+    try {
+      await ponto.criarFeriado({ data: feriadoData, nome: feriadoNome.trim() })
+      toast.showSuccess('Feriado cadastrado.')
+      setFeriadoNome('')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível criar o feriado.'))
+    }
+  }
+
+  async function apagarFeriado(id: number) {
+    try {
+      await ponto.removerFeriado(id)
+      toast.showSuccess('Feriado removido.')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível remover o feriado.'))
+    }
+  }
+
   if (user?.role !== 'admin' || semPermissao) {
     return (
       <SemPermissao
@@ -203,6 +277,30 @@ export function PontoEquipe() {
       />
 
       <div className="space-y-4">
+        <Card title="Digest do dia">
+          {digest ? (
+            <div className="flex flex-wrap gap-4 text-sm">
+              <span>
+                Faltas: <strong>{digest.faltas}</strong>
+              </span>
+              <span>
+                Atrasos: <strong>{digest.atrasos}</strong>
+              </span>
+              <span>
+                Jornadas abertas: <strong>{digest.jornadas_abertas}</strong>
+              </span>
+              <span>
+                Online sem ponto: <strong>{digest.online_sem_ponto}</strong>
+              </span>
+              <span>
+                Justificativas pendentes: <strong>{digest.justificativas_pendentes}</strong>
+              </span>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">Carregando…</p>
+          )}
+        </Card>
+
         <Card title="Hoje">
           {loading && !hoje ? (
             <div className="h-24 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800/50" />
@@ -225,6 +323,12 @@ export function PontoEquipe() {
                         {item.nome}
                         {item.em_pausa ? (
                           <span className="ml-2 text-xs text-amber-700 dark:text-amber-300">pausa</span>
+                        ) : null}
+                        {item.atrasado ? (
+                          <span className="ml-2 text-xs text-amber-700 dark:text-amber-300">atraso</span>
+                        ) : null}
+                        {item.feriado ? (
+                          <span className="ml-2 text-xs text-slate-500">feriado</span>
                         ) : null}
                       </td>
                       <td className="py-2 pr-3">
@@ -339,6 +443,16 @@ export function PontoEquipe() {
           </div>
           <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
             {total} batida{total === 1 ? '' : 's'} no filtro
+            {banco ? (
+              <>
+                {' '}
+                · Banco de {banco.atendente_nome ?? 'selecionado'}:{' '}
+                <strong>
+                  {banco.saldo_segundos >= 0 ? '+' : '−'}
+                  {formatarDuracao(Math.abs(banco.saldo_segundos))}
+                </strong>
+              </>
+            ) : null}
           </p>
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
@@ -376,6 +490,87 @@ export function PontoEquipe() {
               </tbody>
             </table>
           </div>
+        </Card>
+
+        <Card title="Configurações do ponto">
+          {settings ? (
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={settings.usar_feriados_nacionais}
+                  onChange={(e) =>
+                    setSettings({ ...settings, usar_feriados_nacionais: e.target.checked })
+                  }
+                />
+                Usar feriados nacionais (BR) na conformidade
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={settings.fecho_automatico_ativo}
+                  onChange={(e) =>
+                    setSettings({ ...settings, fecho_automatico_ativo: e.target.checked })
+                  }
+                />
+                Fechar jornada automaticamente após N horas (desligado por padrão)
+              </label>
+              <Input
+                label="Horas para fecho automático"
+                type="number"
+                min={4}
+                max={48}
+                value={String(settings.fecho_apos_horas)}
+                onChange={(e) =>
+                  setSettings({ ...settings, fecho_apos_horas: Number(e.target.value) || 14 })
+                }
+              />
+              <Button type="button" disabled={salvandoSettings} onClick={() => void salvarSettings()}>
+                Salvar configurações
+              </Button>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">Carregando…</p>
+          )}
+        </Card>
+
+        <Card title="Feriados da instância">
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <Input
+              label="Data"
+              type="date"
+              value={feriadoData}
+              onChange={(e) => setFeriadoData(e.target.value)}
+            />
+            <Input
+              label="Nome"
+              value={feriadoNome}
+              onChange={(e) => setFeriadoNome(e.target.value)}
+              placeholder="Ex.: Aniversário da rede"
+            />
+            <Button type="button" onClick={() => void adicionarFeriado()}>
+              Adicionar
+            </Button>
+          </div>
+          <ul className="space-y-2 text-sm">
+            {feriados.length === 0 ? (
+              <li className="text-slate-500">Nenhum feriado custom cadastrado este ano.</li>
+            ) : (
+              feriados.map((f) => (
+                <li
+                  key={f.id}
+                  className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800"
+                >
+                  <span>
+                    {f.data} · {f.nome}
+                  </span>
+                  <Button type="button" variant="ghost" onClick={() => void apagarFeriado(f.id)}>
+                    Remover
+                  </Button>
+                </li>
+              ))
+            )}
+          </ul>
         </Card>
       </div>
     </PageContainer>

@@ -4,6 +4,7 @@ from app.models.tipo_negocio import TipoNegocio
 from app.models.atendente import Atendente, AtendenteSetor
 from app.models.ponto_batida import PontoBatida
 from app.models.ponto_justificativa import PontoJustificativa
+from app.models.ponto_settings import PontoFeriado, PontoSettings
 from app.models.setor import Setor
 from app.models.setor_distribuicao_round_robin import SetorDistribuicaoRoundRobin
 from app.models.funcionario_rede import FuncionarioRede, FuncionarioRedeEmpresa
@@ -80,6 +81,8 @@ __all__ = [
     "AtendenteSetor",
     "PontoBatida",
     "PontoJustificativa",
+    "PontoSettings",
+    "PontoFeriado",
     "FuncionarioRede",
     "FuncionarioRedeEmpresa",
     "StatusTicket",
