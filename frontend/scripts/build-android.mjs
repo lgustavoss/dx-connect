@@ -14,7 +14,17 @@ import path from 'node:path'
 
 const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
-const api = (process.env.VITE_API_URL || '').trim()
+/** Placeholder do job frontend na CI — nunca embutir no APK. */
+const CI_PLACEHOLDER = /ci\.invalid\.example/i
+
+let api = (process.env.VITE_API_URL || '').trim()
+if (api && CI_PLACEHOLDER.test(api)) {
+  console.warn(
+    `Ignorando VITE_API_URL=${api} (placeholder da CI). O APK usará a conta (slug) no login.`,
+  )
+  delete process.env.VITE_API_URL
+  api = ''
+}
 if (api) {
   console.log(`VITE_API_URL=${api} (debug: esta URL prevalece sobre o slug)`)
 } else {
