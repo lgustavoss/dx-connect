@@ -1,8 +1,8 @@
 # App Android (Capacitor) — L6 (#696 / #735–#737)
 
-O APK é um WebView Capacitor com um **SPA mais leve**: login, **tickets**, **chat** (mesa WhatsApp / hub) e **meu ponto**. Não leva landing, SaaS, CRM, cadastros nem dashboards.
+O APK é um WebView Capacitor com o **mesmo painel** da versão mobile no browser (`App.tsx`: menu, rotas, tickets, chat, ponto, CRM, cadastros, etc. conforme RBAC). Diferenças nativas: campo **Conta** (slug), Capacitor HTTP, UnifiedPush, safe-area e **sem** service worker PWA. A landing comercial não abre no WebView.
 
-**Estado (Android):** L6.1–L6.3 + hotfix Conta/teclado na `main`. **Listing / release lojas** → [`docs/MOBILE_STORE_RELEASE.md`](MOBILE_STORE_RELEASE.md) (#739). **iOS** → #738.
+**Estado (Android):** L6.1–L6.3 + paridade com mobile web na `main`. **Listing / release lojas** → [`docs/MOBILE_STORE_RELEASE.md`](MOBILE_STORE_RELEASE.md) (#739). **iOS** → #738.
 
 **Não há base de dados no telemóvel.** Os dados são os da **instância da empresa** (mesmo Postgres da API). Um binário serve várias empresas via campo **Conta**.
 
@@ -37,9 +37,9 @@ Não é preciso conta Google Play neste lote de código.
 
 - `frontend/capacitor.config.ts` — `appId` `br.com.deskrudder.app`, `webDir` `dist`
 - `frontend/android/` — projecto Gradle gerado pelo Capacitor
-- `frontend/scripts/build-android.mjs` — `vite build` **sem** service worker PWA + `cap sync` (entrada `AppNative.tsx`)
+- `frontend/scripts/build-android.mjs` — `vite build` **sem** service worker PWA + `cap sync` (mesmo `App.tsx` do browser)
 
-O `npm run build` da CI **não** muda: continua a ser o PWA web completo. O APK usa `VITE_CAPACITOR=true`.
+O `npm run build` da CI **não** muda: continua a ser o PWA web completo. O APK usa `VITE_CAPACITOR=true` (desliga o SW; mantém Conta/HTTP nativo em runtime).
 
 ## Primeiro build debug
 
@@ -85,7 +85,7 @@ Correr após `npm run build:android` + instalar no emulador/dispositivo (**sem**
 |---|---------|----------|
 | 1 | Primeiro arranque | Ecrã Conta + e-mail + senha |
 | 2 | Conta inexistente / senha errada | Toast de erro; **não** grava slug novo (restaura o anterior se houver) |
-| 3 | Login OK numa empresa | Entra em `/chat/atendendo`; pedidos a `api-{slug}` |
+| 3 | Login OK numa empresa | Entra no Dashboard (`/`); pedidos a `api-{slug}`; menu igual ao mobile web |
 | 4 | **Trocar** empresa | Pede Conta de novo; sessão anterior limpa; sem pedidos a `https://localhost` |
 | 5 | Login noutra empresa | Dados da nova instância |
 | 6 | Notificações → activar push | Endpoint UnifiedPush registado na API da instância |
@@ -93,7 +93,7 @@ Correr após `npm run build:android` + instalar no emulador/dispositivo (**sem**
 | 8 | Toque na notificação | Abre a mesa/conversa **uma** vez |
 | 9 | Ticket: teclado no composer | Campo visível; double-tap no enviar não duplica |
 | 10 | WhatsApp: texto + figurinha | Envio único; teclado sem cortar o campo |
-| 11 | Menu → Meu ponto | Abre `/ponto` (bater ponto / histórico); não volta ao chat |
+| 11 | Menu → Meu ponto / Chat / Tickets / (admin) Configurações | Mesmas entradas que no Chrome mobile; rotas abrem de facto |
 | 12 | Voltar Android | Volta na navegação; na raiz pode sair da app |
 
 Cada instância precisa de `VAPID_*` no `client.env` e `https://localhost` em `CORS_ORIGINS`.

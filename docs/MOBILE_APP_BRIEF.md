@@ -137,7 +137,7 @@ Sistema de **helpdesk** para **redes de postos/empresas**:
 | Fase | Stack |
 |------|--------|
 | Feito | **PWA** no frontend React (mesmo `/v1`, mesma origem do painel) — L0–L5 |
-| Feito | **Capacitor Android**: 1 APK + Conta → `api-{slug}` (tickets/chat) + UnifiedPush/VAPID — L6.1–L6.3 |
+| Feito | **Capacitor Android**: 1 APK + Conta → `api-{slug}` (mesmo painel mobile web + UnifiedPush/VAPID) — L6.1–L6.3 |
 | Feito (docs) | Listing Play + privacidade — `docs/MOBILE_STORE_RELEASE.md` (#739); upload AAB = conta Google (ops) |
 | Follow-up | **iOS** Capacitor + APNs — #738 (Mac + Apple Developer) |
 | Não na v1 | React Native / Flutter |
