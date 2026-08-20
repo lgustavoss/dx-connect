@@ -51,9 +51,10 @@ export function ChatHubLayout() {
         </div>
       </aside>
 
+      {/* #747: `flex` só quando o painel deve aparecer — senão `hidden` perde para `flex` no CSS. */}
       <main
-        className={`flex h-full min-h-0 min-w-0 flex-1 flex-col bg-slate-50 dark:bg-slate-950 ${
-          emConversa ? '' : 'hidden md:flex'
+        className={`h-full min-h-0 min-w-0 flex-1 flex-col bg-slate-50 dark:bg-slate-950 ${
+          emConversa ? 'flex' : 'hidden md:flex'
         }`}
       >
         <Outlet />

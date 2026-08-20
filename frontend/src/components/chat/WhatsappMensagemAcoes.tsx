@@ -11,12 +11,24 @@ export function corpoWhatsappSemPrefixo(corpo: string | null | undefined): strin
 
 type Props = {
   mensagem: WhatsappChats.Mensagem
-  onEditar: (novoCorpo: string) => Promise<void>
-  onApagar: () => Promise<void>
+  onEditar?: (novoCorpo: string) => Promise<void>
+  onApagar?: () => Promise<void>
+  /** Abrir picker de reação (#749). */
+  onReagirMenu?: () => void
+  podeReagir?: boolean
+  /** Balão claro (inbound) — seta escura. */
+  tomClaro?: boolean
 }
 
-/** Menu de ações no canto do balão (editar / apagar) — #630. */
-export function WhatsappMensagemAcoes({ mensagem, onEditar, onApagar }: Props) {
+/** Menu de ações no canto do balão (editar / apagar / reagir) — #630 / #749. */
+export function WhatsappMensagemAcoes({
+  mensagem,
+  onEditar,
+  onApagar,
+  onReagirMenu,
+  podeReagir = false,
+  tomClaro = false,
+}: Props) {
   const [editando, setEditando] = useState(false)
   const [texto, setTexto] = useState(() => corpoWhatsappSemPrefixo(mensagem.corpo))
   const [salvando, setSalvando] = useState(false)
@@ -25,9 +37,9 @@ export function WhatsappMensagemAcoes({ mensagem, onEditar, onApagar }: Props) {
   const [apagando, setApagando] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
-  const podeEditar = Boolean(mensagem.pode_editar)
-  const podeApagarTodos = Boolean(mensagem.pode_apagar_para_todos)
-  const temAcoes = podeEditar || podeApagarTodos
+  const podeEditar = Boolean(mensagem.pode_editar && onEditar)
+  const podeApagarTodos = Boolean(mensagem.pode_apagar_para_todos && onApagar)
+  const temAcoes = podeEditar || podeApagarTodos || (podeReagir && Boolean(onReagirMenu))
 
   useEffect(() => {
     if (!editando) setTexto(corpoWhatsappSemPrefixo(mensagem.corpo))
@@ -62,10 +74,14 @@ export function WhatsappMensagemAcoes({ mensagem, onEditar, onApagar }: Props) {
           aria-expanded={menuAberto}
           aria-haspopup="menu"
           title="Ações"
-          className={`flex h-8 w-8 items-center justify-center rounded-full text-white transition-opacity md:h-6 md:w-6 ${
-            menuAberto
-              ? 'bg-black/30 opacity-100'
-              : 'bg-black/15 opacity-100 hover:bg-black/25 md:opacity-0 md:group-hover/bubble:opacity-100 md:group-focus-within/bubble:opacity-100'
+          className={`flex h-8 w-8 items-center justify-center rounded-full transition-opacity md:h-6 md:w-6 ${
+            tomClaro
+              ? menuAberto
+                ? 'bg-slate-200/80 text-slate-700 opacity-100 dark:bg-slate-700 dark:text-slate-100'
+                : 'bg-slate-100/80 text-slate-500 opacity-100 hover:bg-slate-200 md:opacity-0 md:group-hover/bubble:opacity-100 md:group-focus-within/bubble:opacity-100 dark:bg-slate-700/80 dark:text-slate-200'
+              : menuAberto
+                ? 'bg-black/30 text-white opacity-100'
+                : 'bg-black/15 text-white opacity-100 hover:bg-black/25 md:opacity-0 md:group-hover/bubble:opacity-100 md:group-focus-within/bubble:opacity-100'
           }`}
           onClick={() => setMenuAberto((o) => !o)}
         >
@@ -89,7 +105,20 @@ export function WhatsappMensagemAcoes({ mensagem, onEditar, onApagar }: Props) {
             role="menu"
             className="absolute right-0 top-full mt-1 min-w-[8rem] overflow-hidden rounded-lg bg-white py-1 shadow-lg ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-600"
           >
-            {podeEditar && (
+            {podeReagir && onReagirMenu && (
+              <button
+                type="button"
+                role="menuitem"
+                className={itemClass}
+                onClick={() => {
+                  setMenuAberto(false)
+                  onReagirMenu()
+                }}
+              >
+                Reagir
+              </button>
+            )}
+            {podeEditar && onEditar && (
               <button
                 type="button"
                 role="menuitem"
@@ -103,7 +132,7 @@ export function WhatsappMensagemAcoes({ mensagem, onEditar, onApagar }: Props) {
                 Editar
               </button>
             )}
-            {podeApagarTodos && (
+            {podeApagarTodos && onApagar && (
               <button
                 type="button"
                 role="menuitem"
@@ -120,7 +149,7 @@ export function WhatsappMensagemAcoes({ mensagem, onEditar, onApagar }: Props) {
         )}
       </div>
 
-      {editando && podeEditar && (
+      {editando && podeEditar && onEditar && (
         <div
           className="relative z-10 mt-2 w-full min-w-[min(100%,18rem)] space-y-2 rounded-lg bg-white/95 p-2 text-slate-900 shadow-md dark:bg-slate-900 dark:text-slate-100"
           onClick={(e) => e.stopPropagation()}
@@ -171,6 +200,7 @@ export function WhatsappMensagemAcoes({ mensagem, onEditar, onApagar }: Props) {
         loading={apagando}
         onCancel={() => setConfirmarApagar(false)}
         onConfirm={() => {
+          if (!onApagar) return
           setApagando(true)
           void onApagar()
             .then(() => setConfirmarApagar(false))
