@@ -2,7 +2,7 @@
 
 O APK é um WebView Capacitor com um **SPA mais leve**: login, **tickets** e **chat** (mesa WhatsApp / hub). Não leva landing, SaaS, CRM, cadastros nem dashboards.
 
-**Estado (Android):** L6.1 shell + L6.2 Conta + L6.3 push (VAPID + UnifiedPush) + hotfix Conta/teclado (#784) estão na `main`. **iOS** → #738. **Listing nas lojas** → #739.
+**Estado (Android):** L6.1–L6.3 + hotfix Conta/teclado na `main`. **Listing / release lojas** → [`docs/MOBILE_STORE_RELEASE.md`](MOBILE_STORE_RELEASE.md) (#739). **iOS** → #738.
 
 **Não há base de dados no telemóvel.** Os dados são os da **instância da empresa** (mesmo Postgres da API). Um binário serve várias empresas via campo **Conta**.
 
@@ -105,12 +105,11 @@ Cada instância precisa de `VAPID_*` no `client.env` e `https://localhost` em `C
 4. Assinar com o keystore DeskRudder (fora do git — guardar no cofre da equipa)
 5. Versão: `versionCode` / `versionName` em `frontend/android/app/build.gradle` (bump por release de loja)
 
-Publicação na Play Store (listing, privacy, track interna) = issue **#739** (conta Google Play do Luis).
+Listing, textos Play Console, privacidade e checklist de upload: **[`docs/MOBILE_STORE_RELEASE.md`](MOBILE_STORE_RELEASE.md)** (#739). Conta Google Play = Luis.
 
-## Fora deste documento (issues abertas)
+## Fora deste documento
 
 - iOS + APNs — **#738** (precisa Mac + Apple Developer)
-- Listing Play / App Store — **#739**
 
 ## Alertas com a app fechada (UnifiedPush / VAPID) — #737
 
@@ -120,6 +119,6 @@ O worker `web-push-outbox` já existente envia para PWA **e** APK. Mute da fila 
 
 O distribuidor embutido usa os servidores de push da Google só como transporte nos telemóveis com Play Services. Sem Play Services, o alerta com a app fechada não chega (a PWA no Chrome continua a funcionar).
 
-Ícones/splash oficiais: usar os PNG em `frontend/public/deskrudder-pwa-*.png` num lote posterior (`@capacitor/assets`) — pode ir junto de #739.
+Ícones de loja: `frontend/public/deskrudder-pwa-512.png` (e outline) — ver `MOBILE_STORE_RELEASE.md`. Opcional: regenerar splash nativo com `@capacitor/assets`.
 
 No Windows, se a pasta do clone tiver acentos (ex. `Repositórios`), o Gradle precisa de `android.overridePathCheck=true` em `frontend/android/gradle.properties` (já no repo).

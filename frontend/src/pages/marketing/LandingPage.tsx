@@ -497,6 +497,9 @@ export function LandingPage() {
             <Link to="/login/admin" className="font-medium text-sky-300 hover:text-sky-200">
               {landingFooter.loginLabel}
             </Link>
+            <Link to="/privacidade" className="text-slate-400 hover:text-slate-200">
+              Política de privacidade
+            </Link>
             <a href={`mailto:${landingContactEmail}`} className="text-slate-400 hover:text-slate-200">
               {landingFooter.contactLabel}: {landingContactEmail}
             </a>
