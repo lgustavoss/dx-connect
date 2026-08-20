@@ -318,8 +318,8 @@ const navStructure: NavItem[] = [
   },
   {
     type: 'group',
-    id: 'chat',
-    label: 'Chat',
+    id: 'atendimentos',
+    label: 'Atendimentos',
     icon: 'chat',
     /** Hub `/chat/*`, histórico/avaliações e rotas legadas `/whatsapp/c/:id` */
     extraActivePrefixes: ['/chat/', '/whatsapp/'],
@@ -332,7 +332,7 @@ const navStructure: NavItem[] = [
       },
       {
         to: '/whatsapp/historico',
-        label: 'Atendimentos',
+        label: 'Histórico',
         icon: 'chatHistory',
         activePrefix: '/whatsapp/',
       },
