@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { notificacoes, webPush } from '../api/client'
 import { Button } from './ui/Button'
 import { syncWebPushSubscription } from '../hooks/useWebPush'
+import { isCapacitorNative } from '../lib/capacitorNative'
 import { webPushRequerPwaIos } from '../lib/pwaDisplay'
 
 const LS_DISMISS = 'deskrudder-web-push-optin-dismissed'
@@ -24,7 +25,7 @@ function writeDismissed() {
 
 type Props = { enabled: boolean }
 
-/** Convite para alertas com a PWA fechada (#694). */
+/** Convite para alertas com a app fechada (PWA #694 / APK #737). */
 export function WebPushOptInBanner({ enabled }: Props) {
   const [visible, setVisible] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -39,12 +40,12 @@ export function WebPushOptInBanner({ enabled }: Props) {
       setVisible(false)
       return
     }
-    if (webPushRequerPwaIos()) {
+    if (!isCapacitorNative() && webPushRequerPwaIos()) {
       setVisible(true)
       setFeedback('ios_pwa')
       return
     }
-    if (!('Notification' in window) || !('PushManager' in window)) {
+    if (!isCapacitorNative() && (!('Notification' in window) || !('PushManager' in window))) {
       setVisible(false)
       return
     }
@@ -54,7 +55,11 @@ export function WebPushOptInBanner({ enabled }: Props) {
         setVisible(false)
         return
       }
-      if (Notification.permission === 'denied') {
+      if (
+        !isCapacitorNative() &&
+        'Notification' in window &&
+        Notification.permission === 'denied'
+      ) {
         setVisible(false)
         return
       }
@@ -117,7 +122,7 @@ export function WebPushOptInBanner({ enabled }: Props) {
         className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100"
       >
         <p className="min-w-0 flex-1">
-          Notificações bloqueadas neste browser. Permite-as nas definições do site para alertas com a app fechada.
+          Notificações bloqueadas neste dispositivo. Permite-as nas definições para alertas com a app fechada.
         </p>
         <Button type="button" variant="ghost" className="h-8 shrink-0 px-2 text-xs" onClick={() => setFeedback(null)}>
           Fechar

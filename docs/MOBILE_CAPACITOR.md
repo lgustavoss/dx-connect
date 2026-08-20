@@ -1,4 +1,4 @@
-# App Android (Capacitor) — L6.1 / L6.2 (#735 / #736)
+# App Android (Capacitor) — L6.1 / L6.2 / L6.3 (#735 / #736 / #737)
 
 O APK é um WebView Capacitor com um **SPA mais leve**: login, **tickets** e **chat** (mesa WhatsApp / hub). Não leva landing, SaaS, CRM, cadastros nem dashboards.
 
@@ -73,9 +73,16 @@ O `Host` da API no telemóvel, no modo local, é o IP do PC; o WebView continua 
 
 ## Fora deste lote
 
-- FCM (#737)
 - iOS (#738)
 - Listing nas lojas (#739)
+
+## Alertas com a app fechada (UnifiedPush / VAPID) — #737
+
+Não há projecto Firebase nem `google-services.json`. O APK pede um endpoint **Web Push** (UnifiedPush) e grava-o na API da instância (`POST /v1/web-push/subscriptions`), com as mesmas chaves VAPID do `client.env`.
+
+O worker `web-push-outbox` já existente envia para PWA **e** APK. Mute da fila e deep link são os da PWA.
+
+O distribuidor embutido usa os servidores de push da Google só como transporte nos telemóveis com Play Services. Sem Play Services, o alerta com a app fechada não chega (a PWA no Chrome continua a funcionar).
 
 Ícones/splash oficiais: usar os PNG em `frontend/public/deskrudder-pwa-*.png` num lote posterior (`@capacitor/assets`).
 
