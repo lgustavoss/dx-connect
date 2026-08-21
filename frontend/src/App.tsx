@@ -81,6 +81,8 @@ import { ChatHubPlaceholder } from './pages/chat/ChatHubPlaceholder'
 import { AlterarSenha } from './pages/AlterarSenha'
 import { NotificacoesPreferencias } from './pages/NotificacoesPreferencias'
 import { Sobre } from './pages/Sobre'
+import { MinhasSolicitacoesPage } from './pages/MinhasSolicitacoes'
+import { SolicitacoesMelhoriaAdminPage } from './pages/SolicitacoesMelhoriaAdmin'
 import { AcessoNegado } from './pages/AcessoNegado'
 import { SaasLicencas } from './pages/saas/SaasLicencas'
 import { SaasLicencaForm } from './pages/saas/SaasLicencaForm'
@@ -370,6 +372,24 @@ function AppRoutes() {
         />
         <Route path="notificacoes/preferencias" element={<NotificacoesPreferencias />} />
         <Route path="sobre" element={<Sobre />} />
+        <Route path="minhas-solicitacoes" element={<MinhasSolicitacoesPage />} />
+        <Route path="minhas-solicitacoes/:id" element={<MinhasSolicitacoesPage />} />
+        <Route
+          path="solicitacoes-melhoria"
+          element={
+            <AdminRoute>
+              <SolicitacoesMelhoriaAdminPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="solicitacoes-melhoria/:id"
+          element={
+            <AdminRoute>
+              <SolicitacoesMelhoriaAdminPage />
+            </AdminRoute>
+          }
+        />
         <Route path="tickets" element={<Tickets />} />
         <Route path="tickets/novo" element={<TicketNovo />} />
         <Route path="tickets/:id" element={<RedirectTicketDetalhe />} />
@@ -748,6 +768,7 @@ function AppRoutes() {
           <Route path="tipos-negocio" element={<TiposNegocio embedded />} />
           <Route path="pdv" element={<ConfigPdvCatalogos embedded />} />
           <Route path="auditoria" element={<Auditoria embedded />} />
+          <Route path="sugestoes" element={<Navigate to="/solicitacoes-melhoria" replace />} />
         </Route>
         <Route path="configuracoes/atendimento/*" element={<ConfigLegacyRedirect />} />
         <Route path="configuracoes/cadastros/*" element={<ConfigLegacyRedirect />} />

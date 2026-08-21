@@ -177,6 +177,12 @@ export const CONFIG_GROUPS: ConfigNavGroup[] = [
         hint: 'Histórico de alterações em cadastros e configurações.',
         keywords: ['log', 'histórico', 'alterações'],
       },
+      {
+        slug: 'sugestoes',
+        label: 'Sugestões de clientes',
+        hint: 'Triagem de pedidos enviados a partir das notas de versão.',
+        keywords: ['sugestão', 'feedback', 'release', 'github'],
+      },
     ],
   },
 ]

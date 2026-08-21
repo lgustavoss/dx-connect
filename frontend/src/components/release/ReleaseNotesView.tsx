@@ -1,7 +1,10 @@
 import { Link } from 'react-router-dom'
+import { useState } from 'react'
 import type { System } from '../../api/client'
 import { Card } from '../../components/ui/Card'
+import { Button } from '../../components/ui/Button'
 import { BrandLogo } from '../../brand'
+import { SolicitacaoMelhoriaModal } from './SolicitacaoMelhoriaModal'
 
 const CATEGORY_LABEL: Record<string, string> = {
   melhorias: 'Melhorias',
@@ -70,6 +73,8 @@ export type ReleaseNotesViewProps = {
   notes: System.ReleaseNotes | null
   loading?: boolean
   showBrandLogo?: boolean
+  /** CTA sugestões (#802) — desligar no SaaS Sobre se não fizer sentido. */
+  showSugestoesCta?: boolean
 }
 
 /** Lista partilhada de versão + histórico filtrado por produto (#674 / #675). */
@@ -83,7 +88,9 @@ export function ReleaseNotesView({
   notes,
   loading = false,
   showBrandLogo = true,
+  showSugestoesCta = true,
 }: ReleaseNotesViewProps) {
+  const [modalAberto, setModalAberto] = useState(false)
   const pastReleases = (notes?.releases ?? []).filter((r) => r.version !== notes?.current?.version)
 
   if (loading) {
@@ -123,7 +130,26 @@ export function ReleaseNotesView({
         <p className="text-xs text-slate-500 dark:text-slate-400">
           CalVer do último deploy (mesma versão nos painéis DeskRudder e SaaS).
         </p>
+        {showSugestoesCta ? (
+          <div className="flex flex-wrap items-center gap-3 pt-2">
+            <Button type="button" variant="primary" className="text-sm" onClick={() => setModalAberto(true)}>
+              Enviar sugestão / relatar problema
+            </Button>
+            <Link
+              to="/minhas-solicitacoes"
+              className="text-sm font-medium text-cyan-700 hover:underline dark:text-cyan-400"
+            >
+              Minhas solicitações →
+            </Link>
+          </div>
+        ) : null}
       </Card>
+
+      <SolicitacaoMelhoriaModal
+        open={modalAberto}
+        versaoContexto={versionLabel}
+        onClose={() => setModalAberto(false)}
+      />
 
       {notes?.current ? (
         <section className="space-y-3">
