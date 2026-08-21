@@ -7,6 +7,7 @@ import { Button } from '../components/ui/Button'
 import { Switch } from '../components/ui/Switch'
 import { useToast } from '../components/ui/Toast'
 import { syncWebPushSubscription } from '../hooks/useWebPush'
+import { setFilaAguardandoMuted } from '../hooks/useAlertaFilaSemResponsavel'
 
 export function NotificacoesPreferencias() {
   const toast = useToast()
@@ -28,7 +29,11 @@ export function NotificacoesPreferencias() {
     notificacoes
       .preferenciasGet()
       .then((p) => {
-        if (!cancelled) setPrefs(p)
+        if (!cancelled) {
+          setPrefs(p)
+          // Preferência do servidor alinha o som local da mesa (#823)
+          setFilaAguardandoMuted(!p.push_fila)
+        }
       })
       .catch((err) => {
         if (!cancelled) {
@@ -49,6 +54,7 @@ export function NotificacoesPreferencias() {
     try {
       const updated = await notificacoes.preferenciasUpdate(prefs)
       setPrefs(updated)
+      setFilaAguardandoMuted(!updated.push_fila)
       toast.showSuccess('Preferências salvas.')
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar.'))
@@ -141,6 +147,7 @@ export function NotificacoesPreferencias() {
             checked={prefs.push_fila}
             onCheckedChange={(v) => {
               setPrefs((p) => ({ ...p, push_fila: v }))
+              setFilaAguardandoMuted(!v)
               void notificacoes.preferenciasUpdate({ push_fila: v }).catch((err) => {
                 toast.showError(mensagemFalhaParaToast(err, 'Não foi possível actualizar o alerta da fila.'))
               })

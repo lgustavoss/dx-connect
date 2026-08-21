@@ -19,6 +19,10 @@ const POLL_SSE_SAFETY_MS = 60_000
 const POLL_STALE_GUARD_MS = 3000
 /** Dedup de transição idêntica (SSE duplicado / múltiplos listeners). */
 const ALERT_DEDUP_MS = 2000
+/** Re-alerta periódico via Notification enquanto a fila > 0 e a app está em 2.º plano (#823). */
+const FILA_BG_NUDGE_MS = 12_000
+const FILA_NOTIFY_DEDUP_MS = 4000
+const FILA_NOTIFY_TAG = 'dx-connect-fila-aguardando'
 
 /** Tickets na fila sem responsável */
 const SOUND_TICKET_FILA = '/sons/notification.mp3'
@@ -90,6 +94,10 @@ let wppFilaLoopRetryTimer: number | null = null
 let audioUnlocked = false
 let audioUnlockInstalled = false
 let lastFilaDesktopNotifyAt = 0
+let filaBgNudgeTimer: number | null = null
+/** APK: false quando o OS põe a app em segundo plano (#823). Browser: permanece true. */
+let nativeAppActive = true
+let capacitorAppStateBound = false
 let pollTimerId: number | null = null
 let sseSlowPollMode = false
 let sseListenerCount = 0
@@ -132,9 +140,11 @@ export function setFilaAguardandoMuted(muted: boolean) {
     // Corta na hora: loop + pulse one-shot na fila de alertas (#651)
     stopWppFilaLoop()
     stopWppFilaOneShots()
+    clearFilaBackgroundNudge()
   } else {
     const filaCount = currentResumo.wpp_fila_count + currentResumo.portal_fila_count
     syncWppFilaBeep(filaCount)
+    syncFilaBackgroundNudge()
   }
   for (const l of listenersFilaMuted) l(muted)
 }
@@ -496,6 +506,45 @@ function syncWppFilaBeep(wppFilaCount: number) {
   } else {
     stopWppFilaLoop()
   }
+  syncFilaBackgroundNudge()
+}
+
+/** App minimizada / aba oculta / janela sem foco / APK em 2.º plano (#823). */
+function isAppInBackground(): boolean {
+  if (!nativeAppActive) return true
+  if (typeof document === 'undefined') return false
+  if (document.visibilityState === 'hidden') return true
+  try {
+    if (typeof document.hasFocus === 'function' && !document.hasFocus()) return true
+  } catch {
+    // ignore
+  }
+  return false
+}
+
+function clearFilaBackgroundNudge() {
+  if (filaBgNudgeTimer != null) {
+    window.clearInterval(filaBgNudgeTimer)
+    filaBgNudgeTimer = null
+  }
+}
+
+function syncFilaBackgroundNudge() {
+  const fila = currentResumo.wpp_fila_count + currentResumo.portal_fila_count
+  const need = fila > 0 && !filaAguardandoMuted && isAppInBackground()
+  if (!need) {
+    clearFilaBackgroundNudge()
+    return
+  }
+  if (filaBgNudgeTimer != null) return
+  filaBgNudgeTimer = window.setInterval(() => {
+    const c = currentResumo.wpp_fila_count + currentResumo.portal_fila_count
+    if (c <= 0 || filaAguardandoMuted || !isAppInBackground()) {
+      clearFilaBackgroundNudge()
+      return
+    }
+    notifyFilaDesktop(c, { force: true })
+  }, FILA_BG_NUDGE_MS)
 }
 
 async function trySetAppBadge(count: number) {
@@ -795,16 +844,16 @@ function installAudioUnlockListeners() {
 }
 
 /**
- * Notificação do SO quando a aba está oculta — browsers bloqueiam audio.play() em background.
- * Respeita silenciar da fila. Dedup ~4s para não spammar.
+ * Notificação do SO quando a app está em segundo plano — browsers/OS bloqueiam audio.play().
+ * Respeita silenciar da fila. Dedup ~4s (exceto `force` do nudge periódico #823).
  */
-function notifyFilaDesktop(filaCount: number) {
+function notifyFilaDesktop(filaCount: number, opts?: { force?: boolean }) {
   if (filaAguardandoMuted || filaCount <= 0) return
-  if (typeof document === 'undefined' || document.visibilityState === 'visible') return
+  if (!isAppInBackground()) return
   if (typeof Notification === 'undefined') return
   if (Notification.permission !== 'granted') return
   const now = Date.now()
-  if (now - lastFilaDesktopNotifyAt < 4000) return
+  if (!opts?.force && now - lastFilaDesktopNotifyAt < FILA_NOTIFY_DEDUP_MS) return
   lastFilaDesktopNotifyAt = now
   try {
     const body =
@@ -813,12 +862,18 @@ function notifyFilaDesktop(filaCount: number) {
         : `Há ${filaCount} chats aguardando atendimento`
     const n = new Notification(APP_NAME, {
       body,
-      tag: 'dx-connect-fila-aguardando',
+      tag: FILA_NOTIFY_TAG,
       silent: false,
-    })
+      renotify: true,
+      requireInteraction: true,
+    } as NotificationOptions)
     n.onclick = () => {
       try {
         window.focus()
+        const path = '/chat/espera'
+        if (window.location.pathname !== path) {
+          window.location.assign(path)
+        }
       } catch {
         // ignore
       }
@@ -842,19 +897,47 @@ function ensureStarted() {
 
   preloadSounds()
   installAudioUnlockListeners()
+  if (!capacitorAppStateBound) {
+    capacitorAppStateBound = true
+    void import('../lib/capacitorNative').then(({ bindCapacitorAppState }) => {
+      bindCapacitorAppState((isActive) => {
+        nativeAppActive = isActive
+        const fila = currentResumo.wpp_fila_count + currentResumo.portal_fila_count
+        if (isActive) {
+          syncWppFilaBeep(fila)
+          void poll()
+        } else {
+          syncFilaBackgroundNudge()
+          if (fila > 0 && !filaAguardandoMuted) notifyFilaDesktop(fila)
+        }
+      })
+    })
+  }
 
   void poll()
   restartPollTimer()
 
   const onFocusOrVisible = () => {
-    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+    if (isAppInBackground()) {
+      syncFilaBackgroundNudge()
+      return
+    }
     // Retoma o loop imediatamente ao voltar à aba (#652), sem esperar o poll
     const fila = currentResumo.wpp_fila_count + currentResumo.portal_fila_count
     syncWppFilaBeep(fila)
     void poll()
   }
+  const onBlurOrHidden = () => {
+    syncFilaBackgroundNudge()
+    const fila = currentResumo.wpp_fila_count + currentResumo.portal_fila_count
+    if (fila > 0 && !filaAguardandoMuted) notifyFilaDesktop(fila)
+  }
   window.addEventListener('focus', onFocusOrVisible)
-  document.addEventListener('visibilitychange', onFocusOrVisible)
+  window.addEventListener('blur', onBlurOrHidden)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') onBlurOrHidden()
+    else onFocusOrVisible()
+  })
 }
 
 export function usePendenciasResumo(enabled: boolean): Notificacoes.Resumo {

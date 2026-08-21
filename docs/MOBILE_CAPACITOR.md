@@ -120,6 +120,17 @@ O worker `web-push-outbox` já existente envia para PWA **e** APK. Mute da fila 
 
 O distribuidor embutido usa os servidores de push da Google só como transporte nos telemóveis com Play Services. Sem Play Services, o alerta com a app fechada não chega (a PWA no Chrome continua a funcionar).
 
+### Matriz aberto / 2.º plano / fechado (#823)
+
+| Estado | O que alerta |
+|--------|----------------|
+| **Aberto** (aba/app em foco) | SSE + loop de áudio da fila (`alerta.mp3`); preferência «silenciar» na mesa corta o loop |
+| **2.º plano** (minimizada / outra app / aba oculta; processo ainda vivo) | Notification do SO com `renotify` + re-alerta periódico enquanto a fila > 0; no APK também `App.appStateChange`. Push do servidor continua a chegar em eventos novos |
+| **Fechada / kill** | Só **Web Push** (PWA) ou **UnifiedPush** (APK), com permissão activa |
+| **iOS** | PWA no ecrã inicial (#695); sem SSE em background; push limitado pelo Safari |
+
+Silenciar na mesa (`ChatFilaSomToggle`) e «Avisar fila de espera» em Notificações ficam alinhados (`push_fila` ↔ mute local).
+
 Ícones de loja: `frontend/public/deskrudder-pwa-512.png` (e outline) — ver `MOBILE_STORE_RELEASE.md`. Os mipmaps Android (`ic_launcher*`) devem usar o mesmo mark PWA (fundo Deck `#F8FAFC`); regenerar a partir de `deskrudder-pwa-512.png` se o asset de marca mudar. Opcional: splash nativo com `@capacitor/assets`.
 
 No Windows, se a pasta do clone tiver acentos (ex. `Repositórios`), o Gradle precisa de `android.overridePathCheck=true` em `frontend/android/gradle.properties` (já no repo).

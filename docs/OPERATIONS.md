@@ -109,6 +109,8 @@ App Capacitor Android (#735 / #736): origem do WebView `https://localhost`. Cada
 
 O APK Android (#737) **não usa Firebase**. Os alertas com a app fechada reutilizam o mesmo par VAPID e o worker `web-push-outbox`. Não há variável FCM extra no `client.env`.
 
+Com a app **minimizada** mas ainda em memória (#823): o frontend também emite Notification local / re-alerta periódico da fila (além do push por evento). Matriz completo em `docs/MOBILE_CAPACITOR.md`.
+
 Exemplo Duplex:
 
 ```bash
