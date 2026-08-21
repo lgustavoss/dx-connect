@@ -131,7 +131,10 @@ npm run build
 
 ### Licença
 
-Este projeto está licenciado sob os termos da licença **MIT**. Veja o arquivo `LICENSE` para mais detalhes.
+Copyright (c) 2026 Luis Gustavo da S. Sousa. Todos os direitos reservados.
+O código deste repositório não é software livre: copiar, modificar,
+redistribuir ou usar sem autorização por escrito é proibido.
+Para autorização: gustaavojaco@gmail.com. Veja o arquivo `LICENSE`.
 
 # DX Connect
 

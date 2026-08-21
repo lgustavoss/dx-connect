@@ -2243,6 +2243,7 @@ export namespace Empresas {
     resp_legal_estado: string | null;
     resp_legal_cep: string | null;
     ativo: boolean;
+    emite_nfse?: boolean;
     created_at?: string | null;
     updated_at?: string | null;
   }
@@ -2298,6 +2299,7 @@ export namespace Empresas {
     resp_legal_estado?: string | null;
     resp_legal_cep?: string | null;
     ativo?: boolean;
+    emite_nfse?: boolean;
   }
   export interface Update {
     rede_id?: number;
@@ -2333,6 +2335,7 @@ export namespace Empresas {
     resp_legal_estado?: string | null;
     resp_legal_cep?: string | null;
     ativo?: boolean;
+    emite_nfse?: boolean;
   }
 }
 
@@ -2396,6 +2399,7 @@ export namespace Atendentes {
     role: string;
     ativo: boolean;
     setor_ids: number[];
+    e_financeiro?: boolean;
     must_change_password?: boolean;
     usa_escala?: boolean;
     escala_horas_trabalho?: number | null;
@@ -3390,6 +3394,61 @@ export const comercialImplantacaoTemplates = {
     api<ImplantacaoChecklist.Template>(`/comercial/implantacao-templates/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
+    }),
+};
+
+export namespace Faturamento {
+  export interface Fatura {
+    id: number;
+    contrato_id: number;
+    empresa_id: number | null;
+    empresa_nome: string | null;
+    cnpj: string | null;
+    razao_social: string | null;
+    competencia: string;
+    valor: string | number;
+    vencimento: string;
+    emite_nfse: boolean;
+    status: string;
+    rejeicao_motivo: string | null;
+    gerada_em?: string | null;
+    aprovada_por_id: number | null;
+    aprovada_por_nome: string | null;
+    aprovada_em: string | null;
+  }
+  export interface ContratoElegivel {
+    id: number;
+    empresa_id: number | null;
+    empresa_nome: string | null;
+    cnpj: string | null;
+    razao_social: string | null;
+    valor_mensalidade: string | number;
+  }
+  export interface GerarCompetenciaOut {
+    competencia: string;
+    criadas: number;
+    existentes: number;
+    reabertas: number;
+  }
+}
+
+export const faturamento = {
+  listFaturas: (params?: { competencia?: string; status?: string }) =>
+    api<Faturamento.Fatura[]>(withParams('/faturamento/faturas', params)),
+  listContratosElegiveis: () => api<Faturamento.ContratoElegivel[]>('/faturamento/contratos-elegiveis'),
+  gerarFatura: (data: { contrato_id: number; competencia?: string | null }) =>
+    api<Faturamento.Fatura>('/faturamento/faturas', { method: 'POST', body: JSON.stringify(data) }),
+  gerarCompetencia: (data?: { competencia?: string | null }) =>
+    api<Faturamento.GerarCompetenciaOut>('/faturamento/faturas/gerar-competencia', {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
+  aprovar: (id: number) =>
+    api<Faturamento.Fatura>(`/faturamento/faturas/${id}/aprovar`, { method: 'POST' }),
+  rejeitar: (id: number, motivo: string) =>
+    api<Faturamento.Fatura>(`/faturamento/faturas/${id}/rejeitar`, {
+      method: 'POST',
+      body: JSON.stringify({ motivo }),
     }),
 };
 

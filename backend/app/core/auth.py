@@ -1,9 +1,10 @@
 from fastapi import Depends, HTTPException, Query, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, subqueryload
 
 from app.database import get_db
 from app.models.atendente import Atendente
+from app.core.setor_scope import atendente_e_financeiro
 from app.core.security import decodificar_token
 from app.core.tenant_context import (
     assert_token_tenant_matches_request,
@@ -42,6 +43,7 @@ def _carregar_atendente_por_token(
         tenant_id = effective_tenant_id()
     atendente = (
         db.query(Atendente)
+        .options(subqueryload(Atendente.setores))
         .filter(
             Atendente.tenant_id == tenant_id,
             Atendente.email == email,
@@ -120,6 +122,19 @@ def exigir_comercial_ou_admin(atendente: Atendente = Depends(obter_atendente_atu
             detail="Acesso restrito a perfil comercial ou administrador",
         )
     return atendente
+
+
+def exigir_financeiro_ou_admin(
+    atendente: Atendente = Depends(obter_atendente_atual),
+    db: Session = Depends(get_db),
+) -> Atendente:
+    """Faturamento interno (#326): admin ou atendente do setor Financeiro."""
+    if atendente_e_financeiro(db, atendente):
+        return atendente
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Acesso restrito ao setor Financeiro ou administrador",
+    )
 
 
 def exigir_saas_ops(atendente: Atendente = Depends(obter_atendente_atual)) -> Atendente:

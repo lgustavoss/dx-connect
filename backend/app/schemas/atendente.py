@@ -45,6 +45,7 @@ class AtendenteRead(AtendenteBase):
     created_at: datetime | None = None
     updated_at: datetime | None = None
     setor_ids: list[int] = []
+    e_financeiro: bool = False
     must_change_password: bool = False
 
     model_config = ConfigDict(from_attributes=True)
