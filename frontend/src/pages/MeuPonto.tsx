@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ponto, type Ponto } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
+import { PontoCalendarioMes } from '../components/PontoCalendarioMes'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
@@ -55,6 +56,12 @@ export function MeuPonto() {
   const [justMotivo, setJustMotivo] = useState('')
   const [enviandoJust, setEnviandoJust] = useState(false)
   const [banco, setBanco] = useState<Ponto.BancoHoras | null>(null)
+  const agora = new Date()
+  const [calAno, setCalAno] = useState(agora.getFullYear())
+  const [calMes, setCalMes] = useState(agora.getMonth() + 1)
+  const [calendario, setCalendario] = useState<Ponto.Calendario | null>(null)
+  const [diaCal, setDiaCal] = useState<string | null>(hojeIso())
+  const [loadingCal, setLoadingCal] = useState(false)
 
   const carregar = useCallback(
     async (silencioso = false) => {
@@ -84,6 +91,27 @@ export function MeuPonto() {
     void carregar()
   }, [carregar])
 
+  const carregarCalendario = useCallback(
+    async (silencioso = false) => {
+      setLoadingCal(true)
+      try {
+        const cal = await ponto.meuCalendario(calAno, calMes)
+        setCalendario(cal)
+      } catch (err) {
+        if (!silencioso) {
+          toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar o calendário.'))
+        }
+      } finally {
+        setLoadingCal(false)
+      }
+    },
+    [calAno, calMes, toast],
+  )
+
+  useEffect(() => {
+    void carregarCalendario()
+  }, [carregarCalendario])
+
   useEffect(() => {
     const onFocus = () => void carregar(true)
     window.addEventListener('focus', onFocus)
@@ -92,16 +120,21 @@ export function MeuPonto() {
 
   async function bater(tipo: Ponto.Tipo) {
     setBatendo(true)
+    const fechouPausaAuto = tipo === 'saida' && !!estado?.em_pausa
     try {
       await ponto.bater({ tipo, origem: 'web' })
-      const msgs: Record<Ponto.Tipo, string> = {
-        entrada: 'Entrada registrada.',
-        saida: 'Saída registrada.',
-        pausa_inicio: 'Pausa iniciada.',
-        pausa_fim: 'Pausa encerrada.',
+      if (fechouPausaAuto) {
+        toast.showSuccess('Pausa encerrada automaticamente ao sair.')
+      } else {
+        const msgs: Record<Ponto.Tipo, string> = {
+          entrada: 'Entrada registrada.',
+          saida: 'Saída registrada.',
+          pausa_inicio: 'Pausa iniciada.',
+          pausa_fim: 'Pausa encerrada.',
+        }
+        toast.showSuccess(msgs[tipo])
       }
-      toast.showSuccess(msgs[tipo])
-      await carregar(true)
+      await Promise.all([carregar(true), carregarCalendario(true)])
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível bater o ponto.'))
     } finally {
@@ -195,7 +228,7 @@ export function MeuPonto() {
                 <Button
                   type="button"
                   variant="secondary"
-                  disabled={batendo || !emJornada || emPausa}
+                  disabled={batendo || !emJornada}
                   onClick={() => void bater('saida')}
                 >
                   Saída
@@ -278,6 +311,36 @@ export function MeuPonto() {
               </tbody>
             </table>
           </div>
+        </Card>
+      </div>
+
+      <div className="mt-4">
+        <Card title="Calendário do mês">
+          <PontoCalendarioMes
+            calendario={calendario}
+            loading={loadingCal}
+            diaSelecionado={diaCal}
+            onSelecionarDia={(iso) => {
+              setDiaCal(iso)
+              setDesde(iso)
+              setAte(iso)
+            }}
+            onMesAnterior={() => {
+              if (calMes <= 1) {
+                setCalMes(12)
+                setCalAno((y) => y - 1)
+              } else setCalMes((m) => m - 1)
+            }}
+            onMesSeguinte={() => {
+              if (calMes >= 12) {
+                setCalMes(1)
+                setCalAno((y) => y + 1)
+              } else setCalMes((m) => m + 1)
+            }}
+          />
+          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+            Clique num dia para filtrar o histórico acima com as batidas dessa data.
+          </p>
         </Card>
       </div>
 

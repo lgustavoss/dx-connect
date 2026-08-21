@@ -28,6 +28,7 @@ def get_or_create_settings(db: Session, tenant_id: int) -> PontoSettings:
         usar_feriados_nacionais=True,
         fecho_automatico_ativo=False,
         fecho_apos_horas=14,
+        jornada_diaria_minutos=480,
     )
     db.add(row)
     db.flush()
@@ -48,6 +49,13 @@ def settings_update(db: Session, admin: Atendente, data: PontoSettingsUpdate) ->
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="fecho_apos_horas deve estar entre 4 e 48.",
+            )
+    if "jornada_diaria_minutos" in payload:
+        m = payload["jornada_diaria_minutos"]
+        if m is None or m < 60 or m > 1440:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="jornada_diaria_minutos deve estar entre 60 e 1440.",
             )
     for k, v in payload.items():
         setattr(row, k, v)
