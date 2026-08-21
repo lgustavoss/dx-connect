@@ -772,6 +772,8 @@ def _mensagem_read(
         wa_message_id=m.wa_message_id,
         quoted_wa_message_id=getattr(m, "quoted_wa_message_id", None),
         quoted_corpo_preview=getattr(m, "quoted_corpo_preview", None),
+        is_forwarded=bool(getattr(m, "is_forwarded", False)),
+        forwarding_score=getattr(m, "forwarding_score", None),
         atendente_id=m.atendente_id,
         atendente_nome=m.atendente.nome if m.atendente else None,
         status_entrega=status,

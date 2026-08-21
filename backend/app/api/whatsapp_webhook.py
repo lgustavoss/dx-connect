@@ -620,6 +620,8 @@ def _processar_mensagem_inbound(
                     wa_message_id=wa_mid,
                     quoted_wa_message_id=item.get("quoted_wa_message_id"),
                     quoted_corpo_preview=str(q_prev).strip()[:500] if q_prev else None,
+                    is_forwarded=bool(item.get("is_forwarded")),
+                    forwarding_score=item.get("forwarding_score"),
                     atendente_id=None,
                 )
                 db.add(msg)
@@ -697,6 +699,8 @@ def _processar_mensagem_inbound(
         wa_message_id=wa_mid,
         quoted_wa_message_id=item.get("quoted_wa_message_id"),
         quoted_corpo_preview=str(q_prev).strip()[:500] if q_prev else None,
+        is_forwarded=bool(item.get("is_forwarded")),
+        forwarding_score=item.get("forwarding_score"),
         atendente_id=None,
     )
     db.add(msg)

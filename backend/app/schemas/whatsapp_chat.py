@@ -32,6 +32,8 @@ class WhatsappMensagemRead(BaseModel):
     wa_message_id: str | None = None
     quoted_wa_message_id: str | None = None
     quoted_corpo_preview: str | None = None
+    is_forwarded: bool = False
+    forwarding_score: int | None = None
     atendente_id: int | None = None
     atendente_nome: str | None = None
     status_entrega: str | None = None
