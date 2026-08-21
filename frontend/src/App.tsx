@@ -67,9 +67,9 @@ import { ConfigWhatsapp } from './pages/ConfigWhatsapp'
 import { ConfigPdvCatalogos } from './pages/ConfigPdvCatalogos'
 import { ConfigComercialCustos } from './pages/ConfigComercialCustos'
 import { ConfigEmpresaEmail } from './pages/ConfigEmpresaEmail'
-import { ConfigAtendimentoLayout } from './pages/config/ConfigAtendimentoLayout'
-import { ConfigCadastrosLayout } from './pages/config/ConfigCadastrosLayout'
-import { ConfigSistemaLayout } from './pages/config/ConfigSistemaLayout'
+import { ConfigHubPage } from './pages/config/ConfigHubPage'
+import { ConfigDomainIndexRedirect, ConfigDomainLayout } from './pages/config/ConfigDomainLayout'
+import { ConfigLegacyRedirect } from './pages/config/ConfigLegacyRedirect'
 import { WhatsappLayout } from './pages/whatsapp/WhatsappLayout'
 import { WhatsappHistorico } from './pages/whatsapp/WhatsappHistorico'
 import { WhatsappAvaliacoes } from './pages/whatsapp/WhatsappAvaliacoes'
@@ -351,7 +351,7 @@ function AppRoutes() {
             }
           />
         </Route>
-        <Route path="ajuda/portal" element={<Navigate to="/configuracoes/sistema/base-conhecimento" replace />} />
+        <Route path="ajuda/portal" element={<Navigate to="/configuracoes/canais/base-conhecimento" replace />} />
         <Route
           path="ajuda/artigos/novo"
           element={
@@ -565,7 +565,7 @@ function AppRoutes() {
             </AdminRoute>
           }
         />
-        <Route path="setores" element={<Navigate to="/configuracoes/atendimento/setores" replace />} />
+        <Route path="setores" element={<Navigate to="/configuracoes/equipa/setores" replace />} />
         <Route
           path="atendentes/novo"
           element={
@@ -590,7 +590,7 @@ function AppRoutes() {
             </AdminRoute>
           }
         />
-        <Route path="atendentes" element={<Navigate to="/configuracoes/atendimento/atendentes" replace />} />
+        <Route path="atendentes" element={<Navigate to="/configuracoes/equipa/atendentes" replace />} />
         <Route
           path="funcionarios-rede/:id"
           element={
@@ -647,7 +647,7 @@ function AppRoutes() {
             </AdminRoute>
           }
         />
-        <Route path="respostas-prontas" element={<Navigate to="/configuracoes/atendimento/respostas-prontas" replace />} />
+        <Route path="respostas-prontas" element={<Navigate to="/configuracoes/equipa/respostas-prontas" replace />} />
         <Route
           path="base-conhecimento/novo"
           element={<Navigate to="/ajuda/artigos/novo" replace />}
@@ -681,8 +681,8 @@ function AppRoutes() {
             </AdminRoute>
           }
         />
-        <Route path="status-ticket" element={<Navigate to="/configuracoes/atendimento/status-ticket" replace />} />
-        <Route path="auditoria" element={<Navigate to="/configuracoes/sistema/auditoria" replace />} />
+        <Route path="status-ticket" element={<Navigate to="/configuracoes/equipa/status-ticket" replace />} />
+        <Route path="auditoria" element={<Navigate to="/configuracoes/administracao/auditoria" replace />} />
         <Route
           path="tipos-negocio/novo"
           element={
@@ -707,74 +707,54 @@ function AppRoutes() {
             </AdminRoute>
           }
         />
-        <Route path="tipos-negocio" element={<Navigate to="/configuracoes/cadastros/tipos-negocio" replace />} />
+        <Route path="tipos-negocio" element={<Navigate to="/configuracoes/empresa-catalogos/tipos-negocio" replace />} />
         <Route
-          path="configuracoes/atendimento"
+          path="configuracoes"
           element={
             <AdminRoute>
-              <ConfigAtendimentoLayout />
+              <ConfigHubPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="configuracoes/:domain"
+          element={
+            <AdminRoute>
+              <ConfigDomainLayout />
             </AdminRoute>
           }
         >
-          <Route index element={<Navigate to="setores" replace />} />
+          <Route index element={<ConfigDomainIndexRedirect />} />
           <Route path="setores" element={<Setores embedded />} />
           <Route path="atendentes" element={<Atendentes embedded />} />
           <Route path="status-ticket" element={<StatusTicketPage embedded />} />
           <Route path="natureza-motivo" element={<TicketNaturezaMotivoPage embedded />} />
           <Route path="respostas-prontas" element={<RespostasProntasPage embedded />} />
-          <Route path="base-conhecimento" element={<Navigate to="/ajuda/artigos" replace />} />
           <Route path="roteamento" element={<RoteamentoRegrasPage embedded />} />
           <Route path="sla" element={<SlaConfigLayout />}>
             <Route index element={<Navigate to="politicas" replace />} />
             <Route path="politicas" element={<SlaPoliticasPage embedded />} />
             <Route path="calendarios" element={<SlaCalendariosPage embedded />} />
           </Route>
-        </Route>
-        <Route
-          path="configuracoes/cadastros"
-          element={
-            <AdminRoute>
-              <ConfigCadastrosLayout />
-            </AdminRoute>
-          }
-        >
-          <Route index element={<Navigate to="tipos-negocio" replace />} />
-          <Route path="tipos-negocio" element={<TiposNegocio embedded />} />
-          <Route path="pdv" element={<ConfigPdvCatalogos embedded />} />
-          <Route path="custos" element={<ConfigComercialCustos embedded />} />
+          <Route path="whatsapp" element={<ConfigWhatsapp embedded />} />
+          <Route path="email" element={<ConfigEmpresaEmail embedded section="email" />} />
+          <Route path="base-conhecimento" element={<KbPortalSettingsPage embedded />} />
           <Route path="funil-crm" element={<ConfigCrmFunil embedded />} />
           <Route path="propostas" element={<ConfigPropostaTemplates embedded />} />
           <Route path="contratos" element={<ConfigContratoTemplates embedded />} />
+          <Route path="custos" element={<ConfigComercialCustos embedded />} />
           <Route path="implantacao" element={<ConfigImplantacaoChecklist embedded />} />
-        </Route>
-        <Route
-          path="configuracoes/sistema"
-          element={
-            <AdminRoute>
-              <ConfigSistemaLayout />
-            </AdminRoute>
-          }
-        >
-          <Route index element={<Navigate to="empresa" replace />} />
           <Route path="empresa" element={<ConfigEmpresaEmail embedded section="empresa" />} />
-          <Route path="email" element={<ConfigEmpresaEmail embedded section="email" />} />
-          <Route path="empresa-email" element={<Navigate to="empresa" replace />} />
-          <Route path="whatsapp" element={<ConfigWhatsapp embedded />} />
-          <Route path="base-conhecimento" element={<KbPortalSettingsPage embedded />} />
+          <Route path="tipos-negocio" element={<TiposNegocio embedded />} />
+          <Route path="pdv" element={<ConfigPdvCatalogos embedded />} />
           <Route path="auditoria" element={<Auditoria embedded />} />
         </Route>
-        <Route
-          path="configuracoes/whatsapp"
-          element={<Navigate to="/configuracoes/sistema/whatsapp" replace />}
-        />
-        <Route
-          path="configuracoes/empresa-email"
-          element={<Navigate to="/configuracoes/sistema/empresa" replace />}
-        />
-        <Route
-          path="configuracoes/pdv-catalogos"
-          element={<Navigate to="/configuracoes/cadastros/pdv" replace />}
-        />
+        <Route path="configuracoes/atendimento/*" element={<ConfigLegacyRedirect />} />
+        <Route path="configuracoes/cadastros/*" element={<ConfigLegacyRedirect />} />
+        <Route path="configuracoes/sistema/*" element={<ConfigLegacyRedirect />} />
+        <Route path="configuracoes/whatsapp" element={<ConfigLegacyRedirect />} />
+        <Route path="configuracoes/empresa-email" element={<ConfigLegacyRedirect />} />
+        <Route path="configuracoes/pdv-catalogos" element={<ConfigLegacyRedirect />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

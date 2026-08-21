@@ -375,9 +375,12 @@ const navStructure: NavItem[] = [
       '/auditoria',
     ],
     children: [
-      { to: '/configuracoes/atendimento', label: 'Atendimento', icon: 'setores' },
-      { to: '/configuracoes/cadastros', label: 'Cadastros', icon: 'tiposNegocio' },
-      { to: '/configuracoes/sistema', label: 'Sistema', icon: 'configuracoes' },
+      { to: '/configuracoes', label: 'Visão geral', icon: 'configuracoes' },
+      { to: '/configuracoes/equipa', label: 'Equipa e tickets', icon: 'setores' },
+      { to: '/configuracoes/canais', label: 'Canais', icon: 'chat' },
+      { to: '/configuracoes/comercial', label: 'Comercial / CRM', icon: 'tiposNegocio' },
+      { to: '/configuracoes/empresa-catalogos', label: 'Empresa e catálogos', icon: 'empresas' },
+      { to: '/configuracoes/administracao', label: 'Administração', icon: 'configuracoes' },
     ],
   },
 ]
@@ -524,6 +527,8 @@ export function Sidebar({
 
   const isLinkActive = (to: string, activePrefix?: string) => {
     if (location.pathname === to) return true
+    // Hub de Configurações — só activo na página índice (#833)
+    if (to === '/configuracoes') return false
     if (to === '/crm/leads' && location.pathname.startsWith('/crm/negociacoes')) return true
     if (activePrefix && location.pathname.startsWith(activePrefix)) return true
     if (to !== '/' && location.pathname.startsWith(`${to}/`)) return true

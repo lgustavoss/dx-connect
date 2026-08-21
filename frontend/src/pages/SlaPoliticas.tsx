@@ -406,7 +406,7 @@ export function SlaPoliticasPage({ embedded = false }: { embedded?: boolean }) {
               </select>
               <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
                 Gerencie calendários em{' '}
-                <Link to="/configuracoes/atendimento/sla/calendarios" className="text-sky-600 hover:underline dark:text-sky-400">
+                <Link to="/configuracoes/equipa/sla/calendarios" className="text-sky-600 hover:underline dark:text-sky-400">
                   SLA → Calendários
                 </Link>
                 . Apenas calendários ativos podem ser vinculados em novas políticas.

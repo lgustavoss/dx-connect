@@ -430,7 +430,7 @@ export function CrmLeads() {
               <>
                 {' '}
                 <Link
-                  to="/configuracoes/cadastros/funil-crm"
+                  to="/configuracoes/comercial/funil-crm"
                   className="font-medium text-cyan-700 hover:underline dark:text-cyan-400"
                 >
                   Configurar funil
