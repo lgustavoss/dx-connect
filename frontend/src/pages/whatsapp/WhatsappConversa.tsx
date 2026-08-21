@@ -644,6 +644,7 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
   const [modalEncerrar, setModalEncerrar] = useState(false)
   const [menuMobileAberto, setMenuMobileAberto] = useState(false)
   const menuMobileRef = useRef<HTMLDivElement>(null)
+  const [exportandoPdf, setExportandoPdf] = useState(false)
   const [filaAguardandoAberta, setFilaAguardandoAberta] = useState(false)
   const [assumindo, setAssumindo] = useState(false)
   const { filaCount, refreshContagens, abrirChat } = useChatHub()
@@ -1450,6 +1451,25 @@ useEffect(() => {
 
   const podeEncerrar = !encerrado && chat?.estado === 'em_atendimento' && (isResponsavel || isAdmin)
 
+  async function exportarPdfChat() {
+    if (!chat || exportandoPdf) return
+    setExportandoPdf(true)
+    try {
+      const { blob, filename } = await whatsappChats.downloadPdf(chat.id)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.showSuccess('PDF da conversa descarregado')
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Falha ao exportar PDF'))
+    } finally {
+      setExportandoPdf(false)
+    }
+  }
+
   const podeDefinirEmpresa =
     !encerrado &&
     Boolean(chat?.funcionario_rede_id) &&
@@ -1745,6 +1765,18 @@ useEffect(() => {
                 </Button>
               )}
 
+              {chat && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="hidden h-8 text-xs md:inline-flex"
+                  loading={exportandoPdf}
+                  onClick={() => void exportarPdfChat()}
+                >
+                  Exportar PDF
+                </Button>
+              )}
+
               {!encerrado && (
                 <>
                   {chat && (
@@ -1792,6 +1824,17 @@ useEffect(() => {
                     </button>
                     {menuMobileAberto && (
                       <div className="absolute right-0 top-full z-30 mt-1 min-w-[12rem] rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                        <button
+                          type="button"
+                          className="block min-h-11 w-full px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                          disabled={exportandoPdf}
+                          onClick={() => {
+                            setMenuMobileAberto(false)
+                            void exportarPdfChat()
+                          }}
+                        >
+                          {exportandoPdf ? 'A exportar…' : 'Exportar PDF'}
+                        </button>
                         {podeTransferir && (
                           <button
                             type="button"
@@ -1863,6 +1906,35 @@ useEffect(() => {
                     )}
                   </div>
                 </>
+              )}
+
+              {chat && encerrado && (
+                <div className="relative md:hidden" ref={menuMobileRef}>
+                  <button
+                    type="button"
+                    aria-label="Mais ações"
+                    aria-expanded={menuMobileAberto}
+                    onClick={() => setMenuMobileAberto((o) => !o)}
+                    className="flex h-11 w-11 items-center justify-center rounded-lg text-lg text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    ⋮
+                  </button>
+                  {menuMobileAberto && (
+                    <div className="absolute right-0 top-full z-30 mt-1 min-w-[12rem] rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                      <button
+                        type="button"
+                        className="block min-h-11 w-full px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                        disabled={exportandoPdf}
+                        onClick={() => {
+                          setMenuMobileAberto(false)
+                          void exportarPdfChat()
+                        }}
+                      >
+                        {exportandoPdf ? 'A exportar…' : 'Exportar PDF'}
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
 
             </div>
