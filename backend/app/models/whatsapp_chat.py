@@ -117,6 +117,9 @@ class WhatsappMensagem(Base):
     # Mensagem citada (reply do WhatsApp): id da mensagem na origem + texto de pré-visualização
     quoted_wa_message_id = Column(String(128), nullable=True)
     quoted_corpo_preview = Column(String(500), nullable=True)
+    # Encaminhada (contextInfo.isForwarded / forwardingScore) — #827
+    is_forwarded = Column(Boolean, nullable=False, server_default="false", default=False)
+    forwarding_score = Column(Integer, nullable=True)
     atendente_id = Column(Integer, ForeignKey("atendentes.id", ondelete="SET NULL"), nullable=True)
     # pendente | enviada | entregue | lida | erro — apenas outbound ao cliente
     status_entrega = Column(String(20), nullable=True)

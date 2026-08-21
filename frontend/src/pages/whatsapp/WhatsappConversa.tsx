@@ -2141,6 +2141,34 @@ useEffect(() => {
                       />
                     )}
 
+                    {m.is_forwarded && !m.apagada && (
+                      <p
+                        className={`mb-1 flex items-center gap-1 text-[11px] italic ${
+                          isInbound ? 'text-slate-400 dark:text-slate-500' : 'text-white/80'
+                        }`}
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden
+                          className="shrink-0 opacity-80"
+                        >
+                          <path d="m15 17 5-5-5-5" />
+                          <path d="M4 18v-2a4 4 0 0 1 4-4h12" />
+                        </svg>
+                        {(m.forwarding_score ?? 0) >= 127
+                          ? 'Encaminhada muitas vezes'
+                          : 'Encaminhada'}
+                      </p>
+                    )}
+
                     {m.quoted_wa_message_id && !m.apagada && (
                       <div 
                         onClick={() => {

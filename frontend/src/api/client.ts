@@ -1098,6 +1098,8 @@ export namespace WhatsappChats {
     wa_message_id?: string | null
     quoted_wa_message_id?: string | null
     quoted_corpo_preview?: string | null
+    is_forwarded?: boolean
+    forwarding_score?: number | null
     atendente_id?: number | null
     atendente_nome?: string | null
     status_entrega?: 'pendente' | 'enviada' | 'entregue' | 'lida' | 'erro' | null
