@@ -75,6 +75,11 @@ from app.models.cliente_saas import ClienteSaaS
 from app.models.saas_alerta_emitido import SaasAlertaEmitido
 from app.models.lead_comercial import LeadComercial
 from app.models.saas_plano import SaasModulo, SaasPlano, SaasPlanoModulo
+from app.models.solicitacao_melhoria import (
+    SolicitacaoMelhoria,
+    SolicitacaoMelhoriaComentario,
+    SolicitacaoMelhoriaHistorico,
+)
 
 __all__ = [
     "Rede",

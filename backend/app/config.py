@@ -139,6 +139,11 @@ class Settings(BaseSettings):
     KB_MEDIA_DIR: str = "data/kb_media"
     KB_MEDIA_MAX_BYTES: int = 2 * 1024 * 1024
 
+    # Sugestões Release Notes → GitHub (#805 / #806). Vazio = integração desligada.
+    GITHUB_TOKEN: str | None = None
+    # Ex.: lgustavoss/dx-connect
+    GITHUB_REPO_SUGESTOES: str | None = None
+
     @property
     def evolution_embutida_disponivel(self) -> bool:
         return bool(

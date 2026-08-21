@@ -4798,6 +4798,119 @@ export const system = {
   releaseNotes: () => api<System.ReleaseNotes>('/system/release-notes'),
 };
 
+export namespace SolicitacoesMelhoria {
+  export type Tipo = 'sugestao' | 'problema'
+  export type Status =
+    | 'aberta'
+    | 'em_analise'
+    | 'planejada'
+    | 'em_desenvolvimento'
+    | 'concluida'
+    | 'nao_sera_desenvolvida'
+
+  export interface ListaItem {
+    id: number
+    tipo: Tipo | string
+    titulo: string
+    status: Status | string
+    status_rotulo: string
+    autor_nome?: string | null
+    organizacao_id: number
+    created_at: string
+    updated_at?: string | null
+    github_issue_number?: number | null
+  }
+
+  export interface Historico {
+    id: number
+    status_anterior?: string | null
+    status_novo: string
+    status_novo_rotulo: string
+    motivo?: string | null
+    mensagem_publica?: string | null
+    atendente_nome?: string | null
+    created_at: string
+  }
+
+  export interface Comentario {
+    id: number
+    corpo: string
+    publico_cliente: boolean
+    origem: string
+    autor_nome?: string | null
+    created_at: string
+  }
+
+  export interface Detalhe {
+    id: number
+    organizacao_id: number
+    autor_atendente_id?: number | null
+    autor_nome?: string | null
+    tipo: Tipo | string
+    titulo: string
+    descricao: string
+    status: Status | string
+    status_rotulo: string
+    motivo_nao_desenvolvimento?: string | null
+    versao_contexto?: string | null
+    mensagem_status: string
+    created_at: string
+    updated_at?: string | null
+    github_repo?: string | null
+    github_issue_number?: number | null
+    github_issue_url?: string | null
+    github_last_error?: string | null
+    historico: Historico[]
+    comentarios: Comentario[]
+  }
+
+  export interface Create {
+    tipo: Tipo
+    titulo: string
+    descricao: string
+    versao_contexto?: string | null
+  }
+}
+
+export const solicitacoesMelhoria = {
+  criar: (data: SolicitacoesMelhoria.Create) =>
+    api<SolicitacoesMelhoria.Detalhe>('/solicitacoes-melhoria', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  minhas: () => api<SolicitacoesMelhoria.ListaItem[]>('/solicitacoes-melhoria/minhas'),
+  adminLista: (params?: {
+    status?: string
+    tipo?: string
+    organizacao_id?: number
+    desde?: string
+    ate?: string
+  }) =>
+    api<SolicitacoesMelhoria.ListaItem[]>(
+      withParams('/solicitacoes-melhoria/admin', params as Record<string, string | number | undefined>),
+    ),
+  get: (id: number) => api<SolicitacoesMelhoria.Detalhe>(`/solicitacoes-melhoria/${id}`),
+  alterarStatus: (
+    id: number,
+    data: { status: SolicitacoesMelhoria.Status; motivo_nao_desenvolvimento?: string | null },
+  ) =>
+    api<SolicitacoesMelhoria.Detalhe>(`/solicitacoes-melhoria/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  comentar: (id: number, data: { corpo: string; publico_cliente?: boolean }) =>
+    api<SolicitacoesMelhoria.Detalhe>(`/solicitacoes-melhoria/${id}/comentarios`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  criarGithub: (id: number) =>
+    api<SolicitacoesMelhoria.Detalhe>(`/solicitacoes-melhoria/${id}/github`, { method: 'POST' }),
+  syncGithub: (id: number) =>
+    api<SolicitacoesMelhoria.Detalhe>(`/solicitacoes-melhoria/${id}/github/sincronizar`, {
+      method: 'POST',
+    }),
+};
+
 /** Release notes do control-plane (RBAC saas_ops). */
 export const saasReleaseNotes = {
   get: () => api<System.ReleaseNotes>('/saas/release-notes'),

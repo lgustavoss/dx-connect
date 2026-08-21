@@ -59,6 +59,7 @@ from app.api import (
     saas_public,
     saas_leads,
     web_push,
+    solicitacoes_melhoria,
 )
 from app.config import settings
 from app.core.audit import clear_audit_request_context, set_audit_request_context
@@ -587,6 +588,7 @@ app.include_router(portal.router, prefix=API_V1_PREFIX)
 app.include_router(saas.router, prefix=API_V1_PREFIX)
 app.include_router(saas_public.router, prefix=API_V1_PREFIX)
 app.include_router(saas_leads.router, prefix=API_V1_PREFIX)
+app.include_router(solicitacoes_melhoria.router, prefix=API_V1_PREFIX)
 
 
 def _app_route_paths() -> set[str]:
