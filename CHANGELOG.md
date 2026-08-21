@@ -9,6 +9,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Faturamento (#326 / #363 / #364): faturas internas mensais para o financeiro conferir e **aprovar** (ou rejeitar com motivo). Geração automática no início do mês, ou avulsa na tela Faturamento; o botão do mês também reabre rejeitadas. Vencimento no **dia 10 do mês seguinte**. Na empresa, a flag **Emite NFS-e** (ligada por defeito) fica registada na fatura; boleto e nota fiscal só no lote seguinte, e só se a fatura estiver aprovada. O seed cria o setor **Financeiro** se ainda não existir.
 - Sugestões (#799 / #800–#807): a partir de **Sobre** (Release Notes), enviar sugestão ou problema; acompanhar em **Minhas solicitações**; admin faz triagem, responde (público/interno) e pode criar/sincronizar issue no GitHub (só interno)
 - WhatsApp (#837): **Exportar PDF** da conversa (header / menu ⋮) — relatório com protocolo, contacto e mensagens; mídia como rótulo; comentários internos excluídos; mesma permissão de ver o chat
 - Configurações (#833): hub com **pesquisa** e cartões por domínio; menu reorganizado (Equipa e tickets, Canais, Comercial/CRM, Empresa e catálogos, Administração); URLs antigas redireccionam
@@ -63,6 +64,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Interno
 
+- Licença: o repositório deixa a MIT e passa a **copyright reservado** (Luis Gustavo da S. Sousa); copiar, modificar ou usar sem autorização por escrito é proibido — ver `LICENSE`
 - Mobile: brief (`MOBILE_APP_BRIEF.md`) alinhado ao estado real do épico #689 / L6 Android (PWA + Capacitor + listing docs; iOS = #738)
 - Deploy (#734): ligação SSH ao VPS em IPv4, diagnóstico do IP do runner e segunda tentativa noutro runner só em timeout de rede
 - Mobile (#735): `CORS_ORIGINS` das instâncias passa a incluir `https://localhost` (origem do WebView Android)

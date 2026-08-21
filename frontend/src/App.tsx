@@ -26,6 +26,7 @@ import { ConfigImplantacaoChecklist } from './pages/ConfigImplantacaoChecklist'
 import { CrmLeads } from './pages/CrmLeads'
 import { CrmNegociacaoDetalhe } from './pages/CrmNegociacaoDetalhe'
 import { CrmContratos } from './pages/CrmContratos'
+import { Faturamento } from './pages/Faturamento'
 import { ConfigCrmFunil } from './pages/ConfigCrmFunil'
 import { Redes } from './pages/Redes'
 import { RedeDetalhe } from './pages/RedeDetalhe'
@@ -181,6 +182,25 @@ function ComercialOuAdminRoute({ children }: { children: React.ReactNode }) {
       <AcessoNegado
         title="Área exclusiva para comercial ou administradores"
         detail="Você está autenticado, mas esta página só pode ser acessada por usuários com perfil comercial ou administrador."
+      />
+    )
+  }
+  return <>{children}</>
+}
+
+function FinanceiroOuAdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading, isFinanceiroOuAdmin } = useAuth()
+  if (loading) {
+    return <PageLoading fullscreen label="Carregando sessão…" />
+  }
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+  if (!isFinanceiroOuAdmin) {
+    return (
+      <AcessoNegado
+        title="Área exclusiva para o financeiro ou administradores"
+        detail="Você está autenticado, mas esta página só pode ser acessada por quem atende o setor Financeiro ou por administradores."
       />
     )
   }
@@ -415,6 +435,14 @@ function AppRoutes() {
             <ComercialOuAdminRoute>
               <CrmContratos />
             </ComercialOuAdminRoute>
+          }
+        />
+        <Route
+          path="faturamento"
+          element={
+            <FinanceiroOuAdminRoute>
+              <Faturamento />
+            </FinanceiroOuAdminRoute>
           }
         />
         <Route path="chat" element={<ChatHubShell />}>

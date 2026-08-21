@@ -36,6 +36,7 @@ class EmpresaBase(BaseModel):
     resp_legal_estado: str | None = None
     resp_legal_cep: str | None = None
     ativo: bool = True
+    emite_nfse: bool = True
 
 
 class EmpresaCreate(EmpresaBase):
@@ -76,6 +77,7 @@ class EmpresaUpdate(BaseModel):
     resp_legal_estado: str | None = None
     resp_legal_cep: str | None = None
     ativo: bool | None = None
+    emite_nfse: bool | None = None
 
 
 class EmpresaRead(EmpresaBase):

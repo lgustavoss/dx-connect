@@ -33,7 +33,7 @@ const menuIcon = (
 )
 
 function LayoutInner() {
-  const { user, logout, isAdmin, isComercialOuAdmin } = useAuth()
+  const { user, logout, isAdmin, isComercialOuAdmin, isFinanceiroOuAdmin } = useAuth()
   const { subscribe } = useEventStream()
   const location = useLocation()
   useVisualViewportCss()
@@ -116,6 +116,7 @@ function LayoutInner() {
         onMobileClose={() => setSidebarMobileOpen(false)}
         isAdmin={isAdmin ?? false}
         isComercialOuAdmin={isComercialOuAdmin ?? false}
+        isFinanceiroOuAdmin={isFinanceiroOuAdmin ?? false}
         userNome={user?.nome ?? ''}
         userRole={perfilExibicao(user?.role)}
         onLogout={logout}

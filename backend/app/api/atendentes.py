@@ -13,7 +13,7 @@ from app.schemas.lista_paginada import ListaPaginada
 from app.core.auth import exigir_admin, obter_atendente_atual, validar_role
 from app.services.atendente_avaliacoes import calcular_avaliacoes_atendente
 from app.services.escala import validar_campos_escala, validar_horario_previsto
-from app.core.setor_scope import ids_setores_mesmo_nome, ids_setores_visiveis_atendente
+from app.core.setor_scope import atendente_e_financeiro, ids_setores_mesmo_nome, ids_setores_visiveis_atendente
 from app.core.security import hash_senha, verificar_senha
 from app.core.audit import registrar_audit
 
@@ -30,7 +30,7 @@ class OrdenarAtendentesPor(str, Enum):
     ativo = "ativo"
 
 
-def _atendente_para_read(atendente: Atendente) -> AtendenteRead:
+def _atendente_para_read(atendente: Atendente, *, e_financeiro: bool = False) -> AtendenteRead:
     return AtendenteRead(
         id=atendente.id,
         email=atendente.email,
@@ -40,6 +40,7 @@ def _atendente_para_read(atendente: Atendente) -> AtendenteRead:
         created_at=atendente.created_at,
         updated_at=atendente.updated_at,
         setor_ids=[s.id for s in atendente.setores],
+        e_financeiro=e_financeiro,
         must_change_password=bool(getattr(atendente, "must_change_password", False)),
         usa_escala=bool(getattr(atendente, "usa_escala", False)),
         escala_horas_trabalho=getattr(atendente, "escala_horas_trabalho", None),
@@ -139,8 +140,11 @@ def criar_atendente(
 
 
 @router.get("/me", response_model=AtendenteRead)
-def me(atendente: Atendente = Depends(obter_atendente_atual)):
-    return _atendente_para_read(atendente)
+def me(
+    atendente: Atendente = Depends(obter_atendente_atual),
+    db: Session = Depends(get_db),
+):
+    return _atendente_para_read(atendente, e_financeiro=atendente_e_financeiro(db, atendente))
 
 
 @router.post("/me/trocar-senha", response_model=AtendenteRead)

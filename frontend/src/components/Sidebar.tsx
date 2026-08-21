@@ -226,6 +226,8 @@ interface NavLink {
   adminOnly?: boolean
   /** Visível para admin ou comercial (CRM). */
   comercialOuAdmin?: boolean
+  /** Visível para admin ou setor Financeiro (faturamento). */
+  financeiroOuAdmin?: boolean
   /** Mantém o item ativo em rotas filhas (ex.: `/crm/negociacoes/:id`) */
   activePrefix?: string
   /** Só na instância comercial (control-plane SaaS). */
@@ -239,6 +241,7 @@ interface NavGroup {
   icon: string
   adminOnly?: boolean
   comercialOuAdmin?: boolean
+  financeiroOuAdmin?: boolean
   saasOnly?: boolean
   /** Ex.: conversa aberta `/whatsapp/c/:id` mantém o grupo Chat ativo */
   extraActivePrefixes?: string[]
@@ -254,6 +257,7 @@ interface NavItemLink {
   activePrefix?: string
   adminOnly?: boolean
   comercialOuAdmin?: boolean
+  financeiroOuAdmin?: boolean
   saasOnly?: boolean
 }
 
@@ -336,6 +340,13 @@ const navStructure: NavItem[] = [
     ],
   },
   {
+    type: 'link',
+    to: '/faturamento',
+    label: 'Faturamento',
+    icon: 'auditoria',
+    financeiroOuAdmin: true,
+  },
+  {
     type: 'group',
     id: 'clientes',
     label: 'Clientes',
@@ -403,13 +414,15 @@ function navGroupMatchesPath(pathname: string, group: NavGroup): boolean {
 }
 
 function navItemVisivel(
-  item: { adminOnly?: boolean; comercialOuAdmin?: boolean; saasOnly?: boolean },
+  item: { adminOnly?: boolean; comercialOuAdmin?: boolean; financeiroOuAdmin?: boolean; saasOnly?: boolean },
   isAdmin: boolean,
   isComercialOuAdmin: boolean,
+  isFinanceiroOuAdmin: boolean,
   saasEnabled: boolean,
 ): boolean {
   if (item.adminOnly && !isAdmin) return false
   if (item.comercialOuAdmin && !isComercialOuAdmin) return false
+  if (item.financeiroOuAdmin && !isFinanceiroOuAdmin) return false
   if (item.saasOnly && !saasEnabled) return false
   return true
 }
@@ -418,9 +431,12 @@ function navChildrenVisible(
   children: NavLink[],
   isAdmin: boolean,
   isComercialOuAdmin: boolean,
+  isFinanceiroOuAdmin: boolean,
   saasEnabled: boolean,
 ): NavLink[] {
-  return children.filter((child) => navItemVisivel(child, isAdmin, isComercialOuAdmin, saasEnabled))
+  return children.filter((child) =>
+    navItemVisivel(child, isAdmin, isComercialOuAdmin, isFinanceiroOuAdmin, saasEnabled),
+  )
 }
 
 interface SidebarProps {
@@ -429,6 +445,7 @@ interface SidebarProps {
   onMobileClose: () => void
   isAdmin: boolean
   isComercialOuAdmin: boolean
+  isFinanceiroOuAdmin: boolean
   userNome: string
   userRole: string
   onLogout: () => void
@@ -440,6 +457,7 @@ export function Sidebar({
   onMobileClose,
   isAdmin,
   isComercialOuAdmin,
+  isFinanceiroOuAdmin,
   userNome,
   userRole,
   onLogout,
@@ -493,14 +511,14 @@ export function Sidebar({
   )
 
   const items = navStructure.filter((item) =>
-    navItemVisivel(item, isAdmin, isComercialOuAdmin, saasEnabled),
+    navItemVisivel(item, isAdmin, isComercialOuAdmin, isFinanceiroOuAdmin, saasEnabled),
   ) as NavItem[]
 
   // Abrir grupo automaticamente quando a rota pertence a ele
   useEffect(() => {
     for (const item of navStructure) {
       if (item.type === 'group') {
-        if (navItemVisivel(item, isAdmin, isComercialOuAdmin, saasEnabled)) {
+        if (navItemVisivel(item, isAdmin, isComercialOuAdmin, isFinanceiroOuAdmin, saasEnabled)) {
           if (navGroupMatchesPath(location.pathname, item)) {
             setOpenGroup(item.id)
             return
@@ -508,7 +526,7 @@ export function Sidebar({
         }
       }
     }
-  }, [location.pathname, isAdmin, isComercialOuAdmin, saasEnabled])
+  }, [location.pathname, isAdmin, isComercialOuAdmin, isFinanceiroOuAdmin, saasEnabled])
 
   // No drawer mobile usamos acordeão (não flyout); evita estado do flyout “preso”
   useEffect(() => {
@@ -571,6 +589,7 @@ export function Sidebar({
                 openFlyoutGroup.children,
                 isAdmin,
                 isComercialOuAdmin,
+                isFinanceiroOuAdmin,
                 saasEnabled,
               ).map((child) => (
                 <li key={child.to} role="none">
@@ -682,7 +701,13 @@ export function Sidebar({
                       }`}
                       role="group"
                     >
-                      {navChildrenVisible(group.children, isAdmin, isComercialOuAdmin, saasEnabled).map(
+                      {navChildrenVisible(
+                        group.children,
+                        isAdmin,
+                        isComercialOuAdmin,
+                        isFinanceiroOuAdmin,
+                        saasEnabled,
+                      ).map(
                         (child) => (
                         <li key={child.to} className="min-w-0 border-l border-slate-200 pl-3 ml-4 dark:border-slate-700">
                           <Link

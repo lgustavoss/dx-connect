@@ -44,6 +44,7 @@ from app.api import (
     comercial_proposta,
     comercial_contrato,
     implantacao,
+    faturamento,
     crm,
     system_settings,
     tenant,
@@ -390,6 +391,32 @@ async def lifespan(app: FastAPI):
         name="ponto-fecho-automatico",
     ).start()
 
+    def faturamento_mensal_loop() -> None:
+        from app.database import SessionLocal
+        from app.services.faturamento import processar_faturamento_mensal
+
+        interval = 300
+        while True:
+            db = SessionLocal()
+            try:
+                n = processar_faturamento_mensal(db)
+                if n:
+                    db.commit()
+                else:
+                    db.rollback()
+            except Exception as e:
+                logger.warning("Worker faturamento mensal: %s", e)
+                db.rollback()
+            finally:
+                db.close()
+            time.sleep(interval)
+
+    threading.Thread(
+        target=faturamento_mensal_loop,
+        daemon=True,
+        name="faturamento-mensal",
+    ).start()
+
     if settings.SAAS_CONTROL_PLANE:
 
         def saas_provision_loop() -> None:
@@ -573,6 +600,7 @@ app.include_router(comercial_custos.router, prefix=API_V1_PREFIX)
 app.include_router(comercial_proposta.router, prefix=API_V1_PREFIX)
 app.include_router(comercial_contrato.router, prefix=API_V1_PREFIX)
 app.include_router(implantacao.router, prefix=API_V1_PREFIX)
+app.include_router(faturamento.router, prefix=API_V1_PREFIX)
 app.include_router(crm.router, prefix=API_V1_PREFIX)
 app.include_router(empresa_pdvs.router, prefix=API_V1_PREFIX)
 app.include_router(system_settings.router, prefix=API_V1_PREFIX)

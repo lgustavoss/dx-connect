@@ -356,6 +356,10 @@ export function EmpresaDetalhe() {
                 </dd>
               </div>
               <DetailRow label="Tipo de negócio" value={tipoNegocioNome || undefined} />
+              <DetailRow
+                label="Emite NFS-e"
+                value={empresa.emite_nfse === false ? 'Não' : 'Sim'}
+              />
             </dl>
           </section>
 

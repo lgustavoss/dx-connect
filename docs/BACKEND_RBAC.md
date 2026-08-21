@@ -38,6 +38,7 @@ Dependência: `exigir_comercial_ou_admin` em `app.core.auth`.
 | Modelos de contrato (CRUD) | `POST/PATCH /v1/comercial/contrato-templates`, `POST /v1/comercial/contrato-templates/preview`, `GET /v1/comercial/contrato-templates/chaves` |
 | Checklist de implantação (CRUD) | `POST/PATCH /v1/comercial/implantacao-templates` — UI em Cadastros → Checklist de implantação |
 | Política de reajuste do contrato | `PATCH /v1/comercial/contrato-politica` (percentual e rótulo padrão da instância) |
+| Empresa (flag NFS-e) | `PATCH /v1/empresas/{id}` campo `emite_nfse` (default true) — snapshot copiado para a fatura |
 
 ## Comercial ou administrador (`exigir_comercial_ou_admin`)
 
@@ -50,6 +51,17 @@ Dependência: `exigir_comercial_ou_admin` em `app.core.auth`.
 | **Proposta comercial** | `GET /v1/comercial/proposta-templates` (ativos), `POST/GET /v1/comercial/propostas*`, `GET .../pdf`, `POST .../marcar-enviada` |
 | **Contrato comercial** | `GET /v1/comercial/contrato-templates` (ativos), `GET /v1/comercial/contrato-templates/chaves`, `GET /v1/comercial/contrato-politica`, `POST/GET /v1/comercial/contratos*`, `GET .../pdf`, `POST/GET .../pdf-assinado`, `POST .../marcar-enviado`, `POST .../marcar-assinado`, `POST .../cancelar` (também rescinde assinado com estimativa de multa no payload/atividade). Lista e detalhe (incl. PDF e `multa_rescisao`): comercial só as próprias negociações; admin todos (filtros `so_minhas` e `responsavel_id`). Marcar assinado cria/vincula Rede e Empresa internamente — comercial **não** ganha CRUD de Rede/Empresa. Também abre ticket de implantação (checklist) no setor configurado. |
 | **Checklist de implantação (leitura)** | `GET /v1/comercial/implantacao-templates` (comercial/admin; `incluir_inativos` só admin) |
+
+## Financeiro ou administrador (`exigir_financeiro_ou_admin`)
+
+Admin **ou** atendente vinculado ao setor com slug/nome `financeiro` (homônimos inclusos). **Não** há role `financeiro`. Comercial **não** acessa.
+
+| Recurso | Rotas |
+|---------|--------|
+| Faturas internas | `GET/POST /v1/faturamento/faturas`, `POST /v1/faturamento/faturas/gerar-competencia`, `POST .../aprovar`, `POST .../rejeitar` (motivo obrigatório) |
+| Contratos faturáveis | `GET /v1/faturamento/contratos-elegiveis` (assinados com empresa) |
+
+UI: menu **Faturamento**. Job `faturamento-mensal` gera a competência atual (idempotente; **não** reabre rejeitadas). A acção manual «Gerar faturas do mês» reabre rejeitadas. Boleto/NFS-e ficam para lote posterior e só após fatura **aprovada**. O seed cria o setor `financeiro` se faltar.
 
 ## Autenticado com escopo de setor (`obter_atendente_atual`)
 
@@ -67,13 +79,13 @@ Dependência: `exigir_comercial_ou_admin` em `app.core.auth`.
 
 ## Referência de código
 
-- `app.core.auth`: `obter_atendente_atual`, `exigir_admin`, `exigir_comercial_ou_admin`, `validar_role`.
-- `app.core.setor_scope`: `ids_setores_visiveis_atendente`, `ids_setores_mesmo_nome`, `responsavel_elegivel_para_setor_do_ticket`, `select_rede_ids_com_ticket_nos_setores`.
-- Testes: `backend/tests/test_rbac_tickets.py`, `test_rbac_catalogos.py`, `test_rbac_admin_only.py`, `test_crm.py`.
+- `app.core.auth`: `obter_atendente_atual`, `exigir_admin`, `exigir_comercial_ou_admin`, `exigir_financeiro_ou_admin`, `validar_role`.
+- `app.core.setor_scope`: `ids_setores_visiveis_atendente`, `ids_setores_mesmo_nome`, `ids_setores_financeiro`, `atendente_e_financeiro`, `responsavel_elegivel_para_setor_do_ticket`, `select_rede_ids_com_ticket_nos_setores`.
+- Testes: `backend/tests/test_rbac_tickets.py`, `test_rbac_catalogos.py`, `test_rbac_admin_only.py`, `test_crm.py`, `test_faturamento.py`.
 
 ## Frontend (alinhamento)
 
-- **Menu**: grupos «Clientes» e «Configurações» só aparecem para `role === 'admin'` (`Sidebar.tsx`).
+- **Menu**: grupos «Clientes» e «Configurações» só aparecem para `role === 'admin'` (`Sidebar.tsx`). **Faturamento** aparece para admin ou `e_financeiro` em `/me` (setor Financeiro).
 - **Rotas**: páginas de cadastro usam `AdminRoute` em `App.tsx` — atendente vê `AcessoNegado` se aceder por URL.
 - **Tickets / novo ticket**: listas de **setores** e **empresas** seguem o filtro da API; não se recorta setor no cliente por `setor_ids` do `/me` (homônimos). Quando o atendente ainda não tem empresas no escopo, o UI explica o critério da rede com ticket nos setores dele.
 - **403**: mensagens vêm do corpo da API (`api/client` + `errorMessage.ts`).
