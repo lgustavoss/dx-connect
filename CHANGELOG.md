@@ -9,6 +9,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Atendimentos (#825): no telemóvel, Estado/datas/Atendente ficam num acordeão **Filtros** (recolhido por defeito) para a lista aparecer logo; a busca continua visível; badge indica filtros activos
 - Mobile: o APK passa a usar o **mesmo painel** do browser no telemóvel (menu e rotas completos conforme RBAC); mantém Conta/slug, HTTP nativo e push
 - Mobile: ícone do APK Android alinhado ao da PWA/computador (mark DeskRudder no fundo Deck)
 - Mobile: no APK, **Meu ponto** (`/ponto`) abre de facto — deixava de cair na mesa de chat por falta de rota nativa
@@ -61,6 +62,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
+- Atendimentos (#826): no mobile, cards do histórico deixam de cortar telefone e **Retomar contacto** (layout em coluna, sem overflow horizontal)
 - Chat: ao encerrar o atendimento na mesa, o painel fecha (como Voltar), em vez de ficar aberto com a lista vazia; se ainda falta classificar a demanda, o painel permanece
 - Chat: o estado «Aguardando avaliação» passa a âmbar; «Encerrado» usa vermelho mais legível no tema escuro
 - WhatsApp (#712): após registar demanda no chat aberto, o encerramento por inatividade continua a contar e o worker fecha o atendimento quando o prazo esgota (marco de demanda já não “prende” o relógio em 00:00)

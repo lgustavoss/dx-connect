@@ -18,6 +18,7 @@ import {
 } from '../../lib/whatsappListReturn'
 import { useWhatsappListScrollRestore } from '../../hooks/useWhatsappListScrollRestore'
 import { ChatIniciarConversaModal } from '../../components/chat/ChatIniciarConversaModal'
+import { CollapsibleCard } from '../../components/ui/CollapsibleCard'
 
 const PAGE_SIZE = 15
 
@@ -49,6 +50,17 @@ export function WhatsappHistorico() {
     const v = searchParams.get('estado')
     return (v as FiltroEstadoHistorico) || 'todos'
   })
+  /** Acordeão de filtros avançados só no mobile (#825). */
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false)
+
+  const filtrosAvancadosAtivos = useMemo(() => {
+    let n = 0
+    if (estadoFiltro !== 'todos') n += 1
+    if (desde) n += 1
+    if (ate) n += 1
+    if (atendenteId !== '') n += 1
+    return n
+  }, [ate, atendenteId, desde, estadoFiltro])
 
   const historicoReturnPath = useMemo(
     () =>
@@ -136,70 +148,103 @@ export function WhatsappHistorico() {
   const paginaAtual = Math.floor(offset / PAGE_SIZE) + 1
   const totalPaginas = Math.ceil(total / PAGE_SIZE)
 
+  const filtrosAvancados = (
+    <>
+      <div className="grid w-full max-w-full grid-cols-1 gap-3 sm:max-w-2xl sm:grid-cols-2 lg:grid-cols-4">
+        <Select
+          label="Estado"
+          value={estadoFiltro}
+          onChange={(value) => setEstadoFiltro(value as FiltroEstadoHistorico)}
+          options={[
+            { value: 'todos', label: 'Todos' },
+            { value: 'em_atendimento', label: 'Em andamento' },
+            { value: 'aguardando_atendente', label: 'Aguardando' },
+            { value: 'finalizados', label: 'Finalizados' },
+          ]}
+        />
+        <Input
+          type="date"
+          label="De"
+          value={desde}
+          onChange={(e) => setDesde(e.target.value)}
+        />
+        <Input
+          type="date"
+          label="Até"
+          value={ate}
+          onChange={(e) => setAte(e.target.value)}
+        />
+        <div className="min-w-0">
+          <Select
+            label="Atendente"
+            value={atendenteId}
+            onChange={(value) => setAtendenteId(value === '' ? '' : Number(value))}
+            options={atendentesList.map((a) => ({ value: a.id, label: a.nome }))}
+            placeholder="Atendente"
+            includeEmpty
+            emptyLabel="Atendente"
+          />
+        </div>
+      </div>
+      <Button className="w-full sm:w-auto sm:self-end" variant="secondary" onClick={() => void load(0)}>
+        Filtrar
+      </Button>
+    </>
+  )
+
+  const campoBusca = (
+    <div className="relative min-w-0 flex-1">
+      <Input
+        placeholder="Buscar por nome, telefone ou protocolo (ex.: #C202604-0001)…"
+        value={busca}
+        onChange={(e) => setBusca(e.target.value)}
+        className="pl-10"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void load(0)
+        }}
+      />
+      <span className="absolute left-3 top-2.5 text-slate-400">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      </span>
+    </div>
+  )
+
   return (
-    <div className="flex flex-col space-y-8 animate-in fade-in duration-500 pb-10">
+    <div className="flex min-w-0 flex-col space-y-8 animate-in fade-in duration-500 pb-10">
       
-      {/* Header com Filtros Rápidos */}
-      <header className="flex flex-col gap-6 border-b pb-6 dark:border-slate-800 md:flex-row md:items-end md:justify-between">
-        <div className="space-y-1">
+      {/* Header com Filtros — mobile: busca + acordeão (#825); desktop: layout actual */}
+      <header className="flex min-w-0 flex-col gap-6 border-b pb-6 dark:border-slate-800 md:flex-row md:items-end md:justify-between">
+        <div className="space-y-1 md:shrink-0">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Atendimentos</h1>
           <p className="text-sm text-slate-500">Acompanhe todo o ciclo dos chats — em andamento, aguardando e finalizados.</p>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between flex-1">
-          <div className="relative flex-1 min-w-0">
-            <Input
-              placeholder="Buscar por nome, telefone ou protocolo (ex.: #C202604-0001)…"
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              className="pl-10"
-            />
-            <span className="absolute left-3 top-2.5 text-slate-400">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            </span>
-          </div>
-          <div className="grid w-full max-w-full grid-cols-1 gap-3 sm:max-w-2xl sm:grid-cols-2 lg:grid-cols-4">
-            <Select
-              label="Estado"
-              value={estadoFiltro}
-              onChange={(value) => setEstadoFiltro(value as FiltroEstadoHistorico)}
-              options={[
-                { value: 'todos', label: 'Todos' },
-                { value: 'em_atendimento', label: 'Em andamento' },
-                { value: 'aguardando_atendente', label: 'Aguardando' },
-                { value: 'finalizados', label: 'Finalizados' },
-              ]}
-            />
-            <Input
-              type="date"
-              label="De"
-              value={desde}
-              onChange={(e) => setDesde(e.target.value)}
-            />
-            <Input
-              type="date"
-              label="Até"
-              value={ate}
-              onChange={(e) => setAte(e.target.value)}
-            />
-            <div className="min-w-0">
-              <Select
-                label="Atendente"
-                value={atendenteId}
-                onChange={(value) => setAtendenteId(value === '' ? '' : Number(value))}
-                options={atendentesList.map((a) => ({ value: a.id, label: a.nome }))}
-                placeholder="Atendente"
-                includeEmpty
-                emptyLabel="Atendente"
-              />
-            </div>
-          </div>
-          <Button className="sm:self-end" variant="secondary" onClick={() => void load(0)}>Filtrar</Button>
+        {/* Mobile */}
+        <div className="flex min-w-0 flex-col gap-3 md:hidden">
+          {campoBusca}
+          <CollapsibleCard
+            title="Filtros"
+            badge={
+              filtrosAvancadosAtivos > 0
+                ? `${filtrosAvancadosAtivos} filtro${filtrosAvancadosAtivos === 1 ? '' : 's'}`
+                : null
+            }
+            open={filtrosAbertos}
+            onOpenChange={setFiltrosAbertos}
+          >
+            <div className="flex flex-col gap-3">{filtrosAvancados}</div>
+          </CollapsibleCard>
+        </div>
+
+        {/* Desktop */}
+        <div className="hidden min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between md:flex">
+          {campoBusca}
+          {filtrosAvancados}
         </div>
       </header>
 
       {/* Tabela de Resultados (Cards) */}
-      <div className="space-y-4">
+      <div className="min-w-0 space-y-4">
         {loading && items.length === 0 ? (
           // Skeletons
           Array.from({ length: 5 }).map((_, i) => (
@@ -214,24 +259,34 @@ export function WhatsappHistorico() {
             <p className="text-sm text-slate-500">Tente ajustar seus termos de busca.</p>
           </Card>
         ) : (
-          <div className="grid gap-3">
+          <div className="grid min-w-0 gap-3">
             {items.map((c) => (
-              <Card key={c.id} className="group border-none p-4 shadow-sm ring-1 ring-slate-200 transition-all hover:ring-cyan-500/50 dark:ring-slate-800">
-                <div className="flex flex-wrap items-center justify-between gap-4">
+              <Card
+                key={c.id}
+                className="group min-w-0 overflow-hidden border-none p-4 shadow-sm ring-1 ring-slate-200 transition-all hover:ring-cyan-500/50 dark:ring-slate-800"
+              >
+                <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                   
                   {/* Info do Cliente e Protocolo */}
-                  <div className="flex min-w-[240px] flex-1 items-center gap-4">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-400 group-hover:bg-cyan-50 group-hover:text-cyan-600 dark:bg-slate-900 dark:group-hover:bg-cyan-900/20 transition-colors">
+                  <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4 md:min-w-[240px]">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-400 transition-colors group-hover:bg-cyan-50 group-hover:text-cyan-600 dark:bg-slate-900 dark:group-hover:bg-cyan-900/20">
                       <span className="text-sm font-bold">{c.cliente_nome?.charAt(0).toUpperCase() || 'C'}</span>
                     </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="truncate font-bold text-slate-900 dark:text-slate-100">{c.cliente_nome || 'Cliente'}</h3>
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                        <h3 className="max-w-full truncate font-bold text-slate-900 dark:text-slate-100" title={c.cliente_nome || 'Cliente'}>
+                          {c.cliente_nome || 'Cliente'}
+                        </h3>
+                        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                           {rotuloEstadoChat(c.estado)}
                         </span>
-                        <span className="font-mono text-[10px] font-bold text-slate-400">{c.wa_id}</span>
                       </div>
+                      <p
+                        className="mt-0.5 truncate font-mono text-[10px] font-bold text-slate-400"
+                        title={c.wa_id}
+                      >
+                        {c.wa_id}
+                      </p>
                       <p
                         className="truncate font-mono text-xs font-bold text-cyan-600 dark:text-cyan-400"
                         title={exibirProtocolo(c.protocolo)}
@@ -244,17 +299,20 @@ export function WhatsappHistorico() {
                       >
                         {c.empresa_nome || 'Sem empresa'}
                       </p>
+                      <p className="mt-1 truncate text-xs text-slate-500 sm:hidden" title={c.atendente_nome || 'Sistema'}>
+                        Atendido por {c.atendente_nome || 'Sistema'}
+                      </p>
                     </div>
                   </div>
 
-                  {/* Metadados: Atendente e Data */}
-                  <div className="flex items-center gap-8">
+                  {/* Metadados + acções */}
+                  <div className="flex min-w-0 w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center sm:gap-6 md:gap-8">
                     <div className="hidden text-right sm:block">
                       <p className="text-[10px] font-bold uppercase tracking-tight text-slate-400">Atendido por</p>
                       <p className="text-xs font-medium text-slate-700 dark:text-slate-300">{c.atendente_nome || 'Sistema'}</p>
                     </div>
                     
-                    <div className="grid gap-2 text-right">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-left sm:grid-cols-1 sm:text-right">
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-tight text-slate-400">Início</p>
                         <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
@@ -273,33 +331,36 @@ export function WhatsappHistorico() {
                       </div>
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-tight text-slate-400">Avaliação</p>
-                        <div className="flex justify-end">
+                        <div className="flex sm:justify-end">
                           <AvaliacaoEstrelas chat={c} size="sm" />
                         </div>
                       </div>
                     </div>
 
-                    <Link
-                      to={whatsappConversaLink(historicoReturnPath, 'historico')}
-                      onClick={() => {
-                        marcarWhatsappChatAtivo(c.id)
-                        saveWhatsappListScroll('historico', historicoReturnPath)
-                      }}
-                      className="rounded-full bg-slate-100 p-2 text-slate-400 transition-all hover:bg-cyan-600 hover:text-white dark:bg-slate-800 dark:hover:bg-cyan-700"
-                      title="Ver conversa"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                    </Link>
-                    {(c.estado === 'encerrado' || c.estado === 'aguardando_avaliacao') && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        className="h-9 px-3 text-xs"
-                        onClick={() => setRetomarChat(c)}
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <Link
+                        to={whatsappConversaLink(historicoReturnPath, 'historico')}
+                        onClick={() => {
+                          marcarWhatsappChatAtivo(c.id)
+                          saveWhatsappListScroll('historico', historicoReturnPath)
+                        }}
+                        className="inline-flex shrink-0 items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600 transition-all hover:bg-cyan-600 hover:text-white dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-cyan-700 sm:rounded-full sm:p-2 sm:px-2"
+                        title="Ver conversa"
                       >
-                        Retomar contacto
-                      </Button>
-                    )}
+                        <span className="sm:hidden">Ver conversa</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                      </Link>
+                      {(c.estado === 'encerrado' || c.estado === 'aguardando_avaliacao') && (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="h-9 min-w-0 flex-1 px-3 text-xs sm:flex-none"
+                          onClick={() => setRetomarChat(c)}
+                        >
+                          Retomar contacto
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </Card>
