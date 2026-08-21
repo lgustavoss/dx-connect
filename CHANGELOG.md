@@ -10,6 +10,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 #### Melhorias
 
 - Implantação (#325 / #358–#361): ao marcar o contrato como assinado, abre um ticket no setor configurado (Implantação ou Suporte) com checklist (documentos, WebPosto, PDVs, treino). O modelo é editável em Cadastros; o ticket só fecha com os itens obrigatórios feitos; o admin tem atalho para cadastrar PDVs da empresa
+- Empresas (#824): na listagem, o **nome** fica em cima e o **CNPJ/CPF** em baixo no telemóvel (menos truncagem); botão para **copiar** o documento (só dígitos) com toast
 - Atendimentos (#825): no telemóvel, Estado/datas/Atendente ficam num acordeão **Filtros** (recolhido por defeito) para a lista aparecer logo; a busca continua visível; badge indica filtros activos
 - Mobile: o APK passa a usar o **mesmo painel** do browser no telemóvel (menu e rotas completos conforme RBAC); mantém Conta/slug, HTTP nativo e push
 - Mobile: ícone do APK Android alinhado ao da PWA/computador (mark DeskRudder no fundo Deck)
