@@ -19,6 +19,7 @@ import {
 import { useWhatsappListScrollRestore } from '../../hooks/useWhatsappListScrollRestore'
 import { ChatIniciarConversaModal } from '../../components/chat/ChatIniciarConversaModal'
 import { CollapsibleCard } from '../../components/ui/CollapsibleCard'
+import { CopiarWaIdButton } from '../../components/chat/CopiarWaIdButton'
 
 const PAGE_SIZE = 15
 
@@ -281,12 +282,10 @@ export function WhatsappHistorico() {
                           {rotuloEstadoChat(c.estado)}
                         </span>
                       </div>
-                      <p
-                        className="mt-0.5 truncate font-mono text-[10px] font-bold text-slate-400"
-                        title={c.wa_id}
-                      >
-                        {c.wa_id}
-                      </p>
+                      <CopiarWaIdButton
+                        waId={c.wa_id}
+                        className="mt-0.5 text-[10px] font-bold text-slate-400"
+                      />
                       <p
                         className="truncate font-mono text-xs font-bold text-cyan-600 dark:text-cyan-400"
                         title={exibirProtocolo(c.protocolo)}
