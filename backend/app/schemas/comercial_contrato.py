@@ -157,5 +157,7 @@ class ContratoRead(BaseModel):
     dias_restantes_fidelidade: int | None = None
     multa_rescisao: MultaRescisaoEstimativa | None = None
     interno: ContratoInternoRead | None = None
+    implantacao_ticket_id: int | None = None
+    implantacao_ticket_protocolo: str | None = None
 
     model_config = ConfigDict(from_attributes=True)

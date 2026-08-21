@@ -43,6 +43,7 @@ from app.api import (
     comercial_custos,
     comercial_proposta,
     comercial_contrato,
+    implantacao,
     crm,
     system_settings,
     tenant,
@@ -570,6 +571,7 @@ app.include_router(ticket_catalogos.router, prefix=API_V1_PREFIX)
 app.include_router(comercial_custos.router, prefix=API_V1_PREFIX)
 app.include_router(comercial_proposta.router, prefix=API_V1_PREFIX)
 app.include_router(comercial_contrato.router, prefix=API_V1_PREFIX)
+app.include_router(implantacao.router, prefix=API_V1_PREFIX)
 app.include_router(crm.router, prefix=API_V1_PREFIX)
 app.include_router(empresa_pdvs.router, prefix=API_V1_PREFIX)
 app.include_router(system_settings.router, prefix=API_V1_PREFIX)

@@ -1518,6 +1518,12 @@ export const tickets = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  getChecklist: (id: number) => api<Tickets.Checklist>(`/tickets/${id}/checklist`),
+  patchChecklistItem: (ticketId: number, itemId: number, data: Tickets.ChecklistItemPatch) =>
+    api<Tickets.Checklist>(`/tickets/${ticketId}/checklist/itens/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
   anexosList: (id: number) => api<Tickets.Anexo[]>(`/tickets/${id}/anexos`),
   uploadAnexo: (id: number, file: File, mensagemId?: number | null) => {
     const fd = new FormData()
@@ -3315,6 +3321,8 @@ export namespace ComercialContrato {
     dias_restantes_fidelidade?: number | null;
     multa_rescisao?: MultaRescisao | null;
     interno?: Interno | null;
+    implantacao_ticket_id?: number | null;
+    implantacao_ticket_protocolo?: string | null;
   }
   export interface GerarRequest {
     linha_id: number;
@@ -3343,6 +3351,48 @@ export namespace ComercialContrato {
     reajuste_percentual: string | number;
     reajuste_rotulo: string;
   }
+}
+
+export const comercialImplantacaoTemplates = {
+  list: (params?: { incluir_inativos?: boolean }) =>
+    api<ImplantacaoChecklist.Template[]>(withParams('/comercial/implantacao-templates', params)),
+  create: (data: ImplantacaoChecklist.TemplateCreate) =>
+    api<ImplantacaoChecklist.Template>('/comercial/implantacao-templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: (id: number, data: ImplantacaoChecklist.TemplateUpdate) =>
+    api<ImplantacaoChecklist.Template>(`/comercial/implantacao-templates/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+};
+
+export namespace ImplantacaoChecklist {
+  export interface TemplateItem {
+    id?: number;
+    titulo: string;
+    descricao?: string | null;
+    ordem: number;
+    obrigatorio: boolean;
+    chave?: string | null;
+  }
+  export interface Template {
+    id: number;
+    nome: string;
+    versao: number;
+    setor_id?: number | null;
+    setor_nome?: string | null;
+    ativo: boolean;
+    itens: TemplateItem[];
+  }
+  export interface TemplateCreate {
+    nome: string;
+    setor_id?: number | null;
+    ativo?: boolean;
+    itens?: TemplateItem[];
+  }
+  export type TemplateUpdate = Partial<TemplateCreate>;
 }
 
 export const comercialContratoTemplates = {
@@ -4083,6 +4133,36 @@ export namespace Tickets {
     sla_policy_id?: number | null;
     sla_violado?: boolean;
     sla_estado?: 'dentro' | 'em_risco' | 'violado' | 'cumprido' | null;
+    contrato_id?: number | null;
+    negociacao_id?: number | null;
+  }
+  export interface ChecklistItem {
+    id: number;
+    titulo: string;
+    descricao?: string | null;
+    ordem: number;
+    obrigatorio: boolean;
+    chave?: string | null;
+    concluido: boolean;
+    concluido_por_id?: number | null;
+    concluido_por_nome?: string | null;
+    concluido_em?: string | null;
+    observacao?: string | null;
+  }
+  export interface Checklist {
+    aplicavel: boolean;
+    ticket_id: number;
+    contrato_id?: number | null;
+    negociacao_id?: number | null;
+    empresa_id?: number | null;
+    progresso_pct: number;
+    itens_obrigatorios_pendentes: number;
+    pdvs_ativos?: number | null;
+    itens: ChecklistItem[];
+  }
+  export interface ChecklistItemPatch {
+    concluido?: boolean;
+    observacao?: string | null;
   }
   export interface SlaMetaDetalhe {
     meta_minutos: number | null;

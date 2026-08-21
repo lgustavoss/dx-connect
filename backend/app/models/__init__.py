@@ -66,6 +66,11 @@ from app.models.crm import (
 )
 from app.models.comercial_proposta import Proposta, PropostaTemplate
 from app.models.comercial_contrato import Contrato, ContratoPdf, ContratoPolitica, ContratoTemplate
+from app.models.implantacao_checklist import (
+    ImplantacaoChecklistTemplate,
+    ImplantacaoChecklistTemplateItem,
+    TicketChecklistItem,
+)
 from app.models.cliente_saas import ClienteSaaS
 from app.models.saas_alerta_emitido import SaasAlertaEmitido
 from app.models.lead_comercial import LeadComercial
@@ -156,6 +161,9 @@ __all__ = [
     "Contrato",
     "ContratoPdf",
     "ContratoPolitica",
+    "ImplantacaoChecklistTemplate",
+    "ImplantacaoChecklistTemplateItem",
+    "TicketChecklistItem",
     "ClienteSaaS",
     "SaasAlertaEmitido",
     "LeadComercial",

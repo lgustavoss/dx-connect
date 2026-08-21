@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ApiError,
   empresas as apiEmpresas,
@@ -41,6 +41,7 @@ export function EmpresaDetalhe() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams] = useSearchParams()
   const voltarParaRede = (location.state as { voltarPara?: string } | null)?.voltarPara
   const voltarHistorico = useVoltarAnterior(voltarParaRede ?? '/empresas')
   const voltar = useCallback(() => {
@@ -60,6 +61,13 @@ export function EmpresaDetalhe() {
   const [loadFailure, setLoadFailure] = useState<{ titulo: string; detalhe?: string } | null>(null)
   const [forbidden, setForbidden] = useState(false)
   const [aba, setAba] = useState<Aba>('geral')
+
+  useEffect(() => {
+    const q = searchParams.get('aba')
+    if (q === 'pdvs' || q === 'tickets' || q === 'chats' || q === 'funcionarios' || q === 'analises' || q === 'geral') {
+      setAba(q)
+    }
+  }, [searchParams])
 
   const [pageT, setPageT] = useState(1)
   const [buscaT, setBuscaT] = useState('')

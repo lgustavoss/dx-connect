@@ -22,6 +22,7 @@ import { Tickets } from './pages/Tickets'
 import { TicketNovo } from './pages/TicketNovo'
 import { ConfigPropostaTemplates } from './pages/ConfigPropostaTemplates'
 import { ConfigContratoTemplates } from './pages/ConfigContratoTemplates'
+import { ConfigImplantacaoChecklist } from './pages/ConfigImplantacaoChecklist'
 import { CrmLeads } from './pages/CrmLeads'
 import { CrmNegociacaoDetalhe } from './pages/CrmNegociacaoDetalhe'
 import { CrmContratos } from './pages/CrmContratos'
@@ -744,6 +745,7 @@ function AppRoutes() {
           <Route path="funil-crm" element={<ConfigCrmFunil embedded />} />
           <Route path="propostas" element={<ConfigPropostaTemplates embedded />} />
           <Route path="contratos" element={<ConfigContratoTemplates embedded />} />
+          <Route path="implantacao" element={<ConfigImplantacaoChecklist embedded />} />
         </Route>
         <Route
           path="configuracoes/sistema"

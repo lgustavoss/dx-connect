@@ -36,6 +36,7 @@ Dependência: `exigir_comercial_ou_admin` em `app.core.auth`.
 | Funil CRM (mutação) | `POST/PATCH /v1/crm/funil-estagios` — UI em Configurações → Cadastros → Funil CRM |
 | Modelos de proposta (CRUD) | `POST/PATCH /v1/comercial/proposta-templates`, `POST /v1/comercial/proposta-templates/preview` — UI em Cadastros → Modelos de proposta |
 | Modelos de contrato (CRUD) | `POST/PATCH /v1/comercial/contrato-templates`, `POST /v1/comercial/contrato-templates/preview`, `GET /v1/comercial/contrato-templates/chaves` |
+| Checklist de implantação (CRUD) | `POST/PATCH /v1/comercial/implantacao-templates` — UI em Cadastros → Checklist de implantação |
 | Política de reajuste do contrato | `PATCH /v1/comercial/contrato-politica` (percentual e rótulo padrão da instância) |
 
 ## Comercial ou administrador (`exigir_comercial_ou_admin`)
@@ -47,13 +48,14 @@ Dependência: `exigir_comercial_ou_admin` em `app.core.auth`.
 | **Simular custos** | `POST /v1/comercial/custos/simular` |
 | **Listar itens catálogo** | `GET /v1/comercial/custos/itens` (mutações continuam só admin) |
 | **Proposta comercial** | `GET /v1/comercial/proposta-templates` (ativos), `POST/GET /v1/comercial/propostas*`, `GET .../pdf`, `POST .../marcar-enviada` |
-| **Contrato comercial** | `GET /v1/comercial/contrato-templates` (ativos), `GET /v1/comercial/contrato-templates/chaves`, `GET /v1/comercial/contrato-politica`, `POST/GET /v1/comercial/contratos*`, `GET .../pdf`, `POST/GET .../pdf-assinado`, `POST .../marcar-enviado`, `POST .../marcar-assinado`, `POST .../cancelar` (também rescinde assinado com estimativa de multa no payload/atividade). Lista e detalhe (incl. PDF e `multa_rescisao`): comercial só as próprias negociações; admin todos (filtros `so_minhas` e `responsavel_id`). Marcar assinado cria/vincula Rede e Empresa internamente — comercial **não** ganha CRUD de Rede/Empresa. |
+| **Contrato comercial** | `GET /v1/comercial/contrato-templates` (ativos), `GET /v1/comercial/contrato-templates/chaves`, `GET /v1/comercial/contrato-politica`, `POST/GET /v1/comercial/contratos*`, `GET .../pdf`, `POST/GET .../pdf-assinado`, `POST .../marcar-enviado`, `POST .../marcar-assinado`, `POST .../cancelar` (também rescinde assinado com estimativa de multa no payload/atividade). Lista e detalhe (incl. PDF e `multa_rescisao`): comercial só as próprias negociações; admin todos (filtros `so_minhas` e `responsavel_id`). Marcar assinado cria/vincula Rede e Empresa internamente — comercial **não** ganha CRUD de Rede/Empresa. Também abre ticket de implantação (checklist) no setor configurado. |
+| **Checklist de implantação (leitura)** | `GET /v1/comercial/implantacao-templates` (comercial/admin; `incluir_inativos` só admin) |
 
 ## Autenticado com escopo de setor (`obter_atendente_atual`)
 
 | Recurso | Comportamento |
 |---------|----------------|
-| **Tickets** | Listagem e operações respeitam setores visíveis; regras extra em `tickets.py` (responsável, fila, fechado, reabrir só admin). |
+| **Tickets** | Listagem e operações respeitam setores visíveis; regras extra em `tickets.py` (responsável, fila, fechado, reabrir só admin). Checklist de implantação: `GET/PATCH /v1/tickets/{id}/checklist*` no mesmo escopo; fechar bloqueado se itens obrigatórios pendentes. |
 | **Dashboard** | Agregações filtradas por setor para não admin. |
 | **Notificações** | Contagens e itens filtrados por setor / responsável. |
 | **GET /v1/setores** | Lista apenas setores aos quais o atendente está vinculado (e homônimos). |
@@ -78,3 +80,4 @@ Dependência: `exigir_comercial_ou_admin` em `app.core.auth`.
 - **CRM UI** (#341–#344): menu **CRM** e rotas `/crm/leads`, `/crm/negociacoes/:id` para `admin` e `comercial`.
 - **Proposta** (#345–#348): card na negociação para comercial/admin; CRUD de templates só admin.
 - **Contrato** (#349–#357): card na negociação, lista `/crm/contratos` (comercial: próprias; admin: todas); CRUD de templates e política de reajuste em Cadastros (só admin).
+- **Implantação** (#358–#361): CRUD do checklist em Cadastros (admin); ticket automático ao assinar; checklist no detalhe do ticket para quem já vê o ticket.

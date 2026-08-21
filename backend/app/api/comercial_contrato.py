@@ -272,8 +272,27 @@ def marcar_assinado(
         atendente.id,
         payload={"status": row.status, "avancar_funil": data.avancar_funil},
     )
+    from app.services.implantacao import ticket_por_contrato
+    from app.services.ticket_distribuicao import pos_criar_ticket_na_fila
+
+    ticket_impl = ticket_por_contrato(db, row.id)
+    if ticket_impl:
+        registrar_audit(
+            db,
+            "ticket",
+            ticket_impl.id,
+            "create",
+            atendente.id,
+            payload={"origem": "implantacao_contrato", "contrato_id": row.id},
+        )
     db.commit()
     db.refresh(row)
+    if ticket_impl:
+        from app.models.ticket import Ticket
+
+        ticket_impl = db.query(Ticket).filter(Ticket.id == ticket_impl.id).first()
+        if ticket_impl:
+            pos_criar_ticket_na_fila(db, ticket_impl)
     return svc.contrato_para_read(svc.obter_contrato(db, row.id, atendente=atendente), incluir_html=True)
 
 
