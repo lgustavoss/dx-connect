@@ -9,6 +9,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- WhatsApp (#837): **Exportar PDF** da conversa (header / menu ⋮) — relatório com protocolo, contacto e mensagens; mídia como rótulo; comentários internos excluídos; mesma permissão de ver o chat
 - Configurações (#833): hub com **pesquisa** e cartões por domínio; menu reorganizado (Equipa e tickets, Canais, Comercial/CRM, Empresa e catálogos, Administração); URLs antigas redireccionam
 - WhatsApp (#831): clicar no **número** do contacto (lista Em atendimento, Aguardando, histórico e header) copia automaticamente, com «Copiado!» discreto
 - Alertas (#823): com a app/aba em **segundo plano**, a fila continua a chamar via notificação do sistema (re-alerta periódico + vibração no push); silenciar na mesa alinha com «Avisar fila» nas preferências

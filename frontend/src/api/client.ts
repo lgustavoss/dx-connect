@@ -1298,6 +1298,29 @@ export const whatsappChats = {
     listPaginated<WhatsappChats.Avaliacao>('/whatsapp/chats/avaliacoes', params),
   get: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}`),
   mensagens: (id: number) => api<WhatsappChats.Mensagem[]>(`/whatsapp/chats/${id}/mensagens`),
+  downloadPdf: async (id: number) => {
+    const token = getAuthToken()
+    const headers: Record<string, string> = {}
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+    }
+    if (token) headers.Authorization = `Bearer ${token}`
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}/whatsapp/chats/${id}/pdf`
+    const res = await fetch(url, { headers })
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin()
+      throw new ApiError('Sessão expirada ou inválida.', 401, {})
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+    }
+    const cd = res.headers.get('Content-Disposition') || ''
+    const match = /filename="([^"]+)"/i.exec(cd)
+    const filename = match?.[1] || `chat-${id}.pdf`
+    const blob = await res.blob()
+    return { blob, filename }
+  },
   demandas: (id: number) => api<WhatsappChats.Demanda[]>(`/whatsapp/chats/${id}/demandas`),
   registrarDemanda: (id: number, data: WhatsappChats.DemandaCreate) =>
     api<WhatsappChats.Demanda>(`/whatsapp/chats/${id}/demandas`, {
