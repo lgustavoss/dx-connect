@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   comercialContratoPolitica,
   comercialContratoTemplates,
@@ -18,6 +18,8 @@ import { useToast } from '../ui/Toast'
 import { maskCnpjCpf } from '../../utils/maskCnpjCpf'
 import { CrmDadosFiscaisFields } from './CrmDadosFiscaisFields'
 import { emptyFiscal, fiscaisDaLinha, fiscalPayload, formatPercentualPt, parsePercentualPt } from './crmFiscais'
+import { marcarTicketAtivo, TICKETS_PATH } from '../../lib/ticketAtivo'
+import { exibirProtocolo } from '../../lib/exibirProtocolo'
 
 const STATUS_LABEL: Record<string, string> = {
   rascunho: 'Rascunho',
@@ -673,6 +675,18 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
                 </Button>
               ) : null}
             </div>
+            {preview.status === 'assinado' && preview.implantacao_ticket_id ? (
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                Ticket de implantação:{' '}
+                <Link
+                  to={TICKETS_PATH}
+                  onClick={() => marcarTicketAtivo(preview.implantacao_ticket_id as number)}
+                  className="font-medium text-cyan-700 underline dark:text-cyan-400"
+                >
+                  {exibirProtocolo(preview.implantacao_ticket_protocolo || String(preview.implantacao_ticket_id))}
+                </Link>
+              </p>
+            ) : null}
           </div>
           <iframe
             title={`Preview do contrato ${preview.id}`}

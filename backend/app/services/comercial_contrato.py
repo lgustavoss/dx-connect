@@ -952,6 +952,9 @@ def marcar_assinado(db: Session, row: Contrato, data: ContratoMarcarAssinadoIn, 
     row.assinado_em = data.assinado_em or datetime.now(timezone.utc)
     linha = row.linha or obter_linha(db, row.negociacao_linha_cnpj_id)
     converter_pos_assinatura(db, row, linha, ator)
+    from app.services.implantacao import criar_ticket_implantacao
+
+    criar_ticket_implantacao(db, row, ator)
     db.add(
         CrmNegociacaoAtividade(
             negociacao_id=linha.negociacao_id,
@@ -1106,6 +1109,12 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
             emp = sess.query(Empresa).filter(Empresa.id == row.empresa_id).first()
             if emp is not None:
                 rede_id = emp.rede_id
+    ticket_impl = None
+    sess = object_session(row)
+    if sess is not None:
+        from app.models.ticket import Ticket
+
+        ticket_impl = sess.query(Ticket).filter(Ticket.contrato_id == row.id).first()
     return {
         "id": row.id,
         "negociacao_linha_cnpj_id": row.negociacao_linha_cnpj_id,
@@ -1156,6 +1165,8 @@ def contrato_para_read(row: Contrato, *, incluir_html: bool = False) -> dict[str
         "dias_restantes_fidelidade": dias,
         "multa_rescisao": estimar_multa_rescisao(row),
         "interno": _interno_read(row, linha),
+        "implantacao_ticket_id": ticket_impl.id if ticket_impl else None,
+        "implantacao_ticket_protocolo": ticket_impl.protocolo if ticket_impl else None,
     }
 
 
