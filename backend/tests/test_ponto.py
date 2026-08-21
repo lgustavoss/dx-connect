@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
+import pytest
+
 from app.models.atendente import Atendente
 from app.services.escala import eh_dia_de_trabalho, em_periodo_trabalho
 
@@ -458,3 +460,31 @@ def test_ponto_banco_digest_settings_fecho(client, seed_base, auth_headers, db_s
     db_session.commit()
     me = client.get("/v1/ponto/me", headers=auth_headers["a1"])
     assert me.json()["em_jornada"] is False
+
+
+def test_ponto_bater_com_geolocalizacao(client, seed_base, auth_headers):
+    h = auth_headers["a1"]
+    r = client.post(
+        "/v1/ponto/bater",
+        headers=h,
+        json={
+            "tipo": "entrada",
+            "origem": "mobile",
+            "latitude": -23.55052,
+            "longitude": -46.633308,
+            "accuracy_metros": 12.5,
+        },
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["tipo"] == "entrada"
+    assert body["latitude"] == pytest.approx(-23.55052)
+    assert body["longitude"] == pytest.approx(-46.633308)
+    assert body["accuracy_metros"] == pytest.approx(12.5)
+
+    r_bad = client.post(
+        "/v1/ponto/bater",
+        headers=h,
+        json={"tipo": "saida", "latitude": -23.55},
+    )
+    assert r_bad.status_code == 400

@@ -8,6 +8,8 @@ import { Input } from '../components/ui/Input'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
+import { isCapacitorNative } from '../lib/capacitorNative'
+import { geolocationSupported, getCurrentPosition, type GeoError } from '../lib/geolocation'
 
 function formatarHora(iso: string | null | undefined): string {
   if (!iso) return '—'
@@ -117,6 +119,10 @@ export function MeuPonto() {
   const [loadingCal, setLoadingCal] = useState(false)
   const [relogio, setRelogio] = useState(() => new Date())
   const [mostrarJust, setMostrarJust] = useState(false)
+  const [incluirLocalizacao, setIncluirLocalizacao] = useState(
+    () => isCapacitorNative() || geolocationSupported(),
+  )
+  const [obtendoLocalizacao, setObtendoLocalizacao] = useState(false)
 
   const carregar = useCallback(
     async (silencioso = false) => {
@@ -184,16 +190,43 @@ export function MeuPonto() {
   async function bater(tipo: Ponto.Tipo) {
     setBatendo(true)
     const fechouPausaAuto = tipo === 'saida' && !!estado?.em_pausa
+    let geo:
+      | { latitude: number; longitude: number; accuracy_metros: number }
+      | undefined
     try {
-      await ponto.bater({ tipo, origem: 'web' })
+      if (incluirLocalizacao && geolocationSupported()) {
+        setObtendoLocalizacao(true)
+        try {
+          const pos = await getCurrentPosition()
+          geo = {
+            latitude: pos.latitude,
+            longitude: pos.longitude,
+            accuracy_metros: pos.accuracy,
+          }
+        } catch (geoErr) {
+          const msg = (geoErr as GeoError)?.message || 'Localização indisponível'
+          toast.showWarning(`${msg} O ponto será registado sem localização.`)
+        } finally {
+          setObtendoLocalizacao(false)
+        }
+      }
+      await ponto.bater({
+        tipo,
+        origem: isCapacitorNative() ? 'mobile' : 'web',
+        ...(geo ?? {}),
+      })
       if (fechouPausaAuto) {
-        toast.showSuccess('Pausa encerrada automaticamente ao sair.')
+        toast.showSuccess(
+          geo
+            ? 'Pausa encerrada automaticamente ao sair (com localização).'
+            : 'Pausa encerrada automaticamente ao sair.',
+        )
       } else {
         const msgs: Record<Ponto.Tipo, string> = {
-          entrada: 'Entrada registrada.',
-          saida: 'Saída registrada.',
-          pausa_inicio: 'Pausa iniciada.',
-          pausa_fim: 'Pausa encerrada.',
+          entrada: geo ? 'Entrada registrada (com localização).' : 'Entrada registrada.',
+          saida: geo ? 'Saída registrada (com localização).' : 'Saída registrada.',
+          pausa_inicio: geo ? 'Pausa iniciada (com localização).' : 'Pausa iniciada.',
+          pausa_fim: geo ? 'Pausa encerrada (com localização).' : 'Pausa encerrada.',
         }
         toast.showSuccess(msgs[tipo])
       }
@@ -201,6 +234,7 @@ export function MeuPonto() {
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível bater o ponto.'))
     } finally {
+      setObtendoLocalizacao(false)
       setBatendo(false)
     }
   }
@@ -304,14 +338,30 @@ export function MeuPonto() {
               </div>
               <div>
                 <p className="mb-2 text-sm text-slate-600 dark:text-slate-300">{principal.dica}</p>
+                {geolocationSupported() ? (
+                  <label className="mb-3 flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={incluirLocalizacao}
+                      onChange={(e) => setIncluirLocalizacao(e.target.checked)}
+                    />
+                    <span>
+                      Incluir localização na batida
+                      <span className="mt-0.5 block text-xs text-slate-500">
+                        Opcional — útil no telemóvel/APK. Se falhar, o ponto regista na mesma.
+                      </span>
+                    </span>
+                  </label>
+                ) : null}
                 <Button
                   type="button"
-                  disabled={batendo}
-                  loading={batendo}
+                  disabled={batendo || obtendoLocalizacao}
+                  loading={batendo || obtendoLocalizacao}
                   className="min-h-12 w-full max-w-sm px-8 text-base font-semibold shadow-lg shadow-cyan-500/25 sm:w-auto"
                   onClick={() => void bater(principal.tipo)}
                 >
-                  {principal.rotulo}
+                  {obtendoLocalizacao ? 'Obtendo localização…' : principal.rotulo}
                 </Button>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {emJornada && !emPausa ? (

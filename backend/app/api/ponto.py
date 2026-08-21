@@ -62,6 +62,9 @@ def bater_ponto(
         origem=data.origem,
         ip=ip,
         user_agent=ua,
+        latitude=data.latitude,
+        longitude=data.longitude,
+        accuracy_metros=data.accuracy_metros,
     )
     return PontoBatidaRead.model_validate(batida)
 

@@ -13,6 +13,9 @@ TipoBatida = Literal["entrada", "saida", "pausa_inicio", "pausa_fim"]
 class PontoBaterRequest(BaseModel):
     tipo: TipoBatida
     origem: Literal["web", "mobile"] | None = "web"
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    accuracy_metros: float | None = Field(default=None, ge=0, le=100_000)
 
 
 class PontoBatidaRead(BaseModel):
@@ -21,6 +24,9 @@ class PontoBatidaRead(BaseModel):
     tipo: str
     registrado_em: datetime
     origem: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    accuracy_metros: float | None = None
     anulada: bool = False
 
     model_config = ConfigDict(from_attributes=True)
@@ -59,6 +65,9 @@ class PontoBatidaAdminItem(BaseModel):
     tipo: str
     registrado_em: datetime
     origem: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    accuracy_metros: float | None = None
     anulada: bool = False
 
 

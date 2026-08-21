@@ -143,11 +143,24 @@ def bater(
     ip: str | None = None,
     user_agent: str | None = None,
     registrado_em: datetime | None = None,
+    latitude: float | None = None,
+    longitude: float | None = None,
+    accuracy_metros: float | None = None,
     commit: bool = True,
 ) -> PontoBatida:
     exigir_acesso_ponto(atendente)
     if tipo not in TIPOS_VALIDOS:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tipo inválido de batida.")
+
+    has_lat = latitude is not None
+    has_lon = longitude is not None
+    if has_lat != has_lon:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Informe latitude e longitude juntos, ou omita ambas.",
+        )
+    if has_lat and (latitude < -90 or latitude > 90 or longitude < -180 or longitude > 180):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Coordenadas inválidas.")
 
     ultima = ultima_batida(db, atendente.id)
     em_jornada = bool(ultima and ultima.tipo in TIPOS_EM_JORNADA)
@@ -208,6 +221,9 @@ def bater(
         origem=origem_norm,
         ip=ip,
         user_agent=(user_agent or "")[:512] or None,
+        latitude=float(latitude) if has_lat else None,
+        longitude=float(longitude) if has_lon else None,
+        accuracy_metros=float(accuracy_metros) if accuracy_metros is not None and has_lat else None,
         anulada=False,
     )
     db.add(batida)
@@ -350,6 +366,9 @@ def listar_batidas_admin(
             tipo=b.tipo,
             registrado_em=b.registrado_em,
             origem=b.origem,
+            latitude=getattr(b, "latitude", None),
+            longitude=getattr(b, "longitude", None),
+            accuracy_metros=getattr(b, "accuracy_metros", None),
             anulada=bool(b.anulada),
         )
         for b, a in rows

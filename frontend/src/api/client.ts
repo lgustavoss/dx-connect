@@ -4664,6 +4664,9 @@ export namespace Ponto {
   export interface Bater {
     tipo: Tipo
     origem?: Origem
+    latitude?: number | null
+    longitude?: number | null
+    accuracy_metros?: number | null
   }
   export interface Batida {
     id: number
@@ -4671,6 +4674,9 @@ export namespace Ponto {
     tipo: Tipo | string
     registrado_em: string
     origem: string | null
+    latitude?: number | null
+    longitude?: number | null
+    accuracy_metros?: number | null
     anulada?: boolean
   }
   export interface BatidaAdmin {
@@ -4680,6 +4686,9 @@ export namespace Ponto {
     tipo: string
     registrado_em: string
     origem: string | null
+    latitude?: number | null
+    longitude?: number | null
+    accuracy_metros?: number | null
     anulada?: boolean
   }
   export interface Intervalo {

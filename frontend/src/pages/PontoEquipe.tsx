@@ -511,7 +511,19 @@ export function PontoEquipe() {
                       <td className="py-2 pr-3">{b.atendente_nome}</td>
                       <td className="py-2 pr-3">{b.tipo.replace('_', ' ')}</td>
                       <td className="py-2 pr-3">{formatarHora(b.registrado_em)}</td>
-                      <td className="py-2 pr-3">{b.origem ?? '—'}</td>
+                      <td className="py-2 pr-3">
+                        {b.origem ?? '—'}
+                        {b.latitude != null && b.longitude != null ? (
+                          <span
+                            className="ml-1 text-xs text-cyan-700 dark:text-cyan-300"
+                            title={`${b.latitude.toFixed(5)}, ${b.longitude.toFixed(5)}${
+                              b.accuracy_metros != null ? ` (±${Math.round(b.accuracy_metros)} m)` : ''
+                            }`}
+                          >
+                            · GPS
+                          </span>
+                        ) : null}
+                      </td>
                       <td className="py-2">
                         <Button type="button" variant="ghost" onClick={() => void anularBatida(b.id)}>
                           Anular

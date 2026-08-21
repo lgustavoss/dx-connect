@@ -94,6 +94,7 @@ Correr após `npm run build:android` + instalar no emulador/dispositivo (**sem**
 | 9 | Ticket: teclado no composer | Campo visível; double-tap no enviar não duplica |
 | 10 | WhatsApp: texto + figurinha | Envio único; teclado sem cortar o campo |
 | 11 | Menu → Meu ponto / Chat / Tickets / (admin) Configurações | Mesmas entradas que no Chrome mobile; rotas abrem de facto |
+| 11b | Meu ponto: batida com «Incluir localização» | Pedido de GPS; batida com lat/lon (ou aviso e batida sem geo) |
 | 12 | Voltar Android | Volta na navegação; na raiz pode sair da app |
 
 Cada instância precisa de `VAPID_*` no `client.env` e `https://localhost` em `CORS_ORIGINS`.
