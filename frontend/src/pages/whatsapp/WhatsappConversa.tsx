@@ -33,8 +33,8 @@ import { WhatsappAvatar } from '../../components/chat/WhatsappAvatar'
 import { ImageLightboxViewer } from '../../components/chat/ImageLightboxViewer'
 import { WhatsappMensagemAcoes } from '../../components/chat/WhatsappMensagemAcoes'
 import { WhatsappReacoesBar } from '../../components/chat/WhatsappReacoesBar'
+import { CopiarWaIdButton } from '../../components/chat/CopiarWaIdButton'
 import { precisaEscolherSetorAoAssumir } from '../../lib/assumirWhatsappSetor'
-import { formatWaIdExibicao } from '../../utils/masks'
 
 import { Card } from '../../components/ui/Card'
 import { ChatBottomSheet } from '../../components/ui/ChatBottomSheet'
@@ -611,7 +611,6 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
   const [zoomMsgId, setZoomMsgId] = useState<number | null>(null)
   const [videoZoomMsgId, setVideoZoomMsgId] = useState<number | null>(null)
   const [fotoPerfilAberta, setFotoPerfilAberta] = useState(false)
-  const [numeroCopiado, setNumeroCopiado] = useState(false)
   const [detalhesMobileAbertos, setDetalhesMobileAbertos] = useState(() => {
     try {
       return sessionStorage.getItem(WA_DETALHES_SESSION_KEY) === '1'
@@ -1703,20 +1702,10 @@ useEffect(() => {
                 {chat?.cliente_nome || 'Atendimento'}
               </h1>
               {chat?.wa_id ? (
-                <button
-                  type="button"
-                  className="mt-0.5 max-w-full truncate font-mono text-[11px] text-slate-500 transition hover:text-cyan-700 dark:text-slate-400 dark:hover:text-cyan-300"
-                  title={numeroCopiado ? 'Copiado' : 'Clique para copiar o número'}
-                  onClick={() => {
-                    const raw = chat.wa_id
-                    void navigator.clipboard?.writeText(raw).then(() => {
-                      setNumeroCopiado(true)
-                      window.setTimeout(() => setNumeroCopiado(false), 1500)
-                    })
-                  }}
-                >
-                  {numeroCopiado ? 'Copiado!' : formatWaIdExibicao(chat.wa_id)}
-                </button>
+                <CopiarWaIdButton
+                  waId={chat.wa_id}
+                  className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400"
+                />
               ) : null}
             </div>
 
