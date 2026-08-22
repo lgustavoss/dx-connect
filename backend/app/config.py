@@ -144,18 +144,6 @@ class Settings(BaseSettings):
     # Ex.: lgustavoss/dx-connect
     GITHUB_REPO_SUGESTOES: str | None = None
 
-    # Pré-ticket IA (#808 / #809). Vazio ou PRE_TICKET_AI_ENABLED=false = desligado.
-    OPENAI_API_KEY: str | None = None
-    PRE_TICKET_AI_MODEL: str = "gpt-4o-mini"
-    PRE_TICKET_AI_ENABLED: bool = False
-    # Custo estimado USD por 1M tokens (gpt-4o-mini — ajustável por instância).
-    PRE_TICKET_AI_COST_INPUT_PER_1M: float = 0.15
-    PRE_TICKET_AI_COST_OUTPUT_PER_1M: float = 0.60
-    # Alertas operacionais (#815).
-    PRE_TICKET_ALERT_ERROR_RATE_PCT: float = 20.0
-    PRE_TICKET_ALERT_LATENCY_P95_MS: int = 30000
-    PRE_TICKET_ALERT_CUSTO_DIARIO_USD: float = 5.0
-
     @property
     def evolution_embutida_disponivel(self) -> bool:
         return bool(
