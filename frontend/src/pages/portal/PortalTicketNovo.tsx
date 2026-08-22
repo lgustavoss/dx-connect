@@ -236,7 +236,7 @@ export function PortalTicketNovo() {
           </Button>
           <Link
             to="/portal/tickets"
-            className="inline-flex items-center rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center rounded-xl border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-800 hover:bg-red-100"
           >
             Cancelar
           </Link>

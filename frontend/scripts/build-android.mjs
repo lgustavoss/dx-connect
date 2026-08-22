@@ -1,5 +1,5 @@
 /**
- * Build do SPA nativo (tickets + chat) + `cap sync android` (#735 / #736).
+ * Build do SPA Capacitor (mesmo App do browser) + `cap sync android` (#735 / #736).
  *
  * Produção (um APK, várias empresas): não precisa de VITE_API_URL — o login pede a
  * conta (slug) e grava `https://api-{slug}.deskrudder.com.br`.

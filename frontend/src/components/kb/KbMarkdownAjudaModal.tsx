@@ -43,7 +43,7 @@ const EXEMPLOS: ExemploMarkdown[] = [
   },
   {
     titulo: 'Link',
-    sintaxe: '[Central de ajuda](https://exemplo.com/ajuda)',
+    sintaxe: '[Central de ajuda](https://www.deskrudder.com.br)',
     descricao: 'Texto clicável entre colchetes + URL entre parênteses.',
   },
   {
@@ -87,7 +87,7 @@ Siga os passos abaixo para incluir um novo cliente.
 
 ---
 
-[Dúvidas? Abra um ticket](https://exemplo.com/suporte)
+[Dúvidas? Abra um ticket](https://www.deskrudder.com.br)
 `
 
 function escapeHtml(text: string): string {

@@ -5,7 +5,7 @@ import bcrypt
 
 from app.config import settings
 from app.database import SessionLocal
-from app.models import StatusTicket, Atendente, Tenant
+from app.models import StatusTicket, Atendente, Tenant, Setor
 
 
 def _hash_senha(senha: str) -> str:
@@ -30,6 +30,18 @@ def _ensure_status_aguardando_atendimento(db):
     print("Status «Aguardando atendimento» adicionado (fila do setor).")
 
 
+def _ensure_setor_financeiro(db):
+    """Setor usado na aprovação de faturas (#326) — slug financeiro."""
+    if db.query(Setor).filter(func.lower(Setor.slug) == "financeiro").first():
+        return
+    tenant = db.query(Tenant).order_by(Tenant.id.asc()).first()
+    if not tenant:
+        return
+    db.add(Setor(tenant_id=tenant.id, nome="Financeiro", slug="financeiro", ativo=True))
+    db.commit()
+    print("Setor Financeiro criado (faturamento).")
+
+
 def _ensure_default_tenant(db):
     if not db.query(Tenant).filter(Tenant.id == 1).first():
         db.add(Tenant(id=1, nome="Padrão", ativo=True))
@@ -40,6 +52,7 @@ def run_seed():
     db = SessionLocal()
     try:
         _ensure_default_tenant(db)
+        _ensure_setor_financeiro(db)
         if db.query(StatusTicket).count() == 0:
             for ordem, (nome, slug) in enumerate(
                 [

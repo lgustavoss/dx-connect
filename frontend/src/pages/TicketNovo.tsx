@@ -4,6 +4,7 @@ import { ApiError, tickets, empresas, setores, redes, type Empresas, type Setore
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
+import { VoltarButton } from '../components/ui/VoltarButton'
 import { Input } from '../components/ui/Input'
 import { SelectComPesquisa } from '../components/ui/SelectComPesquisa'
 import { Select } from '../components/ui/Select'
@@ -258,13 +259,7 @@ export function TicketNovo() {
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto max-w-3xl space-y-6 pb-4">
       <nav aria-label="breadcrumb" className="flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-        <button
-          type="button"
-          onClick={voltarAnterior}
-          className="font-medium text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
-        >
-          ← Voltar
-        </button>
+        <VoltarButton onClick={voltarAnterior} />
         <span aria-hidden className="text-slate-300 dark:text-slate-600">
           /
         </span>
@@ -483,7 +478,7 @@ export function TicketNovo() {
 
       <div className="z-10 -mx-4 shrink-0 border-t border-slate-200 bg-white px-4 py-4 shadow-[0_-8px_24px_-4px_rgba(15,23,42,0.12)] dark:border-slate-800 dark:bg-slate-900 dark:shadow-[0_-8px_24px_-4px_rgba(0,0,0,0.45)] md:-mx-6 md:px-6">
         <div className="mx-auto flex max-w-3xl flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button type="button" variant="secondary" onClick={voltarAnterior} className="w-full sm:w-auto">
+          <Button type="button" variant="cancel" onClick={voltarAnterior} className="w-full sm:w-auto">
             Cancelar
           </Button>
           <Button

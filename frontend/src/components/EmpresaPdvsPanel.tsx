@@ -341,7 +341,7 @@ export function EmpresaPdvsPanel({ empresaId }: Props) {
               <Switch bare checked={form.ativo ?? true} onCheckedChange={(v) => setForm((f) => ({ ...f, ativo: v }))} label="Ativo" />
             </div>
             <div className="mt-6 flex justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>
+              <Button type="button" variant="cancel" onClick={() => setModalOpen(false)}>
                 Cancelar
               </Button>
               <Button type="button" loading={saving} onClick={() => void salvar()}>

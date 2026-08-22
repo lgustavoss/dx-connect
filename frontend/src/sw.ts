@@ -41,6 +41,7 @@ self.addEventListener('push', (event: PushEvent) => {
   }
   const title = data.titulo || 'DeskRudder'
   const body = data.corpo || 'Nova actividade no atendimento'
+  const isFila = data.tipo === 'chat.fila' || data.tipo === 'fila'
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
@@ -49,6 +50,8 @@ self.addEventListener('push', (event: PushEvent) => {
       data,
       tag: `${data.tipo || 'push'}:${data.id || ''}`,
       renotify: true,
+      requireInteraction: isFila,
+      vibrate: isFila ? [200, 100, 200, 100, 200] : [180, 80, 180],
     }),
   )
 })

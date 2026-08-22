@@ -1,22 +1,31 @@
-MIT License
+Copyright (c) 2026 Luis Gustavo da S. Sousa
+Todos os direitos reservados.
 
-Copyright (c) 2026
+O software DX Connect (incluindo código-fonte, documentação, assets e demais
+arquivos deste repositório) é propriedade exclusiva do titular do copyright.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Nenhuma licença é concedida.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+É expressamente proibido, sem autorização prévia e por escrito do titular:
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+  - copiar, reproduzir ou clonar o software para uso próprio ou de terceiros;
+  - modificar, adaptar ou criar obras derivadas;
+  - distribuir, sublicenciar, publicar, disponibilizar ou vender o software,
+    no todo ou em parte;
+  - usar o software, ou qualquer parte dele, em produto, serviço ou ambiente
+    de produção, comercial ou interno, fora do que o titular autorizar.
 
+A mera disponibilização deste repositório (por exemplo, no GitHub) não
+constitui oferta de licença, cessão de direitos nem autorização de uso.
+
+Componentes de terceiros incluídos neste projeto (bibliotecas, frameworks e
+demais dependências) permanecem sob as respectivas licenças originais.
+Esta reserva de direitos aplica-se apenas ao código e aos materiais de
+autoria do titular.
+
+O software é fornecido "no estado em que se encontra", sem garantias de
+qualquer espécie, expressas ou implícitas, incluindo comercialização e
+adequação a um fim específico.
+
+Para autorização de uso, licenciamento comercial ou qualquer outra permissão:
+gustaavojaco@gmail.com

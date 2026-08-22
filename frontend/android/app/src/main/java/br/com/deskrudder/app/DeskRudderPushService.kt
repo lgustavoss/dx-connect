@@ -82,6 +82,8 @@ class DeskRudderPushService : PushService() {
             .setAutoCancel(true)
             .setContentIntent(pending)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setOnlyAlertOnce(false)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             .build()
         NotificationManagerCompat.from(this).notify(tag.hashCode(), notification)
@@ -98,6 +100,14 @@ class DeskRudderPushService : PushService() {
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply {
                 description = "Fila e mensagens nos teus chats e tickets"
+                enableVibration(true)
+                setSound(
+                    android.media.RingtoneManager.getDefaultUri(
+                        android.media.RingtoneManager.TYPE_NOTIFICATION,
+                    ),
+                    null,
+                )
+                setShowBadge(true)
             },
         )
     }

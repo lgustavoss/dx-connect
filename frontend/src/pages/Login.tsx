@@ -343,7 +343,7 @@ function LoginCapacitor() {
         /* storage indisponível */
       }
       showSuccess('Login realizado com sucesso.')
-      navigate('/chat/atendendo', { replace: true })
+      navigate('/', { replace: true })
     } catch (err) {
       if (slugAnterior) writeRememberedAccount(slugAnterior)
       else clearRememberedAccount()

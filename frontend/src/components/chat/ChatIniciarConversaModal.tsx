@@ -145,7 +145,7 @@ export function ChatIniciarConversaModal({
         </div>
 
         <div className="mt-5 flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose} disabled={salvando}>
+          <Button type="button" variant="cancel" onClick={onClose} disabled={salvando}>
             Cancelar
           </Button>
           <Button type="button" onClick={() => void confirmar()} loading={salvando}>

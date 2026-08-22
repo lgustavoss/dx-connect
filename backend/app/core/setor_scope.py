@@ -34,6 +34,27 @@ def ids_setores_mesmo_nome(db: Session, setor_id: int) -> set[int]:
     return out if out else {setor_id}
 
 
+def ids_setores_financeiro(db: Session) -> set[int]:
+    """Setores Financeiro (slug ou nome) e homônimos — aprovação de faturas (#326)."""
+    rows = db.query(Setor).filter(Setor.ativo.is_(True)).all()
+    ids: set[int] = set()
+    for s in rows:
+        slug = (s.slug or "").strip().lower()
+        nome = (s.nome or "").strip().lower()
+        if slug == "financeiro" or nome == "financeiro":
+            ids.add(s.id)
+            ids |= ids_setores_mesmo_nome(db, s.id)
+    return ids
+
+
+def atendente_e_financeiro(db: Session, atendente: Atendente) -> bool:
+    """Admin ou vínculo ao setor Financeiro (inclui homônimos)."""
+    if atendente.role == "admin":
+        return True
+    vis = ids_setores_visiveis_atendente(db, atendente)
+    return bool(vis & ids_setores_financeiro(db))
+
+
 def ids_setores_visiveis_atendente(db: Session, atendente: Atendente) -> set[int]:
     """IDs de setor que o atendente enxerga (inclui duplicatas de nome dos vínculos dele)."""
     out: set[int] = set()

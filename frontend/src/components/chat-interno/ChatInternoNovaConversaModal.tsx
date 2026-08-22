@@ -210,7 +210,7 @@ export function ChatInternoNovaConversaModal({ open, onClose }: Props) {
               })}
             </ul>
             <div className="mt-4 flex justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={onClose}>
+              <Button type="button" variant="cancel" onClick={onClose}>
                 Cancelar
               </Button>
               <Button
@@ -226,7 +226,7 @@ export function ChatInternoNovaConversaModal({ open, onClose }: Props) {
 
         {modo === 'direta' && (
           <div className="mt-4 flex justify-end">
-            <Button type="button" variant="secondary" onClick={onClose}>
+            <Button type="button" variant="cancel" onClick={onClose}>
               Cancelar
             </Button>
           </div>

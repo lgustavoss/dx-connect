@@ -133,7 +133,7 @@ export function SaasLayout() {
             {sidebarExpanded ? 'Painel admin SaaS' : 'SaaS'}
           </p>
           {sidebarExpanded ? (
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">Licenças, planos e leads</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">Licenças, planos, leads e sugestões</p>
           ) : null}
         </div>
         <nav className="flex flex-1 flex-col gap-1 p-3" onClick={() => setSidebarMobileOpen(false)}>
@@ -145,6 +145,9 @@ export function SaasLayout() {
           </NavLink>
           <NavLink to="/saas/leads" className={navLinkClass}>
             <span className="truncate">{sidebarExpanded || sidebarMobileOpen ? 'Leads comerciais' : 'Leads'}</span>
+          </NavLink>
+          <NavLink to="/saas/solicitacoes" className={navLinkClass}>
+            <span className="truncate">{sidebarExpanded || sidebarMobileOpen ? 'Sugestões' : 'Sug'}</span>
           </NavLink>
           <NavLink to="/saas/sobre" className={navLinkClass}>
             <span className="truncate">{sidebarExpanded || sidebarMobileOpen ? 'Sobre' : 'Info'}</span>

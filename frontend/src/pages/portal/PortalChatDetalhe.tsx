@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { portalCliente, type PortalCliente } from '../../api/client'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { useToast } from '../../components/ui/Toast'
+import { VoltarButton } from '../../components/ui/VoltarButton'
 
 function formatData(iso?: string | null) {
   if (!iso) return ''
@@ -112,13 +113,7 @@ export function PortalChatDetalhe({ chatIdProp, onVoltar }: PortalChatDetalhePro
   return (
     <div className="flex min-h-[70dvh] flex-col gap-4">
       <div>
-        <button
-          type="button"
-          onClick={voltarLista}
-          className="mb-2 text-sm font-medium text-slate-500 hover:text-slate-800"
-        >
-          ← Voltar
-        </button>
+        <VoltarButton onClick={voltarLista} className="mb-2" />
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="font-mono text-xs font-semibold text-teal-700">{chat.protocolo}</p>
           <h1 className="mt-1 text-lg font-semibold text-slate-900">Atendimento WhatsApp</h1>

@@ -65,7 +65,7 @@ def test_process_pending_webhook_envia_com_assinatura(db_session, monkeypatch):
     monkeypatch.setattr("app.config.settings.TICKET_CLOSED_WEBHOOK_SECRET", "segredo-teste")
     sent = []
 
-    def fake_post(*, url, body, event_type, secret):
+    def fake_post(*, url, body, event_type, secret, extra_headers=None):
         sent.append({"url": url, "body": body, "event_type": event_type, "secret": secret})
         return 200, None
 
@@ -90,6 +90,65 @@ def test_process_pending_webhook_envia_com_assinatura(db_session, monkeypatch):
     assert len(sent) == 1
     assert sent[0]["secret"] == "segredo-teste"
     row = db_session.query(WebhookOutbox).filter(WebhookOutbox.dedup_key.like(f"{EVENT_TICKET_CLOSED}:99%")).first()
+    assert row is not None
+    assert row.status == STATUS_ENVIADA
+
+
+def test_process_pending_saas_media_multipart(db_session, monkeypatch, tmp_path):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SOLICITACAO_MEDIA_DIR", str(tmp_path))
+    monkeypatch.setattr(settings, "SAAS_INSTANCE_INGEST_TOKEN", "tok-media")
+    key = ("cd" * 16) + ".png"
+    (tmp_path / key).write_bytes(
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+        b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01"
+        b"\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+    sent = []
+
+    def fake_multi(*, url, body, content_type, extra_headers=None, timeout=120):
+        sent.append(
+            {
+                "url": url,
+                "body": body,
+                "content_type": content_type,
+                "extra_headers": extra_headers,
+            }
+        )
+        return 201, None
+
+    monkeypatch.setattr("app.services.ticket_closed_webhook._post_multipart", fake_multi)
+    now = datetime.now(timezone.utc)
+    db_session.add(
+        WebhookOutbox(
+            event_type="saas.solicitacao.media",
+            dedup_key="saas.solicitacao.media:duplex-soft:9:" + key,
+            target_url="https://api.deskrudder.com.br/v1/saas/ingest/solicitacoes/9/media",
+            payload_json=json.dumps(
+                {
+                    "origem_solicitacao_id": 9,
+                    "storage_key": key,
+                    "papel": "inline",
+                    "nome_original": "print.png",
+                    "content_type": "image/png",
+                }
+            ),
+            status="pendente",
+            scheduled_at=now,
+        )
+    )
+    db_session.commit()
+
+    n = process_pending_webhooks(db_session, limit=5)
+    db_session.commit()
+    assert n == 1
+    assert len(sent) == 1
+    assert sent[0]["url"].endswith("/9/media")
+    assert sent[0]["extra_headers"]["Authorization"] == "Bearer tok-media"
+    assert b"image/png" in sent[0]["body"]
+    assert key.encode() in sent[0]["body"]
+    row = db_session.query(WebhookOutbox).filter(WebhookOutbox.event_type == "saas.solicitacao.media").first()
     assert row is not None
     assert row.status == STATUS_ENVIADA
 

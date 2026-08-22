@@ -1,8 +1,8 @@
 # App Android (Capacitor) — L6 (#696 / #735–#737)
 
-O APK é um WebView Capacitor com um **SPA mais leve**: login, **tickets** e **chat** (mesa WhatsApp / hub). Não leva landing, SaaS, CRM, cadastros nem dashboards.
+O APK é um WebView Capacitor com o **mesmo painel** da versão mobile no browser (`App.tsx`: menu, rotas, tickets, chat, ponto, CRM, cadastros, etc. conforme RBAC). Diferenças nativas: campo **Conta** (slug), Capacitor HTTP, UnifiedPush, safe-area e **sem** service worker PWA. A landing comercial não abre no WebView.
 
-**Estado (Android):** L6.1–L6.3 + hotfix Conta/teclado na `main`. **Listing / release lojas** → [`docs/MOBILE_STORE_RELEASE.md`](MOBILE_STORE_RELEASE.md) (#739). **iOS** → #738.
+**Estado (Android):** L6.1–L6.3 + paridade com mobile web na `main`. **Listing / release lojas** → [`docs/MOBILE_STORE_RELEASE.md`](MOBILE_STORE_RELEASE.md) (#739). **iOS** → #738.
 
 **Não há base de dados no telemóvel.** Os dados são os da **instância da empresa** (mesmo Postgres da API). Um binário serve várias empresas via campo **Conta**.
 
@@ -37,9 +37,9 @@ Não é preciso conta Google Play neste lote de código.
 
 - `frontend/capacitor.config.ts` — `appId` `br.com.deskrudder.app`, `webDir` `dist`
 - `frontend/android/` — projecto Gradle gerado pelo Capacitor
-- `frontend/scripts/build-android.mjs` — `vite build` **sem** service worker PWA + `cap sync` (entrada `AppNative.tsx`)
+- `frontend/scripts/build-android.mjs` — `vite build` **sem** service worker PWA + `cap sync` (mesmo `App.tsx` do browser)
 
-O `npm run build` da CI **não** muda: continua a ser o PWA web completo. O APK usa `VITE_CAPACITOR=true`.
+O `npm run build` da CI **não** muda: continua a ser o PWA web completo. O APK usa `VITE_CAPACITOR=true` (desliga o SW; mantém Conta/HTTP nativo em runtime).
 
 ## Primeiro build debug
 
@@ -79,13 +79,13 @@ O `Host` da API no telemóvel, no modo local, é o IP do PC; o WebView continua 
 
 ## Checklist de validação (APK)
 
-Correr após `npm run build:android` + instalar no emulador/dispositivo (**sem** `VITE_API_URL` para simular loja):
+Correr após `npm run build:android` + `npm run cap:sync android` + instalar no emulador/dispositivo (**sem** `VITE_API_URL` para simular loja):
 
 | # | Cenário | Esperado |
 |---|---------|----------|
 | 1 | Primeiro arranque | Ecrã Conta + e-mail + senha |
 | 2 | Conta inexistente / senha errada | Toast de erro; **não** grava slug novo (restaura o anterior se houver) |
-| 3 | Login OK numa empresa | Entra em `/chat/atendendo`; pedidos a `api-{slug}` |
+| 3 | Login OK numa empresa | Entra no Dashboard (`/`); pedidos a `api-{slug}`; menu igual ao mobile web |
 | 4 | **Trocar** empresa | Pede Conta de novo; sessão anterior limpa; sem pedidos a `https://localhost` |
 | 5 | Login noutra empresa | Dados da nova instância |
 | 6 | Notificações → activar push | Endpoint UnifiedPush registado na API da instância |
@@ -93,7 +93,12 @@ Correr após `npm run build:android` + instalar no emulador/dispositivo (**sem**
 | 8 | Toque na notificação | Abre a mesa/conversa **uma** vez |
 | 9 | Ticket: teclado no composer | Campo visível; double-tap no enviar não duplica |
 | 10 | WhatsApp: texto + figurinha | Envio único; teclado sem cortar o campo |
-| 11 | Voltar Android | Volta na navegação; na raiz pode sair da app |
+| 11 | Menu → Meu ponto / Chat / Tickets / (admin) Configurações | Mesmas entradas que no Chrome mobile; rotas abrem de facto |
+| 11b | Meu ponto: batida com «Incluir localização» | Pedido de GPS; batida com lat/lon (ou aviso e batida sem geo) |
+| 11c | Meu ponto: política **obrigatória** + local cadastrado | Bloqueia sem GPS ou fora do raio; toast claro |
+| 11d | Meu ponto: modo avião / sem rede | Batida fica na fila offline; estado da jornada actualiza na hora; sync ao voltar online |
+| 11e | Ponto da equipe: botão **mapa** numa batida com GPS | Modal OSM inline abre com marcador |
+| 12 | Voltar Android | Volta na navegação; na raiz pode sair da app |
 
 Cada instância precisa de `VAPID_*` no `client.env` e `https://localhost` em `CORS_ORIGINS`.
 
@@ -119,6 +124,17 @@ O worker `web-push-outbox` já existente envia para PWA **e** APK. Mute da fila 
 
 O distribuidor embutido usa os servidores de push da Google só como transporte nos telemóveis com Play Services. Sem Play Services, o alerta com a app fechada não chega (a PWA no Chrome continua a funcionar).
 
-Ícones de loja: `frontend/public/deskrudder-pwa-512.png` (e outline) — ver `MOBILE_STORE_RELEASE.md`. Opcional: regenerar splash nativo com `@capacitor/assets`.
+### Matriz aberto / 2.º plano / fechado (#823)
+
+| Estado | O que alerta |
+|--------|----------------|
+| **Aberto** (aba/app em foco) | SSE + loop de áudio da fila (`alerta.mp3`); preferência «silenciar» na mesa corta o loop |
+| **2.º plano** (minimizada / outra app / aba oculta; processo ainda vivo) | Notification do SO com `renotify` + re-alerta periódico enquanto a fila > 0; no APK também `App.appStateChange`. Push do servidor continua a chegar em eventos novos |
+| **Fechada / kill** | Só **Web Push** (PWA) ou **UnifiedPush** (APK), com permissão activa |
+| **iOS** | PWA no ecrã inicial (#695); sem SSE em background; push limitado pelo Safari |
+
+Silenciar na mesa (`ChatFilaSomToggle`) e «Avisar fila de espera» em Notificações ficam alinhados (`push_fila` ↔ mute local).
+
+Ícones de loja: `frontend/public/deskrudder-pwa-512.png` (e outline) — ver `MOBILE_STORE_RELEASE.md`. Os mipmaps Android (`ic_launcher*`) devem usar o mesmo mark PWA (fundo Deck `#F8FAFC`); regenerar a partir de `deskrudder-pwa-512.png` se o asset de marca mudar. Opcional: splash nativo com `@capacitor/assets`.
 
 No Windows, se a pasta do clone tiver acentos (ex. `Repositórios`), o Gradle precisa de `android.overridePathCheck=true` em `frontend/android/gradle.properties` (já no repo).

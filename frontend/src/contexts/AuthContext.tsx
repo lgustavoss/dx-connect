@@ -17,6 +17,8 @@ interface AuthContextValue {
   refreshUser: () => Promise<void>
   isAdmin: boolean
   isComercialOuAdmin: boolean
+  /** Admin ou atendente do setor Financeiro (faturamento interno). */
+  isFinanceiroOuAdmin: boolean
   /** Equipa comercial DeskRudder (control-plane SaaS). */
   isSaasOps: boolean
 }
@@ -104,6 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshUser,
     isAdmin: user?.role === 'admin',
     isComercialOuAdmin: user?.role === 'admin' || user?.role === 'comercial',
+    isFinanceiroOuAdmin: user?.role === 'admin' || Boolean(user?.e_financeiro),
     isSaasOps: user?.role === 'saas_ops',
   }
 

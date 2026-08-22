@@ -231,7 +231,7 @@ export function ConfigPropostaTemplates({ embedded = false }: { embedded?: boole
                 </div>
               ) : null}
               <div className="flex flex-wrap justify-end gap-2 pt-2">
-                <Button type="button" variant="secondary" onClick={() => setModal(null)} disabled={saving}>
+                <Button type="button" variant="cancel" onClick={() => setModal(null)} disabled={saving}>
                   Cancelar
                 </Button>
                 <Button type="button" variant="secondary" onClick={() => void handlePreview()} disabled={saving}>

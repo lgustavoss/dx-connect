@@ -182,7 +182,7 @@ export function WhatsappMensagemAcoes({
                 setTexto(corpoWhatsappSemPrefixo(mensagem.corpo))
                 setEditando(false)
               }}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+              className="rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-800 shadow-sm hover:bg-red-100 dark:border-red-800/70 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/70"
             >
               Cancelar
             </button>

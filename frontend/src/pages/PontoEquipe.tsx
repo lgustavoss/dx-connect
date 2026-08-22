@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { ApiError, atendentes, ponto, type Atendentes, type Ponto } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
+import { PontoCalendarioMes } from '../components/PontoCalendarioMes'
+import { PontoBatidaMapaModal } from '../components/PontoBatidaMapaModal'
+import { PontoMetricCard } from '../components/PontoMetricCard'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
@@ -9,31 +12,14 @@ import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../contexts/AuthContext'
+import {
+  formatarDuracao,
+  formatarHora,
+  hojeIso,
+  inicioMesIso,
+  rotuloPoliticaGeo,
+} from '../lib/pontoFormat'
 import { SemPermissao } from './SemPermissao'
-
-function formatarHora(iso: string | null | undefined): string {
-  if (!iso) return '—'
-  try {
-    return new Date(iso).toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  } catch {
-    return iso
-  }
-}
-
-function inicioMesIso(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-}
-
-function hojeIso(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 
 function rotuloStatus(s: Ponto.HojeItem['status']): string {
   switch (s) {
@@ -54,14 +40,6 @@ function rotuloStatus(s: Ponto.HojeItem['status']): string {
     default:
       return 'Livre'
   }
-}
-
-function formatarDuracao(segundos: number | null | undefined): string {
-  if (segundos == null || segundos < 0) return '—'
-  const h = Math.floor(segundos / 3600)
-  const m = Math.floor((segundos % 3600) / 60)
-  if (h <= 0) return `${m} min`
-  return `${h} h ${String(m).padStart(2, '0')} min`
 }
 
 function toDatetimeLocalValue(d = new Date()): string {
@@ -94,11 +72,24 @@ export function PontoEquipe() {
   const [feriadoData, setFeriadoData] = useState('')
   const [feriadoNome, setFeriadoNome] = useState('')
   const [salvandoSettings, setSalvandoSettings] = useState(false)
+  const [locais, setLocais] = useState<Ponto.Local[]>([])
+  const [localNome, setLocalNome] = useState('')
+  const [localLat, setLocalLat] = useState('')
+  const [localLon, setLocalLon] = useState('')
+  const [localRaio, setLocalRaio] = useState('200')
+  const [editLocalId, setEditLocalId] = useState<number | null>(null)
+  const [mapaBatida, setMapaBatida] = useState<Ponto.BatidaAdmin | null>(null)
+  const agoraCal = new Date()
+  const [calAno, setCalAno] = useState(agoraCal.getFullYear())
+  const [calMes, setCalMes] = useState(agoraCal.getMonth() + 1)
+  const [calendario, setCalendario] = useState<Ponto.Calendario | null>(null)
+  const [diaCal, setDiaCal] = useState<string | null>(null)
+  const [loadingCal, setLoadingCal] = useState(false)
 
   const carregar = useCallback(
     async (silencioso = false) => {
       try {
-        const [hist, dia, js, dig, st, fer] = await Promise.all([
+        const [hist, dia, js, dig, st, fer, locs] = await Promise.all([
           ponto.batidasAdmin({
             atendente_id: atendenteId ? Number(atendenteId) : undefined,
             desde,
@@ -110,6 +101,7 @@ export function PontoEquipe() {
           ponto.digest(),
           ponto.settings(),
           ponto.feriados(new Date().getFullYear()),
+          ponto.locais(),
         ])
         setItems(hist.items)
         setTotal(hist.total)
@@ -118,6 +110,7 @@ export function PontoEquipe() {
         setDigest(dig)
         setSettings(st)
         setFeriados(fer)
+        setLocais(locs)
         setSemPermissao(false)
         if (atendenteId) {
           const bh = await ponto.bancoHorasAdmin(Number(atendenteId), desde, ate)
@@ -150,6 +143,31 @@ export function PontoEquipe() {
     void carregar()
   }, [carregar])
 
+  useEffect(() => {
+    if (!atendenteId) {
+      setCalendario(null)
+      return
+    }
+    let cancel = false
+    setLoadingCal(true)
+    void ponto
+      .calendarioAdmin(Number(atendenteId), calAno, calMes)
+      .then((cal) => {
+        if (!cancel) setCalendario(cal)
+      })
+      .catch((err) => {
+        if (!cancel) {
+          toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar o calendário.'))
+        }
+      })
+      .finally(() => {
+        if (!cancel) setLoadingCal(false)
+      })
+    return () => {
+      cancel = true
+    }
+  }, [atendenteId, calAno, calMes, toast])
+
   async function exportarCsv() {
     try {
       const blob = await ponto.exportCsv({
@@ -165,6 +183,28 @@ export function PontoEquipe() {
       URL.revokeObjectURL(url)
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível exportar o CSV.'))
+    }
+  }
+
+  async function exportarRelatorio(ext: 'pdf' | 'xlsx') {
+    try {
+      const params = {
+        atendente_id: atendenteId ? Number(atendenteId) : undefined,
+        desde,
+        ate,
+      }
+      const blob =
+        ext === 'pdf' ? await ponto.exportPdf(params) : await ponto.exportXlsx(params)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = ext === 'pdf' ? 'ponto_relatorio.pdf' : 'ponto_relatorio.xlsx'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      toast.showError(
+        mensagemFalhaParaToast(err, `Não foi possível exportar o ${ext.toUpperCase()}.`),
+      )
     }
   }
 
@@ -224,6 +264,8 @@ export function PontoEquipe() {
         usar_feriados_nacionais: settings.usar_feriados_nacionais,
         fecho_automatico_ativo: settings.fecho_automatico_ativo,
         fecho_apos_horas: settings.fecho_apos_horas,
+        jornada_diaria_minutos: settings.jornada_diaria_minutos,
+        politica_geolocalizacao: settings.politica_geolocalizacao,
       })
       setSettings(st)
       toast.showSuccess('Configurações de ponto salvas.')
@@ -231,6 +273,68 @@ export function PontoEquipe() {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar as configurações.'))
     } finally {
       setSalvandoSettings(false)
+    }
+  }
+
+  async function adicionarLocal() {
+    if (!localNome.trim() || !localLat || !localLon) {
+      toast.showWarning('Informe nome, latitude e longitude do local.')
+      return
+    }
+    try {
+      if (editLocalId != null) {
+        await ponto.atualizarLocal(editLocalId, {
+          nome: localNome.trim(),
+          latitude: Number(localLat),
+          longitude: Number(localLon),
+          raio_metros: Number(localRaio) || 200,
+        })
+        toast.showSuccess('Local actualizado.')
+        setEditLocalId(null)
+      } else {
+        await ponto.criarLocal({
+          nome: localNome.trim(),
+          latitude: Number(localLat),
+          longitude: Number(localLon),
+          raio_metros: Number(localRaio) || 200,
+        })
+        toast.showSuccess('Local cadastrado.')
+      }
+      setLocalNome('')
+      setLocalLat('')
+      setLocalLon('')
+      setLocalRaio('200')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível guardar o local.'))
+    }
+  }
+
+  function iniciarEdicaoLocal(loc: Ponto.Local) {
+    setEditLocalId(loc.id)
+    setLocalNome(loc.nome)
+    setLocalLat(String(loc.latitude))
+    setLocalLon(String(loc.longitude))
+    setLocalRaio(String(loc.raio_metros))
+  }
+
+  async function toggleLocalAtivo(loc: Ponto.Local) {
+    try {
+      await ponto.atualizarLocal(loc.id, { ativo: !loc.ativo })
+      toast.showSuccess(loc.ativo ? 'Local desactivado.' : 'Local activado.')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível alterar o local.'))
+    }
+  }
+
+  async function apagarLocal(id: number) {
+    try {
+      await ponto.removerLocal(id)
+      toast.showSuccess('Local removido.')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível remover o local.'))
     }
   }
 
@@ -273,34 +377,41 @@ export function PontoEquipe() {
     <PageContainer>
       <PageHeader
         title="Ponto da equipe"
-        subtitle="Batidas, visão do dia, ajustes auditados e exportação CSV."
+        subtitle="Visão do dia, batidas, geofence, ajustes auditados e relatórios mensais."
       />
 
-      <div className="space-y-4">
-        <Card title="Digest do dia">
-          {digest ? (
-            <div className="flex flex-wrap gap-4 text-sm">
-              <span>
-                Faltas: <strong>{digest.faltas}</strong>
-              </span>
-              <span>
-                Atrasos: <strong>{digest.atrasos}</strong>
-              </span>
-              <span>
-                Jornadas abertas: <strong>{digest.jornadas_abertas}</strong>
-              </span>
-              <span>
-                Online sem ponto: <strong>{digest.online_sem_ponto}</strong>
-              </span>
-              <span>
-                Justificativas pendentes: <strong>{digest.justificativas_pendentes}</strong>
-              </span>
+      <Card className="overflow-hidden border-cyan-200/60 bg-gradient-to-br from-slate-50 via-white to-cyan-50/40 dark:border-cyan-900/40 dark:from-slate-950 dark:via-slate-900 dark:to-cyan-950/20">
+        {loading && !digest ? (
+          <div className="h-28 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800/50" />
+        ) : (
+          <div className="space-y-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Digest de hoje
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <PontoMetricCard label="Faltas" value={String(digest?.faltas ?? 0)} tone="warn" />
+              <PontoMetricCard label="Atrasos" value={String(digest?.atrasos ?? 0)} tone="warn" />
+              <PontoMetricCard
+                label="Jornadas abertas"
+                value={String(digest?.jornadas_abertas ?? 0)}
+                tone="info"
+              />
+              <PontoMetricCard
+                label="Online sem ponto"
+                value={String(digest?.online_sem_ponto ?? 0)}
+                tone="warn"
+              />
+              <PontoMetricCard
+                label="Justificativas"
+                value={String(digest?.justificativas_pendentes ?? 0)}
+                hint="pendentes"
+              />
             </div>
-          ) : (
-            <p className="text-sm text-slate-500">Carregando…</p>
-          )}
-        </Card>
+          </div>
+        )}
+      </Card>
 
+      <div className="space-y-4">
         <Card title="Hoje">
           {loading && !hoje ? (
             <div className="h-24 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800/50" />
@@ -440,6 +551,12 @@ export function PontoEquipe() {
             <Button type="button" variant="secondary" onClick={() => void exportarCsv()}>
               Exportar CSV
             </Button>
+            <Button type="button" variant="secondary" onClick={() => void exportarRelatorio('pdf')}>
+              PDF mensal
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => void exportarRelatorio('xlsx')}>
+              Excel mensal
+            </Button>
           </div>
           <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
             {total} batida{total === 1 ? '' : 's'} no filtro
@@ -478,7 +595,32 @@ export function PontoEquipe() {
                       <td className="py-2 pr-3">{b.atendente_nome}</td>
                       <td className="py-2 pr-3">{b.tipo.replace('_', ' ')}</td>
                       <td className="py-2 pr-3">{formatarHora(b.registrado_em)}</td>
-                      <td className="py-2 pr-3">{b.origem ?? '—'}</td>
+                      <td className="py-2 pr-3">
+                        {b.origem ?? '—'}
+                        {b.latitude != null && b.longitude != null ? (
+                          <>
+                            <span
+                              className="ml-1 text-xs text-cyan-700 dark:text-cyan-300"
+                              title={`${b.latitude.toFixed(5)}, ${b.longitude.toFixed(5)}${
+                                b.accuracy_metros != null ? ` (±${Math.round(b.accuracy_metros)} m)` : ''
+                              }`}
+                            >
+                              · GPS
+                            </span>
+                            {b.fora_area ? (
+                              <span className="ml-1 text-xs text-amber-700 dark:text-amber-300">· fora</span>
+                            ) : null}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="ml-1 h-auto px-1 py-0 text-xs text-cyan-700 dark:text-cyan-300"
+                              onClick={() => setMapaBatida(b)}
+                            >
+                              mapa
+                            </Button>
+                          </>
+                        ) : null}
+                      </td>
                       <td className="py-2">
                         <Button type="button" variant="ghost" onClick={() => void anularBatida(b.id)}>
                           Anular
@@ -491,6 +633,33 @@ export function PontoEquipe() {
             </table>
           </div>
         </Card>
+
+        {atendenteId ? (
+          <Card title="Calendário do atendente">
+            <PontoCalendarioMes
+              calendario={calendario}
+              loading={loadingCal}
+              diaSelecionado={diaCal}
+              onSelecionarDia={(iso) => {
+                setDiaCal(iso)
+                setDesde(iso)
+                setAte(iso)
+              }}
+              onMesAnterior={() => {
+                if (calMes <= 1) {
+                  setCalMes(12)
+                  setCalAno((y) => y - 1)
+                } else setCalMes((m) => m - 1)
+              }}
+              onMesSeguinte={() => {
+                if (calMes >= 12) {
+                  setCalMes(1)
+                  setCalAno((y) => y + 1)
+                } else setCalMes((m) => m + 1)
+              }}
+            />
+          </Card>
+        ) : null}
 
         <Card title="Configurações do ponto">
           {settings ? (
@@ -525,6 +694,38 @@ export function PontoEquipe() {
                   setSettings({ ...settings, fecho_apos_horas: Number(e.target.value) || 14 })
                 }
               />
+              <Input
+                label="Jornada diária (minutos) — meta do calendário"
+                type="number"
+                min={60}
+                max={1440}
+                value={String(settings.jornada_diaria_minutos ?? 480)}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    jornada_diaria_minutos: Number(e.target.value) || 480,
+                  })
+                }
+              />
+              <Select
+                label="Política de geolocalização"
+                value={settings.politica_geolocalizacao ?? 'opcional'}
+                onChange={(v) =>
+                  setSettings({
+                    ...settings,
+                    politica_geolocalizacao: String(v) as Ponto.PoliticaGeolocalizacao,
+                  })
+                }
+                options={[
+                  { value: 'opcional', label: rotuloPoliticaGeo('opcional') },
+                  { value: 'recomendada', label: rotuloPoliticaGeo('recomendada') },
+                  { value: 'obrigatoria', label: rotuloPoliticaGeo('obrigatoria') },
+                ]}
+              />
+              <p className="text-xs text-slate-500">
+                Com locais cadastrados: opcional regista geo; recomendada avisa fora da área; obrigatória
+                bloqueia sem GPS ou fora do raio.
+              </p>
               <Button type="button" disabled={salvandoSettings} onClick={() => void salvarSettings()}>
                 Salvar configurações
               </Button>
@@ -532,6 +733,80 @@ export function PontoEquipe() {
           ) : (
             <p className="text-sm text-slate-500">Carregando…</p>
           )}
+        </Card>
+
+        <Card title="Locais (geofence)">
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <Input label="Nome" value={localNome} onChange={(e) => setLocalNome(e.target.value)} />
+            <Input
+              label="Latitude"
+              type="number"
+              step="any"
+              value={localLat}
+              onChange={(e) => setLocalLat(e.target.value)}
+            />
+            <Input
+              label="Longitude"
+              type="number"
+              step="any"
+              value={localLon}
+              onChange={(e) => setLocalLon(e.target.value)}
+            />
+            <Input
+              label="Raio (m)"
+              type="number"
+              min={20}
+              value={localRaio}
+              onChange={(e) => setLocalRaio(e.target.value)}
+            />
+            <Button type="button" onClick={() => void adicionarLocal()}>
+              {editLocalId != null ? 'Salvar alteração' : 'Adicionar local'}
+            </Button>
+            {editLocalId != null ? (
+              <Button
+                type="button"
+                variant="cancel"
+                onClick={() => {
+                  setEditLocalId(null)
+                  setLocalNome('')
+                  setLocalLat('')
+                  setLocalLon('')
+                  setLocalRaio('200')
+                }}
+              >
+                Cancelar edição
+              </Button>
+            ) : null}
+          </div>
+          <ul className="space-y-2 text-sm">
+            {locais.length === 0 ? (
+              <li className="text-slate-500">Nenhum local cadastrado — geofence inactivo.</li>
+            ) : (
+              locais.map((loc) => (
+                <li
+                  key={loc.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800"
+                >
+                  <span>
+                    <strong>{loc.nome}</strong> · {loc.latitude.toFixed(5)}, {loc.longitude.toFixed(5)} · raio{' '}
+                    {loc.raio_metros} m
+                    {!loc.ativo ? ' (inactivo)' : ''}
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="secondary" onClick={() => iniciarEdicaoLocal(loc)}>
+                      Editar
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={() => void toggleLocalAtivo(loc)}>
+                      {loc.ativo ? 'Desactivar' : 'Activar'}
+                    </Button>
+                    <Button type="button" variant="ghost" onClick={() => void apagarLocal(loc.id)}>
+                      Remover
+                    </Button>
+                  </div>
+                </li>
+              ))
+            )}
+          </ul>
         </Card>
 
         <Card title="Feriados da instância">
@@ -573,6 +848,24 @@ export function PontoEquipe() {
           </ul>
         </Card>
       </div>
+
+      <PontoBatidaMapaModal
+        open={mapaBatida != null && mapaBatida.latitude != null && mapaBatida.longitude != null}
+        onClose={() => setMapaBatida(null)}
+        latitude={mapaBatida?.latitude ?? 0}
+        longitude={mapaBatida?.longitude ?? 0}
+        titulo={
+          mapaBatida
+            ? `${mapaBatida.atendente_nome} · ${mapaBatida.tipo.replace('_', ' ')}`
+            : 'Localização'
+        }
+        subtitulo={mapaBatida ? formatarHora(mapaBatida.registrado_em) : undefined}
+        raioMetros={
+          mapaBatida?.local_id != null
+            ? locais.find((l) => l.id === mapaBatida.local_id)?.raio_metros ?? null
+            : null
+        }
+      />
     </PageContainer>
   )
 }

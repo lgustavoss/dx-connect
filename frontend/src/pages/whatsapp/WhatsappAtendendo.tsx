@@ -14,6 +14,7 @@ import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
 import { rotuloResponsavelChat } from '../../lib/whatsappChatMeta'
+import { CopiarWaIdButton } from '../../components/chat/CopiarWaIdButton'
 
 function TempoEspera({ data }: { data?: string | null }) {
   const [minutos, setMinutos] = useState(0)
@@ -206,7 +207,7 @@ export function WhatsappAtendendo() {
                         <h3 className="truncate font-bold text-slate-900 dark:text-slate-100">
                           {c.cliente_nome || 'Cliente'}
                         </h3>
-                        <p className="font-mono text-xs text-slate-500">{c.wa_id}</p>
+                        <CopiarWaIdButton waId={c.wa_id} className="mt-0.5 text-slate-500 dark:text-slate-400" />
                         {c.empresa_nome && (
                           <p className="mt-1 truncate text-[10px] font-medium text-slate-500 dark:text-slate-400">
                             {c.empresa_nome}
@@ -275,7 +276,7 @@ export function WhatsappAtendendo() {
                           <h3 className="font-bold text-slate-900 transition-colors group-hover:text-amber-700 dark:text-slate-100">
                             {c.cliente_nome || 'Cliente'}
                           </h3>
-                          <p className="mt-1 font-mono text-xs text-slate-400">{c.wa_id}</p>
+                          <CopiarWaIdButton waId={c.wa_id} className="mt-1 text-slate-400" />
                           <p className="mt-2 text-[10px] font-medium text-amber-800/80 dark:text-amber-200/80">
                             Encerrado por inatividade — falta registar a demanda
                           </p>
@@ -334,7 +335,7 @@ export function WhatsappAtendendo() {
                               Sem vínculo
                             </span>
                           )}
-                          <p className="mt-1 font-mono text-xs text-slate-400">{c.wa_id}</p>
+                          <CopiarWaIdButton waId={c.wa_id} className="mt-1 text-slate-400" />
                           <p className="mt-2 text-[10px] font-medium text-slate-500 dark:text-slate-400">
                             {rotuloResponsavelChat(c)}
                             {c.setor_nome ? ` • ${c.setor_nome}` : ''}

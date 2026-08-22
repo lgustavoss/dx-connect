@@ -33,7 +33,7 @@ const menuIcon = (
 )
 
 function LayoutInner() {
-  const { user, logout, isAdmin, isComercialOuAdmin } = useAuth()
+  const { user, logout, isAdmin, isComercialOuAdmin, isFinanceiroOuAdmin } = useAuth()
   const { subscribe } = useEventStream()
   const location = useLocation()
   useVisualViewportCss()
@@ -97,7 +97,8 @@ function LayoutInner() {
     /^\/tickets\/\d+\/?$/.test(location.pathname) ||
     location.pathname === '/tickets/novo' ||
     ticketDetalheAberto ||
-    isChatHub
+    isChatHub ||
+    location.pathname === '/sobre/nova-solicitacao'
 
   return (
     <div
@@ -116,6 +117,7 @@ function LayoutInner() {
         onMobileClose={() => setSidebarMobileOpen(false)}
         isAdmin={isAdmin ?? false}
         isComercialOuAdmin={isComercialOuAdmin ?? false}
+        isFinanceiroOuAdmin={isFinanceiroOuAdmin ?? false}
         userNome={user?.nome ?? ''}
         userRole={perfilExibicao(user?.role)}
         onLogout={logout}

@@ -10,12 +10,38 @@ import { ListaAcoesVerEditar } from '../components/ui/ListaAcoesVerEditar'
 import { useToast } from '../components/ui/Toast'
 import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
-import { maskCnpjCpf } from '../utils/maskCnpjCpf'
+import { maskCnpjCpf, digitsOnly } from '../utils/maskCnpjCpf'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 
 type ColunaEmpresa = 'nome' | 'cnpj_cpf' | 'rede'
+
+function BotaoCopiarDocumento({
+  valorBruto,
+  onCopiar,
+}: {
+  valorBruto: string
+  onCopiar: (digitos: string) => void
+}) {
+  return (
+    <button
+      type="button"
+      className="inline-flex shrink-0 items-center justify-center rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-cyan-600 dark:hover:bg-slate-800 dark:hover:text-cyan-400"
+      title="Copiar CNPJ/CPF (só dígitos)"
+      aria-label="Copiar CNPJ ou CPF"
+      onClick={(ev) => {
+        ev.stopPropagation()
+        onCopiar(digitsOnly(valorBruto))
+      }}
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+        <path d="M4 16V4a2 2 0 0 1 2-2h10" />
+      </svg>
+    </button>
+  )
+}
 
 export function Empresas() {
   const navigate = useNavigate()
@@ -89,6 +115,19 @@ export function Empresas() {
     }
   }
 
+  async function copiarDocumento(digitos: string) {
+    if (!digitos) {
+      toast.showWarning('Esta empresa não tem CNPJ/CPF cadastrado.')
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(digitos)
+      toast.showSuccess('CNPJ/CPF copiado.')
+    } catch {
+      toast.showError('Não foi possível copiar. Selecione o texto manualmente.')
+    }
+  }
+
   if (forbidden) {
     return (
       <PageContainer>
@@ -125,8 +164,8 @@ export function Empresas() {
         ) : list.length === 0 ? (
           <p className="text-slate-500 dark:text-slate-400">Nenhuma empresa encontrada.</p>
         ) : (
-          <div className="-mx-2 overflow-x-auto rounded-lg">
-            <table className="w-full min-w-[600px] text-left text-sm">
+          <div className="-mx-2 overflow-x-auto rounded-lg md:overflow-x-auto">
+            <table className="w-full min-w-0 text-left text-sm md:min-w-[560px]">
               <thead>
                 <tr className="border-b border-slate-200 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400">
                   <CabecalhoOrdenavel
@@ -143,7 +182,7 @@ export function Empresas() {
                     ordenarPor={ordenarPor}
                     ordem={ordem}
                     aoOrdenar={aoOrdenarColuna}
-                    className="py-2.5 pr-4"
+                    className="hidden py-2.5 pr-4 md:table-cell"
                   />
                   <CabecalhoOrdenavel
                     coluna="rede"
@@ -175,19 +214,37 @@ export function Empresas() {
                       className="cursor-pointer transition-colors hover:bg-slate-50/90 focus-within:bg-slate-50/90 dark:hover:bg-white/50 dark:focus-within:bg-slate-800/50"
                     >
                       <td className="max-w-0 py-3 pl-2 pr-4">
-                        <div className="flex min-w-0 flex-wrap items-center gap-2">
-                          <span className={`truncate font-medium ${e.ativo ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400'}`}>
-                            {e.nome}
-                          </span>
-                          {!e.ativo && (
-                            <span className="shrink-0 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600 dark:bg-slate-700 dark:text-slate-400">
-                              Inativo
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex min-w-0 flex-wrap items-center gap-2">
+                            <span
+                              className={`min-w-0 break-words font-medium ${e.ativo ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400'}`}
+                              title={e.nome}
+                            >
+                              {e.nome}
                             </span>
-                          )}
+                            {!e.ativo && (
+                              <span className="shrink-0 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600 dark:bg-slate-700 dark:text-slate-400">
+                                Inativo
+                              </span>
+                            )}
+                          </div>
+                          {/* Mobile: CNPJ abaixo do nome + copiar (#824) */}
+                          <div
+                            className="flex min-w-0 items-center gap-1 md:hidden"
+                            onClick={(ev) => ev.stopPropagation()}
+                          >
+                            <span className="truncate font-mono text-xs tabular-nums text-slate-600 dark:text-slate-400" title={doc}>
+                              {doc}
+                            </span>
+                            {e.cnpj_cpf ? <BotaoCopiarDocumento valorBruto={e.cnpj_cpf} onCopiar={(d) => void copiarDocumento(d)} /> : null}
+                          </div>
                         </div>
                       </td>
-                      <td className="whitespace-nowrap py-3 pr-4 font-mono text-xs text-slate-600 tabular-nums dark:text-slate-400">
-                        {doc}
+                      <td className="hidden whitespace-nowrap py-3 pr-4 md:table-cell">
+                        <div className="flex items-center gap-1" onClick={(ev) => ev.stopPropagation()}>
+                          <span className="font-mono text-xs tabular-nums text-slate-600 dark:text-slate-400">{doc}</span>
+                          {e.cnpj_cpf ? <BotaoCopiarDocumento valorBruto={e.cnpj_cpf} onCopiar={(d) => void copiarDocumento(d)} /> : null}
+                        </div>
                       </td>
                       <td className="max-w-[14rem] truncate py-3 pr-4 text-slate-600 dark:text-slate-400" title={redeNome}>
                         {redeNome}

@@ -19,6 +19,7 @@ import { EmpresaPdvsPanel } from '../components/EmpresaPdvsPanel'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
+import { VoltarButton } from '../components/ui/VoltarButton'
 import { Input } from '../components/ui/Input'
 import { FormSection } from '../components/ui/FormSection'
 import {
@@ -823,15 +824,7 @@ export function RedeDetalhe() {
     return null
   }
 
-  const linkRedes = (
-    <button
-      type="button"
-      onClick={voltarAnterior}
-      className="font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-    >
-      ← Voltar
-    </button>
-  )
+  const linkRedes = <VoltarButton onClick={voltarAnterior} />
 
   const tituloEmpresaModal =
     nomeFantasiaEmpresa.trim() || razaoSocialEmpresa.trim() || (modoEmpresa === 'create' ? '' : 'Empresa')
@@ -1499,7 +1492,7 @@ export function RedeDetalhe() {
                 <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                   <Button
                     type="button"
-                    variant="secondary"
+                    variant="cancel"
                     className="w-full sm:w-auto"
                     onClick={() => setModalEmpresa(false)}
                   >
@@ -1792,7 +1785,7 @@ export function RedeDetalhe() {
 
                 <div className="sticky bottom-0 -mx-6 mt-6 border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
                   <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                    <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => fecharModalFuncionario()}>
+                    <Button type="button" variant="cancel" className="w-full sm:w-auto" onClick={() => fecharModalFuncionario()}>
                       Cancelar
                     </Button>
                     <Button type="submit" loading={savingFuncionario} className="w-full sm:w-auto">

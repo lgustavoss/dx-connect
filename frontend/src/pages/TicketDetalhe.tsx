@@ -25,6 +25,7 @@ import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Select } from '../components/ui/Select'
 import { Button } from '../components/ui/Button'
+import { VoltarButton } from '../components/ui/VoltarButton'
 import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../contexts/AuthContext'
 import { useEventStream } from '../contexts/EventStreamContext'
@@ -49,6 +50,7 @@ import { TicketFilhosMassaPanel } from '../components/tickets/TicketFilhosMassaP
 import { TicketMetaChip } from '../components/tickets/TicketMetaChip'
 import { TicketDetalheSkeleton } from '../components/tickets/TicketDetalheSkeleton'
 import { TicketSlaCard } from '../components/tickets/TicketSlaCard'
+import { TicketImplantacaoChecklist } from '../components/tickets/TicketImplantacaoChecklist'
 import {
   TicketClassificacaoFields,
   classificacaoFromTicket,
@@ -1296,19 +1298,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
 
   const classeBtnAcao = 'min-h-11 w-full px-3 text-sm lg:min-h-9 lg:w-auto'
 
-  const linkVoltar = (
-    <button
-      type="button"
-      onClick={voltarAnterior}
-      className="-ml-1 mb-2 inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:hover:text-slate-100"
-      aria-label="Voltar"
-    >
-      <span aria-hidden className="text-base leading-none">
-        ←
-      </span>
-      Voltar
-    </button>
-  )
+  const linkVoltar = <VoltarButton onClick={voltarAnterior} />
 
   const botoesAcaoTicket = (
     <>
@@ -1660,6 +1650,11 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
         <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
           <div className="mx-auto max-w-6xl space-y-4 px-3 pb-8 pt-3 sm:space-y-6 sm:px-5 sm:pb-10 sm:pt-4 md:px-6">
         {!ticket.fechado_em ? <TicketSlaCard ticketId={ticket.id} fechado={false} /> : null}
+        <TicketImplantacaoChecklist
+          ticketId={ticket.id}
+          empresaId={ticket.empresa_id}
+          fechado={Boolean(ticket.fechado_em)}
+        />
         {temVinculosHierarquia && (
           <div className="rounded-xl border border-slate-200/90 bg-slate-50/50 px-3 py-2.5 text-sm dark:border-slate-800/80 dark:bg-slate-900/35">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2138,13 +2133,10 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
 
             {modalGerirFoco === 'hierarquia' && ticket && (
               <div className="mt-4 space-y-4 text-sm text-slate-700 dark:text-slate-200">
-                <button
-                  type="button"
+                <VoltarButton
                   onClick={() => setModalGerirFoco('geral')}
-                  className="text-sm font-medium text-cyan-700 underline hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300"
-                >
-                  ← Voltar a setor, status e responsável
-                </button>
+                  label="Voltar a setor, status e responsável"
+                />
 
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -2571,7 +2563,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
 
             {modalGerirFoco !== 'hierarquia' && modalGerirFoco !== 'relacionados' ? (
               <div className="mt-6 flex flex-wrap justify-end gap-2">
-                <Button type="button" variant="secondary" onClick={() => setModalGerirAberto(false)}>
+                <Button type="button" variant="cancel" onClick={() => setModalGerirAberto(false)}>
                   Cancelar
                 </Button>
                 <Button type="button" onClick={handleSalvar} loading={saving}>
@@ -2628,7 +2620,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
             <div className="mt-5 flex flex-wrap justify-end gap-2">
               <Button
                 type="button"
-                variant="secondary"
+                variant="cancel"
                 onClick={() => setModalFecharAberto(false)}
                 disabled={fechando}
               >

@@ -10,6 +10,7 @@ import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { SemPermissao } from './SemPermissao'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 import { interpretarFalhaCarregamento } from '../api/errorMessage'
+import { VoltarButton } from '../components/ui/VoltarButton'
 
 const roleLabel: Record<string, string> = {
   admin: 'Administrador',
@@ -105,13 +106,7 @@ export function AtendenteDetalhe() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-10">
-      <button
-        type="button"
-        onClick={voltarAnterior}
-        className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
-      >
-        <span aria-hidden>←</span> Voltar
-      </button>
+      <VoltarButton onClick={voltarAnterior} />
 
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 space-y-2">

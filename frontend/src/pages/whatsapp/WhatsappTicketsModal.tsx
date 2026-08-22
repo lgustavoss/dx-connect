@@ -263,7 +263,7 @@ export function WhatsappTicketsModal({ chat, open, onClose, onSuccess }: Props) 
 
         {modo === 'abrir' && !catalogoLoading && (
           <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4 dark:border-slate-800">
-            <Button type="button" variant="secondary" onClick={onClose} disabled={salvando}>
+            <Button type="button" variant="cancel" onClick={onClose} disabled={salvando}>
               Cancelar
             </Button>
             <Button type="button" onClick={() => void abrir()} loading={salvando}>

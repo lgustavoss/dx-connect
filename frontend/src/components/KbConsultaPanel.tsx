@@ -5,6 +5,7 @@ import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { KbListaFiltros } from './kb/KbListaFiltros'
 import { KbMarkdownPreview } from './kb/KbMarkdownPreview'
 import { Button } from './ui/Button'
+import { VoltarButton } from './ui/VoltarButton'
 import { useToast } from './ui/Toast'
 import { textoReferenciaKb } from '../lib/kbReferencia'
 import {
@@ -188,9 +189,7 @@ export function KbConsultaPanel({ onInserirReferencia, showInserir = false }: Pr
     return (
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <Button type="button" variant="secondary" onClick={voltarLista}>
-            ← Voltar à lista
-          </Button>
+          <VoltarButton onClick={voltarLista} label="Voltar à lista" />
           {showInserir && onInserirReferencia ? (
             <Button
               type="button"

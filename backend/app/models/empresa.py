@@ -44,6 +44,8 @@ class Empresa(Base):
     resp_legal_estado = Column(String(2), nullable=True)
     resp_legal_cep = Column(String(10), nullable=True)
     ativo = Column(Boolean, default=True)
+    # NFS-e na emissão (lote 3); fatura copia o snapshot (#364)
+    emite_nfse = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

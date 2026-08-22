@@ -13,6 +13,9 @@ TipoBatida = Literal["entrada", "saida", "pausa_inicio", "pausa_fim"]
 class PontoBaterRequest(BaseModel):
     tipo: TipoBatida
     origem: Literal["web", "mobile"] | None = "web"
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    accuracy_metros: float | None = Field(default=None, ge=0, le=100_000)
 
 
 class PontoBatidaRead(BaseModel):
@@ -21,9 +24,50 @@ class PontoBatidaRead(BaseModel):
     tipo: str
     registrado_em: datetime
     origem: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    accuracy_metros: float | None = None
+    fora_area: bool = False
+    distancia_metros: float | None = None
+    local_id: int | None = None
     anulada: bool = False
 
     model_config = ConfigDict(from_attributes=True)
+
+
+PoliticaGeolocalizacao = Literal["opcional", "recomendada", "obrigatoria"]
+
+
+class PontoSettingsPublicRead(BaseModel):
+    politica_geolocalizacao: PoliticaGeolocalizacao = "opcional"
+    tem_locais_ativos: bool = False
+
+
+class PontoLocalCreate(BaseModel):
+    nome: str = Field(..., min_length=1, max_length=255)
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+    raio_metros: int = Field(default=200, ge=20, le=50_000)
+    ativo: bool | None = True
+
+
+class PontoLocalRead(BaseModel):
+    id: int
+    nome: str
+    latitude: float
+    longitude: float
+    raio_metros: int
+    ativo: bool = True
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PontoLocalUpdate(BaseModel):
+    nome: str | None = Field(default=None, min_length=1, max_length=255)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    raio_metros: int | None = Field(default=None, ge=20, le=50_000)
+    ativo: bool | None = None
 
 
 class PontoEstadoRead(BaseModel):
@@ -43,6 +87,12 @@ class PontoIntervaloRead(BaseModel):
     duracao_segundos: int | None = None
     segundos_pausa: int = 0
     aberto: bool = False
+    entrada_latitude: float | None = None
+    entrada_longitude: float | None = None
+    entrada_fora_area: bool = False
+    saida_latitude: float | None = None
+    saida_longitude: float | None = None
+    saida_fora_area: bool = False
 
 
 class PontoHistoricoRead(BaseModel):
@@ -59,6 +109,12 @@ class PontoBatidaAdminItem(BaseModel):
     tipo: str
     registrado_em: datetime
     origem: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    accuracy_metros: float | None = None
+    fora_area: bool = False
+    distancia_metros: float | None = None
+    local_id: int | None = None
     anulada: bool = False
 
 
@@ -82,6 +138,10 @@ class PontoCalendarioDia(BaseModel):
     status: StatusDiaPonto
     atrasado: bool = False
     feriado: bool = False
+    # #842 — meta de jornada × realizado (cores do calendário)
+    segundos_trabalhados: int = 0
+    segundos_esperados: int = 0
+    classe_visual: Literal["abaixo", "ok", "he", "feriado", "neutro"] = "neutro"
 
 
 class PontoCalendarioRead(BaseModel):
@@ -90,6 +150,7 @@ class PontoCalendarioRead(BaseModel):
     mes: int
     usa_escala: bool
     escala_rotulo: str | None = None
+    jornada_diaria_minutos: int = 480
     dias: list[PontoCalendarioDia]
 
 
@@ -138,6 +199,8 @@ class PontoSettingsRead(BaseModel):
     usar_feriados_nacionais: bool = True
     fecho_automatico_ativo: bool = False
     fecho_apos_horas: int = 14
+    jornada_diaria_minutos: int = 480
+    politica_geolocalizacao: PoliticaGeolocalizacao = "opcional"
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -146,6 +209,8 @@ class PontoSettingsUpdate(BaseModel):
     usar_feriados_nacionais: bool | None = None
     fecho_automatico_ativo: bool | None = None
     fecho_apos_horas: int | None = Field(default=None, ge=4, le=48)
+    jornada_diaria_minutos: int | None = Field(default=None, ge=60, le=1440)
+    politica_geolocalizacao: PoliticaGeolocalizacao | None = None
 
 
 class PontoFeriadoCreate(BaseModel):
