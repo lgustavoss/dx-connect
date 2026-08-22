@@ -11,10 +11,12 @@ from app.core.audit import registrar_audit
 from app.models.atendente import Atendente
 from app.models.solicitacao_melhoria import (
     SolicitacaoMelhoria,
+    SolicitacaoMelhoriaAnexo,
     SolicitacaoMelhoriaComentario,
     SolicitacaoMelhoriaHistorico,
 )
 from app.schemas.solicitacao_melhoria import (
+    SolicitacaoAnexoRead,
     SolicitacaoComentarioCreate,
     SolicitacaoComentarioRead,
     SolicitacaoHistoricoRead,
@@ -31,6 +33,8 @@ from app.services.solicitacao_melhoria_copy import (
     rotulo_status,
 )
 
+MSG_TRIAGEM_SAAS = "A triagem de produto é feita no painel SaaS DeskRudder"
+
 
 def organizacao_id_de(atendente: Atendente) -> int:
     return int(getattr(atendente, "tenant_id", None) or 1)
@@ -46,6 +50,7 @@ def _carregar(db: Session, solicitacao_id: int) -> SolicitacaoMelhoria:
         .options(
             joinedload(SolicitacaoMelhoria.historico).joinedload(SolicitacaoMelhoriaHistorico.atendente),
             joinedload(SolicitacaoMelhoria.comentarios),
+            joinedload(SolicitacaoMelhoria.anexos),
         )
         .filter(SolicitacaoMelhoria.id == solicitacao_id)
         .first()
@@ -75,6 +80,20 @@ def _historico_read(h: SolicitacaoMelhoriaHistorico) -> SolicitacaoHistoricoRead
         mensagem_publica=h.mensagem_publica,
         atendente_nome=nome,
         created_at=h.created_at,
+    )
+
+
+def _anexo_read(a: SolicitacaoMelhoriaAnexo) -> SolicitacaoAnexoRead:
+    from app.services.solicitacao_melhoria_media import media_public_path
+
+    return SolicitacaoAnexoRead(
+        id=a.id,
+        papel=a.papel,
+        nome_original=a.nome_original,
+        content_type=a.content_type,
+        tamanho_bytes=a.tamanho_bytes,
+        url=media_public_path(a.storage_key),
+        created_at=a.created_at,
     )
 
 
@@ -112,7 +131,79 @@ def serializar(row: SolicitacaoMelhoria, *, incluir_github: bool, incluir_intern
         github_last_error=row.github_last_error if incluir_github else None,
         historico=[_historico_read(h) for h in (row.historico or [])],
         comentarios=comentarios,
+        anexos=[_anexo_read(a) for a in (row.anexos or [])],
     )
+
+
+def _vincular_anexos(
+    db: Session,
+    row: SolicitacaoMelhoria,
+    atendente: Atendente,
+    ids: list[int],
+) -> None:
+    uniq = list(dict.fromkeys(int(i) for i in (ids or []) if int(i) > 0))
+    if not uniq:
+        return
+    if len(uniq) > 20:
+        raise HTTPException(status_code=400, detail="Demasiados anexos neste pedido")
+    encontrados = (
+        db.query(SolicitacaoMelhoriaAnexo)
+        .filter(
+            SolicitacaoMelhoriaAnexo.id.in_(uniq),
+            SolicitacaoMelhoriaAnexo.autor_atendente_id == atendente.id,
+        )
+        .all()
+    )
+    if len(encontrados) != len(uniq):
+        raise HTTPException(status_code=400, detail="Anexo inválido ou de outro utilizador")
+    for a in encontrados:
+        if a.solicitacao_id not in (None, row.id):
+            raise HTTPException(status_code=400, detail="Anexo já associado a outro pedido")
+        a.solicitacao_id = row.id
+        db.add(a)
+
+
+def guardar_media(
+    db: Session,
+    atendente: Atendente,
+    *,
+    data: bytes,
+    filename: str | None,
+    content_type: str | None,
+    papel: str,
+) -> SolicitacaoMelhoriaAnexo:
+    from app.services import solicitacao_melhoria_media as media
+
+    papel_n = (papel or media.PAPEL_ANEXO).strip().lower()
+    if papel_n not in (media.PAPEL_INLINE, media.PAPEL_ANEXO):
+        raise HTTPException(status_code=400, detail="Papel de mídia inválido")
+    try:
+        nome, mime = media.validar_upload(filename, content_type, len(data), papel=papel_n)
+        storage_key = media.gravar_bytes(data, mimetype=mime, nome_original=nome)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except OSError:
+        raise HTTPException(status_code=500, detail="Falha ao gravar arquivo") from None
+    row = SolicitacaoMelhoriaAnexo(
+        solicitacao_id=None,
+        autor_atendente_id=atendente.id,
+        papel=papel_n,
+        nome_original=nome,
+        content_type=mime,
+        tamanho_bytes=len(data),
+        storage_key=storage_key,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def obter_anexo_por_storage(db: Session, storage_key: str) -> SolicitacaoMelhoriaAnexo | None:
+    key = (storage_key or "").strip()
+    if not key:
+        return None
+    return db.query(SolicitacaoMelhoriaAnexo).filter(SolicitacaoMelhoriaAnexo.storage_key == key).first()
 
 
 def criar(db: Session, atendente: Atendente, data: SolicitacaoMelhoriaCreate) -> SolicitacaoMelhoria:
@@ -130,6 +221,7 @@ def criar(db: Session, atendente: Atendente, data: SolicitacaoMelhoriaCreate) ->
     )
     db.add(row)
     db.flush()
+    _vincular_anexos(db, row, atendente, data.anexo_ids)
     msg = mensagem_publica_status("aberta")
     db.add(
         SolicitacaoMelhoriaHistorico(
@@ -140,6 +232,9 @@ def criar(db: Session, atendente: Atendente, data: SolicitacaoMelhoriaCreate) ->
             mensagem_publica=msg,
         )
     )
+    from app.services.saas_solicitacao_ingest import enfileirar_copia_saas
+
+    enfileirar_copia_saas(db, row)
     db.commit()
     return _carregar(db, row.id)
 
@@ -182,57 +277,109 @@ def obter_para_leitura(db: Session, solicitacao_id: int, atendente: Atendente) -
     return row
 
 
-def alterar_status(
+def aplicar_status_origem_saas(
     db: Session,
     solicitacao_id: int,
-    admin: Atendente,
-    data: SolicitacaoMelhoriaStatusUpdate,
-) -> SolicitacaoMelhoria:
-    if not _is_admin(admin):
-        raise HTTPException(status_code=403, detail="Apenas admin pode alterar o status")
-    if data.status not in STATUS_VALIDOS:
+    *,
+    status_novo: str,
+    motivo_nao_desenvolvimento: str | None,
+    atendente_id: int | None = None,
+) -> SolicitacaoMelhoria | None:
+    """Aplica triagem do control-plane na instância. Sem commit (o caller fecha a transação)."""
+    if status_novo not in STATUS_VALIDOS:
         raise HTTPException(status_code=400, detail="Status inválido")
-    row = _carregar(db, solicitacao_id)
-    if data.status == "nao_sera_desenvolvida" and not (data.motivo_nao_desenvolvimento or "").strip():
+    row = db.query(SolicitacaoMelhoria).filter(SolicitacaoMelhoria.id == solicitacao_id).first()
+    if not row:
+        return None
+    if status_novo == "nao_sera_desenvolvida" and not (motivo_nao_desenvolvimento or "").strip():
         raise HTTPException(
             status_code=400,
             detail="Informe o motivo quando marcar como não será desenvolvida",
         )
     anterior = row.status
-    if anterior == data.status:
+    motivo = (motivo_nao_desenvolvimento or "").strip() or None
+    mesmo_status = anterior == status_novo
+    mesmo_motivo = (row.motivo_nao_desenvolvimento or None) == (
+        motivo if status_novo == "nao_sera_desenvolvida" else row.motivo_nao_desenvolvimento
+    )
+    if mesmo_status and mesmo_motivo:
         return row
-    row.status = data.status
-    if data.status == "nao_sera_desenvolvida":
-        row.motivo_nao_desenvolvimento = (data.motivo_nao_desenvolvimento or "").strip()
-    elif data.motivo_nao_desenvolvimento is not None and data.status != "nao_sera_desenvolvida":
-        # não limpa obrigatoriamente — mantém histórico se reabrir
-        pass
-    msg = mensagem_publica_status(data.status, motivo=row.motivo_nao_desenvolvimento)
-    db.add(
-        SolicitacaoMelhoriaHistorico(
-            solicitacao_id=row.id,
-            status_anterior=anterior,
-            status_novo=data.status,
-            motivo=row.motivo_nao_desenvolvimento if data.status == "nao_sera_desenvolvida" else None,
-            atendente_id=admin.id,
-            mensagem_publica=msg,
+    row.status = status_novo
+    if status_novo == "nao_sera_desenvolvida" and motivo:
+        row.motivo_nao_desenvolvimento = motivo
+    msg = mensagem_publica_status(status_novo, motivo=row.motivo_nao_desenvolvimento)
+    if not mesmo_status:
+        db.add(
+            SolicitacaoMelhoriaHistorico(
+                solicitacao_id=row.id,
+                status_anterior=anterior,
+                status_novo=status_novo,
+                motivo=row.motivo_nao_desenvolvimento if status_novo == "nao_sera_desenvolvida" else None,
+                atendente_id=atendente_id,
+                mensagem_publica=msg,
+            )
         )
-    )
-    registrar_audit(
-        db,
-        "solicitacao_melhoria",
-        row.id,
-        "status_change",
-        admin.id,
-        payload={
-            "de": anterior,
-            "para": data.status,
-            "motivo": row.motivo_nao_desenvolvimento if data.status == "nao_sera_desenvolvida" else None,
-        },
-    )
+        registrar_audit(
+            db,
+            "solicitacao_melhoria",
+            row.id,
+            "status_change",
+            atendente_id,
+            payload={
+                "de": anterior,
+                "para": status_novo,
+                "origem": "saas",
+                "motivo": row.motivo_nao_desenvolvimento if status_novo == "nao_sera_desenvolvida" else None,
+            },
+        )
     db.add(row)
-    db.commit()
-    return _carregar(db, row.id)
+    db.flush()
+    return row
+
+
+def aplicar_comentario_origem_saas(
+    db: Session,
+    solicitacao_id: int,
+    *,
+    corpo: str,
+    origem_externa_id: str,
+    autor_nome: str | None,
+) -> SolicitacaoMelhoriaComentario | None:
+    """Comentário público vindo do SaaS. Idempotente por origem_externa_id. Sem commit."""
+    texto = (corpo or "").strip()
+    if not texto:
+        return None
+    row = db.query(SolicitacaoMelhoria).filter(SolicitacaoMelhoria.id == solicitacao_id).first()
+    if not row:
+        return None
+    ja = (
+        db.query(SolicitacaoMelhoriaComentario)
+        .filter(SolicitacaoMelhoriaComentario.origem_externa_id == origem_externa_id)
+        .first()
+    )
+    if ja:
+        return ja
+    c = SolicitacaoMelhoriaComentario(
+        solicitacao_id=row.id,
+        corpo=texto,
+        publico_cliente=True,
+        origem="saas",
+        origem_externa_id=origem_externa_id,
+        autor_atendente_id=None,
+        autor_nome=(autor_nome or "").strip() or "DeskRudder",
+    )
+    db.add(c)
+    db.flush()
+    return c
+
+
+def alterar_status(
+    db: Session,
+    solicitacao_id: int,
+    _admin: Atendente,
+    data: SolicitacaoMelhoriaStatusUpdate,
+) -> SolicitacaoMelhoria:
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=MSG_TRIAGEM_SAAS)
 
 
 def adicionar_comentario(
@@ -244,30 +391,24 @@ def adicionar_comentario(
     row = _carregar(db, solicitacao_id)
     _garantir_mesma_org(row, atendente)
     is_admin = _is_admin(atendente)
+    if is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=MSG_TRIAGEM_SAAS)
 
-    if not is_admin:
-        # Cliente: só comentários públicos nas solicitações da org; bloqueado se status final.
-        if not data.publico_cliente:
-            raise HTTPException(status_code=403, detail="Não é possível criar notas internas")
-        if row.status in STATUS_FINAIS:
-            raise HTTPException(
-                status_code=400,
-                detail="Esta solicitação está encerrada e já não aceita respostas",
-            )
-        # Só o autor responde (critério #801 “seus próprios”)
-        if row.autor_atendente_id != atendente.id:
-            raise HTTPException(status_code=403, detail="Só o autor pode responder nesta solicitação")
-
-    if is_admin and data.publico_cliente is False:
-        publico = False
-    else:
-        publico = True if not is_admin else bool(data.publico_cliente)
+    if not data.publico_cliente:
+        raise HTTPException(status_code=403, detail="Não é possível criar notas internas")
+    if row.status in STATUS_FINAIS:
+        raise HTTPException(
+            status_code=400,
+            detail="Esta solicitação está encerrada e já não aceita respostas",
+        )
+    if row.autor_atendente_id != atendente.id:
+        raise HTTPException(status_code=403, detail="Só o autor pode responder nesta solicitação")
 
     db.add(
         SolicitacaoMelhoriaComentario(
             solicitacao_id=row.id,
             corpo=data.corpo.strip(),
-            publico_cliente=publico,
+            publico_cliente=True,
             origem="manual",
             autor_atendente_id=atendente.id,
             autor_nome=atendente.nome,

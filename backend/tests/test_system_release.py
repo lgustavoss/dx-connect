@@ -45,6 +45,48 @@ def test_resolve_app_version_env(monkeypatch):
     assert resolve_app_version() == "26.06.042"
 
 
+def test_release_notes_sem_version_file_usa_json(client, auth_headers, monkeypatch, tmp_path):
+    """Docker local não monta o VERSION da raiz — as notas continuam visíveis (#856)."""
+    monkeypatch.delenv("DX_CONNECT_VERSION", raising=False)
+    data_path = tmp_path / "release_notes.json"
+    data_path.write_text(
+        json.dumps(
+            {
+                "current_version": "26.08.006",
+                "releases": [
+                    {
+                        "version": "26.08.006",
+                        "version_display": "v26.08.006",
+                        "date": "2026-08-12",
+                        "status": "published",
+                        "changes": [
+                            {"product": "deskrudder", "category": "melhorias", "text": "Notas visíveis em local"}
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    import app.services.system_release as sr
+
+    monkeypatch.setattr(sr, "_DATA_DIR", tmp_path)
+    monkeypatch.setattr(sr, "_read_version_file", lambda: None)
+    reload_release_notes_cache()
+
+    info = client.get("/v1/system/info", headers=auth_headers["a1"])
+    assert info.status_code == 200
+    assert info.json()["version"] == "26.08.006"
+    assert info.json()["version_display"] == "v26.08.006"
+
+    notes = client.get("/v1/system/release-notes", headers=auth_headers["a1"])
+    assert notes.status_code == 200, notes.text
+    body = notes.json()
+    assert body["current"] is not None
+    assert body["current"]["version"] == "26.08.006"
+    assert any("visíveis em local" in c["text"] for c in body["current"]["changes"])
+
+
 def test_system_info_requires_auth(client):
     r = client.get("/v1/system/info")
     assert r.status_code == 401

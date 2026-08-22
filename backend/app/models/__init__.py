@@ -78,8 +78,14 @@ from app.models.lead_comercial import LeadComercial
 from app.models.saas_plano import SaasModulo, SaasPlano, SaasPlanoModulo
 from app.models.solicitacao_melhoria import (
     SolicitacaoMelhoria,
+    SolicitacaoMelhoriaAnexo,
     SolicitacaoMelhoriaComentario,
     SolicitacaoMelhoriaHistorico,
+)
+from app.models.saas_solicitacao_produto import (
+    SaasSolicitacaoProduto,
+    SaasSolicitacaoProdutoAnexo,
+    SaasSolicitacaoProdutoComentario,
 )
 
 __all__ = [
@@ -175,4 +181,7 @@ __all__ = [
     "ClienteSaaS",
     "SaasAlertaEmitido",
     "LeadComercial",
+    "SaasSolicitacaoProduto",
+    "SaasSolicitacaoProdutoAnexo",
+    "SaasSolicitacaoProdutoComentario",
 ]

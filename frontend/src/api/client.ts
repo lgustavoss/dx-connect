@@ -5023,6 +5023,17 @@ export namespace SolicitacoesMelhoria {
     github_last_error?: string | null
     historico: Historico[]
     comentarios: Comentario[]
+    anexos: Anexo[]
+  }
+
+  export interface Anexo {
+    id: number
+    papel: 'inline' | 'anexo' | string
+    nome_original: string
+    content_type?: string | null
+    tamanho_bytes: number
+    url: string
+    created_at: string
   }
 
   export interface Create {
@@ -5030,6 +5041,7 @@ export namespace SolicitacoesMelhoria {
     titulo: string
     descricao: string
     versao_contexto?: string | null
+    anexo_ids?: number[]
   }
 }
 
@@ -5039,6 +5051,13 @@ export const solicitacoesMelhoria = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  uploadMedia: (file: File, papel: 'inline' | 'anexo') => {
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('papel', papel)
+    return api<SolicitacoesMelhoria.Anexo>('/solicitacoes-melhoria/media', { method: 'POST', body: fd })
+  },
+  mediaUrl: (url: string) => (url.startsWith('http') ? url : `${resolvedApiBaseUrl()}${url}`),
   minhas: () => api<SolicitacoesMelhoria.ListaItem[]>('/solicitacoes-melhoria/minhas'),
   adminLista: (params?: {
     status?: string
@@ -5219,6 +5238,78 @@ export const saasLeads = {
       body: JSON.stringify(data ?? {}),
     }),
 };
+
+export const saasSolicitacoes = {
+  list: (params?: {
+    busca?: string;
+    tipo?: string;
+    status?: string;
+    slug?: string;
+    ordenar_por?: 'ingested_at' | 'created_at_origem' | 'titulo';
+    ordem?: 'asc' | 'desc';
+    offset?: number;
+    limit?: number;
+  }) => listPaginated<SaasSolicitacoesProduto.ListaItem>('/saas/solicitacoes', params),
+  get: (id: number) => api<SaasSolicitacoesProduto.Detalhe>(`/saas/solicitacoes/${id}`),
+  alterarStatus: (id: number, data: SaasSolicitacoesProduto.StatusUpdate) =>
+    api<SaasSolicitacoesProduto.Detalhe>(`/saas/solicitacoes/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  comentar: (id: number, data: SaasSolicitacoesProduto.ComentarioCreate) =>
+    api<SaasSolicitacoesProduto.Detalhe>(`/saas/solicitacoes/${id}/comentarios`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+};
+
+export namespace SaasSolicitacoesProduto {
+  export interface ListaItem {
+    id: number;
+    cliente_saas_id?: number | null;
+    cliente_nome?: string | null;
+    instance_slug: string;
+    origem_solicitacao_id: number;
+    tipo: string;
+    titulo: string;
+    status: string;
+    status_rotulo: string;
+    versao_contexto?: string | null;
+    autor_nome?: string | null;
+    created_at_origem?: string | null;
+    ingested_at: string;
+  }
+  export interface Comentario {
+    id: number;
+    corpo: string;
+    publico_cliente: boolean;
+    autor_nome?: string | null;
+    created_at: string;
+  }
+  export interface Detalhe extends ListaItem {
+    descricao: string;
+    motivo_nao_desenvolvimento?: string | null;
+    triagem_atualizada_em?: string | null;
+    comentarios: Comentario[];
+    anexos?: Anexo[];
+  }
+  export interface Anexo {
+    id: number;
+    papel: string;
+    nome_original: string;
+    content_type?: string | null;
+    tamanho_bytes: number;
+    url: string;
+  }
+  export interface StatusUpdate {
+    status: string;
+    motivo_nao_desenvolvimento?: string | null;
+  }
+  export interface ComentarioCreate {
+    corpo: string;
+    publico_cliente: boolean;
+  }
+}
 
 export namespace SaasLeads {
   export type Status = 'novo' | 'em_atendimento' | 'fechado';

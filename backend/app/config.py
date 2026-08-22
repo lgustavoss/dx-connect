@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     # Tamanho máximo (bytes) para cada anexo de ticket.
     TICKET_ANEXOS_MAX_BYTES: int = 25 * 1024 * 1024
 
+    # Mídia de sugestões/problemas (#856+): prints no texto + PDF/vídeo em anexo.
+    SOLICITACAO_MEDIA_DIR: str = "data/solicitacao_media"
+    SOLICITACAO_MEDIA_MAX_BYTES: int = 25 * 1024 * 1024
+
     # Mídia do chat interno (#495).
     CHAT_INTERNO_MEDIA_DIR: str = "data/chat_interno_media"
     CHAT_INTERNO_MEDIA_MAX_BYTES: int = 25 * 1024 * 1024
@@ -99,6 +103,15 @@ class Settings(BaseSettings):
     # Módulos comerciais activos nesta instância (códigos separados por vírgula, ex.: helpdesk,whatsapp).
     # Preenchido no client.env pelo provisionamento a partir do plano da licença.
     SAAS_MODULOS: str = "helpdesk"
+    # Fila de sugestões/bugs das instâncias → control-plane (#855).
+    # Instância cliente: URL + token + slug (provisionamento). Vazio = não envia (pedido local continua).
+    SAAS_CONTROL_PLANE_INGEST_URL: str | None = None
+    SAAS_INSTANCE_INGEST_TOKEN: str | None = None
+    SAAS_INSTANCE_SLUG: str | None = None
+    # Só no control-plane: URL pública que as instâncias devem usar (escrita no client.env).
+    SAAS_INGEST_PUBLIC_URL: str | None = None
+    # Instância cliente: intervalo do pull autenticado da triagem SaaS (#856).
+    SAAS_TRIAGEM_PULL_INTERVAL_SECONDS: int = 60
     # Modo legado: vários clientes no mesmo Postgres (subdomínio numérico + coluna tenant_id).
     # Produção comercial: manter False (um Postgres por cliente / deploy).
     DX_CONNECT_MULTI_TENANT: bool = False

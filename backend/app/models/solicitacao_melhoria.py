@@ -42,6 +42,12 @@ class SolicitacaoMelhoria(Base):
         order_by="SolicitacaoMelhoriaComentario.created_at",
         cascade="all, delete-orphan",
     )
+    anexos = relationship(
+        "SolicitacaoMelhoriaAnexo",
+        back_populates="solicitacao",
+        order_by="SolicitacaoMelhoriaAnexo.created_at",
+        cascade="all, delete-orphan",
+    )
 
 
 class SolicitacaoMelhoriaHistorico(Base):
@@ -72,9 +78,30 @@ class SolicitacaoMelhoriaComentario(Base):
     corpo = Column(Text, nullable=False)
     publico_cliente = Column(Boolean, nullable=False, default=True, server_default="true")
     origem = Column(String(32), nullable=False, default="manual", server_default="manual")
+    origem_externa_id = Column(String(80), nullable=True, index=True)
     autor_atendente_id = Column(Integer, ForeignKey("atendentes.id", ondelete="SET NULL"), nullable=True)
     autor_nome = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     solicitacao = relationship("SolicitacaoMelhoria", back_populates="comentarios")
     autor = relationship("Atendente", foreign_keys=[autor_atendente_id])
+
+
+class SolicitacaoMelhoriaAnexo(Base):
+    __tablename__ = "solicitacoes_melhoria_anexos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    solicitacao_id = Column(
+        Integer, ForeignKey("solicitacoes_melhoria.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    autor_atendente_id = Column(Integer, ForeignKey("atendentes.id", ondelete="SET NULL"), nullable=True)
+    papel = Column(String(16), nullable=False, default="anexo", server_default="anexo")
+    nome_original = Column(String(255), nullable=False)
+    content_type = Column(String(128), nullable=True)
+    tamanho_bytes = Column(Integer, nullable=False)
+    storage_key = Column(String(80), nullable=False, unique=True, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    solicitacao = relationship("SolicitacaoMelhoria", back_populates="anexos")
+    autor = relationship("Atendente", foreign_keys=[autor_atendente_id])
+

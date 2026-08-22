@@ -37,6 +37,7 @@ from app.schemas.saas import (
     SaasTimelineEvent,
 )
 from app.schemas.system import ReleaseNotesRead
+from app.schemas.saas_solicitacao import ClienteSaaSIngestTokenRead
 from app.services import saas_aprovacao
 from app.services import saas_catalogo
 from app.services import saas_clientes as svc
@@ -322,6 +323,38 @@ def solicitar_provisionamento(
     db.commit()
     db.refresh(row)
     return _read(row)
+
+
+@router.post(
+    "/clientes/{cliente_id}/gerar-token-ingest",
+    response_model=ClienteSaaSIngestTokenRead,
+)
+def gerar_token_ingest(
+    cliente_id: int,
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    atendente: Atendente = Depends(exigir_saas_ops),
+):
+    """Gera (ou roda) o token instância→SaaS. O plaintext só sai nesta resposta."""
+    from app.services.saas_solicitacao_ingest import (
+        garantir_token_e_escrever_env,
+        ingest_url_publica,
+    )
+
+    try:
+        row = svc.obter(db, cliente_id)
+    except svc.SaasErro as e:
+        raise _http_from_saas(e) from e
+    token = garantir_token_e_escrever_env(row, forcar_novo=True)
+    registrar_audit(db, "cliente_saas", cliente_id, "gerar_token_ingest", atendente.id)
+    db.commit()
+    db.refresh(row)
+    return ClienteSaaSIngestTokenRead(
+        slug=row.slug,
+        token=token or "",
+        ingest_url=ingest_url_publica(),
+        ingest_token_configurado=True,
+    )
 
 
 @router.post("/clientes/{cliente_id}/confirmar-provisionamento", response_model=ClienteSaaSRead)
