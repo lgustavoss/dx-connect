@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ponto, type Ponto } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { PontoCalendarioMes } from '../components/PontoCalendarioMes'
+import { PontoBatidaMapaModal } from '../components/PontoBatidaMapaModal'
 import { PontoMetricCard } from '../components/PontoMetricCard'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -25,6 +26,7 @@ import {
   inicioMesIso,
   rotuloPoliticaGeo,
 } from '../lib/pontoFormat'
+import { aplicarBatidaOptimista, coordenadasMapaIntervalo, rotuloGeoIntervalo } from '../lib/pontoOptimistic'
 
 function acaoPrincipal(emJornada: boolean, emPausa: boolean): AcaoPrincipal {
   if (!emJornada) {
@@ -70,6 +72,11 @@ export function MeuPonto() {
   const [geoSettings, setGeoSettings] = useState<Ponto.SettingsPublic | null>(null)
   const [pendentesOffline, setPendentesOffline] = useState(countPendingPontoBatidas())
   const [obtendoLocalizacao, setObtendoLocalizacao] = useState(false)
+  const [mapaAberto, setMapaAberto] = useState<{
+    lat: number
+    lon: number
+    label: string
+  } | null>(null)
 
   const politicaGeo = geoSettings?.politica_geolocalizacao ?? 'opcional'
   const geoObrigatoria = politicaGeo === 'obrigatoria' && !!geoSettings?.tem_locais_ativos
@@ -152,6 +159,8 @@ export function MeuPonto() {
       if (n > 0) {
         toast.showSuccess(`${n} batida(s) offline sincronizada(s).`)
         await Promise.all([carregar(true), carregarCalendario(true)])
+      } else if (countPendingPontoBatidas() > 0) {
+        await carregar(true)
       }
     }
     void sync()
@@ -192,6 +201,7 @@ export function MeuPonto() {
       if (!navigator.onLine) {
         enqueuePontoBatida({ tipo, ...geo })
         setPendentesOffline(countPendingPontoBatidas())
+        setEstado((prev) => aplicarBatidaOptimista(prev, tipo))
         toast.showWarning('Sem ligação — batida guardada offline. Será enviada ao voltar online.')
         return
       }
@@ -224,6 +234,7 @@ export function MeuPonto() {
       if (isLikelyOfflineError(err)) {
         enqueuePontoBatida({ tipo, ...geo })
         setPendentesOffline(countPendingPontoBatidas())
+        setEstado((prev) => aplicarBatidaOptimista(prev, tipo))
         toast.showWarning('Falha de rede — batida guardada offline.')
         return
       }
@@ -516,13 +527,14 @@ export function MeuPonto() {
                   <th className="py-2 pr-3 font-medium">Entrada</th>
                   <th className="py-2 pr-3 font-medium">Saída</th>
                   <th className="py-2 pr-3 font-medium">Pausas</th>
-                  <th className="py-2 font-medium">Trabalhado</th>
+                  <th className="py-2 pr-3 font-medium">Trabalhado</th>
+                  <th className="py-2 font-medium">Local</th>
                 </tr>
               </thead>
               <tbody>
                 {(historico?.intervalos ?? []).length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="py-6 text-slate-500 dark:text-slate-400">
+                    <td colSpan={5} className="py-6 text-slate-500 dark:text-slate-400">
                       Nenhuma batida neste período.
                     </td>
                   </tr>
@@ -541,7 +553,37 @@ export function MeuPonto() {
                         )}
                       </td>
                       <td className="py-2 pr-3">{formatarDuracao(it.segundos_pausa ?? 0)}</td>
-                      <td className="py-2">{formatarDuracao(it.duracao_segundos)}</td>
+                      <td className="py-2 pr-3">{formatarDuracao(it.duracao_segundos)}</td>
+                      <td className="py-2">
+                        {(() => {
+                          const geo = rotuloGeoIntervalo(it)
+                          const mapa = coordenadasMapaIntervalo(it)
+                          if (!geo || !mapa) return '—'
+                          return (
+                            <div className="flex flex-col gap-1">
+                              <span
+                                className={
+                                  geo.includes('fora')
+                                    ? 'text-xs text-amber-700 dark:text-amber-300'
+                                    : 'text-xs text-slate-600 dark:text-slate-300'
+                                }
+                              >
+                                {geo}
+                              </span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                className="h-auto px-0 py-0 text-xs text-cyan-700 dark:text-cyan-300"
+                                onClick={() =>
+                                  setMapaAberto({ lat: mapa.lat, lon: mapa.lon, label: mapa.label })
+                                }
+                              >
+                                Ver mapa
+                              </Button>
+                            </div>
+                          )
+                        })()}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -605,6 +647,14 @@ export function MeuPonto() {
           </ul>
         </Card>
       </div>
+
+      <PontoBatidaMapaModal
+        open={mapaAberto != null}
+        onClose={() => setMapaAberto(null)}
+        latitude={mapaAberto?.lat ?? 0}
+        longitude={mapaAberto?.lon ?? 0}
+        titulo={mapaAberto?.label ?? 'Localização'}
+      />
     </PageContainer>
   )
 }

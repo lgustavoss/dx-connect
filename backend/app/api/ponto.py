@@ -32,6 +32,7 @@ from app.schemas.ponto import (
     PontoJustificativaRead,
     PontoLocalCreate,
     PontoLocalRead,
+    PontoLocalUpdate,
     PontoSettingsPublicRead,
     PontoSettingsRead,
     PontoSettingsUpdate,
@@ -372,6 +373,16 @@ def criar_local(
     admin: Atendente = Depends(exigir_admin),
 ):
     return ponto_settings_svc.criar_local(db, admin, data)
+
+
+@router.patch("/locais/{local_id}", response_model=PontoLocalRead)
+def atualizar_local(
+    local_id: int,
+    data: PontoLocalUpdate,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return ponto_settings_svc.atualizar_local(db, admin, local_id, data)
 
 
 @router.delete("/locais/{local_id}", status_code=204)

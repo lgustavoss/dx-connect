@@ -236,14 +236,25 @@ def test_ponto_ajuste_admin_e_403(client, seed_base, auth_headers):
 
 
 def test_ponto_export_csv(client, seed_base, auth_headers):
-    client.post("/v1/ponto/bater", headers=auth_headers["a1"], json={"tipo": "entrada"})
+    client.post(
+        "/v1/ponto/bater",
+        headers=auth_headers["a1"],
+        json={
+            "tipo": "entrada",
+            "latitude": -23.55052,
+            "longitude": -46.633308,
+            "accuracy_metros": 10.0,
+        },
+    )
     client.post("/v1/ponto/bater", headers=auth_headers["a1"], json={"tipo": "saida"})
     r = client.get("/v1/ponto/batidas/export.csv", headers=auth_headers["admin"])
     assert r.status_code == 200
     assert "text/csv" in r.headers.get("content-type", "")
     text = r.content.decode("utf-8-sig")
-    assert "atendente" in text
-    assert "trabalhado_min" in text
+    assert "latitude" in text
+    assert "fora_area" in text
+    assert "distancia_metros" in text
+    assert "-23.55052" in text
     r403 = client.get("/v1/ponto/batidas/export.csv", headers=auth_headers["a1"])
     assert r403.status_code == 403
 

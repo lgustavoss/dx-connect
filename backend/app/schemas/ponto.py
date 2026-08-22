@@ -62,6 +62,14 @@ class PontoLocalRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PontoLocalUpdate(BaseModel):
+    nome: str | None = Field(default=None, min_length=1, max_length=255)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    raio_metros: int | None = Field(default=None, ge=20, le=50_000)
+    ativo: bool | None = None
+
+
 class PontoEstadoRead(BaseModel):
     em_jornada: bool
     em_pausa: bool = False
@@ -79,6 +87,12 @@ class PontoIntervaloRead(BaseModel):
     duracao_segundos: int | None = None
     segundos_pausa: int = 0
     aberto: bool = False
+    entrada_latitude: float | None = None
+    entrada_longitude: float | None = None
+    entrada_fora_area: bool = False
+    saida_latitude: float | None = None
+    saida_longitude: float | None = None
+    saida_fora_area: bool = False
 
 
 class PontoHistoricoRead(BaseModel):
