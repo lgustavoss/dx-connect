@@ -3,6 +3,7 @@ import { ApiError, atendentes, ponto, type Atendentes, type Ponto } from '../api
 import { coletarTodasPaginas } from '../api/collectPages'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { PontoCalendarioMes } from '../components/PontoCalendarioMes'
+import { PontoBatidaMapaModal } from '../components/PontoBatidaMapaModal'
 import { PontoMetricCard } from '../components/PontoMetricCard'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -16,7 +17,6 @@ import {
   formatarHora,
   hojeIso,
   inicioMesIso,
-  linkMapaOsm,
   rotuloPoliticaGeo,
 } from '../lib/pontoFormat'
 import { SemPermissao } from './SemPermissao'
@@ -77,6 +77,8 @@ export function PontoEquipe() {
   const [localLat, setLocalLat] = useState('')
   const [localLon, setLocalLon] = useState('')
   const [localRaio, setLocalRaio] = useState('200')
+  const [editLocalId, setEditLocalId] = useState<number | null>(null)
+  const [mapaBatida, setMapaBatida] = useState<Ponto.BatidaAdmin | null>(null)
   const agoraCal = new Date()
   const [calAno, setCalAno] = useState(agoraCal.getFullYear())
   const [calMes, setCalMes] = useState(agoraCal.getMonth() + 1)
@@ -280,17 +282,49 @@ export function PontoEquipe() {
       return
     }
     try {
-      await ponto.criarLocal({
-        nome: localNome.trim(),
-        latitude: Number(localLat),
-        longitude: Number(localLon),
-        raio_metros: Number(localRaio) || 200,
-      })
-      toast.showSuccess('Local cadastrado.')
+      if (editLocalId != null) {
+        await ponto.atualizarLocal(editLocalId, {
+          nome: localNome.trim(),
+          latitude: Number(localLat),
+          longitude: Number(localLon),
+          raio_metros: Number(localRaio) || 200,
+        })
+        toast.showSuccess('Local actualizado.')
+        setEditLocalId(null)
+      } else {
+        await ponto.criarLocal({
+          nome: localNome.trim(),
+          latitude: Number(localLat),
+          longitude: Number(localLon),
+          raio_metros: Number(localRaio) || 200,
+        })
+        toast.showSuccess('Local cadastrado.')
+      }
       setLocalNome('')
+      setLocalLat('')
+      setLocalLon('')
+      setLocalRaio('200')
       await carregar(true)
     } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível cadastrar o local.'))
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível guardar o local.'))
+    }
+  }
+
+  function iniciarEdicaoLocal(loc: Ponto.Local) {
+    setEditLocalId(loc.id)
+    setLocalNome(loc.nome)
+    setLocalLat(String(loc.latitude))
+    setLocalLon(String(loc.longitude))
+    setLocalRaio(String(loc.raio_metros))
+  }
+
+  async function toggleLocalAtivo(loc: Ponto.Local) {
+    try {
+      await ponto.atualizarLocal(loc.id, { ativo: !loc.ativo })
+      toast.showSuccess(loc.ativo ? 'Local desactivado.' : 'Local activado.')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível alterar o local.'))
     }
   }
 
@@ -576,14 +610,14 @@ export function PontoEquipe() {
                             {b.fora_area ? (
                               <span className="ml-1 text-xs text-amber-700 dark:text-amber-300">· fora</span>
                             ) : null}
-                            <a
-                              className="ml-1 text-xs text-cyan-700 underline dark:text-cyan-300"
-                              href={linkMapaOsm(b.latitude, b.longitude)}
-                              target="_blank"
-                              rel="noreferrer"
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="ml-1 h-auto px-1 py-0 text-xs text-cyan-700 dark:text-cyan-300"
+                              onClick={() => setMapaBatida(b)}
                             >
                               mapa
-                            </a>
+                            </Button>
                           </>
                         ) : null}
                       </td>
@@ -726,8 +760,23 @@ export function PontoEquipe() {
               onChange={(e) => setLocalRaio(e.target.value)}
             />
             <Button type="button" onClick={() => void adicionarLocal()}>
-              Adicionar local
+              {editLocalId != null ? 'Salvar alteração' : 'Adicionar local'}
             </Button>
+            {editLocalId != null ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setEditLocalId(null)
+                  setLocalNome('')
+                  setLocalLat('')
+                  setLocalLon('')
+                  setLocalRaio('200')
+                }}
+              >
+                Cancelar edição
+              </Button>
+            ) : null}
           </div>
           <ul className="space-y-2 text-sm">
             {locais.length === 0 ? (
@@ -743,15 +792,13 @@ export function PontoEquipe() {
                     {loc.raio_metros} m
                     {!loc.ativo ? ' (inactivo)' : ''}
                   </span>
-                  <div className="flex gap-2">
-                    <a
-                      className="text-xs text-cyan-700 underline dark:text-cyan-300"
-                      href={linkMapaOsm(loc.latitude, loc.longitude)}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Ver mapa
-                    </a>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="secondary" onClick={() => iniciarEdicaoLocal(loc)}>
+                      Editar
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={() => void toggleLocalAtivo(loc)}>
+                      {loc.ativo ? 'Desactivar' : 'Activar'}
+                    </Button>
                     <Button type="button" variant="ghost" onClick={() => void apagarLocal(loc.id)}>
                       Remover
                     </Button>
@@ -801,6 +848,24 @@ export function PontoEquipe() {
           </ul>
         </Card>
       </div>
+
+      <PontoBatidaMapaModal
+        open={mapaBatida != null && mapaBatida.latitude != null && mapaBatida.longitude != null}
+        onClose={() => setMapaBatida(null)}
+        latitude={mapaBatida?.latitude ?? 0}
+        longitude={mapaBatida?.longitude ?? 0}
+        titulo={
+          mapaBatida
+            ? `${mapaBatida.atendente_nome} · ${mapaBatida.tipo.replace('_', ' ')}`
+            : 'Localização'
+        }
+        subtitulo={mapaBatida ? formatarHora(mapaBatida.registrado_em) : undefined}
+        raioMetros={
+          mapaBatida?.local_id != null
+            ? locais.find((l) => l.id === mapaBatida.local_id)?.raio_metros ?? null
+            : null
+        }
+      />
     </PageContainer>
   )
 }

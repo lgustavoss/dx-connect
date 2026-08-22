@@ -92,6 +92,14 @@ def test_ponto_locais_crud(client, seed_base, auth_headers):
     lst = client.get("/v1/ponto/locais", headers=admin)
     assert lst.status_code == 200
     assert any(x["id"] == local_id for x in lst.json())
+    r_up = client.patch(
+        f"/v1/ponto/locais/{local_id}",
+        headers=admin,
+        json={"nome": "Matriz atualizada", "ativo": False},
+    )
+    assert r_up.status_code == 200, r_up.text
+    assert r_up.json()["nome"] == "Matriz atualizada"
+    assert r_up.json()["ativo"] is False
     assert client.delete(f"/v1/ponto/locais/{local_id}", headers=admin).status_code == 204
 
 

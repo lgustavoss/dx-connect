@@ -814,6 +814,8 @@ export const ponto = {
   locais: () => api<Ponto.Local[]>('/ponto/locais'),
   criarLocal: (data: Ponto.LocalCreate) =>
     api<Ponto.Local>('/ponto/locais', { method: 'POST', body: JSON.stringify(data) }),
+  atualizarLocal: (id: number, data: Ponto.LocalUpdate) =>
+    api<Ponto.Local>(`/ponto/locais/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   removerLocal: (id: number) => api<void>(`/ponto/locais/${id}`, { method: 'DELETE' }),
 };
 
@@ -4748,6 +4750,12 @@ export namespace Ponto {
     duracao_segundos: number | null
     segundos_pausa?: number
     aberto: boolean
+    entrada_latitude?: number | null
+    entrada_longitude?: number | null
+    entrada_fora_area?: boolean
+    saida_latitude?: number | null
+    saida_longitude?: number | null
+    saida_fora_area?: boolean
   }
   export interface EstadoMe {
     em_jornada: boolean
@@ -4853,6 +4861,13 @@ export namespace Ponto {
     nome: string
     latitude: number
     longitude: number
+    raio_metros?: number
+    ativo?: boolean
+  }
+  export interface LocalUpdate {
+    nome?: string
+    latitude?: number
+    longitude?: number
     raio_metros?: number
     ativo?: boolean
   }

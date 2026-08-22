@@ -79,7 +79,7 @@ O `Host` da API no telemóvel, no modo local, é o IP do PC; o WebView continua 
 
 ## Checklist de validação (APK)
 
-Correr após `npm run build:android` + instalar no emulador/dispositivo (**sem** `VITE_API_URL` para simular loja):
+Correr após `npm run build:android` + `npm run cap:sync android` + instalar no emulador/dispositivo (**sem** `VITE_API_URL` para simular loja):
 
 | # | Cenário | Esperado |
 |---|---------|----------|
@@ -95,6 +95,9 @@ Correr após `npm run build:android` + instalar no emulador/dispositivo (**sem**
 | 10 | WhatsApp: texto + figurinha | Envio único; teclado sem cortar o campo |
 | 11 | Menu → Meu ponto / Chat / Tickets / (admin) Configurações | Mesmas entradas que no Chrome mobile; rotas abrem de facto |
 | 11b | Meu ponto: batida com «Incluir localização» | Pedido de GPS; batida com lat/lon (ou aviso e batida sem geo) |
+| 11c | Meu ponto: política **obrigatória** + local cadastrado | Bloqueia sem GPS ou fora do raio; toast claro |
+| 11d | Meu ponto: modo avião / sem rede | Batida fica na fila offline; estado da jornada actualiza na hora; sync ao voltar online |
+| 11e | Ponto da equipe: botão **mapa** numa batida com GPS | Modal OSM inline abre com marcador |
 | 12 | Voltar Android | Volta na navegação; na raiz pode sair da app |
 
 Cada instância precisa de `VAPID_*` no `client.env` e `https://localhost` em `CORS_ORIGINS`.

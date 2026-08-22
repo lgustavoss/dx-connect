@@ -292,6 +292,9 @@ def _intervalos_de_batidas(batidas: list[PontoBatida]) -> list[PontoIntervaloRea
                     duracao_segundos=None,
                     segundos_pausa=pausas,
                     aberto=True,
+                    entrada_latitude=entrada.latitude,
+                    entrada_longitude=entrada.longitude,
+                    entrada_fora_area=bool(getattr(entrada, "fora_area", False)),
                 )
             )
         else:
@@ -305,6 +308,12 @@ def _intervalos_de_batidas(batidas: list[PontoBatida]) -> list[PontoIntervaloRea
                     duracao_segundos=trabalhado,
                     segundos_pausa=pausas,
                     aberto=False,
+                    entrada_latitude=entrada.latitude,
+                    entrada_longitude=entrada.longitude,
+                    entrada_fora_area=bool(getattr(entrada, "fora_area", False)),
+                    saida_latitude=saida.latitude,
+                    saida_longitude=saida.longitude,
+                    saida_fora_area=bool(getattr(saida, "fora_area", False)),
                 )
             )
     return intervalos
@@ -923,18 +932,32 @@ def export_csv_admin(
     buf = io.StringIO()
     buf.write("\ufeff")
     writer = csv.writer(buf, delimiter=";")
-    writer.writerow(["atendente", "data", "entrada", "saida", "pausas_min", "trabalhado_min", "aberto"])
+    writer.writerow(
+        [
+            "atendente",
+            "tipo",
+            "registrado_em",
+            "origem",
+            "latitude",
+            "longitude",
+            "accuracy_metros",
+            "fora_area",
+            "distancia_metros",
+        ]
+    )
     for aid, bats in por_atendente.items():
-        for it in _intervalos_de_batidas(bats):
+        for b in bats:
             writer.writerow(
                 [
                     nomes.get(aid, str(aid)),
-                    it.data.isoformat(),
-                    _as_utc(it.entrada_em).astimezone(PONTO_TZ).strftime("%Y-%m-%d %H:%M"),
-                    _as_utc(it.saida_em).astimezone(PONTO_TZ).strftime("%Y-%m-%d %H:%M") if it.saida_em else "",
-                    round((it.segundos_pausa or 0) / 60, 2),
-                    round((it.duracao_segundos or 0) / 60, 2) if it.duracao_segundos is not None else "",
-                    "sim" if it.aberto else "nao",
+                    b.tipo,
+                    _as_utc(b.registrado_em).astimezone(PONTO_TZ).strftime("%Y-%m-%d %H:%M"),
+                    b.origem or "",
+                    b.latitude if b.latitude is not None else "",
+                    b.longitude if b.longitude is not None else "",
+                    b.accuracy_metros if b.accuracy_metros is not None else "",
+                    "sim" if getattr(b, "fora_area", False) else "nao",
+                    getattr(b, "distancia_metros", None) if getattr(b, "distancia_metros", None) is not None else "",
                 ]
             )
     return buf.getvalue()

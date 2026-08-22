@@ -16,6 +16,7 @@ from app.schemas.ponto import (
     PontoFeriadoRead,
     PontoLocalCreate,
     PontoLocalRead,
+    PontoLocalUpdate,
     PontoSettingsPublicRead,
     PontoSettingsRead,
     PontoSettingsUpdate,
@@ -124,6 +125,40 @@ def criar_local(db: Session, admin: Atendente, data: PontoLocalCreate) -> PontoL
         "create",
         admin.id,
         payload={"nome": nome, "latitude": data.latitude, "longitude": data.longitude},
+    )
+    db.commit()
+    db.refresh(row)
+    return PontoLocalRead.model_validate(row)
+
+
+def atualizar_local(
+    db: Session,
+    admin: Atendente,
+    local_id: int,
+    data: PontoLocalUpdate,
+) -> PontoLocalRead:
+    row = (
+        db.query(PontoLocal)
+        .filter(PontoLocal.id == local_id, PontoLocal.tenant_id == admin.tenant_id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Local não encontrado")
+    payload = data.model_dump(exclude_unset=True)
+    if "nome" in payload:
+        nome = (payload["nome"] or "").strip()
+        if not nome:
+            raise HTTPException(status_code=400, detail="Informe o nome do local.")
+        payload["nome"] = nome[:255]
+    for k, v in payload.items():
+        setattr(row, k, v)
+    registrar_audit(
+        db,
+        "ponto_local",
+        row.id,
+        "update",
+        admin.id,
+        payload=payload,
     )
     db.commit()
     db.refresh(row)
