@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ponto, type Ponto } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { PontoCalendarioMes } from '../components/PontoCalendarioMes'
+import { PontoMetricCard } from '../components/PontoMetricCard'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
@@ -10,54 +11,20 @@ import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
 import { isCapacitorNative } from '../lib/capacitorNative'
 import { geolocationSupported, getCurrentPosition, type GeoError } from '../lib/geolocation'
-
-function formatarHora(iso: string | null | undefined): string {
-  if (!iso) return '—'
-  try {
-    return new Date(iso).toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  } catch {
-    return iso
-  }
-}
-
-function formatarHoraCurta(iso: string | null | undefined): string {
-  if (!iso) return '—'
-  try {
-    return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-  } catch {
-    return iso
-  }
-}
-
-function formatarDuracao(segundos: number | null | undefined): string {
-  if (segundos == null || segundos < 0) return '—'
-  const h = Math.floor(segundos / 3600)
-  const m = Math.floor((segundos % 3600) / 60)
-  if (h <= 0) return `${m} min`
-  return `${h} h ${String(m).padStart(2, '0')} min`
-}
-
-function inicioMesIso(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-}
-
-function hojeIso(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-type AcaoPrincipal = {
-  tipo: Ponto.Tipo
-  rotulo: string
-  dica: string
-}
+import {
+  countPendingPontoBatidas,
+  enqueuePontoBatida,
+  isLikelyOfflineError,
+  syncPendingPontoBatidas,
+} from '../lib/pontoOfflineQueue'
+import {
+  formatarDuracao,
+  formatarHora,
+  formatarHoraCurta,
+  hojeIso,
+  inicioMesIso,
+  rotuloPoliticaGeo,
+} from '../lib/pontoFormat'
 
 function acaoPrincipal(emJornada: boolean, emPausa: boolean): AcaoPrincipal {
   if (!emJornada) {
@@ -69,32 +36,10 @@ function acaoPrincipal(emJornada: boolean, emPausa: boolean): AcaoPrincipal {
   return { tipo: 'saida', rotulo: 'Registrar saída', dica: 'Com pausa aberta, a pausa fecha automaticamente' }
 }
 
-function MetricCard({
-  label,
-  value,
-  hint,
-  tone = 'neutral',
-}: {
-  label: string
-  value: string
-  hint?: string
-  tone?: 'neutral' | 'good' | 'warn' | 'info'
-}) {
-  const toneCls =
-    tone === 'good'
-      ? 'border-emerald-200/80 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/30'
-      : tone === 'warn'
-        ? 'border-amber-200/80 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/30'
-        : tone === 'info'
-          ? 'border-sky-200/80 bg-sky-50/80 dark:border-sky-900/60 dark:bg-sky-950/30'
-          : 'border-slate-200 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/40'
-  return (
-    <div className={`rounded-xl border px-4 py-3 ${toneCls}`}>
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
-      <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900 dark:text-slate-100">{value}</p>
-      {hint ? <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{hint}</p> : null}
-    </div>
-  )
+type AcaoPrincipal = {
+  tipo: Ponto.Tipo
+  rotulo: string
+  dica: string
 }
 
 export function MeuPonto() {
@@ -122,21 +67,33 @@ export function MeuPonto() {
   const [incluirLocalizacao, setIncluirLocalizacao] = useState(
     () => isCapacitorNative() || geolocationSupported(),
   )
+  const [geoSettings, setGeoSettings] = useState<Ponto.SettingsPublic | null>(null)
+  const [pendentesOffline, setPendentesOffline] = useState(countPendingPontoBatidas())
   const [obtendoLocalizacao, setObtendoLocalizacao] = useState(false)
+
+  const politicaGeo = geoSettings?.politica_geolocalizacao ?? 'opcional'
+  const geoObrigatoria = politicaGeo === 'obrigatoria' && !!geoSettings?.tem_locais_ativos
+  const geoRecomendada = politicaGeo === 'recomendada' && !!geoSettings?.tem_locais_ativos
+  const deveIncluirGeo = geoObrigatoria || (geoRecomendada ? true : incluirLocalizacao)
 
   const carregar = useCallback(
     async (silencioso = false) => {
       try {
-        const [me, hist, js, bh] = await Promise.all([
+        const [me, hist, js, bh, gs] = await Promise.all([
           ponto.me(),
           ponto.minhasBatidas({ desde, ate, limit: 100 }),
           ponto.minhasJustificativas(),
           ponto.meuBancoHoras(desde, ate),
+          ponto.meSettings(),
         ])
         setEstado(me)
         setHistorico(hist)
         setJustifs(js)
         setBanco(bh)
+        setGeoSettings(gs)
+        if (gs.politica_geolocalizacao === 'obrigatoria' && gs.tem_locais_ativos) {
+          setIncluirLocalizacao(true)
+        }
       } catch (err) {
         if (!silencioso) {
           toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar o ponto.'))
@@ -187,14 +144,31 @@ export function MeuPonto() {
     return () => window.clearInterval(t)
   }, [])
 
+  useEffect(() => {
+    const origem = isCapacitorNative() ? 'mobile' : 'web'
+    const sync = async () => {
+      const n = await syncPendingPontoBatidas((data) => ponto.bater(data), origem)
+      setPendentesOffline(countPendingPontoBatidas())
+      if (n > 0) {
+        toast.showSuccess(`${n} batida(s) offline sincronizada(s).`)
+        await Promise.all([carregar(true), carregarCalendario(true)])
+      }
+    }
+    void sync()
+    const onOnline = () => void sync()
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [carregar, carregarCalendario, toast])
+
   async function bater(tipo: Ponto.Tipo) {
     setBatendo(true)
     const fechouPausaAuto = tipo === 'saida' && !!estado?.em_pausa
+    const origem = isCapacitorNative() ? 'mobile' : 'web'
     let geo:
       | { latitude: number; longitude: number; accuracy_metros: number }
       | undefined
     try {
-      if (incluirLocalizacao && geolocationSupported()) {
+      if (deveIncluirGeo && geolocationSupported()) {
         setObtendoLocalizacao(true)
         try {
           const pos = await getCurrentPosition()
@@ -205,16 +179,31 @@ export function MeuPonto() {
           }
         } catch (geoErr) {
           const msg = (geoErr as GeoError)?.message || 'Localização indisponível'
+          if (geoObrigatoria) {
+            toast.showError(`${msg} A geolocalização é obrigatória nesta instância.`)
+            return
+          }
           toast.showWarning(`${msg} O ponto será registado sem localização.`)
         } finally {
           setObtendoLocalizacao(false)
         }
       }
-      await ponto.bater({
+
+      if (!navigator.onLine) {
+        enqueuePontoBatida({ tipo, ...geo })
+        setPendentesOffline(countPendingPontoBatidas())
+        toast.showWarning('Sem ligação — batida guardada offline. Será enviada ao voltar online.')
+        return
+      }
+
+      const batida = await ponto.bater({
         tipo,
-        origem: isCapacitorNative() ? 'mobile' : 'web',
+        origem,
         ...(geo ?? {}),
       })
+      if (batida.fora_area) {
+        toast.showWarning('Batida registada fora da área permitida.')
+      }
       if (fechouPausaAuto) {
         toast.showSuccess(
           geo
@@ -232,6 +221,12 @@ export function MeuPonto() {
       }
       await Promise.all([carregar(true), carregarCalendario(true)])
     } catch (err) {
+      if (isLikelyOfflineError(err)) {
+        enqueuePontoBatida({ tipo, ...geo })
+        setPendentesOffline(countPendingPontoBatidas())
+        toast.showWarning('Falha de rede — batida guardada offline.')
+        return
+      }
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível bater o ponto.'))
     } finally {
       setObtendoLocalizacao(false)
@@ -338,21 +333,38 @@ export function MeuPonto() {
               </div>
               <div>
                 <p className="mb-2 text-sm text-slate-600 dark:text-slate-300">{principal.dica}</p>
-                {geolocationSupported() ? (
+                {geolocationSupported() && !geoObrigatoria ? (
                   <label className="mb-3 flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
                     <input
                       type="checkbox"
                       className="mt-0.5"
-                      checked={incluirLocalizacao}
+                      checked={deveIncluirGeo}
+                      disabled={geoRecomendada}
                       onChange={(e) => setIncluirLocalizacao(e.target.checked)}
                     />
                     <span>
                       Incluir localização na batida
-                      <span className="mt-0.5 block text-xs text-slate-500">
-                        Opcional — útil no telemóvel/APK. Se falhar, o ponto regista na mesma.
-                      </span>
+                      {geoRecomendada ? (
+                        <span className="mt-0.5 block text-xs text-amber-700 dark:text-amber-300">
+                          Política recomendada — fora da área gera aviso, mas regista.
+                        </span>
+                      ) : (
+                        <span className="mt-0.5 block text-xs text-slate-500">
+                          Opcional — útil no telemóvel/APK. Se falhar, o ponto regista na mesma.
+                        </span>
+                      )}
                     </span>
                   </label>
+                ) : null}
+                {geoObrigatoria ? (
+                  <p className="mb-3 text-sm text-amber-800 dark:text-amber-200">
+                    Geolocalização <strong>obrigatória</strong> ({rotuloPoliticaGeo(politicaGeo)}).
+                  </p>
+                ) : null}
+                {pendentesOffline > 0 ? (
+                  <p className="mb-3 text-sm text-amber-800 dark:text-amber-200">
+                    {pendentesOffline} batida(s) aguardando sync offline.
+                  </p>
                 ) : null}
                 <Button
                   type="button"
@@ -435,19 +447,19 @@ export function MeuPonto() {
 
       {/* Métricas — estilo cards do dx-ponto */}
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <MetricCard
+        <PontoMetricCard
           label="Trabalhado no período"
           value={formatarDuracao(historico?.total_segundos_fechados)}
           hint={`${desde} → ${ate}`}
           tone="info"
         />
-        <MetricCard
+        <PontoMetricCard
           label="Pausas"
           value={formatarDuracao(historico?.total_segundos_pausa ?? 0)}
           hint="Não conta como trabalhado"
           tone="neutral"
         />
-        <MetricCard
+        <PontoMetricCard
           label="Banco de horas"
           value={
             banco

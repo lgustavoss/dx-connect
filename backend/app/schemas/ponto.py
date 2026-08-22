@@ -27,7 +27,37 @@ class PontoBatidaRead(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     accuracy_metros: float | None = None
+    fora_area: bool = False
+    distancia_metros: float | None = None
+    local_id: int | None = None
     anulada: bool = False
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+PoliticaGeolocalizacao = Literal["opcional", "recomendada", "obrigatoria"]
+
+
+class PontoSettingsPublicRead(BaseModel):
+    politica_geolocalizacao: PoliticaGeolocalizacao = "opcional"
+    tem_locais_ativos: bool = False
+
+
+class PontoLocalCreate(BaseModel):
+    nome: str = Field(..., min_length=1, max_length=255)
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+    raio_metros: int = Field(default=200, ge=20, le=50_000)
+    ativo: bool | None = True
+
+
+class PontoLocalRead(BaseModel):
+    id: int
+    nome: str
+    latitude: float
+    longitude: float
+    raio_metros: int
+    ativo: bool = True
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -68,6 +98,9 @@ class PontoBatidaAdminItem(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     accuracy_metros: float | None = None
+    fora_area: bool = False
+    distancia_metros: float | None = None
+    local_id: int | None = None
     anulada: bool = False
 
 
@@ -153,6 +186,7 @@ class PontoSettingsRead(BaseModel):
     fecho_automatico_ativo: bool = False
     fecho_apos_horas: int = 14
     jornada_diaria_minutos: int = 480
+    politica_geolocalizacao: PoliticaGeolocalizacao = "opcional"
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -162,6 +196,7 @@ class PontoSettingsUpdate(BaseModel):
     fecho_automatico_ativo: bool | None = None
     fecho_apos_horas: int | None = Field(default=None, ge=4, le=48)
     jornada_diaria_minutos: int | None = Field(default=None, ge=60, le=1440)
+    politica_geolocalizacao: PoliticaGeolocalizacao | None = None
 
 
 class PontoFeriadoCreate(BaseModel):

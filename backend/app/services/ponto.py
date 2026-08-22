@@ -162,6 +162,15 @@ def bater(
     if has_lat and (latitude < -90 or latitude > 90 or longitude < -180 or longitude > 180):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Coordenadas inválidas.")
 
+    from app.services import ponto_geofence as geo_svc
+
+    geo_res = geo_svc.validar_batida_geolocalizacao(
+        db,
+        atendente.tenant_id,
+        latitude=float(latitude) if has_lat else None,
+        longitude=float(longitude) if has_lon else None,
+    )
+
     ultima = ultima_batida(db, atendente.id)
     em_jornada = bool(ultima and ultima.tipo in TIPOS_EM_JORNADA)
     em_pausa = bool(ultima and ultima.tipo == "pausa_inicio")
@@ -224,6 +233,9 @@ def bater(
         latitude=float(latitude) if has_lat else None,
         longitude=float(longitude) if has_lon else None,
         accuracy_metros=float(accuracy_metros) if accuracy_metros is not None and has_lat else None,
+        fora_area=bool(geo_res.fora_area),
+        distancia_metros=geo_res.distancia_metros,
+        local_id=geo_res.local_id,
         anulada=False,
     )
     db.add(batida)
@@ -369,6 +381,9 @@ def listar_batidas_admin(
             latitude=getattr(b, "latitude", None),
             longitude=getattr(b, "longitude", None),
             accuracy_metros=getattr(b, "accuracy_metros", None),
+            fora_area=bool(getattr(b, "fora_area", False)),
+            distancia_metros=getattr(b, "distancia_metros", None),
+            local_id=getattr(b, "local_id", None),
             anulada=bool(b.anulada),
         )
         for b, a in rows

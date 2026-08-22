@@ -1,4 +1,7 @@
-/** Geolocalização para batidas de ponto (web + WebView Capacitor). */
+/** Geolocalização para batidas de ponto (web + Capacitor APK). */
+
+import { Geolocation } from '@capacitor/geolocation'
+import { isCapacitorNative } from './capacitorNative'
 
 export type GeoPosition = {
   latitude: number
@@ -11,19 +14,40 @@ export type GeoError = {
   message: string
 }
 
-const OPTIONS: PositionOptions = {
+const WEB_OPTIONS: PositionOptions = {
   enableHighAccuracy: true,
   timeout: 12_000,
   maximumAge: 60_000,
 }
 
 export function geolocationSupported(): boolean {
+  if (isCapacitorNative()) return true
   return typeof navigator !== 'undefined' && !!navigator.geolocation
 }
 
-export function getCurrentPosition(): Promise<GeoPosition> {
+async function getCurrentPositionNative(): Promise<GeoPosition> {
+  let perm = await Geolocation.checkPermissions()
+  if (perm.location === 'denied' || perm.coarseLocation === 'denied') {
+    perm = await Geolocation.requestPermissions()
+  }
+  if (perm.location === 'denied' && perm.coarseLocation === 'denied') {
+    throw { code: 1, message: 'Permissão de localização negada.' } satisfies GeoError
+  }
+  const pos = await Geolocation.getCurrentPosition({
+    enableHighAccuracy: true,
+    timeout: 12_000,
+    maximumAge: 60_000,
+  })
+  return {
+    latitude: pos.coords.latitude,
+    longitude: pos.coords.longitude,
+    accuracy: pos.coords.accuracy,
+  }
+}
+
+function getCurrentPositionWeb(): Promise<GeoPosition> {
   return new Promise((resolve, reject) => {
-    if (!geolocationSupported()) {
+    if (!navigator.geolocation) {
       reject({ code: 0, message: 'Geolocalização não é suportada neste dispositivo.' } satisfies GeoError)
       return
     }
@@ -46,7 +70,14 @@ export function getCurrentPosition(): Promise<GeoPosition> {
         }
         reject({ code: err.code, message } satisfies GeoError)
       },
-      OPTIONS,
+      WEB_OPTIONS,
     )
   })
+}
+
+export async function getCurrentPosition(): Promise<GeoPosition> {
+  if (isCapacitorNative()) {
+    return getCurrentPositionNative()
+  }
+  return getCurrentPositionWeb()
 }
