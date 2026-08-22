@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { kbPublic, type Kb } from '../../api/client'
 import { KbMarkdownPreview } from '../../components/kb/KbMarkdownPreview'
+import { VoltarButton } from '../../components/ui/VoltarButton'
 import { useKbPublicBranding } from './KbPublicContext'
 import { KbPublicArtigoFeedback } from './KbPublicArtigoFeedback'
 
 export function KbPublicArtigo() {
   const branding = useKbPublicBranding()
+  const navigate = useNavigate()
   const { slug } = useParams<{ slug: string }>()
   const [artigo, setArtigo] = useState<Kb.Article | null>(null)
   const [loading, setLoading] = useState(true)
@@ -53,9 +55,10 @@ export function KbPublicArtigo() {
     return (
       <div className="space-y-4">
         <p>Manual não encontrado ou não está mais disponível.</p>
-        <Link to="/kb" className="text-sm font-medium hover:underline" style={linkStyle}>
-          ← Voltar para a central de ajuda
-        </Link>
+        <VoltarButton
+          onClick={() => navigate('/kb')}
+          label="Voltar para a central de ajuda"
+        />
       </div>
     )
   }
@@ -89,9 +92,7 @@ export function KbPublicArtigo() {
 
       <KbPublicArtigoFeedback slug={artigo.slug} />
 
-      <Link to="/kb" className="inline-block text-sm font-medium hover:underline" style={linkStyle}>
-        ← Voltar para todos os manuais
-      </Link>
+      <VoltarButton onClick={() => navigate('/kb')} label="Voltar para todos os manuais" />
     </article>
   )
 }

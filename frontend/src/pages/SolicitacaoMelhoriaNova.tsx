@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ClipboardEvent } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { solicitacoesMelhoria, system, type SolicitacoesMelhoria } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { KbMarkdownAjudaModal } from '../components/kb/KbMarkdownAjudaModal'
@@ -7,6 +7,7 @@ import { KbMarkdownPreview } from '../components/kb/KbMarkdownPreview'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { PageContainer } from '../components/ui/PageContainer'
+import { VoltarButton } from '../components/ui/VoltarButton'
 import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
 
@@ -154,12 +155,7 @@ export function SolicitacaoMelhoriaNovaPage() {
   return (
     <PageContainer className="flex h-full min-h-0 w-full flex-col" spacing="none">
       <div className="shrink-0">
-        <Link
-          to="/sobre"
-          className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
-        >
-          <span aria-hidden>←</span> Voltar a Sobre / novidades
-        </Link>
+        <VoltarButton onClick={() => navigate('/sobre')} label="Voltar a Sobre / novidades" />
         <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
           {tipo === 'problema' ? 'Relatar um problema' : 'Enviar sugestão'}
         </h1>
@@ -298,7 +294,7 @@ export function SolicitacaoMelhoriaNovaPage() {
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="danger" onClick={() => navigate('/sobre')} disabled={enviando}>
+            <Button type="button" variant="cancel" onClick={() => navigate('/sobre')} disabled={enviando}>
               Cancelar
             </Button>
             <Button type="button" variant="primary" loading={enviando || uploading} onClick={() => void enviar()}>

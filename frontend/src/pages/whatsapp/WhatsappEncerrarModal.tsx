@@ -332,7 +332,7 @@ export function WhatsappEncerrarModal({
           )}
 
           <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 dark:border-slate-800 sm:flex-row sm:justify-end">
-            <Button variant="secondary" onClick={onClose} disabled={salvando}>
+            <Button variant="cancel" onClick={onClose} disabled={salvando}>
               Cancelar
             </Button>
             <Button variant="danger" onClick={() => void executarEncerramento()} loading={salvando}>

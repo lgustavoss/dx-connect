@@ -257,7 +257,7 @@ export function ConfigImplantacaoChecklist({ embedded = false }: { embedded?: bo
             <Button onClick={() => void save()} disabled={saving}>
               Guardar
             </Button>
-            <Button variant="ghost" onClick={() => setEditing(null)}>
+            <Button variant="cancel" onClick={() => setEditing(null)}>
               Cancelar
             </Button>
           </div>

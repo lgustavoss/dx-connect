@@ -318,7 +318,7 @@ export function CrmPropostaCard({ negociacao, onChanged, embedded = false }: Pro
                 Avançar funil para «Proposta enviada»
               </label>
               <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="secondary" onClick={() => setEnviarId(null)} disabled={marcando}>
+                <Button type="button" variant="cancel" onClick={() => setEnviarId(null)} disabled={marcando}>
                   Cancelar
                 </Button>
                 <Button onClick={() => void handleMarcarEnviada()} disabled={marcando}>

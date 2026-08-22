@@ -635,7 +635,7 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
         )}
 
         <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
-          <Button variant="secondary" onClick={onClose} disabled={salvando}>
+          <Button variant="cancel" onClick={onClose} disabled={salvando}>
             Cancelar
           </Button>
           {modo === 'vincular' ? (

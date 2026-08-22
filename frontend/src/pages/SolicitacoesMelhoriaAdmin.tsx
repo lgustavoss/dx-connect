@@ -4,6 +4,7 @@ import { solicitacoesMelhoria, type SolicitacoesMelhoria } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 import { Card } from '../components/ui/Card'
+import { VoltarButton } from '../components/ui/VoltarButton'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
@@ -65,13 +66,7 @@ export function SolicitacoesMelhoriaAdminPage() {
           title={`${detalhe.protocolo || `#${detalhe.id}`} · ${detalhe.titulo}`}
           subtitle="Acompanhamento na instância. A triagem (status e respostas) é feita no painel SaaS DeskRudder."
         />
-        <button
-          type="button"
-          className="text-sm text-cyan-700 hover:underline dark:text-cyan-400"
-          onClick={() => navigate('/solicitacoes-melhoria')}
-        >
-          ← Voltar à lista
-        </button>
+        <VoltarButton onClick={() => navigate('/solicitacoes-melhoria')} label="Voltar à lista" />
 
         <Card className="space-y-2 p-5 text-sm">
           <p>

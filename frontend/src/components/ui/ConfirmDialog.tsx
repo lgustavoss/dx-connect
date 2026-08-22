@@ -86,7 +86,7 @@ export function ConfirmDialog({
             {children && <div className="mt-4">{children}</div>}
             {!hideActions && (
               <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                <Button variant="secondary" onClick={onCancel} disabled={loading}>
+                <Button variant="cancel" onClick={onCancel} disabled={loading}>
                   {cancelLabel}
                 </Button>
                 <Button

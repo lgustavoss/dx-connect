@@ -9,6 +9,7 @@ import { ChatFilaSomToggle } from '../../components/chat/ChatFilaSomToggle'
 import { ChatMensagemMidia } from '../../components/chat/ChatMensagemMidia'
 import { ChatTransferModal } from '../../components/chat/ChatTransferModal'
 import { Button } from '../../components/ui/Button'
+import { VoltarButton } from '../../components/ui/VoltarButton'
 import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { useAuth } from '../../contexts/AuthContext'
@@ -358,13 +359,7 @@ export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white dark:bg-slate-950">
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-950">
         <div className="min-w-0">
-          <button
-            type="button"
-            onClick={fecharChat}
-            className="text-xs text-cyan-600 hover:underline md:hidden"
-          >
-            ← Voltar
-          </button>
+          <VoltarButton onClick={fecharChat} className="md:hidden" label="Voltar" />
           <div className="mt-0.5 flex flex-wrap items-center gap-2">
             <h1 className="truncate text-base font-semibold text-slate-900 dark:text-slate-100">
               {chat.visitante_nome}

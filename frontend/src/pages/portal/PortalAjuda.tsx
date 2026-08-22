@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { kbPublic, type Kb } from '../../api/client'
 import { KbMarkdownPreview } from '../../components/kb/KbMarkdownPreview'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { useToast } from '../../components/ui/Toast'
+import { VoltarButton } from '../../components/ui/VoltarButton'
 import { PortalPageHeader, portalCardClass, portalInputClass } from './portalUi'
 
 export function PortalAjudaHome() {
@@ -115,6 +116,7 @@ export function PortalAjudaHome() {
 
 export function PortalAjudaArtigo() {
   const { slug } = useParams<{ slug: string }>()
+  const navigate = useNavigate()
   const [artigo, setArtigo] = useState<Kb.Article | null>(null)
   const [loading, setLoading] = useState(true)
   const toast = useToast()
@@ -145,9 +147,7 @@ export function PortalAjudaArtigo() {
   if (!artigo) {
     return (
       <div className="space-y-3">
-        <Link to="/portal/ajuda" className="text-sm font-medium text-slate-500 hover:text-slate-800">
-          ← Voltar
-        </Link>
+        <VoltarButton onClick={() => navigate('/portal/ajuda')} />
         <p className="text-sm text-slate-600">Artigo não encontrado.</p>
       </div>
     )
@@ -155,9 +155,7 @@ export function PortalAjudaArtigo() {
 
   return (
     <article className="space-y-4">
-      <Link to="/portal/ajuda" className="text-sm font-medium text-slate-500 hover:text-slate-800">
-        ← Voltar à ajuda
-      </Link>
+      <VoltarButton onClick={() => navigate('/portal/ajuda')} label="Voltar à ajuda" />
       <div className={`${portalCardClass} p-5 sm:p-6`}>
         <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">{artigo.titulo}</h1>
         {artigo.category_nome ? (

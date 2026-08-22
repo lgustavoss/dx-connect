@@ -4,6 +4,7 @@ import type { System } from '../../api/client'
 import { solicitacoesMelhoria, type SolicitacoesMelhoria } from '../../api/client'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
+import { VoltarButton } from '../../components/ui/VoltarButton'
 import { BrandLogo } from '../../brand'
 import { PageContainer } from '../../components/ui/PageContainer'
 
@@ -130,12 +131,7 @@ export function ReleaseNotesView({
   return (
     <PageContainer spacing="relaxed">
       <div>
-        <Link
-          to={backTo}
-          className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
-        >
-          <span aria-hidden>←</span> {backLabel}
-        </Link>
+        <VoltarButton onClick={() => navigate(backTo)} label={backLabel} />
         <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">{title}</h1>
         {showBrandLogo ? (
           <div className="mt-4 flex flex-wrap items-center gap-3">

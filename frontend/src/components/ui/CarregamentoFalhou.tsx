@@ -1,4 +1,5 @@
 import { PAGE_CONTAINER_CLASS } from './PageContainer'
+import { VoltarButton } from './VoltarButton'
 
 type Props = {
   titulo: string
@@ -19,13 +20,9 @@ export function CarregamentoFalhou({
     <div className={className}>
       <p className="text-slate-800 dark:text-slate-100">{titulo}</p>
       {detalhe ? <p className="text-sm text-slate-600 dark:text-slate-400">{detalhe}</p> : null}
-      <button
-        type="button"
-        onClick={onVoltar}
-        className="font-medium text-slate-800 underline decoration-slate-400 underline-offset-2 hover:text-slate-950 dark:text-slate-200 dark:hover:text-white"
-      >
-        {voltarLabel}
-      </button>
+      <div className="mt-3">
+        <VoltarButton onClick={onVoltar} label={voltarLabel} />
+      </div>
     </div>
   )
 }

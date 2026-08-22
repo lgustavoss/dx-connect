@@ -11,6 +11,7 @@ import { FormSection } from '../components/ui/FormSection'
 import { SemPermissao } from './SemPermissao'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
+import { VoltarButton } from '../components/ui/VoltarButton'
 
 export function RedeForm() {
   const { id } = useParams<{ id?: string }>()
@@ -133,13 +134,7 @@ export function RedeForm() {
   return (
     <div className="mx-auto max-w-5xl space-y-6 pb-10">
       <div className="flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={voltarAnterior}
-          className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
-        >
-          <span aria-hidden>←</span> Voltar
-        </button>
+        <VoltarButton onClick={voltarAnterior} />
       </div>
 
       <Card title={isEdit ? 'Editar rede' : 'Nova rede'}>
@@ -171,7 +166,7 @@ export function RedeForm() {
 
           <div className="sticky bottom-0 -mx-6 mt-6 border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button type="button" variant="secondary" onClick={voltarAnterior} className="w-full sm:w-auto">
+              <Button type="button" variant="cancel" onClick={voltarAnterior} className="w-full sm:w-auto">
                 Cancelar
               </Button>
               <Button type="submit" loading={saving} className="w-full sm:w-auto">

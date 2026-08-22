@@ -5,6 +5,7 @@ import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
+import { VoltarButton } from '../components/ui/VoltarButton'
 import { TEXTAREA_FIELD_CLASS } from '../components/ui/Input'
 import { useToast } from '../components/ui/Toast'
 import { SolicitacaoDescricao } from '../components/release/SolicitacaoDescricao'
@@ -97,9 +98,7 @@ export function MinhasSolicitacoesPage() {
           title={`${detalhe.protocolo || 'Pedido'} · ${detalhe.titulo}`}
           subtitle={`${detalhe.tipo === 'problema' ? 'Problema' : 'Sugestão'} · ${detalhe.status_rotulo}`}
         />
-        <Link to="/minhas-solicitacoes" className="text-sm text-cyan-700 hover:underline dark:text-cyan-400">
-          ← Voltar à lista
-        </Link>
+        <VoltarButton onClick={() => navigate('/minhas-solicitacoes')} label="Voltar à lista" />
 
         <Card className="space-y-3 p-5">
           <SolicitacaoDescricao descricao={detalhe.descricao} anexos={detalhe.anexos} />

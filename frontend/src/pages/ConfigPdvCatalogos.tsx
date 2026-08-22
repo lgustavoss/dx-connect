@@ -370,7 +370,7 @@ export function ConfigPdvCatalogos({ embedded = false }: { embedded?: boolean })
                 showStatusPill
               />
               <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
-                <Button type="button" variant="secondary" onClick={fecharModal}>
+                <Button type="button" variant="cancel" onClick={fecharModal}>
                   Cancelar
                 </Button>
                 <Button type="submit" loading={saving}>

@@ -783,7 +783,7 @@ export function CrmLeads() {
                 />
               ) : null}
               <div className="flex flex-wrap justify-end gap-2 pt-2">
-                <Button type="button" variant="secondary" onClick={() => setModalOpen(false)} disabled={saving}>
+                <Button type="button" variant="cancel" onClick={() => setModalOpen(false)} disabled={saving}>
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={saving}>

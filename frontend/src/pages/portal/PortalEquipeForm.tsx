@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { portalCliente, type PortalCliente } from '../../api/client'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { usePortalAuth } from '../../contexts/PortalAuthContext'
@@ -10,8 +10,9 @@ import {
   PortalPageHeader,
   portalInputClass,
   portalPrimaryBtnClass,
-  portalSecondaryBtnClass,
+  portalCancelBtnClass,
 } from './portalUi'
+import { VoltarButton } from '../../components/ui/VoltarButton'
 
 type TipoEquipe = 'colaborador' | 'supervisor'
 
@@ -239,9 +240,7 @@ export function PortalEquipeForm() {
   return (
     <div className="space-y-6">
       <div>
-        <Link to="/portal/equipe" className="text-sm font-medium text-slate-500 hover:text-slate-800">
-          ← Voltar à equipe
-        </Link>
+        <VoltarButton onClick={() => navigate('/portal/equipe')} label="Voltar à equipe" />
         <div className="mt-2">
           <PortalPageHeader
             title={isEdit ? 'Editar membro' : 'Novo membro da equipe'}
@@ -388,7 +387,7 @@ export function PortalEquipeForm() {
         </PortalFormBlock>
 
         <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
-          <button type="button" className={portalSecondaryBtnClass} onClick={() => navigate('/portal/equipe')}>
+          <button type="button" className={portalCancelBtnClass} onClick={() => navigate('/portal/equipe')}>
             Cancelar
           </button>
           <button

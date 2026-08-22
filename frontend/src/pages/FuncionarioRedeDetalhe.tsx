@@ -7,6 +7,7 @@ import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { SemPermissao } from './SemPermissao'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
+import { VoltarButton } from '../components/ui/VoltarButton'
 
 const tipoLabel: Record<string, string> = {
   socio: 'Sócio',
@@ -213,13 +214,7 @@ export function FuncionarioRedeDetalhe() {
   return (
     <div className="mx-auto max-w-6xl space-y-8 pb-10">
       <div>
-        <button
-          type="button"
-          onClick={voltarAnterior}
-          className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
-        >
-          <span aria-hidden>←</span> Voltar
-        </button>
+        <VoltarButton onClick={voltarAnterior} />
       </div>
 
       <header className="space-y-3">
