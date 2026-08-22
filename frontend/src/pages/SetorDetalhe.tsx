@@ -4,6 +4,7 @@ import { ApiError, atendentes, setores, type Atendentes, type Setores } from '..
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
+import { VoltarButton } from '../components/ui/VoltarButton'
 import { DetailRow } from '../components/ui/DetailRow'
 import { BadgeAtivo } from '../components/ui/BadgeAtivo'
 import { SelectComPesquisa } from '../components/ui/SelectComPesquisa'
@@ -259,13 +260,7 @@ export function SetorDetalhe() {
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-10">
       <nav aria-label="breadcrumb" className="flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-        <button
-          type="button"
-          onClick={voltarAnterior}
-          className="font-medium text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
-        >
-          ← Voltar
-        </button>
+        <VoltarButton onClick={voltarAnterior} />
         <span aria-hidden className="text-slate-300 dark:text-slate-600">
           /
         </span>

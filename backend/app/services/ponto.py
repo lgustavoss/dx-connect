@@ -143,11 +143,33 @@ def bater(
     ip: str | None = None,
     user_agent: str | None = None,
     registrado_em: datetime | None = None,
+    latitude: float | None = None,
+    longitude: float | None = None,
+    accuracy_metros: float | None = None,
     commit: bool = True,
 ) -> PontoBatida:
     exigir_acesso_ponto(atendente)
     if tipo not in TIPOS_VALIDOS:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tipo inválido de batida.")
+
+    has_lat = latitude is not None
+    has_lon = longitude is not None
+    if has_lat != has_lon:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Informe latitude e longitude juntos, ou omita ambas.",
+        )
+    if has_lat and (latitude < -90 or latitude > 90 or longitude < -180 or longitude > 180):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Coordenadas inválidas.")
+
+    from app.services import ponto_geofence as geo_svc
+
+    geo_res = geo_svc.validar_batida_geolocalizacao(
+        db,
+        atendente.tenant_id,
+        latitude=float(latitude) if has_lat else None,
+        longitude=float(longitude) if has_lon else None,
+    )
 
     ultima = ultima_batida(db, atendente.id)
     em_jornada = bool(ultima and ultima.tipo in TIPOS_EM_JORNADA)
@@ -166,9 +188,17 @@ def bater(
                 detail="Não há jornada aberta para registrar saída.",
             )
         if em_pausa:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Encerre a pausa antes de registrar a saída.",
+            # #841: fecha a pausa automaticamente no mesmo instante (origem sistema).
+            when_auto = registrado_em or _agora_utc()
+            bater(
+                db,
+                atendente,
+                "pausa_fim",
+                origem="sistema",
+                ip=ip,
+                user_agent=user_agent,
+                registrado_em=when_auto,
+                commit=False,
             )
     elif tipo == "pausa_inicio":
         if not em_jornada:
@@ -200,6 +230,12 @@ def bater(
         origem=origem_norm,
         ip=ip,
         user_agent=(user_agent or "")[:512] or None,
+        latitude=float(latitude) if has_lat else None,
+        longitude=float(longitude) if has_lon else None,
+        accuracy_metros=float(accuracy_metros) if accuracy_metros is not None and has_lat else None,
+        fora_area=bool(geo_res.fora_area),
+        distancia_metros=geo_res.distancia_metros,
+        local_id=geo_res.local_id,
         anulada=False,
     )
     db.add(batida)
@@ -256,6 +292,9 @@ def _intervalos_de_batidas(batidas: list[PontoBatida]) -> list[PontoIntervaloRea
                     duracao_segundos=None,
                     segundos_pausa=pausas,
                     aberto=True,
+                    entrada_latitude=entrada.latitude,
+                    entrada_longitude=entrada.longitude,
+                    entrada_fora_area=bool(getattr(entrada, "fora_area", False)),
                 )
             )
         else:
@@ -269,6 +308,12 @@ def _intervalos_de_batidas(batidas: list[PontoBatida]) -> list[PontoIntervaloRea
                     duracao_segundos=trabalhado,
                     segundos_pausa=pausas,
                     aberto=False,
+                    entrada_latitude=entrada.latitude,
+                    entrada_longitude=entrada.longitude,
+                    entrada_fora_area=bool(getattr(entrada, "fora_area", False)),
+                    saida_latitude=saida.latitude,
+                    saida_longitude=saida.longitude,
+                    saida_fora_area=bool(getattr(saida, "fora_area", False)),
                 )
             )
     return intervalos
@@ -342,6 +387,12 @@ def listar_batidas_admin(
             tipo=b.tipo,
             registrado_em=b.registrado_em,
             origem=b.origem,
+            latitude=getattr(b, "latitude", None),
+            longitude=getattr(b, "longitude", None),
+            accuracy_metros=getattr(b, "accuracy_metros", None),
+            fora_area=bool(getattr(b, "fora_area", False)),
+            distancia_metros=getattr(b, "distancia_metros", None),
+            local_id=getattr(b, "local_id", None),
             anulada=bool(b.anulada),
         )
         for b, a in rows
@@ -403,6 +454,28 @@ def _status_dia(
     return "folga"
 
 
+def _classe_visual_dia(
+    *,
+    feriado: bool,
+    esperado: bool,
+    segundos_trabalhados: int,
+    segundos_esperados: int,
+) -> str:
+    """Paleta #842: vermelho abaixo / verde ok / azul HE / laranja feriado."""
+    if feriado:
+        return "feriado"
+    meta = segundos_esperados if segundos_esperados > 0 else 0
+    if segundos_trabalhados <= 0:
+        return "abaixo" if esperado else "neutro"
+    if meta <= 0:
+        return "ok"
+    if segundos_trabalhados < meta:
+        return "abaixo"
+    if segundos_trabalhados > meta:
+        return "he"
+    return "ok"
+
+
 def calendario(
     db: Session,
     atendente: Atendente,
@@ -410,8 +483,18 @@ def calendario(
     mes: int,
 ) -> PontoCalendarioRead:
     dias_mes = escala_svc.dias_do_mes(ano, mes)
+    settings = ponto_settings_svc.get_or_create_settings(db, atendente.tenant_id)
+    jornada_min = int(getattr(settings, "jornada_diaria_minutos", None) or 480)
+    meta_default = jornada_min * 60
     if not dias_mes:
-        return PontoCalendarioRead(atendente_id=atendente.id, ano=ano, mes=mes, usa_escala=False, dias=[])
+        return PontoCalendarioRead(
+            atendente_id=atendente.id,
+            ano=ano,
+            mes=mes,
+            usa_escala=False,
+            jornada_diaria_minutos=jornada_min,
+            dias=[],
+        )
     desde, ate = dias_mes[0], dias_mes[-1]
     inicio, fim = _bounds_periodo(desde, ate)
     batidas = (
@@ -437,10 +520,23 @@ def calendario(
         te = any(b.tipo == "entrada" for b in bats)
         ts = any(b.tipo == "saida" for b in bats)
         atrasado = _atrasado_entrada(atendente, _primeira_entrada_do_dia(bats))
+        intervalos = _intervalos_de_batidas(bats)
+        trabalhados = sum(i.duracao_segundos or 0 for i in intervalos if not i.aberto)
+        esperado_visual = bool(esp and not feriado)
+        if usa and esperado_visual:
+            esperados = escala_svc.segundos_esperados_dia(atendente) or meta_default
+        elif te or ts:
+            esperados = meta_default
+        elif esperado_visual:
+            esperados = meta_default
+        else:
+            esperados = 0
+        # Sem escala: dia com batidas compara à meta; dia vazio fica neutro
+        esperado_para_cor = esperado_visual if usa else bool(te or ts)
         dias_out.append(
             PontoCalendarioDia(
                 data=d,
-                esperado=esp and not feriado,
+                esperado=esperado_visual,
                 tem_entrada=te,
                 tem_saida=ts,
                 status=_status_dia(  # type: ignore[arg-type]
@@ -453,8 +549,17 @@ def calendario(
                 ),
                 atrasado=atrasado,
                 feriado=feriado,
+                segundos_trabalhados=trabalhados,
+                segundos_esperados=esperados,
+                classe_visual=_classe_visual_dia(  # type: ignore[arg-type]
+                    feriado=feriado,
+                    esperado=esperado_para_cor,
+                    segundos_trabalhados=trabalhados,
+                    segundos_esperados=esperados,
+                ),
             )
         )
+
     return PontoCalendarioRead(
         atendente_id=atendente.id,
         ano=ano,
@@ -466,6 +571,7 @@ def calendario(
         )
         if getattr(atendente, "usa_escala", False)
         else None,
+        jornada_diaria_minutos=jornada_min,
         dias=dias_out,
     )
 
@@ -826,18 +932,32 @@ def export_csv_admin(
     buf = io.StringIO()
     buf.write("\ufeff")
     writer = csv.writer(buf, delimiter=";")
-    writer.writerow(["atendente", "data", "entrada", "saida", "pausas_min", "trabalhado_min", "aberto"])
+    writer.writerow(
+        [
+            "atendente",
+            "tipo",
+            "registrado_em",
+            "origem",
+            "latitude",
+            "longitude",
+            "accuracy_metros",
+            "fora_area",
+            "distancia_metros",
+        ]
+    )
     for aid, bats in por_atendente.items():
-        for it in _intervalos_de_batidas(bats):
+        for b in bats:
             writer.writerow(
                 [
                     nomes.get(aid, str(aid)),
-                    it.data.isoformat(),
-                    _as_utc(it.entrada_em).astimezone(PONTO_TZ).strftime("%Y-%m-%d %H:%M"),
-                    _as_utc(it.saida_em).astimezone(PONTO_TZ).strftime("%Y-%m-%d %H:%M") if it.saida_em else "",
-                    round((it.segundos_pausa or 0) / 60, 2),
-                    round((it.duracao_segundos or 0) / 60, 2) if it.duracao_segundos is not None else "",
-                    "sim" if it.aberto else "nao",
+                    b.tipo,
+                    _as_utc(b.registrado_em).astimezone(PONTO_TZ).strftime("%Y-%m-%d %H:%M"),
+                    b.origem or "",
+                    b.latitude if b.latitude is not None else "",
+                    b.longitude if b.longitude is not None else "",
+                    b.accuracy_metros if b.accuracy_metros is not None else "",
+                    "sim" if getattr(b, "fora_area", False) else "nao",
+                    getattr(b, "distancia_metros", None) if getattr(b, "distancia_metros", None) is not None else "",
                 ]
             )
     return buf.getvalue()

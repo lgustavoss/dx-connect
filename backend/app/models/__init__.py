@@ -4,7 +4,7 @@ from app.models.tipo_negocio import TipoNegocio
 from app.models.atendente import Atendente, AtendenteSetor
 from app.models.ponto_batida import PontoBatida
 from app.models.ponto_justificativa import PontoJustificativa
-from app.models.ponto_settings import PontoFeriado, PontoSettings
+from app.models.ponto_settings import PontoFeriado, PontoLocal, PontoSettings
 from app.models.setor import Setor
 from app.models.setor_distribuicao_round_robin import SetorDistribuicaoRoundRobin
 from app.models.funcionario_rede import FuncionarioRede, FuncionarioRedeEmpresa
@@ -66,10 +66,27 @@ from app.models.crm import (
 )
 from app.models.comercial_proposta import Proposta, PropostaTemplate
 from app.models.comercial_contrato import Contrato, ContratoPdf, ContratoPolitica, ContratoTemplate
+from app.models.faturamento import Fatura
+from app.models.implantacao_checklist import (
+    ImplantacaoChecklistTemplate,
+    ImplantacaoChecklistTemplateItem,
+    TicketChecklistItem,
+)
 from app.models.cliente_saas import ClienteSaaS
 from app.models.saas_alerta_emitido import SaasAlertaEmitido
 from app.models.lead_comercial import LeadComercial
 from app.models.saas_plano import SaasModulo, SaasPlano, SaasPlanoModulo
+from app.models.solicitacao_melhoria import (
+    SolicitacaoMelhoria,
+    SolicitacaoMelhoriaAnexo,
+    SolicitacaoMelhoriaComentario,
+    SolicitacaoMelhoriaHistorico,
+)
+from app.models.saas_solicitacao_produto import (
+    SaasSolicitacaoProduto,
+    SaasSolicitacaoProdutoAnexo,
+    SaasSolicitacaoProdutoComentario,
+)
 
 __all__ = [
     "Rede",
@@ -82,6 +99,7 @@ __all__ = [
     "PontoBatida",
     "PontoJustificativa",
     "PontoSettings",
+    "PontoLocal",
     "PontoFeriado",
     "FuncionarioRede",
     "FuncionarioRedeEmpresa",
@@ -154,9 +172,16 @@ __all__ = [
     "Proposta",
     "ContratoTemplate",
     "Contrato",
+    "Fatura",
     "ContratoPdf",
     "ContratoPolitica",
+    "ImplantacaoChecklistTemplate",
+    "ImplantacaoChecklistTemplateItem",
+    "TicketChecklistItem",
     "ClienteSaaS",
     "SaasAlertaEmitido",
     "LeadComercial",
+    "SaasSolicitacaoProduto",
+    "SaasSolicitacaoProdutoAnexo",
+    "SaasSolicitacaoProdutoComentario",
 ]

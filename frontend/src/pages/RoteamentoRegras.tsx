@@ -538,7 +538,7 @@ export function RoteamentoRegrasPage({ embedded = false }: { embedded?: boolean 
             <Button onClick={salvar} disabled={saving}>
               {saving ? 'Salvando…' : 'Salvar'}
             </Button>
-            <Button type="button" variant="ghost" onClick={iniciarNova}>
+            <Button type="button" variant="cancel" onClick={iniciarNova}>
               Cancelar
             </Button>
           </div>

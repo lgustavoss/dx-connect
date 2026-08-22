@@ -18,6 +18,13 @@ class Ticket(Base):
     status_id = Column(Integer, ForeignKey("status_ticket.id"), nullable=False)
     atendente_id = Column(Integer, ForeignKey("atendentes.id"), nullable=True)  # responsável
     aberto_por_id = Column(Integer, ForeignKey("funcionarios_rede.id"), nullable=True)  # quem abriu (portal futuro)
+    contrato_id = Column(
+        Integer,
+        ForeignKey("comercial_contratos.id", ondelete="SET NULL"),
+        nullable=True,
+        unique=True,
+        index=True,
+    )
     parent_ticket_id = Column(Integer, ForeignKey("tickets.id", ondelete="SET NULL"), nullable=True)
     prioridade = Column(
         SAEnum(PrioridadeTicket, name="ticket_prioridade", native_enum=False, values_callable=lambda x: [e.value for e in x]),
@@ -73,6 +80,11 @@ class Ticket(Base):
         "TicketMensagem",
         back_populates="ticket",
         order_by="TicketMensagem.created_at",
+    )
+    checklist_itens = relationship(
+        "TicketChecklistItem",
+        back_populates="ticket",
+        order_by="TicketChecklistItem.ordem",
     )
 
 

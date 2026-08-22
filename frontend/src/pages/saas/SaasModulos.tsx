@@ -154,7 +154,7 @@ export function SaasModulos() {
                 {editId != null ? 'Guardar' : 'Criar'}
               </Button>
               {editId != null ? (
-                <Button type="button" variant="secondary" disabled={saving} onClick={resetForm}>
+                <Button type="button" variant="cancel" disabled={saving} onClick={resetForm}>
                   Cancelar edição
                 </Button>
               ) : null}

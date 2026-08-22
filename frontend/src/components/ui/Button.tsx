@@ -1,6 +1,6 @@
 import { type ButtonHTMLAttributes } from 'react'
 
-type Variant = 'primary' | 'secondary' | 'danger' | 'ghost'
+type Variant = 'primary' | 'secondary' | 'danger' | 'cancel' | 'ghost'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant
@@ -13,6 +13,9 @@ const variants: Record<Variant, string> = {
   secondary:
     'bg-slate-100 text-slate-800 hover:bg-slate-200 focus:ring-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700',
   danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
+  /** Descartar / sair — vermelho claro no light; no dark bem visível (≠ Excluir sólido). */
+  cancel:
+    'border-2 border-red-500 bg-red-50 text-red-800 hover:bg-red-100 focus:ring-red-500 dark:border-red-400 dark:bg-red-950/70 dark:text-red-100 dark:hover:bg-red-900/80',
   ghost:
     'bg-transparent text-slate-700 hover:bg-slate-100 focus:ring-slate-400 dark:text-slate-300 dark:hover:bg-slate-800',
 }

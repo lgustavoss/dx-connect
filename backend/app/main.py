@@ -43,6 +43,8 @@ from app.api import (
     comercial_custos,
     comercial_proposta,
     comercial_contrato,
+    implantacao,
+    faturamento,
     crm,
     system_settings,
     tenant,
@@ -57,7 +59,9 @@ from app.api import (
     saas,
     saas_public,
     saas_leads,
+    saas_solicitacoes,
     web_push,
+    solicitacoes_melhoria,
 )
 from app.config import settings
 from app.core.audit import clear_audit_request_context, set_audit_request_context
@@ -263,6 +267,31 @@ async def lifespan(app: FastAPI):
         name="webhook-outbox",
     ).start()
 
+    def saas_triagem_pull_loop() -> None:
+        from app.database import SessionLocal
+        from app.services.saas_solicitacao_triagem import process_triagem_pull
+
+        if settings.SAAS_CONTROL_PLANE:
+            return
+        interval = max(15, settings.SAAS_TRIAGEM_PULL_INTERVAL_SECONDS)
+        while True:
+            db = SessionLocal()
+            try:
+                process_triagem_pull(db)
+                db.commit()
+            except Exception as e:
+                logger.warning("Worker triagem SaaS: %s", e)
+                db.rollback()
+            finally:
+                db.close()
+            time.sleep(interval)
+
+    threading.Thread(
+        target=saas_triagem_pull_loop,
+        daemon=True,
+        name="saas-triagem-pull",
+    ).start()
+
     def web_push_outbox_loop() -> None:
         from app.database import SessionLocal
         from app.services.web_push_outbox import process_pending_web_push
@@ -386,6 +415,32 @@ async def lifespan(app: FastAPI):
         target=ponto_fecho_loop,
         daemon=True,
         name="ponto-fecho-automatico",
+    ).start()
+
+    def faturamento_mensal_loop() -> None:
+        from app.database import SessionLocal
+        from app.services.faturamento import processar_faturamento_mensal
+
+        interval = 300
+        while True:
+            db = SessionLocal()
+            try:
+                n = processar_faturamento_mensal(db)
+                if n:
+                    db.commit()
+                else:
+                    db.rollback()
+            except Exception as e:
+                logger.warning("Worker faturamento mensal: %s", e)
+                db.rollback()
+            finally:
+                db.close()
+            time.sleep(interval)
+
+    threading.Thread(
+        target=faturamento_mensal_loop,
+        daemon=True,
+        name="faturamento-mensal",
     ).start()
 
     if settings.SAAS_CONTROL_PLANE:
@@ -570,6 +625,8 @@ app.include_router(ticket_catalogos.router, prefix=API_V1_PREFIX)
 app.include_router(comercial_custos.router, prefix=API_V1_PREFIX)
 app.include_router(comercial_proposta.router, prefix=API_V1_PREFIX)
 app.include_router(comercial_contrato.router, prefix=API_V1_PREFIX)
+app.include_router(implantacao.router, prefix=API_V1_PREFIX)
+app.include_router(faturamento.router, prefix=API_V1_PREFIX)
 app.include_router(crm.router, prefix=API_V1_PREFIX)
 app.include_router(empresa_pdvs.router, prefix=API_V1_PREFIX)
 app.include_router(system_settings.router, prefix=API_V1_PREFIX)
@@ -585,6 +642,8 @@ app.include_router(portal.router, prefix=API_V1_PREFIX)
 app.include_router(saas.router, prefix=API_V1_PREFIX)
 app.include_router(saas_public.router, prefix=API_V1_PREFIX)
 app.include_router(saas_leads.router, prefix=API_V1_PREFIX)
+app.include_router(saas_solicitacoes.router, prefix=API_V1_PREFIX)
+app.include_router(solicitacoes_melhoria.router, prefix=API_V1_PREFIX)
 
 
 def _app_route_paths() -> set[str]:

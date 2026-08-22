@@ -15,6 +15,7 @@ import { Input } from '../components/ui/Input'
 import { FormSection } from '../components/ui/FormSection'
 import {
   EMPRESA_HINT_ATIVA,
+  EMPRESA_HINT_EMITE_NFSE,
   EMPRESA_SECAO_DOCUMENTO_NOMES,
   EMPRESA_SECAO_RESPONSAVEL_LEGAL,
   nomeParaApiEmpresa,
@@ -69,6 +70,7 @@ function aplicarEmpresaNoFormulario(e: Empresas.Empresa, setters: {
   setRespLegalEstado: (v: string) => void
   setRespLegalCep: (v: string) => void
   setAtivo: (v: boolean) => void
+  setEmiteNfse: (v: boolean) => void
 }) {
   setters.setRedeId(e.rede_id)
   setters.setTipoNegocioId(e.tipo_negocio_id ?? '')
@@ -102,6 +104,7 @@ function aplicarEmpresaNoFormulario(e: Empresas.Empresa, setters: {
   setters.setRespLegalEstado((e.resp_legal_estado ?? '').toUpperCase().slice(0, 2))
   setters.setRespLegalCep(e.resp_legal_cep ? maskCep(e.resp_legal_cep.replace(/\D/g, '')) : '')
   setters.setAtivo(e.ativo)
+  setters.setEmiteNfse(e.emite_nfse !== false)
 }
 
 export function EmpresaForm() {
@@ -147,6 +150,7 @@ export function EmpresaForm() {
   const [respLegalEstado, setRespLegalEstado] = useState('')
   const [respLegalCep, setRespLegalCep] = useState('')
   const [ativo, setAtivo] = useState(true)
+  const [emiteNfse, setEmiteNfse] = useState(true)
   const [saving, setSaving] = useState(false)
   const [loadingCnpj, setLoadingCnpj] = useState(false)
   const [forbidden, setForbidden] = useState(false)
@@ -233,6 +237,7 @@ export function EmpresaForm() {
           setRespLegalEstado,
           setRespLegalCep,
           setAtivo,
+          setEmiteNfse,
         })
       })
       .catch((err) => {
@@ -335,6 +340,7 @@ export function EmpresaForm() {
         resp_legal_estado: respLegalEstado.trim() || null,
         resp_legal_cep: respLegalCep.replace(/\D/g, '') || null,
         ativo,
+        emite_nfse: emiteNfse,
       }
       if (isEdit && !Number.isNaN(empresaId)) {
         await apiEmpresas.update(empresaId, payload)
@@ -614,6 +620,14 @@ export function EmpresaForm() {
                   onCheckedChange={setAtivo}
                   label="Empresa ativa"
                   description={EMPRESA_HINT_ATIVA}
+                />
+                <Switch
+                  bare
+                  showStatusPill
+                  checked={emiteNfse}
+                  onCheckedChange={setEmiteNfse}
+                  label="Emite NFS-e"
+                  description={EMPRESA_HINT_EMITE_NFSE}
                 />
               </FormSection>
 

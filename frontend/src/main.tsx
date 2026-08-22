@@ -8,9 +8,9 @@ bindCapacitorBackButton()
 const root = createRoot(document.getElementById('root')!)
 
 async function boot() {
-  const { default: App } = __DX_CONNECT_CAPACITOR__
-    ? await import('./AppNative.tsx')
-    : await import('./App.tsx')
+  // APK e browser usam o mesmo App (paridade mobile web). Capacitor só muda
+  // Conta/slug, HTTP nativo, push e chrome (safe-area) via isCapacitorNative().
+  const { default: App } = await import('./App.tsx')
   root.render(
     <StrictMode>
       <App />

@@ -115,7 +115,7 @@ export function ChatTransferModal({
         </div>
 
         <div className="mt-6 flex justify-end gap-2">
-          <Button onClick={onClose} variant="secondary" disabled={loading}>
+          <Button onClick={onClose} variant="cancel" disabled={loading}>
             Cancelar
           </Button>
           <Button onClick={() => void confirmar()} loading={loading}>

@@ -119,6 +119,8 @@ Após cada deploy, o workflow commita `VERSION`, `CHANGELOG.md`, `manifest.json`
 
 ## Desenvolvimento local
 
+O Docker da API só monta `backend/` — o ficheiro `VERSION` da raiz **não** entra no contentor. A API usa então `current_version` de `backend/app/data/release_notes.json`, para **Sobre** não ficar vazio.
+
 Validar CHANGELOG como no CI:
 
 ```bash

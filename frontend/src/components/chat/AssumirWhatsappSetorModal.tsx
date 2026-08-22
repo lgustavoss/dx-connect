@@ -105,7 +105,7 @@ export function AssumirWhatsappSetorModal({
           )}
         </div>
         <div className="mt-5 flex justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
+          <Button type="button" variant="cancel" onClick={onClose} disabled={loading}>
             Cancelar
           </Button>
           <Button

@@ -430,7 +430,7 @@ export function CrmLeads() {
               <>
                 {' '}
                 <Link
-                  to="/configuracoes/cadastros/funil-crm"
+                  to="/configuracoes/comercial/funil-crm"
                   className="font-medium text-cyan-700 hover:underline dark:text-cyan-400"
                 >
                   Configurar funil
@@ -783,7 +783,7 @@ export function CrmLeads() {
                 />
               ) : null}
               <div className="flex flex-wrap justify-end gap-2 pt-2">
-                <Button type="button" variant="secondary" onClick={() => setModalOpen(false)} disabled={saving}>
+                <Button type="button" variant="cancel" onClick={() => setModalOpen(false)} disabled={saving}>
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={saving}>

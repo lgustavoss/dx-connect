@@ -144,7 +144,7 @@ export function ChatDemandasPanel({ chatId, api, podeRegistrar, onDemandasChange
           {podeRegistrar && (
             <Button
               type="button"
-              variant="ghost"
+              variant={expandido ? 'cancel' : 'ghost'}
               className="h-7 px-2 text-[10px]"
               onClick={() => {
                 if (expandido && editandoId == null) {

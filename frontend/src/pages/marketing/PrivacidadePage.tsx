@@ -1,17 +1,17 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { BrandLogo } from '../../brand'
 import { APP_NAME } from '../../brand/tokens'
 import { landingContactEmail } from '../../content/landing'
+import { VoltarButton } from '../../components/ui/VoltarButton'
 import { MarketingLayout } from './MarketingLayout'
 
 /** Política de privacidade pública — URL exigida pela Play Console (#739). */
 export function PrivacidadePage() {
+  const navigate = useNavigate()
   return (
     <MarketingLayout>
       <div className="mx-auto max-w-3xl px-5 py-12 sm:px-8 lg:px-10">
-        <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-sky-300 hover:text-sky-200">
-          ← Voltar
-        </Link>
+        <VoltarButton onClick={() => navigate('/')} />
         <div className="mt-8">
           <BrandLogo variant="wordmark" size="md" markVariant="onDark" />
         </div>

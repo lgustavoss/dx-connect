@@ -30,11 +30,16 @@ from app.schemas.ponto import (
     PontoJustificativaCreate,
     PontoJustificativaDecisao,
     PontoJustificativaRead,
+    PontoLocalCreate,
+    PontoLocalRead,
+    PontoLocalUpdate,
+    PontoSettingsPublicRead,
     PontoSettingsRead,
     PontoSettingsUpdate,
 )
 from app.services import ponto as ponto_svc
 from app.services import ponto_justificativa as just_svc
+from app.services import ponto_relatorio as ponto_relatorio_svc
 from app.services import ponto_settings as ponto_settings_svc
 
 router = APIRouter(prefix="/ponto", tags=["ponto"])
@@ -62,6 +67,9 @@ def bater_ponto(
         origem=data.origem,
         ip=ip,
         user_agent=ua,
+        latitude=data.latitude,
+        longitude=data.longitude,
+        accuracy_metros=data.accuracy_metros,
     )
     return PontoBatidaRead.model_validate(batida)
 
@@ -107,6 +115,17 @@ def meu_calendario(
     return ponto_svc.calendario(db, atendente, ano, mes)
 
 
+@router.get("/me/settings", response_model=PontoSettingsPublicRead)
+def minhas_settings_ponto(
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    ponto_svc.exigir_acesso_ponto(atendente)
+    out = ponto_settings_svc.settings_public_read(db, atendente.tenant_id)
+    db.commit()
+    return out
+
+
 @router.get("/batidas/export.csv")
 def exportar_csv(
     atendente_id: int | None = Query(None),
@@ -122,6 +141,42 @@ def exportar_csv(
         content=conteudo.encode("utf-8"),
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="ponto_batidas.csv"'},
+    )
+
+
+@router.get("/batidas/export.pdf")
+def exportar_pdf(
+    atendente_id: int | None = Query(None),
+    desde: date | None = Query(None),
+    ate: date | None = Query(None),
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    pdf = ponto_relatorio_svc.export_pdf_mensal(
+        db, admin, atendente_id=atendente_id, desde=desde, ate=ate
+    )
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="ponto_relatorio.pdf"'},
+    )
+
+
+@router.get("/batidas/export.xlsx")
+def exportar_xlsx(
+    atendente_id: int | None = Query(None),
+    desde: date | None = Query(None),
+    ate: date | None = Query(None),
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    xlsx = ponto_relatorio_svc.export_xlsx_mensal(
+        db, admin, atendente_id=atendente_id, desde=desde, ate=ate
+    )
+    return Response(
+        content=xlsx,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="ponto_relatorio.xlsx"'},
     )
 
 
@@ -300,6 +355,43 @@ def remover_feriado(
     admin: Atendente = Depends(exigir_admin),
 ):
     ponto_settings_svc.remover_feriado(db, admin, feriado_id)
+    return Response(status_code=204)
+
+
+@router.get("/locais", response_model=list[PontoLocalRead])
+def listar_locais(
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return ponto_settings_svc.listar_locais(db, admin.tenant_id)
+
+
+@router.post("/locais", response_model=PontoLocalRead, status_code=201)
+def criar_local(
+    data: PontoLocalCreate,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return ponto_settings_svc.criar_local(db, admin, data)
+
+
+@router.patch("/locais/{local_id}", response_model=PontoLocalRead)
+def atualizar_local(
+    local_id: int,
+    data: PontoLocalUpdate,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return ponto_settings_svc.atualizar_local(db, admin, local_id, data)
+
+
+@router.delete("/locais/{local_id}", status_code=204)
+def remover_local(
+    local_id: int,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    ponto_settings_svc.remover_local(db, admin, local_id)
     return Response(status_code=204)
 
 

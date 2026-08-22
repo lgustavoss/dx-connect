@@ -1,9 +1,50 @@
-# Changelog
+﻿# Changelog
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging`.
 
 ## [Unreleased]
+
+### SaaS Control Plane
+
+#### Melhorias
+
+- Fila de sugestões no Cursor (MCP): o ops liga-se à API comercial (`api.deskrudder.com.br`); o token fica só na VPS e no Cursor de cada pessoa, não no git
+
+### DeskRudder
+
+#### Melhorias
+
+- UI (#866): botão **Cancelar** padronizado em vermelho (`variant=cancel`, bordo forte), distinto de Excluir; ConfirmDialog e formulários/modais alinhados
+- UI (#867): controlo **Voltar** com estilo de botão (fundo/padding) em cadastros, detalhes, portal, WhatsApp e ecrãs de erro de carregamento
+- Sugestões: cada pedido ganha um **protocolo único** (`#S202608-0001`) no painel DeskRudder, visível depois em Minhas solicitações, para amarrar a issue no GitHub
+- Sugestões: no painel SaaS dá para **ligar pedidos iguais** de vários clientes (peso da demanda). O cliente não vê este grupo; na issue GitHub entram todos os protocolos
+- Sugestões (#855): pedidos abertos nas Release Notes continuam na instância (**Minhas solicitações**); a cópia para o produto DeskRudder vai para o painel SaaS, não para o GitHub na instância
+- Sugestões (#856): o **status e as respostas de produto** passam a ser definidos no painel SaaS DeskRudder; na instância o admin só acompanha. O cliente vê o andamento e os comentários públicos em **Minhas solicitações** (notas internas não saem do SaaS)
+- Sobre / Release Notes: o rodapé da barra leva sempre a esta tela (em local a versão vem das notas publicadas, mesmo sem o ficheiro `VERSION` no Docker). **Minhas solicitações** fica nesta página, não no menu Ajuda.
+- Ponto (#841): ao bater **saída** com pausa aberta, a pausa é encerrada automaticamente (origem sistema) e o dia fecha — sem exigir duas correções; toast na UI
+- Ponto (#842): calendário mensal em **Meu ponto** e **Ponto da equipe** (por atendente), com cores por meta de jornada (vermelho / verde / azul HE / laranja feriado); setting **jornada diária (minutos)** (padrão 480)
+- Ponto (UX): **Meu ponto** redesenhado — relógio ao vivo, botão principal contextual (entrada / retomar / saída), cards de métricas, períodos de hoje e calendário mais legível (inspirado no DX Ponto)
+- Ponto (#844): **geofence** — admin cadastra locais (lat/lon + raio), política de geo (opcional / recomendada / obrigatória); batidas fora da área ficam marcadas; link para mapa (OSM) no histórico admin
+- Ponto: batida com **geolocalização** (lat/lon/precisão) — web e APK via `@capacitor/geolocation`; política da instância controla obrigatoriedade
+- Ponto: **offline + sync** — batidas guardadas localmente quando sem rede e enviadas ao voltar online
+- Ponto: **Ponto da equipe** alinhado visualmente a Meu ponto (digest em cards); relatório **PDF** e **Excel** mensal no filtro do histórico
+- Ponto (#846–#851): CSV admin com colunas geo; mapa embutido (OSM) no admin; editar/desactivar locais; histórico Meu ponto com GPS/fora da área; estado optimista offline; checklist APK geo ampliado
+- Faturamento (#326 / #363 / #364): faturas internas mensais para o financeiro conferir e **aprovar** (ou rejeitar com motivo). Geração automática no início do mês, ou avulsa na tela Faturamento; o botão do mês também reabre rejeitadas. Vencimento no **dia 10 do mês seguinte**. Na empresa, a flag **Emite NFS-e** (ligada por defeito) fica registada na fatura; boleto e nota fiscal só no lote seguinte, e só se a fatura estiver aprovada. O seed cria o setor **Financeiro** se ainda não existir.
+- Sugestões (#799 / #800–#807): a partir de **Sobre** (Release Notes), enviar sugestão ou problema; acompanhar em **Minhas solicitações**; admin faz triagem e responde (público/interno) na instância
+- WhatsApp (#837): **Exportar PDF** da conversa (header / menu ⋮) — relatório com protocolo, contacto e mensagens; mídia como rótulo; comentários internos excluídos; mesma permissão de ver o chat
+- Configurações (#833): hub com **pesquisa** e cartões por domínio; menu reorganizado (Equipa e tickets, Canais, Comercial/CRM, Empresa e catálogos, Administração); URLs antigas redireccionam
+- WhatsApp (#831): clicar no **número** do contacto (lista Em atendimento, Aguardando, histórico e header) copia automaticamente, com «Copiado!» discreto
+- Alertas (#823): com a app/aba em **segundo plano**, a fila continua a chamar via notificação do sistema (re-alerta periódico + vibração no push); silenciar na mesa alinha com «Avisar fila» nas preferências
+- WhatsApp (#827): mensagens **encaminhadas** pelo cliente mostram o rótulo «Encaminhada» (ou «Encaminhada muitas vezes») no balão do chat, como no WhatsApp
+- Implantação (#325 / #358–#361): ao marcar o contrato como assinado, abre um ticket no setor configurado (Implantação ou Suporte) com checklist (documentos, WebPosto, PDVs, treino). O modelo é editável em Cadastros; o ticket só fecha com os itens obrigatórios feitos; o admin tem atalho para cadastrar PDVs da empresa
+- Empresas (#824): na listagem, o **nome** fica em cima e o **CNPJ/CPF** em baixo no telemóvel (menos truncagem); botão para **copiar** o documento (só dígitos) com toast
+- Atendimentos (#825): no telemóvel, Estado/datas/Atendente ficam num acordeão **Filtros** (recolhido por defeito) para a lista aparecer logo; a busca continua visível; badge indica filtros activos
+- Mobile: o APK passa a usar o **mesmo painel** do browser no telemóvel (menu e rotas completos conforme RBAC); mantém Conta/slug, HTTP nativo e push
+- Mobile: ícone do APK Android alinhado ao da PWA/computador (mark DeskRudder no fundo Deck)
+- Mobile: no APK, **Meu ponto** (`/ponto`) abre de facto — deixava de cair na mesa de chat por falta de rota nativa
+- Menu: grupo **Atendimentos** no menu lateral com **Chat**, **Tickets** e **Histórico** (toda a operação de atendimento junta)
+- Menu (#793): **Ponto** (Meu ponto / Equipe online / Ponto da equipe) e **Chat** (Chat / Atendimentos) passam a ser grupos expansíveis no menu lateral, no mesmo padrão de Configurações
 
 ## [26.08.010] - 2026-08-20
 

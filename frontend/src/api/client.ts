@@ -772,6 +772,51 @@ export const ponto = {
     }
     return res.blob()
   },
+  exportPdf: async (params?: { atendente_id?: number; desde?: string; ate?: string }) => {
+    const token = getAuthToken()
+    const headers: Record<string, string> = {}
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+    }
+    if (token) headers.Authorization = `Bearer ${token}`
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}${withParams('/ponto/batidas/export.pdf', params)}`
+    const res = await fetch(url, { headers })
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin()
+      throw new ApiError('Sessão expirada ou inválida.', 401, {})
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+    }
+    return res.blob()
+  },
+  exportXlsx: async (params?: { atendente_id?: number; desde?: string; ate?: string }) => {
+    const token = getAuthToken()
+    const headers: Record<string, string> = {}
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+    }
+    if (token) headers.Authorization = `Bearer ${token}`
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}${withParams('/ponto/batidas/export.xlsx', params)}`
+    const res = await fetch(url, { headers })
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin()
+      throw new ApiError('Sessão expirada ou inválida.', 401, {})
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+    }
+    return res.blob()
+  },
+  meSettings: () => api<Ponto.SettingsPublic>('/ponto/me/settings'),
+  locais: () => api<Ponto.Local[]>('/ponto/locais'),
+  criarLocal: (data: Ponto.LocalCreate) =>
+    api<Ponto.Local>('/ponto/locais', { method: 'POST', body: JSON.stringify(data) }),
+  atualizarLocal: (id: number, data: Ponto.LocalUpdate) =>
+    api<Ponto.Local>(`/ponto/locais/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  removerLocal: (id: number) => api<void>(`/ponto/locais/${id}`, { method: 'DELETE' }),
 };
 
 export namespace WhatsappSettings {
@@ -1098,6 +1143,8 @@ export namespace WhatsappChats {
     wa_message_id?: string | null
     quoted_wa_message_id?: string | null
     quoted_corpo_preview?: string | null
+    is_forwarded?: boolean
+    forwarding_score?: number | null
     atendente_id?: number | null
     atendente_nome?: string | null
     status_entrega?: 'pendente' | 'enviada' | 'entregue' | 'lida' | 'erro' | null
@@ -1296,6 +1343,29 @@ export const whatsappChats = {
     listPaginated<WhatsappChats.Avaliacao>('/whatsapp/chats/avaliacoes', params),
   get: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}`),
   mensagens: (id: number) => api<WhatsappChats.Mensagem[]>(`/whatsapp/chats/${id}/mensagens`),
+  downloadPdf: async (id: number) => {
+    const token = getAuthToken()
+    const headers: Record<string, string> = {}
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+    }
+    if (token) headers.Authorization = `Bearer ${token}`
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}/whatsapp/chats/${id}/pdf`
+    const res = await fetch(url, { headers })
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin()
+      throw new ApiError('Sessão expirada ou inválida.', 401, {})
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+    }
+    const cd = res.headers.get('Content-Disposition') || ''
+    const match = /filename="([^"]+)"/i.exec(cd)
+    const filename = match?.[1] || `chat-${id}.pdf`
+    const blob = await res.blob()
+    return { blob, filename }
+  },
   demandas: (id: number) => api<WhatsappChats.Demanda[]>(`/whatsapp/chats/${id}/demandas`),
   registrarDemanda: (id: number, data: WhatsappChats.DemandaCreate) =>
     api<WhatsappChats.Demanda>(`/whatsapp/chats/${id}/demandas`, {
@@ -1516,6 +1586,12 @@ export const tickets = {
   criarFilhosMassa: (ticketId: number, data: Tickets.FilhosMassaCreate) =>
     api<Tickets.FilhosMassaResult>(`/tickets/${ticketId}/filhos-em-massa`, {
       method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getChecklist: (id: number) => api<Tickets.Checklist>(`/tickets/${id}/checklist`),
+  patchChecklistItem: (ticketId: number, itemId: number, data: Tickets.ChecklistItemPatch) =>
+    api<Tickets.Checklist>(`/tickets/${ticketId}/checklist/itens/${itemId}`, {
+      method: 'PATCH',
       body: JSON.stringify(data),
     }),
   anexosList: (id: number) => api<Tickets.Anexo[]>(`/tickets/${id}/anexos`),
@@ -2212,6 +2288,7 @@ export namespace Empresas {
     resp_legal_estado: string | null;
     resp_legal_cep: string | null;
     ativo: boolean;
+    emite_nfse?: boolean;
     created_at?: string | null;
     updated_at?: string | null;
   }
@@ -2267,6 +2344,7 @@ export namespace Empresas {
     resp_legal_estado?: string | null;
     resp_legal_cep?: string | null;
     ativo?: boolean;
+    emite_nfse?: boolean;
   }
   export interface Update {
     rede_id?: number;
@@ -2302,6 +2380,7 @@ export namespace Empresas {
     resp_legal_estado?: string | null;
     resp_legal_cep?: string | null;
     ativo?: boolean;
+    emite_nfse?: boolean;
   }
 }
 
@@ -2365,6 +2444,7 @@ export namespace Atendentes {
     role: string;
     ativo: boolean;
     setor_ids: number[];
+    e_financeiro?: boolean;
     must_change_password?: boolean;
     usa_escala?: boolean;
     escala_horas_trabalho?: number | null;
@@ -3315,6 +3395,8 @@ export namespace ComercialContrato {
     dias_restantes_fidelidade?: number | null;
     multa_rescisao?: MultaRescisao | null;
     interno?: Interno | null;
+    implantacao_ticket_id?: number | null;
+    implantacao_ticket_protocolo?: string | null;
   }
   export interface GerarRequest {
     linha_id: number;
@@ -3343,6 +3425,103 @@ export namespace ComercialContrato {
     reajuste_percentual: string | number;
     reajuste_rotulo: string;
   }
+}
+
+export const comercialImplantacaoTemplates = {
+  list: (params?: { incluir_inativos?: boolean }) =>
+    api<ImplantacaoChecklist.Template[]>(withParams('/comercial/implantacao-templates', params)),
+  create: (data: ImplantacaoChecklist.TemplateCreate) =>
+    api<ImplantacaoChecklist.Template>('/comercial/implantacao-templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: (id: number, data: ImplantacaoChecklist.TemplateUpdate) =>
+    api<ImplantacaoChecklist.Template>(`/comercial/implantacao-templates/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+};
+
+export namespace Faturamento {
+  export interface Fatura {
+    id: number;
+    contrato_id: number;
+    empresa_id: number | null;
+    empresa_nome: string | null;
+    cnpj: string | null;
+    razao_social: string | null;
+    competencia: string;
+    valor: string | number;
+    vencimento: string;
+    emite_nfse: boolean;
+    status: string;
+    rejeicao_motivo: string | null;
+    gerada_em?: string | null;
+    aprovada_por_id: number | null;
+    aprovada_por_nome: string | null;
+    aprovada_em: string | null;
+  }
+  export interface ContratoElegivel {
+    id: number;
+    empresa_id: number | null;
+    empresa_nome: string | null;
+    cnpj: string | null;
+    razao_social: string | null;
+    valor_mensalidade: string | number;
+  }
+  export interface GerarCompetenciaOut {
+    competencia: string;
+    criadas: number;
+    existentes: number;
+    reabertas: number;
+  }
+}
+
+export const faturamento = {
+  listFaturas: (params?: { competencia?: string; status?: string }) =>
+    api<Faturamento.Fatura[]>(withParams('/faturamento/faturas', params)),
+  listContratosElegiveis: () => api<Faturamento.ContratoElegivel[]>('/faturamento/contratos-elegiveis'),
+  gerarFatura: (data: { contrato_id: number; competencia?: string | null }) =>
+    api<Faturamento.Fatura>('/faturamento/faturas', { method: 'POST', body: JSON.stringify(data) }),
+  gerarCompetencia: (data?: { competencia?: string | null }) =>
+    api<Faturamento.GerarCompetenciaOut>('/faturamento/faturas/gerar-competencia', {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
+  aprovar: (id: number) =>
+    api<Faturamento.Fatura>(`/faturamento/faturas/${id}/aprovar`, { method: 'POST' }),
+  rejeitar: (id: number, motivo: string) =>
+    api<Faturamento.Fatura>(`/faturamento/faturas/${id}/rejeitar`, {
+      method: 'POST',
+      body: JSON.stringify({ motivo }),
+    }),
+};
+
+export namespace ImplantacaoChecklist {
+  export interface TemplateItem {
+    id?: number;
+    titulo: string;
+    descricao?: string | null;
+    ordem: number;
+    obrigatorio: boolean;
+    chave?: string | null;
+  }
+  export interface Template {
+    id: number;
+    nome: string;
+    versao: number;
+    setor_id?: number | null;
+    setor_nome?: string | null;
+    ativo: boolean;
+    itens: TemplateItem[];
+  }
+  export interface TemplateCreate {
+    nome: string;
+    setor_id?: number | null;
+    ativo?: boolean;
+    itens?: TemplateItem[];
+  }
+  export type TemplateUpdate = Partial<TemplateCreate>;
 }
 
 export const comercialContratoTemplates = {
@@ -4083,6 +4262,36 @@ export namespace Tickets {
     sla_policy_id?: number | null;
     sla_violado?: boolean;
     sla_estado?: 'dentro' | 'em_risco' | 'violado' | 'cumprido' | null;
+    contrato_id?: number | null;
+    negociacao_id?: number | null;
+  }
+  export interface ChecklistItem {
+    id: number;
+    titulo: string;
+    descricao?: string | null;
+    ordem: number;
+    obrigatorio: boolean;
+    chave?: string | null;
+    concluido: boolean;
+    concluido_por_id?: number | null;
+    concluido_por_nome?: string | null;
+    concluido_em?: string | null;
+    observacao?: string | null;
+  }
+  export interface Checklist {
+    aplicavel: boolean;
+    ticket_id: number;
+    contrato_id?: number | null;
+    negociacao_id?: number | null;
+    empresa_id?: number | null;
+    progresso_pct: number;
+    itens_obrigatorios_pendentes: number;
+    pdvs_ativos?: number | null;
+    itens: ChecklistItem[];
+  }
+  export interface ChecklistItemPatch {
+    concluido?: boolean;
+    observacao?: string | null;
   }
   export interface SlaMetaDetalhe {
     meta_minutos: number | null;
@@ -4488,6 +4697,7 @@ export namespace Presenca {
 export namespace Ponto {
   export type Tipo = 'entrada' | 'saida' | 'pausa_inicio' | 'pausa_fim'
   export type Origem = 'web' | 'mobile' | 'admin' | 'sistema'
+  export type PoliticaGeolocalizacao = 'opcional' | 'recomendada' | 'obrigatoria'
   export type StatusDia =
     | 'ok'
     | 'falta'
@@ -4500,6 +4710,9 @@ export namespace Ponto {
   export interface Bater {
     tipo: Tipo
     origem?: Origem
+    latitude?: number | null
+    longitude?: number | null
+    accuracy_metros?: number | null
   }
   export interface Batida {
     id: number
@@ -4507,6 +4720,12 @@ export namespace Ponto {
     tipo: Tipo | string
     registrado_em: string
     origem: string | null
+    latitude?: number | null
+    longitude?: number | null
+    accuracy_metros?: number | null
+    fora_area?: boolean
+    distancia_metros?: number | null
+    local_id?: number | null
     anulada?: boolean
   }
   export interface BatidaAdmin {
@@ -4516,6 +4735,12 @@ export namespace Ponto {
     tipo: string
     registrado_em: string
     origem: string | null
+    latitude?: number | null
+    longitude?: number | null
+    accuracy_metros?: number | null
+    fora_area?: boolean
+    distancia_metros?: number | null
+    local_id?: number | null
     anulada?: boolean
   }
   export interface Intervalo {
@@ -4525,6 +4750,12 @@ export namespace Ponto {
     duracao_segundos: number | null
     segundos_pausa?: number
     aberto: boolean
+    entrada_latitude?: number | null
+    entrada_longitude?: number | null
+    entrada_fora_area?: boolean
+    saida_latitude?: number | null
+    saida_longitude?: number | null
+    saida_fora_area?: boolean
   }
   export interface EstadoMe {
     em_jornada: boolean
@@ -4549,13 +4780,18 @@ export namespace Ponto {
     status: StatusDia
     atrasado?: boolean
     feriado?: boolean
+    segundos_trabalhados?: number
+    segundos_esperados?: number
+    classe_visual?: ClasseVisualDia
   }
+  export type ClasseVisualDia = 'abaixo' | 'ok' | 'he' | 'feriado' | 'neutro'
   export interface Calendario {
     atendente_id: number
     ano: number
     mes: number
     usa_escala: boolean
     escala_rotulo: string | null
+    jornada_diaria_minutos?: number
     dias: DiaCalendario[]
   }
   export interface HojeItem {
@@ -4599,11 +4835,41 @@ export namespace Ponto {
     usar_feriados_nacionais: boolean
     fecho_automatico_ativo: boolean
     fecho_apos_horas: number
+    jornada_diaria_minutos: number
+    politica_geolocalizacao: PoliticaGeolocalizacao
+  }
+  export interface SettingsPublic {
+    politica_geolocalizacao: PoliticaGeolocalizacao
+    tem_locais_ativos: boolean
   }
   export interface SettingsUpdate {
     usar_feriados_nacionais?: boolean
     fecho_automatico_ativo?: boolean
     fecho_apos_horas?: number
+    jornada_diaria_minutos?: number
+    politica_geolocalizacao?: PoliticaGeolocalizacao
+  }
+  export interface Local {
+    id: number
+    nome: string
+    latitude: number
+    longitude: number
+    raio_metros: number
+    ativo: boolean
+  }
+  export interface LocalCreate {
+    nome: string
+    latitude: number
+    longitude: number
+    raio_metros?: number
+    ativo?: boolean
+  }
+  export interface LocalUpdate {
+    nome?: string
+    latitude?: number
+    longitude?: number
+    raio_metros?: number
+    ativo?: boolean
   }
   export interface Feriado {
     id: number
@@ -4691,6 +4957,140 @@ export namespace System {
 export const system = {
   info: () => api<System.Info>('/system/info'),
   releaseNotes: () => api<System.ReleaseNotes>('/system/release-notes'),
+};
+
+export namespace SolicitacoesMelhoria {
+  export type Tipo = 'sugestao' | 'problema'
+  export type Status =
+    | 'aberta'
+    | 'em_analise'
+    | 'planejada'
+    | 'em_desenvolvimento'
+    | 'concluida'
+    | 'nao_sera_desenvolvida'
+
+  export interface ListaItem {
+    id: number
+    protocolo?: string | null
+    tipo: Tipo | string
+    titulo: string
+    status: Status | string
+    status_rotulo: string
+    autor_nome?: string | null
+    organizacao_id: number
+    created_at: string
+    updated_at?: string | null
+    github_issue_number?: number | null
+  }
+
+  export interface Historico {
+    id: number
+    status_anterior?: string | null
+    status_novo: string
+    status_novo_rotulo: string
+    motivo?: string | null
+    mensagem_publica?: string | null
+    atendente_nome?: string | null
+    created_at: string
+  }
+
+  export interface Comentario {
+    id: number
+    corpo: string
+    publico_cliente: boolean
+    origem: string
+    autor_nome?: string | null
+    created_at: string
+  }
+
+  export interface Detalhe {
+    id: number
+    protocolo?: string | null
+    organizacao_id: number
+    autor_atendente_id?: number | null
+    autor_nome?: string | null
+    tipo: Tipo | string
+    titulo: string
+    descricao: string
+    status: Status | string
+    status_rotulo: string
+    motivo_nao_desenvolvimento?: string | null
+    versao_contexto?: string | null
+    mensagem_status: string
+    created_at: string
+    updated_at?: string | null
+    github_repo?: string | null
+    github_issue_number?: number | null
+    github_issue_url?: string | null
+    github_last_error?: string | null
+    historico: Historico[]
+    comentarios: Comentario[]
+    anexos: Anexo[]
+  }
+
+  export interface Anexo {
+    id: number
+    papel: 'inline' | 'anexo' | string
+    nome_original: string
+    content_type?: string | null
+    tamanho_bytes: number
+    url: string
+    created_at: string
+  }
+
+  export interface Create {
+    tipo: Tipo
+    titulo: string
+    descricao: string
+    versao_contexto?: string | null
+    anexo_ids?: number[]
+  }
+}
+
+export const solicitacoesMelhoria = {
+  criar: (data: SolicitacoesMelhoria.Create) =>
+    api<SolicitacoesMelhoria.Detalhe>('/solicitacoes-melhoria', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  uploadMedia: (file: File, papel: 'inline' | 'anexo') => {
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('papel', papel)
+    return api<SolicitacoesMelhoria.Anexo>('/solicitacoes-melhoria/media', { method: 'POST', body: fd })
+  },
+  mediaUrl: (url: string) => (url.startsWith('http') ? url : `${resolvedApiBaseUrl()}${url}`),
+  minhas: () => api<SolicitacoesMelhoria.ListaItem[]>('/solicitacoes-melhoria/minhas'),
+  adminLista: (params?: {
+    status?: string
+    tipo?: string
+    organizacao_id?: number
+    desde?: string
+    ate?: string
+  }) =>
+    api<SolicitacoesMelhoria.ListaItem[]>(
+      withParams('/solicitacoes-melhoria/admin', params as Record<string, string | number | undefined>),
+    ),
+  get: (id: number) => api<SolicitacoesMelhoria.Detalhe>(`/solicitacoes-melhoria/${id}`),
+  alterarStatus: (
+    id: number,
+    data: { status: SolicitacoesMelhoria.Status; motivo_nao_desenvolvimento?: string | null },
+  ) =>
+    api<SolicitacoesMelhoria.Detalhe>(`/solicitacoes-melhoria/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  comentar: (id: number, data: { corpo: string; publico_cliente?: boolean }) =>
+    api<SolicitacoesMelhoria.Detalhe>(`/solicitacoes-melhoria/${id}/comentarios`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  criarGithub: (id: number) =>
+    api<SolicitacoesMelhoria.Detalhe>(`/solicitacoes-melhoria/${id}/github`, { method: 'POST' }),
+  syncGithub: (id: number) =>
+    api<SolicitacoesMelhoria.Detalhe>(`/solicitacoes-melhoria/${id}/github/sincronizar`, {
+      method: 'POST',
+    }),
 };
 
 /** Release notes do control-plane (RBAC saas_ops). */
@@ -4840,6 +5240,103 @@ export const saasLeads = {
       body: JSON.stringify(data ?? {}),
     }),
 };
+
+export const saasSolicitacoes = {
+  list: (params?: {
+    busca?: string;
+    tipo?: string;
+    status?: string;
+    slug?: string;
+    ordenar_por?: 'ingested_at' | 'created_at_origem' | 'titulo';
+    ordem?: 'asc' | 'desc';
+    offset?: number;
+    limit?: number;
+  }) => listPaginated<SaasSolicitacoesProduto.ListaItem>('/saas/solicitacoes', params),
+  get: (id: number) => api<SaasSolicitacoesProduto.Detalhe>(`/saas/solicitacoes/${id}`),
+  alterarStatus: (id: number, data: SaasSolicitacoesProduto.StatusUpdate) =>
+    api<SaasSolicitacoesProduto.Detalhe>(`/saas/solicitacoes/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  comentar: (id: number, data: SaasSolicitacoesProduto.ComentarioCreate) =>
+    api<SaasSolicitacoesProduto.Detalhe>(`/saas/solicitacoes/${id}/comentarios`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  vincular: (id: number, data: { solicitacao_id?: number; protocolo?: string }) =>
+    api<SaasSolicitacoesProduto.Detalhe>(`/saas/solicitacoes/${id}/vinculos`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  desvincular: (id: number, membroId: number) =>
+    api<SaasSolicitacoesProduto.Detalhe>(`/saas/solicitacoes/${id}/vinculos/${membroId}`, {
+      method: 'DELETE',
+    }),
+};
+
+export namespace SaasSolicitacoesProduto {
+  export interface ListaItem {
+    id: number;
+    cliente_saas_id?: number | null;
+    cliente_nome?: string | null;
+    instance_slug: string;
+    origem_solicitacao_id: number;
+    protocolo?: string | null;
+    tipo: string;
+    titulo: string;
+    status: string;
+    status_rotulo: string;
+    versao_contexto?: string | null;
+    autor_nome?: string | null;
+    created_at_origem?: string | null;
+    ingested_at: string;
+    github_issue_number?: number | null;
+    github_issue_url?: string | null;
+    peso_clientes?: number;
+    pedidos_grupo?: number;
+  }
+  export interface Comentario {
+    id: number;
+    corpo: string;
+    publico_cliente: boolean;
+    autor_nome?: string | null;
+    created_at: string;
+  }
+  export interface Detalhe extends ListaItem {
+    descricao: string;
+    motivo_nao_desenvolvimento?: string | null;
+    triagem_atualizada_em?: string | null;
+    comentarios: Comentario[];
+    anexos?: Anexo[];
+    github_repo?: string | null;
+    grupo?: GrupoMembro[];
+    texto_github_demanda?: string;
+  }
+  export interface GrupoMembro {
+    id: number;
+    protocolo?: string | null;
+    instance_slug: string;
+    cliente_nome?: string | null;
+    titulo: string;
+    status_rotulo: string;
+  }
+  export interface Anexo {
+    id: number;
+    papel: string;
+    nome_original: string;
+    content_type?: string | null;
+    tamanho_bytes: number;
+    url: string;
+  }
+  export interface StatusUpdate {
+    status: string;
+    motivo_nao_desenvolvimento?: string | null;
+  }
+  export interface ComentarioCreate {
+    corpo: string;
+    publico_cliente: boolean;
+  }
+}
 
 export namespace SaasLeads {
   export type Status = 'novo' | 'em_atendimento' | 'fechado';

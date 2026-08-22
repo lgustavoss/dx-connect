@@ -1,44 +1,47 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ponto, type Ponto } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
+import { PontoCalendarioMes } from '../components/PontoCalendarioMes'
+import { PontoBatidaMapaModal } from '../components/PontoBatidaMapaModal'
+import { PontoMetricCard } from '../components/PontoMetricCard'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
+import { isCapacitorNative } from '../lib/capacitorNative'
+import { geolocationSupported, getCurrentPosition, type GeoError } from '../lib/geolocation'
+import {
+  countPendingPontoBatidas,
+  enqueuePontoBatida,
+  isLikelyOfflineError,
+  syncPendingPontoBatidas,
+} from '../lib/pontoOfflineQueue'
+import {
+  formatarDuracao,
+  formatarHora,
+  formatarHoraCurta,
+  hojeIso,
+  inicioMesIso,
+  rotuloPoliticaGeo,
+} from '../lib/pontoFormat'
+import { aplicarBatidaOptimista, coordenadasMapaIntervalo, rotuloGeoIntervalo } from '../lib/pontoOptimistic'
 
-function formatarHora(iso: string | null | undefined): string {
-  if (!iso) return '—'
-  try {
-    return new Date(iso).toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  } catch {
-    return iso
+function acaoPrincipal(emJornada: boolean, emPausa: boolean): AcaoPrincipal {
+  if (!emJornada) {
+    return { tipo: 'entrada', rotulo: 'Registrar entrada', dica: 'Inicie a jornada do dia' }
   }
+  if (emPausa) {
+    return { tipo: 'pausa_fim', rotulo: 'Retomar jornada', dica: 'Encerrar pausa e voltar ao trabalho' }
+  }
+  return { tipo: 'saida', rotulo: 'Registrar saída', dica: 'Com pausa aberta, a pausa fecha automaticamente' }
 }
 
-function formatarDuracao(segundos: number | null | undefined): string {
-  if (segundos == null || segundos < 0) return '—'
-  const h = Math.floor(segundos / 3600)
-  const m = Math.floor((segundos % 3600) / 60)
-  if (h <= 0) return `${m} min`
-  return `${h} h ${String(m).padStart(2, '0')} min`
-}
-
-function inicioMesIso(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-}
-
-function hojeIso(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+type AcaoPrincipal = {
+  tipo: Ponto.Tipo
+  rotulo: string
+  dica: string
 }
 
 export function MeuPonto() {
@@ -55,20 +58,49 @@ export function MeuPonto() {
   const [justMotivo, setJustMotivo] = useState('')
   const [enviandoJust, setEnviandoJust] = useState(false)
   const [banco, setBanco] = useState<Ponto.BancoHoras | null>(null)
+  const agora = new Date()
+  const [calAno, setCalAno] = useState(agora.getFullYear())
+  const [calMes, setCalMes] = useState(agora.getMonth() + 1)
+  const [calendario, setCalendario] = useState<Ponto.Calendario | null>(null)
+  const [diaCal, setDiaCal] = useState<string | null>(hojeIso())
+  const [loadingCal, setLoadingCal] = useState(false)
+  const [relogio, setRelogio] = useState(() => new Date())
+  const [mostrarJust, setMostrarJust] = useState(false)
+  const [incluirLocalizacao, setIncluirLocalizacao] = useState(
+    () => isCapacitorNative() || geolocationSupported(),
+  )
+  const [geoSettings, setGeoSettings] = useState<Ponto.SettingsPublic | null>(null)
+  const [pendentesOffline, setPendentesOffline] = useState(countPendingPontoBatidas())
+  const [obtendoLocalizacao, setObtendoLocalizacao] = useState(false)
+  const [mapaAberto, setMapaAberto] = useState<{
+    lat: number
+    lon: number
+    label: string
+  } | null>(null)
+
+  const politicaGeo = geoSettings?.politica_geolocalizacao ?? 'opcional'
+  const geoObrigatoria = politicaGeo === 'obrigatoria' && !!geoSettings?.tem_locais_ativos
+  const geoRecomendada = politicaGeo === 'recomendada' && !!geoSettings?.tem_locais_ativos
+  const deveIncluirGeo = geoObrigatoria || (geoRecomendada ? true : incluirLocalizacao)
 
   const carregar = useCallback(
     async (silencioso = false) => {
       try {
-        const [me, hist, js, bh] = await Promise.all([
+        const [me, hist, js, bh, gs] = await Promise.all([
           ponto.me(),
           ponto.minhasBatidas({ desde, ate, limit: 100 }),
           ponto.minhasJustificativas(),
           ponto.meuBancoHoras(desde, ate),
+          ponto.meSettings(),
         ])
         setEstado(me)
         setHistorico(hist)
         setJustifs(js)
         setBanco(bh)
+        setGeoSettings(gs)
+        if (gs.politica_geolocalizacao === 'obrigatoria' && gs.tem_locais_ativos) {
+          setIncluirLocalizacao(true)
+        }
       } catch (err) {
         if (!silencioso) {
           toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar o ponto.'))
@@ -80,31 +112,135 @@ export function MeuPonto() {
     [ate, desde, toast],
   )
 
+  const carregarCalendario = useCallback(
+    async (silencioso = false) => {
+      setLoadingCal(true)
+      try {
+        const cal = await ponto.meuCalendario(calAno, calMes)
+        setCalendario(cal)
+      } catch (err) {
+        if (!silencioso) {
+          toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar o calendário.'))
+        }
+      } finally {
+        setLoadingCal(false)
+      }
+    },
+    [calAno, calMes, toast],
+  )
+
   useEffect(() => {
     void carregar()
   }, [carregar])
 
   useEffect(() => {
-    const onFocus = () => void carregar(true)
+    void carregarCalendario()
+  }, [carregarCalendario])
+
+  useEffect(() => {
+    const onFocus = () => {
+      void carregar(true)
+      void carregarCalendario(true)
+    }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
-  }, [carregar])
+  }, [carregar, carregarCalendario])
+
+  useEffect(() => {
+    const t = window.setInterval(() => setRelogio(new Date()), 1000)
+    return () => window.clearInterval(t)
+  }, [])
+
+  useEffect(() => {
+    const origem = isCapacitorNative() ? 'mobile' : 'web'
+    const sync = async () => {
+      const n = await syncPendingPontoBatidas((data) => ponto.bater(data), origem)
+      setPendentesOffline(countPendingPontoBatidas())
+      if (n > 0) {
+        toast.showSuccess(`${n} batida(s) offline sincronizada(s).`)
+        await Promise.all([carregar(true), carregarCalendario(true)])
+      } else if (countPendingPontoBatidas() > 0) {
+        await carregar(true)
+      }
+    }
+    void sync()
+    const onOnline = () => void sync()
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [carregar, carregarCalendario, toast])
 
   async function bater(tipo: Ponto.Tipo) {
     setBatendo(true)
+    const fechouPausaAuto = tipo === 'saida' && !!estado?.em_pausa
+    const origem = isCapacitorNative() ? 'mobile' : 'web'
+    let geo:
+      | { latitude: number; longitude: number; accuracy_metros: number }
+      | undefined
     try {
-      await ponto.bater({ tipo, origem: 'web' })
-      const msgs: Record<Ponto.Tipo, string> = {
-        entrada: 'Entrada registrada.',
-        saida: 'Saída registrada.',
-        pausa_inicio: 'Pausa iniciada.',
-        pausa_fim: 'Pausa encerrada.',
+      if (deveIncluirGeo && geolocationSupported()) {
+        setObtendoLocalizacao(true)
+        try {
+          const pos = await getCurrentPosition()
+          geo = {
+            latitude: pos.latitude,
+            longitude: pos.longitude,
+            accuracy_metros: pos.accuracy,
+          }
+        } catch (geoErr) {
+          const msg = (geoErr as GeoError)?.message || 'Localização indisponível'
+          if (geoObrigatoria) {
+            toast.showError(`${msg} A geolocalização é obrigatória nesta instância.`)
+            return
+          }
+          toast.showWarning(`${msg} O ponto será registado sem localização.`)
+        } finally {
+          setObtendoLocalizacao(false)
+        }
       }
-      toast.showSuccess(msgs[tipo])
-      await carregar(true)
+
+      if (!navigator.onLine) {
+        enqueuePontoBatida({ tipo, ...geo })
+        setPendentesOffline(countPendingPontoBatidas())
+        setEstado((prev) => aplicarBatidaOptimista(prev, tipo))
+        toast.showWarning('Sem ligação — batida guardada offline. Será enviada ao voltar online.')
+        return
+      }
+
+      const batida = await ponto.bater({
+        tipo,
+        origem,
+        ...(geo ?? {}),
+      })
+      if (batida.fora_area) {
+        toast.showWarning('Batida registada fora da área permitida.')
+      }
+      if (fechouPausaAuto) {
+        toast.showSuccess(
+          geo
+            ? 'Pausa encerrada automaticamente ao sair (com localização).'
+            : 'Pausa encerrada automaticamente ao sair.',
+        )
+      } else {
+        const msgs: Record<Ponto.Tipo, string> = {
+          entrada: geo ? 'Entrada registrada (com localização).' : 'Entrada registrada.',
+          saida: geo ? 'Saída registrada (com localização).' : 'Saída registrada.',
+          pausa_inicio: geo ? 'Pausa iniciada (com localização).' : 'Pausa iniciada.',
+          pausa_fim: geo ? 'Pausa encerrada (com localização).' : 'Pausa encerrada.',
+        }
+        toast.showSuccess(msgs[tipo])
+      }
+      await Promise.all([carregar(true), carregarCalendario(true)])
     } catch (err) {
+      if (isLikelyOfflineError(err)) {
+        enqueuePontoBatida({ tipo, ...geo })
+        setPendentesOffline(countPendingPontoBatidas())
+        setEstado((prev) => aplicarBatidaOptimista(prev, tipo))
+        toast.showWarning('Falha de rede — batida guardada offline.')
+        return
+      }
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível bater o ponto.'))
     } finally {
+      setObtendoLocalizacao(false)
       setBatendo(false)
     }
   }
@@ -144,68 +280,239 @@ export function MeuPonto() {
 
   const emJornada = !!estado?.em_jornada
   const emPausa = !!estado?.em_pausa
+  const principal = acaoPrincipal(emJornada, emPausa)
+
+  const statusRotulo = !emJornada ? 'Fora da jornada' : emPausa ? 'Em pausa' : 'Em jornada'
+  const statusTone = !emJornada
+    ? 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100'
+    : emPausa
+      ? 'bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-100'
+      : 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-100'
+
+  const hoje = hojeIso()
+  const intervalosHoje = useMemo(
+    () => (historico?.intervalos ?? []).filter((it) => it.data === hoje),
+    [historico, hoje],
+  )
+
+  const horaRelogio = relogio.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+  const dataRelogio = relogio.toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  })
 
   return (
     <PageContainer>
       <PageHeader
         title="Meu ponto"
-        subtitle="Registre entrada, pausas e saída. A presença online do painel é independente."
+        subtitle="Registre a jornada com um toque. Pausas e histórico ficam à mão — presença online do painel é independente."
       />
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,22rem)_1fr]">
-        <Card title="Jornada atual">
-          {loading && !estado ? (
-            <div className="h-28 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800/50" />
-          ) : (
+      {/* Hero — inspirado no dx-ponto: relógio + CTA principal */}
+      <Card className="overflow-hidden border-cyan-200/60 bg-gradient-to-br from-slate-50 via-white to-cyan-50/40 dark:border-cyan-900/40 dark:from-slate-950 dark:via-slate-900 dark:to-cyan-950/20">
+        {loading && !estado ? (
+          <div className="h-40 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800/50" />
+        ) : (
+          <div className="grid gap-6 lg:grid-cols-[1fr_minmax(0,18rem)] lg:items-center">
             <div className="space-y-4">
-              <div>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Estado</p>
-                <p className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                  {!emJornada ? 'Fora' : emPausa ? 'Em pausa' : 'Em jornada'}
-                </p>
-                {emJornada && estado?.entrada_aberta_em && (
-                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                    Desde {formatarHora(estado.entrada_aberta_em)}
-                  </p>
-                )}
-                {hintEscala && (
-                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{hintEscala}</p>
-                )}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusTone}`}>
+                  {statusRotulo}
+                </span>
+                {hintEscala ? (
+                  <span className="text-xs text-slate-500 dark:text-slate-400">{hintEscala}</span>
+                ) : null}
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" disabled={batendo || emJornada} onClick={() => void bater('entrada')}>
-                  Entrada
-                </Button>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Horário atual
+                </p>
+                <p className="mt-1 font-mono text-4xl font-semibold tracking-tight text-slate-900 tabular-nums dark:text-slate-50 sm:text-5xl">
+                  {horaRelogio}
+                </p>
+                <p className="mt-1 capitalize text-sm text-slate-600 dark:text-slate-300">{dataRelogio}</p>
+                {emJornada && estado?.entrada_aberta_em ? (
+                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                    Entrada às <strong>{formatarHoraCurta(estado.entrada_aberta_em)}</strong>
+                  </p>
+                ) : null}
+              </div>
+              <div>
+                <p className="mb-2 text-sm text-slate-600 dark:text-slate-300">{principal.dica}</p>
+                {geolocationSupported() && !geoObrigatoria ? (
+                  <label className="mb-3 flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={deveIncluirGeo}
+                      disabled={geoRecomendada}
+                      onChange={(e) => setIncluirLocalizacao(e.target.checked)}
+                    />
+                    <span>
+                      Incluir localização na batida
+                      {geoRecomendada ? (
+                        <span className="mt-0.5 block text-xs text-amber-700 dark:text-amber-300">
+                          Política recomendada — fora da área gera aviso, mas regista.
+                        </span>
+                      ) : (
+                        <span className="mt-0.5 block text-xs text-slate-500">
+                          Opcional — útil no telemóvel/APK. Se falhar, o ponto regista na mesma.
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                ) : null}
+                {geoObrigatoria ? (
+                  <p className="mb-3 text-sm text-amber-800 dark:text-amber-200">
+                    Geolocalização <strong>obrigatória</strong> ({rotuloPoliticaGeo(politicaGeo)}).
+                  </p>
+                ) : null}
+                {pendentesOffline > 0 ? (
+                  <p className="mb-3 text-sm text-amber-800 dark:text-amber-200">
+                    {pendentesOffline} batida(s) aguardando sync offline.
+                  </p>
+                ) : null}
                 <Button
                   type="button"
-                  variant="secondary"
-                  disabled={batendo || !emJornada || emPausa}
-                  onClick={() => void bater('pausa_inicio')}
+                  disabled={batendo || obtendoLocalizacao}
+                  loading={batendo || obtendoLocalizacao}
+                  className="min-h-12 w-full max-w-sm px-8 text-base font-semibold shadow-lg shadow-cyan-500/25 sm:w-auto"
+                  onClick={() => void bater(principal.tipo)}
                 >
-                  Pausar
+                  {obtendoLocalizacao ? 'Obtendo localização…' : principal.rotulo}
                 </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={batendo || !emPausa}
-                  onClick={() => void bater('pausa_fim')}
-                >
-                  Retomar
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={batendo || !emJornada || emPausa}
-                  onClick={() => void bater('saida')}
-                >
-                  Saída
-                </Button>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {emJornada && !emPausa ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={batendo}
+                      onClick={() => void bater('pausa_inicio')}
+                    >
+                      Iniciar pausa
+                    </Button>
+                  ) : null}
+                  {emPausa ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={batendo}
+                      onClick={() => void bater('saida')}
+                    >
+                      Sair (fecha pausa)
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             </div>
-          )}
+
+            <div className="rounded-2xl border border-slate-200/80 bg-white/70 p-4 dark:border-slate-700 dark:bg-slate-950/50">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Hoje</p>
+              {intervalosHoje.length === 0 ? (
+                <p className="mt-3 text-sm text-slate-500">Ainda sem períodos fechados hoje.</p>
+              ) : (
+                <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto">
+                  {intervalosHoje.map((it, idx) => (
+                    <li
+                      key={`${it.entrada_em}-${idx}`}
+                      className="rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-900/60"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-slate-800 dark:text-slate-100">
+                          Período {idx + 1}
+                        </span>
+                        <span
+                          className={`text-xs font-semibold ${
+                            it.aberto
+                              ? 'text-amber-700 dark:text-amber-300'
+                              : 'text-emerald-700 dark:text-emerald-300'
+                          }`}
+                        >
+                          {it.aberto ? 'Em aberto' : 'Completo'}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-slate-600 dark:text-slate-300">
+                        {formatarHoraCurta(it.entrada_em)}
+                        {' → '}
+                        {it.aberto ? '…' : formatarHoraCurta(it.saida_em)}
+                        {!it.aberto ? (
+                          <span className="text-slate-500"> · {formatarDuracao(it.duracao_segundos)}</span>
+                        ) : null}
+                      </p>
+                      {(it.segundos_pausa ?? 0) > 0 ? (
+                        <p className="text-xs text-slate-500">Pausa {formatarDuracao(it.segundos_pausa)}</p>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* Métricas — estilo cards do dx-ponto */}
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <PontoMetricCard
+          label="Trabalhado no período"
+          value={formatarDuracao(historico?.total_segundos_fechados)}
+          hint={`${desde} → ${ate}`}
+          tone="info"
+        />
+        <PontoMetricCard
+          label="Pausas"
+          value={formatarDuracao(historico?.total_segundos_pausa ?? 0)}
+          hint="Não conta como trabalhado"
+          tone="neutral"
+        />
+        <PontoMetricCard
+          label="Banco de horas"
+          value={
+            banco
+              ? `${banco.saldo_segundos >= 0 ? '+' : '−'}${formatarDuracao(Math.abs(banco.saldo_segundos))}`
+              : '—'
+          }
+          hint={
+            banco
+              ? `Esperado ${formatarDuracao(banco.segundos_esperados)} · realizado ${formatarDuracao(banco.segundos_realizados)}`
+              : undefined
+          }
+          tone={banco && banco.saldo_segundos < 0 ? 'warn' : 'good'}
+        />
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <Card title="Calendário do mês">
+          <PontoCalendarioMes
+            calendario={calendario}
+            loading={loadingCal}
+            diaSelecionado={diaCal}
+            onSelecionarDia={(iso) => {
+              setDiaCal(iso)
+              setDesde(iso)
+              setAte(iso)
+            }}
+            onMesAnterior={() => {
+              if (calMes <= 1) {
+                setCalMes(12)
+                setCalAno((y) => y - 1)
+              } else setCalMes((m) => m - 1)
+            }}
+            onMesSeguinte={() => {
+              if (calMes >= 12) {
+                setCalMes(1)
+                setCalAno((y) => y + 1)
+              } else setCalMes((m) => m + 1)
+            }}
+          />
         </Card>
 
-        <Card title="Histórico">
+        <Card title="Histórico do período">
           <div className="mb-4 flex flex-wrap items-end gap-3">
             <Input label="De" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
             <Input label="Até" type="date" value={ate} onChange={(e) => setAte(e.target.value)} />
@@ -213,32 +520,6 @@ export function MeuPonto() {
               Filtrar
             </Button>
           </div>
-          {historico && (
-            <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
-              Trabalhado (sem pausas): <strong>{formatarDuracao(historico.total_segundos_fechados)}</strong>
-              {historico.total_segundos_pausa != null && historico.total_segundos_pausa > 0 && (
-                <>
-                  {' '}
-                  · Pausas: <strong>{formatarDuracao(historico.total_segundos_pausa)}</strong>
-                </>
-              )}
-              {banco && (
-                <>
-                  {' '}
-                  · Banco:{' '}
-                  <strong className={banco.saldo_segundos < 0 ? 'text-amber-700 dark:text-amber-300' : undefined}>
-                    {banco.saldo_segundos >= 0 ? '+' : '−'}
-                    {formatarDuracao(Math.abs(banco.saldo_segundos))}
-                  </strong>
-                  <span className="text-slate-500">
-                    {' '}
-                    (esperado {formatarDuracao(banco.segundos_esperados)} · realizado{' '}
-                    {formatarDuracao(banco.segundos_realizados)})
-                  </span>
-                </>
-              )}
-            </p>
-          )}
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead className="border-b border-slate-200 text-slate-500 dark:border-slate-700 dark:text-slate-400">
@@ -246,13 +527,14 @@ export function MeuPonto() {
                   <th className="py-2 pr-3 font-medium">Entrada</th>
                   <th className="py-2 pr-3 font-medium">Saída</th>
                   <th className="py-2 pr-3 font-medium">Pausas</th>
-                  <th className="py-2 font-medium">Trabalhado</th>
+                  <th className="py-2 pr-3 font-medium">Trabalhado</th>
+                  <th className="py-2 font-medium">Local</th>
                 </tr>
               </thead>
               <tbody>
                 {(historico?.intervalos ?? []).length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="py-6 text-slate-500 dark:text-slate-400">
+                    <td colSpan={5} className="py-6 text-slate-500 dark:text-slate-400">
                       Nenhuma batida neste período.
                     </td>
                   </tr>
@@ -271,7 +553,37 @@ export function MeuPonto() {
                         )}
                       </td>
                       <td className="py-2 pr-3">{formatarDuracao(it.segundos_pausa ?? 0)}</td>
-                      <td className="py-2">{formatarDuracao(it.duracao_segundos)}</td>
+                      <td className="py-2 pr-3">{formatarDuracao(it.duracao_segundos)}</td>
+                      <td className="py-2">
+                        {(() => {
+                          const geo = rotuloGeoIntervalo(it)
+                          const mapa = coordenadasMapaIntervalo(it)
+                          if (!geo || !mapa) return '—'
+                          return (
+                            <div className="flex flex-col gap-1">
+                              <span
+                                className={
+                                  geo.includes('fora')
+                                    ? 'text-xs text-amber-700 dark:text-amber-300'
+                                    : 'text-xs text-slate-600 dark:text-slate-300'
+                                }
+                              >
+                                {geo}
+                              </span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                className="h-auto px-0 py-0 text-xs text-cyan-700 dark:text-cyan-300"
+                                onClick={() =>
+                                  setMapaAberto({ lat: mapa.lat, lon: mapa.lon, label: mapa.label })
+                                }
+                              >
+                                Ver mapa
+                              </Button>
+                            </div>
+                          )
+                        })()}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -282,31 +594,39 @@ export function MeuPonto() {
       </div>
 
       <div className="mt-4">
-        <Card title="Justificativas">
-          <div className="mb-4 flex flex-wrap items-end gap-3">
-            <Input label="Data" type="date" value={justData} onChange={(e) => setJustData(e.target.value)} />
-            <Select
-              label="Tipo"
-              value={justTipo}
-              onChange={(v) => setJustTipo(String(v) as Ponto.JustificativaCreate['tipo'])}
-              options={[
-                { value: 'esquecimento', label: 'Esquecimento de batida' },
-                { value: 'falta', label: 'Falta' },
-                { value: 'folga_com_ponto', label: 'Ponto em dia de folga' },
-                { value: 'outro', label: 'Outro' },
-              ]}
-            />
-            <Input
-              label="Motivo"
-              value={justMotivo}
-              onChange={(e) => setJustMotivo(e.target.value)}
-              placeholder="Descreva o ocorrido"
-            />
-            <Button type="button" disabled={enviandoJust} onClick={() => void enviarJustificativa()}>
-              Enviar
-            </Button>
-          </div>
-          <ul className="space-y-2 text-sm">
+        <Card
+          title="Justificativas"
+          description="Esquecimento de batida, falta ou ponto em folga — o admin aprova."
+        >
+          <Button type="button" variant="secondary" onClick={() => setMostrarJust((v) => !v)}>
+            {mostrarJust ? 'Ocultar formulário' : 'Nova justificativa'}
+          </Button>
+          {mostrarJust ? (
+            <div className="mt-4 flex flex-wrap items-end gap-3">
+              <Input label="Data" type="date" value={justData} onChange={(e) => setJustData(e.target.value)} />
+              <Select
+                label="Tipo"
+                value={justTipo}
+                onChange={(v) => setJustTipo(String(v) as Ponto.JustificativaCreate['tipo'])}
+                options={[
+                  { value: 'esquecimento', label: 'Esquecimento de batida' },
+                  { value: 'falta', label: 'Falta' },
+                  { value: 'folga_com_ponto', label: 'Ponto em dia de folga' },
+                  { value: 'outro', label: 'Outro' },
+                ]}
+              />
+              <Input
+                label="Motivo"
+                value={justMotivo}
+                onChange={(e) => setJustMotivo(e.target.value)}
+                placeholder="Descreva o ocorrido"
+              />
+              <Button type="button" disabled={enviandoJust} onClick={() => void enviarJustificativa()}>
+                Enviar
+              </Button>
+            </div>
+          ) : null}
+          <ul className="mt-4 space-y-2 text-sm">
             {justifs.length === 0 ? (
               <li className="text-slate-500">Nenhuma justificativa enviada.</li>
             ) : (
@@ -318,15 +638,23 @@ export function MeuPonto() {
                   <span className="font-medium">{j.data_ref}</span> · {j.tipo} ·{' '}
                   <span className="capitalize">{j.estado}</span>
                   <p className="text-slate-600 dark:text-slate-300">{j.motivo}</p>
-                  {j.decisao_motivo && (
+                  {j.decisao_motivo ? (
                     <p className="text-xs text-slate-500">Decisão: {j.decisao_motivo}</p>
-                  )}
+                  ) : null}
                 </li>
               ))
             )}
           </ul>
         </Card>
       </div>
+
+      <PontoBatidaMapaModal
+        open={mapaAberto != null}
+        onClose={() => setMapaAberto(null)}
+        latitude={mapaAberto?.lat ?? 0}
+        longitude={mapaAberto?.lon ?? 0}
+        titulo={mapaAberto?.label ?? 'Localização'}
+      />
     </PageContainer>
   )
 }

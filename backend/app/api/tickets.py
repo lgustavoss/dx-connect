@@ -13,6 +13,7 @@ from app.models.funcionario_rede import FuncionarioRede
 from app.models.ticket_anexo import TicketAnexo
 from app.models.ticket_vinculo import TIPO_DUPLICADO_DE, TicketVinculo
 from app.models.ticket_classificacao import TicketMotivo
+from app.schemas.implantacao import TicketChecklistItemPatch, TicketChecklistRead
 from app.schemas.ticket import (
     EmpresaVinculoSugerida,
     TicketChildBrief,
@@ -404,7 +405,24 @@ def _ticket_para_read(t: Ticket, db: Session | None = None, *, sla_estado: str |
         sla_primeira_resposta_em=t.sla_primeira_resposta_em,
         sla_violado=bool(t.sla_violado),
         sla_estado=sla_estado,
+        contrato_id=t.contrato_id,
+        negociacao_id=_negociacao_id_do_ticket(db, t),
     )
+
+
+def _negociacao_id_do_ticket(db: Session | None, t: Ticket) -> int | None:
+    if db is None or not t.contrato_id:
+        return None
+    from app.models.comercial_contrato import Contrato
+    from app.models.crm import CrmNegociacaoCnpjLinha
+
+    contrato = db.query(Contrato).filter(Contrato.id == t.contrato_id).first()
+    if not contrato:
+        return None
+    linha = contrato.linha or db.query(CrmNegociacaoCnpjLinha).filter(
+        CrmNegociacaoCnpjLinha.id == contrato.negociacao_linha_cnpj_id
+    ).first()
+    return linha.negociacao_id if linha else None
 
 
 def _pode_ver_ticket(db: Session, atendente: Atendente, ticket: Ticket) -> bool:
@@ -903,6 +921,51 @@ def obter(
         minutos_pausados=minutos_pausa_sla(db, ticket, ate=now, calendar=calendar),
     )
     return _ticket_para_read(ticket, db, sla_estado=estado)
+
+
+@router.get("/{ticket_id}/checklist", response_model=TicketChecklistRead)
+def obter_checklist(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
+    if not _pode_ver_ticket(db, atendente, ticket):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
+    from app.services import implantacao as implantacao_svc
+
+    return implantacao_svc.checklist_do_ticket(db, ticket)
+
+
+@router.patch("/{ticket_id}/checklist/itens/{item_id}", response_model=TicketChecklistRead)
+def atualizar_item_checklist(
+    ticket_id: int,
+    item_id: int,
+    data: TicketChecklistItemPatch,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
+    if not _pode_ver_ticket(db, atendente, ticket):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
+    from app.core.audit import registrar_audit
+    from app.services import implantacao as implantacao_svc
+
+    implantacao_svc.atualizar_item_checklist(db, ticket, item_id, data, atendente)
+    registrar_audit(
+        db,
+        "ticket_checklist_item",
+        item_id,
+        "update",
+        atendente.id,
+        payload={"ticket_id": ticket_id},
+    )
+    db.commit()
+    return implantacao_svc.checklist_do_ticket(db, ticket)
 
 
 @router.get("/{ticket_id}/sla", response_model=TicketSlaRead)
@@ -1740,6 +1803,9 @@ def atualizar(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Não é possível fechar este ticket enquanto existir ticket filho direto ainda em aberto.",
                 )
+            from app.services.implantacao import assert_pode_fechar_ticket
+
+            assert_pode_fechar_ticket(db, ticket)
 
     fechando = False
     if "status_id" in update:

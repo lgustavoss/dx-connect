@@ -33,14 +33,15 @@ import { WhatsappAvatar } from '../../components/chat/WhatsappAvatar'
 import { ImageLightboxViewer } from '../../components/chat/ImageLightboxViewer'
 import { WhatsappMensagemAcoes } from '../../components/chat/WhatsappMensagemAcoes'
 import { WhatsappReacoesBar } from '../../components/chat/WhatsappReacoesBar'
+import { CopiarWaIdButton } from '../../components/chat/CopiarWaIdButton'
 import { precisaEscolherSetorAoAssumir } from '../../lib/assumirWhatsappSetor'
-import { formatWaIdExibicao } from '../../utils/masks'
 
 import { Card } from '../../components/ui/Card'
 import { ChatBottomSheet } from '../../components/ui/ChatBottomSheet'
 import { TEXTAREA_FIELD_CLASS } from '../../components/ui/Input'
 
 import { Button } from '../../components/ui/Button'
+import { VoltarButton } from '../../components/ui/VoltarButton'
 
 import { Select } from '../../components/ui/Select'
 import { SelectComPesquisa } from '../../components/ui/SelectComPesquisa'
@@ -611,7 +612,6 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
   const [zoomMsgId, setZoomMsgId] = useState<number | null>(null)
   const [videoZoomMsgId, setVideoZoomMsgId] = useState<number | null>(null)
   const [fotoPerfilAberta, setFotoPerfilAberta] = useState(false)
-  const [numeroCopiado, setNumeroCopiado] = useState(false)
   const [detalhesMobileAbertos, setDetalhesMobileAbertos] = useState(() => {
     try {
       return sessionStorage.getItem(WA_DETALHES_SESSION_KEY) === '1'
@@ -645,6 +645,7 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
   const [modalEncerrar, setModalEncerrar] = useState(false)
   const [menuMobileAberto, setMenuMobileAberto] = useState(false)
   const menuMobileRef = useRef<HTMLDivElement>(null)
+  const [exportandoPdf, setExportandoPdf] = useState(false)
   const [filaAguardandoAberta, setFilaAguardandoAberta] = useState(false)
   const [assumindo, setAssumindo] = useState(false)
   const { filaCount, refreshContagens, abrirChat } = useChatHub()
@@ -1451,6 +1452,25 @@ useEffect(() => {
 
   const podeEncerrar = !encerrado && chat?.estado === 'em_atendimento' && (isResponsavel || isAdmin)
 
+  async function exportarPdfChat() {
+    if (!chat || exportandoPdf) return
+    setExportandoPdf(true)
+    try {
+      const { blob, filename } = await whatsappChats.downloadPdf(chat.id)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.showSuccess('PDF da conversa descarregado')
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Falha ao exportar PDF'))
+    } finally {
+      setExportandoPdf(false)
+    }
+  }
+
   const podeDefinirEmpresa =
     !encerrado &&
     Boolean(chat?.funcionario_rede_id) &&
@@ -1678,16 +1698,12 @@ useEffect(() => {
 
           <div className="flex items-center gap-2 px-3 py-2 sm:px-4">
 
-            <Button
-              type="button"
-              variant="ghost"
-              className="h-11 shrink-0 px-2 text-xs font-medium md:h-9"
+            <VoltarButton
               onClick={voltarLista}
+              label="Voltar"
               aria-label="Voltar à lista"
-            >
-              <span aria-hidden>←</span>
-              <span className="hidden sm:inline"> Voltar</span>
-            </Button>
+              className="h-11 shrink-0 px-2 text-xs font-medium md:h-9"
+            />
 
             <WhatsappAvatar
               nome={chat?.cliente_nome}
@@ -1703,20 +1719,10 @@ useEffect(() => {
                 {chat?.cliente_nome || 'Atendimento'}
               </h1>
               {chat?.wa_id ? (
-                <button
-                  type="button"
-                  className="mt-0.5 max-w-full truncate font-mono text-[11px] text-slate-500 transition hover:text-cyan-700 dark:text-slate-400 dark:hover:text-cyan-300"
-                  title={numeroCopiado ? 'Copiado' : 'Clique para copiar o número'}
-                  onClick={() => {
-                    const raw = chat.wa_id
-                    void navigator.clipboard?.writeText(raw).then(() => {
-                      setNumeroCopiado(true)
-                      window.setTimeout(() => setNumeroCopiado(false), 1500)
-                    })
-                  }}
-                >
-                  {numeroCopiado ? 'Copiado!' : formatWaIdExibicao(chat.wa_id)}
-                </button>
+                <CopiarWaIdButton
+                  waId={chat.wa_id}
+                  className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400"
+                />
               ) : null}
             </div>
 
@@ -1753,6 +1759,18 @@ useEffect(() => {
                   onClick={() => void assumirChat()}
                 >
                   Atender
+                </Button>
+              )}
+
+              {chat && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="hidden h-8 text-xs md:inline-flex"
+                  loading={exportandoPdf}
+                  onClick={() => void exportarPdfChat()}
+                >
+                  Exportar PDF
                 </Button>
               )}
 
@@ -1803,6 +1821,17 @@ useEffect(() => {
                     </button>
                     {menuMobileAberto && (
                       <div className="absolute right-0 top-full z-30 mt-1 min-w-[12rem] rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                        <button
+                          type="button"
+                          className="block min-h-11 w-full px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                          disabled={exportandoPdf}
+                          onClick={() => {
+                            setMenuMobileAberto(false)
+                            void exportarPdfChat()
+                          }}
+                        >
+                          {exportandoPdf ? 'A exportar…' : 'Exportar PDF'}
+                        </button>
                         {podeTransferir && (
                           <button
                             type="button"
@@ -1874,6 +1903,35 @@ useEffect(() => {
                     )}
                   </div>
                 </>
+              )}
+
+              {chat && encerrado && (
+                <div className="relative md:hidden" ref={menuMobileRef}>
+                  <button
+                    type="button"
+                    aria-label="Mais ações"
+                    aria-expanded={menuMobileAberto}
+                    onClick={() => setMenuMobileAberto((o) => !o)}
+                    className="flex h-11 w-11 items-center justify-center rounded-lg text-lg text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    ⋮
+                  </button>
+                  {menuMobileAberto && (
+                    <div className="absolute right-0 top-full z-30 mt-1 min-w-[12rem] rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                      <button
+                        type="button"
+                        className="block min-h-11 w-full px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                        disabled={exportandoPdf}
+                        onClick={() => {
+                          setMenuMobileAberto(false)
+                          void exportarPdfChat()
+                        }}
+                      >
+                        {exportandoPdf ? 'A exportar…' : 'Exportar PDF'}
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
 
             </div>
@@ -2141,6 +2199,34 @@ useEffect(() => {
                       />
                     )}
 
+                    {m.is_forwarded && !m.apagada && (
+                      <p
+                        className={`mb-1 flex items-center gap-1 text-[11px] italic ${
+                          isInbound ? 'text-slate-400 dark:text-slate-500' : 'text-white/80'
+                        }`}
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden
+                          className="shrink-0 opacity-80"
+                        >
+                          <path d="m15 17 5-5-5-5" />
+                          <path d="M4 18v-2a4 4 0 0 1 4-4h12" />
+                        </svg>
+                        {(m.forwarding_score ?? 0) >= 127
+                          ? 'Encaminhada muitas vezes'
+                          : 'Encaminhada'}
+                      </p>
+                    )}
+
                     {m.quoted_wa_message_id && !m.apagada && (
                       <div 
                         onClick={() => {
@@ -2307,7 +2393,7 @@ useEffect(() => {
               )}
               <div className="mt-2 flex justify-end gap-2">
                 <Button
-                  variant="ghost"
+                  variant="cancel"
                   className="h-8 text-xs"
                   onClick={() => {
                     setArquivoPendente(null)
@@ -2414,7 +2500,7 @@ useEffect(() => {
       </div>
 
       <div className="mt-6 flex justify-end gap-2">
-        <Button onClick={() => setModalTransferir(false)} variant="secondary">
+        <Button onClick={() => setModalTransferir(false)} variant="cancel">
           Cancelar
         </Button>
 
@@ -2461,7 +2547,7 @@ useEffect(() => {
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button
                 type="button"
-                variant="ghost"
+                variant="cancel"
                 disabled={salvandoEmpresaContexto}
                 onClick={() => {
                   setModalEmpresaContexto(false)

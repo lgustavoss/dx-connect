@@ -1,8 +1,8 @@
 import { NavLink, Outlet } from 'react-router-dom'
 
 const SUB_TABS = [
-  { to: '/configuracoes/atendimento/sla/politicas', label: 'Políticas' },
-  { to: '/configuracoes/atendimento/sla/calendarios', label: 'Calendários' },
+  { to: '/configuracoes/equipa/sla/politicas', label: 'Políticas' },
+  { to: '/configuracoes/equipa/sla/calendarios', label: 'Calendários' },
 ] as const
 
 export function SlaConfigLayout() {

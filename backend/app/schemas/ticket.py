@@ -197,6 +197,8 @@ class TicketRead(BaseModel):
         default=None,
         description="Pior estado SLA resumido: dentro, em_risco, violado ou cumprido.",
     )
+    contrato_id: int | None = None
+    negociacao_id: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

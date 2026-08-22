@@ -123,6 +123,37 @@ def _quoted_from_context_info(ctx: dict[str, Any]) -> tuple[str | None, str | No
     return wid, preview
 
 
+def _forward_from_context_info(ctx: dict[str, Any]) -> tuple[bool, int | None]:
+    """Extrai isForwarded / forwardingScore do contextInfo (Baileys / Evolution)."""
+    score_raw = ctx.get("forwardingScore")
+    if score_raw is None:
+        score_raw = ctx.get("ForwardingScore")
+    score: int | None = None
+    if score_raw is not None:
+        try:
+            score = int(score_raw)
+        except (TypeError, ValueError):
+            score = None
+
+    forwarded = bool(ctx.get("isForwarded") or ctx.get("IsForwarded"))
+    if score is not None and score > 0:
+        forwarded = True
+    return forwarded, score
+
+
+def _iter_context_infos(envelope: dict[str, Any], inner: dict[str, Any]) -> Iterator[dict[str, Any]]:
+    ctx = envelope.get("contextInfo") or envelope.get("ContextInfo")
+    if isinstance(ctx, dict):
+        yield ctx
+    for sub_key in _SUBCOM_KEYS:
+        sub = inner.get(sub_key)
+        if not isinstance(sub, dict):
+            continue
+        nested = sub.get("contextInfo") or sub.get("ContextInfo")
+        if isinstance(nested, dict):
+            yield nested
+
+
 def quoted_reply_from_envelope(envelope: dict[str, Any], inner: dict[str, Any]) -> tuple[str | None, str | None]:
     """
     Extrai citação do payload do webhook.
@@ -130,26 +161,25 @@ def quoted_reply_from_envelope(envelope: dict[str, Any], inner: dict[str, Any]) 
     A Evolution API (prepareMessage) coloca contextInfo no envelope da mensagem,
     não dentro de extendedTextMessage — formato diferente do Baileys bruto usado em testes.
     """
-    ctx = envelope.get("contextInfo") or envelope.get("ContextInfo")
-    if isinstance(ctx, dict):
+    for ctx in _iter_context_infos(envelope, inner):
         wid, prev = _quoted_from_context_info(ctx)
         if wid:
             return wid, prev
-    return quoted_reply_from_inner(inner)
+    return None, None
 
 
 def quoted_reply_from_inner(inner: dict[str, Any]) -> tuple[str | None, str | None]:
     """Extrai resposta citada: id da mensagem original (stanzaId) e texto de pré-visualização."""
-    for sub_key in _SUBCOM_KEYS:
-        sub = inner.get(sub_key)
-        if not isinstance(sub, dict):
-            continue
-        ctx = sub.get("contextInfo") or sub.get("ContextInfo")
-        if isinstance(ctx, dict):
-            wid, preview = _quoted_from_context_info(ctx)
-            if wid:
-                return wid, preview
-    return None, None
+    return quoted_reply_from_envelope({}, inner)
+
+
+def forward_info_from_envelope(envelope: dict[str, Any], inner: dict[str, Any]) -> tuple[bool, int | None]:
+    """Extrai flag de encaminhamento (isForwarded / forwardingScore) do webhook (#827)."""
+    for ctx in _iter_context_infos(envelope, inner):
+        forwarded, score = _forward_from_context_info(ctx)
+        if forwarded or score is not None:
+            return forwarded, score
+    return False, None
 
 
 def _mimetype_de_obj_midia(obj: dict[str, Any]) -> str | None:
@@ -273,6 +303,7 @@ def iter_inbound_whatsapp_messages(webhook_body: dict[str, Any]) -> Iterator[dic
     - mimetype: opcional
     - raw_envelope: objeto completo da mensagem (para POST getBase64FromMediaMessage), só se tipo != texto
     - quoted_wa_message_id, quoted_corpo_preview: se o cliente responde citando outra mensagem
+    - is_forwarded, forwarding_score: se a mensagem foi encaminhada (#827)
     """
     event = webhook_body.get("event") or webhook_body.get("Event") or ""
     ev = str(event).lower()
@@ -300,6 +331,7 @@ def iter_inbound_whatsapp_messages(webhook_body: dict[str, Any]) -> Iterator[dic
         q_wid, q_prev = quoted_reply_from_envelope(m, inner)
         if q_prev and len(q_prev) > 500:
             q_prev = q_prev[:500]
+        is_forwarded, forwarding_score = forward_info_from_envelope(m, inner)
 
         media = _detect_media(inner)
         if media:
@@ -319,6 +351,8 @@ def iter_inbound_whatsapp_messages(webhook_body: dict[str, Any]) -> Iterator[dic
                 "raw_envelope": m,
                 "quoted_wa_message_id": q_wid,
                 "quoted_corpo_preview": q_prev,
+                "is_forwarded": is_forwarded,
+                "forwarding_score": forwarding_score,
             }
             continue
 
@@ -341,6 +375,8 @@ def iter_inbound_whatsapp_messages(webhook_body: dict[str, Any]) -> Iterator[dic
                 "raw_envelope": None,
                 "quoted_wa_message_id": q_wid,
                 "quoted_corpo_preview": q_prev,
+                "is_forwarded": is_forwarded,
+                "forwarding_score": forwarding_score,
             }
             continue
 
@@ -357,8 +393,9 @@ def iter_inbound_whatsapp_messages(webhook_body: dict[str, Any]) -> Iterator[dic
             "raw_envelope": None,
             "quoted_wa_message_id": q_wid,
             "quoted_corpo_preview": q_prev,
+            "is_forwarded": is_forwarded,
+            "forwarding_score": forwarding_score,
         }
-
 
 def _ack_de_update_dict(update: dict[str, Any]) -> int | str | None:
     if not isinstance(update, dict):

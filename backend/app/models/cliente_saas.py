@@ -44,5 +44,7 @@ class ClienteSaaS(Base):
     lead_comercial_id = Column(Integer, nullable=True, index=True)
     entrega_notificada_em = Column(DateTime(timezone=True), nullable=True)
     notas = Column(Text, nullable=True)
+    # SHA-256 hex do token de ingest instância→SaaS (#855). Nunca expor o plaintext.
+    ingest_token_hash = Column(String(64), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

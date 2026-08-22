@@ -4,7 +4,7 @@ import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, func, or_
 
@@ -772,6 +772,8 @@ def _mensagem_read(
         wa_message_id=m.wa_message_id,
         quoted_wa_message_id=getattr(m, "quoted_wa_message_id", None),
         quoted_corpo_preview=getattr(m, "quoted_corpo_preview", None),
+        is_forwarded=bool(getattr(m, "is_forwarded", False)),
+        forwarding_score=getattr(m, "forwarding_score", None),
         atendente_id=m.atendente_id,
         atendente_nome=m.atendente.nome if m.atendente else None,
         status_entrega=status,
@@ -1368,6 +1370,33 @@ def obter(
         db.commit()
         db.refresh(c)
     return _chat_read(db, c)
+
+
+@router.get("/{chat_id}/pdf")
+def exportar_chat_pdf(
+    chat_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    """Exporta a conversa em PDF (mesma permissão de visualização do chat) — #837."""
+    from app.services import whatsapp_chat_pdf as chat_pdf_svc
+
+    c = (
+        db.query(WhatsappChat)
+        .options(*_CHAT_LOAD_OPTIONS)
+        .filter(WhatsappChat.id == chat_id)
+        .first()
+    )
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not _pode_ver_chat(db, atendente, c):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este chat")
+    pdf, filename = chat_pdf_svc.gerar_pdf_chat(db, c)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/{chat_id}/foto-perfil", response_model=WhatsappChatRead)
