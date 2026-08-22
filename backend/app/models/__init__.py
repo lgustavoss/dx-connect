@@ -81,6 +81,9 @@ from app.models.solicitacao_melhoria import (
     SolicitacaoMelhoriaComentario,
     SolicitacaoMelhoriaHistorico,
 )
+from app.models.pre_ticket_sessao import PreTicketSessao
+from app.models.pre_ticket_historico import PreTicketHistorico
+from app.models.pre_ticket_analise_metrica import PreTicketAnaliseMetrica
 
 __all__ = [
     "Rede",

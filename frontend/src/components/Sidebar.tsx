@@ -392,6 +392,7 @@ const navStructure: NavItem[] = [
       { to: '/configuracoes/comercial', label: 'Comercial / CRM', icon: 'tiposNegocio' },
       { to: '/configuracoes/empresa-catalogos', label: 'Empresa e catálogos', icon: 'empresas' },
       { to: '/configuracoes/administracao', label: 'Administração', icon: 'configuracoes' },
+      { to: '/pre-ticket-ia', label: 'Pré-ticket IA', icon: 'ajudaConsultar', adminOnly: true },
       { to: '/solicitacoes-melhoria', label: 'Sugestões', icon: 'ajudaConsultar', adminOnly: true },
     ],
   },
