@@ -9,6 +9,7 @@ import { DetailRow } from '../../components/ui/DetailRow'
 import { Input, TEXTAREA_FIELD_CLASS } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
+import { VoltarButton } from '../../components/ui/VoltarButton'
 import { useVoltarAnterior } from '../../hooks/useVoltarAnterior'
 import { SolicitacaoDescricao } from '../../components/release/SolicitacaoDescricao'
 import { SemPermissao } from '../SemPermissao'
@@ -231,13 +232,7 @@ export function SaasSolicitacaoDetalhe() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-10">
-      <button
-        type="button"
-        onClick={voltarAnterior}
-        className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
-      >
-        <span aria-hidden>←</span> Voltar
-      </button>
+      <VoltarButton onClick={voltarAnterior} />
 
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1">
