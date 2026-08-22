@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -20,13 +21,18 @@ from app.models.saas_solicitacao_produto import SaasSolicitacaoProduto, SaasSoli
 from app.schemas.saas_solicitacao import (
     SaasSolicitacaoComentarioCreate,
     SaasSolicitacaoDetalhe,
+    SaasSolicitacaoGithubUpdate,
     SaasSolicitacaoStatusUpdate,
     SaasSolicitacaoSyncComentario,
     SaasSolicitacaoSyncItem,
     SaasSolicitacaoSyncResponse,
 )
 from app.services import saas_solicitacao_ingest as ingest
-from app.services.solicitacao_melhoria import aplicar_comentario_origem_saas, aplicar_status_origem_saas
+from app.services.solicitacao_melhoria import (
+    aplicar_comentario_origem_saas,
+    aplicar_protocolo_origem_saas,
+    aplicar_status_origem_saas,
+)
 from app.services.solicitacao_melhoria_copy import STATUS_VALIDOS
 
 logger = logging.getLogger(__name__)
@@ -63,6 +69,7 @@ def alterar_status(
     db.add(row)
     db.flush()
     if _deve_aplicar_local(row):
+        aplicar_protocolo_origem_saas(db, row.origem_solicitacao_id, row.protocolo)
         aplicar_status_origem_saas(
             db,
             row.origem_solicitacao_id,
@@ -104,6 +111,52 @@ def adicionar_comentario(
     return ingest.detalhe(db, ingest.obter(db, row.id))
 
 
+_GH_ISSUE = re.compile(r"github\.com/([^/\s]+)/([^/\s]+)/issues/(\d+)", re.I)
+
+
+def github_repo_produto() -> str:
+    return (settings.GITHUB_REPO_SUGESTOES or "").strip() or "lgustavoss/dx-connect"
+
+
+def ligar_issue_github(
+    db: Session,
+    solicitacao_id: int,
+    data: SaasSolicitacaoGithubUpdate,
+) -> SaasSolicitacaoDetalhe:
+    """Grava a issue no pedido SaaS. O cliente da instância não vê o GitHub."""
+    row = ingest.obter(db, solicitacao_id)
+    url = (data.github_issue_url or "").strip()
+    number = data.github_issue_number
+    repo = (data.github_repo or "").strip() or None
+    if url:
+        m = _GH_ISSUE.search(url)
+        if not m:
+            raise HTTPException(status_code=400, detail="URL de issue GitHub inválido")
+        repo = f"{m.group(1)}/{m.group(2)}"
+        number = int(m.group(3))
+        url = f"https://github.com/{repo}/issues/{number}"
+    elif number is not None:
+        repo = repo or github_repo_produto()
+        url = f"https://github.com/{repo}/issues/{int(number)}"
+    else:
+        raise HTTPException(status_code=400, detail="Indique o URL ou o número da issue")
+    row.github_repo = repo
+    row.github_issue_number = int(number)
+    row.github_issue_url = url
+    db.add(row)
+    from app.services import saas_solicitacao_grupo as grupo
+
+    grupo.aplicar_github_no_grupo(
+        db,
+        row,
+        repo=repo,
+        number=int(number),
+        url=url,
+    )
+    db.commit()
+    return ingest.detalhe(db, ingest.obter(db, row.id))
+
+
 def payload_sync(row: SaasSolicitacaoProduto) -> SaasSolicitacaoSyncItem:
     publicos = [
         SaasSolicitacaoSyncComentario(
@@ -119,6 +172,7 @@ def payload_sync(row: SaasSolicitacaoProduto) -> SaasSolicitacaoSyncItem:
         origem_solicitacao_id=row.origem_solicitacao_id,
         status=row.status,
         motivo_nao_desenvolvimento=row.motivo_nao_desenvolvimento,
+        protocolo=row.protocolo,
         comentarios_publicos=publicos,
     )
 
@@ -166,6 +220,7 @@ def listar_sync(
 
 def aplicar_pacote_sync(db: Session, item: SaasSolicitacaoSyncItem) -> bool:
     """Aplica um item do GET sync na instância. Sem commit."""
+    aplicar_protocolo_origem_saas(db, item.origem_solicitacao_id, item.protocolo)
     aplicado = aplicar_status_origem_saas(
         db,
         item.origem_solicitacao_id,

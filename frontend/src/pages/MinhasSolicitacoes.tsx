@@ -93,8 +93,8 @@ export function MinhasSolicitacoesPage() {
   if (id && detalhe) {
     return (
       <PageContainer>
-        <PageHeader
-          title={detalhe.titulo}
+          <PageHeader
+          title={`${detalhe.protocolo || 'Pedido'} · ${detalhe.titulo}`}
           subtitle={`${detalhe.tipo === 'problema' ? 'Problema' : 'Sugestão'} · ${detalhe.status_rotulo}`}
         />
         <Link to="/minhas-solicitacoes" className="text-sm text-cyan-700 hover:underline dark:text-cyan-400">
@@ -192,7 +192,12 @@ export function MinhasSolicitacoesPage() {
             <Link key={item.id} to={`/minhas-solicitacoes/${item.id}`} className="block">
               <Card className="p-4 transition hover:ring-1 hover:ring-cyan-400/50">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <h3 className="font-semibold text-slate-900 dark:text-slate-50">{item.titulo}</h3>
+                  <h3 className="font-semibold text-slate-900 dark:text-slate-50">
+                    <span className="font-mono text-xs font-medium text-cyan-700 dark:text-cyan-400">
+                      {item.protocolo || 'Pendente'}
+                    </span>{' '}
+                    {item.titulo}
+                  </h3>
                   <span className="text-xs font-medium text-slate-500">{item.status_rotulo}</span>
                 </div>
                 <p className="mt-1 text-xs text-slate-400">

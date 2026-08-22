@@ -112,6 +112,8 @@ class Settings(BaseSettings):
     SAAS_INGEST_PUBLIC_URL: str | None = None
     # Instância cliente: intervalo do pull autenticado da triagem SaaS (#856).
     SAAS_TRIAGEM_PULL_INTERVAL_SECONDS: int = 60
+    # Control-plane: token longo para o MCP do Cursor (não JWT). Vazio = só login saas_ops.
+    SAAS_MCP_TOKEN: str | None = None
     # Modo legado: vários clientes no mesmo Postgres (subdomínio numérico + coluna tenant_id).
     # Produção comercial: manter False (um Postgres por cliente / deploy).
     DX_CONNECT_MULTI_TENANT: bool = False

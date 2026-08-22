@@ -28,6 +28,7 @@ class SaasSolicitacaoListaItem(BaseModel):
     cliente_nome: str | None
     instance_slug: str
     origem_solicitacao_id: int
+    protocolo: str | None = None
     tipo: str
     titulo: str
     status: str
@@ -36,6 +37,10 @@ class SaasSolicitacaoListaItem(BaseModel):
     autor_nome: str | None
     created_at_origem: datetime | None
     ingested_at: datetime
+    github_issue_number: int | None = None
+    github_issue_url: str | None = None
+    peso_clientes: int = 1
+    pedidos_grupo: int = 1
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -59,12 +64,35 @@ class SaasSolicitacaoAnexoRead(BaseModel):
     url: str
 
 
+class SaasSolicitacaoGrupoMembro(BaseModel):
+    id: int
+    protocolo: str | None = None
+    instance_slug: str
+    cliente_nome: str | None = None
+    titulo: str
+    status_rotulo: str
+
+
 class SaasSolicitacaoDetalhe(SaasSolicitacaoListaItem):
     descricao: str
     motivo_nao_desenvolvimento: str | None = None
     triagem_atualizada_em: datetime | None = None
     comentarios: list[SaasSolicitacaoComentarioRead] = Field(default_factory=list)
     anexos: list[SaasSolicitacaoAnexoRead] = Field(default_factory=list)
+    github_repo: str | None = None
+    grupo: list[SaasSolicitacaoGrupoMembro] = Field(default_factory=list)
+    texto_github_demanda: str = ""
+
+
+class SaasSolicitacaoVinculoCreate(BaseModel):
+    solicitacao_id: int | None = Field(None, ge=1)
+    protocolo: str | None = Field(None, max_length=32)
+
+
+class SaasSolicitacaoGithubUpdate(BaseModel):
+    github_issue_url: str | None = Field(None, max_length=500)
+    github_issue_number: int | None = Field(None, ge=1)
+    github_repo: str | None = Field(None, max_length=200)
 
 
 class SaasSolicitacaoStatusUpdate(BaseModel):
@@ -88,6 +116,7 @@ class SaasSolicitacaoSyncItem(BaseModel):
     origem_solicitacao_id: int
     status: str
     motivo_nao_desenvolvimento: str | None = None
+    protocolo: str | None = None
     comentarios_publicos: list[SaasSolicitacaoSyncComentario] = Field(default_factory=list)
 
 

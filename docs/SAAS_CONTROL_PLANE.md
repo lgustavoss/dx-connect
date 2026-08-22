@@ -61,7 +61,7 @@ Sem `VITE_SAAS_CONTROL_PLANE=true`, a apex continua só com login por conta.
 | Planos | `/v1/saas/planos` (+ ativar/desativar) | `saas_ops` + control-plane |
 | Módulos | `/v1/saas/modulos` (+ ativar/desativar) | `saas_ops` + control-plane |
 | Leads B2B | `/v1/saas/leads` | `saas_ops` + control-plane |
-| Sugestões das instâncias | `GET /v1/saas/solicitacoes` | `saas_ops` + control-plane |
+| Sugestões das instâncias | `GET /v1/saas/solicitacoes` | `saas_ops` JWT ou `SAAS_MCP_TOKEN` (Cursor) |
 | Triagem (status / comentário) | `PATCH …/solicitacoes/{id}/status`, `POST …/comentarios` | `saas_ops` + control-plane |
 | Ingest (instância→SaaS) | `POST /v1/saas/ingest/solicitacoes` | token da licença (não JWT) |
 | Ingest mídia | `POST /v1/saas/ingest/solicitacoes/{origem_id}/media` | token da licença (multipart; JSON já ingerido) |
@@ -92,7 +92,7 @@ A **URL pública** da instância não é escolhida livremente: o ops/cliente def
 
 Quem **usa** o DeskRudder (admin/atendente da instância) abre sugestão ou problema nas Release Notes (`/sobre`). O pedido fica na instância (**Minhas solicitações**). Uma **cópia autenticada** vai para a fila única do control-plane (`/saas/solicitacoes`).
 
-A **triagem** (status e respostas) é feita por `saas_ops` no detalhe `/saas/solicitacoes/{id}`. Comentários **públicos** e o status voltam à instância; notas internas ficam só no SaaS. O admin da instância **não** altera status nem envia notas de produto.
+A **triagem** (status e respostas) é feita por `saas_ops` no detalhe `/saas/solicitacoes/{id}`. O protocolo `#SYYYYMM-NNNN` é **único no produto**: a instância comercial (control-plane, Postgres próprio na VPS) emite o número no ingest; o cliente vê o mesmo valor em Minhas solicitações após o sync. Pedidos iguais de vários clientes ligam-se **só no painel SaaS** (`POST …/vinculos`); o peso é o número de clientes no grupo e **não** volta à instância. No GitHub, o título usa um protocolo; o corpo leva `texto_github_demanda` (lista de protocolos). Comentários **públicos** e o status voltam à instância; notas internas e o grupo ficam só no SaaS. O admin da instância **não** altera status nem envia notas de produto.
 
 O **posto** (portal) não entra neste fluxo. Análise no Cursor e issues GitHub **não** fazem parte deste lote (#857).
 
@@ -117,12 +117,43 @@ No control-plane (`SAAS_CONTROL_PLANE=true`), a abertura grava directo na tabela
 - `POST /v1/saas/ingest/solicitacoes` — Bearer ou `X-Saas-Instance-Token`; o token é conferido (SHA-256) com `clientes_saas.ingest_token_hash` do slug do body.
 - `POST /v1/saas/ingest/solicitacoes/{origem_id}/media` — o mesmo token; `file` + `storage_key` (UUID da instância) + `papel`. A chave é reutilizada para o markdown `![…](/v1/solicitacoes-melhoria/media/…)` resolver no painel SaaS. 404 se o JSON ainda não chegou (a outbox reenvia).
 - `GET /v1/saas/ingest/solicitacoes/sync` — mesmo token; devolve status + comentários públicos daquele slug (`?since=` opcional).
-- `GET /v1/saas/solicitacoes` e `GET /v1/saas/solicitacoes/{id}` — só `saas_ops`.
+- `GET /v1/saas/solicitacoes` e `GET /v1/saas/solicitacoes/{id}` — `saas_ops` (JWT) ou token `SAAS_MCP_TOKEN` (MCP Cursor).
+- `PATCH …/solicitacoes/{id}/github` — liga a issue criada no GitHub ao pedido (e ao grupo, se houver). Só ops / MCP; o cliente não vê.
+- `POST …/solicitacoes/{id}/vinculos` e `DELETE …/vinculos/{membro_id}` — grupo de pedidos iguais (peso). Só ops / MCP.
 - `PATCH /v1/saas/solicitacoes/{id}/status` e `POST /v1/saas/solicitacoes/{id}/comentarios` — triagem.
 - `POST /v1/saas/clientes/{id}/gerar-token-ingest` — devolve o plaintext **uma vez** e escreve no `client.env` se a pasta do cliente já existir.
 - `SAAS_INGEST_PUBLIC_URL` (opcional) — URL escrita no env das instâncias; por omissão `https://api.{SAAS_PROVISION_BASE_DOMAIN}/v1/saas/ingest/solicitacoes`.
 
-Handoff Cursor é #857.
+Handoff Cursor é #857: o Cursor **puxa** a fila (MCP `deskrudder-saas`) contra a **API do control-plane**, não o contrário.
+
+### MCP em produção (VPS)
+
+O script corre no PC do ops. A fila é a da instância comercial (`SAAS_CONTROL_PLANE=true`).
+
+1. **No `client.env` da stack comercial** (não nas instâncias de cliente), gerar um token longo e **não** reutilizar o de desenvolvimento:
+
+   ```bash
+   openssl rand -base64 32
+   ```
+
+   ```
+   SAAS_CONTROL_PLANE=true
+   SAAS_MCP_TOKEN=<valor gerado>
+   ```
+
+   Reiniciar o container da instância comercial depois do release `staging`.
+
+2. **Em cada Cursor** (PC, notebook, outro dev): copiar `.cursor/mcp.json.example` para `.cursor/mcp.json` (gitignored), colar o **mesmo** token em `DESKRUDDER_MCP_TOKEN`, e manter:
+
+   ```
+   DESKRUDDER_API_URL=https://api.deskrudder.com.br
+   ```
+
+   Cursor → Settings → MCP → habilitar `deskrudder-saas`.
+
+3. **Teste local** (Docker neste repo): no `.cursor/mcp.json` usa `http://127.0.0.1:8000`. O token pode ser o `SAAS_MCP_TOKEN` do `backend/.env` (não misturar com o da VPS).
+
+Ferramentas: listar, obter, alterar status, comentar, vincular pedidos iguais, ligar issue GitHub (aceitam `id` ou protocolo). Sem OpenAI e sem `CURSOR_API_KEY` no DeskRudder. O GitHub MCP (criar issues) é à parte e também é por instalação do Cursor.
 
 ## Histórico da licença
 

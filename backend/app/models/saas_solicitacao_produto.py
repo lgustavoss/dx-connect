@@ -34,6 +34,11 @@ class SaasSolicitacaoProduto(Base):
     motivo_nao_desenvolvimento = Column(Text, nullable=True)
     triagem_atualizada_em = Column(DateTime(timezone=True), nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    github_repo = Column(String(200), nullable=True)
+    github_issue_number = Column(Integer, nullable=True)
+    github_issue_url = Column(String(500), nullable=True)
+    protocolo = Column(String(32), nullable=True, unique=True, index=True)
+    grupo_id = Column(Integer, nullable=True, index=True)
 
     cliente = relationship("ClienteSaaS", foreign_keys=[cliente_saas_id])
     comentarios = relationship(

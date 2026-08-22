@@ -5,11 +5,18 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### SaaS Control Plane
+
+#### Melhorias
+
+- Fila de sugestões no Cursor (MCP): o ops liga-se à API comercial (`api.deskrudder.com.br`); o token fica só na VPS e no Cursor de cada pessoa, não no git
+
 ### DeskRudder
 
 #### Melhorias
 
-- Sugestões: enviar melhoria ou relatar problema abre em **tela cheia** (já não é modal). **Ctrl+V** cola o print no texto; **Anexar** envia foto, PDF ou vídeo; há um guia das marcações (negrito, listas, títulos)
+- Sugestões: cada pedido ganha um **protocolo único** (`#S202608-0001`) no painel DeskRudder, visível depois em Minhas solicitações, para amarrar a issue no GitHub
+- Sugestões: no painel SaaS dá para **ligar pedidos iguais** de vários clientes (peso da demanda). O cliente não vê este grupo; na issue GitHub entram todos os protocolos
 - Sugestões (#855): pedidos abertos nas Release Notes continuam na instância (**Minhas solicitações**); a cópia para o produto DeskRudder vai para o painel SaaS, não para o GitHub na instância
 - Sugestões (#856): o **status e as respostas de produto** passam a ser definidos no painel SaaS DeskRudder; na instância o admin só acompanha. O cliente vê o andamento e os comentários públicos em **Minhas solicitações** (notas internas não saem do SaaS)
 - Sobre / Release Notes: o rodapé da barra leva sempre a esta tela (em local a versão vem das notas publicadas, mesmo sem o ficheiro `VERSION` no Docker). **Minhas solicitações** fica nesta página, não no menu Ajuda.
@@ -104,6 +111,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 - Fila de **sugestões/bugs** das instâncias (#855 / #808): quem usa o DeskRudder abre o pedido nas Release Notes; a cópia autenticada chega a `/saas/solicitacoes` (lista + detalhe). Token no provisionamento, não no browser do cliente. **Prints e anexos** da instância também chegam ao painel (não só o texto).
 - Triagem da fila (#856): `saas_ops` altera status e responde (público/interno) em `/saas/solicitacoes/{id}`. O que é público (e o status) volta à instância — apply directo no control-plane local, ou pull autenticado `GET /v1/saas/ingest/solicitacoes/sync` nas instâncias. Notas internas e GitHub não aparecem ao cliente.
+- Fila de sugestões (#857): o **Cursor** lista e actualiza a fila SaaS (status, comentários, link da issue GitHub) via MCP. O cliente não vê Cursor nem GitHub; no painel ops aparece a issue se estiver ligada.
 - Painel SaaS: página **Sobre / Novidades** com o histórico só de entregas do control-plane (licenças, planos, provisionamento) (#672 / #675)
 - Release notes: CHANGELOG e API separam DeskRudder e SaaS no mesmo deploy CalVer (#672 / #673 / #676)
 

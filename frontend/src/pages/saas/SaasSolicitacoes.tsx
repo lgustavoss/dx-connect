@@ -123,7 +123,7 @@ export function SaasSolicitacoes() {
         <BarraBuscaPaginacao
           busca={busca}
           onBuscaChange={setBusca}
-          placeholder="Buscar por título, cliente, slug ou autor…"
+          placeholder="Buscar por protocolo, título, cliente, slug ou autor…"
           page={page}
           total={total}
           onPageChange={setPage}
@@ -164,10 +164,12 @@ export function SaasSolicitacoes() {
             <table className="w-full min-w-[720px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Protocolo</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Cliente</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Tipo</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Título</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Autor</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Peso</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Status</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Quando</th>
                 </tr>
@@ -187,6 +189,9 @@ export function SaasSolicitacoes() {
                     }}
                     className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-white/5"
                   >
+                    <td className="px-4 py-3 font-mono text-sm text-cyan-800 dark:text-cyan-300 sm:px-6">
+                      {item.protocolo || '—'}
+                    </td>
                     <td className="px-4 py-3 sm:px-6">
                       <p className="font-medium text-slate-900 dark:text-slate-50">
                         {item.cliente_nome || item.instance_slug}
@@ -201,6 +206,15 @@ export function SaasSolicitacoes() {
                       ) : null}
                     </td>
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-300 sm:px-6">{item.autor_nome || '—'}</td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300 sm:px-6">
+                      {(item.peso_clientes || 1) > 1 ? (
+                        <span className="font-medium text-cyan-800 dark:text-cyan-300">
+                          {item.peso_clientes} clientes
+                        </span>
+                      ) : (
+                        '1'
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-300 sm:px-6">{item.status_rotulo}</td>
                     <td className="px-4 py-3 text-slate-500 sm:px-6">
                       {formatWhen(item.created_at_origem || item.ingested_at)}

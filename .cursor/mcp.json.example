@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "deskrudder-saas": {
+      "command": "python",
+      "args": ["backend/scripts/mcp_deskrudder_saas.py"],
+      "env": {
+        "DESKRUDDER_API_URL": "https://api.deskrudder.com.br",
+        "DESKRUDDER_MCP_TOKEN": "COLE_AQUI_O_MESMO_SAAS_MCP_TOKEN_DA_INSTANCIA_COMERCIAL"
+      }
+    }
+  }
+}

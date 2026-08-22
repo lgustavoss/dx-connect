@@ -62,7 +62,7 @@ export function SolicitacoesMelhoriaAdminPage() {
     return (
       <PageContainer>
         <PageHeader
-          title={`#${detalhe.id} · ${detalhe.titulo}`}
+          title={`${detalhe.protocolo || `#${detalhe.id}`} · ${detalhe.titulo}`}
           subtitle="Acompanhamento na instância. A triagem (status e respostas) é feita no painel SaaS DeskRudder."
         />
         <button
@@ -152,7 +152,7 @@ export function SolicitacoesMelhoriaAdminPage() {
             <Card className="p-4 hover:ring-1 hover:ring-cyan-400/40">
               <div className="flex flex-wrap justify-between gap-2">
                 <h3 className="font-semibold">
-                  #{item.id} {item.titulo}
+                  {item.protocolo || `#${item.id}`} {item.titulo}
                 </h3>
                 <span className="text-xs">{item.status_rotulo}</span>
               </div>

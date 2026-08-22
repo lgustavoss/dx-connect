@@ -4971,6 +4971,7 @@ export namespace SolicitacoesMelhoria {
 
   export interface ListaItem {
     id: number
+    protocolo?: string | null
     tipo: Tipo | string
     titulo: string
     status: Status | string
@@ -5004,6 +5005,7 @@ export namespace SolicitacoesMelhoria {
 
   export interface Detalhe {
     id: number
+    protocolo?: string | null
     organizacao_id: number
     autor_atendente_id?: number | null
     autor_nome?: string | null
@@ -5261,6 +5263,15 @@ export const saasSolicitacoes = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  vincular: (id: number, data: { solicitacao_id?: number; protocolo?: string }) =>
+    api<SaasSolicitacoesProduto.Detalhe>(`/saas/solicitacoes/${id}/vinculos`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  desvincular: (id: number, membroId: number) =>
+    api<SaasSolicitacoesProduto.Detalhe>(`/saas/solicitacoes/${id}/vinculos/${membroId}`, {
+      method: 'DELETE',
+    }),
 };
 
 export namespace SaasSolicitacoesProduto {
@@ -5270,6 +5281,7 @@ export namespace SaasSolicitacoesProduto {
     cliente_nome?: string | null;
     instance_slug: string;
     origem_solicitacao_id: number;
+    protocolo?: string | null;
     tipo: string;
     titulo: string;
     status: string;
@@ -5278,6 +5290,10 @@ export namespace SaasSolicitacoesProduto {
     autor_nome?: string | null;
     created_at_origem?: string | null;
     ingested_at: string;
+    github_issue_number?: number | null;
+    github_issue_url?: string | null;
+    peso_clientes?: number;
+    pedidos_grupo?: number;
   }
   export interface Comentario {
     id: number;
@@ -5292,6 +5308,17 @@ export namespace SaasSolicitacoesProduto {
     triagem_atualizada_em?: string | null;
     comentarios: Comentario[];
     anexos?: Anexo[];
+    github_repo?: string | null;
+    grupo?: GrupoMembro[];
+    texto_github_demanda?: string;
+  }
+  export interface GrupoMembro {
+    id: number;
+    protocolo?: string | null;
+    instance_slug: string;
+    cliente_nome?: string | null;
+    titulo: string;
+    status_rotulo: string;
   }
   export interface Anexo {
     id: number;

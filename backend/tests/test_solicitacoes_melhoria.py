@@ -22,6 +22,7 @@ def test_criar_e_listar_minhas(client, seed_base, auth_headers):
     assert data["status_rotulo"] == "Recebida"
     assert data["github_issue_url"] is None
     assert "mensagem_status" in data
+    assert data.get("protocolo") in (None, "") or str(data.get("protocolo")).startswith("#S")
 
     lista = client.get("/v1/solicitacoes-melhoria/minhas", headers=auth_headers["a1"])
     assert lista.status_code == 200

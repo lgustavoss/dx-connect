@@ -61,6 +61,10 @@ def test_criar_na_instancia_copia_direto_no_control_plane(client, seed_base, aut
     items = lista.json()["items"]
     assert any(i["origem_solicitacao_id"] == sid and i["instance_slug"] == "local" for i in items)
     item = next(i for i in items if i["origem_solicitacao_id"] == sid)
+    assert item["protocolo"].startswith("#S")
+    origem = client.get(f"/v1/solicitacoes-melhoria/{sid}", headers=auth_headers["a1"])
+    assert origem.status_code == 200
+    assert origem.json()["protocolo"] == item["protocolo"]
     det = client.get(f"/v1/saas/solicitacoes/{item['id']}", headers=auth_headers["ops"])
     assert det.status_code == 200
     body = det.json()
@@ -299,7 +303,9 @@ def test_ingest_http_autenticado(client, seed_base, auth_headers, monkeypatch):
     body = ok.json()
     assert body["tipo"] == "problema"
     assert body["cliente_nome"] == "Duplex Soft"
+    assert body["protocolo"].startswith("#S")
     first_id = body["id"]
+    first_proto = body["protocolo"]
 
     payload["titulo"] = "PDF corta o rodapé (actualizado)"
     again = client.post(
@@ -309,11 +315,46 @@ def test_ingest_http_autenticado(client, seed_base, auth_headers, monkeypatch):
     )
     assert again.status_code == 200
     assert again.json()["id"] == first_id
+    assert again.json()["protocolo"] == first_proto
     assert "actualizado" in again.json()["titulo"]
 
     lista = client.get("/v1/saas/solicitacoes?tipo=problema", headers=h)
     assert lista.status_code == 200
     assert any(i["id"] == first_id for i in lista.json()["items"])
+
+
+def test_ingest_dois_clientes_protocolo_unico(client, seed_base, auth_headers, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    monkeypatch.setattr(settings, "SAAS_PROVISION_BASE_DOMAIN", "deskrudder.com.br")
+    h = auth_headers["ops"]
+    a = _cliente(client, h, slug="cliente-a")
+    b = _cliente(client, h, slug="cliente-b")
+    tok_a = client.post(f"/v1/saas/clientes/{a['id']}/gerar-token-ingest", headers=h).json()["token"]
+    tok_b = client.post(f"/v1/saas/clientes/{b['id']}/gerar-token-ingest", headers=h).json()["token"]
+    base = {
+        "tipo": "sugestao",
+        "titulo": "Mesmo título nos dois",
+        "descricao": "Pedido equivalente em duas instâncias distintas.",
+        "status": "aberta",
+        "origem_solicitacao_id": 1,
+    }
+    r1 = client.post(
+        "/v1/saas/ingest/solicitacoes",
+        json={**base, "instance_slug": "cliente-a"},
+        headers={"Authorization": f"Bearer {tok_a}"},
+    )
+    r2 = client.post(
+        "/v1/saas/ingest/solicitacoes",
+        json={**base, "instance_slug": "cliente-b"},
+        headers={"Authorization": f"Bearer {tok_b}"},
+    )
+    assert r1.status_code == 200, r1.text
+    assert r2.status_code == 200, r2.text
+    p1, p2 = r1.json()["protocolo"], r2.json()["protocolo"]
+    assert p1.startswith("#S") and p2.startswith("#S")
+    assert p1 != p2
 
 
 def test_ingest_404_sem_control_plane(client, monkeypatch):
@@ -468,6 +509,7 @@ def test_sync_get_autenticado(client, seed_base, auth_headers, monkeypatch):
     items = sync.json()["items"]
     row = next(i for i in items if i["origem_solicitacao_id"] == 77)
     assert row["status"] == "planejada"
+    assert row["protocolo"].startswith("#S")
     assert any("roadmap" in c["corpo"] for c in row["comentarios_publicos"])
     assert not any("interna" in c["corpo"] for c in row["comentarios_publicos"])
 
@@ -514,4 +556,142 @@ def test_pull_aplica_triagem_na_instancia(client, seed_base, auth_headers, monke
     det2 = client.get(f"/v1/solicitacoes-melhoria/{sid}", headers=auth_headers["a1"]).json()
     assert sum(1 for c in det2["comentarios"] if "implementar" in c["corpo"]) == 1
     assert n2 == 1
+
+
+def test_mcp_token_lista_status_e_liga_github(client, seed_base, auth_headers, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    monkeypatch.setattr(settings, "SAAS_INSTANCE_SLUG", "local")
+    monkeypatch.setattr(settings, "SAAS_MCP_TOKEN", "mcp-token-local-test")
+    sid = _criar_solicitacao(client, auth_headers["a1"]).json()["id"]
+    lista_ops = client.get("/v1/saas/solicitacoes", headers=auth_headers["ops"])
+    saas_id = next(i["id"] for i in lista_ops.json()["items"] if i["origem_solicitacao_id"] == sid)
+    mcp = {"Authorization": "Bearer mcp-token-local-test"}
+    listed = client.get("/v1/saas/solicitacoes", headers=mcp)
+    assert listed.status_code == 200, listed.text
+    item = next(i for i in listed.json()["items"] if i["id"] == saas_id)
+    assert item["protocolo"].startswith("#S")
+    busca = client.get("/v1/saas/solicitacoes", headers=mcp, params={"busca": item["protocolo"]})
+    assert busca.status_code == 200
+    assert any(i["id"] == saas_id for i in busca.json()["items"])
+    st = client.patch(
+        f"/v1/saas/solicitacoes/{saas_id}/status",
+        headers=mcp,
+        json={"status": "planejada"},
+    )
+    assert st.status_code == 200, st.text
+    assert st.json()["status"] == "planejada"
+    gh = client.patch(
+        f"/v1/saas/solicitacoes/{saas_id}/github",
+        headers=mcp,
+        json={"github_issue_url": "https://github.com/lgustavoss/dx-connect/issues/857"},
+    )
+    assert gh.status_code == 200, gh.text
+    assert gh.json()["github_issue_number"] == 857
+    assert "857" in (gh.json()["github_issue_url"] or "")
+    assert client.get("/v1/saas/solicitacoes", headers=auth_headers["admin"]).status_code == 403
+    assert client.get("/v1/saas/solicitacoes", headers={"Authorization": "Bearer token-errado"}).status_code == 401
+
+
+def test_mcp_stdio_initialize_e_tools():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path("/app/scripts/mcp_deskrudder_saas.py")
+    spec = importlib.util.spec_from_file_location("mcp_deskrudder_saas", path)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    init = mod.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
+    assert init["result"]["serverInfo"]["name"] == "deskrudder-saas"
+    listed = mod.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+    names = {t["name"] for t in listed["result"]["tools"]}
+    assert {"listar_solicitacoes", "obter_solicitacao", "alterar_status", "comentar_solicitacao", "ligar_issue_github", "vincular_solicitacao", "desvincular_solicitacao"} <= names
+
+
+def test_vincular_pedidos_iguais_peso_e_nao_vaza_ao_cliente(client, seed_base, auth_headers, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    monkeypatch.setattr(settings, "SAAS_PROVISION_BASE_DOMAIN", "deskrudder.com.br")
+    h = auth_headers["ops"]
+    a = _cliente(client, h, slug="cliente-a")
+    b = _cliente(client, h, slug="cliente-b")
+    tok_a = client.post(f"/v1/saas/clientes/{a['id']}/gerar-token-ingest", headers=h).json()["token"]
+    tok_b = client.post(f"/v1/saas/clientes/{b['id']}/gerar-token-ingest", headers=h).json()["token"]
+    corpo = {
+        "tipo": "sugestao",
+        "titulo": "Filtro por posto na lista",
+        "descricao": "Quero filtrar tickets por posto na listagem principal.",
+        "status": "aberta",
+        "origem_solicitacao_id": 1,
+    }
+    r1 = client.post(
+        "/v1/saas/ingest/solicitacoes",
+        json={**corpo, "instance_slug": "cliente-a"},
+        headers={"Authorization": f"Bearer {tok_a}"},
+    )
+    r2 = client.post(
+        "/v1/saas/ingest/solicitacoes",
+        json={**corpo, "instance_slug": "cliente-b"},
+        headers={"Authorization": f"Bearer {tok_b}"},
+    )
+    assert r1.status_code == 200 and r2.status_code == 200
+    id1, id2 = r1.json()["id"], r2.json()["id"]
+    p1, p2 = r1.json()["protocolo"], r2.json()["protocolo"]
+
+    denied = client.post(
+        f"/v1/saas/solicitacoes/{id1}/vinculos",
+        headers=auth_headers["a1"],
+        json={"solicitacao_id": id2},
+    )
+    assert denied.status_code == 403
+
+    linked = client.post(
+        f"/v1/saas/solicitacoes/{id1}/vinculos",
+        headers=h,
+        json={"protocolo": p2},
+    )
+    assert linked.status_code == 200, linked.text
+    body = linked.json()
+    assert body["peso_clientes"] == 2
+    assert body["pedidos_grupo"] == 2
+    assert len(body["grupo"]) == 2
+    assert p1 in body["texto_github_demanda"] and p2 in body["texto_github_demanda"]
+
+    lista = client.get("/v1/saas/solicitacoes", headers=h).json()["items"]
+    assert any(i["id"] == id1 and i["peso_clientes"] == 2 for i in lista)
+
+    gh = client.patch(
+        f"/v1/saas/solicitacoes/{id1}/github",
+        headers=h,
+        json={"github_issue_url": "https://github.com/lgustavoss/dx-connect/issues/900"},
+    )
+    assert gh.status_code == 200, gh.text
+    outro = client.get(f"/v1/saas/solicitacoes/{id2}", headers=h).json()
+    assert outro["github_issue_number"] == 900
+
+    sync = client.get(
+        "/v1/saas/ingest/solicitacoes/sync",
+        headers={"Authorization": f"Bearer {tok_a}"},
+    )
+    assert sync.status_code == 200
+    item = next(i for i in sync.json()["items"] if i["origem_solicitacao_id"] == 1)
+    assert "grupo" not in item
+    assert "texto_github_demanda" not in item
+    assert "peso_clientes" not in item
+
+    off = client.post(
+        f"/v1/saas/solicitacoes/{id1}/vinculos/{id2}",
+        headers=h,
+    )
+    assert off.status_code == 405 or off.status_code == 404
+
+    gone = client.delete(f"/v1/saas/solicitacoes/{id1}/vinculos/{id2}", headers=h)
+    assert gone.status_code == 200, gone.text
+    assert gone.json()["peso_clientes"] == 1
+    assert len(gone.json()["grupo"]) == 1
+
+
 

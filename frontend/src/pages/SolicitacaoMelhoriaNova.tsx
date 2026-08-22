@@ -134,7 +134,11 @@ export function SolicitacaoMelhoriaNovaPage() {
         versao_contexto: versao,
         anexo_ids: anexos.map((a) => a.id),
       })
-      toast.showSuccess('Pedido enviado. Pode acompanhar em Minhas solicitações.')
+      toast.showSuccess(
+        row.protocolo
+          ? `Pedido ${row.protocolo} enviado. Pode acompanhar em Minhas solicitações.`
+          : 'Pedido enviado. Pode acompanhar em Minhas solicitações.',
+      )
       navigate(`/minhas-solicitacoes/${row.id}`)
     } catch (err) {
       const msg = mensagemFalhaParaToast(err, 'Não foi possível enviar o pedido.')

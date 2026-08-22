@@ -112,6 +112,7 @@ def serializar(row: SolicitacaoMelhoria, *, incluir_github: bool, incluir_intern
     ]
     return SolicitacaoMelhoriaRead(
         id=row.id,
+        protocolo=row.protocolo,
         organizacao_id=row.organizacao_id,
         autor_atendente_id=row.autor_atendente_id,
         autor_nome=row.autor_nome,
@@ -337,6 +338,28 @@ def aplicar_status_origem_saas(
     return row
 
 
+def aplicar_protocolo_origem_saas(
+    db: Session,
+    solicitacao_id: int,
+    protocolo: str | None,
+) -> SolicitacaoMelhoria | None:
+    """Grava o protocolo global #S… emitido pelo control-plane. Sem commit."""
+    from app.services.protocolo_mensal import normalizar_protocolo_solicitacao
+
+    proto = normalizar_protocolo_solicitacao(protocolo)
+    if not proto:
+        return None
+    row = db.query(SolicitacaoMelhoria).filter(SolicitacaoMelhoria.id == solicitacao_id).first()
+    if not row:
+        return None
+    if row.protocolo == proto:
+        return row
+    row.protocolo = proto
+    db.add(row)
+    db.flush()
+    return row
+
+
 def aplicar_comentario_origem_saas(
     db: Session,
     solicitacao_id: int,
@@ -421,6 +444,7 @@ def adicionar_comentario(
 def item_lista(row: SolicitacaoMelhoria, *, incluir_github: bool) -> SolicitacaoMelhoriaListaItem:
     return SolicitacaoMelhoriaListaItem(
         id=row.id,
+        protocolo=row.protocolo,
         tipo=row.tipo,
         titulo=row.titulo,
         status=row.status,

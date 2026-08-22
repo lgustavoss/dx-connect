@@ -28,6 +28,8 @@ class SolicitacaoMelhoria(Base):
     github_last_error = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    # Número global #S… atribuído pelo control-plane; null até o ingest/sync.
+    protocolo = Column(String(32), nullable=True, unique=True, index=True)
 
     autor = relationship("Atendente", foreign_keys=[autor_atendente_id])
     historico = relationship(

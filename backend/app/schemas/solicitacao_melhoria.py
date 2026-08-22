@@ -71,6 +71,7 @@ class SolicitacaoComentarioRead(BaseModel):
 
 class SolicitacaoMelhoriaRead(BaseModel):
     id: int
+    protocolo: str | None = None
     organizacao_id: int
     autor_atendente_id: int | None
     autor_nome: str | None
@@ -98,6 +99,7 @@ class SolicitacaoMelhoriaRead(BaseModel):
 
 class SolicitacaoMelhoriaListaItem(BaseModel):
     id: int
+    protocolo: str | None = None
     tipo: str
     titulo: str
     status: str

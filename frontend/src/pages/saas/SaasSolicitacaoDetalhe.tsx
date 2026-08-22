@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { CarregamentoFalhou } from '../../components/ui/CarregamentoFalhou'
 import { DetailRow } from '../../components/ui/DetailRow'
-import { TEXTAREA_FIELD_CLASS } from '../../components/ui/Input'
+import { Input, TEXTAREA_FIELD_CLASS } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 import { useVoltarAnterior } from '../../hooks/useVoltarAnterior'
@@ -52,6 +52,8 @@ export function SaasSolicitacaoDetalhe() {
   const [motivo, setMotivo] = useState('')
   const [comentario, setComentario] = useState('')
   const [publico, setPublico] = useState(true)
+  const [buscaIgual, setBuscaIgual] = useState('')
+  const [candidatos, setCandidatos] = useState<SaasSolicitacoesProduto.ListaItem[]>([])
 
   const aplicarDetalhe = useCallback((row: SaasSolicitacoesProduto.Detalhe) => {
     setItem(row)
@@ -99,6 +101,25 @@ export function SaasSolicitacaoDetalhe() {
     }
   }, [id, solicitacaoId, toast, aplicarDetalhe])
 
+  useEffect(() => {
+    const q = buscaIgual.trim()
+    if (q.length < 2 || !item) {
+      setCandidatos([])
+      return
+    }
+    const t = setTimeout(() => {
+      void saasSolicitacoes
+        .list({ busca: q, limit: 8 })
+        .then(({ items }) => {
+          const ja = new Set((item.grupo || []).map((m) => m.id))
+          ja.add(item.id)
+          setCandidatos(items.filter((c) => !ja.has(c.id)))
+        })
+        .catch(() => setCandidatos([]))
+    }, 350)
+    return () => clearTimeout(t)
+  }, [buscaIgual, item])
+
   async function salvarStatus() {
     if (!item) return
     setBusy(true)
@@ -132,6 +153,49 @@ export function SaasSolicitacaoDetalhe() {
       toast.showError(mensagemFalhaParaToast(err, 'Falha ao comentar'))
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function vincularPedido(alvo: { id?: number; protocolo?: string | null }) {
+    if (!item) return
+    setBusy(true)
+    try {
+      const atualizado = await saasSolicitacoes.vincular(
+        item.id,
+        alvo.protocolo ? { protocolo: alvo.protocolo } : { solicitacao_id: alvo.id },
+      )
+      aplicarDetalhe(atualizado)
+      setBuscaIgual('')
+      setCandidatos([])
+      toast.showSuccess('Pedidos ligados. O cliente não vê este grupo.')
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível vincular'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function desvincularPedido(membroId: number) {
+    if (!item) return
+    setBusy(true)
+    try {
+      const atualizado = await saasSolicitacoes.desvincular(item.id, membroId)
+      aplicarDetalhe(atualizado)
+      toast.showSuccess('Pedido saiu do grupo.')
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível desvincular'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function copiarDemandaGithub() {
+    if (!item?.texto_github_demanda) return
+    try {
+      await navigator.clipboard.writeText(item.texto_github_demanda)
+      toast.showSuccess('Texto copiado para colar na issue.')
+    } catch {
+      toast.showError('Não foi possível copiar.')
     }
   }
 
@@ -178,12 +242,13 @@ export function SaasSolicitacaoDetalhe() {
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            {rotuloTipo(item.tipo)} · #{item.origem_solicitacao_id} na instância
+            {item.protocolo || 'Sem protocolo'} · {rotuloTipo(item.tipo)}
           </p>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">{item.titulo}</h1>
           <p className="text-sm text-slate-500">
             {item.cliente_nome || item.instance_slug}
             {item.versao_contexto ? ` · v${item.versao_contexto}` : ''}
+            {(item.peso_clientes || 1) > 1 ? ` · ${item.peso_clientes} clientes pediram o mesmo` : ''}
           </p>
         </div>
         {item.cliente_saas_id ? (
@@ -196,6 +261,7 @@ export function SaasSolicitacaoDetalhe() {
       <Card title="Pedido">
         <SolicitacaoDescricao descricao={item.descricao} anexos={item.anexos} />
         <dl className="mt-4">
+          <DetailRow label="Protocolo" value={item.protocolo || '—'} mono />
           <DetailRow label="Cliente" value={item.cliente_nome || '—'} />
           <DetailRow label="Slug" value={item.instance_slug} mono />
           <DetailRow label="Autor" value={item.autor_nome || '—'} />
@@ -203,8 +269,108 @@ export function SaasSolicitacaoDetalhe() {
           <DetailRow label="Versão" value={item.versao_contexto || '—'} />
           <DetailRow label="Aberto em" value={formatWhen(item.created_at_origem)} />
           <DetailRow label="Recebido no SaaS" value={formatWhen(item.ingested_at)} />
+          <DetailRow
+            label="Peso"
+            value={
+              (item.peso_clientes || 1) > 1
+                ? `${item.peso_clientes} clientes · ${item.pedidos_grupo} pedidos`
+                : '1 cliente'
+            }
+          />
         </dl>
       </Card>
+
+      <Card title="Pedidos iguais">
+        <p className="text-sm text-slate-500">
+          Só neste painel. O cliente não vê quem mais pediu a mesma coisa. Na issue, cola o bloco de protocolos.
+        </p>
+        {(item.grupo || []).length > 1 ? (
+          <ul className="mt-3 space-y-2">
+            {(item.grupo || []).map((m) => (
+              <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <button
+                  type="button"
+                  className="text-left font-medium text-cyan-800 hover:underline dark:text-cyan-300"
+                  onClick={() => navigate(`/saas/solicitacoes/${m.id}`)}
+                >
+                  <span className="font-mono">{m.protocolo || `#${m.id}`}</span>
+                  {' · '}
+                  {m.cliente_nome || m.instance_slug}
+                </button>
+                {m.id !== item.id ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={busy}
+                    onClick={() => void desvincularPedido(m.id)}
+                  >
+                    Desvincular
+                  </Button>
+                ) : (
+                  <span className="text-xs text-slate-400">este pedido</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-sm text-slate-500">Ainda não está ligado a outros pedidos.</p>
+        )}
+        {item.texto_github_demanda ? (
+          <div className="mt-3 space-y-2">
+            <pre className="whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs text-slate-700 dark:bg-slate-900/60 dark:text-slate-200">
+              {item.texto_github_demanda}
+            </pre>
+            <Button type="button" variant="secondary" onClick={() => void copiarDemandaGithub()}>
+              Copiar para a issue
+            </Button>
+          </div>
+        ) : null}
+        <div className="mt-4 space-y-2">
+          <Input
+            label="Vincular outro pedido"
+            placeholder="Protocolo, título ou cliente…"
+            value={buscaIgual}
+            onChange={(e) => setBuscaIgual(e.target.value)}
+          />
+          {candidatos.length > 0 ? (
+            <ul className="space-y-1">
+              {candidatos.map((c) => (
+                <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <span>
+                    <span className="font-mono text-cyan-800 dark:text-cyan-300">{c.protocolo || `#${c.id}`}</span>
+                    {' · '}
+                    {c.cliente_nome || c.instance_slug} — {c.titulo}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={busy}
+                    onClick={() => void vincularPedido({ id: c.id, protocolo: c.protocolo })}
+                  >
+                    Vincular
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      </Card>
+
+      {item.github_issue_url ? (
+        <Card title="Issue no GitHub">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Ligada pelo Cursor. Cole os protocolos do grupo no corpo da issue. O cliente não vê este link.
+          </p>
+          <a
+            href={item.github_issue_url}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-2 inline-flex text-sm font-medium text-cyan-700 hover:underline dark:text-cyan-400"
+          >
+            {item.github_issue_url}
+          </a>
+        </Card>
+      ) : null}
 
       <Card title="Triagem">
         <div className="space-y-3">

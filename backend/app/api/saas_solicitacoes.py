@@ -10,7 +10,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.core.auth import exigir_saas_ops
+from app.core.auth import exigir_fila_saas
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
 from app.database import get_db
 from app.models.atendente import Atendente
@@ -21,11 +21,14 @@ from app.schemas.saas_solicitacao import (
     SaasSolicitacaoAnexoRead,
     SaasSolicitacaoComentarioCreate,
     SaasSolicitacaoDetalhe,
+    SaasSolicitacaoGithubUpdate,
     SaasSolicitacaoIngest,
     SaasSolicitacaoListaItem,
     SaasSolicitacaoStatusUpdate,
     SaasSolicitacaoSyncResponse,
+    SaasSolicitacaoVinculoCreate,
 )
+from app.services import saas_solicitacao_grupo as grupo
 from app.services import saas_solicitacao_ingest as ingest
 from app.services import saas_solicitacao_triagem as triagem
 
@@ -136,7 +139,7 @@ def listar(
     ordem: OrdemLista = Query(OrdemLista.desc),
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
-    __: Atendente = Depends(exigir_saas_ops),
+    __: Atendente = Depends(exigir_fila_saas),
 ):
     q = ingest.query_base(db)
     if busca and busca.strip():
@@ -146,6 +149,7 @@ def listar(
                 SaasSolicitacaoProduto.titulo.ilike(term),
                 SaasSolicitacaoProduto.autor_nome.ilike(term),
                 SaasSolicitacaoProduto.instance_slug.ilike(term),
+                SaasSolicitacaoProduto.protocolo.ilike(term),
                 ClienteSaaS.nome.ilike(term),
             )
         )
@@ -172,7 +176,18 @@ def listar(
             expr_ordem(SaasSolicitacaoProduto.id, ordem),
         ]
     items = q.order_by(*order_cols).offset(offset).limit(limit).all()
-    return ListaPaginada(items=[ingest.item_lista(i) for i in items], total=total)
+    pesos = grupo.pesos_por_id(db, items)
+    return ListaPaginada(
+        items=[
+            ingest.item_lista(
+                i,
+                peso_clientes=pesos.get(i.id, (1, 1))[0],
+                pedidos_grupo=pesos.get(i.id, (1, 1))[1],
+            )
+            for i in items
+        ],
+        total=total,
+    )
 
 
 @router.get("/solicitacoes/{solicitacao_id}", response_model=SaasSolicitacaoDetalhe)
@@ -180,7 +195,7 @@ def obter(
     solicitacao_id: int,
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
-    __: Atendente = Depends(exigir_saas_ops),
+    __: Atendente = Depends(exigir_fila_saas),
 ):
     return ingest.detalhe(db, ingest.obter(db, solicitacao_id))
 
@@ -191,7 +206,7 @@ def alterar_status(
     data: SaasSolicitacaoStatusUpdate,
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
-    ops: Atendente = Depends(exigir_saas_ops),
+    ops: Atendente = Depends(exigir_fila_saas),
 ):
     return triagem.alterar_status(db, solicitacao_id, ops, data)
 
@@ -202,6 +217,47 @@ def adicionar_comentario(
     data: SaasSolicitacaoComentarioCreate,
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
-    ops: Atendente = Depends(exigir_saas_ops),
+    ops: Atendente = Depends(exigir_fila_saas),
 ):
     return triagem.adicionar_comentario(db, solicitacao_id, ops, data)
+
+
+@router.patch("/solicitacoes/{solicitacao_id}/github", response_model=SaasSolicitacaoDetalhe)
+def ligar_github(
+    solicitacao_id: int,
+    data: SaasSolicitacaoGithubUpdate,
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    __: Atendente = Depends(exigir_fila_saas),
+):
+    return triagem.ligar_issue_github(db, solicitacao_id, data)
+
+
+@router.post("/solicitacoes/{solicitacao_id}/vinculos", response_model=SaasSolicitacaoDetalhe)
+def vincular_pedido(
+    solicitacao_id: int,
+    data: SaasSolicitacaoVinculoCreate,
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    __: Atendente = Depends(exigir_fila_saas),
+):
+    """Liga pedidos iguais. Só painel SaaS — o cliente não vê o grupo."""
+    row = grupo.vincular(
+        db,
+        solicitacao_id,
+        solicitacao_id=data.solicitacao_id,
+        protocolo=data.protocolo,
+    )
+    return ingest.detalhe(db, row)
+
+
+@router.delete("/solicitacoes/{solicitacao_id}/vinculos/{membro_id}", response_model=SaasSolicitacaoDetalhe)
+def desvincular_pedido(
+    solicitacao_id: int,
+    membro_id: int,
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    __: Atendente = Depends(exigir_fila_saas),
+):
+    row = grupo.desvincular(db, solicitacao_id, membro_id)
+    return ingest.detalhe(db, row)

@@ -24,6 +24,7 @@ from app.schemas.saas_solicitacao import (
     SaasSolicitacaoIngest,
     SaasSolicitacaoListaItem,
 )
+from app.services.protocolo_mensal import gerar_protocolo_solicitacao
 from app.services.solicitacao_melhoria_copy import rotulo_status
 from app.services.ticket_closed_webhook import STATUS_PENDENTE, _dedup_ja_processado, _utcnow
 
@@ -92,6 +93,16 @@ def autenticar_ingest(db: Session, *, slug: str, token: str) -> ClienteSaaS:
     return row
 
 
+def _protocolo_para_fila(
+    db: Session,
+    existente: SaasSolicitacaoProduto | None,
+) -> str:
+    """O número #S é emitido só no control-plane (sequência única do Postgres SaaS)."""
+    if existente and (existente.protocolo or "").strip():
+        return existente.protocolo
+    return gerar_protocolo_solicitacao(db)
+
+
 def upsert_from_payload(
     db: Session,
     data: SaasSolicitacaoIngest,
@@ -108,6 +119,7 @@ def upsert_from_payload(
         .first()
     )
     created_at = data.created_at
+    protocolo = _protocolo_para_fila(db, existente)
     if existente:
         existente.tipo = data.tipo
         existente.titulo = data.titulo.strip()
@@ -115,6 +127,7 @@ def upsert_from_payload(
         # Status/motivo ficam com a triagem SaaS (#856); a instância não é fonte de verdade.
         existente.versao_contexto = (data.versao_contexto or "").strip() or None
         existente.autor_nome = (data.autor_nome or "").strip() or None
+        existente.protocolo = protocolo
         if created_at is not None:
             existente.created_at_origem = created_at
         if cliente is not None:
@@ -135,6 +148,8 @@ def upsert_from_payload(
         autor_nome=(data.autor_nome or "").strip() or None,
         created_at_origem=created_at,
         ingested_at=datetime.now(timezone.utc),
+        protocolo=protocolo,
+        triagem_atualizada_em=datetime.now(timezone.utc),
     )
     db.add(row)
     db.flush()
@@ -349,6 +364,9 @@ def enfileirar_copia_saas(db: Session, row: SolicitacaoMelhoria) -> None:
         if settings.SAAS_CONTROL_PLANE:
             cliente = db.query(ClienteSaaS).filter(ClienteSaaS.slug == slug).first()
             dest = upsert_from_payload(db, payload, cliente=cliente)
+            if dest.protocolo:
+                row.protocolo = dest.protocolo
+                db.add(row)
             _copiar_anexos_locais(db, row, dest)
             return
         url = (settings.SAAS_CONTROL_PLANE_INGEST_URL or "").strip()
@@ -377,7 +395,12 @@ def enfileirar_copia_saas(db: Session, row: SolicitacaoMelhoria) -> None:
         )
 
 
-def item_lista(row: SaasSolicitacaoProduto) -> SaasSolicitacaoListaItem:
+def item_lista(
+    row: SaasSolicitacaoProduto,
+    *,
+    peso_clientes: int = 1,
+    pedidos_grupo: int = 1,
+) -> SaasSolicitacaoListaItem:
     cliente = row.cliente
     return SaasSolicitacaoListaItem(
         id=row.id,
@@ -385,6 +408,7 @@ def item_lista(row: SaasSolicitacaoProduto) -> SaasSolicitacaoListaItem:
         cliente_nome=cliente.nome if cliente is not None else None,
         instance_slug=row.instance_slug,
         origem_solicitacao_id=row.origem_solicitacao_id,
+        protocolo=row.protocolo,
         tipo=row.tipo,
         titulo=row.titulo,
         status=row.status,
@@ -393,11 +417,19 @@ def item_lista(row: SaasSolicitacaoProduto) -> SaasSolicitacaoListaItem:
         autor_nome=row.autor_nome,
         created_at_origem=row.created_at_origem,
         ingested_at=row.ingested_at,
+        github_issue_number=row.github_issue_number,
+        github_issue_url=row.github_issue_url,
+        peso_clientes=peso_clientes,
+        pedidos_grupo=pedidos_grupo,
     )
 
 
 def detalhe(db: Session, row: SaasSolicitacaoProduto) -> SaasSolicitacaoDetalhe:
-    base = item_lista(row)
+    from app.services import saas_solicitacao_grupo as grupo
+
+    pesos = grupo.pesos_por_id(db, [row])
+    pc, pg = pesos.get(row.id, (1, 1))
+    base = item_lista(row, peso_clientes=pc, pedidos_grupo=pg)
     comentarios = [
         SaasSolicitacaoComentarioRead(
             id=c.id,
@@ -422,6 +454,9 @@ def detalhe(db: Session, row: SaasSolicitacaoProduto) -> SaasSolicitacaoDetalhe:
         triagem_atualizada_em=row.triagem_atualizada_em,
         comentarios=comentarios,
         anexos=anexos,
+        github_repo=row.github_repo,
+        grupo=[grupo.membro_read(m) for m in grupo.membros(db, row)],
+        texto_github_demanda=grupo.texto_github_demanda(db, row),
     )
 
 
