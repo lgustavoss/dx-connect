@@ -598,7 +598,7 @@ def test_mcp_stdio_initialize_e_tools():
     import importlib.util
     from pathlib import Path
 
-    path = Path("/app/scripts/mcp_deskrudder_saas.py")
+    path = Path(__file__).resolve().parents[1] / "scripts" / "mcp_deskrudder_saas.py"
     spec = importlib.util.spec_from_file_location("mcp_deskrudder_saas", path)
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
