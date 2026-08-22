@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from app.services.protocolo_mensal import PROTOCOL_TZ, gerar_protocolo_chat, gerar_protocolo_ticket
+from app.services.protocolo_mensal import PROTOCOL_TZ, gerar_protocolo_chat, gerar_protocolo_solicitacao, gerar_protocolo_ticket
 
 
 def test_protocolo_ticket_formato_e_sequencia(db_session, seed_base):
@@ -34,6 +34,23 @@ def test_protocolo_chat_independente_do_ticket(db_session, seed_base):
         assert c1 == "#C202602-0001"
         assert t1 == "#T202602-0001"
         assert c2 == "#C202602-0002"
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_protocolo_solicitacao_independente_de_ticket_e_chat(db_session, seed_base):
+    from app.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        ref = datetime(2026, 8, 22, 16, 0, tzinfo=PROTOCOL_TZ)
+        s1 = gerar_protocolo_solicitacao(db, ref=ref)
+        t1 = gerar_protocolo_ticket(db, ref=ref)
+        s2 = gerar_protocolo_solicitacao(db, ref=ref)
+        assert s1 == "#S202608-0001"
+        assert t1 == "#T202608-0001"
+        assert s2 == "#S202608-0002"
         db.commit()
     finally:
         db.close()

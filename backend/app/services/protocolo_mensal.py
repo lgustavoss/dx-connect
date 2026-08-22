@@ -1,5 +1,5 @@
 """
-Protocolos humanos mensais (#TYYYYMM-NNNN tickets, #CYYYYMM-NNNN chats).
+Protocolos humanos mensais (#TYYYYMM-NNNN tickets, #CYYYYMM-NNNN chats, #SYYYYMM-NNNN sugestões).
 
 Fuso de referência para YYYYMM: America/Sao_Paulo (ver docs/PROTOCOLOS_TICKETS_CHATS.md).
 """
@@ -30,8 +30,8 @@ def _periodo_mensal_ref(ref: datetime | None) -> str:
 
 def _proximo_valor(db: Session, kind: str, periodo: str) -> int:
     """Incrementa e devolve o próximo sequencial para (kind, periodo YYYYMM) na mesma transação."""
-    if kind not in ("T", "C", "P"):
-        raise ValueError("kind deve ser T, C ou P")
+    if kind not in ("T", "C", "P", "S"):
+        raise ValueError("kind deve ser T, C, P ou S")
     for _ in range(32):
         row = (
             db.query(ProtocolSequence)
@@ -72,3 +72,20 @@ def gerar_protocolo_portal(db: Session, *, ref: datetime | None = None) -> str:
     yyyymm = _periodo_mensal_ref(ref)
     n = _proximo_valor(db, "P", yyyymm)
     return f"#P{yyyymm}-{n:04d}"
+
+
+def gerar_protocolo_solicitacao(db: Session, *, ref: datetime | None = None) -> str:
+    yyyymm = _periodo_mensal_ref(ref)
+    n = _proximo_valor(db, "S", yyyymm)
+    return f"#S{yyyymm}-{n:04d}"
+
+
+def normalizar_protocolo_solicitacao(raw: str | None) -> str | None:
+    s = (raw or "").strip()
+    if not s:
+        return None
+    if not s.startswith("#"):
+        s = "#" + s
+    if len(s) < 3:
+        return s
+    return "#" + s[1].upper() + s[2:]

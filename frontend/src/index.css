@@ -119,6 +119,10 @@
   @apply font-semibold text-slate-900 dark:text-slate-50;
 }
 
+.kb-markdown img {
+  @apply my-3 h-auto max-h-[32rem] max-w-full rounded-lg border border-slate-200 dark:border-slate-700;
+}
+
 /* Portal público /kb — usa cores do branding; ignora tema escuro do app (cards brancos) */
 .kb-public-portal .kb-markdown,
 .dark .kb-public-portal .kb-markdown {

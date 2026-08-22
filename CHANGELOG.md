@@ -5,10 +5,21 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### SaaS Control Plane
+
+#### Melhorias
+
+- Fila de sugestões no Cursor (MCP): o ops liga-se à API comercial (`api.deskrudder.com.br`); o token fica só na VPS e no Cursor de cada pessoa, não no git
+
 ### DeskRudder
 
 #### Melhorias
 
+- Sugestões: cada pedido ganha um **protocolo único** (`#S202608-0001`) no painel DeskRudder, visível depois em Minhas solicitações, para amarrar a issue no GitHub
+- Sugestões: no painel SaaS dá para **ligar pedidos iguais** de vários clientes (peso da demanda). O cliente não vê este grupo; na issue GitHub entram todos os protocolos
+- Sugestões (#855): pedidos abertos nas Release Notes continuam na instância (**Minhas solicitações**); a cópia para o produto DeskRudder vai para o painel SaaS, não para o GitHub na instância
+- Sugestões (#856): o **status e as respostas de produto** passam a ser definidos no painel SaaS DeskRudder; na instância o admin só acompanha. O cliente vê o andamento e os comentários públicos em **Minhas solicitações** (notas internas não saem do SaaS)
+- Sobre / Release Notes: o rodapé da barra leva sempre a esta tela (em local a versão vem das notas publicadas, mesmo sem o ficheiro `VERSION` no Docker). **Minhas solicitações** fica nesta página, não no menu Ajuda.
 - Ponto (#841): ao bater **saída** com pausa aberta, a pausa é encerrada automaticamente (origem sistema) e o dia fecha — sem exigir duas correções; toast na UI
 - Ponto (#842): calendário mensal em **Meu ponto** e **Ponto da equipe** (por atendente), com cores por meta de jornada (vermelho / verde / azul HE / laranja feriado); setting **jornada diária (minutos)** (padrão 480)
 - Ponto (UX): **Meu ponto** redesenhado — relógio ao vivo, botão principal contextual (entrada / retomar / saída), cards de métricas, períodos de hoje e calendário mais legível (inspirado no DX Ponto)
@@ -18,7 +29,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Ponto: **Ponto da equipe** alinhado visualmente a Meu ponto (digest em cards); relatório **PDF** e **Excel** mensal no filtro do histórico
 - Ponto (#846–#851): CSV admin com colunas geo; mapa embutido (OSM) no admin; editar/desactivar locais; histórico Meu ponto com GPS/fora da área; estado optimista offline; checklist APK geo ampliado
 - Faturamento (#326 / #363 / #364): faturas internas mensais para o financeiro conferir e **aprovar** (ou rejeitar com motivo). Geração automática no início do mês, ou avulsa na tela Faturamento; o botão do mês também reabre rejeitadas. Vencimento no **dia 10 do mês seguinte**. Na empresa, a flag **Emite NFS-e** (ligada por defeito) fica registada na fatura; boleto e nota fiscal só no lote seguinte, e só se a fatura estiver aprovada. O seed cria o setor **Financeiro** se ainda não existir.
-- Sugestões (#799 / #800–#807): a partir de **Sobre** (Release Notes), enviar sugestão ou problema; acompanhar em **Minhas solicitações**; admin faz triagem, responde (público/interno) e pode criar/sincronizar issue no GitHub (só interno)
+- Sugestões (#799 / #800–#807): a partir de **Sobre** (Release Notes), enviar sugestão ou problema; acompanhar em **Minhas solicitações**; admin faz triagem e responde (público/interno) na instância
 - WhatsApp (#837): **Exportar PDF** da conversa (header / menu ⋮) — relatório com protocolo, contacto e mensagens; mídia como rótulo; comentários internos excluídos; mesma permissão de ver o chat
 - Configurações (#833): hub com **pesquisa** e cartões por domínio; menu reorganizado (Equipa e tickets, Canais, Comercial/CRM, Empresa e catálogos, Administração); URLs antigas redireccionam
 - WhatsApp (#831): clicar no **número** do contacto (lista Em atendimento, Aguardando, histórico e header) copia automaticamente, com «Copiado!» discreto
@@ -80,6 +91,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
+- Sugestões (#855): os botões **Criar issue no GitHub** / **Sincronizar GitHub** deixam de aparecer na triagem da instância (isso é trabalho da equipa DeskRudder no painel SaaS)
+- Sugestões (#856): o admin da instância deixa de alterar status ou enviar notas de produto — a fonte de verdade é o painel SaaS
 - Atendimentos (#826): no mobile, cards do histórico deixam de cortar telefone e **Retomar contacto** (layout em coluna, sem overflow horizontal)
 - Chat: ao encerrar o atendimento na mesa, o painel fecha (como Voltar), em vez de ficar aberto com a lista vazia; se ainda falta classificar a demanda, o painel permanece
 - Chat: o estado «Aguardando avaliação» passa a âmbar; «Encerrado» usa vermelho mais legível no tema escuro
@@ -96,6 +109,9 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Fila de **sugestões/bugs** das instâncias (#855 / #808): quem usa o DeskRudder abre o pedido nas Release Notes; a cópia autenticada chega a `/saas/solicitacoes` (lista + detalhe). Token no provisionamento, não no browser do cliente. **Prints e anexos** da instância também chegam ao painel (não só o texto).
+- Triagem da fila (#856): `saas_ops` altera status e responde (público/interno) em `/saas/solicitacoes/{id}`. O que é público (e o status) volta à instância — apply directo no control-plane local, ou pull autenticado `GET /v1/saas/ingest/solicitacoes/sync` nas instâncias. Notas internas e GitHub não aparecem ao cliente.
+- Fila de sugestões (#857): o **Cursor** lista e actualiza a fila SaaS (status, comentários, link da issue GitHub) via MCP. O cliente não vê Cursor nem GitHub; no painel ops aparece a issue se estiver ligada.
 - Painel SaaS: página **Sobre / Novidades** com o histórico só de entregas do control-plane (licenças, planos, provisionamento) (#672 / #675)
 - Release notes: CHANGELOG e API separam DeskRudder e SaaS no mesmo deploy CalVer (#672 / #673 / #676)
 

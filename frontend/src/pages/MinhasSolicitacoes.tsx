@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { solicitacoesMelhoria, type SolicitacoesMelhoria } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
@@ -7,6 +7,7 @@ import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { TEXTAREA_FIELD_CLASS } from '../components/ui/Input'
 import { useToast } from '../components/ui/Toast'
+import { SolicitacaoDescricao } from '../components/release/SolicitacaoDescricao'
 import { useAuth } from '../contexts/AuthContext'
 
 const STATUS_FINAIS = new Set(['concluida', 'nao_sera_desenvolvida'])
@@ -22,6 +23,7 @@ function fmt(dt: string): string {
 /** Lista + detalhe das solicitações do utilizador (#803). */
 export function MinhasSolicitacoesPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const toast = useToast()
   const { user } = useAuth()
   const [lista, setLista] = useState<SolicitacoesMelhoria.ListaItem[]>([])
@@ -91,8 +93,8 @@ export function MinhasSolicitacoesPage() {
   if (id && detalhe) {
     return (
       <PageContainer>
-        <PageHeader
-          title={detalhe.titulo}
+          <PageHeader
+          title={`${detalhe.protocolo || 'Pedido'} · ${detalhe.titulo}`}
           subtitle={`${detalhe.tipo === 'problema' ? 'Problema' : 'Sugestão'} · ${detalhe.status_rotulo}`}
         />
         <Link to="/minhas-solicitacoes" className="text-sm text-cyan-700 hover:underline dark:text-cyan-400">
@@ -100,7 +102,7 @@ export function MinhasSolicitacoesPage() {
         </Link>
 
         <Card className="space-y-3 p-5">
-          <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap">{detalhe.descricao}</p>
+          <SolicitacaoDescricao descricao={detalhe.descricao} anexos={detalhe.anexos} />
           <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
             {detalhe.mensagem_status}
           </p>
@@ -159,6 +161,11 @@ export function MinhasSolicitacoesPage() {
       <PageHeader
         title="Minhas solicitações"
         subtitle="Acompanhe sugestões e problemas enviados a partir das notas de versão."
+        actions={
+          <Button type="button" variant="primary" onClick={() => navigate('/sobre/nova-solicitacao')}>
+            Novo pedido
+          </Button>
+        }
       />
       <div className="flex flex-wrap gap-3 text-sm">
         <Link to="/sobre" className="text-cyan-700 hover:underline dark:text-cyan-400">
@@ -169,7 +176,11 @@ export function MinhasSolicitacoesPage() {
         <p className="text-sm text-slate-500">A carregar…</p>
       ) : lista.length === 0 ? (
         <Card className="p-8 text-center text-sm text-slate-500">
-          Ainda não tem pedidos. Envie uma sugestão em{' '}
+          Ainda não tem pedidos.{' '}
+          <Link to="/sobre/nova-solicitacao" className="text-cyan-700 underline dark:text-cyan-400">
+            Enviar sugestão
+          </Link>
+          {' '}ou ver{' '}
           <Link to="/sobre" className="text-cyan-700 underline dark:text-cyan-400">
             Sobre
           </Link>
@@ -181,7 +192,12 @@ export function MinhasSolicitacoesPage() {
             <Link key={item.id} to={`/minhas-solicitacoes/${item.id}`} className="block">
               <Card className="p-4 transition hover:ring-1 hover:ring-cyan-400/50">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <h3 className="font-semibold text-slate-900 dark:text-slate-50">{item.titulo}</h3>
+                  <h3 className="font-semibold text-slate-900 dark:text-slate-50">
+                    <span className="font-mono text-xs font-medium text-cyan-700 dark:text-cyan-400">
+                      {item.protocolo || 'Pendente'}
+                    </span>{' '}
+                    {item.titulo}
+                  </h3>
                   <span className="text-xs font-medium text-slate-500">{item.status_rotulo}</span>
                 </div>
                 <p className="mt-1 text-xs text-slate-400">

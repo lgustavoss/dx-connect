@@ -290,6 +290,7 @@ class ClienteSaaSRead(ClienteSaaSBase):
     modulos_snapshot: list[str] = Field(default_factory=list)
     max_postos: int | None = None
     max_usuarios: int | None = None
+    ingest_token_configurado: bool = False
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

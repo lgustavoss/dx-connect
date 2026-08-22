@@ -1,10 +1,11 @@
-import { Link } from 'react-router-dom'
-import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import type { System } from '../../api/client'
+import { solicitacoesMelhoria, type SolicitacoesMelhoria } from '../../api/client'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { BrandLogo } from '../../brand'
-import { SolicitacaoMelhoriaModal } from './SolicitacaoMelhoriaModal'
+import { PageContainer } from '../../components/ui/PageContainer'
 
 const CATEGORY_LABEL: Record<string, string> = {
   melhorias: 'Melhorias',
@@ -77,6 +78,14 @@ export type ReleaseNotesViewProps = {
   showSugestoesCta?: boolean
 }
 
+function formatWhen(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+  } catch {
+    return iso
+  }
+}
+
 /** Lista partilhada de versão + histórico filtrado por produto (#674 / #675). */
 export function ReleaseNotesView({
   backTo,
@@ -90,19 +99,36 @@ export function ReleaseNotesView({
   showBrandLogo = true,
   showSugestoesCta = true,
 }: ReleaseNotesViewProps) {
-  const [modalAberto, setModalAberto] = useState(false)
+  const navigate = useNavigate()
+  const [minhas, setMinhas] = useState<SolicitacoesMelhoria.ListaItem[]>([])
   const pastReleases = (notes?.releases ?? []).filter((r) => r.version !== notes?.current?.version)
+
+  useEffect(() => {
+    if (!showSugestoesCta) return
+    let cancelled = false
+    void solicitacoesMelhoria
+      .minhas()
+      .then((rows) => {
+        if (!cancelled) setMinhas(rows)
+      })
+      .catch(() => {
+        if (!cancelled) setMinhas([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [showSugestoesCta])
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-3xl">
+      <PageContainer>
         <div className="h-56 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/50" />
-      </div>
+      </PageContainer>
     )
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8 pb-10">
+    <PageContainer spacing="relaxed">
       <div>
         <Link
           to={backTo}
@@ -132,31 +158,61 @@ export function ReleaseNotesView({
         </p>
         {showSugestoesCta ? (
           <div className="flex flex-wrap items-center gap-3 pt-2">
-            <Button type="button" variant="primary" className="text-sm" onClick={() => setModalAberto(true)}>
+            <Button
+              type="button"
+              variant="primary"
+              className="text-sm"
+              onClick={() => navigate('/sobre/nova-solicitacao')}
+            >
               Enviar sugestão / relatar problema
             </Button>
-            <Link
-              to="/minhas-solicitacoes"
-              className="text-sm font-medium text-cyan-700 hover:underline dark:text-cyan-400"
-            >
-              Minhas solicitações →
-            </Link>
           </div>
         ) : null}
       </Card>
 
-      <SolicitacaoMelhoriaModal
-        open={modalAberto}
-        versaoContexto={versionLabel}
-        onClose={() => setModalAberto(false)}
-      />
+      {showSugestoesCta ? (
+        <Card title="Minhas solicitações">
+          {minhas.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Ainda não enviou nenhum pedido. Use o botão acima para sugerir uma melhoria ou relatar um problema.
+            </p>
+          ) : (
+            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+              {minhas.slice(0, 8).map((item) => (
+                <li key={item.id}>
+                  <Link
+                    to={`/minhas-solicitacoes/${item.id}`}
+                    className="flex flex-wrap items-baseline justify-between gap-2 py-3 text-sm hover:text-cyan-700 dark:hover:text-cyan-400"
+                  >
+                    <span className="font-medium text-slate-800 dark:text-slate-100">{item.titulo}</span>
+                    <span className="text-xs text-slate-500">
+                      {item.status_rotulo} · {formatWhen(item.created_at)}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {minhas.length > 8 ? (
+            <p className="pt-2 text-sm">
+              <Link to="/minhas-solicitacoes" className="font-medium text-cyan-700 hover:underline dark:text-cyan-400">
+                Ver todas →
+              </Link>
+            </p>
+          ) : null}
+        </Card>
+      ) : null}
 
       {notes?.current ? (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">O que há de novo nesta versão</h2>
           <ReleaseBlock release={notes.current} />
         </section>
-      ) : null}
+      ) : (
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Ainda não há notas de versão publicadas nesta instância.
+        </p>
+      )}
 
       {pastReleases.length > 0 ? (
         <section className="space-y-3">
@@ -174,6 +230,6 @@ export function ReleaseNotesView({
           </div>
         </section>
       ) : null}
-    </div>
+    </PageContainer>
   )
 }

@@ -134,6 +134,9 @@ def _executar_scripts(row: ClienteSaaS) -> str:
             raise RuntimeError((r.stderr or r.stdout or "falha no provision-client.sh")[:2000])
 
     _escrever_modulos_no_client_env(root, row)
+    from app.services.saas_solicitacao_ingest import garantir_token_e_escrever_env
+
+    garantir_token_e_escrever_env(row)
 
     for step in ("migrate", "up", "seed", "health"):
         # stack-client.sh <comando> <slug>
@@ -158,6 +161,9 @@ def montar_comandos_ops(row: ClienteSaaS) -> str | None:
     port = row.api_port
     port_txt = str(port) if port is not None else "<api_port>"
     slug = row.slug
+    from app.services.saas_solicitacao_ingest import ingest_url_publica
+
+    ingest_url = ingest_url_publica()
     return (
         f"# Na raiz do repositório no host de deploy\n"
         f"./deploy/scripts/provision-client.sh --slug {slug} --base-domain {base} --api-port {port_txt}\n"
@@ -165,6 +171,10 @@ def montar_comandos_ops(row: ClienteSaaS) -> str | None:
         f"./deploy/scripts/stack-client.sh up {slug}\n"
         f"./deploy/scripts/stack-client.sh health {slug}\n"
         f"# Após provision, confirme SAAS_MODULOS no client.env (módulos do plano)\n"
+        f"# Fila de sugestões (#855) no client.env da instância:\n"
+        f"#   SAAS_INSTANCE_SLUG={slug}\n"
+        f"#   SAAS_CONTROL_PLANE_INGEST_URL={ingest_url}\n"
+        f"#   SAAS_INSTANCE_INGEST_TOKEN=<gerar no painel: POST /v1/saas/clientes/{row.id}/gerar-token-ingest>\n"
         f"# Se health OK, confirme no painel SaaS (ou: curl -sf http://127.0.0.1:{port_txt}/health)\n"
     )
 
@@ -204,6 +214,12 @@ def confirmar_provisionamento(
     from app.services.saas_notify import notificar_contacto_entrega
 
     notificar_contacto_entrega(db, row)
+    try:
+        from app.services.saas_solicitacao_ingest import garantir_token_e_escrever_env
+
+        garantir_token_e_escrever_env(row)
+    except Exception:
+        logger.exception("Não foi possível gravar token de ingest no client.env (slug=%s)", row.slug)
     return row
 
 
