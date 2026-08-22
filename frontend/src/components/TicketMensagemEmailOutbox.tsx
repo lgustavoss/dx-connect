@@ -163,7 +163,7 @@ export function TicketMensagemEmailOutbox({ ticketId, msg, podeGerir, onAtualiza
                 <Button type="button" variant="secondary" onClick={() => void iniciarEdicao()} disabled={busy}>
                   Editar
                 </Button>
-                <Button type="button" variant="secondary" onClick={() => void cancelarEnvio()} disabled={busy}>
+                <Button type="button" variant="cancel" onClick={() => void cancelarEnvio()} disabled={busy}>
                   Cancelar e-mail
                 </Button>
                 <Button type="button" onClick={() => void enviarAgora()} disabled={busy}>

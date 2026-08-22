@@ -264,7 +264,7 @@ export function Faturamento() {
               Confirmar rejeição
             </Button>
             <Button
-              variant="secondary"
+              variant="cancel"
               onClick={() => {
                 setRejeitarId(null)
                 setMotivo('')

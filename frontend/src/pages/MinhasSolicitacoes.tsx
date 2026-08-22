@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import { solicitacoesMelhoria, type SolicitacoesMelhoria } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
+import { VoltarButton } from '../components/ui/VoltarButton'
 import { TEXTAREA_FIELD_CLASS } from '../components/ui/Input'
 import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../contexts/AuthContext'
@@ -22,6 +23,7 @@ function fmt(dt: string): string {
 /** Lista + detalhe das solicitações do utilizador (#803). */
 export function MinhasSolicitacoesPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const toast = useToast()
   const { user } = useAuth()
   const [lista, setLista] = useState<SolicitacoesMelhoria.ListaItem[]>([])
@@ -95,9 +97,7 @@ export function MinhasSolicitacoesPage() {
           title={detalhe.titulo}
           subtitle={`${detalhe.tipo === 'problema' ? 'Problema' : 'Sugestão'} · ${detalhe.status_rotulo}`}
         />
-        <Link to="/minhas-solicitacoes" className="text-sm text-cyan-700 hover:underline dark:text-cyan-400">
-          ← Voltar à lista
-        </Link>
+        <VoltarButton onClick={() => navigate('/minhas-solicitacoes')} label="Voltar à lista" />
 
         <Card className="space-y-3 p-5">
           <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap">{detalhe.descricao}</p>

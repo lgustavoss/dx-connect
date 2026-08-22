@@ -9,6 +9,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- UI (#866): botão **Cancelar** padronizado em vermelho (`variant=cancel`, bordo forte), distinto de Excluir; ConfirmDialog e formulários/modais alinhados
+- UI (#867): controlo **Voltar** com estilo de botão (fundo/padding) em cadastros, detalhes, portal, WhatsApp e ecrãs de erro de carregamento
 - Ponto (#841): ao bater **saída** com pausa aberta, a pausa é encerrada automaticamente (origem sistema) e o dia fecha — sem exigir duas correções; toast na UI
 - Ponto (#842): calendário mensal em **Meu ponto** e **Ponto da equipe** (por atendente), com cores por meta de jornada (vermelho / verde / azul HE / laranja feriado); setting **jornada diária (minutos)** (padrão 480)
 - Ponto (UX): **Meu ponto** redesenhado — relógio ao vivo, botão principal contextual (entrada / retomar / saída), cards de métricas, períodos de hoje e calendário mais legível (inspirado no DX Ponto)

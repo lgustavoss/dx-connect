@@ -938,7 +938,7 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
                 required
               />
               <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
-                <Button type="button" variant="secondary" onClick={() => setSmModal(false)}>
+                <Button type="button" variant="cancel" onClick={() => setSmModal(false)}>
                   Cancelar
                 </Button>
                 <Button type="submit" loading={smSaving}>
@@ -1074,7 +1074,7 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
                 showStatusPill
               />
               <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
-                <Button type="button" variant="secondary" onClick={() => setItemModal(false)}>
+                <Button type="button" variant="cancel" onClick={() => setItemModal(false)}>
                   Cancelar
                 </Button>
                 <Button type="submit" loading={itemSaving}>

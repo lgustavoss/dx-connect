@@ -765,7 +765,7 @@ export function PontoEquipe() {
             {editLocalId != null ? (
               <Button
                 type="button"
-                variant="secondary"
+                variant="cancel"
                 onClick={() => {
                   setEditLocalId(null)
                   setLocalNome('')

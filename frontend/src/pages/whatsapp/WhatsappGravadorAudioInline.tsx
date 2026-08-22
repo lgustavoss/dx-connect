@@ -187,7 +187,7 @@ export function WhatsappGravadorAudioInline({ disabled, onConcluido, onCancelar 
         </span>
       </div>
       <div className="flex gap-2">
-        <Button variant="ghost" className="h-8 text-xs" onClick={cancelar}>
+        <Button variant="cancel" className="h-8 text-xs" onClick={cancelar}>
           Cancelar
         </Button>
         <Button variant="danger" className="h-8 text-xs" disabled={!gravando} onClick={parar}>

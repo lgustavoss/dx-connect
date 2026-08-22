@@ -41,6 +41,7 @@ import { ChatBottomSheet } from '../../components/ui/ChatBottomSheet'
 import { TEXTAREA_FIELD_CLASS } from '../../components/ui/Input'
 
 import { Button } from '../../components/ui/Button'
+import { VoltarButton } from '../../components/ui/VoltarButton'
 
 import { Select } from '../../components/ui/Select'
 import { SelectComPesquisa } from '../../components/ui/SelectComPesquisa'
@@ -1697,16 +1698,12 @@ useEffect(() => {
 
           <div className="flex items-center gap-2 px-3 py-2 sm:px-4">
 
-            <Button
-              type="button"
-              variant="ghost"
-              className="h-11 shrink-0 px-2 text-xs font-medium md:h-9"
+            <VoltarButton
               onClick={voltarLista}
+              label="Voltar"
               aria-label="Voltar à lista"
-            >
-              <span aria-hidden>←</span>
-              <span className="hidden sm:inline"> Voltar</span>
-            </Button>
+              className="h-11 shrink-0 px-2 text-xs font-medium md:h-9"
+            />
 
             <WhatsappAvatar
               nome={chat?.cliente_nome}
@@ -2396,7 +2393,7 @@ useEffect(() => {
               )}
               <div className="mt-2 flex justify-end gap-2">
                 <Button
-                  variant="ghost"
+                  variant="cancel"
                   className="h-8 text-xs"
                   onClick={() => {
                     setArquivoPendente(null)
@@ -2503,7 +2500,7 @@ useEffect(() => {
       </div>
 
       <div className="mt-6 flex justify-end gap-2">
-        <Button onClick={() => setModalTransferir(false)} variant="secondary">
+        <Button onClick={() => setModalTransferir(false)} variant="cancel">
           Cancelar
         </Button>
 
@@ -2550,7 +2547,7 @@ useEffect(() => {
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button
                 type="button"
-                variant="ghost"
+                variant="cancel"
                 disabled={salvandoEmpresaContexto}
                 onClick={() => {
                   setModalEmpresaContexto(false)

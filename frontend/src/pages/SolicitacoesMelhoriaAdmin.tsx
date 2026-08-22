@@ -5,6 +5,7 @@ import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
+import { VoltarButton } from '../components/ui/VoltarButton'
 import { Input, TEXTAREA_FIELD_CLASS } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
@@ -148,13 +149,7 @@ export function SolicitacoesMelhoriaAdminPage() {
     return (
       <PageContainer>
         <PageHeader title={`#${detalhe.id} · ${detalhe.titulo}`} subtitle="Triagem interna" />
-        <button
-          type="button"
-          className="text-sm text-cyan-700 hover:underline dark:text-cyan-400"
-          onClick={() => navigate('/solicitacoes-melhoria')}
-        >
-          ← Voltar à lista
-        </button>
+        <VoltarButton onClick={() => navigate('/solicitacoes-melhoria')} label="Voltar à lista" />
 
         <Card className="space-y-2 p-5 text-sm">
           <p>

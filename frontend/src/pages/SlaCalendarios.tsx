@@ -328,7 +328,7 @@ export function SlaCalendariosPage({ embedded = false }: { embedded?: boolean })
             <Button onClick={salvar} disabled={saving}>
               {saving ? 'Salvando…' : 'Salvar'}
             </Button>
-            <Button type="button" variant="ghost" onClick={cancelarForm}>
+            <Button type="button" variant="cancel" onClick={cancelarForm}>
               Cancelar
             </Button>
           </div>

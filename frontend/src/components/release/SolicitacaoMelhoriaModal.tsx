@@ -103,7 +103,7 @@ export function SolicitacaoMelhoriaModal({ open, versaoContexto, onClose, onCria
         </div>
 
         <div className="mt-5 flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose} disabled={enviando}>
+          <Button type="button" variant="cancel" onClick={onClose} disabled={enviando}>
             Cancelar
           </Button>
           <Button type="button" variant="primary" loading={enviando} onClick={() => void enviar()}>

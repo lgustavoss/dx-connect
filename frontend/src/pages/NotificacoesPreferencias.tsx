@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { notificacoes, type Notificacoes } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
+import { VoltarButton } from '../components/ui/VoltarButton'
 import { Switch } from '../components/ui/Switch'
 import { useToast } from '../components/ui/Toast'
 import { syncWebPushSubscription } from '../hooks/useWebPush'
@@ -11,6 +12,7 @@ import { setFilaAguardandoMuted } from '../hooks/useAlertaFilaSemResponsavel'
 
 export function NotificacoesPreferencias() {
   const toast = useToast()
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [prefs, setPrefs] = useState<Notificacoes.Preferencias>({
@@ -74,12 +76,7 @@ export function NotificacoesPreferencias() {
   return (
     <div className="mx-auto max-w-2xl space-y-6 pb-10">
       <div>
-        <Link
-          to="/"
-          className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
-        >
-          <span aria-hidden>←</span> Voltar
-        </Link>
+        <VoltarButton onClick={() => navigate('/')} />
         <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
           Notificações
         </h1>

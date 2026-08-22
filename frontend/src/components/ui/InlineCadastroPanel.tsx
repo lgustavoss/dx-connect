@@ -36,7 +36,7 @@ type FooterProps = {
 export function InlineCadastroFooter({ onCancel, saving, submitLabel = 'Salvar' }: FooterProps) {
   return (
     <div className="mt-6 flex flex-col-reverse gap-2 border-t border-slate-200 pt-4 dark:border-slate-800 sm:flex-row sm:justify-end">
-      <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={onCancel}>
+      <Button type="button" variant="cancel" className="w-full sm:w-auto" onClick={onCancel}>
         Cancelar
       </Button>
       <Button type="submit" loading={saving} className="w-full sm:w-auto">

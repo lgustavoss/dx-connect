@@ -14,6 +14,7 @@ import {
 import { coletarTodasPaginas } from '../api/collectPages'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { Button } from '../components/ui/Button'
+import { VoltarButton } from '../components/ui/VoltarButton'
 import { Card } from '../components/ui/Card'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 import { CollapsibleCard } from '../components/ui/CollapsibleCard'
@@ -396,9 +397,7 @@ export function CrmNegociacaoDetalhe() {
   return (
     <div className="mx-auto max-w-5xl space-y-4 pb-10">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Button variant="secondary" onClick={voltar}>
-          ← Voltar
-        </Button>
+        <VoltarButton onClick={voltar} />
         <Button variant="secondary" onClick={() => navigate('/crm/leads')}>
           Lista de leads
         </Button>
@@ -701,7 +700,7 @@ export function CrmNegociacaoDetalhe() {
                 )}
               </div>
               <div className="flex flex-wrap justify-end gap-2 pt-2">
-                <Button type="button" variant="secondary" onClick={() => setLinhaModal(null)} disabled={savingLinha}>
+                <Button type="button" variant="cancel" onClick={() => setLinhaModal(null)} disabled={savingLinha}>
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={savingLinha}>

@@ -376,7 +376,7 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
               />
             </div>
             <div className="mt-5 flex justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={fecharModal} disabled={saving}>
+              <Button type="button" variant="cancel" onClick={fecharModal} disabled={saving}>
                 Cancelar
               </Button>
               <Button type="button" onClick={() => void salvar()} loading={saving}>

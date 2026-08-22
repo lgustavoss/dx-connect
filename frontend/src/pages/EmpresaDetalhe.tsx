@@ -25,6 +25,7 @@ import { EmpresaPdvsPanel } from '../components/EmpresaPdvsPanel'
 import { EmpresaChatsPanel } from '../components/EmpresaChatsPanel'
 import { PainelAnalisesCliente } from '../components/dashboard/PainelAnalisesCliente'
 import { SemPermissao } from './SemPermissao'
+import { VoltarButton } from '../components/ui/VoltarButton'
 type Aba = 'geral' | 'tickets' | 'chats' | 'funcionarios' | 'pdvs' | 'analises'
 
 function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
@@ -278,13 +279,7 @@ export function EmpresaDetalhe() {
   return (
     <div className="mx-auto max-w-6xl space-y-8 pb-10">
       <div>
-        <button
-          type="button"
-          onClick={voltar}
-          className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
-        >
-          <span aria-hidden>←</span> Voltar
-        </button>
+        <VoltarButton onClick={voltar} />
       </div>
 
       <header className="space-y-3">
@@ -309,9 +304,6 @@ export function EmpresaDetalhe() {
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
-            <Button variant="secondary" onClick={voltar}>
-              Voltar
-            </Button>
             <Button onClick={abrirEdicao}>Editar</Button>
             <Button variant="danger" onClick={handleExcluir}>
               Excluir
