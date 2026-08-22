@@ -84,7 +84,6 @@ import { NotificacoesPreferencias } from './pages/NotificacoesPreferencias'
 import { Sobre } from './pages/Sobre'
 import { MinhasSolicitacoesPage } from './pages/MinhasSolicitacoes'
 import { SolicitacoesMelhoriaAdminPage } from './pages/SolicitacoesMelhoriaAdmin'
-import { PreTicketIaPage } from './pages/PreTicketIa'
 import { AcessoNegado } from './pages/AcessoNegado'
 import { SaasLicencas } from './pages/saas/SaasLicencas'
 import { SaasLicencaForm } from './pages/saas/SaasLicencaForm'
@@ -395,22 +394,6 @@ function AppRoutes() {
         <Route path="sobre" element={<Sobre />} />
         <Route path="minhas-solicitacoes" element={<MinhasSolicitacoesPage />} />
         <Route path="minhas-solicitacoes/:id" element={<MinhasSolicitacoesPage />} />
-        <Route
-          path="pre-ticket-ia"
-          element={
-            <AdminRoute>
-              <PreTicketIaPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="pre-ticket-ia/:id"
-          element={
-            <AdminRoute>
-              <PreTicketIaPage />
-            </AdminRoute>
-          }
-        />
         <Route
           path="solicitacoes-melhoria"
           element={
