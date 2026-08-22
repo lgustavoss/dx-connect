@@ -59,6 +59,7 @@ from app.api import (
     saas,
     saas_public,
     saas_leads,
+    saas_solicitacoes,
     web_push,
     solicitacoes_melhoria,
 )
@@ -264,6 +265,31 @@ async def lifespan(app: FastAPI):
         target=webhook_outbox_loop,
         daemon=True,
         name="webhook-outbox",
+    ).start()
+
+    def saas_triagem_pull_loop() -> None:
+        from app.database import SessionLocal
+        from app.services.saas_solicitacao_triagem import process_triagem_pull
+
+        if settings.SAAS_CONTROL_PLANE:
+            return
+        interval = max(15, settings.SAAS_TRIAGEM_PULL_INTERVAL_SECONDS)
+        while True:
+            db = SessionLocal()
+            try:
+                process_triagem_pull(db)
+                db.commit()
+            except Exception as e:
+                logger.warning("Worker triagem SaaS: %s", e)
+                db.rollback()
+            finally:
+                db.close()
+            time.sleep(interval)
+
+    threading.Thread(
+        target=saas_triagem_pull_loop,
+        daemon=True,
+        name="saas-triagem-pull",
     ).start()
 
     def web_push_outbox_loop() -> None:
@@ -616,6 +642,7 @@ app.include_router(portal.router, prefix=API_V1_PREFIX)
 app.include_router(saas.router, prefix=API_V1_PREFIX)
 app.include_router(saas_public.router, prefix=API_V1_PREFIX)
 app.include_router(saas_leads.router, prefix=API_V1_PREFIX)
+app.include_router(saas_solicitacoes.router, prefix=API_V1_PREFIX)
 app.include_router(solicitacoes_melhoria.router, prefix=API_V1_PREFIX)
 
 

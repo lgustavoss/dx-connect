@@ -82,6 +82,7 @@ import { ChatHubPlaceholder } from './pages/chat/ChatHubPlaceholder'
 import { AlterarSenha } from './pages/AlterarSenha'
 import { NotificacoesPreferencias } from './pages/NotificacoesPreferencias'
 import { Sobre } from './pages/Sobre'
+import { SolicitacaoMelhoriaNovaPage } from './pages/SolicitacaoMelhoriaNova'
 import { MinhasSolicitacoesPage } from './pages/MinhasSolicitacoes'
 import { SolicitacoesMelhoriaAdminPage } from './pages/SolicitacoesMelhoriaAdmin'
 import { AcessoNegado } from './pages/AcessoNegado'
@@ -93,6 +94,8 @@ import { SaasPlanoForm } from './pages/saas/SaasPlanoForm'
 import { SaasModulos } from './pages/saas/SaasModulos'
 import { SaasLeads } from './pages/saas/SaasLeads'
 import { SaasLeadDetalhe } from './pages/saas/SaasLeadDetalhe'
+import { SaasSolicitacoes } from './pages/saas/SaasSolicitacoes'
+import { SaasSolicitacaoDetalhe } from './pages/saas/SaasSolicitacaoDetalhe'
 import { SaasLayout } from './pages/saas/SaasLayout'
 import { SaasSobre } from './pages/saas/SaasSobre'
 import { KbPublicLayout } from './pages/kb-public/KbPublicLayout'
@@ -310,6 +313,8 @@ function AppRoutes() {
         <Route path="modulos" element={<SaasModulos />} />
         <Route path="leads/:id" element={<SaasLeadDetalhe />} />
         <Route path="leads" element={<SaasLeads />} />
+        <Route path="solicitacoes/:id" element={<SaasSolicitacaoDetalhe />} />
+        <Route path="solicitacoes" element={<SaasSolicitacoes />} />
         <Route path="sobre" element={<SaasSobre />} />
       </Route>
       <Route
@@ -392,6 +397,7 @@ function AppRoutes() {
         />
         <Route path="notificacoes/preferencias" element={<NotificacoesPreferencias />} />
         <Route path="sobre" element={<Sobre />} />
+        <Route path="sobre/nova-solicitacao" element={<SolicitacaoMelhoriaNovaPage />} />
         <Route path="minhas-solicitacoes" element={<MinhasSolicitacoesPage />} />
         <Route path="minhas-solicitacoes/:id" element={<MinhasSolicitacoesPage />} />
         <Route

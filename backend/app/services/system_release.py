@@ -79,7 +79,12 @@ def resolve_app_version() -> str | None:
     env = (os.environ.get("DX_CONNECT_VERSION") or "").strip().lstrip("v")
     if env:
         return env
-    return _read_version_file()
+    from_file = _read_version_file()
+    if from_file:
+        return from_file
+    # Docker local só monta `backend/` — o ficheiro VERSION da raiz não existe no contentor.
+    json_ver = str(_load_release_notes_raw().get("current_version") or "").strip().lstrip("v")
+    return json_ver or None
 
 
 @lru_cache(maxsize=1)
@@ -159,8 +164,8 @@ def release_notes_payload(
                 if rel.get("version") == version:
                     current = _filter_release_for_product(rel, product_key)
                     break
-        if current is None and releases:
-            current = releases[-1]
+    if current is None and releases:
+        current = releases[-1]
 
     return {
         "current_version": version,

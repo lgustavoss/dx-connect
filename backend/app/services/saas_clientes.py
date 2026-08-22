@@ -252,6 +252,7 @@ def serializar_cliente(row: ClienteSaaS) -> dict:
         "comandos_ops": montar_comandos_ops(row),
         "comandos_stack": montar_comandos_stack(row),
         "dias_para_renovacao": dias_para_renovacao(row.data_renovacao),
+        "ingest_token_configurado": bool((getattr(row, "ingest_token_hash", None) or "").strip()),
         "created_at": row.created_at,
         "updated_at": row.updated_at,
     }

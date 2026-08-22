@@ -97,7 +97,8 @@ function LayoutInner() {
     /^\/tickets\/\d+\/?$/.test(location.pathname) ||
     location.pathname === '/tickets/novo' ||
     ticketDetalheAberto ||
-    isChatHub
+    isChatHub ||
+    location.pathname === '/sobre/nova-solicitacao'
 
   return (
     <div

@@ -1,7 +1,8 @@
-from fastapi import Depends, HTTPException, Query, Request, status
+from fastapi import Depends, Header, HTTPException, Query, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session, subqueryload
 
+from app.config import settings
 from app.database import get_db
 from app.models.atendente import Atendente
 from app.core.setor_scope import atendente_e_financeiro
@@ -145,6 +146,46 @@ def exigir_saas_ops(atendente: Atendente = Depends(obter_atendente_atual)) -> At
             detail="Acesso restrito à equipa SaaS DeskRudder",
         )
     return atendente
+
+
+def _actor_mcp(db: Session) -> Atendente:
+    row = (
+        db.query(Atendente)
+        .filter(Atendente.role == "saas_ops", Atendente.ativo.is_(True))
+        .order_by(Atendente.id.asc())
+        .first()
+    )
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Nenhum utilizador saas_ops activo para o MCP",
+        )
+    return row
+
+
+def exigir_fila_saas(
+    request: Request,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    x_saas_mcp_token: str | None = Header(None, alias="X-Saas-Mcp-Token"),
+) -> Atendente:
+    """JWT saas_ops ou token longo SAAS_MCP_TOKEN (Cursor MCP)."""
+    import secrets
+
+    expected = (settings.SAAS_MCP_TOKEN or "").strip()
+    presented = (x_saas_mcp_token or "").strip()
+    if credentials and (credentials.scheme or "").lower() == "bearer":
+        bearer = (credentials.credentials or "").strip()
+    else:
+        bearer = ""
+    if expected and presented and secrets.compare_digest(presented, expected):
+        return _actor_mcp(db)
+    if expected and bearer and secrets.compare_digest(bearer, expected):
+        return _actor_mcp(db)
+    if not credentials:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Não autorizado")
+    atendente = _carregar_atendente_por_token(request, credentials.credentials, db)
+    return exigir_saas_ops(atendente)
 
 
 ROLES_ATENDENTE = frozenset({"admin", "atendente", "comercial"})

@@ -18,8 +18,21 @@ StatusSolicitacao = Literal[
 class SolicitacaoMelhoriaCreate(BaseModel):
     tipo: TipoSolicitacao
     titulo: str = Field(..., min_length=3, max_length=200)
-    descricao: str = Field(..., min_length=10, max_length=8000)
+    descricao: str = Field(..., min_length=10, max_length=20000)
     versao_contexto: str | None = Field(None, max_length=64)
+    anexo_ids: list[int] = Field(default_factory=list)
+
+
+class SolicitacaoAnexoRead(BaseModel):
+    id: int
+    papel: str
+    nome_original: str
+    content_type: str | None
+    tamanho_bytes: int
+    url: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
 
 
 class SolicitacaoMelhoriaStatusUpdate(BaseModel):
@@ -58,6 +71,7 @@ class SolicitacaoComentarioRead(BaseModel):
 
 class SolicitacaoMelhoriaRead(BaseModel):
     id: int
+    protocolo: str | None = None
     organizacao_id: int
     autor_atendente_id: int | None
     autor_nome: str | None
@@ -78,12 +92,14 @@ class SolicitacaoMelhoriaRead(BaseModel):
     github_last_error: str | None = None
     historico: list[SolicitacaoHistoricoRead] = []
     comentarios: list[SolicitacaoComentarioRead] = []
+    anexos: list[SolicitacaoAnexoRead] = []
 
     model_config = {"from_attributes": True}
 
 
 class SolicitacaoMelhoriaListaItem(BaseModel):
     id: int
+    protocolo: str | None = None
     tipo: str
     titulo: str
     status: str

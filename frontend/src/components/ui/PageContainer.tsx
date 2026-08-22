@@ -4,9 +4,11 @@ const MAX_WIDTH_CLASS = {
   '3xl': 'max-w-3xl',
   '5xl': 'max-w-5xl',
   '6xl': 'max-w-6xl',
+  '7xl': 'max-w-7xl',
 } as const
 
 const SPACING_CLASS = {
+  none: '',
   normal: 'space-y-6',
   relaxed: 'space-y-8',
 } as const
@@ -14,7 +16,7 @@ const SPACING_CLASS = {
 export type PageContainerMaxWidth = keyof typeof MAX_WIDTH_CLASS
 export type PageContainerSpacing = keyof typeof SPACING_CLASS
 
-export const PAGE_CONTAINER_CLASS = `mx-auto ${MAX_WIDTH_CLASS['6xl']} ${SPACING_CLASS.normal} pb-10`
+export const PAGE_CONTAINER_CLASS = `mx-auto w-full ${MAX_WIDTH_CLASS['6xl']} ${SPACING_CLASS.normal} pb-10`
 
 type PageContainerProps = {
   children: ReactNode
@@ -31,7 +33,9 @@ export function PageContainer({
   spacing = 'normal',
 }: PageContainerProps) {
   return (
-    <div className={`mx-auto ${MAX_WIDTH_CLASS[maxWidth]} ${SPACING_CLASS[spacing]} pb-10 ${className}`.trim()}>
+    <div
+      className={`mx-auto w-full ${MAX_WIDTH_CLASS[maxWidth]} ${SPACING_CLASS[spacing]} ${spacing === 'none' ? '' : 'pb-10'} ${className}`.trim()}
+    >
       {children}
     </div>
   )

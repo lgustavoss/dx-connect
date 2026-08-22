@@ -9,6 +9,7 @@ backend/data/
 frontend/node_modules
 frontend/dist
 frontend/dev-dist
+frontend/.env
 frontend/.env.production
 frontend/.env.production.local
 frontend/.playwright-browsers
@@ -27,3 +28,7 @@ Thumbs.db
 
 # Local Python venv (dev)
 backend/.venv/
+
+# MCP Cursor — token e URL local/produção (não commitar)
+.cursor/mcp.json
+

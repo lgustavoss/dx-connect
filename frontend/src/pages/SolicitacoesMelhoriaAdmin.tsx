@@ -4,21 +4,11 @@ import { solicitacoesMelhoria, type SolicitacoesMelhoria } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 import { Card } from '../components/ui/Card'
-import { Button } from '../components/ui/Button'
 import { VoltarButton } from '../components/ui/VoltarButton'
-import { Input, TEXTAREA_FIELD_CLASS } from '../components/ui/Input'
+import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
-
-const STATUS_OPTS = [
-  { value: '', label: 'Todos os status' },
-  { value: 'aberta', label: 'Recebida' },
-  { value: 'em_analise', label: 'Em análise' },
-  { value: 'planejada', label: 'Planejada' },
-  { value: 'em_desenvolvimento', label: 'Em desenvolvimento' },
-  { value: 'concluida', label: 'Concluída' },
-  { value: 'nao_sera_desenvolvida', label: 'Não será desenvolvida' },
-]
+import { SolicitacaoDescricao } from '../components/release/SolicitacaoDescricao'
 
 function fmt(dt: string): string {
   try {
@@ -28,7 +18,7 @@ function fmt(dt: string): string {
   }
 }
 
-/** Painel admin de triagem (#804) + GitHub (#805/#806). */
+/** Painel admin: acompanhamento local. A triagem de produto é no SaaS (#856). */
 export function SolicitacoesMelhoriaAdminPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -40,11 +30,6 @@ export function SolicitacoesMelhoriaAdminPage() {
   const [filtroOrg, setFiltroOrg] = useState('')
   const [desde, setDesde] = useState('')
   const [ate, setAte] = useState('')
-  const [novoStatus, setNovoStatus] = useState<SolicitacoesMelhoria.Status>('em_analise')
-  const [motivo, setMotivo] = useState('')
-  const [comentario, setComentario] = useState('')
-  const [publico, setPublico] = useState(true)
-  const [busy, setBusy] = useState(false)
 
   const carregarLista = useCallback(() => {
     return solicitacoesMelhoria
@@ -70,85 +55,17 @@ export function SolicitacoesMelhoriaAdminPage() {
     }
     void solicitacoesMelhoria
       .get(Number(id))
-      .then((d) => {
-        setDetalhe(d)
-        setNovoStatus(d.status as SolicitacoesMelhoria.Status)
-        setMotivo(d.motivo_nao_desenvolvimento || '')
-      })
+      .then(setDetalhe)
       .catch((err) => toast.showError(mensagemFalhaParaToast(err, 'Falha ao abrir')))
   }, [id, toast])
-
-  async function salvarStatus() {
-    if (!detalhe) return
-    setBusy(true)
-    try {
-      const atualizado = await solicitacoesMelhoria.alterarStatus(detalhe.id, {
-        status: novoStatus,
-        motivo_nao_desenvolvimento:
-          novoStatus === 'nao_sera_desenvolvida' ? motivo.trim() || null : undefined,
-      })
-      setDetalhe(atualizado)
-      toast.showSuccess('Status atualizado')
-      void carregarLista()
-    } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível alterar o status'))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function enviarComentario() {
-    if (!detalhe || !comentario.trim()) return
-    setBusy(true)
-    try {
-      const atualizado = await solicitacoesMelhoria.comentar(detalhe.id, {
-        corpo: comentario.trim(),
-        publico_cliente: publico,
-      })
-      setDetalhe(atualizado)
-      setComentario('')
-      toast.showSuccess(publico ? 'Resposta pública enviada' : 'Nota interna registada')
-    } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Falha ao comentar'))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function criarGithub() {
-    if (!detalhe) return
-    setBusy(true)
-    try {
-      const atualizado = await solicitacoesMelhoria.criarGithub(detalhe.id)
-      setDetalhe(atualizado)
-      toast.showSuccess('Issue criada no GitHub')
-    } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Falha ao criar issue (pode tentar de novo)'))
-      const refreshed = await solicitacoesMelhoria.get(detalhe.id).catch(() => null)
-      if (refreshed) setDetalhe(refreshed)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function syncGithub() {
-    if (!detalhe) return
-    setBusy(true)
-    try {
-      const atualizado = await solicitacoesMelhoria.syncGithub(detalhe.id)
-      setDetalhe(atualizado)
-      toast.showSuccess('Sincronização GitHub concluída (nota interna)')
-    } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Falha ao sincronizar'))
-    } finally {
-      setBusy(false)
-    }
-  }
 
   if (id && detalhe) {
     return (
       <PageContainer>
-        <PageHeader title={`#${detalhe.id} · ${detalhe.titulo}`} subtitle="Triagem interna" />
+        <PageHeader
+          title={`${detalhe.protocolo || `#${detalhe.id}`} · ${detalhe.titulo}`}
+          subtitle="Acompanhamento na instância. A triagem (status e respostas) é feita no painel SaaS DeskRudder."
+        />
         <VoltarButton onClick={() => navigate('/solicitacoes-melhoria')} label="Voltar à lista" />
 
         <Card className="space-y-2 p-5 text-sm">
@@ -159,66 +76,7 @@ export function SolicitacoesMelhoriaAdminPage() {
             <span className="text-slate-500">Tipo:</span> {detalhe.tipo} ·{' '}
             <span className="text-slate-500">Status:</span> {detalhe.status_rotulo}
           </p>
-          <p className="whitespace-pre-wrap text-slate-800 dark:text-slate-100">{detalhe.descricao}</p>
-          {detalhe.github_issue_url ? (
-            <p>
-              GitHub:{' '}
-              <a href={detalhe.github_issue_url} className="text-cyan-700 underline" target="_blank" rel="noreferrer">
-                #{detalhe.github_issue_number}
-              </a>
-            </p>
-          ) : null}
-          {detalhe.github_last_error ? (
-            <p className="text-rose-600 dark:text-rose-400">Último erro GitHub: {detalhe.github_last_error}</p>
-          ) : null}
-        </Card>
-
-        <Card className="space-y-3 p-5">
-          <h2 className="font-semibold">Alterar status</h2>
-          <Select
-            value={novoStatus}
-            onChange={(v) => setNovoStatus(String(v) as SolicitacoesMelhoria.Status)}
-            options={STATUS_OPTS.filter((o) => o.value !== '') as { value: string; label: string }[]}
-          />
-          {novoStatus === 'nao_sera_desenvolvida' ? (
-            <textarea
-              className={TEXTAREA_FIELD_CLASS}
-              rows={3}
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
-              placeholder="Motivo amigável para o cliente (obrigatório)"
-            />
-          ) : null}
-          <Button type="button" variant="primary" loading={busy} onClick={() => void salvarStatus()}>
-            Guardar status
-          </Button>
-        </Card>
-
-        <Card className="space-y-3 p-5">
-          <h2 className="font-semibold">Resposta / nota</h2>
-          <textarea
-            className={TEXTAREA_FIELD_CLASS}
-            rows={3}
-            value={comentario}
-            onChange={(e) => setComentario(e.target.value)}
-            placeholder="Mensagem…"
-          />
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={publico} onChange={(e) => setPublico(e.target.checked)} />
-            Visível para o cliente
-          </label>
-          <Button type="button" variant="primary" loading={busy} onClick={() => void enviarComentario()}>
-            Enviar
-          </Button>
-        </Card>
-
-        <Card className="flex flex-wrap gap-2 p-5">
-          <Button type="button" variant="ghost" loading={busy} onClick={() => void criarGithub()} disabled={!!detalhe.github_issue_number}>
-            Criar issue no GitHub
-          </Button>
-          <Button type="button" variant="ghost" loading={busy} onClick={() => void syncGithub()} disabled={!detalhe.github_issue_number}>
-            Sincronizar GitHub
-          </Button>
+          <SolicitacaoDescricao descricao={detalhe.descricao} anexos={detalhe.anexos} />
         </Card>
 
         <section className="space-y-2">
@@ -238,6 +96,7 @@ export function SolicitacoesMelhoriaAdminPage() {
               <p className="text-xs text-slate-500">
                 {c.publico_cliente ? 'Público' : 'Interno'} · {c.autor_nome || '—'} · {fmt(c.created_at)}
                 {c.origem === 'github' ? ' · GitHub' : ''}
+                {c.origem === 'saas' ? ' · DeskRudder' : ''}
               </p>
               <p className="mt-1 whitespace-pre-wrap">{c.corpo}</p>
             </Card>
@@ -249,7 +108,10 @@ export function SolicitacoesMelhoriaAdminPage() {
 
   return (
     <PageContainer>
-      <PageHeader title="Sugestões de clientes" subtitle="Triagem de pedidos vindos das notas de versão." />
+      <PageHeader
+        title="Sugestões de clientes"
+        subtitle="Acompanhamento local. Status e respostas de produto vêm do painel SaaS DeskRudder."
+      />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Select
           value={filtroStatus}
@@ -285,13 +147,12 @@ export function SolicitacoesMelhoriaAdminPage() {
             <Card className="p-4 hover:ring-1 hover:ring-cyan-400/40">
               <div className="flex flex-wrap justify-between gap-2">
                 <h3 className="font-semibold">
-                  #{item.id} {item.titulo}
+                  {item.protocolo || `#${item.id}`} {item.titulo}
                 </h3>
                 <span className="text-xs">{item.status_rotulo}</span>
               </div>
               <p className="text-xs text-slate-500">
                 {item.autor_nome} · org {item.organizacao_id} · {fmt(item.created_at)}
-                {item.github_issue_number ? ` · GH #${item.github_issue_number}` : ''}
               </p>
             </Card>
           </Link>
