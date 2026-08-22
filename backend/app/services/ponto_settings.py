@@ -10,13 +10,17 @@ from sqlalchemy.orm import Session
 from app.core.audit import registrar_audit
 from app.core.business_calendar import is_feriado_nacional_br
 from app.models.atendente import Atendente
-from app.models.ponto_settings import PontoFeriado, PontoSettings
+from app.models.ponto_settings import PontoFeriado, PontoLocal, PontoSettings
 from app.schemas.ponto import (
     PontoFeriadoCreate,
     PontoFeriadoRead,
+    PontoLocalCreate,
+    PontoLocalRead,
+    PontoSettingsPublicRead,
     PontoSettingsRead,
     PontoSettingsUpdate,
 )
+from app.services.ponto_geofence import POLITICAS_VALIDAS, locais_ativos
 
 
 def get_or_create_settings(db: Session, tenant_id: int) -> PontoSettings:
@@ -57,6 +61,14 @@ def settings_update(db: Session, admin: Atendente, data: PontoSettingsUpdate) ->
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="jornada_diaria_minutos deve estar entre 60 e 1440.",
             )
+    if "politica_geolocalizacao" in payload:
+        p = (payload["politica_geolocalizacao"] or "").strip().lower()
+        if p not in POLITICAS_VALIDAS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="politica_geolocalizacao deve ser opcional, recomendada ou obrigatoria.",
+            )
+        payload["politica_geolocalizacao"] = p
     for k, v in payload.items():
         setattr(row, k, v)
     registrar_audit(
@@ -70,6 +82,72 @@ def settings_update(db: Session, admin: Atendente, data: PontoSettingsUpdate) ->
     db.commit()
     db.refresh(row)
     return PontoSettingsRead.model_validate(row)
+
+
+def settings_public_read(db: Session, tenant_id: int) -> PontoSettingsPublicRead:
+    row = get_or_create_settings(db, tenant_id)
+    politica = (getattr(row, "politica_geolocalizacao", None) or "opcional").strip().lower()
+    if politica not in POLITICAS_VALIDAS:
+        politica = "opcional"
+    tem = len(locais_ativos(db, tenant_id)) > 0
+    return PontoSettingsPublicRead(politica_geolocalizacao=politica, tem_locais_ativos=tem)
+
+
+def listar_locais(db: Session, tenant_id: int) -> list[PontoLocalRead]:
+    rows = (
+        db.query(PontoLocal)
+        .filter(PontoLocal.tenant_id == tenant_id)
+        .order_by(PontoLocal.nome.asc(), PontoLocal.id.asc())
+        .all()
+    )
+    return [PontoLocalRead.model_validate(r) for r in rows]
+
+
+def criar_local(db: Session, admin: Atendente, data: PontoLocalCreate) -> PontoLocalRead:
+    nome = (data.nome or "").strip()
+    if not nome:
+        raise HTTPException(status_code=400, detail="Informe o nome do local.")
+    row = PontoLocal(
+        tenant_id=admin.tenant_id,
+        nome=nome[:255],
+        latitude=float(data.latitude),
+        longitude=float(data.longitude),
+        raio_metros=int(data.raio_metros or 200),
+        ativo=True if data.ativo is None else bool(data.ativo),
+    )
+    db.add(row)
+    db.flush()
+    registrar_audit(
+        db,
+        "ponto_local",
+        row.id,
+        "create",
+        admin.id,
+        payload={"nome": nome, "latitude": data.latitude, "longitude": data.longitude},
+    )
+    db.commit()
+    db.refresh(row)
+    return PontoLocalRead.model_validate(row)
+
+
+def remover_local(db: Session, admin: Atendente, local_id: int) -> None:
+    row = (
+        db.query(PontoLocal)
+        .filter(PontoLocal.id == local_id, PontoLocal.tenant_id == admin.tenant_id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Local não encontrado")
+    registrar_audit(
+        db,
+        "ponto_local",
+        row.id,
+        "delete",
+        admin.id,
+        payload={"nome": row.nome},
+    )
+    db.delete(row)
+    db.commit()
 
 
 def eh_feriado(db: Session, tenant_id: int, dia: date) -> bool:

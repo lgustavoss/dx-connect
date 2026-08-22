@@ -22,6 +22,9 @@ class PontoBatida(Base):
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
     accuracy_metros = Column(Float, nullable=True)
+    fora_area = Column(Boolean, nullable=False, default=False, server_default="false")
+    distancia_metros = Column(Float, nullable=True)
+    local_id = Column(Integer, ForeignKey("ponto_locais.id", ondelete="SET NULL"), nullable=True)
     anulada = Column(Boolean, nullable=False, default=False, server_default="false")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

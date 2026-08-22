@@ -772,6 +772,49 @@ export const ponto = {
     }
     return res.blob()
   },
+  exportPdf: async (params?: { atendente_id?: number; desde?: string; ate?: string }) => {
+    const token = getAuthToken()
+    const headers: Record<string, string> = {}
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+    }
+    if (token) headers.Authorization = `Bearer ${token}`
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}${withParams('/ponto/batidas/export.pdf', params)}`
+    const res = await fetch(url, { headers })
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin()
+      throw new ApiError('Sessão expirada ou inválida.', 401, {})
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+    }
+    return res.blob()
+  },
+  exportXlsx: async (params?: { atendente_id?: number; desde?: string; ate?: string }) => {
+    const token = getAuthToken()
+    const headers: Record<string, string> = {}
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+    }
+    if (token) headers.Authorization = `Bearer ${token}`
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}${withParams('/ponto/batidas/export.xlsx', params)}`
+    const res = await fetch(url, { headers })
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin()
+      throw new ApiError('Sessão expirada ou inválida.', 401, {})
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+    }
+    return res.blob()
+  },
+  meSettings: () => api<Ponto.SettingsPublic>('/ponto/me/settings'),
+  locais: () => api<Ponto.Local[]>('/ponto/locais'),
+  criarLocal: (data: Ponto.LocalCreate) =>
+    api<Ponto.Local>('/ponto/locais', { method: 'POST', body: JSON.stringify(data) }),
+  removerLocal: (id: number) => api<void>(`/ponto/locais/${id}`, { method: 'DELETE' }),
 };
 
 export namespace WhatsappSettings {
@@ -4652,6 +4695,7 @@ export namespace Presenca {
 export namespace Ponto {
   export type Tipo = 'entrada' | 'saida' | 'pausa_inicio' | 'pausa_fim'
   export type Origem = 'web' | 'mobile' | 'admin' | 'sistema'
+  export type PoliticaGeolocalizacao = 'opcional' | 'recomendada' | 'obrigatoria'
   export type StatusDia =
     | 'ok'
     | 'falta'
@@ -4677,6 +4721,9 @@ export namespace Ponto {
     latitude?: number | null
     longitude?: number | null
     accuracy_metros?: number | null
+    fora_area?: boolean
+    distancia_metros?: number | null
+    local_id?: number | null
     anulada?: boolean
   }
   export interface BatidaAdmin {
@@ -4689,6 +4736,9 @@ export namespace Ponto {
     latitude?: number | null
     longitude?: number | null
     accuracy_metros?: number | null
+    fora_area?: boolean
+    distancia_metros?: number | null
+    local_id?: number | null
     anulada?: boolean
   }
   export interface Intervalo {
@@ -4778,12 +4828,33 @@ export namespace Ponto {
     fecho_automatico_ativo: boolean
     fecho_apos_horas: number
     jornada_diaria_minutos: number
+    politica_geolocalizacao: PoliticaGeolocalizacao
+  }
+  export interface SettingsPublic {
+    politica_geolocalizacao: PoliticaGeolocalizacao
+    tem_locais_ativos: boolean
   }
   export interface SettingsUpdate {
     usar_feriados_nacionais?: boolean
     fecho_automatico_ativo?: boolean
     fecho_apos_horas?: number
     jornada_diaria_minutos?: number
+    politica_geolocalizacao?: PoliticaGeolocalizacao
+  }
+  export interface Local {
+    id: number
+    nome: string
+    latitude: number
+    longitude: number
+    raio_metros: number
+    ativo: boolean
+  }
+  export interface LocalCreate {
+    nome: string
+    latitude: number
+    longitude: number
+    raio_metros?: number
+    ativo?: boolean
   }
   export interface Feriado {
     id: number

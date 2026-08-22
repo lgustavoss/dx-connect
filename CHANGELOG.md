@@ -12,7 +12,10 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Ponto (#841): ao bater **saída** com pausa aberta, a pausa é encerrada automaticamente (origem sistema) e o dia fecha — sem exigir duas correções; toast na UI
 - Ponto (#842): calendário mensal em **Meu ponto** e **Ponto da equipe** (por atendente), com cores por meta de jornada (vermelho / verde / azul HE / laranja feriado); setting **jornada diária (minutos)** (padrão 480)
 - Ponto (UX): **Meu ponto** redesenhado — relógio ao vivo, botão principal contextual (entrada / retomar / saída), cards de métricas, períodos de hoje e calendário mais legível (inspirado no DX Ponto)
-- Ponto: batida pode incluir **geolocalização opcional** (lat/lon/precisão) — web e APK; se a permissão falhar, o ponto regista na mesma (geo obrigatória / geofence ficam para follow-up)
+- Ponto (#844): **geofence** — admin cadastra locais (lat/lon + raio), política de geo (opcional / recomendada / obrigatória); batidas fora da área ficam marcadas; link para mapa (OSM) no histórico admin
+- Ponto: batida com **geolocalização** (lat/lon/precisão) — web e APK via `@capacitor/geolocation`; política da instância controla obrigatoriedade
+- Ponto: **offline + sync** — batidas guardadas localmente quando sem rede e enviadas ao voltar online
+- Ponto: **Ponto da equipe** alinhado visualmente a Meu ponto (digest em cards); relatório **PDF** e **Excel** mensal no filtro do histórico
 - Faturamento (#326 / #363 / #364): faturas internas mensais para o financeiro conferir e **aprovar** (ou rejeitar com motivo). Geração automática no início do mês, ou avulsa na tela Faturamento; o botão do mês também reabre rejeitadas. Vencimento no **dia 10 do mês seguinte**. Na empresa, a flag **Emite NFS-e** (ligada por defeito) fica registada na fatura; boleto e nota fiscal só no lote seguinte, e só se a fatura estiver aprovada. O seed cria o setor **Financeiro** se ainda não existir.
 - Sugestões (#799 / #800–#807): a partir de **Sobre** (Release Notes), enviar sugestão ou problema; acompanhar em **Minhas solicitações**; admin faz triagem, responde (público/interno) e pode criar/sincronizar issue no GitHub (só interno)
 - WhatsApp (#837): **Exportar PDF** da conversa (header / menu ⋮) — relatório com protocolo, contacto e mensagens; mídia como rótulo; comentários internos excluídos; mesma permissão de ver o chat
