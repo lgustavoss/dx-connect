@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
+import pytest
+
 from app.models.atendente import Atendente
 from app.services.escala import eh_dia_de_trabalho, em_periodo_trabalho
 
@@ -158,9 +160,13 @@ def test_ponto_pausas_excluem_do_total(client, seed_base, auth_headers):
     me = client.get("/v1/ponto/me", headers=h).json()
     assert me["em_jornada"] is True
     assert me["em_pausa"] is True
-    assert client.post("/v1/ponto/bater", headers=h, json={"tipo": "saida"}).status_code == 400
-    assert client.post("/v1/ponto/bater", headers=h, json={"tipo": "pausa_fim"}).status_code == 200
-    assert client.post("/v1/ponto/bater", headers=h, json={"tipo": "saida"}).status_code == 200
+    # #841 — saída com pausa aberta fecha a pausa automaticamente
+    r_saida = client.post("/v1/ponto/bater", headers=h, json={"tipo": "saida"})
+    assert r_saida.status_code == 200
+    assert r_saida.json()["tipo"] == "saida"
+    me2 = client.get("/v1/ponto/me", headers=h).json()
+    assert me2["em_jornada"] is False
+    assert me2["em_pausa"] is False
 
     hist = client.get("/v1/ponto/me/batidas", headers=h).json()
     assert hist["total"] >= 1
@@ -168,6 +174,22 @@ def test_ponto_pausas_excluem_do_total(client, seed_base, auth_headers):
     assert it["aberto"] is False
     assert "segundos_pausa" in it
     assert hist["total_segundos_pausa"] >= 0
+    # Histórico inclui pausa_fim (sistema) implícito nos intervalos
+    tipos = []
+    # batidas raw via ajuste list — intervalos já fecharam
+    assert it["saida_em"] is not None
+    bats = client.get(
+        "/v1/ponto/batidas",
+        headers=auth_headers["admin"],
+        params={"atendente_id": seed_base["a1"].id, "limit": 50},
+    )
+    assert bats.status_code == 200
+    tipos = [b["tipo"] for b in bats.json()["items"]]
+    assert "pausa_inicio" in tipos
+    assert "pausa_fim" in tipos
+    assert "saida" in tipos
+    auto = next(b for b in bats.json()["items"] if b["tipo"] == "pausa_fim")
+    assert auto.get("origem") == "sistema"
 
 
 def test_ponto_ajuste_admin_e_403(client, seed_base, auth_headers):
@@ -337,6 +359,9 @@ def test_ponto_horario_atraso_e_feriado(client, seed_base, auth_headers):
     dia = next(d for d in cal.json()["dias"] if d["data"] == "2026-01-03")
     assert dia["atrasado"] is True
     assert dia["status"] == "atraso"
+    assert dia["classe_visual"] in ("abaixo", "ok", "he")
+    assert dia["segundos_trabalhados"] >= 0
+    assert cal.json().get("jornada_diaria_minutos", 480) >= 60
 
     fer = client.post(
         "/v1/ponto/feriados",
@@ -435,3 +460,31 @@ def test_ponto_banco_digest_settings_fecho(client, seed_base, auth_headers, db_s
     db_session.commit()
     me = client.get("/v1/ponto/me", headers=auth_headers["a1"])
     assert me.json()["em_jornada"] is False
+
+
+def test_ponto_bater_com_geolocalizacao(client, seed_base, auth_headers):
+    h = auth_headers["a1"]
+    r = client.post(
+        "/v1/ponto/bater",
+        headers=h,
+        json={
+            "tipo": "entrada",
+            "origem": "mobile",
+            "latitude": -23.55052,
+            "longitude": -46.633308,
+            "accuracy_metros": 12.5,
+        },
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["tipo"] == "entrada"
+    assert body["latitude"] == pytest.approx(-23.55052)
+    assert body["longitude"] == pytest.approx(-46.633308)
+    assert body["accuracy_metros"] == pytest.approx(12.5)
+
+    r_bad = client.post(
+        "/v1/ponto/bater",
+        headers=h,
+        json={"tipo": "saida", "latitude": -23.55},
+    )
+    assert r_bad.status_code == 400

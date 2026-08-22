@@ -13,6 +13,9 @@ TipoBatida = Literal["entrada", "saida", "pausa_inicio", "pausa_fim"]
 class PontoBaterRequest(BaseModel):
     tipo: TipoBatida
     origem: Literal["web", "mobile"] | None = "web"
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    accuracy_metros: float | None = Field(default=None, ge=0, le=100_000)
 
 
 class PontoBatidaRead(BaseModel):
@@ -21,6 +24,9 @@ class PontoBatidaRead(BaseModel):
     tipo: str
     registrado_em: datetime
     origem: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    accuracy_metros: float | None = None
     anulada: bool = False
 
     model_config = ConfigDict(from_attributes=True)
@@ -59,6 +65,9 @@ class PontoBatidaAdminItem(BaseModel):
     tipo: str
     registrado_em: datetime
     origem: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    accuracy_metros: float | None = None
     anulada: bool = False
 
 
@@ -82,6 +91,10 @@ class PontoCalendarioDia(BaseModel):
     status: StatusDiaPonto
     atrasado: bool = False
     feriado: bool = False
+    # #842 — meta de jornada × realizado (cores do calendário)
+    segundos_trabalhados: int = 0
+    segundos_esperados: int = 0
+    classe_visual: Literal["abaixo", "ok", "he", "feriado", "neutro"] = "neutro"
 
 
 class PontoCalendarioRead(BaseModel):
@@ -90,6 +103,7 @@ class PontoCalendarioRead(BaseModel):
     mes: int
     usa_escala: bool
     escala_rotulo: str | None = None
+    jornada_diaria_minutos: int = 480
     dias: list[PontoCalendarioDia]
 
 
@@ -138,6 +152,7 @@ class PontoSettingsRead(BaseModel):
     usar_feriados_nacionais: bool = True
     fecho_automatico_ativo: bool = False
     fecho_apos_horas: int = 14
+    jornada_diaria_minutos: int = 480
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -146,6 +161,7 @@ class PontoSettingsUpdate(BaseModel):
     usar_feriados_nacionais: bool | None = None
     fecho_automatico_ativo: bool | None = None
     fecho_apos_horas: int | None = Field(default=None, ge=4, le=48)
+    jornada_diaria_minutos: int | None = Field(default=None, ge=60, le=1440)
 
 
 class PontoFeriadoCreate(BaseModel):

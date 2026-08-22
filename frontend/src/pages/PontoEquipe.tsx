@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ApiError, atendentes, ponto, type Atendentes, type Ponto } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
+import { PontoCalendarioMes } from '../components/PontoCalendarioMes'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
@@ -94,6 +95,12 @@ export function PontoEquipe() {
   const [feriadoData, setFeriadoData] = useState('')
   const [feriadoNome, setFeriadoNome] = useState('')
   const [salvandoSettings, setSalvandoSettings] = useState(false)
+  const agoraCal = new Date()
+  const [calAno, setCalAno] = useState(agoraCal.getFullYear())
+  const [calMes, setCalMes] = useState(agoraCal.getMonth() + 1)
+  const [calendario, setCalendario] = useState<Ponto.Calendario | null>(null)
+  const [diaCal, setDiaCal] = useState<string | null>(null)
+  const [loadingCal, setLoadingCal] = useState(false)
 
   const carregar = useCallback(
     async (silencioso = false) => {
@@ -149,6 +156,31 @@ export function PontoEquipe() {
   useEffect(() => {
     void carregar()
   }, [carregar])
+
+  useEffect(() => {
+    if (!atendenteId) {
+      setCalendario(null)
+      return
+    }
+    let cancel = false
+    setLoadingCal(true)
+    void ponto
+      .calendarioAdmin(Number(atendenteId), calAno, calMes)
+      .then((cal) => {
+        if (!cancel) setCalendario(cal)
+      })
+      .catch((err) => {
+        if (!cancel) {
+          toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar o calendário.'))
+        }
+      })
+      .finally(() => {
+        if (!cancel) setLoadingCal(false)
+      })
+    return () => {
+      cancel = true
+    }
+  }, [atendenteId, calAno, calMes, toast])
 
   async function exportarCsv() {
     try {
@@ -224,6 +256,7 @@ export function PontoEquipe() {
         usar_feriados_nacionais: settings.usar_feriados_nacionais,
         fecho_automatico_ativo: settings.fecho_automatico_ativo,
         fecho_apos_horas: settings.fecho_apos_horas,
+        jornada_diaria_minutos: settings.jornada_diaria_minutos,
       })
       setSettings(st)
       toast.showSuccess('Configurações de ponto salvas.')
@@ -478,7 +511,19 @@ export function PontoEquipe() {
                       <td className="py-2 pr-3">{b.atendente_nome}</td>
                       <td className="py-2 pr-3">{b.tipo.replace('_', ' ')}</td>
                       <td className="py-2 pr-3">{formatarHora(b.registrado_em)}</td>
-                      <td className="py-2 pr-3">{b.origem ?? '—'}</td>
+                      <td className="py-2 pr-3">
+                        {b.origem ?? '—'}
+                        {b.latitude != null && b.longitude != null ? (
+                          <span
+                            className="ml-1 text-xs text-cyan-700 dark:text-cyan-300"
+                            title={`${b.latitude.toFixed(5)}, ${b.longitude.toFixed(5)}${
+                              b.accuracy_metros != null ? ` (±${Math.round(b.accuracy_metros)} m)` : ''
+                            }`}
+                          >
+                            · GPS
+                          </span>
+                        ) : null}
+                      </td>
                       <td className="py-2">
                         <Button type="button" variant="ghost" onClick={() => void anularBatida(b.id)}>
                           Anular
@@ -491,6 +536,33 @@ export function PontoEquipe() {
             </table>
           </div>
         </Card>
+
+        {atendenteId ? (
+          <Card title="Calendário do atendente">
+            <PontoCalendarioMes
+              calendario={calendario}
+              loading={loadingCal}
+              diaSelecionado={diaCal}
+              onSelecionarDia={(iso) => {
+                setDiaCal(iso)
+                setDesde(iso)
+                setAte(iso)
+              }}
+              onMesAnterior={() => {
+                if (calMes <= 1) {
+                  setCalMes(12)
+                  setCalAno((y) => y - 1)
+                } else setCalMes((m) => m - 1)
+              }}
+              onMesSeguinte={() => {
+                if (calMes >= 12) {
+                  setCalMes(1)
+                  setCalAno((y) => y + 1)
+                } else setCalMes((m) => m + 1)
+              }}
+            />
+          </Card>
+        ) : null}
 
         <Card title="Configurações do ponto">
           {settings ? (
@@ -523,6 +595,19 @@ export function PontoEquipe() {
                 value={String(settings.fecho_apos_horas)}
                 onChange={(e) =>
                   setSettings({ ...settings, fecho_apos_horas: Number(e.target.value) || 14 })
+                }
+              />
+              <Input
+                label="Jornada diária (minutos) — meta do calendário"
+                type="number"
+                min={60}
+                max={1440}
+                value={String(settings.jornada_diaria_minutos ?? 480)}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    jornada_diaria_minutos: Number(e.target.value) || 480,
+                  })
                 }
               />
               <Button type="button" disabled={salvandoSettings} onClick={() => void salvarSettings()}>

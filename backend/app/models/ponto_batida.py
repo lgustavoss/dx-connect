@@ -1,6 +1,6 @@
 """Batidas de ponto (entrada/saída) — épico #761."""
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -18,6 +18,10 @@ class PontoBatida(Base):
     origem = Column(String(20), nullable=True)  # web | mobile | admin
     ip = Column(String(64), nullable=True)
     user_agent = Column(String(512), nullable=True)
+    # Geolocalização opcional (não obrigatória — épico #761)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    accuracy_metros = Column(Float, nullable=True)
     anulada = Column(Boolean, nullable=False, default=False, server_default="false")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

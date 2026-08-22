@@ -4664,6 +4664,9 @@ export namespace Ponto {
   export interface Bater {
     tipo: Tipo
     origem?: Origem
+    latitude?: number | null
+    longitude?: number | null
+    accuracy_metros?: number | null
   }
   export interface Batida {
     id: number
@@ -4671,6 +4674,9 @@ export namespace Ponto {
     tipo: Tipo | string
     registrado_em: string
     origem: string | null
+    latitude?: number | null
+    longitude?: number | null
+    accuracy_metros?: number | null
     anulada?: boolean
   }
   export interface BatidaAdmin {
@@ -4680,6 +4686,9 @@ export namespace Ponto {
     tipo: string
     registrado_em: string
     origem: string | null
+    latitude?: number | null
+    longitude?: number | null
+    accuracy_metros?: number | null
     anulada?: boolean
   }
   export interface Intervalo {
@@ -4713,13 +4722,18 @@ export namespace Ponto {
     status: StatusDia
     atrasado?: boolean
     feriado?: boolean
+    segundos_trabalhados?: number
+    segundos_esperados?: number
+    classe_visual?: ClasseVisualDia
   }
+  export type ClasseVisualDia = 'abaixo' | 'ok' | 'he' | 'feriado' | 'neutro'
   export interface Calendario {
     atendente_id: number
     ano: number
     mes: number
     usa_escala: boolean
     escala_rotulo: string | null
+    jornada_diaria_minutos?: number
     dias: DiaCalendario[]
   }
   export interface HojeItem {
@@ -4763,11 +4777,13 @@ export namespace Ponto {
     usar_feriados_nacionais: boolean
     fecho_automatico_ativo: boolean
     fecho_apos_horas: number
+    jornada_diaria_minutos: number
   }
   export interface SettingsUpdate {
     usar_feriados_nacionais?: boolean
     fecho_automatico_ativo?: boolean
     fecho_apos_horas?: number
+    jornada_diaria_minutos?: number
   }
   export interface Feriado {
     id: number

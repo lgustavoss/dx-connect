@@ -14,6 +14,8 @@ class PontoSettings(Base):
     usar_feriados_nacionais = Column(Boolean, nullable=False, default=True, server_default="true")
     fecho_automatico_ativo = Column(Boolean, nullable=False, default=False, server_default="false")
     fecho_apos_horas = Column(Integer, nullable=False, default=14, server_default="14")
+    # Meta de horas do dia para cores do calendário (#842); default 8h.
+    jornada_diaria_minutos = Column(Integer, nullable=False, default=480, server_default="480")
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
