@@ -240,7 +240,7 @@ export function FuncionarioRedeForm() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-6">
+      <div className="mx-auto w-full min-w-0 max-w-3xl space-y-6">
         <div className="h-9 w-56 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
         <div className="h-72 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/50" />
       </div>
@@ -249,7 +249,7 @@ export function FuncionarioRedeForm() {
 
   if (forbidden) {
     return (
-      <div className="mx-auto max-w-5xl space-y-6 pb-10">
+      <div className="mx-auto w-full min-w-0 max-w-5xl space-y-6 pb-10">
         <SemPermissao
           title="Você não tem permissão para editar este funcionário."
           detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
@@ -263,7 +263,7 @@ export function FuncionarioRedeForm() {
   if (funcionarioInexistente) {
     return (
       <CarregamentoFalhou
-        className="mx-auto max-w-5xl space-y-4 pb-10"
+        className="mx-auto w-full min-w-0 max-w-5xl space-y-4 pb-10"
         titulo="Funcionário não encontrado."
         detalhe={funcionarioInexistente.detalhe}
         onVoltar={voltarAnterior}
@@ -272,7 +272,7 @@ export function FuncionarioRedeForm() {
   }
 
   return (
-    <div ref={topoRef} className="mx-auto max-w-5xl space-y-6 pb-10">
+    <div ref={topoRef} className="mx-auto w-full min-w-0 max-w-5xl space-y-6 pb-10">
       <div className="flex items-center justify-between gap-3">
         <VoltarButton onClick={voltarAnterior} />
       </div>

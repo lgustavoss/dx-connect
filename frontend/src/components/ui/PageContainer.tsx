@@ -16,7 +16,12 @@ const SPACING_CLASS = {
 export type PageContainerMaxWidth = keyof typeof MAX_WIDTH_CLASS
 export type PageContainerSpacing = keyof typeof SPACING_CLASS
 
-export const PAGE_CONTAINER_CLASS = `mx-auto w-full ${MAX_WIDTH_CLASS['6xl']} ${SPACING_CLASS.normal} pb-10`
+export const PAGE_CONTAINER_CLASS = `mx-auto w-full min-w-0 ${MAX_WIDTH_CLASS['6xl']} ${SPACING_CLASS.normal} pb-10`
+
+/** Largura útil em wrappers legados (forms/detalhes fora do PageContainer). */
+export function contentWidthClass(maxWidth: PageContainerMaxWidth = '6xl') {
+  return `mx-auto w-full min-w-0 ${MAX_WIDTH_CLASS[maxWidth]}`
+}
 
 type PageContainerProps = {
   children: ReactNode
@@ -34,7 +39,7 @@ export function PageContainer({
 }: PageContainerProps) {
   return (
     <div
-      className={`mx-auto w-full ${MAX_WIDTH_CLASS[maxWidth]} ${SPACING_CLASS[spacing]} ${spacing === 'none' ? '' : 'pb-10'} ${className}`.trim()}
+      className={`mx-auto w-full min-w-0 ${MAX_WIDTH_CLASS[maxWidth]} ${SPACING_CLASS[spacing]} ${spacing === 'none' ? '' : 'pb-10'} ${className}`.trim()}
     >
       {children}
     </div>

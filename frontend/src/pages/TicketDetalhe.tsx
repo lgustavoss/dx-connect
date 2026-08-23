@@ -1260,7 +1260,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
 
   if (forbidden) {
     return (
-      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+      <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6 pb-10">
         <SemPermissao
           title="Você não tem permissão para acessar este ticket."
           detail="Este chamado pertence a um setor fora do seu escopo. Se precisar, peça ao administrador para ajustar seus vínculos de setor."
@@ -1383,7 +1383,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
     <>
       <div className="-m-4 flex h-full min-h-0 flex-col overflow-hidden md:-m-6">
         <div className="relative z-20 shrink-0 border-b border-slate-200/70 bg-white shadow-sm dark:border-slate-800/70 dark:bg-slate-950 sm:rounded-b-2xl sm:border sm:border-t-0">
-          <div className="mx-auto max-w-6xl px-3 py-2.5 sm:px-5 sm:py-4 lg:py-5">
+          <div className="mx-auto w-full min-w-0 max-w-6xl px-3 py-2.5 sm:px-5 sm:py-4 lg:py-5">
             {linkVoltar}
 
             <div className="flex items-start justify-between gap-3 lg:items-center">
@@ -1648,7 +1648,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
         </div>
 
         <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
-          <div className="mx-auto max-w-6xl space-y-4 px-3 pb-8 pt-3 sm:space-y-6 sm:px-5 sm:pb-10 sm:pt-4 md:px-6">
+          <div className="mx-auto w-full min-w-0 max-w-6xl space-y-4 px-3 pb-8 pt-3 sm:space-y-6 sm:px-5 sm:pb-10 sm:pt-4 md:px-6">
         {!ticket.fechado_em ? <TicketSlaCard ticketId={ticket.id} fechado={false} /> : null}
         <TicketImplantacaoChecklist
           ticketId={ticket.id}

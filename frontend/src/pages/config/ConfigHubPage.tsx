@@ -36,7 +36,7 @@ export function ConfigHubPage() {
         subtitle="Encontre qualquer ajuste por domínio — ou pesquise por palavra."
       />
 
-      <div className="relative max-w-xl">
+      <div className="relative w-full min-w-0 max-w-xl">
         <Input
           value={q}
           onChange={(e) => setQ(e.target.value)}

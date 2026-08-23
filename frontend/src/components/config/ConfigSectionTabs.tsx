@@ -18,8 +18,8 @@ type Props = {
 
 export function ConfigSectionTabs({ tabs, ariaLabel }: Props) {
   return (
-    <div className="border-b border-slate-200 dark:border-slate-800">
-      <nav className="-mb-px flex flex-wrap gap-1" aria-label={ariaLabel}>
+    <div className="w-full min-w-0 border-b border-slate-200 dark:border-slate-800">
+      <nav className="-mb-px flex w-full min-w-0 flex-wrap gap-1" aria-label={ariaLabel}>
         {tabs.map((tab) => (
           <NavLink key={tab.to} to={tab.to} end={tab.end} className={tabClass}>
             {tab.label}

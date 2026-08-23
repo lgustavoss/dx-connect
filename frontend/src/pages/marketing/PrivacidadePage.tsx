@@ -10,7 +10,7 @@ export function PrivacidadePage() {
   const navigate = useNavigate()
   return (
     <MarketingLayout>
-      <div className="mx-auto max-w-3xl px-5 py-12 sm:px-8 lg:px-10">
+      <div className="mx-auto w-full min-w-0 max-w-3xl px-5 py-12 sm:px-8 lg:px-10">
         <VoltarButton onClick={() => navigate('/')} />
         <div className="mt-8">
           <BrandLogo variant="wordmark" size="md" markVariant="onDark" />
