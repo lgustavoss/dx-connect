@@ -1,166 +1,36 @@
 {
-  "current_version": "26.08.011",
-  "current_version_display": "v26.08.011",
+  "current_version": "26.08.012",
+  "current_version_display": "v26.08.012",
   "current": {
-    "version": "26.08.011",
-    "version_display": "v26.08.011",
-    "date": "2026-08-22",
+    "version": "26.08.012",
+    "version_display": "v26.08.012",
+    "date": "2026-08-24",
     "status": "published",
     "changes": [
       {
         "product": "saas",
         "category": "melhorias",
-        "text": "Fila de sugestões no Cursor (MCP): o ops liga-se à API comercial (`api.deskrudder.com.br`); o token fica só na VPS e no Cursor de cada pessoa, não no git"
+        "text": "Fila de sugestões no Cursor: cada ops gera o **próprio token** em Conta / Cursor (`/saas/conta`) e cola no Cursor. Recusar ou comentar fica ligado a essa conta, não a um segredo partilhado da VPS"
+      },
+      {
+        "product": "saas",
+        "category": "melhorias",
+        "text": "Painel SaaS: cadastro da **equipa** (`/saas/usuarios`) — contas do `/login/admin`. Senha temporária uma vez; cada pessoa gera o token Cursor na própria conta"
+      },
+      {
+        "product": "saas",
+        "category": "melhorias",
+        "text": "Login ops: no primeiro acesso (trocar senha) o painel SaaS já não mostra «não disponível nesta instância»; redirecciona para definir senha nova"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "UI (#866): botão **Cancelar** padronizado em vermelho (`variant=cancel`, bordo forte), distinto de Excluir; ConfirmDialog e formulários/modais alinhados"
+        "text": "UI (#870): responsividade — coluna principal do painel ocupa sempre a largura disponível (grid + `w-full`/`min-w-0` no Layout); contentores internos alinhados; abas e header legíveis em qualquer largura"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "UI (#867): controlo **Voltar** com estilo de botão (fundo/padding) em cadastros, detalhes, portal, WhatsApp e ecrãs de erro de carregamento"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Sugestões: cada pedido ganha um **protocolo único** (`#S202608-0001`) no painel DeskRudder, visível depois em Minhas solicitações, para amarrar a issue no GitHub"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Sugestões: no painel SaaS dá para **ligar pedidos iguais** de vários clientes (peso da demanda). O cliente não vê este grupo; na issue GitHub entram todos os protocolos"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Sugestões (#855): pedidos abertos nas Release Notes continuam na instância (**Minhas solicitações**); a cópia para o produto DeskRudder vai para o painel SaaS, não para o GitHub na instância"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Sugestões (#856): o **status e as respostas de produto** passam a ser definidos no painel SaaS DeskRudder; na instância o admin só acompanha. O cliente vê o andamento e os comentários públicos em **Minhas solicitações** (notas internas não saem do SaaS)"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Sobre / Release Notes: o rodapé da barra leva sempre a esta tela (em local a versão vem das notas publicadas, mesmo sem o ficheiro `VERSION` no Docker). **Minhas solicitações** fica nesta página, não no menu Ajuda."
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Ponto (#841): ao bater **saída** com pausa aberta, a pausa é encerrada automaticamente (origem sistema) e o dia fecha — sem exigir duas correções; toast na UI"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Ponto (#842): calendário mensal em **Meu ponto** e **Ponto da equipe** (por atendente), com cores por meta de jornada (vermelho / verde / azul HE / laranja feriado); setting **jornada diária (minutos)** (padrão 480)"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Ponto (UX): **Meu ponto** redesenhado — relógio ao vivo, botão principal contextual (entrada / retomar / saída), cards de métricas, períodos de hoje e calendário mais legível (inspirado no DX Ponto)"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Ponto (#844): **geofence** — admin cadastra locais (lat/lon + raio), política de geo (opcional / recomendada / obrigatória); batidas fora da área ficam marcadas; link para mapa (OSM) no histórico admin"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Ponto: batida com **geolocalização** (lat/lon/precisão) — web e APK via `@capacitor/geolocation`; política da instância controla obrigatoriedade"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Ponto: **offline + sync** — batidas guardadas localmente quando sem rede e enviadas ao voltar online"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Ponto: **Ponto da equipe** alinhado visualmente a Meu ponto (digest em cards); relatório **PDF** e **Excel** mensal no filtro do histórico"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Ponto (#846–#851): CSV admin com colunas geo; mapa embutido (OSM) no admin; editar/desactivar locais; histórico Meu ponto com GPS/fora da área; estado optimista offline; checklist APK geo ampliado"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Faturamento (#326 / #363 / #364): faturas internas mensais para o financeiro conferir e **aprovar** (ou rejeitar com motivo). Geração automática no início do mês, ou avulsa na tela Faturamento; o botão do mês também reabre rejeitadas. Vencimento no **dia 10 do mês seguinte**. Na empresa, a flag **Emite NFS-e** (ligada por defeito) fica registada na fatura; boleto e nota fiscal só no lote seguinte, e só se a fatura estiver aprovada. O seed cria o setor **Financeiro** se ainda não existir."
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Sugestões (#799 / #800–#807): a partir de **Sobre** (Release Notes), enviar sugestão ou problema; acompanhar em **Minhas solicitações**; admin faz triagem e responde (público/interno) na instância"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "WhatsApp (#837): **Exportar PDF** da conversa (header / menu ⋮) — relatório com protocolo, contacto e mensagens; mídia como rótulo; comentários internos excluídos; mesma permissão de ver o chat"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Configurações (#833): hub com **pesquisa** e cartões por domínio; menu reorganizado (Equipa e tickets, Canais, Comercial/CRM, Empresa e catálogos, Administração); URLs antigas redireccionam"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "WhatsApp (#831): clicar no **número** do contacto (lista Em atendimento, Aguardando, histórico e header) copia automaticamente, com «Copiado!» discreto"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Alertas (#823): com a app/aba em **segundo plano**, a fila continua a chamar via notificação do sistema (re-alerta periódico + vibração no push); silenciar na mesa alinha com «Avisar fila» nas preferências"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "WhatsApp (#827): mensagens **encaminhadas** pelo cliente mostram o rótulo «Encaminhada» (ou «Encaminhada muitas vezes») no balão do chat, como no WhatsApp"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Implantação (#325 / #358–#361): ao marcar o contrato como assinado, abre um ticket no setor configurado (Implantação ou Suporte) com checklist (documentos, WebPosto, PDVs, treino). O modelo é editável em Cadastros; o ticket só fecha com os itens obrigatórios feitos; o admin tem atalho para cadastrar PDVs da empresa"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Empresas (#824): na listagem, o **nome** fica em cima e o **CNPJ/CPF** em baixo no telemóvel (menos truncagem); botão para **copiar** o documento (só dígitos) com toast"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Atendimentos (#825): no telemóvel, Estado/datas/Atendente ficam num acordeão **Filtros** (recolhido por defeito) para a lista aparecer logo; a busca continua visível; badge indica filtros activos"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Mobile: o APK passa a usar o **mesmo painel** do browser no telemóvel (menu e rotas completos conforme RBAC); mantém Conta/slug, HTTP nativo e push"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Mobile: ícone do APK Android alinhado ao da PWA/computador (mark DeskRudder no fundo Deck)"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Mobile: no APK, **Meu ponto** (`/ponto`) abre de facto — deixava de cair na mesa de chat por falta de rota nativa"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Menu: grupo **Atendimentos** no menu lateral com **Chat**, **Tickets** e **Histórico** (toda a operação de atendimento junta)"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Menu (#793): **Ponto** (Meu ponto / Equipe online / Ponto da equipe) e **Chat** (Chat / Atendimentos) passam a ser grupos expansíveis no menu lateral, no mesmo padrão de Configurações"
+        "text": "UI (#866): botão **Cancelar** com gradiente vermelho preenchido (mesmo molde do Salvar), distinto de Excluir; ConfirmDialog, portal e formulários alinhados"
       }
     ]
   },
@@ -3343,6 +3213,39 @@
           "product": "deskrudder",
           "category": "melhorias",
           "text": "Menu (#793): **Ponto** (Meu ponto / Equipe online / Ponto da equipe) e **Chat** (Chat / Atendimentos) passam a ser grupos expansíveis no menu lateral, no mesmo padrão de Configurações"
+        }
+      ]
+    },
+    {
+      "version": "26.08.012",
+      "version_display": "v26.08.012",
+      "date": "2026-08-24",
+      "status": "published",
+      "changes": [
+        {
+          "product": "saas",
+          "category": "melhorias",
+          "text": "Fila de sugestões no Cursor: cada ops gera o **próprio token** em Conta / Cursor (`/saas/conta`) e cola no Cursor. Recusar ou comentar fica ligado a essa conta, não a um segredo partilhado da VPS"
+        },
+        {
+          "product": "saas",
+          "category": "melhorias",
+          "text": "Painel SaaS: cadastro da **equipa** (`/saas/usuarios`) — contas do `/login/admin`. Senha temporária uma vez; cada pessoa gera o token Cursor na própria conta"
+        },
+        {
+          "product": "saas",
+          "category": "melhorias",
+          "text": "Login ops: no primeiro acesso (trocar senha) o painel SaaS já não mostra «não disponível nesta instância»; redirecciona para definir senha nova"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "UI (#870): responsividade — coluna principal do painel ocupa sempre a largura disponível (grid + `w-full`/`min-w-0` no Layout); contentores internos alinhados; abas e header legíveis em qualquer largura"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "UI (#866): botão **Cancelar** com gradiente vermelho preenchido (mesmo molde do Salvar), distinto de Excluir; ConfirmDialog, portal e formulários alinhados"
         }
       ]
     }
