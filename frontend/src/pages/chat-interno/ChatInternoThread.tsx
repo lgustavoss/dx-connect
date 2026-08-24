@@ -630,7 +630,9 @@ export function ChatInternoThread({ conversaIdProp }: ChatInternoThreadProps = {
           <p className="text-center text-base text-rose-600">Erro ao carregar mensagens.</p>
         ) : mensagens.length === 0 ? (
           <p className="text-center text-base text-slate-400">
-            {isSetor ? 'Nenhum comunicado ainda. Publique o primeiro aviso.' : 'Nenhuma mensagem. Diga olá!'}
+            {isSetor
+              ? 'Ainda sem mensagens — escreva o primeiro comunicado'
+              : 'Nenhuma mensagem. Diga olá!'}
           </p>
         ) : (
           mensagens.map((m, idx) => {

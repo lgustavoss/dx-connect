@@ -13,6 +13,7 @@ from app.schemas.lista_paginada import ListaPaginada
 from app.core.auth import obter_atendente_atual, exigir_admin
 from app.core.audit import registrar_audit
 from app.core.setor_scope import ids_setores_visiveis_atendente
+from app.services.chat_interno import obter_ou_criar_canal_setor
 from app.services.ticket_distribuicao import setor_para_distribuicao_read, validar_atendentes_elegiveis
 
 router = APIRouter(prefix="/setores", tags=["setores"])
@@ -80,6 +81,8 @@ def criar_setor(
     setor = Setor(**data.model_dump(), tenant_id=atendente.tenant_id)
     db.add(setor)
     db.flush()
+    if setor.ativo:
+        obter_ou_criar_canal_setor(db, atendente.tenant_id, setor.id)
     registrar_audit(db, "setor", setor.id, "create", atendente.id)
     db.commit()
     db.refresh(setor)
@@ -110,6 +113,9 @@ def atualizar_setor(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor não encontrado")
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(setor, k, v)
+    db.flush()
+    if setor.ativo:
+        obter_ou_criar_canal_setor(db, atendente.tenant_id, setor.id)
     registrar_audit(db, "setor", setor_id, "update", atendente.id)
     db.commit()
     db.refresh(setor)

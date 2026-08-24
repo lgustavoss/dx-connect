@@ -482,6 +482,7 @@ def obter_ou_criar_canal_setor(db: Session, tenant_id: int, setor_id: int) -> Co
         tenant_id=tenant_id,
         tipo=TIPO_CONVERSA_SETOR,
         setor_id=setor_id,
+        titulo=setor.nome,
     )
     db.add(conversa)
     db.flush()
@@ -684,7 +685,12 @@ def listar_conversas_inbox(db: Session, atendente: Atendente) -> list[ConversaIn
     for conversa in conversas:
         nao_lidas = contar_nao_lidas(db, conversa, atendente.id)
         ultima = obter_ultima_mensagem_visivel(db, conversa.id, atendente.id)
-        if ultima is None and nao_lidas == 0 and conversa.tipo != TIPO_CONVERSA_GRUPO:
+        # Grupos e canais de setor aparecem mesmo vazios (comunicados / primeiro aviso).
+        if (
+            ultima is None
+            and nao_lidas == 0
+            and conversa.tipo not in (TIPO_CONVERSA_GRUPO, TIPO_CONVERSA_SETOR)
+        ):
             continue
         resumos.append(
             ConversaInboxResumo(
