@@ -106,7 +106,7 @@ export function CrmContratos() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 pb-10">
+    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-4 pb-10">
       <div>
         <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Contratos</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">

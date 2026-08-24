@@ -236,7 +236,7 @@ export function SetorDetalhe() {
 
   if (forbidden) {
     return (
-      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+      <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6 pb-10">
         <SemPermissao
           title="Você não tem permissão para acessar este setor."
           detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
@@ -258,7 +258,7 @@ export function SetorDetalhe() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-10">
+    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6 pb-10">
       <nav aria-label="breadcrumb" className="flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
         <VoltarButton onClick={voltarAnterior} />
         <span aria-hidden className="text-slate-300 dark:text-slate-600">

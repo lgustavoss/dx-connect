@@ -239,7 +239,7 @@ export function TicketNovo() {
 
   if (forbidden) {
     return (
-      <div className="mx-auto max-w-3xl space-y-6">
+      <div className="mx-auto w-full min-w-0 max-w-3xl space-y-6">
         <SemPermissao
           title="Você não tem permissão para abrir tickets."
           detail="Seu usuário não conseguiu carregar setores/empresas necessários para criar um chamado. Peça ao administrador para ajustar seu perfil e vínculos de setor."
@@ -257,7 +257,7 @@ export function TicketNovo() {
       noValidate
     >
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto max-w-3xl space-y-6 pb-4">
+        <div className="mx-auto w-full min-w-0 max-w-3xl space-y-6 pb-4">
       <nav aria-label="breadcrumb" className="flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
         <VoltarButton onClick={voltarAnterior} />
         <span aria-hidden className="text-slate-300 dark:text-slate-600">

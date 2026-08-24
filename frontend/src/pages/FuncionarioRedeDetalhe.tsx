@@ -174,7 +174,7 @@ export function FuncionarioRedeDetalhe() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+      <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6 pb-10">
         <div className="h-4 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
         <div className="h-9 w-2/3 max-w-md animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
         <div className="h-48 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/50" />
@@ -184,7 +184,7 @@ export function FuncionarioRedeDetalhe() {
 
   if (forbidden) {
     return (
-      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+      <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6 pb-10">
         <SemPermissao
           title="Você não tem permissão para acessar este funcionário."
           detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
@@ -212,7 +212,7 @@ export function FuncionarioRedeDetalhe() {
       : null
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 pb-10">
+    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-8 pb-10">
       <div>
         <VoltarButton onClick={voltarAnterior} />
       </div>

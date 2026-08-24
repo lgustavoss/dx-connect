@@ -367,7 +367,7 @@ export function CrmNegociacaoDetalhe() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-5xl pb-10">
+      <div className="mx-auto w-full min-w-0 max-w-5xl pb-10">
         <div className="h-72 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/50" />
       </div>
     )
@@ -386,7 +386,7 @@ export function CrmNegociacaoDetalhe() {
   if (falha || !neg) {
     return (
       <CarregamentoFalhou
-        className="mx-auto max-w-5xl space-y-4 pb-10"
+        className="mx-auto w-full min-w-0 max-w-5xl space-y-4 pb-10"
         titulo={falha?.titulo || 'Negociação não encontrada.'}
         detalhe={falha?.detalhe}
         onVoltar={voltar}
@@ -395,7 +395,7 @@ export function CrmNegociacaoDetalhe() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4 pb-10">
+    <div className="mx-auto w-full min-w-0 max-w-5xl space-y-4 pb-10">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <VoltarButton onClick={voltar} />
         <Button variant="secondary" onClick={() => navigate('/crm/leads')}>

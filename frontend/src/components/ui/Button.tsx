@@ -13,9 +13,9 @@ const variants: Record<Variant, string> = {
   secondary:
     'bg-slate-100 text-slate-800 hover:bg-slate-200 focus:ring-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700',
   danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
-  /** Descartar / sair — vermelho claro no light; no dark bem visível (≠ Excluir sólido). */
+  /** Descartar / sair — gradiente vermelho no mesmo molde do primary (≠ Excluir sólido). */
   cancel:
-    'border-2 border-red-500 bg-red-50 text-red-800 hover:bg-red-100 focus:ring-red-500 dark:border-red-400 dark:bg-red-950/70 dark:text-red-100 dark:hover:bg-red-900/80',
+    'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-md shadow-red-500/20 hover:from-red-400 hover:to-red-500 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-slate-950',
   ghost:
     'bg-transparent text-slate-700 hover:bg-slate-100 focus:ring-slate-400 dark:text-slate-300 dark:hover:bg-slate-800',
 }

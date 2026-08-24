@@ -67,14 +67,14 @@ export function NotificacoesPreferencias() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-2xl">
+      <div className="mx-auto w-full min-w-0 max-w-2xl">
         <div className="h-48 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/50" />
       </div>
     )
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 pb-10">
+    <div className="mx-auto w-full min-w-0 max-w-2xl space-y-6 pb-10">
       <div>
         <VoltarButton onClick={() => navigate('/')} />
         <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">

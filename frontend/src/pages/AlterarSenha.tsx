@@ -47,7 +47,7 @@ export function AlterarSenha() {
   }
 
   return (
-    <div className="mx-auto max-w-lg">
+    <div className="mx-auto w-full min-w-0 max-w-lg">
       <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Definir nova senha</h1>
       <p className="mb-6 text-sm text-slate-600 dark:text-slate-400">
         Por segurança, altere a senha temporária antes de continuar usando o sistema.

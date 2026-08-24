@@ -99,14 +99,14 @@ function renderQrPayload(data: Record<string, unknown> | null | undefined) {
   const raw = data.base64 ?? data.qrcode
   if (typeof raw === 'string') {
     if (raw.startsWith('data:image')) {
-      return <img src={raw} alt="QR Code WhatsApp" className="mx-auto max-w-[280px] rounded-lg" />
+      return <img src={raw} alt="QR Code WhatsApp" className="mx-auto w-full min-w-0 max-w-[280px] rounded-lg" />
     }
     if (raw.length > 80) {
       return (
         <img
           src={`data:image/png;base64,${raw}`}
           alt="QR Code WhatsApp"
-          className="mx-auto max-w-[280px] rounded-lg"
+          className="mx-auto w-full min-w-0 max-w-[280px] rounded-lg"
         />
       )
     }
