@@ -476,7 +476,8 @@ function LoginCredenciais({ variant = 'tenant' }: { variant?: 'tenant' | 'ops' }
   const location = useLocation()
   const [searchParams] = useSearchParams()
 
-  function destinoAposLogin(role: string): string {
+  function destinoAposLogin(role: string, mustChangePassword?: boolean): string {
+    if (mustChangePassword) return '/alterar-senha'
     if (role === 'saas_ops') return SAAS_LICENCAS_PATH
     const next = (searchParams.get('next') || '').trim()
     if (next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/saas')) return next
@@ -513,6 +514,11 @@ function LoginCredenciais({ variant = 'tenant' }: { variant?: 'tenant' | 'ops' }
         return
       }
       if (!isOps && me.role === 'saas_ops') {
+        if (me.must_change_password) {
+          showSuccess('Login ops realizado. Defina uma senha nova…')
+          navigate('/alterar-senha', { replace: true })
+          return
+        }
         showSuccess('Login ops realizado. Abrindo o painel SaaS…')
         navigate(SAAS_LICENCAS_PATH, { replace: true })
         return
@@ -528,7 +534,7 @@ function LoginCredenciais({ variant = 'tenant' }: { variant?: 'tenant' | 'ops' }
         /* storage indisponível */
       }
       showSuccess('Login realizado com sucesso. Redirecionando...')
-      navigate(destinoAposLogin(me.role), { replace: true })
+      navigate(destinoAposLogin(me.role, me.must_change_password), { replace: true })
     } catch (err) {
       showError(mensagemFalhaParaToast(err, 'Falha no login. Verifique suas credenciais e tente novamente.'))
     } finally {

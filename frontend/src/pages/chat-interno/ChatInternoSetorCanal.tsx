@@ -40,7 +40,7 @@ export function ChatInternoSetorCanal() {
 
   if (forbidden) {
     return (
-      <div className="mx-auto max-w-3xl p-4">
+      <div className="mx-auto w-full min-w-0 max-w-3xl p-4">
         <SemPermissao
           title="Sem permissão para este canal"
           detail="Você não está vinculado a este setor."

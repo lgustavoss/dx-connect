@@ -102,7 +102,7 @@ function LayoutInner() {
 
   return (
     <div
-      className="flex h-[var(--vv-height,100dvh)] max-h-[var(--vv-height,100dvh)] min-h-0 overflow-hidden bg-gradient-to-b from-slate-50 to-slate-100/90 dark:from-slate-950 dark:to-slate-900/95 md:grid md:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-200 md:ease-out"
+      className="grid h-[var(--vv-height,100dvh)] max-h-[var(--vv-height,100dvh)] min-h-0 w-full min-w-0 grid-cols-1 overflow-hidden bg-gradient-to-b from-slate-50 to-slate-100/90 dark:from-slate-950 dark:to-slate-900/95 md:grid-cols-[var(--sidebar-w)_minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-200 md:ease-out"
       style={
         {
           ['--sidebar-w' as never]: sidebarW,
@@ -123,10 +123,10 @@ function LayoutInner() {
         onLogout={logout}
       />
 
-      <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden md:col-start-2 md:row-start-1">
+      <div className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden md:col-start-2 md:row-start-1">
         <header
-          className={`z-30 h-16 min-h-[64px] shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-4 shadow-sm dark:border-slate-800 dark:bg-slate-950 md:flex md:gap-3 md:px-6 ${
-            ocultarHeaderMobile ? 'hidden' : 'flex'
+          className={`z-30 flex h-16 min-h-[64px] w-full min-w-0 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-4 shadow-sm dark:border-slate-800 dark:bg-slate-950 md:gap-3 md:px-6 ${
+            ocultarHeaderMobile ? 'hidden' : ''
           }`}
         >
           <button
@@ -152,7 +152,7 @@ function LayoutInner() {
           <div className="min-w-0 flex-1" />
           <NavbarNotificacoes enabled={notificacoesEnabled} />
           <ThemeToggle />
-          <div className="hidden min-w-0 text-right sm:block">
+          <div className="hidden min-w-0 max-w-[7rem] shrink text-right sm:block md:max-w-[10rem] lg:max-w-none">
             <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{user?.nome}</p>
             <p className="truncate text-xs text-slate-500 dark:text-slate-400">{perfilExibicao(user?.role)}</p>
           </div>
@@ -165,14 +165,14 @@ function LayoutInner() {
         {notificacoesEnabled && !ocultarHeaderMobile ? <WebPushOptInBanner enabled /> : null}
         <PontoAlertasBanner />
 
-        <main className="min-h-0 flex-1 overflow-hidden">
+        <main className="min-h-0 min-w-0 w-full flex-1 overflow-hidden">
           <div
             className={
               scrollInternoNaPagina
                 ? isChatHub
-                  ? 'flex h-full min-h-0 flex-col overflow-hidden'
-                  : 'flex h-full min-h-0 flex-col overflow-hidden px-4 pt-4 md:px-6 md:pt-6'
-                : 'dx-scrollbar h-full min-h-0 overflow-x-hidden overflow-y-auto p-4 md:p-6'
+                  ? 'flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden'
+                  : 'flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden px-4 pt-4 md:px-6 md:pt-6'
+                : 'dx-scrollbar h-full min-h-0 w-full min-w-0 overflow-x-hidden overflow-y-auto p-4 md:p-6'
             }
           >
             <Outlet />

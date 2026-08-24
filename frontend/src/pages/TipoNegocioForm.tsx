@@ -109,7 +109,7 @@ export function TipoNegocioForm() {
   if (inexistente) {
     return (
       <CarregamentoFalhou
-        className="mx-auto max-w-5xl space-y-4 pb-10"
+        className="mx-auto w-full min-w-0 max-w-5xl space-y-4 pb-10"
         titulo="Tipo de negócio não encontrado."
         detalhe={inexistente.detalhe}
         onVoltar={voltarAnterior}

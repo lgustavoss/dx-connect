@@ -789,7 +789,7 @@ export function RedeDetalhe() {
 
   if (forbidden) {
     return (
-      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+      <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6 pb-10">
         <SemPermissao
           title="Você não tem permissão para acessar esta rede."
           detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
@@ -802,7 +802,7 @@ export function RedeDetalhe() {
 
   if (loading && !rede && !loadFailure) {
     return (
-      <div className="mx-auto max-w-6xl space-y-6 pb-10">
+      <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6 pb-10">
         <div className="h-4 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
         <div className="h-9 w-2/3 max-w-md animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
         <div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800/50" />
@@ -836,7 +836,7 @@ export function RedeDetalhe() {
     tipoNegocioIdEmpresa === '' ? '' : tiposNegocioList.find((t) => t.id === Number(tipoNegocioIdEmpresa))?.nome ?? ''
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-10">
+    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6 pb-10">
       <div className="flex flex-wrap items-center gap-3">
         <nav aria-label="breadcrumb" className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
           {linkRedes}

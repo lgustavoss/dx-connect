@@ -44,7 +44,7 @@ function SectionHeading({
   align?: 'left' | 'center'
 }) {
   return (
-    <div className={align === 'center' ? 'mx-auto max-w-3xl text-center' : 'max-w-3xl'}>
+    <div className={align === 'center' ? 'mx-auto w-full min-w-0 max-w-3xl text-center' : 'max-w-3xl'}>
       {eyebrow ? (
         <p className="mb-3 text-xs font-semibold uppercase tracking-[0.25em] text-sky-400">{eyebrow}</p>
       ) : null}
@@ -261,7 +261,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section className="mx-auto max-w-7xl px-5 pb-8 sm:px-8 lg:px-10">
+        <section className="mx-auto w-full min-w-0 max-w-7xl px-5 pb-8 sm:px-8 lg:px-10">
           <div className="rounded-[1.5rem] border border-white/10 bg-gradient-to-r from-white/[0.06] via-white/[0.03] to-white/[0.05] px-6 py-5 shadow-[0_20px_60px_rgba(2,8,23,0.18)] backdrop-blur-sm sm:px-8">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Por que empresas escolhem o DeskRudder</p>
@@ -273,7 +273,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section className="mx-auto max-w-7xl px-5 pb-8 sm:px-8 lg:px-10">
+        <section className="mx-auto w-full min-w-0 max-w-7xl px-5 pb-8 sm:px-8 lg:px-10">
           <div className="rounded-[1.75rem] border border-sky-400/20 bg-gradient-to-br from-sky-500/10 via-white/[0.03] to-slate-950/80 p-6 shadow-[0_25px_70px_rgba(2,8,23,0.22)] backdrop-blur-md sm:p-8">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-2xl">
@@ -296,7 +296,7 @@ export function LandingPage() {
         </section>
 
         <section id="valor" className="py-14 sm:py-16">
-          <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+          <div className="mx-auto w-full min-w-0 max-w-7xl px-5 sm:px-8 lg:px-10">
             <SectionHeading
               eyebrow="O que muda na operação"
               title="Uma operação mais limpa, mais rápida e mais previsível"
@@ -317,7 +317,7 @@ export function LandingPage() {
         </section>
 
         <section className="pb-8 sm:pb-10">
-          <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+          <div className="mx-auto w-full min-w-0 max-w-7xl px-5 sm:px-8 lg:px-10">
             <div className="grid gap-6 lg:grid-cols-3">
               {experienceHighlights.map((item) => (
                 <div key={item.title} className="relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-gradient-to-br from-white/[0.04] to-white/[0.02] p-6 shadow-[0_15px_45px_rgba(2,8,23,0.12)] before:absolute before:left-0 before:top-0 before:h-px before:w-full before:bg-gradient-to-r before:from-transparent before:via-sky-400/60 before:to-transparent">
@@ -330,7 +330,7 @@ export function LandingPage() {
         </section>
 
         <section className="border-t border-white/10 bg-[#071826]/70 py-16 sm:py-20">
-          <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+          <div className="mx-auto w-full min-w-0 max-w-7xl px-5 sm:px-8 lg:px-10">
             <SectionHeading title={landingPain.title} />
             <ul className="mt-10 grid gap-6 md:grid-cols-3">
               {landingPain.items.map((item, index) => (
@@ -349,7 +349,7 @@ export function LandingPage() {
         </section>
 
         <section className="py-16 sm:py-20">
-          <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+          <div className="mx-auto w-full min-w-0 max-w-7xl px-5 sm:px-8 lg:px-10">
             <div className="grid gap-6 lg:grid-cols-2">
               <div className="rounded-[1.75rem] border border-rose-400/20 bg-rose-500/10 p-8 shadow-[0_20px_60px_rgba(2,8,23,0.16)]">
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-rose-300">Antes</p>
@@ -374,7 +374,7 @@ export function LandingPage() {
         </section>
 
         <section id="produto" className="scroll-mt-24 py-16 sm:py-20">
-          <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+          <div className="mx-auto w-full min-w-0 max-w-7xl px-5 sm:px-8 lg:px-10">
             <SectionHeading
               eyebrow="O que você encontra"
               title="Tudo o que sua equipe precisa para atender melhor"
@@ -419,7 +419,7 @@ export function LandingPage() {
         </section>
 
         <section className="border-y border-sky-500/20 bg-gradient-to-r from-sky-700/20 via-[#0B2D4A]/85 to-sky-500/20 py-14 sm:py-16">
-          <div className="mx-auto max-w-3xl px-5 text-center sm:px-8">
+          <div className="mx-auto w-full min-w-0 max-w-3xl px-5 text-center sm:px-8">
             <h2 className="text-2xl font-bold text-white sm:text-3xl">{landingMidCta.title}</h2>
             <p className="mt-3 text-slate-200">{landingMidCta.body}</p>
             <div className="mt-8 flex justify-center">
@@ -429,7 +429,7 @@ export function LandingPage() {
         </section>
 
         <section id="resultados" className="scroll-mt-24 py-16 sm:py-20">
-          <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+          <div className="mx-auto w-full min-w-0 max-w-7xl px-5 sm:px-8 lg:px-10">
             <SectionHeading title={landingOutcomes.title} />
             <ul className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
               {landingOutcomes.items.map((item) => (
@@ -443,7 +443,7 @@ export function LandingPage() {
         </section>
 
         <section className="border-t border-white/10 bg-[#0A1628]/70 py-16 sm:py-20">
-          <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+          <div className="mx-auto w-full min-w-0 max-w-7xl px-5 sm:px-8 lg:px-10">
             <SectionHeading title={landingHowItWorks.title} />
             <ol className="mt-12 grid gap-10 md:grid-cols-3">
               {landingHowItWorks.steps.map((s) => (
@@ -458,7 +458,7 @@ export function LandingPage() {
         </section>
 
         <section className="py-16 sm:py-20">
-          <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+          <div className="mx-auto w-full min-w-0 max-w-7xl px-5 sm:px-8 lg:px-10">
             <SectionHeading title={landingAudience.title} body={landingAudience.body} />
             <ul className="mt-10 grid gap-6 md:grid-cols-3">
               {landingAudience.segments.map((seg) => (
@@ -472,7 +472,7 @@ export function LandingPage() {
         </section>
 
         <section id="contato" className="scroll-mt-24 border-t border-white/10 py-16 sm:py-24">
-          <div className="mx-auto max-w-3xl px-5 text-center sm:px-8">
+          <div className="mx-auto w-full min-w-0 max-w-3xl px-5 text-center sm:px-8">
             <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-sky-400/25 bg-sky-400/10 px-3.5 py-2 text-sm text-sky-200">
               <span className="size-2 rounded-full bg-sky-400" />
               {APP_NAME}

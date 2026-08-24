@@ -141,7 +141,7 @@ export function RespostaProntaForm() {
   if (inexistente) {
     return (
       <CarregamentoFalhou
-        className="mx-auto max-w-5xl space-y-4 pb-10"
+        className="mx-auto w-full min-w-0 max-w-5xl space-y-4 pb-10"
         titulo="Resposta pronta não encontrada."
         detalhe={inexistente.detalhe}
         onVoltar={voltarAnterior}

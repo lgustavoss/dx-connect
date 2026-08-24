@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
 import { IconEye, IconEyeOff } from '../components/ui/IconEye'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
+import { SAAS_LICENCAS_PATH } from '../lib/saasControlPlane'
 
 const fieldClass =
   'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-[0.9375rem] text-slate-900 shadow-inner placeholder:text-slate-400 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-400/25 dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-100 dark:placeholder:text-slate-500'
@@ -18,7 +19,7 @@ export function AlterarSenha() {
   const [mostrarNova, setMostrarNova] = useState(false)
   const [mostrarConf, setMostrarConf] = useState(false)
   const [loading, setLoading] = useState(false)
-  const { refreshUser } = useAuth()
+  const { refreshUser, user } = useAuth()
   const navigate = useNavigate()
   const toast = useToast()
 
@@ -37,7 +38,7 @@ export function AlterarSenha() {
       await atendentes.trocarSenha(senhaAtual, senhaNova)
       await refreshUser()
       toast.showSuccess('Senha alterada com sucesso.')
-      navigate('/', { replace: true })
+      navigate(user?.role === 'saas_ops' ? SAAS_LICENCAS_PATH : '/', { replace: true })
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível alterar a senha.'))
     } finally {
@@ -46,7 +47,7 @@ export function AlterarSenha() {
   }
 
   return (
-    <div className="mx-auto max-w-lg">
+    <div className="mx-auto w-full min-w-0 max-w-lg">
       <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">Definir nova senha</h1>
       <p className="mb-6 text-sm text-slate-600 dark:text-slate-400">
         Por segurança, altere a senha temporária antes de continuar usando o sistema.

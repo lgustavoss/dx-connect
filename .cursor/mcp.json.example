@@ -5,7 +5,7 @@
       "args": ["backend/scripts/mcp_deskrudder_saas.py"],
       "env": {
         "DESKRUDDER_API_URL": "https://api.deskrudder.com.br",
-        "DESKRUDDER_MCP_TOKEN": "COLE_AQUI_O_MESMO_SAAS_MCP_TOKEN_DA_INSTANCIA_COMERCIAL"
+        "DESKRUDDER_MCP_TOKEN": "COLE_O_TOKEN_GERADO_EM_/saas/conta"
       }
     }
   }

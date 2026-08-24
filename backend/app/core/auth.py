@@ -7,6 +7,7 @@ from app.database import get_db
 from app.models.atendente import Atendente
 from app.core.setor_scope import atendente_e_financeiro
 from app.core.security import decodificar_token
+from app.services.saas_mcp_token import resolver_ops_mcp_token
 from app.core.tenant_context import (
     assert_token_tenant_matches_request,
     effective_tenant_id,
@@ -68,8 +69,12 @@ def _carregar_atendente_por_token(
     method = request.method.upper()
     if getattr(atendente, "must_change_password", False):
         # Rotas são montadas com prefixo (ex.: /v1/atendentes/me).
-        pode = (path.endswith("/atendentes/me") and method == "GET") or (
-            path.endswith("/atendentes/me/trocar-senha") and method == "POST"
+        # /system/info é usado pelo shell SaaS para saber se o control-plane está
+        # ligado; bloquear aqui gerava 403 falso «painel não disponível».
+        pode = (
+            (path.endswith("/atendentes/me") and method == "GET")
+            or (path.endswith("/atendentes/me/trocar-senha") and method == "POST")
+            or (path.endswith("/system/info") and method == "GET")
         )
         if not pode:
             raise HTTPException(
@@ -169,7 +174,7 @@ def exigir_fila_saas(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
     x_saas_mcp_token: str | None = Header(None, alias="X-Saas-Mcp-Token"),
 ) -> Atendente:
-    """JWT saas_ops ou token longo SAAS_MCP_TOKEN (Cursor MCP)."""
+    """JWT saas_ops, token pessoal do painel (#915) ou SAAS_MCP_TOKEN legado."""
     import secrets
 
     expected = (settings.SAAS_MCP_TOKEN or "").strip()
@@ -178,6 +183,12 @@ def exigir_fila_saas(
         bearer = (credentials.credentials or "").strip()
     else:
         bearer = ""
+    for raw in (presented, bearer):
+        if not raw:
+            continue
+        pessoal = resolver_ops_mcp_token(db, raw)
+        if pessoal is not None:
+            return pessoal
     if expected and presented and secrets.compare_digest(presented, expected):
         return _actor_mcp(db)
     if expected and bearer and secrets.compare_digest(bearer, expected):

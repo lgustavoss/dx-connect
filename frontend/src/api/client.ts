@@ -5274,6 +5274,59 @@ export const saasSolicitacoes = {
     }),
 };
 
+export namespace SaasOpsConta {
+  export interface McpEstado {
+    configurado: boolean
+    gerado_em: string | null
+  }
+  export interface McpGerado extends McpEstado {
+    token: string
+  }
+}
+
+export const saasOpsConta = {
+  mcpToken: () => api<SaasOpsConta.McpEstado>('/saas/me/mcp-token'),
+  gerarMcpToken: () =>
+    api<SaasOpsConta.McpGerado>('/saas/me/mcp-token', { method: 'POST', body: JSON.stringify({}) }),
+  revogarMcpToken: () =>
+    api<SaasOpsConta.McpEstado>('/saas/me/mcp-token', { method: 'DELETE' }),
+};
+
+export namespace SaasOpsUsuarios {
+  export interface Usuario {
+    id: number
+    nome: string
+    email: string
+    ativo: boolean
+    must_change_password: boolean
+    mcp_token_configurado: boolean
+    mcp_token_gerado_em: string | null
+    created_at: string | null
+  }
+  export interface Criado extends Usuario {
+    senha_temporaria: string
+  }
+}
+
+export const saasOpsUsuarios = {
+  list: (params?: {
+    incluir_inativos?: boolean
+    busca?: string
+    offset?: number
+    limit?: number
+  }) => listPaginated<SaasOpsUsuarios.Usuario>('/saas/usuarios', params),
+  get: (id: number) => api<SaasOpsUsuarios.Usuario>(`/saas/usuarios/${id}`),
+  create: (data: { nome: string; email: string }) =>
+    api<SaasOpsUsuarios.Criado>('/saas/usuarios', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: { nome?: string; ativo?: boolean }) =>
+    api<SaasOpsUsuarios.Usuario>(`/saas/usuarios/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  senhaTemporaria: (id: number) =>
+    api<{ senha_temporaria: string }>(`/saas/usuarios/${id}/senha-temporaria`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+};
+
 export namespace SaasSolicitacoesProduto {
   export interface ListaItem {
     id: number;

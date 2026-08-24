@@ -17,7 +17,7 @@ export function SemPermissao({
   const classeVoltar =
     'inline-flex rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800'
   return (
-    <div className="mx-auto max-w-lg rounded-2xl border border-amber-200/80 bg-amber-50/90 p-6 text-amber-950 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
+    <div className="mx-auto w-full min-w-0 max-w-lg rounded-2xl border border-amber-200/80 bg-amber-50/90 p-6 text-amber-950 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
       <p className="text-sm font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">403 — Sem permissão</p>
       <h1 className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h1>
       <p className="mt-3 text-sm leading-relaxed text-slate-700 dark:text-slate-300">{detail}</p>

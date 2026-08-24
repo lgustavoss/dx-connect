@@ -98,6 +98,9 @@ import { SaasSolicitacoes } from './pages/saas/SaasSolicitacoes'
 import { SaasSolicitacaoDetalhe } from './pages/saas/SaasSolicitacaoDetalhe'
 import { SaasLayout } from './pages/saas/SaasLayout'
 import { SaasSobre } from './pages/saas/SaasSobre'
+import { SaasConta } from './pages/saas/SaasConta'
+import { SaasUsuarios } from './pages/saas/SaasUsuarios'
+import { SaasUsuarioForm } from './pages/saas/SaasUsuarioForm'
 import { KbPublicLayout } from './pages/kb-public/KbPublicLayout'
 import { KbPublicHome } from './pages/kb-public/KbPublicHome'
 import { KbPublicArtigo } from './pages/kb-public/KbPublicArtigo'
@@ -153,6 +156,9 @@ function LayoutOrLanding() {
     return <Navigate to="/login" replace state={{ from: location }} />
   }
   if (user.role === 'saas_ops') {
+    if (user.must_change_password || location.pathname === '/alterar-senha') {
+      return <Layout />
+    }
     return <Navigate to="/saas/licencas" replace />
   }
   return <Layout />
@@ -315,6 +321,10 @@ function AppRoutes() {
         <Route path="leads" element={<SaasLeads />} />
         <Route path="solicitacoes/:id" element={<SaasSolicitacaoDetalhe />} />
         <Route path="solicitacoes" element={<SaasSolicitacoes />} />
+        <Route path="usuarios/novo" element={<SaasUsuarioForm />} />
+        <Route path="usuarios/:id" element={<SaasUsuarioForm />} />
+        <Route path="usuarios" element={<SaasUsuarios />} />
+        <Route path="conta" element={<SaasConta />} />
         <Route path="sobre" element={<SaasSobre />} />
       </Route>
       <Route

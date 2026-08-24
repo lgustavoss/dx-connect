@@ -25,7 +25,7 @@ export function WhatsappLayout() {
     }`
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 pb-10 pt-4 animate-in fade-in slide-in-from-top-1 duration-500">
+    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-8 pb-10 pt-4 animate-in fade-in slide-in-from-top-1 duration-500">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="flex items-center gap-3">

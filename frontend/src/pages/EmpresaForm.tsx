@@ -388,7 +388,7 @@ export function EmpresaForm() {
   if (inexistente) {
     return (
       <CarregamentoFalhou
-        className="mx-auto max-w-6xl space-y-4 pb-10"
+        className="mx-auto w-full min-w-0 max-w-6xl space-y-4 pb-10"
         titulo="Empresa não encontrada."
         detalhe={inexistente.detalhe}
         onVoltar={voltarAnterior}
