@@ -63,7 +63,10 @@ def listar_atendentes(
     db: Session = Depends(get_db),
     atendente_logado: Atendente = Depends(exigir_admin),
 ):
-    q = db.query(Atendente).filter(Atendente.tenant_id == atendente_logado.tenant_id)
+    q = db.query(Atendente).filter(
+        Atendente.tenant_id == atendente_logado.tenant_id,
+        Atendente.role != "saas_ops",
+    )
     if not incluir_inativos:
         q = q.filter(Atendente.ativo.is_(True))
     if busca and busca.strip():
@@ -230,7 +233,7 @@ def obter_atendente(
     _: Atendente = Depends(exigir_admin),
 ):
     atendente = db.query(Atendente).filter(Atendente.id == atendente_id).first()
-    if not atendente:
+    if not atendente or atendente.role == "saas_ops":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atendente não encontrado")
     return _atendente_para_read(atendente)
 
@@ -243,7 +246,7 @@ def atualizar_atendente(
     atendente_logado: Atendente = Depends(exigir_admin),
 ):
     atendente = db.query(Atendente).filter(Atendente.id == atendente_id).first()
-    if not atendente:
+    if not atendente or atendente.role == "saas_ops":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atendente não encontrado")
     update = data.model_dump(exclude_unset=True)
     if "senha" in update and update["senha"]:
@@ -302,7 +305,7 @@ def excluir_atendente(
     _: Atendente = Depends(exigir_admin),
 ):
     atendente = db.query(Atendente).filter(Atendente.id == atendente_id).first()
-    if not atendente:
+    if not atendente or atendente.role == "saas_ops":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atendente não encontrado")
     db.delete(atendente)
     db.commit()

@@ -38,6 +38,11 @@ export function SaasLayout() {
 
   useEffect(() => {
     let cancelled = false
+    if (loading || user?.must_change_password) {
+      return () => {
+        cancelled = true
+      }
+    }
     if (isSaasControlPlaneFrontend()) {
       setPlaneOk(true)
       return () => {
@@ -55,13 +60,16 @@ export function SaasLayout() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [loading, user?.must_change_password])
 
-  if (loading || planeOk === null) {
+  if (loading) {
     return <PageLoading fullscreen label="Carregando painel SaaS…" />
   }
   if (!user) {
     return <Navigate to="/login/admin" replace state={{ from: location }} />
+  }
+  if (user.must_change_password) {
+    return <Navigate to="/alterar-senha" replace />
   }
   if (!isSaasOps) {
     return (
@@ -74,6 +82,9 @@ export function SaasLayout() {
         />
       </div>
     )
+  }
+  if (planeOk === null) {
+    return <PageLoading fullscreen label="Carregando painel SaaS…" />
   }
   if (!planeOk) {
     return (
@@ -148,6 +159,12 @@ export function SaasLayout() {
           </NavLink>
           <NavLink to="/saas/solicitacoes" className={navLinkClass}>
             <span className="truncate">{sidebarExpanded || sidebarMobileOpen ? 'Sugestões' : 'Sug'}</span>
+          </NavLink>
+          <NavLink to="/saas/usuarios" className={navLinkClass}>
+            <span className="truncate">{sidebarExpanded || sidebarMobileOpen ? 'Equipa' : 'Eq'}</span>
+          </NavLink>
+          <NavLink to="/saas/conta" className={navLinkClass}>
+            <span className="truncate">{sidebarExpanded || sidebarMobileOpen ? 'Conta / Cursor' : 'Conta'}</span>
           </NavLink>
           <NavLink to="/saas/sobre" className={navLinkClass}>
             <span className="truncate">{sidebarExpanded || sidebarMobileOpen ? 'Sobre' : 'Info'}</span>

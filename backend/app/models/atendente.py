@@ -32,6 +32,9 @@ class Atendente(Base):
     presenca_heartbeat_em = Column(DateTime(timezone=True), nullable=True, index=True)
     # Incrementado ao forçar saída — invalida access/refresh tokens com claim "ver" antigo.
     token_version = Column(Integer, nullable=False, default=0, server_default="0")
+    # Token Cursor MCP pessoal (#915): plaintext só na geração; Bearer resolve este ops.
+    mcp_token_hash = Column(String(64), nullable=True, unique=True, index=True)
+    mcp_token_gerado_em = Column(DateTime(timezone=True), nullable=True)
     # Controle de ponto / escala (#761+): flag + ciclo horas trabalhadas × horas de folga.
     usa_escala = Column(Boolean, nullable=False, default=False, server_default="false")
     escala_horas_trabalho = Column(Integer, nullable=True)
