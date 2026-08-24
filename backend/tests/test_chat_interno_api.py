@@ -169,3 +169,133 @@ def test_responder_mensagem_interna(client, seed_base, auth_headers):
         headers=auth_headers["a1"],
     )
     assert r404.status_code == 400
+
+
+def test_criar_setor_cria_canal_interno(client, seed_base, auth_headers, db_session):
+    """#916 — criar setor activo cria conversa tipo setor."""
+    from app.models.chat_interno import ConversaInterna, TIPO_CONVERSA_SETOR
+
+    r = client.post(
+        "/v1/setores",
+        json={"nome": "Financeiro IC", "slug": "financeiro-ic", "ativo": True},
+        headers=auth_headers["admin"],
+    )
+    assert r.status_code == 201, r.text
+    setor_id = r.json()["id"]
+
+    canal = (
+        db_session.query(ConversaInterna)
+        .filter(
+            ConversaInterna.tipo == TIPO_CONVERSA_SETOR,
+            ConversaInterna.setor_id == setor_id,
+        )
+        .one()
+    )
+    assert canal.titulo == "Financeiro IC"
+
+
+def test_activar_setor_cria_canal_interno(client, seed_base, auth_headers, db_session):
+    """#916 — activar setor inactivo garante o canal."""
+    from app.models.chat_interno import ConversaInterna, TIPO_CONVERSA_SETOR
+
+    r = client.post(
+        "/v1/setores",
+        json={"nome": "Inactivo IC", "slug": "inactivo-ic", "ativo": False},
+        headers=auth_headers["admin"],
+    )
+    assert r.status_code == 201, r.text
+    setor_id = r.json()["id"]
+    assert (
+        db_session.query(ConversaInterna)
+        .filter(ConversaInterna.setor_id == setor_id, ConversaInterna.tipo == TIPO_CONVERSA_SETOR)
+        .count()
+        == 0
+    )
+
+    r_act = client.patch(
+        f"/v1/setores/{setor_id}",
+        json={"ativo": True},
+        headers=auth_headers["admin"],
+    )
+    assert r_act.status_code == 200, r_act.text
+    assert (
+        db_session.query(ConversaInterna)
+        .filter(ConversaInterna.setor_id == setor_id, ConversaInterna.tipo == TIPO_CONVERSA_SETOR)
+        .count()
+        == 1
+    )
+
+
+def test_inbox_lista_canal_setor_vazio(client, seed_base, auth_headers):
+    """#916 — canal de setor sem mensagens aparece em Interno → Setores."""
+    setor1 = seed_base["setor1"].id
+    r_canal = client.get(f"/v1/chat-interno/setores/{setor1}/canal", headers=auth_headers["a1"])
+    assert r_canal.status_code == 200
+    canal_id = r_canal.json()["id"]
+
+    r = client.get("/v1/chat-interno/conversas", headers=auth_headers["a1"])
+    assert r.status_code == 200
+    setores = [c for c in r.json() if c["tipo"] == "setor"]
+    assert any(c["id"] == canal_id for c in setores)
+    assert any(c["id"] == canal_id and c.get("ultima_mensagem_corpo") is None for c in setores)
+
+
+def test_inbox_setor_respeita_vinculo_e_admin_ve_todos(client, seed_base, auth_headers):
+    """#916 — membro vê o seu; outro setor 403; admin vê todos os canais."""
+    setor1 = seed_base["setor1"].id
+    setor2 = seed_base["setor2"].id
+    c1 = client.get(f"/v1/chat-interno/setores/{setor1}/canal", headers=auth_headers["a1"]).json()
+    c2 = client.get(f"/v1/chat-interno/setores/{setor2}/canal", headers=auth_headers["a2"]).json()
+
+    inbox_a1 = client.get("/v1/chat-interno/conversas", headers=auth_headers["a1"]).json()
+    ids_a1 = {c["id"] for c in inbox_a1 if c["tipo"] == "setor"}
+    assert c1["id"] in ids_a1
+    assert c2["id"] not in ids_a1
+
+    assert (
+        client.get(f"/v1/chat-interno/setores/{setor2}/canal", headers=auth_headers["a1"]).status_code
+        == 403
+    )
+
+    inbox_admin = client.get("/v1/chat-interno/conversas", headers=auth_headers["admin"]).json()
+    ids_admin = {c["id"] for c in inbox_admin if c["tipo"] == "setor"}
+    assert c1["id"] in ids_admin
+    assert c2["id"] in ids_admin
+
+
+def test_vincular_setor_mostra_canal_na_inbox(client, seed_base, auth_headers, db_session):
+    """#916 — novo vínculo setor_ids passa a listar o canal sem passo manual."""
+    from app.models.chat_interno import ConversaInterna, TIPO_CONVERSA_SETOR
+
+    r_setor = client.post(
+        "/v1/setores",
+        json={"nome": "Novo Setor IC", "slug": "novo-setor-ic", "ativo": True},
+        headers=auth_headers["admin"],
+    )
+    assert r_setor.status_code == 201, r_setor.text
+    setor_id = r_setor.json()["id"]
+    canal = (
+        db_session.query(ConversaInterna)
+        .filter(ConversaInterna.setor_id == setor_id, ConversaInterna.tipo == TIPO_CONVERSA_SETOR)
+        .one()
+    )
+
+    a1_id = seed_base["a1"].id
+    r_patch = client.patch(
+        f"/v1/atendentes/{a1_id}",
+        json={"setor_ids": [seed_base["setor1"].id, setor_id]},
+        headers=auth_headers["admin"],
+    )
+    assert r_patch.status_code == 200, r_patch.text
+
+    inbox = client.get("/v1/chat-interno/conversas", headers=auth_headers["a1"]).json()
+    assert any(c["id"] == canal.id for c in inbox if c["tipo"] == "setor")
+
+    r_un = client.patch(
+        f"/v1/atendentes/{a1_id}",
+        json={"setor_ids": [seed_base["setor1"].id]},
+        headers=auth_headers["admin"],
+    )
+    assert r_un.status_code == 200, r_un.text
+    inbox2 = client.get("/v1/chat-interno/conversas", headers=auth_headers["a1"]).json()
+    assert not any(c["id"] == canal.id for c in inbox2 if c["tipo"] == "setor")
