@@ -5,8 +5,6 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
-## [26.08.011] - 2026-08-22
-
 ### SaaS Control Plane
 
 #### Melhorias
@@ -21,6 +19,20 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 - UI (#870): responsividade — coluna principal do painel ocupa sempre a largura disponível (grid + `w-full`/`min-w-0` no Layout); contentores internos alinhados; abas e header legíveis em qualquer largura
 - UI (#866): botão **Cancelar** com gradiente vermelho preenchido (mesmo molde do Salvar), distinto de Excluir; ConfirmDialog, portal e formulários alinhados
+
+## [26.08.011] - 2026-08-22
+
+### SaaS Control Plane
+
+#### Melhorias
+
+- Fila de sugestões no Cursor (MCP): o ops liga-se à API comercial (`api.deskrudder.com.br`); o token fica só na VPS e no Cursor de cada pessoa, não no git
+
+### DeskRudder
+
+#### Melhorias
+
+- UI (#866): botão **Cancelar** padronizado em vermelho (`variant=cancel`, bordo forte), distinto de Excluir; ConfirmDialog e formulários/modais alinhados
 - UI (#867): controlo **Voltar** com estilo de botão (fundo/padding) em cadastros, detalhes, portal, WhatsApp e ecrãs de erro de carregamento
 - Sugestões: cada pedido ganha um **protocolo único** (`#S202608-0001`) no painel DeskRudder, visível depois em Minhas solicitações, para amarrar a issue no GitHub
 - Sugestões: no painel SaaS dá para **ligar pedidos iguais** de vários clientes (peso da demanda). O cliente não vê este grupo; na issue GitHub entram todos os protocolos
