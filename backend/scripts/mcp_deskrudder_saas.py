@@ -4,9 +4,10 @@ O processo corre no PC do ops (Cursor). A API é a do control-plane em produçã
 
 Env:
   DESKRUDDER_API_URL   (omissão: https://api.deskrudder.com.br)
-  DESKRUDDER_MCP_TOKEN (igual a SAAS_MCP_TOKEN na instância comercial da VPS)
+  DESKRUDDER_MCP_TOKEN (token gerado em /saas/conta; legado: SAAS_MCP_TOKEN da VPS)
 
-Em local, no .cursor/mcp.json usa http://127.0.0.1:8000; o token pode vir do backend/.env.
+Em local, no .cursor/mcp.json usa http://127.0.0.1:8000 e o token de /saas/conta
+(legado: SAAS_MCP_TOKEN no backend/.env).
 """
 
 from __future__ import annotations
@@ -186,8 +187,8 @@ def _api(method: str, path: str, body: dict | None = None) -> tuple[int, object]
     if not token:
         raise RuntimeError(
             "Define DESKRUDDER_MCP_TOKEN no .cursor/mcp.json "
-            "(o mesmo SAAS_MCP_TOKEN da instância comercial). "
-            "Em local (127.0.0.1) também podes pôr SAAS_MCP_TOKEN no backend/.env."
+            "(token gerado em /saas/conta). "
+            "Em local (127.0.0.1) também podes pôr SAAS_MCP_TOKEN no backend/.env (legado)."
         )
     url = f"{API}{path}"
     data = None if body is None else json.dumps(body, ensure_ascii=False).encode("utf-8")

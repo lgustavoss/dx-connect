@@ -194,3 +194,21 @@ def test_system_info_expõe_saas_flag(client, auth_headers, monkeypatch):
     r = client.get("/v1/system/info", headers=auth_headers["ops"])
     assert r.status_code == 200
     assert r.json()["saas_control_plane"] is True
+
+
+def test_system_info_com_must_change_password(client, seed_base, auth_headers, db_session, monkeypatch):
+    """Ops no primeiro login ainda precisa de /system/info para o shell SaaS não mostrar 403 falso."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    ops = seed_base["ops"]
+    ops.must_change_password = True
+    db_session.commit()
+
+    info = client.get("/v1/system/info", headers=auth_headers["ops"])
+    assert info.status_code == 200
+    assert info.json()["saas_control_plane"] is True
+
+    bloqueado = client.get("/v1/saas/clientes", headers=auth_headers["ops"])
+    assert bloqueado.status_code == 403
+    assert "Altere sua senha" in (bloqueado.json().get("detail") or "")

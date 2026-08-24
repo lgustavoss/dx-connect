@@ -9,7 +9,9 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
-- Fila de sugestões no Cursor (MCP): o ops liga-se à API comercial (`api.deskrudder.com.br`); o token fica só na VPS e no Cursor de cada pessoa, não no git
+- Fila de sugestões no Cursor: cada ops gera o **próprio token** em Conta / Cursor (`/saas/conta`) e cola no Cursor. Recusar ou comentar fica ligado a essa conta, não a um segredo partilhado da VPS
+- Painel SaaS: cadastro da **equipa** (`/saas/usuarios`) — contas do `/login/admin`. Senha temporária uma vez; cada pessoa gera o token Cursor na própria conta
+- Login ops: no primeiro acesso (trocar senha) o painel SaaS já não mostra «não disponível nesta instância»; redirecciona para definir senha nova
 
 ### DeskRudder
 

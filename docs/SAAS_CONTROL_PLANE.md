@@ -117,10 +117,12 @@ No control-plane (`SAAS_CONTROL_PLANE=true`), a abertura grava directo na tabela
 - `POST /v1/saas/ingest/solicitacoes` — Bearer ou `X-Saas-Instance-Token`; o token é conferido (SHA-256) com `clientes_saas.ingest_token_hash` do slug do body.
 - `POST /v1/saas/ingest/solicitacoes/{origem_id}/media` — o mesmo token; `file` + `storage_key` (UUID da instância) + `papel`. A chave é reutilizada para o markdown `![…](/v1/solicitacoes-melhoria/media/…)` resolver no painel SaaS. 404 se o JSON ainda não chegou (a outbox reenvia).
 - `GET /v1/saas/ingest/solicitacoes/sync` — mesmo token; devolve status + comentários públicos daquele slug (`?since=` opcional).
-- `GET /v1/saas/solicitacoes` e `GET /v1/saas/solicitacoes/{id}` — `saas_ops` (JWT) ou token `SAAS_MCP_TOKEN` (MCP Cursor).
+- `GET /v1/saas/solicitacoes` e `GET /v1/saas/solicitacoes/{id}` — `saas_ops` (JWT) ou token Cursor pessoal (`/saas/conta`) / `SAAS_MCP_TOKEN` legado.
 - `PATCH …/solicitacoes/{id}/github` — liga a issue criada no GitHub ao pedido (e ao grupo, se houver). Só ops / MCP; o cliente não vê.
 - `POST …/solicitacoes/{id}/vinculos` e `DELETE …/vinculos/{membro_id}` — grupo de pedidos iguais (peso). Só ops / MCP.
 - `PATCH /v1/saas/solicitacoes/{id}/status` e `POST /v1/saas/solicitacoes/{id}/comentarios` — triagem.
+- `POST /v1/saas/me/mcp-token` — gera o token Cursor desta conta (plaintext uma vez). `GET` estado; `DELETE` revoga.
+- `GET/POST /v1/saas/usuarios` e `PATCH /v1/saas/usuarios/{id}` — equipa `saas_ops` (nome, e-mail, activo). `POST …/senha-temporaria` devolve senha uma vez. Não são atendentes da instância do cliente.
 - `POST /v1/saas/clientes/{id}/gerar-token-ingest` — devolve o plaintext **uma vez** e escreve no `client.env` se a pasta do cliente já existir.
 - `SAAS_INGEST_PUBLIC_URL` (opcional) — URL escrita no env das instâncias; por omissão `https://api.{SAAS_PROVISION_BASE_DOMAIN}/v1/saas/ingest/solicitacoes`.
 
@@ -130,20 +132,9 @@ Handoff Cursor é #857: o Cursor **puxa** a fila (MCP `deskrudder-saas`) contra 
 
 O script corre no PC do ops. A fila é a da instância comercial (`SAAS_CONTROL_PLANE=true`).
 
-1. **No `client.env` da stack comercial** (não nas instâncias de cliente), gerar um token longo e **não** reutilizar o de desenvolvimento:
-
-   ```bash
-   openssl rand -base64 32
-   ```
-
-   ```
-   SAAS_CONTROL_PLANE=true
-   SAAS_MCP_TOKEN=<valor gerado>
-   ```
-
-   Reiniciar o container da instância comercial depois do release `staging`.
-
-2. **Em cada Cursor** (PC, notebook, outro dev): copiar `.cursor/mcp.json.example` para `.cursor/mcp.json` (gitignored), colar o **mesmo** token em `DESKRUDDER_MCP_TOKEN`, e manter:
+1. Entre no painel admin (`/login/admin`) com a **tua** conta `saas_ops`.
+2. Abra **Conta / Cursor** (`/saas/conta`) e gere o token. O valor aparece **uma vez** — copie para o Cursor. Regenerar invalida o token anterior.
+3. Em cada Cursor: copiar `.cursor/mcp.json.example` para `.cursor/mcp.json` (gitignored), colar **o teu** token em `DESKRUDDER_MCP_TOKEN`, e manter:
 
    ```
    DESKRUDDER_API_URL=https://api.deskrudder.com.br
@@ -151,7 +142,9 @@ O script corre no PC do ops. A fila é a da instância comercial (`SAAS_CONTROL_
 
    Cursor → Settings → MCP → habilitar `deskrudder-saas`.
 
-3. **Teste local** (Docker neste repo): no `.cursor/mcp.json` usa `http://127.0.0.1:8000`. O token pode ser o `SAAS_MCP_TOKEN` do `backend/.env` (não misturar com o da VPS).
+4. **Teste local** (Docker neste repo): no `.cursor/mcp.json` usa `http://127.0.0.1:8000` e um token gerado no painel local (não o da VPS).
+
+O `SAAS_MCP_TOKEN` no `.env` da VPS ainda é aceite como **legado** (não identifica a pessoa). Prefira o token do painel.
 
 Ferramentas: listar, obter, alterar status, comentar, vincular pedidos iguais, ligar issue GitHub (aceitam `id` ou protocolo). Sem OpenAI e sem `CURSOR_API_KEY` no DeskRudder. O GitHub MCP (criar issues) é à parte e também é por instalação do Cursor.
 
@@ -163,7 +156,7 @@ Ferramentas: listar, obter, alterar status, comentar, vincular pedidos iguais, l
 
 1. Flags dual: `SAAS_CONTROL_PLANE=true` + `VITE_SAAS_CONTROL_PLANE=true` só na instância comercial.
 2. Migrations `084`–`092` aplicadas (`alembic upgrade head`).
-3. Login ops via `/login/admin` (`ops@deskrudder.local`) → shell SaaS (Licenças / Planos / Leads / Sugestões), sem menu de tickets.
+3. Login ops via `/login/admin` → shell SaaS (Licenças / Planos / Leads / Sugestões / Equipa / Conta / Cursor). Sem menu de tickets.
 4. Login atendimento via `/login` (`admin@email.com` ou `atendente@email.com`) → painel de tickets/chat (sem menu SaaS).
 5. Lead → **Converter em licença** (escolher plano) ou prefill manual; trial em `/trial`; contacto na LP.
 6. Provisionar com `SAAS_PROVISION_EXEC_ENABLED=false` → `aguardando_ops` → copiar comandos → **Confirmar provisionamento** após health (dispara e-mail de entrega ao contacto se Resend estiver ok).
