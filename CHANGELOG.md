@@ -9,6 +9,9 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Infra (#880): deploy GitHub Actions atualiza **duas** stacks — build/dist DuplexSoft e build/dist comercial; migrate em cada Postgres; health com flags SaaS distintas
+- Infra (#876 / #877 / #878): painel admin em `api.deskrudder.com.br` + SPA em `deskrudder.com.br`; fila e contas ops migradas para o Postgres comercial; DuplexSoft passa a só **ingerir** sugestões (control-plane desligado nessa instância)
+- Infra (#876): stack `admin-center` sobe com Postgres TLS (self-signed) e `DATABASE_URL` com `sslmode=require`, exigido em produção
 - Fila de sugestões no Cursor: cada ops gera o **próprio token** em Conta / Cursor (`/saas/conta`) e cola no Cursor. Recusar ou comentar fica ligado a essa conta, não a um segredo partilhado da VPS
 - Painel SaaS: cadastro da **equipa** (`/saas/usuarios`) — contas do `/login/admin`. Senha temporária uma vez; cada pessoa gera o token Cursor na própria conta
 - Login ops: no primeiro acesso (trocar senha) o painel SaaS já não mostra «não disponível nesta instância»; redirecciona para definir senha nova
@@ -22,10 +25,14 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### DeskRudder
 
+#### Correções
+
+- Deploy: migration do chat interno (#916) usava um ID Alembic maior que 32 caracteres e quebrava o `upgrade` em produção; ID encurtado para caber em `alembic_version`
+
 #### Melhorias
 
 - WhatsApp (mobile): ao **Atender**, o modal de setor fica **centralizado** com lista tocável (sem dropdown cortado no rodapé); o Select genérico também abre para cima quando não há espaço abaixo
-- WhatsApp: selecção de **Empresa do atendimento** no modal — lista deixa de ficar cortada/desproporcional (menu no fluxo do formulário; modal um pouco mais estreito)
+- WhatsApp: seleção de **Empresa do atendimento** no modal — lista deixa de ficar cortada/desproporcional (menu no fluxo do formulário; modal um pouco mais estreito)
 - Configurações (#865): menu reorganizado — **Equipe** e **Tickets** separados; Tipos de negócio em Comercial/CRM; Catálogos PDV em **PDV**; Empresa só com dados da instalação; URLs antigas redirecionam
 - Chat interno (#916): cada setor activo passa a ter canal próprio (criação ao cadastrar/activar + backfill); canais vazios aparecem em Interno → Setores; o vínculo do atendente ao setor basta para ver o canal; admin vê todos
 - UI (#870): responsividade — coluna principal do painel ocupa sempre a largura disponível (grid + `w-full`/`min-w-0` no Layout); contentores internos alinhados; abas e header legíveis em qualquer largura

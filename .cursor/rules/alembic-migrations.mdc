@@ -20,6 +20,7 @@ Referência: `docs/ALEMBIC_MIGRATIONS.md`
 2. `down_revision` = `revision` real da migration anterior (não o nome do arquivo)
 3. **Nunca** alterar `revision` de migration já aplicada em algum ambiente
 4. DDL idempotente quando possível; downgrade coerente se o projeto exigir
+5. `revision` (string) ≤ **32** caracteres — coluna `alembic_version.version_num` é `varchar(32)`
 
 ## Múltiplos heads
 

@@ -37,16 +37,10 @@ Não manter dois PRs de release abertos sem explicar; preferir **um** PR mergeá
 gh pr create --base staging --head main --title "release: main → staging" --body-file .cursor/pr-body-temp.md
 ```
 
-Corpo: Summary do lote (`[Unreleased]`), test plan, nota **“Merge apenas após aprovação manual (staging = produção)”**.
+Corpo do PR: Summary do lote (`[Unreleased]`) + test plan. **Sem** avisos sobre quem aprova/mergeia (isso é óbvio e irrelevante no GitHub).
 
 ## Passo 4 — Entrega
 
-Reporte só:
+No chat: URL do PR (base `staging`). Sem sermão sobre “merge só no GitHub”.
 
-| Item | Valor |
-|------|-------|
-| URL do PR | ... |
-| Base | staging |
-| Merge pelo agente | ❌ proibido — aguarda aprovação no GitHub |
-
-**Não** executar: `gh pr merge`, `gh pr review --approve` seguido de merge, push para `staging`.
+**Não** executar: `gh pr merge`, push para `staging`.

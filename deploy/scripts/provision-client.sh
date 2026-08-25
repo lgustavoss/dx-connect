@@ -109,6 +109,17 @@ substitute "$TEMPLATE/frontend.env.production.example" "$DEST/frontend.env.produ
 
 chmod 600 "$DEST/client.env" 2>/dev/null || true
 
+CERT_DIR="$DEST/certs"
+mkdir -p "$CERT_DIR"
+if [[ ! -f "$CERT_DIR/server.crt" ]]; then
+  openssl req -new -x509 -days 3650 -nodes -text \
+    -out "$CERT_DIR/server.crt" -keyout "$CERT_DIR/server.key" \
+    -subj "/CN=db"
+fi
+chmod 600 "$CERT_DIR/server.key"
+chmod 644 "$CERT_DIR/server.crt"
+chown 70:70 "$CERT_DIR/server.key" "$CERT_DIR/server.crt" 2>/dev/null || true
+
 echo ""
 echo "Cliente provisionado em: $DEST"
 echo ""

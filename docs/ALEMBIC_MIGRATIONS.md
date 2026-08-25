@@ -5,6 +5,7 @@
 - O encadeamento das migrations é definido pelos IDs **internos** `revision` e `down_revision`.
 - O `down_revision` deve apontar para um **`revision` que existe** (em algum arquivo dentro de `backend/alembic/versions/`).
 - **Nome do arquivo não é referência**. Se o arquivo chama `004_atendente_must_change_password.py`, isso **não** significa que o `revision` seja `"004_atendente_must_change_password"`.
+- O valor de `revision` deve ter no máximo **32** caracteres (`alembic_version.version_num` é `varchar(32)`).
 
 Quando esse encadeamento fica inconsistente, o comando `alembic upgrade head` falha antes mesmo de consultar o banco, com erros do tipo `KeyError`/`Revision ... is not present`.
 

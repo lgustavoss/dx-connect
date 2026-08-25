@@ -54,6 +54,19 @@ sed -e "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$PG_PASS/" \
 
 chmod 600 "$DEST/client.env" 2>/dev/null || true
 
+# TLS self-signed para o Postgres do compose (Settings exige sslmode=require em production)
+CERT_DIR="$DEST/certs"
+mkdir -p "$CERT_DIR"
+if [[ ! -f "$CERT_DIR/server.crt" ]]; then
+  openssl req -new -x509 -days 3650 -nodes -text \
+    -out "$CERT_DIR/server.crt" -keyout "$CERT_DIR/server.key" \
+    -subj "/CN=db"
+fi
+chmod 600 "$CERT_DIR/server.key"
+chmod 644 "$CERT_DIR/server.crt"
+# UID do user postgres na imagem postgres:16-alpine
+chown 70:70 "$CERT_DIR/server.key" "$CERT_DIR/server.crt" 2>/dev/null || true
+
 echo ""
 echo "Painel admin provisionado em: $DEST"
 echo ""
