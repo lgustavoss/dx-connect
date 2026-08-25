@@ -5,6 +5,14 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### SaaS Control Plane
+
+#### Melhorias
+
+- Infra (#880): deploy GitHub Actions atualiza **duas** stacks — build/dist DuplexSoft e build/dist comercial; migrate em cada Postgres; health com flags SaaS distintas
+- Infra (#876 / #877 / #878): painel admin em `api.deskrudder.com.br` + SPA em `deskrudder.com.br`; fila e contas ops migradas para o Postgres comercial; DuplexSoft passa a só **ingerir** sugestões (control-plane desligado nessa instância)
+- Infra (#876): stack `admin-center` sobe com Postgres TLS (self-signed) e `DATABASE_URL` com `sslmode=require`, exigido em produção
+
 ## [26.08.013] - 2026-08-25
 
 ### SaaS Control Plane

@@ -27,7 +27,11 @@ alwaysApply: true
 
 ## Se o utilizador pedir merge em staging
 
-Responder: o PR está pronto no URL; **merge só no GitHub por ti** (staging = produção). Não executar `gh pr merge`.
+Não executar `gh pr merge`. Entregar o URL do PR e parar — sem repetir no chat/PR que “merge é só no GitHub”.
+
+## Corpo do PR `→ staging`
+
+Só Summary + test plan. **Não** incluir frases do tipo “Merge só no GitHub por ti” / “staging = produção” / “aprovação humana”.
 
 ## Relação com `/criar-pr`
 
