@@ -18,6 +18,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Sugestões: textos de acompanhamento em português do Brasil; mensagem ao cliente **não pode citar** GitHub nem número de issue (isso fica na nota interna)
 - Painel ops: menu **Equipe** (Usuários + Minha conta); **Sobre** e **Sair** no rodapé, no mesmo padrão do painel de atendimento
 - Cursor: textos ao cliente e do MCP em **português do Brasil**; comentário sem flag explícita fica **interno**. O comando `/listar-solicitacoes` passa a ir no repositório; o MCP aponta para `api.deskrudder.com.br` (control-plane, #875), não para a API da DuplexSoft
+- Infra (#876 / #877): stack do **painel admin** em `deploy/admin-center/` (Postgres + API em `127.0.0.1:8001`). Hosts: `deskrudder.com.br` e `api.deskrudder.com.br`. O helpdesk DuplexSoft continua na API `api-duplexsoft`
 
 ### DeskRudder
 

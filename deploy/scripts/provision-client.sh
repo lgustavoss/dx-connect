@@ -36,6 +36,11 @@ if [[ ! "$SLUG" =~ ^[a-z][a-z0-9-]*$ ]]; then
   exit 1
 fi
 
+if [[ "$SLUG" == "deskrudder" || "$SLUG" == "admin-center" ]]; then
+  echo "Erro: o painel ops fica em deploy/admin-center/. Use deploy/scripts/provision-control-plane.sh"
+  exit 1
+fi
+
 if [[ ! "$API_PORT" =~ ^[0-9]+$ ]] || [[ "$API_PORT" -lt 1024 ]] || [[ "$API_PORT" -gt 65535 ]]; then
   echo "Erro: --api-port deve ser um número entre 1024 e 65535."
   exit 1

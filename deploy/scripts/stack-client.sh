@@ -1,25 +1,34 @@
 #!/usr/bin/env bash
-# Operações no stack Docker de um cliente (deploy/clients/<slug>/).
+# Operações no stack Docker: cliente (deploy/clients/<slug>/) ou painel ops (deploy/admin-center/).
 set -euo pipefail
 
 CMD="${1:-}"
 SLUG="${2:-}"
 
 usage() {
-  echo "Uso: $0 <comando> <slug>"
+  echo "Uso: $0 <comando> <slug|admin-center>"
   echo "Comandos: migrate | up | down | logs | seed | health"
+  echo "Painel ops: $0 migrate admin-center"
   exit 1
 }
 
 [[ -n "$CMD" && -n "$SLUG" ]] || usage
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-CLIENT_DIR="$ROOT/deploy/clients/$SLUG"
+if [[ "$SLUG" == "admin-center" ]]; then
+  CLIENT_DIR="$ROOT/deploy/admin-center"
+else
+  CLIENT_DIR="$ROOT/deploy/clients/$SLUG"
+fi
 COMPOSE_FILE="$CLIENT_DIR/docker-compose.yml"
 PROJECT="dx-connect-$SLUG"
 
 if [[ ! -f "$COMPOSE_FILE" ]]; then
-  echo "Erro: não encontrado $COMPOSE_FILE — rode provision-client.sh primeiro."
+  if [[ "$SLUG" == "admin-center" ]]; then
+    echo "Erro: não encontrado $COMPOSE_FILE — rode deploy/scripts/provision-control-plane.sh primeiro."
+  else
+    echo "Erro: não encontrado $COMPOSE_FILE — rode provision-client.sh primeiro."
+  fi
   exit 1
 fi
 

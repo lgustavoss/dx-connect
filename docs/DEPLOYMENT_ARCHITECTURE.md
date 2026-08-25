@@ -74,4 +74,5 @@ Legado multi-tenant: definir `DX_CONNECT_MULTI_TENANT=true` (e no front `VITE_MU
 - Épico deploy: **#170**
 - Épico refatoração de código: **#191**
 - Épico operacional legado: **#16**
+- Control-plane vs cliente DuplexSoft: **#875** — stack em [`deploy/admin-center/`](../deploy/admin-center/README.md)
 - Checklist de servidor: [`PRE_DEPLOY_CHECKLIST.md`](PRE_DEPLOY_CHECKLIST.md)
