@@ -4,6 +4,8 @@ Instância comercial (`deskrudder.com.br`): registo de licenças, trial, provisi
 
 **Não** confundir com módulos do produto na instância do cliente (CM/FN, `/kb`, portal).
 
+A instância comercial **não** partilha Postgres nem container com o cliente DuplexSoft. Runbook: [`deploy/admin-center/README.md`](../deploy/admin-center/README.md) (épico #875).
+
 ## Ativar
 
 ```bash
@@ -13,7 +15,7 @@ SAAS_NOTIFY_EMAIL=comercial@deskrudder.com.br
 SAAS_TRIAL_DAYS=14
 SAAS_RENEWAL_ALERT_DAYS_BEFORE=14
 SAAS_PROVISION_BASE_DOMAIN=deskrudder.com.br
-SAAS_PROVISION_API_PORT_START=8001
+SAAS_PROVISION_API_PORT_START=8002
 # Só no host de deploy com Docker/scripts:
 # SAAS_PROVISION_EXEC_ENABLED=true
 # SAAS_REPO_ROOT=/caminho/do/repo
@@ -34,7 +36,7 @@ Em instâncias de clientes: deixar `SAAS_CONTROL_PLANE=false` (padrão).
 
 Na raiz comercial o `/login` padrão pede **conta da empresa** e entrega a sessão no subdomínio (`{slug}.deskrudder.com.br` / `api-{slug}.deskrudder.com.br`).
 
-Para a **equipa DeskRudder** (control-plane), use:
+Para a **equipe DeskRudder** (control-plane), use:
 
 - Atalho da landing «Acessar painel admin» → `/login/admin`
 - Conta com role **`saas_ops`** (não o admin do tenant cliente)

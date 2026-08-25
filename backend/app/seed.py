@@ -48,6 +48,38 @@ def _ensure_default_tenant(db):
         db.commit()
 
 
+def _ensure_saas_ops_producao(db):
+    """Primeiro ops do control-plane em produção (#876). Não usa contas de desenvolvimento."""
+    if not settings.is_production or not settings.SAAS_CONTROL_PLANE:
+        return
+    email = (str(settings.SEED_SAAS_OPS_EMAIL) if settings.SEED_SAAS_OPS_EMAIL else "").strip().lower()
+    pwd = (settings.SEED_SAAS_OPS_PASSWORD or "").strip()
+    if not email:
+        print(
+            "Produção (control-plane): saas_ops inicial não criado. "
+            "Defina SEED_SAAS_OPS_EMAIL e SEED_SAAS_OPS_PASSWORD (mín. 8 caracteres)."
+        )
+        return
+    if len(pwd) < 8:
+        print("Produção (control-plane): SEED_SAAS_OPS_PASSWORD deve ter ao menos 8 caracteres.")
+        return
+    if db.query(Atendente).filter(func.lower(Atendente.email) == email).first():
+        return
+    db.add(
+        Atendente(
+            tenant_id=1,
+            email=email,
+            nome="Ops SaaS DeskRudder",
+            senha_hash=_hash_senha(pwd),
+            role="saas_ops",
+            ativo=True,
+            must_change_password=True,
+        )
+    )
+    db.commit()
+    print(f"Usuário saas_ops criado: {email} — troque a senha no primeiro acesso.")
+
+
 def run_seed():
     db = SessionLocal()
     try:
@@ -169,6 +201,7 @@ def run_seed():
 
             ensure_funil_padrao(db)
             db.commit()
+        _ensure_saas_ops_producao(db)
     finally:
         db.close()
 
