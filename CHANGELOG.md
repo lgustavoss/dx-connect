@@ -5,6 +5,12 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### SaaS Control Plane
+
+#### Correções
+
+- Sobre: notas de deploy/infra (Alembic, TLS em stacks de cliente) passam a DevOps — deixam de aparecer no helpdesk
+
 ## [26.08.014] - 2026-08-25
 
 ### SaaS Control Plane
@@ -15,13 +21,13 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Infra: `stack-client.sh migrate` fecha o stdin (`-T` + `/dev/null`) para o `docker compose run` não engolir o resto do script SSH no deploy do admin-center
 - Infra (#876 / #877 / #878): painel admin em `api.deskrudder.com.br` + SPA em `deskrudder.com.br`; fila e contas ops migradas para o Postgres comercial; DuplexSoft passa a só **ingerir** sugestões (control-plane desligado nessa instância)
 - Infra (#876): stack `admin-center` sobe com Postgres TLS (self-signed) e `DATABASE_URL` com `sslmode=require`, exigido em produção
+- Infra (#876): stacks de cliente (`deploy/clients/`) também sobem Postgres com TLS e `sslmode=require` em produção
 
 ### DeskRudder
 
 #### Melhorias
 
 - WhatsApp (mobile): ao **Atender**, o modal de setor fica **centralizado** com lista tocável (sem dropdown cortado no rodapé); o Select genérico também abre para cima quando não há espaço abaixo
-- Infra (#876): stacks de cliente (`deploy/clients/`) também sobem Postgres com TLS e `sslmode=require` em produção
 
 ## [26.08.013] - 2026-08-25
 
@@ -37,11 +43,11 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Cursor: textos ao cliente e do MCP em **português do Brasil**; comentário sem flag explícita fica **interno**. O comando `/listar-solicitacoes` passa a ir no repositório; o MCP aponta para `api.deskrudder.com.br` (control-plane, #875), não para a API da DuplexSoft
 - Infra (#876 / #877): stack do **painel admin** em `deploy/admin-center/` (Postgres + API em `127.0.0.1:8001`). Hosts: `deskrudder.com.br` e `api.deskrudder.com.br`. O helpdesk DuplexSoft continua na API `api-duplexsoft`
 
-### DeskRudder
-
 #### Correções
 
 - Deploy: migration do chat interno (#916) usava um ID Alembic maior que 32 caracteres e quebrava o `upgrade` em produção; ID encurtado para caber em `alembic_version`
+
+### DeskRudder
 
 #### Melhorias
 

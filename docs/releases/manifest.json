@@ -3256,7 +3256,7 @@
           "text": "Infra (#876 / #877): stack do **painel admin** em `deploy/admin-center/` (Postgres + API em `127.0.0.1:8001`). Hosts: `deskrudder.com.br` e `api.deskrudder.com.br`. O helpdesk DuplexSoft continua na API `api-duplexsoft`"
         },
         {
-          "product": "deskrudder",
+          "product": "saas",
           "category": "correcoes",
           "text": "Deploy: migration do chat interno (#916) usava um ID Alembic maior que 32 caracteres e quebrava o `upgrade` em produção; ID encurtado para caber em `alembic_version`"
         },
@@ -3314,7 +3314,7 @@
           "text": "WhatsApp (mobile): ao **Atender**, o modal de setor fica **centralizado** com lista tocável (sem dropdown cortado no rodapé); o Select genérico também abre para cima quando não há espaço abaixo"
         },
         {
-          "product": "deskrudder",
+          "product": "saas",
           "category": "melhorias",
           "text": "Infra (#876): stacks de cliente (`deploy/clients/`) também sobem Postgres com TLS e `sslmode=require` em produção"
         }
