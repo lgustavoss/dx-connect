@@ -27,6 +27,12 @@ def test_templates_api_comercial_nao_e_duplexsoft():
     assert "deploy/admin-center" in script
     compose = (CP / "docker-compose.stack.yml").read_text(encoding="utf-8")
     assert "context: ../../backend" in compose
+    assert "sslmode=require" in compose
+    assert "ssl=on" in compose
+    assert "./certs/server.crt" in compose
+    script_cp = (ROOT / "deploy" / "scripts" / "provision-control-plane.sh").read_text(encoding="utf-8")
+    assert "certs" in script_cp
+    assert "openssl req" in script_cp
 
 
 def test_seed_saas_ops_producao_cria_conta(db_session, monkeypatch):

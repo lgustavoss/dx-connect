@@ -14,6 +14,7 @@ A instância comercial **não** é a DuplexSoft. Clientes ficam em `deploy/clien
 cd /opt/dx-connect   # ou o clone de deploy
 git pull
 bash deploy/scripts/provision-control-plane.sh
+# Gera client.env, docker-compose.yml e certs/ (TLS self-signed do Postgres).
 # Guarde a senha do ops impressa. Edite client.env (Resend, etc.).
 bash deploy/scripts/stack-client.sh migrate admin-center
 bash deploy/scripts/stack-client.sh up admin-center
