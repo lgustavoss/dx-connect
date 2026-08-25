@@ -44,9 +44,9 @@ def solicitar_trial(
         status=row.status,
         data_renovacao=row.data_renovacao,
         mensagem=(
-            "Pedido de trial recebido. A equipa DeskRudder analisa a solicitação; "
+            "Pedido de trial recebido. A equipe DeskRudder analisa a solicitação; "
             "após aprovação, a base e a instância são criadas. "
-            f"Contactá-lo-emos em {row.contato_email}."
+            f"Entraremos em contato pelo e-mail {row.contato_email}."
         ),
     )
 
@@ -66,7 +66,7 @@ def enviar_contato_comercial(
     return LeadComercialPublicRead(
         id=row.id,
         mensagem=(
-            "Mensagem recebida. A equipa comercial DeskRudder vai responder "
+            "Mensagem recebida. A equipe comercial DeskRudder vai responder "
             f"em {row.email}."
         ),
     )

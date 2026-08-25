@@ -14,6 +14,11 @@ const CATEGORY_LABEL: Record<string, string> = {
   interno: 'Interno / Infra',
 }
 
+const PRODUCT_LABEL: Record<string, string> = {
+  deskrudder: 'Produto',
+  saas: 'DevOps',
+}
+
 function categoryClass(category: string): string {
   if (category === 'correcoes') {
     return 'bg-amber-50 text-amber-900 ring-amber-200/70 dark:bg-amber-950/40 dark:text-amber-100 dark:ring-amber-800/50'
@@ -24,6 +29,13 @@ function categoryClass(category: string): string {
   return 'bg-cyan-50 text-cyan-900 ring-cyan-200/70 dark:bg-cyan-950/40 dark:text-cyan-100 dark:ring-cyan-800/50'
 }
 
+function productClass(product: string): string {
+  if (product === 'saas') {
+    return 'bg-violet-50 text-violet-900 ring-violet-200/70 dark:bg-violet-950/40 dark:text-violet-100 dark:ring-violet-800/50'
+  }
+  return 'bg-sky-50 text-sky-900 ring-sky-200/70 dark:bg-sky-950/40 dark:text-sky-100 dark:ring-sky-800/50'
+}
+
 function formatDate(value: string): string {
   const d = value.slice(0, 10)
   const [y, m, day] = d.split('-')
@@ -31,27 +43,51 @@ function formatDate(value: string): string {
   return `${day}/${m}/${y}`
 }
 
-function ChangeList({ items }: { items: System.ReleaseChange[] }) {
+function ChangeList({
+  items,
+  showProductTags,
+}: {
+  items: System.ReleaseChange[]
+  showProductTags?: boolean
+}) {
   if (!items.length) {
     return <p className="text-sm text-slate-500 dark:text-slate-400">Nenhum item registrado.</p>
   }
   return (
     <ul className="space-y-3">
-      {items.map((item, idx) => (
-        <li key={`${item.category}-${idx}`} className="flex items-start gap-3 text-sm leading-relaxed">
-          <span
-            className={`inline-flex min-w-[5.5rem] shrink-0 items-center justify-center self-start rounded-md px-2.5 py-1 text-center text-xs font-medium leading-none ring-1 ring-inset ${categoryClass(item.category)}`}
-          >
-            {CATEGORY_LABEL[item.category] ?? item.category}
-          </span>
-          <span className="min-w-0 flex-1 text-slate-700 dark:text-slate-200">{item.text}</span>
-        </li>
-      ))}
+      {items.map((item, idx) => {
+        const productKey = (item.product ?? 'deskrudder').toLowerCase()
+        return (
+          <li key={`${item.category}-${idx}`} className="flex items-start gap-3 text-sm leading-relaxed">
+            <span className="flex shrink-0 flex-wrap items-center gap-1.5 self-start">
+              {showProductTags ? (
+                <span
+                  className={`inline-flex min-w-[4.75rem] items-center justify-center rounded-md px-2.5 py-1 text-center text-xs font-medium leading-none ring-1 ring-inset ${productClass(productKey)}`}
+                >
+                  {PRODUCT_LABEL[productKey] ?? item.product ?? 'Produto'}
+                </span>
+              ) : null}
+              <span
+                className={`inline-flex min-w-[5.5rem] items-center justify-center rounded-md px-2.5 py-1 text-center text-xs font-medium leading-none ring-1 ring-inset ${categoryClass(item.category)}`}
+              >
+                {CATEGORY_LABEL[item.category] ?? item.category}
+              </span>
+            </span>
+            <span className="min-w-0 flex-1 text-slate-700 dark:text-slate-200">{item.text}</span>
+          </li>
+        )
+      })}
     </ul>
   )
 }
 
-function ReleaseBlock({ release }: { release: System.Release }) {
+function ReleaseBlock({
+  release,
+  showProductTags,
+}: {
+  release: System.Release
+  showProductTags?: boolean
+}) {
   return (
     <Card className="space-y-4 p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -60,7 +96,7 @@ function ReleaseBlock({ release }: { release: System.Release }) {
           {formatDate(String(release.date))}
         </time>
       </div>
-      <ChangeList items={release.changes} />
+      <ChangeList items={release.changes} showProductTags={showProductTags} />
     </Card>
   )
 }
@@ -77,6 +113,8 @@ export type ReleaseNotesViewProps = {
   showBrandLogo?: boolean
   /** CTA sugestões (#802) — desligar no SaaS Sobre se não fizer sentido. */
   showSugestoesCta?: boolean
+  /** Painel ops (#920): etiqueta Produto / DevOps em cada bullet. */
+  showProductTags?: boolean
 }
 
 function formatWhen(iso: string): string {
@@ -87,7 +125,7 @@ function formatWhen(iso: string): string {
   }
 }
 
-/** Lista partilhada de versão + histórico filtrado por produto (#674 / #675). */
+/** Lista partilhada de versão + histórico (#674 / #920). */
 export function ReleaseNotesView({
   backTo,
   backLabel = 'Voltar',
@@ -99,6 +137,7 @@ export function ReleaseNotesView({
   loading = false,
   showBrandLogo = true,
   showSugestoesCta = true,
+  showProductTags = false,
 }: ReleaseNotesViewProps) {
   const navigate = useNavigate()
   const [minhas, setMinhas] = useState<SolicitacoesMelhoria.ListaItem[]>([])
@@ -202,7 +241,7 @@ export function ReleaseNotesView({
       {notes?.current ? (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">O que há de novo nesta versão</h2>
-          <ReleaseBlock release={notes.current} />
+          <ReleaseBlock release={notes.current} showProductTags={showProductTags} />
         </section>
       ) : (
         <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -221,7 +260,7 @@ export function ReleaseNotesView({
               .slice()
               .reverse()
               .map((release) => (
-                <ReleaseBlock key={release.version} release={release} />
+                <ReleaseBlock key={release.version} release={release} showProductTags={showProductTags} />
               ))}
           </div>
         </section>

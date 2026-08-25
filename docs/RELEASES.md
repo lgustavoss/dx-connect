@@ -11,25 +11,25 @@ Guia de versionamento, CHANGELOG e o que o usuário vê em **Sobre**.
 
 Bump automático no **deploy de `staging`** (fuso `America/Sao_Paulo`).
 
-## Dois produtos, um deploy
+## Uma CalVer, umas notas (#920)
 
-Uma CalVer por merge `main → staging`, mas **dois feeds** de notas:
+Uma versão por merge `main → staging`. **Um** CHANGELOG / manifest — as subsecções `### DeskRudder` e `### SaaS Control Plane` são **tags** (produto vs devops), não feeds separados.
 
-| Produto | Código no manifest | Onde o usuário vê | API |
-|---------|--------------------|-------------------|-----|
-| DeskRudder (helpdesk na instância) | `deskrudder` | `/sobre` | `GET /v1/system/release-notes` |
-| SaaS Control Plane | `saas` | `/saas/sobre` | `GET /v1/saas/release-notes` (RBAC `saas_ops`) |
+| Tag no manifest | Significado | Quem vê |
+|-----------------|-------------|---------|
+| `deskrudder` (**Produto**) | Helpdesk na instância (chat, tickets, ponto, comercial na rede…) | `/sobre` (só estas) e `/saas/sobre` (com etiqueta) |
+| `saas` (**DevOps**) | Control-plane (licenças, planos, provisionamento, leads, equipa ops) | só `/saas/sobre`, com etiqueta DevOps |
 
-- **Comercial** (CM/FN, simulador, custos) = DeskRudder (roda no cliente).
-- **Landing / trial / leads B2B / licenças / planos** = SaaS.
+- **Comercial** (CM/FN, simulador, custos) = Produto (roda no cliente).
+- **Landing / trial / leads B2B / licenças / planos** = DevOps.
 
 ## Fluxo do time
 
 ```
-feature → PR main (+ CHANGELOG por produto) → PR main → staging (aprovação humana) → deploy → /sobre e /saas/sobre
+feature → PR main (+ CHANGELOG com tags Produto/DevOps) → PR main → staging (aprovação humana) → deploy → /sobre e /saas/sobre
 ```
 
-1. **Cada PR para `main`** com mudança de produto: bullets em `CHANGELOG.md` → `## [Unreleased]` na **subseção do produto** certo
+1. **Cada PR para `main`** com mudança visível: bullets em `CHANGELOG.md` → `## [Unreleased]` na **subseção** certa (tag Produto ou DevOps)
 2. **PR `main → staging`**: o `[Unreleased]` descreve **todo o lote** que será publicado
 3. **Merge em `staging`**: **só após análise e aprovação humana no GitHub** (`staging` = produção). Agentes/CI **não** mergeiam este PR automaticamente — usar `/release-staging` para abrir o PR e parar.
 4. **Deploy em `staging`**: consome `[Unreleased]`, gera nova CalVer, append em `docs/releases/manifest.json` (cada bullet com `product`), zera `[Unreleased]`
@@ -74,17 +74,17 @@ Isento (sem exigir CHANGELOG): só docs internos, planning, artefatos de release
 
 ## O que o usuário vê
 
-### `/sobre` (DeskRudder)
+### `/sobre` (DeskRudder — produto)
 
 | Seção | Conteúdo |
 |-------|----------|
 | **Versão atual** | CalVer do deploy |
 | **O que há de novo** | Só bullets `product=deskrudder` da release atual |
-| **Histórico** | Releases anteriores **sem** cards que só tinham itens SaaS |
+| **Histórico** | Releases anteriores **sem** cards que só tinham itens DevOps |
 
-### `/saas/sobre` (ops)
+### `/saas/sobre` (ops — tudo, com tags)
 
-Mesma CalVer; só bullets `product=saas` (licenças, planos, provisionamento, leads).
+Mesma CalVer e as **mesmas** notas. Cada bullet mostra etiqueta **Produto** ou **DevOps**.
 
 ## Arquivos
 
@@ -103,8 +103,8 @@ Após cada deploy, o workflow commita `VERSION`, `CHANGELOG.md`, `manifest.json`
 ## API (autenticada)
 
 - `GET /v1/system/info` — versão em execução
-- `GET /v1/system/release-notes` — feed DeskRudder
-- `GET /v1/saas/release-notes` — feed SaaS (`saas_ops` + control plane ligado)
+- `GET /v1/system/release-notes` — só bullets de produto (painel da instância)
+- `GET /v1/saas/release-notes` — todas as notas, com `product` em cada bullet (`saas_ops` + control plane ligado)
 
 ## Checklist — PR para `main`
 

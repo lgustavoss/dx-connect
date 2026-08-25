@@ -5,7 +5,7 @@ import { APP_DESCRIPTION, APP_NAME } from '../brand'
 import { ReleaseNotesView } from '../components/release/ReleaseNotesView'
 import { useToast } from '../components/ui/Toast'
 
-/** Página Sobre do DeskRudder — só notas product=deskrudder (#674). */
+/** Página Sobre do DeskRudder — só notas de produto (#674 / #920). */
 export function Sobre() {
   const toast = useToast()
   const [loading, setLoading] = useState(true)
@@ -47,7 +47,7 @@ export function Sobre() {
       backTo="/"
       title="Sobre"
       brandCaption={APP_DESCRIPTION}
-      description={`Consulte a versão em uso e o que mudou nas atualizações do ${APP_NAME} nesta instância (helpdesk). Melhorias do painel SaaS não aparecem aqui.`}
+      description={`Consulte a versão em uso e o que mudou nas atualizações do ${APP_NAME} nesta instância (helpdesk). Melhorias de DevOps não aparecem aqui.`}
       versionLabel={versionLabel}
       notes={notes}
       loading={loading}

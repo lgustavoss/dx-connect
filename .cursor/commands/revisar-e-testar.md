@@ -13,7 +13,7 @@ Confirme que a branch **não** é `main`/`staging`. Se for, avise para usar `/in
 ### Geral
 - [ ] Mudança mínima — sem refatoração não solicitada
 - [ ] Critérios de aceite da issue atendidos
-- [ ] Strings de UI/erro em português
+- [ ] Strings de UI/erro em português do Brasil
 
 ### Backend
 - [ ] Lógica na camada `services/`, rotas finas

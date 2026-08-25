@@ -604,7 +604,7 @@ export function ConfigEmpresaEmail({ embedded = false, section }: ConfigEmpresaE
                 </div>
               ) : (
                 <p className="mt-1.5">
-                  Indisponível neste servidor. A equipa de operação deve definir{' '}
+                  Indisponível neste servidor. A equipe de operação deve definir{' '}
                   <span className="font-mono">RESEND_API_KEY</span> e{' '}
                   <span className="font-mono">TRANSACTIONAL_FROM_EMAIL</span> no ambiente (VPS). Enquanto isso, os
                   tickets por encaminhamento funcionam; respostas ao cliente pelo painel não saem por e-mail.

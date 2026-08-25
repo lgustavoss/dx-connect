@@ -5,7 +5,7 @@ import { ReleaseNotesView } from '../../components/release/ReleaseNotesView'
 import { useToast } from '../../components/ui/Toast'
 import { SAAS_LICENCAS_PATH } from '../../lib/saasControlPlane'
 
-/** Novidades do control-plane SaaS (#675). */
+/** Novidades do painel ops — todas as notas da versão, com tags (#920). */
 export function SaasSobre() {
   const toast = useToast()
   const [loading, setLoading] = useState(true)
@@ -24,7 +24,7 @@ export function SaasSobre() {
       })
       .catch((err) => {
         if (!cancelled) {
-          toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar as novidades do SaaS.'))
+          toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar as novidades.'))
         }
       })
       .finally(() => {
@@ -47,12 +47,13 @@ export function SaasSobre() {
       backTo={SAAS_LICENCAS_PATH}
       backLabel="Voltar às licenças"
       title="Sobre / Novidades"
-      brandCaption="Painel admin SaaS — licenças, planos e provisionamento."
-      description="Atualizações do control-plane DeskRudder (ops). Notas do helpdesk nas instâncias dos clientes ficam em Sobre no painel de atendimento."
+      brandCaption="Painel admin — licenças, planos e provisionamento."
+      description="As mesmas notas da versão, com etiqueta Produto (helpdesk nas instâncias) ou DevOps (este painel). No DeskRudder o cliente vê só as de produto."
       versionLabel={versionLabel}
       notes={notes}
       loading={loading}
       showBrandLogo
+      showProductTags
     />
   )
 }

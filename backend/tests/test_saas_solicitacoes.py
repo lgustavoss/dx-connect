@@ -436,6 +436,33 @@ def test_comentario_publico_volta_interno_nao(client, seed_base, auth_headers, m
     assert cliente_view.get("github_issue_url") in (None, "")
 
 
+def test_comentario_publico_rejeita_issue_github(client, seed_base, auth_headers, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    monkeypatch.setattr(settings, "SAAS_INSTANCE_SLUG", "local")
+    sid = _criar_solicitacao(client, auth_headers["a1"]).json()["id"]
+    h = auth_headers["ops"]
+    lista = client.get("/v1/saas/solicitacoes", headers=h).json()["items"]
+    saas_id = next(i["id"] for i in lista if i["origem_solicitacao_id"] == sid)
+
+    bad = client.post(
+        f"/v1/saas/solicitacoes/{saas_id}/comentarios",
+        headers=h,
+        json={"corpo": "Pedido aceite. Acompanhamento interno: issue #921.", "publico_cliente": True},
+    )
+    assert bad.status_code == 400, bad.text
+
+    ok = client.post(
+        f"/v1/saas/solicitacoes/{saas_id}/comentarios",
+        headers=h,
+        json={"corpo": "Acompanhamento interno: issue #921.", "publico_cliente": False},
+    )
+    assert ok.status_code == 200, ok.text
+    cliente_view = client.get(f"/v1/solicitacoes-melhoria/{sid}", headers=auth_headers["a1"]).json()
+    assert not any("921" in (c["corpo"] or "") for c in cliente_view["comentarios"])
+
+
 def test_admin_instancia_nao_tria(client, seed_base, auth_headers, monkeypatch):
     from app.config import settings
 
@@ -605,9 +632,35 @@ def test_mcp_stdio_initialize_e_tools():
     spec.loader.exec_module(mod)
     init = mod.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
     assert init["result"]["serverInfo"]["name"] == "deskrudder-saas"
+    assert "português do Brasil" in init["result"]["instructions"]
     listed = mod.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     names = {t["name"] for t in listed["result"]["tools"]}
     assert {"listar_solicitacoes", "obter_solicitacao", "alterar_status", "comentar_solicitacao", "ligar_issue_github", "vincular_solicitacao", "desvincular_solicitacao"} <= names
+    comentar = next(t for t in listed["result"]["tools"] if t["name"] == "comentar_solicitacao")
+    assert "português do Brasil" in comentar["description"]
+
+
+def test_mcp_comentar_sem_flag_fica_interno(monkeypatch):
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "mcp_deskrudder_saas.py"
+    spec = importlib.util.spec_from_file_location("mcp_deskrudder_saas", path)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    captured: dict = {}
+
+    def fake_api(method, path, body=None):
+        captured["body"] = body
+        return 200, {"ok": True}
+
+    monkeypatch.setattr(mod, "_api", fake_api)
+    monkeypatch.setattr(mod, "_id_fila", lambda args: 7)
+    mod.call_tool("comentar_solicitacao", {"id": 7, "corpo": "nota do agente"})
+    assert captured["body"]["publico_cliente"] is False
+    mod.call_tool("comentar_solicitacao", {"id": 7, "corpo": "olá", "publico_cliente": True})
+    assert captured["body"]["publico_cliente"] is True
 
 
 def test_vincular_pedidos_iguais_peso_e_nao_vaza_ao_cliente(client, seed_base, auth_headers, monkeypatch):

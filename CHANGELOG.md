@@ -5,6 +5,27 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### SaaS Control Plane
+
+#### Melhorias
+
+- Sobre (#920): o painel ops lista **todas** as notas da versão, com etiqueta **Produto** ou **DevOps**. O helpdesk nas instâncias continua a ver só as de produto
+- Login do painel admin: em produção deixa de aparecer a dica de desenvolvimento (e-mail local)
+- Sugestões (#923): detalhe com **linha do tempo** (pedido + mensagens ao cliente); notas internas em cartão âmbar; status em passos clicáveis, como nos tickets
+- Sugestões: textos de acompanhamento em português do Brasil; mensagem ao cliente **não pode citar** GitHub nem número de issue (isso fica na nota interna)
+- Painel ops: menu **Equipe** (Usuários + Minha conta); **Sobre** e **Sair** no rodapé, no mesmo padrão do painel de atendimento
+- Cursor: textos ao cliente e do MCP em **português do Brasil**; comentário sem flag explícita fica **interno**. O comando `/listar-solicitacoes` passa a ir no repositório; o MCP aponta para `api.deskrudder.com.br` (control-plane, #875), não para a API da DuplexSoft
+- Infra (#876 / #877): stack do **painel admin** em `deploy/admin-center/` (Postgres + API em `127.0.0.1:8001`). Hosts: `deskrudder.com.br` e `api.deskrudder.com.br`. O helpdesk DuplexSoft continua na API `api-duplexsoft`
+
+### DeskRudder
+
+#### Melhorias
+
+- WhatsApp: seleção de **Empresa do atendimento** no modal — lista deixa de ficar cortada/desproporcional (menu no fluxo do formulário; modal um pouco mais estreito)
+- Configurações (#865): menu reorganizado — **Equipe** e **Tickets** separados; Tipos de negócio em Comercial/CRM; Catálogos PDV em **PDV**; Empresa só com dados da instalação; URLs antigas redirecionam
+- Chat interno (#916): cada setor ativo passa a ter canal próprio (criação ao cadastrar/ativar + backfill); canais vazios aparecem em Interno → Setores; o vínculo do atendente ao setor basta para ver o canal; admin vê todos
+- Sobre (#920): esta página mostra só melhorias de **produto**; as de DevOps não entram na lista
+
 ## [26.08.012] - 2026-08-24
 
 ### SaaS Control Plane

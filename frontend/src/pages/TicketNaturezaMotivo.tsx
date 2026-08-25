@@ -189,7 +189,7 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
   const denied = (
     <SemPermissao
       title="Apenas administradores podem gerir naturezas e motivos."
-      voltarPara="/configuracoes/equipa/natureza-motivo"
+      voltarPara="/configuracoes/tickets/natureza-motivo"
       voltarLabel="Voltar"
     />
   )
