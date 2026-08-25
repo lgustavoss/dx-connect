@@ -1,6 +1,6 @@
 """Cliente SaaS / licença DeskRudder (control-plane comercial) — #521."""
 
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, JSON, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.sql import func
 
 from app.database import Base
@@ -24,6 +24,8 @@ class ClienteSaaS(Base):
     modulos_snapshot = Column(JSON, nullable=True)
     max_postos = Column(Integer, nullable=True)
     max_usuarios = Column(Integer, nullable=True)
+    # Se preenchido, sobrescreve a estimativa (módulos + extras) na ficha comercial.
+    preco_mensal_negociado = Column(Numeric(12, 2), nullable=True)
     data_inicio = Column(Date, nullable=False)
     data_renovacao = Column(Date, nullable=True)
     instancia_url = Column(String(500), nullable=True)

@@ -88,13 +88,15 @@ A **URL pública** da instância não é escolhida livremente: o ops/cliente def
 
 ## Planos e módulos (catálogo comercial)
 
-- UI: `/saas/planos`, `/saas/modulos` — CRUD, activar/desactivar; plano associa `modulo_ids`.
-- Licença: campo `plano_id` (select); `plano` fica como rótulo denormalizado do nome.
-- Seed (migration `091`): módulos `helpdesk`, `whatsapp`, `contratos`, `boletos`; planos `trial`, `profissional`, `enterprise`.
-- Planos podem ter `preco_mensal`, `max_postos`, `max_usuarios` (migration `092`).
-- Ao atribuir/aprovar plano, a licença grava `modulos_snapshot` + limites (congelados na ficha comercial).
-- No provisionamento, `SAAS_MODULOS` é escrito no `client.env` a partir do snapshot; o `/health` da instância expõe `capabilities.modulo_*` lidos dessa env.
-- Enforcement fino de features no produto cliente (UI/RBAC por módulo) fica para follow-up — hoje o snapshot + env são a fonte de verdade comercial/ops.
+- UI: `/saas/planos`, `/saas/modulos` — CRUD, ativar/desativar; plano associa `modulo_ids`.
+- **Preço no módulo** (`saas_modulos.preco_mensal`); o `preco_mensal` do plano é sempre a **soma** dos módulos do pacote (recalcula ao editar preço ou composição).
+- Plano também define `usuarios_inclusos` (default 3) e `preco_usuario_extra` (default R$ 10).
+- Licença: `plano_id` (rótulo comercial) + `modulo_ids` opcional para **mix custom** (ex.: Essencial + 1 módulo Enterprise) + `usuarios_contratados` → grava em `max_usuarios` / `modulos_snapshot`.
+- **Valor mensal negociado** (`preco_mensal_negociado`): opcional na licença; se preenchido, vira o valor comercial efetivo (`preco_mensal_efetivo`); senão usa a estimativa do catálogo (módulos + extras).
+- Estimativa na ficha: `preco_modulos` + extras de usuário = `preco_mensal_estimado`.
+- Seed (migrations `091` + `121` + `122` + `123`): módulos com preço; planos pela soma; coluna de valor negociado na licença.
+- No provisionamento, `SAAS_MODULOS` vem do snapshot; `/health` expõe `capabilities.modulo_*`.
+- Enforcement fino de features no produto cliente e bloqueio hard de usuários além do contratado ficam para follow-up.
 
 ## Fila de sugestões das instâncias (#855 / #856)
 
@@ -159,6 +161,54 @@ O script corre no PC do ops. A fila é a da instância comercial (`SAAS_CONTROL_
 O `SAAS_MCP_TOKEN` no `.env` da VPS ainda é aceite como **legado** (não identifica a pessoa). Prefira o token do painel.
 
 Ferramentas: listar, obter, alterar status, comentar, vincular pedidos iguais, ligar issue GitHub (aceitam `id` ou protocolo). Sem OpenAI e sem `CURSOR_API_KEY` no DeskRudder. O GitHub MCP (criar issues) é à parte e também é por instalação do Cursor.
+
+## Runbook: desativar cliente sem derrubar o SaaS
+
+Objetivo: tirar do ar (ou suspender) **só** a instância do cliente. O control-plane continua a servir licenças, fila, MCP e `/saas`.
+
+### Pré-cheque (comercial viva)
+
+```bash
+curl -sf https://api.deskrudder.com.br/health   # saas_control_plane: true
+curl -sf -o /dev/null -w "%{http_code}\n" https://deskrudder.com.br/login/admin
+```
+
+No Cursor: `/listar-solicitacoes` (ou MCP `deskrudder-saas`) ainda lista a fila — prova de que o MCP aponta a `api.deskrudder.com.br`, não a `api-duplexsoft`.
+
+### Suspender pelo painel (recomendado)
+
+1. `/saas/licencas` → cliente → **Suspender** (marca licença + fila de `stack down` se provisionada).
+2. No host, se `SAAS_PROVISION_EXEC_ENABLED=false`, correr os comandos `down` mostrados no detalhe (ou `stack-client.sh down <slug>`).
+3. **Não** pare o stack `admin-center` nem remova Nginx de `api.deskrudder.com.br` / `deskrudder.com.br`.
+
+### Parar só a DuplexSoft (legado `docker-compose.prod.yml`)
+
+Na VPS, como usuário de deploy:
+
+```bash
+cd /opt/dx-connect
+docker compose --env-file backend/.env -f docker-compose.prod.yml stop
+# ou: down — remove containers; volumes/Postgres do host ficam conforme o compose
+```
+
+**Não** execute `stack-client.sh down admin-center`.
+
+### Pós-cheque
+
+| Check | Esperado |
+|-------|----------|
+| `https://api.deskrudder.com.br/health` | `200`, `saas_control_plane: true` |
+| `https://deskrudder.com.br/saas/...` (logado) | painel ops responde |
+| MCP / `/listar-solicitacoes` | fila comercial acessível |
+| `https://api-duplexsoft…/health` (se parou o cliente) | falha / indisponível — **ok** |
+| Postgres `dx-connect-db-admin-center` | `Up` / healthy |
+
+A **fila de sugestões** e as contas `saas_ops` vivem só no Postgres do admin-center. A BD do cliente não é fonte de verdade do control-plane; desligar o cliente não apaga a fila.
+
+### Reativar
+
+- Licença: **Reativar** no painel + `stack-client.sh up <slug>` (ou `docker compose … up -d` no legado DuplexSoft).
+- Confirmar health do cliente e, se aplicável, **Confirmar stack** no detalhe da licença.
 
 ## Histórico da licença
 
@@ -286,6 +336,6 @@ Worker `saas-renovacoes` (intervalo `SAAS_RENEWAL_WORKER_INTERVAL_SECONDS`):
 
 ## Referências
 
-- Épico: `#519`
-- Issues: DR-01…DR-08 em `.github/planning-issue-bodies/`
-- Deploy por cliente: `docs/DEPLOYMENT_ARCHITECTURE.md`, `deploy/clients/README.md`
+- Épico cutover: **#875** (filhas #876–#880; docs #879)
+- Deploy por cliente: `docs/DEPLOYMENT_ARCHITECTURE.md`, `deploy/clients/README.md`, `deploy/admin-center/README.md`
+- MCP example: `.cursor/mcp.json.example` (`DESKRUDDER_API_URL=https://api.deskrudder.com.br`)

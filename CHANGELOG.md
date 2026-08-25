@@ -9,6 +9,13 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Docs (#879): MCP aponta a `api.deskrudder.com.br`; runbook para desativar cliente sem derrubar o painel SaaS; arquitetura pós-cutover (admin-center vs compose legado)
+- Painel admin: cabeçalho com **Painel admin SaaS** + usuário logado (nome e cargos); **Equipe** com Usuários / Setores / Minha conta; removido o atalho «Painel atendimento»
+- Equipe SaaS: cadastro de **setores/cargos** (Admin, Desenvolvimento, Comercial, …) sem campo ordem; um usuário pode ter **vários** cargos; o cabeçalho mostra os nomes em vez de só «Ops SaaS»
+- Minha conta: além do token Cursor, o ops edita **nome**, **e-mail** e **senha**
+- Licenças: coluna **Valor/mês** com valor negociado (ou estimativa do catálogo); campo opcional na ficha para negociação diferente do plano
+- Catálogo comercial: **preço por módulo**; plano = soma dos módulos habilitados; licença pode misturar (ex. Essencial + 1 módulo Enterprise); **3 usuários inclusos** + R$ 10/usuário extra (editável no plano)
+- Catálogo comercial: módulos do produto pré-cadastrados; planos Trial / Essencial / Profissional / Enterprise (sem teto de postos nem tickets)
 - Infra (#880): deploy GitHub Actions atualiza **duas** stacks — build/dist DuplexSoft e build/dist comercial; migrate em cada Postgres; health com flags SaaS distintas
 - Infra: `stack-client.sh migrate` fecha o stdin (`-T` + `/dev/null`) para o `docker compose run` não engolir o resto do script SSH no deploy do admin-center
 - Infra (#876 / #877 / #878): painel admin em `api.deskrudder.com.br` + SPA em `deskrudder.com.br`; fila e contas ops migradas para o Postgres comercial; DuplexSoft passa a só **ingerir** sugestões (control-plane desligado nessa instância)
@@ -18,6 +25,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Login ops: no primeiro acesso (trocar senha) o painel SaaS já não mostra «não disponível nesta instância»; redirecciona para definir senha nova
 - Sobre (#920): o painel ops lista **todas** as notas da versão, com etiqueta **Produto** ou **DevOps**. O helpdesk nas instâncias continua a ver só as de produto
 - Login do painel admin: em produção deixa de aparecer a dica de desenvolvimento (e-mail local)
+- Sugestões: na fila, chips de **tipo** (Sugestão / Erro) e **fase** (Aguardando, Em desenvolvimento, Finalizadas), com contadores; badges coloridos na lista e no detalhe
 - Sugestões (#923): detalhe com **linha do tempo** (pedido + mensagens ao cliente); notas internas em cartão âmbar; status em passos clicáveis, como nos tickets
 - Sugestões: textos de acompanhamento em português do Brasil; mensagem ao cliente **não pode citar** GitHub nem número de issue (isso fica na nota interna)
 - Painel ops: menu **Equipe** (Usuários + Minha conta); **Sobre** e **Sair** no rodapé, no mesmo padrão do painel de atendimento

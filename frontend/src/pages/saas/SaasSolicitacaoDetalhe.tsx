@@ -12,8 +12,10 @@ import { useVoltarAnterior } from '../../hooks/useVoltarAnterior'
 import { SolicitacaoDescricao } from '../../components/release/SolicitacaoDescricao'
 import {
   classesBadgeStatusSolicitacao,
+  classesBadgeTipoSolicitacao,
   mencionaTrabalhoInterno,
   rotuloStatusSolicitacao,
+  rotuloTipoSolicitacao,
   SAAS_SOLICITACAO_STATUS,
 } from '../../lib/saasSolicitacoes'
 import { SemPermissao } from '../SemPermissao'
@@ -28,10 +30,6 @@ function formatWhen(iso: string | null | undefined): string {
   } catch {
     return iso
   }
-}
-
-function rotuloTipo(tipo: string): string {
-  return tipo === 'problema' ? 'Problema' : 'Sugestão'
 }
 
 function StatusBadge({ status, rotulo }: { status: string; rotulo?: string }) {
@@ -277,8 +275,10 @@ export function SaasSolicitacaoDetalhe() {
               {item.protocolo || 'Sem protocolo'}
             </p>
             <span className="text-slate-300 dark:text-slate-600">·</span>
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              {rotuloTipo(item.tipo)}
+            <span
+              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${classesBadgeTipoSolicitacao(item.tipo)}`}
+            >
+              {rotuloTipoSolicitacao(item.tipo)}
             </span>
             <StatusBadge status={item.status} rotulo={item.status_rotulo} />
           </div>

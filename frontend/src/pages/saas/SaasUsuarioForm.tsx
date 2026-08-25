@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ApiError, saasOpsUsuarios } from '../../api/client'
+import { ApiError, saasOpsUsuarios, saasSetores, type SaasSetores } from '../../api/client'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../../api/errorMessage'
 import { Button } from '../../components/ui/Button'
 import { CadastroFormPageShell } from '../../components/ui/CadastroFormPageShell'
 import { CarregamentoFalhou } from '../../components/ui/CarregamentoFalhou'
+import { CheckboxField } from '../../components/ui/CheckboxField'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { FormSection } from '../../components/ui/FormSection'
 import { InlineCadastroFooter } from '../../components/ui/InlineCadastroPanel'
@@ -37,6 +38,23 @@ export function SaasUsuarioForm() {
   const [tokenConfigurado, setTokenConfigurado] = useState(false)
   const [senhaTemporaria, setSenhaTemporaria] = useState<string | null>(null)
   const [confirmarReset, setConfirmarReset] = useState(false)
+  const [setoresList, setSetoresList] = useState<SaasSetores.Setor[]>([])
+  const [setorIds, setSetorIds] = useState<number[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    saasSetores
+      .list()
+      .then((rows) => {
+        if (!cancelled) setSetoresList(rows)
+      })
+      .catch(() => {
+        if (!cancelled) setSetoresList([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!isEdit) return
@@ -58,6 +76,7 @@ export function SaasUsuarioForm() {
         setEmail(row.email)
         setAtivo(row.ativo)
         setTokenConfigurado(row.mcp_token_configurado)
+        setSetorIds(row.setor_ids ?? [])
       })
       .catch((err) => {
         if (cancelled) return
@@ -79,13 +98,17 @@ export function SaasUsuarioForm() {
     }
   }, [id, isEdit, usuarioId])
 
+  function toggleSetor(setorId: number) {
+    setSetorIds((prev) => (prev.includes(setorId) ? prev.filter((x) => x !== setorId) : [...prev, setorId]))
+  }
+
   async function copiarSenha() {
     if (!senhaTemporaria) return
     try {
       await navigator.clipboard.writeText(senhaTemporaria)
       toast.showSuccess('Senha copiada.')
     } catch {
-      toast.showError('Não foi possível copiar. Seleccione a senha e copie manualmente.')
+      toast.showError('Não foi possível copiar. Selecione a senha e copie manualmente.')
     }
   }
 
@@ -98,18 +121,28 @@ export function SaasUsuarioForm() {
     setSaving(true)
     try {
       if (isEdit) {
-        const row = await saasOpsUsuarios.update(usuarioId, { nome: nome.trim(), ativo })
+        const row = await saasOpsUsuarios.update(usuarioId, {
+          nome: nome.trim(),
+          ativo,
+          setor_ids: setorIds,
+        })
         setAtivo(row.ativo)
+        setSetorIds(row.setor_ids ?? [])
         toast.showSuccess('Usuário atualizado.')
         navigate('/saas/usuarios')
         return
       }
-      const row = await saasOpsUsuarios.create({ nome: nome.trim(), email: email.trim() })
+      const row = await saasOpsUsuarios.create({
+        nome: nome.trim(),
+        email: email.trim(),
+        setor_ids: setorIds,
+      })
       setSenhaTemporaria(row.senha_temporaria)
       setEmail(row.email)
+      setSetorIds(row.setor_ids ?? [])
       toast.showSuccess('Usuário criado. Copie a senha temporária agora.')
     } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível guardar o utilizador.'))
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar o usuário.'))
     } finally {
       setSaving(false)
     }
@@ -162,7 +195,7 @@ export function SaasUsuarioForm() {
     <CadastroFormPageShell onVoltar={voltarAnterior}>
       <form onSubmit={(ev) => void onSubmit(ev)} className="space-y-4">
         <FormSection
-          title={isEdit ? 'Editar utilizador' : 'Novo utilizador'}
+          title={isEdit ? 'Editar usuário' : 'Novo usuário'}
           description="Esta conta entra no painel DeskRudder (/login/admin). Não é um atendente da instância do cliente."
         >
           {loading ? (
@@ -178,6 +211,34 @@ export function SaasUsuarioForm() {
                 required
                 disabled={isEdit}
               />
+              <div>
+                <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">Cargos</p>
+                <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                  Pode marcar mais de um. Cadastre novos em Equipe → Setores.
+                </p>
+                {setoresList.length === 0 ? (
+                  <p className="text-sm text-slate-500">
+                    Nenhum setor ativo.{' '}
+                    <Link to="/saas/setores/novo" className="font-medium text-sky-700 underline dark:text-sky-300">
+                      Criar setor
+                    </Link>
+                  </p>
+                ) : (
+                  <div className="max-h-44 overflow-auto rounded-lg border border-slate-200 p-3 dark:border-slate-800/80">
+                    <div className="flex flex-wrap gap-2">
+                      {setoresList.map((s) => (
+                        <CheckboxField
+                          key={s.id}
+                          checked={setorIds.includes(s.id)}
+                          onChange={() => toggleSetor(s.id)}
+                        >
+                          {s.nome}
+                        </CheckboxField>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
               {isEdit ? (
                 <Switch
                   checked={ativo}

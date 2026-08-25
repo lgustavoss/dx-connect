@@ -51,6 +51,11 @@ class Atendente(Base):
         secondary=atendente_setor,
         back_populates="atendentes",
     )
+    saas_setores = relationship(
+        "SaasSetor",
+        secondary="saas_ops_setor",
+        back_populates="ops",
+    )
     tickets_atendidos = relationship("Ticket", back_populates="atendente")
     historicos = relationship("TicketHistorico", back_populates="atendente")
     ticket_mensagens = relationship("TicketMensagem", back_populates="atendente")

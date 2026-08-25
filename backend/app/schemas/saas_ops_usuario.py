@@ -1,8 +1,10 @@
-"""Utilizadores do painel SaaS (role saas_ops) — #883."""
+"""Usuários do painel SaaS (role saas_ops) — #883."""
 
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.schemas.saas_setor import SaasSetorRead
 
 
 class SaasOpsUsuarioRead(BaseModel):
@@ -14,6 +16,8 @@ class SaasOpsUsuarioRead(BaseModel):
     mcp_token_configurado: bool
     mcp_token_gerado_em: datetime | None = None
     created_at: datetime | None = None
+    setor_ids: list[int] = []
+    setores: list[SaasSetorRead] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -21,6 +25,7 @@ class SaasOpsUsuarioRead(BaseModel):
 class SaasOpsUsuarioCreate(BaseModel):
     nome: str = Field(..., min_length=1, max_length=255)
     email: str = Field(..., min_length=3, max_length=255)
+    setor_ids: list[int] = Field(default_factory=list)
 
 
 class SaasOpsUsuarioCriado(SaasOpsUsuarioRead):
@@ -32,6 +37,7 @@ class SaasOpsUsuarioCriado(SaasOpsUsuarioRead):
 class SaasOpsUsuarioUpdate(BaseModel):
     nome: str | None = Field(None, min_length=1, max_length=255)
     ativo: bool | None = None
+    setor_ids: list[int] | None = None
 
 
 class SaasOpsUsuarioSenha(BaseModel):

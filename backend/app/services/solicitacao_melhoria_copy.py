@@ -28,6 +28,19 @@ STATUS_FINAIS = frozenset({"concluida", "nao_sera_desenvolvida"})
 STATUS_VALIDOS = frozenset(STATUS_LABELS.keys())
 TIPOS_VALIDOS = frozenset({"sugestao", "problema"})
 
+# Fases para filtro rápido no painel ops (agrupa status)
+FASES_STATUS: dict[str, frozenset[str]] = {
+    "aguardando": frozenset({"aberta", "em_analise", "planejada"}),
+    "desenvolvimento": frozenset({"em_desenvolvimento"}),
+    "finalizadas": frozenset(STATUS_FINAIS),
+}
+FASES_VALIDAS = frozenset(FASES_STATUS.keys())
+
+
+def status_da_fase(fase: str) -> frozenset[str] | None:
+    key = (fase or "").strip().lower()
+    return FASES_STATUS.get(key)
+
 
 def mensagem_publica_status(status: str, *, motivo: str | None = None) -> str:
     base = STATUS_MENSAGENS.get(status, "O estado do seu pedido foi atualizado.")

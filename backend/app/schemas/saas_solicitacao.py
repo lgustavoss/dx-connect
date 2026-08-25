@@ -124,6 +124,15 @@ class SaasSolicitacaoSyncResponse(BaseModel):
     items: list[SaasSolicitacaoSyncItem] = Field(default_factory=list)
 
 
+class SaasSolicitacaoResumo(BaseModel):
+    total: int = 0
+    sugestoes: int = 0
+    problemas: int = 0
+    aguardando: int = 0
+    desenvolvimento: int = 0
+    finalizadas: int = 0
+
+
 class ClienteSaaSIngestTokenRead(BaseModel):
     slug: str
     token: str
