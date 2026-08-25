@@ -5,23 +5,21 @@ import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../../api/
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { CarregamentoFalhou } from '../../components/ui/CarregamentoFalhou'
-import { DetailRow } from '../../components/ui/DetailRow'
 import { Input, TEXTAREA_FIELD_CLASS } from '../../components/ui/Input'
-import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 import { VoltarButton } from '../../components/ui/VoltarButton'
 import { useVoltarAnterior } from '../../hooks/useVoltarAnterior'
 import { SolicitacaoDescricao } from '../../components/release/SolicitacaoDescricao'
+import {
+  classesBadgeStatusSolicitacao,
+  mencionaTrabalhoInterno,
+  rotuloStatusSolicitacao,
+  SAAS_SOLICITACAO_STATUS,
+} from '../../lib/saasSolicitacoes'
 import { SemPermissao } from '../SemPermissao'
 
-const STATUS_OPTS = [
-  { value: 'aberta', label: 'Recebida' },
-  { value: 'em_analise', label: 'Em análise' },
-  { value: 'planejada', label: 'Planejada' },
-  { value: 'em_desenvolvimento', label: 'Em desenvolvimento' },
-  { value: 'concluida', label: 'Concluída' },
-  { value: 'nao_sera_desenvolvida', label: 'Não será desenvolvida' },
-]
+const STATUS_FLUXO = SAAS_SOLICITACAO_STATUS.filter((s) => s.value !== 'nao_sera_desenvolvida')
+const STATUS_REJEITAR = SAAS_SOLICITACAO_STATUS.find((s) => s.value === 'nao_sera_desenvolvida')!
 
 function formatWhen(iso: string | null | undefined): string {
   if (!iso) return '—'
@@ -34,6 +32,16 @@ function formatWhen(iso: string | null | undefined): string {
 
 function rotuloTipo(tipo: string): string {
   return tipo === 'problema' ? 'Problema' : 'Sugestão'
+}
+
+function StatusBadge({ status, rotulo }: { status: string; rotulo?: string }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${classesBadgeStatusSolicitacao(status)}`}
+    >
+      {rotulo || rotuloStatusSolicitacao(status)}
+    </span>
+  )
 }
 
 export function SaasSolicitacaoDetalhe() {
@@ -52,7 +60,7 @@ export function SaasSolicitacaoDetalhe() {
   const [novoStatus, setNovoStatus] = useState('em_analise')
   const [motivo, setMotivo] = useState('')
   const [comentario, setComentario] = useState('')
-  const [publico, setPublico] = useState(true)
+  const [tipoMensagem, setTipoMensagem] = useState<'publico' | 'interno'>('publico')
   const [buscaIgual, setBuscaIgual] = useState('')
   const [candidatos, setCandidatos] = useState<SaasSolicitacoesProduto.ListaItem[]>([])
 
@@ -121,17 +129,17 @@ export function SaasSolicitacaoDetalhe() {
     return () => clearTimeout(t)
   }, [buscaIgual, item])
 
-  async function salvarStatus() {
+  async function persistirStatus(status: string, motivoTexto?: string) {
     if (!item) return
     setBusy(true)
     try {
       const atualizado = await saasSolicitacoes.alterarStatus(item.id, {
-        status: novoStatus,
+        status,
         motivo_nao_desenvolvimento:
-          novoStatus === 'nao_sera_desenvolvida' ? motivo.trim() || null : undefined,
+          status === 'nao_sera_desenvolvida' ? motivoTexto?.trim() || null : undefined,
       })
       aplicarDetalhe(atualizado)
-      toast.showSuccess('Status actualizado. O cliente vê o andamento em Minhas solicitações.')
+      toast.showSuccess('Status atualizado. O cliente vê o andamento em Minhas solicitações.')
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível alterar o status'))
     } finally {
@@ -139,8 +147,30 @@ export function SaasSolicitacaoDetalhe() {
     }
   }
 
+  async function escolherStatus(status: string) {
+    setNovoStatus(status)
+    if (status === 'nao_sera_desenvolvida') return
+    if (item && status === item.status) return
+    await persistirStatus(status)
+  }
+
+  async function confirmarRejeicao() {
+    if (!motivo.trim()) {
+      toast.showError('Informe um motivo amigável para o cliente.')
+      return
+    }
+    await persistirStatus('nao_sera_desenvolvida', motivo)
+  }
+
   async function enviarComentario() {
     if (!item || !comentario.trim()) return
+    const publico = tipoMensagem === 'publico'
+    if (publico && mencionaTrabalhoInterno(comentario)) {
+      toast.showError(
+        'Não envie links ou números de issue do GitHub na mensagem ao cliente. Use comentário interno.',
+      )
+      return
+    }
     setBusy(true)
     try {
       const atualizado = await saasSolicitacoes.comentar(item.id, {
@@ -149,7 +179,7 @@ export function SaasSolicitacaoDetalhe() {
       })
       aplicarDetalhe(atualizado)
       setComentario('')
-      toast.showSuccess(publico ? 'Resposta pública enviada ao cliente' : 'Nota interna registada (só no SaaS)')
+      toast.showSuccess(publico ? 'Resposta pública enviada ao cliente' : 'Nota interna registada (só neste painel)')
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Falha ao comentar'))
     } finally {
@@ -230,18 +260,32 @@ export function SaasSolicitacaoDetalhe() {
   }
   if (!item) return null
 
+  const comentarios = [...(item.comentarios || [])].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  )
+  const rejeitarPendente = novoStatus === 'nao_sera_desenvolvida' && item.status !== 'nao_sera_desenvolvida'
+  const internoActivo = tipoMensagem === 'interno'
+
   return (
     <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6 pb-10">
       <VoltarButton onClick={voltarAnterior} />
 
       <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            {item.protocolo || 'Sem protocolo'} · {rotuloTipo(item.tipo)}
-          </p>
+        <div className="min-w-0 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-mono text-xs font-semibold tracking-wide text-slate-500 dark:text-slate-400">
+              {item.protocolo || 'Sem protocolo'}
+            </p>
+            <span className="text-slate-300 dark:text-slate-600">·</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              {rotuloTipo(item.tipo)}
+            </span>
+            <StatusBadge status={item.status} rotulo={item.status_rotulo} />
+          </div>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">{item.titulo}</h1>
           <p className="text-sm text-slate-500">
             {item.cliente_nome || item.instance_slug}
+            {item.autor_nome ? ` · ${item.autor_nome}` : ''}
             {item.versao_contexto ? ` · v${item.versao_contexto}` : ''}
             {(item.peso_clientes || 1) > 1 ? ` · ${item.peso_clientes} clientes pediram o mesmo` : ''}
           </p>
@@ -253,175 +297,309 @@ export function SaasSolicitacaoDetalhe() {
         ) : null}
       </header>
 
-      <Card title="Pedido">
-        <SolicitacaoDescricao descricao={item.descricao} anexos={item.anexos} />
-        <dl className="mt-4">
-          <DetailRow label="Protocolo" value={item.protocolo || '—'} mono />
-          <DetailRow label="Cliente" value={item.cliente_nome || '—'} />
-          <DetailRow label="Slug" value={item.instance_slug} mono />
-          <DetailRow label="Autor" value={item.autor_nome || '—'} />
-          <DetailRow label="Status" value={item.status_rotulo} />
-          <DetailRow label="Versão" value={item.versao_contexto || '—'} />
-          <DetailRow label="Aberto em" value={formatWhen(item.created_at_origem)} />
-          <DetailRow label="Recebido no SaaS" value={formatWhen(item.ingested_at)} />
-          <DetailRow
-            label="Peso"
-            value={
-              (item.peso_clientes || 1) > 1
-                ? `${item.peso_clientes} clientes · ${item.pedidos_grupo} pedidos`
-                : '1 cliente'
-            }
-          />
-        </dl>
-      </Card>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_21rem] xl:items-start">
+        <aside className="space-y-6 xl:col-start-2 xl:row-start-1">
+          <Card title="Status" description="O cliente vê este andamento em Minhas solicitações.">
+            <nav className="space-y-1.5" aria-label="Status da triagem">
+              {STATUS_FLUXO.map((s) => {
+                const activo = novoStatus === s.value
+                return (
+                  <button
+                    key={s.value}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void escolherStatus(s.value)}
+                    className={`flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-left text-sm transition disabled:opacity-60 ${
+                      activo
+                        ? 'border-cyan-300 bg-cyan-50/90 ring-1 ring-cyan-400/25 dark:border-cyan-700/60 dark:bg-cyan-950/35 dark:ring-cyan-600/30'
+                        : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40 dark:hover:bg-slate-800/50'
+                    }`}
+                  >
+                    <span
+                      className={`size-2 shrink-0 rounded-full ${activo ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                    />
+                    <span className={`min-w-0 flex-1 font-medium ${activo ? 'text-slate-900 dark:text-slate-50' : 'text-slate-700 dark:text-slate-200'}`}>
+                      {s.label}
+                    </span>
+                    {item.status === s.value ? (
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-300">
+                        atual
+                      </span>
+                    ) : null}
+                  </button>
+                )
+              })}
+              <div className="my-2 border-t border-slate-100 dark:border-slate-800" />
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void escolherStatus(STATUS_REJEITAR.value)}
+                className={`flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-left text-sm transition disabled:opacity-60 ${
+                  novoStatus === STATUS_REJEITAR.value
+                    ? 'border-rose-300 bg-rose-50/90 ring-1 ring-rose-400/25 dark:border-rose-800/60 dark:bg-rose-950/35 dark:ring-rose-700/30'
+                    : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40 dark:hover:bg-slate-800/50'
+                }`}
+              >
+                <span
+                  className={`size-2 shrink-0 rounded-full ${novoStatus === STATUS_REJEITAR.value ? 'bg-rose-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                />
+                <span className="min-w-0 flex-1 font-medium text-slate-700 dark:text-slate-200">
+                  {STATUS_REJEITAR.label}
+                </span>
+                {item.status === STATUS_REJEITAR.value ? (
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-rose-700 dark:text-rose-300">
+                    atual
+                  </span>
+                ) : null}
+              </button>
+            </nav>
+            {novoStatus === 'nao_sera_desenvolvida' ? (
+              <div className="mt-3 space-y-2">
+                <textarea
+                  className={TEXTAREA_FIELD_CLASS}
+                  rows={3}
+                  value={motivo}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  placeholder="Motivo amigável para o cliente (obrigatório)"
+                />
+                <Button type="button" variant="primary" loading={busy} onClick={() => void confirmarRejeicao()}>
+                  {rejeitarPendente ? 'Salvar e informar o cliente' : 'Atualizar motivo'}
+                </Button>
+              </div>
+            ) : null}
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+              Aberto {formatWhen(item.created_at_origem)} · no SaaS {formatWhen(item.ingested_at)}
+            </p>
+          </Card>
 
-      <Card title="Pedidos iguais">
-        <p className="text-sm text-slate-500">
-          Só neste painel. O cliente não vê quem mais pediu a mesma coisa. Na issue, cola o bloco de protocolos.
-        </p>
-        {(item.grupo || []).length > 1 ? (
-          <ul className="mt-3 space-y-2">
-            {(item.grupo || []).map((m) => (
-              <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+          {item.github_issue_url ? (
+            <Card title="Issue no GitHub" description="Só neste painel — o cliente não vê o link.">
+              <a
+                href={item.github_issue_url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex text-sm font-medium text-cyan-700 hover:underline dark:text-cyan-400"
+              >
+                {item.github_issue_number ? `#${item.github_issue_number}` : item.github_issue_url}
+              </a>
+            </Card>
+          ) : null}
+
+          <Card title="Pedidos iguais" description="Só neste painel. O cliente não vê quem mais pediu o mesmo.">
+            {(item.grupo || []).length > 1 ? (
+              <ul className="space-y-2">
+                {(item.grupo || []).map((m) => (
+                  <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <button
+                      type="button"
+                      className="text-left font-medium text-cyan-800 hover:underline dark:text-cyan-300"
+                      onClick={() => navigate(`/saas/solicitacoes/${m.id}`)}
+                    >
+                      <span className="font-mono">{m.protocolo || `#${m.id}`}</span>
+                      {' · '}
+                      {m.cliente_nome || m.instance_slug}
+                    </button>
+                    {m.id !== item.id ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={busy}
+                        onClick={() => void desvincularPedido(m.id)}
+                      >
+                        Desvincular
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-slate-400">este pedido</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-slate-500">Ainda não está ligado a outros pedidos.</p>
+            )}
+            {item.texto_github_demanda ? (
+              <div className="mt-3 space-y-2">
+                <pre className="whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs text-slate-700 dark:bg-slate-900/60 dark:text-slate-200">
+                  {item.texto_github_demanda}
+                </pre>
+                <Button type="button" variant="secondary" onClick={() => void copiarDemandaGithub()}>
+                  Copiar para a issue
+                </Button>
+              </div>
+            ) : null}
+            <div className="mt-4 space-y-2">
+              <Input
+                label="Vincular outro pedido"
+                placeholder="Protocolo, título ou cliente…"
+                value={buscaIgual}
+                onChange={(e) => setBuscaIgual(e.target.value)}
+              />
+              {candidatos.length > 0 ? (
+                <ul className="space-y-1">
+                  {candidatos.map((c) => (
+                    <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                      <span>
+                        <span className="font-mono text-cyan-800 dark:text-cyan-300">{c.protocolo || `#${c.id}`}</span>
+                        {' · '}
+                        {c.cliente_nome || c.instance_slug} — {c.titulo}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={busy}
+                        onClick={() => void vincularPedido({ id: c.id, protocolo: c.protocolo })}
+                      >
+                        Vincular
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          </Card>
+        </aside>
+
+        <div className="space-y-4 xl:col-start-1 xl:row-start-1">
+          <Card
+            title="Linha do tempo"
+            description="O pedido e o que o cliente vê. Notas internas ficam só neste painel (cartão âmbar)."
+          >
+            <ol className="relative space-y-4 border-l border-slate-200 pl-5 dark:border-slate-700">
+              <li className="relative">
+                <span className="absolute -left-[1.45rem] mt-1.5 size-2.5 rounded-full bg-slate-400 ring-4 ring-white dark:bg-slate-500 dark:ring-slate-900" />
+                <div className="rounded-xl border border-slate-200 border-l-4 border-l-slate-500 bg-slate-50/90 px-4 py-3 text-sm dark:border-slate-600 dark:border-l-slate-400 dark:bg-slate-800/50">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/70 pb-2 text-xs dark:border-slate-600/80">
+                    <span className="font-semibold text-slate-800 dark:text-slate-100">Pedido do cliente</span>
+                    <span className="text-slate-500 dark:text-slate-400">{formatWhen(item.created_at_origem)}</span>
+                  </div>
+                  <div className="mt-3">
+                    <SolicitacaoDescricao descricao={item.descricao} anexos={item.anexos} />
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    {item.autor_nome || 'Cliente'}
+                    {item.instance_slug ? ` · ${item.instance_slug}` : ''}
+                  </p>
+                </div>
+              </li>
+
+              {comentarios.map((c) => {
+                const interno = !c.publico_cliente
+                return (
+                  <li key={c.id} className="relative">
+                    <span
+                      className={`absolute -left-[1.45rem] mt-1.5 size-2.5 rounded-full ring-4 ring-white dark:ring-slate-900 ${
+                        interno ? 'bg-amber-500' : 'bg-cyan-500'
+                      }`}
+                    />
+                    <div
+                      className={`rounded-xl border px-4 py-3 text-sm ${
+                        interno
+                          ? 'border-amber-200/90 bg-amber-50/60 dark:border-amber-800/50 dark:bg-amber-950/25'
+                          : 'border-slate-200/90 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800/45 dark:shadow-none'
+                      }`}
+                    >
+                      <div
+                        className={`flex flex-wrap items-center justify-between gap-2 border-b pb-2 text-xs ${
+                          interno
+                            ? 'border-amber-200/50 dark:border-amber-800/40'
+                            : 'border-slate-200/60 dark:border-slate-600/80'
+                        }`}
+                      >
+                        <span className="font-semibold text-slate-800 dark:text-slate-100">
+                          {interno ? 'Nota interna' : 'Mensagem ao cliente'}
+                        </span>
+                        {interno ? (
+                          <span className="rounded-md bg-amber-100/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900 dark:bg-amber-900/50 dark:text-amber-100">
+                            Só equipe
+                          </span>
+                        ) : (
+                          <span className="rounded-md bg-cyan-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-cyan-800 dark:bg-cyan-950/50 dark:text-cyan-100">
+                            Visível ao cliente
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-2 whitespace-pre-wrap text-slate-800 dark:text-slate-200">{c.corpo}</p>
+                      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                        {c.autor_nome || '—'} · {formatWhen(c.created_at)}
+                      </p>
+                    </div>
+                  </li>
+                )
+              })}
+            </ol>
+
+            {comentarios.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                Ainda não há respostas. O que enviares como mensagem ao cliente aparece em Minhas solicitações.
+              </p>
+            ) : null}
+
+            <div className="mt-5 border-t border-slate-200 pt-4 dark:border-slate-800">
+              <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">Nova mensagem</p>
+              <div className="mb-3 inline-flex rounded-xl bg-slate-100 p-1 ring-1 ring-slate-200/80 dark:bg-slate-800/90 dark:ring-slate-600/80">
                 <button
                   type="button"
-                  className="text-left font-medium text-cyan-800 hover:underline dark:text-cyan-300"
-                  onClick={() => navigate(`/saas/solicitacoes/${m.id}`)}
+                  onClick={() => setTipoMensagem('publico')}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                    tipoMensagem === 'publico'
+                      ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100 dark:shadow-none dark:ring-1 dark:ring-slate-500/30'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                  }`}
                 >
-                  <span className="font-mono">{m.protocolo || `#${m.id}`}</span>
-                  {' · '}
-                  {m.cliente_nome || m.instance_slug}
+                  Mensagem ao cliente
                 </button>
-                {m.id !== item.id ? (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    disabled={busy}
-                    onClick={() => void desvincularPedido(m.id)}
-                  >
-                    Desvincular
-                  </Button>
-                ) : (
-                  <span className="text-xs text-slate-400">este pedido</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-2 text-sm text-slate-500">Ainda não está ligado a outros pedidos.</p>
-        )}
-        {item.texto_github_demanda ? (
-          <div className="mt-3 space-y-2">
-            <pre className="whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs text-slate-700 dark:bg-slate-900/60 dark:text-slate-200">
-              {item.texto_github_demanda}
-            </pre>
-            <Button type="button" variant="secondary" onClick={() => void copiarDemandaGithub()}>
-              Copiar para a issue
-            </Button>
-          </div>
-        ) : null}
-        <div className="mt-4 space-y-2">
-          <Input
-            label="Vincular outro pedido"
-            placeholder="Protocolo, título ou cliente…"
-            value={buscaIgual}
-            onChange={(e) => setBuscaIgual(e.target.value)}
-          />
-          {candidatos.length > 0 ? (
-            <ul className="space-y-1">
-              {candidatos.map((c) => (
-                <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                  <span>
-                    <span className="font-mono text-cyan-800 dark:text-cyan-300">{c.protocolo || `#${c.id}`}</span>
-                    {' · '}
-                    {c.cliente_nome || c.instance_slug} — {c.titulo}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    disabled={busy}
-                    onClick={() => void vincularPedido({ id: c.id, protocolo: c.protocolo })}
-                  >
-                    Vincular
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-      </Card>
-
-      {item.github_issue_url ? (
-        <Card title="Issue no GitHub">
-          <p className="text-sm text-slate-600 dark:text-slate-300">
-            Ligada pelo Cursor. Cole os protocolos do grupo no corpo da issue. O cliente não vê este link.
-          </p>
-          <a
-            href={item.github_issue_url}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-2 inline-flex text-sm font-medium text-cyan-700 hover:underline dark:text-cyan-400"
-          >
-            {item.github_issue_url}
-          </a>
-        </Card>
-      ) : null}
-
-      <Card title="Triagem">
-        <div className="space-y-3">
-          <Select
-            value={novoStatus}
-            onChange={(v) => setNovoStatus(String(v))}
-            options={STATUS_OPTS}
-          />
-          {novoStatus === 'nao_sera_desenvolvida' ? (
-            <textarea
-              className={TEXTAREA_FIELD_CLASS}
-              rows={3}
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
-              placeholder="Motivo amigável para o cliente (obrigatório)"
-            />
-          ) : null}
-          <Button type="button" variant="primary" loading={busy} onClick={() => void salvarStatus()}>
-            Guardar status
-          </Button>
-        </div>
-      </Card>
-
-      <Card title="Resposta / nota">
-        <div className="space-y-3">
-          <textarea
-            className={TEXTAREA_FIELD_CLASS}
-            rows={3}
-            value={comentario}
-            onChange={(e) => setComentario(e.target.value)}
-            placeholder="Mensagem…"
-          />
-          <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-            <input type="checkbox" checked={publico} onChange={(e) => setPublico(e.target.checked)} />
-            Visível para o cliente (desmarque para nota interna — não sai deste painel)
-          </label>
-          <Button type="button" variant="primary" loading={busy} disabled={!comentario.trim()} onClick={() => void enviarComentario()}>
-            Enviar
-          </Button>
-        </div>
-      </Card>
-
-      <section className="space-y-2">
-        <h2 className="text-sm font-semibold text-slate-500">Comentários</h2>
-        {(item.comentarios || []).map((c) => (
-          <Card key={c.id} className="p-3 text-sm">
-            <p className="text-xs text-slate-500">
-              {c.publico_cliente ? 'Público' : 'Interno'} · {c.autor_nome || '—'} · {formatWhen(c.created_at)}
-            </p>
-            <p className="mt-1 whitespace-pre-wrap">{c.corpo}</p>
+                <button
+                  type="button"
+                  onClick={() => setTipoMensagem('interno')}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                    internoActivo
+                      ? 'bg-white text-amber-950 shadow-sm dark:bg-amber-950/55 dark:text-amber-100 dark:shadow-none dark:ring-1 dark:ring-amber-700/40'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Comentário interno
+                </button>
+              </div>
+              <textarea
+                className={`${TEXTAREA_FIELD_CLASS} ${
+                  internoActivo
+                    ? 'bg-amber-50 ring-amber-200/90 focus:ring-amber-400/30 dark:bg-amber-950/25 dark:ring-amber-800/60'
+                    : ''
+                }`}
+                rows={4}
+                value={comentario}
+                onChange={(e) => setComentario(e.target.value)}
+                placeholder={
+                  internoActivo
+                    ? 'Anotação visível apenas para a equipe ops…'
+                    : 'Resposta que o cliente vê em Minhas solicitações…'
+                }
+              />
+              {!internoActivo ? (
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  O cliente lê isto. Não cite GitHub, número de issue nem acompanhamento interno.
+                </p>
+              ) : null}
+              {tipoMensagem === 'publico' && mencionaTrabalhoInterno(comentario) ? (
+                <p className="mt-2 text-sm text-rose-700 dark:text-rose-300">
+                  Esta mensagem cita trabalho interno. Mude para comentário interno ou tire a issue/GitHub.
+                </p>
+              ) : null}
+              <div className="mt-3 flex justify-end">
+                <Button
+                  type="button"
+                  variant="primary"
+                  loading={busy}
+                  disabled={!comentario.trim() || (tipoMensagem === 'publico' && mencionaTrabalhoInterno(comentario))}
+                  onClick={() => void enviarComentario()}
+                >
+                  Enviar
+                </Button>
+              </div>
+            </div>
           </Card>
-        ))}
-        {(item.comentarios || []).length === 0 ? (
-          <p className="text-sm text-slate-500">Ainda não há comentários nesta solicitação.</p>
-        ) : null}
-      </section>
+        </div>
+      </div>
     </div>
   )
 }

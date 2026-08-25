@@ -203,7 +203,7 @@ function LoginConta() {
           </div>
           {isSaasControlPlaneFrontend() ? (
             <p className="text-center text-xs text-slate-500">
-              Equipa DeskRudder?{' '}
+              Equipe DeskRudder?{' '}
               <Link to="/login/admin" className="font-medium text-sky-300 hover:text-sky-200">
                 Acesso ao painel admin
               </Link>
@@ -510,7 +510,7 @@ function LoginCredenciais({ variant = 'tenant' }: { variant?: 'tenant' | 'ops' }
       const me = await atendentes.me()
       if (isOps && me.role !== 'saas_ops') {
         logout()
-        showError('Esta conta não é da equipa SaaS. Use o login do atendimento (/login).')
+        showError('Esta conta não é da equipe SaaS. Use o login do atendimento (/login).')
         return
       }
       if (!isOps && me.role === 'saas_ops') {
@@ -548,7 +548,7 @@ function LoginCredenciais({ variant = 'tenant' }: { variant?: 'tenant' | 'ops' }
         <>
           <p className="text-center text-xs leading-relaxed text-slate-500">
             {isOps
-              ? 'Acesso da equipa DeskRudder — gestão de licenças, leads e instâncias SaaS.'
+              ? 'Acesso da equipe DeskRudder — gestão de licenças, leads e instâncias SaaS.'
               : 'Use o usuário cadastrado pelo administrador. Problemas para acessar? Contate o suporte interno.'}
           </p>
           <div className="flex flex-col gap-2.5">
@@ -571,9 +571,11 @@ function LoginCredenciais({ variant = 'tenant' }: { variant?: 'tenant' | 'ops' }
           <div className="space-y-1.5 text-center">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sky-300/90">Painel admin</p>
             <h1 className="text-xl font-semibold text-white sm:text-2xl">Gestão SaaS DeskRudder</h1>
-            <p className="text-sm text-slate-400">
-              Conta da equipa comercial (role saas_ops). Em local: ops@deskrudder.local
-            </p>
+            {import.meta.env.DEV ? (
+              <p className="text-sm text-slate-400">
+                Desenvolvimento: ops@deskrudder.local
+              </p>
+            ) : null}
           </div>
         ) : null}
         <div>

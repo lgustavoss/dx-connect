@@ -7,6 +7,11 @@ import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../../components/ui/Barra
 import { Card } from '../../components/ui/Card'
 import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
+import {
+  classesBadgeStatusSolicitacao,
+  rotuloStatusSolicitacao,
+  SAAS_SOLICITACAO_STATUS,
+} from '../../lib/saasSolicitacoes'
 import { SemPermissao } from '../SemPermissao'
 
 const TIPO_OPTS = [
@@ -14,14 +19,7 @@ const TIPO_OPTS = [
   { value: 'problema', label: 'Problema' },
 ]
 
-const STATUS_OPTS = [
-  { value: 'aberta', label: 'Recebida' },
-  { value: 'em_analise', label: 'Em análise' },
-  { value: 'planejada', label: 'Planejada' },
-  { value: 'em_desenvolvimento', label: 'Em desenvolvimento' },
-  { value: 'concluida', label: 'Concluída' },
-  { value: 'nao_sera_desenvolvida', label: 'Não será desenvolvida' },
-]
+const STATUS_OPTS = SAAS_SOLICITACAO_STATUS.map((s) => ({ value: s.value, label: s.label }))
 
 function formatWhen(iso: string | null | undefined): string {
   if (!iso) return '—'
@@ -215,7 +213,13 @@ export function SaasSolicitacoes() {
                         '1'
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300 sm:px-6">{item.status_rotulo}</td>
+                    <td className="px-4 py-3 sm:px-6">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${classesBadgeStatusSolicitacao(item.status)}`}
+                      >
+                        {item.status_rotulo || rotuloStatusSolicitacao(item.status)}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-slate-500 sm:px-6">
                       {formatWhen(item.created_at_origem || item.ingested_at)}
                     </td>

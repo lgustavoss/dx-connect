@@ -290,7 +290,7 @@ def test_system_release_notes_hides_saas_prefix_even_if_wrongly_tagged(
     assert texts == ["WhatsApp: fila"]
 
 
-def test_saas_release_notes_rbac_and_filter(client, auth_headers, monkeypatch, tmp_path):
+def test_saas_release_notes_rbac_and_all_products(client, auth_headers, monkeypatch, tmp_path):
     from app.config import settings
 
     data_path = tmp_path / "release_notes.json"
@@ -324,8 +324,11 @@ def test_saas_release_notes_rbac_and_filter(client, auth_headers, monkeypatch, t
 
     ok = client.get("/v1/saas/release-notes", headers=auth_headers["ops"])
     assert ok.status_code == 200, ok.text
-    texts = [c["text"] for c in ok.json()["current"]["changes"]]
-    assert texts == ["SaaS: licenças"]
+    changes = ok.json()["current"]["changes"]
+    assert [(c["text"], c["product"]) for c in changes] == [
+        ("Chat fila", "deskrudder"),
+        ("SaaS: licenças", "saas"),
+    ]
 
 
 def test_health_includes_version(client, monkeypatch):

@@ -58,7 +58,7 @@ export function SaasUsuarios() {
           setIndisponivel(true)
           return
         }
-        toast.showError(mensagemFalhaParaToast(err, 'Não encontramos a equipa.'))
+        toast.showError(mensagemFalhaParaToast(err, 'Não encontramos a equipe.'))
       })
       .finally(() => setLoading(false))
   }, [debouncedBusca, incluirInativos, page, toast])
@@ -71,7 +71,7 @@ export function SaasUsuarios() {
     return (
       <SemPermissao
         title="Painel SaaS não disponível nesta instância."
-        detail="A equipa DeskRudder só existe no control-plane."
+        detail="A equipe DeskRudder só existe no control-plane."
         voltarPara="/login/admin"
         voltarLabel="Voltar ao login admin"
       />
@@ -83,17 +83,17 @@ export function SaasUsuarios() {
       forbidden={forbidden}
       denied={
         <SemPermissao
-          title="Você não tem permissão para gerir a equipa."
+          title="Você não tem permissão para gerir a equipe."
           voltarPara="/login/admin"
           voltarLabel="Voltar ao login admin"
         />
       }
-      title="Equipa DeskRudder"
-      actions={<Button onClick={() => navigate('/saas/usuarios/novo')}>Novo utilizador</Button>}
+      title="Equipe DeskRudder"
+      actions={<Button onClick={() => navigate('/saas/usuarios/novo')}>Novo usuário</Button>}
     >
       <Card
-        title="Utilizadores"
-        description="Contas do painel /login/admin. Cada pessoa gera o próprio token Cursor em Conta / Cursor."
+        title="Usuários"
+        description="Quem entra no /login/admin (desenvolvimento e comercial). Cada pessoa gera o próprio token Cursor em Minha conta."
       >
         <BarraBuscaPaginacao
           busca={busca}
@@ -108,7 +108,7 @@ export function SaasUsuarios() {
         {loading ? (
           <p className="text-slate-500 dark:text-slate-400">Carregando...</p>
         ) : list.length === 0 ? (
-          <p className="text-slate-500 dark:text-slate-400">Nenhum utilizador encontrado.</p>
+          <p className="text-slate-500 dark:text-slate-400">Nenhum usuário encontrado.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-sm">
@@ -147,7 +147,7 @@ export function SaasUsuarios() {
                         </span>
                         {!u.ativo ? (
                           <span className="shrink-0 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600 dark:text-slate-400">
-                            Inactivo
+                            Inativo
                           </span>
                         ) : null}
                         {u.must_change_password ? (

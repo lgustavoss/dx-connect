@@ -9,6 +9,12 @@ import { SemPermissao } from '../SemPermissao'
 import { isSaasControlPlaneFrontend, SAAS_LICENCAS_PATH } from '../../lib/saasControlPlane'
 import { system } from '../../api/client'
 
+const logoutIcon = (
+  <svg className="size-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+  </svg>
+)
+
 const menuIcon = (
   <svg className="size-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -34,6 +40,12 @@ export function SaasLayout() {
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false)
   const [planeOk, setPlaneOk] = useState<boolean | null>(null)
+  const [versionLabel, setVersionLabel] = useState<string | null>(() => {
+    const fromEnv =
+      (import.meta.env.VITE_APP_VERSION_DISPLAY as string | undefined)?.trim() ||
+      (import.meta.env.VITE_APP_VERSION as string | undefined)?.trim()
+    return fromEnv ? (fromEnv.startsWith('v') ? fromEnv : `v${fromEnv}`) : null
+  })
   const logoOnDark = resolved === 'dark'
 
   useEffect(() => {
@@ -43,19 +55,15 @@ export function SaasLayout() {
         cancelled = true
       }
     }
-    if (isSaasControlPlaneFrontend()) {
-      setPlaneOk(true)
-      return () => {
-        cancelled = true
-      }
-    }
     system
       .info()
       .then((info) => {
-        if (!cancelled) setPlaneOk(Boolean(info.saas_control_plane))
+        if (cancelled) return
+        if (info.version_display) setVersionLabel(info.version_display)
+        setPlaneOk(isSaasControlPlaneFrontend() || Boolean(info.saas_control_plane))
       })
       .catch(() => {
-        if (!cancelled) setPlaneOk(false)
+        if (!cancelled) setPlaneOk(isSaasControlPlaneFrontend())
       })
     return () => {
       cancelled = true
@@ -75,7 +83,7 @@ export function SaasLayout() {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-slate-50 p-6 dark:bg-slate-950">
         <SemPermissao
-          title="Este painel é exclusivo da equipa SaaS DeskRudder."
+          title="Este painel é exclusivo da equipe SaaS DeskRudder."
           detail="Use o login do atendimento (/login) para tickets e chat, ou entre com a conta ops em /login/admin."
           voltarPara="/login"
           voltarLabel="Ir para login do atendimento"
@@ -147,7 +155,7 @@ export function SaasLayout() {
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">Licenças, planos, leads e sugestões</p>
           ) : null}
         </div>
-        <nav className="flex flex-1 flex-col gap-1 p-3" onClick={() => setSidebarMobileOpen(false)}>
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3" onClick={() => setSidebarMobileOpen(false)}>
           <NavLink to={SAAS_LICENCAS_PATH} className={navLinkClass} end={false}>
             <span className="truncate">{sidebarExpanded || sidebarMobileOpen ? 'Licenças' : 'Lic'}</span>
           </NavLink>
@@ -160,30 +168,71 @@ export function SaasLayout() {
           <NavLink to="/saas/solicitacoes" className={navLinkClass}>
             <span className="truncate">{sidebarExpanded || sidebarMobileOpen ? 'Sugestões' : 'Sug'}</span>
           </NavLink>
+          {sidebarExpanded || sidebarMobileOpen ? (
+            <p className="mt-3 px-3 pt-2 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+              Equipe
+            </p>
+          ) : (
+            <div className="my-2 hidden border-t border-slate-200 dark:border-slate-800 md:block" />
+          )}
           <NavLink to="/saas/usuarios" className={navLinkClass}>
-            <span className="truncate">{sidebarExpanded || sidebarMobileOpen ? 'Equipa' : 'Eq'}</span>
+            <span className="truncate">{sidebarExpanded || sidebarMobileOpen ? 'Usuários' : 'Usr'}</span>
           </NavLink>
           <NavLink to="/saas/conta" className={navLinkClass}>
-            <span className="truncate">{sidebarExpanded || sidebarMobileOpen ? 'Conta / Cursor' : 'Conta'}</span>
-          </NavLink>
-          <NavLink to="/saas/sobre" className={navLinkClass}>
-            <span className="truncate">{sidebarExpanded || sidebarMobileOpen ? 'Sobre' : 'Info'}</span>
+            <span className="truncate">{sidebarExpanded || sidebarMobileOpen ? 'Minha conta' : 'Conta'}</span>
           </NavLink>
         </nav>
-        <div className="border-t border-slate-200 p-3 dark:border-slate-800">
-          {sidebarExpanded || sidebarMobileOpen ? (
-            <div className="mb-3 px-1">
-              <p className="truncate text-sm font-medium text-slate-900 dark:text-white">{user.nome}</p>
-              <p className="truncate text-xs text-slate-500">Ops SaaS</p>
+        <div className={`shrink-0 border-t border-slate-200 p-2 dark:border-slate-800 ${sidebarExpanded ? '' : 'md:px-2'}`}>
+          {(sidebarExpanded || sidebarMobileOpen) ? (
+            <div className="flex items-center gap-3 px-3 py-2 text-slate-600 dark:text-slate-400">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 text-xs font-semibold text-white shadow-sm shadow-cyan-500/25">
+                {user.nome?.charAt(0)?.toUpperCase() ?? '?'}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{user.nome}</p>
+                <p className="truncate text-xs text-slate-500 dark:text-slate-400">Ops SaaS</p>
+              </div>
             </div>
           ) : null}
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-white"
+            title="Sair"
+            className={`mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-600 hover:bg-slate-100 active:bg-slate-200 touch-manipulation min-h-[44px] dark:text-slate-400 dark:hover:bg-slate-800 dark:active:bg-slate-700 ${
+              sidebarExpanded || sidebarMobileOpen ? '' : 'md:justify-center md:px-2'
+            }`}
           >
-            {sidebarExpanded || sidebarMobileOpen ? 'Sair' : '⎋'}
+            {logoutIcon}
+            <span
+              className={
+                sidebarExpanded || sidebarMobileOpen
+                  ? 'min-w-0 truncate'
+                  : 'min-w-0 truncate md:hidden'
+              }
+            >
+              Sair
+            </span>
           </button>
+          <NavLink
+            to="/saas/sobre"
+            title="Sobre / novidades"
+            onClick={() => setSidebarMobileOpen(false)}
+            className={({ isActive }) =>
+              [
+                'mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:hover:text-slate-200',
+                sidebarExpanded || sidebarMobileOpen ? '' : 'md:justify-center md:px-2',
+                isActive ? 'bg-slate-100 text-slate-800 dark:bg-slate-800/80 dark:text-slate-100' : '',
+              ].join(' ')
+            }
+          >
+            <span className={`truncate ${sidebarExpanded || sidebarMobileOpen ? '' : 'md:text-[10px]'}`}>
+              {sidebarExpanded || sidebarMobileOpen
+                ? versionLabel
+                  ? `Sobre · ${versionLabel}`
+                  : 'Sobre'
+                : versionLabel || 'Sobre'}
+            </span>
+          </NavLink>
         </div>
       </aside>
 

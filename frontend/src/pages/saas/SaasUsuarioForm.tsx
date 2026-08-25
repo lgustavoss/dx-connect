@@ -69,7 +69,7 @@ export function SaasUsuarioForm() {
           setIndisponivel(true)
           return
         }
-        setInexistente(interpretarFalhaCarregamento(err, 'Utilizador não encontrado.'))
+        setInexistente(interpretarFalhaCarregamento(err, 'Usuário não encontrado.'))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -100,14 +100,14 @@ export function SaasUsuarioForm() {
       if (isEdit) {
         const row = await saasOpsUsuarios.update(usuarioId, { nome: nome.trim(), ativo })
         setAtivo(row.ativo)
-        toast.showSuccess('Utilizador actualizado.')
+        toast.showSuccess('Usuário atualizado.')
         navigate('/saas/usuarios')
         return
       }
       const row = await saasOpsUsuarios.create({ nome: nome.trim(), email: email.trim() })
       setSenhaTemporaria(row.senha_temporaria)
       setEmail(row.email)
-      toast.showSuccess('Utilizador criado. Copie a senha temporária agora.')
+      toast.showSuccess('Usuário criado. Copie a senha temporária agora.')
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível guardar o utilizador.'))
     } finally {
@@ -132,7 +132,7 @@ export function SaasUsuarioForm() {
   if (forbidden) {
     return (
       <SemPermissao
-        title="Conta exclusiva da equipa SaaS."
+        title="Conta exclusiva da equipe SaaS."
         detail="Entre com a conta ops em /login/admin."
         voltarPara="/login/admin"
         voltarLabel="Voltar ao login admin"
@@ -151,7 +151,7 @@ export function SaasUsuarioForm() {
   if (inexistente) {
     return (
       <CarregamentoFalhou
-        titulo={inexistente.detalhe ? 'Utilizador não encontrado.' : 'Não foi possível carregar.'}
+        titulo={inexistente.detalhe ? 'Usuário não encontrado.' : 'Não foi possível carregar.'}
         detalhe={inexistente.detalhe}
         onVoltar={voltarAnterior}
       />
@@ -166,7 +166,7 @@ export function SaasUsuarioForm() {
           description="Esta conta entra no painel DeskRudder (/login/admin). Não é um atendente da instância do cliente."
         >
           {loading ? (
-            <p className="text-sm text-slate-500">A carregar…</p>
+            <p className="text-sm text-slate-500">Carregando…</p>
           ) : (
             <div className="space-y-4">
               <Input label="Nome" value={nome} onChange={(ev) => setNome(ev.target.value)} required />
@@ -182,10 +182,10 @@ export function SaasUsuarioForm() {
                 <Switch
                   checked={ativo}
                   onCheckedChange={setAtivo}
-                  label="Conta activa"
+                  label="Conta ativa"
                   showStatusPill
                   disabled={isSelf}
-                  description={isSelf ? 'Não podes desactivar a tua própria conta.' : undefined}
+                  description={isSelf ? 'Você não pode desativar a própria conta.' : undefined}
                 />
               ) : null}
               {isEdit ? (
@@ -195,7 +195,7 @@ export function SaasUsuarioForm() {
                     <>
                       {' '}
                       <Link to="/saas/conta" className="font-medium text-sky-700 underline dark:text-sky-300">
-                        Gerar o teu token
+                        Gerar seu token
                       </Link>
                     </>
                   ) : (
@@ -210,7 +210,7 @@ export function SaasUsuarioForm() {
                     Copiar senha
                   </Button>
                   <p className="text-xs text-slate-500">
-                    Login em /login/admin. No primeiro acesso a pessoa define senha nova e, em Conta / Cursor, gera
+                    Login em /login/admin. No primeiro acesso a pessoa define senha nova e, em Minha conta, gera
                     o token.
                   </p>
                 </div>
@@ -228,7 +228,7 @@ export function SaasUsuarioForm() {
           <InlineCadastroFooter
             onCancel={voltarAnterior}
             saving={saving}
-            submitLabel={isEdit ? 'Guardar' : 'Criar'}
+            submitLabel={isEdit ? 'Salvar' : 'Criar'}
           />
         )}
       </form>
@@ -242,7 +242,7 @@ export function SaasUsuarioForm() {
       <ConfirmDialog
         open={confirmarReset}
         title="Gerar senha temporária?"
-        message="A sessão actual desta pessoa no painel deixa de valer. Copie a senha nova e envie-lhe."
+        message="A sessão atual desta pessoa no painel deixa de valer. Copie a senha nova e envie-lhe."
         confirmLabel="Gerar senha"
         variant="danger"
         loading={saving}
