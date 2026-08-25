@@ -6,6 +6,8 @@ Instância comercial (`deskrudder.com.br`): registo de licenças, trial, provisi
 
 A instância comercial **não** partilha Postgres nem container com o cliente DuplexSoft. Runbook: [`deploy/admin-center/README.md`](../deploy/admin-center/README.md) (épico #875).
 
+Em produção (após #877 / #878): API comercial em `https://api.deskrudder.com.br` (`saas_control_plane: true`); landing/`/saas` em `https://deskrudder.com.br`; DuplexSoft em `api-duplexsoft…` com `saas_control_plane: false` + ingest.
+
 ## Ativar
 
 ```bash

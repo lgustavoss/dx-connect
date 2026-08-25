@@ -26,16 +26,31 @@ Health esperado: `"saas_control_plane": true`.
 
 DNS: `api.deskrudder.com.br` → IP da VPS. Nginx: copie `nginx.site.conf.example` e peça TLS (Certbot).
 
-SPA comercial (dist **separado** do cliente):
+SPA comercial (dist **separado** do cliente — não sobrescreve o `frontend/dist` da DuplexSoft):
 
 ```bash
-cp deploy/admin-center/frontend.env.production.example frontend/.env.production
-cd frontend && npm ci && npm run build
+cd /opt/dx-connect/frontend
+export VITE_API_URL=https://api.deskrudder.com.br
+export VITE_SAAS_CONTROL_PLANE=true
+export VITE_MARKETING_SITE_URL=https://deskrudder.com.br
+export VITE_CLIENT_APP_HOST=deskrudder.com.br
+export VITE_DEFAULT_TENANT_ID=1
+npm ci
+npx vite build --outDir /tmp/admin-center-spa-dist --emptyOutDir
 sudo mkdir -p /var/www/dx-connect/admin-center/dist
-sudo rsync -a dist/ /var/www/dx-connect/admin-center/dist/
+sudo rsync -a --delete /tmp/admin-center-spa-dist/ /var/www/dx-connect/admin-center/dist/
 ```
 
-Até o cutover (#878), a DuplexSoft pode continuar com `SAAS_CONTROL_PLANE=true` no compose legado. Não desligue essa flag antes de migrar a fila.
+Nginx da landing (`deskrudder.com.br`): `root /var/www/dx-connect/admin-center/dist;`  
+Painel DuplexSoft continua em `/opt/dx-connect/frontend/dist` (API `api-duplexsoft`).
+
+## Cutover (#878) — feito em produção
+
+1. Migrar tabelas SaaS + mídia `solicitacao_media` + `protocol_sequences` (`kind=S`) + contas `saas_ops` para o Postgres do `admin-center`
+2. Criar licença `clientes_saas` slug `duplexsoft` e token de ingest
+3. Na DuplexSoft (`backend/.env`): `SAAS_CONTROL_PLANE=false`, `SAAS_INSTANCE_SLUG=duplexsoft`, `SAAS_CONTROL_PLANE_INGEST_URL` + `SAAS_INSTANCE_INGEST_TOKEN`
+4. Desactivar contas `saas_ops` na BD DuplexSoft (ficam só na comercial)
+5. Health esperado: `api.deskrudder.com.br` → `saas_control_plane: true`; `api-duplexsoft…` → `false`
 
 ## O que este diretório versiona
 
