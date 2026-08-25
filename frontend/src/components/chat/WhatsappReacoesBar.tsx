@@ -11,6 +11,8 @@ type Props = {
   /** Abrir picker a partir do menu da seta (#749). */
   pickerExternoAberto?: boolean
   onPickerExternoClose?: () => void
+  /** Menu/edição abertos: não mostrar picker no hover (#S202608-0005 / #947). */
+  ocultarPickerHover?: boolean
 }
 
 /** Reações no chat WhatsApp com o cliente (#630 lote 2 / #749). */
@@ -21,6 +23,7 @@ export function WhatsappReacoesBar({
   alinhamento = 'end',
   pickerExternoAberto = false,
   onPickerExternoClose,
+  ocultarPickerHover = false,
 }: Props) {
   const temReacoes = reacoes.length > 0
   const alignEnd = alinhamento === 'end'
@@ -35,7 +38,8 @@ export function WhatsappReacoesBar({
             alignEnd ? 'items-end' : 'items-start'
           } ${temReacoes || mostrarPickerMobile ? 'relative mt-1' : 'relative'}`}
         >
-          {/* Desktop: picker no hover do balão */}
+          {/* Desktop: picker no hover do balão (oculto com menu de ações aberto) */}
+          {!ocultarPickerHover ? (
           <div
             className={`pointer-events-none absolute bottom-full z-20 mb-1 hidden flex-col md:flex ${
               alignEnd ? 'right-0 items-end' : 'left-0 items-start'
@@ -63,6 +67,7 @@ export function WhatsappReacoesBar({
               </div>
             </div>
           </div>
+          ) : null}
           {mostrarPickerMobile ? (
             <div className="mt-1 flex items-center gap-0.5 rounded-full border border-slate-200 bg-white px-1 py-0.5 shadow-md md:hidden dark:border-slate-600 dark:bg-slate-800">
               {EMOJIS_REACAO_CHAT_INTERNO.map((emoji) => (

@@ -18,6 +18,8 @@ type Props = {
   podeReagir?: boolean
   /** Balão claro (inbound) — seta escura. */
   tomClaro?: boolean
+  /** Menu ou edição abertos — pai oculta picker de hover (#S202608-0005). */
+  onMenuAbertoChange?: (aberto: boolean) => void
 }
 
 /** Menu de ações no canto do balão (editar / apagar / reagir) — #630 / #749. */
@@ -28,6 +30,7 @@ export function WhatsappMensagemAcoes({
   onReagirMenu,
   podeReagir = false,
   tomClaro = false,
+  onMenuAbertoChange,
 }: Props) {
   const [editando, setEditando] = useState(false)
   const [texto, setTexto] = useState(() => corpoWhatsappSemPrefixo(mensagem.corpo))
@@ -36,6 +39,8 @@ export function WhatsappMensagemAcoes({
   const [confirmarApagar, setConfirmarApagar] = useState(false)
   const [apagando, setApagando] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
+  const onMenuAbertoChangeRef = useRef(onMenuAbertoChange)
+  onMenuAbertoChangeRef.current = onMenuAbertoChange
 
   const podeEditar = Boolean(mensagem.pode_editar && onEditar)
   const podeApagarTodos = Boolean(mensagem.pode_apagar_para_todos && onApagar)
@@ -44,6 +49,11 @@ export function WhatsappMensagemAcoes({
   useEffect(() => {
     if (!editando) setTexto(corpoWhatsappSemPrefixo(mensagem.corpo))
   }, [mensagem, editando])
+
+  useEffect(() => {
+    onMenuAbertoChangeRef.current?.(menuAberto || editando)
+    return () => onMenuAbertoChangeRef.current?.(false)
+  }, [menuAberto, editando])
 
   useEffect(() => {
     if (!menuAberto) return

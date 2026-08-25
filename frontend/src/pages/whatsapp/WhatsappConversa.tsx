@@ -605,6 +605,7 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
   const enviandoRef = useRef(false)
   const enviandoMidiaRef = useRef(false)
   const [reagirMsgId, setReagirMsgId] = useState<number | null>(null)
+  const [acoesMenuMsgId, setAcoesMenuMsgId] = useState<number | null>(null)
 
   // Estados de WhatsApp Clone (Citação e Zoom)
   const [msgRespondida, setMsgRespondida] = useState<WhatsappChats.Mensagem | null>(null)
@@ -2195,6 +2196,12 @@ useEffect(() => {
                         onApagar={!isInbound ? () => apagarMensagemWhatsapp(m) : undefined}
                         podeReagir={podeReagir}
                         onReagirMenu={podeReagir ? () => setReagirMsgId(m.id) : undefined}
+                        onMenuAbertoChange={(aberto) => {
+                          setAcoesMenuMsgId((prev) => {
+                            if (aberto) return m.id
+                            return prev === m.id ? null : prev
+                          })
+                        }}
                         tomClaro={isInbound}
                       />
                     )}
@@ -2280,6 +2287,7 @@ useEffect(() => {
                       alinhamento={isInbound ? 'start' : 'end'}
                       pickerExternoAberto={reagirMsgId === m.id}
                       onPickerExternoClose={() => setReagirMsgId(null)}
+                      ocultarPickerHover={acoesMenuMsgId === m.id}
                     />
                   )}
 
