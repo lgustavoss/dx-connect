@@ -747,4 +747,62 @@ def test_vincular_pedidos_iguais_peso_e_nao_vaza_ao_cliente(client, seed_base, a
     assert len(gone.json()["grupo"]) == 1
 
 
+def test_fila_filtro_fase_tipo_e_resumo(client, seed_base, auth_headers, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    monkeypatch.setattr(settings, "SAAS_INSTANCE_SLUG", "local")
+    h = auth_headers["ops"]
+
+    sid_sug = _criar_solicitacao(client, auth_headers["a1"]).json()["id"]
+    sid_err = _criar_solicitacao(
+        client,
+        auth_headers["a1"],
+        tipo="problema",
+        titulo="Erro ao abrir o chat",
+        descricao="O chat interno trava ao carregar a lista de conversas.",
+    ).json()["id"]
+
+    lista = client.get("/v1/saas/solicitacoes", headers=h).json()["items"]
+    saas_sug = next(i["id"] for i in lista if i["origem_solicitacao_id"] == sid_sug)
+    saas_err = next(i["id"] for i in lista if i["origem_solicitacao_id"] == sid_err)
+
+    client.patch(
+        f"/v1/saas/solicitacoes/{saas_sug}/status",
+        headers=h,
+        json={"status": "em_desenvolvimento"},
+    )
+    client.patch(
+        f"/v1/saas/solicitacoes/{saas_err}/status",
+        headers=h,
+        json={"status": "concluida"},
+    )
+
+    aguardando = client.get("/v1/saas/solicitacoes?fase=aguardando", headers=h)
+    assert aguardando.status_code == 200
+    ids_ag = {i["id"] for i in aguardando.json()["items"]}
+    assert saas_sug not in ids_ag
+    assert saas_err not in ids_ag
+
+    dev = client.get("/v1/saas/solicitacoes?fase=desenvolvimento", headers=h)
+    assert {i["id"] for i in dev.json()["items"]} >= {saas_sug}
+
+    fin = client.get("/v1/saas/solicitacoes?fase=finalizadas", headers=h)
+    assert {i["id"] for i in fin.json()["items"]} >= {saas_err}
+
+    so_erro = client.get("/v1/saas/solicitacoes?tipo=problema", headers=h)
+    assert all(i["tipo"] == "problema" for i in so_erro.json()["items"])
+    assert saas_err in {i["id"] for i in so_erro.json()["items"]}
+
+    resumo = client.get("/v1/saas/solicitacoes/resumo", headers=h)
+    assert resumo.status_code == 200, resumo.text
+    body = resumo.json()
+    assert body["total"] >= 2
+    assert body["sugestoes"] >= 1
+    assert body["problemas"] >= 1
+    assert body["desenvolvimento"] >= 1
+    assert body["finalizadas"] >= 1
+
+    bad = client.get("/v1/saas/solicitacoes?fase=xyz", headers=h)
+    assert bad.status_code == 400
 

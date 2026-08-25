@@ -42,6 +42,8 @@ def criar(db: Session, data: ClienteSaaSCreate) -> ClienteSaaS:
     _garantir_slug_unico(db, data.slug)
     payload = data.model_dump()
     lead_id = payload.pop("lead_comercial_id", None)
+    modulo_ids = payload.pop("modulo_ids", None)
+    usuarios_contratados = payload.pop("usuarios_contratados", None)
     # URL pública é sempre derivada do slug (+ domínio base); não é campo livre.
     payload["instancia_url"] = _url_do_slug(data.slug) or payload.get("instancia_url")
 
@@ -50,15 +52,20 @@ def criar(db: Session, data: ClienteSaaSCreate) -> ClienteSaaS:
     plano_id = payload.pop("plano_id", None)
     # Texto livre `plano` só como fallback legado; preferir plano_id.
     if plano_id is not None:
-        pid, nome, codigos, max_p, max_u = aplicar_plano_em_cliente(db, plano_id=plano_id)
+        pid, nome, codigos, max_p, max_u = aplicar_plano_em_cliente(
+            db, plano_id=plano_id, modulo_ids=modulo_ids
+        )
         payload["plano_id"] = pid
         payload["plano"] = nome
         payload["modulos_snapshot"] = codigos
-        payload["max_postos"] = max_p
-        payload["max_usuarios"] = max_u
+        payload["max_postos"] = None
+        if usuarios_contratados is not None:
+            payload["max_usuarios"] = usuarios_contratados
+        elif max_u is not None:
+            payload["max_usuarios"] = max_u
     elif payload.get("plano"):
         # Trial / legado: tentar resolver por código ou deixar só o rótulo.
-        from app.services.saas_catalogo import obter_plano_por_codigo, sincronizar_snapshot_licenca
+        from app.services.saas_catalogo import obter_plano_por_codigo
 
         p = obter_plano_por_codigo(db, str(payload["plano"]))
         if p is not None:
@@ -88,37 +95,45 @@ def atualizar(db: Session, cliente_id: int, data: ClienteSaaSUpdate) -> ClienteS
         _garantir_slug_unico(db, payload["slug"], excluir_id=cliente_id)
     # instancia_url deixa de ser editável à mão — sempre acompanha o slug.
     payload.pop("instancia_url", None)
+    modulo_ids = payload.pop("modulo_ids", None)
+    usuarios_contratados = payload.pop("usuarios_contratados", None)
 
-    if "plano_id" in payload:
+    if "plano_id" in payload or modulo_ids is not None:
         from app.services.saas_catalogo import aplicar_plano_em_cliente
 
-        pid, nome, codigos, max_p, max_u = aplicar_plano_em_cliente(
+        plano_ref = payload["plano_id"] if "plano_id" in payload else getattr(row, "plano_id", None)
+        pid, nome, codigos, _max_p, max_u = aplicar_plano_em_cliente(
             db,
-            plano_id=payload["plano_id"],
+            plano_id=plano_ref,
             plano_actual_id=getattr(row, "plano_id", None),
+            modulo_ids=modulo_ids,
         )
         payload["plano_id"] = pid
         payload["plano"] = nome
         payload["modulos_snapshot"] = codigos
-        payload["max_postos"] = max_p
-        payload["max_usuarios"] = max_u
+        payload["max_postos"] = None
+        if usuarios_contratados is not None:
+            payload["max_usuarios"] = usuarios_contratados
+        elif "plano_id" in data.model_dump(exclude_unset=True) and max_u is not None:
+            # Troca de plano sem informar usuários — mantém o contratado actual se existir
+            if getattr(row, "max_usuarios", None) is None:
+                payload["max_usuarios"] = max_u
     elif "plano" in payload and payload.get("plano"):
-        from app.services.saas_catalogo import obter_plano_por_codigo, sincronizar_snapshot_licenca
+        from app.services.saas_catalogo import obter_plano_por_codigo
 
         p = obter_plano_por_codigo(db, str(payload["plano"]))
         if p is not None:
             payload["plano_id"] = p.id
             payload["plano"] = p.nome
 
+    if usuarios_contratados is not None and "max_usuarios" not in payload:
+        payload["max_usuarios"] = usuarios_contratados
+
     for k, v in payload.items():
         setattr(row, k, v)
     auto = _url_do_slug(row.slug)
     if auto:
         row.instancia_url = auto
-    if "plano_id" in payload or ("plano" in payload and getattr(row, "plano_id", None)):
-        from app.services.saas_catalogo import sincronizar_snapshot_licenca
-
-        sincronizar_snapshot_licenca(db, row)
     db.flush()
     return row
 
@@ -211,12 +226,54 @@ def serializar_cliente(row: ClienteSaaS) -> dict:
     plano_modulos: list[dict] = []
     plano_id = getattr(row, "plano_id", None)
     sess = object_session(row)
+    usuarios_inclusos = 3
+    preco_usuario_extra = 10.0
     if plano_id and sess is not None:
         try:
             plano = saas_catalogo.obter_plano(sess, plano_id)
-            plano_modulos = saas_catalogo.serializar_plano(plano).get("modulos") or []
+            ser = saas_catalogo.serializar_plano(plano)
+            plano_modulos = ser.get("modulos") or []
+            usuarios_inclusos = int(ser.get("usuarios_inclusos") or 3)
+            preco_usuario_extra = float(ser.get("preco_usuario_extra") or 10)
         except SaasErro:
             plano_modulos = []
+
+    preco_modulos = 0.0
+    snapshot = list(getattr(row, "modulos_snapshot", None) or [])
+    modulos_contratados: list[dict] = []
+    if sess is not None and snapshot:
+        try:
+            mods = saas_catalogo.resolver_modulos_por_codigos(sess, snapshot)
+            preco_modulos = saas_catalogo.soma_preco_modulos(mods)
+            modulos_contratados = [
+                {
+                    "id": m.id,
+                    "codigo": m.codigo,
+                    "nome": m.nome,
+                    "ativo": bool(m.ativo),
+                    "preco_mensal": float(m.preco_mensal) if m.preco_mensal is not None else None,
+                }
+                for m in mods
+            ]
+        except SaasErro:
+            preco_modulos = 0.0
+    elif plano_modulos:
+        preco_modulos = round(
+            sum(float(m.get("preco_mensal") or 0) for m in plano_modulos),
+            2,
+        )
+        modulos_contratados = list(plano_modulos)
+
+    usuarios_contratados = getattr(row, "max_usuarios", None)
+    preco_users = saas_catalogo.preco_extra_usuarios(
+        usuarios_inclusos=usuarios_inclusos,
+        preco_usuario_extra=preco_usuario_extra,
+        usuarios_contratados=usuarios_contratados,
+    )
+    preco_estimado = round(preco_modulos + preco_users, 2)
+    negociado_raw = getattr(row, "preco_mensal_negociado", None)
+    negociado = float(negociado_raw) if negociado_raw is not None else None
+    efetivo = negociado if negociado is not None else preco_estimado
 
     return {
         "id": row.id,
@@ -226,9 +283,17 @@ def serializar_cliente(row: ClienteSaaS) -> dict:
         "plano": row.plano,
         "plano_id": plano_id,
         "plano_modulos": plano_modulos,
-        "modulos_snapshot": list(getattr(row, "modulos_snapshot", None) or []),
+        "modulos_contratados": modulos_contratados,
+        "modulos_snapshot": snapshot,
         "max_postos": getattr(row, "max_postos", None),
-        "max_usuarios": getattr(row, "max_usuarios", None),
+        "max_usuarios": usuarios_contratados,
+        "usuarios_inclusos": usuarios_inclusos,
+        "preco_usuario_extra": preco_usuario_extra,
+        "preco_modulos": preco_modulos,
+        "preco_usuarios_extra": preco_users,
+        "preco_mensal_estimado": preco_estimado,
+        "preco_mensal_negociado": negociado,
+        "preco_mensal_efetivo": efetivo,
         "data_inicio": row.data_inicio,
         "data_renovacao": row.data_renovacao,
         "instancia_url": row.instancia_url,

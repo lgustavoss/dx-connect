@@ -77,3 +77,16 @@ Legado multi-tenant: definir `DX_CONNECT_MULTI_TENANT=true` (e no front `VITE_MU
 - Control-plane vs cliente DuplexSoft: **#875** — stack em [`deploy/admin-center/`](../deploy/admin-center/README.md)
 - Deploy GHA em duas stacks (#880): [`deploy/github-actions.md`](../deploy/github-actions.md)
 - Checklist de servidor: [`PRE_DEPLOY_CHECKLIST.md`](PRE_DEPLOY_CHECKLIST.md)
+
+## Produção DeskRudder (pós-#875)
+
+Na mesma VPS convivem **dois** Postgres e **duas** APIs (modelo B):
+
+| Papel | Pasta / compose | Porta | Hosts |
+|-------|-----------------|-------|--------|
+| **Control-plane** (licenças, fila, MCP, `/saas`) | `deploy/admin-center/` | `127.0.0.1:8001` | `api.deskrudder.com.br`, SPA em `deskrudder.com.br` |
+| **Cliente DuplexSoft** (helpdesk) | `docker-compose.prod.yml` + `backend/.env` (legado; futuros clientes em `deploy/clients/<slug>/`) | `127.0.0.1:8000` | `duplexsoft…`, `api-duplexsoft…` |
+
+- A comercial **não** é o `docker-compose.prod.yml` único nem um slug em `clients/deskrudder`.
+- Novos clientes pagantes: `provision-client.sh` → `deploy/clients/<slug>/` (portas a partir de **8002**; **8001** está reservada ao admin-center).
+- Parar ou apagar a stack DuplexSoft **não** pode derrubar o painel SaaS — ver runbook em [`docs/SAAS_CONTROL_PLANE.md`](SAAS_CONTROL_PLANE.md#runbook-desativar-cliente-sem-derrubar-o-saas).

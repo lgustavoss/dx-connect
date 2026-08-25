@@ -243,7 +243,7 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
       actions={<Button onClick={() => navigate('/saas/licencas/novo')}>Nova licença</Button>}
     >
       {resumo ? (
-        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="mb-4 grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(5,minmax(0,1fr))]">
           <ResumoCard
             label="Clientes"
             value={String(resumo.clientes_total)}
@@ -252,21 +252,21 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
           <ResumoCard
             label="Renovação"
             value={String(resumo.vencendo_em_breve)}
-            hint={`${resumo.vencidas_ativas} vencida(s) · janela ${resumo.janela_renovacao_dias}d · clicar para filtrar`}
+            hint={`${resumo.vencidas_ativas} vencida(s) · ${resumo.janela_renovacao_dias}d`}
             tone={resumo.vencidas_ativas > 0 || resumo.vencendo_em_breve > 0 ? 'warn' : undefined}
             onClick={() => aplicarAtalhoResumo('renovacao')}
           />
           <ResumoCard
             label="Provisionamento"
             value={String(resumo.provisionamento_pendente)}
-            hint={`${resumo.provisionamento_falha} falha(s) · clicar para filtrar fila`}
+            hint={`${resumo.provisionamento_falha} falha(s) na fila`}
             tone={resumo.provisionamento_falha > 0 || resumo.provisionamento_pendente > 0 ? 'warn' : undefined}
             onClick={() => aplicarAtalhoResumo('provisionamento')}
           />
           <ResumoCard
             label="Aprovações"
             value={String(resumo.aprovacoes_pendentes ?? 0)}
-            hint="go-live pendente · clicar para filtrar"
+            hint="go-live pendente"
             tone={(resumo.aprovacoes_pendentes ?? 0) > 0 ? 'warn' : undefined}
             onClick={() => aplicarAtalhoResumo('aprovacoes')}
           />
@@ -349,96 +349,101 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
           total={total}
           onPageChange={setPage}
           disabled={loading}
-          extra={
-            <div className="flex min-w-0 flex-wrap gap-2">
-              <div className="min-w-[9rem] shrink-0">
-                <Select
-                  aria-label="Filtrar por status"
-                  value={statusFiltro}
-                  onChange={(v) => patchFiltros({ status: String(v) || null })}
-                  options={STATUS_CLIENTE_SAAS.map((s) => ({ value: s.value, label: s.label }))}
-                  includeEmpty
-                  emptyLabel="Todos"
-                  placeholder="Status"
-                  disabled={loading}
-                />
-              </div>
-              <div className="min-w-[9rem] shrink-0">
-                <Select
-                  aria-label="Filtrar por plano"
-                  value={planoFiltro}
-                  onChange={(v) => patchFiltros({ plano_id: v === '' ? null : String(v) })}
-                  options={planos.map((p) => ({ value: String(p.id), label: p.nome }))}
-                  includeEmpty
-                  emptyLabel="Todos os planos"
-                  placeholder="Plano"
-                  disabled={loading}
-                />
-              </div>
-              <div className="min-w-[10rem] shrink-0">
-                <Select
-                  aria-label="Filtrar por aprovação"
-                  value={aprovacaoFiltro}
-                  onChange={(v) => patchFiltros({ aprovacao_status: String(v) || null })}
-                  options={APROVACAO_OPTS}
-                  includeEmpty
-                  emptyLabel="Qualquer aprovação"
-                  placeholder="Aprovação"
-                  disabled={loading}
-                />
-              </div>
-              <div className="min-w-[10rem] shrink-0">
-                <Select
-                  aria-label="Filtrar por provisionamento"
-                  value={provFila ? 'fila' : provStatusFiltro}
-                  onChange={(v) => {
-                    const s = String(v)
-                    if (s === 'fila') {
-                      patchFiltros({ provisionamento_fila: '1', provisionamento_status: null })
-                    } else if (!s) {
-                      patchFiltros({ provisionamento_fila: null, provisionamento_status: null })
-                    } else {
-                      patchFiltros({ provisionamento_fila: null, provisionamento_status: s })
-                    }
-                  }}
-                  options={[{ value: 'fila', label: 'Em fila / falha' }, ...PROV_OPTS]}
-                  includeEmpty
-                  emptyLabel="Qualquer prov."
-                  placeholder="Provisionamento"
-                  disabled={loading}
-                />
-              </div>
-              {(statusFiltro ||
-                planoFiltro ||
-                aprovacaoFiltro ||
-                provStatusFiltro ||
-                provFila ||
-                vencendo ||
-                vencidas) && (
-                <Button
-                  variant="secondary"
-                  disabled={loading}
-                  onClick={() =>
-                    patchFiltros({
-                      status: null,
-                      plano_id: null,
-                      aprovacao_status: null,
-                      provisionamento_status: null,
-                      provisionamento_fila: null,
-                      vencendo: null,
-                      vencidas: null,
-                    })
-                  }
-                >
-                  Limpar filtros
-                </Button>
-              )}
-            </div>
-          }
         />
+        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
+          <Select
+            label="Status"
+            labelStyle="overline"
+            className="min-w-0"
+            aria-label="Filtrar por status"
+            value={statusFiltro}
+            onChange={(v) => patchFiltros({ status: String(v) || null })}
+            options={STATUS_CLIENTE_SAAS.map((s) => ({ value: s.value, label: s.label }))}
+            includeEmpty
+            emptyLabel="Todos"
+            placeholder="Todos"
+            disabled={loading}
+          />
+          <Select
+            label="Plano"
+            labelStyle="overline"
+            className="min-w-0"
+            aria-label="Filtrar por plano"
+            value={planoFiltro}
+            onChange={(v) => patchFiltros({ plano_id: v === '' ? null : String(v) })}
+            options={planos.map((p) => ({ value: String(p.id), label: p.nome }))}
+            includeEmpty
+            emptyLabel="Todos"
+            placeholder="Todos"
+            disabled={loading}
+          />
+          <Select
+            label="Aprovação"
+            labelStyle="overline"
+            className="min-w-0"
+            aria-label="Filtrar por aprovação"
+            value={aprovacaoFiltro}
+            onChange={(v) => patchFiltros({ aprovacao_status: String(v) || null })}
+            options={APROVACAO_OPTS}
+            includeEmpty
+            emptyLabel="Qualquer"
+            placeholder="Qualquer"
+            disabled={loading}
+          />
+          <Select
+            label="Provisionamento"
+            labelStyle="overline"
+            className="min-w-0"
+            aria-label="Filtrar por provisionamento"
+            value={provFila ? 'fila' : provStatusFiltro}
+            onChange={(v) => {
+              const s = String(v)
+              if (s === 'fila') {
+                patchFiltros({ provisionamento_fila: '1', provisionamento_status: null })
+              } else if (!s) {
+                patchFiltros({ provisionamento_fila: null, provisionamento_status: null })
+              } else {
+                patchFiltros({ provisionamento_fila: null, provisionamento_status: s })
+              }
+            }}
+            options={[{ value: 'fila', label: 'Em fila / falha' }, ...PROV_OPTS]}
+            includeEmpty
+            emptyLabel="Qualquer"
+            placeholder="Qualquer"
+            disabled={loading}
+          />
+          {(statusFiltro ||
+            planoFiltro ||
+            aprovacaoFiltro ||
+            provStatusFiltro ||
+            provFila ||
+            vencendo ||
+            vencidas) && (
+            <div className="flex items-end sm:col-span-2 lg:col-span-4 xl:col-span-1">
+              <Button
+                variant="secondary"
+                className="w-full xl:w-auto"
+                disabled={loading}
+                onClick={() =>
+                  patchFiltros({
+                    status: null,
+                    plano_id: null,
+                    aprovacao_status: null,
+                    provisionamento_status: null,
+                    provisionamento_fila: null,
+                    vencendo: null,
+                    vencidas: null,
+                  })
+                }
+              >
+                Limpar filtros
+              </Button>
+            </div>
+          )}
+        </div>
         {vencendo || vencidas ? (
           <p className="mb-3 text-xs text-amber-800 dark:text-amber-200">
-            Filtro activo:{' '}
+            Filtro ativo:{' '}
             {vencendo ? 'renovação na janela de alerta' : null}
             {vencendo && vencidas ? ' · ' : null}
             {vencidas ? 'renovação vencida' : null}
@@ -469,6 +474,9 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
                   />
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6 dark:text-slate-400">
                     Plano
+                  </th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6 dark:text-slate-400">
+                    Valor/mês
                   </th>
                   <CabecalhoOrdenavel
                     coluna="status"
@@ -527,6 +535,21 @@ export function SaasLicencas({ embedded = false }: { embedded?: boolean }) {
                       </td>
                       <td className="px-4 py-3.5 text-slate-600 sm:px-6 dark:text-slate-300">
                         {item.plano || '—'}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3.5 tabular-nums text-slate-700 sm:px-6 dark:text-slate-200">
+                        {item.preco_mensal_efetivo != null
+                          ? `R$ ${Number(item.preco_mensal_efetivo).toLocaleString('pt-BR', {
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 2,
+                            })}`
+                          : '—'}
+                        {item.preco_mensal_negociado != null ? (
+                          <span className="mt-0.5 block text-[11px] text-amber-700 dark:text-amber-300">
+                            Negociado
+                          </span>
+                        ) : item.preco_mensal_estimado != null ? (
+                          <span className="mt-0.5 block text-[11px] text-slate-400">Catálogo</span>
+                        ) : null}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3.5 sm:px-6">
                         <span
@@ -611,32 +634,32 @@ function ResumoCard({
 }) {
   const body = (
     <div
-      className={`rounded-2xl border px-4 py-3 ${
+      className={`flex h-full min-h-[6.75rem] w-full min-w-0 flex-col rounded-2xl border px-4 py-3 ${
         tone === 'warn'
           ? 'border-amber-200 bg-amber-50/80 dark:border-amber-800/40 dark:bg-amber-950/30'
           : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/40'
       } ${onClick || linkTo ? 'transition hover:ring-2 hover:ring-sky-400/40' : ''}`}
     >
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+      <p className="shrink-0 truncate text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
         {label}
       </p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-50">{value}</p>
-      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{hint}</p>
+      <p className="mt-1 shrink-0 text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-50">{value}</p>
+      <p className="mt-auto pt-2 text-xs leading-snug text-slate-500 line-clamp-2 dark:text-slate-400">{hint}</p>
     </div>
   )
   if (linkTo) {
     return (
-      <Link to={linkTo} className="block">
+      <Link to={linkTo} className="block h-full w-full min-w-0">
         {body}
       </Link>
     )
   }
   if (onClick) {
     return (
-      <button type="button" className="block w-full text-left" onClick={onClick}>
+      <button type="button" className="block h-full w-full min-w-0 text-left" onClick={onClick}>
         {body}
       </button>
     )
   }
-  return body
+  return <div className="h-full w-full min-w-0">{body}</div>
 }

@@ -31,6 +31,7 @@ class OrdenarAtendentesPor(str, Enum):
 
 
 def _atendente_para_read(atendente: Atendente, *, e_financeiro: bool = False) -> AtendenteRead:
+    saas = sorted(getattr(atendente, "saas_setores", None) or [], key=lambda s: (s.nome or "", s.id))
     return AtendenteRead(
         id=atendente.id,
         email=atendente.email,
@@ -49,6 +50,8 @@ def _atendente_para_read(atendente: Atendente, *, e_financeiro: bool = False) ->
         horario_previsto_entrada=getattr(atendente, "horario_previsto_entrada", None),
         horario_previsto_saida=getattr(atendente, "horario_previsto_saida", None),
         tolerancia_atraso_minutos=int(getattr(atendente, "tolerancia_atraso_minutos", 0) or 0),
+        saas_setor_ids=[s.id for s in saas],
+        saas_setor_nomes=[s.nome for s in saas],
     )
 
 

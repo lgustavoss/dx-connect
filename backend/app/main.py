@@ -62,6 +62,7 @@ from app.api import (
     saas_solicitacoes,
     saas_ops_conta,
     saas_ops_usuarios,
+    saas_setores,
     web_push,
     solicitacoes_melhoria,
 )
@@ -647,6 +648,7 @@ app.include_router(saas_leads.router, prefix=API_V1_PREFIX)
 app.include_router(saas_solicitacoes.router, prefix=API_V1_PREFIX)
 app.include_router(saas_ops_conta.router, prefix=API_V1_PREFIX)
 app.include_router(saas_ops_usuarios.router, prefix=API_V1_PREFIX)
+app.include_router(saas_setores.router, prefix=API_V1_PREFIX)
 app.include_router(solicitacoes_melhoria.router, prefix=API_V1_PREFIX)
 
 

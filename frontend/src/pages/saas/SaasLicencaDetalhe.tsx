@@ -315,30 +315,79 @@ export function SaasLicencaDetalhe() {
         <dl>
           <DetailRow label="ID" value={String(item.id)} mono />
           <DetailRow label="Slug" value={item.slug} mono />
-          <DetailRow label="Plano" value={item.plano || '—'} />
-          {item.plano_modulos && item.plano_modulos.length > 0 ? (
+          <DetailRow label="Plano base" value={item.plano || '—'} />
+          {(item.modulos_contratados && item.modulos_contratados.length > 0) ||
+          (item.modulos_snapshot && item.modulos_snapshot.length > 0) ? (
+            <DetailRow
+              label="Módulos contratados"
+              value={
+                item.modulos_contratados && item.modulos_contratados.length > 0
+                  ? item.modulos_contratados.map((m) => m.nome).join(', ')
+                  : (item.modulos_snapshot ?? []).join(', ')
+              }
+            />
+          ) : item.plano_modulos && item.plano_modulos.length > 0 ? (
             <DetailRow
               label="Módulos do plano"
               value={item.plano_modulos.map((m) => m.nome).join(', ')}
             />
           ) : null}
-          {item.modulos_snapshot && item.modulos_snapshot.length > 0 ? (
-            <DetailRow label="Snapshot módulos" value={item.modulos_snapshot.join(', ')} mono />
-          ) : null}
           <DetailRow
-            label="Limites"
+            label="Usuários"
             value={
-              item.max_postos != null || item.max_usuarios != null
-                ? [
-                    item.max_postos != null ? `${item.max_postos} postos` : null,
-                    item.max_usuarios != null ? `${item.max_usuarios} utilizadores` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')
+              item.max_usuarios != null
+                ? `${item.max_usuarios} contratados${
+                    item.usuarios_inclusos != null
+                      ? ` (${item.usuarios_inclusos} inclusos no plano)`
+                      : ''
+                  }`
                 : '—'
             }
           />
-          <DetailRow label="Contacto" value={item.contato_nome || '—'} />
+          <DetailRow
+            label="Valor mensal"
+            value={
+              item.preco_mensal_efetivo != null
+                ? `R$ ${Number(item.preco_mensal_efetivo).toLocaleString('pt-BR', {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 2,
+                  })}/mês${
+                    item.preco_mensal_negociado != null
+                      ? ' (negociado)'
+                      : ' (catálogo)'
+                  }`
+                : '—'
+            }
+          />
+          {item.preco_mensal_negociado != null && item.preco_mensal_estimado != null ? (
+            <DetailRow
+              label="Estimativa catálogo"
+              value={`R$ ${Number(item.preco_mensal_estimado).toLocaleString('pt-BR', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 2,
+              })}/mês`}
+            />
+          ) : item.preco_mensal_estimado != null && item.preco_mensal_negociado == null ? (
+            <DetailRow
+              label="Detalhe catálogo"
+              value={
+                item.preco_modulos != null || item.preco_usuarios_extra != null
+                  ? `módulos R$ ${Number(item.preco_modulos ?? 0).toLocaleString('pt-BR', {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 2,
+                    })}${
+                      Number(item.preco_usuarios_extra ?? 0) > 0
+                        ? ` + extras R$ ${Number(item.preco_usuarios_extra).toLocaleString('pt-BR', {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 2,
+                          })}`
+                        : ''
+                    }`
+                  : '—'
+              }
+            />
+          ) : null}
+          <DetailRow label="Contato" value={item.contato_nome || '—'} />
           <DetailRow label="E-mail" value={item.contato_email || '—'} />
           <DetailRow label="Início" value={formatDate(item.data_inicio)} />
           <DetailRow

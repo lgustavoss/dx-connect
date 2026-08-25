@@ -47,6 +47,8 @@ class AtendenteRead(AtendenteBase):
     setor_ids: list[int] = []
     e_financeiro: bool = False
     must_change_password: bool = False
+    saas_setor_ids: list[int] = []
+    saas_setor_nomes: list[str] = []
 
     model_config = ConfigDict(from_attributes=True)
 

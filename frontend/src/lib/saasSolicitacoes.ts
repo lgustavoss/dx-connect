@@ -11,6 +11,27 @@ export const SAAS_SOLICITACAO_STATUS = [
 
 export type SaasSolicitacaoStatus = (typeof SAAS_SOLICITACAO_STATUS)[number]['value']
 
+/** Fases para filtro rápido (agrupa vários status). */
+export const SAAS_SOLICITACAO_FASES = [
+  {
+    value: 'aguardando',
+    label: 'Aguardando',
+    hint: 'Recebida, em análise ou planejada',
+  },
+  {
+    value: 'desenvolvimento',
+    label: 'Em desenvolvimento',
+    hint: 'Já em andamento',
+  },
+  {
+    value: 'finalizadas',
+    label: 'Finalizadas',
+    hint: 'Concluída ou não será desenvolvida',
+  },
+] as const
+
+export type SaasSolicitacaoFase = (typeof SAAS_SOLICITACAO_FASES)[number]['value']
+
 const BADGE: Record<string, string> = {
   aberta:
     'bg-slate-100 text-slate-800 ring-slate-200/80 dark:bg-slate-800/70 dark:text-slate-100 dark:ring-slate-600/70',
@@ -35,6 +56,18 @@ export function classesBadgeStatusSolicitacao(value: string): string {
     BADGE[value] ??
     'bg-slate-100 text-slate-800 ring-slate-200/80 dark:bg-slate-800/70 dark:text-slate-100 dark:ring-slate-600/70'
   )
+}
+
+/** Painel ops: “problema” do cliente = erro reportado. */
+export function rotuloTipoSolicitacao(tipo: string): string {
+  return tipo === 'problema' ? 'Erro' : 'Sugestão'
+}
+
+export function classesBadgeTipoSolicitacao(tipo: string): string {
+  if (tipo === 'problema') {
+    return 'bg-rose-50 text-rose-900 ring-rose-200/90 dark:bg-rose-950/45 dark:text-rose-100 dark:ring-rose-800/60'
+  }
+  return 'bg-sky-50 text-sky-900 ring-sky-200/90 dark:bg-sky-950/45 dark:text-sky-100 dark:ring-sky-800/60'
 }
 
 /** GitHub / issue #N não deve ir na mensagem visível ao cliente. */
