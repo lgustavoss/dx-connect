@@ -132,6 +132,16 @@ const icons: Record<string, React.ReactNode> = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
   ),
+  pdv: (
+    <svg className="size-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+      />
+    </svg>
+  ),
   setores: (
     <svg className="size-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -387,10 +397,12 @@ const navStructure: NavItem[] = [
     ],
     children: [
       { to: '/configuracoes', label: 'Visão geral', icon: 'configuracoes' },
-      { to: '/configuracoes/equipa', label: 'Equipa e tickets', icon: 'setores' },
+      { to: '/configuracoes/equipe', label: 'Equipe', icon: 'setores' },
+      { to: '/configuracoes/tickets', label: 'Tickets', icon: 'tickets' },
       { to: '/configuracoes/canais', label: 'Canais', icon: 'chat' },
       { to: '/configuracoes/comercial', label: 'Comercial / CRM', icon: 'tiposNegocio' },
-      { to: '/configuracoes/empresa-catalogos', label: 'Empresa e catálogos', icon: 'empresas' },
+      { to: '/configuracoes/empresa', label: 'Empresa', icon: 'empresas' },
+      { to: '/configuracoes/postos-pdv', label: 'PDV', icon: 'pdv' },
       { to: '/configuracoes/administracao', label: 'Administração', icon: 'configuracoes' },
       { to: '/solicitacoes-melhoria', label: 'Sugestões', icon: 'ajudaConsultar', adminOnly: true },
     ],

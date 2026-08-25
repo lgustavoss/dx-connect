@@ -1,4 +1,4 @@
-/** Navegação de Configurações — hub + sidebar + abas (#833). */
+/** Navegação de Configurações — hub + sidebar + abas (#833, #865). */
 
 export type ConfigNavItem = {
   /** Segmento de URL (último path). */
@@ -21,10 +21,10 @@ export type ConfigNavGroup = {
 
 export const CONFIG_GROUPS: ConfigNavGroup[] = [
   {
-    id: 'equipa',
-    pathPrefix: 'equipa',
-    label: 'Equipa e tickets',
-    description: 'Setores, atendentes, fluxo de tickets, roteamento e SLA.',
+    id: 'equipe',
+    pathPrefix: 'equipe',
+    label: 'Equipe',
+    description: 'Setores e atendentes que operam o painel.',
     icon: 'setores',
     items: [
       {
@@ -39,6 +39,15 @@ export const CONFIG_GROUPS: ConfigNavGroup[] = [
         hint: 'Usuários internos que operam tickets e o chat.',
         keywords: ['utilizador', 'usuário', 'login', 'perfil'],
       },
+    ],
+  },
+  {
+    id: 'tickets',
+    pathPrefix: 'tickets',
+    label: 'Tickets',
+    description: 'Fluxo de chamados, roteamento e SLA.',
+    icon: 'tickets',
+    items: [
       {
         slug: 'status-ticket',
         label: 'Status de ticket',
@@ -102,9 +111,15 @@ export const CONFIG_GROUPS: ConfigNavGroup[] = [
     id: 'comercial',
     pathPrefix: 'comercial',
     label: 'Comercial / CRM',
-    description: 'Funil, propostas, contratos, custos e checklist de implantação.',
+    description: 'Tipos de negócio, funil, propostas, contratos, custos e checklist de implantação.',
     icon: 'tiposNegocio',
     items: [
+      {
+        slug: 'tipos-negocio',
+        label: 'Tipos de negócio',
+        hint: 'Classificação das empresas atendidas (posto, conveniência, restaurante…).',
+        keywords: ['posto', 'classificação', 'tipo'],
+      },
       {
         slug: 'funil-crm',
         label: 'Funil CRM',
@@ -139,28 +154,31 @@ export const CONFIG_GROUPS: ConfigNavGroup[] = [
   },
   {
     id: 'empresa',
-    pathPrefix: 'empresa-catalogos',
-    label: 'Empresa e catálogos',
-    description: 'Dados da instalação, tipos de negócio e catálogos de PDV.',
+    pathPrefix: 'empresa',
+    label: 'Empresa',
+    description: 'Dados institucionais da instalação DeskRudder (CNPJ, logo e endereço).',
     icon: 'empresas',
     items: [
       {
         slug: 'empresa',
-        label: 'Empresa',
-        hint: 'Dados institucionais da instalação — CNPJ, logo e endereço.',
-        keywords: ['cnpj', 'logo', 'institucional'],
+        label: 'Dados da instalação',
+        hint: 'CNPJ, logo e endereço da empresa que usa o sistema.',
+        keywords: ['cnpj', 'logo', 'institucional', 'instalação'],
       },
-      {
-        slug: 'tipos-negocio',
-        label: 'Tipos de negócio',
-        hint: 'Classificação das empresas (posto, conveniência, restaurante…).',
-        keywords: ['posto', 'classificação', 'tipo'],
-      },
+    ],
+  },
+  {
+    id: 'postos-pdv',
+    pathPrefix: 'postos-pdv',
+    label: 'PDV',
+    description: 'Catálogos usados no cadastro de PDVs das empresas atendidas.',
+    icon: 'pdv',
+    items: [
       {
         slug: 'pdv',
         label: 'Catálogos PDV',
         hint: 'Rótulos de dispositivo e tipos de acesso remoto usados no cadastro de PDVs por empresa.',
-        keywords: ['pdv', 'remoto', 'dispositivo'],
+        keywords: ['pdv', 'remoto', 'dispositivo', 'posto', 'catálogo'],
       },
     ],
   },
@@ -199,35 +217,49 @@ export function findConfigGroupByPrefix(pathPrefix: string): ConfigNavGroup | un
   return CONFIG_GROUPS.find((g) => g.pathPrefix === pathPrefix)
 }
 
-/** Redirects 1:1 de URLs antigas (#833). */
+/** Destinos finais após #833 e #865 (bookmarks e links antigos). */
 export const CONFIG_LEGACY_REDIRECTS: Array<{ from: string; to: string }> = [
-  { from: '/configuracoes/atendimento', to: '/configuracoes/equipa' },
-  { from: '/configuracoes/atendimento/setores', to: '/configuracoes/equipa/setores' },
-  { from: '/configuracoes/atendimento/atendentes', to: '/configuracoes/equipa/atendentes' },
-  { from: '/configuracoes/atendimento/status-ticket', to: '/configuracoes/equipa/status-ticket' },
-  { from: '/configuracoes/atendimento/natureza-motivo', to: '/configuracoes/equipa/natureza-motivo' },
-  { from: '/configuracoes/atendimento/respostas-prontas', to: '/configuracoes/equipa/respostas-prontas' },
-  { from: '/configuracoes/atendimento/roteamento', to: '/configuracoes/equipa/roteamento' },
-  { from: '/configuracoes/atendimento/sla', to: '/configuracoes/equipa/sla' },
-  { from: '/configuracoes/atendimento/sla/politicas', to: '/configuracoes/equipa/sla/politicas' },
-  { from: '/configuracoes/atendimento/sla/calendarios', to: '/configuracoes/equipa/sla/calendarios' },
+  { from: '/configuracoes/atendimento', to: '/configuracoes/equipe' },
+  { from: '/configuracoes/atendimento/setores', to: '/configuracoes/equipe/setores' },
+  { from: '/configuracoes/atendimento/atendentes', to: '/configuracoes/equipe/atendentes' },
+  { from: '/configuracoes/atendimento/status-ticket', to: '/configuracoes/tickets/status-ticket' },
+  { from: '/configuracoes/atendimento/natureza-motivo', to: '/configuracoes/tickets/natureza-motivo' },
+  { from: '/configuracoes/atendimento/respostas-prontas', to: '/configuracoes/tickets/respostas-prontas' },
+  { from: '/configuracoes/atendimento/roteamento', to: '/configuracoes/tickets/roteamento' },
+  { from: '/configuracoes/atendimento/sla', to: '/configuracoes/tickets/sla' },
+  { from: '/configuracoes/atendimento/sla/politicas', to: '/configuracoes/tickets/sla/politicas' },
+  { from: '/configuracoes/atendimento/sla/calendarios', to: '/configuracoes/tickets/sla/calendarios' },
   { from: '/configuracoes/atendimento/base-conhecimento', to: '/ajuda/artigos' },
-  { from: '/configuracoes/sistema', to: '/configuracoes/empresa-catalogos' },
-  { from: '/configuracoes/sistema/empresa', to: '/configuracoes/empresa-catalogos/empresa' },
+  { from: '/configuracoes/equipa', to: '/configuracoes/equipe' },
+  { from: '/configuracoes/equipa/setores', to: '/configuracoes/equipe/setores' },
+  { from: '/configuracoes/equipa/atendentes', to: '/configuracoes/equipe/atendentes' },
+  { from: '/configuracoes/equipa/status-ticket', to: '/configuracoes/tickets/status-ticket' },
+  { from: '/configuracoes/equipa/natureza-motivo', to: '/configuracoes/tickets/natureza-motivo' },
+  { from: '/configuracoes/equipa/respostas-prontas', to: '/configuracoes/tickets/respostas-prontas' },
+  { from: '/configuracoes/equipa/roteamento', to: '/configuracoes/tickets/roteamento' },
+  { from: '/configuracoes/equipa/sla', to: '/configuracoes/tickets/sla' },
+  { from: '/configuracoes/equipa/sla/politicas', to: '/configuracoes/tickets/sla/politicas' },
+  { from: '/configuracoes/equipa/sla/calendarios', to: '/configuracoes/tickets/sla/calendarios' },
+  { from: '/configuracoes/sistema', to: '/configuracoes/empresa' },
+  { from: '/configuracoes/sistema/empresa', to: '/configuracoes/empresa/empresa' },
   { from: '/configuracoes/sistema/email', to: '/configuracoes/canais/email' },
   { from: '/configuracoes/sistema/whatsapp', to: '/configuracoes/canais/whatsapp' },
   { from: '/configuracoes/sistema/base-conhecimento', to: '/configuracoes/canais/base-conhecimento' },
   { from: '/configuracoes/sistema/auditoria', to: '/configuracoes/administracao/auditoria' },
-  { from: '/configuracoes/sistema/empresa-email', to: '/configuracoes/empresa-catalogos/empresa' },
-  { from: '/configuracoes/cadastros', to: '/configuracoes/empresa-catalogos' },
-  { from: '/configuracoes/cadastros/tipos-negocio', to: '/configuracoes/empresa-catalogos/tipos-negocio' },
-  { from: '/configuracoes/cadastros/pdv', to: '/configuracoes/empresa-catalogos/pdv' },
+  { from: '/configuracoes/sistema/empresa-email', to: '/configuracoes/empresa/empresa' },
+  { from: '/configuracoes/cadastros', to: '/configuracoes' },
+  { from: '/configuracoes/cadastros/tipos-negocio', to: '/configuracoes/comercial/tipos-negocio' },
+  { from: '/configuracoes/cadastros/pdv', to: '/configuracoes/postos-pdv/pdv' },
   { from: '/configuracoes/cadastros/custos', to: '/configuracoes/comercial/custos' },
   { from: '/configuracoes/cadastros/funil-crm', to: '/configuracoes/comercial/funil-crm' },
   { from: '/configuracoes/cadastros/propostas', to: '/configuracoes/comercial/propostas' },
   { from: '/configuracoes/cadastros/contratos', to: '/configuracoes/comercial/contratos' },
   { from: '/configuracoes/cadastros/implantacao', to: '/configuracoes/comercial/implantacao' },
   { from: '/configuracoes/whatsapp', to: '/configuracoes/canais/whatsapp' },
-  { from: '/configuracoes/empresa-email', to: '/configuracoes/empresa-catalogos/empresa' },
-  { from: '/configuracoes/pdv-catalogos', to: '/configuracoes/empresa-catalogos/pdv' },
+  { from: '/configuracoes/empresa-email', to: '/configuracoes/empresa/empresa' },
+  { from: '/configuracoes/pdv-catalogos', to: '/configuracoes/postos-pdv/pdv' },
+  { from: '/configuracoes/empresa-catalogos', to: '/configuracoes/empresa' },
+  { from: '/configuracoes/empresa-catalogos/empresa', to: '/configuracoes/empresa/empresa' },
+  { from: '/configuracoes/empresa-catalogos/tipos-negocio', to: '/configuracoes/comercial/tipos-negocio' },
+  { from: '/configuracoes/empresa-catalogos/pdv', to: '/configuracoes/postos-pdv/pdv' },
 ]
