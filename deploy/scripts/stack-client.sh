@@ -49,7 +49,9 @@ dc() {
 case "$CMD" in
   migrate)
     load_env
-    dc run --rm backend alembic upgrade head
+    # -T + stdin fechado: em SSH/`bash -s` o attach do compose consumiria o resto do script
+    # (mesmo padrão de gha-deploy-vps.sh na stack DuplexSoft).
+    dc run --rm -T backend alembic upgrade head </dev/null
     ;;
   up)
     load_env

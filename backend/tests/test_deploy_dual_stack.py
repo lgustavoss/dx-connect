@@ -27,6 +27,12 @@ def test_gha_script_atualiza_admin_center_e_bloqueia_saas_no_cliente():
     assert "VITE_API_URL_ADMIN" in SCRIPT
 
 
+def test_stack_client_migrate_fecha_stdin():
+    """Evita docker compose run engolir o resto do script em SSH (bash -s)."""
+    text = (ROOT / "deploy" / "scripts" / "stack-client.sh").read_text(encoding="utf-8")
+    assert "dc run --rm -T backend alembic upgrade head </dev/null" in text
+
+
 def test_docs_listam_secrets_novos():
     assert "VITE_API_URL_ADMIN" in DOCS
     assert "DEPLOY_FRONTEND_DIST_ADMIN" in DOCS
