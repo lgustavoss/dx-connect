@@ -1,6 +1,6 @@
-"""Backfill canais internos por setor activo (#916).
+"""Backfill canais internos por setor ativo (#916).
 
-Revision ID: 119_chat_interno_canal_setor_backfill
+Revision ID: 119_chat_canal_setor_backfill
 Revises: 118_saas_ops_mcp_token
 Create Date: 2026-08-24
 """
@@ -8,7 +8,7 @@ Create Date: 2026-08-24
 import sqlalchemy as sa
 from alembic import op
 
-revision = "119_chat_interno_canal_setor_backfill"
+revision = "119_chat_canal_setor_backfill"
 down_revision = "118_saas_ops_mcp_token"
 branch_labels = None
 depends_on = None
