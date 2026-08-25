@@ -58,7 +58,8 @@ def test_plano_preco_limites_e_snapshot(client, auth_headers, db_session, monkey
     assert r.status_code == 201, r.text
     body = r.json()
     assert sorted(body.get("modulos_snapshot") or []) == ["helpdesk", "whatsapp"]
-    assert body["max_postos"] == 10
+    # Sem teto de postos na licença (só usuários do plano / contratados)
+    assert body["max_postos"] is None
     assert body["max_usuarios"] == 5
     assert body["plano"] == "Pro Licença"
 
@@ -100,4 +101,5 @@ def test_converter_lead_com_plano_id(client, auth_headers, db_session, monkeypat
     body = conv.json()
     assert body["plano_id"] == plano.id
     assert sorted(body.get("modulos_snapshot") or []) == ["helpdesk", "whatsapp"]
-    assert body["max_postos"] == 3
+    assert body["max_postos"] is None
+    assert body["max_usuarios"] == 2
