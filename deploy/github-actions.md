@@ -1,18 +1,23 @@
-# Deploy com GitHub Actions (SSH + Docker Compose)
+# Deploy com GitHub Actions (SSH + Docker Compose) — #734 / #880
 
 O workflow [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) faz:
 
-1. **Build do frontend** no runner (usa `VITE_API_URL` dos secrets).
-2. **`rsync`** da pasta `frontend/dist/` para o caminho no VPS (`DEPLOY_FRONTEND_DIST`).
-3. **SSH** no servidor: `git pull`, `alembic upgrade head`, `docker compose -f docker-compose.prod.yml up -d --build`.
+1. **Dois builds** do frontend no runner:
+   - **DuplexSoft** → `VITE_API_URL` (API do cliente), **sem** `VITE_SAAS_CONTROL_PLANE`
+   - **admin-center** (landing / `/saas`) → `VITE_API_URL_ADMIN` + `VITE_SAAS_CONTROL_PLANE=true`
+2. **`rsync`** de cada `dist` para o caminho Nginx correspondente no VPS.
+3. **SSH**: `git pull` + `alembic upgrade` + rebuild:
+   - Stack **DuplexSoft**: `docker-compose.prod.yml` + `backend/.env` (exige `SAAS_CONTROL_PLANE=false`)
+   - Stack **comercial**: `deploy/scripts/stack-client.sh migrate|up admin-center`
+4. Health das **duas** APIs com flags distintas (`saas_control_plane` false / true).
 
-Disparo automático em **push** para **`staging`** quando mudam `backend/`, `frontend/`, `docker-compose.prod.yml` ou o próprio workflow. A branch **`main`** não dispara deploy (último estágio de testes/integração); após validar em `main`, abra PR **`main → staging`**, merge e o deploy roda no VPS. Também pode rodar manualmente em **Actions → Deploy → Run workflow**.
+Disparo automático em **push** para **`staging`**. A branch **`main`** não dispara deploy. Após validar em `main`, PR **`main → staging`**, merge e o deploy roda no VPS. Também: **Actions → Deploy → Run workflow**.
 
-**Importante:** não defina `DEPLOY_GIT_REF=main` nos secrets se o ambiente de produção segue a branch **`staging`** — isso fazia o frontend atualizar e o backend continuar na `main` (rotas novas como `/v1/settings/empresa-sistema` respondiam 404).
+**Importante:** não defina `DEPLOY_GIT_REF=main` nos secrets se a produção segue **`staging`**.
 
-### Banner “staging had recent pushes” na aba Pull requests
+### Banner “staging had recent pushes”
 
-Depois de mergear um release **`main → staging`**, o GitHub exibe um aviso amarelo sugerindo **Compare & pull request**. Isso é **comportamento nativo** (a branch `staging` acabou de receber push) e **não indica erro**. **Ignore o botão** — ele abriria PR na direção **`staging → main`**, oposta ao fluxo correto. Não há configuração no GitHub para desligar esse aviso enquanto o deploy continuar em push para `staging`.
+Aviso nativo do GitHub após merge `main → staging`. **Ignore** o botão Compare & pull request (`staging → main`).
 
 ## Secrets no GitHub
 
@@ -20,76 +25,45 @@ Em **Settings → Secrets and variables → Actions → New repository secret**:
 
 | Secret | Descrição |
 |--------|-----------|
-| `DEPLOY_HOST` | Hostname ou IP do VPS (ex.: `api.exemplo.com` ou IP) |
-| `DEPLOY_USER` | Usuário SSH com permissão de `git`, `docker` e escrita em `DEPLOY_FRONTEND_DIST` |
-| `DEPLOY_SSH_KEY` | Chave **privada** completa (PEM), linha `-----BEGIN ... KEY-----` até o fim |
-| `DEPLOY_PATH` | Diretório no servidor onde está o **clone** deste repositório (ex.: `/home/deploy/dx-connect`) |
-| `DEPLOY_FRONTEND_DIST` | Pasta servida pelo Nginx como root do SPA (ex.: `/var/www/dx-connect`). Deve existir e o usuário SSH precisa poder escrever (ex.: pertencer ao grupo `www-data` ou `chown` adequado). |
-| `VITE_API_URL` | URL pública **HTTPS** da API, **sem barra no final** (igual ao `frontend/.env.production`) |
+| `DEPLOY_HOST` | Hostname ou IP do VPS |
+| `DEPLOY_USER` | Usuário SSH (`git`, `docker`, escrita nos dists) |
+| `DEPLOY_SSH_KEY` | Chave **privada** completa (PEM) |
+| `DEPLOY_PATH` | Clone do repo no servidor (ex.: `/opt/dx-connect`) |
+| `DEPLOY_FRONTEND_DIST` | Dist do **painel DuplexSoft** (ex.: `/opt/dx-connect/frontend/dist`) |
+| `DEPLOY_FRONTEND_DIST_ADMIN` | Dist da **landing/SaaS** (ex.: `/var/www/dx-connect/admin-center/dist`) |
+| `VITE_API_URL` | HTTPS da API **DuplexSoft** sem barra final (ex.: `https://api-duplexsoft.deskrudder.com.br`) |
+| `VITE_API_URL_ADMIN` | HTTPS da API **comercial** (ex.: `https://api.deskrudder.com.br`) |
 
 Opcionais:
 
 | Secret | Descrição |
 |--------|-----------|
 | `DEPLOY_SSH_PORT` | Porta SSH se não for 22 |
-| `DEPLOY_GIT_REF` | Override opcional da branch no VPS (só usado se o workflow não tiver `github.ref_name`; em push para `staging` usa a branch do push) |
+| `DEPLOY_GIT_REF` | Override da branch no VPS (evitar em produção normal) |
+
+O workflow **recusa** trocar as URLs (comercial em `VITE_API_URL` ou DuplexSoft em `VITE_API_URL_ADMIN`).
 
 ### Environment `production` (opcional)
 
-Se quiser **aprovação manual** ou secrets separados, crie um **Environment** chamado `production` no GitHub e descomente no workflow a linha `environment: production`. Configure os secrets no environment em vez dos secrets do repositório.
+Environment com aprovação manual: descomente `environment: production` no workflow e coloque os secrets lá.
 
 ## Preparação única no VPS
 
-1. **Clone do repositório** (repositório público ou configure acesso Git: SSH deploy key ou `https` com token):
+1. Clone do repositório + `backend/.env` DuplexSoft (`SAAS_CONTROL_PLANE=false` + ingest após #878).
+2. Stack comercial: `bash deploy/scripts/provision-control-plane.sh` + migrate/up/seed (ver [`admin-center/README.md`](admin-center/README.md)).
+3. Pastas de dist:
 
    ```bash
-   sudo mkdir -p /home/deploy && sudo chown "$USER:$USER" /home/deploy
-   cd /home/deploy
-   git clone https://github.com/SEU_USUARIO/dx-connect.git
-   cd dx-connect
+   sudo mkdir -p /var/www/dx-connect/admin-center/dist
+   sudo chown deploy:www-data /var/www/dx-connect/admin-center/dist /opt/dx-connect/frontend/dist
    ```
 
-2. **`backend/.env` de produção** no servidor (não vai para o Git): copie de `backend/.env.example` e preencha. Veja também `docs/PRE_DEPLOY_CHECKLIST.md`.
-
-3. **Docker**: usuário do deploy no grupo `docker` (`sudo usermod -aG docker "$USER"`) ou use `sudo` no workflow (não recomendado).
-
-4. **Pasta do frontend** (exemplo):
-
-   ```bash
-   sudo mkdir -p /var/www/dx-connect
-   sudo chown deploy:www-data /var/www/dx-connect
-   ```
-
-   Ajuste o `root` do Nginx para esse diretório e use o mesmo caminho em `DEPLOY_FRONTEND_DIST`.
-
-5. **Primeira subida da API** (migrations e containers — inclui Evolution API):
-
-   ```bash
-   cd /home/deploy/dx-connect
-   # backend/.env: EVOLUTION_GLOBAL_API_KEY, EVOLUTION_POSTGRES_PASSWORD,
-   # EVOLUTION_INTERNAL_BASE_URL=http://127.0.0.1:8080, DX_CONNECT_WEBHOOK_BASE_URL=https://...
-   docker compose --env-file backend/.env -f docker-compose.prod.yml run --rm -T backend alembic upgrade head < /dev/null
-   docker compose --env-file backend/.env -f docker-compose.prod.yml up -d --build
-   ```
-
-6. **Chave SSH para o GitHub**: no seu PC ou no VPS, gere um par só para deploy:
-
-   ```bash
-   ssh-keygen -t ed25519 -f github-deploy -C "github-actions-dx-connect" -N ""
-   ```
-
-   Coloque o conteúdo de `github-deploy` (privada) no secret `DEPLOY_SSH_KEY`. No servidor, em `~/.ssh/authorized_keys` do `DEPLOY_USER`, adicione uma linha com o conteúdo de `github-deploy.pub`.
-
-## Repositório privado
-
-O servidor precisa conseguir `git pull`. Opções:
-
-- **Deploy key** (somente leitura): Settings → Deploy keys → adicionar a chave **pública** do servidor; ou
-- **PAT** em URL remota: `git remote set-url origin https://TOKEN@github.com/...` (menos ideal).
+4. Nginx: DuplexSoft → `DEPLOY_FRONTEND_DIST`; `deskrudder.com.br` → `DEPLOY_FRONTEND_DIST_ADMIN`; APIs em `api-duplexsoft…` (:8000) e `api.deskrudder.com.br` (:8001).
+5. Chave SSH do Actions em `authorized_keys` do `DEPLOY_USER`.
 
 ## Migrações
 
-Em cada deploy o workflow executa `alembic upgrade head` antes do `up --build`. No **Run workflow** manual pode marcar **skip migrations** só em situações excepcionais.
+Cada deploy corre `alembic upgrade head` na BD DuplexSoft **e** na BD `admin-center` (salvo skip manual).
 
 ## Troubleshooting
 
@@ -101,30 +75,15 @@ Em cada deploy o workflow executa `alembic upgrade head` antes do `up --build`. 
 ssh: connect to host *** port 22: Connection timed out
 ```
 
-O job **`build`** (frontend + CalVer) pode ter passado; a falha é só na ligação **runner → VPS**.
+O job **`build`** pode ter passado; a falha é só na ligação **runner → VPS**.
 
-**Causa provável:** IPv6/rota transitória entre um IP do GitHub Actions e o VPS (Hostinger). **Não** é, por si só, chave SSH errada — `Permission denied` é outro caso e **não** dispara retry.
-
-**O que o workflow faz sozinho (#734):**
-
-1. SSH/`rsync`/`ssh-keyscan` forçam **IPv4** (`ssh -4`, `AddressFamily=inet`).
-2. O log imprime o **IPv4 público do runner** (`api.ipify.org`) para cruzar com firewall.
-3. `ssh-keyscan` **sem** `|| true`: timeout → exit 42; recusa/DNS → falha clara sem segundo job.
-4. Até **5 tentativas** no mesmo runner (15 s, depois +15 s).
-5. Se o timeout persistir: job **`deploy-retry`** noutro `ubuntu-latest` (outro IP), **reutiliza o artefacto** do frontend — sem rebuild e **sem** segundo retry.
-
-**O que fazer se ainda falhar:**
-
-1. Confira no log se foi timeout (há retry) vs `Permission denied` / git / alembic (não há).
-2. Firewall Hostinger: permitir SSH dos IPs do runner (o IPv4 está no log).
-3. **Actions → Deploy → Run workflow** na branch `staging` (deploy completo).
-4. Confira `DEPLOY_HOST` / `DEPLOY_SSH_PORT` e `sshd` no VPS.
+**O que o workflow faz (#734):** IPv4 forçado; até 5 tentativas; job **`deploy-retry`** noutro runner reutiliza o artefacto.
 
 ### Outros erros comuns
 
-- **`Permission denied (publickey)`**: confira `DEPLOY_SSH_KEY`, usuário e `authorized_keys` no VPS.
-- **`rsync` falha**: permissões em `DEPLOY_FRONTEND_DIST` e caminho absoluto correto.
-- **`docker: permission denied`**: usuário no grupo `docker` ou reiniciar sessão SSH após `usermod`.
-- **Build do frontend errado**: `VITE_API_URL` nos secrets deve ser a URL **pública** que o browser usa para chamar a API.
-- **404 em `/v1/settings/*` ou `/v1/tenant/*` com frontend novo**: o SPA foi atualizado mas o **container da API** ainda está na `main` antiga. Remova o secret `DEPLOY_GIT_REF=main` (deixe o workflow usar a branch do push, ex. `staging`). No VPS: `bash deploy/scripts/redeploy-staging-backend.sh`. Confirme: `curl -s https://SUA-API/health` deve incluir `"capabilities":{"settings_empresa_sistema":true,...}`.
-- **Deploy SSH “passa” mas `/health` continua com `git_sha` antigo**: o `docker compose run` no script remoto (`bash -s` + heredoc) pode **consumir o stdin** e impedir o restart do backend. O workflow usa `run --rm -T ... < /dev/null` para evitar isso.
+- **`Permission denied (publickey)`**: confira `DEPLOY_SSH_KEY` e `authorized_keys`.
+- **`rsync` falha**: permissões nos dois caminhos de dist.
+- **`admin-center não provisionado`**: falta `deploy/admin-center/client.env` no VPS.
+- **`SAAS_CONTROL_PLANE=true` na DuplexSoft**: o deploy aborta de propósito — corrigir `backend/.env` (cutover #878).
+- **Landing fala com API DuplexSoft**: dist admin desatualizado ou `DEPLOY_FRONTEND_DIST_ADMIN` / secret `VITE_API_URL_ADMIN` errados.
+- **404 em rotas novas**: `DEPLOY_GIT_REF=main` desalinhado — remova o secret e redeploye a `staging`.
