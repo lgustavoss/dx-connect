@@ -259,22 +259,23 @@ def _wpp_unread_count_for_chat(db: Session, chat_id: int, atendente_id: int) -> 
     c = db.query(WhatsappChat.id, WhatsappChat.created_at, WhatsappChat.atendimento_inicio_at).filter(WhatsappChat.id == chat_id).first()
     if not c:
         return 0
-    ls = (
-        db.query(WhatsappChatRead.last_seen_at)
+    row = (
+        db.query(WhatsappChatRead.last_seen_at, WhatsappChatRead.last_seen_mensagem_id)
         .filter(WhatsappChatRead.chat_id == chat_id, WhatsappChatRead.atendente_id == atendente_id)
-        .scalar()
+        .first()
     )
-    eff = ls if ls is not None else (c.atendimento_inicio_at or c.created_at)
-    n = (
-        db.query(func.count(WhatsappMensagem.id))
-        .filter(
-            WhatsappMensagem.chat_id == chat_id,
-            WhatsappMensagem.direcao == "inbound",
-            WhatsappMensagem.created_at > eff,
-        )
-        .scalar()
+    ls = row[0] if row else None
+    cursor_id = row[1] if row else None
+    q = db.query(func.count(WhatsappMensagem.id)).filter(
+        WhatsappMensagem.chat_id == chat_id,
+        WhatsappMensagem.direcao == "inbound",
     )
-    return int(n or 0)
+    if cursor_id is not None:
+        q = q.filter(WhatsappMensagem.id > cursor_id)
+    else:
+        eff = ls if ls is not None else (c.atendimento_inicio_at or c.created_at)
+        q = q.filter(WhatsappMensagem.created_at > eff)
+    return int(q.scalar() or 0)
 
 
 def build_notificacao_itens(
