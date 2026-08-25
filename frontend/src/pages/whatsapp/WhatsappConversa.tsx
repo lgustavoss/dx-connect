@@ -2530,6 +2530,7 @@ useEffect(() => {
               setEmpresaContextoId('')
             }}
             zClassName="z-[120]"
+            panelClassName="md:max-w-md"
           >
             <p className="mb-4 text-sm text-slate-500">
               Vincule a empresa que o cliente indicou. Pode alterar enquanto o chat não estiver
@@ -2543,6 +2544,7 @@ useEffect(() => {
               placeholder="Selecione a empresa"
               hint="Digite parte do nome do posto"
               required
+              menuPlacement="inline"
             />
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button

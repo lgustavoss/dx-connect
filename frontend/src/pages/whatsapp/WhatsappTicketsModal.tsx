@@ -223,6 +223,7 @@ export function WhatsappTicketsModal({ chat, open, onClose, onSuccess }: Props) 
                 placeholder="Selecione a empresa"
                 disabled={salvando}
                 required
+                menuPlacement="inline"
               />
               <Select
                 label="Setor"

@@ -458,6 +458,7 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
                 value={empresaVinculoId}
                 onChange={(id) => setEmpresaVinculoId(id)}
                 placeholder="Selecione a empresa"
+                menuPlacement="inline"
               />
             )}
           </div>
@@ -567,6 +568,7 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
                   items={(catalogo?.redes ?? []).map((r) => ({ id: r.id, label: r.nome }))}
                   placeholder="Selecione a rede"
                   required
+                  menuPlacement="inline"
                 />
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Escopo de empresas</p>
@@ -601,6 +603,7 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
                         items={empresasDaRede.map((e) => ({ id: e.id, label: e.nome }))}
                         placeholder="Selecione a empresa"
                         required
+                        menuPlacement="inline"
                       />
                     ) : empresasDaRede.length > 0 ? (
                       <div className="flex max-h-40 flex-wrap gap-2 overflow-auto rounded-xl border border-slate-200 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/40">
@@ -627,6 +630,7 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
                     items={empresasContextoOpcoes.map((e) => ({ id: e.id, label: e.nome }))}
                     placeholder="Selecione a empresa de contexto"
                     required
+                    menuPlacement="inline"
                   />
                 )}
               </>
