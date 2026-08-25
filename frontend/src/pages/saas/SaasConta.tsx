@@ -69,7 +69,7 @@ export function SaasConta() {
       toast.showSuccess(
         estado?.configurado
           ? 'Token regenerado. O anterior deixa de funcionar no Cursor.'
-          : 'Token gerado. Copie agora — não voltamos a mostrá-lo.',
+          : 'Token gerado. Copie agora — não vamos mostrar de novo.',
       )
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível gerar o token.'))
@@ -107,7 +107,7 @@ export function SaasConta() {
   if (forbidden) {
     return (
       <SemPermissao
-        title="Conta exclusiva da equipa SaaS."
+        title="Conta exclusiva da equipe SaaS."
         detail="Entre com a conta ops em /login/admin."
         voltarPara="/login/admin"
         voltarLabel="Voltar ao login admin"
@@ -140,24 +140,24 @@ export function SaasConta() {
       <VoltarButton onClick={voltarAnterior} />
       <Card
         title="Integração Cursor"
-        description="O token identifica a tua conta ops nas sugestões (recusar, comentar, ligar issue). Cada pessoa gera o seu. Novas contas criam-se em Equipa."
+        description="O token identifica a sua conta ops nas sugestões (recusar, comentar, ligar issue). Cada pessoa gera o próprio. Novas contas são criadas em Usuários."
       >
         {loading || !estado ? (
-          <p className="text-sm text-slate-500">A carregar…</p>
+          <p className="text-sm text-slate-500">Carregando…</p>
         ) : (
           <div className="space-y-4">
             <p className="text-sm text-slate-600 dark:text-slate-400">
               {estado.configurado
-                ? `Token activo. Gerado em ${formatWhen(estado.gerado_em)}.`
+                ? `Token ativo. Gerado em ${formatWhen(estado.gerado_em)}.`
                 : 'Ainda não há token nesta conta.'}{' '}
               <Link to="/saas/usuarios" className="font-medium text-sky-700 underline dark:text-sky-300">
-                Gerir equipa
+                Gerir equipe
               </Link>
             </p>
             {plaintext ? (
               <div className="space-y-2">
                 <label htmlFor="mcp-token-plain" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Copie agora — não voltamos a mostrar o valor completo
+                  Copie agora — não vamos mostrar o valor completo de novo
                 </label>
                 <textarea
                   id="mcp-token-plain"

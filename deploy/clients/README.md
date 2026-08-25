@@ -2,10 +2,12 @@
 
 Cada cliente pagante tem:
 
-- **Subdomínio** próprio (`{slug}.connect.{domínio}` + `api-{slug}.connect.{domínio}`)
+- **Subdomínio** próprio (`{slug}.deskrudder.com.br` + `api-{slug}.deskrudder.com.br`)
 - **PostgreSQL** dedicado (container no stack do cliente)
 - **Um container** da API (`dx-connect-api-{slug}`)
-- **Porta loopback** distinta (`127.0.0.1:8001`, `8002`, …) para o Nginx fazer proxy
+- **Porta loopback** distinta (`127.0.0.1:8002`, `8003`, …) para o Nginx fazer proxy
+
+O **painel admin** DeskRudder (`/saas`) **não** fica em `clients/`. Pasta: [`../admin-center/`](../admin-center/README.md) (`provision-control-plane.sh`). Hosts: `deskrudder.com.br` e `api.deskrudder.com.br`. Não rode `provision-client.sh --slug deskrudder` nem `--slug admin-center`.
 
 Direção de produto: [`docs/DEPLOYMENT_ARCHITECTURE.md`](../../docs/DEPLOYMENT_ARCHITECTURE.md) · Issue **#191** (Fase 1 + Fase 2 single-tenant no código).
 

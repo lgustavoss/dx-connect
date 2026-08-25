@@ -1,0 +1,30 @@
+---
+description: Português do Brasil em UI, chat, MCP e mensagens ao cliente
+alwaysApply: true
+---
+
+# Português do Brasil (pt-BR)
+
+Toda copy do produto, chat do agente, issue GitHub, docs novas e **mensagem ao cliente** (painel ou MCP `comentar_solicitacao` com `publico_cliente=true`) usa **português do Brasil**. Não use português de Portugal.
+
+## Vocabulário — evitar → usar
+
+| Evitar (PT-PT) | Usar (PT-BR) |
+|----------------|--------------|
+| equipa | equipe |
+| rato (dispositivo) | mouse |
+| planeamento | planejamento |
+| ficheiro | arquivo |
+| ecrã | tela |
+| utilizador | usuário |
+| actual / actualizar | atual / atualizar |
+| contacto | contato |
+| telemóvel | celular |
+| aceite (adj.: pedido aceite) | aceito |
+| guardar (persistir) | salvar |
+
+## Mensagem que o cliente lê
+
+- Sem GitHub, `issue #N`, «acompanhamento interno» ou jargão de ops.
+- Isso vai em **nota interna** (`publico_cliente=false`).
+- MCP: se o ops não pediu falar com o cliente, comente **interno**.

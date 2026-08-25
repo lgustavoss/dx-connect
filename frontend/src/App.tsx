@@ -629,7 +629,7 @@ function AppRoutes() {
             </AdminRoute>
           }
         />
-        <Route path="setores" element={<Navigate to="/configuracoes/equipa/setores" replace />} />
+        <Route path="setores" element={<Navigate to="/configuracoes/equipe/setores" replace />} />
         <Route
           path="atendentes/novo"
           element={
@@ -654,7 +654,7 @@ function AppRoutes() {
             </AdminRoute>
           }
         />
-        <Route path="atendentes" element={<Navigate to="/configuracoes/equipa/atendentes" replace />} />
+        <Route path="atendentes" element={<Navigate to="/configuracoes/equipe/atendentes" replace />} />
         <Route
           path="funcionarios-rede/:id"
           element={
@@ -711,7 +711,7 @@ function AppRoutes() {
             </AdminRoute>
           }
         />
-        <Route path="respostas-prontas" element={<Navigate to="/configuracoes/equipa/respostas-prontas" replace />} />
+        <Route path="respostas-prontas" element={<Navigate to="/configuracoes/tickets/respostas-prontas" replace />} />
         <Route
           path="base-conhecimento/novo"
           element={<Navigate to="/ajuda/artigos/novo" replace />}
@@ -745,7 +745,7 @@ function AppRoutes() {
             </AdminRoute>
           }
         />
-        <Route path="status-ticket" element={<Navigate to="/configuracoes/equipa/status-ticket" replace />} />
+        <Route path="status-ticket" element={<Navigate to="/configuracoes/tickets/status-ticket" replace />} />
         <Route path="auditoria" element={<Navigate to="/configuracoes/administracao/auditoria" replace />} />
         <Route
           path="tipos-negocio/novo"
@@ -771,7 +771,7 @@ function AppRoutes() {
             </AdminRoute>
           }
         />
-        <Route path="tipos-negocio" element={<Navigate to="/configuracoes/empresa-catalogos/tipos-negocio" replace />} />
+        <Route path="tipos-negocio" element={<Navigate to="/configuracoes/comercial/tipos-negocio" replace />} />
         <Route
           path="configuracoes"
           element={
@@ -817,6 +817,8 @@ function AppRoutes() {
         <Route path="configuracoes/atendimento/*" element={<ConfigLegacyRedirect />} />
         <Route path="configuracoes/cadastros/*" element={<ConfigLegacyRedirect />} />
         <Route path="configuracoes/sistema/*" element={<ConfigLegacyRedirect />} />
+        <Route path="configuracoes/equipa/*" element={<ConfigLegacyRedirect />} />
+        <Route path="configuracoes/empresa-catalogos/*" element={<ConfigLegacyRedirect />} />
         <Route path="configuracoes/whatsapp" element={<ConfigLegacyRedirect />} />
         <Route path="configuracoes/empresa-email" element={<ConfigLegacyRedirect />} />
         <Route path="configuracoes/pdv-catalogos" element={<ConfigLegacyRedirect />} />

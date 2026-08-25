@@ -16,6 +16,7 @@ Guia para desenvolvimento assistido por IA no Cursor (time 2–3 devs).
 | Rule | Quando |
 |------|--------|
 | `project-core` | Sempre |
+| `pt-br` | Sempre — português do Brasil (UI, chat, MCP, mensagem ao cliente) |
 | `planning-github-source` | Sempre — planos/decisões no GitHub, sem `.md` locais de rascunho |
 | `backend-fastapi` | Arquivos em `backend/**` |
 | `frontend-react` | Arquivos em `frontend/**` |
@@ -47,6 +48,7 @@ Config: `.cursor/hooks.json`
 | `/testar-ui` | Smoke test no navegador integrado (login, rotas, console) |
 | `/criar-pr` | PR → watch CI → approve → **merge automático em main** (nunca staging) |
 | `/release-staging` | Abre PR `main → staging`; **não mergeia** (aprovação humana) |
+| `/listar-solicitacoes` | Fila SaaS pendente no chat (MCP `deskrudder-saas`; cada dev configura o próprio `mcp.json`) |
 
 ## Subagents (Task tool)
 

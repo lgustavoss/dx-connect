@@ -17,5 +17,5 @@ def obter_system_info(_: Atendente = Depends(obter_atendente_atual)):
 
 @router.get("/release-notes", response_model=ReleaseNotesRead)
 def obter_release_notes(_: Atendente = Depends(obter_atendente_atual)):
-    """Notas do DeskRudder (helpdesk na instância) — exclui bullets SaaS."""
+    """Notas de produto no painel da instância — exclui bullets DevOps (#920)."""
     return ReleaseNotesRead(**release_notes_payload(product="deskrudder"))

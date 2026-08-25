@@ -1,0 +1,3 @@
+# Gerados no VPS por provision-control-plane.sh — não commitar secrets
+client.env
+docker-compose.yml

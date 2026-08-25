@@ -186,7 +186,7 @@ export function SlaCalendariosPage({ embedded = false }: { embedded?: boolean })
     >
       <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
         Vincule calendários em{' '}
-        <Link to="/configuracoes/equipa/sla/politicas" className="text-sky-600 hover:underline dark:text-sky-400">
+        <Link to="/configuracoes/tickets/sla/politicas" className="text-sky-600 hover:underline dark:text-sky-400">
           Políticas SLA
         </Link>
         . Calendários inativos não aparecem em novos vínculos.

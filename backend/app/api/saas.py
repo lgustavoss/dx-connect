@@ -43,7 +43,7 @@ from app.services import saas_catalogo
 from app.services import saas_clientes as svc
 from app.services import saas_renovacoes
 from app.services.saas_resumo import obter_resumo
-from app.services.system_release import PRODUCT_SAAS, release_notes_payload
+from app.services.system_release import release_notes_payload
 
 router = APIRouter(prefix="/saas", tags=["saas"])
 
@@ -71,8 +71,8 @@ def obter_saas_release_notes(
     _: None = Depends(exigir_saas_control_plane),
     __: Atendente = Depends(exigir_saas_ops),
 ):
-    """Notas do control-plane SaaS — só bullets product=saas (#675)."""
-    return ReleaseNotesRead(**release_notes_payload(product=PRODUCT_SAAS))
+    """Notas da versão — todos os bullets, com ``product`` para tags (#920)."""
+    return ReleaseNotesRead(**release_notes_payload(product=None))
 
 
 def _http_from_saas(exc: svc.SaasErro) -> HTTPException:

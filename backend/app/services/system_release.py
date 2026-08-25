@@ -115,15 +115,17 @@ def _change_product(ch: dict[str, Any]) -> str:
     return PRODUCT_DESKRUDDER
 
 
-def _filter_release_for_product(rel: dict[str, Any], product: str) -> dict[str, Any] | None:
+def _filter_release_for_product(rel: dict[str, Any], product: str | None) -> dict[str, Any] | None:
+    """Anota ``product`` em cada bullet. Se ``product`` não for None, filtra."""
     changes = []
     for ch in rel.get("changes") or []:
         if not isinstance(ch, dict):
             continue
-        if _change_product(ch) != product:
+        prod = _change_product(ch)
+        if product is not None and prod != product:
             continue
         item = dict(ch)
-        item["product"] = product
+        item["product"] = prod
         changes.append(item)
     if not changes:
         return None
@@ -135,11 +137,21 @@ def _filter_release_for_product(rel: dict[str, Any], product: str) -> dict[str, 
 def release_notes_payload(
     *,
     version_override: str | None = None,
-    product: str = PRODUCT_DESKRUDDER,
+    product: str | None = PRODUCT_DESKRUDDER,
 ) -> dict[str, Any]:
-    product_key = (product or PRODUCT_DESKRUDDER).strip().lower()
-    if product_key not in VALID_PRODUCTS:
-        product_key = PRODUCT_DESKRUDDER
+    """Monta o payload das notas (#920).
+
+    ``product``:
+    - ``deskrudder`` / ``saas`` — só bullets desse tag (painel da instância).
+    - ``None`` — todas as notas, cada bullet com ``product`` (painel ops).
+    """
+    product_key: str | None
+    if product is None:
+        product_key = None
+    else:
+        product_key = product.strip().lower() or PRODUCT_DESKRUDDER
+        if product_key not in VALID_PRODUCTS:
+            product_key = PRODUCT_DESKRUDDER
 
     raw = _load_release_notes_raw()
     version = version_override or resolve_app_version()

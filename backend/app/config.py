@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     # Sem SEED_ADMIN_EMAIL, nenhum admin é criado automaticamente em produção.
     SEED_ADMIN_EMAIL: EmailStr | None = None
     SEED_ADMIN_PASSWORD: str | None = None
+    # Control-plane em produção: primeiro saas_ops (mín. 8 caracteres). Vazio = não cria.
+    SEED_SAAS_OPS_EMAIL: EmailStr | None = None
+    SEED_SAAS_OPS_PASSWORD: str | None = None
     # Hostnames permitidos no header Host (TrustedHostMiddleware). Em produção não use "*".
     # Ex.: api.seudominio.com,127.0.0.1
     ALLOWED_HOSTS: str = "*"
@@ -96,6 +99,7 @@ class Settings(BaseSettings):
     # Domínio base dos clientes (ex.: deskrudder.com.br → slug.deskrudder.com.br).
     SAAS_PROVISION_BASE_DOMAIN: str | None = None
     SAAS_PROVISION_API_PORT_START: int = 8001
+    # Na stack comercial use 8002+ (8001 é a API do control-plane, #876).
     # Caixa da equipe comercial DeskRudder (trial, provisionamento, renovação).
     SAAS_NOTIFY_EMAIL: str | None = None
     # Raiz do repositório no host (para provision-client.sh). Vazio = parents do pacote app.
@@ -166,7 +170,7 @@ class Settings(BaseSettings):
             and (self.EVOLUTION_GLOBAL_API_KEY or "").strip()
         )
 
-    @field_validator("SEED_ADMIN_EMAIL", mode="before")
+    @field_validator("SEED_ADMIN_EMAIL", "SEED_SAAS_OPS_EMAIL", mode="before")
     @classmethod
     def normalize_seed_admin_email(cls, v):
         if v is None or (isinstance(v, str) and not v.strip()):

@@ -145,7 +145,7 @@ export function KbPortalSettingsPage({ embedded = false }: { embedded?: boolean 
       denied={
         <SemPermissao
           title="Você não tem permissão para personalizar o portal público."
-          voltarPara="/configuracoes/empresa-catalogos/empresa"
+          voltarPara="/configuracoes/empresa/empresa"
           voltarLabel="Voltar para Sistema"
         />
       }
