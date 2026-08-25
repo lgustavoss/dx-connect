@@ -1825,6 +1825,20 @@ export namespace ChatInterno {
     papel: 'admin' | 'membro';
   }
 
+  export interface MembroCanalSetor {
+    atendente_id: number;
+    nome: string;
+    online: boolean;
+  }
+
+  export interface MembrosCanalSetorLista {
+    setor_id: number;
+    setor_nome: string;
+    total: number;
+    online_count: number;
+    items: MembroCanalSetor[];
+  }
+
   export interface ConversaInbox {
     id: number;
     tipo: ConversaTipo;
@@ -1988,6 +2002,8 @@ export const chatInterno = {
     }),
   obterCanalSetor: (setorId: number) =>
     api<ChatInterno.Conversa>(`/chat-interno/setores/${setorId}/canal`),
+  listarMembrosCanalSetor: (setorId: number) =>
+    api<ChatInterno.MembrosCanalSetorLista>(`/chat-interno/setores/${setorId}/membros`),
   publicarCanalSetor: (setorId: number, corpo: string) =>
     api<ChatInterno.Mensagem>(`/chat-interno/setores/${setorId}/canal/mensagens`, {
       method: 'POST',

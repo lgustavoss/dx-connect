@@ -299,3 +299,42 @@ def test_vincular_setor_mostra_canal_na_inbox(client, seed_base, auth_headers, d
     assert r_un.status_code == 200, r_un.text
     inbox2 = client.get("/v1/chat-interno/conversas", headers=auth_headers["a1"]).json()
     assert not any(c["id"] == canal.id for c in inbox2 if c["tipo"] == "setor")
+
+
+def test_membros_canal_setor_lista_e_403(client, seed_base, auth_headers, db_session):
+    """#941 / #S202608-0008 — membros do canal + online; 403 fora do setor."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.services.presenca import PRESENCA_TTL_SEC
+
+    setor1 = seed_base["setor1"].id
+    setor2 = seed_base["setor2"].id
+    a1 = seed_base["a1"]
+    a1.presenca_heartbeat_em = datetime.now(timezone.utc)
+    db_session.add(a1)
+    db_session.commit()
+
+    r = client.get(f"/v1/chat-interno/setores/{setor1}/membros", headers=auth_headers["a1"])
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["setor_id"] == setor1
+    assert body["total"] >= 1
+    ids = {m["atendente_id"] for m in body["items"]}
+    assert a1.id in ids
+    me = next(m for m in body["items"] if m["atendente_id"] == a1.id)
+    assert me["online"] is True
+    assert body["online_count"] >= 1
+
+    a1.presenca_heartbeat_em = datetime.now(timezone.utc) - timedelta(seconds=PRESENCA_TTL_SEC + 30)
+    db_session.add(a1)
+    db_session.commit()
+    r2 = client.get(f"/v1/chat-interno/setores/{setor1}/membros", headers=auth_headers["a1"])
+    assert r2.status_code == 200
+    me2 = next(m for m in r2.json()["items"] if m["atendente_id"] == a1.id)
+    assert me2["online"] is False
+
+    r403 = client.get(f"/v1/chat-interno/setores/{setor2}/membros", headers=auth_headers["a1"])
+    assert r403.status_code == 403
+
+    r_admin = client.get(f"/v1/chat-interno/setores/{setor2}/membros", headers=auth_headers["admin"])
+    assert r_admin.status_code == 200
