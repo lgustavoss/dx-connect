@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { WhatsappChats } from '../../api/client'
+import { EMOJIS_REACAO_CHAT_INTERNO } from '../../lib/chatInternoReacoes'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { TEXTAREA_FIELD_CLASS } from '../ui/Input'
 
@@ -13,8 +14,8 @@ type Props = {
   mensagem: WhatsappChats.Mensagem
   onEditar?: (novoCorpo: string) => Promise<void>
   onApagar?: () => Promise<void>
-  /** Abrir picker de reação (#749). */
-  onReagirMenu?: () => void
+  /** Escolher emoji de reação (#947 / #S202608-0005). */
+  onReagir?: (emoji: string) => void
   podeReagir?: boolean
   /** Balão claro (inbound) — seta escura. */
   tomClaro?: boolean
@@ -25,7 +26,7 @@ export function WhatsappMensagemAcoes({
   mensagem,
   onEditar,
   onApagar,
-  onReagirMenu,
+  onReagir,
   podeReagir = false,
   tomClaro = false,
 }: Props) {
@@ -33,17 +34,22 @@ export function WhatsappMensagemAcoes({
   const [texto, setTexto] = useState(() => corpoWhatsappSemPrefixo(mensagem.corpo))
   const [salvando, setSalvando] = useState(false)
   const [menuAberto, setMenuAberto] = useState(false)
+  const [reagirAberto, setReagirAberto] = useState(false)
   const [confirmarApagar, setConfirmarApagar] = useState(false)
   const [apagando, setApagando] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
   const podeEditar = Boolean(mensagem.pode_editar && onEditar)
   const podeApagarTodos = Boolean(mensagem.pode_apagar_para_todos && onApagar)
-  const temAcoes = podeEditar || podeApagarTodos || (podeReagir && Boolean(onReagirMenu))
+  const temAcoes = podeEditar || podeApagarTodos || (podeReagir && Boolean(onReagir))
 
   useEffect(() => {
     if (!editando) setTexto(corpoWhatsappSemPrefixo(mensagem.corpo))
   }, [mensagem, editando])
+
+  useEffect(() => {
+    if (!menuAberto) setReagirAberto(false)
+  }, [menuAberto])
 
   useEffect(() => {
     if (!menuAberto) return
@@ -58,6 +64,12 @@ export function WhatsappMensagemAcoes({
 
   const itemClass =
     'block w-full px-3 py-1.5 text-left text-xs font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-700'
+
+  function escolherEmoji(emoji: string) {
+    onReagir?.(emoji)
+    setReagirAberto(false)
+    setMenuAberto(false)
+  }
 
   return (
     <>
@@ -103,20 +115,47 @@ export function WhatsappMensagemAcoes({
         {menuAberto && !editando && (
           <div
             role="menu"
-            className="absolute right-0 top-full mt-1 min-w-[8rem] overflow-hidden rounded-lg bg-white py-1 shadow-lg ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-600"
+            className="absolute right-0 top-full z-30 mt-1 min-w-[8rem] overflow-visible rounded-lg bg-white py-1 shadow-lg ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-600"
           >
-            {podeReagir && onReagirMenu && (
-              <button
-                type="button"
-                role="menuitem"
-                className={itemClass}
-                onClick={() => {
-                  setMenuAberto(false)
-                  onReagirMenu()
-                }}
+            {podeReagir && onReagir && (
+              <div
+                className="relative"
+                onMouseEnter={() => setReagirAberto(true)}
+                onMouseLeave={() => setReagirAberto(false)}
               >
-                Reagir
-              </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  aria-expanded={reagirAberto}
+                  aria-haspopup="true"
+                  className={`${itemClass} flex items-center justify-between gap-2`}
+                  onClick={() => setReagirAberto((o) => !o)}
+                >
+                  <span>Reagir</span>
+                  <span className="text-[10px] text-slate-400" aria-hidden>
+                    ▸
+                  </span>
+                </button>
+                {reagirAberto && (
+                  <div
+                    role="group"
+                    aria-label="Escolher reação"
+                    className="absolute right-full top-0 z-40 mr-1 flex items-center gap-0.5 rounded-lg border border-slate-200 bg-white px-1 py-0.5 shadow-lg dark:border-slate-600 dark:bg-slate-800"
+                  >
+                    {EMOJIS_REACAO_CHAT_INTERNO.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => escolherEmoji(emoji)}
+                        className="min-h-9 min-w-9 rounded-full px-1.5 py-0.5 text-base leading-none hover:bg-slate-100 md:min-h-0 md:min-w-0 dark:hover:bg-slate-700"
+                        aria-label={`Reagir com ${emoji}`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
             {podeEditar && onEditar && (
               <button

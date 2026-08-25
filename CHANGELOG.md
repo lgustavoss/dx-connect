@@ -28,6 +28,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
+- WhatsApp (#947 / #S202608-0005): no menu da mensagem, **Reagir** mostra os emojis ao passar o mouse (ou toque); remove o picker flutuante que cobria Editar/Apagar
 - Deploy: migration do chat interno (#916) usava um ID Alembic maior que 32 caracteres e quebrava o `upgrade` em produção; ID encurtado para caber em `alembic_version`
 
 #### Melhorias
