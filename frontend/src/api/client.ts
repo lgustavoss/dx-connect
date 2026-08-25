@@ -5093,7 +5093,7 @@ export const solicitacoesMelhoria = {
     }),
 };
 
-/** Release notes do control-plane (RBAC saas_ops). */
+/** Release notes da versão (RBAC saas_ops) — todas as notas, com product (#920). */
 export const saasReleaseNotes = {
   get: () => api<System.ReleaseNotes>('/saas/release-notes'),
 };

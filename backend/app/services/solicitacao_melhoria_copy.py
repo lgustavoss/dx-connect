@@ -12,14 +12,14 @@ STATUS_LABELS: dict[str, str] = {
 }
 
 STATUS_MENSAGENS: dict[str, str] = {
-    "aberta": "Recebemos o seu pedido. A equipa vai analisar em breve.",
-    "em_analise": "Estamos a analisar o seu pedido com atenção.",
-    "planejada": "O seu pedido foi incluído no planeamento de melhorias.",
-    "em_desenvolvimento": "Já estamos a trabalhar nesta melhoria.",
-    "concluida": "Esta melhoria ficou disponível. Obrigado pelo contributo!",
+    "aberta": "Recebemos o seu pedido. A equipe vai analisar em breve.",
+    "em_analise": "Estamos analisando o seu pedido com atenção.",
+    "planejada": "O seu pedido foi incluído no planejamento de melhorias.",
+    "em_desenvolvimento": "Já estamos trabalhando nesta melhoria.",
+    "concluida": "Esta melhoria ficou disponível. Obrigado pela contribuição!",
     "nao_sera_desenvolvida": (
-        "Neste momento não vamos avançar com este pedido. "
-        "Apreciamos o feedback — se fizer sentido no futuro, voltamos a avaliar."
+        "Neste momento não vamos seguir com este pedido. "
+        "Agradecemos o feedback — se fizer sentido no futuro, voltamos a avaliar."
     ),
 }
 

@@ -51,6 +51,10 @@ Com `SAAS_CONTROL_PLANE=true`, o seed cria:
 
 Sem `VITE_SAAS_CONTROL_PLANE=true`, a apex continua só com login por conta.
 
+### Produção (`deskrudder.com.br/login/admin`)
+
+Não uses as contas de desenvolvimento. O primeiro ops do control-plane é **`ops@deskrudder.com.br`**. A senha **não** está no git (foi gerada na VPS). Se não a tiveres, redefine na API (`docker exec` no container) — não corras o seed de dev em produção.
+
 ## API
 
 | Método | Rota | Quem |
@@ -133,14 +137,18 @@ Handoff Cursor é #857: o Cursor **puxa** a fila (MCP `deskrudder-saas`) contra 
 O script corre no PC do ops. A fila é a da instância comercial (`SAAS_CONTROL_PLANE=true`).
 
 1. Entre no painel admin (`/login/admin`) com a **tua** conta `saas_ops`.
-2. Abra **Conta / Cursor** (`/saas/conta`) e gere o token. O valor aparece **uma vez** — copie para o Cursor. Regenerar invalida o token anterior.
-3. Em cada Cursor: copiar `.cursor/mcp.json.example` para `.cursor/mcp.json` (gitignored), colar **o teu** token em `DESKRUDDER_MCP_TOKEN`, e manter:
+2. Abra **Minha conta** (`/saas/conta`) e gere o token. O valor aparece **uma vez** — copie para o Cursor. Regenerar invalida o token anterior.
+3. Em cada Cursor: copiar `.cursor/mcp.json.example` para `.cursor/mcp.json` (gitignored), colar **o seu** token em `DESKRUDDER_MCP_TOKEN`, e manter:
 
    ```
    DESKRUDDER_API_URL=https://api.deskrudder.com.br
    ```
 
-   Cursor → Settings → MCP → habilitar `deskrudder-saas`.
+   Alvo do épico #875 (stack comercial própria). **Não** apontar o MCP para `api-duplexsoft` — essa é a API do cliente.
+
+   Cursor → Settings → MCP → habilitar `deskrudder-saas`. No Windows, se o servidor não iniciar, use `"command": "py"` em vez de `"python"`.
+
+   Comando no chat: `/listar-solicitacoes` (arquivo versionado em `.cursor/commands/`).
 
 4. **Teste local** (Docker neste repo): no `.cursor/mcp.json` usa `http://127.0.0.1:8000` e um token gerado no painel local (não o da VPS).
 

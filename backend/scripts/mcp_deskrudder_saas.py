@@ -3,7 +3,7 @@
 O processo corre no PC do ops (Cursor). A API é a do control-plane em produção.
 
 Env:
-  DESKRUDDER_API_URL   (omissão: https://api.deskrudder.com.br)
+  DESKRUDDER_API_URL   (omissão: https://api.deskrudder.com.br — control-plane, #875)
   DESKRUDDER_MCP_TOKEN (token gerado em /saas/conta; legado: SAAS_MCP_TOKEN da VPS)
 
 Em local, no .cursor/mcp.json usa http://127.0.0.1:8000 e o token de /saas/conta
@@ -22,6 +22,12 @@ from pathlib import Path
 
 API = (os.environ.get("DESKRUDDER_API_URL") or "https://api.deskrudder.com.br").rstrip("/")
 PROTOCOL = "2024-11-05"
+MCP_INSTRUCTIONS = (
+    "Fila SaaS DeskRudder. Escreva sempre em português do Brasil (pt-BR). "
+    "comentar_solicitacao sem publico_cliente é nota interna. "
+    "Mensagem ao cliente (publico_cliente=true): o cliente lê — sem GitHub, issue #, "
+    "nem vocabulário de Portugal (equipe não equipa; mouse não rato; planejamento não planeamento)."
+)
 
 
 def _api_e_loopback() -> bool:
@@ -50,8 +56,8 @@ TOOLS = [
         "description": (
             "Lista pedidos de melhoria/bug na fila SaaS DeskRudder. "
             "Cada item tem protocolo #SYYYYMM-NNNN, único no produto DeskRudder. "
-            "peso_clientes > 1 significa vários clientes a pedir o mesmo (grupo só visível no SaaS). "
-            "No título da issue usa o protocolo; no corpo cola texto_github_demanda (lista de protocolos)."
+            "peso_clientes > 1 significa vários clientes pedindo o mesmo (grupo só visível no SaaS). "
+            "No título da issue use o protocolo; no corpo cole texto_github_demanda (lista de protocolos)."
         ),
         "inputSchema": {
             "type": "object",
@@ -85,9 +91,9 @@ TOOLS = [
     {
         "name": "alterar_status",
         "description": (
-            "Actualiza a triagem. O cliente vê o status em Minhas solicitações. "
+            "Atualiza a triagem. O cliente vê o status em Minhas solicitações. "
             "Valores: aberta, em_analise, planejada, em_desenvolvimento, concluida, nao_sera_desenvolvida. "
-            "nao_sera_desenvolvida exige motivo visível ao cliente."
+            "nao_sera_desenvolvida exige motivo visível ao cliente, em português do Brasil."
         ),
         "inputSchema": {
             "type": "object",
@@ -104,7 +110,9 @@ TOOLS = [
     {
         "name": "comentar_solicitacao",
         "description": (
-            "Comentário no pedido. publico_cliente=true vai para o cliente; false é nota interna só no SaaS."
+            "Comentário no pedido, em português do Brasil. "
+            "Sem publico_cliente (ou false) = nota interna só no SaaS. "
+            "publico_cliente=true o cliente lê: sem GitHub, issue # nem jargão de ops."
         ),
         "inputSchema": {
             "type": "object",
@@ -113,7 +121,10 @@ TOOLS = [
                 "protocolo": {"type": "string"},
                 "slug": {"type": "string"},
                 "corpo": {"type": "string"},
-                "publico_cliente": {"type": "boolean"},
+                "publico_cliente": {
+                    "type": "boolean",
+                    "description": "true = o cliente lê (pt-BR, sem GitHub). Omissão = nota interna.",
+                },
             },
             "required": ["corpo"],
         },
@@ -121,8 +132,8 @@ TOOLS = [
     {
         "name": "ligar_issue_github",
         "description": (
-            "Depois de criares a issue com o MCP GitHub, grava o URL neste pedido. "
-            "Cola texto_github_demanda no corpo da issue (um ou mais protocolos = demanda). "
+            "Depois de criar a issue com o MCP GitHub, grave a URL neste pedido. "
+            "Cole texto_github_demanda no corpo da issue (um ou mais protocolos = demanda). "
             "A issue fica ligada a todos os pedidos do grupo. O cliente NÃO vê o GitHub."
         ),
         "inputSchema": {
@@ -141,7 +152,7 @@ TOOLS = [
         "description": (
             "Marca dois pedidos como o mesmo pedido de produto (clientes diferentes). "
             "Sobe o peso. Só no painel SaaS; o cliente não vê. "
-            "Indique o pedido actual (id ou protocolo) e o outro (outra_id ou outro_protocolo)."
+            "Indique o pedido atual (id ou protocolo) e o outro (outra_id ou outro_protocolo)."
         ),
         "inputSchema": {
             "type": "object",
@@ -186,9 +197,9 @@ def _api(method: str, path: str, body: dict | None = None) -> tuple[int, object]
     token = _ler_token()
     if not token:
         raise RuntimeError(
-            "Define DESKRUDDER_MCP_TOKEN no .cursor/mcp.json "
+            "Defina DESKRUDDER_MCP_TOKEN no .cursor/mcp.json "
             "(token gerado em /saas/conta). "
-            "Em local (127.0.0.1) também podes pôr SAAS_MCP_TOKEN no backend/.env (legado)."
+            "No ambiente local (127.0.0.1) também pode usar SAAS_MCP_TOKEN no backend/.env (legado)."
         )
     url = f"{API}{path}"
     data = None if body is None else json.dumps(body, ensure_ascii=False).encode("utf-8")
@@ -290,7 +301,7 @@ def call_tool(name: str, args: dict) -> object:
         sid = _id_fila(args)
         payload = {
             "corpo": args["corpo"],
-            "publico_cliente": bool(args.get("publico_cliente", True)),
+            "publico_cliente": bool(args["publico_cliente"]) if "publico_cliente" in args else False,
         }
         _, body = _api("POST", f"/v1/saas/solicitacoes/{sid}/comentarios", payload)
         return body
@@ -343,6 +354,7 @@ def handle(msg: dict) -> dict | None:
                 "protocolVersion": PROTOCOL,
                 "capabilities": {"tools": {"listChanged": False}},
                 "serverInfo": {"name": "deskrudder-saas", "version": "1.0.0"},
+                "instructions": MCP_INSTRUCTIONS,
             },
         )
     if method == "ping":

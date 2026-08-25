@@ -12,6 +12,12 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Fila de sugestões no Cursor: cada ops gera o **próprio token** em Conta / Cursor (`/saas/conta`) e cola no Cursor. Recusar ou comentar fica ligado a essa conta, não a um segredo partilhado da VPS
 - Painel SaaS: cadastro da **equipa** (`/saas/usuarios`) — contas do `/login/admin`. Senha temporária uma vez; cada pessoa gera o token Cursor na própria conta
 - Login ops: no primeiro acesso (trocar senha) o painel SaaS já não mostra «não disponível nesta instância»; redirecciona para definir senha nova
+- Sobre (#920): o painel ops lista **todas** as notas da versão, com etiqueta **Produto** ou **DevOps**. O helpdesk nas instâncias continua a ver só as de produto
+- Login do painel admin: em produção deixa de aparecer a dica de desenvolvimento (e-mail local)
+- Sugestões (#923): detalhe com **linha do tempo** (pedido + mensagens ao cliente); notas internas em cartão âmbar; status em passos clicáveis, como nos tickets
+- Sugestões: textos de acompanhamento em português do Brasil; mensagem ao cliente **não pode citar** GitHub nem número de issue (isso fica na nota interna)
+- Painel ops: menu **Equipe** (Usuários + Minha conta); **Sobre** e **Sair** no rodapé, no mesmo padrão do painel de atendimento
+- Cursor: textos ao cliente e do MCP em **português do Brasil**; comentário sem flag explícita fica **interno**. O comando `/listar-solicitacoes` passa a ir no repositório; o MCP aponta para `api.deskrudder.com.br` (control-plane, #875), não para a API da DuplexSoft
 
 ### DeskRudder
 
@@ -19,6 +25,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 - UI (#870): responsividade — coluna principal do painel ocupa sempre a largura disponível (grid + `w-full`/`min-w-0` no Layout); contentores internos alinhados; abas e header legíveis em qualquer largura
 - UI (#866): botão **Cancelar** com gradiente vermelho preenchido (mesmo molde do Salvar), distinto de Excluir; ConfirmDialog, portal e formulários alinhados
+- Sobre (#920): esta página mostra só melhorias de **produto**; as de DevOps não entram na lista
 - UI (#867): controlo **Voltar** com estilo de botão (fundo/padding) em cadastros, detalhes, portal, WhatsApp e ecrãs de erro de carregamento
 - Sugestões: cada pedido ganha um **protocolo único** (`#S202608-0001`) no painel DeskRudder, visível depois em Minhas solicitações, para amarrar a issue no GitHub
 - Sugestões: no painel SaaS dá para **ligar pedidos iguais** de vários clientes (peso da demanda). O cliente não vê este grupo; na issue GitHub entram todos os protocolos

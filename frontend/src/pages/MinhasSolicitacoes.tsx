@@ -127,7 +127,7 @@ export function MinhasSolicitacoesPage() {
             ))}
             {detalhe.comentarios.map((c) => (
               <Card key={`c-${c.id}`} className="p-3 text-sm">
-                <p className="text-xs font-medium text-slate-500">{c.autor_nome || 'Equipa'} · {fmt(c.created_at)}</p>
+                <p className="text-xs font-medium text-slate-500">{c.autor_nome || 'Equipe'} · {fmt(c.created_at)}</p>
                 <p className="mt-1 whitespace-pre-wrap text-slate-700 dark:text-slate-200">{c.corpo}</p>
               </Card>
             ))}
@@ -142,14 +142,14 @@ export function MinhasSolicitacoesPage() {
               rows={3}
               value={resposta}
               onChange={(e) => setResposta(e.target.value)}
-              placeholder="Escreva uma mensagem para a equipa…"
+              placeholder="Escreva uma mensagem para a equipe…"
             />
             <Button type="button" variant="primary" loading={enviando} onClick={() => void enviarResposta()}>
               Enviar resposta
             </Button>
           </Card>
         ) : STATUS_FINAIS.has(detalhe.status) ? (
-          <p className="text-sm text-slate-500">Este pedido está encerrado e já não aceita respostas.</p>
+          <p className="text-sm text-slate-500">Este pedido está encerrado e não aceita mais respostas.</p>
         ) : null}
       </PageContainer>
     )

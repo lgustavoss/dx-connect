@@ -50,7 +50,7 @@ docker compose run --rm --no-deps backend pytest -q
 - [ ] Página ou componente em `pages/` / `components/`
 - [ ] `AdminRoute` se for área admin
 - [ ] Integrar SSE via `EventStreamContext` se aplicável
-- [ ] Mensagens de erro em português
+- [ ] Mensagens de erro em português do Brasil
 
 Rodar: `cd frontend && npm run build`
 

@@ -81,17 +81,37 @@ def alterar_status(
     return ingest.detalhe(db, ingest.obter(db, row.id))
 
 
+_INTERNO_NO_CLIENTE_RE = re.compile(
+    r"(?i)(github\.com|/\s*issues/\d+|\bgithub\b|\bissues?\s*#\s*\d+)",
+)
+
+
+def corpo_publico_cita_trabalho_interno(corpo: str) -> bool:
+    """GitHub / issue #N não pode ir na mensagem que o cliente vê."""
+    return bool(_INTERNO_NO_CLIENTE_RE.search(corpo or ""))
+
+
 def adicionar_comentario(
     db: Session,
     solicitacao_id: int,
     ops: Atendente,
     data: SaasSolicitacaoComentarioCreate,
 ) -> SaasSolicitacaoDetalhe:
+    corpo = data.corpo.strip()
+    publico = bool(data.publico_cliente)
+    if publico and corpo_publico_cita_trabalho_interno(corpo):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Não envie links ou números de issue do GitHub na mensagem ao cliente. "
+                "Use comentário interno."
+            ),
+        )
     row = ingest.obter(db, solicitacao_id)
     comentario = SaasSolicitacaoProdutoComentario(
         solicitacao_id=row.id,
-        corpo=data.corpo.strip(),
-        publico_cliente=bool(data.publico_cliente),
+        corpo=corpo,
+        publico_cliente=publico,
         autor_atendente_id=ops.id,
         autor_nome=ops.nome,
     )
