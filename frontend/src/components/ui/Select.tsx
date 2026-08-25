@@ -75,10 +75,15 @@ export function Select({
     if (!el) return
     const r = el.getBoundingClientRect()
     const gap = 6
-    const below = r.bottom + gap
-    const maxH = Math.min(280, Math.max(120, window.innerHeight - below - 12))
+    const margin = 12
+    const vh = window.visualViewport?.height ?? window.innerHeight
+    const spaceBelow = vh - r.bottom - gap - margin
+    const spaceAbove = r.top - gap - margin
+    // Em bottom sheets no mobile quase não há espaço abaixo — abre para cima.
+    const openBelow = spaceBelow >= 140 || spaceBelow >= spaceAbove
+    const maxH = Math.min(280, Math.max(96, openBelow ? spaceBelow : spaceAbove))
     setMenuPos({
-      top: below,
+      top: openBelow ? r.bottom + gap : Math.max(margin, r.top - gap - maxH),
       left: r.left,
       width: r.width,
       maxH,
