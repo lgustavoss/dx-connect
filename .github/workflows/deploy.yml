@@ -1,18 +1,19 @@
-# Deploy: build do frontend no GitHub + rsync para o VPS + git pull + Alembic + Docker Compose.
+# Deploy: dois builds frontend + rsync + git pull + Alembic + Docker Compose (#880).
 #
 # Secrets (Settings -> Secrets and variables -> Actions):
-#   DEPLOY_HOST           - hostname ou IP do VPS
-#   DEPLOY_USER           - usuario SSH
-#   DEPLOY_SSH_KEY        - chave privada OpenSSH completa
-#   DEPLOY_PATH           - clone do repositorio no servidor (ex.: /home/deploy/dx-connect)
-#   DEPLOY_FRONTEND_DIST  - pasta onde o Nginx aponta o root do SPA (conteudo de frontend/dist)
-#   VITE_API_URL          - URL HTTPS da API (sem barra final)
+#   DEPLOY_HOST                  - hostname ou IP do VPS
+#   DEPLOY_USER                  - usuario SSH
+#   DEPLOY_SSH_KEY               - chave privada OpenSSH completa
+#   DEPLOY_PATH                  - clone do repositorio no servidor
+#   DEPLOY_FRONTEND_DIST         - dist do painel DuplexSoft (Nginx duplexsoft.*)
+#   DEPLOY_FRONTEND_DIST_ADMIN   - dist landing/SaaS (ex.: /var/www/dx-connect/admin-center/dist)
+#   VITE_API_URL                 - HTTPS API DuplexSoft (sem barra final)
+#   VITE_API_URL_ADMIN           - HTTPS API comercial api.deskrudder.com.br
 # Opcional:
-#   DEPLOY_SSH_PORT       - porta SSH (padrao 22)
-#   DEPLOY_GIT_REF        - branch no VPS (padrao staging; so usado se o workflow nao tiver github.ref_name)
+#   DEPLOY_SSH_PORT              - porta SSH (padrao 22)
+#   DEPLOY_GIT_REF               - branch no VPS (padrao staging)
 #
-# SSH: IPv4 obrigatório; timeout no mesmo runner (5x) e, se persistir, segundo job noutro IP.
-# Ver deploy/github-actions.md (#734).
+# Ver deploy/github-actions.md (#734 / #880).
 
 name: Deploy
 
@@ -30,6 +31,7 @@ on:
       - "backend/**"
       - "frontend/**"
       - "docker-compose.prod.yml"
+      - "deploy/admin-center/**"
       - ".github/workflows/deploy.yml"
       - "deploy/scripts/**"
       - "VERSION"
@@ -46,7 +48,9 @@ env:
   DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
   DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
   DEPLOY_FRONTEND_DIST: ${{ secrets.DEPLOY_FRONTEND_DIST }}
+  DEPLOY_FRONTEND_DIST_ADMIN: ${{ secrets.DEPLOY_FRONTEND_DIST_ADMIN }}
   VITE_API_URL: ${{ secrets.VITE_API_URL }}
+  VITE_API_URL_ADMIN: ${{ secrets.VITE_API_URL_ADMIN }}
   SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
   DEPLOY_GIT_REF: ${{ secrets.DEPLOY_GIT_REF }}
   EVENT_REF: ${{ github.ref_name }}
@@ -83,36 +87,72 @@ jobs:
           python3 scripts/prepare_release.py --deploy --write-env >> "$GITHUB_ENV"
           echo "dx_version=$(tr -d '\n\r' < VERSION)" >> "$GITHUB_OUTPUT"
 
-      - name: Build do frontend
-        working-directory: frontend
-        env:
-          VITE_APP_VERSION: ${{ env.DX_CONNECT_VERSION }}
-          VITE_APP_VERSION_DISPLAY: ${{ env.VITE_APP_VERSION_DISPLAY }}
+      - name: Validar secrets de build/deploy
         run: |
           if [ -z "${VITE_API_URL:-}" ]; then
-            echo "::error::Defina o secret VITE_API_URL (URL HTTPS da API, sem barra no final)."
+            echo "::error::Defina VITE_API_URL (API DuplexSoft HTTPS, sem barra no final)."
             exit 1
           fi
-          npm ci
-          npm run build
-
-      - name: Validar secrets de deploy
-        run: |
-          if [ -z "${DEPLOY_HOST:-}" ] || [ -z "${DEPLOY_USER:-}" ] || [ -z "${DEPLOY_PATH:-}" ] || [ -z "${DEPLOY_FRONTEND_DIST:-}" ]; then
-            echo "::error::Defina DEPLOY_HOST, DEPLOY_USER, DEPLOY_PATH e DEPLOY_FRONTEND_DIST."
+          if [ -z "${VITE_API_URL_ADMIN:-}" ]; then
+            echo "::error::Defina VITE_API_URL_ADMIN (API comercial https://api.deskrudder.com.br)."
+            exit 1
+          fi
+          if [ -z "${DEPLOY_HOST:-}" ] || [ -z "${DEPLOY_USER:-}" ] || [ -z "${DEPLOY_PATH:-}" ]; then
+            echo "::error::Defina DEPLOY_HOST, DEPLOY_USER e DEPLOY_PATH."
+            exit 1
+          fi
+          if [ -z "${DEPLOY_FRONTEND_DIST:-}" ] || [ -z "${DEPLOY_FRONTEND_DIST_ADMIN:-}" ]; then
+            echo "::error::Defina DEPLOY_FRONTEND_DIST (DuplexSoft) e DEPLOY_FRONTEND_DIST_ADMIN (landing/SaaS)."
             exit 1
           fi
           if [ -z "${DEPLOY_SSH_KEY:-}" ]; then
             echo "::error::Defina DEPLOY_SSH_KEY."
             exit 1
           fi
+          case "${VITE_API_URL}" in
+            *api.deskrudder.com.br*)
+              echo "::error::VITE_API_URL não pode ser a API comercial — use VITE_API_URL_ADMIN para isso."
+              exit 1
+              ;;
+          esac
+          case "${VITE_API_URL_ADMIN}" in
+            *api-duplexsoft*)
+              echo "::error::VITE_API_URL_ADMIN não pode ser a API DuplexSoft."
+              exit 1
+              ;;
+          esac
+
+      - name: Build frontend DuplexSoft
+        working-directory: frontend
+        env:
+          VITE_APP_VERSION: ${{ env.DX_CONNECT_VERSION }}
+          VITE_APP_VERSION_DISPLAY: ${{ env.VITE_APP_VERSION_DISPLAY }}
+          VITE_API_URL: ${{ env.VITE_API_URL }}
+        run: |
+          npm ci
+          # Sem VITE_SAAS_CONTROL_PLANE — painel do cliente
+          npx vite build --outDir dist-duplexsoft --emptyOutDir
+
+      - name: Build frontend admin-center (landing /saas)
+        working-directory: frontend
+        env:
+          VITE_APP_VERSION: ${{ env.DX_CONNECT_VERSION }}
+          VITE_APP_VERSION_DISPLAY: ${{ env.VITE_APP_VERSION_DISPLAY }}
+          VITE_API_URL: ${{ env.VITE_API_URL_ADMIN }}
+          VITE_SAAS_CONTROL_PLANE: "true"
+          VITE_MARKETING_SITE_URL: https://deskrudder.com.br
+          VITE_CLIENT_APP_HOST: deskrudder.com.br
+          VITE_DEFAULT_TENANT_ID: "1"
+        run: |
+          npx vite build --outDir dist-admin-center --emptyOutDir
 
       - name: Empacotar artefactos
         uses: actions/upload-artifact@v4
         with:
           name: deploy-dist
           path: |
-            frontend/dist/
+            frontend/dist-duplexsoft/
+            frontend/dist-admin-center/
             VERSION
             CHANGELOG.md
             docs/releases/manifest.json

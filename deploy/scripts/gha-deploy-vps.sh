@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Deploy remoto no VPS a partir do runner GitHub Actions (#734).
+# Deploy remoto no VPS a partir do runner GitHub Actions (#734 / #880).
+# Atualiza stack DuplexSoft (compose legado) + stack admin-center em separado.
 # Exit 42 = SSH Connection timed out (o workflow dispara um segundo job noutro runner).
 # Exit 1 = falha que NÃO deve repetir (credencial, git, alembic, health, etc.).
 set -euo pipefail
@@ -11,8 +12,10 @@ cd "$ROOT"
 : "${DEPLOY_USER:?}"
 : "${DEPLOY_PATH:?}"
 : "${DEPLOY_FRONTEND_DIST:?}"
+: "${DEPLOY_FRONTEND_DIST_ADMIN:?}"
 : "${DEPLOY_SSH_KEY:?}"
 : "${VITE_API_URL:?}"
+: "${VITE_API_URL_ADMIN:?}"
 
 SSH_PORT="${SSH_PORT:-22}"
 mkdir -p "${HOME}/.ssh"
@@ -115,6 +118,8 @@ retry_net() {
 }
 
 echo "Deploy ref no VPS: ${REF}"
+echo "API DuplexSoft (cliente): ${VITE_API_URL}"
+echo "API admin-center:         ${VITE_API_URL_ADMIN}"
 
 retry_net "${SSH_BASE[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
   "REF='${REF}' DEPLOY_PATH='${DEPLOY_PATH}' bash -s" << 'REMOTE_SCRIPT'
@@ -136,6 +141,7 @@ ssh_rsync_release "docs/releases/manifest.json" "docs/releases/"
 ssh_rsync_release "backend/app/data/release_notes.json" "backend/app/data/"
 ssh_rsync_release "frontend/public/release-notes.json" "frontend/public/"
 
+# --- Stack DuplexSoft (compose legado + backend/.env; NÃO reativa control-plane) ---
 retry_net "${SSH_BASE[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
   "REF='${REF}' DEPLOY_PATH='${DEPLOY_PATH}' SKIP_MIGRATIONS='${SKIP_MIGRATIONS}' WEBHOOK_BASE_URL='${VITE_API_URL}' DX_CONNECT_VERSION='${DX_CONNECT_VERSION:-}' bash -s" << 'REMOTE_SCRIPT'
 set -ex
@@ -146,6 +152,13 @@ if [ -z "${DX_CONNECT_VERSION:-}" ] && [ -f VERSION ]; then
   export DX_CONNECT_VERSION="$(tr -d '\n\r' < VERSION)"
 fi
 echo "==> Versão: ${DX_CONNECT_VERSION:-n/a}"
+
+# Guarda: não reativar control-plane no cliente
+if grep -Eq '^SAAS_CONTROL_PLANE=true' backend/.env 2>/dev/null; then
+  echo "::error::backend/.env da DuplexSoft tem SAAS_CONTROL_PLANE=true — cutover #878 exige false."
+  exit 1
+fi
+
 WEBHOOK_BASE_URL="${WEBHOOK_BASE_URL:-}" bash deploy/scripts/ensure-evolution-env.sh backend/.env
 COMPOSE="docker compose --env-file backend/.env -f docker-compose.prod.yml"
 if [ "$SKIP_MIGRATIONS" != "true" ]; then
@@ -155,22 +168,26 @@ else
   $COMPOSE build --no-cache backend
 fi
 WEBHOOK_BASE_URL="${WEBHOOK_BASE_URL:-}" bash deploy/scripts/restart-backend-prod.sh "$DEPLOY_PATH"
+
 PUBLIC_HEALTH="$(curl -sf "${WEBHOOK_BASE_URL%/}/health")"
-echo "Health publico (mesmo host): ${PUBLIC_HEALTH}"
+echo "Health DuplexSoft: ${PUBLIC_HEALTH}"
 echo "${PUBLIC_HEALTH}" | DX_CONNECT_GIT_SHA="${DX_CONNECT_GIT_SHA}" python3 -c "
 import json, os, sys
 body = json.load(sys.stdin)
 caps = body.get('capabilities') or {}
+if caps.get('saas_control_plane'):
+    print('::error::DuplexSoft respondeu saas_control_plane=true (não pode após #878).', file=sys.stderr)
+    sys.exit(1)
 missing = [k for k in ('pdv_catalogos', 'empresa_pdvs') if not caps.get(k)]
 if missing:
-    print(f'::error::URL publica sem rotas PDV: faltam {missing}', file=sys.stderr)
+    print(f'::error::URL DuplexSoft sem rotas PDV: faltam {missing}', file=sys.stderr)
     sys.exit(1)
 expected = os.environ.get('DX_CONNECT_GIT_SHA', '')
 actual = (body.get('git_sha') or '') or ''
 if expected and actual and actual != expected:
-    print(f'::error::git_sha publico {actual!r} != commit {expected!r}', file=sys.stderr)
+    print(f'::error::git_sha DuplexSoft {actual!r} != commit {expected!r}', file=sys.stderr)
     sys.exit(1)
-print('OK: health publico no VPS', actual, caps)
+print('OK: DuplexSoft', actual, 'saas_control_plane=false')
 "
 for i in 1 2 3 4 5 6; do
   curl -sf "http://127.0.0.1:8080" >/dev/null && { echo "Evolution API: OK (8080)"; break; }
@@ -179,18 +196,79 @@ done
 curl -sf "http://127.0.0.1:8080" >/dev/null || echo "Evolution API: aguardar ou conferir logs (docker logs dx-connect-evolution-api)"
 REMOTE_SCRIPT
 
-retry_net rsync -avz --delete -e "$RSYNC_E" \
-  frontend/dist/ "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_FRONTEND_DIST}/"
+# --- Stack admin-center (Postgres + API comerciais) ---
+retry_net "${SSH_BASE[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+  "REF='${REF}' DEPLOY_PATH='${DEPLOY_PATH}' SKIP_MIGRATIONS='${SKIP_MIGRATIONS}' ADMIN_API_URL='${VITE_API_URL_ADMIN}' DX_CONNECT_VERSION='${DX_CONNECT_VERSION:-}' bash -s" << 'REMOTE_SCRIPT'
+set -ex
+cd "$DEPLOY_PATH"
+export DX_CONNECT_GIT_SHA="$(git rev-parse --short HEAD)"
+if [ -z "${DX_CONNECT_VERSION:-}" ] && [ -f VERSION ]; then
+  export DX_CONNECT_VERSION="$(tr -d '\n\r' < VERSION)"
+fi
 
-API_BASE="${VITE_API_URL%/}"
-echo "GET ${API_BASE}/health"
-export HEALTH_JSON EXPECTED_DEPLOY_SHA
-HEALTH_JSON="$(curl -sf "${API_BASE}/health")"
-echo "$HEALTH_JSON"
-python3 <<'PY'
+if [ ! -f deploy/admin-center/client.env ] || [ ! -f deploy/admin-center/docker-compose.yml ]; then
+  echo "::error::deploy/admin-center não provisionado no VPS (falta client.env / docker-compose.yml)."
+  exit 1
+fi
+
+if [ "$SKIP_MIGRATIONS" != "true" ]; then
+  bash deploy/scripts/stack-client.sh migrate admin-center
+fi
+bash deploy/scripts/stack-client.sh up admin-center
+
+# Health loopback
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  if curl -sf http://127.0.0.1:8001/health >/tmp/admin_health.json; then
+    break
+  fi
+  sleep 3
+done
+test -s /tmp/admin_health.json
+
+PUBLIC_HEALTH="$(curl -sf "${ADMIN_API_URL%/}/health")"
+echo "Health admin-center: ${PUBLIC_HEALTH}"
+echo "${PUBLIC_HEALTH}" | DX_CONNECT_GIT_SHA="${DX_CONNECT_GIT_SHA}" python3 -c "
+import json, os, sys
+body = json.load(sys.stdin)
+caps = body.get('capabilities') or {}
+if not caps.get('saas_control_plane'):
+    print('::error::admin-center sem saas_control_plane=true.', file=sys.stderr)
+    sys.exit(1)
+expected = os.environ.get('DX_CONNECT_GIT_SHA', '')
+actual = (body.get('git_sha') or '') or ''
+if expected and actual and actual != expected:
+    print(f'::error::git_sha admin-center {actual!r} != commit {expected!r}', file=sys.stderr)
+    sys.exit(1)
+print('OK: admin-center', actual, 'saas_control_plane=true')
+"
+REMOTE_SCRIPT
+
+# --- Frontends (dois artefactos) ---
+retry_net rsync -avz --delete -e "$RSYNC_E" \
+  frontend/dist-duplexsoft/ "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_FRONTEND_DIST}/"
+
+retry_net rsync -avz --delete -e "$RSYNC_E" \
+  frontend/dist-admin-center/ "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_FRONTEND_DIST_ADMIN}/"
+
+check_health() {
+  local label="$1" url="$2" expect_saas="$3"
+  local json
+  echo "GET ${url}/health (${label})"
+  json="$(curl -sf "${url%/}/health")"
+  echo "$json"
+  EXPECTED_DEPLOY_SHA="${EXPECTED_DEPLOY_SHA:-}" LABEL="$label" EXPECT_SAAS="$expect_saas" HEALTH_JSON="$json" python3 <<'PY'
 import json, os, sys
 body = json.loads(os.environ["HEALTH_JSON"])
 caps = body.get("capabilities") or {}
+label = os.environ["LABEL"]
+expect = os.environ["EXPECT_SAAS"].lower() == "true"
+got = bool(caps.get("saas_control_plane"))
+if got != expect:
+    print(
+        f"::error::{label}: saas_control_plane={got} (esperado {expect}).",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 need = (
     "settings_empresa_sistema",
     "tenant_atual",
@@ -201,7 +279,7 @@ need = (
 missing = [k for k in need if not caps.get(k)]
 if missing:
     print(
-        f"::error::API sem rotas esperadas (backend antigo?): faltam {missing}. git_sha={body.get('git_sha')!r}",
+        f"::error::{label}: faltam capabilities {missing}. git_sha={body.get('git_sha')!r}",
         file=sys.stderr,
     )
     sys.exit(1)
@@ -209,10 +287,13 @@ expected_sha = os.environ.get("EXPECTED_DEPLOY_SHA", "") or os.environ.get("GITH
 actual_sha = (body.get("git_sha") or "") or ""
 if expected_sha and actual_sha and actual_sha != expected_sha:
     print(
-        f"::error::git_sha em producao ({actual_sha!r}) difere do commit deployado ({expected_sha!r}). "
-        "Processo antigo pode ainda estar na porta 8000.",
+        f"::error::{label}: git_sha {actual_sha!r} != {expected_sha!r}.",
         file=sys.stderr,
     )
     sys.exit(1)
-print("OK: capabilities", caps, "git_sha", body.get("git_sha"), "expected", expected_sha)
+print(f"OK: {label} capabilities", caps.get("saas_control_plane"), "git_sha", actual_sha)
 PY
+}
+
+check_health "DuplexSoft" "${VITE_API_URL}" "false"
+check_health "admin-center" "${VITE_API_URL_ADMIN}" "true"

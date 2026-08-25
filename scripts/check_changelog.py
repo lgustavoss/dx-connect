@@ -50,6 +50,11 @@ SAAS_PATH_MARKERS = (
     "backend/app/models/saas_",
     "backend/app/schemas/saas",
     "backend/tests/test_saas",
+    "backend/tests/test_control_plane",
+    "backend/tests/test_deploy_dual_stack",
+    "deploy/admin-center/",
+    "deploy/scripts/provision-control-plane",
+    "deploy/scripts/gha-deploy-vps",
     "deploy/scripts/saas-",
     "deploy/scripts/stack-client",
 )
