@@ -24,6 +24,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- WhatsApp: selecção de **Empresa do atendimento** no modal — lista deixa de ficar cortada/desproporcional (menu no fluxo do formulário; modal um pouco mais estreito)
 - Configurações (#865): menu reorganizado — **Equipe** e **Tickets** separados; Tipos de negócio em Comercial/CRM; Catálogos PDV em **PDV**; Empresa só com dados da instalação; URLs antigas redirecionam
 - Chat interno (#916): cada setor activo passa a ter canal próprio (criação ao cadastrar/activar + backfill); canais vazios aparecem em Interno → Setores; o vínculo do atendente ao setor basta para ver o canal; admin vê todos
 - UI (#870): responsividade — coluna principal do painel ocupa sempre a largura disponível (grid + `w-full`/`min-w-0` no Layout); contentores internos alinhados; abas e header legíveis em qualquer largura

@@ -125,6 +125,7 @@ export function ChatIniciarConversaModal({
                 items={empresasLista.map((e) => ({ id: e.id, label: e.nome }))}
                 placeholder="Definir depois na conversa"
                 hint="Digite parte do nome do posto"
+                menuPlacement="inline"
               />
               <p className="text-[11px] text-slate-500">
                 Se ainda não souber, pergunte ao cliente na conversa e vincule a empresa a qualquer
