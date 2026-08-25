@@ -10,6 +10,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 #### Melhorias
 
 - Infra (#880): deploy GitHub Actions atualiza **duas** stacks — build/dist DuplexSoft e build/dist comercial; migrate em cada Postgres; health com flags SaaS distintas
+- Infra: `stack-client.sh migrate` fecha o stdin (`-T` + `/dev/null`) para o `docker compose run` não engolir o resto do script SSH no deploy do admin-center
 - Infra (#876 / #877 / #878): painel admin em `api.deskrudder.com.br` + SPA em `deskrudder.com.br`; fila e contas ops migradas para o Postgres comercial; DuplexSoft passa a só **ingerir** sugestões (control-plane desligado nessa instância)
 - Infra (#876): stack `admin-center` sobe com Postgres TLS (self-signed) e `DATABASE_URL` com `sslmode=require`, exigido em produção
 - Fila de sugestões no Cursor: cada ops gera o **próprio token** em Conta / Cursor (`/saas/conta`) e cola no Cursor. Recusar ou comentar fica ligado a essa conta, não a um segredo partilhado da VPS

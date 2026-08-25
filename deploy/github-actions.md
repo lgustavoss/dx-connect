@@ -82,8 +82,10 @@ O job **`build`** pode ter passado; a falha é só na ligação **runner → VPS
 ### Outros erros comuns
 
 - **`Permission denied (publickey)`**: confira `DEPLOY_SSH_KEY` e `authorized_keys`.
-- **`rsync` falha**: permissões nos dois caminhos de dist.
+- **`rsync` falha**: permissões nos dois caminhos de dist (`chown deploy:www-data` em ambos).
 - **`admin-center não provisionado`**: falta `deploy/admin-center/client.env` no VPS.
 - **`SAAS_CONTROL_PLANE=true` na DuplexSoft**: o deploy aborta de propósito — corrigir `backend/.env` (cutover #878).
 - **Landing fala com API DuplexSoft**: dist admin desatualizado ou `DEPLOY_FRONTEND_DIST_ADMIN` / secret `VITE_API_URL_ADMIN` errados.
 - **404 em rotas novas**: `DEPLOY_GIT_REF=main` desalinhado — remova o secret e redeploye a `staging`.
+- **Admin-center não sobe no deploy (API antiga)**: `stack-client.sh migrate` sem `-T`/`</dev/null` fazia o `docker compose run` consumir o stdin do SSH e engolir o `up` seguinte. O migrate já fecha o stdin; se voltar a acontecer, confira esse padrão.
+- **Health público admin exit 22 no runner**: Cloudflare/rede no IP do GHA; o script valida loopback `127.0.0.1:8001` no VPS como fonte de verdade.
