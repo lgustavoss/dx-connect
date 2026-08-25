@@ -32,6 +32,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- WhatsApp / Portal (#943 / #S202608-0002): no modal de **encerrar** atendimento, **Concluir/Encerrar** fica azul (ação principal) e **Cancelar** vermelho — deixa de confundir dois botões iguais
 - WhatsApp (mobile): ao **Atender**, o modal de setor fica **centralizado** com lista tocável (sem dropdown cortado no rodapé); o Select genérico também abre para cima quando não há espaço abaixo
 - WhatsApp: seleção de **Empresa do atendimento** no modal — lista deixa de ficar cortada/desproporcional (menu no fluxo do formulário; modal um pouco mais estreito)
 - Configurações (#865): menu reorganizado — **Equipe** e **Tickets** separados; Tipos de negócio em Comercial/CRM; Catálogos PDV em **PDV**; Empresa só com dados da instalação; URLs antigas redirecionam
