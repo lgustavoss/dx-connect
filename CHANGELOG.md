@@ -19,6 +19,10 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### DeskRudder
 
+#### Correções
+
+- Deploy: migration do chat interno (#916) usava um ID Alembic maior que 32 caracteres e quebrava o `upgrade` em produção; ID encurtado para caber em `alembic_version`
+
 #### Melhorias
 
 - WhatsApp: seleção de **Empresa do atendimento** no modal — lista deixa de ficar cortada/desproporcional (menu no fluxo do formulário; modal um pouco mais estreito)
