@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ApiError, atendentes, setores, type Setores } from '../api/client'
+import { ApiError, atendentes, setores, type Atendentes, type Setores } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
@@ -13,9 +13,19 @@ import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { FormSection } from '../components/ui/FormSection'
 import { InlineCadastroFooter } from '../components/ui/InlineCadastroPanel'
 import { CadastroFormPageShell } from '../components/ui/CadastroFormPageShell'
+import { HorarioSemanaEditor } from '../components/horario/HorarioSemanaEditor'
+import { AtendenteLocaisSection } from '../components/AtendenteLocaisSection'
+import {
+  horarioSemanaFromApi,
+  horarioSemanaPadrao,
+  validarHorarioSemana,
+  type HorarioSemana,
+} from '../lib/horarioSemana'
 import { SemPermissao } from './SemPermissao'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
+
+type ModoJornada = Atendentes.ModoJornada
 
 export function AtendenteForm() {
   const { id } = useParams<{ id?: string }>()
@@ -38,7 +48,8 @@ export function AtendenteForm() {
   const [role, setRole] = useState<'admin' | 'atendente' | 'comercial'>('atendente')
   const [ativo, setAtivo] = useState(true)
   const [setorIds, setSetorIds] = useState<number[]>([])
-  const [usaEscala, setUsaEscala] = useState(false)
+  const [modoJornada, setModoJornada] = useState<ModoJornada>('nenhum')
+  const [horarioSemana, setHorarioSemana] = useState<HorarioSemana>(() => horarioSemanaPadrao())
   const [escalaHorasTrabalho, setEscalaHorasTrabalho] = useState('12')
   const [escalaHorasFolga, setEscalaHorasFolga] = useState('36')
   const [escalaInicioEm, setEscalaInicioEm] = useState('')
@@ -46,6 +57,8 @@ export function AtendenteForm() {
   const [horarioEntrada, setHorarioEntrada] = useState('')
   const [horarioSaida, setHorarioSaida] = useState('')
   const [toleranciaAtraso, setToleranciaAtraso] = useState('0')
+  const [usarLocalEmpresa, setUsarLocalEmpresa] = useState(true)
+  const [localEmpresaRaio, setLocalEmpresaRaio] = useState('')
 
   useEffect(() => {
     coletarTodasPaginas<Setores.Setor>((o, l) =>
@@ -75,13 +88,24 @@ export function AtendenteForm() {
         setRole((a.role as 'admin' | 'atendente' | 'comercial') || 'atendente')
         setAtivo(a.ativo)
         setSetorIds(a.setor_ids ?? [])
-        setUsaEscala(Boolean(a.usa_escala))
+        const modo: ModoJornada =
+          a.modo_jornada === 'semanal' || a.modo_jornada === 'ciclo' || a.modo_jornada === 'nenhum'
+            ? a.modo_jornada
+            : a.usa_escala
+              ? 'ciclo'
+              : 'nenhum'
+        setModoJornada(modo)
+        setHorarioSemana(horarioSemanaFromApi(a.horario_semana ?? undefined))
         setEscalaHorasTrabalho(a.escala_horas_trabalho != null ? String(a.escala_horas_trabalho) : '12')
         setEscalaHorasFolga(a.escala_horas_folga != null ? String(a.escala_horas_folga) : '36')
         setEscalaInicioEm(a.escala_inicio_em ?? '')
         setHorarioEntrada(a.horario_previsto_entrada ?? '')
         setHorarioSaida(a.horario_previsto_saida ?? '')
         setToleranciaAtraso(String(a.tolerancia_atraso_minutos ?? 0))
+        setUsarLocalEmpresa(a.usar_local_empresa !== false)
+        setLocalEmpresaRaio(
+          a.local_empresa_raio_metros != null ? String(a.local_empresa_raio_metros) : '',
+        )
         if (a.escala_horas_trabalho === 12 && a.escala_horas_folga === 36) setPresetEscala('12x36')
         else if (a.escala_horas_trabalho === 6 && a.escala_horas_folga === 18) setPresetEscala('6x18')
         else if (a.escala_horas_trabalho === 24 && a.escala_horas_folga === 48) setPresetEscala('24x48')
@@ -127,10 +151,12 @@ export function AtendenteForm() {
     }
   }
 
-  function payloadEscala() {
-    if (!usaEscala) {
+  function payloadJornada(): Atendentes.Create | Atendentes.Update {
+    if (modoJornada === 'nenhum') {
       return {
+        modo_jornada: 'nenhum',
         usa_escala: false,
+        horario_semana: null,
         escala_horas_trabalho: null,
         escala_horas_folga: null,
         escala_inicio_em: null,
@@ -139,8 +165,23 @@ export function AtendenteForm() {
         tolerancia_atraso_minutos: 0,
       }
     }
+    if (modoJornada === 'semanal') {
+      return {
+        modo_jornada: 'semanal',
+        usa_escala: true,
+        horario_semana: horarioSemana,
+        escala_horas_trabalho: null,
+        escala_horas_folga: null,
+        escala_inicio_em: null,
+        horario_previsto_entrada: null,
+        horario_previsto_saida: null,
+        tolerancia_atraso_minutos: Math.max(0, Number(toleranciaAtraso) || 0),
+      }
+    }
     return {
+      modo_jornada: 'ciclo',
       usa_escala: true,
+      horario_semana: null,
       escala_horas_trabalho: Number(escalaHorasTrabalho) || null,
       escala_horas_folga: Number(escalaHorasFolga) || null,
       escala_inicio_em: escalaInicioEm || null,
@@ -150,11 +191,28 @@ export function AtendenteForm() {
     }
   }
 
+  function payloadLocais() {
+    return {
+      usar_local_empresa: usarLocalEmpresa,
+      local_empresa_raio_metros: localEmpresaRaio.trim()
+        ? Math.max(20, Number(localEmpresaRaio) || 200)
+        : null,
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (modoJornada === 'semanal') {
+      const erroHs = validarHorarioSemana(horarioSemana)
+      if (erroHs) {
+        toast.showWarning(erroHs)
+        return
+      }
+    }
     setSaving(true)
     try {
-      const escala = payloadEscala()
+      const escala = payloadJornada()
+      const locais = payloadLocais()
       if (isEdit && !Number.isNaN(atendenteId)) {
         await atendentes.update(atendenteId, {
           email,
@@ -163,6 +221,7 @@ export function AtendenteForm() {
           ativo,
           setor_ids: setorIds,
           ...escala,
+          ...locais,
           ...(senha ? { senha } : {}),
         })
         toast.showSuccess('Atendente atualizado.')
@@ -177,9 +236,10 @@ export function AtendenteForm() {
           setor_ids: setorIds,
           ativo,
           ...escala,
+          ...locais,
         })
         toast.showSuccess('Atendente cadastrado.')
-        navigate(`/atendentes/${created.id}`, { replace: true })
+        navigate(`/atendentes/${created.id}/editar`, { replace: true })
       }
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar o atendente.'))
@@ -284,18 +344,35 @@ export function AtendenteForm() {
                 statusOffText="Inativo"
               />
             </FormSection>
-            <FormSection title="Escala de trabalho">
-              <Switch
-                bare
-                checked={usaEscala}
-                onCheckedChange={setUsaEscala}
-                label="Usa escala"
-                description="Quando ativo, o sistema calcula dias de trabalho e folga a partir do ciclo horas × horas."
-                showStatusPill
-                statusOnText="Sim"
-                statusOffText="Não"
+            <FormSection title="Jornada de trabalho">
+              <Select
+                label="Modo de jornada"
+                value={modoJornada}
+                onChange={(v) => setModoJornada(String(v) as ModoJornada)}
+                options={[
+                  { value: 'nenhum', label: 'Nenhum (sem falta nem avisos de horário)' },
+                  { value: 'semanal', label: 'Escala semanal (dias da semana)' },
+                  { value: 'ciclo', label: 'Escala ciclo (ex.: 12×36)' },
+                ]}
               />
-              {usaEscala && (
+              {modoJornada === 'semanal' && (
+                <div className="mt-4 space-y-3">
+                  <HorarioSemanaEditor value={horarioSemana} onChange={setHorarioSemana} />
+                  <Input
+                    label="Tolerância (min) — antes e depois do início"
+                    type="number"
+                    min={0}
+                    max={120}
+                    value={toleranciaAtraso}
+                    onChange={(e) => setToleranciaAtraso(e.target.value)}
+                  />
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Entrada liberada a partir de início menos a tolerância. Dentro da tolerância não conta
+                    atraso.
+                  </p>
+                </div>
+              )}
+              {modoJornada === 'ciclo' && (
                 <div className="mt-4 space-y-3">
                   <Select
                     label="Preset"
@@ -353,7 +430,7 @@ export function AtendenteForm() {
                       onChange={(e) => setHorarioSaida(e.target.value)}
                     />
                     <Input
-                      label="Tolerância atraso (min)"
+                      label="Tolerância (min)"
                       type="number"
                       min={0}
                       max={120}
@@ -362,12 +439,29 @@ export function AtendenteForm() {
                     />
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Ciclo contínuo a partir desta data (ex.: 12 h de trabalho e 36 h de folga, repetindo). Horário
-                    previsto é opcional e sinaliza atraso na conformidade.
+                    Ciclo contínuo a partir desta data. A tolerância vale antes e depois do horário de
+                    entrada.
                   </p>
                 </div>
               )}
             </FormSection>
+            {isEdit && !Number.isNaN(atendenteId) ? (
+              <FormSection title="Locais de trabalho">
+                <AtendenteLocaisSection
+                  atendenteId={atendenteId}
+                  usarLocalEmpresa={usarLocalEmpresa}
+                  localEmpresaRaio={localEmpresaRaio}
+                  onUsarLocalEmpresaChange={setUsarLocalEmpresa}
+                  onLocalEmpresaRaioChange={setLocalEmpresaRaio}
+                />
+              </FormSection>
+            ) : (
+              <FormSection title="Locais de trabalho">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Salve o atendente para configurar o local da empresa e locais extras (mapa e raio).
+                </p>
+              </FormSection>
+            )}
           </div>
           <InlineCadastroFooter onCancel={voltarAnterior} saving={saving} />
         </form>

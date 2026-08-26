@@ -101,6 +101,8 @@ import { SaasSobre } from './pages/saas/SaasSobre'
 import { SaasConta } from './pages/saas/SaasConta'
 import { SaasUsuarios } from './pages/saas/SaasUsuarios'
 import { SaasUsuarioForm } from './pages/saas/SaasUsuarioForm'
+import { SaasSetoresPage } from './pages/saas/SaasSetores'
+import { SaasSetorForm } from './pages/saas/SaasSetorForm'
 import { KbPublicLayout } from './pages/kb-public/KbPublicLayout'
 import { KbPublicHome } from './pages/kb-public/KbPublicHome'
 import { KbPublicArtigo } from './pages/kb-public/KbPublicArtigo'
@@ -324,6 +326,9 @@ function AppRoutes() {
         <Route path="usuarios/novo" element={<SaasUsuarioForm />} />
         <Route path="usuarios/:id" element={<SaasUsuarioForm />} />
         <Route path="usuarios" element={<SaasUsuarios />} />
+        <Route path="setores/novo" element={<SaasSetorForm />} />
+        <Route path="setores/:id" element={<SaasSetorForm />} />
+        <Route path="setores" element={<SaasSetoresPage />} />
         <Route path="conta" element={<SaasConta />} />
         <Route path="sobre" element={<SaasSobre />} />
       </Route>
