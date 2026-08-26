@@ -44,7 +44,9 @@ class PontoSettingsPublicRead(BaseModel):
 
 
 class PontoLocalCreate(BaseModel):
+    atendente_id: int = Field(..., ge=1)
     nome: str = Field(..., min_length=1, max_length=255)
+    endereco: str | None = Field(default=None, max_length=512)
     latitude: float = Field(..., ge=-90, le=90)
     longitude: float = Field(..., ge=-180, le=180)
     raio_metros: int = Field(default=200, ge=20, le=50_000)
@@ -53,7 +55,9 @@ class PontoLocalCreate(BaseModel):
 
 class PontoLocalRead(BaseModel):
     id: int
+    atendente_id: int | None = None
     nome: str
+    endereco: str | None = None
     latitude: float
     longitude: float
     raio_metros: int
@@ -63,7 +67,9 @@ class PontoLocalRead(BaseModel):
 
 
 class PontoLocalUpdate(BaseModel):
+    atendente_id: int | None = Field(default=None, ge=1)
     nome: str | None = Field(default=None, min_length=1, max_length=255)
+    endereco: str | None = Field(default=None, max_length=512)
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     raio_metros: int | None = Field(default=None, ge=20, le=50_000)

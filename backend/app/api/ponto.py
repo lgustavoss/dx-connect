@@ -121,7 +121,7 @@ def minhas_settings_ponto(
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
     ponto_svc.exigir_acesso_ponto(atendente)
-    out = ponto_settings_svc.settings_public_read(db, atendente.tenant_id)
+    out = ponto_settings_svc.settings_public_read(db, atendente)
     db.commit()
     return out
 
@@ -360,10 +360,14 @@ def remover_feriado(
 
 @router.get("/locais", response_model=list[PontoLocalRead])
 def listar_locais(
+    atendente_id: int | None = Query(None),
+    so_orfos: bool = Query(False, description="Só locais legados sem atendente"),
     db: Session = Depends(get_db),
     admin: Atendente = Depends(exigir_admin),
 ):
-    return ponto_settings_svc.listar_locais(db, admin.tenant_id)
+    return ponto_settings_svc.listar_locais(
+        db, admin.tenant_id, atendente_id=atendente_id, so_orfos=so_orfos
+    )
 
 
 @router.post("/locais", response_model=PontoLocalRead, status_code=201)

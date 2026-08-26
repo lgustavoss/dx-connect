@@ -10,6 +10,7 @@ import {
 } from '../api/client'
 import { resolveTenantIdFromHostname, tenantAppOrigin } from '../lib/tenant'
 import { nomeParaApiEmpresa } from '../components/empresa/empresaFormCopy'
+import { PontoLocalMapaPicker } from '../components/PontoLocalMapaPicker'
 import { Card } from '../components/ui/Card'
 import { PageContainer } from '../components/ui/PageContainer'
 import { Button } from '../components/ui/Button'
@@ -53,6 +54,10 @@ export function ConfigEmpresaEmail({ embedded = false, section }: ConfigEmpresaE
   const [cidade, setCidade] = useState('')
   const [estado, setEstado] = useState('')
   const [cep, setCep] = useState('')
+  const [empresaLat, setEmpresaLat] = useState<number | null>(null)
+  const [empresaLon, setEmpresaLon] = useState<number | null>(null)
+  const [empresaRaio, setEmpresaRaio] = useState(200)
+  const [empresaEnderecoMapa, setEmpresaEnderecoMapa] = useState('')
   const [salvandoEmpresa, setSalvandoEmpresa] = useState(false)
   const [loadingCnpjConsulta, setLoadingCnpjConsulta] = useState(false)
   const [logoBlobUrl, setLogoBlobUrl] = useState<string | null>(null)
@@ -103,6 +108,15 @@ export function ConfigEmpresaEmail({ embedded = false, section }: ConfigEmpresaE
       setCidade((emp.cidade ?? '').trim())
       setEstado((emp.estado ?? '').trim().toUpperCase().slice(0, 2))
       setCep(emp.cep ? maskCep(digitsOnly(emp.cep)) : '')
+      setEmpresaLat(emp.latitude ?? null)
+      setEmpresaLon(emp.longitude ?? null)
+      setEmpresaRaio(emp.ponto_raio_metros ?? 200)
+      setEmpresaEnderecoMapa(
+        [emp.endereco, emp.numero, emp.bairro, emp.cidade, emp.estado, emp.cep]
+          .map((x) => (x ?? '').trim())
+          .filter(Boolean)
+          .join(', '),
+      )
 
       // logo: precisa de fetch autenticado (não dá pra usar <img src> direto).
       const prevBlob = logoBlobUrlRef.current
@@ -202,6 +216,9 @@ export function ConfigEmpresaEmail({ embedded = false, section }: ConfigEmpresaE
         cidade: cidade.trim() || null,
         estado: estado.trim() || null,
         cep: digitsOnly(cep) || null,
+        latitude: empresaLat,
+        longitude: empresaLon,
+        ponto_raio_metros: empresaRaio,
       }
       if (!cnpjImutavel) {
         payload.cnpj = cnpjTrim
@@ -554,6 +571,31 @@ export function ConfigEmpresaEmail({ embedded = false, section }: ConfigEmpresaE
                     </div>
                   </div>
                 </div>
+              </div>
+              <div>
+                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Local de trabalho (ponto)
+                </h3>
+                <p className="mb-3 text-sm text-slate-600 dark:text-slate-400">
+                  Marque o pin uma vez. Nos cadastros da equipe dá para ligar/desligar este local e ajustar o raio por
+                  pessoa.
+                </p>
+                <PontoLocalMapaPicker
+                  value={{
+                    latitude: empresaLat,
+                    longitude: empresaLon,
+                    endereco: empresaEnderecoMapa,
+                    raio_metros: empresaRaio,
+                  }}
+                  onChange={(next) => {
+                    setEmpresaLat(next.latitude)
+                    setEmpresaLon(next.longitude)
+                    setEmpresaRaio(next.raio_metros ?? 200)
+                    if (next.endereco) setEmpresaEnderecoMapa(next.endereco)
+                  }}
+                  buscaInicial={empresaEnderecoMapa}
+                  raioLabel="Raio padrão (m)"
+                />
               </div>
             </div>
             <div className="flex flex-wrap gap-3 pt-2">

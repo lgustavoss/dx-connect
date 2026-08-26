@@ -72,12 +72,6 @@ export function PontoEquipe() {
   const [feriadoData, setFeriadoData] = useState('')
   const [feriadoNome, setFeriadoNome] = useState('')
   const [salvandoSettings, setSalvandoSettings] = useState(false)
-  const [locais, setLocais] = useState<Ponto.Local[]>([])
-  const [localNome, setLocalNome] = useState('')
-  const [localLat, setLocalLat] = useState('')
-  const [localLon, setLocalLon] = useState('')
-  const [localRaio, setLocalRaio] = useState('200')
-  const [editLocalId, setEditLocalId] = useState<number | null>(null)
   const [mapaBatida, setMapaBatida] = useState<Ponto.BatidaAdmin | null>(null)
   const agoraCal = new Date()
   const [calAno, setCalAno] = useState(agoraCal.getFullYear())
@@ -89,7 +83,7 @@ export function PontoEquipe() {
   const carregar = useCallback(
     async (silencioso = false) => {
       try {
-        const [hist, dia, js, dig, st, fer, locs] = await Promise.all([
+        const [hist, dia, js, dig, st, fer] = await Promise.all([
           ponto.batidasAdmin({
             atendente_id: atendenteId ? Number(atendenteId) : undefined,
             desde,
@@ -101,7 +95,6 @@ export function PontoEquipe() {
           ponto.digest(),
           ponto.settings(),
           ponto.feriados(new Date().getFullYear()),
-          ponto.locais(),
         ])
         setItems(hist.items)
         setTotal(hist.total)
@@ -110,7 +103,6 @@ export function PontoEquipe() {
         setDigest(dig)
         setSettings(st)
         setFeriados(fer)
-        setLocais(locs)
         setSemPermissao(false)
         if (atendenteId) {
           const bh = await ponto.bancoHorasAdmin(Number(atendenteId), desde, ate)
@@ -277,68 +269,6 @@ export function PontoEquipe() {
     }
   }
 
-  async function adicionarLocal() {
-    if (!localNome.trim() || !localLat || !localLon) {
-      toast.showWarning('Informe nome, latitude e longitude do local.')
-      return
-    }
-    try {
-      if (editLocalId != null) {
-        await ponto.atualizarLocal(editLocalId, {
-          nome: localNome.trim(),
-          latitude: Number(localLat),
-          longitude: Number(localLon),
-          raio_metros: Number(localRaio) || 200,
-        })
-        toast.showSuccess('Local actualizado.')
-        setEditLocalId(null)
-      } else {
-        await ponto.criarLocal({
-          nome: localNome.trim(),
-          latitude: Number(localLat),
-          longitude: Number(localLon),
-          raio_metros: Number(localRaio) || 200,
-        })
-        toast.showSuccess('Local cadastrado.')
-      }
-      setLocalNome('')
-      setLocalLat('')
-      setLocalLon('')
-      setLocalRaio('200')
-      await carregar(true)
-    } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível guardar o local.'))
-    }
-  }
-
-  function iniciarEdicaoLocal(loc: Ponto.Local) {
-    setEditLocalId(loc.id)
-    setLocalNome(loc.nome)
-    setLocalLat(String(loc.latitude))
-    setLocalLon(String(loc.longitude))
-    setLocalRaio(String(loc.raio_metros))
-  }
-
-  async function toggleLocalAtivo(loc: Ponto.Local) {
-    try {
-      await ponto.atualizarLocal(loc.id, { ativo: !loc.ativo })
-      toast.showSuccess(loc.ativo ? 'Local desactivado.' : 'Local activado.')
-      await carregar(true)
-    } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível alterar o local.'))
-    }
-  }
-
-  async function apagarLocal(id: number) {
-    try {
-      await ponto.removerLocal(id)
-      toast.showSuccess('Local removido.')
-      await carregar(true)
-    } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível remover o local.'))
-    }
-  }
-
   async function adicionarFeriado() {
     if (!feriadoData || !feriadoNome.trim()) {
       toast.showWarning('Informe data e nome do feriado.')
@@ -378,7 +308,7 @@ export function PontoEquipe() {
     <PageContainer>
       <PageHeader
         title="Ponto da equipe"
-        subtitle="Visão do dia, batidas, geofence, ajustes auditados e relatórios mensais."
+        subtitle="Visão do dia, batidas, ajustes auditados e relatórios mensais."
       />
 
       <Card className="overflow-hidden border-cyan-200/60 bg-gradient-to-br from-slate-50 via-white to-cyan-50/40 dark:border-cyan-900/40 dark:from-slate-950 dark:via-slate-900 dark:to-cyan-950/20">
@@ -754,8 +684,8 @@ export function PontoEquipe() {
                 ]}
               />
               <p className="text-xs text-slate-500">
-                Com locais cadastrados: opcional regista geo; recomendada avisa fora da área; obrigatória
-                bloqueia sem GPS ou fora do raio.
+                Locais ficam no cadastro de cada pessoa (e pin da empresa em Configurações → Empresa). Opcional
+                registra geo; recomendada avisa fora da área; obrigatória bloqueia sem GPS ou fora do raio.
               </p>
               <Button type="button" disabled={salvandoSettings} onClick={() => void salvarSettings()}>
                 Salvar configurações
@@ -764,80 +694,6 @@ export function PontoEquipe() {
           ) : (
             <p className="text-sm text-slate-500">Carregando…</p>
           )}
-        </Card>
-
-        <Card title="Locais (geofence)">
-          <div className="mb-4 flex flex-wrap items-end gap-3">
-            <Input label="Nome" value={localNome} onChange={(e) => setLocalNome(e.target.value)} />
-            <Input
-              label="Latitude"
-              type="number"
-              step="any"
-              value={localLat}
-              onChange={(e) => setLocalLat(e.target.value)}
-            />
-            <Input
-              label="Longitude"
-              type="number"
-              step="any"
-              value={localLon}
-              onChange={(e) => setLocalLon(e.target.value)}
-            />
-            <Input
-              label="Raio (m)"
-              type="number"
-              min={20}
-              value={localRaio}
-              onChange={(e) => setLocalRaio(e.target.value)}
-            />
-            <Button type="button" onClick={() => void adicionarLocal()}>
-              {editLocalId != null ? 'Salvar alteração' : 'Adicionar local'}
-            </Button>
-            {editLocalId != null ? (
-              <Button
-                type="button"
-                variant="cancel"
-                onClick={() => {
-                  setEditLocalId(null)
-                  setLocalNome('')
-                  setLocalLat('')
-                  setLocalLon('')
-                  setLocalRaio('200')
-                }}
-              >
-                Cancelar edição
-              </Button>
-            ) : null}
-          </div>
-          <ul className="space-y-2 text-sm">
-            {locais.length === 0 ? (
-              <li className="text-slate-500">Nenhum local cadastrado — geofence inactivo.</li>
-            ) : (
-              locais.map((loc) => (
-                <li
-                  key={loc.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800"
-                >
-                  <span>
-                    <strong>{loc.nome}</strong> · {loc.latitude.toFixed(5)}, {loc.longitude.toFixed(5)} · raio{' '}
-                    {loc.raio_metros} m
-                    {!loc.ativo ? ' (inactivo)' : ''}
-                  </span>
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" variant="secondary" onClick={() => iniciarEdicaoLocal(loc)}>
-                      Editar
-                    </Button>
-                    <Button type="button" variant="secondary" onClick={() => void toggleLocalAtivo(loc)}>
-                      {loc.ativo ? 'Desactivar' : 'Activar'}
-                    </Button>
-                    <Button type="button" variant="ghost" onClick={() => void apagarLocal(loc.id)}>
-                      Remover
-                    </Button>
-                  </div>
-                </li>
-              ))
-            )}
-          </ul>
         </Card>
 
         <Card title="Feriados da instância">
@@ -891,11 +747,7 @@ export function PontoEquipe() {
             : 'Localização'
         }
         subtitulo={mapaBatida ? formatarHora(mapaBatida.registrado_em) : undefined}
-        raioMetros={
-          mapaBatida?.local_id != null
-            ? locais.find((l) => l.id === mapaBatida.local_id)?.raio_metros ?? null
-            : null
-        }
+        raioMetros={null}
       />
     </PageContainer>
   )

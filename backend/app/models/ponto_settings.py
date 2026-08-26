@@ -27,7 +27,12 @@ class PontoLocal(Base):
 
     id = Column(Integer, primary_key=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False, index=True)
+    # NULL = legado sem dono (#984); não entra no geofence até reatribuir.
+    atendente_id = Column(
+        Integer, ForeignKey("atendentes.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     nome = Column(String(255), nullable=False)
+    endereco = Column(String(512), nullable=True)
     latitude = Column(Float, nullable=False)
     longitude = Column(Float, nullable=False)
     raio_metros = Column(Integer, nullable=False, default=200, server_default="200")

@@ -14,6 +14,7 @@ import { FormSection } from '../components/ui/FormSection'
 import { InlineCadastroFooter } from '../components/ui/InlineCadastroPanel'
 import { CadastroFormPageShell } from '../components/ui/CadastroFormPageShell'
 import { HorarioSemanaEditor } from '../components/horario/HorarioSemanaEditor'
+import { AtendenteLocaisSection } from '../components/AtendenteLocaisSection'
 import {
   horarioSemanaFromApi,
   horarioSemanaPadrao,
@@ -56,6 +57,8 @@ export function AtendenteForm() {
   const [horarioEntrada, setHorarioEntrada] = useState('')
   const [horarioSaida, setHorarioSaida] = useState('')
   const [toleranciaAtraso, setToleranciaAtraso] = useState('0')
+  const [usarLocalEmpresa, setUsarLocalEmpresa] = useState(true)
+  const [localEmpresaRaio, setLocalEmpresaRaio] = useState('')
 
   useEffect(() => {
     coletarTodasPaginas<Setores.Setor>((o, l) =>
@@ -99,6 +102,10 @@ export function AtendenteForm() {
         setHorarioEntrada(a.horario_previsto_entrada ?? '')
         setHorarioSaida(a.horario_previsto_saida ?? '')
         setToleranciaAtraso(String(a.tolerancia_atraso_minutos ?? 0))
+        setUsarLocalEmpresa(a.usar_local_empresa !== false)
+        setLocalEmpresaRaio(
+          a.local_empresa_raio_metros != null ? String(a.local_empresa_raio_metros) : '',
+        )
         if (a.escala_horas_trabalho === 12 && a.escala_horas_folga === 36) setPresetEscala('12x36')
         else if (a.escala_horas_trabalho === 6 && a.escala_horas_folga === 18) setPresetEscala('6x18')
         else if (a.escala_horas_trabalho === 24 && a.escala_horas_folga === 48) setPresetEscala('24x48')
@@ -184,6 +191,15 @@ export function AtendenteForm() {
     }
   }
 
+  function payloadLocais() {
+    return {
+      usar_local_empresa: usarLocalEmpresa,
+      local_empresa_raio_metros: localEmpresaRaio.trim()
+        ? Math.max(20, Number(localEmpresaRaio) || 200)
+        : null,
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (modoJornada === 'semanal') {
@@ -196,6 +212,7 @@ export function AtendenteForm() {
     setSaving(true)
     try {
       const escala = payloadJornada()
+      const locais = payloadLocais()
       if (isEdit && !Number.isNaN(atendenteId)) {
         await atendentes.update(atendenteId, {
           email,
@@ -204,6 +221,7 @@ export function AtendenteForm() {
           ativo,
           setor_ids: setorIds,
           ...escala,
+          ...locais,
           ...(senha ? { senha } : {}),
         })
         toast.showSuccess('Atendente atualizado.')
@@ -218,9 +236,10 @@ export function AtendenteForm() {
           setor_ids: setorIds,
           ativo,
           ...escala,
+          ...locais,
         })
         toast.showSuccess('Atendente cadastrado.')
-        navigate(`/atendentes/${created.id}`, { replace: true })
+        navigate(`/atendentes/${created.id}/editar`, { replace: true })
       }
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar o atendente.'))
@@ -426,6 +445,23 @@ export function AtendenteForm() {
                 </div>
               )}
             </FormSection>
+            {isEdit && !Number.isNaN(atendenteId) ? (
+              <FormSection title="Locais de trabalho">
+                <AtendenteLocaisSection
+                  atendenteId={atendenteId}
+                  usarLocalEmpresa={usarLocalEmpresa}
+                  localEmpresaRaio={localEmpresaRaio}
+                  onUsarLocalEmpresaChange={setUsarLocalEmpresa}
+                  onLocalEmpresaRaioChange={setLocalEmpresaRaio}
+                />
+              </FormSection>
+            ) : (
+              <FormSection title="Locais de trabalho">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Salve o atendente para configurar o local da empresa e locais extras (mapa e raio).
+                </p>
+              </FormSection>
+            )}
           </div>
           <InlineCadastroFooter onCancel={voltarAnterior} saving={saving} />
         </form>

@@ -34,6 +34,10 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### DeskRudder
 
+#### Melhorias
+
+- Ponto (#984): locais de trabalho no **cadastro do atendente** (empresa + extras no mapa OSM); pin da empresa em Configurações → Empresa; raio e ativar/desativar por local; removido o card global de Locais em Ponto da equipe
+
 #### Correções
 
 - WhatsApp (#947 / #S202608-0005): ao abrir o menu Editar/Apagar/Reagir (ou editar mensagem), o strip de emojis do hover deixa de cobrir as opções
