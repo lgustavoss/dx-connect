@@ -11,6 +11,8 @@ type Props = {
   /** Abrir picker a partir do menu da seta (#749). */
   pickerExternoAberto?: boolean
   onPickerExternoClose?: () => void
+  /** Oculta o strip de emojis do hover enquanto o menu Editar/Apagar está aberto (#947). */
+  ocultarPickerHover?: boolean
 }
 
 /** Reações no chat WhatsApp com o cliente (#630 lote 2 / #749). */
@@ -21,6 +23,7 @@ export function WhatsappReacoesBar({
   alinhamento = 'end',
   pickerExternoAberto = false,
   onPickerExternoClose,
+  ocultarPickerHover = false,
 }: Props) {
   const temReacoes = reacoes.length > 0
   const alignEnd = alinhamento === 'end'
@@ -35,34 +38,36 @@ export function WhatsappReacoesBar({
             alignEnd ? 'items-end' : 'items-start'
           } ${temReacoes || mostrarPickerMobile ? 'relative mt-1' : 'relative'}`}
         >
-          {/* Desktop: picker no hover do balão */}
-          <div
-            className={`pointer-events-none absolute bottom-full z-20 mb-1 hidden flex-col md:flex ${
-              alignEnd ? 'right-0 items-end' : 'left-0 items-start'
-            }`}
-          >
+          {/* Desktop: picker no hover do balão (oculto com menu de ações aberto — #947) */}
+          {!ocultarPickerHover ? (
             <div
-              className={`opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 ${
-                pickerHoverAberto ? 'pointer-events-auto opacity-100' : ''
+              className={`pointer-events-none absolute bottom-full z-20 mb-1 hidden flex-col md:flex ${
+                alignEnd ? 'right-0 items-end' : 'left-0 items-start'
               }`}
-              onMouseEnter={() => setPickerHoverAberto(true)}
-              onMouseLeave={() => setPickerHoverAberto(false)}
             >
-              <div className="flex items-center gap-0.5 rounded-full border border-slate-200 bg-white px-1 py-0.5 shadow-md dark:border-slate-600 dark:bg-slate-800">
-                {EMOJIS_REACAO_CHAT_INTERNO.map((emoji) => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    onClick={() => onReagir(emoji)}
-                    className="rounded-full px-1.5 py-0.5 text-base leading-none hover:bg-slate-100 dark:hover:bg-slate-700"
-                    aria-label={`Reagir com ${emoji}`}
-                  >
-                    {emoji}
-                  </button>
-                ))}
+              <div
+                className={`opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 ${
+                  pickerHoverAberto ? 'pointer-events-auto opacity-100' : ''
+                }`}
+                onMouseEnter={() => setPickerHoverAberto(true)}
+                onMouseLeave={() => setPickerHoverAberto(false)}
+              >
+                <div className="flex items-center gap-0.5 rounded-full border border-slate-200 bg-white px-1 py-0.5 shadow-md dark:border-slate-600 dark:bg-slate-800">
+                  {EMOJIS_REACAO_CHAT_INTERNO.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => onReagir(emoji)}
+                      className="rounded-full px-1.5 py-0.5 text-base leading-none hover:bg-slate-100 dark:hover:bg-slate-700"
+                      aria-label={`Reagir com ${emoji}`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          ) : null}
           {mostrarPickerMobile ? (
             <div className="mt-1 flex items-center gap-0.5 rounded-full border border-slate-200 bg-white px-1 py-0.5 shadow-md md:hidden dark:border-slate-600 dark:bg-slate-800">
               {EMOJIS_REACAO_CHAT_INTERNO.map((emoji) => (
