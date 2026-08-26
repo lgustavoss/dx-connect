@@ -1768,7 +1768,7 @@ useEffect(() => {
                 </Button>
               )}
 
-              {chat && (
+              {chat && encerrado && (
                 <Button
                   type="button"
                   variant="ghost"
@@ -1827,17 +1827,6 @@ useEffect(() => {
                     </button>
                     {menuMobileAberto && (
                       <div className="absolute right-0 top-full z-30 mt-1 min-w-[12rem] rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
-                        <button
-                          type="button"
-                          className="block min-h-11 w-full px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
-                          disabled={exportandoPdf}
-                          onClick={() => {
-                            setMenuMobileAberto(false)
-                            void exportarPdfChat()
-                          }}
-                        >
-                          {exportandoPdf ? 'A exportar…' : 'Exportar PDF'}
-                        </button>
                         {podeTransferir && (
                           <button
                             type="button"
@@ -1933,7 +1922,7 @@ useEffect(() => {
                           void exportarPdfChat()
                         }}
                       >
-                        {exportandoPdf ? 'A exportar…' : 'Exportar PDF'}
+                        {exportandoPdf ? 'Exportando…' : 'Exportar PDF'}
                       </button>
                     </div>
                   )}
