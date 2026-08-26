@@ -35,6 +35,7 @@ import { WhatsappMensagemAcoes } from '../../components/chat/WhatsappMensagemAco
 import { WhatsappReacoesBar } from '../../components/chat/WhatsappReacoesBar'
 import { CopiarWaIdButton } from '../../components/chat/CopiarWaIdButton'
 import { precisaEscolherSetorAoAssumir } from '../../lib/assumirWhatsappSetor'
+import { tratarBloqueioJornadaAoAssumir } from '../../lib/tratarBloqueioJornadaAssumir'
 
 import { Card } from '../../components/ui/Card'
 import { ChatBottomSheet } from '../../components/ui/ChatBottomSheet'
@@ -1300,6 +1301,9 @@ useEffect(() => {
       abrirChat('whatsapp', chat.id)
       navigate(chatWhatsappLink('atendendo'), { replace: true })
     } catch (err) {
+      if (await tratarBloqueioJornadaAoAssumir(err, toast)) {
+        return
+      }
       const msg =
         err instanceof ApiError && err.status === 400
           ? (err.body as { detail?: string })?.detail || 'Erro ao assumir.'

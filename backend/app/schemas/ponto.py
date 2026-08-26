@@ -295,3 +295,37 @@ class PontoJustificativaDecisao(BaseModel):
         motivo: str = Field(..., min_length=3, max_length=500)
 
     aplicar_batidas: list[BatidaAplicar] | None = None
+
+
+class PontoHoraExtraCreate(BaseModel):
+    motivo: str | None = Field(default=None, max_length=1000)
+
+
+class PontoHoraExtraRead(BaseModel):
+    id: int
+    atendente_id: int
+    atendente_nome: str | None = None
+    estado: str
+    motivo: str | None = None
+    modo: str | None = None
+    ate_em: datetime | None = None
+    decidido_por_id: int | None = None
+    decidido_em: datetime | None = None
+    decisao_motivo: str | None = None
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PontoHoraExtraDecisao(BaseModel):
+    aprovar: bool
+    modo: Literal["resto_do_dia", "ate_horario"] | None = None
+    ate_horario: str | None = Field(default=None, max_length=5, description="HH:MM se modo=ate_horario")
+    decisao_motivo: str | None = Field(default=None, max_length=1000)
+
+
+class PontoHoraExtraMeStatus(BaseModel):
+    fora_da_jornada: bool
+    pode_pegar_whatsapp: bool
+    he_ativa: PontoHoraExtraRead | None = None
+    pedido_pendente: PontoHoraExtraRead | None = None

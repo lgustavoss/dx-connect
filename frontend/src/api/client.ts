@@ -760,6 +760,20 @@ export const ponto = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  horaExtraMeStatus: () => api<Ponto.HoraExtraMeStatus>('/ponto/hora-extra/me/status'),
+  minhasHoraExtra: () => api<Ponto.HoraExtra[]>('/ponto/hora-extra/me'),
+  solicitarHoraExtra: (data?: Ponto.HoraExtraCreate) =>
+    api<Ponto.HoraExtra>('/ponto/hora-extra', {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
+  horaExtraAdmin: (estado?: string) =>
+    api<Ponto.HoraExtra[]>(withParams('/ponto/hora-extra', { estado })),
+  decidirHoraExtra: (id: number, data: Ponto.HoraExtraDecisao) =>
+    api<Ponto.HoraExtra>(`/ponto/hora-extra/${id}/decidir`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   exportCsv: async (params?: { atendente_id?: number; desde?: string; ate?: string }) => {
     const token = getAuthToken()
     const headers: Record<string, string> = {}
@@ -1752,6 +1766,7 @@ export namespace Notificacoes {
     portal_fila_count: number;
     portal_respostas_count: number;
     chat_interno_nao_lidas_count: number;
+    ponto_he_pendentes_count?: number;
     total_pendencias: number;
   }
   export interface Item {
@@ -1760,7 +1775,8 @@ export namespace Notificacoes {
       | 'mensagens_nao_lidas'
       | 'wpp_chats_na_fila'
       | 'wpp_chats_com_resposta'
-      | 'chat_interno';
+      | 'chat_interno'
+      | 'ponto_he_pendente';
     ticket_id: number | null;
     chat_id?: number | null;
     conversa_id?: number | null;
@@ -4960,6 +4976,34 @@ export namespace Ponto {
     estado: 'aprovada' | 'rejeitada'
     decisao_motivo: string
     aplicar_batidas?: { tipo: Tipo; registrado_em: string; motivo: string }[]
+  }
+  export interface HoraExtra {
+    id: number
+    atendente_id: number
+    atendente_nome?: string | null
+    estado: string
+    motivo?: string | null
+    modo?: string | null
+    ate_em?: string | null
+    decidido_por_id?: number | null
+    decidido_em?: string | null
+    decisao_motivo?: string | null
+    created_at?: string | null
+  }
+  export interface HoraExtraCreate {
+    motivo?: string | null
+  }
+  export interface HoraExtraDecisao {
+    aprovar: boolean
+    modo?: 'resto_do_dia' | 'ate_horario' | null
+    ate_horario?: string | null
+    decisao_motivo?: string | null
+  }
+  export interface HoraExtraMeStatus {
+    fora_da_jornada: boolean
+    pode_pegar_whatsapp: boolean
+    he_ativa?: HoraExtra | null
+    pedido_pendente?: HoraExtra | null
   }
 }
 
