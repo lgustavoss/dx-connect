@@ -42,12 +42,14 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
+- WhatsApp (#945 / #S202608-0003): **Exportar PDF** só aparece em chats finalizados (encerrado ou aguardando avaliação), não durante o atendimento
 - WhatsApp (#947 / #S202608-0005): ao abrir o menu Editar/Apagar/Reagir (ou editar mensagem), o strip de emojis do hover deixa de cobrir as opções
 - Deploy: migration do chat interno (#916) usava um ID Alembic maior que 32 caracteres e quebrava o `upgrade` em produção; ID encurtado para caber em `alembic_version`
 
 #### Melhorias
 
 - Chat interno (#941 / #S202608-0008): no canal de **setor**, clicar no nome abre modal com membros vinculados e quem está **online**
+- WhatsApp / Portal (#951 / #S202608-0004): contador de **mensagens não lidas** na lista Atendendo e divisor «Mensagens não lidas» ao abrir a conversa (continua de onde parou)
 - Ponto (#959 / #960–#964 / #961–#963): jornada **semanal** (grade Dia/Aberto/Início/Fim como no chat) ou **ciclo** X×Y, ou **nenhum**; entrada só a partir de início−tolerância; atraso só após início+tolerância; fecho por esquecimento (N horas **ou** saída prevista+margem); alertas in-app de falta/atraso para colaborador e admin
 - WhatsApp (mobile): ao **Atender**, o modal de setor fica **centralizado** com lista tocável (sem dropdown cortado no rodapé); o Select genérico também abre para cima quando não há espaço abaixo
 - WhatsApp: seleção de **Empresa do atendimento** no modal — lista deixa de ficar cortada/desproporcional (menu no fluxo do formulário; modal um pouco mais estreito)

@@ -15,6 +15,7 @@ class WhatsappChatRead(Base):
     atendente_id = Column(Integer, ForeignKey("atendentes.id", ondelete="CASCADE"), nullable=False, index=True)
     chat_id = Column(Integer, ForeignKey("whatsapp_chats.id", ondelete="CASCADE"), nullable=False, index=True)
     last_seen_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    last_seen_mensagem_id = Column(Integer, nullable=True)
 
     atendente = relationship("Atendente", backref="whatsapp_chat_reads")
     chat = relationship("WhatsappChat", backref="read_entries")

@@ -1103,6 +1103,10 @@ export namespace WhatsappChats {
   classificacao_demanda_pendente?: boolean
   foto_perfil_url?: string | null
   foto_perfil_atualizada_em?: string | null
+  /** Mensagens inbound não vistas pelo atendente atual (#951). */
+  nao_lidas_count?: number
+  last_seen_at?: string | null
+  last_seen_mensagem_id?: number | null
   }
   export interface EmpresaOpcao {
     id: number
@@ -4643,6 +4647,9 @@ export namespace Kb {
     atendimento_inicio_at: string | null;
     encerramento_at: string | null;
     ultima_mensagem_preview?: string | null;
+    nao_lidas_count?: number;
+    last_seen_at?: string | null;
+    last_seen_mensagem_id?: number | null;
   }
   export interface PortalChatSession {
     visitor_token: string;

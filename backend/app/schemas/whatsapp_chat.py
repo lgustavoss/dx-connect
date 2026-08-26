@@ -83,6 +83,10 @@ class WhatsappChatRead(BaseModel):
     classificacao_demanda_pendente: bool = False
     foto_perfil_url: str | None = None
     foto_perfil_atualizada_em: datetime | None = None
+    # Não lidas do atendente atual (#951 / #S202608-0004)
+    nao_lidas_count: int = 0
+    last_seen_at: datetime | None = None
+    last_seen_mensagem_id: int | None = None
 
     model_config = {"from_attributes": True}
 
