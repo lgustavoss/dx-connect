@@ -65,6 +65,10 @@ export function PontoEquipe() {
   const [ajusteMotivo, setAjusteMotivo] = useState('')
   const [salvandoAjuste, setSalvandoAjuste] = useState(false)
   const [justifs, setJustifs] = useState<Ponto.Justificativa[]>([])
+  const [hesPendentes, setHesPendentes] = useState<Ponto.HoraExtra[]>([])
+  const [heModo, setHeModo] = useState<'resto_do_dia' | 'ate_horario'>('resto_do_dia')
+  const [heAteHorario, setHeAteHorario] = useState('20:00')
+  const [decidindoHeId, setDecidindoHeId] = useState<number | null>(null)
   const [digest, setDigest] = useState<Ponto.Digest | null>(null)
   const [banco, setBanco] = useState<Ponto.BancoHoras | null>(null)
   const [settings, setSettings] = useState<Ponto.Settings | null>(null)
@@ -83,7 +87,7 @@ export function PontoEquipe() {
   const carregar = useCallback(
     async (silencioso = false) => {
       try {
-        const [hist, dia, js, dig, st, fer] = await Promise.all([
+        const [hist, dia, js, dig, st, fer, hes] = await Promise.all([
           ponto.batidasAdmin({
             atendente_id: atendenteId ? Number(atendenteId) : undefined,
             desde,
@@ -95,6 +99,7 @@ export function PontoEquipe() {
           ponto.digest(),
           ponto.settings(),
           ponto.feriados(new Date().getFullYear()),
+          ponto.horaExtraAdmin('pendente'),
         ])
         setItems(hist.items)
         setTotal(hist.total)
@@ -103,6 +108,7 @@ export function PontoEquipe() {
         setDigest(dig)
         setSettings(st)
         setFeriados(fer)
+        setHesPendentes(hes)
         setSemPermissao(false)
         if (atendenteId) {
           const bh = await ponto.bancoHorasAdmin(Number(atendenteId), desde, ate)
@@ -245,6 +251,24 @@ export function PontoEquipe() {
       await carregar(true)
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível decidir.'))
+    }
+  }
+
+  async function decidirHe(id: number, aprovar: boolean) {
+    setDecidindoHeId(id)
+    try {
+      await ponto.decidirHoraExtra(id, {
+        aprovar,
+        modo: aprovar ? heModo : null,
+        ate_horario: aprovar && heModo === 'ate_horario' ? heAteHorario : null,
+        decisao_motivo: aprovar ? null : 'Negado pelo administrador',
+      })
+      toast.showSuccess(aprovar ? 'Hora extra liberada.' : 'Pedido de hora extra negado.')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível decidir a hora extra.'))
+    } finally {
+      setDecidindoHeId(null)
     }
   }
 
@@ -428,6 +452,67 @@ export function PontoEquipe() {
                     </Button>
                     <Button type="button" variant="ghost" onClick={() => void decidirJust(j.id, 'rejeitada')}>
                       Rejeitar
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card title="Hora extra (WhatsApp após jornada)">
+          <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
+            Pedidos para pegar novos chats depois do fim da jornada. Ao liberar, escolha o restante do dia ou até um
+            horário.
+          </p>
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <Select
+              label="Ao aprovar"
+              value={heModo}
+              onChange={(v) => setHeModo(String(v) as 'resto_do_dia' | 'ate_horario')}
+              options={[
+                { value: 'resto_do_dia', label: 'Resto do dia' },
+                { value: 'ate_horario', label: 'Até horário' },
+              ]}
+            />
+            {heModo === 'ate_horario' ? (
+              <Input
+                label="Até (HH:MM)"
+                type="time"
+                value={heAteHorario}
+                onChange={(e) => setHeAteHorario(e.target.value)}
+              />
+            ) : null}
+          </div>
+          {hesPendentes.length === 0 ? (
+            <p className="text-sm text-slate-500">Nenhum pedido pendente.</p>
+          ) : (
+            <ul className="space-y-3">
+              {hesPendentes.map((h) => (
+                <li
+                  key={h.id}
+                  className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800"
+                >
+                  <div className="text-sm">
+                    <p className="font-medium">{h.atendente_nome ?? h.atendente_id}</p>
+                    <p className="text-slate-600 dark:text-slate-300">{h.motivo || 'Sem motivo informado'}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={decidindoHeId === h.id}
+                      onClick={() => void decidirHe(h.id, true)}
+                    >
+                      Liberar
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={decidindoHeId === h.id}
+                      onClick={() => void decidirHe(h.id, false)}
+                    >
+                      Negar
                     </Button>
                   </div>
                 </li>

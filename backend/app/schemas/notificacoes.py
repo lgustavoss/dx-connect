@@ -30,6 +30,11 @@ class NotificacaoResumo(BaseModel):
         default=0,
         description="Quantidade de conversas internas com mensagens não lidas",
     )
+    ponto_he_pendentes_count: int = Field(
+        ge=0,
+        default=0,
+        description="Pedidos de hora extra pendentes (só admins)",
+    )
     total_pendencias: int = Field(ge=0, description="Soma usada no badge (sem duplicar fila vs. não lidas)")
 
 
@@ -40,6 +45,7 @@ class NotificacaoItem(BaseModel):
         "wpp_chats_na_fila",
         "wpp_chats_com_resposta",
         "chat_interno",
+        "ponto_he_pendente",
     ]
     ticket_id: int | None = None
     chat_id: int | None = None

@@ -12,6 +12,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useChatHub } from '../../contexts/ChatHubContext'
 import { useEventStream } from '../../contexts/EventStreamContext'
 import { precisaEscolherSetorAoAssumir } from '../../lib/assumirWhatsappSetor'
+import { tratarBloqueioJornadaAoAssumir } from '../../lib/tratarBloqueioJornadaAssumir'
 import { chatAtivoIgual } from '../../lib/chatHubPaths'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
 import {
@@ -118,6 +119,9 @@ export function ChatListaEspera({ ignorarBusca = false, onChatAssumido, onVerCha
         navigate(chatHubItemLink('atendendo'))
       }
     } catch (err) {
+      if (item.canal === 'whatsapp' && (await tratarBloqueioJornadaAoAssumir(err, toast))) {
+        return
+      }
       const msg =
         err instanceof ApiError && err.status === 400
           ? (err.body as { detail?: string })?.detail || 'Erro ao assumir.'

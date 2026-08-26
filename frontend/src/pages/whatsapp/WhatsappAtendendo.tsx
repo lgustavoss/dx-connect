@@ -5,6 +5,7 @@ import { AssumirWhatsappSetorModal } from '../../components/chat/AssumirWhatsapp
 import { WhatsappAvatar } from '../../components/chat/WhatsappAvatar'
 import { marcarWhatsappChatAtivo, whatsappConversaLink, WHATSAPP_LIST_PATHS } from '../../lib/whatsappListReturn'
 import { precisaEscolherSetorAoAssumir } from '../../lib/assumirWhatsappSetor'
+import { tratarBloqueioJornadaAoAssumir } from '../../lib/tratarBloqueioJornadaAssumir'
 import { refetchPendenciasResumo } from '../../hooks/useAlertaFilaSemResponsavel'
 import { useAuth } from '../../contexts/AuthContext'
 import { useEventStream } from '../../contexts/EventStreamContext'
@@ -107,6 +108,9 @@ export function WhatsappAtendendo() {
       await load(true)
       void refetchPendenciasResumo()
     } catch (err) {
+      if (await tratarBloqueioJornadaAoAssumir(err, toast)) {
+        return
+      }
       const msg =
         err instanceof ApiError && err.status === 400
           ? (err.body as { detail?: string })?.detail || 'Erro ao assumir.'
