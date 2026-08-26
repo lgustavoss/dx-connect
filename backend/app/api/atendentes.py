@@ -12,7 +12,13 @@ from app.schemas.ticket_csat import AtendenteAvaliacoesRead, AvaliacaoResumoRead
 from app.schemas.lista_paginada import ListaPaginada
 from app.core.auth import exigir_admin, obter_atendente_atual, validar_role
 from app.services.atendente_avaliacoes import calcular_avaliacoes_atendente
-from app.services.escala import validar_campos_escala, validar_horario_previsto
+from app.services.escala import (
+    horario_semana_dict,
+    horario_semana_para_json,
+    modo_jornada as modo_jornada_de,
+    validar_campos_jornada,
+    validar_horario_previsto,
+)
 from app.core.setor_scope import atendente_e_financeiro, ids_setores_mesmo_nome, ids_setores_visiveis_atendente
 from app.core.security import hash_senha, verificar_senha
 from app.core.audit import registrar_audit
@@ -32,6 +38,8 @@ class OrdenarAtendentesPor(str, Enum):
 
 def _atendente_para_read(atendente: Atendente, *, e_financeiro: bool = False) -> AtendenteRead:
     saas = sorted(getattr(atendente, "saas_setores", None) or [], key=lambda s: (s.nome or "", s.id))
+    modo = modo_jornada_de(atendente)
+    usa = modo in ("semanal", "ciclo")
     return AtendenteRead(
         id=atendente.id,
         email=atendente.email,
@@ -43,16 +51,70 @@ def _atendente_para_read(atendente: Atendente, *, e_financeiro: bool = False) ->
         setor_ids=[s.id for s in atendente.setores],
         e_financeiro=e_financeiro,
         must_change_password=bool(getattr(atendente, "must_change_password", False)),
-        usa_escala=bool(getattr(atendente, "usa_escala", False)),
+        modo_jornada=modo,  # type: ignore[arg-type]
+        usa_escala=usa,
+        horario_semana=horario_semana_dict(atendente),
         escala_horas_trabalho=getattr(atendente, "escala_horas_trabalho", None),
         escala_horas_folga=getattr(atendente, "escala_horas_folga", None),
         escala_inicio_em=getattr(atendente, "escala_inicio_em", None),
         horario_previsto_entrada=getattr(atendente, "horario_previsto_entrada", None),
         horario_previsto_saida=getattr(atendente, "horario_previsto_saida", None),
         tolerancia_atraso_minutos=int(getattr(atendente, "tolerancia_atraso_minutos", 0) or 0),
+        usar_local_empresa=bool(getattr(atendente, "usar_local_empresa", True)),
+        local_empresa_raio_metros=getattr(atendente, "local_empresa_raio_metros", None),
         saas_setor_ids=[s.id for s in saas],
         saas_setor_nomes=[s.nome for s in saas],
     )
+
+
+def _resolver_modo_jornada(data_modo: str | None, usa_escala: bool | None, atual: Atendente | None) -> str:
+    if data_modo is not None:
+        return (data_modo or "nenhum").strip().lower()
+    if usa_escala is not None:
+        return "ciclo" if usa_escala else "nenhum"
+    if atual is not None:
+        return modo_jornada_de(atual)
+    return "nenhum"
+
+
+def _aplicar_campos_jornada(atendente: Atendente, *, modo: str, update: dict) -> None:
+    """Normaliza campos de jornada no dict update / no create."""
+    if modo == "nenhum":
+        atendente.modo_jornada = "nenhum"
+        atendente.usa_escala = False
+        atendente.escala_horas_trabalho = None
+        atendente.escala_horas_folga = None
+        atendente.escala_inicio_em = None
+        atendente.horario_previsto_entrada = None
+        atendente.horario_previsto_saida = None
+        atendente.tolerancia_atraso_minutos = 0
+        atendente.horario_semana_json = None
+        return
+    if modo == "semanal":
+        hs = update.get("horario_semana")
+        if hs is None and atendente.horario_semana_json:
+            hs = horario_semana_dict(atendente)
+        atendente.modo_jornada = "semanal"
+        atendente.usa_escala = True
+        atendente.escala_horas_trabalho = None
+        atendente.escala_horas_folga = None
+        atendente.escala_inicio_em = None
+        atendente.horario_previsto_entrada = None
+        atendente.horario_previsto_saida = None
+        atendente.horario_semana_json = horario_semana_para_json(hs)
+        if "tolerancia_atraso_minutos" in update:
+            atendente.tolerancia_atraso_minutos = int(update["tolerancia_atraso_minutos"] or 0)
+        return
+    # ciclo
+    atendente.modo_jornada = "ciclo"
+    atendente.usa_escala = True
+    atendente.horario_semana_json = None
+    atendente.escala_horas_trabalho = update.get("escala_horas_trabalho")
+    atendente.escala_horas_folga = update.get("escala_horas_folga")
+    atendente.escala_inicio_em = update.get("escala_inicio_em")
+    atendente.horario_previsto_entrada = update.get("horario_previsto_entrada")
+    atendente.horario_previsto_saida = update.get("horario_previsto_saida")
+    atendente.tolerancia_atraso_minutos = int(update.get("tolerancia_atraso_minutos") or 0)
 
 
 @router.get("", response_model=ListaPaginada[AtendenteRead])
@@ -109,13 +171,16 @@ def criar_atendente(
     ):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="E-mail já cadastrado")
     role = validar_role(data.role)
-    validar_campos_escala(
-        usa_escala=bool(data.usa_escala),
+    modo = _resolver_modo_jornada(data.modo_jornada, data.usa_escala, None)
+    validar_campos_jornada(
+        modo=modo,
         escala_horas_trabalho=data.escala_horas_trabalho,
         escala_horas_folga=data.escala_horas_folga,
         escala_inicio_em=data.escala_inicio_em,
+        horario_semana=data.horario_semana,
     )
-    validar_horario_previsto(data.horario_previsto_entrada, data.horario_previsto_saida)
+    if modo == "ciclo":
+        validar_horario_previsto(data.horario_previsto_entrada, data.horario_previsto_saida)
     atendente = Atendente(
         tenant_id=atendente_logado.tenant_id,
         email=data.email,
@@ -123,15 +188,22 @@ def criar_atendente(
         senha_hash=hash_senha(data.senha),
         role=role,
         ativo=data.ativo,
-        usa_escala=bool(data.usa_escala),
-        escala_horas_trabalho=data.escala_horas_trabalho if data.usa_escala else None,
-        escala_horas_folga=data.escala_horas_folga if data.usa_escala else None,
-        escala_inicio_em=data.escala_inicio_em if data.usa_escala else None,
-        horario_previsto_entrada=data.horario_previsto_entrada if data.usa_escala else None,
-        horario_previsto_saida=data.horario_previsto_saida if data.usa_escala else None,
-        tolerancia_atraso_minutos=(
-            int(data.tolerancia_atraso_minutos or 0) if data.usa_escala else 0
-        ),
+        tolerancia_atraso_minutos=int(data.tolerancia_atraso_minutos or 0) if modo != "nenhum" else 0,
+        usar_local_empresa=bool(getattr(data, "usar_local_empresa", True)),
+        local_empresa_raio_metros=getattr(data, "local_empresa_raio_metros", None),
+    )
+    _aplicar_campos_jornada(
+        atendente,
+        modo=modo,
+        update={
+            "horario_semana": data.horario_semana,
+            "escala_horas_trabalho": data.escala_horas_trabalho,
+            "escala_horas_folga": data.escala_horas_folga,
+            "escala_inicio_em": data.escala_inicio_em,
+            "horario_previsto_entrada": data.horario_previsto_entrada,
+            "horario_previsto_saida": data.horario_previsto_saida,
+            "tolerancia_atraso_minutos": data.tolerancia_atraso_minutos,
+        },
     )
     db.add(atendente)
     db.flush()
@@ -265,33 +337,55 @@ def atualizar_atendente(
             if setor:
                 atendente.setores.append(setor)
 
-    usa_escala = update.get("usa_escala", atendente.usa_escala)
+    modo = _resolver_modo_jornada(update.get("modo_jornada"), update.get("usa_escala"), atendente)
     ht = update.get("escala_horas_trabalho", atendente.escala_horas_trabalho)
     hf = update.get("escala_horas_folga", atendente.escala_horas_folga)
     inicio = update.get("escala_inicio_em", atendente.escala_inicio_em)
-    if any(k in update for k in ("usa_escala", "escala_horas_trabalho", "escala_horas_folga", "escala_inicio_em")):
-        validar_campos_escala(
-            usa_escala=bool(usa_escala),
+    hs = update.get("horario_semana")
+    if hs is None and modo == "semanal":
+        hs = horario_semana_dict(atendente)
+    he = update.get("horario_previsto_entrada", getattr(atendente, "horario_previsto_entrada", None))
+    hs_prev = update.get("horario_previsto_saida", getattr(atendente, "horario_previsto_saida", None))
+    tol = update.get(
+        "tolerancia_atraso_minutos",
+        getattr(atendente, "tolerancia_atraso_minutos", 0),
+    )
+    jornada_keys = (
+        "modo_jornada",
+        "usa_escala",
+        "escala_horas_trabalho",
+        "escala_horas_folga",
+        "escala_inicio_em",
+        "horario_semana",
+        "horario_previsto_entrada",
+        "horario_previsto_saida",
+        "tolerancia_atraso_minutos",
+    )
+    if any(k in update for k in jornada_keys):
+        validar_campos_jornada(
+            modo=modo,
             escala_horas_trabalho=ht,
             escala_horas_folga=hf,
             escala_inicio_em=inicio,
+            horario_semana=hs if modo == "semanal" else None,
         )
-        if not usa_escala:
-            update["usa_escala"] = False
-            update["escala_horas_trabalho"] = None
-            update["escala_horas_folga"] = None
-            update["escala_inicio_em"] = None
-            update["horario_previsto_entrada"] = None
-            update["horario_previsto_saida"] = None
-            update["tolerancia_atraso_minutos"] = 0
-
-    he = update.get("horario_previsto_entrada", getattr(atendente, "horario_previsto_entrada", None))
-    hs = update.get("horario_previsto_saida", getattr(atendente, "horario_previsto_saida", None))
-    if any(
-        k in update
-        for k in ("horario_previsto_entrada", "horario_previsto_saida", "tolerancia_atraso_minutos")
-    ):
-        validar_horario_previsto(he, hs)
+        if modo == "ciclo":
+            validar_horario_previsto(he, hs_prev)
+        for k in jornada_keys:
+            update.pop(k, None)
+        _aplicar_campos_jornada(
+            atendente,
+            modo=modo,
+            update={
+                "horario_semana": hs,
+                "escala_horas_trabalho": ht,
+                "escala_horas_folga": hf,
+                "escala_inicio_em": inicio,
+                "horario_previsto_entrada": he,
+                "horario_previsto_saida": hs_prev,
+                "tolerancia_atraso_minutos": tol,
+            },
+        )
 
     for k, v in update.items():
         setattr(atendente, k, v)

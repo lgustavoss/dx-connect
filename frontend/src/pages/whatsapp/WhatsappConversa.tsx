@@ -35,6 +35,7 @@ import { WhatsappMensagemAcoes } from '../../components/chat/WhatsappMensagemAco
 import { WhatsappReacoesBar } from '../../components/chat/WhatsappReacoesBar'
 import { CopiarWaIdButton } from '../../components/chat/CopiarWaIdButton'
 import { precisaEscolherSetorAoAssumir } from '../../lib/assumirWhatsappSetor'
+import { tratarBloqueioJornadaAoAssumir } from '../../lib/tratarBloqueioJornadaAssumir'
 
 import { Card } from '../../components/ui/Card'
 import { ChatBottomSheet } from '../../components/ui/ChatBottomSheet'
@@ -607,6 +608,8 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
   const [reagirMsgId, setReagirMsgId] = useState<number | null>(null)
   /** Primeira inbound não lida ao abrir — divisor estilo WhatsApp (#951). */
   const [divisorNaoLidasMsgId, setDivisorNaoLidasMsgId] = useState<number | null>(null)
+  /** Menu Editar/Apagar/Reagir ou formulário de edição abertos — oculta picker hover (#947). */
+  const [acoesMenuMsgId, setAcoesMenuMsgId] = useState<number | null>(null)
 
   // Estados de WhatsApp Clone (Citação e Zoom)
   const [msgRespondida, setMsgRespondida] = useState<WhatsappChats.Mensagem | null>(null)
@@ -1347,6 +1350,9 @@ useEffect(() => {
       abrirChat('whatsapp', chat.id)
       navigate(chatWhatsappLink('atendendo'), { replace: true })
     } catch (err) {
+      if (await tratarBloqueioJornadaAoAssumir(err, toast)) {
+        return
+      }
       const msg =
         err instanceof ApiError && err.status === 400
           ? (err.body as { detail?: string })?.detail || 'Erro ao assumir.'
@@ -2259,6 +2265,12 @@ useEffect(() => {
                         podeReagir={podeReagir}
                         onReagirMenu={podeReagir ? () => setReagirMsgId(m.id) : undefined}
                         tomClaro={isInbound}
+                        onMenuAbertoChange={(aberto) => {
+                          setAcoesMenuMsgId((prev) => {
+                            if (aberto) return m.id
+                            return prev === m.id ? null : prev
+                          })
+                        }}
                       />
                     )}
 
@@ -2343,6 +2355,7 @@ useEffect(() => {
                       alinhamento={isInbound ? 'start' : 'end'}
                       pickerExternoAberto={reagirMsgId === m.id}
                       onPickerExternoClose={() => setReagirMsgId(null)}
+                      ocultarPickerHover={acoesMenuMsgId === m.id}
                     />
                   )}
 

@@ -1321,6 +1321,9 @@ def iniciar_chat_outbound(
                 )
             estado_anterior = existente.estado
             if existente.estado == "aguardando_atendente" or existente.atendente_id is None:
+                from app.services.ponto_hora_extra import exigir_pode_pegar_whatsapp
+
+                exigir_pode_pegar_whatsapp(db, atendente)
                 existente.estado = "em_atendimento"
                 existente.atendente_id = atendente.id
                 existente.atendimento_inicio_at = datetime.now(timezone.utc)
@@ -1353,6 +1356,10 @@ def iniciar_chat_outbound(
             c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == existente.id).first()
             assert c is not None
             return _chat_read(db, c)
+
+        from app.services.ponto_hora_extra import exigir_pode_pegar_whatsapp
+
+        exigir_pode_pegar_whatsapp(db, atendente)
 
         # Garante Evolution configurada se houver mensagem inicial (criar chat sem msg ainda exige settings para uso posterior)
         _settings_envio(db)
@@ -1904,6 +1911,9 @@ def assumir(
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
     if c.estado != "aguardando_atendente":
         raise HTTPException(status_code=400, detail="Só é possível assumir chats na fila de espera")
+    from app.services.ponto_hora_extra import exigir_pode_pegar_whatsapp
+
+    exigir_pode_pegar_whatsapp(db, atendente)
     _aplicar_empresa_contexto_chat(db, atendente, c, empresa_id)
     _aplicar_setor_ao_assumir(db, c, atendente, setor_id)
     estado_anterior = c.estado

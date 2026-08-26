@@ -315,6 +315,23 @@ def build_notificacao_itens(
             )
         )
 
+    if atendente.role == "admin":
+        from app.services.ponto_hora_extra import contar_pendentes_admin
+
+        he_n = contar_pendentes_admin(db, atendente.tenant_id)
+        if he_n > 0:
+            out.append(
+                NotificacaoItem(
+                    tipo="ponto_he_pendente",
+                    ticket_id=None,
+                    titulo="Hora extra",
+                    descricao="Pedidos após o fim da jornada (WhatsApp)",
+                    count=he_n,
+                    href="/equipe/ponto",
+                    created_at=datetime.now(timezone.utc),
+                )
+            )
+
     inbound_last, eff_seen = _wpp_resposta_pendente_exprs(atendente.id)
     stmt_wpp = (
         select(WhatsappChat)
@@ -415,6 +432,11 @@ def build_notificacao_resumo(db: Session, atendente: Atendente) -> NotificacaoRe
     portal_fila = _count_portal_fila(db, atendente)
     portal_resp = _count_portal_respostas_pendentes(db, atendente)
     chat_interno = chat_interno_svc.contar_total_nao_lidas_atendente(db, atendente)
+    he_pend = 0
+    if atendente.role == "admin":
+        from app.services.ponto_hora_extra import contar_pendentes_admin
+
+        he_pend = contar_pendentes_admin(db, atendente.tenant_id)
     return NotificacaoResumo(
         sem_responsavel_count=sem,
         nao_lidas_count=nao,
@@ -423,7 +445,15 @@ def build_notificacao_resumo(db: Session, atendente: Atendente) -> NotificacaoRe
         portal_fila_count=portal_fila,
         portal_respostas_count=portal_resp,
         chat_interno_nao_lidas_count=chat_interno,
-        total_pendencias=sem + nao + wpp_fila + wpp_resp + portal_fila + portal_resp + chat_interno,
+        ponto_he_pendentes_count=he_pend,
+        total_pendencias=sem
+        + nao
+        + wpp_fila
+        + wpp_resp
+        + portal_fila
+        + portal_resp
+        + chat_interno
+        + he_pend,
     )
 
 

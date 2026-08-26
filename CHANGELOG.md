@@ -9,6 +9,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Sugestões (#953 / #954): máquina de estados rígida na triagem (só avanços permitidos); **Implementar** cria ou liga issue no GitHub e só então marca em desenvolvimento — o cliente continua sem ver o GitHub
 - Docs (#879): MCP aponta a `api.deskrudder.com.br`; runbook para desativar cliente sem derrubar o painel SaaS; arquitetura pós-cutover (admin-center vs compose legado)
 - Painel admin: cabeçalho com **Painel admin SaaS** + usuário logado (nome e cargos); **Equipe** com Usuários / Setores / Minha conta; removido o atalho «Painel atendimento»
 - Equipe SaaS: cadastro de **setores/cargos** (Admin, Desenvolvimento, Comercial, …) sem campo ordem; um usuário pode ter **vários** cargos; o cabeçalho mostra os nomes em vez de só «Ops SaaS»
@@ -34,13 +35,20 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### DeskRudder
 
+#### Melhorias
+
+- Ponto (#965): após o fim da jornada, **pegar** chat WhatsApp novo fica bloqueado até um admin liberar **hora extra** (resto do dia ou até um horário); pedidos aparecem em Ponto da equipe e no sino de pendências
+- Ponto (#984): locais de trabalho no **cadastro do atendente** (empresa + extras no mapa OSM); pin da empresa em Configurações → Empresa; raio e ativar/desativar por local; removido o card global de Locais em Ponto da equipe
+
 #### Correções
 
+- WhatsApp (#947 / #S202608-0005): ao abrir o menu Editar/Apagar/Reagir (ou editar mensagem), o strip de emojis do hover deixa de cobrir as opções
 - Deploy: migration do chat interno (#916) usava um ID Alembic maior que 32 caracteres e quebrava o `upgrade` em produção; ID encurtado para caber em `alembic_version`
 
 #### Melhorias
 
 - WhatsApp / Portal (#951 / #S202608-0004): contador de **mensagens não lidas** na lista Atendendo e divisor «Mensagens não lidas» ao abrir a conversa (continua de onde parou)
+- Ponto (#959 / #960–#964 / #961–#963): jornada **semanal** (grade Dia/Aberto/Início/Fim como no chat) ou **ciclo** X×Y, ou **nenhum**; entrada só a partir de início−tolerância; atraso só após início+tolerância; fecho por esquecimento (N horas **ou** saída prevista+margem); alertas in-app de falta/atraso para colaborador e admin
 - WhatsApp (mobile): ao **Atender**, o modal de setor fica **centralizado** com lista tocável (sem dropdown cortado no rodapé); o Select genérico também abre para cima quando não há espaço abaixo
 - WhatsApp: seleção de **Empresa do atendimento** no modal — lista deixa de ficar cortada/desproporcional (menu no fluxo do formulário; modal um pouco mais estreito)
 - Configurações (#865): menu reorganizado — **Equipe** e **Tickets** separados; Tipos de negócio em Comercial/CRM; Catálogos PDV em **PDV**; Empresa só com dados da instalação; URLs antigas redirecionam
