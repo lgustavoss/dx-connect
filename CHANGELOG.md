@@ -48,6 +48,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- WhatsApp / Portal (#943 / #S202608-0002): no modal de **encerrar** atendimento, **Concluir/Encerrar** fica azul (ação principal) e **Cancelar** vermelho — deixa de confundir dois botões iguais
 - WhatsApp / Portal (#951 / #S202608-0004): contador de **mensagens não lidas** na lista Atendendo e divisor «Mensagens não lidas» ao abrir a conversa (continua de onde parou)
 - Ponto (#959 / #960–#964 / #961–#963): jornada **semanal** (grade Dia/Aberto/Início/Fim como no chat) ou **ciclo** X×Y, ou **nenhum**; entrada só a partir de início−tolerância; atraso só após início+tolerância; fecho por esquecimento (N horas **ou** saída prevista+margem); alertas in-app de falta/atraso para colaborador e admin
 - WhatsApp (mobile): ao **Atender**, o modal de setor fica **centralizado** com lista tocável (sem dropdown cortado no rodapé); o Select genérico também abre para cima quando não há espaço abaixo

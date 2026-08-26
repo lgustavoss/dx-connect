@@ -73,7 +73,7 @@ export function WhatsappEncerrarModal({
 
   const semDemandas = demandas.length === 0
   const demandasResolvidas = demandas.filter((d) => d.desfecho === 'resolvido_sessao')
-  // Pós-inatividade também pede registo (como Encerrar manual); só permite skip com confirmação.
+  // Pós-inatividade também pede registro (como Encerrar manual); só permite skip com confirmação.
   const demandaOpcional = false
 
   useEffect(() => {
@@ -144,13 +144,13 @@ export function WhatsappEncerrarModal({
     try {
       if (acao === 'registrar') {
         if (form.naturezaId === '') {
-          toast.showWarning('Selecione a natureza da demanda ou marque encerrar sem registar.')
+          toast.showWarning('Selecione a natureza da demanda ou marque encerrar sem registrar.')
           return
         }
         await whatsappChats.registrarDemanda(chatId, demandaFormPayload(form))
       } else if (acao === 'sem_demanda') {
         if (!demandaOpcional && !confirmarSemDemanda) {
-          toast.showWarning('Confirme que deseja encerrar sem registar demanda.')
+          toast.showWarning('Confirme que deseja encerrar sem registrar demanda.')
           return
         }
       } else if (acao === 'nova') {
@@ -163,8 +163,8 @@ export function WhatsappEncerrarModal({
         await whatsappChats.atualizarDemanda(chatId, posRegistro.ultimaDemanda.id, demandaFormPayload(form))
       }
 
-      // Pós-inatividade: qualquer conclusão (manter/editar/sem demanda/registar) limpa o pendente.
-      // Idempotente se registar demanda já tiver limpo a flag.
+      // Pós-inatividade: qualquer conclusão (manter/editar/sem demanda/registrar) limpa o pendente.
+      // Idempotente se registrar demanda já tiver limpo a flag.
       if (chatJaEncerrado && encerramentoPorInatividade) {
         const atualizado = await whatsappChats.concluirClassificacaoDemanda(chatId)
         onDemandasChange?.()
@@ -193,14 +193,14 @@ export function WhatsappEncerrarModal({
 
   if (chatJaEncerrado && encerramentoPorInatividade) {
     mensagemIntro = semDemandas
-      ? 'Este atendimento foi encerrado automaticamente por inatividade. Registe a demanda da sessão, ou confirme explicitamente concluir sem demanda.'
+      ? 'Este atendimento foi encerrado automaticamente por inatividade. Registre a demanda da sessão, ou confirme explicitamente concluir sem demanda.'
       : 'Este atendimento foi encerrado automaticamente por inatividade. Revise as demandas antes de concluir.'
   } else if (semDemandas) {
     mensagemIntro =
-      'Registe o motivo do atendimento antes de encerrar, ou confirme explicitamente o encerramento sem demanda.'
+      'Registre o motivo do atendimento antes de encerrar, ou confirme explicitamente o encerramento sem demanda.'
   } else if (posRegistro) {
     mensagemIntro =
-      'Houve conversa após o último registo de demanda. Escolha se mantém, corrige ou acrescenta outra demanda.'
+      'Houve conversa após o último registro de demanda. Escolha se mantém, corrige ou acrescenta outra demanda.'
   }
 
   const mostrarForm =
@@ -246,7 +246,7 @@ export function WhatsappEncerrarModal({
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
               <p className="font-semibold">Conversa continuou após a última demanda</p>
               <p className="mt-1">
-                «{rotuloDemanda(posRegistro.ultimaDemanda)}» registada às{' '}
+                «{rotuloDemanda(posRegistro.ultimaDemanda)}» registrada às{' '}
                 {formatarHoraDemanda(posRegistro.ultimaDemanda.created_at)}.
               </p>
               <p className="mt-1">
@@ -268,7 +268,7 @@ export function WhatsappEncerrarModal({
                   checked={acao === 'registrar'}
                   onChange={() => selecionarAcao('registrar')}
                 />
-                {chatJaEncerrado ? 'Registar demanda e concluir' : 'Registar demanda e encerrar'}
+                {chatJaEncerrado ? 'Registrar demanda e concluir' : 'Registrar demanda e encerrar'}
               </label>
               <label className="flex cursor-pointer items-center gap-2 text-sm">
                 <input
@@ -277,7 +277,7 @@ export function WhatsappEncerrarModal({
                   checked={acao === 'sem_demanda'}
                   onChange={() => selecionarAcao('sem_demanda')}
                 />
-                {chatJaEncerrado ? 'Concluir sem registar demanda' : 'Encerrar sem registar demanda'}
+                {chatJaEncerrado ? 'Concluir sem registrar demanda' : 'Encerrar sem registrar demanda'}
               </label>
               {acao === 'sem_demanda' && (
                 <CheckboxField
@@ -323,7 +323,7 @@ export function WhatsappEncerrarModal({
             </div>
           ) : (
             <p className="text-xs text-slate-500">
-              As demandas registadas cobrem esta sessão. Confirme para encerrar.
+              As demandas registradas cobrem esta sessão. Confirme para encerrar.
             </p>
           )}
 
@@ -335,7 +335,7 @@ export function WhatsappEncerrarModal({
             <Button variant="cancel" onClick={onClose} disabled={salvando}>
               Cancelar
             </Button>
-            <Button variant="danger" onClick={() => void executarEncerramento()} loading={salvando}>
+            <Button variant="primary" onClick={() => void executarEncerramento()} loading={salvando}>
               {rotuloBotaoEncerrar}
             </Button>
           </div>
