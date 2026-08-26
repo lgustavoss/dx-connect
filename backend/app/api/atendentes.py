@@ -60,6 +60,8 @@ def _atendente_para_read(atendente: Atendente, *, e_financeiro: bool = False) ->
         horario_previsto_entrada=getattr(atendente, "horario_previsto_entrada", None),
         horario_previsto_saida=getattr(atendente, "horario_previsto_saida", None),
         tolerancia_atraso_minutos=int(getattr(atendente, "tolerancia_atraso_minutos", 0) or 0),
+        usar_local_empresa=bool(getattr(atendente, "usar_local_empresa", True)),
+        local_empresa_raio_metros=getattr(atendente, "local_empresa_raio_metros", None),
         saas_setor_ids=[s.id for s in saas],
         saas_setor_nomes=[s.nome for s in saas],
     )
@@ -187,6 +189,8 @@ def criar_atendente(
         role=role,
         ativo=data.ativo,
         tolerancia_atraso_minutos=int(data.tolerancia_atraso_minutos or 0) if modo != "nenhum" else 0,
+        usar_local_empresa=bool(getattr(data, "usar_local_empresa", True)),
+        local_empresa_raio_metros=getattr(data, "local_empresa_raio_metros", None),
     )
     _aplicar_campos_jornada(
         atendente,

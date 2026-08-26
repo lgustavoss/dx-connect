@@ -818,7 +818,8 @@ export const ponto = {
     return res.blob()
   },
   meSettings: () => api<Ponto.SettingsPublic>('/ponto/me/settings'),
-  locais: () => api<Ponto.Local[]>('/ponto/locais'),
+  locais: (params?: { atendente_id?: number; so_orfos?: boolean }) =>
+    api<Ponto.Local[]>(withParams('/ponto/locais', params)),
   criarLocal: (data: Ponto.LocalCreate) =>
     api<Ponto.Local>('/ponto/locais', { method: 'POST', body: JSON.stringify(data) }),
   atualizarLocal: (id: number, data: Ponto.LocalUpdate) =>
@@ -935,6 +936,9 @@ export namespace SystemSettings {
     cidade?: string | null
     estado?: string | null
     cep?: string | null
+    latitude?: number | null
+    longitude?: number | null
+    ponto_raio_metros?: number
     logo_url?: string | null
   }
 
@@ -952,6 +956,9 @@ export namespace SystemSettings {
     cidade?: string | null
     estado?: string | null
     cep?: string | null
+    latitude?: number | null
+    longitude?: number | null
+    ponto_raio_metros?: number | null
   }
 
   export interface TicketEmailGraceOpcao {
@@ -2463,6 +2470,8 @@ export namespace Atendentes {
     horario_previsto_entrada?: string | null;
     horario_previsto_saida?: string | null;
     tolerancia_atraso_minutos?: number;
+    usar_local_empresa?: boolean;
+    local_empresa_raio_metros?: number | null;
     /** Cargos da equipe DeskRudder (painel SaaS); vários por usuário. */
     saas_setor_ids?: number[];
     saas_setor_nomes?: string[];
@@ -2483,6 +2492,8 @@ export namespace Atendentes {
     horario_previsto_entrada?: string | null;
     horario_previsto_saida?: string | null;
     tolerancia_atraso_minutos?: number;
+    usar_local_empresa?: boolean;
+    local_empresa_raio_metros?: number | null;
   }
   export interface Update {
     email?: string;
@@ -2500,6 +2511,8 @@ export namespace Atendentes {
     horario_previsto_entrada?: string | null;
     horario_previsto_saida?: string | null;
     tolerancia_atraso_minutos?: number;
+    usar_local_empresa?: boolean;
+    local_empresa_raio_metros?: number | null;
   }
   export interface AvaliacaoResumo {
     media: number | null;
@@ -4870,21 +4883,27 @@ export namespace Ponto {
   }
   export interface Local {
     id: number
+    atendente_id?: number | null
     nome: string
+    endereco?: string | null
     latitude: number
     longitude: number
     raio_metros: number
     ativo: boolean
   }
   export interface LocalCreate {
+    atendente_id: number
     nome: string
+    endereco?: string | null
     latitude: number
     longitude: number
     raio_metros?: number
     ativo?: boolean
   }
   export interface LocalUpdate {
+    atendente_id?: number | null
     nome?: string
+    endereco?: string | null
     latitude?: number
     longitude?: number
     raio_metros?: number

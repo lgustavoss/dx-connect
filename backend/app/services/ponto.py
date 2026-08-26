@@ -166,7 +166,7 @@ def bater(
 
     geo_res = geo_svc.validar_batida_geolocalizacao(
         db,
-        atendente.tenant_id,
+        atendente,
         latitude=float(latitude) if has_lat else None,
         longitude=float(longitude) if has_lon else None,
     )
