@@ -5,7 +5,7 @@ import {
   type Ponto,
   type SystemSettings,
 } from '../api/client'
-import { PontoLocalMapaPicker } from './PontoLocalMapaPicker'
+import { PontoLocalMapaPicker, type PontoLocalMapaValue } from './PontoLocalMapaPicker'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Switch } from './ui/Switch'
@@ -31,7 +31,7 @@ export function AtendenteLocaisSection({
   const [empresa, setEmpresa] = useState<SystemSettings.EmpresaSistema | null>(null)
   const [locais, setLocais] = useState<Ponto.Local[]>([])
   const [nome, setNome] = useState('')
-  const [mapa, setMapa] = useState({
+  const [mapa, setMapa] = useState<PontoLocalMapaValue>({
     latitude: null as number | null,
     longitude: null as number | null,
     endereco: '',
