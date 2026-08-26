@@ -18,6 +18,8 @@ type Props = {
   podeReagir?: boolean
   /** Balão claro (inbound) — seta escura. */
   tomClaro?: boolean
+  /** Notifica quando menu ou edição estão ativos (#947 / #S202608-0005). */
+  onMenuAbertoChange?: (aberto: boolean) => void
 }
 
 /** Menu de ações no canto do balão (editar / apagar / reagir) — #630 / #749. */
@@ -28,6 +30,7 @@ export function WhatsappMensagemAcoes({
   onReagirMenu,
   podeReagir = false,
   tomClaro = false,
+  onMenuAbertoChange,
 }: Props) {
   const [editando, setEditando] = useState(false)
   const [texto, setTexto] = useState(() => corpoWhatsappSemPrefixo(mensagem.corpo))
@@ -44,6 +47,13 @@ export function WhatsappMensagemAcoes({
   useEffect(() => {
     if (!editando) setTexto(corpoWhatsappSemPrefixo(mensagem.corpo))
   }, [mensagem, editando])
+
+  const onMenuAbertoChangeRef = useRef(onMenuAbertoChange)
+  onMenuAbertoChangeRef.current = onMenuAbertoChange
+  useEffect(() => {
+    onMenuAbertoChangeRef.current?.(menuAberto || editando)
+    return () => onMenuAbertoChangeRef.current?.(false)
+  }, [menuAberto, editando])
 
   useEffect(() => {
     if (!menuAberto) return

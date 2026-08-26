@@ -84,6 +84,13 @@ export function clearAuthToken(): void {
   localStorage.removeItem(REFRESH_TOKEN_KEY)
 }
 
+/** Mantém o storage onde a sessão já estava (local vs session). */
+export function persistAuthTokens(tokens: { access_token: string; refresh_token?: string | null }) {
+  const inLocal = Boolean(localStorage.getItem(TOKEN_KEY) || localStorage.getItem(REFRESH_TOKEN_KEY))
+  clearAuthToken()
+  setTokens(tokens, inLocal)
+}
+
 /** Invalida sessão e força novo login (evita voltar com «Back» para páginas autenticadas). */
 export function invalidateSessionAndRedirectToLogin(): void {
   clearAuthToken()
@@ -753,6 +760,20 @@ export const ponto = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  horaExtraMeStatus: () => api<Ponto.HoraExtraMeStatus>('/ponto/hora-extra/me/status'),
+  minhasHoraExtra: () => api<Ponto.HoraExtra[]>('/ponto/hora-extra/me'),
+  solicitarHoraExtra: (data?: Ponto.HoraExtraCreate) =>
+    api<Ponto.HoraExtra>('/ponto/hora-extra', {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
+  horaExtraAdmin: (estado?: string) =>
+    api<Ponto.HoraExtra[]>(withParams('/ponto/hora-extra', { estado })),
+  decidirHoraExtra: (id: number, data: Ponto.HoraExtraDecisao) =>
+    api<Ponto.HoraExtra>(`/ponto/hora-extra/${id}/decidir`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   exportCsv: async (params?: { atendente_id?: number; desde?: string; ate?: string }) => {
     const token = getAuthToken()
     const headers: Record<string, string> = {}
@@ -811,7 +832,8 @@ export const ponto = {
     return res.blob()
   },
   meSettings: () => api<Ponto.SettingsPublic>('/ponto/me/settings'),
-  locais: () => api<Ponto.Local[]>('/ponto/locais'),
+  locais: (params?: { atendente_id?: number; so_orfos?: boolean }) =>
+    api<Ponto.Local[]>(withParams('/ponto/locais', params)),
   criarLocal: (data: Ponto.LocalCreate) =>
     api<Ponto.Local>('/ponto/locais', { method: 'POST', body: JSON.stringify(data) }),
   atualizarLocal: (id: number, data: Ponto.LocalUpdate) =>
@@ -928,6 +950,9 @@ export namespace SystemSettings {
     cidade?: string | null
     estado?: string | null
     cep?: string | null
+    latitude?: number | null
+    longitude?: number | null
+    ponto_raio_metros?: number
     logo_url?: string | null
   }
 
@@ -945,6 +970,9 @@ export namespace SystemSettings {
     cidade?: string | null
     estado?: string | null
     cep?: string | null
+    latitude?: number | null
+    longitude?: number | null
+    ponto_raio_metros?: number | null
   }
 
   export interface TicketEmailGraceOpcao {
@@ -1738,6 +1766,7 @@ export namespace Notificacoes {
     portal_fila_count: number;
     portal_respostas_count: number;
     chat_interno_nao_lidas_count: number;
+    ponto_he_pendentes_count?: number;
     total_pendencias: number;
   }
   export interface Item {
@@ -1746,7 +1775,8 @@ export namespace Notificacoes {
       | 'mensagens_nao_lidas'
       | 'wpp_chats_na_fila'
       | 'wpp_chats_com_resposta'
-      | 'chat_interno';
+      | 'chat_interno'
+      | 'ponto_he_pendente';
     ticket_id: number | null;
     chat_id?: number | null;
     conversa_id?: number | null;
@@ -2453,6 +2483,7 @@ export namespace Setores {
 }
 
 export namespace Atendentes {
+  export type ModoJornada = 'nenhum' | 'semanal' | 'ciclo'
   export interface Atendente {
     id: number;
     email: string;
@@ -2462,13 +2493,20 @@ export namespace Atendentes {
     setor_ids: number[];
     e_financeiro?: boolean;
     must_change_password?: boolean;
+    modo_jornada?: ModoJornada;
     usa_escala?: boolean;
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
     escala_horas_trabalho?: number | null;
     escala_horas_folga?: number | null;
     escala_inicio_em?: string | null;
     horario_previsto_entrada?: string | null;
     horario_previsto_saida?: string | null;
     tolerancia_atraso_minutos?: number;
+    usar_local_empresa?: boolean;
+    local_empresa_raio_metros?: number | null;
+    /** Cargos da equipe DeskRudder (painel SaaS); vários por usuário. */
+    saas_setor_ids?: number[];
+    saas_setor_nomes?: string[];
   }
   export interface Create {
     email: string;
@@ -2477,13 +2515,17 @@ export namespace Atendentes {
     role?: string;
     ativo?: boolean;
     setor_ids?: number[];
+    modo_jornada?: ModoJornada;
     usa_escala?: boolean;
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
     escala_horas_trabalho?: number | null;
     escala_horas_folga?: number | null;
     escala_inicio_em?: string | null;
     horario_previsto_entrada?: string | null;
     horario_previsto_saida?: string | null;
     tolerancia_atraso_minutos?: number;
+    usar_local_empresa?: boolean;
+    local_empresa_raio_metros?: number | null;
   }
   export interface Update {
     email?: string;
@@ -2492,13 +2534,17 @@ export namespace Atendentes {
     role?: string;
     ativo?: boolean;
     setor_ids?: number[];
+    modo_jornada?: ModoJornada;
     usa_escala?: boolean;
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
     escala_horas_trabalho?: number | null;
     escala_horas_folga?: number | null;
     escala_inicio_em?: string | null;
     horario_previsto_entrada?: string | null;
     horario_previsto_saida?: string | null;
     tolerancia_atraso_minutos?: number;
+    usar_local_empresa?: boolean;
+    local_empresa_raio_metros?: number | null;
   }
   export interface AvaliacaoResumo {
     media: number | null;
@@ -4851,6 +4897,7 @@ export namespace Ponto {
     usar_feriados_nacionais: boolean
     fecho_automatico_ativo: boolean
     fecho_apos_horas: number
+    fecho_margem_pos_saida_minutos: number
     jornada_diaria_minutos: number
     politica_geolocalizacao: PoliticaGeolocalizacao
   }
@@ -4862,26 +4909,33 @@ export namespace Ponto {
     usar_feriados_nacionais?: boolean
     fecho_automatico_ativo?: boolean
     fecho_apos_horas?: number
+    fecho_margem_pos_saida_minutos?: number
     jornada_diaria_minutos?: number
     politica_geolocalizacao?: PoliticaGeolocalizacao
   }
   export interface Local {
     id: number
+    atendente_id?: number | null
     nome: string
+    endereco?: string | null
     latitude: number
     longitude: number
     raio_metros: number
     ativo: boolean
   }
   export interface LocalCreate {
+    atendente_id: number
     nome: string
+    endereco?: string | null
     latitude: number
     longitude: number
     raio_metros?: number
     ativo?: boolean
   }
   export interface LocalUpdate {
+    atendente_id?: number | null
     nome?: string
+    endereco?: string | null
     latitude?: number
     longitude?: number
     raio_metros?: number
@@ -4938,6 +4992,34 @@ export namespace Ponto {
     estado: 'aprovada' | 'rejeitada'
     decisao_motivo: string
     aplicar_batidas?: { tipo: Tipo; registrado_em: string; motivo: string }[]
+  }
+  export interface HoraExtra {
+    id: number
+    atendente_id: number
+    atendente_nome?: string | null
+    estado: string
+    motivo?: string | null
+    modo?: string | null
+    ate_em?: string | null
+    decidido_por_id?: number | null
+    decidido_em?: string | null
+    decisao_motivo?: string | null
+    created_at?: string | null
+  }
+  export interface HoraExtraCreate {
+    motivo?: string | null
+  }
+  export interface HoraExtraDecisao {
+    aprovar: boolean
+    modo?: 'resto_do_dia' | 'ate_horario' | null
+    ate_horario?: string | null
+    decisao_motivo?: string | null
+  }
+  export interface HoraExtraMeStatus {
+    fora_da_jornada: boolean
+    pode_pegar_whatsapp: boolean
+    he_ativa?: HoraExtra | null
+    pedido_pendente?: HoraExtra | null
   }
 }
 
@@ -5262,15 +5344,27 @@ export const saasSolicitacoes = {
     busca?: string;
     tipo?: string;
     status?: string;
+    fase?: string;
     slug?: string;
     ordenar_por?: 'ingested_at' | 'created_at_origem' | 'titulo';
     ordem?: 'asc' | 'desc';
     offset?: number;
     limit?: number;
   }) => listPaginated<SaasSolicitacoesProduto.ListaItem>('/saas/solicitacoes', params),
+  resumo: () => api<SaasSolicitacoesProduto.Resumo>('/saas/solicitacoes/resumo'),
   get: (id: number) => api<SaasSolicitacoesProduto.Detalhe>(`/saas/solicitacoes/${id}`),
   alterarStatus: (id: number, data: SaasSolicitacoesProduto.StatusUpdate) =>
     api<SaasSolicitacoesProduto.Detalhe>(`/saas/solicitacoes/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  implementar: (id: number, data?: SaasSolicitacoesProduto.Implementar) =>
+    api<SaasSolicitacoesProduto.Detalhe>(`/saas/solicitacoes/${id}/implementar`, {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
+  ligarGithub: (id: number, data: SaasSolicitacoesProduto.GithubUpdate) =>
+    api<SaasSolicitacoesProduto.Detalhe>(`/saas/solicitacoes/${id}/github`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
@@ -5298,9 +5392,18 @@ export namespace SaasOpsConta {
   export interface McpGerado extends McpEstado {
     token: string
   }
+  export interface Perfil {
+    id: number
+    nome: string
+    email: string
+    access_token?: string | null
+    refresh_token?: string | null
+  }
 }
 
 export const saasOpsConta = {
+  atualizarPerfil: (data: { nome?: string; email?: string }) =>
+    api<SaasOpsConta.Perfil>('/saas/me', { method: 'PATCH', body: JSON.stringify(data) }),
   mcpToken: () => api<SaasOpsConta.McpEstado>('/saas/me/mcp-token'),
   gerarMcpToken: () =>
     api<SaasOpsConta.McpGerado>('/saas/me/mcp-token', { method: 'POST', body: JSON.stringify({}) }),
@@ -5309,6 +5412,12 @@ export const saasOpsConta = {
 };
 
 export namespace SaasOpsUsuarios {
+  export interface SetorRef {
+    id: number
+    nome: string
+    ativo: boolean
+    created_at: string | null
+  }
   export interface Usuario {
     id: number
     nome: string
@@ -5318,6 +5427,8 @@ export namespace SaasOpsUsuarios {
     mcp_token_configurado: boolean
     mcp_token_gerado_em: string | null
     created_at: string | null
+    setor_ids: number[]
+    setores: SetorRef[]
   }
   export interface Criado extends Usuario {
     senha_temporaria: string
@@ -5332,9 +5443,9 @@ export const saasOpsUsuarios = {
     limit?: number
   }) => listPaginated<SaasOpsUsuarios.Usuario>('/saas/usuarios', params),
   get: (id: number) => api<SaasOpsUsuarios.Usuario>(`/saas/usuarios/${id}`),
-  create: (data: { nome: string; email: string }) =>
+  create: (data: { nome: string; email: string; setor_ids?: number[] }) =>
     api<SaasOpsUsuarios.Criado>('/saas/usuarios', { method: 'POST', body: JSON.stringify(data) }),
-  update: (id: number, data: { nome?: string; ativo?: boolean }) =>
+  update: (id: number, data: { nome?: string; ativo?: boolean; setor_ids?: number[] }) =>
     api<SaasOpsUsuarios.Usuario>(`/saas/usuarios/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   senhaTemporaria: (id: number) =>
     api<{ senha_temporaria: string }>(`/saas/usuarios/${id}/senha-temporaria`, {
@@ -5343,7 +5454,34 @@ export const saasOpsUsuarios = {
     }),
 };
 
+export namespace SaasSetores {
+  export interface Setor {
+    id: number
+    nome: string
+    ativo: boolean
+    created_at: string | null
+  }
+}
+
+export const saasSetores = {
+  list: (params?: { incluir_inativos?: boolean }) =>
+    api<SaasSetores.Setor[]>(withParams('/saas/setores', params)),
+  get: (id: number) => api<SaasSetores.Setor>(`/saas/setores/${id}`),
+  create: (data: { nome: string }) =>
+    api<SaasSetores.Setor>('/saas/setores', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: { nome?: string; ativo?: boolean }) =>
+    api<SaasSetores.Setor>(`/saas/setores/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+};
+
 export namespace SaasSolicitacoesProduto {
+  export interface Resumo {
+    total: number;
+    sugestoes: number;
+    problemas: number;
+    aguardando: number;
+    desenvolvimento: number;
+    finalizadas: number;
+  }
   export interface ListaItem {
     id: number;
     cliente_saas_id?: number | null;
@@ -5400,6 +5538,17 @@ export namespace SaasSolicitacoesProduto {
   export interface StatusUpdate {
     status: string;
     motivo_nao_desenvolvimento?: string | null;
+  }
+  export interface GithubUpdate {
+    github_issue_url?: string | null;
+    github_issue_number?: number | null;
+    github_repo?: string | null;
+  }
+  export interface Implementar {
+    github_issue_url?: string | null;
+    github_issue_number?: number | null;
+    github_repo?: string | null;
+    criar_issue?: boolean;
   }
   export interface ComentarioCreate {
     corpo: string;
@@ -5499,10 +5648,30 @@ export namespace SaasClientes {
     status: Status;
     plano?: string | null;
     plano_id?: number | null;
-    plano_modulos?: Array<{ id: number; codigo: string; nome: string; ativo?: boolean }>;
+    plano_modulos?: Array<{
+      id: number;
+      codigo: string;
+      nome: string;
+      ativo?: boolean;
+      preco_mensal?: number | null;
+    }>;
+    modulos_contratados?: Array<{
+      id: number;
+      codigo: string;
+      nome: string;
+      ativo?: boolean;
+      preco_mensal?: number | null;
+    }>;
     modulos_snapshot?: string[];
     max_postos?: number | null;
     max_usuarios?: number | null;
+    usuarios_inclusos?: number | null;
+    preco_usuario_extra?: number | null;
+    preco_modulos?: number | null;
+    preco_usuarios_extra?: number | null;
+    preco_mensal_estimado?: number | null;
+    preco_mensal_negociado?: number | null;
+    preco_mensal_efetivo?: number | null;
     data_inicio: string;
     data_renovacao?: string | null;
     instancia_url?: string | null;
@@ -5535,6 +5704,9 @@ export namespace SaasClientes {
     status?: Status;
     plano?: string | null;
     plano_id?: number | null;
+    modulo_ids?: number[] | null;
+    usuarios_contratados?: number | null;
+    preco_mensal_negociado?: number | null;
     data_inicio: string;
     data_renovacao?: string | null;
     instancia_url?: string | null;
@@ -5552,6 +5724,7 @@ export namespace SaasCatalogo {
     codigo: string;
     nome: string;
     descricao?: string | null;
+    preco_mensal?: number | null;
     ativo: boolean;
     created_at?: string | null;
     updated_at?: string | null;
@@ -5561,6 +5734,7 @@ export namespace SaasCatalogo {
     codigo: string;
     nome: string;
     ativo?: boolean;
+    preco_mensal?: number | null;
   }
   export interface Plano {
     id: number;
@@ -5570,6 +5744,8 @@ export namespace SaasCatalogo {
     ativo: boolean;
     ordem: number;
     preco_mensal?: number | null;
+    usuarios_inclusos?: number;
+    preco_usuario_extra?: number | null;
     max_postos?: number | null;
     max_usuarios?: number | null;
     modulos: ModuloBrief[];
@@ -5581,8 +5757,8 @@ export namespace SaasCatalogo {
     nome: string;
     descricao?: string | null;
     ordem?: number;
-    preco_mensal?: number | null;
-    max_postos?: number | null;
+    usuarios_inclusos?: number | null;
+    preco_usuario_extra?: number | null;
     max_usuarios?: number | null;
     modulo_ids?: number[];
   }
@@ -5591,6 +5767,7 @@ export namespace SaasCatalogo {
     codigo: string;
     nome: string;
     descricao?: string | null;
+    preco_mensal?: number | null;
   }
   export type ModuloUpdate = Partial<Omit<ModuloCreate, 'codigo'>>;
 }

@@ -54,6 +54,7 @@ let currentResumo: Notificacoes.Resumo = {
   portal_fila_count: 0,
   portal_respostas_count: 0,
   chat_interno_nao_lidas_count: 0,
+  ponto_he_pendentes_count: 0,
   total_pendencias: 0,
 }
 let prevSemResponsavel: number | null = null

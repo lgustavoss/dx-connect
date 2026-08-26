@@ -22,6 +22,7 @@ from app.schemas.saas_solicitacao import (
     SaasSolicitacaoComentarioCreate,
     SaasSolicitacaoDetalhe,
     SaasSolicitacaoGithubUpdate,
+    SaasSolicitacaoImplementar,
     SaasSolicitacaoStatusUpdate,
     SaasSolicitacaoSyncComentario,
     SaasSolicitacaoSyncItem,
@@ -33,11 +34,13 @@ from app.services.solicitacao_melhoria import (
     aplicar_protocolo_origem_saas,
     aplicar_status_origem_saas,
 )
-from app.services.solicitacao_melhoria_copy import STATUS_VALIDOS
+from app.services.solicitacao_melhoria_copy import validar_transicao_status
 
 logger = logging.getLogger(__name__)
 
 CACHE_CHAVE_PULL = "saas_triagem_pull"
+
+_GH_ISSUE = re.compile(r"github\.com/([^/\s]+)/([^/\s]+)/issues/(\d+)", re.I)
 
 
 def _agora() -> datetime:
@@ -48,23 +51,28 @@ def _deve_aplicar_local(row: SaasSolicitacaoProduto) -> bool:
     return bool(settings.SAAS_CONTROL_PLANE) and row.instance_slug == ingest.instance_slug_local()
 
 
-def alterar_status(
+def _tem_vinculo_github(row: SaasSolicitacaoProduto) -> bool:
+    return bool(row.github_issue_number and (row.github_issue_url or "").strip())
+
+
+def _aplicar_status_no_row(
     db: Session,
-    solicitacao_id: int,
+    row: SaasSolicitacaoProduto,
     ops: Atendente,
-    data: SaasSolicitacaoStatusUpdate,
-) -> SaasSolicitacaoDetalhe:
-    if data.status not in STATUS_VALIDOS:
-        raise HTTPException(status_code=400, detail="Status inválido")
-    if data.status == "nao_sera_desenvolvida" and not (data.motivo_nao_desenvolvimento or "").strip():
-        raise HTTPException(
-            status_code=400,
-            detail="Informe o motivo quando marcar como não será desenvolvida",
-        )
-    row = ingest.obter(db, solicitacao_id)
-    row.status = data.status
-    if data.status == "nao_sera_desenvolvida":
-        row.motivo_nao_desenvolvimento = (data.motivo_nao_desenvolvimento or "").strip()
+    *,
+    status_novo: str,
+    motivo_nao_desenvolvimento: str | None,
+) -> SaasSolicitacaoProduto:
+    """Valida transição (#953/#954), grava status e propaga à instância local. Sem commit."""
+    validar_transicao_status(
+        row.status,
+        status_novo,
+        tem_vinculo_github=_tem_vinculo_github(row),
+        motivo_nao_desenvolvimento=motivo_nao_desenvolvimento,
+    )
+    row.status = status_novo
+    if status_novo == "nao_sera_desenvolvida":
+        row.motivo_nao_desenvolvimento = (motivo_nao_desenvolvimento or "").strip()
     row.triagem_atualizada_em = _agora()
     db.add(row)
     db.flush()
@@ -77,8 +85,102 @@ def alterar_status(
             motivo_nao_desenvolvimento=row.motivo_nao_desenvolvimento,
             atendente_id=ops.id,
         )
+    return row
+
+
+def alterar_status(
+    db: Session,
+    solicitacao_id: int,
+    ops: Atendente,
+    data: SaasSolicitacaoStatusUpdate,
+) -> SaasSolicitacaoDetalhe:
+    row = ingest.obter(db, solicitacao_id)
+    _aplicar_status_no_row(
+        db,
+        row,
+        ops,
+        status_novo=data.status,
+        motivo_nao_desenvolvimento=data.motivo_nao_desenvolvimento,
+    )
     db.commit()
     return ingest.detalhe(db, ingest.obter(db, row.id))
+
+
+def implementar(
+    db: Session,
+    solicitacao_id: int,
+    ops: Atendente,
+    data: SaasSolicitacaoImplementar,
+) -> SaasSolicitacaoDetalhe:
+    """G2: garante issue GitHub e avança planejada → em_desenvolvimento."""
+    row = ingest.obter(db, solicitacao_id)
+    if row.status != "planejada":
+        raise HTTPException(
+            status_code=400,
+            detail="Só é possível implementar a partir do status Planejada",
+        )
+    url = (data.github_issue_url or "").strip()
+    if url or data.github_issue_number is not None:
+        # Liga (ou re-liga) antes de avançar — sem commit intermediário.
+        _gravar_github(db, row, data)
+    elif not _tem_vinculo_github(row):
+        if not data.criar_issue:
+            raise HTTPException(
+                status_code=400,
+                detail="Indique a URL/número da issue ou permita criar no GitHub",
+            )
+        from app.services.saas_solicitacao_github import criar_issue_saas
+
+        criar_issue_saas(db, row, ops)
+        row = ingest.obter(db, solicitacao_id)
+    _aplicar_status_no_row(
+        db,
+        row,
+        ops,
+        status_novo="em_desenvolvimento",
+        motivo_nao_desenvolvimento=None,
+    )
+    db.commit()
+    return ingest.detalhe(db, ingest.obter(db, row.id))
+
+
+def _gravar_github(
+    db: Session,
+    row: SaasSolicitacaoProduto,
+    data: SaasSolicitacaoGithubUpdate | SaasSolicitacaoImplementar,
+) -> None:
+    """Persiste vínculo GitHub no pedido + grupo. Sem commit."""
+    url = (data.github_issue_url or "").strip()
+    number = data.github_issue_number
+    repo = (data.github_repo or "").strip() or None
+    if url:
+        m = _GH_ISSUE.search(url)
+        if not m:
+            raise HTTPException(status_code=400, detail="URL de issue GitHub inválido")
+        repo = f"{m.group(1)}/{m.group(2)}"
+        number = int(m.group(3))
+        url = f"https://github.com/{repo}/issues/{number}"
+    elif number is not None:
+        from app.services.saas_solicitacao_github import github_repo_produto
+
+        repo = repo or github_repo_produto()
+        url = f"https://github.com/{repo}/issues/{int(number)}"
+    else:
+        raise HTTPException(status_code=400, detail="Indique o URL ou o número da issue")
+    row.github_repo = repo
+    row.github_issue_number = int(number)
+    row.github_issue_url = url
+    db.add(row)
+    from app.services import saas_solicitacao_grupo as grupo
+
+    grupo.aplicar_github_no_grupo(
+        db,
+        row,
+        repo=repo,
+        number=int(number),
+        url=url,
+    )
+    db.flush()
 
 
 _INTERNO_NO_CLIENTE_RE = re.compile(
@@ -131,13 +233,6 @@ def adicionar_comentario(
     return ingest.detalhe(db, ingest.obter(db, row.id))
 
 
-_GH_ISSUE = re.compile(r"github\.com/([^/\s]+)/([^/\s]+)/issues/(\d+)", re.I)
-
-
-def github_repo_produto() -> str:
-    return (settings.GITHUB_REPO_SUGESTOES or "").strip() or "lgustavoss/dx-connect"
-
-
 def ligar_issue_github(
     db: Session,
     solicitacao_id: int,
@@ -145,34 +240,7 @@ def ligar_issue_github(
 ) -> SaasSolicitacaoDetalhe:
     """Grava a issue no pedido SaaS. O cliente da instância não vê o GitHub."""
     row = ingest.obter(db, solicitacao_id)
-    url = (data.github_issue_url or "").strip()
-    number = data.github_issue_number
-    repo = (data.github_repo or "").strip() or None
-    if url:
-        m = _GH_ISSUE.search(url)
-        if not m:
-            raise HTTPException(status_code=400, detail="URL de issue GitHub inválido")
-        repo = f"{m.group(1)}/{m.group(2)}"
-        number = int(m.group(3))
-        url = f"https://github.com/{repo}/issues/{number}"
-    elif number is not None:
-        repo = repo or github_repo_produto()
-        url = f"https://github.com/{repo}/issues/{int(number)}"
-    else:
-        raise HTTPException(status_code=400, detail="Indique o URL ou o número da issue")
-    row.github_repo = repo
-    row.github_issue_number = int(number)
-    row.github_issue_url = url
-    db.add(row)
-    from app.services import saas_solicitacao_grupo as grupo
-
-    grupo.aplicar_github_no_grupo(
-        db,
-        row,
-        repo=repo,
-        number=int(number),
-        url=url,
-    )
+    _gravar_github(db, row, data)
     db.commit()
     return ingest.detalhe(db, ingest.obter(db, row.id))
 

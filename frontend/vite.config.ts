@@ -70,6 +70,8 @@ export default defineConfig(({ mode }) => {
         },
         injectManifest: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,webmanifest}'],
+          // App chunk pode passar de 2 MiB; sem isso o build PWA falha no CI.
+          maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         },
         devOptions: { enabled: true, type: 'module' },
       }),

@@ -17,20 +17,23 @@ from app.models.atendente import Atendente
 from app.models.cliente_saas import ClienteSaaS
 from app.models.saas_solicitacao_produto import SaasSolicitacaoProduto
 from app.schemas.lista_paginada import ListaPaginada
+from app.services.solicitacao_melhoria_copy import status_da_fase
+from app.services import saas_solicitacao_grupo as grupo
+from app.services import saas_solicitacao_ingest as ingest
+from app.services import saas_solicitacao_triagem as triagem
 from app.schemas.saas_solicitacao import (
     SaasSolicitacaoAnexoRead,
     SaasSolicitacaoComentarioCreate,
     SaasSolicitacaoDetalhe,
     SaasSolicitacaoGithubUpdate,
+    SaasSolicitacaoImplementar,
     SaasSolicitacaoIngest,
     SaasSolicitacaoListaItem,
+    SaasSolicitacaoResumo,
     SaasSolicitacaoStatusUpdate,
     SaasSolicitacaoSyncResponse,
     SaasSolicitacaoVinculoCreate,
 )
-from app.services import saas_solicitacao_grupo as grupo
-from app.services import saas_solicitacao_ingest as ingest
-from app.services import saas_solicitacao_triagem as triagem
 
 router = APIRouter(prefix="/saas", tags=["saas-solicitacoes"])
 
@@ -127,11 +130,40 @@ def sync_triagem(
     return triagem.listar_sync(db, cliente, since=since)
 
 
+@router.get("/solicitacoes/resumo", response_model=SaasSolicitacaoResumo)
+def resumo_fila(
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    __: Atendente = Depends(exigir_fila_saas),
+):
+    from app.services.solicitacao_melhoria_copy import FASES_STATUS
+
+    rows = db.query(SaasSolicitacaoProduto.tipo, SaasSolicitacaoProduto.status).all()
+    total = len(rows)
+    sugestoes = sum(1 for t, _ in rows if t == "sugestao")
+    problemas = sum(1 for t, _ in rows if t == "problema")
+    aguardando = sum(1 for _, s in rows if s in FASES_STATUS["aguardando"])
+    desenvolvimento = sum(1 for _, s in rows if s in FASES_STATUS["desenvolvimento"])
+    finalizadas = sum(1 for _, s in rows if s in FASES_STATUS["finalizadas"])
+    return SaasSolicitacaoResumo(
+        total=total,
+        sugestoes=sugestoes,
+        problemas=problemas,
+        aguardando=aguardando,
+        desenvolvimento=desenvolvimento,
+        finalizadas=finalizadas,
+    )
+
+
 @router.get("/solicitacoes", response_model=ListaPaginada[SaasSolicitacaoListaItem])
 def listar(
     busca: str | None = Query(None),
     tipo: str | None = Query(None),
     status_filtro: str | None = Query(None, alias="status"),
+    fase: str | None = Query(
+        None,
+        description="Agrupa status: aguardando | desenvolvimento | finalizadas",
+    ),
     slug: str | None = Query(None),
     offset: int = Query(0, ge=0),
     limit: int = Query(_DEFAULT_PAGE, ge=1, le=_MAX_PAGE),
@@ -157,6 +189,11 @@ def listar(
         q = q.filter(SaasSolicitacaoProduto.tipo == tipo.strip())
     if status_filtro and status_filtro.strip():
         q = q.filter(SaasSolicitacaoProduto.status == status_filtro.strip())
+    elif fase and fase.strip():
+        statuses = status_da_fase(fase)
+        if statuses is None:
+            raise HTTPException(status_code=400, detail="Fase inválida")
+        q = q.filter(SaasSolicitacaoProduto.status.in_(list(statuses)))
     if slug and slug.strip():
         q = q.filter(SaasSolicitacaoProduto.instance_slug == slug.strip().lower())
     total = q.count()
@@ -209,6 +246,18 @@ def alterar_status(
     ops: Atendente = Depends(exigir_fila_saas),
 ):
     return triagem.alterar_status(db, solicitacao_id, ops, data)
+
+
+@router.post("/solicitacoes/{solicitacao_id}/implementar", response_model=SaasSolicitacaoDetalhe)
+def implementar(
+    solicitacao_id: int,
+    data: SaasSolicitacaoImplementar = SaasSolicitacaoImplementar(),
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    ops: Atendente = Depends(exigir_fila_saas),
+):
+    """G2: cria/liga issue GitHub e avança para em_desenvolvimento."""
+    return triagem.implementar(db, solicitacao_id, ops, data)
 
 
 @router.post("/solicitacoes/{solicitacao_id}/comentarios", response_model=SaasSolicitacaoDetalhe)

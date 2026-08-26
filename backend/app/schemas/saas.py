@@ -105,6 +105,17 @@ class ClienteSaaSBase(BaseModel):
 
 class ClienteSaaSCreate(ClienteSaaSBase):
     lead_comercial_id: int | None = None
+    modulo_ids: list[int] | None = Field(
+        None, description="Mix custom de módulos; se omitido, usa os do plano"
+    )
+    usuarios_contratados: int | None = Field(
+        None, ge=0, description="Usuários contratados (extra além dos inclusos)"
+    )
+    preco_mensal_negociado: float | None = Field(
+        None,
+        ge=0,
+        description="Valor mensal fechado na negociação; se vazio, usa a estimativa do catálogo",
+    )
 
 
 class ClienteSaaSUpdate(BaseModel):
@@ -119,6 +130,9 @@ class ClienteSaaSUpdate(BaseModel):
     contato_email: str | None = Field(None, max_length=255)
     contato_nome: str | None = Field(None, max_length=200)
     notas: str | None = None
+    modulo_ids: list[int] | None = None
+    usuarios_contratados: int | None = Field(None, ge=0)
+    preco_mensal_negociado: float | None = Field(None, ge=0)
 
     @field_validator("nome")
     @classmethod
@@ -263,6 +277,7 @@ class SaasModuloBrief(BaseModel):
     codigo: str
     nome: str
     ativo: bool = True
+    preco_mensal: float | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -287,9 +302,17 @@ class ClienteSaaSRead(ClienteSaaSBase):
     comandos_stack: str | None = None
     dias_para_renovacao: int | None = None
     plano_modulos: list[SaasModuloBrief] = Field(default_factory=list)
+    modulos_contratados: list[SaasModuloBrief] = Field(default_factory=list)
     modulos_snapshot: list[str] = Field(default_factory=list)
     max_postos: int | None = None
     max_usuarios: int | None = None
+    usuarios_inclusos: int | None = None
+    preco_usuario_extra: float | None = None
+    preco_modulos: float | None = None
+    preco_usuarios_extra: float | None = None
+    preco_mensal_estimado: float | None = None
+    preco_mensal_negociado: float | None = None
+    preco_mensal_efetivo: float | None = None
     ingest_token_configurado: bool = False
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -336,6 +359,7 @@ class SaasModuloCreate(BaseModel):
     codigo: str = Field(..., min_length=1, max_length=80)
     nome: str = Field(..., min_length=1, max_length=120)
     descricao: str | None = None
+    preco_mensal: float | None = Field(None, ge=0)
 
     @field_validator("codigo")
     @classmethod
@@ -362,6 +386,7 @@ class SaasModuloCreate(BaseModel):
 class SaasModuloUpdate(BaseModel):
     nome: str | None = Field(None, min_length=1, max_length=120)
     descricao: str | None = None
+    preco_mensal: float | None = Field(None, ge=0)
 
     @field_validator("nome")
     @classmethod
@@ -387,6 +412,7 @@ class SaasModuloRead(BaseModel):
     codigo: str
     nome: str
     descricao: str | None = None
+    preco_mensal: float | None = None
     ativo: bool = True
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -399,8 +425,8 @@ class SaasPlanoCreate(BaseModel):
     nome: str = Field(..., min_length=1, max_length=120)
     descricao: str | None = None
     ordem: int = 0
-    preco_mensal: float | None = Field(None, ge=0)
-    max_postos: int | None = Field(None, ge=0)
+    usuarios_inclusos: int | None = Field(3, ge=0)
+    preco_usuario_extra: float | None = Field(10, ge=0)
     max_usuarios: int | None = Field(None, ge=0)
     modulo_ids: list[int] = Field(default_factory=list)
 
@@ -430,8 +456,8 @@ class SaasPlanoUpdate(BaseModel):
     nome: str | None = Field(None, min_length=1, max_length=120)
     descricao: str | None = None
     ordem: int | None = None
-    preco_mensal: float | None = Field(None, ge=0)
-    max_postos: int | None = Field(None, ge=0)
+    usuarios_inclusos: int | None = Field(None, ge=0)
+    preco_usuario_extra: float | None = Field(None, ge=0)
     max_usuarios: int | None = Field(None, ge=0)
     modulo_ids: list[int] | None = None
 
@@ -462,6 +488,8 @@ class SaasPlanoRead(BaseModel):
     ativo: bool = True
     ordem: int = 0
     preco_mensal: float | None = None
+    usuarios_inclusos: int = 3
+    preco_usuario_extra: float | None = 10
     max_postos: int | None = None
     max_usuarios: int | None = None
     modulos: list[SaasModuloBrief] = Field(default_factory=list)
@@ -469,3 +497,13 @@ class SaasPlanoRead(BaseModel):
     updated_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SaasPrecoEstimativa(BaseModel):
+    preco_modulos: float = 0
+    preco_usuarios_extra: float = 0
+    preco_mensal_total: float = 0
+    usuarios_inclusos: int = 3
+    preco_usuario_extra: float = 10
+    usuarios_contratados: int | None = None
+    modulos: list[SaasModuloBrief] = Field(default_factory=list)

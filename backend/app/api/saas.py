@@ -554,7 +554,7 @@ def listar_modulos(
     _: None = Depends(exigir_saas_control_plane),
     __: Atendente = Depends(exigir_saas_ops),
 ):
-    return [SaasModuloRead.model_validate(m) for m in saas_catalogo.listar_modulos(db, ativo=ativo)]
+    return [saas_catalogo.serializar_modulo(m) for m in saas_catalogo.listar_modulos(db, ativo=ativo)]
 
 
 @router.post("/modulos", response_model=SaasModuloRead, status_code=201)
@@ -571,7 +571,7 @@ def criar_modulo(
     registrar_audit(db, "saas_modulo", row.id, "create", atendente.id)
     db.commit()
     db.refresh(row)
-    return SaasModuloRead.model_validate(row)
+    return saas_catalogo.serializar_modulo(row)
 
 
 @router.get("/modulos/{modulo_id}", response_model=SaasModuloRead)
@@ -582,7 +582,7 @@ def obter_modulo(
     __: Atendente = Depends(exigir_saas_ops),
 ):
     try:
-        return SaasModuloRead.model_validate(saas_catalogo.obter_modulo(db, modulo_id))
+        return saas_catalogo.serializar_modulo(saas_catalogo.obter_modulo(db, modulo_id))
     except svc.SaasErro as e:
         raise _http_from_saas(e) from e
 
@@ -602,7 +602,7 @@ def atualizar_modulo(
     registrar_audit(db, "saas_modulo", modulo_id, "update", atendente.id)
     db.commit()
     db.refresh(row)
-    return SaasModuloRead.model_validate(row)
+    return saas_catalogo.serializar_modulo(row)
 
 
 @router.post("/modulos/{modulo_id}/ativar", response_model=SaasModuloRead)
@@ -619,7 +619,7 @@ def ativar_modulo(
     registrar_audit(db, "saas_modulo", modulo_id, "ativar", atendente.id)
     db.commit()
     db.refresh(row)
-    return SaasModuloRead.model_validate(row)
+    return saas_catalogo.serializar_modulo(row)
 
 
 @router.post("/modulos/{modulo_id}/desativar", response_model=SaasModuloRead)
@@ -636,4 +636,4 @@ def desativar_modulo(
     registrar_audit(db, "saas_modulo", modulo_id, "desativar", atendente.id)
     db.commit()
     db.refresh(row)
-    return SaasModuloRead.model_validate(row)
+    return saas_catalogo.serializar_modulo(row)

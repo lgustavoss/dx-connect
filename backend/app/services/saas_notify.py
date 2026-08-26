@@ -59,26 +59,26 @@ def notificar_contacto_entrega(
             mods = []
     mods_txt = ", ".join(mods) if mods else "helpdesk (base)"
     limites = []
-    if getattr(row, "max_postos", None) is not None:
-        limites.append(f"postos: {row.max_postos}")
     if getattr(row, "max_usuarios", None) is not None:
-        limites.append(f"utilizadores: {row.max_usuarios}")
+        limites.append(f"usuários: {row.max_usuarios}")
+    if getattr(row, "max_postos", None) is not None:
+        limites.append(f"postos (legado): {row.max_postos}")
     limites_txt = (", ".join(limites)) if limites else "sem limites comerciais definidos"
     subject = f"DeskRudder — ambiente pronto ({row.nome})"
     body = (
         f"Olá {nome},\n\n"
         f"O ambiente DeskRudder de «{row.nome}» está disponível.\n\n"
         f"Acesso: {url}\n"
-        f"Login da equipa: {url.rstrip('/')}/login\n\n"
+        f"Login da equipe: {url.rstrip('/')}/login\n\n"
         f"Plano: {plano_nome}\n"
         f"Módulos incluídos: {mods_txt}\n"
         f"Limites: {limites_txt}\n\n"
         "As credenciais iniciais (admin) são as definidas no provisionamento "
         f"(SEED_ADMIN_EMAIL no client.env do slug «{row.slug}»). "
-        "Se ainda não as recebeu, a equipa DeskRudder envia-as em seguida.\n\n"
+        "Se ainda não as recebeu, a equipe DeskRudder envia-as em seguida.\n\n"
         "Em ambiente local, o domínio público pode não resolver DNS — "
-        "use a porta API (health) indicada pela equipa DeskRudder.\n\n"
-        "— Equipa DeskRudder\n"
+        "use a porta API (health) indicada pela equipe DeskRudder.\n\n"
+        "— Equipe DeskRudder\n"
     )
     try:
         enviar_mensagem_texto_sistema(db, to_addr=to_addr, subject=subject, body=body)
