@@ -11,6 +11,25 @@ export const SAAS_SOLICITACAO_STATUS = [
 
 export type SaasSolicitacaoStatus = (typeof SAAS_SOLICITACAO_STATUS)[number]['value']
 
+/** Máquina de estados G1 (#953) — espelha o backend. */
+export const SAAS_STATUS_TRANSICOES: Record<string, readonly string[]> = {
+  aberta: ['em_analise', 'nao_sera_desenvolvida'],
+  em_analise: ['planejada', 'nao_sera_desenvolvida'],
+  planejada: ['em_desenvolvimento', 'nao_sera_desenvolvida'],
+  em_desenvolvimento: ['concluida', 'nao_sera_desenvolvida'],
+  concluida: [],
+  nao_sera_desenvolvida: [],
+}
+
+export function proximosStatusSolicitacao(atual: string): readonly string[] {
+  return SAAS_STATUS_TRANSICOES[atual] ?? []
+}
+
+export function podeAvancarStatus(de: string, para: string): boolean {
+  if (de === para) return true
+  return proximosStatusSolicitacao(de).includes(para)
+}
+
 /** Fases para filtro rápido (agrupa vários status). */
 export const SAAS_SOLICITACAO_FASES = [
   {

@@ -91,9 +91,11 @@ TOOLS = [
     {
         "name": "alterar_status",
         "description": (
-            "Atualiza a triagem. O cliente vê o status em Minhas solicitações. "
-            "Valores: aberta, em_analise, planejada, em_desenvolvimento, concluida, nao_sera_desenvolvida. "
-            "nao_sera_desenvolvida exige motivo visível ao cliente, em português do Brasil."
+            "Atualiza a triagem com máquina de estados rígida. "
+            "Fluxo: aberta→em_analise→planejada→em_desenvolvimento→concluida; "
+            "de qualquer etapa (exceto finais) pode ir a nao_sera_desenvolvida (+ motivo). "
+            "em_desenvolvimento exige issue GitHub já ligada — preferir a tool implementar. "
+            "O cliente vê o status em Minhas solicitações (sem GitHub)."
         ),
         "inputSchema": {
             "type": "object",
@@ -105,6 +107,28 @@ TOOLS = [
                 "motivo_nao_desenvolvimento": {"type": "string"},
             },
             "required": ["status"],
+        },
+    },
+    {
+        "name": "implementar",
+        "description": (
+            "A partir de planejada: cria ou liga issue GitHub e marca em_desenvolvimento. "
+            "Passe github_issue_url (ou número) para ligar; senão cria via API GitHub "
+            "(GITHUB_TOKEN no control-plane). O cliente NÃO vê o GitHub."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "integer", "minimum": 1},
+                "protocolo": {"type": "string"},
+                "slug": {"type": "string"},
+                "github_issue_url": {"type": "string"},
+                "github_issue_number": {"type": "integer"},
+                "criar_issue": {
+                    "type": "boolean",
+                    "description": "Se true (padrão) e sem URL, cria a issue no GitHub",
+                },
+            },
         },
     },
     {
@@ -296,6 +320,17 @@ def call_tool(name: str, args: dict) -> object:
         if motivo:
             payload["motivo_nao_desenvolvimento"] = motivo
         _, body = _api("PATCH", f"/v1/saas/solicitacoes/{sid}/status", payload)
+        return body
+    if name == "implementar":
+        sid = _id_fila(args)
+        payload: dict[str, object] = {}
+        if args.get("github_issue_url"):
+            payload["github_issue_url"] = args["github_issue_url"]
+        if args.get("github_issue_number") is not None:
+            payload["github_issue_number"] = int(args["github_issue_number"])
+        if "criar_issue" in args:
+            payload["criar_issue"] = bool(args["criar_issue"])
+        _, body = _api("POST", f"/v1/saas/solicitacoes/{sid}/implementar", payload or None)
         return body
     if name == "comentar_solicitacao":
         sid = _id_fila(args)

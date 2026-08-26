@@ -5270,6 +5270,16 @@ export const saasSolicitacoes = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+  implementar: (id: number, data?: SaasSolicitacoesProduto.Implementar) =>
+    api<SaasSolicitacoesProduto.Detalhe>(`/saas/solicitacoes/${id}/implementar`, {
+      method: 'POST',
+      body: JSON.stringify(data ?? {}),
+    }),
+  ligarGithub: (id: number, data: SaasSolicitacoesProduto.GithubUpdate) =>
+    api<SaasSolicitacoesProduto.Detalhe>(`/saas/solicitacoes/${id}/github`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
   comentar: (id: number, data: SaasSolicitacoesProduto.ComentarioCreate) =>
     api<SaasSolicitacoesProduto.Detalhe>(`/saas/solicitacoes/${id}/comentarios`, {
       method: 'POST',
@@ -5440,6 +5450,17 @@ export namespace SaasSolicitacoesProduto {
   export interface StatusUpdate {
     status: string;
     motivo_nao_desenvolvimento?: string | null;
+  }
+  export interface GithubUpdate {
+    github_issue_url?: string | null;
+    github_issue_number?: number | null;
+    github_repo?: string | null;
+  }
+  export interface Implementar {
+    github_issue_url?: string | null;
+    github_issue_number?: number | null;
+    github_repo?: string | null;
+    criar_issue?: boolean;
   }
   export interface ComentarioCreate {
     corpo: string;
