@@ -100,6 +100,15 @@ class SaasSolicitacaoStatusUpdate(BaseModel):
     motivo_nao_desenvolvimento: str | None = Field(None, max_length=4000)
 
 
+class SaasSolicitacaoImplementar(BaseModel):
+    """G2: entra em em_desenvolvimento com issue criada ou ligada."""
+
+    github_issue_url: str | None = Field(None, max_length=500)
+    github_issue_number: int | None = Field(None, ge=1)
+    github_repo: str | None = Field(None, max_length=200)
+    criar_issue: bool = True
+
+
 class SaasSolicitacaoComentarioCreate(BaseModel):
     corpo: str = Field(..., min_length=1, max_length=8000)
     publico_cliente: bool = True

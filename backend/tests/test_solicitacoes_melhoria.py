@@ -130,11 +130,26 @@ def test_status_final_bloqueia_resposta_cliente(client, seed_base, auth_headers,
     monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
     monkeypatch.setattr(settings, "SAAS_INSTANCE_SLUG", "local")
     sid = _criar(client, auth_headers["a1"]).json()["id"]
-    lista = client.get("/v1/saas/solicitacoes", headers=auth_headers["ops"]).json()["items"]
+    h = auth_headers["ops"]
+    lista = client.get("/v1/saas/solicitacoes", headers=h).json()["items"]
     saas_id = next(i["id"] for i in lista if i["origem_solicitacao_id"] == sid)
+    for st in ("em_analise", "planejada"):
+        r = client.patch(
+            f"/v1/saas/solicitacoes/{saas_id}/status",
+            headers=h,
+            json={"status": st},
+        )
+        assert r.status_code == 200, r.text
+    client.patch(
+        f"/v1/saas/solicitacoes/{saas_id}/github",
+        headers=h,
+        json={"github_issue_url": "https://github.com/lgustavoss/dx-connect/issues/9101"},
+    )
+    impl = client.post(f"/v1/saas/solicitacoes/{saas_id}/implementar", headers=h, json={})
+    assert impl.status_code == 200, impl.text
     r_status = client.patch(
         f"/v1/saas/solicitacoes/{saas_id}/status",
-        headers=auth_headers["ops"],
+        headers=h,
         json={"status": "concluida"},
     )
     assert r_status.status_code == 200, r_status.text

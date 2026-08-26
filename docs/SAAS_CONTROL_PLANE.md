@@ -104,6 +104,10 @@ Quem **usa** o DeskRudder (admin/atendente da instância) abre sugestão ou prob
 
 A **triagem** (status e respostas) é feita por `saas_ops` no detalhe `/saas/solicitacoes/{id}`. O protocolo `#SYYYYMM-NNNN` é **único no produto**: a instância comercial (control-plane, Postgres próprio na VPS) emite o número no ingest; o cliente vê o mesmo valor em Minhas solicitações após o sync. Pedidos iguais de vários clientes ligam-se **só no painel SaaS** (`POST …/vinculos`); o peso é o número de clientes no grupo e **não** volta à instância. No GitHub, o título usa um protocolo; o corpo leva `texto_github_demanda` (lista de protocolos). Comentários **públicos** e o status voltam à instância; notas internas e o grupo ficam só no SaaS. O admin da instância **não** altera status nem envia notas de produto.
 
+**Máquina de estados (G1 #953):** só transições `aberta→em_analise→planejada→em_desenvolvimento→concluida`, com `nao_sera_desenvolvida` (+ motivo) a partir de qualquer etapa não final. Saltos ilegais → HTTP 400. Sync SaaS→instância aplica o status já validado no control-plane (e o histórico na instância continua a registar).
+
+**Implementar (G2 #954):** `POST …/solicitacoes/{id}/implementar` a partir de `planejada` cria issue (API GitHub) ou liga URL/número e avança para `em_desenvolvimento`. Sem vínculo GitHub não entra nesse status. O cliente nível 2 **nunca** vê URL/número da issue.
+
 O **posto** (portal) não entra neste fluxo. Análise no Cursor e issues GitHub **não** fazem parte deste lote (#857).
 
 ### Instância (`SAAS_CONTROL_PLANE=false`)
@@ -129,8 +133,9 @@ No control-plane (`SAAS_CONTROL_PLANE=true`), a abertura grava directo na tabela
 - `GET /v1/saas/ingest/solicitacoes/sync` — mesmo token; devolve status + comentários públicos daquele slug (`?since=` opcional).
 - `GET /v1/saas/solicitacoes` e `GET /v1/saas/solicitacoes/{id}` — `saas_ops` (JWT) ou token Cursor pessoal (`/saas/conta`) / `SAAS_MCP_TOKEN` legado.
 - `PATCH …/solicitacoes/{id}/github` — liga a issue criada no GitHub ao pedido (e ao grupo, se houver). Só ops / MCP; o cliente não vê.
+- `POST …/solicitacoes/{id}/implementar` — G2: cria ou liga issue e marca `em_desenvolvimento` (só a partir de `planejada`).
 - `POST …/solicitacoes/{id}/vinculos` e `DELETE …/vinculos/{membro_id}` — grupo de pedidos iguais (peso). Só ops / MCP.
-- `PATCH /v1/saas/solicitacoes/{id}/status` e `POST /v1/saas/solicitacoes/{id}/comentarios` — triagem.
+- `PATCH /v1/saas/solicitacoes/{id}/status` e `POST /v1/saas/solicitacoes/{id}/comentarios` — triagem (máquina de estados G1).
 - `POST /v1/saas/me/mcp-token` — gera o token Cursor desta conta (plaintext uma vez). `GET` estado; `DELETE` revoga.
 - `GET/POST /v1/saas/usuarios` e `PATCH /v1/saas/usuarios/{id}` — equipa `saas_ops` (nome, e-mail, activo). `POST …/senha-temporaria` devolve senha uma vez. Não são atendentes da instância do cliente.
 - `POST /v1/saas/clientes/{id}/gerar-token-ingest` — devolve o plaintext **uma vez** e escreve no `client.env` se a pasta do cliente já existir.
@@ -160,7 +165,7 @@ O script corre no PC do ops. A fila é a da instância comercial (`SAAS_CONTROL_
 
 O `SAAS_MCP_TOKEN` no `.env` da VPS ainda é aceite como **legado** (não identifica a pessoa). Prefira o token do painel.
 
-Ferramentas: listar, obter, alterar status, comentar, vincular pedidos iguais, ligar issue GitHub (aceitam `id` ou protocolo). Sem OpenAI e sem `CURSOR_API_KEY` no DeskRudder. O GitHub MCP (criar issues) é à parte e também é por instalação do Cursor.
+Ferramentas: listar, obter, alterar status (máquina G1), **implementar** (G2), comentar, vincular pedidos iguais, ligar issue GitHub (aceitam `id` ou protocolo). Sem OpenAI e sem `CURSOR_API_KEY` no DeskRudder. Criar issue pode ser via `implementar` (token GitHub no control-plane) ou MCP GitHub à parte + `ligar_issue_github`.
 
 ## Runbook: desativar cliente sem derrubar o SaaS
 

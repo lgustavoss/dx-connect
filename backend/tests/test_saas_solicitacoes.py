@@ -18,6 +18,25 @@ def _criar_solicitacao(client, headers, **kw):
     return client.post("/v1/solicitacoes-melhoria", headers=headers, json=body)
 
 
+def _saas_id_de_origem(client, headers, origem_id: int) -> int:
+    lista = client.get("/v1/saas/solicitacoes", headers=headers).json()["items"]
+    return next(i["id"] for i in lista if i["origem_solicitacao_id"] == origem_id)
+
+
+def _avancar_status(client, headers, saas_id: int, *passos: str) -> dict:
+    """Avança status válidos em sequência (G1)."""
+    body = {}
+    for st in passos:
+        r = client.patch(
+            f"/v1/saas/solicitacoes/{saas_id}/status",
+            headers=headers,
+            json={"status": st},
+        )
+        assert r.status_code == 200, f"{st}: {r.text}"
+        body = r.json()
+    return body
+
+
 def _cliente(client, headers, slug="duplex-soft"):
     r = client.post(
         "/v1/saas/clientes",
@@ -509,11 +528,7 @@ def test_sync_get_autenticado(client, seed_base, auth_headers, monkeypatch):
         headers={"Authorization": f"Bearer {token}"},
     )
     saas_id = ingest.json()["id"]
-    client.patch(
-        f"/v1/saas/solicitacoes/{saas_id}/status",
-        headers=h,
-        json={"status": "planejada"},
-    )
+    _avancar_status(client, h, saas_id, "em_analise", "planejada")
     client.post(
         f"/v1/saas/solicitacoes/{saas_id}/comentarios",
         headers=h,
@@ -602,13 +617,8 @@ def test_mcp_token_lista_status_e_liga_github(client, seed_base, auth_headers, m
     busca = client.get("/v1/saas/solicitacoes", headers=mcp, params={"busca": item["protocolo"]})
     assert busca.status_code == 200
     assert any(i["id"] == saas_id for i in busca.json()["items"])
-    st = client.patch(
-        f"/v1/saas/solicitacoes/{saas_id}/status",
-        headers=mcp,
-        json={"status": "planejada"},
-    )
-    assert st.status_code == 200, st.text
-    assert st.json()["status"] == "planejada"
+    st = _avancar_status(client, mcp, saas_id, "em_analise", "planejada")
+    assert st["status"] == "planejada"
     gh = client.patch(
         f"/v1/saas/solicitacoes/{saas_id}/github",
         headers=mcp,
@@ -635,7 +645,7 @@ def test_mcp_stdio_initialize_e_tools():
     assert "português do Brasil" in init["result"]["instructions"]
     listed = mod.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     names = {t["name"] for t in listed["result"]["tools"]}
-    assert {"listar_solicitacoes", "obter_solicitacao", "alterar_status", "comentar_solicitacao", "ligar_issue_github", "vincular_solicitacao", "desvincular_solicitacao"} <= names
+    assert {"listar_solicitacoes", "obter_solicitacao", "alterar_status", "implementar", "comentar_solicitacao", "ligar_issue_github", "vincular_solicitacao", "desvincular_solicitacao"} <= names
     comentar = next(t for t in listed["result"]["tools"] if t["name"] == "comentar_solicitacao")
     assert "português do Brasil" in comentar["description"]
 
@@ -767,16 +777,30 @@ def test_fila_filtro_fase_tipo_e_resumo(client, seed_base, auth_headers, monkeyp
     saas_sug = next(i["id"] for i in lista if i["origem_solicitacao_id"] == sid_sug)
     saas_err = next(i["id"] for i in lista if i["origem_solicitacao_id"] == sid_err)
 
-    client.patch(
-        f"/v1/saas/solicitacoes/{saas_sug}/status",
+    _avancar_status(client, h, saas_sug, "em_analise", "planejada")
+    lig = client.patch(
+        f"/v1/saas/solicitacoes/{saas_sug}/github",
         headers=h,
-        json={"status": "em_desenvolvimento"},
+        json={"github_issue_url": "https://github.com/lgustavoss/dx-connect/issues/9001"},
     )
-    client.patch(
-        f"/v1/saas/solicitacoes/{saas_err}/status",
+    assert lig.status_code == 200, lig.text
+    impl = client.post(
+        f"/v1/saas/solicitacoes/{saas_sug}/implementar",
         headers=h,
-        json={"status": "concluida"},
+        json={},
     )
+    assert impl.status_code == 200, impl.text
+    assert impl.json()["status"] == "em_desenvolvimento"
+
+    _avancar_status(client, h, saas_err, "em_analise", "planejada")
+    lig2 = client.patch(
+        f"/v1/saas/solicitacoes/{saas_err}/github",
+        headers=h,
+        json={"github_issue_url": "https://github.com/lgustavoss/dx-connect/issues/9002"},
+    )
+    assert lig2.status_code == 200, lig2.text
+    assert client.post(f"/v1/saas/solicitacoes/{saas_err}/implementar", headers=h, json={}).status_code == 200
+    _avancar_status(client, h, saas_err, "concluida")
 
     aguardando = client.get("/v1/saas/solicitacoes?fase=aguardando", headers=h)
     assert aguardando.status_code == 200
@@ -806,3 +830,127 @@ def test_fila_filtro_fase_tipo_e_resumo(client, seed_base, auth_headers, monkeyp
     bad = client.get("/v1/saas/solicitacoes?fase=xyz", headers=h)
     assert bad.status_code == 400
 
+
+
+def test_transicao_status_ilegais_400(client, seed_base, auth_headers, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    monkeypatch.setattr(settings, "SAAS_INSTANCE_SLUG", "local")
+    sid = _criar_solicitacao(client, auth_headers["a1"]).json()["id"]
+    h = auth_headers["ops"]
+    saas_id = _saas_id_de_origem(client, h, sid)
+
+    for st in ("planejada", "em_desenvolvimento", "concluida"):
+        r = client.patch(
+            f"/v1/saas/solicitacoes/{saas_id}/status",
+            headers=h,
+            json={"status": st},
+        )
+        assert r.status_code == 400, st
+
+    _avancar_status(client, h, saas_id, "em_analise")
+    assert (
+        client.patch(
+            f"/v1/saas/solicitacoes/{saas_id}/status",
+            headers=h,
+            json={"status": "aberta"},
+        ).status_code
+        == 400
+    )
+    _avancar_status(client, h, saas_id, "planejada")
+    sem_gh = client.patch(
+        f"/v1/saas/solicitacoes/{saas_id}/status",
+        headers=h,
+        json={"status": "em_desenvolvimento"},
+    )
+    assert sem_gh.status_code == 400
+    assert "GitHub" in (sem_gh.json().get("detail") or "")
+
+    client.patch(
+        f"/v1/saas/solicitacoes/{saas_id}/github",
+        headers=h,
+        json={"github_issue_url": "https://github.com/lgustavoss/dx-connect/issues/9100"},
+    )
+    assert client.post(f"/v1/saas/solicitacoes/{saas_id}/implementar", headers=h, json={}).status_code == 200
+    _avancar_status(client, h, saas_id, "concluida")
+    assert (
+        client.patch(
+            f"/v1/saas/solicitacoes/{saas_id}/status",
+            headers=h,
+            json={"status": "em_analise"},
+        ).status_code
+        == 400
+    )
+
+
+def test_implementar_liga_github_e_avanca(client, seed_base, auth_headers, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    monkeypatch.setattr(settings, "SAAS_INSTANCE_SLUG", "local")
+    sid = _criar_solicitacao(client, auth_headers["a1"]).json()["id"]
+    h = auth_headers["ops"]
+    saas_id = _saas_id_de_origem(client, h, sid)
+    _avancar_status(client, h, saas_id, "em_analise", "planejada")
+
+    cedo = client.post(f"/v1/saas/solicitacoes/{saas_id}/implementar", headers=h, json={"criar_issue": False})
+    assert cedo.status_code == 400
+
+    ok = client.post(
+        f"/v1/saas/solicitacoes/{saas_id}/implementar",
+        headers=h,
+        json={"github_issue_url": "https://github.com/lgustavoss/dx-connect/issues/954"},
+    )
+    assert ok.status_code == 200, ok.text
+    body = ok.json()
+    assert body["status"] == "em_desenvolvimento"
+    assert body["github_issue_number"] == 954
+    assert "954" in (body["github_issue_url"] or "")
+
+    minhas = client.get(f"/v1/solicitacoes-melhoria/{sid}", headers=auth_headers["a1"]).json()
+    assert minhas["status"] == "em_desenvolvimento"
+    assert minhas.get("github_issue_url") in (None, "")
+    assert any(hist["status_novo"] == "em_desenvolvimento" for hist in minhas["historico"])
+
+
+def test_implementar_cria_issue_quando_configurado(client, seed_base, auth_headers, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    monkeypatch.setattr(settings, "SAAS_INSTANCE_SLUG", "local")
+    monkeypatch.setattr(settings, "GITHUB_TOKEN", "fake-token")
+    monkeypatch.setattr(settings, "GITHUB_REPO_SUGESTOES", "lgustavoss/dx-connect")
+
+    class _Resp:
+        status_code = 201
+
+        def json(self):
+            return {
+                "number": 4242,
+                "html_url": "https://github.com/lgustavoss/dx-connect/issues/4242",
+            }
+
+    class _Client:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def post(self, url, headers=None, json=None):
+            assert "lgustavoss/dx-connect" in url
+            return _Resp()
+
+    monkeypatch.setattr("app.services.saas_solicitacao_github.httpx.Client", lambda timeout=30.0: _Client())
+
+    sid = _criar_solicitacao(client, auth_headers["a1"]).json()["id"]
+    h = auth_headers["ops"]
+    saas_id = _saas_id_de_origem(client, h, sid)
+    _avancar_status(client, h, saas_id, "em_analise", "planejada")
+    r = client.post(f"/v1/saas/solicitacoes/{saas_id}/implementar", headers=h, json={})
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "em_desenvolvimento"
+    assert r.json()["github_issue_number"] == 4242
+    cliente = client.get(f"/v1/solicitacoes-melhoria/{sid}", headers=auth_headers["a1"]).json()
+    assert cliente.get("github_issue_url") in (None, "")
