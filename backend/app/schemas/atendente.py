@@ -1,5 +1,9 @@
+from typing import Any, Literal
+
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from datetime import date, datetime
+
+ModoJornada = Literal["nenhum", "semanal", "ciclo"]
 
 
 class AtendenteBase(BaseModel):
@@ -7,7 +11,10 @@ class AtendenteBase(BaseModel):
     nome: str
     role: str = "atendente"  # admin | atendente | comercial | saas_ops
     ativo: bool = True
+    modo_jornada: ModoJornada = "nenhum"
+    # Compat: True se modo semanal|ciclo (preenchido na Read / sync no write)
     usa_escala: bool = False
+    horario_semana: dict[str, Any] | None = None
     escala_horas_trabalho: int | None = Field(default=None, ge=1, le=168)
     escala_horas_folga: int | None = Field(default=None, ge=1, le=720)
     escala_inicio_em: date | None = None
@@ -28,7 +35,9 @@ class AtendenteUpdate(BaseModel):
     role: str | None = None
     ativo: bool | None = None
     setor_ids: list[int] | None = None
+    modo_jornada: ModoJornada | None = None
     usa_escala: bool | None = None
+    horario_semana: dict[str, Any] | None = None
     escala_horas_trabalho: int | None = Field(default=None, ge=1, le=168)
     escala_horas_folga: int | None = Field(default=None, ge=1, le=720)
     escala_inicio_em: date | None = None

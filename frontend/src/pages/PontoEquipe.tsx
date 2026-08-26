@@ -264,6 +264,7 @@ export function PontoEquipe() {
         usar_feriados_nacionais: settings.usar_feriados_nacionais,
         fecho_automatico_ativo: settings.fecho_automatico_ativo,
         fecho_apos_horas: settings.fecho_apos_horas,
+        fecho_margem_pos_saida_minutos: settings.fecho_margem_pos_saida_minutos ?? 30,
         jornada_diaria_minutos: settings.jornada_diaria_minutos,
         politica_geolocalizacao: settings.politica_geolocalizacao,
       })
@@ -407,6 +408,19 @@ export function PontoEquipe() {
                 hint="pendentes"
               />
             </div>
+            {(digest?.itens ?? []).some((i) => i.status === 'falta' || i.atrasado) ? (
+              <ul className="space-y-1 text-sm text-amber-900 dark:text-amber-100">
+                {(digest?.itens ?? [])
+                  .filter((i) => i.status === 'falta' || i.atrasado)
+                  .map((i) => (
+                    <li key={`alerta-${i.atendente_id}`}>
+                      <span className="font-medium">{i.nome}</span>
+                      {i.status === 'falta' ? ' — falta' : null}
+                      {i.atrasado ? ' — atraso' : null}
+                    </li>
+                  ))}
+              </ul>
+            ) : null}
           </div>
         )}
       </Card>
@@ -682,10 +696,10 @@ export function PontoEquipe() {
                     setSettings({ ...settings, fecho_automatico_ativo: e.target.checked })
                   }
                 />
-                Fechar jornada automaticamente após N horas (desligado por padrão)
+                Fechar jornada esquecida automaticamente (desligado por padrão)
               </label>
               <Input
-                label="Horas para fecho automático"
+                label="Horas abertas para fecho (critério 1)"
                 type="number"
                 min={4}
                 max={48}
@@ -694,6 +708,23 @@ export function PontoEquipe() {
                   setSettings({ ...settings, fecho_apos_horas: Number(e.target.value) || 14 })
                 }
               />
+              <Input
+                label="Margem após saída prevista, minutos (critério 2)"
+                type="number"
+                min={0}
+                max={240}
+                value={String(settings.fecho_margem_pos_saida_minutos ?? 30)}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    fecho_margem_pos_saida_minutos: Number(e.target.value) || 0,
+                  })
+                }
+              />
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Fecha pelo critério que ocorrer primeiro (N horas abertas ou saída prevista + margem),
+                com motivo esquecimento.
+              </p>
               <Input
                 label="Jornada diária (minutos) — meta do calendário"
                 type="number"
