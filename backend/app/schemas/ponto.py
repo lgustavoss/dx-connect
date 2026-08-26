@@ -199,6 +199,7 @@ class PontoSettingsRead(BaseModel):
     usar_feriados_nacionais: bool = True
     fecho_automatico_ativo: bool = False
     fecho_apos_horas: int = 14
+    fecho_margem_pos_saida_minutos: int = 30
     jornada_diaria_minutos: int = 480
     politica_geolocalizacao: PoliticaGeolocalizacao = "opcional"
 
@@ -209,6 +210,7 @@ class PontoSettingsUpdate(BaseModel):
     usar_feriados_nacionais: bool | None = None
     fecho_automatico_ativo: bool | None = None
     fecho_apos_horas: int | None = Field(default=None, ge=4, le=48)
+    fecho_margem_pos_saida_minutos: int | None = Field(default=None, ge=0, le=240)
     jornada_diaria_minutos: int | None = Field(default=None, ge=60, le=1440)
     politica_geolocalizacao: PoliticaGeolocalizacao | None = None
 

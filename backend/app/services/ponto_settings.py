@@ -55,6 +55,13 @@ def settings_update(db: Session, admin: Atendente, data: PontoSettingsUpdate) ->
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="fecho_apos_horas deve estar entre 4 e 48.",
             )
+    if "fecho_margem_pos_saida_minutos" in payload:
+        m = payload["fecho_margem_pos_saida_minutos"]
+        if m is None or m < 0 or m > 240:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="fecho_margem_pos_saida_minutos deve estar entre 0 e 240.",
+            )
     if "jornada_diaria_minutos" in payload:
         m = payload["jornada_diaria_minutos"]
         if m is None or m < 60 or m > 1440:
@@ -268,8 +275,14 @@ def remover_feriado(db: Session, admin: Atendente, feriado_id: int) -> None:
 
 
 def processar_fecho_automatico(db: Session, *, limit: int = 100) -> int:
-    """Fecha jornadas abertas além do limite, só onde a política está ativa."""
+    """Fecha jornadas esquecidas: N horas abertas OU após saída prevista + margem (#961)."""
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+
+    from app.services import escala as escala_svc
     from app.services import ponto as ponto_svc
+
+    PONTO_TZ = ZoneInfo("America/Sao_Paulo")
 
     settings_rows = (
         db.query(PontoSettings)
@@ -283,7 +296,7 @@ def processar_fecho_automatico(db: Session, *, limit: int = 100) -> int:
     fechados = 0
     for st in settings_rows:
         horas = max(4, int(st.fecho_apos_horas or 14))
-        limite = agora.timestamp() - horas * 3600
+        margem = max(0, int(getattr(st, "fecho_margem_pos_saida_minutos", 30) or 0))
         atendentes = (
             db.query(Atendente)
             .filter(Atendente.tenant_id == st.tenant_id, Atendente.ativo.is_(True))
@@ -296,7 +309,17 @@ def processar_fecho_automatico(db: Session, *, limit: int = 100) -> int:
             if entrada is None:
                 continue
             reg = ponto_svc._as_utc(entrada.registrado_em)
-            if reg.timestamp() > limite:
+            por_horas = (agora - reg).total_seconds() >= horas * 3600
+            criterios: list[str] = []
+            if por_horas:
+                criterios.append("n_horas")
+            dia = reg.astimezone(PONTO_TZ).date()
+            saida_prev = escala_svc.saida_prevista_em(a, dia)
+            if saida_prev is not None:
+                limite_saida = saida_prev + timedelta(minutes=margem)
+                if agora.astimezone(PONTO_TZ) >= limite_saida:
+                    criterios.append("saida_prevista")
+            if not criterios:
                 continue
             if ponto_svc.em_pausa_aberta(db, a.id):
                 ponto_svc.bater(
@@ -319,13 +342,16 @@ def processar_fecho_automatico(db: Session, *, limit: int = 100) -> int:
                 db,
                 "ponto_batida",
                 saida.id,
-                "fecho_automatico",
+                "esquecimento",
                 None,
                 payload={
                     "atendente_id": a.id,
                     "tenant_id": st.tenant_id,
                     "fecho_apos_horas": horas,
+                    "fecho_margem_pos_saida_minutos": margem,
+                    "criterios": criterios,
                     "entrada_em": reg.isoformat(),
+                    "motivo": "esquecimento",
                 },
             )
             fechados += 1

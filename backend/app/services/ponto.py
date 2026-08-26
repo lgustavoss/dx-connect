@@ -122,13 +122,13 @@ def estado_atual(db: Session, atendente: Atendente) -> PontoEstadoRead:
     rotulo = None
     if escala_svc.escala_configurada(atendente):
         hoje_esp = escala_svc.eh_dia_de_trabalho(atendente, hoje)
-        rotulo = escala_svc.rotulo_escala(atendente.escala_horas_trabalho, atendente.escala_horas_folga)
+        rotulo = escala_svc.rotulo_jornada(atendente)
     return PontoEstadoRead(
         em_jornada=entrada is not None,
         em_pausa=bool(ultima and ultima.tipo == "pausa_inicio"),
         entrada_aberta_em=entrada.registrado_em if entrada else None,
         ultima_batida=PontoBatidaRead.model_validate(ultima) if ultima else None,
-        usa_escala=bool(getattr(atendente, "usa_escala", False)),
+        usa_escala=escala_svc.escala_configurada(atendente),
         hoje_esperado=hoje_esp,
         escala_rotulo=rotulo,
     )
@@ -181,6 +181,10 @@ def bater(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Já existe uma jornada aberta. Registre a saída antes de uma nova entrada.",
             )
+        origem_chk = (origem or "web").strip().lower()
+        if origem_chk not in ("admin", "sistema"):
+            when_chk = registrado_em or _agora_utc()
+            escala_svc.validar_janela_entrada(atendente, when_chk)
     elif tipo == "saida":
         if not em_jornada:
             raise HTTPException(
@@ -408,17 +412,15 @@ def _primeira_entrada_do_dia(batidas_dia: list[PontoBatida]) -> PontoBatida | No
 
 
 def _atrasado_entrada(atendente: Atendente, entrada: PontoBatida | None) -> bool:
-    """True se há horário previsto e a 1ª entrada passou previsto + tolerância."""
-    from app.core.business_calendar import parse_hhmm
-
+    """True se a 1ª entrada passou inicio + tolerância (dentro da tol = não atraso)."""
     if entrada is None:
         return False
-    pe = parse_hhmm(getattr(atendente, "horario_previsto_entrada", None))
-    if not pe:
+    if not escala_svc.escala_configurada(atendente):
         return False
-    tol = int(getattr(atendente, "tolerancia_atraso_minutos", 0) or 0)
     local = _as_utc(entrada.registrado_em).astimezone(PONTO_TZ)
-    limite = local.replace(hour=pe[0], minute=pe[1], second=0, microsecond=0) + timedelta(minutes=tol)
+    limite = escala_svc.limite_atraso_em(atendente, local.date())
+    if limite is None:
+        return False
     return local > limite
 
 
@@ -524,14 +526,14 @@ def calendario(
         trabalhados = sum(i.duracao_segundos or 0 for i in intervalos if not i.aberto)
         esperado_visual = bool(esp and not feriado)
         if usa and esperado_visual:
-            esperados = escala_svc.segundos_esperados_dia(atendente) or meta_default
+            esperados = escala_svc.segundos_esperados_dia(atendente, d) or meta_default
         elif te or ts:
             esperados = meta_default
         elif esperado_visual:
             esperados = meta_default
         else:
             esperados = 0
-        # Sem escala: dia com batidas compara à meta; dia vazio fica neutro
+        # Sem jornada esperada: dia com batidas compara à meta; dia vazio fica neutro
         esperado_para_cor = esperado_visual if usa else bool(te or ts)
         dias_out.append(
             PontoCalendarioDia(
@@ -564,13 +566,8 @@ def calendario(
         atendente_id=atendente.id,
         ano=ano,
         mes=mes,
-        usa_escala=bool(getattr(atendente, "usa_escala", False)),
-        escala_rotulo=escala_svc.rotulo_escala(
-            atendente.escala_horas_trabalho,
-            atendente.escala_horas_folga,
-        )
-        if getattr(atendente, "usa_escala", False)
-        else None,
+        usa_escala=usa,
+        escala_rotulo=escala_svc.rotulo_jornada(atendente) if usa else None,
         jornada_diaria_minutos=jornada_min,
         dias=dias_out,
     )
@@ -694,7 +691,7 @@ def banco_horas(
             dias_feriado += 1
         elif usa and escala_svc.eh_dia_de_trabalho(atendente, d):
             dias_escala += 1
-            esperado += escala_svc.segundos_esperados_dia(atendente)
+            esperado += escala_svc.segundos_esperados_dia(atendente, d)
         d += timedelta(days=1)
 
     hist = historico(db, atendente, desde=desde, ate=ate, offset=0, limit=10_000)
@@ -732,8 +729,9 @@ def alertas_me(db: Session, atendente: Atendente) -> "PontoAlertasMe":
     horas_aberta: float | None = None
 
     feriado = ponto_settings_svc.eh_feriado(db, atendente.tenant_id, hoje)
+    jornada_ativa = escala_svc.escala_configurada(atendente)
     esperado = None
-    if escala_svc.escala_configurada(atendente) and not feriado:
+    if jornada_ativa and not feriado:
         esperado = escala_svc.eh_dia_de_trabalho(atendente, hoje)
 
     entrada = _entrada_da_jornada_aberta(db, atendente.id)
@@ -755,9 +753,14 @@ def alertas_me(db: Session, atendente: Atendente) -> "PontoAlertasMe":
         hb = hb.replace(tzinfo=timezone.utc)
     online = bool(hb and hb >= agora - timedelta(seconds=PRESENCA_TTL_SEC))
 
-    if esperado is True and not tem_entrada_hoje and entrada is None:
-        sem_entrada = True
-        msgs.append("Hoje é dia de trabalho na sua escala e ainda não há entrada registrada.")
+    # Modo nenhum: sem avisos de falta/atraso (#959)
+    if jornada_ativa:
+        if esperado is True and not tem_entrada_hoje and entrada is None:
+            sem_entrada = True
+            msgs.append("Hoje é dia de trabalho na sua jornada e ainda não há entrada registrada.")
+
+        if _atrasado_entrada(atendente, primeira):
+            msgs.append("Entrada registrada após o horário previsto (fora da tolerância).")
 
     if online and entrada is None:
         online_sem = True
@@ -771,9 +774,10 @@ def alertas_me(db: Session, atendente: Atendente) -> "PontoAlertasMe":
             msgs.append(
                 f"Jornada aberta há cerca de {horas_aberta:.0f} h — lembre-se de registrar a saída."
             )
-
-    if _atrasado_entrada(atendente, primeira):
-        msgs.append("Entrada registrada após o horário previsto (com tolerância).")
+        elif jornada_ativa:
+            saida_prev = escala_svc.saida_prevista_em(atendente, hoje)
+            if saida_prev is not None and agora.astimezone(PONTO_TZ) >= saida_prev:
+                msgs.append("Horário de saída previsto já passou — registre a saída.")
 
     return PontoAlertasMe(
         sem_entrada_em_dia_escala=sem_entrada,

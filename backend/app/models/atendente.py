@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Table, UniqueConstraint
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Table, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -35,12 +35,14 @@ class Atendente(Base):
     # Token Cursor MCP pessoal (#915): plaintext só na geração; Bearer resolve este ops.
     mcp_token_hash = Column(String(64), nullable=True, unique=True, index=True)
     mcp_token_gerado_em = Column(DateTime(timezone=True), nullable=True)
-    # Controle de ponto / escala (#761+): flag + ciclo horas trabalhadas × horas de folga.
+    # Controle de ponto / escala (#761+ / #959): nenhum | semanal | ciclo.
     usa_escala = Column(Boolean, nullable=False, default=False, server_default="false")
+    modo_jornada = Column(String(20), nullable=False, default="nenhum", server_default="nenhum")
+    horario_semana_json = Column(Text, nullable=True)
     escala_horas_trabalho = Column(Integer, nullable=True)
     escala_horas_folga = Column(Integer, nullable=True)
     escala_inicio_em = Column(Date, nullable=True)
-    horario_previsto_entrada = Column(String(5), nullable=True)  # HH:MM
+    horario_previsto_entrada = Column(String(5), nullable=True)  # HH:MM (ciclo)
     horario_previsto_saida = Column(String(5), nullable=True)
     tolerancia_atraso_minutos = Column(Integer, nullable=False, default=0, server_default="0")
     created_at = Column(DateTime(timezone=True), server_default=func.now())

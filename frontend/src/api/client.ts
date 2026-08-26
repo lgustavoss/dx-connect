@@ -2444,6 +2444,7 @@ export namespace Setores {
 }
 
 export namespace Atendentes {
+  export type ModoJornada = 'nenhum' | 'semanal' | 'ciclo'
   export interface Atendente {
     id: number;
     email: string;
@@ -2453,7 +2454,9 @@ export namespace Atendentes {
     setor_ids: number[];
     e_financeiro?: boolean;
     must_change_password?: boolean;
+    modo_jornada?: ModoJornada;
     usa_escala?: boolean;
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
     escala_horas_trabalho?: number | null;
     escala_horas_folga?: number | null;
     escala_inicio_em?: string | null;
@@ -2471,7 +2474,9 @@ export namespace Atendentes {
     role?: string;
     ativo?: boolean;
     setor_ids?: number[];
+    modo_jornada?: ModoJornada;
     usa_escala?: boolean;
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
     escala_horas_trabalho?: number | null;
     escala_horas_folga?: number | null;
     escala_inicio_em?: string | null;
@@ -2486,7 +2491,9 @@ export namespace Atendentes {
     role?: string;
     ativo?: boolean;
     setor_ids?: number[];
+    modo_jornada?: ModoJornada;
     usa_escala?: boolean;
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
     escala_horas_trabalho?: number | null;
     escala_horas_folga?: number | null;
     escala_inicio_em?: string | null;
@@ -4845,6 +4852,7 @@ export namespace Ponto {
     usar_feriados_nacionais: boolean
     fecho_automatico_ativo: boolean
     fecho_apos_horas: number
+    fecho_margem_pos_saida_minutos: number
     jornada_diaria_minutos: number
     politica_geolocalizacao: PoliticaGeolocalizacao
   }
@@ -4856,6 +4864,7 @@ export namespace Ponto {
     usar_feriados_nacionais?: boolean
     fecho_automatico_ativo?: boolean
     fecho_apos_horas?: number
+    fecho_margem_pos_saida_minutos?: number
     jornada_diaria_minutos?: number
     politica_geolocalizacao?: PoliticaGeolocalizacao
   }

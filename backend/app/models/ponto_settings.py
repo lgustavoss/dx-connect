@@ -14,6 +14,8 @@ class PontoSettings(Base):
     usar_feriados_nacionais = Column(Boolean, nullable=False, default=True, server_default="true")
     fecho_automatico_ativo = Column(Boolean, nullable=False, default=False, server_default="false")
     fecho_apos_horas = Column(Integer, nullable=False, default=14, server_default="14")
+    # Margem após saída prevista do dia (#961); fecho = min(N horas, saída+margem).
+    fecho_margem_pos_saida_minutos = Column(Integer, nullable=False, default=30, server_default="30")
     jornada_diaria_minutos = Column(Integer, nullable=False, default=480, server_default="480")
     # opcional | recomendada | obrigatoria (#844)
     politica_geolocalizacao = Column(String(20), nullable=False, default="opcional", server_default="opcional")
