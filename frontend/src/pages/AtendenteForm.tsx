@@ -20,7 +20,7 @@ import {
   horarioSemanaPadrao,
   validarHorarioSemana,
   type HorarioSemana,
-} from '../lib/horarioSemana
+} from '../lib/horarioSemana'
 import { SemPermissao } from './SemPermissao'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
