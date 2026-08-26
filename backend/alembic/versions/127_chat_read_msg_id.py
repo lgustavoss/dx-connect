@@ -1,7 +1,7 @@
 """Cursor de leitura WhatsApp/Portal por id de mensagem (#951).
 
-Revision ID: 124_chat_read_msg_id
-Revises: 123_saas_preco_negociado
+Revision ID: 127_chat_read_msg_id
+Revises: 126_ponto_hora_extra
 Create Date: 2026-08-25
 """
 
@@ -10,8 +10,8 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
-revision = "124_chat_read_msg_id"
-down_revision = "123_saas_preco_negociado"
+revision = "127_chat_read_msg_id"
+down_revision = "126_ponto_hora_extra"
 branch_labels = None
 depends_on = None
 
