@@ -142,13 +142,13 @@ export function ChatEncerrarModal<TChat extends { estado: string }>({
     try {
       if (acao === 'registrar') {
         if (form.naturezaId === '') {
-          toast.showWarning('Selecione a natureza da demanda ou marque encerrar sem registar.')
+          toast.showWarning('Selecione a natureza da demanda ou marque encerrar sem registrar.')
           return
         }
         await api.registrarDemanda(chatId, demandaFormPayload(form))
       } else if (acao === 'sem_demanda') {
         if (!demandaOpcional && !confirmarSemDemanda) {
-          toast.showWarning('Confirme que deseja encerrar sem registar demanda.')
+          toast.showWarning('Confirme que deseja encerrar sem registrar demanda.')
           return
         }
       } else if (acao === 'nova') {
@@ -181,14 +181,14 @@ export function ChatEncerrarModal<TChat extends { estado: string }>({
 
   if (demandaOpcional) {
     mensagemIntro = chatJaEncerrado
-      ? 'Este atendimento foi encerrado automaticamente por inatividade do cliente. Registar demanda é opcional.'
-      : 'O cliente está inativo. Pode encerrar sem registar demanda ou classificar opcionalmente.'
+      ? 'Este atendimento foi encerrado automaticamente por inatividade do cliente. Registrar demanda é opcional.'
+      : 'O cliente está inativo. Pode encerrar sem registrar demanda ou classificar opcionalmente.'
   } else if (semDemandas) {
     mensagemIntro =
-      'Registe o motivo do atendimento antes de encerrar, ou confirme explicitamente o encerramento sem demanda.'
+      'Registre o motivo do atendimento antes de encerrar, ou confirme explicitamente o encerramento sem demanda.'
   } else if (posRegistro) {
     mensagemIntro =
-      'Houve conversa após o último registo de demanda. Escolha se mantém, corrige ou acrescenta outra demanda.'
+      'Houve conversa após o último registro de demanda. Escolha se mantém, corrige ou acrescenta outra demanda.'
   }
 
   const mostrarForm = acao === 'registrar' || acao === 'nova' || (acao === 'editar' && posRegistro != null)
@@ -233,7 +233,7 @@ export function ChatEncerrarModal<TChat extends { estado: string }>({
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
               <p className="font-semibold">Conversa continuou após a última demanda</p>
               <p className="mt-1">
-                «{rotuloDemanda(posRegistro.ultimaDemanda)}» registada às{' '}
+                «{rotuloDemanda(posRegistro.ultimaDemanda)}» registrada às{' '}
                 {formatarHoraDemanda(posRegistro.ultimaDemanda.created_at)}.
               </p>
               <p className="mt-1">
@@ -251,7 +251,7 @@ export function ChatEncerrarModal<TChat extends { estado: string }>({
               {demandaOpcional ? (
                 <>
                   <p className="text-xs text-slate-500">
-                    Registar demanda é opcional neste encerramento por inatividade.
+                    Registrar demanda é opcional neste encerramento por inatividade.
                   </p>
                   <label className="flex cursor-pointer items-center gap-2 text-sm">
                     <input
@@ -260,7 +260,7 @@ export function ChatEncerrarModal<TChat extends { estado: string }>({
                       checked={acao === 'sem_demanda'}
                       onChange={() => selecionarAcao('sem_demanda')}
                     />
-                    {chatJaEncerrado ? 'Concluir sem registar demanda' : 'Encerrar sem registar demanda'}
+                    {chatJaEncerrado ? 'Concluir sem registrar demanda' : 'Encerrar sem registrar demanda'}
                   </label>
                   <label className="flex cursor-pointer items-center gap-2 text-sm">
                     <input
@@ -269,7 +269,7 @@ export function ChatEncerrarModal<TChat extends { estado: string }>({
                       checked={acao === 'registrar'}
                       onChange={() => selecionarAcao('registrar')}
                     />
-                    Registar demanda (opcional)
+                    Registrar demanda (opcional)
                   </label>
                 </>
               ) : (
@@ -281,7 +281,7 @@ export function ChatEncerrarModal<TChat extends { estado: string }>({
                       checked={acao === 'registrar'}
                       onChange={() => selecionarAcao('registrar')}
                     />
-                    Registar demanda e encerrar
+                    Registrar demanda e encerrar
                   </label>
                   <label className="flex cursor-pointer items-center gap-2 text-sm">
                     <input
@@ -290,7 +290,7 @@ export function ChatEncerrarModal<TChat extends { estado: string }>({
                       checked={acao === 'sem_demanda'}
                       onChange={() => selecionarAcao('sem_demanda')}
                     />
-                    Encerrar sem registar demanda
+                    Encerrar sem registrar demanda
                   </label>
                   {acao === 'sem_demanda' && (
                     <CheckboxField
@@ -338,7 +338,7 @@ export function ChatEncerrarModal<TChat extends { estado: string }>({
             </div>
           ) : (
             <p className="text-xs text-slate-500">
-              As demandas registadas cobrem esta sessão. Confirme para encerrar.
+              As demandas registradas cobrem esta sessão. Confirme para encerrar.
             </p>
           )}
 
@@ -350,7 +350,7 @@ export function ChatEncerrarModal<TChat extends { estado: string }>({
             <Button variant="cancel" onClick={onClose} disabled={salvando}>
               Cancelar
             </Button>
-            <Button variant="danger" onClick={() => void executarEncerramento()} loading={salvando}>
+            <Button variant="primary" onClick={() => void executarEncerramento()} loading={salvando}>
               {rotuloBotaoEncerrar}
             </Button>
           </div>
