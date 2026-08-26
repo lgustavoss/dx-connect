@@ -88,19 +88,25 @@ A **URL pública** da instância não é escolhida livremente: o ops/cliente def
 
 ## Planos e módulos (catálogo comercial)
 
-- UI: `/saas/planos`, `/saas/modulos` — CRUD, activar/desactivar; plano associa `modulo_ids`.
-- Licença: campo `plano_id` (select); `plano` fica como rótulo denormalizado do nome.
-- Seed (migration `091`): módulos `helpdesk`, `whatsapp`, `contratos`, `boletos`; planos `trial`, `profissional`, `enterprise`.
-- Planos podem ter `preco_mensal`, `max_postos`, `max_usuarios` (migration `092`).
-- Ao atribuir/aprovar plano, a licença grava `modulos_snapshot` + limites (congelados na ficha comercial).
-- No provisionamento, `SAAS_MODULOS` é escrito no `client.env` a partir do snapshot; o `/health` da instância expõe `capabilities.modulo_*` lidos dessa env.
-- Enforcement fino de features no produto cliente (UI/RBAC por módulo) fica para follow-up — hoje o snapshot + env são a fonte de verdade comercial/ops.
+- UI: `/saas/planos`, `/saas/modulos` — CRUD, ativar/desativar; plano associa `modulo_ids`.
+- **Preço no módulo** (`saas_modulos.preco_mensal`); o `preco_mensal` do plano é sempre a **soma** dos módulos do pacote (recalcula ao editar preço ou composição).
+- Plano também define `usuarios_inclusos` (default 3) e `preco_usuario_extra` (default R$ 10).
+- Licença: `plano_id` (rótulo comercial) + `modulo_ids` opcional para **mix custom** (ex.: Essencial + 1 módulo Enterprise) + `usuarios_contratados` → grava em `max_usuarios` / `modulos_snapshot`.
+- **Valor mensal negociado** (`preco_mensal_negociado`): opcional na licença; se preenchido, vira o valor comercial efetivo (`preco_mensal_efetivo`); senão usa a estimativa do catálogo (módulos + extras).
+- Estimativa na ficha: `preco_modulos` + extras de usuário = `preco_mensal_estimado`.
+- Seed (migrations `091` + `121` + `122` + `123`): módulos com preço; planos pela soma; coluna de valor negociado na licença.
+- No provisionamento, `SAAS_MODULOS` vem do snapshot; `/health` expõe `capabilities.modulo_*`.
+- Enforcement fino de features no produto cliente e bloqueio hard de usuários além do contratado ficam para follow-up.
 
 ## Fila de sugestões das instâncias (#855 / #856)
 
 Quem **usa** o DeskRudder (admin/atendente da instância) abre sugestão ou problema nas Release Notes (`/sobre`). O pedido fica na instância (**Minhas solicitações**). Uma **cópia autenticada** vai para a fila única do control-plane (`/saas/solicitacoes`).
 
 A **triagem** (status e respostas) é feita por `saas_ops` no detalhe `/saas/solicitacoes/{id}`. O protocolo `#SYYYYMM-NNNN` é **único no produto**: a instância comercial (control-plane, Postgres próprio na VPS) emite o número no ingest; o cliente vê o mesmo valor em Minhas solicitações após o sync. Pedidos iguais de vários clientes ligam-se **só no painel SaaS** (`POST …/vinculos`); o peso é o número de clientes no grupo e **não** volta à instância. No GitHub, o título usa um protocolo; o corpo leva `texto_github_demanda` (lista de protocolos). Comentários **públicos** e o status voltam à instância; notas internas e o grupo ficam só no SaaS. O admin da instância **não** altera status nem envia notas de produto.
+
+**Máquina de estados (G1 #953):** só transições `aberta→em_analise→planejada→em_desenvolvimento→concluida`, com `nao_sera_desenvolvida` (+ motivo) a partir de qualquer etapa não final. Saltos ilegais → HTTP 400. Sync SaaS→instância aplica o status já validado no control-plane (e o histórico na instância continua a registar).
+
+**Implementar (G2 #954):** `POST …/solicitacoes/{id}/implementar` a partir de `planejada` cria issue (API GitHub) ou liga URL/número e avança para `em_desenvolvimento`. Sem vínculo GitHub não entra nesse status. O cliente nível 2 **nunca** vê URL/número da issue.
 
 O **posto** (portal) não entra neste fluxo. Análise no Cursor e issues GitHub **não** fazem parte deste lote (#857).
 
@@ -127,8 +133,9 @@ No control-plane (`SAAS_CONTROL_PLANE=true`), a abertura grava directo na tabela
 - `GET /v1/saas/ingest/solicitacoes/sync` — mesmo token; devolve status + comentários públicos daquele slug (`?since=` opcional).
 - `GET /v1/saas/solicitacoes` e `GET /v1/saas/solicitacoes/{id}` — `saas_ops` (JWT) ou token Cursor pessoal (`/saas/conta`) / `SAAS_MCP_TOKEN` legado.
 - `PATCH …/solicitacoes/{id}/github` — liga a issue criada no GitHub ao pedido (e ao grupo, se houver). Só ops / MCP; o cliente não vê.
+- `POST …/solicitacoes/{id}/implementar` — G2: cria ou liga issue e marca `em_desenvolvimento` (só a partir de `planejada`).
 - `POST …/solicitacoes/{id}/vinculos` e `DELETE …/vinculos/{membro_id}` — grupo de pedidos iguais (peso). Só ops / MCP.
-- `PATCH /v1/saas/solicitacoes/{id}/status` e `POST /v1/saas/solicitacoes/{id}/comentarios` — triagem.
+- `PATCH /v1/saas/solicitacoes/{id}/status` e `POST /v1/saas/solicitacoes/{id}/comentarios` — triagem (máquina de estados G1).
 - `POST /v1/saas/me/mcp-token` — gera o token Cursor desta conta (plaintext uma vez). `GET` estado; `DELETE` revoga.
 - `GET/POST /v1/saas/usuarios` e `PATCH /v1/saas/usuarios/{id}` — equipa `saas_ops` (nome, e-mail, activo). `POST …/senha-temporaria` devolve senha uma vez. Não são atendentes da instância do cliente.
 - `POST /v1/saas/clientes/{id}/gerar-token-ingest` — devolve o plaintext **uma vez** e escreve no `client.env` se a pasta do cliente já existir.
@@ -158,7 +165,55 @@ O script corre no PC do ops. A fila é a da instância comercial (`SAAS_CONTROL_
 
 O `SAAS_MCP_TOKEN` no `.env` da VPS ainda é aceite como **legado** (não identifica a pessoa). Prefira o token do painel.
 
-Ferramentas: listar, obter, alterar status, comentar, vincular pedidos iguais, ligar issue GitHub (aceitam `id` ou protocolo). Sem OpenAI e sem `CURSOR_API_KEY` no DeskRudder. O GitHub MCP (criar issues) é à parte e também é por instalação do Cursor.
+Ferramentas: listar, obter, alterar status (máquina G1), **implementar** (G2), comentar, vincular pedidos iguais, ligar issue GitHub (aceitam `id` ou protocolo). Sem OpenAI e sem `CURSOR_API_KEY` no DeskRudder. Criar issue pode ser via `implementar` (token GitHub no control-plane) ou MCP GitHub à parte + `ligar_issue_github`.
+
+## Runbook: desativar cliente sem derrubar o SaaS
+
+Objetivo: tirar do ar (ou suspender) **só** a instância do cliente. O control-plane continua a servir licenças, fila, MCP e `/saas`.
+
+### Pré-cheque (comercial viva)
+
+```bash
+curl -sf https://api.deskrudder.com.br/health   # saas_control_plane: true
+curl -sf -o /dev/null -w "%{http_code}\n" https://deskrudder.com.br/login/admin
+```
+
+No Cursor: `/listar-solicitacoes` (ou MCP `deskrudder-saas`) ainda lista a fila — prova de que o MCP aponta a `api.deskrudder.com.br`, não a `api-duplexsoft`.
+
+### Suspender pelo painel (recomendado)
+
+1. `/saas/licencas` → cliente → **Suspender** (marca licença + fila de `stack down` se provisionada).
+2. No host, se `SAAS_PROVISION_EXEC_ENABLED=false`, correr os comandos `down` mostrados no detalhe (ou `stack-client.sh down <slug>`).
+3. **Não** pare o stack `admin-center` nem remova Nginx de `api.deskrudder.com.br` / `deskrudder.com.br`.
+
+### Parar só a DuplexSoft (legado `docker-compose.prod.yml`)
+
+Na VPS, como usuário de deploy:
+
+```bash
+cd /opt/dx-connect
+docker compose --env-file backend/.env -f docker-compose.prod.yml stop
+# ou: down — remove containers; volumes/Postgres do host ficam conforme o compose
+```
+
+**Não** execute `stack-client.sh down admin-center`.
+
+### Pós-cheque
+
+| Check | Esperado |
+|-------|----------|
+| `https://api.deskrudder.com.br/health` | `200`, `saas_control_plane: true` |
+| `https://deskrudder.com.br/saas/...` (logado) | painel ops responde |
+| MCP / `/listar-solicitacoes` | fila comercial acessível |
+| `https://api-duplexsoft…/health` (se parou o cliente) | falha / indisponível — **ok** |
+| Postgres `dx-connect-db-admin-center` | `Up` / healthy |
+
+A **fila de sugestões** e as contas `saas_ops` vivem só no Postgres do admin-center. A BD do cliente não é fonte de verdade do control-plane; desligar o cliente não apaga a fila.
+
+### Reativar
+
+- Licença: **Reativar** no painel + `stack-client.sh up <slug>` (ou `docker compose … up -d` no legado DuplexSoft).
+- Confirmar health do cliente e, se aplicável, **Confirmar stack** no detalhe da licença.
 
 ## Histórico da licença
 
@@ -286,6 +341,6 @@ Worker `saas-renovacoes` (intervalo `SAAS_RENEWAL_WORKER_INTERVAL_SECONDS`):
 
 ## Referências
 
-- Épico: `#519`
-- Issues: DR-01…DR-08 em `.github/planning-issue-bodies/`
-- Deploy por cliente: `docs/DEPLOYMENT_ARCHITECTURE.md`, `deploy/clients/README.md`
+- Épico cutover: **#875** (filhas #876–#880; docs #879)
+- Deploy por cliente: `docs/DEPLOYMENT_ARCHITECTURE.md`, `deploy/clients/README.md`, `deploy/admin-center/README.md`
+- MCP example: `.cursor/mcp.json.example` (`DESKRUDDER_API_URL=https://api.deskrudder.com.br`)

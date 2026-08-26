@@ -1,5 +1,9 @@
+from typing import Any, Literal
+
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from datetime import date, datetime
+
+ModoJornada = Literal["nenhum", "semanal", "ciclo"]
 
 
 class AtendenteBase(BaseModel):
@@ -7,13 +11,18 @@ class AtendenteBase(BaseModel):
     nome: str
     role: str = "atendente"  # admin | atendente | comercial | saas_ops
     ativo: bool = True
+    modo_jornada: ModoJornada = "nenhum"
+    # Compat: True se modo semanal|ciclo (preenchido na Read / sync no write)
     usa_escala: bool = False
+    horario_semana: dict[str, Any] | None = None
     escala_horas_trabalho: int | None = Field(default=None, ge=1, le=168)
     escala_horas_folga: int | None = Field(default=None, ge=1, le=720)
     escala_inicio_em: date | None = None
     horario_previsto_entrada: str | None = Field(default=None, max_length=5)
     horario_previsto_saida: str | None = Field(default=None, max_length=5)
     tolerancia_atraso_minutos: int = Field(default=0, ge=0, le=120)
+    usar_local_empresa: bool = True
+    local_empresa_raio_metros: int | None = Field(default=None, ge=20, le=50_000)
 
 
 class AtendenteCreate(AtendenteBase):
@@ -28,13 +37,17 @@ class AtendenteUpdate(BaseModel):
     role: str | None = None
     ativo: bool | None = None
     setor_ids: list[int] | None = None
+    modo_jornada: ModoJornada | None = None
     usa_escala: bool | None = None
+    horario_semana: dict[str, Any] | None = None
     escala_horas_trabalho: int | None = Field(default=None, ge=1, le=168)
     escala_horas_folga: int | None = Field(default=None, ge=1, le=720)
     escala_inicio_em: date | None = None
     horario_previsto_entrada: str | None = Field(default=None, max_length=5)
     horario_previsto_saida: str | None = Field(default=None, max_length=5)
     tolerancia_atraso_minutos: int | None = Field(default=None, ge=0, le=120)
+    usar_local_empresa: bool | None = None
+    local_empresa_raio_metros: int | None = Field(default=None, ge=20, le=50_000)
 
 
 class AtendenteRead(AtendenteBase):
@@ -47,6 +60,8 @@ class AtendenteRead(AtendenteBase):
     setor_ids: list[int] = []
     e_financeiro: bool = False
     must_change_password: bool = False
+    saas_setor_ids: list[int] = []
+    saas_setor_nomes: list[str] = []
 
     model_config = ConfigDict(from_attributes=True)
 
