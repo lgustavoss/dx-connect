@@ -78,16 +78,34 @@ function ChatAtendendoItem({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-1.5">
-              <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{item.nome}</p>
+              <p
+                className={`truncate text-sm ${
+                  (item.nao_lidas_count ?? 0) > 0
+                    ? 'font-bold text-slate-900 dark:text-white'
+                    : 'font-semibold text-slate-900 dark:text-white'
+                }`}
+              >
+                {item.nome}
+              </p>
               {variant === 'proprio' && (
                 <span className="shrink-0 rounded-full bg-cyan-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-cyan-800 dark:bg-cyan-950/60 dark:text-cyan-200">
                   Você
                 </span>
               )}
             </div>
-            {item.estado === 'aguardando_atendente' && (
-              <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" title="Aguardando" />
-            )}
+            <div className="flex shrink-0 items-center gap-1.5">
+              {(item.nao_lidas_count ?? 0) > 0 && (
+                <span
+                  className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-cyan-600 px-1.5 py-0.5 text-[10px] font-bold text-white"
+                  title={`${item.nao_lidas_count} não lida${(item.nao_lidas_count ?? 0) === 1 ? '' : 's'}`}
+                >
+                  {(item.nao_lidas_count ?? 0) > 99 ? '99+' : item.nao_lidas_count}
+                </span>
+              )}
+              {item.estado === 'aguardando_atendente' && (
+                <span className="h-2 w-2 rounded-full bg-amber-500" title="Aguardando" />
+              )}
+            </div>
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
             <ChatCanalBadge canal={item.canal} />
@@ -185,7 +203,7 @@ export function ChatListaAtendendo() {
     return (
       <ChatHubEmptyState
         title="Nenhum atendimento seu"
-        description="Quando assumires um chat, ele aparece aqui."
+        description="Quando você assumir um chat, ele aparece aqui."
         actions={
           filaCount > 0
             ? [{ type: 'link', to: '/chat/espera', label: `Ir para Aguardando (${filaCount > 99 ? '99+' : filaCount})` }]

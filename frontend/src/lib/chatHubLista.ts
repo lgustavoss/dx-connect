@@ -18,6 +18,7 @@ export type ChatHubItem = {
   atendente_nome?: string | null
   ultima_mensagem_preview?: string | null
   foto_perfil_url?: string | null
+  nao_lidas_count?: number
 }
 
 export function mapWhatsappChat(c: WhatsappChats.Chat): ChatHubItem {
@@ -34,6 +35,7 @@ export function mapWhatsappChat(c: WhatsappChats.Chat): ChatHubItem {
     atendente_id: c.atendente_id,
     atendente_nome: c.atendente_nome,
     foto_perfil_url: c.foto_perfil_url,
+    nao_lidas_count: c.nao_lidas_count ?? 0,
   }
 }
 
@@ -51,6 +53,7 @@ export function mapPortalChat(c: PortalChats.Chat): ChatHubItem {
     atendente_id: c.atendente_id,
     atendente_nome: c.atendente_nome,
     ultima_mensagem_preview: c.ultima_mensagem_preview,
+    nao_lidas_count: c.nao_lidas_count ?? 0,
   }
 }
 
@@ -87,6 +90,9 @@ export function ordenarFila(items: ChatHubItem[]): ChatHubItem[] {
 
 export function ordenarAtendendo(items: ChatHubItem[]): ChatHubItem[] {
   return [...items].sort((a, b) => {
+    const ua = a.nao_lidas_count ?? 0
+    const ub = b.nao_lidas_count ?? 0
+    if (ub !== ua) return ub - ua
     const ta = a.atendimento_inicio_at || a.created_at
     const tb = b.atendimento_inicio_at || b.created_at
     return (tb ? new Date(tb).getTime() : 0) - (ta ? new Date(ta).getTime() : 0)

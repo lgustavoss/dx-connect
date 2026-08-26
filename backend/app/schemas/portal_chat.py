@@ -42,6 +42,9 @@ class PortalChatRead(BaseModel):
     atendimento_inicio_at: datetime | None
     encerramento_at: datetime | None
     ultima_mensagem_preview: str | None = None
+    nao_lidas_count: int = 0
+    last_seen_at: datetime | None = None
+    last_seen_mensagem_id: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -633,12 +633,51 @@ def _criar_funcionario_rede(
     return f
 
 
-def _chat_read(db: Session, c: WhatsappChat, *, revelar_avaliacao: bool = False) -> WhatsappChatRead:
+def _nao_lidas_whatsapp(
+    db: Session, c: WhatsappChat, atendente_id: int
+) -> tuple[int, datetime | None, int | None]:
+    """Inbound após o cursor de leitura (#951)."""
+    row = (
+        db.query(WhatsappChatReadModel.last_seen_at, WhatsappChatReadModel.last_seen_mensagem_id)
+        .filter(
+            WhatsappChatReadModel.chat_id == c.id,
+            WhatsappChatReadModel.atendente_id == atendente_id,
+        )
+        .first()
+    )
+    ls = row[0] if row else None
+    cursor_id = row[1] if row else None
+    q = db.query(func.count(WhatsappMensagem.id)).filter(
+        WhatsappMensagem.chat_id == c.id,
+        WhatsappMensagem.direcao == "inbound",
+    )
+    if cursor_id is not None:
+        q = q.filter(WhatsappMensagem.id > cursor_id)
+    else:
+        eff = ls if ls is not None else (c.atendimento_inicio_at or c.created_at)
+        if eff is None:
+            return 0, ls, cursor_id
+        q = q.filter(WhatsappMensagem.created_at > eff)
+    return int(q.scalar() or 0), ls, cursor_id
+
+
+def _chat_read(
+    db: Session,
+    c: WhatsappChat,
+    *,
+    revelar_avaliacao: bool = False,
+    atendente_id: int | None = None,
+) -> WhatsappChatRead:
     nota = getattr(c, "avaliacao_nota", None) if revelar_avaliacao else None
     respondida = getattr(c, "avaliacao_respondida_at", None) if revelar_avaliacao else None
     solicitada = bool(getattr(c, "avaliacao_solicitada", False)) if revelar_avaliacao else False
     func = getattr(c, "funcionario_rede", None)
     emp = getattr(c, "empresa", None)
+    nao_lidas = 0
+    last_seen: datetime | None = None
+    last_seen_msg: int | None = None
+    if atendente_id is not None:
+        nao_lidas, last_seen, last_seen_msg = _nao_lidas_whatsapp(db, c, atendente_id)
     return WhatsappChatRead(
         id=c.id,
         protocolo=c.protocolo,
@@ -668,6 +707,9 @@ def _chat_read(db: Session, c: WhatsappChat, *, revelar_avaliacao: bool = False)
         classificacao_demanda_pendente=bool(getattr(c, "classificacao_demanda_pendente", False)),
         foto_perfil_url=getattr(c, "foto_perfil_url", None),
         foto_perfil_atualizada_em=getattr(c, "foto_perfil_atualizada_em", None),
+        nao_lidas_count=nao_lidas,
+        last_seen_at=last_seen,
+        last_seen_mensagem_id=last_seen_msg,
     )
 
 
@@ -823,7 +865,7 @@ def listar_meus_ativos(
     if atendente.role != "admin":
         q = q.filter(WhatsappChat.atendente_id == atendente.id)
     rows = q.order_by(WhatsappChat.atendimento_inicio_at.desc().nullslast()).all()
-    return [_chat_read(db, c) for c in rows]
+    return [_chat_read(db, c, atendente_id=atendente.id) for c in rows]
 
 
 @router.get("/encerrados", response_model=ListaPaginada[WhatsappChatRead])
@@ -1376,7 +1418,7 @@ def obter(
     if _maybe_refresh_foto_perfil(db, c, force=False):
         db.commit()
         db.refresh(c)
-    return _chat_read(db, c)
+    return _chat_read(db, c, atendente_id=atendente.id)
 
 
 @router.get("/{chat_id}/pdf")
@@ -2215,6 +2257,9 @@ def marcar_chat_visto(
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
 
     now = datetime.now(timezone.utc)
+    max_msg_id = (
+        db.query(func.max(WhatsappMensagem.id)).filter(WhatsappMensagem.chat_id == chat_id).scalar()
+    )
     row = (
         db.query(WhatsappChatReadModel)
         .filter(WhatsappChatReadModel.chat_id == chat_id, WhatsappChatReadModel.atendente_id == atendente.id)
@@ -2222,9 +2267,16 @@ def marcar_chat_visto(
     )
     if row:
         row.last_seen_at = now
+        row.last_seen_mensagem_id = max_msg_id
     else:
-        db.add(WhatsappChatReadModel(chat_id=chat_id, atendente_id=atendente.id, last_seen_at=now))
-
+        db.add(
+            WhatsappChatReadModel(
+                chat_id=chat_id,
+                atendente_id=atendente.id,
+                last_seen_at=now,
+                last_seen_mensagem_id=max_msg_id,
+            )
+        )
     # ✓✓ azul no WhatsApp do cliente: só o responsável, em atendimento
     if (
         c.estado == "em_atendimento"
