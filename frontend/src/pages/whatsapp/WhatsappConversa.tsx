@@ -606,6 +606,8 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
   const enviandoRef = useRef(false)
   const enviandoMidiaRef = useRef(false)
   const [reagirMsgId, setReagirMsgId] = useState<number | null>(null)
+  /** Primeira inbound não lida ao abrir — divisor estilo WhatsApp (#951). */
+  const [divisorNaoLidasMsgId, setDivisorNaoLidasMsgId] = useState<number | null>(null)
   /** Menu Editar/Apagar/Reagir ou formulário de edição abertos — oculta picker hover (#947). */
   const [acoesMenuMsgId, setAcoesMenuMsgId] = useState<number | null>(null)
 
@@ -877,9 +879,12 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
 
   // Carregar conversa e mensagens
 
-  const carregar = useCallback(async () => {
+  const carregar = useCallback(async (): Promise<{
+    chat: WhatsappChats.Chat
+    msgs: WhatsappChats.Mensagem[]
+  } | null> => {
 
-    if (!id) return
+    if (!id) return null
 
     const gen = ++carregarGenRef.current
     const el = scrollRef.current
@@ -891,11 +896,12 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
 
       const [c, m] = await Promise.all([whatsappChats.get(id), whatsappChats.mensagens(id)])
 
-      if (gen !== carregarGenRef.current) return
+      if (gen !== carregarGenRef.current) return null
 
       setChat((prev) => mergeWhatsappChat(prev, c))
 
-      setMsgs(whatsappMensagensUnicas(m))
+      const unicas = whatsappMensagensUnicas(m)
+      setMsgs(unicas)
 
       requestAnimationFrame(() => {
         if (!initialScrollRestoredRef.current) return
@@ -908,9 +914,12 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
         }
       })
 
+      return { chat: c, msgs: unicas }
+
     } catch (err) {
 
       toast.showError(mensagemFalhaParaToast(err))
+      return null
 
     }
 
@@ -939,16 +948,56 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
     if (!id) return
 
     setLoading(true)
+    setDivisorNaoLidasMsgId(null)
     viuEmAtendimentoRef.current = false
     inatividadeToastFeitoRef.current = false
 
-    carregar().then(() => whatsappChats.marcarVisto(id)).finally(() => setLoading(false))
+    carregar()
+      .then(async (data) => {
+        if (data && (data.chat.nao_lidas_count ?? 0) > 0) {
+          const cursorId = data.chat.last_seen_mensagem_id
+          let primeira: WhatsappChats.Mensagem | undefined
+          if (cursorId != null) {
+            primeira = data.msgs.find(
+              (m) =>
+                m.direcao === 'inbound' &&
+                !m.evento_sistema &&
+                !m.apagada &&
+                m.id > cursorId,
+            )
+          } else {
+            const eff =
+              data.chat.last_seen_at || data.chat.atendimento_inicio_at || data.chat.created_at || null
+            const effMs = eff ? new Date(eff).getTime() : 0
+            primeira = data.msgs.find(
+              (m) =>
+                m.direcao === 'inbound' &&
+                !m.evento_sistema &&
+                !m.apagada &&
+                m.created_at &&
+                new Date(m.created_at).getTime() > effMs,
+            )
+          }
+          if (primeira) setDivisorNaoLidasMsgId(primeira.id)
+        }
+        await whatsappChats.marcarVisto(id)
+        void carregarSidebar()
+      })
+      .finally(() => setLoading(false))
 
     return () => {
       revokeWhatsappMidiaForChat(Number(id))
     }
 
-  }, [id, carregar])
+  }, [id, carregar, carregarSidebar])
+
+  useEffect(() => {
+    if (!divisorNaoLidasMsgId || loading) return
+    const t = window.setTimeout(() => {
+      document.getElementById('wa-nao-lidas')?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }, 80)
+    return () => window.clearTimeout(t)
+  }, [divisorNaoLidasMsgId, loading])
 
 
 
@@ -2138,12 +2187,26 @@ useEffect(() => {
               m.evento_sistema === 'comentario_interno' || m.evento_sistema === 'transferencia'
             const isTransferencia = m.evento_sistema === 'transferencia'
 
-           
+            const mostrarDivisorNaoLidas = divisorNaoLidasMsgId === m.id
 
             return (
+              <div key={m.id} className="w-full space-y-4">
+                {mostrarDivisorNaoLidas && (
+                  <div
+                    id="wa-nao-lidas"
+                    className="flex w-full items-center gap-3 py-1"
+                    role="separator"
+                    aria-label="Mensagens não lidas"
+                  >
+                    <div className="h-px flex-1 bg-cyan-500/50" />
+                    <span className="shrink-0 rounded-full bg-cyan-600 px-3 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
+                      Mensagens não lidas
+                    </span>
+                    <div className="h-px flex-1 bg-cyan-500/50" />
+                  </div>
+                )}
 
-              <div 
-                key={m.id} 
+              <div
                 id={`msg-${m.wa_message_id || m.id}`}
                 data-wa-msg-id={m.id}
                 onDoubleClick={(e) => duploCliqueResponder(e, m, isSystem)}
@@ -2297,6 +2360,7 @@ useEffect(() => {
                   </button>
                 )}
 
+              </div>
               </div>
 
             )

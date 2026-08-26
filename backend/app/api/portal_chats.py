@@ -6,7 +6,9 @@ import logging
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy import or_
+from datetime import datetime
+
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
@@ -14,7 +16,7 @@ from app.core.auth import obter_atendente_atual
 from app.core.setor_scope import ids_setores_visiveis_atendente
 from app.database import get_db
 from app.models.atendente import Atendente
-from app.models.portal_chat import PortalChat, PortalMensagem
+from app.models.portal_chat import PortalChat, PortalChatRead as PortalChatReadModel, PortalMensagem
 from app.models.setor import Setor
 from app.schemas.portal_chat import (
     PortalChatDemandaCreate,
@@ -71,7 +73,39 @@ def _ultima_mensagem_preview(db: Session, chat_id: int) -> str | None:
     return _preview_corpo(corpo)
 
 
-def _chat_read(db: Session, c: PortalChat) -> PortalChatRead:
+def _nao_lidas_portal(
+    db: Session, c: PortalChat, atendente_id: int
+) -> tuple[int, datetime | None, int | None]:
+    row = (
+        db.query(PortalChatReadModel.last_seen_at, PortalChatReadModel.last_seen_mensagem_id)
+        .filter(
+            PortalChatReadModel.chat_id == c.id,
+            PortalChatReadModel.atendente_id == atendente_id,
+        )
+        .first()
+    )
+    ls = row[0] if row else None
+    cursor_id = row[1] if row else None
+    q = db.query(func.count(PortalMensagem.id)).filter(
+        PortalMensagem.chat_id == c.id,
+        PortalMensagem.direcao == "inbound",
+    )
+    if cursor_id is not None:
+        q = q.filter(PortalMensagem.id > cursor_id)
+    else:
+        eff = ls if ls is not None else (c.atendimento_inicio_at or c.created_at)
+        if eff is None:
+            return 0, ls, cursor_id
+        q = q.filter(PortalMensagem.created_at > eff)
+    return int(q.scalar() or 0), ls, cursor_id
+
+
+def _chat_read(db: Session, c: PortalChat, *, atendente_id: int | None = None) -> PortalChatRead:
+    nao_lidas = 0
+    last_seen: datetime | None = None
+    last_seen_msg: int | None = None
+    if atendente_id is not None:
+        nao_lidas, last_seen, last_seen_msg = _nao_lidas_portal(db, c, atendente_id)
     return PortalChatRead(
         id=c.id,
         protocolo=c.protocolo,
@@ -86,6 +120,9 @@ def _chat_read(db: Session, c: PortalChat) -> PortalChatRead:
         atendimento_inicio_at=c.atendimento_inicio_at,
         encerramento_at=c.encerramento_at,
         ultima_mensagem_preview=_ultima_mensagem_preview(db, c.id),
+        nao_lidas_count=nao_lidas,
+        last_seen_at=last_seen,
+        last_seen_mensagem_id=last_seen_msg,
     )
 
 
@@ -175,7 +212,7 @@ def listar_meus(
     if atendente.role != "admin":
         q = q.filter(PortalChat.atendente_id == atendente.id)
     rows = q.order_by(PortalChat.atendimento_inicio_at.desc().nullslast()).all()
-    return [_chat_read(db, c) for c in rows]
+    return [_chat_read(db, c, atendente_id=atendente.id) for c in rows]
 
 
 @router.get("/{chat_id}", response_model=PortalChatRead)
@@ -186,7 +223,7 @@ def obter_chat(
 ):
     c = _get_chat(db, chat_id)
     exigir_acesso_portal_chat(db, atendente, c)
-    return _chat_read(db, c)
+    return _chat_read(db, c, atendente_id=atendente.id)
 
 
 @router.get("/{chat_id}/mensagens", response_model=list[PortalChatMensagemRead])

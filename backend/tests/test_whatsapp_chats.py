@@ -67,6 +67,39 @@ def test_fila_e_assumir(client, seed_base, auth_headers):
     assert client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json() == []
 
 
+def test_meus_e_visto_contam_nao_lidas(client, seed_base, auth_headers):
+    """#951: nao_lidas_count sobe com inbound e zera após POST /visto."""
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "nl-1"},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "nl-1"}
+    client.post(
+        "/v1/webhooks/evolution",
+        json=_webhook_body(wa_id="5511777666555", msg_id="nl-m1", text="oi"),
+        headers=h,
+    )
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+    assert client.post(f"/v1/whatsapp/chats/{cid}/assumir", headers=auth_headers["a1"]).status_code == 200
+    assert client.post(f"/v1/whatsapp/chats/{cid}/visto", headers=auth_headers["a1"]).status_code == 204
+
+    client.post(
+        "/v1/webhooks/evolution",
+        json=_webhook_body(wa_id="5511777666555", msg_id="nl-m2", text="nova"),
+        headers=h,
+    )
+    meus = client.get("/v1/whatsapp/chats/meus", headers=auth_headers["a1"]).json()
+    row = next(c for c in meus if c["id"] == cid)
+    assert row["nao_lidas_count"] >= 1
+    assert "last_seen_at" in row
+
+    assert client.post(f"/v1/whatsapp/chats/{cid}/visto", headers=auth_headers["a1"]).status_code == 204
+    meus2 = client.get("/v1/whatsapp/chats/meus", headers=auth_headers["a1"]).json()
+    row2 = next(c for c in meus2 if c["id"] == cid)
+    assert row2["nao_lidas_count"] == 0
+
+
 def test_listar_encerrados_filtra_e_respeita_rbac(client, seed_base, auth_headers):
     client.patch(
         "/v1/settings/whatsapp",
