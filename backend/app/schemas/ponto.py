@@ -404,3 +404,52 @@ class PontoCoberturaRead(BaseModel):
     created_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PontoSetupItem(BaseModel):
+    codigo: str
+    titulo: str
+    detalhe: str
+    destino: str
+    ok: bool
+    informativo: bool = False
+
+
+class PontoSetupStatus(BaseModel):
+    defaults_fecho_off: bool
+    tolerancia_sugerida_minutos: int = 15
+    pendentes: int
+    itens: list[PontoSetupItem]
+
+
+class PontoCompetenciaRead(BaseModel):
+    id: int
+    ano: int
+    mes: int
+    fechada: bool
+    fechado_em: datetime | None = None
+    fechado_por_id: int | None = None
+    fechado_por_nome: str | None = None
+    reaberto_em: datetime | None = None
+    reaberto_por_id: int | None = None
+    reabrir_motivo: str | None = None
+
+
+class PontoCompetenciaReabrir(BaseModel):
+    motivo: str = Field(..., min_length=3, max_length=1000)
+
+
+class PontoCienciaMe(BaseModel):
+    ano: int
+    mes: int
+    competencia_fechada: bool
+    confirmada: bool
+    confirmado_em: datetime | None = None
+    pode_confirmar: bool
+
+
+class PontoCienciaItem(BaseModel):
+    atendente_id: int
+    atendente_nome: str
+    confirmada: bool
+    confirmado_em: datetime | None = None

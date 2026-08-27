@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ApiError, atendentes, audit, ponto, type Atendentes, type Audit, type Ponto } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
+import { PontoAjudaModal } from '../components/PontoAjudaModal'
 import { PontoCalendarioMes } from '../components/PontoCalendarioMes'
 import { PontoBatidaMapaModal } from '../components/PontoBatidaMapaModal'
 import { PontoMetricCard } from '../components/PontoMetricCard'
@@ -76,6 +78,12 @@ export function PontoEquipe() {
   const [cobData, setCobData] = useState(hojeIso)
   const [cobMotivo, setCobMotivo] = useState('')
   const [concedendoCob, setConcedendoCob] = useState(false)
+  const [setup, setSetup] = useState<Ponto.SetupStatus | null>(null)
+  const [compAno, setCompAno] = useState(() => new Date().getFullYear())
+  const [compMes, setCompMes] = useState(() => new Date().getMonth() + 1)
+  const [competencia, setCompetencia] = useState<Ponto.Competencia | null>(null)
+  const [ciencias, setCiencias] = useState<Ponto.CienciaItem[]>([])
+  const [ajudaAberta, setAjudaAberta] = useState(false)
   const [hesPendentes, setHesPendentes] = useState<Ponto.HoraExtra[]>([])
   const [heModo, setHeModo] = useState<'resto_do_dia' | 'ate_horario' | 'duracao'>('resto_do_dia')
   const [heAteHorario, setHeAteHorario] = useState('20:00')
@@ -102,7 +110,7 @@ export function PontoEquipe() {
   const carregar = useCallback(
     async (silencioso = false) => {
       try {
-        const [hist, dia, js, dig, st, fer, hes, cobs] = await Promise.all([
+        const [hist, dia, js, dig, st, fer, hes, cobs, setupSt, comp, cins] = await Promise.all([
           ponto.batidasAdmin({
             atendente_id: atendenteId ? Number(atendenteId) : undefined,
             desde,
@@ -116,6 +124,9 @@ export function PontoEquipe() {
           ponto.feriados(new Date().getFullYear()),
           ponto.horaExtraAdmin('pendente'),
           ponto.coberturasAdmin('pendente'),
+          ponto.setupStatus(),
+          ponto.competencia(compAno, compMes),
+          ponto.cienciasAdmin(compAno, compMes),
         ])
         setItems(hist.items)
         setTotal(hist.total)
@@ -126,6 +137,9 @@ export function PontoEquipe() {
         setFeriados(fer)
         setHesPendentes(hes)
         setCobPendentes(cobs)
+        setSetup(setupSt)
+        setCompetencia(comp)
+        setCiencias(cins)
         setSemPermissao(false)
         if (atendenteId) {
           const bh = await ponto.bancoHorasAdmin(Number(atendenteId), desde, ate)
@@ -145,7 +159,7 @@ export function PontoEquipe() {
         setLoading(false)
       }
     },
-    [ate, atendenteId, desde, toast],
+    [ate, atendenteId, compAno, compMes, desde, toast],
   )
 
   useEffect(() => {
@@ -488,7 +502,121 @@ export function PontoEquipe() {
       <PageHeader
         title="Ponto da equipe"
         subtitle="Visão do dia, batidas, ajustes auditados e relatórios mensais."
+        actions={
+          <Button type="button" variant="secondary" onClick={() => setAjudaAberta(true)}>
+            Como funciona o ponto
+          </Button>
+        }
       />
+
+      {setup && setup.pendentes > 0 ? (
+        <Card className="mb-4 border-amber-200 bg-amber-50/80 dark:border-amber-900/50 dark:bg-amber-950/30" title="Checklist de configuração">
+          <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
+            Defaults: fecho automático desligado até ativar; tolerância sugerida{' '}
+            {setup.tolerancia_sugerida_minutos} min no cadastro do colaborador.
+          </p>
+          <ul className="space-y-2 text-sm">
+            {setup.itens
+              .filter((i) => !i.ok)
+              .map((i) => (
+                <li key={i.codigo} className="flex flex-wrap items-center justify-between gap-2">
+                  <span>
+                    <strong>{i.titulo}</strong> — {i.detalhe}
+                  </span>
+                  {i.destino === 'cadastro_atendentes' ? (
+                    <Link to="/atendentes" className="text-cyan-700 underline dark:text-cyan-300">
+                      Abrir cadastro
+                    </Link>
+                  ) : (
+                    <a href="#ponto-settings" className="text-cyan-700 underline dark:text-cyan-300">
+                      Ir às configurações
+                    </a>
+                  )}
+                </li>
+              ))}
+          </ul>
+        </Card>
+      ) : null}
+
+      <Card className="mb-4" title="Competência mensal">
+        <div className="mb-3 flex flex-wrap items-end gap-3">
+          <Input
+            label="Ano"
+            type="number"
+            value={String(compAno)}
+            onChange={(e) => setCompAno(Number(e.target.value) || new Date().getFullYear())}
+          />
+          <Input
+            label="Mês"
+            type="number"
+            min={1}
+            max={12}
+            value={String(compMes)}
+            onChange={(e) => setCompMes(Math.min(12, Math.max(1, Number(e.target.value) || 1)))}
+          />
+          <Button
+            type="button"
+            disabled={competencia?.fechada}
+            onClick={() => {
+              void (async () => {
+                try {
+                  await ponto.fecharCompetencia(compAno, compMes)
+                  toast.showSuccess('Competência fechada.')
+                  await carregar(true)
+                } catch (err) {
+                  toast.showError(mensagemFalhaParaToast(err, 'Não foi possível fechar.'))
+                }
+              })()
+            }}
+          >
+            Fechar mês
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={!competencia?.fechada}
+            onClick={() => {
+              const motivo = window.prompt('Motivo da reabertura:')
+              if (!motivo || motivo.trim().length < 3) return
+              void (async () => {
+                try {
+                  await ponto.reabrirCompetencia(compAno, compMes, { motivo: motivo.trim() })
+                  toast.showSuccess('Competência reaberta.')
+                  await carregar(true)
+                } catch (err) {
+                  toast.showError(mensagemFalhaParaToast(err, 'Não foi possível reabrir.'))
+                }
+              })()
+            }}
+          >
+            Reabrir
+          </Button>
+        </div>
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          {competencia?.fechada
+            ? `Fechada${competencia.fechado_por_nome ? ` por ${competencia.fechado_por_nome}` : ''}${
+                competencia.fechado_em ? ` em ${new Date(competencia.fechado_em).toLocaleString('pt-BR')}` : ''
+              }. Ajustes passam a ser marcados como pós-fechamento.`
+            : 'Competência aberta — ajustes normais.'}
+        </p>
+        <p className="mt-3 mb-1 text-sm font-medium text-slate-800 dark:text-slate-100">Ciência da equipe</p>
+        {ciencias.length === 0 ? (
+          <p className="text-sm text-slate-500">Sem colaboradores ativos.</p>
+        ) : (
+          <ul className="max-h-48 space-y-1 overflow-y-auto text-sm">
+            {ciencias.map((c) => (
+              <li key={c.atendente_id} className="flex justify-between gap-2 border-b border-slate-100 py-1 dark:border-slate-800">
+                <span>{c.atendente_nome}</span>
+                <span className={c.confirmada ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}>
+                  {c.confirmada
+                    ? `Confirmou${c.confirmado_em ? ` · ${new Date(c.confirmado_em).toLocaleString('pt-BR')}` : ''}`
+                    : 'Pendente'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
 
       <Card className="overflow-hidden border-cyan-200/60 bg-gradient-to-br from-slate-50 via-white to-cyan-50/40 dark:border-cyan-900/40 dark:from-slate-950 dark:via-slate-900 dark:to-cyan-950/20">
         {loading && !digest ? (
@@ -1017,6 +1145,7 @@ export function PontoEquipe() {
           </Card>
         ) : null}
 
+        <div id="ponto-settings">
         <Card title="Configurações do ponto">
           {settings ? (
             <div className="space-y-3">
@@ -1107,6 +1236,7 @@ export function PontoEquipe() {
             <p className="text-sm text-slate-500">Carregando…</p>
           )}
         </Card>
+        </div>
 
         <Card title="Feriados da instância">
           <div className="mb-4 flex flex-wrap items-end gap-3">
@@ -1148,6 +1278,7 @@ export function PontoEquipe() {
         </Card>
       </div>
 
+      <PontoAjudaModal open={ajudaAberta} onClose={() => setAjudaAberta(false)} />
       <PontoBatidaMapaModal
         open={mapaBatida != null && mapaBatida.latitude != null && mapaBatida.longitude != null}
         onClose={() => setMapaBatida(null)}

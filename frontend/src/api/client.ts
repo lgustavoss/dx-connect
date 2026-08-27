@@ -882,6 +882,22 @@ export const ponto = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  setupStatus: () => api<Ponto.SetupStatus>('/ponto/setup-status'),
+  competencia: (ano: number, mes: number) =>
+    api<Ponto.Competencia>(`/ponto/competencias/${ano}/${mes}`),
+  fecharCompetencia: (ano: number, mes: number) =>
+    api<Ponto.Competencia>(`/ponto/competencias/${ano}/${mes}/fechar`, { method: 'POST' }),
+  reabrirCompetencia: (ano: number, mes: number, data: { motivo: string }) =>
+    api<Ponto.Competencia>(`/ponto/competencias/${ano}/${mes}/reabrir`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  cienciasAdmin: (ano: number, mes: number) =>
+    api<Ponto.CienciaItem[]>(`/ponto/competencias/${ano}/${mes}/ciencias`),
+  minhaCiencia: (ano: number, mes: number) =>
+    api<Ponto.CienciaMe>(withParams('/ponto/me/ciencia', { ano, mes })),
+  confirmarCiencia: (ano: number, mes: number) =>
+    api<Ponto.CienciaMe>(withParams('/ponto/me/ciencia', { ano, mes }), { method: 'POST' }),
   meSettings: () => api<Ponto.SettingsPublic>('/ponto/me/settings'),
   locais: (params?: { atendente_id?: number; so_orfos?: boolean }) =>
     api<Ponto.Local[]>(withParams('/ponto/locais', params)),
@@ -5105,6 +5121,46 @@ export namespace Ponto {
     decidido_em?: string | null
     decisao_motivo?: string | null
     created_at?: string | null
+  }
+  export interface SetupItem {
+    codigo: string
+    titulo: string
+    detalhe: string
+    destino: string
+    ok: boolean
+    informativo?: boolean
+  }
+  export interface SetupStatus {
+    defaults_fecho_off: boolean
+    tolerancia_sugerida_minutos: number
+    pendentes: number
+    itens: SetupItem[]
+  }
+  export interface Competencia {
+    id: number
+    ano: number
+    mes: number
+    fechada: boolean
+    fechado_em?: string | null
+    fechado_por_id?: number | null
+    fechado_por_nome?: string | null
+    reaberto_em?: string | null
+    reaberto_por_id?: number | null
+    reabrir_motivo?: string | null
+  }
+  export interface CienciaMe {
+    ano: number
+    mes: number
+    competencia_fechada: boolean
+    confirmada: boolean
+    confirmado_em?: string | null
+    pode_confirmar: boolean
+  }
+  export interface CienciaItem {
+    atendente_id: number
+    atendente_nome: string
+    confirmada: boolean
+    confirmado_em?: string | null
   }
   export interface HoraExtra {
     id: number
