@@ -774,6 +774,11 @@ export const ponto = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  concederHoraExtra: (data: Ponto.HoraExtraConceder) =>
+    api<Ponto.HoraExtra>('/ponto/hora-extra/conceder', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   exportCsv: async (params?: { atendente_id?: number; desde?: string; ate?: string }) => {
     const token = getAuthToken()
     const headers: Record<string, string> = {}
@@ -2508,6 +2513,7 @@ export namespace Atendentes {
     tolerancia_atraso_minutos?: number;
     usar_local_empresa?: boolean;
     local_empresa_raio_metros?: number | null;
+    he_teto_minutos?: number | null;
     /** Cargos da equipe DeskRudder (painel SaaS); vários por usuário. */
     saas_setor_ids?: number[];
     saas_setor_nomes?: string[];
@@ -2530,6 +2536,7 @@ export namespace Atendentes {
     tolerancia_atraso_minutos?: number;
     usar_local_empresa?: boolean;
     local_empresa_raio_metros?: number | null;
+    he_teto_minutos?: number | null;
   }
   export interface Update {
     email?: string;
@@ -2549,6 +2556,7 @@ export namespace Atendentes {
     tolerancia_atraso_minutos?: number;
     usar_local_empresa?: boolean;
     local_empresa_raio_metros?: number | null;
+    he_teto_minutos?: number | null;
   }
   export interface AvaliacaoResumo {
     media: number | null;
@@ -5008,6 +5016,7 @@ export namespace Ponto {
     motivo?: string | null
     modo?: string | null
     ate_em?: string | null
+    origem?: string
     decidido_por_id?: number | null
     decidido_em?: string | null
     decisao_motivo?: string | null
@@ -5018,15 +5027,25 @@ export namespace Ponto {
   }
   export interface HoraExtraDecisao {
     aprovar: boolean
-    modo?: 'resto_do_dia' | 'ate_horario' | null
+    modo?: 'resto_do_dia' | 'ate_horario' | 'duracao' | null
     ate_horario?: string | null
+    duracao_minutos?: number | null
     decisao_motivo?: string | null
+  }
+  export interface HoraExtraConceder {
+    atendente_id: number
+    modo: 'resto_do_dia' | 'ate_horario' | 'duracao'
+    ate_horario?: string | null
+    duracao_minutos?: number | null
+    motivo?: string | null
   }
   export interface HoraExtraMeStatus {
     fora_da_jornada: boolean
     pode_pegar_whatsapp: boolean
     he_ativa?: HoraExtra | null
     pedido_pendente?: HoraExtra | null
+    he_teto_minutos?: number | null
+    he_restante_minutos?: number | null
   }
 }
 

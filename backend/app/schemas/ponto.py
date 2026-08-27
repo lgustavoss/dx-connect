@@ -309,6 +309,7 @@ class PontoHoraExtraRead(BaseModel):
     motivo: str | None = None
     modo: str | None = None
     ate_em: datetime | None = None
+    origem: str = "solicitacao"
     decidido_por_id: int | None = None
     decidido_em: datetime | None = None
     decisao_motivo: str | None = None
@@ -319,9 +320,18 @@ class PontoHoraExtraRead(BaseModel):
 
 class PontoHoraExtraDecisao(BaseModel):
     aprovar: bool
-    modo: Literal["resto_do_dia", "ate_horario"] | None = None
+    modo: Literal["resto_do_dia", "ate_horario", "duracao"] | None = None
     ate_horario: str | None = Field(default=None, max_length=5, description="HH:MM se modo=ate_horario")
+    duracao_minutos: int | None = Field(default=None, ge=15, le=24 * 60)
     decisao_motivo: str | None = Field(default=None, max_length=1000)
+
+
+class PontoHoraExtraConceder(BaseModel):
+    atendente_id: int = Field(..., ge=1)
+    modo: Literal["resto_do_dia", "ate_horario", "duracao"]
+    ate_horario: str | None = Field(default=None, max_length=5)
+    duracao_minutos: int | None = Field(default=None, ge=15, le=24 * 60)
+    motivo: str | None = Field(default=None, max_length=1000)
 
 
 class PontoHoraExtraMeStatus(BaseModel):
@@ -329,3 +339,5 @@ class PontoHoraExtraMeStatus(BaseModel):
     pode_pegar_whatsapp: bool
     he_ativa: PontoHoraExtraRead | None = None
     pedido_pendente: PontoHoraExtraRead | None = None
+    he_teto_minutos: int | None = None
+    he_restante_minutos: int | None = None

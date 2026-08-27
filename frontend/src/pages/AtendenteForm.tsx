@@ -59,6 +59,7 @@ export function AtendenteForm() {
   const [toleranciaAtraso, setToleranciaAtraso] = useState('0')
   const [usarLocalEmpresa, setUsarLocalEmpresa] = useState(true)
   const [localEmpresaRaio, setLocalEmpresaRaio] = useState('')
+  const [heTetoMinutos, setHeTetoMinutos] = useState('')
 
   useEffect(() => {
     coletarTodasPaginas<Setores.Setor>((o, l) =>
@@ -106,6 +107,7 @@ export function AtendenteForm() {
         setLocalEmpresaRaio(
           a.local_empresa_raio_metros != null ? String(a.local_empresa_raio_metros) : '',
         )
+        setHeTetoMinutos(a.he_teto_minutos != null ? String(a.he_teto_minutos) : '')
         if (a.escala_horas_trabalho === 12 && a.escala_horas_folga === 36) setPresetEscala('12x36')
         else if (a.escala_horas_trabalho === 6 && a.escala_horas_folga === 18) setPresetEscala('6x18')
         else if (a.escala_horas_trabalho === 24 && a.escala_horas_folga === 48) setPresetEscala('24x48')
@@ -200,6 +202,12 @@ export function AtendenteForm() {
     }
   }
 
+  function payloadHeTeto(): { he_teto_minutos: number | null } {
+    const raw = heTetoMinutos.trim()
+    if (!raw) return { he_teto_minutos: null }
+    return { he_teto_minutos: Math.min(1440, Math.max(15, Number(raw) || 15)) }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (modoJornada === 'semanal') {
@@ -213,6 +221,7 @@ export function AtendenteForm() {
     try {
       const escala = payloadJornada()
       const locais = payloadLocais()
+      const heTeto = payloadHeTeto()
       if (isEdit && !Number.isNaN(atendenteId)) {
         await atendentes.update(atendenteId, {
           email,
@@ -222,6 +231,7 @@ export function AtendenteForm() {
           setor_ids: setorIds,
           ...escala,
           ...locais,
+          ...heTeto,
           ...(senha ? { senha } : {}),
         })
         toast.showSuccess('Atendente atualizado.')
@@ -237,6 +247,7 @@ export function AtendenteForm() {
           ativo,
           ...escala,
           ...locais,
+          ...heTeto,
         })
         toast.showSuccess('Atendente cadastrado.')
         navigate(`/atendentes/${created.id}/editar`, { replace: true })
@@ -444,6 +455,21 @@ export function AtendenteForm() {
                   </p>
                 </div>
               )}
+            </FormSection>
+            <FormSection title="Hora extra (WhatsApp)">
+              <Input
+                label="Teto por liberação (minutos)"
+                type="number"
+                min={15}
+                max={1440}
+                value={heTetoMinutos}
+                onChange={(e) => setHeTetoMinutos(e.target.value)}
+                placeholder="Sem limite"
+              />
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Vazio = sem teto. Cada concessão (resto do dia, até horário ou duração) é limitada a esse
+                máximo a partir do momento da liberação.
+              </p>
             </FormSection>
             {isEdit && !Number.isNaN(atendenteId) ? (
               <FormSection title="Locais de trabalho">

@@ -27,6 +27,7 @@ from app.schemas.ponto import (
     PontoFeriadoRead,
     PontoHistoricoRead,
     PontoHojeRead,
+    PontoHoraExtraConceder,
     PontoHoraExtraCreate,
     PontoHoraExtraDecisao,
     PontoHoraExtraMeStatus,
@@ -504,5 +505,23 @@ def decidir_hora_extra(
         aprovar=data.aprovar,
         modo=data.modo,
         ate_horario=data.ate_horario,
+        duracao_minutos=data.duracao_minutos,
         decisao_motivo=data.decisao_motivo,
+    )
+
+
+@router.post("/hora-extra/conceder", response_model=PontoHoraExtraRead, status_code=201)
+def conceder_hora_extra(
+    data: PontoHoraExtraConceder,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return he_svc.conceder_admin(
+        db,
+        admin,
+        atendente_id=data.atendente_id,
+        modo=data.modo,
+        ate_horario=data.ate_horario,
+        duracao_minutos=data.duracao_minutos,
+        motivo=data.motivo,
     )
