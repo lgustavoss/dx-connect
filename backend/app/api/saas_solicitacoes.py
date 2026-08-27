@@ -33,7 +33,6 @@ from app.schemas.saas_solicitacao import (
     SaasSolicitacaoStatusUpdate,
     SaasSolicitacaoSyncResponse,
     SaasSolicitacaoVinculoCreate,
-    SaasSolicitacaoVersaoAlvoUpdate,
 )
 
 router = APIRouter(prefix="/saas", tags=["saas-solicitacoes"])
@@ -259,18 +258,6 @@ def implementar(
 ):
     """G2: cria/liga issue GitHub e avança para em_desenvolvimento."""
     return triagem.implementar(db, solicitacao_id, ops, data)
-
-
-@router.patch("/solicitacoes/{solicitacao_id}/versao-alvo", response_model=SaasSolicitacaoDetalhe)
-def definir_versao_alvo(
-    solicitacao_id: int,
-    data: SaasSolicitacaoVersaoAlvoUpdate,
-    db: Session = Depends(get_db),
-    _: None = Depends(exigir_saas_control_plane),
-    ops: Atendente = Depends(exigir_fila_saas),
-):
-    """G3: define versão prevista/liberada visível ao cliente."""
-    return triagem.definir_versao_alvo(db, solicitacao_id, ops, data)
 
 
 @router.post("/solicitacoes/{solicitacao_id}/comentarios", response_model=SaasSolicitacaoDetalhe)

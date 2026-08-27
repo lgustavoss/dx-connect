@@ -59,7 +59,7 @@ def test_concluir_pedidos_release_idempotente(client, seed_base, auth_headers, m
     minhas = client.get(f"/v1/solicitacoes-melhoria/{sid}", headers=auth_headers["a1"]).json()
     assert minhas["status"] == "concluida"
     assert minhas["versao_alvo"] == "2026.08.99"
-    assert minhas["versao_alvo_rotulo"] == "Disponível na 2026.08.99"
+    assert minhas["versao_alvo_rotulo"] == "Disponível a partir da versão 2026.08.99 (ou superior)"
 
     stats2 = concluir_pedidos_release(db_session, versao="2026.08.99", textos_changelog=[texto])
     assert stats2["concluidos"] == 0

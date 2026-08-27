@@ -146,7 +146,7 @@ def concluir_pedidos_release(
     concluidos = 0
     ignorados = 0
     erros = 0
-    comentario = f"Melhoria disponível na versão {versao_n}."
+    comentario = f"Melhoria disponível a partir da versão {versao_n} (ou superior)."
     origem = f"release:{versao_n}"
 
     for row in candidatos:

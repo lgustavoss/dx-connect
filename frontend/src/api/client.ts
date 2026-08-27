@@ -5373,11 +5373,6 @@ export const saasSolicitacoes = {
       method: 'POST',
       body: JSON.stringify(data ?? {}),
     }),
-  definirVersaoAlvo: (id: number, data: SaasSolicitacoesProduto.VersaoAlvoUpdate) =>
-    api<SaasSolicitacoesProduto.Detalhe>(`/saas/solicitacoes/${id}/versao-alvo`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }),
   ligarGithub: (id: number, data: SaasSolicitacoesProduto.GithubUpdate) =>
     api<SaasSolicitacoesProduto.Detalhe>(`/saas/solicitacoes/${id}/github`, {
       method: 'PATCH',
@@ -5569,10 +5564,6 @@ export namespace SaasSolicitacoesProduto {
   export interface ComentarioCreate {
     corpo: string;
     publico_cliente: boolean;
-  }
-  export interface VersaoAlvoUpdate {
-    versao_alvo?: string | null;
-    comentario_publico?: string | null;
   }
 }
 

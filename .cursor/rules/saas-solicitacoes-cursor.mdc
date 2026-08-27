@@ -39,9 +39,8 @@ Checklist (MCP ou `/listar-solicitacoes`):
 - [ ] Protocolo `#S…` confirmado
 - [ ] Status `planejada` ou `em_desenvolvimento`
 - [ ] Issue GitHub ligada (`implementar` feito)
-- [ ] `versao_alvo` definida se já souber o release (G3)
 - [ ] Comentários ao cliente: pt-BR, **sem** GitHub/issue #
 
 ## Release
 
-CHANGELOG `[Unreleased]` cita `#S…` e/ou issue. No deploy admin-center, pedidos citados viram `concluida` + versão (G4).
+CHANGELOG `[Unreleased]` cita `#S…` e/ou issue. No deploy admin-center, pedidos citados viram `concluida` + versão liberada visível ao cliente (G4).

@@ -59,14 +59,13 @@ Não imprimir o token.
 
 ## Depois da listagem
 
-Só se o usuário pedir: detalhe (`obter_solicitacao`), alterar status, **definir versão alvo** (`definir_versao_alvo`), implementar, comentar, vincular pedidos ou ligar issue GitHub. Não triar sozinho.
+Só se o usuário pedir: detalhe (`obter_solicitacao`), alterar status, implementar, comentar, vincular pedidos ou ligar issue GitHub. Não triar sozinho.
 
 ### Checklist antes de implementar código (G5 / #957)
 
 - [ ] Protocolo `#S…` confirmado (`obter_solicitacao`)
 - [ ] Status `planejada` ou `em_desenvolvimento`
 - [ ] Issue GitHub ligada (`implementar` — G2)
-- [ ] `versao_alvo` opcional se release já conhecido (G3)
 - [ ] CHANGELOG do PR cita `#S…` para conclusão automática no deploy (G4)
 
 Comentário ao cliente: **português do Brasil**, sem GitHub/`issue #`. Sem pedido explícito de falar com o cliente, use nota interna (`publico_cliente=false`).
