@@ -27,6 +27,10 @@ from app.schemas.ponto import (
     PontoFeriadoRead,
     PontoHistoricoRead,
     PontoHojeRead,
+    PontoHoraExtraCreate,
+    PontoHoraExtraDecisao,
+    PontoHoraExtraMeStatus,
+    PontoHoraExtraRead,
     PontoJustificativaCreate,
     PontoJustificativaDecisao,
     PontoJustificativaRead,
@@ -38,6 +42,7 @@ from app.schemas.ponto import (
     PontoSettingsUpdate,
 )
 from app.services import ponto as ponto_svc
+from app.services import ponto_hora_extra as he_svc
 from app.services import ponto_justificativa as just_svc
 from app.services import ponto_relatorio as ponto_relatorio_svc
 from app.services import ponto_settings as ponto_settings_svc
@@ -121,7 +126,7 @@ def minhas_settings_ponto(
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
     ponto_svc.exigir_acesso_ponto(atendente)
-    out = ponto_settings_svc.settings_public_read(db, atendente.tenant_id)
+    out = ponto_settings_svc.settings_public_read(db, atendente)
     db.commit()
     return out
 
@@ -360,10 +365,14 @@ def remover_feriado(
 
 @router.get("/locais", response_model=list[PontoLocalRead])
 def listar_locais(
+    atendente_id: int | None = Query(None),
+    so_orfos: bool = Query(False, description="Só locais legados sem atendente"),
     db: Session = Depends(get_db),
     admin: Atendente = Depends(exigir_admin),
 ):
-    return ponto_settings_svc.listar_locais(db, admin.tenant_id)
+    return ponto_settings_svc.listar_locais(
+        db, admin.tenant_id, atendente_id=atendente_id, so_orfos=so_orfos
+    )
 
 
 @router.post("/locais", response_model=PontoLocalRead, status_code=201)
@@ -441,4 +450,59 @@ def decidir_justificativa(
         estado=data.estado,
         decisao_motivo=data.decisao_motivo,
         aplicar_batidas=data.aplicar_batidas,
+    )
+
+
+@router.get("/hora-extra/me/status", response_model=PontoHoraExtraMeStatus)
+def hora_extra_me_status(
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    ponto_svc.exigir_acesso_ponto(atendente)
+    return PontoHoraExtraMeStatus(**he_svc.me_status(db, atendente))
+
+
+@router.get("/hora-extra/me", response_model=list[PontoHoraExtraRead])
+def minhas_hora_extra(
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    ponto_svc.exigir_acesso_ponto(atendente)
+    return he_svc.listar_me(db, atendente)
+
+
+@router.post("/hora-extra", response_model=PontoHoraExtraRead, status_code=201)
+def solicitar_hora_extra(
+    data: PontoHoraExtraCreate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    ponto_svc.exigir_acesso_ponto(atendente)
+    return he_svc.solicitar(db, atendente, motivo=data.motivo)
+
+
+@router.get("/hora-extra", response_model=list[PontoHoraExtraRead])
+def listar_hora_extra_admin(
+    estado: str | None = Query("pendente"),
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return he_svc.listar_admin(db, admin, estado=estado)
+
+
+@router.post("/hora-extra/{he_id}/decidir", response_model=PontoHoraExtraRead)
+def decidir_hora_extra(
+    he_id: int,
+    data: PontoHoraExtraDecisao,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return he_svc.decidir(
+        db,
+        admin,
+        he_id,
+        aprovar=data.aprovar,
+        modo=data.modo,
+        ate_horario=data.ate_horario,
+        decisao_motivo=data.decisao_motivo,
     )

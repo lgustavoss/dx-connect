@@ -19,6 +19,8 @@ from app.schemas.chat_interno import (
     ConversaRead,
     ConversaSilenciarUpdate,
     GrupoParticipantesUpdate,
+    MembroCanalSetorRead,
+    MembrosCanalSetorListaRead,
     MencaoMensagemRead,
     MensagemInternaCreate,
     MensagemInternaRead,
@@ -418,6 +420,35 @@ def obter_canal_setor(
         return _to_conversa_read(db, conversa, atendente)
     except chat_svc.ChatInternoErro as exc:
         raise _map_chat_erro(exc) from exc
+
+
+@router.get("/setores/{setor_id}/membros", response_model=MembrosCanalSetorListaRead)
+def listar_membros_canal_setor(
+    setor_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    """Membros vinculados ao setor + flag online (TTL de presença). Quem acessa o canal pode ver."""
+    _assert_acesso_setor(atendente, db, setor_id)
+    try:
+        setor_nome, pares = chat_svc.listar_membros_canal_setor_com_presenca(
+            db,
+            tenant_id=atendente.tenant_id,
+            setor_id=setor_id,
+        )
+    except chat_svc.ChatInternoErro as exc:
+        raise _map_chat_erro(exc) from exc
+    items = [
+        MembroCanalSetorRead(atendente_id=a.id, nome=a.nome, online=online) for a, online in pares
+    ]
+    online_count = sum(1 for _, online in pares if online)
+    return MembrosCanalSetorListaRead(
+        setor_id=setor_id,
+        setor_nome=setor_nome,
+        total=len(items),
+        online_count=online_count,
+        items=items,
+    )
 
 
 @router.post(

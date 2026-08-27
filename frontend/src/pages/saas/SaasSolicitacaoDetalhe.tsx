@@ -12,13 +12,17 @@ import { useVoltarAnterior } from '../../hooks/useVoltarAnterior'
 import { SolicitacaoDescricao } from '../../components/release/SolicitacaoDescricao'
 import {
   classesBadgeStatusSolicitacao,
+  classesBadgeTipoSolicitacao,
   mencionaTrabalhoInterno,
+  podeAvancarStatus,
+  proximosStatusSolicitacao,
   rotuloStatusSolicitacao,
+  rotuloTipoSolicitacao,
+  rotuloVersaoAlvo,
   SAAS_SOLICITACAO_STATUS,
 } from '../../lib/saasSolicitacoes'
 import { SemPermissao } from '../SemPermissao'
 
-const STATUS_FLUXO = SAAS_SOLICITACAO_STATUS.filter((s) => s.value !== 'nao_sera_desenvolvida')
 const STATUS_REJEITAR = SAAS_SOLICITACAO_STATUS.find((s) => s.value === 'nao_sera_desenvolvida')!
 
 function formatWhen(iso: string | null | undefined): string {
@@ -28,10 +32,6 @@ function formatWhen(iso: string | null | undefined): string {
   } catch {
     return iso
   }
-}
-
-function rotuloTipo(tipo: string): string {
-  return tipo === 'problema' ? 'Problema' : 'Sugestão'
 }
 
 function StatusBadge({ status, rotulo }: { status: string; rotulo?: string }) {
@@ -63,6 +63,8 @@ export function SaasSolicitacaoDetalhe() {
   const [tipoMensagem, setTipoMensagem] = useState<'publico' | 'interno'>('publico')
   const [buscaIgual, setBuscaIgual] = useState('')
   const [candidatos, setCandidatos] = useState<SaasSolicitacoesProduto.ListaItem[]>([])
+  const [githubUrl, setGithubUrl] = useState('')
+  const [mostrarImplementar, setMostrarImplementar] = useState(false)
 
   const aplicarDetalhe = useCallback((row: SaasSolicitacoesProduto.Detalhe) => {
     setItem(row)
@@ -151,6 +153,15 @@ export function SaasSolicitacaoDetalhe() {
     setNovoStatus(status)
     if (status === 'nao_sera_desenvolvida') return
     if (item && status === item.status) return
+    if (status === 'em_desenvolvimento') {
+      setMostrarImplementar(true)
+      return
+    }
+    if (item && !podeAvancarStatus(item.status, status)) {
+      toast.showError('Essa transição de status não é permitida. Avance passo a passo.')
+      setNovoStatus(item.status)
+      return
+    }
     await persistirStatus(status)
   }
 
@@ -160,6 +171,32 @@ export function SaasSolicitacaoDetalhe() {
       return
     }
     await persistirStatus('nao_sera_desenvolvida', motivo)
+  }
+
+  async function confirmarImplementar(opts: { criarIssue: boolean; url?: string }) {
+    if (!item) return
+    setBusy(true)
+    try {
+      const data: SaasSolicitacoesProduto.Implementar = {
+        criar_issue: opts.criarIssue,
+      }
+      const url = (opts.url ?? githubUrl).trim()
+      if (url) {
+        data.github_issue_url = url
+        data.criar_issue = false
+      } else if (item.github_issue_url) {
+        data.criar_issue = false
+      }
+      const atualizado = await saasSolicitacoes.implementar(item.id, data)
+      aplicarDetalhe(atualizado)
+      setMostrarImplementar(false)
+      setGithubUrl('')
+      toast.showSuccess('Em desenvolvimento. Issue ligada — o cliente não vê o GitHub.')
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível implementar'))
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function enviarComentario() {
@@ -265,6 +302,11 @@ export function SaasSolicitacaoDetalhe() {
   )
   const rejeitarPendente = novoStatus === 'nao_sera_desenvolvida' && item.status !== 'nao_sera_desenvolvida'
   const internoActivo = tipoMensagem === 'interno'
+  const proximos = new Set(proximosStatusSolicitacao(item.status))
+  const statusFluxo = SAAS_SOLICITACAO_STATUS.filter((s) => s.value !== 'nao_sera_desenvolvida')
+  const podeRejeitar = proximos.has('nao_sera_desenvolvida') || item.status === 'nao_sera_desenvolvida'
+  const podeImplementar = item.status === 'planejada'
+  const rotuloVersaoCliente = rotuloVersaoAlvo(item.status, item.versao_alvo)
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6 pb-10">
@@ -277,8 +319,10 @@ export function SaasSolicitacaoDetalhe() {
               {item.protocolo || 'Sem protocolo'}
             </p>
             <span className="text-slate-300 dark:text-slate-600">·</span>
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              {rotuloTipo(item.tipo)}
+            <span
+              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${classesBadgeTipoSolicitacao(item.tipo)}`}
+            >
+              {rotuloTipoSolicitacao(item.tipo)}
             </span>
             <StatusBadge status={item.status} rotulo={item.status_rotulo} />
           </div>
@@ -299,17 +343,22 @@ export function SaasSolicitacaoDetalhe() {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_21rem] xl:items-start">
         <aside className="space-y-6 xl:col-start-2 xl:row-start-1">
-          <Card title="Status" description="O cliente vê este andamento em Minhas solicitações.">
+          <Card title="Status" description="O cliente vê este andamento em Minhas solicitações. Só avanços permitidos.">
             <nav className="space-y-1.5" aria-label="Status da triagem">
-              {STATUS_FLUXO.map((s) => {
-                const activo = novoStatus === s.value
+              {statusFluxo.map((s) => {
+                const activo = novoStatus === s.value || (mostrarImplementar && s.value === 'em_desenvolvimento')
+                const atual = item.status === s.value
+                const permitido =
+                  atual ||
+                  proximos.has(s.value) ||
+                  (s.value === 'em_desenvolvimento' && podeImplementar)
                 return (
                   <button
                     key={s.value}
                     type="button"
-                    disabled={busy}
+                    disabled={busy || (!permitido && !atual)}
                     onClick={() => void escolherStatus(s.value)}
-                    className={`flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-left text-sm transition disabled:opacity-60 ${
+                    className={`flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-45 ${
                       activo
                         ? 'border-cyan-300 bg-cyan-50/90 ring-1 ring-cyan-400/25 dark:border-cyan-700/60 dark:bg-cyan-950/35 dark:ring-cyan-600/30'
                         : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40 dark:hover:bg-slate-800/50'
@@ -321,7 +370,7 @@ export function SaasSolicitacaoDetalhe() {
                     <span className={`min-w-0 flex-1 font-medium ${activo ? 'text-slate-900 dark:text-slate-50' : 'text-slate-700 dark:text-slate-200'}`}>
                       {s.label}
                     </span>
-                    {item.status === s.value ? (
+                    {atual ? (
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-300">
                         atual
                       </span>
@@ -332,9 +381,9 @@ export function SaasSolicitacaoDetalhe() {
               <div className="my-2 border-t border-slate-100 dark:border-slate-800" />
               <button
                 type="button"
-                disabled={busy}
+                disabled={busy || !podeRejeitar}
                 onClick={() => void escolherStatus(STATUS_REJEITAR.value)}
-                className={`flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-left text-sm transition disabled:opacity-60 ${
+                className={`flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-45 ${
                   novoStatus === STATUS_REJEITAR.value
                     ? 'border-rose-300 bg-rose-50/90 ring-1 ring-rose-400/25 dark:border-rose-800/60 dark:bg-rose-950/35 dark:ring-rose-700/30'
                     : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40 dark:hover:bg-slate-800/50'
@@ -353,6 +402,61 @@ export function SaasSolicitacaoDetalhe() {
                 ) : null}
               </button>
             </nav>
+            {mostrarImplementar || (podeImplementar && novoStatus === 'em_desenvolvimento') ? (
+              <div className="mt-3 space-y-2 rounded-xl border border-cyan-200 bg-cyan-50/50 p-3 dark:border-cyan-800/50 dark:bg-cyan-950/30">
+                <p className="text-xs font-medium text-cyan-900 dark:text-cyan-100">
+                  Implementar exige issue no GitHub (o cliente não vê o link).
+                </p>
+                {item.github_issue_url ? (
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
+                    Já ligada:{' '}
+                    <a
+                      href={item.github_issue_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-medium text-cyan-700 underline dark:text-cyan-400"
+                    >
+                      #{item.github_issue_number}
+                    </a>
+                  </p>
+                ) : (
+                  <Input
+                    label="URL da issue (opcional)"
+                    placeholder="https://github.com/org/repo/issues/123"
+                    value={githubUrl}
+                    onChange={(e) => setGithubUrl(e.target.value)}
+                  />
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    loading={busy}
+                    onClick={() =>
+                      void confirmarImplementar({
+                        criarIssue: !item.github_issue_url && !githubUrl.trim(),
+                        url: githubUrl,
+                      })
+                    }
+                  >
+                    {item.github_issue_url || githubUrl.trim()
+                      ? 'Ligar e implementar'
+                      : 'Criar issue e implementar'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={busy}
+                    onClick={() => {
+                      setMostrarImplementar(false)
+                      setNovoStatus(item.status)
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             {novoStatus === 'nao_sera_desenvolvida' ? (
               <div className="mt-3 space-y-2">
                 <textarea
@@ -372,7 +476,16 @@ export function SaasSolicitacaoDetalhe() {
             </p>
           </Card>
 
-          {item.github_issue_url ? (
+          {rotuloVersaoCliente ? (
+            <Card
+              title="Versão liberada"
+              description="O cliente vê em Minhas solicitações quando o pedido está concluído."
+            >
+              <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">{rotuloVersaoCliente}</p>
+            </Card>
+          ) : null}
+
+          {item.github_issue_url && !mostrarImplementar ? (
             <Card title="Issue no GitHub" description="Só neste painel — o cliente não vê o link.">
               <a
                 href={item.github_issue_url}

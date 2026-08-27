@@ -49,8 +49,15 @@ Painel DuplexSoft continua em `/opt/dx-connect/frontend/dist` (API `api-duplexso
 1. Migrar tabelas SaaS + mídia `solicitacao_media` + `protocol_sequences` (`kind=S`) + contas `saas_ops` para o Postgres do `admin-center`
 2. Criar licença `clientes_saas` slug `duplexsoft` e token de ingest
 3. Na DuplexSoft (`backend/.env`): `SAAS_CONTROL_PLANE=false`, `SAAS_INSTANCE_SLUG=duplexsoft`, `SAAS_CONTROL_PLANE_INGEST_URL` + `SAAS_INSTANCE_INGEST_TOKEN`
-4. Desactivar contas `saas_ops` na BD DuplexSoft (ficam só na comercial)
+4. Desativar contas `saas_ops` na BD DuplexSoft (ficam só na comercial)
 5. Health esperado: `api.deskrudder.com.br` → `saas_control_plane: true`; `api-duplexsoft…` → `false`
+
+## Desativar um cliente
+
+Runbook completo (pré/pós health, MCP, o que **não** parar):  
+[`docs/SAAS_CONTROL_PLANE.md`](../../docs/SAAS_CONTROL_PLANE.md#runbook-desativar-cliente-sem-derrubar-o-saas)
+
+Resumo: `stack-client.sh down <slug>` **ou** `docker compose … stop` na DuplexSoft — **nunca** `down admin-center`.
 
 ## O que este diretório versiona
 

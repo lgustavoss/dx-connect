@@ -34,6 +34,7 @@ class SaasSolicitacaoListaItem(BaseModel):
     status: str
     status_rotulo: str
     versao_contexto: str | None
+    versao_alvo: str | None = None
     autor_nome: str | None
     created_at_origem: datetime | None
     ingested_at: datetime
@@ -100,6 +101,15 @@ class SaasSolicitacaoStatusUpdate(BaseModel):
     motivo_nao_desenvolvimento: str | None = Field(None, max_length=4000)
 
 
+class SaasSolicitacaoImplementar(BaseModel):
+    """G2: entra em em_desenvolvimento com issue criada ou ligada."""
+
+    github_issue_url: str | None = Field(None, max_length=500)
+    github_issue_number: int | None = Field(None, ge=1)
+    github_repo: str | None = Field(None, max_length=200)
+    criar_issue: bool = True
+
+
 class SaasSolicitacaoComentarioCreate(BaseModel):
     corpo: str = Field(..., min_length=1, max_length=8000)
     publico_cliente: bool = True
@@ -117,11 +127,21 @@ class SaasSolicitacaoSyncItem(BaseModel):
     status: str
     motivo_nao_desenvolvimento: str | None = None
     protocolo: str | None = None
+    versao_alvo: str | None = None
     comentarios_publicos: list[SaasSolicitacaoSyncComentario] = Field(default_factory=list)
 
 
 class SaasSolicitacaoSyncResponse(BaseModel):
     items: list[SaasSolicitacaoSyncItem] = Field(default_factory=list)
+
+
+class SaasSolicitacaoResumo(BaseModel):
+    total: int = 0
+    sugestoes: int = 0
+    problemas: int = 0
+    aguardando: int = 0
+    desenvolvimento: int = 0
+    finalizadas: int = 0
 
 
 class ClienteSaaSIngestTokenRead(BaseModel):

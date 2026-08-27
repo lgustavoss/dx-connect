@@ -58,6 +58,9 @@ def _company_out(row: EmpresaSistema | None) -> EmpresaSistemaRead:
         cidade=row.cidade,
         estado=row.estado,
         cep=row.cep,
+        latitude=getattr(row, "latitude", None),
+        longitude=getattr(row, "longitude", None),
+        ponto_raio_metros=int(getattr(row, "ponto_raio_metros", None) or 200),
         logo_url=logo_url,
     )
 

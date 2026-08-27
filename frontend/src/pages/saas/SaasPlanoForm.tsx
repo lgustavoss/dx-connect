@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ApiError, saasModulos, saasPlanos, type SaasCatalogo } from '../../api/client'
 import { Card } from '../../components/ui/Card'
@@ -12,6 +12,10 @@ import { CadastroFormPageShell } from '../../components/ui/CadastroFormPageShell
 import { SemPermissao } from '../SemPermissao'
 import { CarregamentoFalhou } from '../../components/ui/CarregamentoFalhou'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../../api/errorMessage'
+
+function formatPreco(v: number): string {
+  return `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+}
 
 export function SaasPlanoForm() {
   const { id } = useParams<{ id?: string }>()
@@ -31,12 +35,19 @@ export function SaasPlanoForm() {
   const [nome, setNome] = useState('')
   const [descricao, setDescricao] = useState('')
   const [ordem, setOrdem] = useState('0')
-  const [precoMensal, setPrecoMensal] = useState('')
-  const [maxPostos, setMaxPostos] = useState('')
-  const [maxUsuarios, setMaxUsuarios] = useState('')
+  const [usuariosInclusos, setUsuariosInclusos] = useState('3')
+  const [precoUsuarioExtra, setPrecoUsuarioExtra] = useState('10')
   const [ativo, setAtivo] = useState(true)
   const [moduloIds, setModuloIds] = useState<number[]>([])
   const [modulos, setModulos] = useState<SaasCatalogo.Modulo[]>([])
+
+  const precoModulos = useMemo(() => {
+    return Math.round(
+      modulos
+        .filter((m) => moduloIds.includes(m.id))
+        .reduce((acc, m) => acc + Number(m.preco_mensal || 0), 0) * 100,
+    ) / 100
+  }, [modulos, moduloIds])
 
   useEffect(() => {
     let cancelled = false
@@ -71,9 +82,10 @@ export function SaasPlanoForm() {
         setNome(p.nome)
         setDescricao(p.descricao ?? '')
         setOrdem(String(p.ordem ?? 0))
-        setPrecoMensal(p.preco_mensal != null ? String(p.preco_mensal) : '')
-        setMaxPostos(p.max_postos != null ? String(p.max_postos) : '')
-        setMaxUsuarios(p.max_usuarios != null ? String(p.max_usuarios) : '')
+        setUsuariosInclusos(String(p.usuarios_inclusos ?? 3))
+        setPrecoUsuarioExtra(
+          p.preco_usuario_extra != null ? String(p.preco_usuario_extra) : '10',
+        )
         setAtivo(p.ativo)
         setModuloIds(p.modulos.map((m) => m.id))
       })
@@ -112,38 +124,30 @@ export function SaasPlanoForm() {
     setSaving(true)
     try {
       const ordemN = parseInt(ordem, 10)
-      const precoN = precoMensal.trim() === '' ? null : Number(precoMensal)
-      const postosN = maxPostos.trim() === '' ? null : parseInt(maxPostos, 10)
-      const usersN = maxUsuarios.trim() === '' ? null : parseInt(maxUsuarios, 10)
-      const comerciais = {
-        preco_mensal: precoN != null && Number.isFinite(precoN) ? precoN : null,
-        max_postos: postosN != null && Number.isFinite(postosN) ? postosN : null,
-        max_usuarios: usersN != null && Number.isFinite(usersN) ? usersN : null,
+      const inclusosN = parseInt(usuariosInclusos, 10)
+      const extraN = Number(precoUsuarioExtra)
+      const payload = {
+        nome: nome.trim(),
+        descricao: descricao.trim() || null,
+        ordem: Number.isFinite(ordemN) ? ordemN : 0,
+        usuarios_inclusos: Number.isFinite(inclusosN) ? inclusosN : 3,
+        preco_usuario_extra: Number.isFinite(extraN) ? extraN : 10,
+        modulo_ids: moduloIds,
       }
       if (isEdit && !Number.isNaN(planoId)) {
-        await saasPlanos.update(planoId, {
-          nome: nome.trim(),
-          descricao: descricao.trim() || null,
-          ordem: Number.isFinite(ordemN) ? ordemN : 0,
-          modulo_ids: moduloIds,
-          ...comerciais,
-        })
-        toast.showSuccess('Plano actualizado.')
+        await saasPlanos.update(planoId, payload)
+        toast.showSuccess('Plano atualizado.')
         navigate(`/saas/planos/${planoId}`, { replace: true })
       } else {
         const created = await saasPlanos.create({
           codigo: codigo.trim().toLowerCase(),
-          nome: nome.trim(),
-          descricao: descricao.trim() || null,
-          ordem: Number.isFinite(ordemN) ? ordemN : 0,
-          modulo_ids: moduloIds,
-          ...comerciais,
+          ...payload,
         })
         toast.showSuccess('Plano criado.')
         navigate(`/saas/planos/${created.id}`, { replace: true })
       }
     } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível guardar o plano.'))
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar o plano.'))
     } finally {
       setSaving(false)
     }
@@ -156,7 +160,7 @@ export function SaasPlanoForm() {
       if (ativo) await saasPlanos.desativar(planoId)
       else await saasPlanos.ativar(planoId)
       setAtivo(!ativo)
-      toast.showSuccess(ativo ? 'Plano desactivado.' : 'Plano activado.')
+      toast.showSuccess(ativo ? 'Plano desativado.' : 'Plano ativado.')
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível alterar o estado.'))
     } finally {
@@ -225,28 +229,30 @@ export function SaasPlanoForm() {
                 onChange={(e) => setOrdem(e.target.value)}
                 hint="Menor aparece primeiro na lista"
               />
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900/40">
+                <p className="font-medium text-slate-800 dark:text-slate-100">
+                  Preço base (soma dos módulos): {formatPreco(precoModulos)}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Calculado automaticamente. Altere o preço em Módulos.
+                </p>
+              </div>
               <Input
-                label="Preço mensal (R$)"
+                label="Usuários inclusos"
+                type="number"
+                min={0}
+                value={usuariosInclusos}
+                onChange={(e) => setUsuariosInclusos(e.target.value)}
+                hint="Inclusos no preço dos módulos (padrão 3)"
+              />
+              <Input
+                label="Preço por usuário extra (R$)"
                 type="number"
                 step="0.01"
                 min={0}
-                value={precoMensal}
-                onChange={(e) => setPrecoMensal(e.target.value)}
-                hint="Opcional — só catálogo comercial (sem cobrança automática)"
-              />
-              <Input
-                label="Máx. postos"
-                type="number"
-                min={0}
-                value={maxPostos}
-                onChange={(e) => setMaxPostos(e.target.value)}
-              />
-              <Input
-                label="Máx. utilizadores"
-                type="number"
-                min={0}
-                value={maxUsuarios}
-                onChange={(e) => setMaxUsuarios(e.target.value)}
+                value={precoUsuarioExtra}
+                onChange={(e) => setPrecoUsuarioExtra(e.target.value)}
+                hint="Cobrado por usuário acima dos inclusos"
               />
               <label className="block space-y-1.5">
                 <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Descrição</span>
@@ -266,18 +272,17 @@ export function SaasPlanoForm() {
                         : 'bg-slate-100 text-slate-600'
                     }`}
                   >
-                    {ativo ? 'Activo' : 'Inactivo'}
+                    {ativo ? 'Ativo' : 'Inativo'}
                   </span>
                   <Button type="button" variant="secondary" disabled={saving} onClick={() => void toggleAtivo()}>
-                    {ativo ? 'Desactivar' : 'Activar'}
+                    {ativo ? 'Desativar' : 'Ativar'}
                   </Button>
                 </div>
               ) : null}
             </FormSection>
             <FormSection title="Módulos incluídos">
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Gravados no snapshot da licença e em <code className="text-xs">SAAS_MODULOS</code> no{' '}
-                <code className="text-xs">client.env</code> no provisionamento (capabilities no /health).
+                O preço do plano é a soma destes módulos. Na licença dá para ligar módulos extras (ex.: Essencial + ponto).
               </p>
               {modulos.length === 0 ? (
                 <p className="text-sm text-amber-700 dark:text-amber-300">
@@ -303,12 +308,17 @@ export function SaasPlanoForm() {
                           onChange={() => toggleModulo(m.id)}
                           disabled={!m.ativo && !moduloIds.includes(m.id)}
                         />
-                        <span>
-                          <span className="block text-sm font-medium text-slate-800 dark:text-slate-100">
-                            {m.nome}
-                            {!m.ativo ? (
-                              <span className="ml-2 text-xs font-normal text-slate-400">(inactivo)</span>
-                            ) : null}
+                        <span className="min-w-0 flex-1">
+                          <span className="flex flex-wrap items-baseline justify-between gap-2">
+                            <span className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                              {m.nome}
+                              {!m.ativo ? (
+                                <span className="ml-2 text-xs font-normal text-slate-400">(inativo)</span>
+                              ) : null}
+                            </span>
+                            <span className="text-xs tabular-nums text-slate-600 dark:text-slate-300">
+                              {m.preco_mensal != null ? formatPreco(Number(m.preco_mensal)) : '—'}
+                            </span>
                           </span>
                           <span className="font-mono text-xs text-slate-500">{m.codigo}</span>
                         </span>

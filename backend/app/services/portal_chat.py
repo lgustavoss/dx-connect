@@ -7,6 +7,7 @@ import secrets
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.setor_scope import ids_setores_visiveis_atendente
@@ -257,6 +258,9 @@ def transferir_portal_chat(
 
 def marcar_visto_portal_chat(db: Session, chat_id: int, atendente_id: int) -> None:
     now = datetime.now(timezone.utc)
+    max_msg_id = (
+        db.query(func.max(PortalMensagem.id)).filter(PortalMensagem.chat_id == chat_id).scalar()
+    )
     row = (
         db.query(PortalChatReadRow)
         .filter(PortalChatReadRow.chat_id == chat_id, PortalChatReadRow.atendente_id == atendente_id)
@@ -264,8 +268,16 @@ def marcar_visto_portal_chat(db: Session, chat_id: int, atendente_id: int) -> No
     )
     if row:
         row.last_seen_at = now
+        row.last_seen_mensagem_id = max_msg_id
     else:
-        db.add(PortalChatReadRow(chat_id=chat_id, atendente_id=atendente_id, last_seen_at=now))
+        db.add(
+            PortalChatReadRow(
+                chat_id=chat_id,
+                atendente_id=atendente_id,
+                last_seen_at=now,
+                last_seen_mensagem_id=max_msg_id,
+            )
+        )
 
 
 def listar_mensagens_chat(

@@ -28,6 +28,7 @@ class SaasSolicitacaoProduto(Base):
     descricao = Column(Text, nullable=False)
     status = Column(String(40), nullable=False, default="aberta", server_default="aberta", index=True)
     versao_contexto = Column(String(64), nullable=True)
+    versao_alvo = Column(String(64), nullable=True)
     autor_nome = Column(String(255), nullable=True)
     created_at_origem = Column(DateTime(timezone=True), nullable=True)
     ingested_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

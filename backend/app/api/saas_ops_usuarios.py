@@ -1,4 +1,4 @@
-"""Equipa do control-plane — contas saas_ops (#883)."""
+"""Equipe do control-plane — contas saas_ops (#883)."""
 
 from __future__ import annotations
 
@@ -66,14 +66,14 @@ def obter_usuario(
 
 
 @router.patch("/{usuario_id}", response_model=SaasOpsUsuarioRead)
-def actualizar_usuario(
+def atualizar_usuario(
     usuario_id: int,
     data: SaasOpsUsuarioUpdate,
     _: None = Depends(exigir_saas_control_plane),
     ops: Atendente = Depends(exigir_saas_ops),
     db: Session = Depends(get_db),
 ):
-    row = svc.actualizar(db, ops, usuario_id, data)
+    row = svc.atualizar(db, ops, usuario_id, data)
     db.commit()
     db.refresh(row)
     return SaasOpsUsuarioRead.model_validate(svc.para_dict(row))

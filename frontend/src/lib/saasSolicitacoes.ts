@@ -11,6 +11,46 @@ export const SAAS_SOLICITACAO_STATUS = [
 
 export type SaasSolicitacaoStatus = (typeof SAAS_SOLICITACAO_STATUS)[number]['value']
 
+/** Máquina de estados G1 (#953) — espelha o backend. */
+export const SAAS_STATUS_TRANSICOES: Record<string, readonly string[]> = {
+  aberta: ['em_analise', 'nao_sera_desenvolvida'],
+  em_analise: ['planejada', 'nao_sera_desenvolvida'],
+  planejada: ['em_desenvolvimento', 'nao_sera_desenvolvida'],
+  em_desenvolvimento: ['concluida', 'nao_sera_desenvolvida'],
+  concluida: [],
+  nao_sera_desenvolvida: [],
+}
+
+export function proximosStatusSolicitacao(atual: string): readonly string[] {
+  return SAAS_STATUS_TRANSICOES[atual] ?? []
+}
+
+export function podeAvancarStatus(de: string, para: string): boolean {
+  if (de === para) return true
+  return proximosStatusSolicitacao(de).includes(para)
+}
+
+/** Fases para filtro rápido (agrupa vários status). */
+export const SAAS_SOLICITACAO_FASES = [
+  {
+    value: 'aguardando',
+    label: 'Aguardando',
+    hint: 'Recebida, em análise ou planejada',
+  },
+  {
+    value: 'desenvolvimento',
+    label: 'Em desenvolvimento',
+    hint: 'Já em andamento',
+  },
+  {
+    value: 'finalizadas',
+    label: 'Finalizadas',
+    hint: 'Concluída ou não será desenvolvida',
+  },
+] as const
+
+export type SaasSolicitacaoFase = (typeof SAAS_SOLICITACAO_FASES)[number]['value']
+
 const BADGE: Record<string, string> = {
   aberta:
     'bg-slate-100 text-slate-800 ring-slate-200/80 dark:bg-slate-800/70 dark:text-slate-100 dark:ring-slate-600/70',
@@ -35,6 +75,25 @@ export function classesBadgeStatusSolicitacao(value: string): string {
     BADGE[value] ??
     'bg-slate-100 text-slate-800 ring-slate-200/80 dark:bg-slate-800/70 dark:text-slate-100 dark:ring-slate-600/70'
   )
+}
+
+/** Painel ops: “problema” do cliente = erro reportado. */
+export function rotuloTipoSolicitacao(tipo: string): string {
+  return tipo === 'problema' ? 'Erro' : 'Sugestão'
+}
+
+/** Rótulo de versão liberada — só quando concluída (#955). */
+export function rotuloVersaoAlvo(status: string, versao: string | null | undefined): string | null {
+  const v = (versao || '').trim()
+  if (!v || status !== 'concluida') return null
+  return `Disponível a partir da versão ${v} (ou superior)`
+}
+
+export function classesBadgeTipoSolicitacao(tipo: string): string {
+  if (tipo === 'problema') {
+    return 'bg-rose-50 text-rose-900 ring-rose-200/90 dark:bg-rose-950/45 dark:text-rose-100 dark:ring-rose-800/60'
+  }
+  return 'bg-sky-50 text-sky-900 ring-sky-200/90 dark:bg-sky-950/45 dark:text-sky-100 dark:ring-sky-800/60'
 }
 
 /** GitHub / issue #N não deve ir na mensagem visível ao cliente. */

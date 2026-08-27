@@ -213,6 +213,14 @@ fi
 
 if [ "$SKIP_MIGRATIONS" != "true" ]; then
   bash deploy/scripts/stack-client.sh migrate admin-center
+  if [ -n "${DX_CONNECT_VERSION:-}" ]; then
+    (
+      cd deploy/admin-center
+      docker compose --env-file client.env -f docker-compose.yml run --rm -T backend \
+        python scripts/concluir_solicitacoes_release.py --version "${DX_CONNECT_VERSION}" \
+        < /dev/null
+    ) || echo "::warning::concluir_solicitacoes_release falhou (deploy continua)"
+  fi
 fi
 bash deploy/scripts/stack-client.sh up admin-center
 

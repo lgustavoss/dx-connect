@@ -15,6 +15,9 @@ class EmpresaSistemaRead(BaseModel):
     cidade: str | None = None
     estado: str | None = None
     cep: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    ponto_raio_metros: int = 200
     logo_url: str | None = None
 
 
@@ -32,3 +35,6 @@ class EmpresaSistemaUpdate(BaseModel):
     cidade: str | None = None
     estado: str | None = None
     cep: str | None = None
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    ponto_raio_metros: int | None = Field(default=None, ge=20, le=50_000)

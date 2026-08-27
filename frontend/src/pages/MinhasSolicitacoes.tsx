@@ -105,6 +105,11 @@ export function MinhasSolicitacoesPage() {
           <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
             {detalhe.mensagem_status}
           </p>
+          {detalhe.versao_alvo_rotulo ? (
+            <p className="rounded-lg bg-emerald-50 p-3 text-sm font-medium text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">
+              {detalhe.versao_alvo_rotulo}
+            </p>
+          ) : null}
           {detalhe.status === 'nao_sera_desenvolvida' && detalhe.motivo_nao_desenvolvimento ? (
             <p className="text-sm text-slate-600 dark:text-slate-300">
               <span className="font-medium">Motivo: </span>
@@ -201,6 +206,7 @@ export function MinhasSolicitacoesPage() {
                 </div>
                 <p className="mt-1 text-xs text-slate-400">
                   {item.tipo === 'problema' ? 'Problema' : 'Sugestão'} · {fmt(item.created_at)}
+                  {item.versao_alvo_rotulo ? ` · ${item.versao_alvo_rotulo}` : ''}
                 </p>
               </Card>
             </Link>

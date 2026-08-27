@@ -65,6 +65,10 @@ export function PontoEquipe() {
   const [ajusteMotivo, setAjusteMotivo] = useState('')
   const [salvandoAjuste, setSalvandoAjuste] = useState(false)
   const [justifs, setJustifs] = useState<Ponto.Justificativa[]>([])
+  const [hesPendentes, setHesPendentes] = useState<Ponto.HoraExtra[]>([])
+  const [heModo, setHeModo] = useState<'resto_do_dia' | 'ate_horario'>('resto_do_dia')
+  const [heAteHorario, setHeAteHorario] = useState('20:00')
+  const [decidindoHeId, setDecidindoHeId] = useState<number | null>(null)
   const [digest, setDigest] = useState<Ponto.Digest | null>(null)
   const [banco, setBanco] = useState<Ponto.BancoHoras | null>(null)
   const [settings, setSettings] = useState<Ponto.Settings | null>(null)
@@ -72,12 +76,6 @@ export function PontoEquipe() {
   const [feriadoData, setFeriadoData] = useState('')
   const [feriadoNome, setFeriadoNome] = useState('')
   const [salvandoSettings, setSalvandoSettings] = useState(false)
-  const [locais, setLocais] = useState<Ponto.Local[]>([])
-  const [localNome, setLocalNome] = useState('')
-  const [localLat, setLocalLat] = useState('')
-  const [localLon, setLocalLon] = useState('')
-  const [localRaio, setLocalRaio] = useState('200')
-  const [editLocalId, setEditLocalId] = useState<number | null>(null)
   const [mapaBatida, setMapaBatida] = useState<Ponto.BatidaAdmin | null>(null)
   const agoraCal = new Date()
   const [calAno, setCalAno] = useState(agoraCal.getFullYear())
@@ -89,7 +87,7 @@ export function PontoEquipe() {
   const carregar = useCallback(
     async (silencioso = false) => {
       try {
-        const [hist, dia, js, dig, st, fer, locs] = await Promise.all([
+        const [hist, dia, js, dig, st, fer, hes] = await Promise.all([
           ponto.batidasAdmin({
             atendente_id: atendenteId ? Number(atendenteId) : undefined,
             desde,
@@ -101,7 +99,7 @@ export function PontoEquipe() {
           ponto.digest(),
           ponto.settings(),
           ponto.feriados(new Date().getFullYear()),
-          ponto.locais(),
+          ponto.horaExtraAdmin('pendente'),
         ])
         setItems(hist.items)
         setTotal(hist.total)
@@ -110,7 +108,7 @@ export function PontoEquipe() {
         setDigest(dig)
         setSettings(st)
         setFeriados(fer)
-        setLocais(locs)
+        setHesPendentes(hes)
         setSemPermissao(false)
         if (atendenteId) {
           const bh = await ponto.bancoHorasAdmin(Number(atendenteId), desde, ate)
@@ -256,6 +254,24 @@ export function PontoEquipe() {
     }
   }
 
+  async function decidirHe(id: number, aprovar: boolean) {
+    setDecidindoHeId(id)
+    try {
+      await ponto.decidirHoraExtra(id, {
+        aprovar,
+        modo: aprovar ? heModo : null,
+        ate_horario: aprovar && heModo === 'ate_horario' ? heAteHorario : null,
+        decisao_motivo: aprovar ? null : 'Negado pelo administrador',
+      })
+      toast.showSuccess(aprovar ? 'Hora extra liberada.' : 'Pedido de hora extra negado.')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível decidir a hora extra.'))
+    } finally {
+      setDecidindoHeId(null)
+    }
+  }
+
   async function salvarSettings() {
     if (!settings) return
     setSalvandoSettings(true)
@@ -264,6 +280,7 @@ export function PontoEquipe() {
         usar_feriados_nacionais: settings.usar_feriados_nacionais,
         fecho_automatico_ativo: settings.fecho_automatico_ativo,
         fecho_apos_horas: settings.fecho_apos_horas,
+        fecho_margem_pos_saida_minutos: settings.fecho_margem_pos_saida_minutos ?? 30,
         jornada_diaria_minutos: settings.jornada_diaria_minutos,
         politica_geolocalizacao: settings.politica_geolocalizacao,
       })
@@ -273,68 +290,6 @@ export function PontoEquipe() {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar as configurações.'))
     } finally {
       setSalvandoSettings(false)
-    }
-  }
-
-  async function adicionarLocal() {
-    if (!localNome.trim() || !localLat || !localLon) {
-      toast.showWarning('Informe nome, latitude e longitude do local.')
-      return
-    }
-    try {
-      if (editLocalId != null) {
-        await ponto.atualizarLocal(editLocalId, {
-          nome: localNome.trim(),
-          latitude: Number(localLat),
-          longitude: Number(localLon),
-          raio_metros: Number(localRaio) || 200,
-        })
-        toast.showSuccess('Local actualizado.')
-        setEditLocalId(null)
-      } else {
-        await ponto.criarLocal({
-          nome: localNome.trim(),
-          latitude: Number(localLat),
-          longitude: Number(localLon),
-          raio_metros: Number(localRaio) || 200,
-        })
-        toast.showSuccess('Local cadastrado.')
-      }
-      setLocalNome('')
-      setLocalLat('')
-      setLocalLon('')
-      setLocalRaio('200')
-      await carregar(true)
-    } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível guardar o local.'))
-    }
-  }
-
-  function iniciarEdicaoLocal(loc: Ponto.Local) {
-    setEditLocalId(loc.id)
-    setLocalNome(loc.nome)
-    setLocalLat(String(loc.latitude))
-    setLocalLon(String(loc.longitude))
-    setLocalRaio(String(loc.raio_metros))
-  }
-
-  async function toggleLocalAtivo(loc: Ponto.Local) {
-    try {
-      await ponto.atualizarLocal(loc.id, { ativo: !loc.ativo })
-      toast.showSuccess(loc.ativo ? 'Local desactivado.' : 'Local activado.')
-      await carregar(true)
-    } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível alterar o local.'))
-    }
-  }
-
-  async function apagarLocal(id: number) {
-    try {
-      await ponto.removerLocal(id)
-      toast.showSuccess('Local removido.')
-      await carregar(true)
-    } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível remover o local.'))
     }
   }
 
@@ -377,7 +332,7 @@ export function PontoEquipe() {
     <PageContainer>
       <PageHeader
         title="Ponto da equipe"
-        subtitle="Visão do dia, batidas, geofence, ajustes auditados e relatórios mensais."
+        subtitle="Visão do dia, batidas, ajustes auditados e relatórios mensais."
       />
 
       <Card className="overflow-hidden border-cyan-200/60 bg-gradient-to-br from-slate-50 via-white to-cyan-50/40 dark:border-cyan-900/40 dark:from-slate-950 dark:via-slate-900 dark:to-cyan-950/20">
@@ -407,6 +362,19 @@ export function PontoEquipe() {
                 hint="pendentes"
               />
             </div>
+            {(digest?.itens ?? []).some((i) => i.status === 'falta' || i.atrasado) ? (
+              <ul className="space-y-1 text-sm text-amber-900 dark:text-amber-100">
+                {(digest?.itens ?? [])
+                  .filter((i) => i.status === 'falta' || i.atrasado)
+                  .map((i) => (
+                    <li key={`alerta-${i.atendente_id}`}>
+                      <span className="font-medium">{i.nome}</span>
+                      {i.status === 'falta' ? ' — falta' : null}
+                      {i.atrasado ? ' — atraso' : null}
+                    </li>
+                  ))}
+              </ul>
+            ) : null}
           </div>
         )}
       </Card>
@@ -484,6 +452,67 @@ export function PontoEquipe() {
                     </Button>
                     <Button type="button" variant="ghost" onClick={() => void decidirJust(j.id, 'rejeitada')}>
                       Rejeitar
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card title="Hora extra (WhatsApp após jornada)">
+          <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
+            Pedidos para pegar novos chats depois do fim da jornada. Ao liberar, escolha o restante do dia ou até um
+            horário.
+          </p>
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <Select
+              label="Ao aprovar"
+              value={heModo}
+              onChange={(v) => setHeModo(String(v) as 'resto_do_dia' | 'ate_horario')}
+              options={[
+                { value: 'resto_do_dia', label: 'Resto do dia' },
+                { value: 'ate_horario', label: 'Até horário' },
+              ]}
+            />
+            {heModo === 'ate_horario' ? (
+              <Input
+                label="Até (HH:MM)"
+                type="time"
+                value={heAteHorario}
+                onChange={(e) => setHeAteHorario(e.target.value)}
+              />
+            ) : null}
+          </div>
+          {hesPendentes.length === 0 ? (
+            <p className="text-sm text-slate-500">Nenhum pedido pendente.</p>
+          ) : (
+            <ul className="space-y-3">
+              {hesPendentes.map((h) => (
+                <li
+                  key={h.id}
+                  className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800"
+                >
+                  <div className="text-sm">
+                    <p className="font-medium">{h.atendente_nome ?? h.atendente_id}</p>
+                    <p className="text-slate-600 dark:text-slate-300">{h.motivo || 'Sem motivo informado'}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={decidindoHeId === h.id}
+                      onClick={() => void decidirHe(h.id, true)}
+                    >
+                      Liberar
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={decidindoHeId === h.id}
+                      onClick={() => void decidirHe(h.id, false)}
+                    >
+                      Negar
                     </Button>
                   </div>
                 </li>
@@ -682,10 +711,10 @@ export function PontoEquipe() {
                     setSettings({ ...settings, fecho_automatico_ativo: e.target.checked })
                   }
                 />
-                Fechar jornada automaticamente após N horas (desligado por padrão)
+                Fechar jornada esquecida automaticamente (desligado por padrão)
               </label>
               <Input
-                label="Horas para fecho automático"
+                label="Horas abertas para fecho (critério 1)"
                 type="number"
                 min={4}
                 max={48}
@@ -694,6 +723,23 @@ export function PontoEquipe() {
                   setSettings({ ...settings, fecho_apos_horas: Number(e.target.value) || 14 })
                 }
               />
+              <Input
+                label="Margem após saída prevista, minutos (critério 2)"
+                type="number"
+                min={0}
+                max={240}
+                value={String(settings.fecho_margem_pos_saida_minutos ?? 30)}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    fecho_margem_pos_saida_minutos: Number(e.target.value) || 0,
+                  })
+                }
+              />
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Fecha pelo critério que ocorrer primeiro (N horas abertas ou saída prevista + margem),
+                com motivo esquecimento.
+              </p>
               <Input
                 label="Jornada diária (minutos) — meta do calendário"
                 type="number"
@@ -723,8 +769,8 @@ export function PontoEquipe() {
                 ]}
               />
               <p className="text-xs text-slate-500">
-                Com locais cadastrados: opcional regista geo; recomendada avisa fora da área; obrigatória
-                bloqueia sem GPS ou fora do raio.
+                Locais ficam no cadastro de cada pessoa (e pin da empresa em Configurações → Empresa). Opcional
+                registra geo; recomendada avisa fora da área; obrigatória bloqueia sem GPS ou fora do raio.
               </p>
               <Button type="button" disabled={salvandoSettings} onClick={() => void salvarSettings()}>
                 Salvar configurações
@@ -733,80 +779,6 @@ export function PontoEquipe() {
           ) : (
             <p className="text-sm text-slate-500">Carregando…</p>
           )}
-        </Card>
-
-        <Card title="Locais (geofence)">
-          <div className="mb-4 flex flex-wrap items-end gap-3">
-            <Input label="Nome" value={localNome} onChange={(e) => setLocalNome(e.target.value)} />
-            <Input
-              label="Latitude"
-              type="number"
-              step="any"
-              value={localLat}
-              onChange={(e) => setLocalLat(e.target.value)}
-            />
-            <Input
-              label="Longitude"
-              type="number"
-              step="any"
-              value={localLon}
-              onChange={(e) => setLocalLon(e.target.value)}
-            />
-            <Input
-              label="Raio (m)"
-              type="number"
-              min={20}
-              value={localRaio}
-              onChange={(e) => setLocalRaio(e.target.value)}
-            />
-            <Button type="button" onClick={() => void adicionarLocal()}>
-              {editLocalId != null ? 'Salvar alteração' : 'Adicionar local'}
-            </Button>
-            {editLocalId != null ? (
-              <Button
-                type="button"
-                variant="cancel"
-                onClick={() => {
-                  setEditLocalId(null)
-                  setLocalNome('')
-                  setLocalLat('')
-                  setLocalLon('')
-                  setLocalRaio('200')
-                }}
-              >
-                Cancelar edição
-              </Button>
-            ) : null}
-          </div>
-          <ul className="space-y-2 text-sm">
-            {locais.length === 0 ? (
-              <li className="text-slate-500">Nenhum local cadastrado — geofence inactivo.</li>
-            ) : (
-              locais.map((loc) => (
-                <li
-                  key={loc.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800"
-                >
-                  <span>
-                    <strong>{loc.nome}</strong> · {loc.latitude.toFixed(5)}, {loc.longitude.toFixed(5)} · raio{' '}
-                    {loc.raio_metros} m
-                    {!loc.ativo ? ' (inactivo)' : ''}
-                  </span>
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" variant="secondary" onClick={() => iniciarEdicaoLocal(loc)}>
-                      Editar
-                    </Button>
-                    <Button type="button" variant="secondary" onClick={() => void toggleLocalAtivo(loc)}>
-                      {loc.ativo ? 'Desactivar' : 'Activar'}
-                    </Button>
-                    <Button type="button" variant="ghost" onClick={() => void apagarLocal(loc.id)}>
-                      Remover
-                    </Button>
-                  </div>
-                </li>
-              ))
-            )}
-          </ul>
         </Card>
 
         <Card title="Feriados da instância">
@@ -860,11 +832,7 @@ export function PontoEquipe() {
             : 'Localização'
         }
         subtitulo={mapaBatida ? formatarHora(mapaBatida.registrado_em) : undefined}
-        raioMetros={
-          mapaBatida?.local_id != null
-            ? locais.find((l) => l.id === mapaBatida.local_id)?.raio_metros ?? null
-            : null
-        }
+        raioMetros={null}
       />
     </PageContainer>
   )
