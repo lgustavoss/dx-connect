@@ -15,6 +15,10 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### DeskRudder
 
+#### Melhorias
+
+- Ponto (#976 / #977 / #973): férias e folga programada (pedido do colaborador ou agendamento admin); justificativa com anexo (imagem/PDF); alerta de pausa abaixo do mínimo configurável
+
 #### Correções
 
 - Atendimentos (#996 / #S202608-0007): na tela de chats, a barra superior (menu, notificações) volta a aparecer no computador; no celular continua oculta com a conversa aberta

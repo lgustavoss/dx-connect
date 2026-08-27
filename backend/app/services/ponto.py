@@ -432,7 +432,14 @@ def _status_dia(
     tem_saida: bool,
     feriado: bool = False,
     atrasado: bool = False,
+    ausencia_tipo: str | None = None,
 ) -> str:
+    if ausencia_tipo in ("ferias", "folga_programada"):
+        if tem_entrada and tem_saida:
+            return "ok"
+        if tem_entrada or tem_saida:
+            return "folga_com_ponto"
+        return ausencia_tipo
     if feriado:
         if tem_entrada and tem_saida:
             return "ok"
@@ -462,8 +469,11 @@ def _classe_visual_dia(
     esperado: bool,
     segundos_trabalhados: int,
     segundos_esperados: int,
+    ausencia_tipo: str | None = None,
 ) -> str:
-    """Paleta #842: vermelho abaixo / verde ok / azul HE / laranja feriado."""
+    """Paleta #842: vermelho abaixo / verde ok / azul HE / laranja feriado / violeta ausência."""
+    if ausencia_tipo in ("ferias", "folga_programada"):
+        return "ausencia"
     if feriado:
         return "feriado"
     meta = segundos_esperados if segundos_esperados > 0 else 0
@@ -476,6 +486,32 @@ def _classe_visual_dia(
     if segundos_trabalhados > meta:
         return "he"
     return "ok"
+
+
+def _segundos_pausas_do_dia(batidas: list[PontoBatida]) -> int:
+    """Soma todas as pausas fechadas do dia (fora dos blocos entrada→saída)."""
+    ordenadas = sorted(batidas, key=lambda b: (_as_utc(b.registrado_em), b.id))
+    total = 0
+    pendente: PontoBatida | None = None
+    for b in ordenadas:
+        if b.tipo == "pausa_inicio":
+            pendente = b
+        elif b.tipo == "pausa_fim" and pendente is not None:
+            total += max(0, int((_as_utc(b.registrado_em) - _as_utc(pendente.registrado_em)).total_seconds()))
+            pendente = None
+    return total
+
+
+def _pausa_abaixo_minimo(
+    *,
+    tem_entrada: bool,
+    segundos_pausa: int,
+    pausa_minima_minutos: int,
+) -> bool:
+    """#973 — sinaliza se iniciou jornada e a pausa total ficou abaixo do mínimo."""
+    if pausa_minima_minutos <= 0 or not tem_entrada:
+        return False
+    return segundos_pausa < pausa_minima_minutos * 60
 
 
 def calendario(
@@ -514,9 +550,14 @@ def calendario(
         por_dia.setdefault(d, []).append(b)
 
     usa = escala_svc.escala_configurada(atendente)
+    from app.services import ponto_ausencia as ausencia_svc
+
+    ausencias = ausencia_svc.mapa_ausencias_aprovadas(db, atendente.id, desde=desde, ate=ate)
+    pausa_min = int(getattr(settings, "pausa_minima_minutos", None) or 0)
     dias_out: list[PontoCalendarioDia] = []
     for d in dias_mes:
         feriado = ponto_settings_svc.eh_feriado(db, atendente.tenant_id, d)
+        ausencia_tipo = ausencias.get(d)
         esp = escala_svc.eh_dia_de_trabalho(atendente, d) if usa else False
         bats = por_dia.get(d, [])
         te = any(b.tipo == "entrada" for b in bats)
@@ -524,7 +565,8 @@ def calendario(
         atrasado = _atrasado_entrada(atendente, _primeira_entrada_do_dia(bats))
         intervalos = _intervalos_de_batidas(bats)
         trabalhados = sum(i.duracao_segundos or 0 for i in intervalos if not i.aberto)
-        esperado_visual = bool(esp and not feriado)
+        pausas = _segundos_pausas_do_dia(bats)
+        esperado_visual = bool(esp and not feriado and not ausencia_tipo)
         if usa and esperado_visual:
             esperados = escala_svc.segundos_esperados_dia(atendente, d) or meta_default
         elif te or ts:
@@ -548,16 +590,23 @@ def calendario(
                     tem_saida=ts,
                     feriado=feriado,
                     atrasado=atrasado,
+                    ausencia_tipo=ausencia_tipo,
                 ),
                 atrasado=atrasado,
                 feriado=feriado,
+                ausencia_tipo=ausencia_tipo,
+                pausa_abaixo_minimo=_pausa_abaixo_minimo(
+                    tem_entrada=te, segundos_pausa=pausas, pausa_minima_minutos=pausa_min
+                ),
                 segundos_trabalhados=trabalhados,
                 segundos_esperados=esperados,
+                segundos_pausa=pausas,
                 classe_visual=_classe_visual_dia(  # type: ignore[arg-type]
                     feriado=feriado,
                     esperado=esperado_para_cor,
                     segundos_trabalhados=trabalhados,
                     segundos_esperados=esperados,
+                    ausencia_tipo=ausencia_tipo,
                 ),
             )
         )
@@ -574,6 +623,7 @@ def calendario(
 
 
 def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
+    from app.services import ponto_ausencia as ausencia_svc
     from app.services.presenca import PRESENCA_TTL_SEC
 
     hoje = datetime.now(PONTO_TZ).date()
@@ -593,6 +643,7 @@ def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
     itens: list[PontoHojeItem] = []
     for a in atendentes:
         usa = escala_svc.escala_configurada(a)
+        ausencia_tipo = ausencia_svc.tipo_ausencia_aprovada_no_dia(db, a.id, hoje)
         esperado = escala_svc.eh_dia_de_trabalho(a, hoje) if usa else False
         entrada = _entrada_da_jornada_aberta(db, a.id)
         inicio, fim = _bounds_periodo(hoje, hoje)
@@ -615,6 +666,7 @@ def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
             tem_saida=ts,
             feriado=feriado_hoje,
             atrasado=atrasado,
+            ausencia_tipo=ausencia_tipo,
         )
         hb = a.presenca_heartbeat_em
         if hb is not None and hb.tzinfo is None:
@@ -625,7 +677,7 @@ def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
             PontoHojeItem(
                 atendente_id=a.id,
                 nome=a.nome,
-                esperado=esperado and not feriado_hoje,
+                esperado=bool(esperado and not feriado_hoje and not ausencia_tipo),
                 em_jornada=entrada is not None,
                 em_pausa=em_pausa_aberta(db, a.id),
                 entrada_em=entrada.registrado_em if entrada else None,
@@ -678,17 +730,22 @@ def banco_horas(
     desde: date,
     ate: date,
 ) -> PontoBancoHorasRead:
+    from app.services import ponto_ausencia as ausencia_svc
+
     if ate < desde:
         raise HTTPException(status_code=400, detail="Período inválido (até < desde).")
     usa = escala_svc.escala_configurada(atendente)
+    ausencias = ausencia_svc.mapa_ausencias_aprovadas(db, atendente.id, desde=desde, ate=ate)
     dias_escala = 0
     dias_feriado = 0
     esperado = 0
     d = desde
     while d <= ate:
         feriado = ponto_settings_svc.eh_feriado(db, atendente.tenant_id, d)
-        if feriado:
-            dias_feriado += 1
+        if feriado or d in ausencias:
+            if feriado:
+                dias_feriado += 1
+            # ausência/feriado: não soma esperado
         elif usa and escala_svc.eh_dia_de_trabalho(atendente, d):
             dias_escala += 1
             esperado += escala_svc.segundos_esperados_dia(atendente, d)
@@ -717,6 +774,7 @@ JORNADA_ALERTA_HORAS = 12.0
 
 def alertas_me(db: Session, atendente: Atendente) -> "PontoAlertasMe":
     from app.schemas.ponto import PontoAlertasMe
+    from app.services import ponto_ausencia as ausencia_svc
     from app.services.presenca import PRESENCA_TTL_SEC
 
     exigir_acesso_ponto(atendente)
@@ -730,11 +788,13 @@ def alertas_me(db: Session, atendente: Atendente) -> "PontoAlertasMe":
     horas_aberta: float | None = None
     lembrete_entrada = False
     lembrete_saida = False
+    pausa_baixa = False
 
     feriado = ponto_settings_svc.eh_feriado(db, atendente.tenant_id, hoje)
+    ausencia_tipo = ausencia_svc.tipo_ausencia_aprovada_no_dia(db, atendente.id, hoje)
     jornada_ativa = escala_svc.escala_configurada(atendente)
     esperado = None
-    if jornada_ativa and not feriado:
+    if jornada_ativa and not feriado and not ausencia_tipo:
         esperado = escala_svc.eh_dia_de_trabalho(atendente, hoje)
 
     entrada = _entrada_da_jornada_aberta(db, atendente.id)
@@ -750,6 +810,18 @@ def alertas_me(db: Session, atendente: Atendente) -> "PontoAlertasMe":
     )
     tem_entrada_hoje = any(b.tipo == "entrada" for b in bats_hoje)
     primeira = _primeira_entrada_do_dia(bats_hoje)
+
+    settings = ponto_settings_svc.get_or_create_settings(db, atendente.tenant_id)
+    pausa_min = int(getattr(settings, "pausa_minima_minutos", None) or 0)
+    if pausa_min > 0 and tem_entrada_hoje:
+        pausas = _segundos_pausas_do_dia(bats_hoje)
+        if _pausa_abaixo_minimo(
+            tem_entrada=True, segundos_pausa=pausas, pausa_minima_minutos=pausa_min
+        ):
+            pausa_baixa = True
+            msgs.append(
+                f"Pausa de hoje abaixo do mínimo configurado ({pausa_min} min)."
+            )
 
     hb = atendente.presenca_heartbeat_em
     if hb is not None and hb.tzinfo is None:
@@ -805,6 +877,7 @@ def alertas_me(db: Session, atendente: Atendente) -> "PontoAlertasMe":
         horas_jornada_aberta=horas_aberta,
         lembrete_entrada_tolerancia=lembrete_entrada,
         lembrete_saida_tolerancia=lembrete_saida,
+        pausa_abaixo_minimo=pausa_baixa,
         mensagens=msgs,
     )
 

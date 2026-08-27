@@ -79,6 +79,13 @@ export function MeuPonto() {
     lon: number
     label: string
   } | null>(null)
+  const [justAnexo, setJustAnexo] = useState<File | null>(null)
+  const [ausencias, setAusencias] = useState<Ponto.Ausencia[]>([])
+  const [ausTipo, setAusTipo] = useState<'ferias' | 'folga_programada'>('folga_programada')
+  const [ausDesde, setAusDesde] = useState(hojeIso)
+  const [ausAte, setAusAte] = useState(hojeIso)
+  const [ausMotivo, setAusMotivo] = useState('')
+  const [enviandoAus, setEnviandoAus] = useState(false)
 
   const politicaGeo = geoSettings?.politica_geolocalizacao ?? 'opcional'
   const geoObrigatoria = politicaGeo === 'obrigatoria' && !!geoSettings?.tem_locais_ativos
@@ -88,18 +95,20 @@ export function MeuPonto() {
   const carregar = useCallback(
     async (silencioso = false) => {
       try {
-        const [me, hist, js, bh, gs] = await Promise.all([
+        const [me, hist, js, bh, gs, aus] = await Promise.all([
           ponto.me(),
           ponto.minhasBatidas({ desde, ate, limit: 100 }),
           ponto.minhasJustificativas(),
           ponto.meuBancoHoras(desde, ate),
           ponto.meSettings(),
+          ponto.minhasAusencias(),
         ])
         setEstado(me)
         setHistorico(hist)
         setJustifs(js)
         setBanco(bh)
         setGeoSettings(gs)
+        setAusencias(aus)
         if (gs.politica_geolocalizacao === 'obrigatoria' && gs.tem_locais_ativos) {
           setIncluirLocalizacao(true)
         }
@@ -272,18 +281,48 @@ export function MeuPonto() {
     }
     setEnviandoJust(true)
     try {
-      await ponto.criarJustificativa({
+      const payload = {
         data_ref: justData,
         tipo: justTipo,
         motivo: justMotivo.trim(),
-      })
+      }
+      if (justAnexo) {
+        await ponto.criarJustificativaComAnexo(payload, justAnexo)
+      } else {
+        await ponto.criarJustificativa(payload)
+      }
       toast.showSuccess('Justificativa enviada para aprovação.')
       setJustMotivo('')
+      setJustAnexo(null)
       await carregar(true)
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível enviar a justificativa.'))
     } finally {
       setEnviandoJust(false)
+    }
+  }
+
+  async function solicitarAusencia() {
+    if (ausAte < ausDesde) {
+      toast.showWarning('A data final deve ser igual ou posterior à inicial.')
+      return
+    }
+    setEnviandoAus(true)
+    try {
+      await ponto.solicitarAusencia({
+        tipo: ausTipo,
+        desde: ausDesde,
+        ate: ausAte,
+        motivo: ausMotivo.trim() || null,
+      })
+      toast.showSuccess('Pedido de ausência enviado.')
+      setAusMotivo('')
+      await carregar(true)
+      await carregarCalendario(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível solicitar a ausência.'))
+    } finally {
+      setEnviandoAus(false)
     }
   }
 
@@ -711,6 +750,17 @@ export function MeuPonto() {
                 onChange={(e) => setJustMotivo(e.target.value)}
                 placeholder="Descreva o ocorrido"
               />
+              <div className="min-w-[12rem]">
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Anexo (opcional)
+                </label>
+                <input
+                  type="file"
+                  accept="image/*,.pdf,application/pdf"
+                  className="block w-full text-sm text-slate-600 file:mr-2 file:rounded-md file:border-0 file:bg-slate-100 file:px-2 file:py-1 dark:text-slate-300 dark:file:bg-slate-800"
+                  onChange={(e) => setJustAnexo(e.target.files?.[0] ?? null)}
+                />
+              </div>
               <Button type="button" disabled={enviandoJust} onClick={() => void enviarJustificativa()}>
                 Enviar
               </Button>
@@ -728,8 +778,80 @@ export function MeuPonto() {
                   <span className="font-medium">{j.data_ref}</span> · {j.tipo} ·{' '}
                   <span className="capitalize">{j.estado}</span>
                   <p className="text-slate-600 dark:text-slate-300">{j.motivo}</p>
+                  {j.tem_anexo ? (
+                    <button
+                      type="button"
+                      className="mt-1 text-xs text-cyan-700 underline dark:text-cyan-300"
+                      onClick={() =>
+                        void ponto
+                          .baixarJustificativaAnexo(j.id, j.anexo_nome)
+                          .catch((err) =>
+                            toast.showError(
+                              mensagemFalhaParaToast(err, 'Não foi possível baixar o anexo.'),
+                            ),
+                          )
+                      }
+                    >
+                      Baixar anexo{j.anexo_nome ? ` (${j.anexo_nome})` : ''}
+                    </button>
+                  ) : null}
                   {j.decisao_motivo ? (
                     <p className="text-xs text-slate-500">Decisão: {j.decisao_motivo}</p>
+                  ) : null}
+                </li>
+              ))
+            )}
+          </ul>
+        </Card>
+      </div>
+
+      <div className="mt-4">
+        <Card
+          title="Férias / folga programada"
+          description="Solicite um período; o admin aprova. Dias aprovados não geram falta automática."
+        >
+          <div className="flex flex-wrap items-end gap-3">
+            <Select
+              label="Tipo"
+              value={ausTipo}
+              onChange={(v) => setAusTipo(String(v) as 'ferias' | 'folga_programada')}
+              options={[
+                { value: 'folga_programada', label: 'Folga programada' },
+                { value: 'ferias', label: 'Férias' },
+              ]}
+            />
+            <Input
+              label="De"
+              type="date"
+              value={ausDesde}
+              onChange={(e) => setAusDesde(e.target.value)}
+            />
+            <Input label="Até" type="date" value={ausAte} onChange={(e) => setAusAte(e.target.value)} />
+            <Input
+              label="Motivo (opcional)"
+              value={ausMotivo}
+              onChange={(e) => setAusMotivo(e.target.value)}
+            />
+            <Button type="button" disabled={enviandoAus} onClick={() => void solicitarAusencia()}>
+              Solicitar
+            </Button>
+          </div>
+          <ul className="mt-4 space-y-2 text-sm">
+            {ausencias.length === 0 ? (
+              <li className="text-slate-500">Nenhum pedido de ausência.</li>
+            ) : (
+              ausencias.map((a) => (
+                <li
+                  key={a.id}
+                  className="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800"
+                >
+                  <span className="font-medium">
+                    {a.tipo === 'ferias' ? 'Férias' : 'Folga programada'}
+                  </span>{' '}
+                  · {a.desde} → {a.ate} · <span className="capitalize">{a.estado}</span>
+                  {a.motivo ? <p className="text-slate-600 dark:text-slate-300">{a.motivo}</p> : null}
+                  {a.decisao_motivo ? (
+                    <p className="text-xs text-slate-500">Decisão: {a.decisao_motivo}</p>
                   ) : null}
                 </li>
               ))

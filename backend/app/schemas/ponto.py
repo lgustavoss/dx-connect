@@ -130,6 +130,8 @@ StatusDiaPonto = Literal[
     "parcial",
     "folga",
     "folga_com_ponto",
+    "folga_programada",
+    "ferias",
     "livre",
     "atraso",
     "feriado",
@@ -144,10 +146,13 @@ class PontoCalendarioDia(BaseModel):
     status: StatusDiaPonto
     atrasado: bool = False
     feriado: bool = False
+    ausencia_tipo: str | None = None  # ferias | folga_programada
+    pausa_abaixo_minimo: bool = False
     # #842 — meta de jornada × realizado (cores do calendário)
     segundos_trabalhados: int = 0
     segundos_esperados: int = 0
-    classe_visual: Literal["abaixo", "ok", "he", "feriado", "neutro"] = "neutro"
+    segundos_pausa: int = 0
+    classe_visual: Literal["abaixo", "ok", "he", "feriado", "ausencia", "neutro"] = "neutro"
 
 
 class PontoCalendarioRead(BaseModel):
@@ -207,6 +212,7 @@ class PontoSettingsRead(BaseModel):
     fecho_apos_horas: int = 14
     fecho_margem_pos_saida_minutos: int = 30
     jornada_diaria_minutos: int = 480
+    pausa_minima_minutos: int = 0
     politica_geolocalizacao: PoliticaGeolocalizacao = "opcional"
 
     model_config = ConfigDict(from_attributes=True)
@@ -218,6 +224,7 @@ class PontoSettingsUpdate(BaseModel):
     fecho_apos_horas: int | None = Field(default=None, ge=4, le=48)
     fecho_margem_pos_saida_minutos: int | None = Field(default=None, ge=0, le=240)
     jornada_diaria_minutos: int | None = Field(default=None, ge=60, le=1440)
+    pausa_minima_minutos: int | None = Field(default=None, ge=0, le=240)
     politica_geolocalizacao: PoliticaGeolocalizacao | None = None
 
 
@@ -262,6 +269,7 @@ class PontoAlertasMe(BaseModel):
     horas_jornada_aberta: float | None = None
     lembrete_entrada_tolerancia: bool = False
     lembrete_saida_tolerancia: bool = False
+    pausa_abaixo_minimo: bool = False
     mensagens: list[str] = []
 
 
@@ -296,6 +304,48 @@ class PontoJustificativaRead(BaseModel):
     decisao_motivo: str | None = None
     decidido_por_id: int | None = None
     decidido_em: datetime | None = None
+    tem_anexo: bool = False
+    anexo_nome: str | None = None
+    anexo_content_type: str | None = None
+    anexo_tamanho_bytes: int | None = None
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PontoAusenciaCreate(BaseModel):
+    tipo: Literal["ferias", "folga_programada"]
+    desde: date
+    ate: date
+    motivo: str | None = Field(default=None, max_length=1000)
+
+
+class PontoAusenciaConceder(BaseModel):
+    atendente_id: int = Field(..., ge=1)
+    tipo: Literal["ferias", "folga_programada"]
+    desde: date
+    ate: date
+    motivo: str | None = Field(default=None, max_length=1000)
+
+
+class PontoAusenciaDecisao(BaseModel):
+    aprovar: bool
+    decisao_motivo: str | None = Field(default=None, max_length=1000)
+
+
+class PontoAusenciaRead(BaseModel):
+    id: int
+    atendente_id: int
+    atendente_nome: str | None = None
+    tipo: str
+    desde: date
+    ate: date
+    motivo: str | None = None
+    estado: str
+    origem: str = "solicitacao"
+    decidido_por_id: int | None = None
+    decidido_em: datetime | None = None
+    decisao_motivo: str | None = None
     created_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
