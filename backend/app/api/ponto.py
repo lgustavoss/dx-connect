@@ -21,6 +21,12 @@ from app.schemas.ponto import (
     PontoBatidaRead,
     PontoBaterRequest,
     PontoCalendarioRead,
+    PontoCoberturaColega,
+    PontoCoberturaConceder,
+    PontoCoberturaCreate,
+    PontoCoberturaDecisao,
+    PontoCoberturaRead,
+    PontoCoberturaResposta,
     PontoDigestRead,
     PontoEstadoRead,
     PontoFeriadoCreate,
@@ -44,6 +50,8 @@ from app.schemas.ponto import (
     PontoSettingsUpdate,
 )
 from app.services import ponto as ponto_svc
+from app.services import ponto_cobertura as cob_svc
+from app.services import ponto_folha as folha_svc
 from app.services import ponto_hora_extra as he_svc
 from app.services import ponto_justificativa as just_svc
 from app.services import ponto_relatorio as ponto_relatorio_svc
@@ -184,6 +192,125 @@ def exportar_xlsx(
         content=xlsx,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": 'attachment; filename="ponto_relatorio.xlsx"'},
+    )
+
+
+@router.get("/export/folha.csv")
+def exportar_folha_csv(
+    atendente_id: int | None = Query(None),
+    desde: date = Query(...),
+    ate: date = Query(...),
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    """Template contábil/folha RH (#975) — colunas documentadas no cabeçalho CSV."""
+    conteudo = folha_svc.export_folha_csv(
+        db, admin, atendente_id=atendente_id, desde=desde, ate=ate
+    )
+    return Response(
+        content=conteudo.encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="ponto_folha.csv"'},
+    )
+
+
+@router.get("/export/folha.xlsx")
+def exportar_folha_xlsx(
+    atendente_id: int | None = Query(None),
+    desde: date = Query(...),
+    ate: date = Query(...),
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    xlsx = folha_svc.export_folha_xlsx(
+        db, admin, atendente_id=atendente_id, desde=desde, ate=ate
+    )
+    return Response(
+        content=xlsx,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="ponto_folha.xlsx"'},
+    )
+
+
+@router.post("/coberturas", response_model=PontoCoberturaRead, status_code=201)
+def solicitar_cobertura(
+    data: PontoCoberturaCreate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    return cob_svc.solicitar(
+        db,
+        atendente,
+        cobertor_id=data.cobertor_id,
+        data_ref=data.data_ref,
+        motivo=data.motivo,
+    )
+
+
+@router.get("/coberturas/me", response_model=list[PontoCoberturaRead])
+def minhas_coberturas(
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    return cob_svc.listar_me(db, atendente)
+
+
+@router.get("/coberturas/colegas", response_model=list[PontoCoberturaColega])
+def colegas_cobertura(
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    return cob_svc.listar_colegas(db, atendente)
+
+
+@router.post("/coberturas/{cobertura_id}/responder", response_model=PontoCoberturaRead)
+def responder_cobertura(
+    cobertura_id: int,
+    data: PontoCoberturaResposta,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    return cob_svc.responder_cobertor(db, atendente, cobertura_id, aceitar=data.aceitar)
+
+
+@router.get("/coberturas", response_model=list[PontoCoberturaRead])
+def listar_coberturas_admin(
+    estado: str | None = Query("pendente_admin"),
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return cob_svc.listar_admin(db, admin, estado=estado)
+
+
+@router.post("/coberturas/conceder", response_model=PontoCoberturaRead, status_code=201)
+def conceder_cobertura(
+    data: PontoCoberturaConceder,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return cob_svc.conceder_admin(
+        db,
+        admin,
+        solicitante_id=data.solicitante_id,
+        cobertor_id=data.cobertor_id,
+        data_ref=data.data_ref,
+        motivo=data.motivo,
+    )
+
+
+@router.post("/coberturas/{cobertura_id}/decidir", response_model=PontoCoberturaRead)
+def decidir_cobertura(
+    cobertura_id: int,
+    data: PontoCoberturaDecisao,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return cob_svc.decidir_admin(
+        db,
+        admin,
+        cobertura_id,
+        aprovar=data.aprovar,
+        decisao_motivo=data.decisao_motivo,
     )
 
 

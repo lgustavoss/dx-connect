@@ -15,6 +15,10 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### DeskRudder
 
+#### Melhorias
+
+- Ponto (#975 / #970): **export contábil/folha RH** (CSV e Excel) com matrícula, previsto/realizado, atrasos, faltas, HE, banco e ajustes; **cobertura de plantão** (A pede → B aceita → admin homologa, ou admin agenda direto) refletida no calendário e nas faltas
+
 #### Correções
 
 - Atendimentos (#996 / #S202608-0007): na tela de chats, a barra superior (menu, notificações) volta a aparecer no computador; no celular continua oculta com a conversa aberta
