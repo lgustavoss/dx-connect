@@ -106,3 +106,20 @@ def mensagem_publica_status(status: str, *, motivo: str | None = None) -> str:
 
 def rotulo_status(status: str) -> str:
     return STATUS_LABELS.get(status, status.replace("_", " "))
+
+
+def normalizar_versao_alvo(valor: str | None) -> str | None:
+    v = (valor or "").strip()
+    return v[:64] if v else None
+
+
+def rotulo_versao_alvo_publica(status: str, versao: str | None) -> str | None:
+    """Rótulo amigável para Minhas solicitações (#955)."""
+    v = normalizar_versao_alvo(versao)
+    if not v:
+        return None
+    if status == "concluida":
+        return f"Disponível na {v}"
+    if status in ("planejada", "em_desenvolvimento"):
+        return f"Prevista para {v}"
+    return None

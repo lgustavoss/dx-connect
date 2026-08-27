@@ -21,6 +21,7 @@ class SolicitacaoMelhoria(Base):
     status = Column(String(40), nullable=False, default="aberta", server_default="aberta", index=True)
     motivo_nao_desenvolvimento = Column(Text, nullable=True)
     versao_contexto = Column(String(64), nullable=True)
+    versao_alvo = Column(String(64), nullable=True)
     github_repo = Column(String(200), nullable=True)
     github_issue_number = Column(Integer, nullable=True)
     github_issue_url = Column(String(500), nullable=True)
