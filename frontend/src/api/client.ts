@@ -838,6 +838,50 @@ export const ponto = {
     }
     return res.blob()
   },
+  exportFolha: async (
+    ext: 'csv' | 'xlsx',
+    params: { atendente_id?: number; desde: string; ate: string },
+  ) => {
+    const token = getAuthToken()
+    const headers: Record<string, string> = {}
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+    }
+    if (token) headers.Authorization = `Bearer ${token}`
+    const path = ext === 'csv' ? '/ponto/export/folha.csv' : '/ponto/export/folha.xlsx'
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}${withParams(path, params)}`
+    const res = await fetch(url, { headers })
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin()
+      throw new ApiError('Sessão expirada ou inválida.', 401, {})
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+    }
+    return res.blob()
+  },
+  solicitarCobertura: (data: Ponto.CoberturaCreate) =>
+    api<Ponto.Cobertura>('/ponto/coberturas', { method: 'POST', body: JSON.stringify(data) }),
+  minhasCoberturas: () => api<Ponto.Cobertura[]>('/ponto/coberturas/me'),
+  colegasCobertura: () => api<Ponto.CoberturaColega[]>('/ponto/coberturas/colegas'),
+  responderCobertura: (id: number, data: Ponto.CoberturaResposta) =>
+    api<Ponto.Cobertura>(`/ponto/coberturas/${id}/responder`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  coberturasAdmin: (estado?: string) =>
+    api<Ponto.Cobertura[]>(withParams('/ponto/coberturas', { estado })),
+  concederCobertura: (data: Ponto.CoberturaConceder) =>
+    api<Ponto.Cobertura>('/ponto/coberturas/conceder', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  decidirCobertura: (id: number, data: Ponto.CoberturaDecisao) =>
+    api<Ponto.Cobertura>(`/ponto/coberturas/${id}/decidir`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   meSettings: () => api<Ponto.SettingsPublic>('/ponto/me/settings'),
   locais: (params?: { atendente_id?: number; so_orfos?: boolean }) =>
     api<Ponto.Local[]>(withParams('/ponto/locais', params)),
@@ -5022,6 +5066,45 @@ export namespace Ponto {
     estado: 'aprovada' | 'rejeitada'
     decisao_motivo: string
     aplicar_batidas?: { tipo: Tipo; registrado_em: string; motivo: string }[]
+  }
+  export interface CoberturaCreate {
+    cobertor_id: number
+    data_ref: string
+    motivo?: string | null
+  }
+  export interface CoberturaColega {
+    id: number
+    nome: string
+  }
+  export interface CoberturaConceder {
+    solicitante_id: number
+    cobertor_id: number
+    data_ref: string
+    motivo?: string | null
+  }
+  export interface CoberturaResposta {
+    aceitar: boolean
+  }
+  export interface CoberturaDecisao {
+    aprovar: boolean
+    decisao_motivo?: string | null
+  }
+  export interface Cobertura {
+    id: number
+    solicitante_id: number
+    solicitante_nome?: string | null
+    cobertor_id: number
+    cobertor_nome?: string | null
+    data_ref: string
+    motivo?: string | null
+    estado: string
+    origem?: string
+    resposta_cobertor?: string | null
+    respondido_em?: string | null
+    decidido_por_id?: number | null
+    decidido_em?: string | null
+    decisao_motivo?: string | null
+    created_at?: string | null
   }
   export interface HoraExtra {
     id: number

@@ -357,3 +357,50 @@ class PontoHoraExtraMeStatus(BaseModel):
     pedido_pendente: PontoHoraExtraRead | None = None
     he_teto_minutos: int | None = None
     he_restante_minutos: int | None = None
+
+
+class PontoCoberturaColega(BaseModel):
+    id: int
+    nome: str
+
+
+class PontoCoberturaCreate(BaseModel):
+    cobertor_id: int = Field(..., ge=1)
+    data_ref: date
+    motivo: str | None = Field(default=None, max_length=1000)
+
+
+class PontoCoberturaConceder(BaseModel):
+    solicitante_id: int = Field(..., ge=1)
+    cobertor_id: int = Field(..., ge=1)
+    data_ref: date
+    motivo: str | None = Field(default=None, max_length=1000)
+
+
+class PontoCoberturaResposta(BaseModel):
+    aceitar: bool
+
+
+class PontoCoberturaDecisao(BaseModel):
+    aprovar: bool
+    decisao_motivo: str | None = Field(default=None, max_length=1000)
+
+
+class PontoCoberturaRead(BaseModel):
+    id: int
+    solicitante_id: int
+    solicitante_nome: str | None = None
+    cobertor_id: int
+    cobertor_nome: str | None = None
+    data_ref: date
+    motivo: str | None = None
+    estado: str
+    origem: str = "solicitacao"
+    resposta_cobertor: str | None = None
+    respondido_em: datetime | None = None
+    decidido_por_id: int | None = None
+    decidido_em: datetime | None = None
+    decisao_motivo: str | None = None
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)

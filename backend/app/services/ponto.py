@@ -514,10 +514,20 @@ def calendario(
         por_dia.setdefault(d, []).append(b)
 
     usa = escala_svc.escala_configurada(atendente)
+    from app.services import ponto_cobertura as cob_svc
+
+    papeis = cob_svc.mapa_papeis_periodo(db, atendente.id, desde=desde, ate=ate)
     dias_out: list[PontoCalendarioDia] = []
     for d in dias_mes:
         feriado = ponto_settings_svc.eh_feriado(db, atendente.tenant_id, d)
-        esp = escala_svc.eh_dia_de_trabalho(atendente, d) if usa else False
+        esp_escala = escala_svc.eh_dia_de_trabalho(atendente, d) if usa else False
+        papel = papeis.get(d)
+        if papel == "solicitante":
+            esp = False
+        elif papel == "cobertor":
+            esp = True
+        else:
+            esp = esp_escala
         bats = por_dia.get(d, [])
         te = any(b.tipo == "entrada" for b in bats)
         ts = any(b.tipo == "saida" for b in bats)
@@ -525,7 +535,7 @@ def calendario(
         intervalos = _intervalos_de_batidas(bats)
         trabalhados = sum(i.duracao_segundos or 0 for i in intervalos if not i.aberto)
         esperado_visual = bool(esp and not feriado)
-        if usa and esperado_visual:
+        if (usa or papel == "cobertor") and esperado_visual:
             esperados = escala_svc.segundos_esperados_dia(atendente, d) or meta_default
         elif te or ts:
             esperados = meta_default
@@ -534,7 +544,7 @@ def calendario(
         else:
             esperados = 0
         # Sem jornada esperada: dia com batidas compara à meta; dia vazio fica neutro
-        esperado_para_cor = esperado_visual if usa else bool(te or ts)
+        esperado_para_cor = esperado_visual if (usa or papel) else bool(te or ts)
         dias_out.append(
             PontoCalendarioDia(
                 data=d,
@@ -542,7 +552,7 @@ def calendario(
                 tem_entrada=te,
                 tem_saida=ts,
                 status=_status_dia(  # type: ignore[arg-type]
-                    usa_escala=usa,
+                    usa_escala=usa or papel == "cobertor",
                     esperado=esp,
                     tem_entrada=te,
                     tem_saida=ts,
@@ -574,6 +584,7 @@ def calendario(
 
 
 def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
+    from app.services import ponto_cobertura as cob_svc
     from app.services.presenca import PRESENCA_TTL_SEC
 
     hoje = datetime.now(PONTO_TZ).date()
@@ -593,7 +604,7 @@ def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
     itens: list[PontoHojeItem] = []
     for a in atendentes:
         usa = escala_svc.escala_configurada(a)
-        esperado = escala_svc.eh_dia_de_trabalho(a, hoje) if usa else False
+        esperado = cob_svc.eh_dia_esperado_efetivo(db, a, hoje) if not feriado_hoje else False
         entrada = _entrada_da_jornada_aberta(db, a.id)
         inicio, fim = _bounds_periodo(hoje, hoje)
         bats = (
@@ -609,7 +620,7 @@ def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
         ts = any(b.tipo == "saida" for b in bats)
         atrasado = _atrasado_entrada(a, _primeira_entrada_do_dia(bats))
         st = _status_dia(
-            usa_escala=usa,
+            usa_escala=usa or esperado,
             esperado=esperado,
             tem_entrada=te,
             tem_saida=ts,
@@ -678,9 +689,13 @@ def banco_horas(
     desde: date,
     ate: date,
 ) -> PontoBancoHorasRead:
+    from app.services import ponto_cobertura as cob_svc
+
     if ate < desde:
         raise HTTPException(status_code=400, detail="Período inválido (até < desde).")
     usa = escala_svc.escala_configurada(atendente)
+    settings = ponto_settings_svc.get_or_create_settings(db, atendente.tenant_id)
+    meta_default = int(getattr(settings, "jornada_diaria_minutos", None) or 480) * 60
     dias_escala = 0
     dias_feriado = 0
     esperado = 0
@@ -689,15 +704,15 @@ def banco_horas(
         feriado = ponto_settings_svc.eh_feriado(db, atendente.tenant_id, d)
         if feriado:
             dias_feriado += 1
-        elif usa and escala_svc.eh_dia_de_trabalho(atendente, d):
+        elif cob_svc.eh_dia_esperado_efetivo(db, atendente, d):
             dias_escala += 1
-            esperado += escala_svc.segundos_esperados_dia(atendente, d)
+            seg = escala_svc.segundos_esperados_dia(atendente, d)
+            esperado += seg if seg > 0 else meta_default
         d += timedelta(days=1)
 
     hist = historico(db, atendente, desde=desde, ate=ate, offset=0, limit=10_000)
     realizado = hist.total_segundos_fechados
-    # Sem escala: não gera débito — saldo = realizado (crédito puro)
-    if not usa:
+    if not usa and dias_escala == 0:
         esperado = 0
     return PontoBancoHorasRead(
         atendente_id=atendente.id,
@@ -732,10 +747,14 @@ def alertas_me(db: Session, atendente: Atendente) -> "PontoAlertasMe":
     lembrete_saida = False
 
     feriado = ponto_settings_svc.eh_feriado(db, atendente.tenant_id, hoje)
-    jornada_ativa = escala_svc.escala_configurada(atendente)
+    from app.services import ponto_cobertura as cob_svc
+
+    jornada_ativa = escala_svc.escala_configurada(atendente) or (
+        cob_svc.papel_cobertura_aprovada(db, atendente.id, hoje) is not None
+    )
     esperado = None
-    if jornada_ativa and not feriado:
-        esperado = escala_svc.eh_dia_de_trabalho(atendente, hoje)
+    if not feriado:
+        esperado = cob_svc.eh_dia_esperado_efetivo(db, atendente, hoje)
 
     entrada = _entrada_da_jornada_aberta(db, atendente.id)
     inicio, fim = _bounds_periodo(hoje, hoje)

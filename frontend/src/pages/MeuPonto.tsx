@@ -10,6 +10,7 @@ import { Input } from '../components/ui/Input'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../contexts/AuthContext'
 import { isCapacitorNative } from '../lib/capacitorNative'
 import { geolocationSupported, getCurrentPosition, type GeoError } from '../lib/geolocation'
 import {
@@ -46,6 +47,7 @@ type AcaoPrincipal = {
 
 export function MeuPonto() {
   const toast = useToast()
+  const { user } = useAuth()
   const [estado, setEstado] = useState<Ponto.EstadoMe | null>(null)
   const [historico, setHistorico] = useState<Ponto.Historico | null>(null)
   const [desde, setDesde] = useState(inicioMesIso)
@@ -57,6 +59,12 @@ export function MeuPonto() {
   const [justTipo, setJustTipo] = useState<Ponto.JustificativaCreate['tipo']>('esquecimento')
   const [justMotivo, setJustMotivo] = useState('')
   const [enviandoJust, setEnviandoJust] = useState(false)
+  const [coberturas, setCoberturas] = useState<Ponto.Cobertura[]>([])
+  const [colegasCob, setColegasCob] = useState<Ponto.CoberturaColega[]>([])
+  const [cobCobertor, setCobCobertor] = useState('')
+  const [cobData, setCobData] = useState(hojeIso)
+  const [cobMotivo, setCobMotivo] = useState('')
+  const [enviandoCob, setEnviandoCob] = useState(false)
   const [banco, setBanco] = useState<Ponto.BancoHoras | null>(null)
   const [refSemana, setRefSemana] = useState(hojeIso)
   const [resumoSemana, setResumoSemana] = useState<Ponto.ResumoSemana | null>(null)
@@ -88,18 +96,22 @@ export function MeuPonto() {
   const carregar = useCallback(
     async (silencioso = false) => {
       try {
-        const [me, hist, js, bh, gs] = await Promise.all([
+        const [me, hist, js, bh, gs, cobs, cols] = await Promise.all([
           ponto.me(),
           ponto.minhasBatidas({ desde, ate, limit: 100 }),
           ponto.minhasJustificativas(),
           ponto.meuBancoHoras(desde, ate),
           ponto.meSettings(),
+          ponto.minhasCoberturas(),
+          ponto.colegasCobertura(),
         ])
         setEstado(me)
         setHistorico(hist)
         setJustifs(js)
         setBanco(bh)
         setGeoSettings(gs)
+        setCoberturas(cobs)
+        setColegasCob(cols)
         if (gs.politica_geolocalizacao === 'obrigatoria' && gs.tem_locais_ativos) {
           setIncluirLocalizacao(true)
         }
@@ -284,6 +296,38 @@ export function MeuPonto() {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível enviar a justificativa.'))
     } finally {
       setEnviandoJust(false)
+    }
+  }
+
+  async function solicitarCobertura() {
+    if (!cobCobertor) {
+      toast.showWarning('Selecione quem vai cobrir o plantão.')
+      return
+    }
+    setEnviandoCob(true)
+    try {
+      await ponto.solicitarCobertura({
+        cobertor_id: Number(cobCobertor),
+        data_ref: cobData,
+        motivo: cobMotivo.trim() || null,
+      })
+      toast.showSuccess('Pedido de cobertura enviado. Aguarde o cobertor e o admin.')
+      setCobMotivo('')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível solicitar a cobertura.'))
+    } finally {
+      setEnviandoCob(false)
+    }
+  }
+
+  async function responderCob(id: number, aceitar: boolean) {
+    try {
+      await ponto.responderCobertura(id, { aceitar })
+      toast.showSuccess(aceitar ? 'Cobertura aceita — aguarda homologação do admin.' : 'Pedido recusado.')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível responder.'))
     }
   }
 
@@ -733,6 +777,68 @@ export function MeuPonto() {
                   ) : null}
                 </li>
               ))
+            )}
+          </ul>
+        </Card>
+      </div>
+
+      <div className="mt-4">
+        <Card
+          title="Cobertura de plantão"
+          description="Peça para um colega cobrir seu dia; ele aceita e o admin homologa."
+        >
+          <div className="flex flex-wrap items-end gap-3">
+            <Select
+              label="Quem cobre"
+              value={cobCobertor}
+              onChange={(v) => setCobCobertor(String(v))}
+              options={[
+                { value: '', label: 'Selecione' },
+                ...colegasCob.map((c) => ({ value: String(c.id), label: c.nome })),
+              ]}
+            />
+            <Input label="Data" type="date" value={cobData} onChange={(e) => setCobData(e.target.value)} />
+            <Input
+              label="Motivo (opcional)"
+              value={cobMotivo}
+              onChange={(e) => setCobMotivo(e.target.value)}
+            />
+            <Button type="button" disabled={enviandoCob} onClick={() => void solicitarCobertura()}>
+              Solicitar
+            </Button>
+          </div>
+          <ul className="mt-4 space-y-2 text-sm">
+            {coberturas.length === 0 ? (
+              <li className="text-slate-500">Nenhuma cobertura neste histórico.</li>
+            ) : (
+              coberturas.map((c) => {
+                const souCobertor = user?.id === c.cobertor_id
+                const pendenteMim = souCobertor && c.estado === 'pendente_cobertor'
+                return (
+                  <li
+                    key={c.id}
+                    className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800"
+                  >
+                    <div>
+                      <p className="font-medium">
+                        {c.solicitante_nome} → {c.cobertor_nome} · {c.data_ref}
+                      </p>
+                      <p className="capitalize text-slate-500">{c.estado.replace(/_/g, ' ')}</p>
+                      {c.motivo ? <p className="text-slate-600 dark:text-slate-300">{c.motivo}</p> : null}
+                    </div>
+                    {pendenteMim ? (
+                      <div className="flex gap-2">
+                        <Button type="button" variant="secondary" onClick={() => void responderCob(c.id, true)}>
+                          Aceitar
+                        </Button>
+                        <Button type="button" variant="ghost" onClick={() => void responderCob(c.id, false)}>
+                          Recusar
+                        </Button>
+                      </div>
+                    ) : null}
+                  </li>
+                )
+              })
             )}
           </ul>
         </Card>

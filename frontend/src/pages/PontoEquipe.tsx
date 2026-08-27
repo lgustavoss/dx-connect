@@ -70,6 +70,12 @@ export function PontoEquipe() {
   const [ajusteAuditAte, setAjusteAuditAte] = useState(hojeIso)
   const [carregandoAjustes, setCarregandoAjustes] = useState(false)
   const [justifs, setJustifs] = useState<Ponto.Justificativa[]>([])
+  const [cobPendentes, setCobPendentes] = useState<Ponto.Cobertura[]>([])
+  const [cobSolicitante, setCobSolicitante] = useState('')
+  const [cobCobertor, setCobCobertor] = useState('')
+  const [cobData, setCobData] = useState(hojeIso)
+  const [cobMotivo, setCobMotivo] = useState('')
+  const [concedendoCob, setConcedendoCob] = useState(false)
   const [hesPendentes, setHesPendentes] = useState<Ponto.HoraExtra[]>([])
   const [heModo, setHeModo] = useState<'resto_do_dia' | 'ate_horario' | 'duracao'>('resto_do_dia')
   const [heAteHorario, setHeAteHorario] = useState('20:00')
@@ -96,7 +102,7 @@ export function PontoEquipe() {
   const carregar = useCallback(
     async (silencioso = false) => {
       try {
-        const [hist, dia, js, dig, st, fer, hes] = await Promise.all([
+        const [hist, dia, js, dig, st, fer, hes, cobs] = await Promise.all([
           ponto.batidasAdmin({
             atendente_id: atendenteId ? Number(atendenteId) : undefined,
             desde,
@@ -109,6 +115,7 @@ export function PontoEquipe() {
           ponto.settings(),
           ponto.feriados(new Date().getFullYear()),
           ponto.horaExtraAdmin('pendente'),
+          ponto.coberturasAdmin('pendente'),
         ])
         setItems(hist.items)
         setTotal(hist.total)
@@ -118,6 +125,7 @@ export function PontoEquipe() {
         setSettings(st)
         setFeriados(fer)
         setHesPendentes(hes)
+        setCobPendentes(cobs)
         setSemPermissao(false)
         if (atendenteId) {
           const bh = await ponto.bancoHorasAdmin(Number(atendenteId), desde, ate)
@@ -243,6 +251,24 @@ export function PontoEquipe() {
     }
   }
 
+  async function exportarFolha(ext: 'csv' | 'xlsx') {
+    try {
+      const blob = await ponto.exportFolha(ext, {
+        atendente_id: atendenteId ? Number(atendenteId) : undefined,
+        desde,
+        ate,
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = ext === 'csv' ? 'ponto_folha.csv' : 'ponto_folha.xlsx'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível exportar a folha RH.'))
+    }
+  }
+
   async function salvarAjuste() {
     if (!ajusteAtendente) {
       toast.showWarning('Selecione o atendente.')
@@ -314,6 +340,46 @@ export function PontoEquipe() {
       await carregar(true)
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível decidir.'))
+    }
+  }
+
+  async function decidirCob(id: number, aprovar: boolean) {
+    try {
+      await ponto.decidirCobertura(id, {
+        aprovar,
+        decisao_motivo: aprovar ? null : 'Negado pelo administrador',
+      })
+      toast.showSuccess(aprovar ? 'Cobertura homologada.' : 'Cobertura negada.')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível decidir a cobertura.'))
+    }
+  }
+
+  async function concederCob() {
+    if (!cobSolicitante || !cobCobertor) {
+      toast.showWarning('Selecione solicitante e cobertor.')
+      return
+    }
+    if (cobSolicitante === cobCobertor) {
+      toast.showWarning('Solicitante e cobertor devem ser diferentes.')
+      return
+    }
+    setConcedendoCob(true)
+    try {
+      await ponto.concederCobertura({
+        solicitante_id: Number(cobSolicitante),
+        cobertor_id: Number(cobCobertor),
+        data_ref: cobData,
+        motivo: cobMotivo.trim() || null,
+      })
+      toast.showSuccess('Cobertura agendada.')
+      setCobMotivo('')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível agendar a cobertura.'))
+    } finally {
+      setConcedendoCob(false)
     }
   }
 
@@ -549,6 +615,71 @@ export function PontoEquipe() {
           )}
         </Card>
 
+        <Card title="Cobertura de plantão">
+          <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
+            Agende direto ou homologue pedidos (A pede, B aceita, admin confirma). No dia, A não gera falta e B
+            passa a ter jornada esperada.
+          </p>
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <Select
+              label="Solicitante (folga)"
+              value={cobSolicitante}
+              onChange={(v) => setCobSolicitante(String(v))}
+              options={[
+                { value: '', label: 'Selecione' },
+                ...equipe.map((a) => ({ value: String(a.id), label: a.nome })),
+              ]}
+            />
+            <Select
+              label="Cobertor"
+              value={cobCobertor}
+              onChange={(v) => setCobCobertor(String(v))}
+              options={[
+                { value: '', label: 'Selecione' },
+                ...equipe.map((a) => ({ value: String(a.id), label: a.nome })),
+              ]}
+            />
+            <Input label="Data" type="date" value={cobData} onChange={(e) => setCobData(e.target.value)} />
+            <Input
+              label="Motivo (opcional)"
+              value={cobMotivo}
+              onChange={(e) => setCobMotivo(e.target.value)}
+            />
+            <Button type="button" disabled={concedendoCob} onClick={() => void concederCob()}>
+              Agendar
+            </Button>
+          </div>
+          <p className="mb-2 text-sm font-medium text-slate-800 dark:text-slate-100">Pedidos pendentes</p>
+          {cobPendentes.length === 0 ? (
+            <p className="text-sm text-slate-500">Nenhum pedido pendente.</p>
+          ) : (
+            <ul className="space-y-3">
+              {cobPendentes.map((c) => (
+                <li
+                  key={c.id}
+                  className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800"
+                >
+                  <div className="text-sm">
+                    <p className="font-medium">
+                      {c.solicitante_nome} → {c.cobertor_nome} · {c.data_ref}
+                    </p>
+                    <p className="text-slate-500">{c.estado.replace(/_/g, ' ')}</p>
+                    {c.motivo ? <p className="text-slate-600 dark:text-slate-300">{c.motivo}</p> : null}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="secondary" onClick={() => void decidirCob(c.id, true)}>
+                      Homologar
+                    </Button>
+                    <Button type="button" variant="ghost" onClick={() => void decidirCob(c.id, false)}>
+                      Negar
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
         <Card title="Hora extra (WhatsApp após jornada)">
           <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
             Conceda HE com antecedência ou libere pedidos após o fim da jornada. Modos: resto do dia, até um horário ou
@@ -775,6 +906,12 @@ export function PontoEquipe() {
             </Button>
             <Button type="button" variant="secondary" onClick={() => void exportarRelatorio('xlsx')}>
               Excel mensal
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => void exportarFolha('csv')}>
+              Folha RH (CSV)
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => void exportarFolha('xlsx')}>
+              Folha RH (Excel)
             </Button>
           </div>
           <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
