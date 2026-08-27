@@ -10,7 +10,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 #### Melhorias
 
 - Sugestões (#953 / #954): máquina de estados rígida na triagem (só avanços permitidos); **Implementar** cria ou liga issue no GitHub e só então marca em desenvolvimento — o cliente continua sem ver o GitHub
-- Sugestões (#955–#957): **versão alvo** (CalVer) visível em Minhas solicitações; ops define em planejada/desenvolvimento; no deploy admin-center pedidos citados no CHANGELOG (`#S…` / issue) passam a concluída com a versão liberada; rule Cursor para só codar com protocolo + issue ligada
+- Sugestões (#955–#957): quando o pedido é **concluído** no deploy, Minhas solicitações mostra **Disponível a partir da versão X (ou superior)** — a versão vem do release real (CalVer), não há previsão manual em planejada/desenvolvimento; rule Cursor para só codar com protocolo + issue ligada
 - Docs (#879): MCP aponta a `api.deskrudder.com.br`; runbook para desativar cliente sem derrubar o painel SaaS; arquitetura pós-cutover (admin-center vs compose legado)
 - Painel admin: cabeçalho com **Painel admin SaaS** + usuário logado (nome e cargos); **Equipe** com Usuários / Setores / Minha conta; removido o atalho «Painel atendimento»
 - Equipe SaaS: cadastro de **setores/cargos** (Admin, Desenvolvimento, Comercial, …) sem campo ordem; um usuário pode ter **vários** cargos; o cabeçalho mostra os nomes em vez de só «Ops SaaS»

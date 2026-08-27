@@ -956,7 +956,8 @@ def test_implementar_cria_issue_quando_configurado(client, seed_base, auth_heade
     assert cliente.get("github_issue_url") in (None, "")
 
 
-def test_definir_versao_alvo_sync_cliente(client, seed_base, auth_headers, monkeypatch):
+def test_versao_alvo_rotulo_so_apos_release(client, seed_base, auth_headers, monkeypatch):
+    """Versão só aparece ao cliente quando concluída (G4), não em planejada."""
     from app.config import settings
 
     monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
@@ -966,37 +967,12 @@ def test_definir_versao_alvo_sync_cliente(client, seed_base, auth_headers, monke
     saas_id = _saas_id_de_origem(client, h, sid)
     _avancar_status(client, h, saas_id, "em_analise", "planejada")
 
-    ok = client.patch(
-        f"/v1/saas/solicitacoes/{saas_id}/versao-alvo",
-        headers=h,
-        json={"versao_alvo": "2026.09.01", "comentario_publico": "Entra na próxima versão."},
-    )
-    assert ok.status_code == 200, ok.text
-    assert ok.json()["versao_alvo"] == "2026.09.01"
-
     minhas = client.get(f"/v1/solicitacoes-melhoria/{sid}", headers=auth_headers["a1"]).json()
-    assert minhas["versao_alvo"] == "2026.09.01"
-    assert minhas["versao_alvo_rotulo"] == "Prevista para 2026.09.01"
-    assert any("próxima versão" in c["corpo"] for c in minhas["comentarios"])
+    assert minhas.get("versao_alvo_rotulo") in (None, "")
 
-    client.post(
-        f"/v1/saas/solicitacoes/{saas_id}/implementar",
-        headers=h,
-        json={"github_issue_url": "https://github.com/lgustavoss/dx-connect/issues/9551"},
-    )
-    ok2 = client.patch(
+    inexistente = client.patch(
         f"/v1/saas/solicitacoes/{saas_id}/versao-alvo",
-        headers=h,
-        json={"versao_alvo": "2026.10.01"},
-    )
-    assert ok2.status_code == 200
-    assert ok2.json()["versao_alvo"] == "2026.10.01"
-
-    sid2 = _criar_solicitacao(client, auth_headers["a1"]).json()["id"]
-    saas_aberta = _saas_id_de_origem(client, h, sid2)
-    bloq = client.patch(
-        f"/v1/saas/solicitacoes/{saas_aberta}/versao-alvo",
         headers=h,
         json={"versao_alvo": "2026.09.01"},
     )
-    assert bloq.status_code == 400
+    assert inexistente.status_code == 404

@@ -27,7 +27,6 @@ from app.schemas.saas_solicitacao import (
     SaasSolicitacaoSyncComentario,
     SaasSolicitacaoSyncItem,
     SaasSolicitacaoSyncResponse,
-    SaasSolicitacaoVersaoAlvoUpdate,
 )
 from app.services import saas_solicitacao_ingest as ingest
 from app.services.solicitacao_melhoria import (
@@ -36,7 +35,7 @@ from app.services.solicitacao_melhoria import (
     aplicar_status_origem_saas,
     aplicar_versao_alvo_origem_saas,
 )
-from app.services.solicitacao_melhoria_copy import normalizar_versao_alvo, validar_transicao_status
+from app.services.solicitacao_melhoria_copy import validar_transicao_status
 
 logger = logging.getLogger(__name__)
 
@@ -143,57 +142,6 @@ def implementar(
         status_novo="em_desenvolvimento",
         motivo_nao_desenvolvimento=None,
     )
-    db.commit()
-    return ingest.detalhe(db, ingest.obter(db, row.id))
-
-
-def definir_versao_alvo(
-    db: Session,
-    solicitacao_id: int,
-    ops: Atendente,
-    data: SaasSolicitacaoVersaoAlvoUpdate,
-) -> SaasSolicitacaoDetalhe:
-    """G3: versão prevista/liberada visível ao cliente em planejada/em_desenvolvimento."""
-    row = ingest.obter(db, solicitacao_id)
-    if row.status not in ("planejada", "em_desenvolvimento"):
-        raise HTTPException(
-            status_code=400,
-            detail="Só é possível definir versão alvo em Planejada ou Em desenvolvimento",
-        )
-    versao = normalizar_versao_alvo(data.versao_alvo)
-    row.versao_alvo = versao
-    row.triagem_atualizada_em = _agora()
-    db.add(row)
-    db.flush()
-    if _deve_aplicar_local(row):
-        aplicar_versao_alvo_origem_saas(db, row.origem_solicitacao_id, versao)
-    comentario = (data.comentario_publico or "").strip()
-    if comentario:
-        if corpo_publico_cita_trabalho_interno(comentario):
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "Não envie links ou números de issue do GitHub na mensagem ao cliente. "
-                    "Use comentário interno."
-                ),
-            )
-        c = SaasSolicitacaoProdutoComentario(
-            solicitacao_id=row.id,
-            corpo=comentario,
-            publico_cliente=True,
-            autor_atendente_id=ops.id,
-            autor_nome=ops.nome,
-        )
-        db.add(c)
-        db.flush()
-        if _deve_aplicar_local(row):
-            aplicar_comentario_origem_saas(
-                db,
-                row.origem_solicitacao_id,
-                corpo=c.corpo,
-                origem_externa_id=f"saas:{c.id}",
-                autor_nome=c.autor_nome,
-            )
     db.commit()
     return ingest.detalhe(db, ingest.obter(db, row.id))
 

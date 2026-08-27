@@ -110,13 +110,6 @@ class SaasSolicitacaoImplementar(BaseModel):
     criar_issue: bool = True
 
 
-class SaasSolicitacaoVersaoAlvoUpdate(BaseModel):
-    """G3: versão prevista/liberada visível ao cliente nível 2."""
-
-    versao_alvo: str | None = Field(None, max_length=64)
-    comentario_publico: str | None = Field(None, max_length=8000)
-
-
 class SaasSolicitacaoComentarioCreate(BaseModel):
     corpo: str = Field(..., min_length=1, max_length=8000)
     publico_cliente: bool = True

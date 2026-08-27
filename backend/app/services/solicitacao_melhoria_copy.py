@@ -114,12 +114,8 @@ def normalizar_versao_alvo(valor: str | None) -> str | None:
 
 
 def rotulo_versao_alvo_publica(status: str, versao: str | None) -> str | None:
-    """Rótulo amigável para Minhas solicitações (#955)."""
+    """Rótulo para Minhas solicitações — só quando concluída (#955)."""
     v = normalizar_versao_alvo(versao)
-    if not v:
+    if not v or status != "concluida":
         return None
-    if status == "concluida":
-        return f"Disponível na {v}"
-    if status in ("planejada", "em_desenvolvimento"):
-        return f"Prevista para {v}"
-    return None
+    return f"Disponível a partir da versão {v} (ou superior)"

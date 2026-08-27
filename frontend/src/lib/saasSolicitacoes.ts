@@ -82,13 +82,11 @@ export function rotuloTipoSolicitacao(tipo: string): string {
   return tipo === 'problema' ? 'Erro' : 'Sugestão'
 }
 
-/** Rótulo amigável de versão alvo para o cliente (#955). */
+/** Rótulo de versão liberada — só quando concluída (#955). */
 export function rotuloVersaoAlvo(status: string, versao: string | null | undefined): string | null {
   const v = (versao || '').trim()
-  if (!v) return null
-  if (status === 'concluida') return `Disponível na ${v}`
-  if (status === 'planejada' || status === 'em_desenvolvimento') return `Prevista para ${v}`
-  return null
+  if (!v || status !== 'concluida') return null
+  return `Disponível a partir da versão ${v} (ou superior)`
 }
 
 export function classesBadgeTipoSolicitacao(tipo: string): string {
