@@ -236,6 +236,11 @@ def test_system_release_notes_filters_by_product(client, auth_headers, monkeypat
                 "changes": [
                     {"product": "deskrudder", "category": "correcoes", "text": "Chat fila"},
                     {"product": "saas", "category": "melhorias", "text": "SaaS: licenças"},
+                    {
+                        "product": "deskrudder",
+                        "category": "interno",
+                        "text": "Deploy (#734): SSH IPv4 no runner",
+                    },
                 ],
             }
         ],
@@ -253,6 +258,7 @@ def test_system_release_notes_filters_by_product(client, auth_headers, monkeypat
     texts = [c["text"] for c in body["current"]["changes"]]
     assert texts == ["Chat fila"]
     assert all(c.get("product") == "deskrudder" for c in body["current"]["changes"])
+    assert all(c.get("category") != "interno" for c in body["current"]["changes"])
 
 
 def test_system_release_notes_hides_saas_prefix_even_if_wrongly_tagged(
@@ -305,6 +311,11 @@ def test_saas_release_notes_rbac_and_all_products(client, auth_headers, monkeypa
                 "changes": [
                     {"product": "deskrudder", "category": "correcoes", "text": "Chat fila"},
                     {"product": "saas", "category": "melhorias", "text": "SaaS: licenças"},
+                    {
+                        "product": "saas",
+                        "category": "interno",
+                        "text": "Deploy (#734): SSH IPv4",
+                    },
                 ],
             }
         ],
@@ -325,9 +336,10 @@ def test_saas_release_notes_rbac_and_all_products(client, auth_headers, monkeypa
     ok = client.get("/v1/saas/release-notes", headers=auth_headers["ops"])
     assert ok.status_code == 200, ok.text
     changes = ok.json()["current"]["changes"]
-    assert [(c["text"], c["product"]) for c in changes] == [
-        ("Chat fila", "deskrudder"),
-        ("SaaS: licenças", "saas"),
+    assert [(c["text"], c["product"], c["category"]) for c in changes] == [
+        ("Chat fila", "deskrudder", "correcoes"),
+        ("SaaS: licenças", "saas", "melhorias"),
+        ("Deploy (#734): SSH IPv4", "saas", "interno"),
     ]
 
 

@@ -116,13 +116,20 @@ def _change_product(ch: dict[str, Any]) -> str:
 
 
 def _filter_release_for_product(rel: dict[str, Any], product: str | None) -> dict[str, Any] | None:
-    """Anota ``product`` em cada bullet. Se ``product`` não for None, filtra."""
+    """Anota ``product`` em cada bullet. Se ``product`` não for None, filtra.
+
+    No DeskRudder (``product=deskrudder``) a categoria ``interno`` não entra —
+    Deploy/LICENSE/brief ficam só no painel ops (#920).
+    """
     changes = []
     for ch in rel.get("changes") or []:
         if not isinstance(ch, dict):
             continue
         prod = _change_product(ch)
         if product is not None and prod != product:
+            continue
+        cat = str(ch.get("category") or "melhorias").strip().lower()
+        if product == PRODUCT_DESKRUDDER and cat == "interno":
             continue
         item = dict(ch)
         item["product"] = prod

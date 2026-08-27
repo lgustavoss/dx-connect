@@ -213,14 +213,6 @@ fi
 
 if [ "$SKIP_MIGRATIONS" != "true" ]; then
   bash deploy/scripts/stack-client.sh migrate admin-center
-  if [ -n "${DX_CONNECT_VERSION:-}" ]; then
-    (
-      cd deploy/admin-center
-      docker compose --env-file client.env -f docker-compose.yml run --rm -T backend \
-        python scripts/concluir_solicitacoes_release.py --version "${DX_CONNECT_VERSION}" \
-        < /dev/null
-    ) || echo "::warning::concluir_solicitacoes_release falhou (deploy continua)"
-  fi
 fi
 bash deploy/scripts/stack-client.sh up admin-center
 
@@ -247,6 +239,13 @@ if expected and actual and actual != expected:
     sys.exit(1)
 print('OK: admin-center', actual, 'saas_control_plane=true')
 "
+# G4: mesmo projeto Compose do stack (dx-connect-admin-center). `compose run` na pasta
+# admin-center sem --project-name tentava criar outro Postgres e falhava por nome duplicado.
+if [ -n "${DX_CONNECT_VERSION:-}" ]; then
+  bash deploy/scripts/stack-client.sh exec admin-center \
+    python scripts/concluir_solicitacoes_release.py --version "${DX_CONNECT_VERSION}" \
+    || echo "::warning::concluir_solicitacoes_release falhou (deploy continua)"
+fi
 if [ -n "${ADMIN_API_URL:-}" ]; then
   if PUBLIC_HEALTH="$(curl -sf --max-time 20 "${ADMIN_API_URL%/}/health")"; then
     echo "Health admin-center (público): ${PUBLIC_HEALTH}"

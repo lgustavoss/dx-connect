@@ -6,13 +6,15 @@ CMD="${1:-}"
 SLUG="${2:-}"
 
 usage() {
-  echo "Uso: $0 <comando> <slug|admin-center>"
-  echo "Comandos: migrate | up | down | logs | seed | health"
+  echo "Uso: $0 <comando> <slug|admin-center> [args...]"
+  echo "Comandos: migrate | up | down | logs | seed | health | exec | run"
   echo "Painel ops: $0 migrate admin-center"
+  echo "Exec no backend (stack já no ar): $0 exec admin-center python scripts/foo.py"
   exit 1
 }
 
 [[ -n "$CMD" && -n "$SLUG" ]] || usage
+shift 2
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 if [[ "$SLUG" == "admin-center" ]]; then
@@ -75,6 +77,16 @@ case "$CMD" in
     PORT="${CLIENT_API_PORT:?CLIENT_API_PORT ausente em client.env}"
     curl -sf "http://127.0.0.1:${PORT}/health" | python3 -m json.tool 2>/dev/null || curl -sf "http://127.0.0.1:${PORT}/health"
     echo ""
+    ;;
+  exec)
+    load_env
+    # -T: GitHub Actions / SSH sem TTY. Sempre --project-name dx-connect-<slug>
+    # (compose na pasta admin-center sozinho cria projeto "admin-center" e conflita com o Postgres).
+    dc exec -T backend "$@"
+    ;;
+  run)
+    load_env
+    dc run --rm -T backend "$@" </dev/null
     ;;
   *)
     echo "Comando desconhecido: $CMD"
