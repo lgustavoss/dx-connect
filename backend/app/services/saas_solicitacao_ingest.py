@@ -414,6 +414,7 @@ def item_lista(
         status=row.status,
         status_rotulo=rotulo_status(row.status),
         versao_contexto=row.versao_contexto,
+        versao_alvo=row.versao_alvo,
         autor_nome=row.autor_nome,
         created_at_origem=row.created_at_origem,
         ingested_at=row.ingested_at,

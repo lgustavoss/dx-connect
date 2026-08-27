@@ -18,6 +18,7 @@ import {
   proximosStatusSolicitacao,
   rotuloStatusSolicitacao,
   rotuloTipoSolicitacao,
+  rotuloVersaoAlvo,
   SAAS_SOLICITACAO_STATUS,
 } from '../../lib/saasSolicitacoes'
 import { SemPermissao } from '../SemPermissao'
@@ -64,11 +65,14 @@ export function SaasSolicitacaoDetalhe() {
   const [candidatos, setCandidatos] = useState<SaasSolicitacoesProduto.ListaItem[]>([])
   const [githubUrl, setGithubUrl] = useState('')
   const [mostrarImplementar, setMostrarImplementar] = useState(false)
+  const [versaoAlvo, setVersaoAlvo] = useState('')
+  const [comentarioVersao, setComentarioVersao] = useState('')
 
   const aplicarDetalhe = useCallback((row: SaasSolicitacoesProduto.Detalhe) => {
     setItem(row)
     setNovoStatus(row.status)
     setMotivo(row.motivo_nao_desenvolvimento || '')
+    setVersaoAlvo(row.versao_alvo || '')
   }, [])
 
   useEffect(() => {
@@ -198,6 +202,24 @@ export function SaasSolicitacaoDetalhe() {
     }
   }
 
+  async function salvarVersaoAlvo() {
+    if (!item) return
+    setBusy(true)
+    try {
+      const atualizado = await saasSolicitacoes.definirVersaoAlvo(item.id, {
+        versao_alvo: versaoAlvo.trim() || null,
+        comentario_publico: comentarioVersao.trim() || null,
+      })
+      aplicarDetalhe(atualizado)
+      setComentarioVersao('')
+      toast.showSuccess('Versão alvo atualizada — o cliente vê em Minhas solicitações.')
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar a versão'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function enviarComentario() {
     if (!item || !comentario.trim()) return
     const publico = tipoMensagem === 'publico'
@@ -305,6 +327,8 @@ export function SaasSolicitacaoDetalhe() {
   const statusFluxo = SAAS_SOLICITACAO_STATUS.filter((s) => s.value !== 'nao_sera_desenvolvida')
   const podeRejeitar = proximos.has('nao_sera_desenvolvida') || item.status === 'nao_sera_desenvolvida'
   const podeImplementar = item.status === 'planejada'
+  const podeDefinirVersao = item.status === 'planejada' || item.status === 'em_desenvolvimento'
+  const rotuloVersaoCliente = rotuloVersaoAlvo(item.status, item.versao_alvo)
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6 pb-10">
@@ -473,6 +497,39 @@ export function SaasSolicitacaoDetalhe() {
               Aberto {formatWhen(item.created_at_origem)} · no SaaS {formatWhen(item.ingested_at)}
             </p>
           </Card>
+
+          {podeDefinirVersao || item.versao_alvo ? (
+            <Card
+              title="Versão alvo"
+              description="Visível ao cliente em Minhas solicitações (sem GitHub)."
+            >
+              {rotuloVersaoCliente ? (
+                <p className="mb-3 text-sm font-medium text-emerald-800 dark:text-emerald-200">
+                  {rotuloVersaoCliente}
+                </p>
+              ) : null}
+              {podeDefinirVersao ? (
+                <div className="space-y-2">
+                  <Input
+                    label="CalVer prevista"
+                    placeholder="2026.08.26"
+                    value={versaoAlvo}
+                    onChange={(e) => setVersaoAlvo(e.target.value)}
+                  />
+                  <textarea
+                    className={TEXTAREA_FIELD_CLASS}
+                    rows={2}
+                    value={comentarioVersao}
+                    onChange={(e) => setComentarioVersao(e.target.value)}
+                    placeholder="Comentário público opcional ao definir a versão"
+                  />
+                  <Button type="button" variant="primary" loading={busy} onClick={() => void salvarVersaoAlvo()}>
+                    Salvar versão
+                  </Button>
+                </div>
+              ) : null}
+            </Card>
+          ) : null}
 
           {item.github_issue_url && !mostrarImplementar ? (
             <Card title="Issue no GitHub" description="Só neste painel — o cliente não vê o link.">

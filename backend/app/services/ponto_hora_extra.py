@@ -57,8 +57,8 @@ def he_ativa(db: Session, atendente: Atendente, when: datetime | None = None) ->
         return None
     ate = row.ate_em
     if ate.tzinfo is None:
-        ate = ate.replace(tzinfo=timezone.utc)
-    if agora.astimezone(timezone.utc) >= ate.astimezone(timezone.utc):
+        ate = ate.replace(tzinfo=PONTO_TZ)
+    if agora >= ate.astimezone(PONTO_TZ):
         row.estado = "expirada"
         db.flush()
         return None

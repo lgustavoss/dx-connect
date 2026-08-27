@@ -34,6 +34,7 @@ class SaasSolicitacaoListaItem(BaseModel):
     status: str
     status_rotulo: str
     versao_contexto: str | None
+    versao_alvo: str | None = None
     autor_nome: str | None
     created_at_origem: datetime | None
     ingested_at: datetime
@@ -109,6 +110,13 @@ class SaasSolicitacaoImplementar(BaseModel):
     criar_issue: bool = True
 
 
+class SaasSolicitacaoVersaoAlvoUpdate(BaseModel):
+    """G3: versão prevista/liberada visível ao cliente nível 2."""
+
+    versao_alvo: str | None = Field(None, max_length=64)
+    comentario_publico: str | None = Field(None, max_length=8000)
+
+
 class SaasSolicitacaoComentarioCreate(BaseModel):
     corpo: str = Field(..., min_length=1, max_length=8000)
     publico_cliente: bool = True
@@ -126,6 +134,7 @@ class SaasSolicitacaoSyncItem(BaseModel):
     status: str
     motivo_nao_desenvolvimento: str | None = None
     protocolo: str | None = None
+    versao_alvo: str | None = None
     comentarios_publicos: list[SaasSolicitacaoSyncComentario] = Field(default_factory=list)
 
 

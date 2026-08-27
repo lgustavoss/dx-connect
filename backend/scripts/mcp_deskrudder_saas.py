@@ -110,6 +110,23 @@ TOOLS = [
         },
     },
     {
+        "name": "definir_versao_alvo",
+        "description": (
+            "Define versão CalVer prevista/liberada visível ao cliente (G3). "
+            "Só em planejada ou em_desenvolvimento. Comentário público opcional."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "integer", "minimum": 1},
+                "protocolo": {"type": "string"},
+                "slug": {"type": "string"},
+                "versao_alvo": {"type": "string", "description": "Ex.: 2026.08.26 — vazio para limpar"},
+                "comentario_publico": {"type": "string"},
+            },
+        },
+    },
+    {
         "name": "implementar",
         "description": (
             "A partir de planejada: cria ou liga issue GitHub e marca em_desenvolvimento. "
@@ -320,6 +337,15 @@ def call_tool(name: str, args: dict) -> object:
         if motivo:
             payload["motivo_nao_desenvolvimento"] = motivo
         _, body = _api("PATCH", f"/v1/saas/solicitacoes/{sid}/status", payload)
+        return body
+    if name == "definir_versao_alvo":
+        sid = _id_fila(args)
+        payload: dict[str, object] = {}
+        if "versao_alvo" in args:
+            payload["versao_alvo"] = (args.get("versao_alvo") or "").strip() or None
+        if args.get("comentario_publico"):
+            payload["comentario_publico"] = str(args["comentario_publico"])
+        _, body = _api("PATCH", f"/v1/saas/solicitacoes/{sid}/versao-alvo", payload)
         return body
     if name == "implementar":
         sid = _id_fila(args)

@@ -5081,6 +5081,7 @@ export namespace SolicitacoesMelhoria {
     titulo: string
     status: Status | string
     status_rotulo: string
+    versao_alvo_rotulo?: string | null
     autor_nome?: string | null
     organizacao_id: number
     created_at: string
@@ -5121,6 +5122,8 @@ export namespace SolicitacoesMelhoria {
     status_rotulo: string
     motivo_nao_desenvolvimento?: string | null
     versao_contexto?: string | null
+    versao_alvo?: string | null
+    versao_alvo_rotulo?: string | null
     mensagem_status: string
     created_at: string
     updated_at?: string | null
@@ -5370,6 +5373,11 @@ export const saasSolicitacoes = {
       method: 'POST',
       body: JSON.stringify(data ?? {}),
     }),
+  definirVersaoAlvo: (id: number, data: SaasSolicitacoesProduto.VersaoAlvoUpdate) =>
+    api<SaasSolicitacoesProduto.Detalhe>(`/saas/solicitacoes/${id}/versao-alvo`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
   ligarGithub: (id: number, data: SaasSolicitacoesProduto.GithubUpdate) =>
     api<SaasSolicitacoesProduto.Detalhe>(`/saas/solicitacoes/${id}/github`, {
       method: 'PATCH',
@@ -5501,6 +5509,7 @@ export namespace SaasSolicitacoesProduto {
     status: string;
     status_rotulo: string;
     versao_contexto?: string | null;
+    versao_alvo?: string | null;
     autor_nome?: string | null;
     created_at_origem?: string | null;
     ingested_at: string;
@@ -5560,6 +5569,10 @@ export namespace SaasSolicitacoesProduto {
   export interface ComentarioCreate {
     corpo: string;
     publico_cliente: boolean;
+  }
+  export interface VersaoAlvoUpdate {
+    versao_alvo?: string | null;
+    comentario_publico?: string | null;
   }
 }
 
