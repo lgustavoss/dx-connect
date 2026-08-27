@@ -1,14 +1,16 @@
-"""Relatório mensal de ponto — PDF e Excel (#844)."""
+"""Relatório mensal de ponto — PDF e Excel (#844 / #971)."""
 
 from __future__ import annotations
 
 import io
 from datetime import date, datetime, timezone
+
 from html import escape
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.atendente import Atendente
+from app.models.audit_log import AuditLog
 from app.models.ponto_batida import PontoBatida
 from app.services.comercial_proposta import html_para_pdf
 from app.services.ponto import PONTO_TZ, _as_utc, _bounds_periodo, _intervalos_de_batidas, _q_ativas
@@ -28,6 +30,44 @@ MESES_PT = (
     "Novembro",
     "Dezembro",
 )
+
+
+def _coletar_ajustes_audit(
+    db: Session,
+    admin: Atendente,
+    *,
+    desde: date | None,
+    ate: date | None,
+) -> list[AuditLog]:
+    q = (
+        db.query(AuditLog)
+        .options(joinedload(AuditLog.atendente))
+        .filter(
+            AuditLog.entity_type == "ponto_batida",
+            AuditLog.action.in_(("create_ajuste", "update_ajuste", "anular")),
+        )
+    )
+    # AuditLog é global por instância; filtrar por autores do tenant
+    ids = [
+        row[0]
+        for row in db.query(Atendente.id).filter(Atendente.tenant_id == admin.tenant_id).all()
+    ]
+    if ids:
+        q = q.filter(AuditLog.atendente_id.in_(ids))
+    inicio, fim = _bounds_periodo(desde, ate)
+    if inicio is not None:
+        q = q.filter(AuditLog.created_at >= inicio)
+    if fim is not None:
+        q = q.filter(AuditLog.created_at < fim)
+    return q.order_by(AuditLog.created_at.asc(), AuditLog.id.asc()).limit(2000).all()
+
+
+def _rotulo_acao_ajuste(action: str) -> str:
+    return {
+        "create_ajuste": "Criação",
+        "update_ajuste": "Alteração",
+        "anular": "Anulação",
+    }.get(action, action)
 
 
 def _coletar_intervalos(
@@ -108,12 +148,33 @@ def export_pdf_mensal(
             "</tr>"
         )
 
+    ajustes_html = ""
+    for log in _coletar_ajustes_audit(db, admin, desde=desde, ate=ate):
+        payload = log.payload_json or {}
+        motivo = escape(str(payload.get("motivo") or "—"))
+        quando = (
+            _as_utc(log.created_at).astimezone(PONTO_TZ).strftime("%d/%m/%Y %H:%M")
+            if log.created_at
+            else "—"
+        )
+        autor = escape(log.atendente.nome if log.atendente else "—")
+        ajustes_html += (
+            "<tr>"
+            f"<td>{quando}</td>"
+            f"<td>{autor}</td>"
+            f"<td>{escape(_rotulo_acao_ajuste(log.action))}</td>"
+            f"<td>{log.entity_id}</td>"
+            f"<td>{motivo}</td>"
+            "</tr>"
+        )
+
     html = f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="utf-8"><title>Relatório de ponto</title>
 <style>
   body {{ font-family: sans-serif; font-size: 11px; color: #111; }}
   h1 {{ font-size: 18px; margin-bottom: 4px; }}
+  h2 {{ font-size: 14px; margin-top: 20px; }}
   .meta {{ color: #555; margin-bottom: 16px; }}
   table {{ width: 100%; border-collapse: collapse; }}
   th, td {{ border: 1px solid #ccc; padding: 4px 6px; text-align: left; }}
@@ -129,9 +190,16 @@ def export_pdf_mensal(
       <th>Atendente</th><th>Data</th><th>Entrada</th><th>Saída</th>
       <th>Pausas (min)</th><th>Trabalhado (min)</th><th>Aberto</th>
     </tr></thead>
-    <tbody>{rows_html or '<tr><td colspan="7">Sem registos no período.</td></tr>'}</tbody>
+    <tbody>{rows_html or '<tr><td colspan="7">Sem registros no período.</td></tr>'}</tbody>
   </table>
   <p class="total">Total trabalhado (fechado): {round(total_min / 60, 2)} h ({round(total_min, 0)} min)</p>
+  <h2>Ajustes administrativos</h2>
+  <table>
+    <thead><tr>
+      <th>Quando</th><th>Autor</th><th>Ação</th><th>Batida</th><th>Motivo</th>
+    </tr></thead>
+    <tbody>{ajustes_html or '<tr><td colspan="5">Sem ajustes no período.</td></tr>'}</tbody>
+  </table>
 </body>
 </html>"""
     return html_para_pdf(html)
@@ -180,6 +248,24 @@ def export_xlsx_mensal(
         )
     ws.append([])
     ws.append(["Total trabalhado (h)", round(total_min / 60, 2)])
+
+    ws_aj = wb.create_sheet("Ajustes")
+    ws_aj.append(["Quando", "Autor", "Ação", "Batida ID", "Motivo", "Payload"])
+    for log in _coletar_ajustes_audit(db, admin, desde=desde, ate=ate):
+        payload = log.payload_json or {}
+        ws_aj.append(
+            [
+                _as_utc(log.created_at).astimezone(PONTO_TZ).strftime("%Y-%m-%d %H:%M")
+                if log.created_at
+                else "",
+                log.atendente.nome if log.atendente else "",
+                _rotulo_acao_ajuste(log.action),
+                log.entity_id,
+                payload.get("motivo") or "",
+                str(payload),
+            ]
+        )
+
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()

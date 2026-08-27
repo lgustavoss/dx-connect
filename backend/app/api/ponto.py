@@ -38,6 +38,7 @@ from app.schemas.ponto import (
     PontoLocalCreate,
     PontoLocalRead,
     PontoLocalUpdate,
+    PontoResumoSemanaRead,
     PontoSettingsPublicRead,
     PontoSettingsRead,
     PontoSettingsUpdate,
@@ -297,6 +298,15 @@ def meu_banco_horas(
 ):
     ponto_svc.exigir_acesso_ponto(atendente)
     return ponto_svc.banco_horas(db, atendente, desde=desde, ate=ate)
+
+
+@router.get("/me/resumo-semana", response_model=PontoResumoSemanaRead)
+def meu_resumo_semana(
+    ref: date | None = Query(None, description="Qualquer dia da semana (padrão: hoje)"),
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    return ponto_svc.resumo_semana(db, atendente, ref=ref)
 
 
 @router.get("/banco-horas", response_model=PontoBancoHorasRead)

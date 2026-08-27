@@ -254,13 +254,29 @@ class PontoAnularBody(BaseModel):
 
 
 class PontoAlertasMe(BaseModel):
-    """Lembretes ao utilizador — sem batida automática (#773 / #769)."""
+    """Lembretes ao usuário — sem batida automática (#773 / #769 / #968)."""
 
     sem_entrada_em_dia_escala: bool = False
     online_sem_ponto: bool = False
     jornada_aberta_longa: bool = False
     horas_jornada_aberta: float | None = None
+    lembrete_entrada_tolerancia: bool = False
+    lembrete_saida_tolerancia: bool = False
     mensagens: list[str] = []
+
+
+class PontoResumoSemanaRead(BaseModel):
+    """Resumo semanal do colaborador (#972)."""
+
+    desde: date
+    ate: date
+    segundos_esperados: int
+    segundos_realizados: int
+    saldo_segundos: int
+    atrasos: int
+    he_minutos: int
+    dias_escala: int
+    dias_feriado: int = 0
 
 
 class PontoJustificativaCreate(BaseModel):

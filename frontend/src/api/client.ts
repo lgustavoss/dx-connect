@@ -717,6 +717,8 @@ export const ponto = {
     api<Ponto.Calendario>(withParams('/ponto/me/calendario', { ano, mes })),
   meuBancoHoras: (desde: string, ate: string) =>
     api<Ponto.BancoHoras>(withParams('/ponto/me/banco-horas', { desde, ate })),
+  meuResumoSemana: (ref?: string) =>
+    api<Ponto.ResumoSemana>(withParams('/ponto/me/resumo-semana', ref ? { ref } : {})),
   bancoHorasAdmin: (atendenteId: number, desde: string, ate: string) =>
     api<Ponto.BancoHoras>(
       withParams('/ponto/banco-horas', { atendente_id: atendenteId, desde, ate }),
@@ -4972,7 +4974,20 @@ export namespace Ponto {
     online_sem_ponto: boolean
     jornada_aberta_longa: boolean
     horas_jornada_aberta: number | null
+    lembrete_entrada_tolerancia?: boolean
+    lembrete_saida_tolerancia?: boolean
     mensagens: string[]
+  }
+  export interface ResumoSemana {
+    desde: string
+    ate: string
+    segundos_esperados: number
+    segundos_realizados: number
+    saldo_segundos: number
+    atrasos: number
+    he_minutos: number
+    dias_escala: number
+    dias_feriado?: number
   }
   export interface AjusteCreate {
     atendente_id: number

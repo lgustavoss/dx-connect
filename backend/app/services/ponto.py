@@ -722,11 +722,14 @@ def alertas_me(db: Session, atendente: Atendente) -> "PontoAlertasMe":
     exigir_acesso_ponto(atendente)
     hoje = datetime.now(PONTO_TZ).date()
     agora = _agora_utc()
+    agora_local = agora.astimezone(PONTO_TZ)
     msgs: list[str] = []
     sem_entrada = False
     online_sem = False
     jornada_longa = False
     horas_aberta: float | None = None
+    lembrete_entrada = False
+    lembrete_saida = False
 
     feriado = ponto_settings_svc.eh_feriado(db, atendente.tenant_id, hoje)
     jornada_ativa = escala_svc.escala_configurada(atendente)
@@ -753,18 +756,29 @@ def alertas_me(db: Session, atendente: Atendente) -> "PontoAlertasMe":
         hb = hb.replace(tzinfo=timezone.utc)
     online = bool(hb and hb >= agora - timedelta(seconds=PRESENCA_TTL_SEC))
 
-    # Modo nenhum: sem avisos de falta/atraso (#959)
+    # Modo nenhum: sem avisos de falta/atraso/lembretes de tolerância (#959 / #968)
     if jornada_ativa:
         if esperado is True and not tem_entrada_hoje and entrada is None:
-            sem_entrada = True
-            msgs.append("Hoje é dia de trabalho na sua jornada e ainda não há entrada registrada.")
+            liberacao = escala_svc.liberacao_entrada_em(atendente, hoje)
+            if liberacao is not None and agora_local >= liberacao:
+                sem_entrada = True
+                lembrete_entrada = True
+                limite = escala_svc.limite_atraso_em(atendente, hoje)
+                if limite is not None and agora_local <= limite:
+                    msgs.append("Janela de entrada — registre o ponto agora.")
+                else:
+                    msgs.append(
+                        "Hoje é dia de trabalho na sua jornada e ainda não há entrada registrada."
+                    )
 
         if _atrasado_entrada(atendente, primeira):
             msgs.append("Entrada registrada após o horário previsto (fora da tolerância).")
 
     if online and entrada is None:
         online_sem = True
-        if "ainda não há entrada" not in " ".join(msgs).lower():
+        if "ainda não há entrada" not in " ".join(msgs).lower() and "Janela de entrada" not in " ".join(
+            msgs
+        ):
             msgs.append("Você está online no painel sem jornada de ponto aberta.")
 
     if entrada is not None:
@@ -775,16 +789,118 @@ def alertas_me(db: Session, atendente: Atendente) -> "PontoAlertasMe":
                 f"Jornada aberta há cerca de {horas_aberta:.0f} h — lembre-se de registrar a saída."
             )
         elif jornada_ativa:
+            inicio_saida = escala_svc.liberacao_saida_lembrete_em(atendente, hoje)
             saida_prev = escala_svc.saida_prevista_em(atendente, hoje)
-            if saida_prev is not None and agora.astimezone(PONTO_TZ) >= saida_prev:
-                msgs.append("Horário de saída previsto já passou — registre a saída.")
+            if inicio_saida is not None and agora_local >= inicio_saida:
+                lembrete_saida = True
+                if saida_prev is not None and agora_local >= saida_prev:
+                    msgs.append("Horário de saída previsto já passou — registre a saída.")
+                else:
+                    msgs.append("Janela de saída — registre o ponto ao encerrar.")
 
     return PontoAlertasMe(
         sem_entrada_em_dia_escala=sem_entrada,
         online_sem_ponto=online_sem,
         jornada_aberta_longa=jornada_longa,
         horas_jornada_aberta=horas_aberta,
+        lembrete_entrada_tolerancia=lembrete_entrada,
+        lembrete_saida_tolerancia=lembrete_saida,
         mensagens=msgs,
+    )
+
+
+def _semana_bounds(ref: date) -> tuple[date, date]:
+    """Segunda a domingo da semana que contém `ref` (pt-BR / ISO weekday)."""
+    desde = ref - timedelta(days=ref.weekday())
+    return desde, desde + timedelta(days=6)
+
+
+def _contar_atrasos_periodo(
+    db: Session,
+    atendente: Atendente,
+    *,
+    desde: date,
+    ate: date,
+) -> int:
+    if not escala_svc.escala_configurada(atendente):
+        return 0
+    n = 0
+    d = desde
+    while d <= ate:
+        if ponto_settings_svc.eh_feriado(db, atendente.tenant_id, d):
+            d += timedelta(days=1)
+            continue
+        if not escala_svc.eh_dia_de_trabalho(atendente, d):
+            d += timedelta(days=1)
+            continue
+        ini, fim = _bounds_periodo(d, d)
+        bats = (
+            _q_ativas(db)
+            .filter(
+                PontoBatida.atendente_id == atendente.id,
+                PontoBatida.registrado_em >= ini,
+                PontoBatida.registrado_em < fim,
+            )
+            .all()
+        )
+        if _atrasado_entrada(atendente, _primeira_entrada_do_dia(bats)):
+            n += 1
+        d += timedelta(days=1)
+    return n
+
+
+def _he_minutos_periodo(db: Session, atendente: Atendente, *, desde: date, ate: date) -> int:
+    from app.models.ponto_hora_extra import PontoHoraExtra
+
+    ini, fim = _bounds_periodo(desde, ate)
+    rows = (
+        db.query(PontoHoraExtra)
+        .filter(
+            PontoHoraExtra.atendente_id == atendente.id,
+            PontoHoraExtra.estado.in_(("aprovada", "expirada")),
+            PontoHoraExtra.ate_em.isnot(None),
+            PontoHoraExtra.decidido_em.isnot(None),
+            PontoHoraExtra.decidido_em >= ini,
+            PontoHoraExtra.decidido_em < fim,
+        )
+        .all()
+    )
+    total = 0
+    for r in rows:
+        dec = r.decidido_em
+        ate_em = r.ate_em
+        if dec is None or ate_em is None:
+            continue
+        if dec.tzinfo is None:
+            dec = dec.replace(tzinfo=timezone.utc)
+        if ate_em.tzinfo is None:
+            ate_em = ate_em.replace(tzinfo=timezone.utc)
+        total += max(0, int((ate_em - dec).total_seconds() // 60))
+    return total
+
+
+def resumo_semana(
+    db: Session,
+    atendente: Atendente,
+    *,
+    ref: date | None = None,
+) -> "PontoResumoSemanaRead":
+    from app.schemas.ponto import PontoResumoSemanaRead
+
+    exigir_acesso_ponto(atendente)
+    dia_ref = ref or datetime.now(PONTO_TZ).date()
+    desde, ate = _semana_bounds(dia_ref)
+    bh = banco_horas(db, atendente, desde=desde, ate=ate)
+    return PontoResumoSemanaRead(
+        desde=desde,
+        ate=ate,
+        segundos_esperados=bh.segundos_esperados,
+        segundos_realizados=bh.segundos_realizados,
+        saldo_segundos=bh.saldo_segundos,
+        atrasos=_contar_atrasos_periodo(db, atendente, desde=desde, ate=ate),
+        he_minutos=_he_minutos_periodo(db, atendente, desde=desde, ate=ate),
+        dias_escala=bh.dias_escala,
+        dias_feriado=bh.dias_feriado,
     )
 
 
@@ -812,6 +928,12 @@ def admin_criar_batida(
     alvo = _atendente_do_tenant(db, admin.tenant_id, atendente_id)
     if tipo not in TIPOS_VALIDOS:
         raise HTTPException(status_code=400, detail="Tipo inválido")
+    motivo_limpo = (motivo or "").strip()
+    if len(motivo_limpo) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Informe o motivo do ajuste (mínimo 3 caracteres).",
+        )
     batida = PontoBatida(
         tenant_id=admin.tenant_id,
         atendente_id=alvo.id,
@@ -829,7 +951,7 @@ def admin_criar_batida(
         "create_ajuste",
         admin.id,
         payload={
-            "motivo": motivo,
+            "motivo": motivo_limpo,
             "atendente_id": alvo.id,
             "tipo": tipo,
             "registrado_em": _as_utc(registrado_em).isoformat(),
@@ -857,6 +979,12 @@ def admin_atualizar_batida(
     )
     if not batida or batida.anulada:
         raise HTTPException(status_code=404, detail="Batida não encontrada")
+    motivo_limpo = (motivo or "").strip()
+    if len(motivo_limpo) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Informe o motivo do ajuste (mínimo 3 caracteres).",
+        )
     antes = {"tipo": batida.tipo, "registrado_em": batida.registrado_em.isoformat()}
     if tipo is not None:
         if tipo not in TIPOS_VALIDOS:
@@ -871,7 +999,11 @@ def admin_atualizar_batida(
         batida.id,
         "update_ajuste",
         admin.id,
-        payload={"motivo": motivo, "antes": antes, "depois": {"tipo": batida.tipo, "registrado_em": batida.registrado_em.isoformat()}},
+        payload={
+            "motivo": motivo_limpo,
+            "antes": antes,
+            "depois": {"tipo": batida.tipo, "registrado_em": batida.registrado_em.isoformat()},
+        },
     )
     db.commit()
     db.refresh(batida)
@@ -886,6 +1018,12 @@ def admin_anular_batida(db: Session, admin: Atendente, batida_id: int, *, motivo
     )
     if not batida or batida.anulada:
         raise HTTPException(status_code=404, detail="Batida não encontrada")
+    motivo_limpo = (motivo or "").strip()
+    if len(motivo_limpo) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Informe o motivo da anulação (mínimo 3 caracteres).",
+        )
     batida.anulada = True
     registrar_audit(
         db,
@@ -894,7 +1032,7 @@ def admin_anular_batida(db: Session, admin: Atendente, batida_id: int, *, motivo
         "anular",
         admin.id,
         payload={
-            "motivo": motivo,
+            "motivo": motivo_limpo,
             "tipo": batida.tipo,
             "registrado_em": batida.registrado_em.isoformat(),
             "atendente_id": batida.atendente_id,

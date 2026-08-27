@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ApiError, atendentes, ponto, type Atendentes, type Ponto } from '../api/client'
+import { ApiError, atendentes, audit, ponto, type Atendentes, type Audit, type Ponto } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { PontoCalendarioMes } from '../components/PontoCalendarioMes'
@@ -64,6 +64,11 @@ export function PontoEquipe() {
   const [ajusteQuando, setAjusteQuando] = useState(toDatetimeLocalValue())
   const [ajusteMotivo, setAjusteMotivo] = useState('')
   const [salvandoAjuste, setSalvandoAjuste] = useState(false)
+  const [ajustesAudit, setAjustesAudit] = useState<Audit.AuditLogEntry[]>([])
+  const [ajusteAutorId, setAjusteAutorId] = useState('')
+  const [ajusteAuditDesde, setAjusteAuditDesde] = useState(inicioMesIso)
+  const [ajusteAuditAte, setAjusteAuditAte] = useState(hojeIso)
+  const [carregandoAjustes, setCarregandoAjustes] = useState(false)
   const [justifs, setJustifs] = useState<Ponto.Justificativa[]>([])
   const [hesPendentes, setHesPendentes] = useState<Ponto.HoraExtra[]>([])
   const [heModo, setHeModo] = useState<'resto_do_dia' | 'ate_horario' | 'duracao'>('resto_do_dia')
@@ -145,6 +150,34 @@ export function PontoEquipe() {
     void carregar()
   }, [carregar])
 
+  const carregarAjustesAudit = useCallback(async () => {
+    setCarregandoAjustes(true)
+    try {
+      const page = await audit.list({
+        entity_type: 'ponto_batida',
+        atendente_id: ajusteAutorId ? Number(ajusteAutorId) : undefined,
+        de: ajusteAuditDesde,
+        ate: ajusteAuditAte,
+        ordenar_por: 'created_at',
+        ordem: 'desc',
+        limit: 50,
+      })
+      setAjustesAudit(
+        page.items.filter((x) =>
+          ['create_ajuste', 'update_ajuste', 'anular'].includes(x.action),
+        ),
+      )
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar o histórico de ajustes.'))
+    } finally {
+      setCarregandoAjustes(false)
+    }
+  }, [ajusteAuditAte, ajusteAuditDesde, ajusteAutorId, toast])
+
+  useEffect(() => {
+    void carregarAjustesAudit()
+  }, [carregarAjustesAudit])
+
   useEffect(() => {
     if (!atendenteId) {
       setCalendario(null)
@@ -211,8 +244,12 @@ export function PontoEquipe() {
   }
 
   async function salvarAjuste() {
-    if (!ajusteAtendente || !ajusteMotivo.trim()) {
-      toast.showWarning('Informe atendente e motivo do ajuste.')
+    if (!ajusteAtendente) {
+      toast.showWarning('Selecione o atendente.')
+      return
+    }
+    if (ajusteMotivo.trim().length < 3) {
+      toast.showWarning('Informe o motivo do ajuste (mínimo 3 caracteres).')
       return
     }
     setSalvandoAjuste(true)
@@ -226,7 +263,7 @@ export function PontoEquipe() {
       })
       toast.showSuccess('Ajuste registrado.')
       setAjusteMotivo('')
-      await carregar(true)
+      await Promise.all([carregar(true), carregarAjustesAudit()])
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar o ajuste.'))
     } finally {
@@ -235,14 +272,36 @@ export function PontoEquipe() {
   }
 
   async function anularBatida(id: number) {
-    const motivo = window.prompt('Motivo da anulação (obrigatório):')
-    if (!motivo || motivo.trim().length < 3) return
+    const motivo = window.prompt('Motivo da anulação (obrigatório, mín. 3 caracteres):')
+    if (!motivo || motivo.trim().length < 3) {
+      toast.showWarning('Anulação cancelada — motivo obrigatório.')
+      return
+    }
     try {
       await ponto.anular(id, motivo.trim())
       toast.showSuccess('Batida anulada.')
-      await carregar(true)
+      await Promise.all([carregar(true), carregarAjustesAudit()])
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível anular.'))
+    }
+  }
+
+  async function exportarAjustesCsv() {
+    try {
+      const blob = await audit.exportCsv({
+        entity_type: 'ponto_batida',
+        atendente_id: ajusteAutorId ? Number(ajusteAutorId) : undefined,
+        de: ajusteAuditDesde,
+        ate: ajusteAuditAte,
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `ajustes-ponto-${ajusteAuditDesde}-${ajusteAuditAte}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível exportar os ajustes.'))
     }
   }
 
@@ -581,6 +640,10 @@ export function PontoEquipe() {
         </Card>
 
         <Card title="Ajuste manual">
+          <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
+            Toda alteração de batida exige <strong>motivo</strong> (mínimo 3 caracteres) e fica no histórico
+            auditado abaixo e no relatório mensal (PDF/Excel).
+          </p>
           <div className="flex flex-wrap items-end gap-3">
             <Select
               label="Atendente"
@@ -609,15 +672,83 @@ export function PontoEquipe() {
               onChange={(e) => setAjusteQuando(e.target.value)}
             />
             <Input
-              label="Motivo"
+              label="Motivo do ajuste (obrigatório)"
               value={ajusteMotivo}
               onChange={(e) => setAjusteMotivo(e.target.value)}
-              placeholder="Obrigatório"
+              placeholder="Ex.: esquecimento — mínimo 3 caracteres"
             />
-            <Button type="button" disabled={salvandoAjuste} onClick={() => void salvarAjuste()}>
+            <Button
+              type="button"
+              disabled={salvandoAjuste || ajusteMotivo.trim().length < 3 || !ajusteAtendente}
+              onClick={() => void salvarAjuste()}
+            >
               Registrar ajuste
             </Button>
           </div>
+        </Card>
+
+        <Card title="Histórico de ajustes">
+          <div className="mb-3 flex flex-wrap items-end gap-3">
+            <Select
+              label="Autor"
+              value={ajusteAutorId}
+              onChange={(v) => setAjusteAutorId(String(v))}
+              options={[
+                { value: '', label: 'Todos' },
+                ...equipe.map((a) => ({ value: String(a.id), label: a.nome })),
+              ]}
+            />
+            <Input
+              label="De"
+              type="date"
+              value={ajusteAuditDesde}
+              onChange={(e) => setAjusteAuditDesde(e.target.value)}
+            />
+            <Input
+              label="Até"
+              type="date"
+              value={ajusteAuditAte}
+              onChange={(e) => setAjusteAuditAte(e.target.value)}
+            />
+            <Button type="button" variant="secondary" disabled={carregandoAjustes} onClick={() => void carregarAjustesAudit()}>
+              Filtrar
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => void exportarAjustesCsv()}>
+              Exportar CSV
+            </Button>
+          </div>
+          {ajustesAudit.length === 0 ? (
+            <p className="text-sm text-slate-500">Nenhum ajuste no período.</p>
+          ) : (
+            <ul className="max-h-64 space-y-2 overflow-y-auto text-sm">
+              {ajustesAudit.map((log) => {
+                const payload = (log.payload_json ?? {}) as Record<string, unknown>
+                const motivo = typeof payload.motivo === 'string' ? payload.motivo : '—'
+                const acao =
+                  log.action === 'create_ajuste'
+                    ? 'Criação'
+                    : log.action === 'update_ajuste'
+                      ? 'Alteração'
+                      : log.action === 'anular'
+                        ? 'Anulação'
+                        : log.action
+                return (
+                  <li
+                    key={log.id}
+                    className="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800"
+                  >
+                    <p className="font-medium text-slate-800 dark:text-slate-100">
+                      {acao} · batida #{log.entity_id} · {log.atendente_nome ?? log.atendente_id}
+                    </p>
+                    <p className="text-slate-600 dark:text-slate-300">{motivo}</p>
+                    <p className="text-xs text-slate-500">
+                      {log.created_at ? new Date(log.created_at).toLocaleString('pt-BR') : '—'}
+                    </p>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
         </Card>
 
         <Card title="Histórico">

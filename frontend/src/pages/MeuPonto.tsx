@@ -58,6 +58,8 @@ export function MeuPonto() {
   const [justMotivo, setJustMotivo] = useState('')
   const [enviandoJust, setEnviandoJust] = useState(false)
   const [banco, setBanco] = useState<Ponto.BancoHoras | null>(null)
+  const [refSemana, setRefSemana] = useState(hojeIso)
+  const [resumoSemana, setResumoSemana] = useState<Ponto.ResumoSemana | null>(null)
   const agora = new Date()
   const [calAno, setCalAno] = useState(agora.getFullYear())
   const [calMes, setCalMes] = useState(agora.getMonth() + 1)
@@ -129,9 +131,27 @@ export function MeuPonto() {
     [calAno, calMes, toast],
   )
 
+  const carregarResumoSemana = useCallback(
+    async (silencioso = false) => {
+      try {
+        const rs = await ponto.meuResumoSemana(refSemana)
+        setResumoSemana(rs)
+      } catch (err) {
+        if (!silencioso) {
+          toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar o resumo da semana.'))
+        }
+      }
+    },
+    [refSemana, toast],
+  )
+
   useEffect(() => {
     void carregar()
   }, [carregar])
+
+  useEffect(() => {
+    void carregarResumoSemana(true)
+  }, [carregarResumoSemana])
 
   useEffect(() => {
     void carregarCalendario()
@@ -229,7 +249,7 @@ export function MeuPonto() {
         }
         toast.showSuccess(msgs[tipo])
       }
-      await Promise.all([carregar(true), carregarCalendario(true)])
+      await Promise.all([carregar(true), carregarCalendario(true), carregarResumoSemana(true)])
     } catch (err) {
       if (isLikelyOfflineError(err)) {
         enqueuePontoBatida({ tipo, ...geo })
@@ -485,6 +505,76 @@ export function MeuPonto() {
           tone={banco && banco.saldo_segundos < 0 ? 'warn' : 'good'}
         />
       </div>
+
+      <Card className="mt-4" title="Resumo da semana">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            {resumoSemana
+              ? `${resumoSemana.desde} → ${resumoSemana.ate}`
+              : 'Carregando…'}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                const d = new Date(`${refSemana}T12:00:00`)
+                d.setDate(d.getDate() - 7)
+                setRefSemana(d.toISOString().slice(0, 10))
+              }}
+            >
+              Semana anterior
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                const d = new Date(`${refSemana}T12:00:00`)
+                d.setDate(d.getDate() + 7)
+                const iso = d.toISOString().slice(0, 10)
+                setRefSemana(iso > hojeIso() ? hojeIso() : iso)
+              }}
+            >
+              Próxima semana
+            </Button>
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <PontoMetricCard
+            label="Previsto × feito"
+            value={
+              resumoSemana
+                ? `${formatarDuracao(resumoSemana.segundos_realizados)} / ${formatarDuracao(resumoSemana.segundos_esperados)}`
+                : '—'
+            }
+            tone="info"
+          />
+          <PontoMetricCard
+            label="Atrasos"
+            value={String(resumoSemana?.atrasos ?? 0)}
+            tone={resumoSemana && resumoSemana.atrasos > 0 ? 'warn' : 'neutral'}
+          />
+          <PontoMetricCard
+            label="Hora extra"
+            value={
+              resumoSemana
+                ? `${resumoSemana.he_minutos} min`
+                : '—'
+            }
+            hint="Liberações aprovadas na semana"
+            tone="neutral"
+          />
+          <PontoMetricCard
+            label="Saldo (banco)"
+            value={
+              resumoSemana
+                ? `${resumoSemana.saldo_segundos >= 0 ? '+' : '−'}${formatarDuracao(Math.abs(resumoSemana.saldo_segundos))}`
+                : '—'
+            }
+            tone={resumoSemana && resumoSemana.saldo_segundos < 0 ? 'warn' : 'good'}
+          />
+        </div>
+      </Card>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <Card title="Calendário do mês">

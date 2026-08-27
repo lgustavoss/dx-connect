@@ -49,6 +49,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Ponto (#968 / #972 / #971): lembrete in-app de entrada/saída na janela de tolerância; resumo semanal em Meu ponto (previsto × feito, atrasos, HE, banco); motivo obrigatório reforçado e histórico/export de ajustes admin (também no PDF/Excel mensal)
 - Ponto (#966): admin **concede hora extra** com antecedência (resto do dia, até horário ou duração em minutos); teto opcional por colaborador no cadastro; liberações respeitam o teto
 - Ponto (#965): após o fim da jornada, **pegar** chat WhatsApp novo fica bloqueado até um admin liberar **hora extra** (resto do dia ou até um horário); pedidos aparecem em Ponto da equipe e no sino de pendências
 - Ponto (#984): locais de trabalho no **cadastro do atendente** (empresa + extras no mapa OSM); pin da empresa em Configurações → Empresa; raio e ativar/desativar por local; removido o card global de Locais em Ponto da equipe
