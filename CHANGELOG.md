@@ -13,6 +13,13 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Sobre: notas **Interno / Infra** (deploy, LICENSE, briefs) deixam de aparecer no DeskRudder — ficam só no painel admin
 - Release notes: versão **26.08.015** sem bullets duplicados de releases anteriores (lista gigante no Sobre)
 
+### DeskRudder
+
+#### Correções
+
+- Sobre: deixa de listar itens **Interno / Infra** (deploy, LICENSE, docs internos) — só Melhorias e Correções de produto
+- Sobre: versão **26.08.015** sem repetir notas já publicadas em releases anteriores
+
 
 ## [26.08.015] - 2026-08-26
 
