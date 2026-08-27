@@ -15,6 +15,10 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### DeskRudder
 
+#### Melhorias
+
+- Ponto (#969 / #974 / #982): colaborador **solicita hora extra** com janela desejada; teto mensal (global ou por pessoa) bloqueia novas liberações; digest e Meu ponto mostram consumo; avisos em tempo real (`ponto.he_atualizada`)
+
 #### Correções
 
 - Sobre: deixa de listar itens **Interno / Infra** (deploy, LICENSE, docs internos) — só Melhorias e Correções de produto

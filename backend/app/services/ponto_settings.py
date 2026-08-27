@@ -69,6 +69,13 @@ def settings_update(db: Session, admin: Atendente, data: PontoSettingsUpdate) ->
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="jornada_diaria_minutos deve estar entre 60 e 1440.",
             )
+    if "he_teto_mensal_minutos" in payload:
+        m = payload["he_teto_mensal_minutos"]
+        if m is not None and (m < 30 or m > 31 * 24 * 60):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="he_teto_mensal_minutos deve estar entre 30 e 44640, ou vazio.",
+            )
     if "politica_geolocalizacao" in payload:
         p = (payload["politica_geolocalizacao"] or "").strip().lower()
         if p not in POLITICAS_VALIDAS:

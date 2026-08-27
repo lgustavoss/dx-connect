@@ -641,6 +641,7 @@ def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
 
 def digest_hoje(db: Session, admin: Atendente) -> PontoDigestRead:
     from app.models.ponto_justificativa import PontoJustificativa
+    from app.services import ponto_hora_extra as he_svc
 
     hoje = visao_hoje(db, admin)
     pendentes = (
@@ -667,6 +668,7 @@ def digest_hoje(db: Session, admin: Atendente) -> PontoDigestRead:
         jornadas_abertas=abertas,
         online_sem_ponto=online_sem,
         justificativas_pendentes=pendentes,
+        he_acima_teto_mensal=he_svc.contar_acima_teto_mensal(db, admin.tenant_id),
         itens=destaque[:40],
     )
 

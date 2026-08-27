@@ -2516,6 +2516,7 @@ export namespace Atendentes {
     usar_local_empresa?: boolean;
     local_empresa_raio_metros?: number | null;
     he_teto_minutos?: number | null;
+    he_teto_mensal_minutos?: number | null;
     /** Cargos da equipe DeskRudder (painel SaaS); vários por usuário. */
     saas_setor_ids?: number[];
     saas_setor_nomes?: string[];
@@ -2539,6 +2540,7 @@ export namespace Atendentes {
     usar_local_empresa?: boolean;
     local_empresa_raio_metros?: number | null;
     he_teto_minutos?: number | null;
+    he_teto_mensal_minutos?: number | null;
   }
   export interface Update {
     email?: string;
@@ -2559,6 +2561,7 @@ export namespace Atendentes {
     usar_local_empresa?: boolean;
     local_empresa_raio_metros?: number | null;
     he_teto_minutos?: number | null;
+    he_teto_mensal_minutos?: number | null;
   }
   export interface AvaliacaoResumo {
     media: number | null;
@@ -4908,6 +4911,7 @@ export namespace Ponto {
     jornadas_abertas: number
     online_sem_ponto: number
     justificativas_pendentes: number
+    he_acima_teto_mensal?: number
     itens: HojeItem[]
   }
   export interface Settings {
@@ -4916,6 +4920,7 @@ export namespace Ponto {
     fecho_apos_horas: number
     fecho_margem_pos_saida_minutos: number
     jornada_diaria_minutos: number
+    he_teto_mensal_minutos?: number | null
     politica_geolocalizacao: PoliticaGeolocalizacao
   }
   export interface SettingsPublic {
@@ -4928,6 +4933,7 @@ export namespace Ponto {
     fecho_apos_horas?: number
     fecho_margem_pos_saida_minutos?: number
     jornada_diaria_minutos?: number
+    he_teto_mensal_minutos?: number | null
     politica_geolocalizacao?: PoliticaGeolocalizacao
   }
   export interface Local {
@@ -5039,6 +5045,9 @@ export namespace Ponto {
   }
   export interface HoraExtraCreate {
     motivo?: string | null
+    modo?: 'resto_do_dia' | 'ate_horario' | 'duracao' | null
+    ate_horario?: string | null
+    duracao_minutos?: number | null
   }
   export interface HoraExtraDecisao {
     aprovar: boolean
@@ -5059,8 +5068,11 @@ export namespace Ponto {
     pode_pegar_whatsapp: boolean
     he_ativa?: HoraExtra | null
     pedido_pendente?: HoraExtra | null
+    ultimo_rejeitado?: HoraExtra | null
     he_teto_minutos?: number | null
     he_restante_minutos?: number | null
+    he_teto_mensal_minutos?: number | null
+    he_consumido_mensal_minutos?: number
   }
 }
 
