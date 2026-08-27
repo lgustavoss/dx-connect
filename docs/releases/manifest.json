@@ -3457,6 +3457,39 @@
           "text": "Fila de sugestões (#857): o **Cursor** lista e actualiza a fila SaaS (status, comentários, link da issue GitHub) via MCP. O cliente não vê Cursor nem GitHub; no painel ops aparece a issue se estiver ligada."
         }
       ]
+    },
+    {
+      "version": "26.08.016",
+      "version_display": "v26.08.016",
+      "date": "2026-08-26",
+      "status": "published",
+      "changes": [
+        {
+          "product": "saas",
+          "category": "melhorias",
+          "text": "Infra: no deploy, pedidos citados no CHANGELOG passam a **concluída** no painel admin (versão do release); o script usa o mesmo stack Docker do admin-center"
+        },
+        {
+          "product": "saas",
+          "category": "melhorias",
+          "text": "Sobre: notas **Interno / Infra** (deploy, LICENSE, briefs) deixam de aparecer no DeskRudder — ficam só no painel admin"
+        },
+        {
+          "product": "saas",
+          "category": "melhorias",
+          "text": "Release notes: versão **26.08.015** sem bullets duplicados de releases anteriores (lista gigante no Sobre)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Sobre: deixa de listar itens **Interno / Infra** (deploy, LICENSE, docs internos) — só Melhorias e Correções de produto"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Sobre: versão **26.08.015** sem repetir notas já publicadas em releases anteriores"
+        }
+      ]
     }
   ]
 }
