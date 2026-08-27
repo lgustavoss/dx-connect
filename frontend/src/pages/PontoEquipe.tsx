@@ -66,8 +66,12 @@ export function PontoEquipe() {
   const [salvandoAjuste, setSalvandoAjuste] = useState(false)
   const [justifs, setJustifs] = useState<Ponto.Justificativa[]>([])
   const [hesPendentes, setHesPendentes] = useState<Ponto.HoraExtra[]>([])
-  const [heModo, setHeModo] = useState<'resto_do_dia' | 'ate_horario'>('resto_do_dia')
+  const [heModo, setHeModo] = useState<'resto_do_dia' | 'ate_horario' | 'duracao'>('resto_do_dia')
   const [heAteHorario, setHeAteHorario] = useState('20:00')
+  const [heDuracaoMin, setHeDuracaoMin] = useState('60')
+  const [heConcederAtendente, setHeConcederAtendente] = useState('')
+  const [heConcederMotivo, setHeConcederMotivo] = useState('')
+  const [concedendoHe, setConcedendoHe] = useState(false)
   const [decidindoHeId, setDecidindoHeId] = useState<number | null>(null)
   const [digest, setDigest] = useState<Ponto.Digest | null>(null)
   const [banco, setBanco] = useState<Ponto.BancoHoras | null>(null)
@@ -261,6 +265,8 @@ export function PontoEquipe() {
         aprovar,
         modo: aprovar ? heModo : null,
         ate_horario: aprovar && heModo === 'ate_horario' ? heAteHorario : null,
+        duracao_minutos:
+          aprovar && heModo === 'duracao' ? Math.max(15, Number(heDuracaoMin) || 60) : null,
         decisao_motivo: aprovar ? null : 'Negado pelo administrador',
       })
       toast.showSuccess(aprovar ? 'Hora extra liberada.' : 'Pedido de hora extra negado.')
@@ -269,6 +275,30 @@ export function PontoEquipe() {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível decidir a hora extra.'))
     } finally {
       setDecidindoHeId(null)
+    }
+  }
+
+  async function concederHe() {
+    if (!heConcederAtendente) {
+      toast.showWarning('Selecione o atendente.')
+      return
+    }
+    setConcedendoHe(true)
+    try {
+      await ponto.concederHoraExtra({
+        atendente_id: Number(heConcederAtendente),
+        modo: heModo,
+        ate_horario: heModo === 'ate_horario' ? heAteHorario : null,
+        duracao_minutos: heModo === 'duracao' ? Math.max(15, Number(heDuracaoMin) || 60) : null,
+        motivo: heConcederMotivo.trim() || null,
+      })
+      toast.showSuccess('Hora extra concedida.')
+      setHeConcederMotivo('')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível conceder a hora extra.'))
+    } finally {
+      setConcedendoHe(false)
     }
   }
 
@@ -462,17 +492,27 @@ export function PontoEquipe() {
 
         <Card title="Hora extra (WhatsApp após jornada)">
           <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
-            Pedidos para pegar novos chats depois do fim da jornada. Ao liberar, escolha o restante do dia ou até um
-            horário.
+            Conceda HE com antecedência ou libere pedidos após o fim da jornada. Modos: resto do dia, até um horário ou
+            duração em minutos (respeita o teto do colaborador, se houver).
           </p>
           <div className="mb-4 flex flex-wrap items-end gap-3">
             <Select
-              label="Ao aprovar"
+              label="Conceder a"
+              value={heConcederAtendente}
+              onChange={(v) => setHeConcederAtendente(String(v))}
+              options={[
+                { value: '', label: 'Selecione' },
+                ...equipe.map((a) => ({ value: String(a.id), label: a.nome })),
+              ]}
+            />
+            <Select
+              label="Modo"
               value={heModo}
-              onChange={(v) => setHeModo(String(v) as 'resto_do_dia' | 'ate_horario')}
+              onChange={(v) => setHeModo(String(v) as 'resto_do_dia' | 'ate_horario' | 'duracao')}
               options={[
                 { value: 'resto_do_dia', label: 'Resto do dia' },
                 { value: 'ate_horario', label: 'Até horário' },
+                { value: 'duracao', label: 'Duração (minutos)' },
               ]}
             />
             {heModo === 'ate_horario' ? (
@@ -483,7 +523,26 @@ export function PontoEquipe() {
                 onChange={(e) => setHeAteHorario(e.target.value)}
               />
             ) : null}
+            {heModo === 'duracao' ? (
+              <Input
+                label="Minutos"
+                type="number"
+                min={15}
+                max={1440}
+                value={heDuracaoMin}
+                onChange={(e) => setHeDuracaoMin(e.target.value)}
+              />
+            ) : null}
+            <Input
+              label="Motivo (opcional)"
+              value={heConcederMotivo}
+              onChange={(e) => setHeConcederMotivo(e.target.value)}
+            />
+            <Button type="button" disabled={concedendoHe} onClick={() => void concederHe()}>
+              Conceder HE
+            </Button>
           </div>
+          <p className="mb-2 text-sm font-medium text-slate-800 dark:text-slate-100">Pedidos pendentes</p>
           {hesPendentes.length === 0 ? (
             <p className="text-sm text-slate-500">Nenhum pedido pendente.</p>
           ) : (

@@ -16,9 +16,11 @@ class PontoHoraExtra(Base):
     # pendente | aprovada | rejeitada | expirada
     estado = Column(String(20), nullable=False, default="pendente", server_default="pendente")
     motivo = Column(String(1000), nullable=True)
-    # resto_do_dia | ate_horario (só quando aprovada)
+    # resto_do_dia | ate_horario | duracao (só quando aprovada)
     modo = Column(String(20), nullable=True)
     ate_em = Column(DateTime(timezone=True), nullable=True)
+    # solicitacao | admin (#966)
+    origem = Column(String(20), nullable=False, default="solicitacao", server_default="solicitacao")
     decidido_por_id = Column(Integer, ForeignKey("atendentes.id", ondelete="SET NULL"), nullable=True)
     decidido_em = Column(DateTime(timezone=True), nullable=True)
     decisao_motivo = Column(String(1000), nullable=True)

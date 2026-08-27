@@ -45,6 +45,8 @@ class Atendente(Base):
     horario_previsto_entrada = Column(String(5), nullable=True)  # HH:MM (ciclo)
     horario_previsto_saida = Column(String(5), nullable=True)
     tolerancia_atraso_minutos = Column(Integer, nullable=False, default=0, server_default="0")
+    # Teto máximo de HE por liberação, em minutos (#966); null = sem teto.
+    he_teto_minutos = Column(Integer, nullable=True)
     # Locais de ponto (#984): empresa + extras por atendente.
     usar_local_empresa = Column(Boolean, nullable=False, default=True, server_default="true")
     local_empresa_raio_metros = Column(Integer, nullable=True)

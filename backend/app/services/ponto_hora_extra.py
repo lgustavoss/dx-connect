@@ -1,8 +1,8 @@
-"""Hora extra e bloqueio de pegar WhatsApp após jornada (#965)."""
+"""Hora extra WhatsApp após jornada (#965) + antecipada/teto (#966)."""
 
 from __future__ import annotations
 
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
@@ -14,7 +14,7 @@ from app.schemas.ponto import PontoHoraExtraRead
 from app.services import escala as escala_svc
 from app.services.escala import PONTO_TZ
 
-MODOS_APROVACAO = frozenset({"resto_do_dia", "ate_horario"})
+MODOS_APROVACAO = frozenset({"resto_do_dia", "ate_horario", "duracao"})
 
 
 def _agora_tz(when: datetime | None = None) -> datetime:
@@ -36,7 +36,6 @@ def fora_da_jornada(atendente: Atendente, when: datetime | None = None) -> bool:
     saida = escala_svc.saida_prevista_em(atendente, dia)
     if saida is not None:
         return agora >= saida
-    # Ciclo sem pe/ps: fora do bloco de trabalho.
     return not escala_svc.em_periodo_trabalho(atendente, agora)
 
 
@@ -57,8 +56,8 @@ def he_ativa(db: Session, atendente: Atendente, when: datetime | None = None) ->
         return None
     ate = row.ate_em
     if ate.tzinfo is None:
-        ate = ate.replace(tzinfo=PONTO_TZ)
-    if agora >= ate.astimezone(PONTO_TZ):
+        ate = ate.replace(tzinfo=timezone.utc)
+    if agora.astimezone(timezone.utc) >= ate.astimezone(timezone.utc):
         row.estado = "expirada"
         db.flush()
         return None
@@ -99,11 +98,83 @@ def _to_read(row: PontoHoraExtra) -> PontoHoraExtraRead:
         motivo=row.motivo,
         modo=row.modo,
         ate_em=row.ate_em,
+        origem=getattr(row, "origem", None) or "solicitacao",
         decidido_por_id=row.decidido_por_id,
         decidido_em=row.decidido_em,
         decisao_motivo=row.decisao_motivo,
         created_at=row.created_at,
     )
+
+
+def _teto_minutos(atendente: Atendente) -> int | None:
+    raw = getattr(atendente, "he_teto_minutos", None)
+    if raw is None:
+        return None
+    v = int(raw)
+    return v if v > 0 else None
+
+
+def _aplicar_teto(atendente: Atendente, agora: datetime, ate: datetime) -> datetime:
+    teto = _teto_minutos(atendente)
+    if teto is None:
+        return ate
+    limite = agora + timedelta(minutes=teto)
+    final = min(ate, limite)
+    if final <= agora:
+        raise HTTPException(
+            status_code=400,
+            detail=f"O teto de hora extra deste colaborador é de {teto} min — ajuste o horário ou o teto.",
+        )
+    return final
+
+
+def _calcular_ate_em(
+    atendente: Atendente,
+    agora: datetime,
+    *,
+    modo: str,
+    ate_horario: str | None,
+    duracao_minutos: int | None,
+) -> datetime:
+    m = (modo or "").strip().lower()
+    if m not in MODOS_APROVACAO:
+        raise HTTPException(
+            status_code=400,
+            detail="Escolha modo resto_do_dia, ate_horario ou duracao.",
+        )
+    if m == "resto_do_dia":
+        ate = _fim_resto_do_dia(agora)
+    elif m == "ate_horario":
+        ate = _parse_ate_horario(agora.date(), ate_horario or "")
+        if ate <= agora:
+            raise HTTPException(
+                status_code=400,
+                detail="O horário limite da hora extra deve ser no futuro.",
+            )
+    else:
+        mins = int(duracao_minutos or 0)
+        if mins < 15 or mins > 24 * 60:
+            raise HTTPException(
+                status_code=400,
+                detail="Informe a duração em minutos (entre 15 e 1440).",
+            )
+        ate = agora + timedelta(minutes=mins)
+    return _aplicar_teto(atendente, agora, ate).astimezone(timezone.utc)
+
+
+def _expirar_aprovadas_anteriores(db: Session, atendente_id: int) -> None:
+    agora_utc = datetime.now(timezone.utc)
+    rows = (
+        db.query(PontoHoraExtra)
+        .filter(PontoHoraExtra.atendente_id == atendente_id, PontoHoraExtra.estado == "aprovada")
+        .all()
+    )
+    for r in rows:
+        r.estado = "expirada"
+        if r.ate_em is None or (
+            (r.ate_em if r.ate_em.tzinfo else r.ate_em.replace(tzinfo=timezone.utc)) > agora_utc
+        ):
+            r.ate_em = agora_utc
 
 
 def garantir_pedido_pendente(
@@ -133,6 +204,7 @@ def garantir_pedido_pendente(
         tenant_id=atendente.tenant_id,
         atendente_id=atendente.id,
         estado="pendente",
+        origem="solicitacao",
         motivo=(motivo or "Pedido de hora extra para atendimento WhatsApp.")[:1000],
     )
     db.add(row)
@@ -143,7 +215,7 @@ def garantir_pedido_pendente(
         row.id,
         "create",
         atendente.id,
-        payload={"estado": "pendente"},
+        payload={"estado": "pendente", "origem": "solicitacao"},
     )
     if commit:
         db.commit()
@@ -166,15 +238,13 @@ def solicitar(
     if he_ativa(db, atendente):
         raise HTTPException(status_code=400, detail="Você já tem hora extra ativa.")
     row = garantir_pedido_pendente(db, atendente, motivo=motivo, commit=True)
-    db.refresh(row)
-    if row.atendente is None:
-        row = (
-            db.query(PontoHoraExtra)
-            .options(joinedload(PontoHoraExtra.atendente))
-            .filter(PontoHoraExtra.id == row.id)
-            .first()
-        )
-        assert row is not None
+    row = (
+        db.query(PontoHoraExtra)
+        .options(joinedload(PontoHoraExtra.atendente))
+        .filter(PontoHoraExtra.id == row.id)
+        .first()
+    )
+    assert row is not None
     return _to_read(row)
 
 
@@ -216,11 +286,20 @@ def me_status(db: Session, atendente: Atendente) -> dict:
         .order_by(PontoHoraExtra.id.desc())
         .first()
     )
+    restante = None
+    if ativa and ativa.ate_em is not None:
+        agora = _agora_tz()
+        ate = ativa.ate_em
+        if ate.tzinfo is None:
+            ate = ate.replace(tzinfo=timezone.utc)
+        restante = max(0, int((ate.astimezone(PONTO_TZ) - agora).total_seconds() // 60))
     return {
         "fora_da_jornada": fora,
         "pode_pegar_whatsapp": (not fora) or ativa is not None,
         "he_ativa": _to_read(ativa) if ativa else None,
         "pedido_pendente": _to_read(pendente) if pendente else None,
+        "he_teto_minutos": _teto_minutos(atendente),
+        "he_restante_minutos": restante,
     }
 
 
@@ -250,6 +329,7 @@ def decidir(
     aprovar: bool,
     modo: str | None = None,
     ate_horario: str | None = None,
+    duracao_minutos: int | None = None,
     decisao_motivo: str | None = None,
 ) -> PontoHoraExtraRead:
     row = (
@@ -263,6 +343,8 @@ def decidir(
     if row.estado != "pendente":
         raise HTTPException(status_code=400, detail="Este pedido já foi decidido.")
     agora = _agora_tz()
+    alvo = row.atendente
+    assert alvo is not None
     row.decidido_por_id = admin.id
     row.decidido_em = datetime.now(timezone.utc)
     row.decisao_motivo = (decisao_motivo or "").strip()[:1000] or None
@@ -272,23 +354,13 @@ def decidir(
         row.ate_em = None
     else:
         m = (modo or "").strip().lower()
-        if m not in MODOS_APROVACAO:
-            raise HTTPException(
-                status_code=400,
-                detail="Ao aprovar, escolha modo resto_do_dia ou ate_horario.",
-            )
+        ate = _calcular_ate_em(
+            alvo, agora, modo=m, ate_horario=ate_horario, duracao_minutos=duracao_minutos
+        )
+        _expirar_aprovadas_anteriores(db, alvo.id)
         row.estado = "aprovada"
         row.modo = m
-        if m == "resto_do_dia":
-            row.ate_em = _fim_resto_do_dia(agora)
-        else:
-            ate = _parse_ate_horario(agora.date(), ate_horario or "")
-            if ate <= agora:
-                raise HTTPException(
-                    status_code=400,
-                    detail="O horário limite da hora extra deve ser no futuro.",
-                )
-            row.ate_em = ate
+        row.ate_em = ate
     registrar_audit(
         db,
         "ponto_hora_extra",
@@ -299,6 +371,101 @@ def decidir(
     )
     db.commit()
     db.refresh(row)
+    _notificar_admins(db, admin.tenant_id)
+    return _to_read(row)
+
+
+def conceder_admin(
+    db: Session,
+    admin: Atendente,
+    *,
+    atendente_id: int,
+    modo: str,
+    ate_horario: str | None = None,
+    duracao_minutos: int | None = None,
+    motivo: str | None = None,
+) -> PontoHoraExtraRead:
+    """Admin concede HE antecipada (#966) — sem pedido pendente."""
+    alvo = (
+        db.query(Atendente)
+        .filter(
+            Atendente.id == atendente_id,
+            Atendente.tenant_id == admin.tenant_id,
+            Atendente.role != "saas_ops",
+        )
+        .first()
+    )
+    if not alvo:
+        raise HTTPException(status_code=404, detail="Atendente não encontrado")
+    agora = _agora_tz()
+    m = (modo or "").strip().lower()
+    ate = _calcular_ate_em(
+        alvo, agora, modo=m, ate_horario=ate_horario, duracao_minutos=duracao_minutos
+    )
+    _expirar_aprovadas_anteriores(db, alvo.id)
+
+    pendentes = (
+        db.query(PontoHoraExtra)
+        .filter(PontoHoraExtra.atendente_id == alvo.id, PontoHoraExtra.estado == "pendente")
+        .order_by(PontoHoraExtra.id.asc())
+        .all()
+    )
+    row: PontoHoraExtra
+    if pendentes:
+        row = pendentes[0]
+        for extra in pendentes[1:]:
+            extra.estado = "rejeitada"
+            extra.decidido_por_id = admin.id
+            extra.decidido_em = datetime.now(timezone.utc)
+            extra.decisao_motivo = "Substituído por concessão do administrador"
+        row.estado = "aprovada"
+        row.origem = "admin"
+        row.modo = m
+        row.ate_em = ate
+        row.motivo = (motivo or row.motivo or "Hora extra concedida pelo administrador.")[:1000]
+        row.decidido_por_id = admin.id
+        row.decidido_em = datetime.now(timezone.utc)
+        row.decisao_motivo = "Concessão antecipada"
+        registrar_audit(
+            db,
+            "ponto_hora_extra",
+            row.id,
+            "conceder",
+            admin.id,
+            payload={"atendente_id": alvo.id, "modo": m, "ate_em": str(ate), "via": "pendente"},
+        )
+    else:
+        row = PontoHoraExtra(
+            tenant_id=admin.tenant_id,
+            atendente_id=alvo.id,
+            estado="aprovada",
+            origem="admin",
+            modo=m,
+            ate_em=ate,
+            motivo=(motivo or "Hora extra concedida pelo administrador.")[:1000],
+            decidido_por_id=admin.id,
+            decidido_em=datetime.now(timezone.utc),
+            decisao_motivo="Concessão antecipada",
+        )
+        db.add(row)
+        db.flush()
+        registrar_audit(
+            db,
+            "ponto_hora_extra",
+            row.id,
+            "conceder",
+            admin.id,
+            payload={"atendente_id": alvo.id, "modo": m, "ate_em": str(ate)},
+        )
+
+    db.commit()
+    row = (
+        db.query(PontoHoraExtra)
+        .options(joinedload(PontoHoraExtra.atendente))
+        .filter(PontoHoraExtra.id == row.id)
+        .first()
+    )
+    assert row is not None
     _notificar_admins(db, admin.tenant_id)
     return _to_read(row)
 
