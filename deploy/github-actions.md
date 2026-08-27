@@ -88,4 +88,5 @@ O job **`build`** pode ter passado; a falha é só na ligação **runner → VPS
 - **Landing fala com API DuplexSoft**: dist admin desatualizado ou `DEPLOY_FRONTEND_DIST_ADMIN` / secret `VITE_API_URL_ADMIN` errados.
 - **404 em rotas novas**: `DEPLOY_GIT_REF=main` desalinhado — remova o secret e redeploye a `staging`.
 - **Admin-center não sobe no deploy (API antiga)**: `stack-client.sh migrate` sem `-T`/`</dev/null` fazia o `docker compose run` consumir o stdin do SSH e engolir o `up` seguinte. O migrate já fecha o stdin; se voltar a acontecer, confira esse padrão.
+- **`concluir_solicitacoes_release` / conflito `/dx-connect-db-admin-center`**: o one-off precisa de `--project-name dx-connect-admin-center` (via `stack-client.sh exec`). Compose na pasta `admin-center` sem isso cria outro projeto e bate no Postgres já no ar.
 - **Health público admin exit 22 no runner**: Cloudflare/rede no IP do GHA; o script valida loopback `127.0.0.1:8001` no VPS como fonte de verdade.
