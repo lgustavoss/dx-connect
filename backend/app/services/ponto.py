@@ -944,6 +944,8 @@ def admin_criar_batida(
     motivo: str,
     commit: bool = True,
 ) -> PontoBatida:
+    from app.services import ponto_competencia as comp_svc
+
     alvo = _atendente_do_tenant(db, admin.tenant_id, atendente_id)
     if tipo not in TIPOS_VALIDOS:
         raise HTTPException(status_code=400, detail="Tipo inválido")
@@ -953,11 +955,14 @@ def admin_criar_batida(
             status_code=400,
             detail="Informe o motivo do ajuste (mínimo 3 caracteres).",
         )
+    quando = _as_utc(registrado_em)
+    dia = _data_negocio(quando)
+    pos_fechamento = comp_svc.competencia_fechada_para_data(db, admin.tenant_id, dia)
     batida = PontoBatida(
         tenant_id=admin.tenant_id,
         atendente_id=alvo.id,
         tipo=tipo,
-        registrado_em=_as_utc(registrado_em),
+        registrado_em=quando,
         origem="admin",
         anulada=False,
     )
@@ -973,9 +978,19 @@ def admin_criar_batida(
             "motivo": motivo_limpo,
             "atendente_id": alvo.id,
             "tipo": tipo,
-            "registrado_em": _as_utc(registrado_em).isoformat(),
+            "registrado_em": quando.isoformat(),
+            "pos_fechamento": pos_fechamento,
         },
     )
+    if pos_fechamento:
+        comp_svc.invalidar_ciencias_mes(
+            db,
+            tenant_id=admin.tenant_id,
+            atendente_id=alvo.id,
+            ano=dia.year,
+            mes=dia.month,
+            motivo="Ajuste administrativo após fechamento da competência",
+        )
     if commit:
         db.commit()
         db.refresh(batida)
@@ -991,6 +1006,8 @@ def admin_atualizar_batida(
     registrado_em: datetime | None,
     motivo: str,
 ) -> PontoBatida:
+    from app.services import ponto_competencia as comp_svc
+
     batida = (
         db.query(PontoBatida)
         .filter(PontoBatida.id == batida_id, PontoBatida.tenant_id == admin.tenant_id)
@@ -1012,6 +1029,8 @@ def admin_atualizar_batida(
     if registrado_em is not None:
         batida.registrado_em = _as_utc(registrado_em)
     batida.origem = batida.origem or "admin"
+    dia = _data_negocio(batida.registrado_em)
+    pos_fechamento = comp_svc.competencia_fechada_para_data(db, admin.tenant_id, dia)
     registrar_audit(
         db,
         "ponto_batida",
@@ -1022,14 +1041,27 @@ def admin_atualizar_batida(
             "motivo": motivo_limpo,
             "antes": antes,
             "depois": {"tipo": batida.tipo, "registrado_em": batida.registrado_em.isoformat()},
+            "pos_fechamento": pos_fechamento,
+            "atendente_id": batida.atendente_id,
         },
     )
+    if pos_fechamento:
+        comp_svc.invalidar_ciencias_mes(
+            db,
+            tenant_id=admin.tenant_id,
+            atendente_id=batida.atendente_id,
+            ano=dia.year,
+            mes=dia.month,
+            motivo="Ajuste administrativo após fechamento da competência",
+        )
     db.commit()
     db.refresh(batida)
     return batida
 
 
 def admin_anular_batida(db: Session, admin: Atendente, batida_id: int, *, motivo: str) -> PontoBatida:
+    from app.services import ponto_competencia as comp_svc
+
     batida = (
         db.query(PontoBatida)
         .filter(PontoBatida.id == batida_id, PontoBatida.tenant_id == admin.tenant_id)
@@ -1044,6 +1076,8 @@ def admin_anular_batida(db: Session, admin: Atendente, batida_id: int, *, motivo
             detail="Informe o motivo da anulação (mínimo 3 caracteres).",
         )
     batida.anulada = True
+    dia = _data_negocio(batida.registrado_em)
+    pos_fechamento = comp_svc.competencia_fechada_para_data(db, admin.tenant_id, dia)
     registrar_audit(
         db,
         "ponto_batida",
@@ -1055,8 +1089,18 @@ def admin_anular_batida(db: Session, admin: Atendente, batida_id: int, *, motivo
             "tipo": batida.tipo,
             "registrado_em": batida.registrado_em.isoformat(),
             "atendente_id": batida.atendente_id,
+            "pos_fechamento": pos_fechamento,
         },
     )
+    if pos_fechamento:
+        comp_svc.invalidar_ciencias_mes(
+            db,
+            tenant_id=admin.tenant_id,
+            atendente_id=batida.atendente_id,
+            ano=dia.year,
+            mes=dia.month,
+            motivo="Anulação após fechamento da competência",
+        )
     db.commit()
     db.refresh(batida)
     return batida

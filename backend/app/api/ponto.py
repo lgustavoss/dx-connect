@@ -21,12 +21,16 @@ from app.schemas.ponto import (
     PontoBatidaRead,
     PontoBaterRequest,
     PontoCalendarioRead,
+    PontoCienciaItem,
+    PontoCienciaMe,
     PontoCoberturaColega,
     PontoCoberturaConceder,
     PontoCoberturaCreate,
     PontoCoberturaDecisao,
     PontoCoberturaRead,
     PontoCoberturaResposta,
+    PontoCompetenciaRead,
+    PontoCompetenciaReabrir,
     PontoDigestRead,
     PontoEstadoRead,
     PontoFeriadoCreate,
@@ -48,9 +52,11 @@ from app.schemas.ponto import (
     PontoSettingsPublicRead,
     PontoSettingsRead,
     PontoSettingsUpdate,
+    PontoSetupStatus,
 )
 from app.services import ponto as ponto_svc
 from app.services import ponto_cobertura as cob_svc
+from app.services import ponto_competencia as comp_svc
 from app.services import ponto_folha as folha_svc
 from app.services import ponto_hora_extra as he_svc
 from app.services import ponto_justificativa as just_svc
@@ -312,6 +318,85 @@ def decidir_cobertura(
         aprovar=data.aprovar,
         decisao_motivo=data.decisao_motivo,
     )
+
+
+@router.get("/setup-status", response_model=PontoSetupStatus)
+def ponto_setup_status(
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    """Checklist de configuração do módulo ponto (#981)."""
+    return comp_svc.setup_status(db, admin)
+
+
+@router.get("/competencias", response_model=list[PontoCompetenciaRead])
+def listar_competencias(
+    ano: int | None = Query(None),
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return comp_svc.listar_competencias(db, admin, ano=ano)
+
+
+@router.get("/competencias/{ano}/{mes}", response_model=PontoCompetenciaRead)
+def obter_competencia(
+    ano: int,
+    mes: int,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return comp_svc.obter_competencia(db, admin, ano=ano, mes=mes)
+
+
+@router.post("/competencias/{ano}/{mes}/fechar", response_model=PontoCompetenciaRead)
+def fechar_competencia(
+    ano: int,
+    mes: int,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return comp_svc.fechar_competencia(db, admin, ano=ano, mes=mes)
+
+
+@router.post("/competencias/{ano}/{mes}/reabrir", response_model=PontoCompetenciaRead)
+def reabrir_competencia(
+    ano: int,
+    mes: int,
+    data: PontoCompetenciaReabrir,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return comp_svc.reabrir_competencia(db, admin, ano=ano, mes=mes, motivo=data.motivo)
+
+
+@router.get("/competencias/{ano}/{mes}/ciencias", response_model=list[PontoCienciaItem])
+def listar_ciencias(
+    ano: int,
+    mes: int,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return comp_svc.listar_ciencias_admin(db, admin, ano=ano, mes=mes)
+
+
+@router.get("/me/ciencia", response_model=PontoCienciaMe)
+def minha_ciencia(
+    ano: int = Query(...),
+    mes: int = Query(..., ge=1, le=12),
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    return comp_svc.ciencia_me(db, atendente, ano=ano, mes=mes)
+
+
+@router.post("/me/ciencia", response_model=PontoCienciaMe)
+def confirmar_ciencia(
+    ano: int = Query(...),
+    mes: int = Query(..., ge=1, le=12),
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    return comp_svc.confirmar_ciencia(db, atendente, ano=ano, mes=mes)
 
 
 @router.get("/batidas", response_model=ListaPaginada[PontoBatidaAdminItem])

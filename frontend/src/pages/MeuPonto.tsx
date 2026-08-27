@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ponto, type Ponto } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
+import { PontoAjudaModal } from '../components/PontoAjudaModal'
 import { PontoCalendarioMes } from '../components/PontoCalendarioMes'
 import { PontoBatidaMapaModal } from '../components/PontoBatidaMapaModal'
 import { PontoMetricCard } from '../components/PontoMetricCard'
@@ -65,6 +66,13 @@ export function MeuPonto() {
   const [cobData, setCobData] = useState(hojeIso)
   const [cobMotivo, setCobMotivo] = useState('')
   const [enviandoCob, setEnviandoCob] = useState(false)
+  const [ajudaAberta, setAjudaAberta] = useState(false)
+  const [ciencia, setCiencia] = useState<Ponto.CienciaMe | null>(null)
+  const cienciaRef = useMemo(() => {
+    const d = new Date()
+    const prev = new Date(d.getFullYear(), d.getMonth() - 1, 1)
+    return { ano: prev.getFullYear(), mes: prev.getMonth() + 1 }
+  }, [])
   const [banco, setBanco] = useState<Ponto.BancoHoras | null>(null)
   const [refSemana, setRefSemana] = useState(hojeIso)
   const [resumoSemana, setResumoSemana] = useState<Ponto.ResumoSemana | null>(null)
@@ -96,7 +104,7 @@ export function MeuPonto() {
   const carregar = useCallback(
     async (silencioso = false) => {
       try {
-        const [me, hist, js, bh, gs, cobs, cols] = await Promise.all([
+        const [me, hist, js, bh, gs, cobs, cols, cin] = await Promise.all([
           ponto.me(),
           ponto.minhasBatidas({ desde, ate, limit: 100 }),
           ponto.minhasJustificativas(),
@@ -104,6 +112,7 @@ export function MeuPonto() {
           ponto.meSettings(),
           ponto.minhasCoberturas(),
           ponto.colegasCobertura(),
+          ponto.minhaCiencia(cienciaRef.ano, cienciaRef.mes),
         ])
         setEstado(me)
         setHistorico(hist)
@@ -112,6 +121,7 @@ export function MeuPonto() {
         setGeoSettings(gs)
         setCoberturas(cobs)
         setColegasCob(cols)
+        setCiencia(cin)
         if (gs.politica_geolocalizacao === 'obrigatoria' && gs.tem_locais_ativos) {
           setIncluirLocalizacao(true)
         }
@@ -123,7 +133,7 @@ export function MeuPonto() {
         setLoading(false)
       }
     },
-    [ate, desde, toast],
+    [ate, cienciaRef.ano, cienciaRef.mes, desde, toast],
   )
 
   const carregarCalendario = useCallback(
@@ -375,7 +385,54 @@ export function MeuPonto() {
       <PageHeader
         title="Meu ponto"
         subtitle="Registre a jornada com um toque. Pausas e histórico ficam à mão — presença online do painel é independente."
+        actions={
+          <Button type="button" variant="secondary" onClick={() => setAjudaAberta(true)}>
+            Como funciona o ponto
+          </Button>
+        }
       />
+
+      {ciencia ? (
+        <Card className="mb-4" title={`Ciência do espelho — ${String(cienciaRef.mes).padStart(2, '0')}/${cienciaRef.ano}`}>
+          {ciencia.confirmada ? (
+            <p className="text-sm text-emerald-700 dark:text-emerald-300">
+              Você confirmou ciência
+              {ciencia.confirmado_em
+                ? ` em ${new Date(ciencia.confirmado_em).toLocaleString('pt-BR')}`
+                : ''}
+              .
+            </p>
+          ) : ciencia.pode_confirmar ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                O mês foi fechado pelo admin. Confirme que leu e concorda com o espelho.
+              </p>
+              <Button
+                type="button"
+                onClick={() => {
+                  void (async () => {
+                    try {
+                      await ponto.confirmarCiencia(cienciaRef.ano, cienciaRef.mes)
+                      toast.showSuccess('Ciência confirmada.')
+                      await carregar(true)
+                    } catch (err) {
+                      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível confirmar.'))
+                    }
+                  })()
+                }}
+              >
+                Li e concordo
+              </Button>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">
+              {ciencia.competencia_fechada
+                ? 'Ciência indisponível.'
+                : 'Aguarde o fechamento da competência para confirmar.'}
+            </p>
+          )}
+        </Card>
+      ) : null}
 
       {/* Hero — inspirado no dx-ponto: relógio + CTA principal */}
       <Card className="overflow-hidden border-cyan-200/60 bg-gradient-to-br from-slate-50 via-white to-cyan-50/40 dark:border-cyan-900/40 dark:from-slate-950 dark:via-slate-900 dark:to-cyan-950/20">
@@ -844,6 +901,7 @@ export function MeuPonto() {
         </Card>
       </div>
 
+      <PontoAjudaModal open={ajudaAberta} onClose={() => setAjudaAberta(false)} />
       <PontoBatidaMapaModal
         open={mapaAberto != null}
         onClose={() => setMapaAberto(null)}
