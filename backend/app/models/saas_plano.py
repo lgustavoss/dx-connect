@@ -27,6 +27,7 @@ class SaasModulo(Base):
     codigo = Column(String(80), nullable=False, index=True)
     nome = Column(String(120), nullable=False)
     descricao = Column(Text, nullable=True)
+    preco_mensal = Column(Numeric(12, 2), nullable=True)
     ativo = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -45,6 +46,9 @@ class SaasPlano(Base):
     ativo = Column(Boolean, nullable=False, default=True)
     ordem = Column(Integer, nullable=False, default=0)
     preco_mensal = Column(Numeric(12, 2), nullable=True)
+    # Usuários inclusos no preço dos módulos (padrão 3).
+    usuarios_inclusos = Column(Integer, nullable=False, default=3, server_default="3")
+    preco_usuario_extra = Column(Numeric(12, 2), nullable=True)
     max_postos = Column(Integer, nullable=True)
     max_usuarios = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

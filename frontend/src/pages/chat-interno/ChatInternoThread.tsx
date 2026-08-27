@@ -4,6 +4,7 @@ import { ApiError, atendentes, chatInterno, type ChatInterno } from '../../api/c
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { ChatInternoComposerBar } from '../../components/chat-interno/ChatInternoComposerBar'
 import { ChatInternoGrupoMembrosModal } from '../../components/chat-interno/ChatInternoGrupoMembrosModal'
+import { ChatInternoSetorMembrosModal } from '../../components/chat-interno/ChatInternoSetorMembrosModal'
 import { ChatInternoConteudoMensagem } from '../../components/chat-interno/ChatInternoConteudoMensagem'
 import { ChatInternoMensagemAcoes } from '../../components/chat-interno/ChatInternoMensagemAcoes'
 import { ChatInternoReacoesBar } from '../../components/chat-interno/ChatInternoReacoesBar'
@@ -279,6 +280,7 @@ export function ChatInternoThread({ conversaIdProp }: ChatInternoThreadProps = {
   const [limpando, setLimpando] = useState(false)
   const [grupoDetalhe, setGrupoDetalhe] = useState<ChatInterno.Conversa | null>(null)
   const [modalMembros, setModalMembros] = useState(false)
+  const [modalMembrosSetor, setModalMembrosSetor] = useState(false)
   const [mencionaveis, setMencionaveis] = useState<MencaoCandidato[]>([])
   const [silenciando, setSilenciando] = useState(false)
   const [hoverMsgId, setHoverMsgId] = useState<number | null>(null)
@@ -553,6 +555,16 @@ export function ChatInternoThread({ conversaIdProp }: ChatInternoThreadProps = {
             <h2 className="truncate text-lg font-bold text-slate-900 dark:text-white">{titulo}</h2>
             <p className="truncate text-sm text-slate-500">{subtitulo}</p>
           </button>
+        ) : isSetor ? (
+          <button
+            type="button"
+            onClick={() => setModalMembrosSetor(true)}
+            className="min-w-0 flex-1 rounded-lg text-left transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
+            aria-label="Ver membros do setor"
+          >
+            <h2 className="truncate text-lg font-bold text-slate-900 dark:text-white">{titulo}</h2>
+            <p className="truncate text-sm text-slate-500">{subtitulo}</p>
+          </button>
         ) : (
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-lg font-bold text-slate-900 dark:text-white">{titulo}</h2>
@@ -613,6 +625,15 @@ export function ChatInternoThread({ conversaIdProp }: ChatInternoThreadProps = {
             setGrupoDetalhe(conv)
             void refreshInbox(true)
           }}
+        />
+      )}
+
+      {isSetor && meta?.setor_id != null && (
+        <ChatInternoSetorMembrosModal
+          open={modalMembrosSetor}
+          setorId={meta.setor_id}
+          tituloSetor={titulo}
+          onClose={() => setModalMembrosSetor(false)}
         />
       )}
 

@@ -19,7 +19,7 @@ interface AuthContextValue {
   isComercialOuAdmin: boolean
   /** Admin ou atendente do setor Financeiro (faturamento interno). */
   isFinanceiroOuAdmin: boolean
-  /** Equipa comercial DeskRudder (control-plane SaaS). */
+  /** Equipe comercial DeskRudder (control-plane SaaS). */
   isSaasOps: boolean
 }
 

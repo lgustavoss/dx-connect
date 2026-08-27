@@ -72,6 +72,7 @@ class PortalChatRead(Base):
     chat_id = Column(Integer, ForeignKey("portal_chats.id", ondelete="CASCADE"), nullable=False, index=True)
     atendente_id = Column(Integer, ForeignKey("atendentes.id", ondelete="CASCADE"), nullable=False, index=True)
     last_seen_at = Column(DateTime(timezone=True), nullable=False)
+    last_seen_mensagem_id = Column(Integer, nullable=True)
 
     chat = relationship("PortalChat", back_populates="reads")
     atendente = relationship("Atendente")

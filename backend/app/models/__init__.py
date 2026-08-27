@@ -4,6 +4,7 @@ from app.models.tipo_negocio import TipoNegocio
 from app.models.atendente import Atendente, AtendenteSetor
 from app.models.ponto_batida import PontoBatida
 from app.models.ponto_justificativa import PontoJustificativa
+from app.models.ponto_hora_extra import PontoHoraExtra
 from app.models.ponto_settings import PontoFeriado, PontoLocal, PontoSettings
 from app.models.setor import Setor
 from app.models.setor_distribuicao_round_robin import SetorDistribuicaoRoundRobin
@@ -73,6 +74,7 @@ from app.models.implantacao_checklist import (
     TicketChecklistItem,
 )
 from app.models.cliente_saas import ClienteSaaS
+from app.models.saas_setor import SaasSetor, saas_ops_setor
 from app.models.saas_alerta_emitido import SaasAlertaEmitido
 from app.models.lead_comercial import LeadComercial
 from app.models.saas_plano import SaasModulo, SaasPlano, SaasPlanoModulo
@@ -96,8 +98,10 @@ __all__ = [
     "SetorDistribuicaoRoundRobin",
     "Atendente",
     "AtendenteSetor",
+    "SaasSetor",
     "PontoBatida",
     "PontoJustificativa",
+    "PontoHoraExtra",
     "PontoSettings",
     "PontoLocal",
     "PontoFeriado",

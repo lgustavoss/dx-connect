@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ApiError, saasClientes, saasPlanos, type SaasCatalogo } from '../../api/client'
+import { ApiError, saasClientes, saasModulos, saasPlanos, type SaasCatalogo } from '../../api/client'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
@@ -55,6 +55,11 @@ export function SaasLicencaForm() {
   const [status, setStatus] = useState<StatusClienteSaaS>('trial')
   const [planoId, setPlanoId] = useState<number | ''>('')
   const [planosOpts, setPlanosOpts] = useState<SaasCatalogo.Plano[]>([])
+  const [modulosOpts, setModulosOpts] = useState<SaasCatalogo.Modulo[]>([])
+  const [moduloIds, setModuloIds] = useState<number[]>([])
+  const [usuariosContratados, setUsuariosContratados] = useState('3')
+  const [precoNegociado, setPrecoNegociado] = useState('')
+  const [pendingSnap, setPendingSnap] = useState<string[] | null>(null)
   const [dataInicio, setDataInicio] = useState(todayIso)
   const [dataRenovacao, setDataRenovacao] = useState('')
   const [contatoNome, setContatoNome] = useState('')
@@ -62,6 +67,14 @@ export function SaasLicencaForm() {
   const [notas, setNotas] = useState('')
   const [leadComercialId, setLeadComercialId] = useState<number | null>(null)
   const [baseDomain, setBaseDomain] = useState(saasBaseDomain())
+
+  function formatPreco(v: number): string {
+    return `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+  }
+
+  function toggleModulo(mid: number) {
+    setModuloIds((prev) => (prev.includes(mid) ? prev.filter((x) => x !== mid) : [...prev, mid]))
+  }
 
   useEffect(() => {
     if (isEdit) return
@@ -103,19 +116,61 @@ export function SaasLicencaForm() {
 
   useEffect(() => {
     let cancelled = false
-    saasPlanos
-      .list()
-      .then((planos) => {
+    Promise.all([saasPlanos.list(), saasModulos.list()])
+      .then(([planos, mods]) => {
         if (cancelled) return
         setPlanosOpts(planos)
+        setModulosOpts(mods)
       })
       .catch(() => {
-        /* select vazio */
+        /* selects vazios */
       })
     return () => {
       cancelled = true
     }
   }, [])
+
+  const planoSelecionado = useMemo(
+    () => (planoId === '' ? null : planosOpts.find((p) => p.id === Number(planoId)) ?? null),
+    [planoId, planosOpts],
+  )
+
+  const inclusos = planoSelecionado?.usuarios_inclusos ?? 3
+  const extraUnit = Number(planoSelecionado?.preco_usuario_extra ?? 10)
+  const precoMods = useMemo(() => {
+    return (
+      Math.round(
+        modulosOpts
+          .filter((m) => moduloIds.includes(m.id))
+          .reduce((acc, m) => acc + Number(m.preco_mensal || 0), 0) * 100,
+      ) / 100
+    )
+  }, [modulosOpts, moduloIds])
+  const usersN = parseInt(usuariosContratados, 10)
+  const usersExtra = Number.isFinite(usersN) ? Math.max(0, usersN - inclusos) : 0
+  const precoUsers = Math.round(usersExtra * extraUnit * 100) / 100
+  const precoTotal = Math.round((precoMods + precoUsers) * 100) / 100
+
+  function aplicarModulosDoPlano(pid: number | '') {
+    if (pid === '') {
+      setModuloIds([])
+      return
+    }
+    const plano = planosOpts.find((p) => p.id === Number(pid))
+    if (plano) setModuloIds(plano.modulos.map((m) => m.id))
+  }
+
+  useEffect(() => {
+    if (pendingSnap == null) return
+    if (!modulosOpts.length && !planosOpts.length) return
+    if (pendingSnap.length && modulosOpts.length) {
+      setModuloIds(modulosOpts.filter((m) => pendingSnap.includes(m.codigo)).map((m) => m.id))
+    } else if (planoId !== '' && planosOpts.length) {
+      aplicarModulosDoPlano(planoId)
+    }
+    setPendingSnap(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync único após load da licença
+  }, [pendingSnap, modulosOpts, planosOpts, planoId])
 
   useEffect(() => {
     if (!isEdit) return
@@ -138,6 +193,15 @@ export function SaasLicencaForm() {
         setSlugTouched(true)
         setStatus(c.status)
         setPlanoId(c.plano_id ?? '')
+        setUsuariosContratados(
+          c.max_usuarios != null
+            ? String(c.max_usuarios)
+            : String(c.usuarios_inclusos ?? 3),
+        )
+        setPrecoNegociado(
+          c.preco_mensal_negociado != null ? String(c.preco_mensal_negociado) : '',
+        )
+        setPendingSnap(c.modulos_snapshot ?? [])
         setDataInicio(c.data_inicio.slice(0, 10))
         setDataRenovacao(c.data_renovacao ? c.data_renovacao.slice(0, 10) : '')
         setContatoNome(c.contato_nome ?? '')
@@ -178,11 +242,18 @@ export function SaasLicencaForm() {
     setSaving(true)
     try {
       const urlAuto = urlInstanciaFromSlug(slug.trim().toLowerCase(), baseDomain) || null
+      const usersParsed = parseInt(usuariosContratados, 10)
+      const negociadoParsed =
+        precoNegociado.trim() === '' ? null : Number(precoNegociado)
       const payload = {
         nome: nome.trim(),
         slug: slug.trim().toLowerCase(),
         status,
         plano_id: planoId === '' ? null : Number(planoId),
+        modulo_ids: moduloIds,
+        usuarios_contratados: Number.isFinite(usersParsed) ? usersParsed : null,
+        preco_mensal_negociado:
+          negociadoParsed != null && Number.isFinite(negociadoParsed) ? negociadoParsed : null,
         data_inicio: dataInicio,
         data_renovacao: dataRenovacao.trim() || null,
         instancia_url: urlAuto,
@@ -288,30 +359,102 @@ export function SaasLicencaForm() {
                 options={STATUS_CLIENTE_SAAS.map((s) => ({ value: s.value, label: s.label }))}
               />
               <Select
-                label="Plano"
+                label="Plano base"
                 value={planoId}
-                onChange={(v) => setPlanoId(v === '' ? '' : Number(v))}
+                onChange={(v) => {
+                  const next = v === '' ? '' : Number(v)
+                  setPlanoId(next)
+                  aplicarModulosDoPlano(next)
+                  const plano = next === '' ? null : planosOpts.find((p) => p.id === next)
+                  if (plano?.usuarios_inclusos != null) {
+                    setUsuariosContratados(String(plano.usuarios_inclusos))
+                  }
+                }}
                 includeEmpty
                 emptyLabel="Sem plano"
                 options={planosOpts
                   .filter((p) => p.ativo || p.id === planoId)
                   .map((p) => ({
                     value: p.id,
-                    label: p.ativo ? p.nome : `${p.nome} (inactivo)`,
+                    label: p.ativo ? p.nome : `${p.nome} (inativo)`,
                   }))}
               />
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Catálogo em Licenças → Planos. Só planos activos (excepto o já atribuído).
+                Ao trocar o plano, os módulos do pacote são pré-selecionados. Você pode incluir
+                módulos extras (ex.: Essencial + um módulo Enterprise).
               </p>
             </FormSection>
-            <FormSection title="Contacto">
+            <FormSection title="Módulos e usuários">
+              <div className="space-y-2">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                  Módulos contratados
+                </span>
+                <ul className="max-h-56 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-2 dark:border-slate-700">
+                  {modulosOpts
+                    .filter((m) => m.ativo || moduloIds.includes(m.id))
+                    .map((m) => (
+                      <li key={m.id}>
+                        <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800/60">
+                          <input
+                            type="checkbox"
+                            checked={moduloIds.includes(m.id)}
+                            onChange={() => toggleModulo(m.id)}
+                            className="rounded border-slate-300 text-sky-600 focus:ring-sky-400"
+                          />
+                          <span className="min-w-0 flex-1 text-slate-800 dark:text-slate-100">
+                            {m.nome}
+                            {!m.ativo ? (
+                              <span className="ml-1 text-xs text-amber-600">(inativo)</span>
+                            ) : null}
+                          </span>
+                          <span className="tabular-nums text-xs text-slate-500">
+                            {formatPreco(Number(m.preco_mensal || 0))}
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                </ul>
+              </div>
               <Input
-                label="Nome do contacto"
+                label="Usuários contratados"
+                type="number"
+                min={0}
+                value={usuariosContratados}
+                onChange={(e) => setUsuariosContratados(e.target.value)}
+                hint={`${inclusos} inclusos no plano; extras a ${formatPreco(extraUnit)}/mês cada.`}
+              />
+              <Input
+                label="Valor mensal negociado (R$)"
+                type="number"
+                step="0.01"
+                min={0}
+                value={precoNegociado}
+                onChange={(e) => setPrecoNegociado(e.target.value)}
+                hint="Opcional. Se preenchido, vale na ficha comercial em vez da estimativa do catálogo."
+              />
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900/40">
+                <p className="font-medium text-slate-800 dark:text-slate-100">
+                  {precoNegociado.trim() !== '' && Number.isFinite(Number(precoNegociado))
+                    ? `Valor negociado: ${formatPreco(Number(precoNegociado))}`
+                    : `Estimativa do catálogo: ${formatPreco(precoTotal)}`}
+                </p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Catálogo: módulos {formatPreco(precoMods)}
+                  {usersExtra > 0
+                    ? ` + ${usersExtra} usuário(s) extra ${formatPreco(precoUsers)}`
+                    : ''}
+                  {precoNegociado.trim() !== '' ? ` (estimativa ${formatPreco(precoTotal)})` : ''}
+                </p>
+              </div>
+            </FormSection>
+            <FormSection title="Contato">
+              <Input
+                label="Nome do contato"
                 value={contatoNome}
                 onChange={(e) => setContatoNome(e.target.value)}
               />
               <Input
-                label="E-mail do contacto"
+                label="E-mail do contato"
                 type="email"
                 value={contatoEmail}
                 onChange={(e) => setContatoEmail(e.target.value)}

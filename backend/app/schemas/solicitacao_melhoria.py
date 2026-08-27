@@ -82,6 +82,8 @@ class SolicitacaoMelhoriaRead(BaseModel):
     status_rotulo: str
     motivo_nao_desenvolvimento: str | None
     versao_contexto: str | None
+    versao_alvo: str | None = None
+    versao_alvo_rotulo: str | None = None
     mensagem_status: str
     created_at: datetime
     updated_at: datetime | None
@@ -104,6 +106,7 @@ class SolicitacaoMelhoriaListaItem(BaseModel):
     titulo: str
     status: str
     status_rotulo: str
+    versao_alvo_rotulo: str | None = None
     autor_nome: str | None
     organizacao_id: int
     created_at: datetime

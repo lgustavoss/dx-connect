@@ -48,7 +48,7 @@ export function SaasPlanos() {
     try {
       if (item.ativo) await saasPlanos.desativar(item.id)
       else await saasPlanos.ativar(item.id)
-      toast.showSuccess(item.ativo ? 'Plano desactivado.' : 'Plano activado.')
+      toast.showSuccess(item.ativo ? 'Plano desativado.' : 'Plano ativado.')
       carregar()
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível alterar o plano.'))
@@ -78,7 +78,7 @@ export function SaasPlanos() {
         />
       }
       title="Planos"
-      subtitle="Catálogo comercial — o que cada plano inclui (sem ligar features na instância)."
+      subtitle="Pacotes = soma dos módulos. Cada plano define usuários inclusos e preço por usuário extra."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={() => navigate('/saas/modulos')}>
@@ -100,6 +100,8 @@ export function SaasPlanos() {
                 <tr className="text-left">
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Nome</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Código</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Preço base</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Inclusos</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Módulos</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Estado</th>
                   <th className="w-px px-4 py-3 text-right text-xs font-semibold uppercase text-slate-500 sm:px-6">
@@ -117,6 +119,21 @@ export function SaasPlanos() {
                       ) : null}
                     </td>
                     <td className="px-4 py-3.5 font-mono text-xs sm:px-6">{item.codigo}</td>
+                    <td className="whitespace-nowrap px-4 py-3.5 tabular-nums text-slate-600 sm:px-6 dark:text-slate-300">
+                      {item.preco_mensal != null
+                        ? `R$ ${Number(item.preco_mensal).toLocaleString('pt-BR', {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 2,
+                          })}`
+                        : '—'}
+                      <span className="mt-0.5 block text-[11px] text-slate-400">
+                        {item.usuarios_inclusos ?? 3} incl. · +R${' '}
+                        {Number(item.preco_usuario_extra ?? 10).toLocaleString('pt-BR')}/extra
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3.5 tabular-nums text-slate-600 sm:px-6 dark:text-slate-300">
+                      {item.usuarios_inclusos ?? 3}
+                    </td>
                     <td className="px-4 py-3.5 text-slate-600 sm:px-6 dark:text-slate-300">
                       {item.modulos.length
                         ? item.modulos.map((m) => m.nome).join(', ')
@@ -130,7 +147,7 @@ export function SaasPlanos() {
                             : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
                         }`}
                       >
-                        {item.ativo ? 'Activo' : 'Inactivo'}
+                        {item.ativo ? 'Ativo' : 'Inativo'}
                       </span>
                     </td>
                     <td className="px-4 py-3.5 text-right sm:px-6">
@@ -140,7 +157,7 @@ export function SaasPlanos() {
                           disabled={actingId === item.id}
                           onClick={() => void toggleAtivo(item)}
                         >
-                          {item.ativo ? 'Desactivar' : 'Activar'}
+                          {item.ativo ? 'Desativar' : 'Ativar'}
                         </Button>
                         <ListaAcoesVerEditar
                           onVer={() => navigate(`/saas/planos/${item.id}`)}

@@ -154,3 +154,142 @@ def test_planos_modulos_crud_e_licenca(client, auth_headers, db_session, monkeyp
     desativar_mod = client.post(f"/v1/saas/modulos/{mid}/desativar", headers=h)
     assert desativar_mod.status_code == 200
     assert desativar_mod.json()["ativo"] is False
+
+
+def test_plano_preco_soma_modulos_e_mix_licenca(client, auth_headers, db_session, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    h = auth_headers["ops"]
+    seed = _seed_catalogo(db_session)
+
+    # Preço no módulo recalcula planos que o usam
+    patch_mod = client.patch(
+        f"/v1/saas/modulos/{seed['helpdesk'].id}",
+        headers=h,
+        json={"preco_mensal": 100},
+    )
+    assert patch_mod.status_code == 200, patch_mod.text
+    assert float(patch_mod.json()["preco_mensal"]) == 100.0
+
+    client.patch(
+        f"/v1/saas/modulos/{seed['boletos'].id}",
+        headers=h,
+        json={"preco_mensal": 50},
+    )
+    client.patch(
+        f"/v1/saas/modulos/{seed['contratos'].id}",
+        headers=h,
+        json={"preco_mensal": 80},
+    )
+
+    criado = client.post(
+        "/v1/saas/planos",
+        headers=h,
+        json={
+            "codigo": "essencial-test",
+            "nome": "Essencial Test",
+            "ordem": 15,
+            "usuarios_inclusos": 3,
+            "preco_usuario_extra": 10,
+            "modulo_ids": [seed["helpdesk"].id, seed["boletos"].id],
+        },
+    )
+    assert criado.status_code == 201, criado.text
+    body = criado.json()
+    assert float(body["preco_mensal"]) == 150.0
+    assert body["usuarios_inclusos"] == 3
+    assert float(body["preco_usuario_extra"]) == 10.0
+    assert body["max_postos"] is None
+
+    # Mix: plano essencial + módulo enterprise (contratos)
+    lic = client.post(
+        "/v1/saas/clientes",
+        headers=h,
+        json={
+            "nome": "Mix Co",
+            "slug": "mix-co",
+            "status": "ativo",
+            "data_inicio": str(date.today()),
+            "plano_id": body["id"],
+            "modulo_ids": [
+                seed["helpdesk"].id,
+                seed["boletos"].id,
+                seed["contratos"].id,
+            ],
+            "usuarios_contratados": 5,
+        },
+    )
+    assert lic.status_code == 201, lic.text
+    lic_body = lic.json()
+    assert set(lic_body["modulos_snapshot"]) == {"helpdesk", "boletos", "contratos"}
+    assert lic_body["max_usuarios"] == 5
+    # 100+50+80 módulos + 2 extras * 10
+    assert float(lic_body["preco_modulos"]) == 230.0
+    assert float(lic_body["preco_usuarios_extra"]) == 20.0
+    assert float(lic_body["preco_mensal_estimado"]) == 250.0
+    assert len(lic_body["modulos_contratados"]) == 3
+
+    # Valor negociado sobrescreve a estimativa na ficha comercial
+    neg = client.patch(
+        f"/v1/saas/clientes/{lic_body['id']}",
+        headers=h,
+        json={"preco_mensal_negociado": 199},
+    )
+    assert neg.status_code == 200, neg.text
+    assert float(neg.json()["preco_mensal_negociado"]) == 199.0
+    assert float(neg.json()["preco_mensal_estimado"]) == 250.0
+    assert float(neg.json()["preco_mensal_efetivo"]) == 199.0
+
+    limpa = client.patch(
+        f"/v1/saas/clientes/{lic_body['id']}",
+        headers=h,
+        json={"preco_mensal_negociado": None},
+    )
+    assert limpa.status_code == 200
+    assert limpa.json()["preco_mensal_negociado"] is None
+    assert float(limpa.json()["preco_mensal_efetivo"]) == 250.0
+
+
+def test_plano_preco_e_max_usuarios_sem_postos(client, auth_headers, db_session, monkeypatch):
+    """Compat: max_usuarios ainda pode ser setado no plano; preço vem dos módulos."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    h = auth_headers["ops"]
+    seed = _seed_catalogo(db_session)
+
+    client.patch(
+        f"/v1/saas/modulos/{seed['helpdesk'].id}",
+        headers=h,
+        json={"preco_mensal": 397},
+    )
+
+    criado = client.post(
+        "/v1/saas/planos",
+        headers=h,
+        json={
+            "codigo": "essencial-legacy",
+            "nome": "Essencial Legacy",
+            "ordem": 15,
+            "max_usuarios": 8,
+            "modulo_ids": [seed["helpdesk"].id],
+        },
+    )
+    assert criado.status_code == 201, criado.text
+    body = criado.json()
+    assert float(body["preco_mensal"]) == 397.0
+    assert body["max_usuarios"] == 8
+    assert body["max_postos"] is None
+
+    limpo = client.patch(
+        f"/v1/saas/planos/{body['id']}",
+        headers=h,
+        json={"max_usuarios": 20, "usuarios_inclusos": 5, "preco_usuario_extra": 12},
+    )
+    assert limpo.status_code == 200, limpo.text
+    assert limpo.json()["max_postos"] is None
+    assert limpo.json()["max_usuarios"] == 20
+    assert limpo.json()["usuarios_inclusos"] == 5
+    assert float(limpo.json()["preco_usuario_extra"]) == 12.0
+    assert float(limpo.json()["preco_mensal"]) == 397.0

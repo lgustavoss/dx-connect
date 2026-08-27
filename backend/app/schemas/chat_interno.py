@@ -122,3 +122,17 @@ class ConversaInboxRead(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class MembroCanalSetorRead(BaseModel):
+    atendente_id: int
+    nome: str
+    online: bool = False
+
+
+class MembrosCanalSetorListaRead(BaseModel):
+    setor_id: int
+    setor_nome: str
+    total: int
+    online_count: int
+    items: list[MembroCanalSetorRead]

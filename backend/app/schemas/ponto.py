@@ -44,7 +44,9 @@ class PontoSettingsPublicRead(BaseModel):
 
 
 class PontoLocalCreate(BaseModel):
+    atendente_id: int = Field(..., ge=1)
     nome: str = Field(..., min_length=1, max_length=255)
+    endereco: str | None = Field(default=None, max_length=512)
     latitude: float = Field(..., ge=-90, le=90)
     longitude: float = Field(..., ge=-180, le=180)
     raio_metros: int = Field(default=200, ge=20, le=50_000)
@@ -53,7 +55,9 @@ class PontoLocalCreate(BaseModel):
 
 class PontoLocalRead(BaseModel):
     id: int
+    atendente_id: int | None = None
     nome: str
+    endereco: str | None = None
     latitude: float
     longitude: float
     raio_metros: int
@@ -63,7 +67,9 @@ class PontoLocalRead(BaseModel):
 
 
 class PontoLocalUpdate(BaseModel):
+    atendente_id: int | None = Field(default=None, ge=1)
     nome: str | None = Field(default=None, min_length=1, max_length=255)
+    endereco: str | None = Field(default=None, max_length=512)
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     raio_metros: int | None = Field(default=None, ge=20, le=50_000)
@@ -199,6 +205,7 @@ class PontoSettingsRead(BaseModel):
     usar_feriados_nacionais: bool = True
     fecho_automatico_ativo: bool = False
     fecho_apos_horas: int = 14
+    fecho_margem_pos_saida_minutos: int = 30
     jornada_diaria_minutos: int = 480
     politica_geolocalizacao: PoliticaGeolocalizacao = "opcional"
 
@@ -209,6 +216,7 @@ class PontoSettingsUpdate(BaseModel):
     usar_feriados_nacionais: bool | None = None
     fecho_automatico_ativo: bool | None = None
     fecho_apos_horas: int | None = Field(default=None, ge=4, le=48)
+    fecho_margem_pos_saida_minutos: int | None = Field(default=None, ge=0, le=240)
     jornada_diaria_minutos: int | None = Field(default=None, ge=60, le=1440)
     politica_geolocalizacao: PoliticaGeolocalizacao | None = None
 
@@ -287,3 +295,37 @@ class PontoJustificativaDecisao(BaseModel):
         motivo: str = Field(..., min_length=3, max_length=500)
 
     aplicar_batidas: list[BatidaAplicar] | None = None
+
+
+class PontoHoraExtraCreate(BaseModel):
+    motivo: str | None = Field(default=None, max_length=1000)
+
+
+class PontoHoraExtraRead(BaseModel):
+    id: int
+    atendente_id: int
+    atendente_nome: str | None = None
+    estado: str
+    motivo: str | None = None
+    modo: str | None = None
+    ate_em: datetime | None = None
+    decidido_por_id: int | None = None
+    decidido_em: datetime | None = None
+    decisao_motivo: str | None = None
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PontoHoraExtraDecisao(BaseModel):
+    aprovar: bool
+    modo: Literal["resto_do_dia", "ate_horario"] | None = None
+    ate_horario: str | None = Field(default=None, max_length=5, description="HH:MM se modo=ate_horario")
+    decisao_motivo: str | None = Field(default=None, max_length=1000)
+
+
+class PontoHoraExtraMeStatus(BaseModel):
+    fora_da_jornada: bool
+    pode_pegar_whatsapp: bool
+    he_ativa: PontoHoraExtraRead | None = None
+    pedido_pendente: PontoHoraExtraRead | None = None

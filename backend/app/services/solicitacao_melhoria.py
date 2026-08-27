@@ -30,7 +30,9 @@ from app.services.solicitacao_melhoria_copy import (
     STATUS_VALIDOS,
     TIPOS_VALIDOS,
     mensagem_publica_status,
+    normalizar_versao_alvo,
     rotulo_status,
+    rotulo_versao_alvo_publica,
 )
 
 MSG_TRIAGEM_SAAS = "A triagem de produto é feita no painel SaaS DeskRudder"
@@ -123,6 +125,8 @@ def serializar(row: SolicitacaoMelhoria, *, incluir_github: bool, incluir_intern
         status_rotulo=rotulo_status(row.status),
         motivo_nao_desenvolvimento=row.motivo_nao_desenvolvimento,
         versao_contexto=row.versao_contexto,
+        versao_alvo=row.versao_alvo,
+        versao_alvo_rotulo=rotulo_versao_alvo_publica(row.status, row.versao_alvo),
         mensagem_status=mensagem_publica_status(row.status, motivo=row.motivo_nao_desenvolvimento),
         created_at=row.created_at,
         updated_at=row.updated_at,
@@ -360,6 +364,25 @@ def aplicar_protocolo_origem_saas(
     return row
 
 
+def aplicar_versao_alvo_origem_saas(
+    db: Session,
+    solicitacao_id: int,
+    versao_alvo: str | None,
+) -> SolicitacaoMelhoria | None:
+    """Espelha versao_alvo do control-plane na instância. Sem commit."""
+    versao = normalizar_versao_alvo(versao_alvo)
+    row = db.query(SolicitacaoMelhoria).filter(SolicitacaoMelhoria.id == solicitacao_id).first()
+    if not row:
+        return None
+    atual = normalizar_versao_alvo(row.versao_alvo)
+    if atual == versao:
+        return row
+    row.versao_alvo = versao
+    db.add(row)
+    db.flush()
+    return row
+
+
 def aplicar_comentario_origem_saas(
     db: Session,
     solicitacao_id: int,
@@ -449,6 +472,7 @@ def item_lista(row: SolicitacaoMelhoria, *, incluir_github: bool) -> Solicitacao
         titulo=row.titulo,
         status=row.status,
         status_rotulo=rotulo_status(row.status),
+        versao_alvo_rotulo=rotulo_versao_alvo_publica(row.status, row.versao_alvo),
         autor_nome=row.autor_nome,
         organizacao_id=row.organizacao_id,
         created_at=row.created_at,

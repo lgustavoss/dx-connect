@@ -21,7 +21,7 @@ from app.schemas.ponto import (
     PontoSettingsRead,
     PontoSettingsUpdate,
 )
-from app.services.ponto_geofence import POLITICAS_VALIDAS, locais_ativos
+from app.services.ponto_geofence import POLITICAS_VALIDAS, locais_efetivos_ativos
 
 
 def get_or_create_settings(db: Session, tenant_id: int) -> PontoSettings:
@@ -55,6 +55,13 @@ def settings_update(db: Session, admin: Atendente, data: PontoSettingsUpdate) ->
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="fecho_apos_horas deve estar entre 4 e 48.",
             )
+    if "fecho_margem_pos_saida_minutos" in payload:
+        m = payload["fecho_margem_pos_saida_minutos"]
+        if m is None or m < 0 or m > 240:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="fecho_margem_pos_saida_minutos deve estar entre 0 e 240.",
+            )
     if "jornada_diaria_minutos" in payload:
         m = payload["jornada_diaria_minutos"]
         if m is None or m < 60 or m > 1440:
@@ -85,22 +92,39 @@ def settings_update(db: Session, admin: Atendente, data: PontoSettingsUpdate) ->
     return PontoSettingsRead.model_validate(row)
 
 
-def settings_public_read(db: Session, tenant_id: int) -> PontoSettingsPublicRead:
-    row = get_or_create_settings(db, tenant_id)
+def settings_public_read(db: Session, atendente: Atendente) -> PontoSettingsPublicRead:
+    row = get_or_create_settings(db, atendente.tenant_id)
     politica = (getattr(row, "politica_geolocalizacao", None) or "opcional").strip().lower()
     if politica not in POLITICAS_VALIDAS:
         politica = "opcional"
-    tem = len(locais_ativos(db, tenant_id)) > 0
+    tem = len(locais_efetivos_ativos(db, atendente)) > 0
     return PontoSettingsPublicRead(politica_geolocalizacao=politica, tem_locais_ativos=tem)
 
 
-def listar_locais(db: Session, tenant_id: int) -> list[PontoLocalRead]:
-    rows = (
-        db.query(PontoLocal)
-        .filter(PontoLocal.tenant_id == tenant_id)
-        .order_by(PontoLocal.nome.asc(), PontoLocal.id.asc())
-        .all()
+def _atendente_do_tenant(db: Session, tenant_id: int, atendente_id: int) -> Atendente:
+    row = (
+        db.query(Atendente)
+        .filter(Atendente.id == atendente_id, Atendente.tenant_id == tenant_id)
+        .first()
     )
+    if not row or row.role == "saas_ops":
+        raise HTTPException(status_code=404, detail="Atendente não encontrado")
+    return row
+
+
+def listar_locais(
+    db: Session,
+    tenant_id: int,
+    *,
+    atendente_id: int | None = None,
+    so_orfos: bool = False,
+) -> list[PontoLocalRead]:
+    q = db.query(PontoLocal).filter(PontoLocal.tenant_id == tenant_id)
+    if so_orfos:
+        q = q.filter(PontoLocal.atendente_id.is_(None))
+    elif atendente_id is not None:
+        q = q.filter(PontoLocal.atendente_id == atendente_id)
+    rows = q.order_by(PontoLocal.nome.asc(), PontoLocal.id.asc()).all()
     return [PontoLocalRead.model_validate(r) for r in rows]
 
 
@@ -108,9 +132,13 @@ def criar_local(db: Session, admin: Atendente, data: PontoLocalCreate) -> PontoL
     nome = (data.nome or "").strip()
     if not nome:
         raise HTTPException(status_code=400, detail="Informe o nome do local.")
+    alvo = _atendente_do_tenant(db, admin.tenant_id, int(data.atendente_id))
+    endereco = (data.endereco or "").strip() or None
     row = PontoLocal(
         tenant_id=admin.tenant_id,
+        atendente_id=alvo.id,
         nome=nome[:255],
+        endereco=endereco[:512] if endereco else None,
         latitude=float(data.latitude),
         longitude=float(data.longitude),
         raio_metros=int(data.raio_metros or 200),
@@ -124,7 +152,12 @@ def criar_local(db: Session, admin: Atendente, data: PontoLocalCreate) -> PontoL
         row.id,
         "create",
         admin.id,
-        payload={"nome": nome, "latitude": data.latitude, "longitude": data.longitude},
+        payload={
+            "nome": nome,
+            "atendente_id": alvo.id,
+            "latitude": data.latitude,
+            "longitude": data.longitude,
+        },
     )
     db.commit()
     db.refresh(row)
@@ -150,6 +183,12 @@ def atualizar_local(
         if not nome:
             raise HTTPException(status_code=400, detail="Informe o nome do local.")
         payload["nome"] = nome[:255]
+    if "endereco" in payload and payload["endereco"] is not None:
+        end = str(payload["endereco"]).strip()
+        payload["endereco"] = end[:512] if end else None
+    if "atendente_id" in payload and payload["atendente_id"] is not None:
+        alvo = _atendente_do_tenant(db, admin.tenant_id, int(payload["atendente_id"]))
+        payload["atendente_id"] = alvo.id
     for k, v in payload.items():
         setattr(row, k, v)
     registrar_audit(
@@ -268,8 +307,14 @@ def remover_feriado(db: Session, admin: Atendente, feriado_id: int) -> None:
 
 
 def processar_fecho_automatico(db: Session, *, limit: int = 100) -> int:
-    """Fecha jornadas abertas além do limite, só onde a política está ativa."""
+    """Fecha jornadas esquecidas: N horas abertas OU após saída prevista + margem (#961)."""
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+
+    from app.services import escala as escala_svc
     from app.services import ponto as ponto_svc
+
+    PONTO_TZ = ZoneInfo("America/Sao_Paulo")
 
     settings_rows = (
         db.query(PontoSettings)
@@ -283,7 +328,7 @@ def processar_fecho_automatico(db: Session, *, limit: int = 100) -> int:
     fechados = 0
     for st in settings_rows:
         horas = max(4, int(st.fecho_apos_horas or 14))
-        limite = agora.timestamp() - horas * 3600
+        margem = max(0, int(getattr(st, "fecho_margem_pos_saida_minutos", 30) or 0))
         atendentes = (
             db.query(Atendente)
             .filter(Atendente.tenant_id == st.tenant_id, Atendente.ativo.is_(True))
@@ -296,7 +341,17 @@ def processar_fecho_automatico(db: Session, *, limit: int = 100) -> int:
             if entrada is None:
                 continue
             reg = ponto_svc._as_utc(entrada.registrado_em)
-            if reg.timestamp() > limite:
+            por_horas = (agora - reg).total_seconds() >= horas * 3600
+            criterios: list[str] = []
+            if por_horas:
+                criterios.append("n_horas")
+            dia = reg.astimezone(PONTO_TZ).date()
+            saida_prev = escala_svc.saida_prevista_em(a, dia)
+            if saida_prev is not None:
+                limite_saida = saida_prev + timedelta(minutes=margem)
+                if agora.astimezone(PONTO_TZ) >= limite_saida:
+                    criterios.append("saida_prevista")
+            if not criterios:
                 continue
             if ponto_svc.em_pausa_aberta(db, a.id):
                 ponto_svc.bater(
@@ -319,13 +374,16 @@ def processar_fecho_automatico(db: Session, *, limit: int = 100) -> int:
                 db,
                 "ponto_batida",
                 saida.id,
-                "fecho_automatico",
+                "esquecimento",
                 None,
                 payload={
                     "atendente_id": a.id,
                     "tenant_id": st.tenant_id,
                     "fecho_apos_horas": horas,
+                    "fecho_margem_pos_saida_minutos": margem,
+                    "criterios": criterios,
                     "entrada_em": reg.isoformat(),
+                    "motivo": "esquecimento",
                 },
             )
             fechados += 1

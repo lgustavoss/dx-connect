@@ -1,0 +1,46 @@
+---
+description: Fluxo Cursor/MCP para solicitações SaaS — gates G2/G3/G5 (#957)
+globs:
+  - backend/app/services/saas_solicitacao*.py
+  - backend/app/api/saas_solicitacoes.py
+  - backend/scripts/mcp_deskrudder_saas.py
+  - frontend/src/pages/saas/**
+alwaysApply: false
+---
+
+# Solicitações SaaS — Cursor e MCP
+
+## Quando implementar produto
+
+Só codar melhoria/bug de **produto DeskRudder** a partir da fila SaaS quando:
+
+1. Existe **protocolo** `#SYYYYMM-NNNN` (MCP `obter_solicitacao` ou fila `/saas/solicitacoes`)
+2. Pedido em **`planejada`** ou **`em_desenvolvimento`**
+3. **Issue GitHub ligada** — use MCP `implementar` (G2); não avançar para `em_desenvolvimento` sem issue
+4. Título/corpo da issue referencia o protocolo; copie `texto_github_demanda` quando houver grupo
+
+## Pedidos internos de produto
+
+Abrir no **painel SaaS** (origem interna), não criar issue GitHub primeiro. Depois: triagem → implementar → PR com `#S…` no CHANGELOG.
+
+## Exceções GitHub-only (sem protocolo prévio)
+
+Permitido **sem** `#S` antes do código:
+
+- `chore` / deps / CI / docs sem impacto de produto
+- Hotfix urgente em produção
+
+Nesses casos: PR normal; opcional abrir/ligar `#S` post-hoc na fila SaaS.
+
+## Handoff antes de codar
+
+Checklist (MCP ou `/listar-solicitacoes`):
+
+- [ ] Protocolo `#S…` confirmado
+- [ ] Status `planejada` ou `em_desenvolvimento`
+- [ ] Issue GitHub ligada (`implementar` feito)
+- [ ] Comentários ao cliente: pt-BR, **sem** GitHub/issue #
+
+## Release
+
+CHANGELOG `[Unreleased]` cita `#S…` e/ou issue. No deploy admin-center, pedidos citados viram `concluida` + versão liberada visível ao cliente (G4).

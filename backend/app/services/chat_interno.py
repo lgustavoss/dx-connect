@@ -351,19 +351,7 @@ def listar_mencionaveis(
         rows = listar_participantes_grupo(db, conversa.id)
         atendentes = [a for a, _ in rows if a.ativo]
     elif conversa.tipo == TIPO_CONVERSA_SETOR and conversa.setor_id is not None:
-        from app.models.atendente import atendente_setor
-
-        atendentes = (
-            db.query(Atendente)
-            .join(atendente_setor, atendente_setor.c.atendente_id == Atendente.id)
-            .filter(
-                atendente_setor.c.setor_id == conversa.setor_id,
-                Atendente.tenant_id == conversa.tenant_id,
-                Atendente.ativo.is_(True),
-            )
-            .order_by(Atendente.nome.asc())
-            .all()
-        )
+        atendentes = listar_membros_vinculados_setor(db, conversa.tenant_id, conversa.setor_id)
     elif conversa.tipo == TIPO_CONVERSA_DIRETA:
         rows = listar_participantes_grupo(db, conversa.id)
         atendentes = [a for a, _ in rows if a.ativo]
@@ -373,6 +361,50 @@ def listar_mencionaveis(
     if excluir_atendente_id is not None:
         atendentes = [a for a in atendentes if a.id != excluir_atendente_id]
     return atendentes
+
+
+def listar_membros_vinculados_setor(db: Session, tenant_id: int, setor_id: int) -> list[Atendente]:
+    """Atendentes ativos vinculados ao setor (membership do canal de setor)."""
+    from app.models.atendente import atendente_setor
+
+    return (
+        db.query(Atendente)
+        .join(atendente_setor, atendente_setor.c.atendente_id == Atendente.id)
+        .filter(
+            atendente_setor.c.setor_id == setor_id,
+            Atendente.tenant_id == tenant_id,
+            Atendente.ativo.is_(True),
+        )
+        .order_by(Atendente.nome.asc())
+        .all()
+    )
+
+
+def listar_membros_canal_setor_com_presenca(
+    db: Session,
+    *,
+    tenant_id: int,
+    setor_id: int,
+) -> tuple[str, list[tuple[Atendente, bool]]]:
+    """Retorna (nome do setor, [(atendente, online), ...]) ordenado: online primeiro, depois nome."""
+    from app.services.presenca import PRESENCA_TTL_SEC
+
+    setor = db.query(Setor).filter(Setor.id == setor_id, Setor.tenant_id == tenant_id).first()
+    if setor is None:
+        raise ChatInternoErro("Setor não encontrado.")
+
+    membros = listar_membros_vinculados_setor(db, tenant_id, setor_id)
+    agora = datetime.now(timezone.utc)
+    limite = agora - timedelta(seconds=PRESENCA_TTL_SEC)
+    out: list[tuple[Atendente, bool]] = []
+    for a in membros:
+        hb = a.presenca_heartbeat_em
+        if hb is not None and hb.tzinfo is None:
+            hb = hb.replace(tzinfo=timezone.utc)
+        online = bool(hb is not None and hb >= limite)
+        out.append((a, online))
+    out.sort(key=lambda pair: (not pair[1], (pair[0].nome or "").lower()))
+    return setor.nome, out
 
 
 def _token_mencao_no_corpo(corpo: str, token: str) -> bool:

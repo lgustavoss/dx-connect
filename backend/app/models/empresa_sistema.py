@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy import Column, DateTime, Float, Integer, String
 from sqlalchemy.sql import func
 
 from app.database import Base
@@ -26,6 +26,10 @@ class EmpresaSistema(Base):
     cidade = Column(String(100), nullable=True)
     estado = Column(String(2), nullable=True)
     cep = Column(String(10), nullable=True)
+    # Pin do local de trabalho da empresa (#984).
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    ponto_raio_metros = Column(Integer, nullable=False, default=200, server_default="200")
     logo_filename = Column(String(255), nullable=True)
     logo_mimetype = Column(String(100), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

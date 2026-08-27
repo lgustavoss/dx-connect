@@ -118,6 +118,9 @@ export function SaasUsuarios() {
                     Nome
                   </th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6 dark:text-slate-400">
+                    Cargos
+                  </th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6 dark:text-slate-400">
                     E-mail
                   </th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6 dark:text-slate-400">
@@ -156,6 +159,11 @@ export function SaasUsuarios() {
                           </span>
                         ) : null}
                       </div>
+                    </td>
+                    <td className="max-w-[14rem] px-4 py-3.5 text-slate-600 sm:px-6 dark:text-slate-400">
+                      {(u.setores ?? []).length > 0
+                        ? (u.setores ?? []).map((s) => s.nome).join(', ')
+                        : '—'}
                     </td>
                     <td className="max-w-[16rem] truncate px-4 py-3.5 text-slate-600 sm:px-6 dark:text-slate-400" title={u.email}>
                       {u.email}
