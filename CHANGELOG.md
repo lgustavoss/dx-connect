@@ -16,6 +16,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 #### Melhorias
 
 - Contato no chat: detalhe do funcionário da rede com abas **Geral**, **Chats** e **Tickets** — histórico operacional ao clicar no chip do contato (#1012 / #S202608-0012)
+- Hub de chat — aba **Contatos**: linha do contato abre o detalhe cadastral/operacional (#1018)
 
 #### Correções
 

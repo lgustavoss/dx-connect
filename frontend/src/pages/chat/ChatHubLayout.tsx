@@ -42,7 +42,7 @@ export function ChatHubLayout() {
         <ChatHubSearch
           placeholder={
             modo === 'contatos'
-              ? 'Buscar contacto, empresa ou telefone'
+              ? 'Buscar contato, empresa ou telefone'
               : 'Pesquise por conversas'
           }
         />
