@@ -5,10 +5,10 @@ export const CONTATO_CLIENTE = {
   vincularCurto: 'Identificar',
   vincularEmpresa: 'Identificar contato',
   bannerNaoVinculado:
-    'Contacto não identificado — ainda não está vinculado a nenhuma empresa da rede.',
+    'Contato não identificado — ainda não está vinculado a nenhuma empresa da rede.',
   modalTitulo: 'Contato do cliente',
   modalSubtitulo:
-    'Vincule um cadastro existente ou cadastre este contacto como colaborador da empresa cliente.',
+    'Vincule um cadastro existente ou cadastre este contato como colaborador da empresa cliente.',
   buscarPlaceholder: 'Buscar contatos da rede…',
   selecioneContato: 'Selecione um contato da rede.',
   selecioneEmpresaContato: 'Selecione a empresa deste contato.',

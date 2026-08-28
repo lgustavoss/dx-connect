@@ -10,7 +10,7 @@ type Props = {
   onFotoClick?: () => void
 }
 
-/** Avatar do contacto WhatsApp com fallback para inicial (#630). */
+/** Avatar do contato WhatsApp com fallback para inicial (#630). */
 export function WhatsappAvatar({
   nome,
   fotoUrl,
@@ -36,7 +36,7 @@ export function WhatsappAvatar({
           type="button"
           onClick={onFotoClick}
           className="shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
-          aria-label="Ver foto do contacto"
+          aria-label="Ver foto do contato"
         >
           {img}
         </button>

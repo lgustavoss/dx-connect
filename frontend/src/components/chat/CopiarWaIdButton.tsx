@@ -22,7 +22,7 @@ export function CopiarWaIdButton({ waId, className = '', formatado = true }: Pro
       type="button"
       className={`max-w-full truncate font-mono text-xs transition hover:text-cyan-700 dark:hover:text-cyan-300 ${className}`}
       title={copiado ? 'Copiado' : 'Clique para copiar o número'}
-      aria-label={copiado ? 'Número copiado' : 'Copiar número do contacto'}
+      aria-label={copiado ? 'Número copiado' : 'Copiar número do contato'}
       onClick={(e) => {
         e.preventDefault()
         e.stopPropagation()

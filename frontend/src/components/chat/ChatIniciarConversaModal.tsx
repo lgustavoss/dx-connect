@@ -101,7 +101,7 @@ export function ChatIniciarConversaModal({
         aria-labelledby="iniciar-chat-titulo"
       >
         <h2 id="iniciar-chat-titulo" className="text-lg font-bold text-slate-900 dark:text-white">
-          {titulo || (contato ? `Contactar ${contato.nome}` : 'Novo contacto WhatsApp')}
+          {titulo || (contato ? `Contactar ${contato.nome}` : 'Novo contato WhatsApp')}
         </h2>
         {contato && (
           <p className="mt-1 text-xs text-slate-500">

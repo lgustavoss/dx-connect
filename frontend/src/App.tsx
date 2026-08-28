@@ -502,7 +502,7 @@ function AppRoutes() {
                   placeholder={
                     <ChatHubPlaceholder
                       titulo="Contatos"
-                      subtitulo="Escolha um contacto ou número avulso para iniciar conversa no WhatsApp."
+                      subtitulo="Escolha um contato ou número avulso para iniciar conversa no WhatsApp."
                     />
                   }
                 />

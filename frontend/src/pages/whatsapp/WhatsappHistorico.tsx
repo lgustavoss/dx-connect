@@ -134,7 +134,7 @@ export function WhatsappHistorico() {
 
   const formatDuration = (chat: WhatsappChats.Chat) => {
     if (!chat.atendimento_inicio_at) return '—'
-    if (!chat.encerramento_at) return 'Em curso'
+    if (!chat.encerramento_at) return 'Em andamento'
     const start = new Date(chat.atendimento_inicio_at)
     const end = new Date(chat.encerramento_at)
     const diff = Math.max(0, Math.round((end.getTime() - start.getTime()) / 1000))
@@ -356,7 +356,7 @@ export function WhatsappHistorico() {
                           className="h-9 min-w-0 flex-1 px-3 text-xs sm:flex-none"
                           onClick={() => setRetomarChat(c)}
                         >
-                          Retomar contacto
+                          Retomar contato
                         </Button>
                       )}
                     </div>
