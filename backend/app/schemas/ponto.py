@@ -198,6 +198,7 @@ class PontoDigestRead(BaseModel):
     jornadas_abertas: int
     online_sem_ponto: int
     justificativas_pendentes: int
+    he_acima_teto_mensal: int = 0
     itens: list[PontoHojeItem]
 
 
@@ -207,6 +208,7 @@ class PontoSettingsRead(BaseModel):
     fecho_apos_horas: int = 14
     fecho_margem_pos_saida_minutos: int = 30
     jornada_diaria_minutos: int = 480
+    he_teto_mensal_minutos: int | None = None
     politica_geolocalizacao: PoliticaGeolocalizacao = "opcional"
 
     model_config = ConfigDict(from_attributes=True)
@@ -218,6 +220,7 @@ class PontoSettingsUpdate(BaseModel):
     fecho_apos_horas: int | None = Field(default=None, ge=4, le=48)
     fecho_margem_pos_saida_minutos: int | None = Field(default=None, ge=0, le=240)
     jornada_diaria_minutos: int | None = Field(default=None, ge=60, le=1440)
+    he_teto_mensal_minutos: int | None = Field(default=None, ge=30, le=31 * 24 * 60)
     politica_geolocalizacao: PoliticaGeolocalizacao | None = None
 
 
@@ -315,6 +318,9 @@ class PontoJustificativaDecisao(BaseModel):
 
 class PontoHoraExtraCreate(BaseModel):
     motivo: str | None = Field(default=None, max_length=1000)
+    modo: Literal["resto_do_dia", "ate_horario", "duracao"] | None = None
+    ate_horario: str | None = Field(default=None, max_length=5)
+    duracao_minutos: int | None = Field(default=None, ge=15, le=24 * 60)
 
 
 class PontoHoraExtraRead(BaseModel):
@@ -355,8 +361,11 @@ class PontoHoraExtraMeStatus(BaseModel):
     pode_pegar_whatsapp: bool
     he_ativa: PontoHoraExtraRead | None = None
     pedido_pendente: PontoHoraExtraRead | None = None
+    ultimo_rejeitado: PontoHoraExtraRead | None = None
     he_teto_minutos: int | None = None
     he_restante_minutos: int | None = None
+    he_teto_mensal_minutos: int | None = None
+    he_consumido_mensal_minutos: int = 0
 
 
 class PontoCoberturaColega(BaseModel):

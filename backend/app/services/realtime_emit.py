@@ -574,3 +574,35 @@ def emit_chat_interno_mensagem_atualizada(
     _publish_to_atendentes(recipients, "chat.interno.mensagem.atualizada", payload)
     if acao in {"editada", "apagada"}:
         _emit_notificacao_after_counter_change(db)
+
+
+def emit_ponto_he_atualizada(
+    db: Session,
+    *,
+    tenant_id: int,
+    he_id: int,
+    atendente_id: int,
+    estado: str,
+    origem: str | None = None,
+) -> None:
+    """Pedido/decisão/concessão de hora extra (#982) — admins + colaborador."""
+    ids = {
+        a.id
+        for a in db.query(Atendente)
+        .filter(
+            Atendente.tenant_id == tenant_id,
+            Atendente.role == "admin",
+            Atendente.ativo.is_(True),
+        )
+        .all()
+    }
+    ids.add(atendente_id)
+    payload = {
+        "he_id": he_id,
+        "atendente_id": atendente_id,
+        "estado": estado,
+        "origem": origem,
+    }
+    _publish_to_atendentes(ids, "ponto.he_atualizada", payload)
+    # Contagem do sino (HE pendentes) para admins
+    emit_notificacao_contagem(db, ids)

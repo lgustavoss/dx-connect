@@ -11,6 +11,7 @@ import { Input } from '../components/ui/Input'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
+import { useEventStream } from '../contexts/EventStreamContext'
 import { useAuth } from '../contexts/AuthContext'
 import { isCapacitorNative } from '../lib/capacitorNative'
 import { geolocationSupported, getCurrentPosition, type GeoError } from '../lib/geolocation'
@@ -48,6 +49,7 @@ type AcaoPrincipal = {
 
 export function MeuPonto() {
   const toast = useToast()
+  const { subscribe } = useEventStream()
   const { user } = useAuth()
   const [estado, setEstado] = useState<Ponto.EstadoMe | null>(null)
   const [historico, setHistorico] = useState<Ponto.Historico | null>(null)
@@ -95,6 +97,13 @@ export function MeuPonto() {
     lon: number
     label: string
   } | null>(null)
+  const [heStatus, setHeStatus] = useState<Ponto.HoraExtraMeStatus | null>(null)
+  const [heHist, setHeHist] = useState<Ponto.HoraExtra[]>([])
+  const [heMotivo, setHeMotivo] = useState('')
+  const [heModo, setHeModo] = useState<'resto_do_dia' | 'ate_horario' | 'duracao'>('resto_do_dia')
+  const [heAteHorario, setHeAteHorario] = useState('20:00')
+  const [heDuracaoMin, setHeDuracaoMin] = useState('60')
+  const [enviandoHe, setEnviandoHe] = useState(false)
 
   const politicaGeo = geoSettings?.politica_geolocalizacao ?? 'opcional'
   const geoObrigatoria = politicaGeo === 'obrigatoria' && !!geoSettings?.tem_locais_ativos
@@ -104,7 +113,7 @@ export function MeuPonto() {
   const carregar = useCallback(
     async (silencioso = false) => {
       try {
-        const [me, hist, js, bh, gs, cobs, cols, cin] = await Promise.all([
+        const [me, hist, js, bh, gs, cobs, cols, cin, heSt, heList] = await Promise.all([
           ponto.me(),
           ponto.minhasBatidas({ desde, ate, limit: 100 }),
           ponto.minhasJustificativas(),
@@ -113,6 +122,8 @@ export function MeuPonto() {
           ponto.minhasCoberturas(),
           ponto.colegasCobertura(),
           ponto.minhaCiencia(cienciaRef.ano, cienciaRef.mes),
+          ponto.horaExtraMeStatus(),
+          ponto.minhasHoraExtra(),
         ])
         setEstado(me)
         setHistorico(hist)
@@ -122,6 +133,8 @@ export function MeuPonto() {
         setCoberturas(cobs)
         setColegasCob(cols)
         setCiencia(cin)
+        setHeStatus(heSt)
+        setHeHist(heList)
         if (gs.politica_geolocalizacao === 'obrigatoria' && gs.tem_locais_ativos) {
           setIncluirLocalizacao(true)
         }
@@ -170,6 +183,13 @@ export function MeuPonto() {
   useEffect(() => {
     void carregar()
   }, [carregar])
+
+  useEffect(() => {
+    const unsub = subscribe('ponto.he_atualizada', () => {
+      void carregar(true)
+    })
+    return unsub
+  }, [subscribe, carregar])
 
   useEffect(() => {
     void carregarResumoSemana(true)
@@ -306,6 +326,33 @@ export function MeuPonto() {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível enviar a justificativa.'))
     } finally {
       setEnviandoJust(false)
+    }
+  }
+
+  async function solicitarHe() {
+    if (heStatus?.pedido_pendente) {
+      toast.showWarning('Já existe um pedido de hora extra aguardando decisão.')
+      return
+    }
+    if (heStatus?.he_ativa) {
+      toast.showWarning('Você já tem hora extra ativa.')
+      return
+    }
+    setEnviandoHe(true)
+    try {
+      await ponto.solicitarHoraExtra({
+        motivo: heMotivo.trim() || null,
+        modo: heModo,
+        ate_horario: heModo === 'ate_horario' ? heAteHorario : null,
+        duracao_minutos: heModo === 'duracao' ? Math.max(15, Number(heDuracaoMin) || 60) : null,
+      })
+      toast.showSuccess('Pedido de hora extra enviado.')
+      setHeMotivo('')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível solicitar hora extra.'))
+    } finally {
+      setEnviandoHe(false)
     }
   }
 
@@ -675,6 +722,97 @@ export function MeuPonto() {
             tone={resumoSemana && resumoSemana.saldo_segundos < 0 ? 'warn' : 'good'}
           />
         </div>
+      </Card>
+
+      <Card className="mt-4" title="Hora extra (WhatsApp)">
+        {heStatus?.he_ativa ? (
+          <p className="mb-3 text-sm text-emerald-800 dark:text-emerald-200">
+            Hora extra ativa
+            {heStatus.he_restante_minutos != null
+              ? ` — restam cerca de ${heStatus.he_restante_minutos} min`
+              : ''}
+            {heStatus.he_ativa.ate_em
+              ? ` (até ${formatarHora(heStatus.he_ativa.ate_em)})`
+              : ''}
+            .
+          </p>
+        ) : null}
+        {heStatus?.pedido_pendente ? (
+          <p className="mb-3 text-sm text-amber-800 dark:text-amber-200">
+            Pedido pendente de aprovação
+            {heStatus.pedido_pendente.modo ? ` (${heStatus.pedido_pendente.modo.replace(/_/g, ' ')})` : ''}
+            .
+          </p>
+        ) : null}
+        {heStatus?.ultimo_rejeitado ? (
+          <p className="mb-3 text-sm text-rose-800 dark:text-rose-200">
+            Último pedido negado
+            {heStatus.ultimo_rejeitado.decisao_motivo
+              ? `: ${heStatus.ultimo_rejeitado.decisao_motivo}`
+              : '.'}
+          </p>
+        ) : null}
+        {heStatus?.he_teto_mensal_minutos != null ? (
+          <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+            Consumo no mês: {heStatus.he_consumido_mensal_minutos ?? 0} / {heStatus.he_teto_mensal_minutos}{' '}
+            min
+          </p>
+        ) : null}
+        {!heStatus?.he_ativa && !heStatus?.pedido_pendente ? (
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <Select
+              label="Janela desejada"
+              value={heModo}
+              onChange={(v) => setHeModo(String(v) as 'resto_do_dia' | 'ate_horario' | 'duracao')}
+              options={[
+                { value: 'resto_do_dia', label: 'Resto do dia' },
+                { value: 'ate_horario', label: 'Até horário' },
+                { value: 'duracao', label: 'Duração (minutos)' },
+              ]}
+            />
+            {heModo === 'ate_horario' ? (
+              <Input
+                label="Até (HH:MM)"
+                type="time"
+                value={heAteHorario}
+                onChange={(e) => setHeAteHorario(e.target.value)}
+              />
+            ) : null}
+            {heModo === 'duracao' ? (
+              <Input
+                label="Minutos"
+                type="number"
+                min={15}
+                max={1440}
+                value={heDuracaoMin}
+                onChange={(e) => setHeDuracaoMin(e.target.value)}
+              />
+            ) : null}
+            <Input
+              label="Motivo"
+              value={heMotivo}
+              onChange={(e) => setHeMotivo(e.target.value)}
+              placeholder="Ex.: pico no WhatsApp"
+            />
+            <Button type="button" disabled={enviandoHe} onClick={() => void solicitarHe()}>
+              Solicitar HE
+            </Button>
+          </div>
+        ) : null}
+        {heHist.length > 0 ? (
+          <ul className="space-y-2 border-t border-slate-200 pt-3 dark:border-slate-700">
+            {heHist.slice(0, 8).map((h) => (
+              <li key={h.id} className="text-sm text-slate-600 dark:text-slate-300">
+                <span className="font-medium text-slate-800 dark:text-slate-100">{h.estado}</span>
+                {h.modo ? ` · ${h.modo.replace(/_/g, ' ')}` : ''}
+                {h.motivo ? ` — ${h.motivo}` : ''}
+                {h.decisao_motivo && h.estado === 'rejeitada' ? ` (${h.decisao_motivo})` : ''}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-slate-500">Nenhum pedido recente.</p>
+        )}
       </Card>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">

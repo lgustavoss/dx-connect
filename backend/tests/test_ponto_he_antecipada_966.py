@@ -1,6 +1,6 @@
 """HE antecipada + teto (#966)."""
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from app.services.escala import PONTO_TZ
 
@@ -22,13 +22,16 @@ def _patch_jornada_semanal(client, headers, atendente_id: int, *, fim="23:59"):
     )
 
 
-def test_conceder_he_antecipada_durante_jornada(client, seed_base, auth_headers):
+def test_conceder_he_antecipada_durante_jornada(client, seed_base, auth_headers, monkeypatch):
     admin = auth_headers["admin"]
     user = auth_headers["a1"]
     a1 = seed_base["a1"]
-    # fim no futuro → ainda dentro da jornada
-    fim = (datetime.now(PONTO_TZ) + timedelta(hours=3)).strftime("%H:%M")
-    assert _patch_jornada_semanal(client, admin, a1.id, fim=fim).status_code == 200
+    agora = datetime(2026, 6, 17, 14, 0, tzinfo=PONTO_TZ)
+    monkeypatch.setattr(
+        "app.services.ponto._agora_utc",
+        lambda: agora.astimezone(timezone.utc),
+    )
+    assert _patch_jornada_semanal(client, admin, a1.id, fim="18:00").status_code == 200
     r = client.post(
         "/v1/ponto/hora-extra/conceder",
         headers=admin,

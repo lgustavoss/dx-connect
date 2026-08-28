@@ -14,6 +14,7 @@ import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../contexts/AuthContext'
+import { useEventStream } from '../contexts/EventStreamContext'
 import {
   formatarDuracao,
   formatarHora,
@@ -44,6 +45,14 @@ function rotuloStatus(s: Ponto.HojeItem['status']): string {
   }
 }
 
+function extrairJanelaHeMotivo(motivo?: string | null): { ate?: string; duracao?: number } {
+  if (!motivo) return {}
+  const ate = motivo.match(/\[até\s+(\d{1,2}:\d{2})\]/i)?.[1]
+  const durRaw = motivo.match(/\[(\d+)\s*min\]/i)?.[1]
+  const duracao = durRaw ? Number(durRaw) : undefined
+  return { ate, duracao: Number.isFinite(duracao) ? duracao : undefined }
+}
+
 function toDatetimeLocalValue(d = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
@@ -52,6 +61,7 @@ function toDatetimeLocalValue(d = new Date()): string {
 export function PontoEquipe() {
   const toast = useToast()
   const { user } = useAuth()
+  const { subscribe } = useEventStream()
   const [items, setItems] = useState<Ponto.BatidaAdmin[]>([])
   const [total, setTotal] = useState(0)
   const [hoje, setHoje] = useState<Ponto.HojeLista | null>(null)
@@ -171,6 +181,13 @@ export function PontoEquipe() {
   useEffect(() => {
     void carregar()
   }, [carregar])
+
+  useEffect(() => {
+    const unsub = subscribe('ponto.he_atualizada', () => {
+      void carregar(true)
+    })
+    return unsub
+  }, [subscribe, carregar])
 
   const carregarAjustesAudit = useCallback(async () => {
     setCarregandoAjustes(true)
@@ -400,12 +417,21 @@ export function PontoEquipe() {
   async function decidirHe(id: number, aprovar: boolean) {
     setDecidindoHeId(id)
     try {
+      const pend = hesPendentes.find((h) => h.id === id)
+      const hints = extrairJanelaHeMotivo(pend?.motivo)
+      const modoPed =
+        pend?.modo === 'resto_do_dia' || pend?.modo === 'ate_horario' || pend?.modo === 'duracao'
+          ? pend.modo
+          : null
+      const modo = aprovar ? modoPed || heModo : null
       await ponto.decidirHoraExtra(id, {
         aprovar,
-        modo: aprovar ? heModo : null,
-        ate_horario: aprovar && heModo === 'ate_horario' ? heAteHorario : null,
+        modo,
+        ate_horario: aprovar && modo === 'ate_horario' ? hints.ate || heAteHorario : null,
         duracao_minutos:
-          aprovar && heModo === 'duracao' ? Math.max(15, Number(heDuracaoMin) || 60) : null,
+          aprovar && modo === 'duracao'
+            ? Math.max(15, hints.duracao || Number(heDuracaoMin) || 60)
+            : null,
         decisao_motivo: aprovar ? null : 'Negado pelo administrador',
       })
       toast.showSuccess(aprovar ? 'Hora extra liberada.' : 'Pedido de hora extra negado.')
@@ -451,6 +477,7 @@ export function PontoEquipe() {
         fecho_apos_horas: settings.fecho_apos_horas,
         fecho_margem_pos_saida_minutos: settings.fecho_margem_pos_saida_minutos ?? 30,
         jornada_diaria_minutos: settings.jornada_diaria_minutos,
+        he_teto_mensal_minutos: settings.he_teto_mensal_minutos ?? null,
         politica_geolocalizacao: settings.politica_geolocalizacao,
       })
       setSettings(st)
@@ -626,7 +653,7 @@ export function PontoEquipe() {
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Digest de hoje
             </p>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               <PontoMetricCard label="Faltas" value={String(digest?.faltas ?? 0)} tone="warn" />
               <PontoMetricCard label="Atrasos" value={String(digest?.atrasos ?? 0)} tone="warn" />
               <PontoMetricCard
@@ -643,6 +670,12 @@ export function PontoEquipe() {
                 label="Justificativas"
                 value={String(digest?.justificativas_pendentes ?? 0)}
                 hint="pendentes"
+              />
+              <PontoMetricCard
+                label="HE acima do teto"
+                value={String(digest?.he_acima_teto_mensal ?? 0)}
+                hint="mês (pessoas)"
+                tone={(digest?.he_acima_teto_mensal ?? 0) > 0 ? 'warn' : 'neutral'}
               />
             </div>
             {(digest?.itens ?? []).some((i) => i.status === 'falta' || i.atrasado) ? (
@@ -873,6 +906,9 @@ export function PontoEquipe() {
                   <div className="text-sm">
                     <p className="font-medium">{h.atendente_nome ?? h.atendente_id}</p>
                     <p className="text-slate-600 dark:text-slate-300">{h.motivo || 'Sem motivo informado'}</p>
+                    {h.modo ? (
+                      <p className="text-xs text-slate-500">Janela pedida: {h.modo.replace(/_/g, ' ')}</p>
+                    ) : null}
                   </div>
                   <div className="flex gap-2">
                     <Button
@@ -1209,6 +1245,27 @@ export function PontoEquipe() {
                   })
                 }
               />
+              <Input
+                label="Teto mensal de HE (minutos, global)"
+                type="number"
+                min={30}
+                max={44640}
+                value={
+                  settings.he_teto_mensal_minutos != null ? String(settings.he_teto_mensal_minutos) : ''
+                }
+                onChange={(e) => {
+                  const raw = e.target.value.trim()
+                  setSettings({
+                    ...settings,
+                    he_teto_mensal_minutos: raw ? Math.max(30, Number(raw) || 30) : null,
+                  })
+                }}
+                placeholder="Sem limite global"
+              />
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Vazio = sem teto global. Pode ser sobrescrito por pessoa no cadastro. Ao atingir o teto,
+                novas liberações são bloqueadas.
+              </p>
               <Select
                 label="Política de geolocalização"
                 value={settings.politica_geolocalizacao ?? 'opcional'}

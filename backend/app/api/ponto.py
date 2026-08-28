@@ -701,7 +701,14 @@ def solicitar_hora_extra(
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
     ponto_svc.exigir_acesso_ponto(atendente)
-    return he_svc.solicitar(db, atendente, motivo=data.motivo)
+    return he_svc.solicitar(
+        db,
+        atendente,
+        motivo=data.motivo,
+        modo=data.modo,
+        ate_horario=data.ate_horario,
+        duracao_minutos=data.duracao_minutos,
+    )
 
 
 @router.get("/hora-extra", response_model=list[PontoHoraExtraRead])

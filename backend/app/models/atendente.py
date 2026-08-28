@@ -47,6 +47,8 @@ class Atendente(Base):
     tolerancia_atraso_minutos = Column(Integer, nullable=False, default=0, server_default="0")
     # Teto máximo de HE por liberação, em minutos (#966); null = sem teto.
     he_teto_minutos = Column(Integer, nullable=True)
+    # NULL = herda setting global (#974)
+    he_teto_mensal_minutos = Column(Integer, nullable=True)
     # Locais de ponto (#984): empresa + extras por atendente.
     usar_local_empresa = Column(Boolean, nullable=False, default=True, server_default="true")
     local_empresa_raio_metros = Column(Integer, nullable=True)
