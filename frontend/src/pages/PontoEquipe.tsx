@@ -7,6 +7,7 @@ import { PontoAjudaModal } from '../components/PontoAjudaModal'
 import { PontoCalendarioMes } from '../components/PontoCalendarioMes'
 import { PontoBatidaMapaModal } from '../components/PontoBatidaMapaModal'
 import { PontoMetricCard } from '../components/PontoMetricCard'
+import { PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
@@ -62,12 +63,14 @@ function toDatetimeLocalValue(d = new Date()): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+
 export function PontoEquipe() {
   const toast = useToast()
   const { user } = useAuth()
   const { subscribe } = useEventStream()
   const [items, setItems] = useState<Ponto.BatidaAdmin[]>([])
   const [total, setTotal] = useState(0)
+  const [histPage, setHistPage] = useState(1)
   const [hoje, setHoje] = useState<Ponto.HojeLista | null>(null)
   const [equipe, setEquipe] = useState<Atendentes.Atendente[]>([])
   const [atendenteId, setAtendenteId] = useState('')
@@ -106,6 +109,14 @@ export function PontoEquipe() {
   const [ausAte, setAusAte] = useState(hojeIso)
   const [ausMotivo, setAusMotivo] = useState('')
   const [concedendoAus, setConcedendoAus] = useState(false)
+  const [convAtendente, setConvAtendente] = useState('')
+  const [convData, setConvData] = useState(hojeIso)
+  const [convInicio, setConvInicio] = useState('08:00')
+  const [convFim, setConvFim] = useState('12:00')
+  const [convTolerancia, setConvTolerancia] = useState('')
+  const [convMotivo, setConvMotivo] = useState('')
+  const [convocados, setConvocados] = useState<Ponto.DiaConvocado[]>([])
+  const [concedendoConv, setConcedendoConv] = useState(false)
   const [heModo, setHeModo] = useState<'resto_do_dia' | 'ate_horario' | 'duracao'>('resto_do_dia')
   const [heAteHorario, setHeAteHorario] = useState('20:00')
   const [heDuracaoMin, setHeDuracaoMin] = useState('60')
@@ -131,12 +142,13 @@ export function PontoEquipe() {
   const carregar = useCallback(
     async (silencioso = false) => {
       try {
-        const [hist, dia, js, dig, st, fer, hes, aus, cobs, setupSt, comp, cins] = await Promise.all([
+        const [hist, dia, js, dig, st, fer, hes, aus, cobs, convs, setupSt, comp, cins] = await Promise.all([
           ponto.batidasAdmin({
             atendente_id: atendenteId ? Number(atendenteId) : undefined,
             desde,
             ate,
-            limit: 100,
+            offset: (histPage - 1) * PAGE_SIZE_PADRAO,
+            limit: PAGE_SIZE_PADRAO,
           }),
           ponto.hoje(),
           ponto.justificativasAdmin('pendente'),
@@ -146,12 +158,16 @@ export function PontoEquipe() {
           ponto.horaExtraAdmin('pendente'),
           ponto.ausenciasAdmin('pendente'),
           ponto.coberturasAdmin('pendente'),
+          ponto.convocadosAdmin({ estado: 'ativa' }),
           ponto.setupStatus(),
           ponto.competencia(compAno, compMes),
           ponto.cienciasAdmin(compAno, compMes),
         ])
         setItems(hist.items)
         setTotal(hist.total)
+        if (hist.items.length === 0 && histPage > 1 && hist.total > 0) {
+          setHistPage(histPage - 1)
+        }
         setHoje(dia)
         setJustifs(js)
         setDigest(dig)
@@ -160,6 +176,7 @@ export function PontoEquipe() {
         setHesPendentes(hes)
         setAusPendentes(aus)
         setCobPendentes(cobs)
+        setConvocados(convs)
         setSetup(setupSt)
         setCompetencia(comp)
         setCiencias(cins)
@@ -182,7 +199,7 @@ export function PontoEquipe() {
         setLoading(false)
       }
     },
-    [ate, atendenteId, compAno, compMes, desde, toast],
+    [ate, atendenteId, compAno, compMes, desde, histPage, toast],
   )
 
   useEffect(() => {
@@ -425,6 +442,45 @@ export function PontoEquipe() {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível agendar a ausência.'))
     } finally {
       setConcedendoAus(false)
+    }
+  }
+
+  async function concederConv() {
+    if (!convAtendente) {
+      toast.showWarning('Selecione o colaborador.')
+      return
+    }
+    if (!convMotivo.trim() || convMotivo.trim().length < 3) {
+      toast.showWarning('Informe o motivo (mínimo 3 caracteres).')
+      return
+    }
+    setConcedendoConv(true)
+    try {
+      await ponto.concederDiaConvocado({
+        atendente_id: Number(convAtendente),
+        data_ref: convData,
+        inicio: convInicio,
+        fim: convFim,
+        motivo: convMotivo.trim(),
+        tolerancia_minutos: convTolerancia.trim() ? Number(convTolerancia) : null,
+      })
+      toast.showSuccess('Dia convocado agendado.')
+      setConvMotivo('')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível agendar o dia convocado.'))
+    } finally {
+      setConcedendoConv(false)
+    }
+  }
+
+  async function cancelarConv(id: number) {
+    try {
+      await ponto.cancelarDiaConvocado(id)
+      toast.showSuccess('Convocação cancelada.')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível cancelar a convocação.'))
     }
   }
 
@@ -978,6 +1034,68 @@ export function PontoEquipe() {
           )}
         </Card>
 
+        <Card title="Dia convocado (fora da grade)">
+          <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
+            Marque um dia de folga na escala como trabalho esperado, com janela própria de entrada e saída.
+          </p>
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <Select
+              label="Colaborador"
+              value={convAtendente}
+              onChange={(v) => setConvAtendente(String(v))}
+              options={[
+                { value: '', label: 'Selecione' },
+                ...equipe.map((a) => ({ value: String(a.id), label: a.nome })),
+              ]}
+            />
+            <Input label="Data" type="date" value={convData} onChange={(e) => setConvData(e.target.value)} />
+            <Input
+              label="Início"
+              type="time"
+              value={convInicio}
+              onChange={(e) => setConvInicio(e.target.value)}
+            />
+            <Input label="Fim" type="time" value={convFim} onChange={(e) => setConvFim(e.target.value)} />
+            <Input
+              label="Tolerância (min, opcional)"
+              type="number"
+              min={0}
+              max={240}
+              value={convTolerancia}
+              onChange={(e) => setConvTolerancia(e.target.value)}
+            />
+            <Input label="Motivo" value={convMotivo} onChange={(e) => setConvMotivo(e.target.value)} />
+            <Button type="button" disabled={concedendoConv} onClick={() => void concederConv()}>
+              Agendar
+            </Button>
+          </div>
+          <p className="mb-2 text-sm font-medium text-slate-800 dark:text-slate-100">Convocações ativas</p>
+          {convocados.length === 0 ? (
+            <p className="text-sm text-slate-500">Nenhuma convocação ativa.</p>
+          ) : (
+            <ul className="space-y-3">
+              {convocados.map((c) => (
+                <li
+                  key={c.id}
+                  className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800"
+                >
+                  <div className="text-sm">
+                    <p className="font-medium">{c.atendente_nome ?? c.atendente_id}</p>
+                    <p className="text-slate-600 dark:text-slate-300">
+                      {c.data_ref} · {c.inicio} → {c.fim}
+                      {c.tolerancia_minutos != null ? ` · tol. ${c.tolerancia_minutos} min` : ''}
+                    </p>
+                    <p className="text-slate-500">{c.motivo}</p>
+                  </div>
+                  <Button type="button" variant="ghost" onClick={() => void cancelarConv(c.id)}>
+                    Cancelar
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
         <Card title="Hora extra (WhatsApp após jornada)">
           <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
             Conceda HE com antecedência ou libere pedidos após o fim da jornada. Modos: resto do dia, até um horário ou
@@ -1188,15 +1306,41 @@ export function PontoEquipe() {
             <Select
               label="Atendente"
               value={atendenteId}
-              onChange={(v) => setAtendenteId(String(v))}
+              onChange={(v) => {
+                setAtendenteId(String(v))
+                setHistPage(1)
+              }}
               options={[
                 { value: '', label: 'Todos' },
                 ...equipe.map((a) => ({ value: String(a.id), label: a.nome })),
               ]}
             />
-            <Input label="De" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
-            <Input label="Até" type="date" value={ate} onChange={(e) => setAte(e.target.value)} />
-            <Button type="button" variant="secondary" onClick={() => void carregar()}>
+            <Input
+              label="De"
+              type="date"
+              value={desde}
+              onChange={(e) => {
+                setDesde(e.target.value)
+                setHistPage(1)
+              }}
+            />
+            <Input
+              label="Até"
+              type="date"
+              value={ate}
+              onChange={(e) => {
+                setAte(e.target.value)
+                setHistPage(1)
+              }}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setHistPage(1)
+                void carregar()
+              }}
+            >
               Filtrar
             </Button>
             <Button type="button" variant="secondary" onClick={() => void exportarCsv()}>
@@ -1216,7 +1360,9 @@ export function PontoEquipe() {
             </Button>
           </div>
           <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
-            {total} batida{total === 1 ? '' : 's'} no filtro
+            {total === 0
+              ? '0 batidas no filtro'
+              : `${(histPage - 1) * PAGE_SIZE_PADRAO + 1}–${Math.min(histPage * PAGE_SIZE_PADRAO, total)} de ${total} batida${total === 1 ? '' : 's'} no filtro`}
             {banco ? (
               <>
                 {' '}
@@ -1289,6 +1435,31 @@ export function PontoEquipe() {
               </tbody>
             </table>
           </div>
+          {total > PAGE_SIZE_PADRAO ? (
+            <div className="mt-4 flex flex-wrap items-center justify-end gap-2 text-sm text-slate-600 dark:text-slate-300">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={histPage <= 1}
+                onClick={() => setHistPage((p) => p - 1)}
+                className="px-2 py-1 text-xs"
+              >
+                Anterior
+              </Button>
+              <span className="tabular-nums">
+                {histPage} / {Math.ceil(total / PAGE_SIZE_PADRAO)}
+              </span>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={histPage >= Math.ceil(total / PAGE_SIZE_PADRAO)}
+                onClick={() => setHistPage((p) => p + 1)}
+                className="px-2 py-1 text-xs"
+              >
+                Próxima
+              </Button>
+            </div>
+          ) : null}
         </Card>
 
         {atendenteId ? (
@@ -1301,6 +1472,7 @@ export function PontoEquipe() {
                 setDiaCal(iso)
                 setDesde(iso)
                 setAte(iso)
+                setHistPage(1)
               }}
               onMesAnterior={() => {
                 if (calMes <= 1) {

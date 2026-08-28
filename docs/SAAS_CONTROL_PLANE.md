@@ -116,9 +116,11 @@ No `client.env` (provisionamento):
 
 ```
 SAAS_INSTANCE_SLUG=<slug da licença>
-SAAS_CONTROL_PLANE_INGEST_URL=https://api.deskrudder.com.br/v1/saas/ingest/solicitacoes
+SAAS_CONTROL_PLANE_INGEST_URL=http://127.0.0.1:8001/v1/saas/ingest/solicitacoes
 SAAS_INSTANCE_INGEST_TOKEN=<gerado no painel SaaS, nunca no browser>
 ```
+
+Na **mesma VPS** que o admin-center, use a URL **loopback** acima no `backend/.env` da instância (o worker `saas-triagem-pull` chama a API sem passar pelo Cloudflare). O provisionamento grava essa URL automaticamente quando `SAAS_INGEST_LOOPBACK_URL` está definido no control-plane (padrão). Instância em **outro servidor**: deixe `SAAS_INGEST_LOOPBACK_URL` vazio no admin-center e use a URL pública `https://api.deskrudder.com.br/v1/saas/ingest/solicitacoes`.
 
 Sem URL/token/slug, o pedido local continua; a cópia simplesmente não é enviada. Falha HTTP não faz rollback — a outbox (`webhook_outbox`, eventos `saas.solicitacao` e `saas.solicitacao.media`) tenta de novo. O JSON vai primeiro; a mídia (prints/anexos) segue em multipart para não meter ficheiros no payload JSON.
 
@@ -139,7 +141,8 @@ No control-plane (`SAAS_CONTROL_PLANE=true`), a abertura grava directo na tabela
 - `POST /v1/saas/me/mcp-token` — gera o token Cursor desta conta (plaintext uma vez). `GET` estado; `DELETE` revoga.
 - `GET/POST /v1/saas/usuarios` e `PATCH /v1/saas/usuarios/{id}` — equipa `saas_ops` (nome, e-mail, activo). `POST …/senha-temporaria` devolve senha uma vez. Não são atendentes da instância do cliente.
 - `POST /v1/saas/clientes/{id}/gerar-token-ingest` — devolve o plaintext **uma vez** e escreve no `client.env` se a pasta do cliente já existir.
-- `SAAS_INGEST_PUBLIC_URL` (opcional) — URL escrita no env das instâncias; por omissão `https://api.{SAAS_PROVISION_BASE_DOMAIN}/v1/saas/ingest/solicitacoes`.
+- `SAAS_INGEST_PUBLIC_URL` (opcional) — URL pública documentada; usada no `client.env` só se `SAAS_INGEST_LOOPBACK_URL` estiver vazio.
+- `SAAS_INGEST_LOOPBACK_URL` (control-plane, padrão `http://127.0.0.1:8001/v1/saas/ingest/solicitacoes`) — gravada no `client.env` das instâncias na mesma VPS.
 
 Handoff Cursor é #857: o Cursor **puxa** a fila (MCP `deskrudder-saas`) contra a **API do control-plane**, não o contrário.
 

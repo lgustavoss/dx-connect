@@ -51,6 +51,37 @@ export const SAAS_SOLICITACAO_FASES = [
 
 export type SaasSolicitacaoFase = (typeof SAAS_SOLICITACAO_FASES)[number]['value']
 
+/** Espelha FASES_STATUS do backend (solicitacao_melhoria_copy.py). */
+const FASE_STATUS: Record<SaasSolicitacaoFase, readonly string[]> = {
+  aguardando: ['aberta', 'em_analise', 'planejada'],
+  desenvolvimento: ['em_desenvolvimento'],
+  finalizadas: ['concluida', 'nao_sera_desenvolvida'],
+}
+
+export function statusNaFase(status: string, fase: SaasSolicitacaoFase): boolean {
+  return FASE_STATUS[fase]?.includes(status) ?? false
+}
+
+export function classesCardMensagemStatus(status: string): string {
+  const base = 'rounded-lg border-l-4 p-3 text-sm'
+  if (status === 'concluida') {
+    return `${base} border-emerald-500 bg-emerald-50 text-emerald-900 dark:border-emerald-500 dark:bg-emerald-950/40 dark:text-emerald-100`
+  }
+  if (status === 'nao_sera_desenvolvida') {
+    return `${base} border-rose-500 bg-rose-50 text-rose-900 dark:border-rose-500 dark:bg-rose-950/40 dark:text-rose-100`
+  }
+  if (status === 'em_desenvolvimento') {
+    return `${base} border-cyan-500 bg-cyan-50 text-cyan-900 dark:border-cyan-500 dark:bg-cyan-950/40 dark:text-cyan-100`
+  }
+  if (status === 'planejada') {
+    return `${base} border-violet-500 bg-violet-50 text-violet-900 dark:border-violet-500 dark:bg-violet-950/40 dark:text-violet-100`
+  }
+  if (status === 'em_analise') {
+    return `${base} border-sky-500 bg-sky-50 text-sky-900 dark:border-sky-500 dark:bg-sky-950/40 dark:text-sky-100`
+  }
+  return `${base} border-slate-400 bg-slate-50 text-slate-700 dark:border-slate-600 dark:bg-slate-800/60 dark:text-slate-200`
+}
+
 const BADGE: Record<string, string> = {
   aberta:
     'bg-slate-100 text-slate-800 ring-slate-200/80 dark:bg-slate-800/70 dark:text-slate-100 dark:ring-slate-600/70',

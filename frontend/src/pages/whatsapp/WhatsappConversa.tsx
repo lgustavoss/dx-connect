@@ -27,6 +27,7 @@ import {
   saveWhatsappScroll,
   scrollWhatsappToBottom,
 } from '../../lib/whatsappScrollMemory'
+import { primeiraInboundNaoLidaMsgId } from '../../lib/chatUnreadDivider'
 import { MensagemRodapeMeta } from '../../components/chat/MensagemRodapeMeta'
 import { AssumirWhatsappSetorModal } from '../../components/chat/AssumirWhatsappSetorModal'
 import { WhatsappAvatar } from '../../components/chat/WhatsappAvatar'
@@ -875,6 +876,10 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
 
   }, [])
 
+  const atualizarSidebarAposEnvioCliente = useCallback(() => {
+    void carregarSidebar()
+  }, [carregarSidebar])
+
 
 
   // Carregar conversa e mensagens
@@ -955,30 +960,8 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
     carregar()
       .then(async (data) => {
         if (data && (data.chat.nao_lidas_count ?? 0) > 0) {
-          const cursorId = data.chat.last_seen_mensagem_id
-          let primeira: WhatsappChats.Mensagem | undefined
-          if (cursorId != null) {
-            primeira = data.msgs.find(
-              (m) =>
-                m.direcao === 'inbound' &&
-                !m.evento_sistema &&
-                !m.apagada &&
-                m.id > cursorId,
-            )
-          } else {
-            const eff =
-              data.chat.last_seen_at || data.chat.atendimento_inicio_at || data.chat.created_at || null
-            const effMs = eff ? new Date(eff).getTime() : 0
-            primeira = data.msgs.find(
-              (m) =>
-                m.direcao === 'inbound' &&
-                !m.evento_sistema &&
-                !m.apagada &&
-                m.created_at &&
-                new Date(m.created_at).getTime() > effMs,
-            )
-          }
-          if (primeira) setDivisorNaoLidasMsgId(primeira.id)
+          const primeiraId = primeiraInboundNaoLidaMsgId(data.msgs, data.chat)
+          if (primeiraId != null) setDivisorNaoLidasMsgId(primeiraId)
         }
         await whatsappChats.marcarVisto(id)
         void carregarSidebar()
@@ -1220,6 +1203,9 @@ useEffect(() => {
 
       stickToBottomRef.current = true
       await carregar()
+      if (!modoInterno) {
+        atualizarSidebarAposEnvioCliente()
+      }
 
     } catch (err) {
 
@@ -1292,6 +1278,7 @@ useEffect(() => {
       setMsgRespondida(null)
       stickToBottomRef.current = true
       await carregar()
+      atualizarSidebarAposEnvioCliente()
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Falha ao enviar áudio.'))
     } finally {
@@ -1326,6 +1313,7 @@ useEffect(() => {
       setLegendaMidia('')
       stickToBottomRef.current = true
       await carregar()
+      atualizarSidebarAposEnvioCliente()
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Falha no envio do anexo'))
     } finally {
@@ -1381,6 +1369,7 @@ useEffect(() => {
       setMsgRespondida(null)
       stickToBottomRef.current = true
       await carregar()
+      atualizarSidebarAposEnvioCliente()
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Falha ao enviar figurinha'))
     } finally {

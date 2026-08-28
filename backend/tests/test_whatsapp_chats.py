@@ -100,6 +100,107 @@ def test_meus_e_visto_contam_nao_lidas(client, seed_base, auth_headers):
     assert row2["nao_lidas_count"] == 0
 
 
+def test_enviar_ao_cliente_zera_nao_lidas(client, seed_base, auth_headers, monkeypatch, db_session):
+    """#S202608-0010: resposta outbound pelo responsável zera nao_lidas_count."""
+    seq = {"n": 0}
+
+    def fake_send(*_a, **_k):
+        seq["n"] += 1
+        return True, None, f"wa-reply-nl-{seq['n']}"
+
+    monkeypatch.setattr("app.api.whatsapp_chats.evolution_api.evolution_send_text", fake_send)
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={
+            "webhook_secret": "nl-reply",
+            "evolution_base_url": "http://evolution.test",
+            "evolution_instance_name": "inst",
+            "evolution_api_key": "key-test",
+        },
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "nl-reply"}
+    client.post(
+        "/v1/webhooks/evolution",
+        json=_webhook_body(wa_id="5511777666556", msg_id="nl-r1", text="oi"),
+        headers=h,
+    )
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+    assert client.post(f"/v1/whatsapp/chats/{cid}/assumir", headers=auth_headers["a1"]).status_code == 200
+    assert client.post(f"/v1/whatsapp/chats/{cid}/visto", headers=auth_headers["a1"]).status_code == 204
+
+    client.post(
+        "/v1/webhooks/evolution",
+        json=_webhook_body(wa_id="5511777666556", msg_id="nl-r2", text="preciso de ajuda"),
+        headers=h,
+    )
+    meus = client.get("/v1/whatsapp/chats/meus", headers=auth_headers["a1"]).json()
+    row = next(c for c in meus if c["id"] == cid)
+    assert row["nao_lidas_count"] >= 1
+
+    r_send = client.post(
+        f"/v1/whatsapp/chats/{cid}/mensagens",
+        json={"texto": "Claro, como posso ajudar?"},
+        headers=auth_headers["a1"],
+    )
+    assert r_send.status_code == 201
+
+    meus2 = client.get("/v1/whatsapp/chats/meus", headers=auth_headers["a1"]).json()
+    row2 = next(c for c in meus2 if c["id"] == cid)
+    assert row2["nao_lidas_count"] == 0
+
+    from app.api.notificacoes import build_notificacao_resumo
+
+    resumo = build_notificacao_resumo(db_session, seed_base["a1"])
+    assert resumo.wpp_respostas_count == 0
+
+
+def test_wpp_respostas_resumo_alinhado_com_meus(client, seed_base, auth_headers, db_session):
+    """#S202608-0010: sino (resumo/itens) e lista meus usam a mesma regra de não lidas."""
+    from app.api.notificacoes import build_notificacao_itens, build_notificacao_resumo
+
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "nl-align"},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "nl-align"}
+    client.post(
+        "/v1/webhooks/evolution",
+        json=_webhook_body(wa_id="5511777666777", msg_id="nl-align-1", text="oi"),
+        headers=h,
+    )
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+    assert client.post(f"/v1/whatsapp/chats/{cid}/assumir", headers=auth_headers["a1"]).status_code == 200
+    assert client.post(f"/v1/whatsapp/chats/{cid}/visto", headers=auth_headers["a1"]).status_code == 204
+
+    client.post(
+        "/v1/webhooks/evolution",
+        json=_webhook_body(wa_id="5511777666777", msg_id="nl-align-2", text="nova"),
+        headers=h,
+    )
+
+    meus = client.get("/v1/whatsapp/chats/meus", headers=auth_headers["a1"]).json()
+    row = next(c for c in meus if c["id"] == cid)
+    assert row["nao_lidas_count"] >= 1
+
+    resumo = build_notificacao_resumo(db_session, seed_base["a1"])
+    assert resumo.wpp_respostas_count >= 1
+
+    itens = build_notificacao_itens(db_session, seed_base["a1"], limit=15)
+    wpp_itens = [i for i in itens if i.tipo == "wpp_chats_com_resposta" and i.chat_id == cid]
+    assert len(wpp_itens) >= 1
+    assert wpp_itens[0].count >= 1
+
+    assert client.post(f"/v1/whatsapp/chats/{cid}/visto", headers=auth_headers["a1"]).status_code == 204
+
+    meus2 = client.get("/v1/whatsapp/chats/meus", headers=auth_headers["a1"]).json()
+    row2 = next(c for c in meus2 if c["id"] == cid)
+    assert row2["nao_lidas_count"] == 0
+    resumo2 = build_notificacao_resumo(db_session, seed_base["a1"])
+    assert resumo2.wpp_respostas_count == 0
+
+
 def test_listar_encerrados_filtra_e_respeita_rbac(client, seed_base, auth_headers):
     client.patch(
         "/v1/settings/whatsapp",

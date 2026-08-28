@@ -807,6 +807,15 @@ export const ponto = {
     }),
   removerAusencia: (id: number) =>
     api<void>(`/ponto/ausencias/${id}`, { method: 'DELETE' }),
+  convocadosAdmin: (params?: { atendente_id?: number; desde?: string; ate?: string; estado?: string }) =>
+    api<Ponto.DiaConvocado[]>(withParams('/ponto/convocados', params)),
+  concederDiaConvocado: (data: Ponto.DiaConvocadoCreate) =>
+    api<Ponto.DiaConvocado>('/ponto/convocados/conceder', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  cancelarDiaConvocado: (id: number) =>
+    api<Ponto.DiaConvocado>(`/ponto/convocados/${id}`, { method: 'DELETE' }),
   horaExtraMeStatus: () => api<Ponto.HoraExtraMeStatus>('/ponto/hora-extra/me/status'),
   minhasHoraExtra: () => api<Ponto.HoraExtra[]>('/ponto/hora-extra/me'),
   solicitarHoraExtra: (data?: Ponto.HoraExtraCreate) =>
@@ -4970,6 +4979,7 @@ export namespace Ponto {
     atrasado?: boolean
     feriado?: boolean
     ausencia_tipo?: string | null
+    dia_convocado?: boolean
     pausa_abaixo_minimo?: boolean
     segundos_trabalhados?: number
     segundos_esperados?: number
@@ -5176,6 +5186,29 @@ export namespace Ponto {
     decidido_em?: string | null
     decisao_motivo?: string | null
     created_at?: string | null
+  }
+  export interface DiaConvocadoCreate {
+    atendente_id: number
+    data_ref: string
+    inicio: string
+    fim: string
+    motivo: string
+    tolerancia_minutos?: number | null
+  }
+  export interface DiaConvocado {
+    id: number
+    atendente_id: number
+    atendente_nome?: string | null
+    data_ref: string
+    inicio: string
+    fim: string
+    tolerancia_minutos?: number | null
+    motivo: string
+    estado: string
+    criado_por_id?: number | null
+    created_at?: string | null
+    cancelado_por_id?: number | null
+    cancelado_em?: string | null
   }
   export interface CoberturaCreate {
     cobertor_id: number
