@@ -22,6 +22,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - **Acompanhamento**: linha do tempo vertical no detalhe do pedido; skeleton da tabela no Sobre enquanto carrega
 - Provisionamento: URL de ingest gravada no `client.env` usa **loopback** (`127.0.0.1:8001`) por padrão — evita falha de sync quando instância e admin-center estão na mesma VPS
 - Ponto (#976 / #977 / #973): férias e folga programada (pedido do colaborador ou agendamento admin); justificativa com anexo (imagem/PDF); alerta de pausa abaixo do mínimo configurável
+- Ponto (#985): dia convocado — admin agenda trabalho fora da grade com janela própria; calendário, faltas e banco de horas respeitam a exceção
+- Ponto (#S202608-0011): histórico da equipe paginado (20 batidas por página, com total e navegação)
 - Ponto (#969 / #974 / #982): colaborador **solicita hora extra** com janela desejada; teto mensal (global ou por pessoa) bloqueia novas liberações; digest e Meu ponto mostram consumo; avisos em tempo real (`ponto.he_atualizada`)
 - Ponto (#981 / #980 / #978 / #979): checklist de configuração pós-deploy; ajuda **Como funciona o ponto**; **fechamento de competência** mensal (reabrir com motivo; ajustes pós-fechamento marcados); **ciência** do colaborador no espelho após o fechamento
 - Ponto (#975 / #970): **export contábil/folha RH** (CSV e Excel) com matrícula, previsto/realizado, atrasos, faltas, HE, banco e ajustes; **cobertura de plantão** (A pede → B aceita → admin homologa, ou admin agenda direto) refletida no calendário e nas faltas
