@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from fastapi.responses import FileResponse
 from datetime import datetime
 
-from sqlalchemy import func, or_
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
@@ -16,7 +16,7 @@ from app.core.auth import obter_atendente_atual
 from app.core.setor_scope import ids_setores_visiveis_atendente
 from app.database import get_db
 from app.models.atendente import Atendente
-from app.models.portal_chat import PortalChat, PortalChatRead as PortalChatReadModel, PortalMensagem
+from app.models.portal_chat import PortalChat, PortalMensagem
 from app.models.setor import Setor
 from app.schemas.portal_chat import (
     PortalChatDemandaCreate,
@@ -27,6 +27,7 @@ from app.schemas.portal_chat import (
     PortalChatRead,
     PortalTransferirChatBody,
 )
+from app.services.chat_nao_lidas import contar_nao_lidas_portal
 from app.services.portal_auto_messages import try_auto_msg_assumido
 from app.services.portal_chat import (
     assumir_portal_chat,
@@ -73,39 +74,12 @@ def _ultima_mensagem_preview(db: Session, chat_id: int) -> str | None:
     return _preview_corpo(corpo)
 
 
-def _nao_lidas_portal(
-    db: Session, c: PortalChat, atendente_id: int
-) -> tuple[int, datetime | None, int | None]:
-    row = (
-        db.query(PortalChatReadModel.last_seen_at, PortalChatReadModel.last_seen_mensagem_id)
-        .filter(
-            PortalChatReadModel.chat_id == c.id,
-            PortalChatReadModel.atendente_id == atendente_id,
-        )
-        .first()
-    )
-    ls = row[0] if row else None
-    cursor_id = row[1] if row else None
-    q = db.query(func.count(PortalMensagem.id)).filter(
-        PortalMensagem.chat_id == c.id,
-        PortalMensagem.direcao == "inbound",
-    )
-    if cursor_id is not None:
-        q = q.filter(PortalMensagem.id > cursor_id)
-    else:
-        eff = ls if ls is not None else (c.atendimento_inicio_at or c.created_at)
-        if eff is None:
-            return 0, ls, cursor_id
-        q = q.filter(PortalMensagem.created_at > eff)
-    return int(q.scalar() or 0), ls, cursor_id
-
-
 def _chat_read(db: Session, c: PortalChat, *, atendente_id: int | None = None) -> PortalChatRead:
     nao_lidas = 0
     last_seen: datetime | None = None
     last_seen_msg: int | None = None
     if atendente_id is not None:
-        nao_lidas, last_seen, last_seen_msg = _nao_lidas_portal(db, c, atendente_id)
+        nao_lidas, last_seen, last_seen_msg = contar_nao_lidas_portal(db, c, atendente_id)
     return PortalChatRead(
         id=c.id,
         protocolo=c.protocolo,
@@ -448,6 +422,7 @@ def enviar_mensagem(
 ):
     c = _get_chat(db, chat_id)
     msg = registrar_mensagem_atendente(db, c, atendente, body.corpo)
+    marcar_visto_portal_chat(db, chat_id, atendente.id)
     db.commit()
     db.refresh(msg)
     msg = (
@@ -458,6 +433,9 @@ def enviar_mensagem(
     )
     assert msg is not None
     emit_portal_chat_mensagem_from_models(db, c, msg, exclude_atendente_id=atendente.id)
+    from app.services.realtime_emit import emit_notificacao_contagem
+
+    emit_notificacao_contagem(db, [atendente.id])
     return _mensagem_read(msg)
 
 
@@ -513,6 +491,7 @@ async def enviar_mensagem_midia(
         midia_nome_arquivo=nome_guardado,
         caption=caption,
     )
+    marcar_visto_portal_chat(db, chat_id, atendente.id)
     db.commit()
     db.refresh(msg)
     msg = (
@@ -523,6 +502,9 @@ async def enviar_mensagem_midia(
     )
     assert msg is not None
     emit_portal_chat_mensagem_from_models(db, c, msg, exclude_atendente_id=atendente.id)
+    from app.services.realtime_emit import emit_notificacao_contagem
+
+    emit_notificacao_contagem(db, [atendente.id])
     return _mensagem_read(msg)
 
 
