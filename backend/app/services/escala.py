@@ -310,6 +310,15 @@ def saida_prevista_em(atendente: Atendente, dia: date) -> datetime | None:
     return datetime.combine(dia, time(hour=ps[0], minute=ps[1]), tzinfo=PONTO_TZ)
 
 
+def liberacao_saida_lembrete_em(atendente: Atendente, dia: date) -> datetime | None:
+    """Início do lembrete de saída (fim − tolerância) (#968)."""
+    saida = saida_prevista_em(atendente, dia)
+    if saida is None:
+        return None
+    tol = int(getattr(atendente, "tolerancia_atraso_minutos", 0) or 0)
+    return saida - timedelta(minutes=tol)
+
+
 def validar_janela_entrada(atendente: Atendente, when: datetime) -> None:
     """Bloqueia entrada antes de inicio−tolerância (#964). Admin/sistema não chamam isto."""
     if not escala_configurada(atendente):

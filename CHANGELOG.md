@@ -17,8 +17,17 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### DeskRudder
 
+#### Melhorias
+
+- Ponto (#976 / #977 / #973): férias e folga programada (pedido do colaborador ou agendamento admin); justificativa com anexo (imagem/PDF); alerta de pausa abaixo do mínimo configurável
+- Ponto (#969 / #974 / #982): colaborador **solicita hora extra** com janela desejada; teto mensal (global ou por pessoa) bloqueia novas liberações; digest e Meu ponto mostram consumo; avisos em tempo real (`ponto.he_atualizada`)
+- Ponto (#981 / #980 / #978 / #979): checklist de configuração pós-deploy; ajuda **Como funciona o ponto**; **fechamento de competência** mensal (reabrir com motivo; ajustes pós-fechamento marcados); **ciência** do colaborador no espelho após o fechamento
+- Ponto (#975 / #970): **export contábil/folha RH** (CSV e Excel) com matrícula, previsto/realizado, atrasos, faltas, HE, banco e ajustes; **cobertura de plantão** (A pede → B aceita → admin homologa, ou admin agenda direto) refletida no calendário e nas faltas
+
 #### Correções
 
+- Atendimentos (#996 / #S202608-0007): na tela de chats, a barra superior (menu, notificações) volta a aparecer no computador; no celular continua oculta com a conversa aberta
+- Atendimentos (#998 / #S202608-0009): quem só acompanha o chat deixa de ver **Encerrar** e **Registrar demanda** — esses botões ficam só com o responsável
 - Sobre: deixa de listar itens **Interno / Infra** (deploy, LICENSE, docs internos) — só Melhorias e Correções de produto
 - Sobre: versão **26.08.015** sem repetir notas já publicadas em releases anteriores
 
@@ -50,6 +59,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Ponto (#968 / #972 / #971): lembrete in-app de entrada/saída na janela de tolerância; resumo semanal em Meu ponto (previsto × feito, atrasos, HE, banco); motivo obrigatório reforçado e histórico/export de ajustes admin (também no PDF/Excel mensal)
+- Ponto (#966): admin **concede hora extra** com antecedência (resto do dia, até horário ou duração em minutos); teto opcional por colaborador no cadastro; liberações respeitam o teto
 - Ponto (#965): após o fim da jornada, **pegar** chat WhatsApp novo fica bloqueado até um admin liberar **hora extra** (resto do dia ou até um horário); pedidos aparecem em Ponto da equipe e no sino de pendências
 - Ponto (#984): locais de trabalho no **cadastro do atendente** (empresa + extras no mapa OSM); pin da empresa em Configurações → Empresa; raio e ativar/desativar por local; removido o card global de Locais em Ponto da equipe
 - Chat interno (#941 / #S202608-0008): no canal de **setor**, clicar no nome abre modal com membros vinculados e quem está **online**

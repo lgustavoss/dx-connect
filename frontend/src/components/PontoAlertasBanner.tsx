@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ponto } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 
-/** Banner de lembretes de ponto (#773 / #769) — sem batida automática. */
+/** Banner de lembretes de ponto (#773 / #769 / #968) — sem batida automática. */
 export function PontoAlertasBanner() {
   const { user } = useAuth()
   const [mensagens, setMensagens] = useState<string[]>([])
@@ -12,16 +12,30 @@ export function PontoAlertasBanner() {
   useEffect(() => {
     if (!user || user.must_change_password || user.role === 'saas_ops') return
     let cancelled = false
-    void ponto
-      .alertas()
-      .then((a) => {
-        if (!cancelled) setMensagens(a.mensagens ?? [])
-      })
-      .catch(() => {
-        /* silencioso — não bloquear o painel */
-      })
+
+    const carregar = () => {
+      void ponto
+        .alertas()
+        .then((a) => {
+          if (cancelled) return
+          setMensagens(a.mensagens ?? [])
+          if ((a.mensagens ?? []).length === 0) setDismissed(false)
+        })
+        .catch(() => {
+          /* silencioso — não bloquear o painel */
+        })
+    }
+
+    carregar()
+    const id = window.setInterval(carregar, 60_000)
+    const onVis = () => {
+      if (document.visibilityState === 'visible') carregar()
+    }
+    document.addEventListener('visibilitychange', onVis)
     return () => {
       cancelled = true
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVis)
     }
   }, [user])
 

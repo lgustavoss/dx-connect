@@ -23,6 +23,8 @@ class AtendenteBase(BaseModel):
     tolerancia_atraso_minutos: int = Field(default=0, ge=0, le=120)
     usar_local_empresa: bool = True
     local_empresa_raio_metros: int | None = Field(default=None, ge=20, le=50_000)
+    he_teto_minutos: int | None = Field(default=None, ge=15, le=24 * 60)
+    he_teto_mensal_minutos: int | None = Field(default=None, ge=30, le=31 * 24 * 60)
 
 
 class AtendenteCreate(AtendenteBase):
@@ -48,6 +50,8 @@ class AtendenteUpdate(BaseModel):
     tolerancia_atraso_minutos: int | None = Field(default=None, ge=0, le=120)
     usar_local_empresa: bool | None = None
     local_empresa_raio_metros: int | None = Field(default=None, ge=20, le=50_000)
+    he_teto_minutos: int | None = Field(default=None, ge=15, le=24 * 60)
+    he_teto_mensal_minutos: int | None = Field(default=None, ge=30, le=31 * 24 * 60)
 
 
 class AtendenteRead(AtendenteBase):

@@ -130,6 +130,8 @@ StatusDiaPonto = Literal[
     "parcial",
     "folga",
     "folga_com_ponto",
+    "folga_programada",
+    "ferias",
     "livre",
     "atraso",
     "feriado",
@@ -144,10 +146,13 @@ class PontoCalendarioDia(BaseModel):
     status: StatusDiaPonto
     atrasado: bool = False
     feriado: bool = False
+    ausencia_tipo: str | None = None  # ferias | folga_programada
+    pausa_abaixo_minimo: bool = False
     # #842 — meta de jornada × realizado (cores do calendário)
     segundos_trabalhados: int = 0
     segundos_esperados: int = 0
-    classe_visual: Literal["abaixo", "ok", "he", "feriado", "neutro"] = "neutro"
+    segundos_pausa: int = 0
+    classe_visual: Literal["abaixo", "ok", "he", "feriado", "ausencia", "neutro"] = "neutro"
 
 
 class PontoCalendarioRead(BaseModel):
@@ -198,6 +203,7 @@ class PontoDigestRead(BaseModel):
     jornadas_abertas: int
     online_sem_ponto: int
     justificativas_pendentes: int
+    he_acima_teto_mensal: int = 0
     itens: list[PontoHojeItem]
 
 
@@ -207,6 +213,8 @@ class PontoSettingsRead(BaseModel):
     fecho_apos_horas: int = 14
     fecho_margem_pos_saida_minutos: int = 30
     jornada_diaria_minutos: int = 480
+    pausa_minima_minutos: int = 0
+    he_teto_mensal_minutos: int | None = None
     politica_geolocalizacao: PoliticaGeolocalizacao = "opcional"
 
     model_config = ConfigDict(from_attributes=True)
@@ -218,6 +226,8 @@ class PontoSettingsUpdate(BaseModel):
     fecho_apos_horas: int | None = Field(default=None, ge=4, le=48)
     fecho_margem_pos_saida_minutos: int | None = Field(default=None, ge=0, le=240)
     jornada_diaria_minutos: int | None = Field(default=None, ge=60, le=1440)
+    pausa_minima_minutos: int | None = Field(default=None, ge=0, le=240)
+    he_teto_mensal_minutos: int | None = Field(default=None, ge=30, le=31 * 24 * 60)
     politica_geolocalizacao: PoliticaGeolocalizacao | None = None
 
 
@@ -254,13 +264,30 @@ class PontoAnularBody(BaseModel):
 
 
 class PontoAlertasMe(BaseModel):
-    """Lembretes ao utilizador — sem batida automática (#773 / #769)."""
+    """Lembretes ao usuário — sem batida automática (#773 / #769 / #968)."""
 
     sem_entrada_em_dia_escala: bool = False
     online_sem_ponto: bool = False
     jornada_aberta_longa: bool = False
     horas_jornada_aberta: float | None = None
+    lembrete_entrada_tolerancia: bool = False
+    lembrete_saida_tolerancia: bool = False
+    pausa_abaixo_minimo: bool = False
     mensagens: list[str] = []
+
+
+class PontoResumoSemanaRead(BaseModel):
+    """Resumo semanal do colaborador (#972)."""
+
+    desde: date
+    ate: date
+    segundos_esperados: int
+    segundos_realizados: int
+    saldo_segundos: int
+    atrasos: int
+    he_minutos: int
+    dias_escala: int
+    dias_feriado: int = 0
 
 
 class PontoJustificativaCreate(BaseModel):
@@ -280,6 +307,48 @@ class PontoJustificativaRead(BaseModel):
     decisao_motivo: str | None = None
     decidido_por_id: int | None = None
     decidido_em: datetime | None = None
+    tem_anexo: bool = False
+    anexo_nome: str | None = None
+    anexo_content_type: str | None = None
+    anexo_tamanho_bytes: int | None = None
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PontoAusenciaCreate(BaseModel):
+    tipo: Literal["ferias", "folga_programada"]
+    desde: date
+    ate: date
+    motivo: str | None = Field(default=None, max_length=1000)
+
+
+class PontoAusenciaConceder(BaseModel):
+    atendente_id: int = Field(..., ge=1)
+    tipo: Literal["ferias", "folga_programada"]
+    desde: date
+    ate: date
+    motivo: str | None = Field(default=None, max_length=1000)
+
+
+class PontoAusenciaDecisao(BaseModel):
+    aprovar: bool
+    decisao_motivo: str | None = Field(default=None, max_length=1000)
+
+
+class PontoAusenciaRead(BaseModel):
+    id: int
+    atendente_id: int
+    atendente_nome: str | None = None
+    tipo: str
+    desde: date
+    ate: date
+    motivo: str | None = None
+    estado: str
+    origem: str = "solicitacao"
+    decidido_por_id: int | None = None
+    decidido_em: datetime | None = None
+    decisao_motivo: str | None = None
     created_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -299,6 +368,9 @@ class PontoJustificativaDecisao(BaseModel):
 
 class PontoHoraExtraCreate(BaseModel):
     motivo: str | None = Field(default=None, max_length=1000)
+    modo: Literal["resto_do_dia", "ate_horario", "duracao"] | None = None
+    ate_horario: str | None = Field(default=None, max_length=5)
+    duracao_minutos: int | None = Field(default=None, ge=15, le=24 * 60)
 
 
 class PontoHoraExtraRead(BaseModel):
@@ -309,6 +381,7 @@ class PontoHoraExtraRead(BaseModel):
     motivo: str | None = None
     modo: str | None = None
     ate_em: datetime | None = None
+    origem: str = "solicitacao"
     decidido_por_id: int | None = None
     decidido_em: datetime | None = None
     decisao_motivo: str | None = None
@@ -319,9 +392,18 @@ class PontoHoraExtraRead(BaseModel):
 
 class PontoHoraExtraDecisao(BaseModel):
     aprovar: bool
-    modo: Literal["resto_do_dia", "ate_horario"] | None = None
+    modo: Literal["resto_do_dia", "ate_horario", "duracao"] | None = None
     ate_horario: str | None = Field(default=None, max_length=5, description="HH:MM se modo=ate_horario")
+    duracao_minutos: int | None = Field(default=None, ge=15, le=24 * 60)
     decisao_motivo: str | None = Field(default=None, max_length=1000)
+
+
+class PontoHoraExtraConceder(BaseModel):
+    atendente_id: int = Field(..., ge=1)
+    modo: Literal["resto_do_dia", "ate_horario", "duracao"]
+    ate_horario: str | None = Field(default=None, max_length=5)
+    duracao_minutos: int | None = Field(default=None, ge=15, le=24 * 60)
+    motivo: str | None = Field(default=None, max_length=1000)
 
 
 class PontoHoraExtraMeStatus(BaseModel):
@@ -329,3 +411,104 @@ class PontoHoraExtraMeStatus(BaseModel):
     pode_pegar_whatsapp: bool
     he_ativa: PontoHoraExtraRead | None = None
     pedido_pendente: PontoHoraExtraRead | None = None
+    ultimo_rejeitado: PontoHoraExtraRead | None = None
+    he_teto_minutos: int | None = None
+    he_restante_minutos: int | None = None
+    he_teto_mensal_minutos: int | None = None
+    he_consumido_mensal_minutos: int = 0
+
+
+class PontoCoberturaColega(BaseModel):
+    id: int
+    nome: str
+
+
+class PontoCoberturaCreate(BaseModel):
+    cobertor_id: int = Field(..., ge=1)
+    data_ref: date
+    motivo: str | None = Field(default=None, max_length=1000)
+
+
+class PontoCoberturaConceder(BaseModel):
+    solicitante_id: int = Field(..., ge=1)
+    cobertor_id: int = Field(..., ge=1)
+    data_ref: date
+    motivo: str | None = Field(default=None, max_length=1000)
+
+
+class PontoCoberturaResposta(BaseModel):
+    aceitar: bool
+
+
+class PontoCoberturaDecisao(BaseModel):
+    aprovar: bool
+    decisao_motivo: str | None = Field(default=None, max_length=1000)
+
+
+class PontoCoberturaRead(BaseModel):
+    id: int
+    solicitante_id: int
+    solicitante_nome: str | None = None
+    cobertor_id: int
+    cobertor_nome: str | None = None
+    data_ref: date
+    motivo: str | None = None
+    estado: str
+    origem: str = "solicitacao"
+    resposta_cobertor: str | None = None
+    respondido_em: datetime | None = None
+    decidido_por_id: int | None = None
+    decidido_em: datetime | None = None
+    decisao_motivo: str | None = None
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PontoSetupItem(BaseModel):
+    codigo: str
+    titulo: str
+    detalhe: str
+    destino: str
+    ok: bool
+    informativo: bool = False
+
+
+class PontoSetupStatus(BaseModel):
+    defaults_fecho_off: bool
+    tolerancia_sugerida_minutos: int = 15
+    pendentes: int
+    itens: list[PontoSetupItem]
+
+
+class PontoCompetenciaRead(BaseModel):
+    id: int
+    ano: int
+    mes: int
+    fechada: bool
+    fechado_em: datetime | None = None
+    fechado_por_id: int | None = None
+    fechado_por_nome: str | None = None
+    reaberto_em: datetime | None = None
+    reaberto_por_id: int | None = None
+    reabrir_motivo: str | None = None
+
+
+class PontoCompetenciaReabrir(BaseModel):
+    motivo: str = Field(..., min_length=3, max_length=1000)
+
+
+class PontoCienciaMe(BaseModel):
+    ano: int
+    mes: int
+    competencia_fechada: bool
+    confirmada: bool
+    confirmado_em: datetime | None = None
+    pode_confirmar: bool
+
+
+class PontoCienciaItem(BaseModel):
+    atendente_id: int
+    atendente_nome: str
+    confirmada: bool
+    confirmado_em: datetime | None = None
