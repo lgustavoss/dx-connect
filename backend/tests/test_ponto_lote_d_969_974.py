@@ -1,8 +1,6 @@
 """Lote D: solicitação HE (#969) + teto mensal (#974)."""
 
-from datetime import date, datetime, timedelta
-
-from app.services.escala import PONTO_TZ
+from datetime import date
 
 
 def _patch_jornada_semanal(client, headers, atendente_id: int, *, fim="23:59"):
@@ -177,8 +175,7 @@ def test_me_status_campos_mensais(client, seed_base, auth_headers):
         headers=admin,
         json={"he_teto_mensal_minutos": 120},
     ).status_code == 200
-    fim = (datetime.now(PONTO_TZ) + timedelta(hours=2)).strftime("%H:%M")
-    assert _patch_jornada_semanal(client, admin, a1.id, fim=fim).status_code == 200
+    assert _patch_jornada_semanal(client, admin, a1.id, fim="18:00").status_code == 200
     st = client.get("/v1/ponto/hora-extra/me/status", headers=user)
     assert st.status_code == 200
     body = st.json()
