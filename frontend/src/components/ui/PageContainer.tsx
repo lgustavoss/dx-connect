@@ -48,7 +48,7 @@ export function PageContainer({
 
 type PageHeaderProps = {
   title: string
-  subtitle?: string
+  subtitle?: ReactNode
   actions?: ReactNode
 }
 
@@ -58,7 +58,11 @@ export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{title}</h1>
-        {subtitle ? <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{subtitle}</p> : null}
+        {subtitle ? (
+          <div className={`mt-2 ${typeof subtitle === 'string' ? 'text-sm text-slate-600 dark:text-slate-400' : ''}`}>
+            {subtitle}
+          </div>
+        ) : null}
       </div>
       {actions ? <div className="shrink-0">{actions}</div> : null}
     </div>

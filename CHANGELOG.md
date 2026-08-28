@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging`.
@@ -17,6 +17,10 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- **Minhas solicitações** e bloco no **Sobre**: lista em tabela com badges; no Sobre só as **5 mais recentes** com atalho **Ver todas**; filtros por tipo, fase, status e busca; detalhe com timeline e mensagem de status por fase
+- **Nova solicitação**: seletor visual de tipo (chips), textos em pt-BR, anexos removíveis antes do envio e imagens coladas listadas com opção de remover
+- **Acompanhamento**: linha do tempo vertical no detalhe do pedido; skeleton da tabela no Sobre enquanto carrega
+- Provisionamento: URL de ingest gravada no `client.env` usa **loopback** (`127.0.0.1:8001`) por padrão — evita falha de sync quando instância e admin-center estão na mesma VPS
 - Ponto (#976 / #977 / #973): férias e folga programada (pedido do colaborador ou agendamento admin); justificativa com anexo (imagem/PDF); alerta de pausa abaixo do mínimo configurável
 - Ponto (#969 / #974 / #982): colaborador **solicita hora extra** com janela desejada; teto mensal (global ou por pessoa) bloqueia novas liberações; digest e Meu ponto mostram consumo; avisos em tempo real (`ponto.he_atualizada`)
 - Ponto (#981 / #980 / #978 / #979): checklist de configuração pós-deploy; ajuda **Como funciona o ponto**; **fechamento de competência** mensal (reabrir com motivo; ajustes pós-fechamento marcados); **ciência** do colaborador no espelho após o fechamento

@@ -55,6 +55,14 @@ def ingest_url_publica() -> str:
     return f"https://api.{base}/v1/saas/ingest/solicitacoes"
 
 
+def ingest_url_para_client_env() -> str:
+    """URL escrita no client.env da instância (worker server-to-server)."""
+    loopback = (settings.SAAS_INGEST_LOOPBACK_URL or "").strip()
+    if loopback:
+        return loopback.rstrip("/")
+    return ingest_url_publica()
+
+
 def instance_slug_local() -> str:
     slug = (settings.SAAS_INSTANCE_SLUG or "").strip().lower()
     if slug:
@@ -504,7 +512,7 @@ def escrever_ingest_no_client_env(row: ClienteSaaS, *, token: str | None = None)
         return
     text = env_path.read_text(encoding="utf-8")
     text = _set_env_line(text, "SAAS_INSTANCE_SLUG", row.slug)
-    text = _set_env_line(text, "SAAS_CONTROL_PLANE_INGEST_URL", ingest_url_publica())
+    text = _set_env_line(text, "SAAS_CONTROL_PLANE_INGEST_URL", ingest_url_para_client_env())
     if token:
         text = _set_env_line(text, "SAAS_INSTANCE_INGEST_TOKEN", token)
     env_path.write_text(text, encoding="utf-8")

@@ -161,9 +161,9 @@ def montar_comandos_ops(row: ClienteSaaS) -> str | None:
     port = row.api_port
     port_txt = str(port) if port is not None else "<api_port>"
     slug = row.slug
-    from app.services.saas_solicitacao_ingest import ingest_url_publica
+    from app.services.saas_solicitacao_ingest import ingest_url_para_client_env
 
-    ingest_url = ingest_url_publica()
+    ingest_url = ingest_url_para_client_env()
     return (
         f"# Na raiz do repositório no host de deploy\n"
         f"./deploy/scripts/provision-client.sh --slug {slug} --base-domain {base} --api-port {port_txt}\n"

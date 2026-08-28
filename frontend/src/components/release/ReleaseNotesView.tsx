@@ -7,6 +7,8 @@ import { Button } from '../../components/ui/Button'
 import { VoltarButton } from '../../components/ui/VoltarButton'
 import { BrandLogo } from '../../brand'
 import { PageContainer } from '../../components/ui/PageContainer'
+import { SolicitacoesMelhoriaListaTable } from '../solicitacoes/SolicitacoesMelhoriaListaTable'
+import { SolicitacoesMelhoriaListaSkeleton } from '../solicitacoes/SolicitacoesMelhoriaListaSkeleton'
 
 const CATEGORY_LABEL: Record<string, string> = {
   melhorias: 'Melhorias',
@@ -117,15 +119,9 @@ export type ReleaseNotesViewProps = {
   showProductTags?: boolean
 }
 
-function formatWhen(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
-  } catch {
-    return iso
-  }
-}
+/** Lista compartilhada de versão + histórico (#674 / #920). */
 
-/** Lista partilhada de versão + histórico (#674 / #920). */
+const PREVIEW_MINHAS = 5
 export function ReleaseNotesView({
   backTo,
   backLabel = 'Voltar',
@@ -141,11 +137,13 @@ export function ReleaseNotesView({
 }: ReleaseNotesViewProps) {
   const navigate = useNavigate()
   const [minhas, setMinhas] = useState<SolicitacoesMelhoria.ListaItem[]>([])
+  const [loadingMinhas, setLoadingMinhas] = useState(showSugestoesCta)
   const pastReleases = (notes?.releases ?? []).filter((r) => r.version !== notes?.current?.version)
 
   useEffect(() => {
     if (!showSugestoesCta) return
     let cancelled = false
+    setLoadingMinhas(true)
     void solicitacoesMelhoria
       .minhas()
       .then((rows) => {
@@ -153,6 +151,9 @@ export function ReleaseNotesView({
       })
       .catch(() => {
         if (!cancelled) setMinhas([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingMinhas(false)
       })
     return () => {
       cancelled = true
@@ -201,40 +202,52 @@ export function ReleaseNotesView({
             >
               Enviar sugestão / relatar problema
             </Button>
+            {loadingMinhas ? null : minhas.length > 0 ? (
+              <Link
+                to="/minhas-solicitacoes"
+                className="text-sm font-medium text-cyan-700 hover:underline dark:text-cyan-400"
+              >
+                Minhas solicitações ({minhas.length})
+              </Link>
+            ) : null}
           </div>
         ) : null}
       </Card>
 
       {showSugestoesCta ? (
-        <Card title="Minhas solicitações">
-          {minhas.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Ainda não enviou nenhum pedido. Use o botão acima para sugerir uma melhoria ou relatar um problema.
-            </p>
-          ) : (
-            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-              {minhas.slice(0, 8).map((item) => (
-                <li key={item.id}>
-                  <Link
-                    to={`/minhas-solicitacoes/${item.id}`}
-                    className="flex flex-wrap items-baseline justify-between gap-2 py-3 text-sm hover:text-cyan-700 dark:hover:text-cyan-400"
-                  >
-                    <span className="font-medium text-slate-800 dark:text-slate-100">{item.titulo}</span>
-                    <span className="text-xs text-slate-500">
-                      {item.status_rotulo} · {formatWhen(item.created_at)}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-          {minhas.length > 8 ? (
-            <p className="pt-2 text-sm">
-              <Link to="/minhas-solicitacoes" className="font-medium text-cyan-700 hover:underline dark:text-cyan-400">
+        <Card
+          title="Minhas solicitações"
+          description={
+            loadingMinhas
+              ? 'Carregando…'
+              : minhas.length > 0
+                ? `${Math.min(minhas.length, PREVIEW_MINHAS)} mais recente${minhas.length === 1 ? '' : 's'}`
+                : undefined
+          }
+          titleActions={
+            !loadingMinhas && minhas.length > PREVIEW_MINHAS ? (
+              <Link
+                to="/minhas-solicitacoes"
+                className="text-sm font-medium text-cyan-700 hover:underline dark:text-cyan-400"
+              >
                 Ver todas →
               </Link>
+            ) : null
+          }
+          bodyClassName={loadingMinhas || minhas.length > 0 ? 'overflow-x-auto p-0' : 'p-6'}
+        >
+          {loadingMinhas ? (
+            <SolicitacoesMelhoriaListaSkeleton rows={PREVIEW_MINHAS} />
+          ) : minhas.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Você ainda não enviou nenhum pedido. Use o botão acima para sugerir uma melhoria ou relatar um problema.
             </p>
-          ) : null}
+          ) : (
+            <SolicitacoesMelhoriaListaTable
+              items={minhas.slice(0, PREVIEW_MINHAS)}
+              itemPath={(solicitacaoId) => `/minhas-solicitacoes/${solicitacaoId}`}
+            />
+          )}
         </Card>
       ) : null}
 
