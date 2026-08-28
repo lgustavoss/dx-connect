@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useId, useCallback } from 'react'
+﻿import { useState, useEffect, useMemo, useId, useCallback } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import {
   tickets,
@@ -769,7 +769,7 @@ export function Tickets() {
                     key={t.id}
                     type="button"
                     onClick={() => abrirTicket(t.id)}
-                    className={`w-full px-4 py-4 text-left transition-colors hover:bg-slate-50/80 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-white/40 dark:focus-visible:bg-slate-800/60 ${
+                    className={`w-full px-4 py-4 text-left transition-colors hover:bg-slate-50/80 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-white/5 dark:focus-visible:bg-slate-800/60 ${
                       proximoAuto
                         ? 'bg-amber-50/70 ring-1 ring-inset ring-amber-200/70 dark:bg-amber-950/25 dark:ring-amber-800/40'
                         : ''
@@ -985,7 +985,7 @@ export function Tickets() {
                         abrirTicket(t.id)
                       }
                     }}
-                    className={`cursor-pointer transition-colors hover:bg-slate-50/90 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-white/50 dark:focus-visible:bg-slate-800/60 ${
+                    className={`cursor-pointer transition-colors hover:bg-slate-50/90 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-white/5 dark:focus-visible:bg-slate-800/60 ${
                       proximoAuto
                         ? 'bg-amber-50/70 ring-1 ring-inset ring-amber-200/70 dark:bg-amber-950/25 dark:ring-amber-800/40'
                         : ''

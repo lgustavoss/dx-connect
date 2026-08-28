@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import { ApiError, kb, type Kb } from '../api/client'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -196,7 +196,7 @@ export function KbCategoriasPage({ embedded = false }: { embedded?: boolean }) {
                 {arvore.map(({ categoria, depth }) => (
                   <tr
                     key={categoria.id}
-                    className={`hover:bg-slate-50/80 dark:hover:bg-white/40 ${dragId === categoria.id ? 'opacity-60' : ''}`}
+                    className={`hover:bg-slate-50/80 focus-within:bg-slate-50/80 dark:hover:bg-white/5 dark:focus-within:bg-slate-800/50 ${dragId === categoria.id ? 'opacity-60' : ''}`}
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={() => void soltarEm(categoria.id)}
                   >

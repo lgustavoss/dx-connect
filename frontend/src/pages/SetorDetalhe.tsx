@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiError, atendentes, setores, type Atendentes, type Setores } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
@@ -434,7 +434,7 @@ export function SetorDetalhe() {
                     .slice()
                     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
                     .map((a) => (
-                      <tr key={a.id} className="hover:bg-slate-50 dark:hover:bg-white/50">
+                      <tr key={a.id} className="hover:bg-slate-50 focus-within:bg-slate-50 dark:hover:bg-white/5 dark:focus-within:bg-slate-800/50">
                         <td className="px-4 py-3.5">
                           <span className={`font-medium ${a.ativo ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400'}`}>
                             {a.nome}

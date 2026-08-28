@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import {
   ApiError,
   comercialCustosItens,
@@ -537,7 +537,7 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
                     {smItems.map((row) => {
                       const vigente = row.vigencia_fim == null
                       return (
-                        <tr key={row.id} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-white/40">
+                        <tr key={row.id} className="transition-colors hover:bg-slate-50/80 focus-within:bg-slate-50/80 dark:hover:bg-white/5 dark:focus-within:bg-slate-800/50">
                           <td className="px-4 py-3.5 font-medium tabular-nums text-slate-800 dark:text-slate-100 sm:px-6">
                             {fmtMoney(row.valor)}
                             {vigente ? (
@@ -629,7 +629,7 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {itens.map((item) => (
-                    <tr key={item.id} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-white/40">
+                    <tr key={item.id} className="transition-colors hover:bg-slate-50/80 focus-within:bg-slate-50/80 dark:hover:bg-white/5 dark:focus-within:bg-slate-800/50">
                       <td className="px-4 py-3.5 font-medium text-slate-800 dark:text-slate-100 sm:px-6">{item.nome}</td>
                       <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 sm:px-6">
                         {TIPO_LABEL[item.tipo] ?? item.tipo}

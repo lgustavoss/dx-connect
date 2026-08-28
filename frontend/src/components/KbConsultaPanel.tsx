@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { kb, type Kb } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
@@ -280,7 +280,7 @@ export function KbConsultaPanel({ onInserirReferencia, showInserir = false }: Pr
                 <button
                   type="button"
                   onClick={() => abrirArtigo(item.id, item.slug)}
-                  className="flex w-full flex-col gap-0.5 px-4 py-3.5 text-left transition-colors hover:bg-slate-50 dark:hover:bg-white/50"
+                  className="flex w-full flex-col gap-0.5 px-4 py-3.5 text-left transition-colors hover:bg-slate-50 focus:outline-none focus-visible:bg-slate-100/80 dark:hover:bg-white/5 dark:focus-visible:bg-slate-800/60"
                 >
                   <span className="font-medium text-slate-900 dark:text-slate-100">{item.titulo}</span>
                   <span className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">

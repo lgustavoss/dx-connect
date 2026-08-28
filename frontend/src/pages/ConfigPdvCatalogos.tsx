@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import { ApiError, pdvRotulos, pdvTiposAcessoRemoto, type PdvCatalogo } from '../api/client'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -285,7 +285,7 @@ export function ConfigPdvCatalogos({ embedded = false }: { embedded?: boolean })
                 {items.map((item) => (
                   <tr
                     key={item.id}
-                    className="transition-colors hover:bg-slate-50/80 dark:hover:bg-white/40"
+                    className="transition-colors hover:bg-slate-50/80 focus-within:bg-slate-50/80 dark:hover:bg-white/5 dark:focus-within:bg-slate-800/50"
                   >
                     <td className="px-4 py-3.5 font-medium text-slate-800 dark:text-slate-100 sm:px-6">{item.nome}</td>
                     <td className="px-4 py-3.5 text-center tabular-nums text-slate-600 dark:text-slate-400 sm:px-6">

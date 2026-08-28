@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+﻿import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import type { FuncionariosRede } from '../api/client'
 import { Button } from './ui/Button'
@@ -52,7 +52,7 @@ export function FuncionariosEmpresaLista({
           {items.map((f) => (
             <tr
               key={f.id}
-              className="transition-colors hover:bg-slate-50/80 dark:hover:bg-white/40"
+              className="transition-colors hover:bg-slate-50/80 focus-within:bg-slate-50/80 dark:hover:bg-white/5 dark:focus-within:bg-slate-800/50"
             >
               <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100 sm:px-6">
                 {f.nome}
