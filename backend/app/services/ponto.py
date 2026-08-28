@@ -411,14 +411,21 @@ def _primeira_entrada_do_dia(batidas_dia: list[PontoBatida]) -> PontoBatida | No
     return min(entradas, key=lambda b: (_as_utc(b.registrado_em), b.id))
 
 
-def _atrasado_entrada(atendente: Atendente, entrada: PontoBatida | None) -> bool:
+def _atrasado_entrada(
+    atendente: Atendente,
+    entrada: PontoBatida | None,
+    *,
+    conv: "PontoDiaConvocado | None" = None,
+) -> bool:
     """True se a 1ª entrada passou inicio + tolerância (dentro da tol = não atraso)."""
+    from app.services import ponto_convocado as conv_svc
+
     if entrada is None:
         return False
-    if not escala_svc.escala_configurada(atendente):
+    if not conv and not escala_svc.escala_configurada(atendente):
         return False
     local = _as_utc(entrada.registrado_em).astimezone(PONTO_TZ)
-    limite = escala_svc.limite_atraso_em(atendente, local.date())
+    limite = conv_svc.limite_atraso_em(atendente, local.date(), conv)
     if limite is None:
         return False
     return local > limite
@@ -552,17 +559,22 @@ def calendario(
     usa = escala_svc.escala_configurada(atendente)
     from app.services import ponto_ausencia as ausencia_svc
     from app.services import ponto_cobertura as cob_svc
+    from app.services import ponto_convocado as conv_svc
 
     ausencias = ausencia_svc.mapa_ausencias_aprovadas(db, atendente.id, desde=desde, ate=ate)
+    convocados = conv_svc.mapa_convocados(db, atendente.id, desde=desde, ate=ate)
     pausa_min = int(getattr(settings, "pausa_minima_minutos", None) or 0)
     papeis = cob_svc.mapa_papeis_periodo(db, atendente.id, desde=desde, ate=ate)
     dias_out: list[PontoCalendarioDia] = []
     for d in dias_mes:
         feriado = ponto_settings_svc.eh_feriado(db, atendente.tenant_id, d)
         ausencia_tipo = ausencias.get(d)
+        conv = convocados.get(d)
         esp_escala = escala_svc.eh_dia_de_trabalho(atendente, d) if usa else False
         papel = papeis.get(d)
-        if papel == "solicitante":
+        if conv:
+            esp = True
+        elif papel == "solicitante":
             esp = False
         elif papel == "cobertor":
             esp = True
@@ -571,12 +583,14 @@ def calendario(
         bats = por_dia.get(d, [])
         te = any(b.tipo == "entrada" for b in bats)
         ts = any(b.tipo == "saida" for b in bats)
-        atrasado = _atrasado_entrada(atendente, _primeira_entrada_do_dia(bats))
+        atrasado = _atrasado_entrada(atendente, _primeira_entrada_do_dia(bats), conv=conv)
         intervalos = _intervalos_de_batidas(bats)
         trabalhados = sum(i.duracao_segundos or 0 for i in intervalos if not i.aberto)
         pausas = _segundos_pausas_do_dia(bats)
         esperado_visual = bool(esp and not feriado and not ausencia_tipo)
-        if (usa or papel == "cobertor") and esperado_visual:
+        if conv and esperado_visual:
+            esperados = conv_svc.segundos_esperados_convocado(conv) or meta_default
+        elif (usa or papel == "cobertor") and esperado_visual:
             esperados = escala_svc.segundos_esperados_dia(atendente, d) or meta_default
         elif te or ts:
             esperados = meta_default
@@ -585,7 +599,8 @@ def calendario(
         else:
             esperados = 0
         # Sem jornada esperada: dia com batidas compara à meta; dia vazio fica neutro
-        esperado_para_cor = esperado_visual if (usa or papel) else bool(te or ts)
+        usa_para_cor = usa or papel == "cobertor" or conv is not None
+        esperado_para_cor = esperado_visual if usa_para_cor else bool(te or ts)
         dias_out.append(
             PontoCalendarioDia(
                 data=d,
@@ -593,7 +608,7 @@ def calendario(
                 tem_entrada=te,
                 tem_saida=ts,
                 status=_status_dia(  # type: ignore[arg-type]
-                    usa_escala=usa or papel == "cobertor",
+                    usa_escala=usa_para_cor,
                     esperado=esp,
                     tem_entrada=te,
                     tem_saida=ts,
@@ -604,6 +619,7 @@ def calendario(
                 atrasado=atrasado,
                 feriado=feriado,
                 ausencia_tipo=ausencia_tipo,
+                dia_convocado=conv is not None,
                 pausa_abaixo_minimo=_pausa_abaixo_minimo(
                     tem_entrada=te, segundos_pausa=pausas, pausa_minima_minutos=pausa_min
                 ),
@@ -633,7 +649,7 @@ def calendario(
 
 def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
     from app.services import ponto_ausencia as ausencia_svc
-    from app.services import ponto_cobertura as cob_svc
+    from app.services import ponto_convocado as conv_svc
     from app.services.presenca import PRESENCA_TTL_SEC
 
     hoje = datetime.now(PONTO_TZ).date()
@@ -654,7 +670,8 @@ def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
     for a in atendentes:
         usa = escala_svc.escala_configurada(a)
         ausencia_tipo = ausencia_svc.tipo_ausencia_aprovada_no_dia(db, a.id, hoje)
-        esperado = cob_svc.eh_dia_esperado_efetivo(db, a, hoje) if not feriado_hoje else False
+        conv = conv_svc.convocado_ativo_no_dia(db, a.id, hoje)
+        esperado = conv_svc.eh_dia_esperado_efetivo(db, a, hoje) if not feriado_hoje else False
         entrada = _entrada_da_jornada_aberta(db, a.id)
         inicio, fim = _bounds_periodo(hoje, hoje)
         bats = (
@@ -668,9 +685,9 @@ def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
         )
         te = any(b.tipo == "entrada" for b in bats)
         ts = any(b.tipo == "saida" for b in bats)
-        atrasado = _atrasado_entrada(a, _primeira_entrada_do_dia(bats))
+        atrasado = _atrasado_entrada(a, _primeira_entrada_do_dia(bats), conv=conv)
         st = _status_dia(
-            usa_escala=usa or esperado,
+            usa_escala=usa or esperado or conv is not None,
             esperado=esperado,
             tem_entrada=te,
             tem_saida=ts,
@@ -743,7 +760,7 @@ def banco_horas(
     ate: date,
 ) -> PontoBancoHorasRead:
     from app.services import ponto_ausencia as ausencia_svc
-    from app.services import ponto_cobertura as cob_svc
+    from app.services import ponto_convocado as conv_svc
 
     if ate < desde:
         raise HTTPException(status_code=400, detail="Período inválido (até < desde).")
@@ -751,6 +768,7 @@ def banco_horas(
     settings = ponto_settings_svc.get_or_create_settings(db, atendente.tenant_id)
     meta_default = int(getattr(settings, "jornada_diaria_minutos", None) or 480) * 60
     ausencias = ausencia_svc.mapa_ausencias_aprovadas(db, atendente.id, desde=desde, ate=ate)
+    convocados = conv_svc.mapa_convocados(db, atendente.id, desde=desde, ate=ate)
     dias_escala = 0
     dias_feriado = 0
     esperado = 0
@@ -760,9 +778,10 @@ def banco_horas(
         if feriado or d in ausencias:
             if feriado:
                 dias_feriado += 1
-        elif cob_svc.eh_dia_esperado_efetivo(db, atendente, d):
+        elif conv_svc.eh_dia_esperado_efetivo(db, atendente, d):
             dias_escala += 1
-            seg = escala_svc.segundos_esperados_dia(atendente, d)
+            conv = convocados.get(d)
+            seg = conv_svc.segundos_esperados_efetivo(db, atendente, d, conv)
             esperado += seg if seg > 0 else meta_default
         d += timedelta(days=1)
 
@@ -806,14 +825,16 @@ def alertas_me(db: Session, atendente: Atendente) -> "PontoAlertasMe":
 
     feriado = ponto_settings_svc.eh_feriado(db, atendente.tenant_id, hoje)
     from app.services import ponto_cobertura as cob_svc
+    from app.services import ponto_convocado as conv_svc
 
     ausencia_tipo = ausencia_svc.tipo_ausencia_aprovada_no_dia(db, atendente.id, hoje)
+    conv = conv_svc.convocado_ativo_no_dia(db, atendente.id, hoje)
     jornada_ativa = escala_svc.escala_configurada(atendente) or (
         cob_svc.papel_cobertura_aprovada(db, atendente.id, hoje) is not None
-    )
+    ) or conv is not None
     esperado = None
     if not feriado and not ausencia_tipo:
-        esperado = cob_svc.eh_dia_esperado_efetivo(db, atendente, hoje)
+        esperado = conv_svc.eh_dia_esperado_efetivo(db, atendente, hoje)
 
     entrada = _entrada_da_jornada_aberta(db, atendente.id)
     inicio, fim = _bounds_periodo(hoje, hoje)
@@ -849,19 +870,23 @@ def alertas_me(db: Session, atendente: Atendente) -> "PontoAlertasMe":
     # Modo nenhum: sem avisos de falta/atraso/lembretes de tolerância (#959 / #968)
     if jornada_ativa:
         if esperado is True and not tem_entrada_hoje and entrada is None:
-            liberacao = escala_svc.liberacao_entrada_em(atendente, hoje)
+            liberacao = conv_svc.liberacao_entrada_em(atendente, hoje, conv)
             if liberacao is not None and agora_local >= liberacao:
                 sem_entrada = True
                 lembrete_entrada = True
-                limite = escala_svc.limite_atraso_em(atendente, hoje)
+                limite = conv_svc.limite_atraso_em(atendente, hoje, conv)
                 if limite is not None and agora_local <= limite:
                     msgs.append("Janela de entrada — registre o ponto agora.")
+                elif conv:
+                    msgs.append(
+                        "Hoje é dia convocado pela empresa e ainda não há entrada registrada."
+                    )
                 else:
                     msgs.append(
                         "Hoje é dia de trabalho na sua jornada e ainda não há entrada registrada."
                     )
 
-        if _atrasado_entrada(atendente, primeira):
+        if _atrasado_entrada(atendente, primeira, conv=conv):
             msgs.append("Entrada registrada após o horário previsto (fora da tolerância).")
 
     if online and entrada is None:
@@ -879,8 +904,8 @@ def alertas_me(db: Session, atendente: Atendente) -> "PontoAlertasMe":
                 f"Jornada aberta há cerca de {horas_aberta:.0f} h — lembre-se de registrar a saída."
             )
         elif jornada_ativa:
-            inicio_saida = escala_svc.liberacao_saida_lembrete_em(atendente, hoje)
-            saida_prev = escala_svc.saida_prevista_em(atendente, hoje)
+            inicio_saida = conv_svc.liberacao_saida_lembrete_em(atendente, hoje, conv)
+            saida_prev = conv_svc.saida_prevista_em(atendente, hoje, conv)
             if inicio_saida is not None and agora_local >= inicio_saida:
                 lembrete_saida = True
                 if saida_prev is not None and agora_local >= saida_prev:
@@ -913,15 +938,20 @@ def _contar_atrasos_periodo(
     desde: date,
     ate: date,
 ) -> int:
-    if not escala_svc.escala_configurada(atendente):
-        return 0
+    from app.services import ponto_convocado as conv_svc
+
+    usa = escala_svc.escala_configurada(atendente)
     n = 0
     d = desde
     while d <= ate:
         if ponto_settings_svc.eh_feriado(db, atendente.tenant_id, d):
             d += timedelta(days=1)
             continue
-        if not escala_svc.eh_dia_de_trabalho(atendente, d):
+        conv = conv_svc.convocado_ativo_no_dia(db, atendente.id, d)
+        if not conv and not usa:
+            d += timedelta(days=1)
+            continue
+        if not conv and not escala_svc.eh_dia_de_trabalho(atendente, d):
             d += timedelta(days=1)
             continue
         ini, fim = _bounds_periodo(d, d)
@@ -934,7 +964,7 @@ def _contar_atrasos_periodo(
             )
             .all()
         )
-        if _atrasado_entrada(atendente, _primeira_entrada_do_dia(bats)):
+        if _atrasado_entrada(atendente, _primeira_entrada_do_dia(bats), conv=conv):
             n += 1
         d += timedelta(days=1)
     return n

@@ -8,7 +8,6 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { PageContainer } from '../components/ui/PageContainer'
 import { VoltarButton } from '../components/ui/VoltarButton'
-import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
 
 const ACCEPT_ANEXO = 'image/png,image/jpeg,image/webp,image/gif,application/pdf,video/mp4,video/webm,video/quicktime'
@@ -67,9 +66,9 @@ export function SolicitacaoMelhoriaNovaPage() {
       .catch(() => undefined)
   }, [])
 
-  async function enviarFicheiro(file: File, papel: 'inline' | 'anexo') {
+  async function enviarArquivo(file: File, papel: 'inline' | 'anexo') {
     if (anexos.length >= MAX_ANEXOS) {
-      toast.showError('Pode anexar no máximo 20 ficheiros neste pedido.')
+      toast.showError('Você pode anexar no máximo 20 arquivos neste pedido.')
       return
     }
     setUploading(true)
@@ -82,13 +81,26 @@ export function SolicitacaoMelhoriaNovaPage() {
         setModo('editar')
         toast.showSuccess('Imagem colada no texto.')
       } else {
-        toast.showSuccess('Ficheiro anexado.')
+        toast.showSuccess('Arquivo anexado.')
       }
     } catch (err) {
-      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível enviar o ficheiro.'))
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível enviar o arquivo.'))
     } finally {
       setUploading(false)
       if (anexoInputRef.current) anexoInputRef.current.value = ''
+    }
+  }
+
+  function removerAnexo(anexo: SolicitacoesMelhoria.Anexo) {
+    setAnexos((cur) => cur.filter((a) => a.id !== anexo.id))
+    if (anexo.papel === 'inline' && anexo.url) {
+      const escaped = anexo.url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      setDescricao((d) =>
+        d
+          .replace(new RegExp(`!\\[[^\\]]*\\]\\(${escaped}\\)\\s*`, 'g'), '')
+          .replace(new RegExp(`!\\[[^\\]]*\\]\\(${escaped}\\)`, 'g'), '')
+          .trim(),
+      )
     }
   }
 
@@ -100,7 +112,7 @@ export function SolicitacaoMelhoriaNovaPage() {
         const file = item.getAsFile()
         if (file) {
           e.preventDefault()
-          void enviarFicheiro(file, 'inline')
+          void enviarArquivo(file, 'inline')
         }
         return
       }
@@ -137,8 +149,8 @@ export function SolicitacaoMelhoriaNovaPage() {
       })
       toast.showSuccess(
         row.protocolo
-          ? `Pedido ${row.protocolo} enviado. Pode acompanhar em Minhas solicitações.`
-          : 'Pedido enviado. Pode acompanhar em Minhas solicitações.',
+          ? `Pedido ${row.protocolo} enviado. Você pode acompanhar em Minhas solicitações.`
+          : 'Pedido enviado. Você pode acompanhar em Minhas solicitações.',
       )
       navigate(`/minhas-solicitacoes/${row.id}`)
     } catch (err) {
@@ -151,6 +163,7 @@ export function SolicitacaoMelhoriaNovaPage() {
   }
 
   const anexosLista = anexos.filter((a) => a.papel !== 'inline')
+  const anexosInline = anexos.filter((a) => a.papel === 'inline')
 
   return (
     <PageContainer className="flex h-full min-h-0 w-full flex-col" spacing="none">
@@ -164,16 +177,41 @@ export function SolicitacaoMelhoriaNovaPage() {
       <div className="mt-6 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/95 dark:shadow-none dark:ring-1 dark:ring-white/5">
         <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-hidden p-5 sm:p-6">
           <div className="grid shrink-0 items-start gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
-            <Select
-              label="Tipo"
-              className="[&>button]:box-border [&>button]:h-10 [&>button]:rounded-lg [&>button]:py-0"
-              value={tipo}
-              onChange={(v) => setTipo(String(v) as SolicitacoesMelhoria.Tipo)}
-              options={[
-                { value: 'sugestao', label: 'Sugestão de melhoria' },
-                { value: 'problema', label: 'Relatar problema' },
-              ]}
-            />
+            <div>
+              <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">Tipo</p>
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    { value: 'sugestao' as const, label: 'Sugestão', tone: 'sky' as const },
+                    { value: 'problema' as const, label: 'Problema', tone: 'rose' as const },
+                  ] as const
+                ).map((opt) => {
+                  const ativo = tipo === opt.value
+                  const toneClass =
+                    opt.tone === 'sky'
+                      ? ativo
+                        ? 'border-sky-500 bg-sky-50 text-sky-900 dark:border-sky-400 dark:bg-sky-950/50 dark:text-sky-100'
+                        : ''
+                      : ativo
+                        ? 'border-rose-500 bg-rose-50 text-rose-900 dark:border-rose-400 dark:bg-rose-950/50 dark:text-rose-100'
+                        : ''
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setTipo(opt.value)}
+                      className={`inline-flex items-center rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                        ativo
+                          ? toneClass
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300 dark:hover:border-slate-600'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
             <Input
               label="Título"
               className="box-border h-10"
@@ -250,7 +288,7 @@ export function SolicitacaoMelhoriaNovaPage() {
                   value={descricao}
                   onChange={(e) => setDescricao(e.target.value)}
                   onPaste={onPaste}
-                  placeholder="Explique o contexto, o que esperava e o impacto. Cole prints (Ctrl+V) à medida que descreve os passos."
+                  placeholder="Explique o contexto, o que esperava e o impacto. Cole prints (Ctrl+V) enquanto descreve os passos."
                   maxLength={20000}
                 />
               ) : (
@@ -261,12 +299,39 @@ export function SolicitacaoMelhoriaNovaPage() {
             </div>
           </div>
 
-          {anexosLista.length > 0 ? (
-            <ul className="shrink-0 space-y-1 text-sm text-slate-600 dark:text-slate-300">
-              {anexosLista.map((a) => (
-                <li key={a.id}>Anexo: {a.nome_original}</li>
-              ))}
-            </ul>
+          {anexos.length > 0 ? (
+            <div className="shrink-0 space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Arquivos neste pedido</p>
+              <ul className="flex flex-wrap gap-2">
+                {anexos.map((a) => (
+                  <li
+                    key={a.id}
+                    className="inline-flex max-w-full items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 pl-3 pr-1 py-1 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
+                  >
+                    <span className="truncate">
+                      {a.papel === 'inline' ? 'Imagem no texto: ' : ''}
+                      {a.nome_original}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removerAnexo(a)}
+                      className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-100"
+                      aria-label={`Remover ${a.nome_original}`}
+                      title="Remover"
+                    >
+                      <svg className="size-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                        <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                      </svg>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {anexosInline.length > 0 && anexosLista.length > 0 ? (
+                <p className="text-xs text-slate-500">
+                  Remover uma imagem colada no texto também limpa a marcação na descrição.
+                </p>
+              ) : null}
+            </div>
           ) : null}
 
           {erro ? <p className="shrink-0 text-sm text-rose-600 dark:text-rose-400">{erro}</p> : null}
@@ -289,7 +354,7 @@ export function SolicitacaoMelhoriaNovaPage() {
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0]
-                if (f) void enviarFicheiro(f, 'anexo')
+                if (f) void enviarArquivo(f, 'anexo')
               }}
             />
           </div>

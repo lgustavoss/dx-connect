@@ -17,7 +17,6 @@ from app.models.setor import Setor
 from app.models.rede import Rede
 from app.models.funcionario_rede import FuncionarioRede, FuncionarioRedeEmpresa
 from app.models.whatsapp_chat import WhatsappChat, WhatsappChatTicket, WhatsappMensagem, WhatsappSettings
-from app.models.whatsapp_chat_read import WhatsappChatRead as WhatsappChatReadModel
 from app.schemas.lista_paginada import ListaPaginada
 from app.schemas.whatsapp_chat import (
     WhatsappAbrirTicketBody,
@@ -62,6 +61,7 @@ from app.services.whatsapp_auto_messages import (
 from app.services.whatsapp_avaliacao import mensagem_oculta_na_conversa
 from app.services.whatsapp_media_storage import caminho_absoluto_arquivo, gravar_bytes_em_disco
 from app.services.realtime_emit import emit_chat_fila_from_model, emit_chat_mensagem_from_models
+from app.services.chat_nao_lidas import contar_nao_lidas_whatsapp, marcar_leitura_whatsapp
 from app.services.ticket_distribuicao import pos_criar_ticket_na_fila
 from app.services.protocolo_mensal import gerar_protocolo_chat
 from app.services.whatsapp_wa_id_lock import lock_wa_id_para_chat, unlock_wa_id_para_chat
@@ -437,9 +437,25 @@ def _enviar_texto_whatsapp(
         status_entrega=status_inicial_outbound_whatsapp(wa_message_id=sent_wa_id) if evento_sistema is None else None,
     )
     db.add(m)
+    if (
+        atendente is not None
+        and evento_sistema is None
+        and chat.atendente_id is not None
+        and chat.atendente_id == atendente.id
+    ):
+        marcar_leitura_whatsapp(db, chat.id, atendente.id)
     db.commit()
     db.refresh(m)
     emit_chat_mensagem_from_models(db, chat, m, exclude_atendente_id=atendente.id if atendente else None)
+    if (
+        atendente is not None
+        and evento_sistema is None
+        and chat.atendente_id is not None
+        and chat.atendente_id == atendente.id
+    ):
+        from app.services.realtime_emit import emit_notificacao_contagem
+
+        emit_notificacao_contagem(db, [atendente.id])
     return m
 
 
@@ -633,34 +649,6 @@ def _criar_funcionario_rede(
     return f
 
 
-def _nao_lidas_whatsapp(
-    db: Session, c: WhatsappChat, atendente_id: int
-) -> tuple[int, datetime | None, int | None]:
-    """Inbound após o cursor de leitura (#951)."""
-    row = (
-        db.query(WhatsappChatReadModel.last_seen_at, WhatsappChatReadModel.last_seen_mensagem_id)
-        .filter(
-            WhatsappChatReadModel.chat_id == c.id,
-            WhatsappChatReadModel.atendente_id == atendente_id,
-        )
-        .first()
-    )
-    ls = row[0] if row else None
-    cursor_id = row[1] if row else None
-    q = db.query(func.count(WhatsappMensagem.id)).filter(
-        WhatsappMensagem.chat_id == c.id,
-        WhatsappMensagem.direcao == "inbound",
-    )
-    if cursor_id is not None:
-        q = q.filter(WhatsappMensagem.id > cursor_id)
-    else:
-        eff = ls if ls is not None else (c.atendimento_inicio_at or c.created_at)
-        if eff is None:
-            return 0, ls, cursor_id
-        q = q.filter(WhatsappMensagem.created_at > eff)
-    return int(q.scalar() or 0), ls, cursor_id
-
-
 def _chat_read(
     db: Session,
     c: WhatsappChat,
@@ -677,7 +665,7 @@ def _chat_read(
     last_seen: datetime | None = None
     last_seen_msg: int | None = None
     if atendente_id is not None:
-        nao_lidas, last_seen, last_seen_msg = _nao_lidas_whatsapp(db, c, atendente_id)
+        nao_lidas, last_seen, last_seen_msg = contar_nao_lidas_whatsapp(db, c, atendente_id)
     return WhatsappChatRead(
         id=c.id,
         protocolo=c.protocolo,
@@ -2185,6 +2173,8 @@ async def enviar_mensagem_midia(
     )
     db.add(m)
     _sair_pausa_inatividade_por_atividade(c)
+    if c.atendente_id is not None and c.atendente_id == atendente.id:
+        marcar_leitura_whatsapp(db, c.id, atendente.id)
     db.commit()
     m2 = (
         db.query(WhatsappMensagem)
@@ -2194,6 +2184,9 @@ async def enviar_mensagem_midia(
     )
     assert m2 is not None
     emit_chat_mensagem_from_models(db, c, m2, exclude_atendente_id=atendente.id)
+    from app.services.realtime_emit import emit_notificacao_contagem
+
+    emit_notificacao_contagem(db, [atendente.id])
     return _mensagem_read(m2, viewer_id=atendente.id, is_responsavel=True)
 
 
@@ -2257,26 +2250,7 @@ def marcar_chat_visto(
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
 
     now = datetime.now(timezone.utc)
-    max_msg_id = (
-        db.query(func.max(WhatsappMensagem.id)).filter(WhatsappMensagem.chat_id == chat_id).scalar()
-    )
-    row = (
-        db.query(WhatsappChatReadModel)
-        .filter(WhatsappChatReadModel.chat_id == chat_id, WhatsappChatReadModel.atendente_id == atendente.id)
-        .first()
-    )
-    if row:
-        row.last_seen_at = now
-        row.last_seen_mensagem_id = max_msg_id
-    else:
-        db.add(
-            WhatsappChatReadModel(
-                chat_id=chat_id,
-                atendente_id=atendente.id,
-                last_seen_at=now,
-                last_seen_mensagem_id=max_msg_id,
-            )
-        )
+    marcar_leitura_whatsapp(db, chat_id, atendente.id, now=now)
     # ✓✓ azul no WhatsApp do cliente: só o responsável, em atendimento
     if (
         c.estado == "em_atendimento"

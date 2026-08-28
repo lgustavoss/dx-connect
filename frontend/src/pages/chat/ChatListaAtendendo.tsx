@@ -165,11 +165,13 @@ export function ChatListaAtendendo() {
     const u2 = subscribe('chat.mensagem', refresh)
     const u3 = subscribe('portal.chat.fila', refresh)
     const u4 = subscribe('portal.chat.mensagem', refresh)
+    const u5 = subscribe('notificacao.contagem', refresh)
     return () => {
       u1()
       u2()
       u3()
       u4()
+      u5()
     }
   }, [subscribe, load])
 

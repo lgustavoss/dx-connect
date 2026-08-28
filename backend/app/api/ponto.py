@@ -36,6 +36,8 @@ from app.schemas.ponto import (
     PontoCoberturaResposta,
     PontoCompetenciaRead,
     PontoCompetenciaReabrir,
+    PontoDiaConvocadoCreate,
+    PontoDiaConvocadoRead,
     PontoDigestRead,
     PontoEstadoRead,
     PontoFeriadoCreate,
@@ -62,6 +64,7 @@ from app.schemas.ponto import (
 from app.services import ponto as ponto_svc
 from app.services import ponto_ausencia as ausencia_svc
 from app.services import ponto_cobertura as cob_svc
+from app.services import ponto_convocado as convocado_svc
 from app.services import ponto_competencia as comp_svc
 from app.services import ponto_folha as folha_svc
 from app.services import ponto_hora_extra as he_svc
@@ -809,6 +812,52 @@ def remover_ausencia(
 ):
     ausencia_svc.remover_admin(db, admin, ausencia_id)
     return Response(status_code=204)
+
+
+@router.post("/convocados/conceder", response_model=PontoDiaConvocadoRead, status_code=201)
+def conceder_dia_convocado(
+    data: PontoDiaConvocadoCreate,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return convocado_svc.criar_admin(
+        db,
+        admin,
+        atendente_id=data.atendente_id,
+        data_ref=data.data_ref,
+        inicio=data.inicio,
+        fim=data.fim,
+        motivo=data.motivo,
+        tolerancia_minutos=data.tolerancia_minutos,
+    )
+
+
+@router.get("/convocados", response_model=list[PontoDiaConvocadoRead])
+def listar_dias_convocados(
+    atendente_id: int | None = Query(None),
+    desde: date | None = Query(None),
+    ate: date | None = Query(None),
+    estado: str | None = Query("ativa"),
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return convocado_svc.listar_admin(
+        db,
+        admin,
+        atendente_id=atendente_id,
+        desde=desde,
+        ate=ate,
+        estado=estado,
+    )
+
+
+@router.delete("/convocados/{convocado_id}", response_model=PontoDiaConvocadoRead)
+def cancelar_dia_convocado(
+    convocado_id: int,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return convocado_svc.cancelar_admin(db, admin, convocado_id)
 
 
 @router.get("/hora-extra/me/status", response_model=PontoHoraExtraMeStatus)

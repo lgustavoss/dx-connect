@@ -147,6 +147,7 @@ class PontoCalendarioDia(BaseModel):
     atrasado: bool = False
     feriado: bool = False
     ausencia_tipo: str | None = None  # ferias | folga_programada
+    dia_convocado: bool = False
     pausa_abaixo_minimo: bool = False
     # #842 — meta de jornada × realizado (cores do calendário)
     segundos_trabalhados: int = 0
@@ -350,6 +351,33 @@ class PontoAusenciaRead(BaseModel):
     decidido_em: datetime | None = None
     decisao_motivo: str | None = None
     created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PontoDiaConvocadoCreate(BaseModel):
+    atendente_id: int = Field(..., ge=1)
+    data_ref: date
+    inicio: str = Field(..., min_length=5, max_length=5)
+    fim: str = Field(..., min_length=5, max_length=5)
+    motivo: str = Field(..., min_length=3, max_length=1000)
+    tolerancia_minutos: int | None = Field(default=None, ge=0, le=240)
+
+
+class PontoDiaConvocadoRead(BaseModel):
+    id: int
+    atendente_id: int
+    atendente_nome: str | None = None
+    data_ref: date
+    inicio: str
+    fim: str
+    tolerancia_minutos: int | None = None
+    motivo: str
+    estado: str
+    criado_por_id: int | None = None
+    created_at: datetime | None = None
+    cancelado_por_id: int | None = None
+    cancelado_em: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
