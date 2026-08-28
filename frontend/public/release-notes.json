@@ -1,141 +1,51 @@
 {
-  "current_version": "26.08.015",
-  "current_version_display": "v26.08.015",
+  "current_version": "26.08.018",
+  "current_version_display": "v26.08.018",
   "current": {
-    "version": "26.08.015",
-    "version_display": "v26.08.015",
-    "date": "2026-08-26",
+    "version": "26.08.018",
+    "version_display": "v26.08.018",
+    "date": "2026-08-28",
     "status": "published",
     "changes": [
       {
         "product": "saas",
         "category": "melhorias",
-        "text": "Sugestões (#953 / #954): máquina de estados rígida na triagem (só avanços permitidos); **Implementar** cria ou liga issue no GitHub e só então marca em desenvolvimento — o cliente continua sem ver o GitHub"
-      },
-      {
-        "product": "saas",
-        "category": "melhorias",
-        "text": "Sugestões (#955–#957): quando o pedido é **concluído** no deploy, Minhas solicitações mostra **Disponível a partir da versão X (ou superior)** — a versão vem do release real (CalVer), não há previsão manual em planejada/desenvolvimento; rule Cursor para só codar com protocolo + issue ligada"
-      },
-      {
-        "product": "saas",
-        "category": "melhorias",
-        "text": "Docs (#879): MCP aponta a `api.deskrudder.com.br`; runbook para desativar cliente sem derrubar o painel SaaS; arquitetura pós-cutover (admin-center vs compose legado)"
-      },
-      {
-        "product": "saas",
-        "category": "melhorias",
-        "text": "Painel admin: cabeçalho com **Painel admin SaaS** + usuário logado (nome e cargos); **Equipe** com Usuários / Setores / Minha conta; removido o atalho «Painel atendimento»"
-      },
-      {
-        "product": "saas",
-        "category": "melhorias",
-        "text": "Equipe SaaS: cadastro de **setores/cargos** (Admin, Desenvolvimento, Comercial, …) sem campo ordem; um usuário pode ter **vários** cargos; o cabeçalho mostra os nomes em vez de só «Ops SaaS»"
-      },
-      {
-        "product": "saas",
-        "category": "melhorias",
-        "text": "Minha conta: além do token Cursor, o ops edita **nome**, **e-mail** e **senha**"
-      },
-      {
-        "product": "saas",
-        "category": "melhorias",
-        "text": "Licenças: coluna **Valor/mês** com valor negociado (ou estimativa do catálogo); campo opcional na ficha para negociação diferente do plano"
-      },
-      {
-        "product": "saas",
-        "category": "melhorias",
-        "text": "Catálogo comercial: **preço por módulo**; plano = soma dos módulos habilitados; licença pode misturar (ex. Essencial + 1 módulo Enterprise); **3 usuários inclusos** + R$ 10/usuário extra (editável no plano)"
-      },
-      {
-        "product": "saas",
-        "category": "melhorias",
-        "text": "Catálogo comercial: módulos do produto pré-cadastrados; planos Trial / Essencial / Profissional / Enterprise (sem teto de postos nem tickets)"
-      },
-      {
-        "product": "saas",
-        "category": "melhorias",
-        "text": "Sugestões: na fila, chips de **tipo** (Sugestão / Erro) e **fase** (Aguardando, Em desenvolvimento, Finalizadas), com contadores; badges coloridos na lista e no detalhe"
+        "text": "Provisionamento: URL de ingest gravada no `client.env` usa **loopback** (`127.0.0.1:8001`) por padrão — evita falha de sync quando instância e admin-center estão na mesma VPS"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "Ponto (#965): após o fim da jornada, **pegar** chat WhatsApp novo fica bloqueado até um admin liberar **hora extra** (resto do dia ou até um horário); pedidos aparecem em Ponto da equipe e no sino de pendências"
+        "text": "**Minhas solicitações** e bloco no **Sobre**: lista em tabela com badges; no Sobre só as **5 mais recentes** com atalho **Ver todas**; filtros por tipo, fase, status e busca; detalhe com timeline e mensagem de status por fase"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "Ponto (#984): locais de trabalho no **cadastro do atendente** (empresa + extras no mapa OSM); pin da empresa em Configurações → Empresa; raio e ativar/desativar por local; removido o card global de Locais em Ponto da equipe"
+        "text": "**Nova solicitação**: seletor visual de tipo (chips), textos em pt-BR, anexos removíveis antes do envio e imagens coladas listadas com opção de remover"
+      },
+      {
+        "product": "deskrudder",
+        "category": "melhorias",
+        "text": "**Acompanhamento**: linha do tempo vertical no detalhe do pedido; skeleton da tabela no Sobre enquanto carrega"
+      },
+      {
+        "product": "deskrudder",
+        "category": "melhorias",
+        "text": "Ponto (#985): dia convocado — admin agenda trabalho fora da grade com janela própria; calendário, faltas e banco de horas respeitam a exceção"
+      },
+      {
+        "product": "deskrudder",
+        "category": "melhorias",
+        "text": "Ponto (#S202608-0011): histórico da equipe paginado (20 batidas por página, com total e navegação)"
       },
       {
         "product": "deskrudder",
         "category": "correcoes",
-        "text": "WhatsApp (#945 / #S202608-0003): **Exportar PDF** só aparece em chats finalizados (encerrado ou aguardando avaliação), não durante o atendimento"
+        "text": "Deploy: migration do dia convocado (#985) idempotente — instâncias com tabela criada manualmente não travam no `alembic upgrade`"
       },
       {
         "product": "deskrudder",
         "category": "correcoes",
-        "text": "WhatsApp (#947 / #S202608-0005): ao abrir o menu Editar/Apagar/Reagir (ou editar mensagem), o strip de emojis do hover deixa de cobrir as opções"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Chat interno (#941 / #S202608-0008): no canal de **setor**, clicar no nome abre modal com membros vinculados e quem está **online**"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "WhatsApp / Portal (#943 / #S202608-0002): no modal de **encerrar** atendimento, **Concluir/Encerrar** fica azul (ação principal) e **Cancelar** vermelho — deixa de confundir dois botões iguais"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "WhatsApp / Portal (#951 / #S202608-0004): contador de **mensagens não lidas** na lista Atendendo e divisor «Mensagens não lidas» ao abrir a conversa (continua de onde parou)"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Ponto (#959 / #960–#964 / #961–#963): jornada **semanal** (grade Dia/Aberto/Início/Fim como no chat) ou **ciclo** X×Y, ou **nenhum**; entrada só a partir de início−tolerância; atraso só após início+tolerância; fecho por esquecimento (N horas **ou** saída prevista+margem); alertas in-app de falta/atraso para colaborador e admin"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Chat interno (#916): cada setor activo passa a ter canal próprio (criação ao cadastrar/activar + backfill); canais vazios aparecem em Interno → Setores; o vínculo do atendente ao setor basta para ver o canal; admin vê todos"
-      },
-      {
-        "product": "saas",
-        "category": "interno",
-        "text": "Licença: o repositório deixa a MIT e passa a **copyright reservado** (Luis Gustavo da S. Sousa); copiar, modificar ou usar sem autorização por escrito é proibido — ver `LICENSE`"
-      },
-      {
-        "product": "deskrudder",
-        "category": "correcoes",
-        "text": "Sugestões (#855): os botões **Criar issue no GitHub** / **Sincronizar GitHub** deixam de aparecer na triagem da instância (isso é trabalho da equipa DeskRudder no painel SaaS)"
-      },
-      {
-        "product": "deskrudder",
-        "category": "correcoes",
-        "text": "Sugestões (#856): o admin da instância deixa de alterar status ou enviar notas de produto — a fonte de verdade é o painel SaaS"
-      },
-      {
-        "product": "deskrudder",
-        "category": "correcoes",
-        "text": "Atendimentos (#826): no mobile, cards do histórico deixam de cortar telefone e **Retomar contacto** (layout em coluna, sem overflow horizontal)"
-      },
-      {
-        "product": "saas",
-        "category": "melhorias",
-        "text": "Fila de **sugestões/bugs** das instâncias (#855 / #808): quem usa o DeskRudder abre o pedido nas Release Notes; a cópia autenticada chega a `/saas/solicitacoes` (lista + detalhe). Token no provisionamento, não no browser do cliente. **Prints e anexos** da instância também chegam ao painel (não só o texto)."
-      },
-      {
-        "product": "saas",
-        "category": "melhorias",
-        "text": "Triagem da fila (#856): `saas_ops` altera status e responde (público/interno) em `/saas/solicitacoes/{id}`. O que é público (e o status) volta à instância — apply directo no control-plane local, ou pull autenticado `GET /v1/saas/ingest/solicitacoes/sync` nas instâncias. Notas internas e GitHub não aparecem ao cliente."
-      },
-      {
-        "product": "saas",
-        "category": "melhorias",
-        "text": "Fila de sugestões (#857): o **Cursor** lista e actualiza a fila SaaS (status, comentários, link da issue GitHub) via MCP. O cliente não vê Cursor nem GitHub; no painel ops aparece a issue se estiver ligada."
+        "text": "Atendimentos (#S202608-0010): contador de mensagens não lidas no chat alinhado entre sino, lista e conversa; badge some ao responder; divisor «Mensagens não lidas» também no chat do portal"
       }
     ]
   },
@@ -3595,6 +3505,135 @@
           "product": "saas",
           "category": "melhorias",
           "text": "Fila de sugestões (#857): o **Cursor** lista e actualiza a fila SaaS (status, comentários, link da issue GitHub) via MCP. O cliente não vê Cursor nem GitHub; no painel ops aparece a issue se estiver ligada."
+        }
+      ]
+    },
+    {
+      "version": "26.08.016",
+      "version_display": "v26.08.016",
+      "date": "2026-08-26",
+      "status": "published",
+      "changes": [
+        {
+          "product": "saas",
+          "category": "melhorias",
+          "text": "Infra: no deploy, pedidos citados no CHANGELOG passam a **concluída** no painel admin (versão do release); o script usa o mesmo stack Docker do admin-center"
+        },
+        {
+          "product": "saas",
+          "category": "melhorias",
+          "text": "Sobre: notas **Interno / Infra** (deploy, LICENSE, briefs) deixam de aparecer no DeskRudder — ficam só no painel admin"
+        },
+        {
+          "product": "saas",
+          "category": "melhorias",
+          "text": "Release notes: versão **26.08.015** sem bullets duplicados de releases anteriores (lista gigante no Sobre)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Sobre: deixa de listar itens **Interno / Infra** (deploy, LICENSE, docs internos) — só Melhorias e Correções de produto"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Sobre: versão **26.08.015** sem repetir notas já publicadas em releases anteriores"
+        }
+      ]
+    },
+    {
+      "version": "26.08.017",
+      "version_display": "v26.08.017",
+      "date": "2026-08-27",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#968 / #972 / #971): lembrete in-app de entrada/saída na janela de tolerância; resumo semanal em Meu ponto (previsto × feito, atrasos, HE, banco); motivo obrigatório reforçado e histórico/export de ajustes admin (também no PDF/Excel mensal)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#966): admin **concede hora extra** com antecedência (resto do dia, até horário ou duração em minutos); teto opcional por colaborador no cadastro; liberações respeitam o teto"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#976 / #977 / #973): férias e folga programada (pedido do colaborador ou agendamento admin); justificativa com anexo (imagem/PDF); alerta de pausa abaixo do mínimo configurável"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#969 / #974 / #982): colaborador **solicita hora extra** com janela desejada; teto mensal (global ou por pessoa) bloqueia novas liberações; digest e Meu ponto mostram consumo; avisos em tempo real (`ponto.he_atualizada`)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#981 / #980 / #978 / #979): checklist de configuração pós-deploy; ajuda **Como funciona o ponto**; **fechamento de competência** mensal (reabrir com motivo; ajustes pós-fechamento marcados); **ciência** do colaborador no espelho após o fechamento"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#975 / #970): **export contábil/folha RH** (CSV e Excel) com matrícula, previsto/realizado, atrasos, faltas, HE, banco e ajustes; **cobertura de plantão** (A pede → B aceita → admin homologa, ou admin agenda direto) refletida no calendário e nas faltas"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Atendimentos (#996 / #S202608-0007): na tela de chats, a barra superior (menu, notificações) volta a aparecer no computador; no celular continua oculta com a conversa aberta"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Atendimentos (#998 / #S202608-0009): quem só acompanha o chat deixa de ver **Encerrar** e **Registrar demanda** — esses botões ficam só com o responsável"
+        }
+      ]
+    },
+    {
+      "version": "26.08.018",
+      "version_display": "v26.08.018",
+      "date": "2026-08-28",
+      "status": "published",
+      "changes": [
+        {
+          "product": "saas",
+          "category": "melhorias",
+          "text": "Provisionamento: URL de ingest gravada no `client.env` usa **loopback** (`127.0.0.1:8001`) por padrão — evita falha de sync quando instância e admin-center estão na mesma VPS"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "**Minhas solicitações** e bloco no **Sobre**: lista em tabela com badges; no Sobre só as **5 mais recentes** com atalho **Ver todas**; filtros por tipo, fase, status e busca; detalhe com timeline e mensagem de status por fase"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "**Nova solicitação**: seletor visual de tipo (chips), textos em pt-BR, anexos removíveis antes do envio e imagens coladas listadas com opção de remover"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "**Acompanhamento**: linha do tempo vertical no detalhe do pedido; skeleton da tabela no Sobre enquanto carrega"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#985): dia convocado — admin agenda trabalho fora da grade com janela própria; calendário, faltas e banco de horas respeitam a exceção"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#S202608-0011): histórico da equipe paginado (20 batidas por página, com total e navegação)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Deploy: migration do dia convocado (#985) idempotente — instâncias com tabela criada manualmente não travam no `alembic upgrade`"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Atendimentos (#S202608-0010): contador de mensagens não lidas no chat alinhado entre sino, lista e conversa; badge some ao responder; divisor «Mensagens não lidas» também no chat do portal"
         }
       ]
     }
