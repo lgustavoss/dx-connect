@@ -26,6 +26,7 @@ import {
   rotuloResponsavelChat,
 } from '../../lib/whatsappChatMeta'
 import { mergeTimelineChat, textoMarcoDemanda } from '../../lib/whatsappDemandaUtils'
+import { primeiraInboundNaoLidaMsgId } from '../../lib/chatUnreadDivider'
 import { WhatsappDemandaTimelineMarco } from '../whatsapp/WhatsappDemandaTimelineMarco'
 import { ACCEPT_ANEXO, type TipoAnexoPicker } from '../whatsapp/WhatsappBarraAnexos'
 import { WhatsappComposerBar } from '../whatsapp/WhatsappComposerBar'
@@ -97,6 +98,25 @@ export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
   const fimRef = useRef<HTMLDivElement>(null)
   const lastMsgIdRef = useRef(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [divisorNaoLidasMsgId, setDivisorNaoLidasMsgId] = useState<number | null>(null)
+  const chatRef = useRef<PortalChats.Chat | null>(null)
+  const userIdRef = useRef(user?.id)
+
+  useEffect(() => {
+    chatRef.current = chat
+  }, [chat])
+
+  useEffect(() => {
+    userIdRef.current = user?.id
+  }, [user?.id])
+
+  const ehResponsavelPeloChat = useCallback((c: PortalChats.Chat | null, usuarioId?: number) => {
+    return (
+      c?.estado === 'em_atendimento' &&
+      c.atendente_id != null &&
+      c.atendente_id === usuarioId
+    )
+  }, [])
 
   const carregarDemandasTimeline = useCallback(async () => {
     if (!Number.isFinite(chatId)) return
@@ -109,7 +129,7 @@ export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
   }, [chatId])
 
   const carregarMensagens = useCallback(
-    async (opts?: { sinceId?: number; replace?: boolean }) => {
+    async (opts?: { sinceId?: number; replace?: boolean; marcarVisto?: boolean }) => {
       if (!Number.isFinite(chatId)) return
       const sinceId = opts?.sinceId
       const rows = await portalChats.mensagens(chatId, sinceId)
@@ -124,8 +144,10 @@ export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
           return merged
         })
       }
-      await portalChats.marcarVisto(chatId).catch(() => undefined)
-      void refetchPendenciasResumo()
+      if (opts?.marcarVisto) {
+        await portalChats.marcarVisto(chatId).catch(() => undefined)
+        void refetchPendenciasResumo()
+      }
     },
     [chatId],
   )
@@ -133,54 +155,85 @@ export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
   const load = useCallback(async () => {
     if (!Number.isFinite(chatId)) return
     setLoading(true)
+    setDivisorNaoLidasMsgId(null)
     try {
       const c = await portalChats.get(chatId)
       setChat(c)
-      await Promise.all([carregarMensagens({ replace: true }), carregarDemandasTimeline()])
+      const rows = await portalChats.mensagens(chatId)
+      setMensagens(rows)
+      lastMsgIdRef.current = rows.at(-1)?.id ?? 0
+      const primeiraId = primeiraInboundNaoLidaMsgId(rows, c)
+      if (primeiraId != null) setDivisorNaoLidasMsgId(primeiraId)
+      await portalChats.marcarVisto(chatId).catch(() => undefined)
+      void refetchPendenciasResumo()
+      await carregarDemandasTimeline()
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar o chat.'))
     } finally {
       setLoading(false)
     }
-  }, [carregarDemandasTimeline, carregarMensagens, chatId, toast])
+  }, [carregarDemandasTimeline, chatId, toast])
 
   const pollMensagens = useCallback(async () => {
     if (!Number.isFinite(chatId)) return
+    const responsavel = ehResponsavelPeloChat(chatRef.current, userIdRef.current)
     try {
       const sinceId = lastMsgIdRef.current > 0 ? lastMsgIdRef.current : undefined
-      await carregarMensagens(sinceId != null ? { sinceId } : { replace: true })
+      await carregarMensagens(
+        sinceId != null
+          ? { sinceId, marcarVisto: responsavel }
+          : { replace: true, marcarVisto: responsavel },
+      )
     } catch {
       /* silencioso */
     }
-  }, [carregarMensagens, chatId])
+  }, [carregarMensagens, chatId, ehResponsavelPeloChat])
 
   useEffect(() => {
     setChat(null)
     setMensagens([])
     setDemandasTimeline([])
     setTexto('')
+    setDivisorNaoLidasMsgId(null)
     lastMsgIdRef.current = 0
     void load()
   }, [chatId, load])
 
   useEffect(() => {
+    if (!divisorNaoLidasMsgId || loading) return
+    const t = window.setTimeout(() => {
+      document.getElementById('portal-nao-lidas')?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }, 80)
+    return () => window.clearTimeout(t)
+  }, [divisorNaoLidasMsgId, loading])
+
+  useEffect(() => {
+    if (divisorNaoLidasMsgId) return
     fimRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [mensagens, demandasTimeline])
+  }, [mensagens, demandasTimeline, divisorNaoLidasMsgId])
 
   useEffect(() => {
     const refresh = () => void load()
     const u1 = subscribe('portal.chat.mensagem', (payload) => {
-      if (Number(payload?.chat_id) === chatId) {
-        void pollMensagens()
-        void carregarDemandasTimeline()
+      if (Number(payload?.chat_id) !== chatId) return
+      const msg = payload.mensagem as PortalChats.Mensagem | undefined
+      const c = chatRef.current
+      if (
+        msg?.direcao === 'inbound' &&
+        ehResponsavelPeloChat(c, userIdRef.current)
+      ) {
+        void portalChats.marcarVisto(chatId).catch(() => undefined)
+        void refetchPendenciasResumo()
       }
+      void pollMensagens()
+      void carregarDemandasTimeline()
     })
     const u2 = subscribe('portal.chat.fila', refresh)
     return () => {
       u1()
       u2()
     }
-  }, [subscribe, chatId, load, pollMensagens, carregarDemandasTimeline])
+  }, [subscribe, chatId, load, pollMensagens, carregarDemandasTimeline, ehResponsavelPeloChat])
 
   useEffect(() => {
     const intervalMs = useFallback ? 8_000 : 4_000
@@ -494,6 +547,7 @@ export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
 
               const isInbound = m.direcao === 'inbound'
               const isTransferencia = m.evento_sistema === 'transferencia'
+              const mostrarDivisorNaoLidas = divisorNaoLidasMsgId === m.id
 
               if (isTransferencia) {
                 return (
@@ -509,7 +563,22 @@ export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
               }
 
               return (
-                <div key={m.id} className={`flex w-full ${isInbound ? 'justify-start' : 'justify-end'}`}>
+                <div key={m.id} className="w-full space-y-3">
+                  {mostrarDivisorNaoLidas && (
+                    <div
+                      id="portal-nao-lidas"
+                      className="flex w-full items-center gap-3 py-1"
+                      role="separator"
+                      aria-label="Mensagens não lidas"
+                    >
+                      <div className="h-px flex-1 bg-cyan-500/50" />
+                      <span className="shrink-0 rounded-full bg-cyan-600 px-3 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
+                        Mensagens não lidas
+                      </span>
+                      <div className="h-px flex-1 bg-cyan-500/50" />
+                    </div>
+                  )}
+                <div className={`flex w-full ${isInbound ? 'justify-start' : 'justify-end'}`}>
                   <div className={`max-w-[85%] space-y-1 ${isInbound ? 'items-start' : 'items-end'}`}>
                     <div
                       className={`rounded-2xl px-3 py-2 text-sm shadow-sm ${
@@ -534,6 +603,7 @@ export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
                       {m.created_at ? ` · ${formatarHora(m.created_at)}` : ''}
                     </p>
                   </div>
+                </div>
                 </div>
               )
             })
