@@ -461,7 +461,7 @@ export function EmpresaDetalhe() {
 
       {aba === 'chats' && (
         <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
-          <EmpresaChatsPanel empresaId={empresa.id} />
+          <EmpresaChatsPanel empresaId={empresa.id} returnPath={`/empresas/${empresa.id}`} />
         </section>
       )}
 

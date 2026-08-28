@@ -44,7 +44,7 @@ from app.schemas.whatsapp_chat import (
     WhatsappRedeCatalogoRead,
     WhatsappEmpresaCatalogoRead,
 )
-from app.services.funcionario_escopo import empresa_ids_vinculados, rede_id_efetiva, sincronizar_vinculos_empresas, validar_empresa_ids_na_rede
+from app.services.funcionario_escopo import empresa_ids_vinculados, funcionario_visivel_no_tenant, rede_id_efetiva, sincronizar_vinculos_empresas, validar_empresa_ids_na_rede
 from app.services.funcionario_rede_resolver import assert_email_unico_por_rede
 from app.core.audit import registrar_audit
 from app.core.auth import exigir_admin, obter_atendente_atual
@@ -863,6 +863,7 @@ def listar_encerrados(
     wa_id: str | None = Query(None, description="Filtro por número ou WhatsApp ID"),
     atendente_id: int | None = Query(None, ge=1, description="Filtro por atendente que encerrou"),
     empresa_id: int | None = Query(None, ge=1, description="Filtrar chats desta empresa (#591)"),
+    funcionario_rede_id: int | None = Query(None, ge=1, description="Filtrar chats deste contato (#1012)"),
     encerramento_inicio: datetime | None = Query(None, description="Filtro por data de encerramento a partir de"),
     encerramento_fim: datetime | None = Query(None, description="Filtro por data de encerramento até"),
     estado: str | None = Query(
@@ -900,6 +901,13 @@ def listar_encerrados(
         if not emp:
             return ListaPaginada(items=[], total=0)
         q = q.filter(WhatsappChat.empresa_id == empresa_id)
+    if funcionario_rede_id is not None:
+        if funcionario_visivel_no_tenant(db, atendente, funcionario_rede_id, exigir_ativo=False) is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Funcionário não encontrado",
+            )
+        q = q.filter(WhatsappChat.funcionario_rede_id == funcionario_rede_id)
     ref_data = func.coalesce(
         WhatsappChat.encerramento_at,
         WhatsappChat.atendimento_inicio_at,

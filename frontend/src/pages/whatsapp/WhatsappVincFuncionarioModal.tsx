@@ -323,10 +323,11 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
             )}
             <div className="mt-2 flex flex-wrap gap-2">
               <Link
-                to={`/funcionarios-rede/${chat.funcionario_rede_id}`}
+                to={`/funcionarios-rede/${chat.funcionario_rede_id}?aba=chats`}
+                state={{ voltarPara: window.location.pathname + window.location.search }}
                 className="text-xs font-medium text-cyan-700 underline dark:text-cyan-300"
               >
-                Abrir cadastro
+                Ver histórico de chats
               </Link>
               <button
                 type="button"

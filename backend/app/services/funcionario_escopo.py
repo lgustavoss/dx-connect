@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
+from app.models.atendente import Atendente
 from app.models.empresa import Empresa
 from app.models.funcionario_rede import FuncionarioRede, FuncionarioRedeEmpresa
 
@@ -73,6 +74,44 @@ def funcionario_visivel_na_empresa(db: Session, funcionario: FuncionarioRede, em
     if rede_id is None or int(emp.rede_id) != int(rede_id):
         return False
     return int(empresa_id) in empresa_ids_vinculados(db, funcionario, apenas_ativas=False)
+
+
+def funcionario_visivel_no_tenant(
+    db: Session,
+    atendente: Atendente,
+    funcionario_id: int,
+    *,
+    exigir_ativo: bool = True,
+) -> FuncionarioRede | None:
+    """Funcionário da rede acessível ao atendente (mesmo tenant), ou None."""
+    from app.models.rede import Rede
+
+    func = db.query(FuncionarioRede).filter(FuncionarioRede.id == funcionario_id).first()
+    if not func or (exigir_ativo and not func.ativo):
+        return None
+    rede_id = rede_id_efetiva(db, func)
+    if rede_id is not None:
+        rede = db.query(Rede).filter(Rede.id == rede_id, Rede.tenant_id == atendente.tenant_id).first()
+        if rede:
+            return func
+    if func.empresa_id is not None:
+        emp = (
+            db.query(Empresa)
+            .filter(Empresa.id == func.empresa_id, Empresa.tenant_id == atendente.tenant_id)
+            .first()
+        )
+        if emp:
+            return func
+    vinculo = (
+        db.query(FuncionarioRedeEmpresa)
+        .join(Empresa, Empresa.id == FuncionarioRedeEmpresa.empresa_id)
+        .filter(
+            FuncionarioRedeEmpresa.funcionario_id == func.id,
+            Empresa.tenant_id == atendente.tenant_id,
+        )
+        .first()
+    )
+    return func if vinculo else None
 
 
 def validar_empresa_ids_na_rede(db: Session, rede_id: int, empresa_ids: list[int]) -> None:

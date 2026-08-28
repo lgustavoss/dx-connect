@@ -660,14 +660,7 @@ function AppRoutes() {
           }
         />
         <Route path="atendentes" element={<Navigate to="/configuracoes/equipe/atendentes" replace />} />
-        <Route
-          path="funcionarios-rede/:id"
-          element={
-            <AdminRoute>
-              <FuncionarioRedeDetalhe />
-            </AdminRoute>
-          }
-        />
+        <Route path="funcionarios-rede/:id" element={<FuncionarioRedeDetalhe />} />
         <Route
           path="funcionarios-rede/novo"
           element={

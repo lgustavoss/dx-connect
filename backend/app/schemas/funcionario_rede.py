@@ -69,11 +69,18 @@ class FuncionarioRedeUpdate(BaseModel):
         return _telefone_normalizado(v)
 
 
+class EmpresaOpcaoRead(BaseModel):
+    id: int
+    nome: str
+
+
 class FuncionarioRedeRead(FuncionarioRedeBase):
     id: int
     rede_id: int | None = None
+    rede_nome: str | None = None
     empresa_id: int | None = None
     empresa_ids: list[int] = []  # preenchido quando escopo_empresas == selected
+    empresas_vinculo: list[EmpresaOpcaoRead] = []
     portal_habilitado: bool = False
     must_change_password: bool = False
     notificar_email_portal: bool = True
@@ -86,11 +93,6 @@ class FuncionarioRedeRead(FuncionarioRedeBase):
 class FuncionarioRedeComVinculo(FuncionarioRedeRead):
     """Funcionário com texto 'vinculado a' (para exibição na tela da rede)."""
     vinculado_a: str = ""
-
-
-class EmpresaOpcaoRead(BaseModel):
-    id: int
-    nome: str
 
 
 class RemetenteFuncionarioResolveRead(BaseModel):
