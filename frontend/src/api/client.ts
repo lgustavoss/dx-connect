@@ -1699,6 +1699,7 @@ export const tickets = {
     com_responsavel?: boolean;
     meus?: boolean;
     atendente_id?: number;
+    funcionario_rede_id?: number;
     /** Coluna para ordenar (omitir = mais recentes primeiro). */
     ordenar_por?: 'protocolo' | 'rede' | 'empresa' | 'setor' | 'assunto' | 'status' | 'responsavel' | 'fechado_em' | 'fila_desde_at';
     ordem?: 'asc' | 'desc';
@@ -2690,6 +2691,10 @@ export namespace Atendentes {
 
 export namespace FuncionariosRede {
   export type EscopoEmpresas = 'all' | 'selected';
+  export interface EmpresaVinculo {
+    id: number;
+    nome: string;
+  }
   export interface Funcionario {
     id: number;
     nome: string;
@@ -2699,8 +2704,10 @@ export namespace FuncionariosRede {
     escopo_empresas: EscopoEmpresas;
     ativo: boolean;
     rede_id?: number;
+    rede_nome?: string | null;
     empresa_id?: number;
     empresa_ids: number[];
+    empresas_vinculo?: EmpresaVinculo[];
     portal_habilitado?: boolean;
     must_change_password?: boolean;
     notificar_email_portal?: boolean;

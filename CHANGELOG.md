@@ -13,6 +13,10 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### DeskRudder
 
+#### Melhorias
+
+- Contato no chat: detalhe do funcionário da rede com abas **Geral**, **Chats** e **Tickets** — histórico operacional ao clicar no chip do contato (#1012 / #S202608-0012)
+
 #### Correções
 
 - Listagens (tema escuro): hover das linhas de tabela deixa de «lavar» o texto — contraste alinhado ao padrão das telas SaaS (#921 / #S202608-0001)

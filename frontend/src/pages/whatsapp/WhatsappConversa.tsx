@@ -2020,7 +2020,8 @@ useEffect(() => {
             {chat?.funcionario_rede_id && (
               <div className="flex flex-wrap items-center gap-1.5">
                 <Link
-                  to={`/funcionarios-rede/${chat.funcionario_rede_id}`}
+                  to={`/funcionarios-rede/${chat.funcionario_rede_id}?aba=chats`}
+                  state={{ voltarPara: `${location.pathname}${location.search}` }}
                   className="inline-flex max-w-full truncate rounded-full border border-violet-200/80 bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-800 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-300"
                   title={chat.funcionario_email ?? undefined}
                 >
