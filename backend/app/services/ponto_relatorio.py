@@ -125,6 +125,12 @@ def export_pdf_mensal(
     linhas = _coletar_intervalos(db, admin, atendente_id=atendente_id, desde=desde, ate=ate)
     titulo = _titulo_periodo(desde, ate)
     gerado = datetime.now(timezone.utc).astimezone(PONTO_TZ).strftime("%d/%m/%Y %H:%M")
+    from app.services import ponto_competencia as comp_svc
+
+    selo_comp = ""
+    if desde and desde.year and desde.month:
+        if comp_svc.competencia_fechada(db, admin.tenant_id, ano=desde.year, mes=desde.month):
+            selo_comp = " · Competência FECHADA"
 
     rows_html = ""
     total_min = 0.0
@@ -152,6 +158,7 @@ def export_pdf_mensal(
     for log in _coletar_ajustes_audit(db, admin, desde=desde, ate=ate):
         payload = log.payload_json or {}
         motivo = escape(str(payload.get("motivo") or "—"))
+        pos = "sim" if payload.get("pos_fechamento") else "não"
         quando = (
             _as_utc(log.created_at).astimezone(PONTO_TZ).strftime("%d/%m/%Y %H:%M")
             if log.created_at
@@ -165,6 +172,7 @@ def export_pdf_mensal(
             f"<td>{escape(_rotulo_acao_ajuste(log.action))}</td>"
             f"<td>{log.entity_id}</td>"
             f"<td>{motivo}</td>"
+            f"<td>{pos}</td>"
             "</tr>"
         )
 
@@ -184,7 +192,7 @@ def export_pdf_mensal(
 </head>
 <body>
   <h1>Relatório de ponto — {escape(titulo)}</h1>
-  <p class="meta">Gerado em {gerado} · DeskRudder</p>
+  <p class="meta">Gerado em {gerado} · DeskRudder{selo_comp}</p>
   <table>
     <thead><tr>
       <th>Atendente</th><th>Data</th><th>Entrada</th><th>Saída</th>
@@ -196,9 +204,9 @@ def export_pdf_mensal(
   <h2>Ajustes administrativos</h2>
   <table>
     <thead><tr>
-      <th>Quando</th><th>Autor</th><th>Ação</th><th>Batida</th><th>Motivo</th>
+      <th>Quando</th><th>Autor</th><th>Ação</th><th>Batida</th><th>Motivo</th><th>Pós-fechamento</th>
     </tr></thead>
-    <tbody>{ajustes_html or '<tr><td colspan="5">Sem ajustes no período.</td></tr>'}</tbody>
+    <tbody>{ajustes_html or '<tr><td colspan="6">Sem ajustes no período.</td></tr>'}</tbody>
   </table>
 </body>
 </html>"""
@@ -224,9 +232,14 @@ def export_xlsx_mensal(
         ) from exc
 
     linhas = _coletar_intervalos(db, admin, atendente_id=atendente_id, desde=desde, ate=ate)
+    from app.services import ponto_competencia as comp_svc
+
     wb = Workbook()
     ws = wb.active
     ws.title = "Ponto"
+    if desde and comp_svc.competencia_fechada(db, admin.tenant_id, ano=desde.year, mes=desde.month):
+        ws.append([f"Competência FECHADA — {_titulo_periodo(desde, ate)}"])
+        ws.append([])
     ws.append(
         ["Atendente", "Data", "Entrada", "Saída", "Pausas (min)", "Trabalhado (min)", "Aberto"]
     )
@@ -250,7 +263,7 @@ def export_xlsx_mensal(
     ws.append(["Total trabalhado (h)", round(total_min / 60, 2)])
 
     ws_aj = wb.create_sheet("Ajustes")
-    ws_aj.append(["Quando", "Autor", "Ação", "Batida ID", "Motivo", "Payload"])
+    ws_aj.append(["Quando", "Autor", "Ação", "Batida ID", "Motivo", "Pós-fechamento", "Payload"])
     for log in _coletar_ajustes_audit(db, admin, desde=desde, ate=ate):
         payload = log.payload_json or {}
         ws_aj.append(
@@ -262,6 +275,7 @@ def export_xlsx_mensal(
                 _rotulo_acao_ajuste(log.action),
                 log.entity_id,
                 payload.get("motivo") or "",
+                "sim" if payload.get("pos_fechamento") else "não",
                 str(payload),
             ]
         )

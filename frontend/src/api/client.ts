@@ -883,6 +883,66 @@ export const ponto = {
     }
     return res.blob()
   },
+  exportFolha: async (
+    ext: 'csv' | 'xlsx',
+    params: { atendente_id?: number; desde: string; ate: string },
+  ) => {
+    const token = getAuthToken()
+    const headers: Record<string, string> = {}
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+    }
+    if (token) headers.Authorization = `Bearer ${token}`
+    const path = ext === 'csv' ? '/ponto/export/folha.csv' : '/ponto/export/folha.xlsx'
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}${withParams(path, params)}`
+    const res = await fetch(url, { headers })
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin()
+      throw new ApiError('Sessão expirada ou inválida.', 401, {})
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+    }
+    return res.blob()
+  },
+  solicitarCobertura: (data: Ponto.CoberturaCreate) =>
+    api<Ponto.Cobertura>('/ponto/coberturas', { method: 'POST', body: JSON.stringify(data) }),
+  minhasCoberturas: () => api<Ponto.Cobertura[]>('/ponto/coberturas/me'),
+  colegasCobertura: () => api<Ponto.CoberturaColega[]>('/ponto/coberturas/colegas'),
+  responderCobertura: (id: number, data: Ponto.CoberturaResposta) =>
+    api<Ponto.Cobertura>(`/ponto/coberturas/${id}/responder`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  coberturasAdmin: (estado?: string) =>
+    api<Ponto.Cobertura[]>(withParams('/ponto/coberturas', { estado })),
+  concederCobertura: (data: Ponto.CoberturaConceder) =>
+    api<Ponto.Cobertura>('/ponto/coberturas/conceder', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  decidirCobertura: (id: number, data: Ponto.CoberturaDecisao) =>
+    api<Ponto.Cobertura>(`/ponto/coberturas/${id}/decidir`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  setupStatus: () => api<Ponto.SetupStatus>('/ponto/setup-status'),
+  competencia: (ano: number, mes: number) =>
+    api<Ponto.Competencia>(`/ponto/competencias/${ano}/${mes}`),
+  fecharCompetencia: (ano: number, mes: number) =>
+    api<Ponto.Competencia>(`/ponto/competencias/${ano}/${mes}/fechar`, { method: 'POST' }),
+  reabrirCompetencia: (ano: number, mes: number, data: { motivo: string }) =>
+    api<Ponto.Competencia>(`/ponto/competencias/${ano}/${mes}/reabrir`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  cienciasAdmin: (ano: number, mes: number) =>
+    api<Ponto.CienciaItem[]>(`/ponto/competencias/${ano}/${mes}/ciencias`),
+  minhaCiencia: (ano: number, mes: number) =>
+    api<Ponto.CienciaMe>(withParams('/ponto/me/ciencia', { ano, mes })),
+  confirmarCiencia: (ano: number, mes: number) =>
+    api<Ponto.CienciaMe>(withParams('/ponto/me/ciencia', { ano, mes }), { method: 'POST' }),
   meSettings: () => api<Ponto.SettingsPublic>('/ponto/me/settings'),
   locais: (params?: { atendente_id?: number; so_orfos?: boolean }) =>
     api<Ponto.Local[]>(withParams('/ponto/locais', params)),
@@ -2561,6 +2621,7 @@ export namespace Atendentes {
     usar_local_empresa?: boolean;
     local_empresa_raio_metros?: number | null;
     he_teto_minutos?: number | null;
+    he_teto_mensal_minutos?: number | null;
     /** Cargos da equipe DeskRudder (painel SaaS); vários por usuário. */
     saas_setor_ids?: number[];
     saas_setor_nomes?: string[];
@@ -2584,6 +2645,7 @@ export namespace Atendentes {
     usar_local_empresa?: boolean;
     local_empresa_raio_metros?: number | null;
     he_teto_minutos?: number | null;
+    he_teto_mensal_minutos?: number | null;
   }
   export interface Update {
     email?: string;
@@ -2604,6 +2666,7 @@ export namespace Atendentes {
     usar_local_empresa?: boolean;
     local_empresa_raio_metros?: number | null;
     he_teto_minutos?: number | null;
+    he_teto_mensal_minutos?: number | null;
   }
   export interface AvaliacaoResumo {
     media: number | null;
@@ -4958,6 +5021,7 @@ export namespace Ponto {
     jornadas_abertas: number
     online_sem_ponto: number
     justificativas_pendentes: number
+    he_acima_teto_mensal?: number
     itens: HojeItem[]
   }
   export interface Settings {
@@ -4967,6 +5031,7 @@ export namespace Ponto {
     fecho_margem_pos_saida_minutos: number
     jornada_diaria_minutos: number
     pausa_minima_minutos?: number
+    he_teto_mensal_minutos?: number | null
     politica_geolocalizacao: PoliticaGeolocalizacao
   }
   export interface SettingsPublic {
@@ -4980,6 +5045,7 @@ export namespace Ponto {
     fecho_margem_pos_saida_minutos?: number
     jornada_diaria_minutos?: number
     pausa_minima_minutos?: number
+    he_teto_mensal_minutos?: number | null
     politica_geolocalizacao?: PoliticaGeolocalizacao
   }
   export interface Local {
@@ -5111,6 +5177,85 @@ export namespace Ponto {
     decisao_motivo?: string | null
     created_at?: string | null
   }
+  export interface CoberturaCreate {
+    cobertor_id: number
+    data_ref: string
+    motivo?: string | null
+  }
+  export interface CoberturaColega {
+    id: number
+    nome: string
+  }
+  export interface CoberturaConceder {
+    solicitante_id: number
+    cobertor_id: number
+    data_ref: string
+    motivo?: string | null
+  }
+  export interface CoberturaResposta {
+    aceitar: boolean
+  }
+  export interface CoberturaDecisao {
+    aprovar: boolean
+    decisao_motivo?: string | null
+  }
+  export interface Cobertura {
+    id: number
+    solicitante_id: number
+    solicitante_nome?: string | null
+    cobertor_id: number
+    cobertor_nome?: string | null
+    data_ref: string
+    motivo?: string | null
+    estado: string
+    origem?: string
+    resposta_cobertor?: string | null
+    respondido_em?: string | null
+    decidido_por_id?: number | null
+    decidido_em?: string | null
+    decisao_motivo?: string | null
+    created_at?: string | null
+  }
+  export interface SetupItem {
+    codigo: string
+    titulo: string
+    detalhe: string
+    destino: string
+    ok: boolean
+    informativo?: boolean
+  }
+  export interface SetupStatus {
+    defaults_fecho_off: boolean
+    tolerancia_sugerida_minutos: number
+    pendentes: number
+    itens: SetupItem[]
+  }
+  export interface Competencia {
+    id: number
+    ano: number
+    mes: number
+    fechada: boolean
+    fechado_em?: string | null
+    fechado_por_id?: number | null
+    fechado_por_nome?: string | null
+    reaberto_em?: string | null
+    reaberto_por_id?: number | null
+    reabrir_motivo?: string | null
+  }
+  export interface CienciaMe {
+    ano: number
+    mes: number
+    competencia_fechada: boolean
+    confirmada: boolean
+    confirmado_em?: string | null
+    pode_confirmar: boolean
+  }
+  export interface CienciaItem {
+    atendente_id: number
+    atendente_nome: string
+    confirmada: boolean
+    confirmado_em?: string | null
+  }
   export interface HoraExtra {
     id: number
     atendente_id: number
@@ -5127,6 +5272,9 @@ export namespace Ponto {
   }
   export interface HoraExtraCreate {
     motivo?: string | null
+    modo?: 'resto_do_dia' | 'ate_horario' | 'duracao' | null
+    ate_horario?: string | null
+    duracao_minutos?: number | null
   }
   export interface HoraExtraDecisao {
     aprovar: boolean
@@ -5147,8 +5295,11 @@ export namespace Ponto {
     pode_pegar_whatsapp: boolean
     he_ativa?: HoraExtra | null
     pedido_pendente?: HoraExtra | null
+    ultimo_rejeitado?: HoraExtra | null
     he_teto_minutos?: number | null
     he_restante_minutos?: number | null
+    he_teto_mensal_minutos?: number | null
+    he_consumido_mensal_minutos?: number
   }
 }
 

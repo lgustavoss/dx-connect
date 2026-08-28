@@ -1,7 +1,7 @@
 """Lote E: ausências programadas, pausa mínima, anexo justificativa (#976/#973/#977).
 
-Revision ID: 130_ponto_lote_e
-Revises: 129_merge_he_teto_versao
+Revision ID: 133_ponto_lote_e
+Revises: 132_ponto_he_teto_mensal
 Create Date: 2026-08-27
 """
 
@@ -10,8 +10,8 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
-revision = "130_ponto_lote_e"
-down_revision = "129_merge_he_teto_versao"
+revision = "133_ponto_lote_e"
+down_revision = "132_ponto_he_teto_mensal"
 branch_labels = None
 depends_on = None
 

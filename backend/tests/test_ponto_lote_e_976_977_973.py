@@ -89,12 +89,8 @@ def test_pausa_minima_flag_calendario(client, seed_base, auth_headers):
         headers=admin,
         json={"pausa_minima_minutos": 60},
     ).status_code == 200
-    agora = datetime.now(PONTO_TZ)
+    agora = datetime(2026, 6, 17, 14, 0, tzinfo=PONTO_TZ)
     t0 = agora.replace(hour=8, minute=0, second=0, microsecond=0)
-    if t0.tzinfo is None:
-        t0 = t0.replace(tzinfo=PONTO_TZ)
-    if t0 > agora:
-        t0 = agora - timedelta(hours=5)
     seq = [
         ("entrada", t0),
         ("pausa_inicio", t0 + timedelta(hours=2)),
@@ -113,7 +109,7 @@ def test_pausa_minima_flag_calendario(client, seed_base, auth_headers):
             },
         )
         assert r.status_code == 201, f"{tipo}: {r.text}"
-    hoje = date.today()
+    hoje = agora.date()
     cal = client.get(
         f"/v1/ponto/me/calendario?ano={hoje.year}&mes={hoje.month}",
         headers=user,

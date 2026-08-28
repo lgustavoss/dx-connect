@@ -63,6 +63,7 @@ def _atendente_para_read(atendente: Atendente, *, e_financeiro: bool = False) ->
         usar_local_empresa=bool(getattr(atendente, "usar_local_empresa", True)),
         local_empresa_raio_metros=getattr(atendente, "local_empresa_raio_metros", None),
         he_teto_minutos=getattr(atendente, "he_teto_minutos", None),
+        he_teto_mensal_minutos=getattr(atendente, "he_teto_mensal_minutos", None),
         saas_setor_ids=[s.id for s in saas],
         saas_setor_nomes=[s.nome for s in saas],
     )
@@ -193,6 +194,7 @@ def criar_atendente(
         usar_local_empresa=bool(getattr(data, "usar_local_empresa", True)),
         local_empresa_raio_metros=getattr(data, "local_empresa_raio_metros", None),
         he_teto_minutos=getattr(data, "he_teto_minutos", None),
+        he_teto_mensal_minutos=getattr(data, "he_teto_mensal_minutos", None),
     )
     _aplicar_campos_jornada(
         atendente,

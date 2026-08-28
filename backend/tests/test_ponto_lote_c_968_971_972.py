@@ -5,9 +5,47 @@ from datetime import date, datetime, timedelta, timezone
 from app.services.escala import PONTO_TZ
 
 
-def _patch_jornada_hoje(client, headers, atendente_id: int, *, inicio="08:00", fim="18:00", tol=30):
+def _freeze_ponto_agora(monkeypatch, when: datetime) -> None:
+    """Evita flakiness quando o pytest roda perto da meia-noite (jornada semanal)."""
+    when_utc = when.astimezone(timezone.utc)
+    monkeypatch.setattr("app.services.ponto._agora_utc", lambda: when_utc)
+    import app.services.escala as escala_mod
+    import app.services.ponto as ponto_mod
+
+    real_dt = ponto_mod.datetime
+
+    class DatetimeComAgoraFixo(real_dt):
+        @classmethod
+        def now(cls, tz=None):
+            if tz is not None:
+                return when.astimezone(tz)
+            return when.replace(tzinfo=None)
+
+    monkeypatch.setattr(ponto_mod, "datetime", DatetimeComAgoraFixo)
+    monkeypatch.setattr(escala_mod, "datetime", DatetimeComAgoraFixo)
+
+    real_date = ponto_mod.date
+
+    class DateComHojeFixo(real_date):
+        @classmethod
+        def today(cls):
+            return when.date()
+
+    monkeypatch.setattr(ponto_mod, "date", DateComHojeFixo)
+
+
+def _patch_jornada_hoje(
+    client,
+    headers,
+    atendente_id: int,
+    *,
+    ref: date | None = None,
+    inicio="08:00",
+    fim="18:00",
+    tol=30,
+):
     keys = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"]
-    hoje_key = keys[date.today().weekday()]
+    hoje_key = keys[(ref or date.today()).weekday()]
     hs = {k: {"ativo": False, "inicio": "08:00", "fim": "18:00"} for k in keys}
     hs[hoje_key] = {"ativo": True, "inicio": inicio, "fim": fim}
     return client.patch(
@@ -26,11 +64,16 @@ def test_lembrete_entrada_na_janela_tolerancia(client, seed_base, auth_headers, 
     admin = auth_headers["admin"]
     user = auth_headers["a1"]
     a1 = seed_base["a1"]
-    agora = datetime.now(PONTO_TZ)
+    agora = datetime(2026, 6, 17, 10, 0, tzinfo=PONTO_TZ)
+    _freeze_ponto_agora(monkeypatch, agora)
     # Coloca início da jornada 10 min no futuro e tol=30 → já estamos em inicio−tol
-    inicio = (agora + timedelta(minutes=10)).strftime("%H:%M")
-    fim = (agora + timedelta(hours=8)).strftime("%H:%M")
-    assert _patch_jornada_hoje(client, admin, a1.id, inicio=inicio, fim=fim, tol=30).status_code == 200
+    inicio_dt = agora + timedelta(minutes=10)
+    fim_dt = inicio_dt + timedelta(hours=8)
+    inicio = inicio_dt.strftime("%H:%M")
+    fim = fim_dt.strftime("%H:%M")
+    assert _patch_jornada_hoje(
+        client, admin, a1.id, ref=agora.date(), inicio=inicio, fim=fim, tol=30
+    ).status_code == 200
     r = client.get("/v1/ponto/me/alertas", headers=user)
     assert r.status_code == 200, r.text
     body = r.json()
@@ -38,23 +81,28 @@ def test_lembrete_entrada_na_janela_tolerancia(client, seed_base, auth_headers, 
     assert any("Janela de entrada" in m for m in body["mensagens"])
 
 
-def test_lembrete_saida_antes_do_fim(client, seed_base, auth_headers, db_session):
+def test_lembrete_saida_antes_do_fim(client, seed_base, auth_headers, db_session, monkeypatch):
     from app.models.ponto_batida import PontoBatida
 
     admin = auth_headers["admin"]
     user = auth_headers["a1"]
     a1 = seed_base["a1"]
-    agora = datetime.now(PONTO_TZ)
+    agora = datetime(2026, 6, 17, 16, 50, tzinfo=PONTO_TZ)
+    _freeze_ponto_agora(monkeypatch, agora)
     # fim daqui a 10 min, tol 30 → já na janela de saída
-    inicio = (agora - timedelta(hours=8)).strftime("%H:%M")
-    fim = (agora + timedelta(minutes=10)).strftime("%H:%M")
-    assert _patch_jornada_hoje(client, admin, a1.id, inicio=inicio, fim=fim, tol=30).status_code == 200
+    fim_dt = agora + timedelta(minutes=10)
+    inicio_dt = fim_dt - timedelta(hours=8)
+    inicio = inicio_dt.strftime("%H:%M")
+    fim = fim_dt.strftime("%H:%M")
+    assert _patch_jornada_hoje(
+        client, admin, a1.id, ref=agora.date(), inicio=inicio, fim=fim, tol=30
+    ).status_code == 200
     db_session.add(
         PontoBatida(
             tenant_id=a1.tenant_id,
             atendente_id=a1.id,
             tipo="entrada",
-            registrado_em=datetime.now(timezone.utc) - timedelta(hours=7),
+            registrado_em=agora.astimezone(timezone.utc) - timedelta(hours=7),
             origem="app",
         )
     )

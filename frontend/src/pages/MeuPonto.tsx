@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ponto, type Ponto } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
+import { PontoAjudaModal } from '../components/PontoAjudaModal'
 import { PontoCalendarioMes } from '../components/PontoCalendarioMes'
 import { PontoBatidaMapaModal } from '../components/PontoBatidaMapaModal'
 import { PontoMetricCard } from '../components/PontoMetricCard'
@@ -10,6 +11,8 @@ import { Input } from '../components/ui/Input'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
+import { useEventStream } from '../contexts/EventStreamContext'
+import { useAuth } from '../contexts/AuthContext'
 import { isCapacitorNative } from '../lib/capacitorNative'
 import { geolocationSupported, getCurrentPosition, type GeoError } from '../lib/geolocation'
 import {
@@ -46,6 +49,8 @@ type AcaoPrincipal = {
 
 export function MeuPonto() {
   const toast = useToast()
+  const { subscribe } = useEventStream()
+  const { user } = useAuth()
   const [estado, setEstado] = useState<Ponto.EstadoMe | null>(null)
   const [historico, setHistorico] = useState<Ponto.Historico | null>(null)
   const [desde, setDesde] = useState(inicioMesIso)
@@ -57,6 +62,19 @@ export function MeuPonto() {
   const [justTipo, setJustTipo] = useState<Ponto.JustificativaCreate['tipo']>('esquecimento')
   const [justMotivo, setJustMotivo] = useState('')
   const [enviandoJust, setEnviandoJust] = useState(false)
+  const [coberturas, setCoberturas] = useState<Ponto.Cobertura[]>([])
+  const [colegasCob, setColegasCob] = useState<Ponto.CoberturaColega[]>([])
+  const [cobCobertor, setCobCobertor] = useState('')
+  const [cobData, setCobData] = useState(hojeIso)
+  const [cobMotivo, setCobMotivo] = useState('')
+  const [enviandoCob, setEnviandoCob] = useState(false)
+  const [ajudaAberta, setAjudaAberta] = useState(false)
+  const [ciencia, setCiencia] = useState<Ponto.CienciaMe | null>(null)
+  const cienciaRef = useMemo(() => {
+    const d = new Date()
+    const prev = new Date(d.getFullYear(), d.getMonth() - 1, 1)
+    return { ano: prev.getFullYear(), mes: prev.getMonth() + 1 }
+  }, [])
   const [banco, setBanco] = useState<Ponto.BancoHoras | null>(null)
   const [refSemana, setRefSemana] = useState(hojeIso)
   const [resumoSemana, setResumoSemana] = useState<Ponto.ResumoSemana | null>(null)
@@ -86,6 +104,13 @@ export function MeuPonto() {
   const [ausAte, setAusAte] = useState(hojeIso)
   const [ausMotivo, setAusMotivo] = useState('')
   const [enviandoAus, setEnviandoAus] = useState(false)
+  const [heStatus, setHeStatus] = useState<Ponto.HoraExtraMeStatus | null>(null)
+  const [heHist, setHeHist] = useState<Ponto.HoraExtra[]>([])
+  const [heMotivo, setHeMotivo] = useState('')
+  const [heModo, setHeModo] = useState<'resto_do_dia' | 'ate_horario' | 'duracao'>('resto_do_dia')
+  const [heAteHorario, setHeAteHorario] = useState('20:00')
+  const [heDuracaoMin, setHeDuracaoMin] = useState('60')
+  const [enviandoHe, setEnviandoHe] = useState(false)
 
   const politicaGeo = geoSettings?.politica_geolocalizacao ?? 'opcional'
   const geoObrigatoria = politicaGeo === 'obrigatoria' && !!geoSettings?.tem_locais_ativos
@@ -95,20 +120,30 @@ export function MeuPonto() {
   const carregar = useCallback(
     async (silencioso = false) => {
       try {
-        const [me, hist, js, bh, gs, aus] = await Promise.all([
+        const [me, hist, js, bh, gs, cobs, cols, cin, aus, heSt, heList] = await Promise.all([
           ponto.me(),
           ponto.minhasBatidas({ desde, ate, limit: 100 }),
           ponto.minhasJustificativas(),
           ponto.meuBancoHoras(desde, ate),
           ponto.meSettings(),
+          ponto.minhasCoberturas(),
+          ponto.colegasCobertura(),
+          ponto.minhaCiencia(cienciaRef.ano, cienciaRef.mes),
           ponto.minhasAusencias(),
+          ponto.horaExtraMeStatus(),
+          ponto.minhasHoraExtra(),
         ])
         setEstado(me)
         setHistorico(hist)
         setJustifs(js)
         setBanco(bh)
         setGeoSettings(gs)
+        setCoberturas(cobs)
+        setColegasCob(cols)
+        setCiencia(cin)
         setAusencias(aus)
+        setHeStatus(heSt)
+        setHeHist(heList)
         if (gs.politica_geolocalizacao === 'obrigatoria' && gs.tem_locais_ativos) {
           setIncluirLocalizacao(true)
         }
@@ -120,7 +155,7 @@ export function MeuPonto() {
         setLoading(false)
       }
     },
-    [ate, desde, toast],
+    [ate, cienciaRef.ano, cienciaRef.mes, desde, toast],
   )
 
   const carregarCalendario = useCallback(
@@ -157,6 +192,13 @@ export function MeuPonto() {
   useEffect(() => {
     void carregar()
   }, [carregar])
+
+  useEffect(() => {
+    const unsub = subscribe('ponto.he_atualizada', () => {
+      void carregar(true)
+    })
+    return unsub
+  }, [subscribe, carregar])
 
   useEffect(() => {
     void carregarResumoSemana(true)
@@ -326,6 +368,65 @@ export function MeuPonto() {
     }
   }
 
+  async function solicitarHe() {
+    if (heStatus?.pedido_pendente) {
+      toast.showWarning('Já existe um pedido de hora extra aguardando decisão.')
+      return
+    }
+    if (heStatus?.he_ativa) {
+      toast.showWarning('Você já tem hora extra ativa.')
+      return
+    }
+    setEnviandoHe(true)
+    try {
+      await ponto.solicitarHoraExtra({
+        motivo: heMotivo.trim() || null,
+        modo: heModo,
+        ate_horario: heModo === 'ate_horario' ? heAteHorario : null,
+        duracao_minutos: heModo === 'duracao' ? Math.max(15, Number(heDuracaoMin) || 60) : null,
+      })
+      toast.showSuccess('Pedido de hora extra enviado.')
+      setHeMotivo('')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível solicitar hora extra.'))
+    } finally {
+      setEnviandoHe(false)
+    }
+  }
+
+  async function solicitarCobertura() {
+    if (!cobCobertor) {
+      toast.showWarning('Selecione quem vai cobrir o plantão.')
+      return
+    }
+    setEnviandoCob(true)
+    try {
+      await ponto.solicitarCobertura({
+        cobertor_id: Number(cobCobertor),
+        data_ref: cobData,
+        motivo: cobMotivo.trim() || null,
+      })
+      toast.showSuccess('Pedido de cobertura enviado. Aguarde o cobertor e o admin.')
+      setCobMotivo('')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível solicitar a cobertura.'))
+    } finally {
+      setEnviandoCob(false)
+    }
+  }
+
+  async function responderCob(id: number, aceitar: boolean) {
+    try {
+      await ponto.responderCobertura(id, { aceitar })
+      toast.showSuccess(aceitar ? 'Cobertura aceita — aguarda homologação do admin.' : 'Pedido recusado.')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível responder.'))
+    }
+  }
+
   const hintEscala = useMemo(() => {
     if (!estado?.usa_escala) return null
     if (estado.hoje_esperado === true) {
@@ -370,7 +471,54 @@ export function MeuPonto() {
       <PageHeader
         title="Meu ponto"
         subtitle="Registre a jornada com um toque. Pausas e histórico ficam à mão — presença online do painel é independente."
+        actions={
+          <Button type="button" variant="secondary" onClick={() => setAjudaAberta(true)}>
+            Como funciona o ponto
+          </Button>
+        }
       />
+
+      {ciencia ? (
+        <Card className="mb-4" title={`Ciência do espelho — ${String(cienciaRef.mes).padStart(2, '0')}/${cienciaRef.ano}`}>
+          {ciencia.confirmada ? (
+            <p className="text-sm text-emerald-700 dark:text-emerald-300">
+              Você confirmou ciência
+              {ciencia.confirmado_em
+                ? ` em ${new Date(ciencia.confirmado_em).toLocaleString('pt-BR')}`
+                : ''}
+              .
+            </p>
+          ) : ciencia.pode_confirmar ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                O mês foi fechado pelo admin. Confirme que leu e concorda com o espelho.
+              </p>
+              <Button
+                type="button"
+                onClick={() => {
+                  void (async () => {
+                    try {
+                      await ponto.confirmarCiencia(cienciaRef.ano, cienciaRef.mes)
+                      toast.showSuccess('Ciência confirmada.')
+                      await carregar(true)
+                    } catch (err) {
+                      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível confirmar.'))
+                    }
+                  })()
+                }}
+              >
+                Li e concordo
+              </Button>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">
+              {ciencia.competencia_fechada
+                ? 'Ciência indisponível.'
+                : 'Aguarde o fechamento da competência para confirmar.'}
+            </p>
+          )}
+        </Card>
+      ) : null}
 
       {/* Hero — inspirado no dx-ponto: relógio + CTA principal */}
       <Card className="overflow-hidden border-cyan-200/60 bg-gradient-to-br from-slate-50 via-white to-cyan-50/40 dark:border-cyan-900/40 dark:from-slate-950 dark:via-slate-900 dark:to-cyan-950/20">
@@ -615,6 +763,97 @@ export function MeuPonto() {
         </div>
       </Card>
 
+      <Card className="mt-4" title="Hora extra (WhatsApp)">
+        {heStatus?.he_ativa ? (
+          <p className="mb-3 text-sm text-emerald-800 dark:text-emerald-200">
+            Hora extra ativa
+            {heStatus.he_restante_minutos != null
+              ? ` — restam cerca de ${heStatus.he_restante_minutos} min`
+              : ''}
+            {heStatus.he_ativa.ate_em
+              ? ` (até ${formatarHora(heStatus.he_ativa.ate_em)})`
+              : ''}
+            .
+          </p>
+        ) : null}
+        {heStatus?.pedido_pendente ? (
+          <p className="mb-3 text-sm text-amber-800 dark:text-amber-200">
+            Pedido pendente de aprovação
+            {heStatus.pedido_pendente.modo ? ` (${heStatus.pedido_pendente.modo.replace(/_/g, ' ')})` : ''}
+            .
+          </p>
+        ) : null}
+        {heStatus?.ultimo_rejeitado ? (
+          <p className="mb-3 text-sm text-rose-800 dark:text-rose-200">
+            Último pedido negado
+            {heStatus.ultimo_rejeitado.decisao_motivo
+              ? `: ${heStatus.ultimo_rejeitado.decisao_motivo}`
+              : '.'}
+          </p>
+        ) : null}
+        {heStatus?.he_teto_mensal_minutos != null ? (
+          <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+            Consumo no mês: {heStatus.he_consumido_mensal_minutos ?? 0} / {heStatus.he_teto_mensal_minutos}{' '}
+            min
+          </p>
+        ) : null}
+        {!heStatus?.he_ativa && !heStatus?.pedido_pendente ? (
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <Select
+              label="Janela desejada"
+              value={heModo}
+              onChange={(v) => setHeModo(String(v) as 'resto_do_dia' | 'ate_horario' | 'duracao')}
+              options={[
+                { value: 'resto_do_dia', label: 'Resto do dia' },
+                { value: 'ate_horario', label: 'Até horário' },
+                { value: 'duracao', label: 'Duração (minutos)' },
+              ]}
+            />
+            {heModo === 'ate_horario' ? (
+              <Input
+                label="Até (HH:MM)"
+                type="time"
+                value={heAteHorario}
+                onChange={(e) => setHeAteHorario(e.target.value)}
+              />
+            ) : null}
+            {heModo === 'duracao' ? (
+              <Input
+                label="Minutos"
+                type="number"
+                min={15}
+                max={1440}
+                value={heDuracaoMin}
+                onChange={(e) => setHeDuracaoMin(e.target.value)}
+              />
+            ) : null}
+            <Input
+              label="Motivo"
+              value={heMotivo}
+              onChange={(e) => setHeMotivo(e.target.value)}
+              placeholder="Ex.: pico no WhatsApp"
+            />
+            <Button type="button" disabled={enviandoHe} onClick={() => void solicitarHe()}>
+              Solicitar HE
+            </Button>
+          </div>
+        ) : null}
+        {heHist.length > 0 ? (
+          <ul className="space-y-2 border-t border-slate-200 pt-3 dark:border-slate-700">
+            {heHist.slice(0, 8).map((h) => (
+              <li key={h.id} className="text-sm text-slate-600 dark:text-slate-300">
+                <span className="font-medium text-slate-800 dark:text-slate-100">{h.estado}</span>
+                {h.modo ? ` · ${h.modo.replace(/_/g, ' ')}` : ''}
+                {h.motivo ? ` — ${h.motivo}` : ''}
+                {h.decisao_motivo && h.estado === 'rejeitada' ? ` (${h.decisao_motivo})` : ''}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-slate-500">Nenhum pedido recente.</p>
+        )}
+      </Card>
+
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <Card title="Calendário do mês">
           <PontoCalendarioMes
@@ -807,6 +1046,68 @@ export function MeuPonto() {
 
       <div className="mt-4">
         <Card
+          title="Cobertura de plantão"
+          description="Peça para um colega cobrir seu dia; ele aceita e o admin homologa."
+        >
+          <div className="flex flex-wrap items-end gap-3">
+            <Select
+              label="Quem cobre"
+              value={cobCobertor}
+              onChange={(v) => setCobCobertor(String(v))}
+              options={[
+                { value: '', label: 'Selecione' },
+                ...colegasCob.map((c) => ({ value: String(c.id), label: c.nome })),
+              ]}
+            />
+            <Input label="Data" type="date" value={cobData} onChange={(e) => setCobData(e.target.value)} />
+            <Input
+              label="Motivo (opcional)"
+              value={cobMotivo}
+              onChange={(e) => setCobMotivo(e.target.value)}
+            />
+            <Button type="button" disabled={enviandoCob} onClick={() => void solicitarCobertura()}>
+              Solicitar
+            </Button>
+          </div>
+          <ul className="mt-4 space-y-2 text-sm">
+            {coberturas.length === 0 ? (
+              <li className="text-slate-500">Nenhuma cobertura neste histórico.</li>
+            ) : (
+              coberturas.map((c) => {
+                const souCobertor = user?.id === c.cobertor_id
+                const pendenteMim = souCobertor && c.estado === 'pendente_cobertor'
+                return (
+                  <li
+                    key={c.id}
+                    className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800"
+                  >
+                    <div>
+                      <p className="font-medium">
+                        {c.solicitante_nome} → {c.cobertor_nome} · {c.data_ref}
+                      </p>
+                      <p className="capitalize text-slate-500">{c.estado.replace(/_/g, ' ')}</p>
+                      {c.motivo ? <p className="text-slate-600 dark:text-slate-300">{c.motivo}</p> : null}
+                    </div>
+                    {pendenteMim ? (
+                      <div className="flex gap-2">
+                        <Button type="button" variant="secondary" onClick={() => void responderCob(c.id, true)}>
+                          Aceitar
+                        </Button>
+                        <Button type="button" variant="ghost" onClick={() => void responderCob(c.id, false)}>
+                          Recusar
+                        </Button>
+                      </div>
+                    ) : null}
+                  </li>
+                )
+              })
+            )}
+          </ul>
+        </Card>
+      </div>
+
+      <div className="mt-4">
+        <Card
           title="Férias / folga programada"
           description="Solicite um período; o admin aprova. Dias aprovados não geram falta automática."
         >
@@ -860,6 +1161,7 @@ export function MeuPonto() {
         </Card>
       </div>
 
+      <PontoAjudaModal open={ajudaAberta} onClose={() => setAjudaAberta(false)} />
       <PontoBatidaMapaModal
         open={mapaAberto != null}
         onClose={() => setMapaAberto(null)}

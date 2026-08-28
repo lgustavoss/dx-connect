@@ -27,6 +27,7 @@ Evento inicial ao conectar:
 | `notificacao.contagem` | RT-F3 — contadores navbar | `NotificacaoResumo` (compatível com `/notificacoes/resumo`) |
 | `chat.interno.mensagem` | Nova mensagem no chat interno | `{ conversa_id, tipo, setor_id?, remetente_id, corpo_preview }` |
 | `chat.interno.mensagem.atualizada` | Mensagem editada, apagada ou reação alterada | `{ conversa_id, mensagem_id, acao }` — `acao`: `editada` \| `apagada` \| `reacao` |
+| `ponto.he_atualizada` | Pedido/decisão/concessão de hora extra (#982) | `{ he_id, atendente_id, estado, origem }` |
 
 Destinatários filtrados por RBAC (setor homônimo + admin).
 
