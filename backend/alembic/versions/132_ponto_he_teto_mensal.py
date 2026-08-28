@@ -1,7 +1,7 @@
 """Teto mensal de HE (#974).
 
-Revision ID: 130_ponto_he_teto_mensal
-Revises: 129_merge_he_teto_versao
+Revision ID: 132_ponto_he_teto_mensal
+Revises: 131_ponto_lote_g
 Create Date: 2026-08-27
 """
 
@@ -10,8 +10,8 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
-revision = "130_ponto_he_teto_mensal"
-down_revision = "129_merge_he_teto_versao"
+revision = "132_ponto_he_teto_mensal"
+down_revision = "131_ponto_lote_g"
 branch_labels = None
 depends_on = None
 

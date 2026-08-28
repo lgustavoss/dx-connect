@@ -353,7 +353,7 @@ export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
   const isAdmin = user?.role === 'admin'
   const podeTransferir = !encerrado && (isResponsavel || isAdmin)
   const podeEnviar = chat.estado === 'em_atendimento' && isResponsavel && !encerrado
-  const podeEncerrar = !encerrado && chat.estado === 'em_atendimento' && (isResponsavel || isAdmin)
+  const podeEncerrar = !encerrado && chat.estado === 'em_atendimento' && isResponsavel
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white dark:bg-slate-950">
@@ -451,7 +451,7 @@ export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
           key={`${chat.id}-${demandasReloadKey}`}
           chatId={chat.id}
           api={portalDemandasApi}
-          podeRegistrar={isResponsavel || isAdmin}
+          podeRegistrar={isResponsavel}
           onDemandasChange={() => {
             setDemandasReloadKey((k) => k + 1)
             void carregarDemandasTimeline()

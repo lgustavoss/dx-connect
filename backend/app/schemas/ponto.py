@@ -366,3 +366,99 @@ class PontoHoraExtraMeStatus(BaseModel):
     he_restante_minutos: int | None = None
     he_teto_mensal_minutos: int | None = None
     he_consumido_mensal_minutos: int = 0
+
+
+class PontoCoberturaColega(BaseModel):
+    id: int
+    nome: str
+
+
+class PontoCoberturaCreate(BaseModel):
+    cobertor_id: int = Field(..., ge=1)
+    data_ref: date
+    motivo: str | None = Field(default=None, max_length=1000)
+
+
+class PontoCoberturaConceder(BaseModel):
+    solicitante_id: int = Field(..., ge=1)
+    cobertor_id: int = Field(..., ge=1)
+    data_ref: date
+    motivo: str | None = Field(default=None, max_length=1000)
+
+
+class PontoCoberturaResposta(BaseModel):
+    aceitar: bool
+
+
+class PontoCoberturaDecisao(BaseModel):
+    aprovar: bool
+    decisao_motivo: str | None = Field(default=None, max_length=1000)
+
+
+class PontoCoberturaRead(BaseModel):
+    id: int
+    solicitante_id: int
+    solicitante_nome: str | None = None
+    cobertor_id: int
+    cobertor_nome: str | None = None
+    data_ref: date
+    motivo: str | None = None
+    estado: str
+    origem: str = "solicitacao"
+    resposta_cobertor: str | None = None
+    respondido_em: datetime | None = None
+    decidido_por_id: int | None = None
+    decidido_em: datetime | None = None
+    decisao_motivo: str | None = None
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PontoSetupItem(BaseModel):
+    codigo: str
+    titulo: str
+    detalhe: str
+    destino: str
+    ok: bool
+    informativo: bool = False
+
+
+class PontoSetupStatus(BaseModel):
+    defaults_fecho_off: bool
+    tolerancia_sugerida_minutos: int = 15
+    pendentes: int
+    itens: list[PontoSetupItem]
+
+
+class PontoCompetenciaRead(BaseModel):
+    id: int
+    ano: int
+    mes: int
+    fechada: bool
+    fechado_em: datetime | None = None
+    fechado_por_id: int | None = None
+    fechado_por_nome: str | None = None
+    reaberto_em: datetime | None = None
+    reaberto_por_id: int | None = None
+    reabrir_motivo: str | None = None
+
+
+class PontoCompetenciaReabrir(BaseModel):
+    motivo: str = Field(..., min_length=3, max_length=1000)
+
+
+class PontoCienciaMe(BaseModel):
+    ano: int
+    mes: int
+    competencia_fechada: bool
+    confirmada: bool
+    confirmado_em: datetime | None = None
+    pode_confirmar: bool
+
+
+class PontoCienciaItem(BaseModel):
+    atendente_id: int
+    atendente_nome: str
+    confirmada: bool
+    confirmado_em: datetime | None = None

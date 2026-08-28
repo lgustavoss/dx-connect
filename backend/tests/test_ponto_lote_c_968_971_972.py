@@ -28,8 +28,13 @@ def test_lembrete_entrada_na_janela_tolerancia(client, seed_base, auth_headers, 
     a1 = seed_base["a1"]
     agora = datetime.now(PONTO_TZ)
     # Coloca início da jornada 10 min no futuro e tol=30 → já estamos em inicio−tol
-    inicio = (agora + timedelta(minutes=10)).strftime("%H:%M")
-    fim = (agora + timedelta(hours=8)).strftime("%H:%M")
+    inicio_dt = agora + timedelta(minutes=10)
+    fim_dt = inicio_dt + timedelta(hours=8)
+    # Jornada semanal não pode cruzar meia-noite
+    if fim_dt.date() != inicio_dt.date():
+        fim_dt = inicio_dt.replace(hour=23, minute=59, second=0, microsecond=0)
+    inicio = inicio_dt.strftime("%H:%M")
+    fim = fim_dt.strftime("%H:%M")
     assert _patch_jornada_hoje(client, admin, a1.id, inicio=inicio, fim=fim, tol=30).status_code == 200
     r = client.get("/v1/ponto/me/alertas", headers=user)
     assert r.status_code == 200, r.text
@@ -46,8 +51,12 @@ def test_lembrete_saida_antes_do_fim(client, seed_base, auth_headers, db_session
     a1 = seed_base["a1"]
     agora = datetime.now(PONTO_TZ)
     # fim daqui a 10 min, tol 30 → já na janela de saída
-    inicio = (agora - timedelta(hours=8)).strftime("%H:%M")
-    fim = (agora + timedelta(minutes=10)).strftime("%H:%M")
+    fim_dt = agora + timedelta(minutes=10)
+    inicio_dt = fim_dt - timedelta(hours=8)
+    if inicio_dt.date() != fim_dt.date():
+        inicio_dt = fim_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+    inicio = inicio_dt.strftime("%H:%M")
+    fim = fim_dt.strftime("%H:%M")
     assert _patch_jornada_hoje(client, admin, a1.id, inicio=inicio, fim=fim, tol=30).status_code == 200
     db_session.add(
         PontoBatida(

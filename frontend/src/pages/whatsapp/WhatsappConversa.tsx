@@ -1505,7 +1505,7 @@ useEffect(() => {
     }
   }
 
-  const podeEncerrar = !encerrado && chat?.estado === 'em_atendimento' && (isResponsavel || isAdmin)
+  const podeEncerrar = !encerrado && chat?.estado === 'em_atendimento' && isResponsavel
 
   async function exportarPdfChat() {
     if (!chat || exportandoPdf) return
@@ -1536,7 +1536,7 @@ useEffect(() => {
     podeDefinirEmpresa && !chat?.empresa_id && (chat?.empresas_opcoes?.length ?? 0) > 1
 
   const mostrarBannerDemandaInatividade =
-    Boolean(chat?.classificacao_demanda_pendente) && (isResponsavel || isAdmin)
+    Boolean(chat?.classificacao_demanda_pendente) && isResponsavel
 
   const podeDigitarMensagem = !encerrado && !chat?.classificacao_demanda_pendente && (modoInterno || podeEnviar)
 
@@ -2129,7 +2129,7 @@ useEffect(() => {
             <WhatsappDemandasPanel
               key={chat.id}
               chatId={chat.id}
-              podeRegistrar={isResponsavel || isAdmin}
+              podeRegistrar={isResponsavel}
               onDemandasChange={refrescarTimelineDemandas}
             />
           </div>
