@@ -18,6 +18,7 @@ TIPOS = frozenset({"falta", "esquecimento", "folga_com_ponto", "outro"})
 
 def _to_read(j: PontoJustificativa) -> PontoJustificativaRead:
     nome = j.atendente.nome if j.atendente else None
+    tem = bool(getattr(j, "anexo_storage_key", None))
     return PontoJustificativaRead(
         id=j.id,
         atendente_id=j.atendente_id,
@@ -29,6 +30,10 @@ def _to_read(j: PontoJustificativa) -> PontoJustificativaRead:
         decisao_motivo=j.decisao_motivo,
         decidido_por_id=j.decidido_por_id,
         decidido_em=j.decidido_em,
+        tem_anexo=tem,
+        anexo_nome=getattr(j, "anexo_nome", None) if tem else None,
+        anexo_content_type=getattr(j, "anexo_content_type", None) if tem else None,
+        anexo_tamanho_bytes=getattr(j, "anexo_tamanho_bytes", None) if tem else None,
         created_at=j.created_at,
     )
 
@@ -40,6 +45,10 @@ def criar(
     data_ref,
     tipo: str,
     motivo: str,
+    anexo_nome: str | None = None,
+    anexo_content_type: str | None = None,
+    anexo_storage_key: str | None = None,
+    anexo_tamanho_bytes: int | None = None,
 ) -> PontoJustificativaRead:
     ponto_svc.exigir_acesso_ponto(atendente)
     if tipo not in TIPOS:
@@ -51,6 +60,10 @@ def criar(
         tipo=tipo,
         motivo=motivo.strip(),
         estado="pendente",
+        anexo_nome=anexo_nome,
+        anexo_content_type=anexo_content_type,
+        anexo_storage_key=anexo_storage_key,
+        anexo_tamanho_bytes=anexo_tamanho_bytes,
     )
     db.add(row)
     db.flush()
@@ -60,7 +73,12 @@ def criar(
         row.id,
         "create",
         atendente.id,
-        payload={"data_ref": str(data_ref), "tipo": tipo, "motivo": motivo.strip()},
+        payload={
+            "data_ref": str(data_ref),
+            "tipo": tipo,
+            "motivo": motivo.strip(),
+            "tem_anexo": bool(anexo_storage_key),
+        },
     )
     db.commit()
     db.refresh(row)
@@ -102,6 +120,30 @@ def listar_admin(
         q = q.filter(PontoJustificativa.estado == estado)
     rows = q.order_by(PontoJustificativa.created_at.asc()).limit(200).all()
     return [_to_read(r) for r in rows]
+
+
+def obter_para_anexo(
+    db: Session,
+    *,
+    justificativa_id: int,
+    tenant_id: int,
+    solicitante: Atendente,
+) -> PontoJustificativa:
+    row = (
+        db.query(PontoJustificativa)
+        .filter(
+            PontoJustificativa.id == justificativa_id,
+            PontoJustificativa.tenant_id == tenant_id,
+        )
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Justificativa não encontrada")
+    if solicitante.role != "admin" and row.atendente_id != solicitante.id:
+        raise HTTPException(status_code=403, detail="Sem permissão para este anexo")
+    if not row.anexo_storage_key:
+        raise HTTPException(status_code=404, detail="Esta justificativa não tem anexo")
+    return row
 
 
 def decidir(

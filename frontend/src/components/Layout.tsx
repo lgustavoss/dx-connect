@@ -77,7 +77,7 @@ function LayoutInner() {
     return () => window.removeEventListener(TICKET_ATIVO_EVENT, sync)
   }, [location.pathname])
 
-  /** Conversa aberta no hub — ocultar chrome da app no telemóvel (#753). */
+  /** Conversa aberta no hub — ocultar chrome da app só no celular (#753 / #S202608-0007). */
   const [chatDetalheAberto, setChatDetalheAberto] = useState(
     () => isChatHub && lerChatAtivoSession() != null,
   )
@@ -124,9 +124,10 @@ function LayoutInner() {
       />
 
       <div className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden md:col-start-2 md:row-start-1">
+        {/* Com conversa aberta, esconde a barra só no celular (#996 / #S202608-0007). */}
         <header
           className={`z-30 flex h-16 min-h-[64px] w-full min-w-0 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-4 shadow-sm dark:border-slate-800 dark:bg-slate-950 md:gap-3 md:px-6 ${
-            ocultarHeaderMobile ? 'hidden' : ''
+            ocultarHeaderMobile ? 'max-md:hidden' : ''
           }`}
         >
           <button

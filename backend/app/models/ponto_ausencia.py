@@ -1,4 +1,4 @@
-"""Justificativas de ponto (#774)."""
+"""Ausências programadas de ponto (#976)."""
 
 from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
@@ -7,24 +7,24 @@ from sqlalchemy.sql import func
 from app.database import Base
 
 
-class PontoJustificativa(Base):
-    __tablename__ = "ponto_justificativas"
+class PontoAusencia(Base):
+    __tablename__ = "ponto_ausencias"
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False, index=True)
     atendente_id = Column(Integer, ForeignKey("atendentes.id", ondelete="CASCADE"), nullable=False, index=True)
-    data_ref = Column(Date, nullable=False, index=True)
-    tipo = Column(String(32), nullable=False)  # falta | esquecimento | folga_com_ponto | outro
-    motivo = Column(String(1000), nullable=False)
-    estado = Column(String(20), nullable=False, default="pendente")  # pendente | aprovada | rejeitada
-    decisao_motivo = Column(String(1000), nullable=True)
+    # ferias | folga_programada
+    tipo = Column(String(32), nullable=False)
+    desde = Column(Date, nullable=False, index=True)
+    ate = Column(Date, nullable=False, index=True)
+    motivo = Column(String(1000), nullable=True)
+    # pendente | aprovada | rejeitada
+    estado = Column(String(20), nullable=False, default="pendente", server_default="pendente")
+    # solicitacao | admin
+    origem = Column(String(20), nullable=False, default="solicitacao", server_default="solicitacao")
     decidido_por_id = Column(Integer, ForeignKey("atendentes.id", ondelete="SET NULL"), nullable=True)
     decidido_em = Column(DateTime(timezone=True), nullable=True)
-    # Anexo opcional (#977)
-    anexo_nome = Column(String(255), nullable=True)
-    anexo_content_type = Column(String(128), nullable=True)
-    anexo_storage_key = Column(String(255), nullable=True)
-    anexo_tamanho_bytes = Column(Integer, nullable=True)
+    decisao_motivo = Column(String(1000), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     atendente = relationship("Atendente", foreign_keys=[atendente_id])

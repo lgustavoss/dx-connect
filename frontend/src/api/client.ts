@@ -717,6 +717,8 @@ export const ponto = {
     api<Ponto.Calendario>(withParams('/ponto/me/calendario', { ano, mes })),
   meuBancoHoras: (desde: string, ate: string) =>
     api<Ponto.BancoHoras>(withParams('/ponto/me/banco-horas', { desde, ate })),
+  meuResumoSemana: (ref?: string) =>
+    api<Ponto.ResumoSemana>(withParams('/ponto/me/resumo-semana', ref ? { ref } : {})),
   bancoHorasAdmin: (atendenteId: number, desde: string, ate: string) =>
     api<Ponto.BancoHoras>(
       withParams('/ponto/banco-horas', { atendente_id: atendenteId, desde, ate }),
@@ -752,6 +754,14 @@ export const ponto = {
     }),
   criarJustificativa: (data: Ponto.JustificativaCreate) =>
     api<Ponto.Justificativa>('/ponto/justificativas', { method: 'POST', body: JSON.stringify(data) }),
+  criarJustificativaComAnexo: (data: Ponto.JustificativaCreate, arquivo: File) => {
+    const fd = new FormData()
+    fd.append('data_ref', data.data_ref)
+    fd.append('tipo', data.tipo)
+    fd.append('motivo', data.motivo)
+    fd.append('arquivo', arquivo)
+    return api<Ponto.Justificativa>('/ponto/justificativas/upload', { method: 'POST', body: fd })
+  },
   minhasJustificativas: () => api<Ponto.Justificativa[]>('/ponto/justificativas/me'),
   justificativasAdmin: (estado?: string) =>
     api<Ponto.Justificativa[]>(withParams('/ponto/justificativas', { estado })),
@@ -760,6 +770,43 @@ export const ponto = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  justificativaAnexoUrl: (id: number) =>
+    `${apiOrigin()}${API_VERSION_PREFIX}/ponto/justificativas/${id}/anexo`,
+  baixarJustificativaAnexo: async (id: number, nome?: string | null) => {
+    const token = getAuthToken()
+    const headers: Record<string, string> = {}
+    if (token) headers.Authorization = `Bearer ${token}`
+    if (isMultiTenantMode()) {
+      const tid = resolveTenantIdFromHostname()
+      if (tid) headers['X-Dx-Tenant-Id'] = String(tid)
+    }
+    const res = await fetch(
+      `${apiOrigin()}${API_VERSION_PREFIX}/ponto/justificativas/${id}/anexo`,
+      { headers },
+    )
+    if (!res.ok) throw new ApiError('Falha ao baixar anexo', res.status, await res.text())
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = nome || `justificativa-${id}`
+    a.click()
+    URL.revokeObjectURL(url)
+  },
+  solicitarAusencia: (data: Ponto.AusenciaCreate) =>
+    api<Ponto.Ausencia>('/ponto/ausencias', { method: 'POST', body: JSON.stringify(data) }),
+  minhasAusencias: () => api<Ponto.Ausencia[]>('/ponto/ausencias/me'),
+  ausenciasAdmin: (estado?: string) =>
+    api<Ponto.Ausencia[]>(withParams('/ponto/ausencias', { estado })),
+  concederAusencia: (data: Ponto.AusenciaConceder) =>
+    api<Ponto.Ausencia>('/ponto/ausencias/conceder', { method: 'POST', body: JSON.stringify(data) }),
+  decidirAusencia: (id: number, data: Ponto.AusenciaDecisao) =>
+    api<Ponto.Ausencia>(`/ponto/ausencias/${id}/decidir`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  removerAusencia: (id: number) =>
+    api<void>(`/ponto/ausencias/${id}`, { method: 'DELETE' }),
   horaExtraMeStatus: () => api<Ponto.HoraExtraMeStatus>('/ponto/hora-extra/me/status'),
   minhasHoraExtra: () => api<Ponto.HoraExtra[]>('/ponto/hora-extra/me'),
   solicitarHoraExtra: (data?: Ponto.HoraExtraCreate) =>
@@ -771,6 +818,11 @@ export const ponto = {
     api<Ponto.HoraExtra[]>(withParams('/ponto/hora-extra', { estado })),
   decidirHoraExtra: (id: number, data: Ponto.HoraExtraDecisao) =>
     api<Ponto.HoraExtra>(`/ponto/hora-extra/${id}/decidir`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  concederHoraExtra: (data: Ponto.HoraExtraConceder) =>
+    api<Ponto.HoraExtra>('/ponto/hora-extra/conceder', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
@@ -831,6 +883,66 @@ export const ponto = {
     }
     return res.blob()
   },
+  exportFolha: async (
+    ext: 'csv' | 'xlsx',
+    params: { atendente_id?: number; desde: string; ate: string },
+  ) => {
+    const token = getAuthToken()
+    const headers: Record<string, string> = {}
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+    }
+    if (token) headers.Authorization = `Bearer ${token}`
+    const path = ext === 'csv' ? '/ponto/export/folha.csv' : '/ponto/export/folha.xlsx'
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}${withParams(path, params)}`
+    const res = await fetch(url, { headers })
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin()
+      throw new ApiError('Sessão expirada ou inválida.', 401, {})
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+    }
+    return res.blob()
+  },
+  solicitarCobertura: (data: Ponto.CoberturaCreate) =>
+    api<Ponto.Cobertura>('/ponto/coberturas', { method: 'POST', body: JSON.stringify(data) }),
+  minhasCoberturas: () => api<Ponto.Cobertura[]>('/ponto/coberturas/me'),
+  colegasCobertura: () => api<Ponto.CoberturaColega[]>('/ponto/coberturas/colegas'),
+  responderCobertura: (id: number, data: Ponto.CoberturaResposta) =>
+    api<Ponto.Cobertura>(`/ponto/coberturas/${id}/responder`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  coberturasAdmin: (estado?: string) =>
+    api<Ponto.Cobertura[]>(withParams('/ponto/coberturas', { estado })),
+  concederCobertura: (data: Ponto.CoberturaConceder) =>
+    api<Ponto.Cobertura>('/ponto/coberturas/conceder', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  decidirCobertura: (id: number, data: Ponto.CoberturaDecisao) =>
+    api<Ponto.Cobertura>(`/ponto/coberturas/${id}/decidir`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  setupStatus: () => api<Ponto.SetupStatus>('/ponto/setup-status'),
+  competencia: (ano: number, mes: number) =>
+    api<Ponto.Competencia>(`/ponto/competencias/${ano}/${mes}`),
+  fecharCompetencia: (ano: number, mes: number) =>
+    api<Ponto.Competencia>(`/ponto/competencias/${ano}/${mes}/fechar`, { method: 'POST' }),
+  reabrirCompetencia: (ano: number, mes: number, data: { motivo: string }) =>
+    api<Ponto.Competencia>(`/ponto/competencias/${ano}/${mes}/reabrir`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  cienciasAdmin: (ano: number, mes: number) =>
+    api<Ponto.CienciaItem[]>(`/ponto/competencias/${ano}/${mes}/ciencias`),
+  minhaCiencia: (ano: number, mes: number) =>
+    api<Ponto.CienciaMe>(withParams('/ponto/me/ciencia', { ano, mes })),
+  confirmarCiencia: (ano: number, mes: number) =>
+    api<Ponto.CienciaMe>(withParams('/ponto/me/ciencia', { ano, mes }), { method: 'POST' }),
   meSettings: () => api<Ponto.SettingsPublic>('/ponto/me/settings'),
   locais: (params?: { atendente_id?: number; so_orfos?: boolean }) =>
     api<Ponto.Local[]>(withParams('/ponto/locais', params)),
@@ -2508,6 +2620,8 @@ export namespace Atendentes {
     tolerancia_atraso_minutos?: number;
     usar_local_empresa?: boolean;
     local_empresa_raio_metros?: number | null;
+    he_teto_minutos?: number | null;
+    he_teto_mensal_minutos?: number | null;
     /** Cargos da equipe DeskRudder (painel SaaS); vários por usuário. */
     saas_setor_ids?: number[];
     saas_setor_nomes?: string[];
@@ -2530,6 +2644,8 @@ export namespace Atendentes {
     tolerancia_atraso_minutos?: number;
     usar_local_empresa?: boolean;
     local_empresa_raio_metros?: number | null;
+    he_teto_minutos?: number | null;
+    he_teto_mensal_minutos?: number | null;
   }
   export interface Update {
     email?: string;
@@ -2549,6 +2665,8 @@ export namespace Atendentes {
     tolerancia_atraso_minutos?: number;
     usar_local_empresa?: boolean;
     local_empresa_raio_metros?: number | null;
+    he_teto_minutos?: number | null;
+    he_teto_mensal_minutos?: number | null;
   }
   export interface AvaliacaoResumo {
     media: number | null;
@@ -4773,6 +4891,8 @@ export namespace Ponto {
     | 'parcial'
     | 'folga'
     | 'folga_com_ponto'
+    | 'folga_programada'
+    | 'ferias'
     | 'livre'
     | 'atraso'
     | 'feriado'
@@ -4849,11 +4969,14 @@ export namespace Ponto {
     status: StatusDia
     atrasado?: boolean
     feriado?: boolean
+    ausencia_tipo?: string | null
+    pausa_abaixo_minimo?: boolean
     segundos_trabalhados?: number
     segundos_esperados?: number
+    segundos_pausa?: number
     classe_visual?: ClasseVisualDia
   }
-  export type ClasseVisualDia = 'abaixo' | 'ok' | 'he' | 'feriado' | 'neutro'
+  export type ClasseVisualDia = 'abaixo' | 'ok' | 'he' | 'feriado' | 'ausencia' | 'neutro'
   export interface Calendario {
     atendente_id: number
     ano: number
@@ -4898,6 +5021,7 @@ export namespace Ponto {
     jornadas_abertas: number
     online_sem_ponto: number
     justificativas_pendentes: number
+    he_acima_teto_mensal?: number
     itens: HojeItem[]
   }
   export interface Settings {
@@ -4906,6 +5030,8 @@ export namespace Ponto {
     fecho_apos_horas: number
     fecho_margem_pos_saida_minutos: number
     jornada_diaria_minutos: number
+    pausa_minima_minutos?: number
+    he_teto_mensal_minutos?: number | null
     politica_geolocalizacao: PoliticaGeolocalizacao
   }
   export interface SettingsPublic {
@@ -4918,6 +5044,8 @@ export namespace Ponto {
     fecho_apos_horas?: number
     fecho_margem_pos_saida_minutos?: number
     jornada_diaria_minutos?: number
+    pausa_minima_minutos?: number
+    he_teto_mensal_minutos?: number | null
     politica_geolocalizacao?: PoliticaGeolocalizacao
   }
   export interface Local {
@@ -4964,7 +5092,20 @@ export namespace Ponto {
     online_sem_ponto: boolean
     jornada_aberta_longa: boolean
     horas_jornada_aberta: number | null
+    lembrete_entrada_tolerancia?: boolean
+    lembrete_saida_tolerancia?: boolean
     mensagens: string[]
+  }
+  export interface ResumoSemana {
+    desde: string
+    ate: string
+    segundos_esperados: number
+    segundos_realizados: number
+    saldo_segundos: number
+    atrasos: number
+    he_minutos: number
+    dias_escala: number
+    dias_feriado?: number
   }
   export interface AjusteCreate {
     atendente_id: number
@@ -4993,12 +5134,127 @@ export namespace Ponto {
     decisao_motivo?: string | null
     decidido_por_id?: number | null
     decidido_em?: string | null
+    tem_anexo?: boolean
+    anexo_nome?: string | null
+    anexo_content_type?: string | null
+    anexo_tamanho_bytes?: number | null
     created_at?: string | null
   }
   export interface JustificativaDecisao {
     estado: 'aprovada' | 'rejeitada'
     decisao_motivo: string
     aplicar_batidas?: { tipo: Tipo; registrado_em: string; motivo: string }[]
+  }
+  export interface AusenciaCreate {
+    tipo: 'ferias' | 'folga_programada'
+    desde: string
+    ate: string
+    motivo?: string | null
+  }
+  export interface AusenciaConceder {
+    atendente_id: number
+    tipo: 'ferias' | 'folga_programada'
+    desde: string
+    ate: string
+    motivo?: string | null
+  }
+  export interface AusenciaDecisao {
+    aprovar: boolean
+    decisao_motivo?: string | null
+  }
+  export interface Ausencia {
+    id: number
+    atendente_id: number
+    atendente_nome?: string | null
+    tipo: string
+    desde: string
+    ate: string
+    motivo?: string | null
+    estado: string
+    origem?: string
+    decidido_por_id?: number | null
+    decidido_em?: string | null
+    decisao_motivo?: string | null
+    created_at?: string | null
+  }
+  export interface CoberturaCreate {
+    cobertor_id: number
+    data_ref: string
+    motivo?: string | null
+  }
+  export interface CoberturaColega {
+    id: number
+    nome: string
+  }
+  export interface CoberturaConceder {
+    solicitante_id: number
+    cobertor_id: number
+    data_ref: string
+    motivo?: string | null
+  }
+  export interface CoberturaResposta {
+    aceitar: boolean
+  }
+  export interface CoberturaDecisao {
+    aprovar: boolean
+    decisao_motivo?: string | null
+  }
+  export interface Cobertura {
+    id: number
+    solicitante_id: number
+    solicitante_nome?: string | null
+    cobertor_id: number
+    cobertor_nome?: string | null
+    data_ref: string
+    motivo?: string | null
+    estado: string
+    origem?: string
+    resposta_cobertor?: string | null
+    respondido_em?: string | null
+    decidido_por_id?: number | null
+    decidido_em?: string | null
+    decisao_motivo?: string | null
+    created_at?: string | null
+  }
+  export interface SetupItem {
+    codigo: string
+    titulo: string
+    detalhe: string
+    destino: string
+    ok: boolean
+    informativo?: boolean
+  }
+  export interface SetupStatus {
+    defaults_fecho_off: boolean
+    tolerancia_sugerida_minutos: number
+    pendentes: number
+    itens: SetupItem[]
+  }
+  export interface Competencia {
+    id: number
+    ano: number
+    mes: number
+    fechada: boolean
+    fechado_em?: string | null
+    fechado_por_id?: number | null
+    fechado_por_nome?: string | null
+    reaberto_em?: string | null
+    reaberto_por_id?: number | null
+    reabrir_motivo?: string | null
+  }
+  export interface CienciaMe {
+    ano: number
+    mes: number
+    competencia_fechada: boolean
+    confirmada: boolean
+    confirmado_em?: string | null
+    pode_confirmar: boolean
+  }
+  export interface CienciaItem {
+    atendente_id: number
+    atendente_nome: string
+    confirmada: boolean
+    confirmado_em?: string | null
   }
   export interface HoraExtra {
     id: number
@@ -5008,6 +5264,7 @@ export namespace Ponto {
     motivo?: string | null
     modo?: string | null
     ate_em?: string | null
+    origem?: string
     decidido_por_id?: number | null
     decidido_em?: string | null
     decisao_motivo?: string | null
@@ -5015,18 +5272,34 @@ export namespace Ponto {
   }
   export interface HoraExtraCreate {
     motivo?: string | null
+    modo?: 'resto_do_dia' | 'ate_horario' | 'duracao' | null
+    ate_horario?: string | null
+    duracao_minutos?: number | null
   }
   export interface HoraExtraDecisao {
     aprovar: boolean
-    modo?: 'resto_do_dia' | 'ate_horario' | null
+    modo?: 'resto_do_dia' | 'ate_horario' | 'duracao' | null
     ate_horario?: string | null
+    duracao_minutos?: number | null
     decisao_motivo?: string | null
+  }
+  export interface HoraExtraConceder {
+    atendente_id: number
+    modo: 'resto_do_dia' | 'ate_horario' | 'duracao'
+    ate_horario?: string | null
+    duracao_minutos?: number | null
+    motivo?: string | null
   }
   export interface HoraExtraMeStatus {
     fora_da_jornada: boolean
     pode_pegar_whatsapp: boolean
     he_ativa?: HoraExtra | null
     pedido_pendente?: HoraExtra | null
+    ultimo_rejeitado?: HoraExtra | null
+    he_teto_minutos?: number | null
+    he_restante_minutos?: number | null
+    he_teto_mensal_minutos?: number | null
+    he_consumido_mensal_minutos?: number
   }
 }
 

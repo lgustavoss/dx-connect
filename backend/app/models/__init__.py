@@ -5,6 +5,9 @@ from app.models.atendente import Atendente, AtendenteSetor
 from app.models.ponto_batida import PontoBatida
 from app.models.ponto_justificativa import PontoJustificativa
 from app.models.ponto_hora_extra import PontoHoraExtra
+from app.models.ponto_ausencia import PontoAusencia
+from app.models.ponto_cobertura import PontoCobertura
+from app.models.ponto_competencia import PontoCompetencia, PontoEspelhoCiencia
 from app.models.ponto_settings import PontoFeriado, PontoLocal, PontoSettings
 from app.models.setor import Setor
 from app.models.setor_distribuicao_round_robin import SetorDistribuicaoRoundRobin
@@ -102,6 +105,10 @@ __all__ = [
     "PontoBatida",
     "PontoJustificativa",
     "PontoHoraExtra",
+    "PontoAusencia",
+    "PontoCobertura",
+    "PontoCompetencia",
+    "PontoEspelhoCiencia",
     "PontoSettings",
     "PontoLocal",
     "PontoFeriado",
