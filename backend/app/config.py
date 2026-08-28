@@ -116,8 +116,11 @@ class Settings(BaseSettings):
     SAAS_CONTROL_PLANE_INGEST_URL: str | None = None
     SAAS_INSTANCE_INGEST_TOKEN: str | None = None
     SAAS_INSTANCE_SLUG: str | None = None
-    # Só no control-plane: URL pública que as instâncias devem usar (escrita no client.env).
+    # Só no control-plane: URL pública (documentação / instâncias remotas).
     SAAS_INGEST_PUBLIC_URL: str | None = None
+    # URL gravada no client.env para pull/push server-to-server na mesma VPS (evita Cloudflare no worker).
+    # Vazio = usa SAAS_INGEST_PUBLIC_URL / api.{domínio}.
+    SAAS_INGEST_LOOPBACK_URL: str = "http://127.0.0.1:8001/v1/saas/ingest/solicitacoes"
     # Instância cliente: intervalo do pull autenticado da triagem SaaS (#856).
     SAAS_TRIAGEM_PULL_INTERVAL_SECONDS: int = 60
     # Control-plane: token longo para o MCP do Cursor (não JWT). Vazio = só login saas_ops.

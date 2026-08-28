@@ -29,15 +29,15 @@ export function SolicitacaoDescricao({
   descricao: string
   anexos?: Anexo[] | SolicitacoesMelhoria.Anexo[]
 }) {
-  const ficheiros = anexos.filter((a) => a.papel !== 'inline')
+  const arquivosAnexo = anexos.filter((a) => a.papel !== 'inline')
   return (
     <div className="space-y-4">
       <KbMarkdownPreview markdown={descricao} emptyLabel="Sem descrição." />
-      {ficheiros.length > 0 ? (
+      {arquivosAnexo.length > 0 ? (
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Anexos</p>
           <ul className="space-y-3">
-            {ficheiros.map((a) => {
+            {arquivosAnexo.map((a) => {
               const href = solicitacoesMelhoria.mediaUrl(a.url)
               if (isImage(a.content_type)) {
                 return (

@@ -976,3 +976,17 @@ def test_versao_alvo_rotulo_so_apos_release(client, seed_base, auth_headers, mon
         json={"versao_alvo": "2026.09.01"},
     )
     assert inexistente.status_code == 404
+
+
+def test_ingest_url_para_client_env_prefere_loopback(monkeypatch):
+    from app.config import settings
+    from app.services.saas_solicitacao_ingest import ingest_url_para_client_env, ingest_url_publica
+
+    monkeypatch.setattr(
+        settings,
+        "SAAS_INGEST_LOOPBACK_URL",
+        "http://127.0.0.1:8001/v1/saas/ingest/solicitacoes",
+    )
+    assert ingest_url_para_client_env() == "http://127.0.0.1:8001/v1/saas/ingest/solicitacoes"
+    monkeypatch.setattr(settings, "SAAS_INGEST_LOOPBACK_URL", "")
+    assert ingest_url_para_client_env() == ingest_url_publica()
