@@ -5,6 +5,49 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+## [26.08.018] - 2026-08-28
+
+### SaaS Control Plane
+
+#### Melhorias
+
+- Provisionamento: URL de ingest gravada no `client.env` usa **loopback** (`127.0.0.1:8001`) por padrão — evita falha de sync quando instância e admin-center estão na mesma VPS
+
+### DeskRudder
+
+#### Melhorias
+
+- **Minhas solicitações** e bloco no **Sobre**: lista em tabela com badges; no Sobre só as **5 mais recentes** com atalho **Ver todas**; filtros por tipo, fase, status e busca; detalhe com timeline e mensagem de status por fase
+- **Nova solicitação**: seletor visual de tipo (chips), textos em pt-BR, anexos removíveis antes do envio e imagens coladas listadas com opção de remover
+- **Acompanhamento**: linha do tempo vertical no detalhe do pedido; skeleton da tabela no Sobre enquanto carrega
+- Ponto (#985): dia convocado — admin agenda trabalho fora da grade com janela própria; calendário, faltas e banco de horas respeitam a exceção
+- Ponto (#S202608-0011): histórico da equipe paginado (20 batidas por página, com total e navegação)
+
+#### Correções
+
+- Deploy: migration do dia convocado (#985) idempotente — instâncias com tabela criada manualmente não travam no `alembic upgrade`
+- Atendimentos (#S202608-0010): contador de mensagens não lidas no chat alinhado entre sino, lista e conversa; badge some ao responder; divisor «Mensagens não lidas» também no chat do portal
+
+## [26.08.017] - 2026-08-27
+
+### DeskRudder
+
+#### Melhorias
+
+- Ponto (#968 / #972 / #971): lembrete in-app de entrada/saída na janela de tolerância; resumo semanal em Meu ponto (previsto × feito, atrasos, HE, banco); motivo obrigatório reforçado e histórico/export de ajustes admin (também no PDF/Excel mensal)
+- Ponto (#966): admin **concede hora extra** com antecedência (resto do dia, até horário ou duração em minutos); teto opcional por colaborador no cadastro; liberações respeitam o teto
+- Ponto (#976 / #977 / #973): férias e folga programada (pedido do colaborador ou agendamento admin); justificativa com anexo (imagem/PDF); alerta de pausa abaixo do mínimo configurável
+- Ponto (#969 / #974 / #982): colaborador **solicita hora extra** com janela desejada; teto mensal (global ou por pessoa) bloqueia novas liberações; digest e Meu ponto mostram consumo; avisos em tempo real (`ponto.he_atualizada`)
+- Ponto (#981 / #980 / #978 / #979): checklist de configuração pós-deploy; ajuda **Como funciona o ponto**; **fechamento de competência** mensal (reabrir com motivo; ajustes pós-fechamento marcados); **ciência** do colaborador no espelho após o fechamento
+- Ponto (#975 / #970): **export contábil/folha RH** (CSV e Excel) com matrícula, previsto/realizado, atrasos, faltas, HE, banco e ajustes; **cobertura de plantão** (A pede → B aceita → admin homologa, ou admin agenda direto) refletida no calendário e nas faltas
+
+#### Correções
+
+- Atendimentos (#996 / #S202608-0007): na tela de chats, a barra superior (menu, notificações) volta a aparecer no computador; no celular continua oculta com a conversa aberta
+- Atendimentos (#998 / #S202608-0009): quem só acompanha o chat deixa de ver **Encerrar** e **Registrar demanda** — esses botões ficam só com o responsável
+
+## [26.08.016] - 2026-08-26
+
 ### SaaS Control Plane
 
 #### Melhorias
@@ -15,28 +58,10 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### DeskRudder
 
-#### Melhorias
-
-- **Minhas solicitações** e bloco no **Sobre**: lista em tabela com badges; no Sobre só as **5 mais recentes** com atalho **Ver todas**; filtros por tipo, fase, status e busca; detalhe com timeline e mensagem de status por fase
-- **Nova solicitação**: seletor visual de tipo (chips), textos em pt-BR, anexos removíveis antes do envio e imagens coladas listadas com opção de remover
-- **Acompanhamento**: linha do tempo vertical no detalhe do pedido; skeleton da tabela no Sobre enquanto carrega
-- Provisionamento: URL de ingest gravada no `client.env` usa **loopback** (`127.0.0.1:8001`) por padrão — evita falha de sync quando instância e admin-center estão na mesma VPS
-- Ponto (#976 / #977 / #973): férias e folga programada (pedido do colaborador ou agendamento admin); justificativa com anexo (imagem/PDF); alerta de pausa abaixo do mínimo configurável
-- Ponto (#985): dia convocado — admin agenda trabalho fora da grade com janela própria; calendário, faltas e banco de horas respeitam a exceção
-- Ponto (#S202608-0011): histórico da equipe paginado (20 batidas por página, com total e navegação)
-- Ponto (#969 / #974 / #982): colaborador **solicita hora extra** com janela desejada; teto mensal (global ou por pessoa) bloqueia novas liberações; digest e Meu ponto mostram consumo; avisos em tempo real (`ponto.he_atualizada`)
-- Ponto (#981 / #980 / #978 / #979): checklist de configuração pós-deploy; ajuda **Como funciona o ponto**; **fechamento de competência** mensal (reabrir com motivo; ajustes pós-fechamento marcados); **ciência** do colaborador no espelho após o fechamento
-- Ponto (#975 / #970): **export contábil/folha RH** (CSV e Excel) com matrícula, previsto/realizado, atrasos, faltas, HE, banco e ajustes; **cobertura de plantão** (A pede → B aceita → admin homologa, ou admin agenda direto) refletida no calendário e nas faltas
-
 #### Correções
 
-- Deploy: migration do dia convocado (#985) idempotente — instâncias com tabela criada manualmente não travam no `alembic upgrade`
-- Atendimentos (#996 / #S202608-0007): na tela de chats, a barra superior (menu, notificações) volta a aparecer no computador; no celular continua oculta com a conversa aberta
-- Atendimentos (#998 / #S202608-0009): quem só acompanha o chat deixa de ver **Encerrar** e **Registrar demanda** — esses botões ficam só com o responsável
-- Atendimentos (#S202608-0010): contador de mensagens não lidas no chat alinhado entre sino, lista e conversa; badge some ao responder; divisor «Mensagens não lidas» também no chat do portal
 - Sobre: deixa de listar itens **Interno / Infra** (deploy, LICENSE, docs internos) — só Melhorias e Correções de produto
 - Sobre: versão **26.08.015** sem repetir notas já publicadas em releases anteriores
-
 
 ## [26.08.015] - 2026-08-26
 
