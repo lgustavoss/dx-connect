@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+﻿import { useState, useEffect, useCallback } from 'react'
 import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { useNavigate } from 'react-router-dom'
@@ -211,7 +211,7 @@ export function Empresas() {
                           navigate(`/empresas/${e.id}`)
                         }
                       }}
-                      className="cursor-pointer transition-colors hover:bg-slate-50/90 focus-within:bg-slate-50/90 dark:hover:bg-white/50 dark:focus-within:bg-slate-800/50"
+                      className="cursor-pointer transition-colors hover:bg-slate-50/90 focus-within:bg-slate-50/90 dark:hover:bg-white/5 dark:focus-within:bg-slate-800/50"
                     >
                       <td className="max-w-0 py-3 pl-2 pr-4">
                         <div className="min-w-0 space-y-1">

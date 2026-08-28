@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiError, kb, type Kb } from '../api/client'
 import { Card } from '../components/ui/Card'
@@ -173,7 +173,7 @@ export function KbArtigosPage({ embedded = false }: { embedded?: boolean }) {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {list.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-white/40">
+                  <tr key={item.id} className="hover:bg-slate-50/80 focus-within:bg-slate-50/80 dark:hover:bg-white/5 dark:focus-within:bg-slate-800/50">
                     <td className="px-4 py-3 font-medium">
                       {item.titulo}
                       {item.interno_only ? (

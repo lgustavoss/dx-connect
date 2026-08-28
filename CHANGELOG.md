@@ -5,6 +5,18 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### SaaS Control Plane
+
+#### Correções
+
+- Listagens do painel ops (Leads, Licenças): hover no tema escuro deixa de «lavar» o texto — contraste alinhado ao padrão das demais tabelas (#921 / #S202608-0001)
+
+### DeskRudder
+
+#### Correções
+
+- Listagens (tema escuro): hover das linhas de tabela deixa de «lavar» o texto — contraste alinhado ao padrão das telas SaaS (#921 / #S202608-0001)
+
 ## [26.08.018] - 2026-08-28
 
 ### SaaS Control Plane
