@@ -223,6 +223,7 @@ export function PontoCalendarioMes({
               : detalhe.ausencia_tipo === 'folga_programada'
                 ? ' · Folga programada'
                 : ''}
+            {detalhe.dia_convocado ? ' · Dia convocado' : ''}
             {detalhe.pausa_abaixo_minimo ? ' · Pausa abaixo do mínimo' : ''}
           </p>
           <p className="mt-2 text-xs text-cyan-700 dark:text-cyan-300">

@@ -6,6 +6,7 @@ from app.models.ponto_batida import PontoBatida
 from app.models.ponto_justificativa import PontoJustificativa
 from app.models.ponto_hora_extra import PontoHoraExtra
 from app.models.ponto_ausencia import PontoAusencia
+from app.models.ponto_dia_convocado import PontoDiaConvocado
 from app.models.ponto_cobertura import PontoCobertura
 from app.models.ponto_competencia import PontoCompetencia, PontoEspelhoCiencia
 from app.models.ponto_settings import PontoFeriado, PontoLocal, PontoSettings
@@ -106,6 +107,7 @@ __all__ = [
     "PontoJustificativa",
     "PontoHoraExtra",
     "PontoAusencia",
+    "PontoDiaConvocado",
     "PontoCobertura",
     "PontoCompetencia",
     "PontoEspelhoCiencia",
