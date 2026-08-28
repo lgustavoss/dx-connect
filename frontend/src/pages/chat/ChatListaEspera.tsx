@@ -162,7 +162,7 @@ export function ChatListaEspera({ ignorarBusca = false, onChatAssumido, onVerCha
     return (
       <ChatHubEmptyState
         title="Nenhum chat na fila"
-        description="Novos contactos aparecem aqui quando pedem atendimento."
+        description="Novos contatos aparecem aqui quando pedem atendimento."
         actions={[
           { type: 'link', to: '/chat/atendendo', label: 'Ver Atendendo' },
           { type: 'link', to: '/chat/contatos', label: 'Contatos' },

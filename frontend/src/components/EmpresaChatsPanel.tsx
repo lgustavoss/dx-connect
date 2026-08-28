@@ -23,7 +23,7 @@ type Props = {
 
 function formatDuration(chat: WhatsappChats.Chat) {
   if (!chat.atendimento_inicio_at) return '—'
-  if (!chat.encerramento_at) return 'Em curso'
+  if (!chat.encerramento_at) return 'Em andamento'
   const start = new Date(chat.atendimento_inicio_at)
   const end = new Date(chat.encerramento_at)
   const diff = Math.max(0, Math.round((end.getTime() - start.getTime()) / 1000))
@@ -232,7 +232,7 @@ export function EmpresaChatsPanel({
                       className="h-9 px-3 text-xs"
                       onClick={() => setRetomarChat(c)}
                     >
-                      Retomar contacto
+                      Retomar contato
                     </Button>
                   )}
                 </div>
