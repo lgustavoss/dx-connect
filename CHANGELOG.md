@@ -5,6 +5,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+## [26.08.018] - 2026-08-28
+
 ### SaaS Control Plane
 
 #### Melhorias

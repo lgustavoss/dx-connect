@@ -1,51 +1,51 @@
 {
-  "current_version": "26.08.017",
-  "current_version_display": "v26.08.017",
+  "current_version": "26.08.018",
+  "current_version_display": "v26.08.018",
   "current": {
-    "version": "26.08.017",
-    "version_display": "v26.08.017",
-    "date": "2026-08-27",
+    "version": "26.08.018",
+    "version_display": "v26.08.018",
+    "date": "2026-08-28",
     "status": "published",
     "changes": [
       {
-        "product": "deskrudder",
+        "product": "saas",
         "category": "melhorias",
-        "text": "Ponto (#968 / #972 / #971): lembrete in-app de entrada/saída na janela de tolerância; resumo semanal em Meu ponto (previsto × feito, atrasos, HE, banco); motivo obrigatório reforçado e histórico/export de ajustes admin (também no PDF/Excel mensal)"
+        "text": "Provisionamento: URL de ingest gravada no `client.env` usa **loopback** (`127.0.0.1:8001`) por padrão — evita falha de sync quando instância e admin-center estão na mesma VPS"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "Ponto (#966): admin **concede hora extra** com antecedência (resto do dia, até horário ou duração em minutos); teto opcional por colaborador no cadastro; liberações respeitam o teto"
+        "text": "**Minhas solicitações** e bloco no **Sobre**: lista em tabela com badges; no Sobre só as **5 mais recentes** com atalho **Ver todas**; filtros por tipo, fase, status e busca; detalhe com timeline e mensagem de status por fase"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "Ponto (#976 / #977 / #973): férias e folga programada (pedido do colaborador ou agendamento admin); justificativa com anexo (imagem/PDF); alerta de pausa abaixo do mínimo configurável"
+        "text": "**Nova solicitação**: seletor visual de tipo (chips), textos em pt-BR, anexos removíveis antes do envio e imagens coladas listadas com opção de remover"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "Ponto (#969 / #974 / #982): colaborador **solicita hora extra** com janela desejada; teto mensal (global ou por pessoa) bloqueia novas liberações; digest e Meu ponto mostram consumo; avisos em tempo real (`ponto.he_atualizada`)"
+        "text": "**Acompanhamento**: linha do tempo vertical no detalhe do pedido; skeleton da tabela no Sobre enquanto carrega"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "Ponto (#981 / #980 / #978 / #979): checklist de configuração pós-deploy; ajuda **Como funciona o ponto**; **fechamento de competência** mensal (reabrir com motivo; ajustes pós-fechamento marcados); **ciência** do colaborador no espelho após o fechamento"
+        "text": "Ponto (#985): dia convocado — admin agenda trabalho fora da grade com janela própria; calendário, faltas e banco de horas respeitam a exceção"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "Ponto (#975 / #970): **export contábil/folha RH** (CSV e Excel) com matrícula, previsto/realizado, atrasos, faltas, HE, banco e ajustes; **cobertura de plantão** (A pede → B aceita → admin homologa, ou admin agenda direto) refletida no calendário e nas faltas"
+        "text": "Ponto (#S202608-0011): histórico da equipe paginado (20 batidas por página, com total e navegação)"
       },
       {
         "product": "deskrudder",
         "category": "correcoes",
-        "text": "Atendimentos (#996 / #S202608-0007): na tela de chats, a barra superior (menu, notificações) volta a aparecer no computador; no celular continua oculta com a conversa aberta"
+        "text": "Deploy: migration do dia convocado (#985) idempotente — instâncias com tabela criada manualmente não travam no `alembic upgrade`"
       },
       {
         "product": "deskrudder",
         "category": "correcoes",
-        "text": "Atendimentos (#998 / #S202608-0009): quem só acompanha o chat deixa de ver **Encerrar** e **Registrar demanda** — esses botões ficam só com o responsável"
+        "text": "Atendimentos (#S202608-0010): contador de mensagens não lidas no chat alinhado entre sino, lista e conversa; badge some ao responder; divisor «Mensagens não lidas» também no chat do portal"
       }
     ]
   },
@@ -3586,6 +3586,54 @@
           "product": "deskrudder",
           "category": "correcoes",
           "text": "Atendimentos (#998 / #S202608-0009): quem só acompanha o chat deixa de ver **Encerrar** e **Registrar demanda** — esses botões ficam só com o responsável"
+        }
+      ]
+    },
+    {
+      "version": "26.08.018",
+      "version_display": "v26.08.018",
+      "date": "2026-08-28",
+      "status": "published",
+      "changes": [
+        {
+          "product": "saas",
+          "category": "melhorias",
+          "text": "Provisionamento: URL de ingest gravada no `client.env` usa **loopback** (`127.0.0.1:8001`) por padrão — evita falha de sync quando instância e admin-center estão na mesma VPS"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "**Minhas solicitações** e bloco no **Sobre**: lista em tabela com badges; no Sobre só as **5 mais recentes** com atalho **Ver todas**; filtros por tipo, fase, status e busca; detalhe com timeline e mensagem de status por fase"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "**Nova solicitação**: seletor visual de tipo (chips), textos em pt-BR, anexos removíveis antes do envio e imagens coladas listadas com opção de remover"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "**Acompanhamento**: linha do tempo vertical no detalhe do pedido; skeleton da tabela no Sobre enquanto carrega"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#985): dia convocado — admin agenda trabalho fora da grade com janela própria; calendário, faltas e banco de horas respeitam a exceção"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#S202608-0011): histórico da equipe paginado (20 batidas por página, com total e navegação)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Deploy: migration do dia convocado (#985) idempotente — instâncias com tabela criada manualmente não travam no `alembic upgrade`"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Atendimentos (#S202608-0010): contador de mensagens não lidas no chat alinhado entre sino, lista e conversa; badge some ao responder; divisor «Mensagens não lidas» também no chat do portal"
         }
       ]
     }
