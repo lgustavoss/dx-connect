@@ -30,6 +30,8 @@ function classeCss(classe: Ponto.ClasseVisualDia | undefined): string {
       return 'bg-sky-100/90 text-sky-900 ring-sky-200/80 hover:bg-sky-200/90 dark:bg-sky-950/45 dark:text-sky-100 dark:ring-sky-900 dark:hover:bg-sky-950/70'
     case 'feriado':
       return 'bg-orange-100/90 text-orange-900 ring-orange-200/80 hover:bg-orange-200/90 dark:bg-orange-950/45 dark:text-orange-100 dark:ring-orange-900 dark:hover:bg-orange-950/70'
+    case 'ausencia':
+      return 'bg-violet-100/90 text-violet-900 ring-violet-200/80 hover:bg-violet-200/90 dark:bg-violet-950/45 dark:text-violet-100 dark:ring-violet-900 dark:hover:bg-violet-950/70'
     default:
       return 'bg-slate-50 text-slate-600 ring-slate-200/80 hover:bg-slate-100 dark:bg-slate-800/40 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800/70'
   }
@@ -45,6 +47,8 @@ function rotuloClasse(classe: Ponto.ClasseVisualDia | undefined): string {
       return 'Hora extra'
     case 'feriado':
       return 'Feriado'
+    case 'ausencia':
+      return 'Férias / folga'
     default:
       return 'Sem jornada'
   }
@@ -179,6 +183,7 @@ export function PontoCalendarioMes({
             ['ok', 'Dentro da meta'],
             ['he', 'Hora extra'],
             ['feriado', 'Feriado'],
+            ['ausencia', 'Férias / folga'],
             ['neutro', 'Sem jornada'],
           ] as const
         ).map(([k, label]) => (
@@ -213,6 +218,12 @@ export function PontoCalendarioMes({
             Entrada: {detalhe.tem_entrada ? 'sim' : 'não'} · Saída: {detalhe.tem_saida ? 'sim' : 'não'}
             {detalhe.atrasado ? ' · Atraso' : ''}
             {detalhe.feriado ? ' · Feriado' : ''}
+            {detalhe.ausencia_tipo === 'ferias'
+              ? ' · Férias'
+              : detalhe.ausencia_tipo === 'folga_programada'
+                ? ' · Folga programada'
+                : ''}
+            {detalhe.pausa_abaixo_minimo ? ' · Pausa abaixo do mínimo' : ''}
           </p>
           <p className="mt-2 text-xs text-cyan-700 dark:text-cyan-300">
             O histórico ao lado filtra este dia automaticamente.

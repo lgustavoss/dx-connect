@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.auth import exigir_admin, obter_atendente_atual
@@ -16,6 +17,10 @@ from app.schemas.ponto import (
     PontoAjusteUpdate,
     PontoAlertasMe,
     PontoAnularBody,
+    PontoAusenciaConceder,
+    PontoAusenciaCreate,
+    PontoAusenciaDecisao,
+    PontoAusenciaRead,
     PontoBancoHorasRead,
     PontoBatidaAdminItem,
     PontoBatidaRead,
@@ -55,11 +60,13 @@ from app.schemas.ponto import (
     PontoSetupStatus,
 )
 from app.services import ponto as ponto_svc
+from app.services import ponto_ausencia as ausencia_svc
 from app.services import ponto_cobertura as cob_svc
 from app.services import ponto_competencia as comp_svc
 from app.services import ponto_folha as folha_svc
 from app.services import ponto_hora_extra as he_svc
 from app.services import ponto_justificativa as just_svc
+from app.services import ponto_justificativa_storage as just_anexo_svc
 from app.services import ponto_relatorio as ponto_relatorio_svc
 from app.services import ponto_settings as ponto_settings_svc
 
@@ -642,6 +649,58 @@ def criar_justificativa(
     )
 
 
+@router.post("/justificativas/upload", response_model=PontoJustificativaRead, status_code=201)
+async def criar_justificativa_com_anexo(
+    data_ref: date = Form(...),
+    tipo: str = Form(...),
+    motivo: str = Form(...),
+    arquivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    raw = await arquivo.read()
+    try:
+        nome, mime = just_anexo_svc.validar_anexo_justificativa(
+            arquivo.filename, arquivo.content_type, len(raw)
+        )
+        key = just_anexo_svc.gravar_bytes(raw, mimetype=mime, nome_original=nome)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return just_svc.criar(
+        db,
+        atendente,
+        data_ref=data_ref,
+        tipo=tipo,
+        motivo=motivo,
+        anexo_nome=nome,
+        anexo_content_type=mime,
+        anexo_storage_key=key,
+        anexo_tamanho_bytes=len(raw),
+    )
+
+
+@router.get("/justificativas/{justificativa_id}/anexo")
+def baixar_anexo_justificativa(
+    justificativa_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    row = just_svc.obter_para_anexo(
+        db,
+        justificativa_id=justificativa_id,
+        tenant_id=atendente.tenant_id,
+        solicitante=atendente,
+    )
+    path = just_anexo_svc.caminho_absoluto(row.anexo_storage_key)
+    if path is None:
+        raise HTTPException(status_code=404, detail="Arquivo do anexo não encontrado")
+    return FileResponse(
+        path,
+        media_type=row.anexo_content_type or "application/octet-stream",
+        filename=row.anexo_nome or path.name,
+    )
+
+
 @router.get("/justificativas/me", response_model=list[PontoJustificativaRead])
 def minhas_justificativas(
     db: Session = Depends(get_db),
@@ -674,6 +733,82 @@ def decidir_justificativa(
         decisao_motivo=data.decisao_motivo,
         aplicar_batidas=data.aplicar_batidas,
     )
+
+
+@router.post("/ausencias", response_model=PontoAusenciaRead, status_code=201)
+def solicitar_ausencia(
+    data: PontoAusenciaCreate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    return ausencia_svc.solicitar(
+        db,
+        atendente,
+        tipo=data.tipo,
+        desde=data.desde,
+        ate=data.ate,
+        motivo=data.motivo,
+    )
+
+
+@router.get("/ausencias/me", response_model=list[PontoAusenciaRead])
+def minhas_ausencias(
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    return ausencia_svc.listar_me(db, atendente)
+
+
+@router.get("/ausencias", response_model=list[PontoAusenciaRead])
+def listar_ausencias_admin(
+    estado: str | None = Query("pendente"),
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return ausencia_svc.listar_admin(db, admin, estado=estado)
+
+
+@router.post("/ausencias/conceder", response_model=PontoAusenciaRead, status_code=201)
+def conceder_ausencia(
+    data: PontoAusenciaConceder,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return ausencia_svc.conceder_admin(
+        db,
+        admin,
+        atendente_id=data.atendente_id,
+        tipo=data.tipo,
+        desde=data.desde,
+        ate=data.ate,
+        motivo=data.motivo,
+    )
+
+
+@router.post("/ausencias/{ausencia_id}/decidir", response_model=PontoAusenciaRead)
+def decidir_ausencia(
+    ausencia_id: int,
+    data: PontoAusenciaDecisao,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return ausencia_svc.decidir(
+        db,
+        admin,
+        ausencia_id,
+        aprovar=data.aprovar,
+        decisao_motivo=data.decisao_motivo,
+    )
+
+
+@router.delete("/ausencias/{ausencia_id}", status_code=204)
+def remover_ausencia(
+    ausencia_id: int,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    ausencia_svc.remover_admin(db, admin, ausencia_id)
+    return Response(status_code=204)
 
 
 @router.get("/hora-extra/me/status", response_model=PontoHoraExtraMeStatus)

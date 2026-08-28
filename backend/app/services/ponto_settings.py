@@ -69,6 +69,13 @@ def settings_update(db: Session, admin: Atendente, data: PontoSettingsUpdate) ->
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="jornada_diaria_minutos deve estar entre 60 e 1440.",
             )
+    if "pausa_minima_minutos" in payload:
+        m = payload["pausa_minima_minutos"]
+        if m is None or m < 0 or m > 240:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="pausa_minima_minutos deve estar entre 0 e 240.",
+            )
     if "he_teto_mensal_minutos" in payload:
         m = payload["he_teto_mensal_minutos"]
         if m is not None and (m < 30 or m > 31 * 24 * 60):

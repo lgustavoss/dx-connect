@@ -17,6 +17,8 @@ class PontoSettings(Base):
     # Margem após saída prevista do dia (#961); fecho = min(N horas, saída+margem).
     fecho_margem_pos_saida_minutos = Column(Integer, nullable=False, default=30, server_default="30")
     jornada_diaria_minutos = Column(Integer, nullable=False, default=480, server_default="480")
+    # 0 = desligado (#973)
+    pausa_minima_minutos = Column(Integer, nullable=False, default=0, server_default="0")
     # NULL = sem teto mensal global (#974)
     he_teto_mensal_minutos = Column(Integer, nullable=True)
     # opcional | recomendada | obrigatoria (#844)

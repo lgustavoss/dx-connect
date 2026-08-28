@@ -38,6 +38,10 @@ function rotuloStatus(s: Ponto.HojeItem['status']): string {
       return 'Atraso'
     case 'feriado':
       return 'Feriado'
+    case 'ferias':
+      return 'Férias'
+    case 'folga_programada':
+      return 'Folga programada'
     case 'ok':
       return 'Ok'
     default:
@@ -95,6 +99,13 @@ export function PontoEquipe() {
   const [ciencias, setCiencias] = useState<Ponto.CienciaItem[]>([])
   const [ajudaAberta, setAjudaAberta] = useState(false)
   const [hesPendentes, setHesPendentes] = useState<Ponto.HoraExtra[]>([])
+  const [ausPendentes, setAusPendentes] = useState<Ponto.Ausencia[]>([])
+  const [ausTipo, setAusTipo] = useState<'ferias' | 'folga_programada'>('folga_programada')
+  const [ausAtendente, setAusAtendente] = useState('')
+  const [ausDesde, setAusDesde] = useState(hojeIso)
+  const [ausAte, setAusAte] = useState(hojeIso)
+  const [ausMotivo, setAusMotivo] = useState('')
+  const [concedendoAus, setConcedendoAus] = useState(false)
   const [heModo, setHeModo] = useState<'resto_do_dia' | 'ate_horario' | 'duracao'>('resto_do_dia')
   const [heAteHorario, setHeAteHorario] = useState('20:00')
   const [heDuracaoMin, setHeDuracaoMin] = useState('60')
@@ -120,7 +131,7 @@ export function PontoEquipe() {
   const carregar = useCallback(
     async (silencioso = false) => {
       try {
-        const [hist, dia, js, dig, st, fer, hes, cobs, setupSt, comp, cins] = await Promise.all([
+        const [hist, dia, js, dig, st, fer, hes, aus, cobs, setupSt, comp, cins] = await Promise.all([
           ponto.batidasAdmin({
             atendente_id: atendenteId ? Number(atendenteId) : undefined,
             desde,
@@ -133,6 +144,7 @@ export function PontoEquipe() {
           ponto.settings(),
           ponto.feriados(new Date().getFullYear()),
           ponto.horaExtraAdmin('pendente'),
+          ponto.ausenciasAdmin('pendente'),
           ponto.coberturasAdmin('pendente'),
           ponto.setupStatus(),
           ponto.competencia(compAno, compMes),
@@ -146,6 +158,7 @@ export function PontoEquipe() {
         setSettings(st)
         setFeriados(fer)
         setHesPendentes(hes)
+        setAusPendentes(aus)
         setCobPendentes(cobs)
         setSetup(setupSt)
         setCompetencia(comp)
@@ -374,6 +387,47 @@ export function PontoEquipe() {
     }
   }
 
+  async function decidirAus(id: number, aprovar: boolean) {
+    try {
+      await ponto.decidirAusencia(id, {
+        aprovar,
+        decisao_motivo: aprovar ? null : 'Negado pelo administrador',
+      })
+      toast.showSuccess(aprovar ? 'Ausência aprovada.' : 'Ausência negada.')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível decidir a ausência.'))
+    }
+  }
+
+  async function concederAus() {
+    if (!ausAtendente) {
+      toast.showWarning('Selecione o atendente.')
+      return
+    }
+    if (ausAte < ausDesde) {
+      toast.showWarning('A data final deve ser igual ou posterior à inicial.')
+      return
+    }
+    setConcedendoAus(true)
+    try {
+      await ponto.concederAusencia({
+        atendente_id: Number(ausAtendente),
+        tipo: ausTipo,
+        desde: ausDesde,
+        ate: ausAte,
+        motivo: ausMotivo.trim() || null,
+      })
+      toast.showSuccess('Ausência agendada.')
+      setAusMotivo('')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível agendar a ausência.'))
+    } finally {
+      setConcedendoAus(false)
+    }
+  }
+
   async function decidirCob(id: number, aprovar: boolean) {
     try {
       await ponto.decidirCobertura(id, {
@@ -477,6 +531,7 @@ export function PontoEquipe() {
         fecho_apos_horas: settings.fecho_apos_horas,
         fecho_margem_pos_saida_minutos: settings.fecho_margem_pos_saida_minutos ?? 30,
         jornada_diaria_minutos: settings.jornada_diaria_minutos,
+        pausa_minima_minutos: settings.pausa_minima_minutos ?? 0,
         he_teto_mensal_minutos: settings.he_teto_mensal_minutos ?? null,
         politica_geolocalizacao: settings.politica_geolocalizacao,
       })
@@ -761,6 +816,23 @@ export function PontoEquipe() {
                       {j.atendente_nome ?? j.atendente_id} · {j.data_ref} · {j.tipo}
                     </p>
                     <p className="text-slate-600 dark:text-slate-300">{j.motivo}</p>
+                    {j.tem_anexo ? (
+                      <button
+                        type="button"
+                        className="mt-1 text-xs text-cyan-700 underline dark:text-cyan-300"
+                        onClick={() =>
+                          void ponto
+                            .baixarJustificativaAnexo(j.id, j.anexo_nome)
+                            .catch((err) =>
+                              toast.showError(
+                                mensagemFalhaParaToast(err, 'Não foi possível baixar o anexo.'),
+                              ),
+                            )
+                        }
+                      >
+                        Baixar anexo{j.anexo_nome ? ` (${j.anexo_nome})` : ''}
+                      </button>
+                    ) : null}
                   </div>
                   <div className="flex gap-2">
                     <Button type="button" variant="secondary" onClick={() => void decidirJust(j.id, 'aprovada')}>
@@ -832,6 +904,71 @@ export function PontoEquipe() {
                       Homologar
                     </Button>
                     <Button type="button" variant="ghost" onClick={() => void decidirCob(c.id, false)}>
+                      Negar
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card title="Férias / folga programada">
+          <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
+            Agende direto ou aprove pedidos dos colaboradores. Dias aprovados não geram falta automática.
+          </p>
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <Select
+              label="Colaborador"
+              value={ausAtendente}
+              onChange={(v) => setAusAtendente(String(v))}
+              options={[
+                { value: '', label: 'Selecione' },
+                ...equipe.map((a) => ({ value: String(a.id), label: a.nome })),
+              ]}
+            />
+            <Select
+              label="Tipo"
+              value={ausTipo}
+              onChange={(v) => setAusTipo(String(v) as 'ferias' | 'folga_programada')}
+              options={[
+                { value: 'folga_programada', label: 'Folga programada' },
+                { value: 'ferias', label: 'Férias' },
+              ]}
+            />
+            <Input label="De" type="date" value={ausDesde} onChange={(e) => setAusDesde(e.target.value)} />
+            <Input label="Até" type="date" value={ausAte} onChange={(e) => setAusAte(e.target.value)} />
+            <Input
+              label="Motivo (opcional)"
+              value={ausMotivo}
+              onChange={(e) => setAusMotivo(e.target.value)}
+            />
+            <Button type="button" disabled={concedendoAus} onClick={() => void concederAus()}>
+              Agendar
+            </Button>
+          </div>
+          <p className="mb-2 text-sm font-medium text-slate-800 dark:text-slate-100">Pedidos pendentes</p>
+          {ausPendentes.length === 0 ? (
+            <p className="text-sm text-slate-500">Nenhum pedido pendente.</p>
+          ) : (
+            <ul className="space-y-3">
+              {ausPendentes.map((a) => (
+                <li
+                  key={a.id}
+                  className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800"
+                >
+                  <div className="text-sm">
+                    <p className="font-medium">{a.atendente_nome ?? a.atendente_id}</p>
+                    <p className="text-slate-600 dark:text-slate-300">
+                      {a.tipo === 'ferias' ? 'Férias' : 'Folga programada'} · {a.desde} → {a.ate}
+                    </p>
+                    {a.motivo ? <p className="text-slate-500">{a.motivo}</p> : null}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="secondary" onClick={() => void decidirAus(a.id, true)}>
+                      Aprovar
+                    </Button>
+                    <Button type="button" variant="ghost" onClick={() => void decidirAus(a.id, false)}>
                       Negar
                     </Button>
                   </div>
@@ -1245,6 +1382,23 @@ export function PontoEquipe() {
                   })
                 }
               />
+              <Input
+                label="Pausa mínima (minutos)"
+                type="number"
+                min={0}
+                max={240}
+                value={String(settings.pausa_minima_minutos ?? 0)}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    pausa_minima_minutos: Math.max(0, Number(e.target.value) || 0),
+                  })
+                }
+              />
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                0 = desligado. Se a soma das pausas do dia ficar abaixo do mínimo (com jornada iniciada), o
+                calendário e os alertas sinalizam — sem bloquear batidas.
+              </p>
               <Input
                 label="Teto mensal de HE (minutos, global)"
                 type="number"

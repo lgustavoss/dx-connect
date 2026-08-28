@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     # Tamanho máximo (bytes) para cada anexo de ticket.
     TICKET_ANEXOS_MAX_BYTES: int = 25 * 1024 * 1024
 
+    # Anexos de justificativa de ponto (#977) — mesmos limites de tamanho.
+    PONTO_JUSTIFICATIVA_ANEXOS_DIR: str = "data/ponto_justificativa_anexos"
+    PONTO_JUSTIFICATIVA_ANEXOS_MAX_BYTES: int = 25 * 1024 * 1024
+
     # Mídia de sugestões/problemas (#856+): prints no texto + PDF/vídeo em anexo.
     SOLICITACAO_MEDIA_DIR: str = "data/solicitacao_media"
     SOLICITACAO_MEDIA_MAX_BYTES: int = 25 * 1024 * 1024

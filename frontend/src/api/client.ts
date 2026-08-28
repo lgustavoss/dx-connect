@@ -754,6 +754,14 @@ export const ponto = {
     }),
   criarJustificativa: (data: Ponto.JustificativaCreate) =>
     api<Ponto.Justificativa>('/ponto/justificativas', { method: 'POST', body: JSON.stringify(data) }),
+  criarJustificativaComAnexo: (data: Ponto.JustificativaCreate, arquivo: File) => {
+    const fd = new FormData()
+    fd.append('data_ref', data.data_ref)
+    fd.append('tipo', data.tipo)
+    fd.append('motivo', data.motivo)
+    fd.append('arquivo', arquivo)
+    return api<Ponto.Justificativa>('/ponto/justificativas/upload', { method: 'POST', body: fd })
+  },
   minhasJustificativas: () => api<Ponto.Justificativa[]>('/ponto/justificativas/me'),
   justificativasAdmin: (estado?: string) =>
     api<Ponto.Justificativa[]>(withParams('/ponto/justificativas', { estado })),
@@ -762,6 +770,43 @@ export const ponto = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  justificativaAnexoUrl: (id: number) =>
+    `${apiOrigin()}${API_VERSION_PREFIX}/ponto/justificativas/${id}/anexo`,
+  baixarJustificativaAnexo: async (id: number, nome?: string | null) => {
+    const token = getAuthToken()
+    const headers: Record<string, string> = {}
+    if (token) headers.Authorization = `Bearer ${token}`
+    if (isMultiTenantMode()) {
+      const tid = resolveTenantIdFromHostname()
+      if (tid) headers['X-Dx-Tenant-Id'] = String(tid)
+    }
+    const res = await fetch(
+      `${apiOrigin()}${API_VERSION_PREFIX}/ponto/justificativas/${id}/anexo`,
+      { headers },
+    )
+    if (!res.ok) throw new ApiError('Falha ao baixar anexo', res.status, await res.text())
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = nome || `justificativa-${id}`
+    a.click()
+    URL.revokeObjectURL(url)
+  },
+  solicitarAusencia: (data: Ponto.AusenciaCreate) =>
+    api<Ponto.Ausencia>('/ponto/ausencias', { method: 'POST', body: JSON.stringify(data) }),
+  minhasAusencias: () => api<Ponto.Ausencia[]>('/ponto/ausencias/me'),
+  ausenciasAdmin: (estado?: string) =>
+    api<Ponto.Ausencia[]>(withParams('/ponto/ausencias', { estado })),
+  concederAusencia: (data: Ponto.AusenciaConceder) =>
+    api<Ponto.Ausencia>('/ponto/ausencias/conceder', { method: 'POST', body: JSON.stringify(data) }),
+  decidirAusencia: (id: number, data: Ponto.AusenciaDecisao) =>
+    api<Ponto.Ausencia>(`/ponto/ausencias/${id}/decidir`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  removerAusencia: (id: number) =>
+    api<void>(`/ponto/ausencias/${id}`, { method: 'DELETE' }),
   horaExtraMeStatus: () => api<Ponto.HoraExtraMeStatus>('/ponto/hora-extra/me/status'),
   minhasHoraExtra: () => api<Ponto.HoraExtra[]>('/ponto/hora-extra/me'),
   solicitarHoraExtra: (data?: Ponto.HoraExtraCreate) =>
@@ -4846,6 +4891,8 @@ export namespace Ponto {
     | 'parcial'
     | 'folga'
     | 'folga_com_ponto'
+    | 'folga_programada'
+    | 'ferias'
     | 'livre'
     | 'atraso'
     | 'feriado'
@@ -4922,11 +4969,14 @@ export namespace Ponto {
     status: StatusDia
     atrasado?: boolean
     feriado?: boolean
+    ausencia_tipo?: string | null
+    pausa_abaixo_minimo?: boolean
     segundos_trabalhados?: number
     segundos_esperados?: number
+    segundos_pausa?: number
     classe_visual?: ClasseVisualDia
   }
-  export type ClasseVisualDia = 'abaixo' | 'ok' | 'he' | 'feriado' | 'neutro'
+  export type ClasseVisualDia = 'abaixo' | 'ok' | 'he' | 'feriado' | 'ausencia' | 'neutro'
   export interface Calendario {
     atendente_id: number
     ano: number
@@ -4980,6 +5030,7 @@ export namespace Ponto {
     fecho_apos_horas: number
     fecho_margem_pos_saida_minutos: number
     jornada_diaria_minutos: number
+    pausa_minima_minutos?: number
     he_teto_mensal_minutos?: number | null
     politica_geolocalizacao: PoliticaGeolocalizacao
   }
@@ -4993,6 +5044,7 @@ export namespace Ponto {
     fecho_apos_horas?: number
     fecho_margem_pos_saida_minutos?: number
     jornada_diaria_minutos?: number
+    pausa_minima_minutos?: number
     he_teto_mensal_minutos?: number | null
     politica_geolocalizacao?: PoliticaGeolocalizacao
   }
@@ -5082,12 +5134,48 @@ export namespace Ponto {
     decisao_motivo?: string | null
     decidido_por_id?: number | null
     decidido_em?: string | null
+    tem_anexo?: boolean
+    anexo_nome?: string | null
+    anexo_content_type?: string | null
+    anexo_tamanho_bytes?: number | null
     created_at?: string | null
   }
   export interface JustificativaDecisao {
     estado: 'aprovada' | 'rejeitada'
     decisao_motivo: string
     aplicar_batidas?: { tipo: Tipo; registrado_em: string; motivo: string }[]
+  }
+  export interface AusenciaCreate {
+    tipo: 'ferias' | 'folga_programada'
+    desde: string
+    ate: string
+    motivo?: string | null
+  }
+  export interface AusenciaConceder {
+    atendente_id: number
+    tipo: 'ferias' | 'folga_programada'
+    desde: string
+    ate: string
+    motivo?: string | null
+  }
+  export interface AusenciaDecisao {
+    aprovar: boolean
+    decisao_motivo?: string | null
+  }
+  export interface Ausencia {
+    id: number
+    atendente_id: number
+    atendente_nome?: string | null
+    tipo: string
+    desde: string
+    ate: string
+    motivo?: string | null
+    estado: string
+    origem?: string
+    decidido_por_id?: number | null
+    decidido_em?: string | null
+    decisao_motivo?: string | null
+    created_at?: string | null
   }
   export interface CoberturaCreate {
     cobertor_id: number
