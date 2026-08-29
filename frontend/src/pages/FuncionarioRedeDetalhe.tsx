@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ApiError, funcionariosRede, tickets, type FuncionariosRede, type Tickets } from '../api/client'
 import { Button } from '../components/ui/Button'
@@ -13,6 +13,7 @@ import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBus
 import { EmpresaChatsPanel } from '../components/EmpresaChatsPanel'
 import { TicketsTabelaContexto } from '../components/TicketsTabelaContexto'
 import { formatTelefoneBrExibicao } from '../utils/masks'
+import { useTicketsAbertosContato } from '../hooks/useTicketsAbertosContato'
 
 type Aba = 'geral' | 'chats' | 'tickets'
 type SituacaoTickets = 'abertos' | 'fechados' | 'todos'
@@ -107,6 +108,15 @@ export function FuncionarioRedeDetalhe() {
   const [ticketsItems, setTicketsItems] = useState<Tickets.Ticket[]>([])
   const [ticketsTotal, setTicketsTotal] = useState(0)
   const [loadingT, setLoadingT] = useState(false)
+  const [reloadChatsSeq, setReloadChatsSeq] = useState(0)
+  const [reloadTicketsSeq, setReloadTicketsSeq] = useState(0)
+  const skipLocationReloadRef = useRef(true)
+  const abaRef = useRef(aba)
+  abaRef.current = aba
+
+  const { total: ticketsAbertos, reload: reloadTicketsAbertos } = useTicketsAbertosContato(
+    Number.isNaN(funcionarioId) ? null : funcionarioId,
+  )
 
   useEffect(() => {
     const q = searchParams.get('aba')
@@ -116,12 +126,34 @@ export function FuncionarioRedeDetalhe() {
   }, [searchParams])
 
   const mudarAba = (key: Aba) => {
+    if (key !== aba) {
+      if (key === 'chats') setReloadChatsSeq((n) => n + 1)
+      if (key === 'tickets') setReloadTicketsSeq((n) => n + 1)
+    }
+    if (key === 'geral') reloadTicketsAbertos()
     setAba(key)
     const next = new URLSearchParams(searchParams)
     if (key === 'geral') next.delete('aba')
     else next.set('aba', key)
     setSearchParams(next, { replace: true })
   }
+
+  const irParaTicketsAbertos = () => {
+    setSituacaoT('abertos')
+    setPageT(1)
+    mudarAba('tickets')
+  }
+
+  useEffect(() => {
+    if (skipLocationReloadRef.current) {
+      skipLocationReloadRef.current = false
+      return
+    }
+    const current = abaRef.current
+    if (current === 'chats') setReloadChatsSeq((n) => n + 1)
+    else if (current === 'tickets') setReloadTicketsSeq((n) => n + 1)
+    else if (current === 'geral') reloadTicketsAbertos()
+  }, [location.key, reloadTicketsAbertos])
 
   useEffect(() => {
     if (!id || isNaN(funcionarioId)) {
@@ -191,7 +223,7 @@ export function FuncionarioRedeDetalhe() {
     return () => {
       cancelled = true
     }
-  }, [aba, funcionarioId, pageT, debouncedBuscaT, situacaoT])
+  }, [aba, funcionarioId, pageT, debouncedBuscaT, situacaoT, reloadTicketsSeq])
 
   function abrirEdicao() {
     if (!f) return
@@ -345,12 +377,31 @@ export function FuncionarioRedeDetalhe() {
               <DetailRow label="Cadastrado em" value={createdFmt} />
             </dl>
           </section>
+
+          {ticketsAbertos != null && ticketsAbertos > 0 ? (
+            <section className="rounded-2xl border border-amber-200/80 bg-amber-50/80 p-5 shadow-sm sm:p-7 lg:col-span-2 dark:border-amber-900/40 dark:bg-amber-950/20">
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                Atendimento
+              </h2>
+              <p className="text-sm text-amber-950 dark:text-amber-100">
+                {ticketsAbertos} ticket{ticketsAbertos === 1 ? '' : 's'} aberto{ticketsAbertos === 1 ? '' : 's'} deste
+                contato.
+              </p>
+              <button
+                type="button"
+                onClick={irParaTicketsAbertos}
+                className="mt-3 text-sm font-medium text-amber-900 underline decoration-amber-400 underline-offset-2 hover:decoration-amber-600 dark:text-amber-200 dark:decoration-amber-700 dark:hover:decoration-amber-400"
+              >
+                Ver tickets abertos
+              </button>
+            </section>
+          ) : null}
         </div>
       )}
 
       {aba === 'chats' && (
         <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
-          <EmpresaChatsPanel funcionarioRedeId={f.id} returnPath={returnPath} />
+          <EmpresaChatsPanel funcionarioRedeId={f.id} returnPath={returnPath} reloadKey={reloadChatsSeq} />
         </section>
       )}
 

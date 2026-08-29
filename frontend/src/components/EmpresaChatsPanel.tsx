@@ -19,6 +19,7 @@ type Props = {
   intro?: string
   emptyTitle?: string
   emptyDescription?: string
+  reloadKey?: number
 }
 
 function formatDuration(chat: WhatsappChats.Chat) {
@@ -52,6 +53,7 @@ export function EmpresaChatsPanel({
   intro,
   emptyTitle,
   emptyDescription,
+  reloadKey = 0,
 }: Props) {
   const toast = useToast()
   const [page, setPage] = useState(1)
@@ -101,7 +103,7 @@ export function EmpresaChatsPanel({
     return () => {
       cancelled = true
     }
-  }, [empresaId, funcionarioRedeId, page, debouncedBusca, toast])
+  }, [empresaId, funcionarioRedeId, page, debouncedBusca, toast, reloadKey])
 
   const textoIntro =
     intro ??
