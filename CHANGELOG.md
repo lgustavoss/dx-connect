@@ -5,6 +5,26 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### SaaS Control Plane
+
+#### Correções
+
+- Listagens do painel ops (Leads, Licenças): hover no tema escuro deixa de «lavar» o texto — contraste alinhado ao padrão das demais tabelas (#921 / #S202608-0001)
+
+### DeskRudder
+
+#### Melhorias
+
+- Contato no chat: detalhe do funcionário da rede com abas **Geral**, **Chats** e **Tickets** — histórico operacional ao clicar no chip do contato (#1012 / #S202608-0012)
+- Hub de chat — aba **Contatos**: linha do contato abre o detalhe cadastral/operacional (#1018)
+- Chat WhatsApp: badge de **tickets abertos** no chip do contato vinculado (#1020)
+- Detalhe do contato: resumo de tickets abertos na aba **Geral** e listas atualizadas ao focar abas Chats/Tickets (#1022)
+
+#### Correções
+
+- Listagens (tema escuro): hover das linhas de tabela deixa de «lavar» o texto — contraste alinhado ao padrão das telas SaaS (#921 / #S202608-0001)
+- Módulo de chat: textos de interface padronizados em português do Brasil («contato», não «contacto») (#1020)
+
 ## [26.08.018] - 2026-08-28
 
 ### SaaS Control Plane
