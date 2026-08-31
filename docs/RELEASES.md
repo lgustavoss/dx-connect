@@ -115,6 +115,7 @@ Após cada deploy, o workflow commita `VERSION`, `CHANGELOG.md`, `manifest.json`
 ## Checklist — PR `main → staging`
 
 - [ ] `[Unreleased]` lista **todas** as entregas do lote (por produto)
+- [ ] `python scripts/check_changelog.py --base origin/staging --head origin/main` → **OK** (merge simulado; evita `[Unreleased]` vazio após conflito de CHANGELOG)
 - [ ] Revisão de redação (sem «deploy», «branch», «commit»)
 - [ ] **Aprovação e merge manuais** no GitHub (agente não executa `gh pr merge`)
 
