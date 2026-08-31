@@ -47,7 +47,7 @@ Config: `.cursor/hooks.json`
 | `/subir-local` | Subir Docker, migrations, API e frontend em dev |
 | `/testar-ui` | Smoke test no navegador integrado (login, rotas, console) |
 | `/criar-pr` | PR → watch CI → approve → **merge automático em main** (nunca staging) |
-| `/release-staging` | Abre PR `main → staging`; **não mergeia** (aprovação humana) |
+| `/release-staging` | Abre PR `main → staging` (não mergeia); após deploy, sync CHANGELOG na `main` (Passo 5) |
 | `/listar-solicitacoes` | Fila SaaS pendente no chat (MCP `deskrudder-saas`; cada dev configura o próprio `mcp.json`) |
 
 ## Subagents (Task tool)
@@ -76,7 +76,7 @@ Use subagents para **paralelizar** ou **isolar** trabalho:
 
 O `/criar-pr` monitora Actions, aprova e **mergeia em `main`** quando CI passa (main = branch de testes). Em falha, corrige e re-monitora (skill **babysit**). Opt-out: pedir `/criar-pr sem merge`.
 
-Release para produção: `/release-staging` — **só abre** o PR; merge em `staging` é **sempre** manual no GitHub.
+Release para produção: `/release-staging` — abre PR `main → staging` (merge manual no GitHub); depois do Deploy, **Passo 5** alinha CHANGELOG na `main`.
 
 Para desenvolvimento local: `/subir-local` → `/testar-ui` (navegador integrado).
 

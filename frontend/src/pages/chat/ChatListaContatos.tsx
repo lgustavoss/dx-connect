@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { whatsappChats, type WhatsappChats } from '../../api/client'
 import { Button } from '../../components/ui/Button'
 import { useChatHub } from '../../contexts/ChatHubContext'
@@ -10,6 +11,8 @@ const PAGE = 40
 
 export function ChatListaContatos() {
   const { busca } = useChatHub()
+  const location = useLocation()
+  const voltarPara = `${location.pathname}${location.search}`
   const toast = useToast()
   const [items, setItems] = useState<WhatsappChats.Contato[]>([])
   const [total, setTotal] = useState(0)
@@ -60,13 +63,18 @@ export function ChatListaContatos() {
         <p className="p-4 text-center text-sm text-slate-400 animate-pulse">Carregando…</p>
       ) : items.length === 0 ? (
         <p className="p-6 text-center text-sm text-slate-400">
-          {busca.trim() ? 'Nenhum contacto encontrado.' : 'Nenhum contacto cadastrado.'}
+          {busca.trim() ? 'Nenhum contato encontrado.' : 'Nenhum contato cadastrado.'}
         </p>
       ) : (
         <ul className="divide-y divide-slate-100 dark:divide-slate-800">
           {items.map((c) => (
-            <li key={c.id} className="px-3 py-3">
-              <div className="flex items-start gap-3">
+            <li key={c.id}>
+              <Link
+                to={`/funcionarios-rede/${c.id}`}
+                state={{ voltarPara }}
+                aria-label={`Ver detalhe de ${c.nome}`}
+                className="flex items-start gap-3 px-3 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900/50"
+              >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-200 text-sm font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-200">
                   {c.nome.charAt(0)?.toUpperCase() || '?'}
                 </div>
@@ -90,17 +98,17 @@ export function ChatListaContatos() {
                   <p className="mt-0.5 truncate font-mono text-[11px] text-slate-500">
                     {c.telefone || 'Sem WhatsApp'}
                   </p>
-                  <div className="mt-2">
-                    <Button
-                      type="button"
-                      className="h-7 px-2 text-[10px]"
-                      variant={c.telefone ? 'primary' : 'secondary'}
-                      onClick={() => setModal({ contato: c })}
-                    >
-                      {c.telefone ? 'Iniciar conversa' : 'Informar número'}
-                    </Button>
-                  </div>
                 </div>
+              </Link>
+              <div className="px-3 pb-3">
+                <Button
+                  type="button"
+                  className="h-7 px-2 text-[10px]"
+                  variant={c.telefone ? 'primary' : 'secondary'}
+                  onClick={() => setModal({ contato: c })}
+                >
+                  {c.telefone ? 'Iniciar conversa' : 'Informar número'}
+                </Button>
               </div>
             </li>
           ))}

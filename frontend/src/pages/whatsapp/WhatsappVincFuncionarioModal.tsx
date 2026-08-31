@@ -10,6 +10,7 @@ import { CheckboxField } from '../../components/ui/CheckboxField'
 import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { CONTATO_CLIENTE } from '../../constants/contatoClienteLabels'
+import { useTicketsAbertosContato } from '../../hooks/useTicketsAbertosContato'
 
 type Modo = 'vincular' | 'cadastrar'
 type TipoCadastro = 'colaborador' | 'supervisor'
@@ -24,6 +25,7 @@ type Props = {
 
 export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }: Props) {
   const toast = useToast()
+  const { total: ticketsAbertosContato } = useTicketsAbertosContato(chat.funcionario_rede_id)
   const [modo, setModo] = useState<Modo>('vincular')
   const [salvando, setSalvando] = useState(false)
 
@@ -323,11 +325,22 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
             )}
             <div className="mt-2 flex flex-wrap gap-2">
               <Link
-                to={`/funcionarios-rede/${chat.funcionario_rede_id}`}
+                to={`/funcionarios-rede/${chat.funcionario_rede_id}?aba=chats`}
+                state={{ voltarPara: window.location.pathname + window.location.search }}
                 className="text-xs font-medium text-cyan-700 underline dark:text-cyan-300"
               >
-                Abrir cadastro
+                Ver histórico de chats
               </Link>
+              {ticketsAbertosContato != null && ticketsAbertosContato > 0 ? (
+                <Link
+                  to={`/funcionarios-rede/${chat.funcionario_rede_id}?aba=tickets`}
+                  state={{ voltarPara: window.location.pathname + window.location.search }}
+                  className="text-xs font-medium text-amber-800 underline dark:text-amber-200"
+                >
+                  {ticketsAbertosContato} ticket{ticketsAbertosContato === 1 ? '' : 's'} aberto
+                  {ticketsAbertosContato === 1 ? '' : 's'}
+                </Link>
+              ) : null}
               <button
                 type="button"
                 className="text-xs font-medium text-red-600 underline"
@@ -544,7 +557,7 @@ export function WhatsappVincFuncionarioModal({ chat, open, onClose, onSuccess }:
                   }}
                 />
                 <p className="text-xs text-slate-500">
-                  Usado para tickets por e-mail; contactos só WhatsApp podem deixar em branco.
+                  Usado para tickets por e-mail; contatos só WhatsApp podem deixar em branco.
                 </p>
                 <p className="text-xs text-slate-500">
                   WhatsApp do contato: <span className="font-mono">{chat.wa_id}</span>

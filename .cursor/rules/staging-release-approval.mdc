@@ -22,8 +22,9 @@ alwaysApply: true
 
 1. Release = **um único PR** `main` → `staging` (abrir com `/release-staging` ou pedido explícito)
 2. Se houver conflito: resolver numa branch `merge/…`, abrir **um** PR para `staging`, **parar** e entregar o URL
-3. O utilizador (Luis) **analisa e aprova/mergeia no GitHub** — o agente **não** corre `gh pr merge` nesse PR
+3. O usuário (Luis) **analisa e aprova/mergeia no GitHub** — o agente **não** corre `gh pr merge` nesse PR
 4. Após merge humano: deploy/CalVer segue o workflow do repo (`docs/RELEASES.md`)
+5. **Pós-deploy:** o mesmo fluxo `/release-staging` inclui **Passo 5** — PR de sync do CHANGELOG e artefatos de release **`→ main`** (permitido merge automático com CI verde). Ver `.cursor/commands/release-staging.md`.
 
 ## Se o utilizador pedir merge em staging
 
@@ -37,3 +38,4 @@ Só Summary + test plan. **Não** incluir frases do tipo “Merge só no GitHub 
 
 - `/criar-pr` → só **`→ main`** (testes); merge automático CI verde **permitido**
 - `/release-staging` → só **abre** PR `main → staging`; **nunca** mergeia
+- Após merge do release + Deploy verde: **Passo 5** do mesmo comando — sync CHANGELOG `staging` → `main` via PR `→ main` (merge automático OK)

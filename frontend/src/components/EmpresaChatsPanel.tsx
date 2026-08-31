@@ -13,12 +13,18 @@ import { marcarWhatsappChatAtivo, whatsappConversaLink } from '../lib/whatsappLi
 import { ChatIniciarConversaModal } from './chat/ChatIniciarConversaModal'
 
 type Props = {
-  empresaId: number
+  empresaId?: number
+  funcionarioRedeId?: number
+  returnPath: string
+  intro?: string
+  emptyTitle?: string
+  emptyDescription?: string
+  reloadKey?: number
 }
 
 function formatDuration(chat: WhatsappChats.Chat) {
   if (!chat.atendimento_inicio_at) return '—'
-  if (!chat.encerramento_at) return 'Em curso'
+  if (!chat.encerramento_at) return 'Em andamento'
   const start = new Date(chat.atendimento_inicio_at)
   const end = new Date(chat.encerramento_at)
   const diff = Math.max(0, Math.round((end.getTime() - start.getTime()) / 1000))
@@ -40,7 +46,15 @@ function formatDateTime(iso?: string | null) {
   })
 }
 
-export function EmpresaChatsPanel({ empresaId }: Props) {
+export function EmpresaChatsPanel({
+  empresaId,
+  funcionarioRedeId,
+  returnPath,
+  intro,
+  emptyTitle,
+  emptyDescription,
+  reloadKey = 0,
+}: Props) {
   const toast = useToast()
   const [page, setPage] = useState(1)
   const [busca, setBusca] = useState('')
@@ -50,8 +64,6 @@ export function EmpresaChatsPanel({ empresaId }: Props) {
   const [loading, setLoading] = useState(false)
   const [retomarChat, setRetomarChat] = useState<WhatsappChats.Chat | null>(null)
 
-  const returnPath = `/empresas/${empresaId}`
-
   useEffect(() => {
     const t = setTimeout(() => setDebouncedBusca(busca.trim()), 400)
     return () => clearTimeout(t)
@@ -60,14 +72,16 @@ export function EmpresaChatsPanel({ empresaId }: Props) {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
+    const params: Record<string, string | number | undefined> = {
+      estado: 'todos',
+      offset: (page - 1) * PAGE_SIZE_PADRAO,
+      limit: PAGE_SIZE_PADRAO,
+      busca: debouncedBusca || undefined,
+    }
+    if (empresaId != null) params.empresa_id = empresaId
+    if (funcionarioRedeId != null) params.funcionario_rede_id = funcionarioRedeId
     whatsappChats
-      .encerrados({
-        empresa_id: empresaId,
-        estado: 'todos',
-        offset: (page - 1) * PAGE_SIZE_PADRAO,
-        limit: PAGE_SIZE_PADRAO,
-        busca: debouncedBusca || undefined,
-      })
+      .encerrados(params)
       .then(({ items: rows, total: t }) => {
         if (!cancelled) {
           setItems(rows)
@@ -76,7 +90,9 @@ export function EmpresaChatsPanel({ empresaId }: Props) {
       })
       .catch((err) => {
         if (!cancelled) {
-          toast.showError(mensagemFalhaParaToast(err, 'Falha ao carregar chats da empresa.'))
+          toast.showError(
+            mensagemFalhaParaToast(err, 'Falha ao carregar chats.'),
+          )
           setItems([])
           setTotal(0)
         }
@@ -87,13 +103,23 @@ export function EmpresaChatsPanel({ empresaId }: Props) {
     return () => {
       cancelled = true
     }
-  }, [empresaId, page, debouncedBusca, toast])
+  }, [empresaId, funcionarioRedeId, page, debouncedBusca, toast, reloadKey])
+
+  const textoIntro =
+    intro ??
+    (funcionarioRedeId != null
+      ? 'Conversas WhatsApp vinculadas a este contato.'
+      : 'Chats e atendimentos WhatsApp vinculados a esta empresa.')
+  const tituloVazio = emptyTitle ?? (funcionarioRedeId != null ? 'Nenhum chat encontrado' : 'Nenhum chat nesta empresa')
+  const descVazio =
+    emptyDescription ??
+    (funcionarioRedeId != null
+      ? 'Quando houver atendimentos com este contato, eles aparecem aqui.'
+      : 'Quando houver atendimentos com esta empresa de contexto, eles aparecem aqui.')
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-slate-500 dark:text-slate-400">
-        Chats e atendimentos WhatsApp vinculados a esta empresa.
-      </p>
+      <p className="text-sm text-slate-500 dark:text-slate-400">{textoIntro}</p>
       <BarraBuscaPaginacao
         busca={busca}
         onBuscaChange={(v) => {
@@ -115,10 +141,8 @@ export function EmpresaChatsPanel({ empresaId }: Props) {
         </div>
       ) : items.length === 0 ? (
         <Card className="flex flex-col items-center justify-center border-dashed border-2 py-14 text-center">
-          <h3 className="font-semibold text-slate-900 dark:text-slate-100">Nenhum chat nesta empresa</h3>
-          <p className="mt-1 text-sm text-slate-500">
-            Quando houver atendimentos com esta empresa de contexto, eles aparecem aqui.
-          </p>
+          <h3 className="font-semibold text-slate-900 dark:text-slate-100">{tituloVazio}</h3>
+          <p className="mt-1 text-sm text-slate-500">{descVazio}</p>
         </Card>
       ) : (
         <div className="grid gap-3">
@@ -210,7 +234,7 @@ export function EmpresaChatsPanel({ empresaId }: Props) {
                       className="h-9 px-3 text-xs"
                       onClick={() => setRetomarChat(c)}
                     >
-                      Retomar contacto
+                      Retomar contato
                     </Button>
                   )}
                 </div>

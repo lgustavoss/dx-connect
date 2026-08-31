@@ -10,9 +10,11 @@ from app.database import get_db
 from app.models import Ticket, TicketHistorico, TicketMensagem, Empresa, Setor, StatusTicket, Atendente, Rede
 from app.models.email_inbound_received import EmailInboundReceived
 from app.models.funcionario_rede import FuncionarioRede
+from app.services.funcionario_escopo import funcionario_visivel_no_tenant
 from app.models.ticket_anexo import TicketAnexo
 from app.models.ticket_vinculo import TIPO_DUPLICADO_DE, TicketVinculo
 from app.models.ticket_classificacao import TicketMotivo
+from app.models.whatsapp_chat import WhatsappChat, WhatsappChatTicket
 from app.schemas.implantacao import TicketChecklistItemPatch, TicketChecklistRead
 from app.schemas.ticket import (
     EmpresaVinculoSugerida,
@@ -493,6 +495,11 @@ def listar(
         None,
         description="Filtrar por responsável (apenas administradores)",
     ),
+    funcionario_rede_id: int | None = Query(
+        None,
+        ge=1,
+        description="Tickets do contato (aberto_por_id ou vínculo via chat WhatsApp)",
+    ),
     situacao: SituacaoTicket = Query(
         SituacaoTicket.abertos,
         description="abertos = fechado_em vazio; fechados = fechado_em preenchido; todos = sem filtro",
@@ -549,6 +556,25 @@ def listar(
         q = q.filter(Ticket.atendente_id.isnot(None))
     elif sem_responsavel:
         q = q.filter(Ticket.atendente_id.is_(None))
+
+    if funcionario_rede_id is not None:
+        if funcionario_visivel_no_tenant(db, atendente, funcionario_rede_id, exigir_ativo=False) is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Funcionário não encontrado",
+            )
+        ticket_ids_chat = (
+            db.query(WhatsappChatTicket.ticket_id)
+            .join(WhatsappChat, WhatsappChat.id == WhatsappChatTicket.chat_id)
+            .filter(WhatsappChat.funcionario_rede_id == funcionario_rede_id)
+            .distinct()
+        )
+        q = q.filter(
+            or_(
+                Ticket.aberto_por_id == funcionario_rede_id,
+                Ticket.id.in_(ticket_ids_chat),
+            )
+        )
 
     if situacao == SituacaoTicket.abertos:
         q = q.filter(Ticket.fechado_em.is_(None))

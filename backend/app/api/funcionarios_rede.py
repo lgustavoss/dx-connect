@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
-from app.models import FuncionarioRede, FuncionarioRedeEmpresa, Ticket, Empresa
+from app.models import FuncionarioRede, FuncionarioRedeEmpresa, Ticket, Empresa, Rede
 from app.models.atendente import Atendente
 from app.schemas.funcionario_rede import (
     EmpresaOpcaoRead,
@@ -17,13 +17,14 @@ from app.schemas.funcionario_rede import (
 )
 from app.services.funcionario_escopo import (
     escopo_efetivo,
+    funcionario_visivel_no_tenant,
     sincronizar_vinculos_empresas,
     validar_empresa_ids_na_rede,
 )
 from app.services.inbound_ticket_reconcile import reconciliar_tickets_pendentes_por_email
 from app.services.funcionario_rede_resolver import assert_email_unico_por_rede, resolver_remetente_por_email
 from app.schemas.lista_paginada import ListaPaginada
-from app.core.auth import exigir_admin
+from app.core.auth import exigir_admin, obter_atendente_atual
 from app.core.audit import registrar_audit
 from app.core.security import hash_senha
 
@@ -68,6 +69,21 @@ def _para_read(f: FuncionarioRede) -> FuncionarioRedeRead:
         created_at=f.created_at,
         updated_at=f.updated_at,
     )
+
+
+def _para_read_detalhe(db: Session, f: FuncionarioRede) -> FuncionarioRedeRead:
+    base = _para_read(f)
+    rede_nome: str | None = None
+    if f.rede_id is not None:
+        rede = db.query(Rede).filter(Rede.id == f.rede_id).first()
+        if rede:
+            rede_nome = rede.nome
+    empresa_ids = _empresa_ids_leitura(f)
+    empresas_vinculo: list[EmpresaOpcaoRead] = []
+    if empresa_ids:
+        rows = db.query(Empresa).filter(Empresa.id.in_(empresa_ids)).order_by(Empresa.nome).all()
+        empresas_vinculo = [EmpresaOpcaoRead(id=e.id, nome=e.nome) for e in rows]
+    return base.model_copy(update={"rede_nome": rede_nome, "empresas_vinculo": empresas_vinculo})
 
 
 def _escopo_para_tipo(tipo: str, escopo_informado: str | None) -> str:
@@ -251,12 +267,12 @@ def criar(
 def obter(
     funcionario_id: int,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    f = db.query(FuncionarioRede).filter(FuncionarioRede.id == funcionario_id).first()
+    f = funcionario_visivel_no_tenant(db, atendente, funcionario_id, exigir_ativo=False)
     if not f:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Funcionário não encontrado")
-    return _para_read(f)
+    return _para_read_detalhe(db, f)
 
 
 @router.patch("/{funcionario_id}", response_model=FuncionarioRedeRead)

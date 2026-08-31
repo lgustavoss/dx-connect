@@ -32,7 +32,8 @@ feature → PR main (+ CHANGELOG com tags Produto/DevOps) → PR main → stagin
 1. **Cada PR para `main`** com mudança visível: bullets em `CHANGELOG.md` → `## [Unreleased]` na **subseção** certa (tag Produto ou DevOps)
 2. **PR `main → staging`**: o `[Unreleased]` descreve **todo o lote** que será publicado
 3. **Merge em `staging`**: **só após análise e aprovação humana no GitHub** (`staging` = produção). Agentes/CI **não** mergeiam este PR automaticamente — usar `/release-staging` para abrir o PR e parar.
-4. **Deploy em `staging`**: consome `[Unreleased]`, gera nova CalVer, append em `docs/releases/manifest.json` (cada bullet com `product`), zera `[Unreleased]`
+4. **Deploy em `staging`**: consome `[Unreleased]`, gera nova CalVer, append em `docs/releases/manifest.json` (cada bullet com `product`), zera `[Unreleased]` e commita em `staging` (`chore(release): publica v… [skip ci]`)
+5. **Sync na `main`** (obrigatório, mesmo comando `/release-staging`): após Deploy verde, PR `chore/sync-changelog-…` → `main` copiando artefatos de `origin/staging` e preservando bullets de `[Unreleased]` que existam só na `main` (`origin/staging..origin/main`). Ver Passo 5 em `.cursor/commands/release-staging.md`.
 
 ## Formato do CHANGELOG
 
@@ -116,6 +117,16 @@ Após cada deploy, o workflow commita `VERSION`, `CHANGELOG.md`, `manifest.json`
 - [ ] `[Unreleased]` lista **todas** as entregas do lote (por produto)
 - [ ] Revisão de redação (sem «deploy», «branch», «commit»)
 - [ ] **Aprovação e merge manuais** no GitHub (agente não executa `gh pr merge`)
+
+## Checklist — pós-deploy (sync `main`)
+
+Executado pelo agente no **Passo 5** de `/release-staging` (após merge do release + Deploy verde em `staging`):
+
+- [ ] Workflow Deploy em `staging` concluído (commit `chore(release): publica v…`)
+- [ ] `CHANGELOG.md` na `main` alinhado com `staging` (seção CalVer nova; `[Unreleased]` sem itens já publicados)
+- [ ] `VERSION`, `manifest.json` e JSONs de release notes sincronizados
+- [ ] Se `main` tem commits à frente de `staging`, bullets novos **permanecem** em `[Unreleased]`
+- [ ] PR `chore/sync-changelog-…` → `main` mergeado (CI verde)
 
 ## Desenvolvimento local
 

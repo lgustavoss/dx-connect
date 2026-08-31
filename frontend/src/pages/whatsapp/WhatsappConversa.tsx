@@ -73,6 +73,7 @@ import { ACCEPT_ANEXO, type TipoAnexoPicker } from './WhatsappBarraAnexos'
 import { WhatsappComposerBar } from './WhatsappComposerBar'
 import { WhatsappPreviaAnexo } from './WhatsappPreviaAnexo'
 import { useWhatsappVoltarLista } from '../../hooks/useWhatsappVoltarLista'
+import { useTicketsAbertosContato } from '../../hooks/useTicketsAbertosContato'
 import {
   marcarWhatsappChatAtivo,
   whatsappConversaLink,
@@ -507,7 +508,7 @@ function WhatsappVideoLightbox({
   )
 }
 
-/** Foto do contacto em overlay (#681). */
+/** Foto do contato em overlay (#681). */
 function WhatsappFotoPerfilLightbox({ src, nome, onClose }: { src: string; nome?: string | null; onClose: () => void }) {
   return (
     <div
@@ -525,7 +526,7 @@ function WhatsappFotoPerfilLightbox({ src, nome, onClose }: { src: string; nome?
       </button>
       <img
         src={src}
-        alt={nome ? `Foto de ${nome}` : 'Foto do contacto'}
+        alt={nome ? `Foto de ${nome}` : 'Foto do contato'}
         className="max-h-[85vh] max-w-full rounded-2xl object-contain shadow-2xl"
         referrerPolicy="no-referrer"
         onClick={(e) => e.stopPropagation()}
@@ -583,6 +584,8 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
   // Estados de Dados
 
   const [chat, setChat] = useState<WhatsappChats.Chat | null>(null)
+  const { total: ticketsAbertosContato, reload: reloadTicketsAbertosContato } =
+    useTicketsAbertosContato(chat?.funcionario_rede_id)
 
   const [msgs, setMsgs] = useState<WhatsappChats.Mensagem[]>([])
 
@@ -1117,6 +1120,27 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
       cancelled = true
     }
   }, [chat?.ticket_ids])
+
+  const prevTicketsContatoTicketIdsKeyRef = useRef<string | null>(null)
+
+  const ticketIdsKey = chat?.ticket_ids?.slice().sort((a, b) => a - b).join(',') ?? ''
+  useEffect(() => {
+    prevTicketsContatoTicketIdsKeyRef.current = null
+  }, [chat?.funcionario_rede_id])
+
+  useEffect(() => {
+    if (!chat?.funcionario_rede_id) {
+      prevTicketsContatoTicketIdsKeyRef.current = null
+      return
+    }
+    if (prevTicketsContatoTicketIdsKeyRef.current === null) {
+      prevTicketsContatoTicketIdsKeyRef.current = ticketIdsKey
+      return
+    }
+    if (prevTicketsContatoTicketIdsKeyRef.current === ticketIdsKey) return
+    prevTicketsContatoTicketIdsKeyRef.current = ticketIdsKey
+    reloadTicketsAbertosContato()
+  }, [chat?.funcionario_rede_id, ticketIdsKey, reloadTicketsAbertosContato])
 
 //transferencia de atendente
 useEffect(() => {
@@ -2020,13 +2044,24 @@ useEffect(() => {
             {chat?.funcionario_rede_id && (
               <div className="flex flex-wrap items-center gap-1.5">
                 <Link
-                  to={`/funcionarios-rede/${chat.funcionario_rede_id}`}
+                  to={`/funcionarios-rede/${chat.funcionario_rede_id}?aba=chats`}
+                  state={{ voltarPara: `${location.pathname}${location.search}` }}
                   className="inline-flex max-w-full truncate rounded-full border border-violet-200/80 bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-800 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-300"
                   title={chat.funcionario_email ?? undefined}
                 >
                   {chat.funcionario_nome}
                   {chat.funcionario_tipo ? ` · ${chat.funcionario_tipo}` : ''}
                 </Link>
+                {ticketsAbertosContato != null && ticketsAbertosContato > 0 ? (
+                  <Link
+                    to={`/funcionarios-rede/${chat.funcionario_rede_id}?aba=tickets`}
+                    state={{ voltarPara: `${location.pathname}${location.search}` }}
+                    className="inline-flex shrink-0 rounded-full border border-amber-200/80 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                    title={`${ticketsAbertosContato} ticket(s) aberto(s) deste contato`}
+                  >
+                    {ticketsAbertosContato} aberto{ticketsAbertosContato === 1 ? '' : 's'}
+                  </Link>
+                ) : null}
                 {chat.empresa_nome && chat.empresa_id ? (
                   <Link
                     to={`/empresas/${chat.empresa_id}`}
@@ -2068,7 +2103,7 @@ useEffect(() => {
         {precisaEmpresaContexto && (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
             <p>
-              Este contacto pertence a mais de uma empresa. Pergunte ao cliente qual empresa deseja
+              Este contato pertence a mais de uma empresa. Pergunte ao cliente qual empresa deseja
               atendimento e vincule quando souber — pode fazer isso a qualquer momento antes de
               encerrar.
             </p>

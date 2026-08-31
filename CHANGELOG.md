@@ -50,6 +50,69 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### SaaS Control Plane
 
+#### Correções
+
+- Listagens do painel ops (Leads, Licenças): hover no tema escuro deixa de «lavar» o texto — contraste alinhado ao padrão das demais tabelas (#921 / #S202608-0001)
+
+### DeskRudder
+
+#### Melhorias
+
+- Contato no chat: detalhe do funcionário da rede com abas **Geral**, **Chats** e **Tickets** — histórico operacional ao clicar no chip do contato (#1012 / #S202608-0012)
+- Hub de chat — aba **Contatos**: linha do contato abre o detalhe cadastral/operacional (#1018)
+- Chat WhatsApp: badge de **tickets abertos** no chip do contato vinculado (#1020)
+- Detalhe do contato: resumo de tickets abertos na aba **Geral** e listas atualizadas ao focar abas Chats/Tickets (#1022)
+
+#### Correções
+
+- Listagens (tema escuro): hover das linhas de tabela deixa de «lavar» o texto — contraste alinhado ao padrão das telas SaaS (#921 / #S202608-0001)
+- Módulo de chat: textos de interface padronizados em português do Brasil («contato», não «contacto») (#1020)
+
+## [26.08.018] - 2026-08-28
+
+### SaaS Control Plane
+
+#### Melhorias
+
+- Provisionamento: URL de ingest gravada no `client.env` usa **loopback** (`127.0.0.1:8001`) por padrão — evita falha de sync quando instância e admin-center estão na mesma VPS
+
+### DeskRudder
+
+#### Melhorias
+
+- **Minhas solicitações** e bloco no **Sobre**: lista em tabela com badges; no Sobre só as **5 mais recentes** com atalho **Ver todas**; filtros por tipo, fase, status e busca; detalhe com timeline e mensagem de status por fase
+- **Nova solicitação**: seletor visual de tipo (chips), textos em pt-BR, anexos removíveis antes do envio e imagens coladas listadas com opção de remover
+- **Acompanhamento**: linha do tempo vertical no detalhe do pedido; skeleton da tabela no Sobre enquanto carrega
+- Ponto (#985): dia convocado — admin agenda trabalho fora da grade com janela própria; calendário, faltas e banco de horas respeitam a exceção
+- Ponto (#S202608-0011): histórico da equipe paginado (20 batidas por página, com total e navegação)
+
+#### Correções
+
+- Deploy: migration do dia convocado (#985) idempotente — instâncias com tabela criada manualmente não travam no `alembic upgrade`
+- Atendimentos (#S202608-0010): contador de mensagens não lidas no chat alinhado entre sino, lista e conversa; badge some ao responder; divisor «Mensagens não lidas» também no chat do portal
+
+## [26.08.017] - 2026-08-27
+
+### DeskRudder
+
+#### Melhorias
+
+- Ponto (#968 / #972 / #971): lembrete in-app de entrada/saída na janela de tolerância; resumo semanal em Meu ponto (previsto × feito, atrasos, HE, banco); motivo obrigatório reforçado e histórico/export de ajustes admin (também no PDF/Excel mensal)
+- Ponto (#966): admin **concede hora extra** com antecedência (resto do dia, até horário ou duração em minutos); teto opcional por colaborador no cadastro; liberações respeitam o teto
+- Ponto (#976 / #977 / #973): férias e folga programada (pedido do colaborador ou agendamento admin); justificativa com anexo (imagem/PDF); alerta de pausa abaixo do mínimo configurável
+- Ponto (#969 / #974 / #982): colaborador **solicita hora extra** com janela desejada; teto mensal (global ou por pessoa) bloqueia novas liberações; digest e Meu ponto mostram consumo; avisos em tempo real (`ponto.he_atualizada`)
+- Ponto (#981 / #980 / #978 / #979): checklist de configuração pós-deploy; ajuda **Como funciona o ponto**; **fechamento de competência** mensal (reabrir com motivo; ajustes pós-fechamento marcados); **ciência** do colaborador no espelho após o fechamento
+- Ponto (#975 / #970): **export contábil/folha RH** (CSV e Excel) com matrícula, previsto/realizado, atrasos, faltas, HE, banco e ajustes; **cobertura de plantão** (A pede → B aceita → admin homologa, ou admin agenda direto) refletida no calendário e nas faltas
+
+#### Correções
+
+- Atendimentos (#996 / #S202608-0007): na tela de chats, a barra superior (menu, notificações) volta a aparecer no computador; no celular continua oculta com a conversa aberta
+- Atendimentos (#998 / #S202608-0009): quem só acompanha o chat deixa de ver **Encerrar** e **Registrar demanda** — esses botões ficam só com o responsável
+
+## [26.08.016] - 2026-08-26
+
+### SaaS Control Plane
+
 #### Melhorias
 
 - Infra: no deploy, pedidos citados no CHANGELOG passam a **concluída** no painel admin (versão do release); o script usa o mesmo stack Docker do admin-center

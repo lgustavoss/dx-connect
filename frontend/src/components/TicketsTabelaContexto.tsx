@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+﻿import { Link } from 'react-router-dom'
 import type { Tickets } from '../api/client'
 import { exibirProtocolo } from '../lib/exibirProtocolo'
 import { marcarTicketAtivo, TICKETS_PATH } from '../lib/ticketAtivo'
@@ -45,7 +45,7 @@ export function TicketsTabelaContexto({
           {items.map((t) => (
             <tr
               key={t.id}
-              className="transition-colors hover:bg-slate-50/80 dark:hover:bg-white/40"
+              className="transition-colors hover:bg-slate-50/80 focus-within:bg-slate-50/80 dark:hover:bg-white/5 dark:focus-within:bg-slate-800/50"
             >
               <td
                 className="max-w-[11rem] truncate px-4 py-3 font-mono text-xs text-slate-800 dark:text-slate-100 sm:px-6"

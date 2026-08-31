@@ -13,7 +13,7 @@ Sistema interno de helpdesk para redes de postos (tickets, WhatsApp, e-mail, SSE
 - Mudanças **mínimas**: só o necessário para a tarefa; não refatorar código adjacente.
 - **Não commitar** nem sugerir commit/push sem pedido explícito do usuário.
 - Git: branch nova por feature, PR para `main` — ver rule `git-workflow`.
-- **`staging` = produção**: só PR `main → staging` (`/release-staging`); agente **nunca** mergeia — ver `staging-release-approval`.
+- **`staging` = produção**: PR `main → staging` (`/release-staging`); agente **nunca** mergeia release — após Deploy, sync CHANGELOG na `main` (Passo 5); ver `staging-release-approval`
 
 ## Onde está a verdade
 
