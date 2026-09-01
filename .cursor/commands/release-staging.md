@@ -22,14 +22,24 @@ Se já existir PR aberto `main` → `staging`, **reutilize** (não duplique).
 
 ## Passo 2 — Conflitos?
 
-Se `gh pr create` / GitHub indicar conflito:
+Se `gh pr create` / GitHub indicar conflito **ou** o CI `changelog` falhar com «merge simulado» / `[Unreleased]` vazio:
 
 1. Branch a partir de `origin/staging`: `merge/main-into-staging-YYYYMMDD`
-2. `git merge origin/main` e resolver (código da `main`; `[Unreleased]` = só o que ainda não foi publicado na staging)
-3. Push da branch e **um** PR → `staging`
-4. **Pare** — entregue o URL; **não** mergeie
+2. `git merge origin/main` e resolver (**obrigatório:** manter bullets de `[Unreleased]` da `main` — não aceitar `[Unreleased]` vazio da `staging`)
+3. Validar localmente: `python scripts/check_changelog.py --base origin/staging --head HEAD`
+4. Push da branch e **um** PR → `staging`
+5. **Pare** — entregue o URL; **não** mergeie
 
 Não manter dois PRs de release abertos sem explicar; preferir **um** PR mergeável.
+
+### Checklist CHANGELOG antes do merge release
+
+```bash
+git fetch origin
+python scripts/check_changelog.py --base origin/staging --head origin/main
+```
+
+Deve imprimir `OK` com bullets no merge simulado. Se falhar, **não** mergeie `main → staging` direto — use branch `merge/…` acima.
 
 ## Passo 3 — Criar PR (sem merge)
 

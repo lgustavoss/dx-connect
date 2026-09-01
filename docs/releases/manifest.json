@@ -3586,6 +3586,49 @@
           "text": "Atendimentos (#S202608-0010): contador de mensagens não lidas no chat alinhado entre sino, lista e conversa; badge some ao responder; divisor «Mensagens não lidas» também no chat do portal"
         }
       ]
+    },
+    {
+      "version": "26.08.019",
+      "version_display": "v26.08.019",
+      "date": "2026-08-31",
+      "status": "published",
+      "changes": [
+        {
+          "product": "saas",
+          "category": "correcoes",
+          "text": "Listagens do painel ops (Leads, Licenças): hover no tema escuro deixa de «lavar» o texto — contraste alinhado ao padrão das demais tabelas (#921 / #S202608-0001)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Contato no chat: detalhe do funcionário da rede com abas **Geral**, **Chats** e **Tickets** — histórico operacional ao clicar no chip do contato (#1012 / #S202608-0012)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Hub de chat — aba **Contatos**: linha do contato abre o detalhe cadastral/operacional (#1018)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Chat WhatsApp: badge de **tickets abertos** no chip do contato vinculado (#1020)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Detalhe do contato: resumo de tickets abertos na aba **Geral** e listas atualizadas ao focar abas Chats/Tickets (#1022)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Listagens (tema escuro): hover das linhas de tabela deixa de «lavar» o texto — contraste alinhado ao padrão das telas SaaS (#921 / #S202608-0001)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Módulo de chat: textos de interface padronizados em português do Brasil («contato», não «contacto») (#1020)"
+        }
+      ]
     }
   ]
 }

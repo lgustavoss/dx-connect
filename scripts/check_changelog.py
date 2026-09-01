@@ -66,6 +66,52 @@ def changed_files(base: str, head: str) -> list[str]:
     return [ln.strip() for ln in out.splitlines() if ln.strip()]
 
 
+def is_staging_base(base: str) -> bool:
+    ref = base.removeprefix("origin/").strip()
+    return ref == "staging"
+
+
+def changelog_after_simulated_merge(base: str, head: str) -> tuple[str | None, str | None]:
+    """Simula merge base←head e devolve CHANGELOG.md resultante (ou erro de conflito)."""
+    import tempfile
+
+    base_sha = _run("git", "rev-parse", base).strip()
+    head_sha = _run("git", "rev-parse", head).strip()
+    wt: Path | None = None
+    try:
+        td = tempfile.mkdtemp(prefix="dx-changelog-merge-")
+        wt = Path(td) / "wt"
+        _run("git", "worktree", "add", str(wt), base_sha)
+        merge = subprocess.run(
+            ["git", "merge", "--no-commit", "--no-ff", head_sha],
+            cwd=wt,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if merge.returncode != 0:
+            return None, (
+                "Merge simulado falhou (conflitos entre base e head). "
+                "Para release staging, abra branch `merge/main-into-staging-…`, resolva CHANGELOG "
+                "mantendo os bullets de [Unreleased] da main e abra PR → staging."
+            )
+        cl = wt / "CHANGELOG.md"
+        return (cl.read_text(encoding="utf-8") if cl.is_file() else ""), None
+    finally:
+        if wt is not None:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(wt)],
+                cwd=ROOT,
+                capture_output=True,
+                check=False,
+            )
+            parent = wt.parent
+            if parent.exists():
+                import shutil
+
+                shutil.rmtree(parent, ignore_errors=True)
+
+
 def requires_changelog(paths: list[str]) -> bool:
     product = False
     for p in paths:
@@ -137,25 +183,39 @@ def main() -> int:
         print("OK: PR sem arquivos alterados — CHANGELOG não exigido.")
         return 0
 
-    if not requires_changelog(paths):
+    if not requires_changelog(paths) and not is_staging_base(args.base):
         print("OK: alterações só em arquivos isentos — CHANGELOG não exigido.")
         print("Arquivos:", ", ".join(paths[:12]) + ("…" if len(paths) > 12 else ""))
         return 0
 
-    try:
-        text = _run("git", "show", f"{args.head}:{args.changelog.relative_to(ROOT).as_posix()}")
-    except RuntimeError:
-        text = args.changelog.read_text(encoding="utf-8") if args.changelog.is_file() else ""
+    if is_staging_base(args.base):
+        text, merge_err = changelog_after_simulated_merge(args.base, args.head)
+        if merge_err:
+            print(f"::error::{merge_err}", file=sys.stderr)
+            return 1
+        if text is None:
+            print("::error::Não foi possível simular merge para validar CHANGELOG.", file=sys.stderr)
+            return 1
+    else:
+        try:
+            text = _run("git", "show", f"{args.head}:{args.changelog.relative_to(ROOT).as_posix()}")
+        except RuntimeError:
+            text = args.changelog.read_text(encoding="utf-8") if args.changelog.is_file() else ""
 
     bullets = parse_unreleased_bullets(text)
     if not bullets:
+        staging_hint = (
+            "\nPR → staging: confira o CHANGELOG **após merge simulado** — conflitos costumam esvaziar [Unreleased]."
+            if is_staging_base(args.base)
+            else ""
+        )
         print(
             "::error::Este PR altera código de produto, mas CHANGELOG.md não tem bullets em ## [Unreleased].\n"
             "Adicione entregas sob ### DeskRudder e/ou ### SaaS Control Plane, ex.:\n"
             "  ### DeskRudder\n"
             "  #### Melhorias\n"
             "  - Descrição curta da funcionalidade (#123)\n"
-            "Veja docs/RELEASES.md",
+            f"Veja docs/RELEASES.md{staging_hint}",
             file=sys.stderr,
         )
         print("Arquivos de produto no diff:", ", ".join(paths[:20]), file=sys.stderr)
@@ -180,7 +240,8 @@ def main() -> int:
         return 1
 
     parts = [f"{p}={len(by_prod.get(p, []))}" for p in sorted(needed or by_prod.keys())]
-    print(f"OK: CHANGELOG [Unreleased] com {len(bullets)} item(ns) ({', '.join(parts)}).")
+    suffix = " (merge simulado)" if is_staging_base(args.base) else ""
+    print(f"OK: CHANGELOG [Unreleased] com {len(bullets)} item(ns) ({', '.join(parts)}){suffix}.")
     return 0
 
 
