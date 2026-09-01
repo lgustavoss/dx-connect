@@ -37,6 +37,17 @@ SKIP_PREFIXES = (
     "backend/app/data/release_notes.json",
     "frontend/public/release_notes.json",
     "frontend/public/release-notes.json",
+    "backend/tests/test_check_changelog.py",
+)
+
+# Bumps Dependabot / lockfile — sem entrega visível ao usuário (#1048 follow-up)
+DEPS_MANIFESTS = frozenset(
+    {
+        "frontend/package.json",
+        "frontend/package-lock.json",
+        "backend/requirements.txt",
+        "backend/requirements-dev.txt",
+    }
 )
 
 # Paths tipicamente do control-plane SaaS (#673)
@@ -112,7 +123,35 @@ def changelog_after_simulated_merge(base: str, head: str) -> tuple[str | None, s
                 shutil.rmtree(parent, ignore_errors=True)
 
 
+def _norm_path(path: str) -> str:
+    return path.replace("\\", "/")
+
+
+def is_deps_only_change(paths: list[str]) -> bool:
+    """True quando o diff (fora de SKIP_PREFIXES) só toca manifests de dependências."""
+    relevant: list[str] = []
+    for p in paths:
+        norm = _norm_path(p)
+        if any(norm.startswith(s) for s in SKIP_PREFIXES):
+            continue
+        relevant.append(norm)
+    return bool(relevant) and all(p in DEPS_MANIFESTS for p in relevant)
+
+
+def is_tests_only_change(paths: list[str]) -> bool:
+    """True quando o diff (fora de SKIP_PREFIXES) só toca ``backend/tests/``."""
+    relevant: list[str] = []
+    for p in paths:
+        norm = _norm_path(p)
+        if any(norm.startswith(s) for s in SKIP_PREFIXES):
+            continue
+        relevant.append(norm)
+    return bool(relevant) and all(p.startswith("backend/tests/") for p in relevant)
+
+
 def requires_changelog(paths: list[str]) -> bool:
+    if is_deps_only_change(paths) or is_tests_only_change(paths):
+        return False
     product = False
     for p in paths:
         if any(p.startswith(s) for s in SKIP_PREFIXES):
@@ -185,6 +224,10 @@ def main() -> int:
 
     if not requires_changelog(paths) and not is_staging_base(args.base):
         print("OK: alterações só em arquivos isentos — CHANGELOG não exigido.")
+        if is_deps_only_change(paths):
+            print("(somente manifests de dependências)")
+        elif is_tests_only_change(paths):
+            print("(somente testes backend)")
         print("Arquivos:", ", ".join(paths[:12]) + ("…" if len(paths) > 12 else ""))
         return 0
 

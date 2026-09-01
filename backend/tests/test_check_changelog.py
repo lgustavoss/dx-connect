@@ -14,6 +14,7 @@ SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 from check_changelog import (  # noqa: E402
+    is_deps_only_change,
     is_saas_path,
     parse_unreleased_bullets,
     products_required_by_paths,
@@ -74,6 +75,23 @@ def test_requires_changelog_product_paths():
     assert requires_changelog(["frontend/src/pages/Foo.tsx"]) is True
     assert requires_changelog(["docs/RELEASES.md"]) is False
     assert requires_changelog(["CHANGELOG.md"]) is False
+
+
+def test_requires_changelog_deps_only():
+    assert is_deps_only_change(["frontend/package.json", "frontend/package-lock.json"]) is True
+    assert is_deps_only_change(["backend/requirements.txt"]) is True
+    assert requires_changelog(["frontend/package.json", "frontend/package-lock.json"]) is False
+    assert requires_changelog(["backend/requirements.txt", "backend/requirements-dev.txt"]) is False
+
+
+def test_requires_changelog_deps_plus_product():
+    assert is_deps_only_change(["frontend/package.json", "frontend/src/pages/Foo.tsx"]) is False
+    assert requires_changelog(["frontend/package-lock.json", "frontend/src/App.tsx"]) is True
+
+
+def test_requires_changelog_tests_only():
+    assert requires_changelog(["backend/tests/test_faturamento.py"]) is False
+    assert requires_changelog(["backend/tests/test_foo.py", "backend/app/api/foo.py"]) is True
 
 
 def test_saas_path_heuristic():
