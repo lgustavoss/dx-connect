@@ -89,6 +89,11 @@ def test_requires_changelog_deps_plus_product():
     assert requires_changelog(["frontend/package-lock.json", "frontend/src/App.tsx"]) is True
 
 
+def test_requires_changelog_tests_only():
+    assert requires_changelog(["backend/tests/test_faturamento.py"]) is False
+    assert requires_changelog(["backend/tests/test_foo.py", "backend/app/api/foo.py"]) is True
+
+
 def test_saas_path_heuristic():
     assert is_saas_path("frontend/src/pages/saas/SaasSobre.tsx") is True
     assert is_saas_path("backend/app/api/saas.py") is True

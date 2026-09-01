@@ -54,6 +54,9 @@ def test_gerar_aprovar_rejeitar_e_job_idempotente(client, auth_headers):
     cid = contrato["id"]
     empresa_id = contrato["empresa_id"]
     assert empresa_id
+    inicio = date.fromisoformat(str(contrato["data_inicio"]))
+    comp = f"{inicio.year:04d}-{inicio.month:02d}"
+    vencto = vencimento_da_competencia(comp).isoformat()
 
     patch_nf = client.patch(
         f"/v1/empresas/{empresa_id}",
@@ -66,21 +69,21 @@ def test_gerar_aprovar_rejeitar_e_job_idempotente(client, auth_headers):
     g = client.post(
         "/v1/faturamento/faturas",
         headers=h_fin,
-        json={"contrato_id": cid, "competencia": "2026-08"},
+        json={"contrato_id": cid, "competencia": comp},
     )
     assert g.status_code == 201, g.text
     fatura = g.json()
     assert fatura["status"] == "aguardando_aprovacao"
-    assert fatura["competencia"] == "2026-08"
+    assert fatura["competencia"] == comp
     assert fatura["emite_nfse"] is False
     assert float(fatura["valor"]) == 900.0
-    assert fatura["vencimento"] == "2026-09-10"
+    assert fatura["vencimento"] == vencto
     fid = fatura["id"]
 
     dup = client.post(
         "/v1/faturamento/faturas",
         headers=h_fin,
-        json={"contrato_id": cid, "competencia": "2026-08"},
+        json={"contrato_id": cid, "competencia": comp},
     )
     assert dup.status_code == 200
     assert dup.json()["id"] == fid
@@ -106,23 +109,23 @@ def test_gerar_aprovar_rejeitar_e_job_idempotente(client, auth_headers):
         db.commit()
     finally:
         db.close()
-    ainda = client.get("/v1/faturamento/faturas", headers=h_fin, params={"competencia": "2026-08"})
+    ainda = client.get("/v1/faturamento/faturas", headers=h_fin, params={"competencia": comp})
     assert any(x["id"] == fid and x["status"] == "rejeitada" for x in ainda.json())
 
     lote = client.post(
         "/v1/faturamento/faturas/gerar-competencia",
         headers=h_admin,
-        json={"competencia": "2026-08"},
+        json={"competencia": comp},
     )
     assert lote.status_code == 200, lote.text
     assert lote.json()["reabertas"] >= 1
-    reaberta = client.get("/v1/faturamento/faturas", headers=h_fin, params={"competencia": "2026-08"})
+    reaberta = client.get("/v1/faturamento/faturas", headers=h_fin, params={"competencia": comp})
     assert any(x["id"] == fid and x["status"] == "aguardando_aprovacao" for x in reaberta.json())
 
     regen = client.post(
         "/v1/faturamento/faturas",
         headers=h_fin,
-        json={"contrato_id": cid, "competencia": "2026-08"},
+        json={"contrato_id": cid, "competencia": comp},
     )
     assert regen.status_code == 200
     assert regen.json()["id"] == fid
@@ -137,14 +140,14 @@ def test_gerar_aprovar_rejeitar_e_job_idempotente(client, auth_headers):
     recusa_aprovada = client.post(
         "/v1/faturamento/faturas",
         headers=h_fin,
-        json={"contrato_id": cid, "competencia": "2026-08"},
+        json={"contrato_id": cid, "competencia": comp},
     )
     assert recusa_aprovada.status_code == 400
 
     job = client.post(
         "/v1/faturamento/faturas/gerar-competencia",
         headers=h_admin,
-        json={"competencia": "2026-08"},
+        json={"competencia": comp},
     )
     assert job.status_code == 200, job.text
     assert job.json()["criadas"] == 0

@@ -71,7 +71,7 @@ Se o PR altera código de produto, **`CHANGELOG.md` deve ter bullets em `[Unrele
 
 O CI executa `scripts/check_changelog.py` e **bloqueia merge** se faltar.
 
-Isento (sem exigir CHANGELOG): só docs internos, planning, artefatos de release gerados, **somente** bumps em `package.json` / `package-lock.json` / `requirements*.txt`, etc.
+Isento (sem exigir CHANGELOG): só docs internos, planning, artefatos de release gerados, **somente** bumps em `package.json` / `package-lock.json` / `requirements*.txt`, **somente** alterações em `backend/tests/`, etc.
 
 ## O que o usuário vê
 

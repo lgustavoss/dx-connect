@@ -138,8 +138,19 @@ def is_deps_only_change(paths: list[str]) -> bool:
     return bool(relevant) and all(p in DEPS_MANIFESTS for p in relevant)
 
 
+def is_tests_only_change(paths: list[str]) -> bool:
+    """True quando o diff (fora de SKIP_PREFIXES) só toca ``backend/tests/``."""
+    relevant: list[str] = []
+    for p in paths:
+        norm = _norm_path(p)
+        if any(norm.startswith(s) for s in SKIP_PREFIXES):
+            continue
+        relevant.append(norm)
+    return bool(relevant) and all(p.startswith("backend/tests/") for p in relevant)
+
+
 def requires_changelog(paths: list[str]) -> bool:
-    if is_deps_only_change(paths):
+    if is_deps_only_change(paths) or is_tests_only_change(paths):
         return False
     product = False
     for p in paths:
@@ -215,6 +226,8 @@ def main() -> int:
         print("OK: alterações só em arquivos isentos — CHANGELOG não exigido.")
         if is_deps_only_change(paths):
             print("(somente manifests de dependências)")
+        elif is_tests_only_change(paths):
+            print("(somente testes backend)")
         print("Arquivos:", ", ".join(paths[:12]) + ("…" if len(paths) > 12 else ""))
         return 0
 
