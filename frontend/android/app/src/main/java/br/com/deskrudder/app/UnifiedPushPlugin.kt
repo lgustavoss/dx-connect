@@ -1,8 +1,15 @@
 package br.com.deskrudder.app
 
 import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.getcapacitor.JSObject
 import com.getcapacitor.PermissionState
 import com.getcapacitor.Plugin
@@ -62,6 +69,109 @@ class UnifiedPushPlugin : Plugin() {
         }
         UnifiedPushStore.clearEndpoint(context)
         call.resolve()
+    }
+
+    /** Pedido explícito de POST_NOTIFICATIONS (banner / login no APK). */
+    @PluginMethod
+    fun requestNotificationPermission(call: PluginCall) {
+        if (!needsNotificationPermission()) {
+            call.resolve(JSObject().put("granted", true).put("state", "granted"))
+            return
+        }
+        when (getPermissionState("notifications")) {
+            PermissionState.GRANTED -> {
+                call.resolve(JSObject().put("granted", true).put("state", "granted"))
+            }
+            PermissionState.DENIED -> {
+                // Ainda pode mostrar o diálogo se nunca foi pedido de forma permanente
+                requestPermissionForAlias("notifications", call, "onStandaloneNotificationsPermission")
+            }
+            else -> {
+                requestPermissionForAlias("notifications", call, "onStandaloneNotificationsPermission")
+            }
+        }
+    }
+
+    @PermissionCallback
+    fun onStandaloneNotificationsPermission(call: PluginCall) {
+        val granted = getPermissionState("notifications") == PermissionState.GRANTED
+        call.resolve(
+            JSObject()
+                .put("granted", granted)
+                .put("state", if (granted) "granted" else "denied"),
+        )
+    }
+
+    /**
+     * Notificação local da fila (app em 2º plano, processo vivo).
+     * Usa o mesmo canal de som alto do UnifiedPush.
+     */
+    @PluginMethod
+    fun showFilaWaiting(call: PluginCall) {
+        val count = call.getInt("count") ?: 0
+        if (count <= 0) {
+            call.resolve()
+            return
+        }
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            call.resolve()
+            return
+        }
+        ensureFilaChannel()
+        val body =
+            if (count == 1) "Há 1 chat aguardando atendimento"
+            else "Há $count chats aguardando atendimento"
+        val tap = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(UnifiedPushStore.EXTRA_PAYLOAD, """{"tipo":"chat.fila","url_path":"/chat/espera"}""")
+        }
+        val pending = PendingIntent.getActivity(
+            context,
+            FILA_NOTIFY_ID,
+            tap,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val notification = NotificationCompat.Builder(context, FILA_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_notify)
+            .setContentTitle("DeskRudder")
+            .setContentText(body)
+            .setAutoCancel(true)
+            .setContentIntent(pending)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setOnlyAlertOnce(false)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .build()
+        NotificationManagerCompat.from(context).notify(FILA_NOTIFY_ID, notification)
+        call.resolve()
+    }
+
+    private fun ensureFilaChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        if (manager.getNotificationChannel(FILA_CHANNEL_ID) != null) return
+        manager.createNotificationChannel(
+            NotificationChannel(
+                FILA_CHANNEL_ID,
+                "Fila de espera",
+                NotificationManager.IMPORTANCE_HIGH,
+            ).apply {
+                description = "Clientes aguardando atendimento no chat"
+                enableVibration(true)
+                setSound(
+                    android.media.RingtoneManager.getDefaultUri(
+                        android.media.RingtoneManager.TYPE_NOTIFICATION,
+                    ),
+                    null,
+                )
+                setShowBadge(true)
+            },
+        )
     }
 
     @PluginMethod
@@ -156,6 +266,8 @@ class UnifiedPushPlugin : Plugin() {
     private fun needsNotificationPermission(): Boolean = Build.VERSION.SDK_INT >= 33
 
     companion object {
+        private const val FILA_CHANNEL_ID = "deskrudder_fila"
+        private const val FILA_NOTIFY_ID = 82301
         private var instance: WeakReference<UnifiedPushPlugin>? = null
         @Volatile
         private var pendingRegister: PluginCall? = null

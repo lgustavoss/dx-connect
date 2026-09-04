@@ -18,10 +18,20 @@ export type UnifiedPushRegistrationError = {
   reason: string
 }
 
+export type NotificationPermissionResult = {
+  granted: boolean
+  /** granted | denied | prompt | unsupported */
+  state: string
+}
+
 interface DeskRudderUnifiedPushPlugin {
   registerPush(options: { vapidPublicKey: string }): Promise<UnifiedPushEndpoint>
   unregisterPush(): Promise<void>
   consumePendingOpen(): Promise<UnifiedPushOpen>
+  /** Android 13+: pede POST_NOTIFICATIONS (gesto do usuário). */
+  requestNotificationPermission(): Promise<NotificationPermissionResult>
+  /** Alerta local da fila com canal de som alto (app em 2º plano). */
+  showFilaWaiting(options: { count: number }): Promise<void>
   addListener(
     eventName: 'endpoint',
     listenerFunc: (data: UnifiedPushEndpoint) => void,
@@ -48,6 +58,28 @@ class DeskRudderUnifiedPushWeb extends WebPlugin {
 
   async consumePendingOpen(): Promise<UnifiedPushOpen> {
     return {}
+  }
+
+  async requestNotificationPermission(): Promise<NotificationPermissionResult> {
+    if (typeof Notification === 'undefined') {
+      return { granted: false, state: 'unsupported' }
+    }
+    if (Notification.permission === 'granted') {
+      return { granted: true, state: 'granted' }
+    }
+    if (Notification.permission === 'denied') {
+      return { granted: false, state: 'denied' }
+    }
+    try {
+      const p = await Notification.requestPermission()
+      return { granted: p === 'granted', state: p }
+    } catch {
+      return { granted: false, state: 'denied' }
+    }
+  }
+
+  async showFilaWaiting(): Promise<void> {
+    /* no-op — browser usa Notification da web */
   }
 }
 

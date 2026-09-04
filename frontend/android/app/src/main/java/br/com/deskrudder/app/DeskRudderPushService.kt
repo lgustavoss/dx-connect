@@ -56,12 +56,20 @@ class DeskRudderPushService : PushService() {
             return
         }
         ensureChannel()
+        ensureFilaChannel()
         val data = UnifiedPushStore.payloadToJson(raw)
         val titulo = data.optString("titulo").ifBlank { "DeskRudder" }
-        val corpo = data.optString("corpo").ifBlank { "Nova actividade no atendimento" }
+        val corpo = data.optString("corpo").ifBlank { "Nova atividade no atendimento" }
         val tipo = data.optString("tipo")
         val id = data.optLong("id", 0L)
-        val tag = "${tipo.ifBlank { "push" }}:$id"
+        val isFila =
+            tipo == "chat.fila" ||
+                tipo == "chat.fila.remind" ||
+                tipo == "portal.chat.fila" ||
+                tipo == "ticket.fila" ||
+                tipo.endsWith(".fila")
+        val channelId = if (isFila) FILA_CHANNEL_ID else CHANNEL_ID
+        val tag = if (isFila) "dx-connect-fila-aguardando" else "${tipo.ifBlank { "push" }}:$id"
 
         val tap = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -75,14 +83,14 @@ class DeskRudderPushService : PushService() {
             tap,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.drawable.ic_stat_notify)
             .setContentTitle(titulo)
             .setContentText(corpo)
             .setAutoCancel(true)
             .setContentIntent(pending)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setCategory(if (isFila) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_MESSAGE)
             .setOnlyAlertOnce(false)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             .build()
@@ -99,7 +107,30 @@ class DeskRudderPushService : PushService() {
                 "Alertas de atendimento",
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply {
-                description = "Fila e mensagens nos teus chats e tickets"
+                description = "Fila e mensagens nos seus chats e tickets"
+                enableVibration(true)
+                setSound(
+                    android.media.RingtoneManager.getDefaultUri(
+                        android.media.RingtoneManager.TYPE_NOTIFICATION,
+                    ),
+                    null,
+                )
+                setShowBadge(true)
+            },
+        )
+    }
+
+    private fun ensureFilaChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val manager = getSystemService(NotificationManager::class.java) ?: return
+        if (manager.getNotificationChannel(FILA_CHANNEL_ID) != null) return
+        manager.createNotificationChannel(
+            NotificationChannel(
+                FILA_CHANNEL_ID,
+                "Fila de espera",
+                NotificationManager.IMPORTANCE_HIGH,
+            ).apply {
+                description = "Clientes aguardando atendimento no chat"
                 enableVibration(true)
                 setSound(
                     android.media.RingtoneManager.getDefaultUri(
@@ -114,5 +145,6 @@ class DeskRudderPushService : PushService() {
 
     companion object {
         private const val CHANNEL_ID = "deskrudder_push"
+        private const val FILA_CHANNEL_ID = "deskrudder_fila"
     }
 }

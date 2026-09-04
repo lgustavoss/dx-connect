@@ -80,7 +80,7 @@ export function WebPushOptInBanner({ enabled }: Props) {
           role="status"
           className="shrink-0 border-b border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-100"
         >
-          Alertas no telemóvel activos — vais ser avisado mesmo com a app fechada.
+          Alertas no celular ativos — você será avisado mesmo com a app fechada.
         </div>
       )
     }
@@ -96,8 +96,8 @@ export function WebPushOptInBanner({ enabled }: Props) {
         className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm text-slate-800 dark:border-indigo-900/40 dark:bg-indigo-950/30 dark:text-slate-100"
       >
         <p className="min-w-0 flex-1">
-          No iPhone/iPad, os alertas com a app fechada só funcionam depois de <strong>Adicionar ao Ecrã Início</strong>{' '}
-          (Safari 16.4 ou posterior). Abre o atalho e activa os alertas aí.
+          No iPhone/iPad, os alertas com a app fechada só funcionam depois de <strong>Adicionar à Tela de Início</strong>{' '}
+          (Safari 16.4 ou posterior). Abra o atalho e ative os alertas aí.
         </p>
         <Button
           type="button"
@@ -122,7 +122,7 @@ export function WebPushOptInBanner({ enabled }: Props) {
         className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100"
       >
         <p className="min-w-0 flex-1">
-          Notificações bloqueadas neste dispositivo. Permite-as nas definições para alertas com a app fechada.
+          Notificações bloqueadas neste dispositivo. Permita-as nas configurações para alertas com a app fechada.
         </p>
         <Button type="button" variant="ghost" className="h-8 shrink-0 px-2 text-xs" onClick={() => setFeedback(null)}>
           Fechar
@@ -136,13 +136,13 @@ export function WebPushOptInBanner({ enabled }: Props) {
   return (
     <div
       role="region"
-      aria-label="Ativar alertas no telemóvel"
+      aria-label="Ativar alertas no celular"
       className="flex shrink-0 flex-col gap-2 border-b border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-slate-800 dark:border-indigo-900/40 dark:bg-indigo-950/30 dark:text-slate-100 sm:flex-row sm:items-center sm:justify-between"
     >
       <div className="min-w-0 space-y-0.5">
         <p className="font-semibold text-slate-900 dark:text-white">Alertas com a app fechada?</p>
         <p className="text-xs text-slate-600 dark:text-slate-300 sm:text-sm">
-          Recebe avisos da fila e de mensagens nos teus atendimentos mesmo fora do painel. Podes desligar em
+          Receba avisos da fila e de mensagens nos seus atendimentos mesmo fora do painel. Você pode desligar em
           Notificações.
         </p>
       </div>

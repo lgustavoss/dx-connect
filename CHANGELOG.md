@@ -5,6 +5,14 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### DeskRudder
+
+#### Correções
+
+- Mobile (navegador e APK): alerta sonoro da fila de espera mais confiável com a app aberta — desbloqueio de áudio no login, banner «Ativar som» se o autoplay bloquear (sem precisar recarregar) e retomada do loop ao voltar ao foco
+- Mobile APK: banner de permissão de notificações também no app nativo; em segundo plano, notificação local com canal de som alto enquanto houver chat aguardando
+- Mobile (app fechada): ao ativar alertas, a inscrição Web Push / UnifiedPush passa a ser feita no mesmo gesto; o servidor reenvia push a cada 2 min enquanto houver fila (`chat.fila.remind`); PWA e APK tratam lembretes da fila com som/vibração reforçados
+
 ## [26.08.019] - 2026-08-31
 
 ### SaaS Control Plane
