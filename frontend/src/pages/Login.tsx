@@ -23,6 +23,7 @@ import {
   writeRememberedAccount,
 } from '../lib/marketingHost'
 import { isCapacitorNative } from '../lib/capacitorNative'
+import { unlockAlertAudio } from '../hooks/useAlertaFilaSemResponsavel'
 import { isSaasControlPlaneFrontend, SAAS_LICENCAS_PATH } from '../lib/saasControlPlane'
 
 const fieldClass =
@@ -168,6 +169,7 @@ function LoginConta() {
     try {
       const tokens = await loginAgainstClientInstance(slug, email.trim(), senha)
       writeRememberedAccount(slug)
+      unlockAlertAudio()
       try {
         if (lembrarMe) {
           localStorage.setItem(LOGIN_EMAIL_STORAGE_KEY, email.trim())
@@ -332,6 +334,7 @@ function LoginCapacitor() {
     writeRememberedAccount(slug)
     try {
       await login(email.trim(), senha, lembrarMe)
+      unlockAlertAudio()
       try {
         if (lembrarMe) {
           localStorage.setItem(LOGIN_EMAIL_STORAGE_KEY, email.trim())
@@ -506,6 +509,7 @@ function LoginCredenciais({ variant = 'tenant' }: { variant?: 'tenant' | 'ops' }
     setLoading(true)
     try {
       await login(email.trim(), senha, lembrarMe)
+      unlockAlertAudio()
       const { atendentes } = await import('../api/client')
       const me = await atendentes.me()
       if (isOps && me.role !== 'saas_ops') {

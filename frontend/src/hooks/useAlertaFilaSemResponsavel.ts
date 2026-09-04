@@ -91,9 +91,13 @@ let wppFilaLoopAudio: HTMLAudioElement | null = null
 let wppFilaLoopWanted = false
 let wppFilaLoopEndedHandler: (() => void) | null = null
 let wppFilaLoopRetryTimer: number | null = null
-/** Áudio «desbloqueado» por gesto do utilizador — melhora play em aba em background (#652). */
+/** Áudio desbloqueado por gesto do usuário — melhora play em aba em background (#652). */
 let audioUnlocked = false
 let audioUnlockInstalled = false
+/** Fila > 0, app em foco, mas play() falhou (autoplay) — UI pede um toque. */
+let filaAudioNeedsGesture = false
+type ListenerFilaAudioGesture = (needs: boolean) => void
+const listenersFilaAudioGesture = new Set<ListenerFilaAudioGesture>()
 let lastFilaDesktopNotifyAt = 0
 let filaBgNudgeTimer: number | null = null
 /** APK: false quando o OS põe a app em segundo plano (#823). Browser: permanece true. */
@@ -106,6 +110,40 @@ let sseUnsubscribe: (() => void) | null = null
 let chatInternoSseUnsubscribe: (() => void) | null = null
 let lastSemIncreaseAt = 0
 const recentAlertKeys = new Map<string, number>()
+
+function setFilaAudioNeedsGesture(needs: boolean) {
+  if (filaAudioNeedsGesture === needs) return
+  filaAudioNeedsGesture = needs
+  for (const l of listenersFilaAudioGesture) l(needs)
+}
+
+export function isFilaAudioNeedsGesture() {
+  return filaAudioNeedsGesture
+}
+
+export function useFilaAudioNeedsGesture(): boolean {
+  const [needs, setNeeds] = useState(filaAudioNeedsGesture)
+  useEffect(() => {
+    const listener: ListenerFilaAudioGesture = (n) => setNeeds(n)
+    listenersFilaAudioGesture.add(listener)
+    setNeeds(filaAudioNeedsGesture)
+    return () => {
+      listenersFilaAudioGesture.delete(listener)
+    }
+  }, [])
+  return needs
+}
+
+/** Gesto explícito (banner/login): desbloqueia áudio e retoma o loop da fila. */
+export function reativarAlertaFilaAudio() {
+  unlockAlertAudio()
+  setFilaAudioNeedsGesture(false)
+  const fila = currentResumo.wpp_fila_count + currentResumo.portal_fila_count
+  if (fila > 0 && !filaAguardandoMuted) {
+    stopWppFilaLoop()
+    ensureWppFilaLoop()
+  }
+}
 
 export function setChatInternoAlertUserId(userId: number | null) {
   chatInternoUserId = userId
@@ -428,20 +466,31 @@ function startFilaLoopPlayback() {
   audio.volume = 0.38
   const playPromise = audio.play()
   if (playPromise && typeof playPromise.then === 'function') {
-    playPromise.catch(() => {
-      if (!wppFilaLoopWanted || filaAguardandoMuted || oneShotPlaying) return
-      // Em aba oculta o browser bloqueia play — notifica no SO e retenta ao voltar (#652)
-      const filaCount = currentResumo.wpp_fila_count + currentResumo.portal_fila_count
-      notifyFilaDesktop(filaCount)
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        synthForKind('wpp_fila_pulse')
+    playPromise
+      .then(() => {
+        setFilaAudioNeedsGesture(false)
+      })
+      .catch(() => {
+        if (!wppFilaLoopWanted || filaAguardandoMuted || oneShotPlaying) return
+        const filaCount = currentResumo.wpp_fila_count + currentResumo.portal_fila_count
+        // Em segundo plano o SO bloqueia play — notifica e retenta ao voltar (#652)
+        if (isAppInBackground()) {
+          notifyFilaDesktop(filaCount)
+          return
+        }
+        // App em foco: autoplay bloqueado até gesto — banner + synth + retry
+        setFilaAudioNeedsGesture(true)
+        if (audioUnlocked) {
+          synthForKind('wpp_fila_pulse')
+        }
         clearWppFilaLoopRetry()
         wppFilaLoopRetryTimer = window.setTimeout(() => {
           wppFilaLoopRetryTimer = null
-          if (wppFilaLoopWanted && !filaAguardandoMuted) startFilaLoopPlayback()
-        }, 400)
-      }
-    })
+          if (wppFilaLoopWanted && !filaAguardandoMuted && !isAppInBackground()) {
+            startFilaLoopPlayback()
+          }
+        }, 1200)
+      })
   }
 }
 
@@ -506,6 +555,7 @@ function syncWppFilaBeep(wppFilaCount: number) {
     ensureWppFilaLoop()
   } else {
     stopWppFilaLoop()
+    setFilaAudioNeedsGesture(false)
   }
   syncFilaBackgroundNudge()
 }
@@ -781,46 +831,76 @@ export function unlockAlertAudio() {
 export type AlertasDesktopResultado = 'granted' | 'denied' | 'default' | 'unsupported'
 
 /**
- * Pedido explícito (gesto do utilizador no banner): desbloqueia áudio + permissão
- * de notificação do SO para alertar com aba em 2º plano / browser minimizado (#652).
+ * Pedido explícito (gesto do usuário no banner/login): desbloqueia áudio + permissão
+ * de notificação do SO para alertar com aba em 2º plano / app minimizada (#652).
  */
 export async function ativarAlertasEmSegundoPlano(): Promise<AlertasDesktopResultado> {
   unlockAlertAudio()
-  if (typeof Notification === 'undefined') return 'unsupported'
-  if (Notification.permission === 'granted') {
-    // Confirmação curta — o utilizador acabou de autorizar / já tinha
-    try {
-      const n = new Notification(APP_NAME, {
-        body: 'Alertas activos mesmo com a aba em segundo plano.',
-        tag: 'dx-connect-fila-perm-ok',
-        silent: false,
-      })
-      window.setTimeout(() => n.close(), 4000)
-    } catch {
-      // ignore
-    }
-    return 'granted'
+  setFilaAudioNeedsGesture(false)
+  const fila = currentResumo.wpp_fila_count + currentResumo.portal_fila_count
+  if (fila > 0 && !filaAguardandoMuted) {
+    ensureWppFilaLoop()
   }
-  if (Notification.permission === 'denied') return 'denied'
+
+  let resultado: AlertasDesktopResultado = 'unsupported'
+
   try {
-    const p = await Notification.requestPermission()
-    if (p === 'granted') {
+    const { isCapacitorNative } = await import('../lib/capacitorNative')
+    if (isCapacitorNative()) {
+      const { DeskRudderUnifiedPush } = await import('../plugins/unifiedPush')
+      const native = await DeskRudderUnifiedPush.requestNotificationPermission()
+      if (native.granted) {
+        if (fila > 0 && !filaAguardandoMuted) {
+          void DeskRudderUnifiedPush.showFilaWaiting({ count: fila }).catch(() => undefined)
+        }
+        resultado = 'granted'
+      } else if (native.state === 'denied') {
+        resultado = 'denied'
+      } else {
+        resultado = 'default'
+      }
+    }
+  } catch {
+    // ignore — fallback Web Notification
+  }
+
+  if (resultado !== 'granted' && resultado !== 'denied' && typeof Notification !== 'undefined') {
+    if (Notification.permission === 'granted') {
+      resultado = 'granted'
+    } else if (Notification.permission === 'denied') {
+      resultado = 'denied'
+    } else {
       try {
+        const p = await Notification.requestPermission()
+        resultado = p === 'granted' ? 'granted' : p === 'denied' ? 'denied' : 'default'
+      } catch {
+        resultado = 'denied'
+      }
+    }
+  }
+
+  if (resultado === 'granted') {
+    try {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         const n = new Notification(APP_NAME, {
-          body: 'Alertas activos mesmo com a aba em segundo plano.',
+          body: 'Alertas ativos mesmo com a aba em segundo plano ou a app fechada.',
           tag: 'dx-connect-fila-perm-ok',
           silent: false,
         })
         window.setTimeout(() => n.close(), 4000)
-      } catch {
-        // ignore
       }
-      return 'granted'
+    } catch {
+      // ignore (APK pode não expor Notification)
     }
-    return p === 'denied' ? 'denied' : 'default'
-  } catch {
-    return 'denied'
+    try {
+      const { syncWebPushSubscription } = await import('./useWebPush')
+      await syncWebPushSubscription({ ativar: true })
+    } catch {
+      // VAPID ausente / distributor indisponível — banner de push continua disponível
+    }
   }
+
+  return resultado
 }
 
 export function getNotificationPermission(): AlertasDesktopResultado {
@@ -847,42 +927,56 @@ function installAudioUnlockListeners() {
 /**
  * Notificação do SO quando a app está em segundo plano — browsers/OS bloqueiam audio.play().
  * Respeita silenciar da fila. Dedup ~4s (exceto `force` do nudge periódico #823).
+ * No APK usa canal nativo com som alto (mesmo do UnifiedPush).
  */
 function notifyFilaDesktop(filaCount: number, opts?: { force?: boolean }) {
   if (filaAguardandoMuted || filaCount <= 0) return
   if (!isAppInBackground()) return
-  if (typeof Notification === 'undefined') return
-  if (Notification.permission !== 'granted') return
   const now = Date.now()
   if (!opts?.force && now - lastFilaDesktopNotifyAt < FILA_NOTIFY_DEDUP_MS) return
   lastFilaDesktopNotifyAt = now
-  try {
-    const body =
-      filaCount === 1
-        ? 'Há 1 chat aguardando atendimento'
-        : `Há ${filaCount} chats aguardando atendimento`
-    const n = new Notification(APP_NAME, {
-      body,
-      tag: FILA_NOTIFY_TAG,
-      silent: false,
-      renotify: true,
-      requireInteraction: true,
-    } as NotificationOptions)
-    n.onclick = () => {
-      try {
-        window.focus()
-        const path = '/chat/espera'
-        if (window.location.pathname !== path) {
-          window.location.assign(path)
-        }
-      } catch {
-        // ignore
+
+  void (async () => {
+    try {
+      const { isCapacitorNative } = await import('../lib/capacitorNative')
+      if (isCapacitorNative()) {
+        const { DeskRudderUnifiedPush } = await import('../plugins/unifiedPush')
+        await DeskRudderUnifiedPush.showFilaWaiting({ count: filaCount })
+        return
       }
-      n.close()
+    } catch {
+      // fallback Web Notification
     }
-  } catch {
-    // ignore
-  }
+    if (typeof Notification === 'undefined') return
+    if (Notification.permission !== 'granted') return
+    try {
+      const body =
+        filaCount === 1
+          ? 'Há 1 chat aguardando atendimento'
+          : `Há ${filaCount} chats aguardando atendimento`
+      const n = new Notification(APP_NAME, {
+        body,
+        tag: FILA_NOTIFY_TAG,
+        silent: false,
+        renotify: true,
+        requireInteraction: true,
+      } as NotificationOptions)
+      n.onclick = () => {
+        try {
+          window.focus()
+          const path = '/chat/espera'
+          if (window.location.pathname !== path) {
+            window.location.assign(path)
+          }
+        } catch {
+          // ignore
+        }
+        n.close()
+      }
+    } catch {
+      // ignore
+    }
+  })()
 }
 
 function ensureStarted() {
@@ -923,9 +1017,17 @@ function ensureStarted() {
       syncFilaBackgroundNudge()
       return
     }
-    // Retoma o loop imediatamente ao voltar à aba (#652), sem esperar o poll
+    // Retoma o loop ao voltar à aba — re-desbloqueia se já houve gesto (#652)
+    if (audioUnlocked) {
+      unlockAlertAudio()
+    }
     const fila = currentResumo.wpp_fila_count + currentResumo.portal_fila_count
-    syncWppFilaBeep(fila)
+    if (fila > 0 && !filaAguardandoMuted) {
+      stopWppFilaLoop()
+      ensureWppFilaLoop()
+    } else {
+      syncWppFilaBeep(fila)
+    }
     void poll()
   }
   const onBlurOrHidden = () => {

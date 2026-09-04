@@ -128,10 +128,14 @@ O distribuidor embutido usa os servidores de push da Google só como transporte 
 
 | Estado | O que alerta |
 |--------|----------------|
-| **Aberto** (aba/app em foco) | SSE + loop de áudio da fila (`alerta.mp3`); preferência «silenciar» na mesa corta o loop |
-| **2.º plano** (minimizada / outra app / aba oculta; processo ainda vivo) | Notification do SO com `renotify` + re-alerta periódico enquanto a fila > 0; no APK também `App.appStateChange`. Push do servidor continua a chegar em eventos novos |
-| **Fechada / kill** | Só **Web Push** (PWA) ou **UnifiedPush** (APK), com permissão activa |
+| **Aberto** (aba/app em foco) | SSE + loop de áudio da fila (`alerta.mp3`); se o autoplay bloquear, banner «Ativar som»; preferência «silenciar» na mesa corta o loop |
+| **2.º plano** (minimizada / outra app / aba oculta; processo ainda vivo) | Notification do SO com `renotify` + re-alerta periódico; no APK canal nativo `deskrudder_fila` + `App.appStateChange`. Push do servidor continua a chegar em eventos novos |
+| **Fechada / kill** | **Web Push** (PWA) ou **UnifiedPush** (APK) no evento de entrada na fila **e** lembrete periódico (`chat.fila.remind`, padrão a cada 2 min) enquanto a fila > 0 e `push_habilitado` + `push_fila` |
 | **iOS** | PWA no ecrã inicial (#695); sem SSE em background; push limitado pelo Safari |
+
+O banner «Ativar alertas» (permissão de notificação) aparece no **browser e no APK** e, no mesmo gesto, tenta inscrever o endpoint de push (necessário com a app fechada). O gesto de **Entrar** no login já desbloqueia o áudio HTML para a sessão.
+
+Variável `WEB_PUSH_FILA_REMIND_MINUTES` (padrão `2`; `0` desliga o lembrete periódico).
 
 Silenciar na mesa (`ChatFilaSomToggle`) e «Avisar fila de espera» em Notificações ficam alinhados (`push_fila` ↔ mute local).
 

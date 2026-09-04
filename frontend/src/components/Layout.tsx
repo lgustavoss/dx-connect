@@ -10,6 +10,7 @@ import { BrandLogo } from '../brand'
 import { useTheme } from '../contexts/ThemeContext'
 import { isCapacitorNative } from '../lib/capacitorNative'
 import { AlertaDesktopPermissaoBanner } from './AlertaDesktopPermissaoBanner'
+import { AlertaFilaAudioBanner } from './AlertaFilaAudioBanner'
 import { PwaInstallBanner } from './PwaInstallBanner'
 import { WebPushOptInBanner } from './WebPushOptInBanner'
 import { PontoAlertasBanner } from './PontoAlertasBanner'
@@ -160,9 +161,8 @@ function LayoutInner() {
         </header>
 
         {notificacoesEnabled && !isCapacitorNative() && !ocultarHeaderMobile ? <PwaInstallBanner enabled /> : null}
-        {notificacoesEnabled && !isCapacitorNative() && !ocultarHeaderMobile ? (
-          <AlertaDesktopPermissaoBanner enabled />
-        ) : null}
+        {notificacoesEnabled && !ocultarHeaderMobile ? <AlertaDesktopPermissaoBanner enabled /> : null}
+        {notificacoesEnabled && !ocultarHeaderMobile ? <AlertaFilaAudioBanner enabled /> : null}
         {notificacoesEnabled && !ocultarHeaderMobile ? <WebPushOptInBanner enabled /> : null}
         <PontoAlertasBanner />
 

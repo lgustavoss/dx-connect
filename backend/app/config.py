@@ -83,6 +83,8 @@ class Settings(BaseSettings):
     WEB_PUSH_VAPID_PRIVATE_KEY: str | None = None
     WEB_PUSH_VAPID_SUBJECT: str = "mailto:ops@deskrudder.com.br"
     WEB_PUSH_WORKER_INTERVAL_SECONDS: int = 5
+    # Reaviso push enquanto houver chats na fila (app fechada). 0 = desliga.
+    WEB_PUSH_FILA_REMIND_MINUTES: int = 2
     # Tentativas HTTP para Evolution API (falhas transitórias).
     EVOLUTION_HTTP_MAX_ATTEMPTS: int = 3
     WHATSAPP_INACTIVITY_WORKER_INTERVAL_SECONDS: int = 60
