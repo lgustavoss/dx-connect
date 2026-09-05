@@ -69,9 +69,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, senha: string, lembrarMe = true) => {
     const { auth } = await import('../api/client')
+    const { isCapacitorNative } = await import('../lib/capacitorNative')
     const res = await auth.login(email, senha)
     clearAuthToken()
-    if (lembrarMe) {
+    // APK: sempre localStorage — lock/unlock recarrega o WebView e sessionStorage some.
+    const persistir = isCapacitorNative() ? true : lembrarMe
+    if (persistir) {
       localStorage.setItem('token', res.access_token)
       if (res.refresh_token) localStorage.setItem('refresh_token', res.refresh_token)
     } else {

@@ -16,6 +16,7 @@ import {
   type RealtimeEnvelope,
   type RealtimeEventHandler,
 } from '../api/eventStream'
+import { bindCapacitorAppState } from '../lib/capacitorNative'
 
 type ListenerMap = Map<string, Set<RealtimeEventHandler>>
 
@@ -23,6 +24,8 @@ interface EventStreamContextValue {
   connected: boolean
   useFallback: boolean
   subscribe: (type: string, handler: RealtimeEventHandler) => () => void
+  /** Força novo ciclo SSE (ex.: ao voltar do 2º plano no APK). */
+  restartStream: () => void
 }
 
 const EventStreamContext = createContext<EventStreamContextValue | null>(null)
@@ -37,6 +40,7 @@ export function EventStreamProvider({
   const listenersRef = useRef<ListenerMap>(new Map())
   const [connected, setConnected] = useState(false)
   const [useFallback, setUseFallback] = useState(false)
+  const [streamEpoch, setStreamEpoch] = useState(0)
 
   const dispatch = useCallback((event: RealtimeEnvelope) => {
     const handlers = listenersRef.current.get(event.type)
@@ -76,6 +80,20 @@ export function EventStreamProvider({
       }
     }
   }, [])
+
+  const restartStream = useCallback(() => {
+    setUseFallback(false)
+    setStreamEpoch((n) => n + 1)
+  }, [])
+
+  useEffect(() => {
+    return bindCapacitorAppState((isActive) => {
+      if (isActive && enabled) {
+        // Lock/unlock ou OEM matou o WebView: sai do fallback permanente e reconecta
+        restartStream()
+      }
+    })
+  }, [enabled, restartStream])
 
   useEffect(() => {
     if (!enabled) {
@@ -142,11 +160,11 @@ export function EventStreamProvider({
       abort.abort()
       setConnected(false)
     }
-  }, [enabled, dispatch])
+  }, [enabled, dispatch, streamEpoch])
 
   const value = useMemo(
-    () => ({ connected, useFallback, subscribe }),
-    [connected, useFallback, subscribe],
+    () => ({ connected, useFallback, subscribe, restartStream }),
+    [connected, useFallback, subscribe, restartStream],
   )
 
   return <EventStreamContext.Provider value={value}>{children}</EventStreamContext.Provider>

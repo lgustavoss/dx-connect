@@ -21,10 +21,14 @@ export function ChatFilaSomToggle({ className = '', size = 'sm' }: Props) {
       aria-pressed={muted}
       aria-label={
         muted
-          ? 'Ativar alerta sonoro da fila Aguardando'
-          : 'Silenciar alerta sonoro da fila Aguardando'
+          ? 'Ativar plantão / alerta da fila Aguardando'
+          : 'Silenciar plantão e alerta da fila Aguardando'
       }
-      title={muted ? 'Alerta da fila silenciado — clique para ativar' : 'Silenciar alerta da fila'}
+      title={
+        muted
+          ? 'Plantão silenciado — clique para alertar a fila (som e notificação)'
+          : 'Plantão ativo — clique para silenciar alerta da fila'
+      }
       onClick={(e) => {
         e.preventDefault()
         e.stopPropagation()

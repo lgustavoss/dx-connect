@@ -90,6 +90,10 @@ Correr após `npm run build:android` + `npm run cap:sync android` + instalar no 
 | 5 | Login noutra empresa | Dados da nova instância |
 | 6 | Notificações → activar push | Endpoint UnifiedPush registado na API da instância |
 | 7 | App em segundo plano / fechada + evento fila/mensagem | Notificação sistema |
+| 7b | Plantão ligado + 1 chat na fila + **bloquear tela** | Notificação persistente «DeskRudder — plantão»; toque abre `/chat/espera` |
+| 7c | Assumir chat / fila zerar ou **silenciar** na mesa | Notificação de plantão some |
+| 7d | Bloquear/desbloquear tela 10× | Permanece logado; fila atualiza sem login manual; SSE reconecta |
+| 7e | Matar app (swipe) com fila > 0 | Push / `chat.fila.remind` chega |
 | 8 | Toque na notificação | Abre a mesa/conversa **uma** vez |
 | 9 | Ticket: teclado no composer | Campo visível; double-tap no enviar não duplica |
 | 10 | WhatsApp: texto + figurinha | Envio único; teclado sem cortar o campo |
@@ -124,20 +128,35 @@ O worker `web-push-outbox` já existente envia para PWA **e** APK. Mute da fila 
 
 O distribuidor embutido usa os servidores de push da Google só como transporte nos telemóveis com Play Services. Sem Play Services, o alerta com a app fechada não chega (a PWA no Chrome continua a funcionar).
 
-### Matriz aberto / 2.º plano / fechado (#823)
+### Matriz aberto / 2.º plano / fechado (#823 + plantão FGS)
 
 | Estado | O que alerta |
 |--------|----------------|
-| **Aberto** (aba/app em foco) | SSE + loop de áudio da fila (`alerta.mp3`); se o autoplay bloquear, banner «Ativar som»; preferência «silenciar» na mesa corta o loop |
-| **2.º plano** (minimizada / outra app / aba oculta; processo ainda vivo) | Notification do SO com `renotify` + re-alerta periódico; no APK canal nativo `deskrudder_fila` + `App.appStateChange`. Push do servidor continua a chegar em eventos novos |
-| **Fechada / kill** | **Web Push** (PWA) ou **UnifiedPush** (APK) no evento de entrada na fila **e** lembrete periódico (`chat.fila.remind`, padrão a cada 2 min) enquanto a fila > 0 e `push_habilitado` + `push_fila` |
+| **Aberto** (aba/app em foco) | SSE estável + loop de áudio da fila (`alerta.mp3`); se o autoplay bloquear, banner «Ativar som»; preferência «silenciar» na mesa corta o loop |
+| **Tela bloqueada / 2.º plano com gente na fila (APK)** | **Foreground Service** de plantão (notificação contínua «Há N chats aguardando», canal `deskrudder_fila`, deep link `/chat/espera`). Não depende de `setInterval` / HTMLAudio no WebView |
+| **2.º plano (navegador / PWA)** | Notification do SO com `renotify` + re-alerta periódico (~12s) enquanto a aba está oculta e o processo vivo |
+| **Fechada / kill / OEM matou o FGS** | **Web Push** (PWA) ou **UnifiedPush** (APK) no evento de entrada na fila **e** lembrete periódico (`chat.fila.remind`, padrão a cada 2 min) enquanto a fila > 0 e `push_habilitado` + `push_fila` |
 | **iOS** | PWA no ecrã inicial (#695); sem SSE em background; push limitado pelo Safari |
 
-O banner «Ativar alertas» (permissão de notificação) aparece no **browser e no APK** e, no mesmo gesto, tenta inscrever o endpoint de push (necessário com a app fechada). O gesto de **Entrar** no login já desbloqueia o áudio HTML para a sessão.
+No APK, a sessão grava tokens sempre em `localStorage` (reload pós-lock não manda para o login). O stream SSE usa `EventSource` nativo do WebView (CapacitorHttp bufferiza `fetch` e quebra o stream). Ao voltar ao app (`appStateChange` ativo), o SSE reinicia e sai do fallback permanente.
+
+O banner «Ativar alertas» / «Ativar plantão» (permissão de notificação) aparece no **browser e no APK** e, no mesmo gesto, tenta inscrever o endpoint de push (necessário com a app fechada). Com a permissão concedida e fila > 0 (sem silenciar na mesa), o APK sobe o plantão FGS.
 
 Variável `WEB_PUSH_FILA_REMIND_MINUTES` (padrão `2`; `0` desliga o lembrete periódico).
 
-Silenciar na mesa (`ChatFilaSomToggle`) e «Avisar fila de espera» em Notificações ficam alinhados (`push_fila` ↔ mute local).
+Silenciar na mesa (`ChatFilaSomToggle`) e «Avisar fila de espera» em Notificações ficam alinhados (`push_fila` ↔ mute local) e **desligam o FGS** no APK.
+
+### Bateria / OEM (checklist no aparelho)
+
+Fabricantes (Xiaomi, Samsung, Huawei, etc.) podem matar o processo mesmo com Foreground Service. Peça ao atendente, uma vez por aparelho:
+
+1. **DeskRudder → Informações do app → Bateria** — sem restrição / «Sem restrições» / permitir atividade em segundo plano
+2. **Otimização de bateria** — isentar o DeskRudder (Android: Configurações → Apps → DeskRudder → Bateria)
+3. Xiaomi / HyperOS: Autostart + «Economia de bateria» → Sem restrições; opcional «bloquear» o app na lista de recentes para o OEM não matar
+4. Samsung: Apps em espera / sono profundo — remover DeskRudder da lista
+5. Validar: com plantão ligado e 1 chat na fila, bloquear a tela → notificação «DeskRudder — plantão» permanece; ao assumir/zerar a fila, some; ao matar o app (swipe), deve chegar push/`chat.fila.remind`
+
+Cada instância precisa de `VAPID_*` no `client.env` e `https://localhost` em `CORS_ORIGINS` (obrigatório para SSE no WebView Capacitor).
 
 Ícones de loja: `frontend/public/deskrudder-pwa-512.png` (e outline) — ver `MOBILE_STORE_RELEASE.md`. Os mipmaps Android (`ic_launcher*`) devem usar o mesmo mark PWA (fundo Deck `#F8FAFC`); regenerar a partir de `deskrudder-pwa-512.png` se o asset de marca mudar. Opcional: splash nativo com `@capacitor/assets`.
 

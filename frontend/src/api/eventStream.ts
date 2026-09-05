@@ -4,6 +4,7 @@ import {
   invalidateSessionAndRedirectToLogin,
   resolvedApiBaseUrl,
 } from './client'
+import { isCapacitorNative } from '../lib/capacitorNative'
 import { isMultiTenantMode, resolveTenantIdFromHostname } from '../lib/tenant'
 
 export interface RealtimeEnvelope {
@@ -37,7 +38,7 @@ async function refreshAccessTokenForStream(): Promise<string | null> {
   if (isMultiTenantMode()) {
     headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
   }
-  const res = await fetch(`${base}${API_VERSION_PREFIX}/auth/refresh`, {
+  const res = await webFetch(`${base}${API_VERSION_PREFIX}/auth/refresh`, {
     method: 'POST',
     headers,
     body: JSON.stringify({ refresh_token }),
@@ -86,15 +87,29 @@ function parseSseBlocks(buffer: string): { events: RealtimeEnvelope[]; rest: str
   return { events, rest }
 }
 
+/** Fetch do WebView — bypass do CapacitorHttp (não faz streaming / SSE). */
+function webFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const cap = (
+    window as unknown as {
+      Capacitor?: { CapacitorWebFetch?: typeof fetch }
+    }
+  ).Capacitor
+  const nativeWeb = cap?.CapacitorWebFetch
+  if (typeof nativeWeb === 'function') {
+    return nativeWeb(input, init)
+  }
+  return fetch(input, init)
+}
+
 async function openAuthenticatedStream(
   signal: AbortSignal,
   retried401: boolean,
 ): Promise<Response> {
-  let token = getAuthToken()
+  const token = getAuthToken()
   if (!token) {
     throw new Error('Token não informado')
   }
-  const res = await fetch(buildEventStreamUrl(), {
+  const res = await webFetch(buildEventStreamUrl(), {
     headers: authHeaders(token),
     signal,
   })
@@ -119,6 +134,109 @@ async function openAuthenticatedStream(
   return res
 }
 
+function buildEventSourceUrl(token: string): string {
+  const url = new URL(buildEventStreamUrl())
+  url.searchParams.set('token', token)
+  if (isMultiTenantMode()) {
+    url.searchParams.set('tid', String(resolveTenantIdFromHostname()))
+  }
+  return url.toString()
+}
+
+/**
+ * APK: EventSource nativo (stack do WebView) — CapacitorHttp bufferiza fetch e quebra SSE.
+ * Requer CORS com https://localhost na instância.
+ */
+function runEventStreamLoopEventSource(options: EventStreamRunOptions): Promise<void> {
+  const { signal, onEvent, onConnected, onError } = options
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException('Aborted', 'AbortError'))
+      return
+    }
+    let token = getAuthToken()
+    if (!token) {
+      reject(new Error('Token não informado'))
+      return
+    }
+
+    let es: EventSource | null = null
+    let settled = false
+    let sawConnected = false
+    let refreshTried = false
+
+    const finishOk = () => {
+      if (settled) return
+      settled = true
+      cleanup()
+      resolve()
+    }
+    const finishErr = (err: Error) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      onError?.(err)
+      reject(err)
+    }
+    const cleanup = () => {
+      signal.removeEventListener('abort', onAbort)
+      try {
+        es?.close()
+      } catch {
+        /* ignore */
+      }
+      es = null
+    }
+    const onAbort = () => {
+      finishOk()
+    }
+    signal.addEventListener('abort', onAbort)
+
+    const attach = (accessToken: string) => {
+      try {
+        es?.close()
+      } catch {
+        /* ignore */
+      }
+      es = new EventSource(buildEventSourceUrl(accessToken))
+      es.onmessage = (ev) => {
+        try {
+          const envelope = JSON.parse(ev.data) as RealtimeEnvelope
+          if (envelope.type === 'connected') {
+            sawConnected = true
+            onConnected?.()
+          }
+          onEvent(envelope)
+        } catch {
+          if (import.meta.env.DEV) {
+            console.warn('[SSE] JSON inválido (EventSource):', ev.data)
+          }
+        }
+      }
+      es.onerror = () => {
+        void (async () => {
+          if (settled || signal.aborted) return
+          // Sem connected: pode ser 401 / CORS — tenta refresh 1x
+          if (!sawConnected && !refreshTried) {
+            refreshTried = true
+            const refreshed = await refreshAccessTokenForStream()
+            if (refreshed) {
+              attach(refreshed)
+              return
+            }
+            invalidateSessionAndRedirectToLogin()
+            finishErr(new Error('Sessão expirada'))
+            return
+          }
+          finishErr(new Error('SSE EventSource desconectado'))
+        })()
+      }
+    }
+
+    attach(token)
+  })
+}
+
 export type EventStreamRunOptions = {
   signal: AbortSignal
   onEvent: (event: RealtimeEnvelope) => void
@@ -128,6 +246,10 @@ export type EventStreamRunOptions = {
 
 /** Lê o stream até abort ou erro de rede. */
 export async function runEventStreamLoop(options: EventStreamRunOptions): Promise<void> {
+  if (isCapacitorNative() && typeof EventSource !== 'undefined') {
+    return runEventStreamLoopEventSource(options)
+  }
+
   const { signal, onEvent, onConnected, onError } = options
   let response: Response
   try {
