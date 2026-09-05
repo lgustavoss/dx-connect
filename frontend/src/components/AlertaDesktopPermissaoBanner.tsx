@@ -82,7 +82,7 @@ export function AlertaDesktopPermissaoBanner({ enabled }: Props) {
         className="shrink-0 border-b border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-100"
       >
         {nativo
-          ? 'Alertas do sistema ativos — você será avisado com o app em segundo plano ou fechado.'
+          ? 'Alertas do sistema ativos — com gente na fila, o Android mantém uma notificação de plantão mesmo com a tela bloqueada; push cobre se o app for encerrado.'
           : 'Alertas do sistema ativos — você será avisado com a aba em segundo plano, navegador minimizado ou app fechada.'}
       </div>
     )
@@ -114,11 +114,11 @@ export function AlertaDesktopPermissaoBanner({ enabled }: Props) {
     >
       <div className="min-w-0 space-y-0.5">
         <p className="font-semibold text-slate-900 dark:text-white">
-          {nativo ? 'Ativar alertas com o app em segundo plano ou fechado?' : 'Ativar alertas fora desta aba?'}
+          {nativo ? 'Ativar plantão / alertas da fila?' : 'Ativar alertas fora desta aba?'}
         </p>
         <p className="text-xs text-slate-600 dark:text-slate-300 sm:text-sm">
           {nativo
-            ? 'Com a permissão do Android, o DeskRudder avisa a fila mesmo com o app minimizado ou fechado (push).'
+            ? 'O Android exige uma notificação persistente para alertar com a tela bloqueada. Com a permissão, o DeskRudder mostra o plantão enquanto houver chat na fila; se o app for morto, o push continua avisando.'
             : 'Com a permissão do navegador, o DeskRudder avisa a fila mesmo com outra aba, navegador minimizado ou app fechada (PWA).'}
         </p>
       </div>

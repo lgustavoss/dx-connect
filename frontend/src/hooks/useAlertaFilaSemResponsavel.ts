@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { notificacoes, type Notificacoes } from '../api/client'
 import { useEventStream } from '../contexts/EventStreamContext'
 import { APP_NAME } from '../brand'
+import { isCapacitorNative } from '../lib/capacitorNative'
 
 const LS_KEY_LAST_SEM_RESP = 'dxconnect.notificacoes.last_sem_responsavel'
 const LS_KEY_LAST_NAO_LIDAS = 'dxconnect.notificacoes.last_nao_lidas'
@@ -100,6 +101,8 @@ type ListenerFilaAudioGesture = (needs: boolean) => void
 const listenersFilaAudioGesture = new Set<ListenerFilaAudioGesture>()
 let lastFilaDesktopNotifyAt = 0
 let filaBgNudgeTimer: number | null = null
+/** Última contagem enviada ao Foreground Service (evita spam de startService). */
+let lastFilaPlantaoCount: number | null = null
 /** APK: false quando o OS põe a app em segundo plano (#823). Browser: permanece true. */
 let nativeAppActive = true
 let capacitorAppStateBound = false
@@ -180,10 +183,12 @@ export function setFilaAguardandoMuted(muted: boolean) {
     stopWppFilaLoop()
     stopWppFilaOneShots()
     clearFilaBackgroundNudge()
+    syncFilaPlantaoFgs()
   } else {
     const filaCount = currentResumo.wpp_fila_count + currentResumo.portal_fila_count
     syncWppFilaBeep(filaCount)
     syncFilaBackgroundNudge()
+    syncFilaPlantaoFgs()
   }
   for (const l of listenersFilaMuted) l(muted)
 }
@@ -558,6 +563,38 @@ function syncWppFilaBeep(wppFilaCount: number) {
     setFilaAudioNeedsGesture(false)
   }
   syncFilaBackgroundNudge()
+  syncFilaPlantaoFgs()
+}
+
+/**
+ * APK: Foreground Service de plantão enquanto há fila e o alerta não está silenciado.
+ * Sobrevive a lock/unlock melhor que HTMLAudio / setInterval no WebView.
+ */
+function syncFilaPlantaoFgs() {
+  if (!isCapacitorNative()) return
+  const fila = currentResumo.wpp_fila_count + currentResumo.portal_fila_count
+  void (async () => {
+    try {
+      const { DeskRudderUnifiedPush } = await import('../plugins/unifiedPush')
+      if (fila <= 0 || filaAguardandoMuted) {
+        if (lastFilaPlantaoCount != null && lastFilaPlantaoCount > 0) {
+          lastFilaPlantaoCount = 0
+          await DeskRudderUnifiedPush.stopFilaAlert()
+        }
+        return
+      }
+      if (lastFilaPlantaoCount === fila) return
+      const prev = lastFilaPlantaoCount
+      lastFilaPlantaoCount = fila
+      if (prev == null || prev <= 0) {
+        await DeskRudderUnifiedPush.startFilaAlert({ count: fila })
+      } else {
+        await DeskRudderUnifiedPush.updateFilaAlert({ count: fila })
+      }
+    } catch {
+      // Plugin ausente / permissão — push continua como rede de segurança
+    }
+  })()
 }
 
 /** App minimizada / aba oculta / janela sem foco / APK em 2.º plano (#823). */
@@ -581,6 +618,11 @@ function clearFilaBackgroundNudge() {
 }
 
 function syncFilaBackgroundNudge() {
+  // APK: Foreground Service cobre lock/2º plano — não depende do setInterval de 12s
+  if (isCapacitorNative()) {
+    clearFilaBackgroundNudge()
+    return
+  }
   const fila = currentResumo.wpp_fila_count + currentResumo.portal_fila_count
   const need = fila > 0 && !filaAguardandoMuted && isAppInBackground()
   if (!need) {
@@ -845,14 +887,12 @@ export async function ativarAlertasEmSegundoPlano(): Promise<AlertasDesktopResul
   let resultado: AlertasDesktopResultado = 'unsupported'
 
   try {
-    const { isCapacitorNative } = await import('../lib/capacitorNative')
-    if (isCapacitorNative()) {
+    const { isCapacitorNative: isNative } = await import('../lib/capacitorNative')
+    if (isNative()) {
       const { DeskRudderUnifiedPush } = await import('../plugins/unifiedPush')
       const native = await DeskRudderUnifiedPush.requestNotificationPermission()
       if (native.granted) {
-        if (fila > 0 && !filaAguardandoMuted) {
-          void DeskRudderUnifiedPush.showFilaWaiting({ count: fila }).catch(() => undefined)
-        }
+        syncFilaPlantaoFgs()
         resultado = 'granted'
       } else if (native.state === 'denied') {
         resultado = 'denied'
@@ -938,10 +978,9 @@ function notifyFilaDesktop(filaCount: number, opts?: { force?: boolean }) {
 
   void (async () => {
     try {
-      const { isCapacitorNative } = await import('../lib/capacitorNative')
       if (isCapacitorNative()) {
-        const { DeskRudderUnifiedPush } = await import('../plugins/unifiedPush')
-        await DeskRudderUnifiedPush.showFilaWaiting({ count: filaCount })
+        // Plantão FGS já cobre 2º plano / lock — evita notificação duplicada
+        syncFilaPlantaoFgs()
         return
       }
     } catch {

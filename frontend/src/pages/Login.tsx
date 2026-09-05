@@ -333,7 +333,8 @@ function LoginCapacitor() {
     // Precisa do slug no storage para apiBaseUrl() apontar à instância; só fica se o login OK.
     writeRememberedAccount(slug)
     try {
-      await login(email.trim(), senha, lembrarMe)
+      // APK: sessão sempre persistente (reload pós-lock não pode mandar para o login)
+      await login(email.trim(), senha, true)
       unlockAlertAudio()
       try {
         if (lembrarMe) {

@@ -32,6 +32,12 @@ interface DeskRudderUnifiedPushPlugin {
   requestNotificationPermission(): Promise<NotificationPermissionResult>
   /** Alerta local da fila com canal de som alto (app em 2º plano). */
   showFilaWaiting(options: { count: number }): Promise<void>
+  /** Plantão: inicia Foreground Service com notificação persistente. */
+  startFilaAlert(options: { count: number }): Promise<void>
+  /** Atualiza o texto/contagem do plantão (idempotente com start). */
+  updateFilaAlert(options: { count: number }): Promise<void>
+  /** Para o plantão e remove a notificação persistente. */
+  stopFilaAlert(): Promise<void>
   addListener(
     eventName: 'endpoint',
     listenerFunc: (data: UnifiedPushEndpoint) => void,
@@ -80,6 +86,18 @@ class DeskRudderUnifiedPushWeb extends WebPlugin {
 
   async showFilaWaiting(): Promise<void> {
     /* no-op — browser usa Notification da web */
+  }
+
+  async startFilaAlert(): Promise<void> {
+    /* no-op — só Android */
+  }
+
+  async updateFilaAlert(): Promise<void> {
+    /* no-op — só Android */
+  }
+
+  async stopFilaAlert(): Promise<void> {
+    /* no-op — só Android */
   }
 }
 

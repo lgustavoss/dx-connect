@@ -151,6 +151,38 @@ class UnifiedPushPlugin : Plugin() {
         call.resolve()
     }
 
+    /** Plantão: Foreground Service com notificação persistente enquanto a fila > 0. */
+    @PluginMethod
+    fun startFilaAlert(call: PluginCall) {
+        val count = call.getInt("count") ?: 0
+        if (count <= 0) {
+            FilaAlertForegroundService.stop(context)
+            call.resolve()
+            return
+        }
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            call.resolve()
+            return
+        }
+        FilaAlertForegroundService.start(context, count)
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun updateFilaAlert(call: PluginCall) {
+        startFilaAlert(call)
+    }
+
+    @PluginMethod
+    fun stopFilaAlert(call: PluginCall) {
+        FilaAlertForegroundService.stop(context)
+        NotificationManagerCompat.from(context).cancel(FILA_NOTIFY_ID)
+        call.resolve()
+    }
+
     private fun ensureFilaChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
