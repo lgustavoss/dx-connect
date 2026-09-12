@@ -114,6 +114,46 @@ def entrada_aberta(db: Session, atendente_id: int) -> PontoBatida | None:
     return _entrada_da_jornada_aberta(db, atendente_id)
 
 
+def segundos_trabalhados_hoje(db: Session, atendente: Atendente) -> int:
+    """Tempo líquido do dia civil (America/Sao_Paulo), descontando pausas (#1066)."""
+    agora = _agora_utc()
+    hoje = agora.astimezone(PONTO_TZ).date()
+    inicio_dia, fim_dia = _bounds_periodo(hoje, hoje)
+    if inicio_dia is None:
+        return 0
+    entrada = _entrada_da_jornada_aberta(db, atendente.id)
+    inicio_q = inicio_dia
+    if entrada is not None:
+        ent = _as_utc(entrada.registrado_em)
+        if ent < inicio_q:
+            inicio_q = ent
+    q = _q_ativas(db).filter(PontoBatida.atendente_id == atendente.id).filter(PontoBatida.registrado_em >= inicio_q)
+    if fim_dia is not None:
+        q = q.filter(PontoBatida.registrado_em < fim_dia)
+    batidas = q.order_by(PontoBatida.registrado_em.asc(), PontoBatida.id.asc()).all()
+    intervalos = _intervalos_de_batidas(batidas)
+    total = 0
+    for i in intervalos:
+        if not i.aberto:
+            if _as_utc(i.entrada_em) >= inicio_dia:
+                total += i.duracao_segundos or 0
+            elif i.saida_em is not None:
+                ini = max(_as_utc(i.entrada_em), inicio_dia)
+                fim = _as_utc(i.saida_em)
+                bruto = max(0, int((fim - ini).total_seconds()))
+                total += max(0, bruto - i.segundos_pausa)
+            continue
+        ini = max(_as_utc(i.entrada_em), inicio_dia)
+        bruto = max(0, int((agora - ini).total_seconds()))
+        pausas = i.segundos_pausa
+        ultima = ultima_batida(db, atendente.id)
+        if ultima and ultima.tipo == "pausa_inicio":
+            pausa_ini = max(_as_utc(ultima.registrado_em), inicio_dia)
+            pausas += max(0, int((agora - pausa_ini).total_seconds()))
+        total += max(0, bruto - pausas)
+    return total
+
+
 def estado_atual(db: Session, atendente: Atendente) -> PontoEstadoRead:
     ultima = ultima_batida(db, atendente.id)
     entrada = _entrada_da_jornada_aberta(db, atendente.id)
@@ -131,6 +171,7 @@ def estado_atual(db: Session, atendente: Atendente) -> PontoEstadoRead:
         usa_escala=escala_svc.escala_configurada(atendente),
         hoje_esperado=hoje_esp,
         escala_rotulo=rotulo,
+        segundos_trabalhados_hoje=segundos_trabalhados_hoje(db, atendente),
     )
 
 

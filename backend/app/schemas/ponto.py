@@ -84,6 +84,7 @@ class PontoEstadoRead(BaseModel):
     usa_escala: bool = False
     hoje_esperado: bool | None = None
     escala_rotulo: str | None = None
+    segundos_trabalhados_hoje: int = 0
 
 
 class PontoIntervaloRead(BaseModel):

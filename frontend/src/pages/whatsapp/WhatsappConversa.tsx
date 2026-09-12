@@ -32,6 +32,7 @@ import { MensagemRodapeMeta } from '../../components/chat/MensagemRodapeMeta'
 import { AssumirWhatsappSetorModal } from '../../components/chat/AssumirWhatsappSetorModal'
 import { WhatsappAvatar } from '../../components/chat/WhatsappAvatar'
 import { ImageLightboxViewer } from '../../components/chat/ImageLightboxViewer'
+import { DocumentoPreviewLightbox } from '../../components/chat/DocumentoPreviewLightbox'
 import { WhatsappMensagemAcoes } from '../../components/chat/WhatsappMensagemAcoes'
 import { WhatsappReacoesBar } from '../../components/chat/WhatsappReacoesBar'
 import { CopiarWaIdButton } from '../../components/chat/CopiarWaIdButton'
@@ -158,6 +159,7 @@ function ConteudoMensagemWhatsApp({
   const [loading, setLoading] = useState(false)
 
   const [err, setErr] = useState(false)
+  const [docPreviewAberto, setDocPreviewAberto] = useState(false)
 
 
 
@@ -259,17 +261,29 @@ function ConteudoMensagemWhatsApp({
 
   const downloadLabel = rotuloDownloadArquivo(m.midia_nome_original, m.mimetype, tipo)
   const fileVisual = visualTipoArquivo(m.midia_nome_original, m.mimetype)
-  const downloadName = (m.midia_nome_original || '').trim() || undefined
 
   return (
     <div className="space-y-1">
-      <a href={url} download={downloadName} className="flex items-center gap-2 text-xs font-bold underline">
+      <button
+        type="button"
+        className="flex items-center gap-2 text-left text-xs font-bold underline"
+        onClick={() => setDocPreviewAberto(true)}
+        aria-label="Abrir documento"
+      >
         <span className="text-base" aria-hidden>
           {fileVisual.emoji}
         </span>
         <span className="min-w-0 break-all">{downloadLabel.replace(/^\S+\s*/, '')}</span>
-      </a>
+      </button>
       {legenda ? <TextoComLinks texto={legenda} /> : null}
+      {docPreviewAberto && url ? (
+        <DocumentoPreviewLightbox
+          url={url}
+          nome={m.midia_nome_original}
+          mime={m.mimetype}
+          onClose={() => setDocPreviewAberto(false)}
+        />
+      ) : null}
     </div>
   )
 }

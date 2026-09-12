@@ -7,8 +7,13 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### DeskRudder
 
+#### Melhorias
+
+- Ponto (#1066 / #S202609-0001): chip na barra superior com **Fora do ponto**, **Trabalhando** + tempo líquido do dia, ou **Em pausa** — atualiza na hora ao bater o ponto; clique abre Meu ponto
+
 #### Correções
 
+- Chat (#1067 / #S202608-0013): abrir PDF/documento no histórico ou na conversa (WhatsApp, chat interno e portal) mostra preview interno com **Voltar** e **Baixar**; Escape e clique no fundo fecham, sem prender a tela do app
 - Mobile (navegador e APK): alerta sonoro da fila de espera mais confiável com a app aberta — desbloqueio de áudio no login, banner «Ativar som» se o autoplay bloquear (sem precisar recarregar) e retomada do loop ao voltar ao foco
 - Mobile APK: banner de permissão de notificações também no app nativo; em segundo plano, notificação local com canal de som alto enquanto houver chat aguardando
 - Mobile (app fechada): ao ativar alertas, a inscrição Web Push / UnifiedPush passa a ser feita no mesmo gesto; o servidor reenvia push a cada 2 min enquanto houver fila (`chat.fila.remind`); PWA e APK tratam lembretes da fila com som/vibração reforçados

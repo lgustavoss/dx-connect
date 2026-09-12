@@ -499,3 +499,37 @@ def test_ponto_bater_com_geolocalizacao(client, seed_base, auth_headers):
         json={"tipo": "saida", "latitude": -23.55},
     )
     assert r_bad.status_code == 400
+
+
+def test_ponto_me_segundos_trabalhados_hoje_liquido(db_session, seed_base, monkeypatch):
+    from datetime import timedelta, timezone
+
+    from app.services import ponto as ponto_svc
+
+    agora = datetime(2026, 9, 12, 16, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr("app.services.ponto._agora_utc", lambda: agora)
+    a1: Atendente = seed_base["a1"]
+    ponto_svc.bater(
+        db_session, a1, "entrada", origem="web", registrado_em=agora - timedelta(hours=2), commit=False
+    )
+    ponto_svc.bater(
+        db_session,
+        a1,
+        "pausa_inicio",
+        origem="web",
+        registrado_em=agora - timedelta(hours=1),
+        commit=False,
+    )
+    ponto_svc.bater(
+        db_session,
+        a1,
+        "pausa_fim",
+        origem="web",
+        registrado_em=agora - timedelta(minutes=30),
+        commit=True,
+    )
+    estado = ponto_svc.estado_atual(db_session, a1)
+    # 2h de jornada − 30 min de pausa = 90 min
+    assert estado.segundos_trabalhados_hoje == 5400
+    assert estado.em_jornada is True
+    assert estado.em_pausa is False
