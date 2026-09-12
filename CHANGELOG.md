@@ -11,6 +11,10 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 - Ponto (#1066 / #S202609-0001): chip na barra superior com **Fora do ponto**, **Trabalhando** + tempo líquido do dia, ou **Em pausa** — atualiza na hora ao bater o ponto; clique abre Meu ponto
 
+#### Interno
+
+- WeasyPrint 70.0 — correção de segurança (SSRF) exigida pelo pip-audit da CI
+
 #### Correções
 
 - Chat (#1067 / #S202608-0013): abrir PDF/documento no histórico ou na conversa (WhatsApp, chat interno e portal) mostra preview interno com **Voltar** e **Baixar**; Escape e clique no fundo fecham, sem prender a tela do app
