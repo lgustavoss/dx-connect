@@ -57,6 +57,12 @@ function extensaoDeNome(nome?: string | null): string | null {
   return base.slice(idx + 1).toLowerCase()
 }
 
+export function ePdfDocumento(nome?: string | null, mime?: string | null): boolean {
+  const m = (mime ?? '').toLowerCase()
+  if (m === 'application/pdf' || m.startsWith('application/pdf;')) return true
+  return (nome ?? '').toLowerCase().endsWith('.pdf')
+}
+
 export function visualTipoArquivo(
   nome?: string | null,
   mime?: string | null,
@@ -67,7 +73,7 @@ export function visualTipoArquivo(
   for (const [prefix, visual] of MIME_PREFIX) {
     if (m.startsWith(prefix)) return visual
   }
-  return { emoji: '📄', label: 'Ficheiro' }
+  return { emoji: '📄', label: 'Arquivo' }
 }
 
 export function rotuloDownloadArquivo(

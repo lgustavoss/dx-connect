@@ -4970,6 +4970,7 @@ export namespace Ponto {
     usa_escala: boolean
     hoje_esperado: boolean | null
     escala_rotulo: string | null
+    segundos_trabalhados_hoje?: number
   }
   export interface Historico {
     intervalos: Intervalo[]
