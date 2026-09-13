@@ -197,6 +197,9 @@ export function SaasLayout() {
           <NavLink to="/saas/solicitacoes" className={navLinkClass}>
             <span className="truncate">{menuExpandido ? 'Sugestões' : 'Sug'}</span>
           </NavLink>
+          <NavLink to="/saas/alertas" className={navLinkClass}>
+            <span className="truncate">{menuExpandido ? 'Alertas' : 'Alrt'}</span>
+          </NavLink>
 
           {menuExpandido ? (
             <div className="mt-2" onClick={(e) => e.stopPropagation()}>
