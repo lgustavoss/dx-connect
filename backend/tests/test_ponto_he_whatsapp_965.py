@@ -1,16 +1,30 @@
 """Bloqueio de pegar WhatsApp após jornada + HE admin (#965)."""
 
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
 from app.services.escala import PONTO_TZ
 
 
-def _patch_jornada_semanal(client, headers, atendente_id: int, *, fim="12:00"):
-    """Grade só hoje com saída no passado (fim cedo) para forçar fora da jornada."""
+def _patch_jornada_semanal(client, headers, atendente_id: int, *, fim: str | None = None):
+    """Grade só hoje (TZ do ponto) com saída no passado para forçar fora da jornada."""
     keys = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"]
-    hoje_key = keys[date.today().weekday()]
+    agora = datetime.now(PONTO_TZ)
+    hoje_key = keys[agora.weekday()]
+    if fim is None:
+        fim_dt = agora - timedelta(hours=1)
+        if fim_dt.date() < agora.date():
+            # Madrugada: janela 00:00–00:01 já encerrada (evita fim=23:xx “no futuro”).
+            inicio, fim = "00:00", "00:01"
+            if agora.hour == 0 and agora.minute < 2:
+                import pytest
+
+                pytest.skip("janela de teste instável nos primeiros minutos após meia-noite")
+        else:
+            inicio, fim = "06:00", fim_dt.strftime("%H:%M")
+    else:
+        inicio = "06:00"
     hs = {k: {"ativo": False, "inicio": "08:00", "fim": "18:00"} for k in keys}
-    hs[hoje_key] = {"ativo": True, "inicio": "06:00", "fim": fim}
+    hs[hoje_key] = {"ativo": True, "inicio": inicio, "fim": fim}
     return client.patch(
         f"/v1/atendentes/{atendente_id}",
         headers=headers,
@@ -42,8 +56,7 @@ def test_assumir_bloqueado_apos_jornada(client, seed_base, auth_headers, db_sess
     admin = auth_headers["admin"]
     user = auth_headers["a1"]
     a1 = seed_base["a1"]
-    fim = (datetime.now(PONTO_TZ) - timedelta(hours=1)).strftime("%H:%M")
-    r_patch = _patch_jornada_semanal(client, admin, a1.id, fim=fim)
+    r_patch = _patch_jornada_semanal(client, admin, a1.id)
     assert r_patch.status_code == 200, r_patch.text
     chat_id = _criar_chat_fila(db_session, seed_base, wa_suffix="650")
     r = client.post(f"/v1/whatsapp/chats/{chat_id}/assumir", headers=user)
@@ -58,8 +71,7 @@ def test_assumir_ok_com_he(client, seed_base, auth_headers, db_session):
     admin = auth_headers["admin"]
     user = auth_headers["a1"]
     a1 = seed_base["a1"]
-    fim = (datetime.now(PONTO_TZ) - timedelta(hours=1)).strftime("%H:%M")
-    assert _patch_jornada_semanal(client, admin, a1.id, fim=fim).status_code == 200
+    assert _patch_jornada_semanal(client, admin, a1.id).status_code == 200
     chat_id = _criar_chat_fila(db_session, seed_base, wa_suffix="651")
     assert client.post(f"/v1/whatsapp/chats/{chat_id}/assumir", headers=user).status_code == 403
     pend = client.get("/v1/ponto/hora-extra?estado=pendente", headers=admin).json()
@@ -94,8 +106,7 @@ def test_he_rejeitada(client, seed_base, auth_headers, db_session):
     admin = auth_headers["admin"]
     user = auth_headers["a1"]
     a1 = seed_base["a1"]
-    fim = (datetime.now(PONTO_TZ) - timedelta(hours=2)).strftime("%H:%M")
-    assert _patch_jornada_semanal(client, admin, a1.id, fim=fim).status_code == 200
+    assert _patch_jornada_semanal(client, admin, a1.id).status_code == 200
     sol = client.post(
         "/v1/ponto/hora-extra",
         headers=user,
