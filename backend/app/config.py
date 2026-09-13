@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     WHATSAPP_MEDIA_DIR: str = "data/whatsapp_media"
     # Tamanho máximo (bytes) ao descodificar base64 da Evolution antes de gravar em disco.
     WHATSAPP_MEDIA_MAX_BYTES: int = 25 * 1024 * 1024
+    # Job de expiração de mídias locais (#899 / #900).
+    WHATSAPP_MEDIA_RETENTION_INTERVAL_SECONDS: int = 3600
 
     # Diretório para anexos de tickets (caminho relativo ao cwd ou absoluto). Em Docker: mapear volume em /app/data.
     TICKET_ANEXOS_DIR: str = "data/ticket_anexos"

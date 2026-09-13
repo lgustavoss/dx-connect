@@ -57,6 +57,10 @@ def _read_out(row: WhatsappSettings | None) -> WhatsappSettingsRead:
             auto_msg_avaliacao_obrigado_texto=None,
             auto_msg_avaliacao_timeout_texto=None,
             auto_msg_avaliacao_pular_texto=None,
+            midia_retencao_dias_imagem=90,
+            midia_retencao_dias_audio=90,
+            midia_retencao_dias_video=30,
+            midia_retencao_dias_documento=90,
         )
     horario_semana = None
     raw = getattr(row, "horario_semana_json", None)
@@ -97,6 +101,10 @@ def _read_out(row: WhatsappSettings | None) -> WhatsappSettingsRead:
         auto_msg_avaliacao_obrigado_texto=getattr(row, "auto_msg_avaliacao_obrigado_texto", None),
         auto_msg_avaliacao_timeout_texto=getattr(row, "auto_msg_avaliacao_timeout_texto", None),
         auto_msg_avaliacao_pular_texto=getattr(row, "auto_msg_avaliacao_pular_texto", None),
+        midia_retencao_dias_imagem=int(getattr(row, "midia_retencao_dias_imagem", None) or 90),
+        midia_retencao_dias_audio=int(getattr(row, "midia_retencao_dias_audio", None) or 90),
+        midia_retencao_dias_video=int(getattr(row, "midia_retencao_dias_video", None) or 30),
+        midia_retencao_dias_documento=int(getattr(row, "midia_retencao_dias_documento", None) or 90),
     )
 
 
@@ -174,6 +182,10 @@ def atualizar(
         "auto_msg_avaliacao_obrigado_texto",
         "auto_msg_avaliacao_timeout_texto",
         "auto_msg_avaliacao_pular_texto",
+        "midia_retencao_dias_imagem",
+        "midia_retencao_dias_audio",
+        "midia_retencao_dias_video",
+        "midia_retencao_dias_documento",
     ):
         if k in payload:
             setattr(row, k, payload[k])

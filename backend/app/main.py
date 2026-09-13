@@ -346,6 +346,29 @@ async def lifespan(app: FastAPI):
         name="whatsapp-inactivity",
     ).start()
 
+    def whatsapp_midia_retencao_loop() -> None:
+        from app.database import SessionLocal
+        from app.services.whatsapp_media_retencao import processar_expiracao_midias
+
+        interval = max(60, settings.WHATSAPP_MEDIA_RETENTION_INTERVAL_SECONDS)
+        while True:
+            db = SessionLocal()
+            try:
+                processar_expiracao_midias(db, limit=200)
+                db.commit()
+            except Exception as e:
+                logger.warning("Worker retenção de mídia WhatsApp: %s", e)
+                db.rollback()
+            finally:
+                db.close()
+            time.sleep(interval)
+
+    threading.Thread(
+        target=whatsapp_midia_retencao_loop,
+        daemon=True,
+        name="whatsapp-midia-retencao",
+    ).start()
+
     def ticket_distribuicao_loop() -> None:
         from app.database import SessionLocal
         from app.services.ticket_distribuicao import processar_distribuicao_timeout

@@ -110,3 +110,22 @@ def caminho_absoluto_arquivo(nome: str | None) -> Path | None:
     except ValueError:
         return None
     return p if p.is_file() else None
+
+
+def remover_arquivo_local(nome: str | None) -> bool:
+    """Apaga o arquivo em disco. Metadados da mensagem ficam no banco (#900)."""
+    if not nome or not str(nome).strip():
+        return False
+    base = diretorio_midia()
+    p = (base / nome).resolve()
+    try:
+        p.relative_to(base.resolve())
+    except ValueError:
+        return False
+    if not p.is_file():
+        return False
+    try:
+        p.unlink()
+    except OSError:
+        return False
+    return True
