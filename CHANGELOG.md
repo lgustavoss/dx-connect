@@ -5,6 +5,26 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### DeskRudder
+
+#### Melhorias
+
+- WhatsApp (#899 / #900 / #901 / #902): mídias antigas saem do disco conforme o prazo (imagem, áudio e documento 90 dias; vídeo 30 — o admin altera em Configurações → WhatsApp → Mídia). Mídia expirada mostra **Recuperar mídia**; o sistema tenta no provedor do WhatsApp. Se não houver mais, o chat mostra “Esta mídia não está mais disponível. Peça para o cliente enviar novamente.” e o prazo fica na política de privacidade
+- Ponto (#1066 / #S202609-0001): chip na barra superior com **Fora do ponto**, **Trabalhando** + tempo líquido do dia, ou **Em pausa** — atualiza na hora ao bater o ponto; clique abre Meu ponto
+
+#### Interno
+
+- WeasyPrint 70.0 — correção de segurança (SSRF) exigida pelo pip-audit da CI
+
+#### Correções
+
+- Chat (#1067 / #S202608-0013): abrir PDF/documento no histórico ou na conversa (WhatsApp, chat interno e portal) mostra preview interno com **Voltar** e **Baixar**; Escape e clique no fundo fecham, sem prender a tela do app
+- Mobile (navegador e APK): alerta sonoro da fila de espera mais confiável com a app aberta — desbloqueio de áudio no login, banner «Ativar som» se o autoplay bloquear (sem precisar recarregar) e retomada do loop ao voltar ao foco
+- Mobile APK: banner de permissão de notificações também no app nativo; em segundo plano, notificação local com canal de som alto enquanto houver chat aguardando
+- Mobile (app fechada): ao ativar alertas, a inscrição Web Push / UnifiedPush passa a ser feita no mesmo gesto; o servidor reenvia push a cada 2 min enquanto houver fila (`chat.fila.remind`); PWA e APK tratam lembretes da fila com som/vibração reforçados
+- Mobile APK: após bloquear/desbloquear a tela, a sessão permanece (tokens em `localStorage`); o SSE reconecta ao voltar ao app e deixa de usar CapacitorHttp no stream (evita «desconectado» no reload)
+- Mobile APK: plantão com **Foreground Service** — notificação persistente «Há N chats aguardando» com a tela bloqueada; silenciar na mesa encerra o plantão; push continua se o OEM matar o app
+
 ## [26.08.019] - 2026-08-31
 
 ### SaaS Control Plane

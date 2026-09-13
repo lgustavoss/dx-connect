@@ -32,6 +32,14 @@ export function formatarDuracao(segundos: number | null | undefined): string {
   return `${h} h ${String(m).padStart(2, '0')} min`
 }
 
+export function formatarDuracaoChip(segundos: number | null | undefined): string {
+  if (segundos == null || segundos < 0) return '0min'
+  const h = Math.floor(segundos / 3600)
+  const m = Math.floor((segundos % 3600) / 60)
+  if (h <= 0) return `${m}min`
+  return `${h}h ${m}min`
+}
+
 export function inicioMesIso(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`

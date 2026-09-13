@@ -49,6 +49,11 @@ class WhatsappSettings(Base):
     auto_msg_avaliacao_obrigado_texto = Column(Text, nullable=True)
     auto_msg_avaliacao_timeout_texto = Column(Text, nullable=True)
     auto_msg_avaliacao_pular_texto = Column(Text, nullable=True)
+    # Retenção de mídia local em dias (#899 / #900).
+    midia_retencao_dias_imagem = Column(Integer, nullable=False, default=90, server_default="90")
+    midia_retencao_dias_audio = Column(Integer, nullable=False, default=90, server_default="90")
+    midia_retencao_dias_video = Column(Integer, nullable=False, default=30, server_default="30")
+    midia_retencao_dias_documento = Column(Integer, nullable=False, default=90, server_default="90")
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
 
@@ -111,6 +116,8 @@ class WhatsappMensagem(Base):
     midia_nome_arquivo = Column(String(500), nullable=True)
     # Nome amigável para UI/download (#679); storage em disco continua com UUID
     midia_nome_original = Column(String(255), nullable=True)
+    # ativa | expirada_local | indisponivel (#899)
+    midia_estado = Column(String(24), nullable=True, index=True)
     # Identifica mensagens automáticas disparadas pelo sistema (evita duplicação e ajuda auditoria).
     evento_sistema = Column(String(40), nullable=True, index=True)
     wa_message_id = Column(String(128), nullable=True, index=True)

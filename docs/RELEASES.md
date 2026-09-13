@@ -33,7 +33,7 @@ feature → PR main (+ CHANGELOG com tags Produto/DevOps) → PR main → stagin
 2. **PR `main → staging`**: o `[Unreleased]` descreve **todo o lote** que será publicado
 3. **Merge em `staging`**: **só após análise e aprovação humana no GitHub** (`staging` = produção). Agentes/CI **não** mergeiam este PR automaticamente — usar `/release-staging` para abrir o PR e parar.
 4. **Deploy em `staging`**: consome `[Unreleased]`, gera nova CalVer, append em `docs/releases/manifest.json` (cada bullet com `product`), zera `[Unreleased]` e commita em `staging` (`chore(release): publica v… [skip ci]`)
-5. **Sync na `main`** (obrigatório, mesmo comando `/release-staging`): após Deploy verde, PR `chore/sync-changelog-…` → `main` copiando artefatos de `origin/staging` e preservando bullets de `[Unreleased]` que existam só na `main` (`origin/staging..origin/main`). Ver Passo 5 em `.cursor/commands/release-staging.md`.
+5. **Sync na `main`** (obrigatório, mesmo comando `/release-staging`): após Deploy verde, PR `chore/sync-changelog-…` → `main` **mergeando** `origin/staging` (não só copiar arquivos — isso atualiza o merge-base e evita conflito de CHANGELOG no próximo release). Preservar bullets de `[Unreleased]` que existam só na `main`. Ver Passo 5 em `.cursor/commands/release-staging.md`.
 
 ## Formato do CHANGELOG
 
@@ -71,7 +71,7 @@ Se o PR altera código de produto, **`CHANGELOG.md` deve ter bullets em `[Unrele
 
 O CI executa `scripts/check_changelog.py` e **bloqueia merge** se faltar.
 
-Isento (sem exigir CHANGELOG): só docs internos, planning, artefatos de release gerados, etc.
+Isento (sem exigir CHANGELOG): só docs internos, planning, artefatos de release gerados, **somente** bumps em `package.json` / `package-lock.json` / `requirements*.txt`, **somente** alterações em `backend/tests/`, etc.
 
 ## O que o usuário vê
 
@@ -115,6 +115,7 @@ Após cada deploy, o workflow commita `VERSION`, `CHANGELOG.md`, `manifest.json`
 ## Checklist — PR `main → staging`
 
 - [ ] `[Unreleased]` lista **todas** as entregas do lote (por produto)
+- [ ] `python scripts/check_changelog.py --base origin/staging --head origin/main` → **OK** (`[Unreleased]` da head; o CI não faz `git merge` do repo)
 - [ ] Revisão de redação (sem «deploy», «branch», «commit»)
 - [ ] **Aprovação e merge manuais** no GitHub (agente não executa `gh pr merge`)
 

@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     WHATSAPP_MEDIA_DIR: str = "data/whatsapp_media"
     # Tamanho máximo (bytes) ao descodificar base64 da Evolution antes de gravar em disco.
     WHATSAPP_MEDIA_MAX_BYTES: int = 25 * 1024 * 1024
+    # Job de expiração de mídias locais (#899 / #900).
+    WHATSAPP_MEDIA_RETENTION_INTERVAL_SECONDS: int = 3600
 
     # Diretório para anexos de tickets (caminho relativo ao cwd ou absoluto). Em Docker: mapear volume em /app/data.
     TICKET_ANEXOS_DIR: str = "data/ticket_anexos"
@@ -83,6 +85,8 @@ class Settings(BaseSettings):
     WEB_PUSH_VAPID_PRIVATE_KEY: str | None = None
     WEB_PUSH_VAPID_SUBJECT: str = "mailto:ops@deskrudder.com.br"
     WEB_PUSH_WORKER_INTERVAL_SECONDS: int = 5
+    # Reaviso push enquanto houver chats na fila (app fechada). 0 = desliga.
+    WEB_PUSH_FILA_REMIND_MINUTES: int = 2
     # Tentativas HTTP para Evolution API (falhas transitórias).
     EVOLUTION_HTTP_MAX_ATTEMPTS: int = 3
     WHATSAPP_INACTIVITY_WORKER_INTERVAL_SECONDS: int = 60

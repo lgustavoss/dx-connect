@@ -29,6 +29,7 @@ import {
   inicioMesIso,
   rotuloPoliticaGeo,
 } from '../lib/pontoFormat'
+import { avisarPontoEstadoMudou } from '../lib/pontoEstadoEvent'
 import { aplicarBatidaOptimista, coordenadasMapaIntervalo, rotuloGeoIntervalo } from '../lib/pontoOptimistic'
 
 function acaoPrincipal(emJornada: boolean, emPausa: boolean): AcaoPrincipal {
@@ -134,6 +135,7 @@ export function MeuPonto() {
           ponto.minhasHoraExtra(),
         ])
         setEstado(me)
+        avisarPontoEstadoMudou(me)
         setHistorico(hist)
         setJustifs(js)
         setBanco(bh)
@@ -272,7 +274,11 @@ export function MeuPonto() {
       if (!navigator.onLine) {
         enqueuePontoBatida({ tipo, ...geo })
         setPendentesOffline(countPendingPontoBatidas())
-        setEstado((prev) => aplicarBatidaOptimista(prev, tipo))
+        setEstado((prev) => {
+          const next = aplicarBatidaOptimista(prev, tipo)
+          if (next) avisarPontoEstadoMudou(next)
+          return next
+        })
         toast.showWarning('Sem ligação — batida guardada offline. Será enviada ao voltar online.')
         return
       }
@@ -282,6 +288,8 @@ export function MeuPonto() {
         origem,
         ...(geo ?? {}),
       })
+      const imediato = aplicarBatidaOptimista(estado, tipo)
+      if (imediato) avisarPontoEstadoMudou(imediato)
       if (batida.fora_area) {
         toast.showWarning('Batida registada fora da área permitida.')
       }
@@ -305,7 +313,11 @@ export function MeuPonto() {
       if (isLikelyOfflineError(err)) {
         enqueuePontoBatida({ tipo, ...geo })
         setPendentesOffline(countPendingPontoBatidas())
-        setEstado((prev) => aplicarBatidaOptimista(prev, tipo))
+        setEstado((prev) => {
+          const next = aplicarBatidaOptimista(prev, tipo)
+          if (next) avisarPontoEstadoMudou(next)
+          return next
+        })
         toast.showWarning('Falha de rede — batida guardada offline.')
         return
       }

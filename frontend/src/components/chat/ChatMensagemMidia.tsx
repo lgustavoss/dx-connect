@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { CustomAudioPlayer } from '../CustomAudioPlayer'
 import type { Kb } from '../../api/client'
+import { DocumentoPreviewLightbox } from './DocumentoPreviewLightbox'
 
 const ROTULO_SEM_LEGENDA = /^\[(Imagem|Áudio|Vídeo|Documento|Figurinha)\]/
 
@@ -14,6 +15,7 @@ export function ChatMensagemMidia({ mensagem: m, fetchMidia }: Props) {
   const [url, setUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState(false)
+  const [docPreviewAberto, setDocPreviewAberto] = useState(false)
 
   useEffect(() => {
     if (!m.midia_disponivel || tipo === 'texto') {
@@ -77,8 +79,23 @@ export function ChatMensagemMidia({ mensagem: m, fetchMidia }: Props) {
     )
   }
   return (
-    <a href={url} download className="text-xs underline">
-      {m.corpo || 'Baixar ficheiro'}
-    </a>
+    <div className="space-y-1">
+      <button
+        type="button"
+        className="text-left text-xs underline"
+        onClick={() => setDocPreviewAberto(true)}
+        aria-label="Abrir documento"
+      >
+        {m.corpo || 'Abrir arquivo'}
+      </button>
+      {docPreviewAberto && url ? (
+        <DocumentoPreviewLightbox
+          url={url}
+          nome={m.corpo}
+          mime={m.mimetype}
+          onClose={() => setDocPreviewAberto(false)}
+        />
+      ) : null}
+    </div>
   )
 }

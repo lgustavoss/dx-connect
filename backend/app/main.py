@@ -297,10 +297,14 @@ async def lifespan(app: FastAPI):
 
     def web_push_outbox_loop() -> None:
         from app.database import SessionLocal
-        from app.services.web_push_outbox import process_pending_web_push
+        from app.services.web_push_outbox import process_fila_web_push_reminders, process_pending_web_push
 
         interval = max(3, settings.WEB_PUSH_WORKER_INTERVAL_SECONDS)
         while True:
+            try:
+                process_fila_web_push_reminders()
+            except Exception as e:
+                logger.warning("Worker Web Push lembrete fila: %s", e)
             db = SessionLocal()
             try:
                 process_pending_web_push(db, limit=40)
@@ -340,6 +344,29 @@ async def lifespan(app: FastAPI):
         target=whatsapp_inactivity_loop,
         daemon=True,
         name="whatsapp-inactivity",
+    ).start()
+
+    def whatsapp_midia_retencao_loop() -> None:
+        from app.database import SessionLocal
+        from app.services.whatsapp_media_retencao import processar_expiracao_midias
+
+        interval = max(60, settings.WHATSAPP_MEDIA_RETENTION_INTERVAL_SECONDS)
+        while True:
+            db = SessionLocal()
+            try:
+                processar_expiracao_midias(db, limit=200)
+                db.commit()
+            except Exception as e:
+                logger.warning("Worker retenção de mídia WhatsApp: %s", e)
+                db.rollback()
+            finally:
+                db.close()
+            time.sleep(interval)
+
+    threading.Thread(
+        target=whatsapp_midia_retencao_loop,
+        daemon=True,
+        name="whatsapp-midia-retencao",
     ).start()
 
     def ticket_distribuicao_loop() -> None:

@@ -208,3 +208,93 @@ def test_worker_envia_e_respeita_410(seed_base, db_session, monkeypatch):
     process_pending_web_push(db_session, limit=10)
     db_session.commit()
     assert db_session.query(PushSubscription).count() == 0
+
+
+def test_fila_remind_enfileira_com_chat_aguardando(seed_base, db_session, monkeypatch):
+    from app.models.whatsapp_chat import WhatsappChat
+    from app.services.web_push_outbox import EVENTO_FILA_REMIND, process_fila_web_push_reminders
+
+    monkeypatch.setattr("app.services.web_push_outbox.vapid_configurado", lambda: True)
+    monkeypatch.setattr("app.config.settings.WEB_PUSH_FILA_REMIND_MINUTES", 2)
+    a1 = seed_base["a1"]
+    prefs = obter_ou_criar_preferencias(db_session, a1.id)
+    prefs.push_habilitado = True
+    prefs.push_fila = True
+    db_session.add(
+        PushSubscription(
+            atendente_id=a1.id,
+            endpoint="https://push.example.com/remind",
+            p256dh="p256dh-key-value",
+            auth="auth-key-value",
+        )
+    )
+    db_session.add(
+        WhatsappChat(
+            protocolo="WCH-REMIND-1",
+            wa_id="5511999990099",
+            cliente_nome="Cliente Reminder",
+            estado="aguardando_atendente",
+            setor_id=seed_base["setor1"].id,
+        )
+    )
+    db_session.commit()
+
+    n = process_fila_web_push_reminders()
+    assert n >= 1
+    db_session.expire_all()
+    rows = (
+        db_session.query(PushOutbox)
+        .filter(PushOutbox.event_type == EVENTO_FILA_REMIND, PushOutbox.atendente_id == a1.id)
+        .all()
+    )
+    assert len(rows) == 1
+    assert "aguardando" in (rows[0].payload_json or "")
+
+    # Dedup na mesma janela
+    assert process_fila_web_push_reminders() == 0
+    assert (
+        db_session.query(PushOutbox)
+        .filter(PushOutbox.event_type == EVENTO_FILA_REMIND, PushOutbox.atendente_id == a1.id)
+        .count()
+        == 1
+    )
+
+
+def test_fila_remind_respeita_mute_e_fila_vazia(seed_base, db_session, monkeypatch):
+    from app.models.whatsapp_chat import WhatsappChat
+    from app.services.web_push_outbox import EVENTO_FILA_REMIND, process_fila_web_push_reminders
+
+    monkeypatch.setattr("app.services.web_push_outbox.vapid_configurado", lambda: True)
+    monkeypatch.setattr("app.config.settings.WEB_PUSH_FILA_REMIND_MINUTES", 2)
+    a1 = seed_base["a1"]
+    prefs = obter_ou_criar_preferencias(db_session, a1.id)
+    prefs.push_habilitado = True
+    prefs.push_fila = False
+    db_session.add(
+        PushSubscription(
+            atendente_id=a1.id,
+            endpoint="https://push.example.com/remind-mute",
+            p256dh="p256dh-key-value",
+            auth="auth-key-value",
+        )
+    )
+    db_session.add(
+        WhatsappChat(
+            protocolo="WCH-REMIND-MUTE",
+            wa_id="5511999990088",
+            cliente_nome="Mute",
+            estado="aguardando_atendente",
+            setor_id=seed_base["setor1"].id,
+        )
+    )
+    db_session.commit()
+    assert process_fila_web_push_reminders() == 0
+    assert db_session.query(PushOutbox).filter(PushOutbox.event_type == EVENTO_FILA_REMIND).count() == 0
+
+    prefs.push_fila = True
+    db_session.commit()
+    # Sem chats aguardando após limpar estado
+    chat = db_session.query(WhatsappChat).filter(WhatsappChat.protocolo == "WCH-REMIND-MUTE").one()
+    chat.estado = "em_atendimento"
+    db_session.commit()
+    assert process_fila_web_push_reminders() == 0
