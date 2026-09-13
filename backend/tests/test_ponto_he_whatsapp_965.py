@@ -5,26 +5,44 @@ from datetime import datetime, timedelta
 from app.services.escala import PONTO_TZ
 
 
+def _janela_encerrada(*, agora: datetime | None = None, fim: str | None = None) -> tuple[str, str]:
+    """Retorna (inicio, fim) com início < fim e fim já no passado (TZ do ponto)."""
+    import pytest
+
+    agora = agora or datetime.now(PONTO_TZ)
+    if fim is not None:
+        fh, fm = (int(x) for x in fim.split(":"))
+        fim_dt = agora.replace(hour=fh, minute=fm, second=0, microsecond=0)
+        if fim_dt < agora:
+            inicio_dt = fim_dt - timedelta(hours=2)
+            if inicio_dt.date() == fim_dt.date():
+                inicio = inicio_dt.strftime("%H:%M")
+                if inicio < fim:
+                    return inicio, fim
+            elif fim > "00:00":
+                return "00:00", fim
+
+    fim_dt = agora - timedelta(minutes=30)
+    inicio_dt = agora - timedelta(hours=2)
+    if fim_dt.date() < agora.date() or inicio_dt.date() < agora.date():
+        if agora.hour == 0 and agora.minute < 5:
+            pytest.skip("janela de teste instável nos primeiros minutos após meia-noite")
+        inicio = "00:00"
+        fim_s = (agora - timedelta(minutes=2)).strftime("%H:%M")
+        if inicio >= fim_s:
+            pytest.skip("janela de teste instável nos primeiros minutos após meia-noite")
+        return inicio, fim_s
+    return inicio_dt.strftime("%H:%M"), fim_dt.strftime("%H:%M")
+
+
 def _patch_jornada_semanal(client, headers, atendente_id: int, *, fim: str | None = None):
     """Grade só hoje (TZ do ponto) com saída no passado para forçar fora da jornada."""
     keys = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"]
     agora = datetime.now(PONTO_TZ)
     hoje_key = keys[agora.weekday()]
-    if fim is None:
-        fim_dt = agora - timedelta(hours=1)
-        if fim_dt.date() < agora.date():
-            # Madrugada: janela 00:00–00:01 já encerrada (evita fim=23:xx “no futuro”).
-            inicio, fim = "00:00", "00:01"
-            if agora.hour == 0 and agora.minute < 2:
-                import pytest
-
-                pytest.skip("janela de teste instável nos primeiros minutos após meia-noite")
-        else:
-            inicio, fim = "06:00", fim_dt.strftime("%H:%M")
-    else:
-        inicio = "06:00"
+    inicio, fim_ok = _janela_encerrada(agora=agora, fim=fim)
     hs = {k: {"ativo": False, "inicio": "08:00", "fim": "18:00"} for k in keys}
-    hs[hoje_key] = {"ativo": True, "inicio": inicio, "fim": fim}
+    hs[hoje_key] = {"ativo": True, "inicio": inicio, "fim": fim_ok}
     return client.patch(
         f"/v1/atendentes/{atendente_id}",
         headers=headers,
