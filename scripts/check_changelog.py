@@ -16,8 +16,10 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 from prepare_release import (  # noqa: E402
+    CATEGORY_TITLE,
     PRODUCT_DESKRUDDER,
     PRODUCT_SAAS,
+    PRODUCT_TITLE,
     parse_changelog_unreleased,
 )
 
@@ -72,10 +74,18 @@ SAAS_PATH_MARKERS = (
 
 
 def _run(*args: str) -> str:
-    r = subprocess.run(args, capture_output=True, text=True, check=False, cwd=ROOT)
+    r = subprocess.run(
+        args,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        cwd=ROOT,
+    )
     if r.returncode != 0:
-        raise RuntimeError(r.stderr.strip() or r.stdout.strip() or f"comando falhou: {args}")
-    return r.stdout
+        raise RuntimeError((r.stderr or "").strip() or (r.stdout or "").strip() or f"comando falhou: {args}")
+    return r.stdout or ""
 
 
 def changed_files(base: str, head: str) -> list[str]:
@@ -83,50 +93,113 @@ def changed_files(base: str, head: str) -> list[str]:
     return [ln.strip() for ln in out.splitlines() if ln.strip()]
 
 
-def is_staging_base(base: str) -> bool:
+_UNRELEASED_SECTION = re.compile(
+    r"(## \[Unreleased\].*?)(?=\n## \[|\Z)",
+    re.DOTALL | re.IGNORECASE,
+)
+_PUBLISHED_START = re.compile(r"\n## \[\d", re.MULTILINE)
+
+# Cabeçalhos de [Unreleased] (mais curtos que as tags do manifest).
+_UNRELEASED_CATEGORY_TITLE = {
+    "melhorias": "Melhorias",
+    "correcoes": "Correções",
+    "interno": "Interno",
+}
+
+
+def is_staging_base(base: str, pr_base_ref: str | None = None) -> bool:
+    if pr_base_ref and pr_base_ref.strip().removeprefix("origin/") == "staging":
+        return True
     ref = base.removeprefix("origin/").strip()
-    return ref == "staging"
-
-
-def changelog_after_simulated_merge(base: str, head: str) -> tuple[str | None, str | None]:
-    """Simula merge base←head e devolve CHANGELOG.md resultante (ou erro de conflito)."""
-    import tempfile
-
-    base_sha = _run("git", "rev-parse", base).strip()
-    head_sha = _run("git", "rev-parse", head).strip()
-    wt: Path | None = None
+    if ref == "staging":
+        return True
     try:
-        td = tempfile.mkdtemp(prefix="dx-changelog-merge-")
-        wt = Path(td) / "wt"
-        _run("git", "worktree", "add", str(wt), base_sha)
-        merge = subprocess.run(
-            ["git", "merge", "--no-commit", "--no-ff", head_sha],
-            cwd=wt,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if merge.returncode != 0:
-            return None, (
-                "Merge simulado falhou (conflitos entre base e head). "
-                "Para release staging, abra branch `merge/main-into-staging-…`, resolva CHANGELOG "
-                "mantendo os bullets de [Unreleased] da main e abra PR → staging."
-            )
-        cl = wt / "CHANGELOG.md"
-        return (cl.read_text(encoding="utf-8") if cl.is_file() else ""), None
-    finally:
-        if wt is not None:
-            subprocess.run(
-                ["git", "worktree", "remove", "--force", str(wt)],
-                cwd=ROOT,
-                capture_output=True,
-                check=False,
-            )
-            parent = wt.parent
-            if parent.exists():
-                import shutil
+        staging_sha = _run("git", "rev-parse", "--verify", "origin/staging").strip()
+        base_sha = _run("git", "rev-parse", "--verify", base).strip()
+    except RuntimeError:
+        return False
+    return bool(staging_sha) and staging_sha == base_sha
 
-                shutil.rmtree(parent, ignore_errors=True)
+
+def extract_changelog_preamble(text: str) -> str:
+    m = re.search(r"^(.*?)(?=^## \[Unreleased\])", text, re.DOTALL | re.IGNORECASE | re.MULTILINE)
+    return m.group(1) if m else "# Changelog\n\n"
+
+
+def extract_unreleased_block(text: str) -> str:
+    m = _UNRELEASED_SECTION.search(text)
+    if not m:
+        return "## [Unreleased]\n\n"
+    return m.group(1).rstrip() + "\n\n"
+
+
+def extract_published_history(text: str) -> str:
+    m = _PUBLISHED_START.search(text)
+    if not m:
+        return ""
+    return text[m.start() + 1 :]
+
+
+def format_unreleased_section(changes: list[dict[str, str]]) -> str:
+    """Reconstrói ## [Unreleased] a partir dos dicts de parse_changelog_unreleased."""
+    if not changes:
+        return "## [Unreleased]\n\n"
+    by_product: dict[str, dict[str, list[str]]] = {}
+    product_order: list[str] = []
+    for c in changes:
+        prod = c["product"]
+        if prod not in by_product:
+            by_product[prod] = {}
+            product_order.append(prod)
+        cat_title = _UNRELEASED_CATEGORY_TITLE.get(c["category"]) or CATEGORY_TITLE.get(
+            c["category"], "Melhorias"
+        )
+        by_product[prod].setdefault(cat_title, []).append(c["text"])
+    lines = ["## [Unreleased]", ""]
+    for prod in product_order:
+        lines.append(f"### {PRODUCT_TITLE.get(prod, prod)}")
+        lines.append("")
+        for cat_title, items in by_product[prod].items():
+            lines.append(f"#### {cat_title}")
+            lines.append("")
+            for item in items:
+                lines.append(f"- {item}")
+            lines.append("")
+    return "\n".join(lines).rstrip() + "\n\n"
+
+
+def compose_changelog_for_staging_pr(base_text: str, head_text: str) -> str:
+    """Unreleased da head (lote a publicar) + histórico CalVer da staging.
+
+    Evita ``git merge`` do repositório: o deploy esvazia [Unreleased] na staging e o
+    3-way do Git conflita em todo release, mesmo com branch ``merge/…`` já resolvida.
+    """
+    preamble = extract_changelog_preamble(head_text) or extract_changelog_preamble(base_text)
+    unreleased = extract_unreleased_block(head_text)
+    published = extract_published_history(base_text) or extract_published_history(head_text)
+    return preamble + unreleased + published
+
+
+def compose_changelog_for_main_sync(main_text: str, staging_text: str) -> str:
+    """Passo 5: histórico da staging; [Unreleased] só com bullets ainda não publicados."""
+    published = extract_published_history(staging_text)
+    leftover = [
+        c
+        for c in parse_changelog_unreleased(main_text, warn_legacy=False)
+        if c["text"] not in published
+    ]
+    preamble = extract_changelog_preamble(staging_text) or extract_changelog_preamble(main_text)
+    return preamble + format_unreleased_section(leftover) + published
+
+
+def changelog_for_staging_pr(base: str, head: str) -> tuple[str | None, str | None]:
+    """Lê CHANGELOG da base e da head e devolve o resultado composto (sem git merge)."""
+    try:
+        base_text = _run("git", "show", f"{base}:CHANGELOG.md")
+        head_text = _run("git", "show", f"{head}:CHANGELOG.md")
+    except RuntimeError as e:
+        return None, f"Não foi possível ler CHANGELOG.md ({e})"
+    return compose_changelog_for_staging_pr(base_text, head_text), None
 
 
 def _norm_path(path: str) -> str:
@@ -216,19 +289,25 @@ def main() -> int:
     ap.add_argument("--base", required=True, help="Ref base do PR (ex.: origin/main)")
     ap.add_argument("--head", default="HEAD", help="Ref head do PR")
     ap.add_argument(
+        "--pr-base-ref",
+        default="",
+        help="Nome da branch base do PR (ex.: staging). Usado quando --base é um SHA.",
+    )
+    ap.add_argument(
         "--changelog",
         type=Path,
         default=CHANGELOG,
         help="Caminho do CHANGELOG (usa versão do head)",
     )
     args = ap.parse_args()
+    staging_pr = is_staging_base(args.base, args.pr_base_ref or None)
 
     paths = changed_files(args.base, args.head)
     if not paths:
         print("OK: PR sem arquivos alterados — CHANGELOG não exigido.")
         return 0
 
-    if not requires_changelog(paths) and not is_staging_base(args.base):
+    if not requires_changelog(paths) and not staging_pr:
         print("OK: alterações só em arquivos isentos — CHANGELOG não exigido.")
         if is_deps_only_change(paths):
             print("(somente manifests de dependências)")
@@ -237,13 +316,13 @@ def main() -> int:
         print("Arquivos:", ", ".join(paths[:12]) + ("…" if len(paths) > 12 else ""))
         return 0
 
-    if is_staging_base(args.base):
-        text, merge_err = changelog_after_simulated_merge(args.base, args.head)
-        if merge_err:
-            print(f"::error::{merge_err}", file=sys.stderr)
+    if staging_pr:
+        text, compose_err = changelog_for_staging_pr(args.base, args.head)
+        if compose_err:
+            print(f"::error::{compose_err}", file=sys.stderr)
             return 1
         if text is None:
-            print("::error::Não foi possível simular merge para validar CHANGELOG.", file=sys.stderr)
+            print("::error::Não foi possível compor CHANGELOG para validar [Unreleased].", file=sys.stderr)
             return 1
     else:
         try:
@@ -254,8 +333,9 @@ def main() -> int:
     bullets = parse_unreleased_bullets(text)
     if not bullets:
         staging_hint = (
-            "\nPR → staging: confira o CHANGELOG **após merge simulado** — conflitos costumam esvaziar [Unreleased]."
-            if is_staging_base(args.base)
+            "\nPR para staging: o [Unreleased] precisa estar na head (main/merge branch); "
+            "não aceite o [Unreleased] vazio da staging."
+            if staging_pr
             else ""
         )
         print(
@@ -289,7 +369,7 @@ def main() -> int:
         return 1
 
     parts = [f"{p}={len(by_prod.get(p, []))}" for p in sorted(needed or by_prod.keys())]
-    suffix = " (merge simulado)" if is_staging_base(args.base) else ""
+    suffix = " (PR para staging: Unreleased da head)" if staging_pr else ""
     print(f"OK: CHANGELOG [Unreleased] com {len(bullets)} item(ns) ({', '.join(parts)}){suffix}.")
     return 0
 

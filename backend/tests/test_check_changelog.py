@@ -14,6 +14,10 @@ SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 from check_changelog import (  # noqa: E402
+    compose_changelog_for_main_sync,
+    compose_changelog_for_staging_pr,
+    extract_published_history,
+    extract_unreleased_block,
     is_deps_only_change,
     is_saas_path,
     parse_unreleased_bullets,
@@ -121,3 +125,88 @@ def test_check_changelog_script_ok_without_product_diff():
         text=True,
     )
     assert r.returncode == 0, r.stderr or r.stdout
+
+
+_PREAMBLE = """# Changelog
+
+Formato baseado em Keep a Changelog.
+
+"""
+
+_PUBLISHED = """## [26.08.019] - 2026-08-31
+
+### DeskRudder
+
+#### Melhorias
+
+- Contato no chat (#1012)
+"""
+
+_HEAD_UNRELEASED = """## [Unreleased]
+
+### DeskRudder
+
+#### Melhorias
+
+- WhatsApp retenção de mídia (#899)
+"""
+
+
+def test_compose_staging_pr_keeps_head_unreleased():
+    staging = _PREAMBLE + "## [Unreleased]\n\n" + _PUBLISHED
+    head = _PREAMBLE + _HEAD_UNRELEASED + _PUBLISHED
+    out = compose_changelog_for_staging_pr(staging, head)
+    assert parse_unreleased_bullets(out) == ["WhatsApp retenção de mídia (#899)"]
+    assert "## [26.08.019]" in out
+    assert out.count("## [Unreleased]") == 1
+
+
+def test_compose_staging_pr_empty_head_stays_empty():
+    staging = _PREAMBLE + "## [Unreleased]\n\n" + _PUBLISHED
+    head = _PREAMBLE + "## [Unreleased]\n\n" + _PUBLISHED
+    out = compose_changelog_for_staging_pr(staging, head)
+    assert parse_unreleased_bullets(out) == []
+
+
+def test_extract_published_skips_unreleased():
+    text = _PREAMBLE + _HEAD_UNRELEASED + _PUBLISHED
+    hist = extract_published_history(text)
+    assert hist.startswith("## [26.08.019]")
+    assert "WhatsApp" not in hist
+
+
+def test_compose_main_sync_drops_published_bullets():
+    staging = (
+        _PREAMBLE
+        + "## [Unreleased]\n\n"
+        + "## [26.09.001] - 2026-09-12\n\n### DeskRudder\n\n#### Melhorias\n\n"
+        + "- WhatsApp retenção de mídia (#899)\n\n"
+        + _PUBLISHED
+    )
+    main = _PREAMBLE + _HEAD_UNRELEASED + _PUBLISHED
+    out = compose_changelog_for_main_sync(main, staging)
+    assert parse_unreleased_bullets(out) == []
+    assert "## [26.09.001]" in out
+
+
+def test_compose_main_sync_keeps_unpublished_bullets():
+    staging = _PREAMBLE + "## [Unreleased]\n\n" + _PUBLISHED
+    main = (
+        _PREAMBLE
+        + "## [Unreleased]\n\n### DeskRudder\n\n#### Melhorias\n\n"
+        + "- WhatsApp retenção de mídia (#899)\n"
+        + "- Feature nova só na main (#1100)\n\n"
+        + _PUBLISHED
+    )
+    out = compose_changelog_for_main_sync(main, staging)
+    assert parse_unreleased_bullets(out) == [
+        "WhatsApp retenção de mídia (#899)",
+        "Feature nova só na main (#1100)",
+    ]
+
+
+def test_extract_unreleased_block_present():
+    block = extract_unreleased_block(_PREAMBLE + _HEAD_UNRELEASED + _PUBLISHED)
+    assert block.startswith("## [Unreleased]")
+    assert "WhatsApp" in block
+    assert "26.08.019" not in block
