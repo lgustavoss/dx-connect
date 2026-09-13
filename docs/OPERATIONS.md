@@ -2,6 +2,8 @@
 
 Guia para quem opera o DX Connect em staging/produção: healthchecks, filas de e-mail e o que monitorizar.
 
+No **control-plane** DeskRudder, alertas por instância de cliente: [SAAS_ALERTAS_OPS.md](./SAAS_ALERTAS_OPS.md) (#1036).
+
 ## Healthchecks
 
 | Endpoint | Uso | Falha HTTP |

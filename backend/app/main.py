@@ -63,6 +63,7 @@ from app.api import (
     saas_ops_conta,
     saas_ops_usuarios,
     saas_setores,
+    saas_alertas,
     web_push,
     solicitacoes_melhoria,
 )
@@ -527,6 +528,29 @@ async def lifespan(app: FastAPI):
             name="saas-renovacoes",
         ).start()
 
+        def saas_alertas_ops_loop() -> None:
+            from app.database import SessionLocal
+            from app.services.saas_alertas_ops import processar_alertas_ops
+
+            interval = max(30, settings.SAAS_ALERTAS_OPS_INTERVAL_SECONDS)
+            while True:
+                db = SessionLocal()
+                try:
+                    processar_alertas_ops(db, limit=200)
+                    db.commit()
+                except Exception as e:
+                    logger.warning("Worker SaaS alertas ops: %s", e)
+                    db.rollback()
+                finally:
+                    db.close()
+                time.sleep(interval)
+
+        threading.Thread(
+            target=saas_alertas_ops_loop,
+            daemon=True,
+            name="saas-alertas-ops",
+        ).start()
+
     yield
 
 
@@ -676,6 +700,7 @@ app.include_router(saas_solicitacoes.router, prefix=API_V1_PREFIX)
 app.include_router(saas_ops_conta.router, prefix=API_V1_PREFIX)
 app.include_router(saas_ops_usuarios.router, prefix=API_V1_PREFIX)
 app.include_router(saas_setores.router, prefix=API_V1_PREFIX)
+app.include_router(saas_alertas.router, prefix=API_V1_PREFIX)
 app.include_router(solicitacoes_melhoria.router, prefix=API_V1_PREFIX)
 
 

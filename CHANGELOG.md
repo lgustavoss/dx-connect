@@ -5,6 +5,18 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### SaaS Control Plane
+
+#### Melhorias
+
+- Painel Ops (#1036 / #1037 / #1038 / #1039 / #1040): **Alertas operacionais** por cliente (health, readiness e stack) — escolha do cliente antes de listar; resumo, filtros, histórico e mitigação só no control-plane (não entra no Sobre da instância)
+
+### DeskRudder
+
+#### Interno
+
+- Testes de ponto: janela de jornada usa o fuso do ponto e permanece estável na madrugada (evita flake na CI)
+
 ## [26.09.001] - 2026-09-12
 
 ### DeskRudder

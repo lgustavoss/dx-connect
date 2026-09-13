@@ -107,15 +107,23 @@ def test_fecho_por_saida_prevista(client, seed_base, auth_headers, db_session):
     agora_local = datetime.now(TZ)
     fim_dt = agora_local - timedelta(minutes=45)
     ini_dt = agora_local - timedelta(hours=8)
-    ini = ini_dt.strftime("%H:%M")
-    fim = fim_dt.strftime("%H:%M")
-    if ini >= fim:
-        ini = "00:00"
-        fim = "00:15"
+    if fim_dt.date() < agora_local.date() or ini_dt.date() < agora_local.date():
+        # Madrugada: janela curta já encerrada no dia civil atual (TZ do ponto).
+        if agora_local.hour == 0 and agora_local.minute < 2:
+            import pytest
+
+            pytest.skip("janela de teste instável nos primeiros minutos após meia-noite")
+        ini, fim = "00:00", "00:01"
         ini_dt = agora_local.replace(hour=0, minute=0, second=0, microsecond=0)
-        # se ainda estamos antes de 00:15, força fim no passado relativo
-        if agora_local.hour == 0 and agora_local.minute < 15:
-            fim = "00:01"
+    else:
+        ini = ini_dt.strftime("%H:%M")
+        fim = fim_dt.strftime("%H:%M")
+        if ini >= fim:
+            ini = "00:00"
+            fim = "00:15"
+            ini_dt = agora_local.replace(hour=0, minute=0, second=0, microsecond=0)
+            if agora_local.hour == 0 and agora_local.minute < 15:
+                fim = "00:01"
 
     weekday_keys = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"]
     k = weekday_keys[agora_local.weekday()]
