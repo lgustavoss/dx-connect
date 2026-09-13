@@ -1227,15 +1227,15 @@ export namespace WhatsappChats {
     empresa_id?: number | null
     empresa_nome?: string | null
     empresas_opcoes?: EmpresaOpcao[]
-  inatividade_pausada?: boolean
-  inatividade_retomada_em?: string | null
-  classificacao_demanda_pendente?: boolean
-  foto_perfil_url?: string | null
-  foto_perfil_atualizada_em?: string | null
-  /** Mensagens inbound não vistas pelo atendente atual (#951). */
-  nao_lidas_count?: number
-  last_seen_at?: string | null
-  last_seen_mensagem_id?: number | null
+    inatividade_pausada?: boolean
+    inatividade_retomada_em?: string | null
+    classificacao_demanda_pendente?: boolean
+    foto_perfil_url?: string | null
+    foto_perfil_atualizada_em?: string | null
+    /** Mensagens inbound não vistas pelo atendente atual (#951). */
+    nao_lidas_count?: number
+    last_seen_at?: string | null
+    last_seen_mensagem_id?: number | null
   }
   export interface EmpresaOpcao {
     id: number

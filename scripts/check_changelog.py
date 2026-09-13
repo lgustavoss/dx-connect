@@ -40,6 +40,7 @@ SKIP_PREFIXES = (
     "frontend/public/release_notes.json",
     "frontend/public/release-notes.json",
     "backend/tests/test_check_changelog.py",
+    "scripts/prepare_release.py",
 )
 
 # Bumps Dependabot / lockfile — sem entrega visível ao usuário (#1048 follow-up)
@@ -62,6 +63,11 @@ SAAS_PATH_MARKERS = (
     "backend/app/models/saas_",
     "backend/app/schemas/saas",
     "backend/tests/test_saas",
+    "backend/tests/test_control_plane",
+    "backend/tests/test_deploy_dual_stack",
+    "deploy/admin-center/",
+    "deploy/scripts/provision-control-plane",
+    "deploy/scripts/gha-deploy-vps",
     "deploy/scripts/saas-",
     "deploy/scripts/stack-client",
 )
