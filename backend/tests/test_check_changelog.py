@@ -103,6 +103,8 @@ def test_saas_path_heuristic():
     assert is_saas_path("frontend/src/pages/saas/SaasSobre.tsx") is True
     assert is_saas_path("backend/app/api/saas.py") is True
     assert is_saas_path("backend/app/services/saas_clientes.py") is True
+    assert is_saas_path("backend/alembic/versions/136_saas_alertas_ops_1036.py") is True
+    assert is_saas_path("backend/alembic/versions/100_ponto_foo.py") is False
     assert is_saas_path("frontend/src/pages/Sobre.tsx") is False
 
 
@@ -114,6 +116,24 @@ def test_products_required_by_paths_misto():
         ]
     )
     assert needed == {"deskrudder", "saas"}
+
+
+def test_products_required_saas_com_wiring_compartilhado():
+    """Registo de rota SaaS em main/App/client não exige ### DeskRudder."""
+    needed = products_required_by_paths(
+        [
+            "backend/app/api/saas_alertas.py",
+            "backend/app/services/saas_alertas_ops.py",
+            "backend/alembic/versions/136_saas_alertas_ops_1036.py",
+            "backend/app/main.py",
+            "backend/app/config.py",
+            "backend/app/models/__init__.py",
+            "frontend/src/App.tsx",
+            "frontend/src/api/client.ts",
+            "frontend/src/pages/saas/SaasAlertas.tsx",
+        ]
+    )
+    assert needed == {"saas"}
 
 
 def test_check_changelog_script_ok_without_product_diff():

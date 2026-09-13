@@ -72,6 +72,17 @@ SAAS_PATH_MARKERS = (
     "deploy/scripts/stack-client",
 )
 
+# Wiring compartilhado ao registrar rota/worker SaaS — não força ### DeskRudder sozinho.
+SHARED_WIRING_PATHS = frozenset(
+    {
+        "backend/app/main.py",
+        "backend/app/config.py",
+        "backend/app/models/__init__.py",
+        "frontend/src/App.tsx",
+        "frontend/src/api/client.ts",
+    }
+)
+
 
 def _run(*args: str) -> str:
     r = subprocess.run(
@@ -249,27 +260,46 @@ def requires_changelog(paths: list[str]) -> bool:
 
 def is_saas_path(path: str) -> bool:
     p = path.replace("\\", "/")
-    return any(p.startswith(m) or m in p for m in SAAS_PATH_MARKERS)
+    if any(p.startswith(m) or m in p for m in SAAS_PATH_MARKERS):
+        return True
+    # Migration Alembic nomeada para domínio SaaS (ex.: 136_saas_alertas_ops_1036.py).
+    if "/alembic/versions/" in p:
+        name = p.rsplit("/", 1)[-1].lower()
+        if "saas" in name:
+            return True
+    return False
 
 
 def products_required_by_paths(paths: list[str]) -> set[str]:
-    """Heurística: paths SaaS → saas; demais de produto → deskrudder."""
+    """Heurística: paths SaaS → saas; demais de produto → deskrudder.
+
+    Arquivos de wiring compartilhado (main/config/App/client) não forçam DeskRudder
+    quando o restante do PR é só control-plane.
+    """
     needed: set[str] = set()
+    saw_shared_only_product = False
     for p in paths:
-        if any(p.startswith(s) for s in SKIP_PREFIXES):
+        norm = _norm_path(p)
+        if any(norm.startswith(s) for s in SKIP_PREFIXES):
             continue
         is_product = (
-            any(p.startswith(prefix) for prefix in PRODUCT_PREFIXES)
-            or p.startswith("backend/")
-            or p.startswith("frontend/")
-            or (p.startswith("scripts/") and "check_changelog" not in p)
+            any(norm.startswith(prefix) for prefix in PRODUCT_PREFIXES)
+            or norm.startswith("backend/")
+            or norm.startswith("frontend/")
+            or (norm.startswith("scripts/") and "check_changelog" not in norm)
         )
         if not is_product:
             continue
-        if is_saas_path(p):
+        if is_saas_path(norm):
             needed.add(PRODUCT_SAAS)
-        else:
-            needed.add(PRODUCT_DESKRUDDER)
+            continue
+        if norm in SHARED_WIRING_PATHS:
+            saw_shared_only_product = True
+            continue
+        needed.add(PRODUCT_DESKRUDDER)
+    # Só wiring compartilhado (sem path SaaS nem DeskRudder específico) → produto.
+    if not needed and saw_shared_only_product:
+        needed.add(PRODUCT_DESKRUDDER)
     return needed
 
 
