@@ -56,6 +56,7 @@ jobs:
           python scripts/check_changelog.py \
             --base "origin/${{ github.event.pull_request.base.ref }}" \
             --head "${{ github.event.pull_request.head.sha }}"
+          # PR → staging: o script simula merge base←head e valida [Unreleased] no resultado.
 
   backend:
     needs: changes

@@ -35,6 +35,10 @@ class WhatsappSettingsRead(BaseModel):
     auto_msg_avaliacao_obrigado_texto: str | None = None
     auto_msg_avaliacao_timeout_texto: str | None = None
     auto_msg_avaliacao_pular_texto: str | None = None
+    midia_retencao_dias_imagem: int = 90
+    midia_retencao_dias_audio: int = 90
+    midia_retencao_dias_video: int = 30
+    midia_retencao_dias_documento: int = 90
 
     model_config = {"from_attributes": True}
 
@@ -70,6 +74,10 @@ class WhatsappSettingsUpdate(BaseModel):
     auto_msg_avaliacao_obrigado_texto: str | None = None
     auto_msg_avaliacao_timeout_texto: str | None = None
     auto_msg_avaliacao_pular_texto: str | None = None
+    midia_retencao_dias_imagem: int | None = Field(None, ge=1, le=3650)
+    midia_retencao_dias_audio: int | None = Field(None, ge=1, le=3650)
+    midia_retencao_dias_video: int | None = Field(None, ge=1, le=3650)
+    midia_retencao_dias_documento: int | None = Field(None, ge=1, le=3650)
 
     @field_validator("evolution_base_url", mode="before")
     @classmethod

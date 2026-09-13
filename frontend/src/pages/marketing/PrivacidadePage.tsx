@@ -18,7 +18,7 @@ export function PrivacidadePage() {
         <h1 className="mt-6 text-3xl font-bold tracking-tight text-white sm:text-4xl">
           Política de privacidade
         </h1>
-        <p className="mt-2 text-sm text-slate-500">Última actualização: agosto de 2026 · App e painel {APP_NAME}</p>
+        <p className="mt-2 text-sm text-slate-500">Última atualização: setembro de 2026 · App e painel {APP_NAME}</p>
 
         <div className="prose prose-invert mt-10 max-w-none space-y-8 text-slate-300 prose-headings:text-white prose-a:text-sky-300">
           <section className="space-y-3">
@@ -30,7 +30,7 @@ export function PrivacidadePage() {
               <code className="text-sky-200">br.com.deskrudder.app</code>).
             </p>
             <p>
-              Contacto: <a href={`mailto:${landingContactEmail}`}>{landingContactEmail}</a>.
+              Contato: <a href={`mailto:${landingContactEmail}`}>{landingContactEmail}</a>.
             </p>
           </section>
 
@@ -47,7 +47,7 @@ export function PrivacidadePage() {
                 empresa cliente.
               </li>
               <li>
-                <strong>Notificações:</strong> endpoints Web Push / UnifiedPush associados ao utilizador na
+                <strong>Notificações:</strong> endpoints Web Push / UnifiedPush associados ao usuário na
                 instância, para alertas de fila e mensagens.
               </li>
               <li>
@@ -71,7 +71,7 @@ export function PrivacidadePage() {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-semibold text-white">4. Partilha e subprocessadores</h2>
+            <h2 className="text-xl font-semibold text-white">4. Compartilhamento e subprocessadores</h2>
             <p>
               Os dados da operação permanecem na infraestrutura da instância do cliente (ou do operador
               SaaS, conforme o contrato). Transportes de push (ex. serviços Google Play no Android) podem
@@ -83,15 +83,34 @@ export function PrivacidadePage() {
             <h2 className="text-xl font-semibold text-white">5. Conservação e direitos</h2>
             <p>
               Os prazos seguem o contrato com a empresa cliente e a legislação aplicável (incluindo LGPD).
-              Pedidos de acesso, correcção ou eliminação devem ser feitos ao administrador da instância ou
+              Pedidos de acesso, correção ou exclusão devem ser feitos ao administrador da instância ou
               a <a href={`mailto:${landingContactEmail}`}>{landingContactEmail}</a>.
+            </p>
+            <h3 className="text-lg font-semibold text-white">5.1 Mídias do WhatsApp</h3>
+            <p>
+              Arquivos recebidos no atendimento por WhatsApp (fotos, figurinhas, áudios, vídeos e documentos)
+              ficam guardados na instância da empresa por um prazo limitado, para controlar armazenamento e
+              risco. Depois disso o arquivo é removido do disco; o histórico da conversa (texto e metadados)
+              permanece.
+            </p>
+            <ul className="list-disc space-y-2 pl-5">
+              <li>Imagem e figurinha: 90 dias (padrão)</li>
+              <li>Áudio: 90 dias (padrão)</li>
+              <li>Vídeo: 30 dias (padrão)</li>
+              <li>Documento: 90 dias (padrão)</li>
+            </ul>
+            <p>
+              O administrador da instância pode alterar esses prazos em Configurações → WhatsApp → Mídia
+              (entre 1 e 3650 dias). Mídia já expirada localmente pode ser recuperada no provedor do
+              WhatsApp pelo botão Recuperar mídia. Se o arquivo não existir mais lá, o atendimento mostra:
+              “Esta mídia não está mais disponível. Peça para o cliente enviar novamente.”
             </p>
           </section>
 
           <section className="space-y-3">
             <h2 className="text-xl font-semibold text-white">6. Segurança</h2>
             <p>
-              Comunicação HTTPS, isolamento por instância (single-tenant em produção) e controlos de acesso
+              Comunicação HTTPS, isolamento por instância (single-tenant em produção) e controles de acesso
               por perfil (RBAC). Credenciais e keystores de publicação de loja não fazem parte do código
               público.
             </p>
@@ -100,7 +119,7 @@ export function PrivacidadePage() {
           <section className="space-y-3">
             <h2 className="text-xl font-semibold text-white">7. Alterações</h2>
             <p>
-              Podemos actualizar esta página; a data no topo reflecte a versão vigente. Uso continuado do
+              Podemos atualizar esta página; a data no topo reflete a versão vigente. Uso continuado do
               serviço após a alteração constitui ciência da nova versão, salvo obrigação legal em contrário.
             </p>
           </section>

@@ -40,15 +40,22 @@ self.addEventListener('push', (event: PushEvent) => {
     data = { titulo: event.data?.text() || 'DeskRudder' }
   }
   const title = data.titulo || 'DeskRudder'
-  const body = data.corpo || 'Nova actividade no atendimento'
-  const isFila = data.tipo === 'chat.fila' || data.tipo === 'fila'
+  const body = data.corpo || 'Nova atividade no atendimento'
+  const tipo = data.tipo || ''
+  const isFila =
+    tipo === 'chat.fila' ||
+    tipo === 'chat.fila.remind' ||
+    tipo === 'portal.chat.fila' ||
+    tipo === 'ticket.fila' ||
+    tipo === 'fila' ||
+    tipo.endsWith('.fila')
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
       icon: '/deskrudder-pwa-192.png',
       badge: '/deskrudder-pwa-192.png',
       data,
-      tag: `${data.tipo || 'push'}:${data.id || ''}`,
+      tag: isFila ? 'dx-connect-fila-aguardando' : `${tipo || 'push'}:${data.id || ''}`,
       renotify: true,
       requireInteraction: isFila,
       vibrate: isFila ? [200, 100, 200, 100, 200] : [180, 80, 180],

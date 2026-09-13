@@ -10,9 +10,11 @@ import { BrandLogo } from '../brand'
 import { useTheme } from '../contexts/ThemeContext'
 import { isCapacitorNative } from '../lib/capacitorNative'
 import { AlertaDesktopPermissaoBanner } from './AlertaDesktopPermissaoBanner'
+import { AlertaFilaAudioBanner } from './AlertaFilaAudioBanner'
 import { PwaInstallBanner } from './PwaInstallBanner'
 import { WebPushOptInBanner } from './WebPushOptInBanner'
 import { PontoAlertasBanner } from './PontoAlertasBanner'
+import { PontoHeaderChip } from './PontoHeaderChip'
 import { useVisualViewportCss } from '../hooks/useVisualViewportCss'
 import { useWebPushSession } from '../hooks/useWebPush'
 import { lerTicketAtivoSession, TICKET_ATIVO_EVENT } from '../lib/ticketAtivo'
@@ -153,6 +155,7 @@ function LayoutInner() {
           <div className="min-w-0 flex-1" />
           <NavbarNotificacoes enabled={notificacoesEnabled} />
           <ThemeToggle />
+          <PontoHeaderChip />
           <div className="hidden min-w-0 max-w-[7rem] shrink text-right sm:block md:max-w-[10rem] lg:max-w-none">
             <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{user?.nome}</p>
             <p className="truncate text-xs text-slate-500 dark:text-slate-400">{perfilExibicao(user?.role)}</p>
@@ -160,9 +163,8 @@ function LayoutInner() {
         </header>
 
         {notificacoesEnabled && !isCapacitorNative() && !ocultarHeaderMobile ? <PwaInstallBanner enabled /> : null}
-        {notificacoesEnabled && !isCapacitorNative() && !ocultarHeaderMobile ? (
-          <AlertaDesktopPermissaoBanner enabled />
-        ) : null}
+        {notificacoesEnabled && !ocultarHeaderMobile ? <AlertaDesktopPermissaoBanner enabled /> : null}
+        {notificacoesEnabled && !ocultarHeaderMobile ? <AlertaFilaAudioBanner enabled /> : null}
         {notificacoesEnabled && !ocultarHeaderMobile ? <WebPushOptInBanner enabled /> : null}
         <PontoAlertasBanner />
 

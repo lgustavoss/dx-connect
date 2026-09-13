@@ -4,6 +4,7 @@ import { fetchChatInternoMidiaBlob, type ChatInterno } from '../../api/client'
 import { segmentarCorpoComMencoes } from '../../lib/chatInternoMencoes'
 import { useAuth } from '../../contexts/AuthContext'
 import { ImageLightboxViewer } from '../chat/ImageLightboxViewer'
+import { DocumentoPreviewLightbox } from '../chat/DocumentoPreviewLightbox'
 
 const ROTULO_SEM_LEGENDA = /^(📷 Imagem|🎬 Vídeo|🎵 Áudio|📄 Documento)$/
 
@@ -65,6 +66,7 @@ export function ChatInternoConteudoMensagem({
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState(false)
   const [zoomAberto, setZoomAberto] = useState(false)
+  const [docPreviewAberto, setDocPreviewAberto] = useState(false)
 
   useEffect(() => {
     if (!mensagem.midia_disponivel || tipo === 'texto') {
@@ -250,18 +252,27 @@ export function ChatInternoConteudoMensagem({
 
   return (
     <div className="space-y-1">
-      <a
-        href={url}
-        download={mensagem.nome_arquivo || 'arquivo'}
-        className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm underline ${
+      <button
+        type="button"
+        onClick={() => setDocPreviewAberto(true)}
+        aria-label="Abrir documento"
+        className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm underline ${
           textoClaro
             ? 'border-cyan-400/40 text-cyan-50 hover:bg-cyan-500/20'
             : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100'
         }`}
       >
         📄 {mensagem.nome_arquivo || 'Documento'}
-      </a>
+      </button>
       {legenda && <p className="whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]">{legenda}</p>}
+      {docPreviewAberto && url ? (
+        <DocumentoPreviewLightbox
+          url={url}
+          nome={mensagem.nome_arquivo}
+          mime={mensagem.mimetype}
+          onClose={() => setDocPreviewAberto(false)}
+        />
+      ) : null}
     </div>
   )
 }

@@ -14,7 +14,15 @@ import {
   type WhatsappChats,
 } from '../../api/client'
 
-import { resolveWhatsappMidiaObjectUrl, revokeWhatsappMidiaForChat } from '../../lib/whatsappMidiaCache'
+import { resolveWhatsappMidiaObjectUrl, revokeWhatsappMidiaForChat, getWhatsappMidiaObjectUrl } from '../../lib/whatsappMidiaCache'
+import {
+  erroMidiaWhatsappIndisponivel,
+  erroMidiaWhatsappTemporaria,
+  midiaWhatsappExpiradaLocal,
+  midiaWhatsappIndisponivel,
+  MSG_MIDIA_WHATSAPP_INDISPONIVEL,
+  MSG_MIDIA_WHATSAPP_TEMPORARIA,
+} from '../../lib/whatsappMidiaRetencao'
 import {
   chatEncerramentoPorInatividade,
 } from '../../lib/whatsappDemandaUtils'
@@ -32,6 +40,7 @@ import { MensagemRodapeMeta } from '../../components/chat/MensagemRodapeMeta'
 import { AssumirWhatsappSetorModal } from '../../components/chat/AssumirWhatsappSetorModal'
 import { WhatsappAvatar } from '../../components/chat/WhatsappAvatar'
 import { ImageLightboxViewer } from '../../components/chat/ImageLightboxViewer'
+import { DocumentoPreviewLightbox } from '../../components/chat/DocumentoPreviewLightbox'
 import { WhatsappMensagemAcoes } from '../../components/chat/WhatsappMensagemAcoes'
 import { WhatsappReacoesBar } from '../../components/chat/WhatsappReacoesBar'
 import { CopiarWaIdButton } from '../../components/chat/CopiarWaIdButton'
@@ -154,52 +163,46 @@ function ConteudoMensagemWhatsApp({
   const tipo = (m.tipo_midia || 'texto').toLowerCase()
 
   const [url, setUrl] = useState<string | null>(null)
-
   const [loading, setLoading] = useState(false)
-
   const [err, setErr] = useState(false)
-
-
+  const [indisponivel, setIndisponivel] = useState(() => midiaWhatsappIndisponivel(m))
+  const [recuperarSeq, setRecuperarSeq] = useState(0)
+  const [docPreviewAberto, setDocPreviewAberto] = useState(false)
+  const expiradaLocal = midiaWhatsappExpiradaLocal(m)
 
   useEffect(() => {
-
-    if (m.apagada || !m.midia_disponivel || tipo === 'texto') {
-
+    const jaIndisponivel = midiaWhatsappIndisponivel(m)
+    setIndisponivel(jaIndisponivel)
+    if (m.apagada || jaIndisponivel || !m.midia_disponivel || tipo === 'texto') {
       setUrl(null)
-
       return
-
     }
-
+    if (expiradaLocal && recuperarSeq === 0) {
+      setUrl(null)
+      setLoading(false)
+      setErr(false)
+      return
+    }
     let cancelled = false
-
     setLoading(true)
-
     setErr(false)
-
     void resolveWhatsappMidiaObjectUrl(chatId, m.id, () => fetchWhatsAppMidiaBlob(chatId, m.id))
-
       .then((u) => {
-
         if (cancelled) return
-
         setUrl(u)
-
       })
-
-      .catch(() => { if (!cancelled) setErr(true) })
-
-      .finally(() => { if (!cancelled) setLoading(false) })
-
+      .catch((e) => {
+        if (cancelled) return
+        setErr(true)
+        if (erroMidiaWhatsappIndisponivel(e)) setIndisponivel(true)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
     return () => {
-
       cancelled = true
-
     }
-
-  }, [chatId, m.id, m.midia_disponivel, m.apagada, tipo])
-
-
+  }, [chatId, m.id, m.midia_disponivel, m.midia_estado, m.apagada, tipo, expiradaLocal, recuperarSeq])
 
   if (m.apagada) {
     return <p className="text-sm italic opacity-70">Mensagem apagada</p>
@@ -209,17 +212,53 @@ function ConteudoMensagemWhatsApp({
 
   if (tipo === 'texto' || !m.tipo_midia) return <TextoComLinks texto={m.corpo} />
 
+  if (indisponivel) {
+    return <p className="text-xs italic opacity-70">{MSG_MIDIA_WHATSAPP_INDISPONIVEL}</p>
+  }
+
   if (!m.midia_disponivel) {
     return (
-      <p className="text-xs italic opacity-70" title="O ficheiro não foi obtido da Evolution API">
+      <p className="text-xs italic opacity-70" title="O arquivo não chegou neste atendimento">
         {legenda || 'Mídia não disponível'}
       </p>
     )
   }
 
-  if (loading || !url) return <p className="text-[10px] animate-pulse opacity-50">Carregando mídia...</p>
+  if (expiradaLocal && recuperarSeq === 0 && !url) {
+    return (
+      <div className="space-y-1">
+        <p className="text-xs italic opacity-70">Mídia expirada neste servidor.</p>
+        <button
+          type="button"
+          className="text-xs font-semibold underline"
+          onClick={() => setRecuperarSeq((n) => n + 1)}
+        >
+          Recuperar mídia
+        </button>
+        {legenda ? <TextoComLinks texto={legenda} /> : null}
+      </div>
+    )
+  }
 
-  if (err) return <p className="text-[10px] italic opacity-50">Erro ao carregar mídia</p>
+  if (err) {
+    return (
+      <div className="space-y-1">
+        <p className="text-[10px] italic opacity-70">{MSG_MIDIA_WHATSAPP_TEMPORARIA}</p>
+        <button
+          type="button"
+          className="text-xs font-semibold underline"
+          onClick={() => {
+            setErr(false)
+            setRecuperarSeq((n) => n + 1)
+          }}
+        >
+          Tentar de novo
+        </button>
+      </div>
+    )
+  }
+
+  if (loading || !url) return <p className="text-[10px] animate-pulse opacity-50">Carregando mídia...</p>
 
   const mediaClass = 'max-h-64 max-w-full rounded-lg border border-black/5 shadow-sm'
 
@@ -259,17 +298,29 @@ function ConteudoMensagemWhatsApp({
 
   const downloadLabel = rotuloDownloadArquivo(m.midia_nome_original, m.mimetype, tipo)
   const fileVisual = visualTipoArquivo(m.midia_nome_original, m.mimetype)
-  const downloadName = (m.midia_nome_original || '').trim() || undefined
 
   return (
     <div className="space-y-1">
-      <a href={url} download={downloadName} className="flex items-center gap-2 text-xs font-bold underline">
+      <button
+        type="button"
+        className="flex items-center gap-2 text-left text-xs font-bold underline"
+        onClick={() => setDocPreviewAberto(true)}
+        aria-label="Abrir documento"
+      >
         <span className="text-base" aria-hidden>
           {fileVisual.emoji}
         </span>
         <span className="min-w-0 break-all">{downloadLabel.replace(/^\S+\s*/, '')}</span>
-      </a>
+      </button>
       {legenda ? <TextoComLinks texto={legenda} /> : null}
+      {docPreviewAberto && url ? (
+        <DocumentoPreviewLightbox
+          url={url}
+          nome={m.midia_nome_original}
+          mime={m.mimetype}
+          onClose={() => setDocPreviewAberto(false)}
+        />
+      ) : null}
     </div>
   )
 }
@@ -292,27 +343,36 @@ function WhatsappZoomLightbox({
 }) {
   const galeria = useMemo(
     () =>
-      msgs.filter(
-        (m) => (m.tipo_midia || '').toLowerCase() === 'imagem' && m.midia_disponivel,
-      ),
-    [msgs],
+      msgs.filter((m) => {
+        if ((m.tipo_midia || '').toLowerCase() !== 'imagem' || !m.midia_disponivel) return false
+        if (midiaWhatsappExpiradaLocal(m) && !getWhatsappMidiaObjectUrl(chatId, m.id)) return false
+        return true
+      }),
+    [msgs, chatId],
   )
   const index = galeria.findIndex((m) => m.id === zoomMsgId)
   const msgAtiva = msgs.find((m) => m.id === zoomMsgId) || null
   const caption = msgAtiva ? legendaMidiaVisivel(msgAtiva.corpo) : null
   const [url, setUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [indisponivel, setIndisponivel] = useState(false)
+  const [temporaria, setTemporaria] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setUrl(null)
+    setIndisponivel(false)
+    setTemporaria(false)
     void resolveWhatsappMidiaObjectUrl(chatId, zoomMsgId, () => fetchWhatsAppMidiaBlob(chatId, zoomMsgId))
       .then((u) => {
         if (!cancelled) setUrl(u)
       })
-      .catch(() => {
-        if (!cancelled) setUrl(null)
+      .catch((e) => {
+        if (cancelled) return
+        setUrl(null)
+        if (erroMidiaWhatsappIndisponivel(e)) setIndisponivel(true)
+        else if (erroMidiaWhatsappTemporaria(e)) setTemporaria(true)
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -382,7 +442,11 @@ function WhatsappZoomLightbox({
           ›
         </button>
       )}
-      {loading || !url ? (
+      {indisponivel ? (
+        <p className="max-w-md text-center text-sm text-white/80">{MSG_MIDIA_WHATSAPP_INDISPONIVEL}</p>
+      ) : temporaria ? (
+        <p className="max-w-md text-center text-sm text-white/80">{MSG_MIDIA_WHATSAPP_TEMPORARIA}</p>
+      ) : loading || !url ? (
         <p className="text-sm text-white/70 animate-pulse">Carregando imagem…</p>
       ) : (
         <ImageLightboxViewer src={url} />
@@ -424,17 +488,24 @@ function WhatsappVideoLightbox({
   const videoRef = useRef<HTMLVideoElement>(null)
   const [url, setUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [indisponivel, setIndisponivel] = useState(false)
+  const [temporaria, setTemporaria] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setUrl(null)
+    setIndisponivel(false)
+    setTemporaria(false)
     void resolveWhatsappMidiaObjectUrl(chatId, msgId, () => fetchWhatsAppMidiaBlob(chatId, msgId))
       .then((u) => {
         if (!cancelled) setUrl(u)
       })
-      .catch(() => {
-        if (!cancelled) setUrl(null)
+      .catch((e) => {
+        if (cancelled) return
+        setUrl(null)
+        if (erroMidiaWhatsappIndisponivel(e)) setIndisponivel(true)
+        else if (erroMidiaWhatsappTemporaria(e)) setTemporaria(true)
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -470,7 +541,11 @@ function WhatsappVideoLightbox({
       >
         &times;
       </button>
-      {loading || !url ? (
+      {indisponivel ? (
+        <p className="max-w-md text-center text-sm text-white/80">{MSG_MIDIA_WHATSAPP_INDISPONIVEL}</p>
+      ) : temporaria ? (
+        <p className="max-w-md text-center text-sm text-white/80">{MSG_MIDIA_WHATSAPP_TEMPORARIA}</p>
+      ) : loading || !url ? (
         <p className="animate-pulse text-sm text-white/70">Carregando vídeo…</p>
       ) : (
         <div className="flex max-h-[90vh] w-full max-w-5xl flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>

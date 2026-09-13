@@ -71,7 +71,7 @@ Se o PR altera código de produto, **`CHANGELOG.md` deve ter bullets em `[Unrele
 
 O CI executa `scripts/check_changelog.py` e **bloqueia merge** se faltar.
 
-Isento (sem exigir CHANGELOG): só docs internos, planning, artefatos de release gerados, etc.
+Isento (sem exigir CHANGELOG): só docs internos, planning, artefatos de release gerados, **somente** bumps em `package.json` / `package-lock.json` / `requirements*.txt`, **somente** alterações em `backend/tests/`, etc.
 
 ## O que o usuário vê
 
@@ -115,6 +115,7 @@ Após cada deploy, o workflow commita `VERSION`, `CHANGELOG.md`, `manifest.json`
 ## Checklist — PR `main → staging`
 
 - [ ] `[Unreleased]` lista **todas** as entregas do lote (por produto)
+- [ ] `python scripts/check_changelog.py --base origin/staging --head origin/main` → **OK** (merge simulado; evita `[Unreleased]` vazio após conflito de CHANGELOG)
 - [ ] Revisão de redação (sem «deploy», «branch», «commit»)
 - [ ] **Aprovação e merge manuais** no GitHub (agente não executa `gh pr merge`)
 
