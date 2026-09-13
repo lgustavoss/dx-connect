@@ -20,15 +20,19 @@ gh pr list --base staging --head main --state open
 
 Se já existir PR aberto `main` → `staging`, **reutilize** (não duplique).
 
-## Passo 2 — Conflitos?
+## Passo 2 — Conflitos no GitHub?
 
-Se `gh pr create` / GitHub indicar conflito **ou** o CI `changelog` falhar com «merge simulado» / `[Unreleased]` vazio:
+O CI **não** simula `git merge` do repositório (isso falhava em todo release: o deploy esvazia `[Unreleased]` na staging). Ele compõe `[Unreleased]` da head + histórico da base.
+
+O GitHub ainda pode marcar conflito em `CHANGELOG.md` neste PR se o Passo 5 do release **anterior** foi só cópia de arquivos (sem merge `staging → main`). Nesse caso:
 
 1. Branch a partir de `origin/staging`: `merge/main-into-staging-YYYYMMDD`
 2. `git merge origin/main` e resolver (**obrigatório:** manter bullets de `[Unreleased]` da `main` — não aceitar `[Unreleased]` vazio da `staging`)
 3. Validar localmente: `python scripts/check_changelog.py --base origin/staging --head HEAD`
 4. Push da branch e **um** PR → `staging`
 5. **Pare** — entregue o URL; **não** mergeie
+
+Depois de **um** Passo 5 com `git merge origin/staging` na `main`, o próximo `main → staging` tende a auto-mergear o CHANGELOG (merge-base já tem `[Unreleased]` vazio).
 
 Não manter dois PRs de release abertos sem explicar; preferir **um** PR mergeável.
 
@@ -39,7 +43,7 @@ git fetch origin
 python scripts/check_changelog.py --base origin/staging --head origin/main
 ```
 
-Deve imprimir `OK` com bullets no merge simulado. Se falhar, **não** mergeie `main → staging` direto — use branch `merge/…` acima.
+Deve imprimir `OK` com bullets (Unreleased da head). Se a head tiver `[Unreleased]` vazio, não mergeie.
 
 ## Passo 3 — Criar PR (sem merge)
 
@@ -81,7 +85,9 @@ git pull origin main
 git checkout -b chore/sync-changelog-YYYYMMDD
 ```
 
-### 5.3 — Artefatos de release (fonte: `origin/staging`)
+### 5.3 — Merge `staging` na branch de sync (obrigatório)
+
+Não copiar só os arquivos. O **merge** atualiza o merge-base: o próximo `main → staging` deixa de conflitar no `CHANGELOG.md`.
 
 Arquivos que o deploy finaliza na `staging`:
 
@@ -91,32 +97,40 @@ Arquivos que o deploy finaliza na `staging`:
 - `backend/app/data/release_notes.json`
 - `frontend/public/release-notes.json`
 
-**Se `origin/staging..origin/main` estiver vazio** (nada novo na `main` depois do release):
-
 ```bash
-git checkout origin/staging -- CHANGELOG.md VERSION docs/releases/manifest.json \
-  backend/app/data/release_notes.json frontend/public/release-notes.json
+git merge origin/staging --no-edit
+python scripts/sync_changelog_from_staging.py
 ```
 
-**Se houver commits na `main` à frente da `staging`** (ex.: outro PR mergeado depois de abrir o release):
+O script deve rodar **sempre** (mesmo sem conflito): tira da `[Unreleased]` o que o deploy acabou de publicar.
 
-1. Antes do checkout, **anotar** os bullets atuais de `## [Unreleased]` na `main` (só o delta ainda não publicado).
-2. Fazer o `git checkout origin/staging -- …` dos arquivos acima.
-3. **Reinserir** em `## [Unreleased]` os bullets anotados (formato `### DeskRudder` / `### SaaS Control Plane` — ver `docs/RELEASES.md`).
+Se o Git parou com conflito:
+
+```bash
+git checkout --theirs VERSION docs/releases/manifest.json \
+  backend/app/data/release_notes.json frontend/public/release-notes.json
+git add CHANGELOG.md VERSION docs/releases/manifest.json \
+  backend/app/data/release_notes.json frontend/public/release-notes.json
+git commit --no-edit
+```
+
+Se o merge concluiu e o script alterou o CHANGELOG:
+
+```bash
+git add CHANGELOG.md
+git commit -m "chore(release): alinha CHANGELOG da main com vXX.XX.XXX publicada"
+```
 
 Não duplicar bullets que já entraram na seção versionada do release.
 
 ### 5.4 — PR → `main`
 
 ```bash
-git add CHANGELOG.md VERSION docs/releases/manifest.json \
-  backend/app/data/release_notes.json frontend/public/release-notes.json
-git commit -m "chore(release): alinha CHANGELOG da main com vXX.XX.XXX publicada"
 git push -u origin HEAD
 gh pr create --base main --title "chore(release): sync CHANGELOG pós vXX.XX.XXX" --body "$(cat <<'EOF'
 ## Summary
 
-- Sincroniza `CHANGELOG.md`, `VERSION` e artefatos de release notes com o que o deploy publicou em `staging`.
+- Mergeia `staging` na `main` (atualiza merge-base) e alinha `CHANGELOG.md`, `VERSION` e artefatos de release notes com o deploy.
 - `[Unreleased]` na `main` fica só com o que ainda não foi para produção.
 
 ## Test plan
