@@ -273,8 +273,20 @@ def products_required_by_paths(paths: list[str]) -> set[str]:
     return needed
 
 
+_VERSION_HEADERS = re.compile(r"^## \[(\d{2}\.\d{2}\.\d{3})\]", re.MULTILINE)
+
+
 def parse_unreleased_bullets(text: str) -> list[str]:
     return [c["text"] for c in parse_changelog_unreleased(text, warn_legacy=False)]
+
+
+def published_versions(text: str) -> set[str]:
+    return set(_VERSION_HEADERS.findall(text or ""))
+
+
+def has_new_published_version(base_text: str, head_text: str) -> bool:
+    """True quando a head ganhou uma seção CalVer que a base ainda não tem (Passo 5)."""
+    return bool(published_versions(head_text) - published_versions(base_text))
 
 
 def bullets_by_product(text: str) -> dict[str, list[str]]:
@@ -332,6 +344,14 @@ def main() -> int:
 
     bullets = parse_unreleased_bullets(text)
     if not bullets:
+        if not staging_pr:
+            try:
+                base_cl = _run("git", "show", f"{args.base}:CHANGELOG.md")
+            except RuntimeError:
+                base_cl = ""
+            if has_new_published_version(base_cl, text):
+                print("OK: sync de release — [Unreleased] vazio e nova secao CalVer na head.")
+                return 0
         staging_hint = (
             "\nPR para staging: o [Unreleased] precisa estar na head (main/merge branch); "
             "não aceite o [Unreleased] vazio da staging."
