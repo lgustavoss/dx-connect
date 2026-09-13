@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
 import { systemSettings, whatsappSettings } from '../api/client'
 import { HorarioSemanaEditor } from '../components/horario/HorarioSemanaEditor'
@@ -6,7 +7,7 @@ import { Card } from '../components/ui/Card'
 import { PageContainer } from '../components/ui/PageContainer'
 import { Button } from '../components/ui/Button'
 import { Switch } from '../components/ui/Switch'
-import { TEXTAREA_FIELD_CLASS } from '../components/ui/Input'
+import { INPUT_FIELD_CLASS, TEXTAREA_FIELD_CLASS } from '../components/ui/Input'
 import { useToast } from '../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import {
@@ -22,13 +23,14 @@ type EstadoEvolution = {
   erro?: string | null
 }
 
-type Aba = 'conexao' | 'mensagens' | 'inatividade' | 'avaliacao' | 'horarios'
+type Aba = 'conexao' | 'mensagens' | 'inatividade' | 'avaliacao' | 'midia' | 'horarios'
 
 const ABAS: Array<{ id: Aba; label: string }> = [
   { id: 'conexao', label: 'Conexão' },
   { id: 'mensagens', label: 'Mensagens automáticas' },
   { id: 'inatividade', label: 'Inatividade' },
   { id: 'avaliacao', label: 'Avaliação' },
+  { id: 'midia', label: 'Mídia' },
   { id: 'horarios', label: 'Horários' },
 ]
 
@@ -165,6 +167,11 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
   const [usarFeriadosNacionais, setUsarFeriadosNacionais] = useState(false)
   const [horarioSemana, setHorarioSemana] = useState<HorarioSemana>(horarioSemanaPadrao())
   const [salvandoHorarios, setSalvandoHorarios] = useState(false)
+  const [salvandoMidia, setSalvandoMidia] = useState(false)
+  const [retencaoImagem, setRetencaoImagem] = useState('90')
+  const [retencaoAudio, setRetencaoAudio] = useState('90')
+  const [retencaoVideo, setRetencaoVideo] = useState('30')
+  const [retencaoDocumento, setRetencaoDocumento] = useState('90')
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -210,6 +217,10 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
       setNomeEmpresaExibicao(identidadeSalva || nomeEmpresaSistemaPadrao(emp))
       setUsarFeriadosNacionais(Boolean(r.usar_feriados_nacionais))
       setHorarioSemana(horarioSemanaFromApi(r.horario_semana ?? undefined))
+      setRetencaoImagem(String(r.midia_retencao_dias_imagem ?? 90))
+      setRetencaoAudio(String(r.midia_retencao_dias_audio ?? 90))
+      setRetencaoVideo(String(r.midia_retencao_dias_video ?? 30))
+      setRetencaoDocumento(String(r.midia_retencao_dias_documento ?? 90))
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar as configurações.'))
     } finally {
@@ -301,7 +312,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
     <Card title={embedded ? undefined : 'WhatsApp (Evolution)'}>
       {!embedded ? (
         <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-          Conecte um número via QR Code e configure mensagens, inatividade, avaliação e horários de atendimento.
+          Conecte um número via QR Code e configure mensagens, inatividade, avaliação, retenção de mídia e horários de atendimento.
         </p>
       ) : null}
 
@@ -727,6 +738,73 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
                 }}
               >
                 Salvar avaliação
+              </Button>
+            </div>
+          </div>
+        ) : aba === 'midia' ? (
+          <div className="mt-6 space-y-5">
+            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-700 dark:border-slate-800/80 dark:bg-slate-800/20 dark:text-slate-200">
+              <p className="font-medium">Retenção de mídias</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                Após o prazo, o arquivo sai do disco. O histórico da conversa permanece. Mídia expirada
+                mostra Recuperar mídia; o sistema tenta no provedor do WhatsApp. Se não houver mais, o
+                chat pede para o cliente enviar de novo. Prazos também na{' '}
+                <Link to="/privacidade" className="font-medium text-cyan-700 underline dark:text-cyan-400">
+                  política de privacidade
+                </Link>
+                .
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {(
+                [
+                  ['Imagem e figurinha', retencaoImagem, setRetencaoImagem],
+                  ['Áudio', retencaoAudio, setRetencaoAudio],
+                  ['Vídeo', retencaoVideo, setRetencaoVideo],
+                  ['Documento', retencaoDocumento, setRetencaoDocumento],
+                ] as const
+              ).map(([label, valor, setValor]) => (
+                <div key={label}>
+                  <label className="text-xs font-medium text-slate-600 dark:text-slate-400">{label} (dias)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={3650}
+                    value={valor}
+                    onChange={(e) => setValor(e.target.value)}
+                    className={`mt-1 ${INPUT_FIELD_CLASS.trim()}`}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end pt-2">
+              <Button
+                type="button"
+                loading={salvandoMidia}
+                onClick={() => {
+                  const img = Number.parseInt(retencaoImagem, 10)
+                  const aud = Number.parseInt(retencaoAudio, 10)
+                  const vid = Number.parseInt(retencaoVideo, 10)
+                  const doc = Number.parseInt(retencaoDocumento, 10)
+                  const ok = [img, aud, vid, doc].every((n) => Number.isFinite(n) && n >= 1 && n <= 3650)
+                  if (!ok) {
+                    toast.showError('Informe prazos em dias entre 1 e 3650.')
+                    return
+                  }
+                  setSalvandoMidia(true)
+                  whatsappSettings
+                    .patch({
+                      midia_retencao_dias_imagem: img,
+                      midia_retencao_dias_audio: aud,
+                      midia_retencao_dias_video: vid,
+                      midia_retencao_dias_documento: doc,
+                    })
+                    .then(() => toast.showSuccess('Prazos de retenção de mídia atualizados.'))
+                    .catch((err) => toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar.')))
+                    .finally(() => setSalvandoMidia(false))
+                }}
+              >
+                Salvar prazos
               </Button>
             </div>
           </div>

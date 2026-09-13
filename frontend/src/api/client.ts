@@ -995,6 +995,10 @@ export namespace WhatsappSettings {
     auto_msg_avaliacao_obrigado_texto?: string | null
     auto_msg_avaliacao_timeout_texto?: string | null
     auto_msg_avaliacao_pular_texto?: string | null
+    midia_retencao_dias_imagem?: number
+    midia_retencao_dias_audio?: number
+    midia_retencao_dias_video?: number
+    midia_retencao_dias_documento?: number
   }
   export interface ProvisionEmbutidoResult {
     instance: string
@@ -1034,6 +1038,10 @@ export namespace WhatsappSettings {
     auto_msg_avaliacao_obrigado_texto?: string | null
     auto_msg_avaliacao_timeout_texto?: string | null
     auto_msg_avaliacao_pular_texto?: string | null
+    midia_retencao_dias_imagem?: number | null
+    midia_retencao_dias_audio?: number | null
+    midia_retencao_dias_video?: number | null
+    midia_retencao_dias_documento?: number | null
   }
   export interface TesteResult {
     ok: boolean
@@ -1291,6 +1299,7 @@ export namespace WhatsappChats {
     tipo_midia?: string | null
     mimetype?: string | null
     midia_disponivel?: boolean
+    midia_estado?: 'ativa' | 'expirada_local' | 'indisponivel' | null
     midia_nome_original?: string | null
     evento_sistema?: string | null
     wa_message_id?: string | null

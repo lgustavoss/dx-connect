@@ -9,6 +9,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- WhatsApp (#899 / #900 / #901 / #902): mídias antigas saem do disco conforme o prazo (imagem, áudio e documento 90 dias; vídeo 30 — o admin altera em Configurações → WhatsApp → Mídia). Mídia expirada mostra **Recuperar mídia**; o sistema tenta no provedor do WhatsApp. Se não houver mais, o chat mostra “Esta mídia não está mais disponível. Peça para o cliente enviar novamente.” e o prazo fica na política de privacidade
 - Ponto (#1066 / #S202609-0001): chip na barra superior com **Fora do ponto**, **Trabalhando** + tempo líquido do dia, ou **Em pausa** — atualiza na hora ao bater o ponto; clique abre Meu ponto
 
 #### Interno

@@ -4,7 +4,7 @@ import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, func, or_
 
@@ -17,6 +17,7 @@ from app.models.setor import Setor
 from app.models.rede import Rede
 from app.models.funcionario_rede import FuncionarioRede, FuncionarioRedeEmpresa
 from app.models.whatsapp_chat import WhatsappChat, WhatsappChatTicket, WhatsappMensagem, WhatsappSettings
+from app.services import whatsapp_media_retencao as wpp_midia_retencao
 from app.schemas.lista_paginada import ListaPaginada
 from app.schemas.whatsapp_chat import (
     WhatsappAbrirTicketBody,
@@ -59,7 +60,7 @@ from app.services.whatsapp_auto_messages import (
     resolver_nome_empresa_para_template,
 )
 from app.services.whatsapp_avaliacao import mensagem_oculta_na_conversa
-from app.services.whatsapp_media_storage import caminho_absoluto_arquivo, gravar_bytes_em_disco
+from app.services.whatsapp_media_storage import gravar_bytes_em_disco
 from app.services.realtime_emit import emit_chat_fila_from_model, emit_chat_mensagem_from_models
 from app.services.chat_nao_lidas import contar_nao_lidas_whatsapp, marcar_leitura_whatsapp
 from app.services.ticket_distribuicao import pos_criar_ticket_na_fila
@@ -776,7 +777,9 @@ def _mensagem_read(
     viewer_id: int | None = None,
     is_responsavel: bool = False,
 ) -> WhatsappMensagemRead:
-    midia_ok = bool(m.midia_nome_arquivo and str(m.midia_nome_arquivo).strip())
+    apagada = wpp_edicao.mensagem_apagada(m)
+    midia_ok = False if apagada else wpp_midia_retencao.midia_ainda_recuperavel(m)
+    midia_estado = None if apagada else wpp_midia_retencao.estado_midia(m)
     status = m.status_entrega if m.direcao == "outbound" and not m.evento_sistema else None
     reacoes = [
         WhatsappReacaoRead(
@@ -788,7 +791,6 @@ def _mensagem_read(
         )
         for r in wpp_reacoes.agregar_reacoes(m, viewer_id)
     ]
-    apagada = wpp_edicao.mensagem_apagada(m)
     return WhatsappMensagemRead(
         id=m.id,
         chat_id=m.chat_id,
@@ -797,6 +799,7 @@ def _mensagem_read(
         tipo_midia=m.tipo_midia,
         mimetype=m.mimetype,
         midia_disponivel=False if apagada else midia_ok,
+        midia_estado=midia_estado,
         midia_nome_original=None if apagada else (getattr(m, "midia_nome_original", None) or None),
         evento_sistema=getattr(m, "evento_sistema", None),
         wa_message_id=m.wa_message_id,
@@ -1474,7 +1477,7 @@ def obter_midia_da_mensagem(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    """Devolve o ficheiro binário guardado para mensagens inbound com mídia."""
+    """Devolve o arquivo local ou tenta reidratar na Evolution (#899 / #901)."""
     c = db.query(WhatsappChat).filter(WhatsappChat.id == chat_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
@@ -1485,11 +1488,26 @@ def obter_midia_da_mensagem(
         .filter(WhatsappMensagem.chat_id == chat_id, WhatsappMensagem.id == mensagem_id)
         .first()
     )
-    if not m or not m.midia_nome_arquivo:
+    if not m:
         raise HTTPException(status_code=404, detail="Mídia não encontrada")
-    path = caminho_absoluto_arquivo(m.midia_nome_arquivo)
-    if not path:
-        raise HTTPException(status_code=404, detail="Ficheiro não encontrado em disco")
+    try:
+        path = wpp_midia_retencao.obter_arquivo_midia(db, m, c)
+    except wpp_midia_retencao.MidiaIndisponivelErro:
+        return JSONResponse(
+            status_code=410,
+            content={
+                "detail": wpp_midia_retencao.MSG_MIDIA_INDISPONIVEL,
+                "codigo": "midia_indisponivel",
+            },
+        )
+    except wpp_midia_retencao.MidiaTemporariamenteIndisponivelErro:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": wpp_midia_retencao.MSG_MIDIA_TEMPORARIA,
+                "codigo": "midia_temporariamente_indisponivel",
+            },
+        )
     media_type = m.mimetype or "application/octet-stream"
     download_name = (getattr(m, "midia_nome_original", None) or "").strip() or path.name
     return FileResponse(path, media_type=media_type, filename=download_name)

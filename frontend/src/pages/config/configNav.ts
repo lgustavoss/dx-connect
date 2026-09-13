@@ -90,8 +90,8 @@ export const CONFIG_GROUPS: ConfigNavGroup[] = [
       {
         slug: 'whatsapp',
         label: 'WhatsApp',
-        hint: 'Conexão, mensagens automáticas, inatividade, avaliação e horários de atendimento.',
-        keywords: ['wpp', 'evolution', 'fila', 'inatividade'],
+        hint: 'Conexão, mensagens automáticas, inatividade, avaliação, retenção de mídia e horários de atendimento.',
+        keywords: ['wpp', 'evolution', 'fila', 'inatividade', 'mídia', 'retenção'],
       },
       {
         slug: 'email',
