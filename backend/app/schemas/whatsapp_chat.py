@@ -136,6 +136,10 @@ class WhatsappIniciarChatBody(BaseModel):
         None,
         description="Empresa de contexto opcional. Com >1 empresas, pode ficar em branco e ser definida depois na conversa.",
     )
+    setor_id: int | None = Field(
+        None,
+        description="Setor da assinatura. Obrigatório se o atendente tiver mais de um setor (#1086).",
+    )
 
     @field_validator("telefone", mode="before")
     @classmethod

@@ -212,24 +212,58 @@ def _caption_de_obj_midia(obj: dict[str, Any]) -> str | None:
     return None
 
 
+def _linhas_vcard(vcard: str) -> list[str]:
+    linhas: list[str] = []
+    for raw in str(vcard).splitlines():
+        if not raw:
+            continue
+        if raw[0] in " \t" and linhas:
+            linhas[-1] += raw.strip()
+        else:
+            linhas.append(raw.strip())
+    return linhas
+
+
 def _telefone_de_vcard(vcard: str | None) -> str | None:
+    """Número do cartão. WhatsApp manda `item1.TEL;waid=5511…`, não uma linha que começa com TEL."""
     if not vcard:
         return None
-    for line in str(vcard).splitlines():
-        s = line.strip()
-        if s.upper().startswith("TEL"):
-            part = s.split(":", 1)
-            if len(part) == 2 and part[1].strip():
-                return re.sub(r"\D", "", part[1]) or part[1].strip()
+    texto = str(vcard)
+    waid = re.search(r"waid=(\d{8,})", texto, re.IGNORECASE)
+    if waid:
+        return waid.group(1)
+    for line in _linhas_vcard(texto):
+        if not re.search(r"(?:^|\.)TEL(?:;|:)", line, re.IGNORECASE):
+            continue
+        part = line.split(":", 1)
+        if len(part) != 2:
+            continue
+        digits = re.sub(r"\D", "", part[1])
+        if len(digits) >= 8:
+            return digits
     return None
 
 
 def _corpo_contacto(obj: dict[str, Any]) -> str:
-    nome = str(obj.get("displayName") or obj.get("DisplayName") or "Contacto").strip()
+    nome = str(obj.get("displayName") or obj.get("DisplayName") or "Contato").strip() or "Contato"
     tel = _telefone_de_vcard(obj.get("vcard") or obj.get("Vcard"))
     if tel:
-        return f"[Contacto] {nome} — {tel}"
-    return f"[Contacto] {nome}"
+        return f"[Contato] {nome} — {tel}"
+    return f"[Contato] {nome}"
+
+
+def _corpo_contactos_array(obj: dict[str, Any]) -> str:
+    raw = obj.get("contacts") or obj.get("Contacts") or []
+    linhas: list[str] = []
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, dict):
+                linha = _corpo_contacto(item).strip()
+                if linha:
+                    linhas.append(linha)
+    if linhas:
+        return "\n".join(linhas)
+    return _corpo_contacto(obj)
 
 
 def _corpo_localizacao(obj: dict[str, Any]) -> str:
@@ -242,6 +276,8 @@ def _corpo_localizacao(obj: dict[str, Any]) -> str:
 
 
 _ESPECIAL_TEXTO: list[tuple[str, Callable[[dict[str, Any]], str]]] = [
+    ("contactsArrayMessage", _corpo_contactos_array),
+    ("ContactsArrayMessage", _corpo_contactos_array),
     ("contactMessage", _corpo_contacto),
     ("ContactMessage", _corpo_contacto),
     ("locationMessage", _corpo_localizacao),

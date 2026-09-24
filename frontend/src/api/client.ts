@@ -1494,6 +1494,7 @@ export const whatsappChats = {
     telefone?: string | null
     mensagem_inicial?: string | null
     empresa_id?: number | null
+    setor_id?: number | null
   }) =>
     api<WhatsappChats.Chat>('/whatsapp/chats/iniciar', {
       method: 'POST',

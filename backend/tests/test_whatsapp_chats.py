@@ -1090,8 +1090,13 @@ def test_iniciar_chat_outbound_por_telefone(client, seed_base, auth_headers, mon
     body = r.json()
     assert body["estado"] == "em_atendimento"
     assert body["atendente_id"] == seed_base["a1"].id
+    assert body["setor_id"] == seed_base["setor1"].id
     assert body["wa_id"] == "5511988776655"
     assert sent["n"] == 1
+
+    msgs = client.get(f"/v1/whatsapp/chats/{body['id']}/mensagens", headers=auth_headers["a1"])
+    assert msgs.status_code == 200
+    assert any("[ Suporte - Atendente 1 ]" in (m.get("corpo") or "") for m in msgs.json())
 
     meus = client.get("/v1/whatsapp/chats/meus", headers=auth_headers["a1"]).json()
     assert any(c["id"] == body["id"] for c in meus)
@@ -1119,6 +1124,72 @@ def test_iniciar_chat_reusa_aberto_mesmo_responsavel(client, seed_base, auth_hea
     )
     assert r2.status_code == 200
     assert r2.json()["id"] == cid
+    assert r2.json()["setor_id"] == seed_base["setor1"].id
+
+
+def test_iniciar_chat_varios_setores_exige_escolha(client, seed_base, auth_headers, monkeypatch, db_session):
+    monkeypatch.setattr(
+        "app.api.whatsapp_chats.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-out"),
+    )
+    _evolution_settings(client, auth_headers, "iniciar-setores")
+    seed_base["a2"].setores.append(seed_base["setor1"])
+    db_session.commit()
+
+    r = client.post(
+        "/v1/whatsapp/chats/iniciar",
+        json={"telefone": "5511999001133"},
+        headers=auth_headers["a2"],
+    )
+    assert r.status_code == 400
+
+    r_ok = client.post(
+        "/v1/whatsapp/chats/iniciar",
+        json={"telefone": "5511999001133", "setor_id": seed_base["setor2"].id},
+        headers=auth_headers["a2"],
+    )
+    assert r_ok.status_code == 200
+    assert r_ok.json()["setor_id"] == seed_base["setor2"].id
+
+
+def test_iniciar_chat_setor_fora_do_vinculo_403(client, seed_base, auth_headers, monkeypatch):
+    monkeypatch.setattr(
+        "app.api.whatsapp_chats.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-out"),
+    )
+    _evolution_settings(client, auth_headers, "iniciar-setor-403")
+
+    r = client.post(
+        "/v1/whatsapp/chats/iniciar",
+        json={"telefone": "5511999001155", "setor_id": seed_base["setor2"].id},
+        headers=auth_headers["a1"],
+    )
+    assert r.status_code == 403
+
+
+def test_iniciar_chat_reuso_nao_troca_setor(client, seed_base, auth_headers, monkeypatch):
+    monkeypatch.setattr(
+        "app.api.whatsapp_chats.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-out"),
+    )
+    _evolution_settings(client, auth_headers, "iniciar-reuso-setor")
+
+    r1 = client.post(
+        "/v1/whatsapp/chats/iniciar",
+        json={"telefone": "5511999001144"},
+        headers=auth_headers["a1"],
+    )
+    assert r1.status_code == 200
+    assert r1.json()["setor_id"] == seed_base["setor1"].id
+
+    r2 = client.post(
+        "/v1/whatsapp/chats/iniciar",
+        json={"telefone": "5511999001144", "setor_id": seed_base["setor2"].id},
+        headers=auth_headers["a1"],
+    )
+    assert r2.status_code == 200
+    assert r2.json()["id"] == r1.json()["id"]
+    assert r2.json()["setor_id"] == seed_base["setor1"].id
 
 
 def test_iniciar_chat_409_outro_responsavel(client, seed_base, auth_headers, monkeypatch):
