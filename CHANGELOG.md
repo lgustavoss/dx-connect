@@ -13,6 +13,11 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### DeskRudder
 
+#### Melhorias
+
+- WhatsApp (#1089 / #S202609-0002): cartão de contato recebido mostra o nome e o número e permite iniciar uma conversa com esse contato
+- WhatsApp (#1086 / #S202609-0003): chat iniciado pelo atendente usa o setor vinculado na assinatura; com mais de um setor, a escolha acontece antes de iniciar
+
 #### Interno
 
 - Testes de ponto: janela de jornada usa o fuso do ponto e permanece estável na madrugada (evita flake na CI)
