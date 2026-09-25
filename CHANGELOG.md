@@ -20,6 +20,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Categorias (#1087 / #S202609-0004): a exclusão abre um diálogo do sistema; se houver subcategorias, elas aparecem na lista em vez do alerta do navegador
 - Primeiro acesso (#1088 / #S202609-0006): a troca da senha temporária mostra um alerta de que o restante do sistema fica bloqueado até a nova senha
 - WhatsApp (#1091 / #S202609-0007): o zoom da imagem usa a área da tela, em vez de ampliar só dentro de um quadro com borda preta
+- Minha conta (#884): o usuário vê nome, e-mail, perfil e setores, e troca a própria senha informando a senha atual, sem sair da sessão
 
 #### Interno
 

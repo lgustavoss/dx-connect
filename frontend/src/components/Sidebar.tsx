@@ -761,19 +761,26 @@ export function Sidebar({
       </nav>
 
       <div className={`shrink-0 border-t border-slate-200 p-2 dark:border-slate-800 ${!expanded ? 'md:px-2' : ''}`}>
-        <div
-          className={`flex items-center gap-3 px-3 py-2 text-slate-600 dark:text-slate-400 ${
-            expanded ? 'opacity-100' : 'md:hidden'
+        <Link
+          to="/minha-conta"
+          onClick={onMobileClose}
+          title="Minha conta"
+          className={`flex items-center gap-3 rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-100 active:bg-slate-200 touch-manipulation dark:text-slate-400 dark:hover:bg-slate-800 dark:active:bg-slate-700 ${
+            expanded ? '' : 'md:justify-center md:px-2'
+          } ${
+            location.pathname === '/minha-conta'
+              ? 'bg-slate-100 text-slate-800 dark:bg-slate-800/80 dark:text-slate-100'
+              : ''
           }`}
         >
           <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 text-xs font-semibold text-white shadow-sm shadow-cyan-500/25">
             {userNome?.charAt(0)?.toUpperCase() ?? '?'}
           </span>
-          <div className="min-w-0 flex-1">
+          <div className={`min-w-0 flex-1 ${expanded ? '' : 'md:hidden'}`}>
             <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{userNome}</p>
             <p className="truncate text-xs text-slate-500 dark:text-slate-400">{userRole}</p>
           </div>
-        </div>
+        </Link>
         <Link
           to="/notificacoes/preferencias"
           onClick={onMobileClose}
