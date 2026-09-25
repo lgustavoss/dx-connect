@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ApiError, saasSolicitacoes, type SaasSolicitacoesProduto } from '../../api/client'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../../api/errorMessage'
@@ -71,6 +71,27 @@ export function SaasSolicitacaoDetalhe() {
     setNovoStatus(row.status)
     setMotivo(row.motivo_nao_desenvolvimento || '')
   }, [])
+
+  const linhaTempo = useMemo(() => {
+    if (!item) return []
+    const eventos: Array<
+      | { kind: 'historico'; at: string; historico: SaasSolicitacoesProduto.Historico }
+      | { kind: 'comentario'; at: string; comentario: SaasSolicitacoesProduto.Comentario }
+    > = [
+      ...(item.historico || []).map((historico) => ({
+        kind: 'historico' as const,
+        at: historico.created_at,
+        historico,
+      })),
+      ...item.comentarios.map((comentario) => ({
+        kind: 'comentario' as const,
+        at: comentario.created_at,
+        comentario,
+      })),
+    ]
+    eventos.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+    return eventos
+  }, [item])
 
   useEffect(() => {
     if (!id || Number.isNaN(solicitacaoId)) {
@@ -595,10 +616,34 @@ export function SaasSolicitacaoDetalhe() {
                 </div>
               </li>
 
-              {comentarios.map((c) => {
+              {linhaTempo.map((ev) => {
+                if (ev.kind === 'historico') {
+                  const h = ev.historico
+                  return (
+                    <li key={`h-${h.id}`} className="relative">
+                      <span className="absolute -left-[1.45rem] mt-1.5 size-2.5 rounded-full bg-slate-400 ring-4 ring-white dark:bg-slate-500 dark:ring-slate-900" />
+                      <div className="rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3 text-sm dark:border-slate-600 dark:bg-slate-800/50">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <StatusBadge status={h.status_novo} rotulo={h.status_novo_rotulo} />
+                          <span className="text-xs text-slate-500 dark:text-slate-400">
+                            {formatWhen(h.created_at)}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                          {h.autor_nome || '—'}
+                          {h.canal_rotulo ? ` · ${h.canal_rotulo}` : ''}
+                        </p>
+                        {h.motivo ? (
+                          <p className="mt-2 whitespace-pre-wrap text-slate-700 dark:text-slate-200">{h.motivo}</p>
+                        ) : null}
+                      </div>
+                    </li>
+                  )
+                }
+                const c = ev.comentario
                 const interno = !c.publico_cliente
                 return (
-                  <li key={c.id} className="relative">
+                  <li key={`c-${c.id}`} className="relative">
                     <span
                       className={`absolute -left-[1.45rem] mt-1.5 size-2.5 rounded-full ring-4 ring-white dark:ring-slate-900 ${
                         interno ? 'bg-amber-500' : 'bg-cyan-500'
@@ -635,6 +680,9 @@ export function SaasSolicitacaoDetalhe() {
                       <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                         {c.autor_nome || '—'} · {formatWhen(c.created_at)}
                       </p>
+                      {!interno ? (
+                        <p className="mt-1 text-xs text-slate-400">O cliente vê o autor como Desenvolvedor.</p>
+                      ) : null}
                     </div>
                   </li>
                 )
@@ -643,7 +691,7 @@ export function SaasSolicitacaoDetalhe() {
 
             {comentarios.length === 0 ? (
               <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-                Ainda não há respostas. O que enviares como mensagem ao cliente aparece em Minhas solicitações.
+                Ainda não há respostas. A mensagem ao cliente aparece em Minhas solicitações, com o autor Desenvolvedor.
               </p>
             ) : null}
 
@@ -685,7 +733,7 @@ export function SaasSolicitacaoDetalhe() {
                 placeholder={
                   internoActivo
                     ? 'Anotação visível apenas para a equipe ops…'
-                    : 'Resposta que o cliente vê em Minhas solicitações…'
+                    : 'Resposta que o cliente vê em Minhas solicitações. O autor aparece como Desenvolvedor.'
                 }
               />
               {!internoActivo ? (

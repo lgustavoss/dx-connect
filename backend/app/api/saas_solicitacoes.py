@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -45,6 +45,10 @@ class OrdenarSolicitacoesPor(str, Enum):
     ingested_at = "ingested_at"
     created_at_origem = "created_at_origem"
     titulo = "titulo"
+
+
+def _canal_fila(request: Request) -> str:
+    return getattr(request.state, "saas_fila_canal", "painel")
 
 
 def exigir_saas_control_plane() -> None:
@@ -241,23 +245,25 @@ def obter(
 def alterar_status(
     solicitacao_id: int,
     data: SaasSolicitacaoStatusUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
     ops: Atendente = Depends(exigir_fila_saas),
 ):
-    return triagem.alterar_status(db, solicitacao_id, ops, data)
+    return triagem.alterar_status(db, solicitacao_id, ops, data, canal=_canal_fila(request))
 
 
 @router.post("/solicitacoes/{solicitacao_id}/implementar", response_model=SaasSolicitacaoDetalhe)
 def implementar(
     solicitacao_id: int,
+    request: Request,
     data: SaasSolicitacaoImplementar = SaasSolicitacaoImplementar(),
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
     ops: Atendente = Depends(exigir_fila_saas),
 ):
     """G2: cria/liga issue GitHub e avança para em_desenvolvimento."""
-    return triagem.implementar(db, solicitacao_id, ops, data)
+    return triagem.implementar(db, solicitacao_id, ops, data, canal=_canal_fila(request))
 
 
 @router.post("/solicitacoes/{solicitacao_id}/comentarios", response_model=SaasSolicitacaoDetalhe)

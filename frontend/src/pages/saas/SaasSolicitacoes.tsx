@@ -346,6 +346,9 @@ export function SaasSolicitacoes() {
                         >
                           {item.status_rotulo || rotuloStatusSolicitacao(item.status)}
                         </span>
+                        {item.ultimo_ator_nome ? (
+                          <p className="mt-1 text-xs text-slate-500">{item.ultimo_ator_nome}</p>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-slate-500 sm:px-6">
                         {formatWhen(item.created_at_origem || item.ingested_at)}

@@ -410,8 +410,13 @@ def test_ops_altera_status_e_cliente_ve_na_instancia(client, seed_base, auth_hea
         json={"status": "em_analise"},
     )
     assert r.status_code == 200, r.text
-    assert r.json()["status"] == "em_analise"
-    assert r.json()["status_rotulo"] == "Em análise"
+    body = r.json()
+    assert body["status"] == "em_analise"
+    assert body["status_rotulo"] == "Em análise"
+    assert body["ultimo_ator_nome"] == "Ops SaaS"
+    assert body["historico"][-1]["canal"] == "painel"
+    assert body["historico"][-1]["autor_nome"] == "Ops SaaS"
+    assert body["historico"][-1]["canal_rotulo"] == "Painel"
 
     minhas = client.get("/v1/solicitacoes-melhoria/minhas", headers=auth_headers["a1"]).json()
     item = next(i for i in minhas if i["id"] == sid)
@@ -419,7 +424,8 @@ def test_ops_altera_status_e_cliente_ve_na_instancia(client, seed_base, auth_hea
 
     det = client.get(f"/v1/solicitacoes-melhoria/{sid}", headers=auth_headers["a1"]).json()
     assert det["status"] == "em_analise"
-    assert any(hist["status_novo"] == "em_analise" for hist in det["historico"])
+    mudanca = next(hist for hist in det["historico"] if hist["status_novo"] == "em_analise")
+    assert mudanca["atendente_nome"] in (None, "")
 
 
 def test_comentario_publico_volta_interno_nao(client, seed_base, auth_headers, monkeypatch):
@@ -452,6 +458,10 @@ def test_comentario_publico_volta_interno_nao(client, seed_base, auth_headers, m
     corpos = [c["corpo"] for c in cliente_view["comentarios"]]
     assert any("próximo lote" in c for c in corpos)
     assert not any("GitHub" in c for c in corpos)
+    publico = next(c for c in cliente_view["comentarios"] if "próximo lote" in c["corpo"])
+    assert publico["autor_nome"] == "Desenvolvedor"
+    saas_publico = next(c for c in intern.json()["comentarios"] if "próximo lote" in c["corpo"])
+    assert saas_publico["autor_nome"] == "Ops SaaS"
     assert cliente_view.get("github_issue_url") in (None, "")
 
 
@@ -554,6 +564,7 @@ def test_sync_get_autenticado(client, seed_base, auth_headers, monkeypatch):
     assert row["protocolo"].startswith("#S")
     assert any("roadmap" in c["corpo"] for c in row["comentarios_publicos"])
     assert not any("interna" in c["corpo"] for c in row["comentarios_publicos"])
+    assert all(c["autor_nome"] == "Desenvolvedor" for c in row["comentarios_publicos"])
 
 
 def test_pull_aplica_triagem_na_instancia(client, seed_base, auth_headers, monkeypatch, db_session):
@@ -592,11 +603,22 @@ def test_pull_aplica_triagem_na_instancia(client, seed_base, auth_headers, monke
     assert n == 1
     det = client.get(f"/v1/solicitacoes-melhoria/{sid}", headers=auth_headers["a1"]).json()
     assert det["status"] == "em_desenvolvimento"
-    assert any("implementar" in c["corpo"] for c in det["comentarios"])
+    comentario = next(c for c in det["comentarios"] if "implementar" in c["corpo"])
+    assert comentario["autor_nome"] == "Desenvolvedor"
+    from app.models.solicitacao_melhoria import SolicitacaoMelhoriaComentario
+
+    copia = (
+        db_session.query(SolicitacaoMelhoriaComentario)
+        .filter(SolicitacaoMelhoriaComentario.id == comentario["id"])
+        .one()
+    )
+    copia.autor_nome = "Luis Gustavo"
+    db_session.commit()
     n2 = process_triagem_pull(db_session)
     db_session.commit()
     det2 = client.get(f"/v1/solicitacoes-melhoria/{sid}", headers=auth_headers["a1"]).json()
     assert sum(1 for c in det2["comentarios"] if "implementar" in c["corpo"]) == 1
+    assert next(c for c in det2["comentarios"] if "implementar" in c["corpo"])["autor_nome"] == "Desenvolvedor"
     assert n2 == 1
 
 
@@ -619,6 +641,9 @@ def test_mcp_token_lista_status_e_liga_github(client, seed_base, auth_headers, m
     assert any(i["id"] == saas_id for i in busca.json()["items"])
     st = _avancar_status(client, mcp, saas_id, "em_analise", "planejada")
     assert st["status"] == "planejada"
+    assert st["historico"][-1]["canal"] == "mcp"
+    assert st["historico"][-1]["autor_nome"] == "Ops SaaS"
+    assert st["ultimo_ator_nome"] == "Ops SaaS"
     gh = client.patch(
         f"/v1/saas/solicitacoes/{saas_id}/github",
         headers=mcp,
@@ -629,6 +654,74 @@ def test_mcp_token_lista_status_e_liga_github(client, seed_base, auth_headers, m
     assert "857" in (gh.json()["github_issue_url"] or "")
     assert client.get("/v1/saas/solicitacoes", headers=auth_headers["admin"]).status_code == 403
     assert client.get("/v1/saas/solicitacoes", headers={"Authorization": "Bearer token-errado"}).status_code == 401
+
+
+def test_historico_painel_e_mcp_de_ops_distintos(client, seed_base, auth_headers, db_session, monkeypatch):
+    from app.config import settings
+    from app.core.security import criar_access_token, hash_senha
+    from app.models.atendente import Atendente
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    monkeypatch.setattr(settings, "SAAS_INSTANCE_SLUG", "local")
+    ops2 = Atendente(
+        tenant_id=seed_base["tenant"].id,
+        email="ops2-hist@test.local",
+        nome="Ops Dois",
+        senha_hash=hash_senha("ops123456"),
+        role="saas_ops",
+        ativo=True,
+        must_change_password=False,
+    )
+    db_session.add(ops2)
+    db_session.commit()
+    h2 = {
+        "Authorization": f"Bearer {criar_access_token({'sub': ops2.email, 'tid': 1})}",
+        "X-Dx-Tenant-Id": "1",
+    }
+    token = client.post("/v1/saas/me/mcp-token", headers=h2).json()["token"]
+
+    sid = _criar_solicitacao(client, auth_headers["a1"]).json()["id"]
+    saas_id = _saas_id_de_origem(client, auth_headers["ops"], sid)
+    negado = client.patch(
+        f"/v1/saas/solicitacoes/{saas_id}/status",
+        headers=auth_headers["a1"],
+        json={"status": "em_analise"},
+    )
+    assert negado.status_code == 403
+
+    painel = client.patch(
+        f"/v1/saas/solicitacoes/{saas_id}/status",
+        headers=auth_headers["ops"],
+        json={"status": "em_analise"},
+    )
+    assert painel.status_code == 200, painel.text
+    assert painel.json()["historico"][-1]["canal"] == "painel"
+    assert painel.json()["historico"][-1]["autor_nome"] == "Ops SaaS"
+
+    mcp = {"Authorization": f"Bearer {token}"}
+    cursor = client.patch(
+        f"/v1/saas/solicitacoes/{saas_id}/status",
+        headers=mcp,
+        json={"status": "planejada"},
+    )
+    assert cursor.status_code == 200, cursor.text
+    body = cursor.json()
+    assert body["historico"][-1]["canal"] == "mcp"
+    assert body["historico"][-1]["autor_nome"] == "Ops Dois"
+    assert body["historico"][0]["autor_nome"] == "Ops SaaS"
+    assert body["ultimo_ator_nome"] == "Ops Dois"
+
+    pub = client.post(
+        f"/v1/saas/solicitacoes/{saas_id}/comentarios",
+        headers=mcp,
+        json={"corpo": "Seguimos com o pedido.", "publico_cliente": True},
+    )
+    assert pub.status_code == 200, pub.text
+    assert pub.json()["comentarios"][-1]["autor_nome"] == "Ops Dois"
+    cliente = client.get(f"/v1/solicitacoes-melhoria/{sid}", headers=auth_headers["a1"]).json()
+    assert cliente["comentarios"][-1]["autor_nome"] == "Desenvolvedor"
+    assert "Ops Dois" not in str(cliente)
+    assert "Ops SaaS" not in str(cliente)
 
 
 def test_mcp_stdio_initialize_e_tools():

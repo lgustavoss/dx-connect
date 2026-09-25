@@ -21,6 +21,7 @@ from app.schemas.saas_solicitacao import (
     SaasSolicitacaoAnexoRead,
     SaasSolicitacaoComentarioRead,
     SaasSolicitacaoDetalhe,
+    SaasSolicitacaoHistoricoRead,
     SaasSolicitacaoIngest,
     SaasSolicitacaoListaItem,
 )
@@ -430,11 +431,13 @@ def item_lista(
         github_issue_url=row.github_issue_url,
         peso_clientes=peso_clientes,
         pedidos_grupo=pedidos_grupo,
+        ultimo_ator_nome=row.ultimo_ator_nome,
     )
 
 
 def detalhe(db: Session, row: SaasSolicitacaoProduto) -> SaasSolicitacaoDetalhe:
     from app.services import saas_solicitacao_grupo as grupo
+    from app.services.saas_solicitacao_triagem import rotulo_canal
 
     pesos = grupo.pesos_por_id(db, [row])
     pc, pg = pesos.get(row.id, (1, 1))
@@ -456,12 +459,27 @@ def detalhe(db: Session, row: SaasSolicitacaoProduto) -> SaasSolicitacaoDetalhe:
         .all()
     )
     anexos = [anexo_read(a) for a in anexos_rows]
+    historico = [
+        SaasSolicitacaoHistoricoRead(
+            id=h.id,
+            status_anterior=h.status_anterior,
+            status_novo=h.status_novo,
+            status_novo_rotulo=rotulo_status(h.status_novo),
+            motivo=h.motivo,
+            autor_nome=h.autor_nome,
+            canal=h.canal,
+            canal_rotulo=rotulo_canal(h.canal),
+            created_at=h.created_at,
+        )
+        for h in (row.historico or [])
+    ]
     return SaasSolicitacaoDetalhe(
         **base.model_dump(),
         descricao=row.descricao,
         motivo_nao_desenvolvimento=row.motivo_nao_desenvolvimento,
         triagem_atualizada_em=row.triagem_atualizada_em,
         comentarios=comentarios,
+        historico=historico,
         anexos=anexos,
         github_repo=row.github_repo,
         grupo=[grupo.membro_read(m) for m in grupo.membros(db, row)],
@@ -476,6 +494,7 @@ def obter(db: Session, solicitacao_id: int) -> SaasSolicitacaoProduto:
             joinedload(SaasSolicitacaoProduto.cliente),
             joinedload(SaasSolicitacaoProduto.comentarios),
             joinedload(SaasSolicitacaoProduto.anexos),
+            joinedload(SaasSolicitacaoProduto.historico),
         )
         .filter(SaasSolicitacaoProduto.id == solicitacao_id)
         .first()

@@ -5897,6 +5897,18 @@ export namespace SaasSolicitacoesProduto {
     github_issue_url?: string | null;
     peso_clientes?: number;
     pedidos_grupo?: number;
+    ultimo_ator_nome?: string | null;
+  }
+  export interface Historico {
+    id: number;
+    status_anterior?: string | null;
+    status_novo: string;
+    status_novo_rotulo: string;
+    motivo?: string | null;
+    autor_nome?: string | null;
+    canal: string;
+    canal_rotulo: string;
+    created_at: string;
   }
   export interface Comentario {
     id: number;
@@ -5910,6 +5922,7 @@ export namespace SaasSolicitacoesProduto {
     motivo_nao_desenvolvimento?: string | null;
     triagem_atualizada_em?: string | null;
     comentarios: Comentario[];
+    historico?: Historico[];
     anexos?: Anexo[];
     github_repo?: string | null;
     grupo?: GrupoMembro[];
