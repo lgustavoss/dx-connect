@@ -24,7 +24,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Interno
 
-- Testes de ponto: janela de jornada usa o fuso do ponto e permanece estável na madrugada (evita flake na CI)
+- Testes de ponto: janela de jornada usa o fuso do ponto e garante início < fim também na madrugada (evita flake na CI)
 
 ## [26.09.001] - 2026-09-12
 
