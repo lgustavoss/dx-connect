@@ -80,6 +80,7 @@ import { ChatHubLayout } from './pages/chat/ChatHubLayout'
 import { ChatHubPainel } from './pages/chat/ChatHubPainel'
 import { ChatHubPlaceholder } from './pages/chat/ChatHubPlaceholder'
 import { AlterarSenha } from './pages/AlterarSenha'
+import { MinhaConta } from './pages/MinhaConta'
 import { NotificacoesPreferencias } from './pages/NotificacoesPreferencias'
 import { Sobre } from './pages/Sobre'
 import { SolicitacaoMelhoriaNovaPage } from './pages/SolicitacaoMelhoriaNova'
@@ -375,6 +376,7 @@ function AppRoutes() {
           }
         />
         <Route path="alterar-senha" element={<AlterarSenha />} />
+        <Route path="minha-conta" element={<MinhaConta />} />
         <Route path="ajuda" element={<AjudaLayout />}>
           <Route index element={<Navigate to="consultar" replace />} />
           <Route path="consultar" element={<KbConsultaSection />} />
