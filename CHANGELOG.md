@@ -9,7 +9,13 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
-- Fila de solicitações (#881): o painel mostra quem mudou o status e por qual canal; em Minhas solicitações a resposta aparece como **Desenvolvedor**
+- Fila de solicitações (#881): o painel mostra quem mudou o status e por qual canal
+
+### DeskRudder
+
+#### Melhorias
+
+- Minhas solicitações (#881): a resposta da equipe aparece como **Desenvolvedor**
 
 ## [26.09.002] - 2026-09-25
 
