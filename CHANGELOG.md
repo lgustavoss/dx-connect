@@ -5,6 +5,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+## [26.09.002] - 2026-09-25
+
 ### SaaS Control Plane
 
 #### Melhorias
@@ -22,7 +24,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - WhatsApp (#1091 / #S202609-0007): o zoom da imagem usa a área da tela, em vez de ampliar só dentro de um quadro com borda preta
 - Minha conta (#884): o usuário vê nome, e-mail, perfil e setores, e troca a própria senha informando a senha atual, sem sair da sessão
 
-#### Interno
+#### Interno / Infra
 
 - Testes de ponto: janela de jornada usa o fuso do ponto e garante início < fim também na madrugada (evita flake na CI)
 
