@@ -188,14 +188,18 @@ def exigir_fila_saas(
             continue
         pessoal = resolver_ops_mcp_token(db, raw)
         if pessoal is not None:
+            request.state.saas_fila_canal = "mcp"
             return pessoal
     if expected and presented and secrets.compare_digest(presented, expected):
+        request.state.saas_fila_canal = "mcp"
         return _actor_mcp(db)
     if expected and bearer and secrets.compare_digest(bearer, expected):
+        request.state.saas_fila_canal = "mcp"
         return _actor_mcp(db)
     if not credentials:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Não autorizado")
     atendente = _carregar_atendente_por_token(request, credentials.credentials, db)
+    request.state.saas_fila_canal = "painel"
     return exigir_saas_ops(atendente)
 
 

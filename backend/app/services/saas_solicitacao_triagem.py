@@ -17,7 +17,11 @@ from app.config import settings
 from app.models.app_cache_meta import AppCacheMeta
 from app.models.atendente import Atendente
 from app.models.cliente_saas import ClienteSaaS
-from app.models.saas_solicitacao_produto import SaasSolicitacaoProduto, SaasSolicitacaoProdutoComentario
+from app.models.saas_solicitacao_produto import (
+    SaasSolicitacaoProduto,
+    SaasSolicitacaoProdutoComentario,
+    SaasSolicitacaoProdutoHistorico,
+)
 from app.schemas.saas_solicitacao import (
     SaasSolicitacaoComentarioCreate,
     SaasSolicitacaoDetalhe,
@@ -30,6 +34,7 @@ from app.schemas.saas_solicitacao import (
 )
 from app.services import saas_solicitacao_ingest as ingest
 from app.services.solicitacao_melhoria import (
+    AUTOR_PUBLICO_CLIENTE,
     aplicar_comentario_origem_saas,
     aplicar_protocolo_origem_saas,
     aplicar_status_origem_saas,
@@ -40,6 +45,15 @@ from app.services.solicitacao_melhoria_copy import validar_transicao_status
 logger = logging.getLogger(__name__)
 
 CACHE_CHAVE_PULL = "saas_triagem_pull"
+CANAL_PAINEL = "painel"
+CANAL_MCP = "mcp"
+CANAL_RELEASE = "release"
+
+_ROTULO_CANAL = {
+    CANAL_PAINEL: "Painel",
+    CANAL_MCP: "Cursor",
+    CANAL_RELEASE: "Deploy",
+}
 
 _GH_ISSUE = re.compile(r"github\.com/([^/\s]+)/([^/\s]+)/issues/(\d+)", re.I)
 
@@ -56,6 +70,41 @@ def _tem_vinculo_github(row: SaasSolicitacaoProduto) -> bool:
     return bool(row.github_issue_number and (row.github_issue_url or "").strip())
 
 
+def rotulo_canal(canal: str) -> str:
+    return _ROTULO_CANAL.get(canal, canal)
+
+
+def registrar_historico_status(
+    db: Session,
+    row: SaasSolicitacaoProduto,
+    *,
+    status_anterior: str | None,
+    status_novo: str,
+    motivo: str | None,
+    ops: Atendente | None,
+    canal: str,
+) -> None:
+    """Grava quem mudou o status. Sem commit. Não vai para a instância do cliente."""
+    if canal == CANAL_RELEASE:
+        nome = "Deploy"
+    else:
+        nome = ((ops.nome if ops is not None else "") or "").strip() or None
+    db.add(
+        SaasSolicitacaoProdutoHistorico(
+            solicitacao_id=row.id,
+            status_anterior=status_anterior,
+            status_novo=status_novo,
+            motivo=motivo,
+            atendente_id=ops.id if ops is not None else None,
+            autor_nome=nome,
+            canal=canal,
+        )
+    )
+    row.ultimo_ator_nome = nome
+    db.add(row)
+    db.flush()
+
+
 def _aplicar_status_no_row(
     db: Session,
     row: SaasSolicitacaoProduto,
@@ -63,10 +112,12 @@ def _aplicar_status_no_row(
     *,
     status_novo: str,
     motivo_nao_desenvolvimento: str | None,
+    canal: str,
 ) -> SaasSolicitacaoProduto:
     """Valida transição (#953/#954), grava status e propaga à instância local. Sem commit."""
+    anterior = row.status
     validar_transicao_status(
-        row.status,
+        anterior,
         status_novo,
         tem_vinculo_github=_tem_vinculo_github(row),
         motivo_nao_desenvolvimento=motivo_nao_desenvolvimento,
@@ -77,6 +128,17 @@ def _aplicar_status_no_row(
     row.triagem_atualizada_em = _agora()
     db.add(row)
     db.flush()
+    if anterior != status_novo:
+        motivo = row.motivo_nao_desenvolvimento if status_novo == "nao_sera_desenvolvida" else None
+        registrar_historico_status(
+            db,
+            row,
+            status_anterior=anterior,
+            status_novo=status_novo,
+            motivo=motivo,
+            ops=ops,
+            canal=canal,
+        )
     if _deve_aplicar_local(row):
         aplicar_protocolo_origem_saas(db, row.origem_solicitacao_id, row.protocolo)
         aplicar_versao_alvo_origem_saas(db, row.origem_solicitacao_id, row.versao_alvo)
@@ -85,7 +147,7 @@ def _aplicar_status_no_row(
             row.origem_solicitacao_id,
             status_novo=row.status,
             motivo_nao_desenvolvimento=row.motivo_nao_desenvolvimento,
-            atendente_id=ops.id,
+            atendente_id=None,
         )
     return row
 
@@ -95,6 +157,8 @@ def alterar_status(
     solicitacao_id: int,
     ops: Atendente,
     data: SaasSolicitacaoStatusUpdate,
+    *,
+    canal: str = CANAL_PAINEL,
 ) -> SaasSolicitacaoDetalhe:
     row = ingest.obter(db, solicitacao_id)
     _aplicar_status_no_row(
@@ -103,6 +167,7 @@ def alterar_status(
         ops,
         status_novo=data.status,
         motivo_nao_desenvolvimento=data.motivo_nao_desenvolvimento,
+        canal=canal,
     )
     db.commit()
     return ingest.detalhe(db, ingest.obter(db, row.id))
@@ -113,6 +178,8 @@ def implementar(
     solicitacao_id: int,
     ops: Atendente,
     data: SaasSolicitacaoImplementar,
+    *,
+    canal: str = CANAL_PAINEL,
 ) -> SaasSolicitacaoDetalhe:
     """G2: garante issue GitHub e avança planejada → em_desenvolvimento."""
     row = ingest.obter(db, solicitacao_id)
@@ -141,6 +208,7 @@ def implementar(
         ops,
         status_novo="em_desenvolvimento",
         motivo_nao_desenvolvimento=None,
+        canal=canal,
     )
     db.commit()
     return ingest.detalhe(db, ingest.obter(db, row.id))
@@ -229,7 +297,7 @@ def adicionar_comentario(
             row.origem_solicitacao_id,
             corpo=comentario.corpo,
             origem_externa_id=f"saas:{comentario.id}",
-            autor_nome=comentario.autor_nome,
+            autor_nome=AUTOR_PUBLICO_CLIENTE,
         )
     db.commit()
     return ingest.detalhe(db, ingest.obter(db, row.id))
@@ -252,7 +320,7 @@ def payload_sync(row: SaasSolicitacaoProduto) -> SaasSolicitacaoSyncItem:
         SaasSolicitacaoSyncComentario(
             id=c.id,
             corpo=c.corpo,
-            autor_nome=c.autor_nome,
+            autor_nome=AUTOR_PUBLICO_CLIENTE,
             created_at=c.created_at,
         )
         for c in (row.comentarios or [])
@@ -328,7 +396,7 @@ def aplicar_pacote_sync(db: Session, item: SaasSolicitacaoSyncItem) -> bool:
             item.origem_solicitacao_id,
             corpo=c.corpo,
             origem_externa_id=f"saas:{c.id}",
-            autor_nome=c.autor_nome,
+            autor_nome=AUTOR_PUBLICO_CLIENTE,
         )
     return True
 

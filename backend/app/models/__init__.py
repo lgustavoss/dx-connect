@@ -93,6 +93,7 @@ from app.models.saas_solicitacao_produto import (
     SaasSolicitacaoProduto,
     SaasSolicitacaoProdutoAnexo,
     SaasSolicitacaoProdutoComentario,
+    SaasSolicitacaoProdutoHistorico,
 )
 
 __all__ = [
@@ -200,4 +201,5 @@ __all__ = [
     "SaasSolicitacaoProduto",
     "SaasSolicitacaoProdutoAnexo",
     "SaasSolicitacaoProdutoComentario",
+    "SaasSolicitacaoProdutoHistorico",
 ]
