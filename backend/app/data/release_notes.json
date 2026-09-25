@@ -1,56 +1,51 @@
 {
-  "current_version": "26.09.001",
-  "current_version_display": "v26.09.001",
+  "current_version": "26.09.002",
+  "current_version_display": "v26.09.002",
   "current": {
-    "version": "26.09.001",
-    "version_display": "v26.09.001",
-    "date": "2026-09-12",
+    "version": "26.09.002",
+    "version_display": "v26.09.002",
+    "date": "2026-09-25",
     "status": "published",
     "changes": [
       {
-        "product": "deskrudder",
+        "product": "saas",
         "category": "melhorias",
-        "text": "WhatsApp (#899 / #900 / #901 / #902): mídias antigas saem do disco conforme o prazo (imagem, áudio e documento 90 dias; vídeo 30 — o admin altera em Configurações → WhatsApp → Mídia). Mídia expirada mostra **Recuperar mídia**; o sistema tenta no provedor do WhatsApp. Se não houver mais, o chat mostra “Esta mídia não está mais disponível. Peça para o cliente enviar novamente.” e o prazo fica na política de privacidade"
+        "text": "Painel Ops (#1036 / #1037 / #1038 / #1039 / #1040): **Alertas operacionais** por cliente (health, readiness e stack) — escolha do cliente antes de listar; resumo, filtros, histórico e mitigação só no control-plane (não entra no Sobre da instância)"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "Ponto (#1066 / #S202609-0001): chip na barra superior com **Fora do ponto**, **Trabalhando** + tempo líquido do dia, ou **Em pausa** — atualiza na hora ao bater o ponto; clique abre Meu ponto"
+        "text": "WhatsApp (#1089 / #S202609-0002): cartão de contato recebido mostra o nome e o número e permite iniciar uma conversa com esse contato"
+      },
+      {
+        "product": "deskrudder",
+        "category": "melhorias",
+        "text": "WhatsApp (#1086 / #S202609-0003): chat iniciado pelo atendente usa o setor vinculado na assinatura; com mais de um setor, a escolha acontece antes de iniciar"
+      },
+      {
+        "product": "deskrudder",
+        "category": "melhorias",
+        "text": "Categorias (#1087 / #S202609-0004): a exclusão abre um diálogo do sistema; se houver subcategorias, elas aparecem na lista em vez do alerta do navegador"
+      },
+      {
+        "product": "deskrudder",
+        "category": "melhorias",
+        "text": "Primeiro acesso (#1088 / #S202609-0006): a troca da senha temporária mostra um alerta de que o restante do sistema fica bloqueado até a nova senha"
+      },
+      {
+        "product": "deskrudder",
+        "category": "melhorias",
+        "text": "WhatsApp (#1091 / #S202609-0007): o zoom da imagem usa a área da tela, em vez de ampliar só dentro de um quadro com borda preta"
+      },
+      {
+        "product": "deskrudder",
+        "category": "melhorias",
+        "text": "Minha conta (#884): o usuário vê nome, e-mail, perfil e setores, e troca a própria senha informando a senha atual, sem sair da sessão"
       },
       {
         "product": "deskrudder",
         "category": "interno",
-        "text": "WeasyPrint 70.0 — correção de segurança (SSRF) exigida pelo pip-audit da CI"
-      },
-      {
-        "product": "deskrudder",
-        "category": "correcoes",
-        "text": "Chat (#1067 / #S202608-0013): abrir PDF/documento no histórico ou na conversa (WhatsApp, chat interno e portal) mostra preview interno com **Voltar** e **Baixar**; Escape e clique no fundo fecham, sem prender a tela do app"
-      },
-      {
-        "product": "deskrudder",
-        "category": "correcoes",
-        "text": "Mobile (navegador e APK): alerta sonoro da fila de espera mais confiável com a app aberta — desbloqueio de áudio no login, banner «Ativar som» se o autoplay bloquear (sem precisar recarregar) e retomada do loop ao voltar ao foco"
-      },
-      {
-        "product": "deskrudder",
-        "category": "correcoes",
-        "text": "Mobile APK: banner de permissão de notificações também no app nativo; em segundo plano, notificação local com canal de som alto enquanto houver chat aguardando"
-      },
-      {
-        "product": "deskrudder",
-        "category": "correcoes",
-        "text": "Mobile (app fechada): ao ativar alertas, a inscrição Web Push / UnifiedPush passa a ser feita no mesmo gesto; o servidor reenvia push a cada 2 min enquanto houver fila (`chat.fila.remind`); PWA e APK tratam lembretes da fila com som/vibração reforçados"
-      },
-      {
-        "product": "deskrudder",
-        "category": "correcoes",
-        "text": "Mobile APK: após bloquear/desbloquear a tela, a sessão permanece (tokens em `localStorage`); o SSE reconecta ao voltar ao app e deixa de usar CapacitorHttp no stream (evita «desconectado» no reload)"
-      },
-      {
-        "product": "deskrudder",
-        "category": "correcoes",
-        "text": "Mobile APK: plantão com **Foreground Service** — notificação persistente «Há N chats aguardando» com a tela bloqueada; silenciar na mesa encerra o plantão; push continua se o OEM matar o app"
+        "text": "Testes de ponto: janela de jornada usa o fuso do ponto e garante início < fim também na madrugada (evita flake na CI)"
       }
     ]
   },
@@ -3735,6 +3730,54 @@
           "product": "deskrudder",
           "category": "correcoes",
           "text": "Mobile APK: plantão com **Foreground Service** — notificação persistente «Há N chats aguardando» com a tela bloqueada; silenciar na mesa encerra o plantão; push continua se o OEM matar o app"
+        }
+      ]
+    },
+    {
+      "version": "26.09.002",
+      "version_display": "v26.09.002",
+      "date": "2026-09-25",
+      "status": "published",
+      "changes": [
+        {
+          "product": "saas",
+          "category": "melhorias",
+          "text": "Painel Ops (#1036 / #1037 / #1038 / #1039 / #1040): **Alertas operacionais** por cliente (health, readiness e stack) — escolha do cliente antes de listar; resumo, filtros, histórico e mitigação só no control-plane (não entra no Sobre da instância)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "WhatsApp (#1089 / #S202609-0002): cartão de contato recebido mostra o nome e o número e permite iniciar uma conversa com esse contato"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "WhatsApp (#1086 / #S202609-0003): chat iniciado pelo atendente usa o setor vinculado na assinatura; com mais de um setor, a escolha acontece antes de iniciar"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Categorias (#1087 / #S202609-0004): a exclusão abre um diálogo do sistema; se houver subcategorias, elas aparecem na lista em vez do alerta do navegador"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Primeiro acesso (#1088 / #S202609-0006): a troca da senha temporária mostra um alerta de que o restante do sistema fica bloqueado até a nova senha"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "WhatsApp (#1091 / #S202609-0007): o zoom da imagem usa a área da tela, em vez de ampliar só dentro de um quadro com borda preta"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Minha conta (#884): o usuário vê nome, e-mail, perfil e setores, e troca a própria senha informando a senha atual, sem sair da sessão"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "Testes de ponto: janela de jornada usa o fuso do ponto e garante início < fim também na madrugada (evita flake na CI)"
         }
       ]
     }
