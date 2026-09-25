@@ -18,6 +18,7 @@ from check_changelog import (  # noqa: E402
     compose_changelog_for_staging_pr,
     extract_published_history,
     extract_unreleased_block,
+    has_new_published_version,
     is_deps_only_change,
     is_saas_path,
     parse_unreleased_bullets,
@@ -102,6 +103,8 @@ def test_saas_path_heuristic():
     assert is_saas_path("frontend/src/pages/saas/SaasSobre.tsx") is True
     assert is_saas_path("backend/app/api/saas.py") is True
     assert is_saas_path("backend/app/services/saas_clientes.py") is True
+    assert is_saas_path("backend/alembic/versions/136_saas_alertas_ops_1036.py") is True
+    assert is_saas_path("backend/alembic/versions/100_ponto_foo.py") is False
     assert is_saas_path("frontend/src/pages/Sobre.tsx") is False
 
 
@@ -113,6 +116,24 @@ def test_products_required_by_paths_misto():
         ]
     )
     assert needed == {"deskrudder", "saas"}
+
+
+def test_products_required_saas_com_wiring_compartilhado():
+    """Registo de rota SaaS em main/App/client não exige ### DeskRudder."""
+    needed = products_required_by_paths(
+        [
+            "backend/app/api/saas_alertas.py",
+            "backend/app/services/saas_alertas_ops.py",
+            "backend/alembic/versions/136_saas_alertas_ops_1036.py",
+            "backend/app/main.py",
+            "backend/app/config.py",
+            "backend/app/models/__init__.py",
+            "frontend/src/App.tsx",
+            "frontend/src/api/client.ts",
+            "frontend/src/pages/saas/SaasAlertas.tsx",
+        ]
+    )
+    assert needed == {"saas"}
 
 
 def test_check_changelog_script_ok_without_product_diff():
@@ -210,3 +231,10 @@ def test_extract_unreleased_block_present():
     assert block.startswith("## [Unreleased]")
     assert "WhatsApp" in block
     assert "26.08.019" not in block
+
+
+def test_has_new_published_version_passo5():
+    base = _PREAMBLE + "## [Unreleased]\n\n" + _PUBLISHED
+    head = _PREAMBLE + "## [Unreleased]\n\n## [26.09.001] - 2026-09-12\n\n- x\n\n" + _PUBLISHED
+    assert has_new_published_version(base, head) is True
+    assert has_new_published_version(head, head) is False

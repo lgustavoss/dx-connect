@@ -2,6 +2,7 @@
 import { ApiError, kb, type Kb } from '../api/client'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
@@ -34,6 +35,8 @@ export function KbCategoriasPage({ embedded = false }: { embedded?: boolean }) {
   const [form, setForm] = useState<FormState>(emptyForm())
   const [dragId, setDragId] = useState<number | null>(null)
   const [reordering, setReordering] = useState(false)
+  const [excluirAlvo, setExcluirAlvo] = useState<Kb.Category | null>(null)
+  const [excluindo, setExcluindo] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -137,19 +140,23 @@ export function KbCategoriasPage({ embedded = false }: { embedded?: boolean }) {
     }
   }
 
-  async function excluir(cat: Kb.Category) {
-    const temFilhos = categorias.some((c) => c.parent_id === cat.id)
-    const msg = temFilhos
-      ? 'Esta categoria possui subcategorias. Exclua-as primeiro.'
-      : `Excluir «${cat.nome}»? Artigos vinculados ficarão sem categoria.`
-    if (!window.confirm(msg)) return
-    if (temFilhos) return
+  const filhosExcluir = excluirAlvo
+    ? categorias.filter((c) => c.parent_id === excluirAlvo.id)
+    : []
+  const bloqueiaExcluir = filhosExcluir.length > 0
+
+  async function confirmarExcluir() {
+    if (!excluirAlvo || bloqueiaExcluir) return
+    setExcluindo(true)
     try {
-      await kb.deleteCategory(cat.id)
+      await kb.deleteCategory(excluirAlvo.id)
       toast.showSuccess('Categoria excluída.')
+      setExcluirAlvo(null)
       load()
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível excluir.'))
+    } finally {
+      setExcluindo(false)
     }
   }
 
@@ -231,7 +238,7 @@ export function KbCategoriasPage({ embedded = false }: { embedded?: boolean }) {
                         <Button type="button" variant="secondary" onClick={() => abrirEditar(categoria)}>
                           Editar
                         </Button>
-                        <Button type="button" variant="secondary" onClick={() => excluir(categoria)}>
+                        <Button type="button" variant="secondary" onClick={() => setExcluirAlvo(categoria)}>
                           Excluir
                         </Button>
                       </div>
@@ -301,6 +308,40 @@ export function KbCategoriasPage({ embedded = false }: { embedded?: boolean }) {
           </form>
         </div>
       ) : null}
+
+      <ConfirmDialog
+        open={excluirAlvo != null}
+        title={bloqueiaExcluir ? 'Não é possível excluir' : 'Excluir categoria'}
+        message={
+          bloqueiaExcluir
+            ? 'Esta categoria possui subcategorias. Exclua-as primeiro.'
+            : `Excluir «${excluirAlvo?.nome ?? ''}»? Artigos vinculados ficarão sem categoria.`
+        }
+        confirmLabel="Excluir"
+        cancelLabel="Cancelar"
+        variant="danger"
+        hideActions={bloqueiaExcluir}
+        loading={excluindo}
+        onConfirm={() => void confirmarExcluir()}
+        onCancel={() => {
+          if (!excluindo) setExcluirAlvo(null)
+        }}
+      >
+        {bloqueiaExcluir ? (
+          <>
+            <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700 dark:text-slate-200">
+              {filhosExcluir.map((filha) => (
+                <li key={filha.id}>{filha.nome}</li>
+              ))}
+            </ul>
+            <div className="mt-4 flex justify-end">
+              <Button type="button" onClick={() => setExcluirAlvo(null)}>
+                Entendi
+              </Button>
+            </div>
+          </>
+        ) : null}
+      </ConfirmDialog>
     </ConfigListPageShell>
   )
 }

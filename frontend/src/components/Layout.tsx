@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Outlet, Navigate, useLocation } from 'react-router-dom'
+import { Outlet, Navigate, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Sidebar } from './Sidebar'
 import { ThemeToggle } from './ThemeToggle'
@@ -156,10 +156,14 @@ function LayoutInner() {
           <NavbarNotificacoes enabled={notificacoesEnabled} />
           <ThemeToggle />
           <PontoHeaderChip />
-          <div className="hidden min-w-0 max-w-[7rem] shrink text-right sm:block md:max-w-[10rem] lg:max-w-none">
+          <Link
+            to="/minha-conta"
+            title="Minha conta"
+            className="hidden min-w-0 max-w-[7rem] shrink rounded-lg px-2 py-1 text-right hover:bg-slate-100 sm:block md:max-w-[10rem] lg:max-w-none dark:hover:bg-slate-800"
+          >
             <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{user?.nome}</p>
             <p className="truncate text-xs text-slate-500 dark:text-slate-400">{perfilExibicao(user?.role)}</p>
-          </div>
+          </Link>
         </header>
 
         {notificacoesEnabled && !isCapacitorNative() && !ocultarHeaderMobile ? <PwaInstallBanner enabled /> : null}

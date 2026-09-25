@@ -97,6 +97,8 @@ import { WhatsappInatividadeControle } from './WhatsappInatividadeControle'
 import { mergeTimelineChat, textoMarcoDemanda } from '../../lib/whatsappDemandaUtils'
 import { rotuloDownloadArquivo, visualTipoArquivo } from '../../lib/fileTypeIcon'
 import { CONTATO_CLIENTE } from '../../constants/contatoClienteLabels'
+import { contatosNaMensagem } from '../../lib/contatoWhatsappMensagem'
+import { ChatIniciarConversaModal } from '../../components/chat/ChatIniciarConversaModal'
 
 const ROTULO_SEM_LEGENDA =
   /^(?:\[\s*[^\]]+\s*\]:\s*)?\[(Imagem|Áudio|Vídeo|Documento|Figurinha|Contacto|Localização)(\s+enviad[oa])?\]$/i
@@ -153,11 +155,13 @@ function ConteudoMensagemWhatsApp({
   m,
   onImageClick,
   onVideoClick,
+  onIniciarContato,
 }: {
   chatId: number
   m: WhatsappChats.Mensagem
   onImageClick: (msgId: number) => void
   onVideoClick: (msgId: number) => void
+  onIniciarContato?: (contato: { nome: string; telefone: string | null }) => void
 }) {
 
   const tipo = (m.tipo_midia || 'texto').toLowerCase()
@@ -210,7 +214,37 @@ function ConteudoMensagemWhatsApp({
 
   const legenda = legendaMidiaVisivel(m.corpo)
 
-  if (tipo === 'texto' || !m.tipo_midia) return <TextoComLinks texto={m.corpo} />
+  if (tipo === 'texto' || !m.tipo_midia) {
+    const contatos = contatosNaMensagem(m.corpo)
+    if (contatos) {
+      return (
+        <div className="space-y-2">
+          {contatos.map((contato, index) => (
+            <div
+              key={`${contato.nome}-${contato.telefone ?? index}`}
+              className="min-w-[200px] rounded-xl bg-black/5 px-3 py-2 dark:bg-white/10"
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-wide opacity-70">Contato</p>
+              <p className="font-semibold">{contato.nome}</p>
+              <p className="text-sm">
+                {contato.telefone || 'O número não veio neste cartão.'}
+              </p>
+              {onIniciarContato ? (
+                <button
+                  type="button"
+                  className="mt-2 text-sm font-semibold underline"
+                  onClick={() => onIniciarContato(contato)}
+                >
+                  Iniciar conversa
+                </button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )
+    }
+    return <TextoComLinks texto={m.corpo} />
+  }
 
   if (indisponivel) {
     return <p className="text-xs italic opacity-70">{MSG_MIDIA_WHATSAPP_INDISPONIVEL}</p>
@@ -705,6 +739,10 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
   })
   const [modoInterno, setModoInterno] = useState(false)
   const [modalAssumirSetor, setModalAssumirSetor] = useState(false)
+  const [contatoParaIniciar, setContatoParaIniciar] = useState<{
+    nome: string
+    telefone: string | null
+  } | null>(null)
 
   // Transferência
   const [modalTransferir, setModalTransferir] = useState(false)
@@ -2419,6 +2457,7 @@ useEffect(() => {
                       m={m}
                       onImageClick={(msgId) => setZoomMsgId(msgId)}
                       onVideoClick={(msgId) => setVideoZoomMsgId(msgId)}
+                      onIniciarContato={(contato) => setContatoParaIniciar(contato)}
                     />
 
                     {!isSystem && (
@@ -2797,6 +2836,13 @@ useEffect(() => {
         loading={assumindo}
         onClose={() => setModalAssumirSetor(false)}
         onConfirm={(setorId) => void executarAssumirChat(setorId)}
+      />
+
+      <ChatIniciarConversaModal
+        open={contatoParaIniciar != null}
+        onClose={() => setContatoParaIniciar(null)}
+        telefoneInicial={contatoParaIniciar?.telefone}
+        titulo={contatoParaIniciar ? `Contactar ${contatoParaIniciar.nome}` : undefined}
       />
 
       {modoHub && (

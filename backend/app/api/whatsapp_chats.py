@@ -1318,6 +1318,7 @@ def iniciar_chat_outbound(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Já existe um atendimento aberto deste contacto com outro responsável.",
                 )
+            _aplicar_setor_ao_assumir(db, existente, atendente, data.setor_id)
             estado_anterior = existente.estado
             if existente.estado == "aguardando_atendente" or existente.atendente_id is None:
                 from app.services.ponto_hora_extra import exigir_pode_pegar_whatsapp
@@ -1344,6 +1345,9 @@ def iniciar_chat_outbound(
                 if func is not None and not existente.funcionario_rede_id:
                     existente.funcionario_rede_id = func.id
                 _aplicar_empresa_contexto_chat(db, atendente, existente, data.empresa_id)
+                db.commit()
+                db.refresh(existente)
+            elif db.is_modified(existente):
                 db.commit()
                 db.refresh(existente)
             msg_init = (data.mensagem_inicial or "").strip()
@@ -1376,6 +1380,7 @@ def iniciar_chat_outbound(
         )
         db.add(chat)
         db.flush()
+        _aplicar_setor_ao_assumir(db, chat, atendente, data.setor_id)
         audit_whatsapp_chat(
             db,
             chat_id=chat.id,

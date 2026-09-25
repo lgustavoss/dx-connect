@@ -101,6 +101,10 @@ class Settings(BaseSettings):
     # Renovações (DR-08): janela de alerta antes do vencimento.
     SAAS_RENEWAL_ALERT_DAYS_BEFORE: int = 14
     SAAS_RENEWAL_WORKER_INTERVAL_SECONDS: int = 3600
+    # Alertas operacionais por instância (#1036 / #1037).
+    SAAS_ALERTAS_OPS_INTERVAL_SECONDS: int = 120
+    SAAS_ALERTAS_OPS_PROBE_TIMEOUT_SECONDS: int = 5
+    SAAS_ALERTAS_OPS_PROBE_FALHAS: int = 2
     # Provisionamento (DR-04): worker + execução opcional dos scripts do host.
     SAAS_PROVISION_WORKER_INTERVAL_SECONDS: int = 30
     SAAS_PROVISION_EXEC_ENABLED: bool = False

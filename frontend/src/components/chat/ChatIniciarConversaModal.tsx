@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { whatsappChats, type WhatsappChats } from '../../api/client'
+import { setores, whatsappChats, type Setores, type WhatsappChats } from '../../api/client'
+import { coletarTodasPaginas } from '../../api/collectPages'
 import { Button } from '../../components/ui/Button'
 import { Input, TEXTAREA_FIELD_CLASS } from '../../components/ui/Input'
 import { SelectComPesquisa } from '../../components/ui/SelectComPesquisa'
@@ -9,6 +10,7 @@ import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { chatWhatsappLink } from '../../lib/chatHubPaths'
 import { gravarChatAtivoSession } from '../../lib/chatAtivo'
 import { useChatHubOpcional } from '../../contexts/ChatHubContext'
+import { useAuth } from '../../contexts/AuthContext'
 
 type Props = {
   open: boolean
@@ -34,9 +36,14 @@ export function ChatIniciarConversaModal({
   const toast = useToast()
   const navigate = useNavigate()
   const hub = useChatHubOpcional()
+  const { user } = useAuth()
   const [telefone, setTelefone] = useState('')
   const [mensagem, setMensagem] = useState('')
   const [empresaId, setEmpresaId] = useState<number | ''>('')
+  const [setorId, setSetorId] = useState<number | ''>('')
+  const [setoresLista, setSetoresLista] = useState<Setores.Setor[]>([])
+  const [carregandoSetores, setCarregandoSetores] = useState(false)
+  const [erroCargaSetores, setErroCargaSetores] = useState(false)
   const [salvando, setSalvando] = useState(false)
 
   const empresasLista = useMemo(() => {
@@ -47,17 +54,52 @@ export function ChatIniciarConversaModal({
 
   const multiEmpresa = empresasLista.length > 1
   const precisaTelefone = !(contato?.telefone || telefoneInicial)
+  const setorIds = user?.setor_ids ?? []
+  const escolherSetor = setorIds.length > 1
+
+  const setoresOpcoes = useMemo(() => {
+    const ids = new Set(setorIds)
+    return setoresLista
+      .filter((s) => ids.has(s.id) && s.ativo !== false)
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  }, [setoresLista, setorIds])
 
   useEffect(() => {
     if (!open) return
     setTelefone(contato?.telefone || telefoneInicial || '')
     setMensagem('')
+    setSetorId('')
     if (empresasLista.length === 1) {
       setEmpresaId(empresasLista[0].id)
     } else {
       setEmpresaId('')
     }
   }, [open, contato, telefoneInicial, empresasLista])
+
+  useEffect(() => {
+    if (!open || !escolherSetor) return
+    let cancelado = false
+    setCarregandoSetores(true)
+    setErroCargaSetores(false)
+    void coletarTodasPaginas<Setores.Setor>((o, l) =>
+      setores.list({ incluir_inativos: false, offset: o, limit: l }),
+    )
+      .then((items) => {
+        if (!cancelado) setSetoresLista(items)
+      })
+      .catch(() => {
+        if (!cancelado) {
+          setSetoresLista([])
+          setErroCargaSetores(true)
+        }
+      })
+      .finally(() => {
+        if (!cancelado) setCarregandoSetores(false)
+      })
+    return () => {
+      cancelado = true
+    }
+  }, [open, escolherSetor])
 
   if (!open) return null
 
@@ -72,6 +114,10 @@ export function ChatIniciarConversaModal({
       toast.showWarning('Informe o número WhatsApp do contato.')
       return
     }
+    if (escolherSetor && setorId === '') {
+      toast.showWarning('Selecione o setor deste atendimento.')
+      return
+    }
     setSalvando(true)
     try {
       const chat = await whatsappChats.iniciar({
@@ -79,6 +125,7 @@ export function ChatIniciarConversaModal({
         telefone: digits || undefined,
         mensagem_inicial: mensagem.trim() || undefined,
         empresa_id: empresaId === '' ? undefined : Number(empresaId),
+        setor_id: setorId === '' ? undefined : Number(setorId),
       })
       onClose()
       if (hub) hub.abrirChat('whatsapp', chat.id)
@@ -133,6 +180,50 @@ export function ChatIniciarConversaModal({
               </p>
             </div>
           )}
+          {escolherSetor && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Setor</p>
+              <p className="text-[11px] text-slate-500">
+                Você atende em mais de um setor. O nome escolhido aparece na assinatura enviada ao
+                cliente.
+              </p>
+              <div role="radiogroup" aria-label="Setor do atendimento" className="flex flex-col gap-2">
+                {carregandoSetores ? (
+                  <p className="text-sm text-slate-500">Carregando setores…</p>
+                ) : erroCargaSetores ? (
+                  <p className="text-sm text-red-600 dark:text-red-400">
+                    Não foi possível carregar os setores. Feche e tente de novo.
+                  </p>
+                ) : setoresOpcoes.length === 0 ? (
+                  <p className="text-sm text-amber-700 dark:text-amber-300">
+                    Nenhum setor ativo encontrado no seu vínculo. Peça a um admin para rever os setores
+                    do seu usuário.
+                  </p>
+                ) : (
+                  setoresOpcoes.map((s) => {
+                    const selected = setorId === s.id
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        disabled={salvando}
+                        onClick={() => setSetorId(s.id)}
+                        className={`flex min-h-11 w-full items-center rounded-xl px-3 py-2.5 text-left text-sm ${
+                          selected
+                            ? 'bg-slate-900 font-medium text-white dark:bg-cyan-600'
+                            : 'bg-slate-50 text-slate-800 ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-slate-800/60 dark:text-slate-100 dark:ring-slate-700'
+                        }`}
+                      >
+                        {s.nome}
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+            </div>
+          )}
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
             Mensagem inicial (opcional)
             <textarea
@@ -149,7 +240,15 @@ export function ChatIniciarConversaModal({
           <Button type="button" variant="cancel" onClick={onClose} disabled={salvando}>
             Cancelar
           </Button>
-          <Button type="button" onClick={() => void confirmar()} loading={salvando}>
+          <Button
+            type="button"
+            onClick={() => void confirmar()}
+            loading={salvando}
+            disabled={
+              escolherSetor &&
+              (setorId === '' || carregandoSetores || erroCargaSetores || setoresOpcoes.length === 0)
+            }
+          >
             Iniciar conversa
           </Button>
         </div>

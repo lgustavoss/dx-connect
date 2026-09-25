@@ -1,15 +1,47 @@
 """HE antecipada + teto (#966)."""
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.services.escala import PONTO_TZ
 
 
-def _patch_jornada_semanal(client, headers, atendente_id: int, *, fim="23:59"):
+def _janela_encerrada(*, agora: datetime | None = None, fim: str | None = None) -> tuple[str, str]:
+    """Retorna (inicio, fim) com início < fim e fim já no passado (TZ do ponto)."""
+    import pytest
+
+    agora = agora or datetime.now(PONTO_TZ)
+    if fim is not None:
+        fh, fm = (int(x) for x in fim.split(":"))
+        fim_dt = agora.replace(hour=fh, minute=fm, second=0, microsecond=0)
+        if fim_dt < agora:
+            inicio_dt = fim_dt - timedelta(hours=2)
+            if inicio_dt.date() == fim_dt.date():
+                inicio = inicio_dt.strftime("%H:%M")
+                if inicio < fim:
+                    return inicio, fim
+            elif fim > "00:00":
+                return "00:00", fim
+
+    fim_dt = agora - timedelta(minutes=30)
+    inicio_dt = agora - timedelta(hours=2)
+    if fim_dt.date() < agora.date() or inicio_dt.date() < agora.date():
+        if agora.hour == 0 and agora.minute < 5:
+            pytest.skip("janela de teste instável nos primeiros minutos após meia-noite")
+        inicio = "00:00"
+        fim_s = (agora - timedelta(minutes=2)).strftime("%H:%M")
+        if inicio >= fim_s:
+            pytest.skip("janela de teste instável nos primeiros minutos após meia-noite")
+        return inicio, fim_s
+    return inicio_dt.strftime("%H:%M"), fim_dt.strftime("%H:%M")
+
+
+def _patch_jornada_semanal(client, headers, atendente_id: int, *, fim: str | None = None):
     keys = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"]
-    hoje_key = keys[date.today().weekday()]
+    agora = datetime.now(PONTO_TZ)
+    hoje_key = keys[agora.weekday()]
+    inicio, fim_ok = _janela_encerrada(agora=agora, fim=fim)
     hs = {k: {"ativo": False, "inicio": "08:00", "fim": "18:00"} for k in keys}
-    hs[hoje_key] = {"ativo": True, "inicio": "06:00", "fim": fim}
+    hs[hoje_key] = {"ativo": True, "inicio": inicio, "fim": fim_ok}
     return client.patch(
         f"/v1/atendentes/{atendente_id}",
         headers=headers,
@@ -31,7 +63,24 @@ def test_conceder_he_antecipada_durante_jornada(client, seed_base, auth_headers,
         "app.services.ponto._agora_utc",
         lambda: agora.astimezone(timezone.utc),
     )
-    assert _patch_jornada_semanal(client, admin, a1.id, fim="18:00").status_code == 200
+    # Durante a jornada: início < agora < fim (não usa janela “encerrada”).
+    keys = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"]
+    hoje_key = keys[agora.weekday()]
+    hs = {k: {"ativo": False, "inicio": "08:00", "fim": "18:00"} for k in keys}
+    hs[hoje_key] = {"ativo": True, "inicio": "06:00", "fim": "18:00"}
+    assert (
+        client.patch(
+            f"/v1/atendentes/{a1.id}",
+            headers=admin,
+            json={
+                "modo_jornada": "semanal",
+                "usa_escala": True,
+                "horario_semana": hs,
+                "tolerancia_atraso_minutos": 0,
+            },
+        ).status_code
+        == 200
+    )
     r = client.post(
         "/v1/ponto/hora-extra/conceder",
         headers=admin,
@@ -110,8 +159,7 @@ def test_he_ativa_libera_apos_jornada(client, seed_base, auth_headers, db_sessio
         json={"atendente_id": a1.id, "modo": "duracao", "duracao_minutos": 120},
     ).status_code == 201
     # Força fim da jornada no passado
-    fim = (datetime.now(PONTO_TZ) - timedelta(hours=1)).strftime("%H:%M")
-    assert _patch_jornada_semanal(client, admin, a1.id, fim=fim).status_code == 200
+    assert _patch_jornada_semanal(client, admin, a1.id).status_code == 200
     chat = WhatsappChat(
         wa_id="5511999999660",
         protocolo="WPP-TEST-966",

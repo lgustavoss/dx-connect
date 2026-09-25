@@ -80,6 +80,7 @@ from app.models.implantacao_checklist import (
 from app.models.cliente_saas import ClienteSaaS
 from app.models.saas_setor import SaasSetor, saas_ops_setor
 from app.models.saas_alerta_emitido import SaasAlertaEmitido
+from app.models.saas_alerta_ops import SaasAlertaOps, SaasAlertaOpsEvento
 from app.models.lead_comercial import LeadComercial
 from app.models.saas_plano import SaasModulo, SaasPlano, SaasPlanoModulo
 from app.models.solicitacao_melhoria import (
@@ -193,6 +194,8 @@ __all__ = [
     "TicketChecklistItem",
     "ClienteSaaS",
     "SaasAlertaEmitido",
+    "SaasAlertaOps",
+    "SaasAlertaOpsEvento",
     "LeadComercial",
     "SaasSolicitacaoProduto",
     "SaasSolicitacaoProdutoAnexo",

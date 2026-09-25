@@ -1494,6 +1494,7 @@ export const whatsappChats = {
     telefone?: string | null
     mensagem_inicial?: string | null
     empresa_id?: number | null
+    setor_id?: number | null
   }) =>
     api<WhatsappChats.Chat>('/whatsapp/chats/iniciar', {
       method: 'POST',
@@ -5804,6 +5805,67 @@ export const saasSetores = {
     api<SaasSetores.Setor>('/saas/setores', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: number, data: { nome?: string; ativo?: boolean }) =>
     api<SaasSetores.Setor>(`/saas/setores/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+};
+
+export namespace SaasAlertasOps {
+  export type Severidade = 'amarelo' | 'vermelho'
+  export type Estado = 'ativo' | 'mitigado' | 'resolvido'
+  export interface Evento {
+    id: number
+    tipo: string
+    mensagem: string
+    payload?: Record<string, unknown> | null
+    created_at: string
+  }
+  export interface Alerta {
+    id: number
+    cliente_saas_id: number
+    cliente_nome?: string | null
+    cliente_slug?: string | null
+    codigo_sinal: string
+    modulo: string
+    severidade: Severidade
+    estado: Estado
+    ciclo_id: number
+    titulo: string
+    started_at: string
+    mitigated_at?: string | null
+    resolved_at?: string | null
+    last_seen_at: string
+    evidencia?: Record<string, unknown> | null
+    eventos?: Evento[]
+  }
+  export interface Lista {
+    items: Alerta[]
+    total: number
+  }
+  export interface Resumo {
+    alertas_ativos: number
+    por_severidade: Record<string, number>
+    instancias_afetadas: number
+    modulos_mais_incidentes: Array<{ modulo: string; total: number }>
+  }
+}
+
+export const saasAlertasOps = {
+  resumo: (params?: { cliente_saas_id?: number }) =>
+    api<SaasAlertasOps.Resumo>(withParams('/saas/alertas/resumo', params)),
+  list: (params: {
+    cliente_saas_id: number
+    estado?: string
+    severidade?: string
+    modulo?: string
+    offset?: number
+    limit?: number
+  }) => api<SaasAlertasOps.Lista>(withParams('/saas/alertas', params)),
+  get: (id: number) => api<SaasAlertasOps.Alerta>(`/saas/alertas/${id}`),
+  porCliente: (clienteId: number, params?: { limit?: number }) =>
+    api<SaasAlertasOps.Lista>(withParams(`/saas/alertas/cliente/${clienteId}`, params)),
+  mitigar: (id: number, data?: { mensagem?: string }) =>
+    api<SaasAlertasOps.Alerta>(`/saas/alertas/${id}/mitigar`, {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    }),
 };
 
 export namespace SaasSolicitacoesProduto {

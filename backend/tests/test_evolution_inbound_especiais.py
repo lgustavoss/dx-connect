@@ -22,8 +22,51 @@ def test_inbound_contacto():
     }
     item = _one(body)
     assert item["tipo"] == "texto"
-    assert "Maria Silva" in item["corpo"]
+    assert item["corpo"].startswith("[Contato] Maria Silva")
     assert "5511987654321" in item["corpo"]
+
+
+def test_inbound_contacto_waid_item_tel():
+    body = {
+        "event": "messages.upsert",
+        "data": {
+            "key": {"remoteJid": "5511999999999@s.whatsapp.net", "fromMe": False, "id": "c2"},
+            "message": {
+                "contactMessage": {
+                    "displayName": "Cristina Ciabotti",
+                    "vcard": (
+                        "BEGIN:VCARD\nVERSION:3.0\nFN:Cristina Ciabotti\n"
+                        "item1.TEL;waid=5511987654321:+55 11 98765-4321\n"
+                        "item1.X-ABLabel:Celular\nEND:VCARD"
+                    ),
+                }
+            },
+        },
+    }
+    item = _one(body)
+    assert item["corpo"] == "[Contato] Cristina Ciabotti — 5511987654321"
+
+
+def test_inbound_contactos_array():
+    body = {
+        "event": "messages.upsert",
+        "data": {
+            "key": {"remoteJid": "5511999999999@s.whatsapp.net", "fromMe": False, "id": "c3"},
+            "message": {
+                "contactsArrayMessage": {
+                    "contacts": [
+                        {
+                            "displayName": "Ana",
+                            "vcard": "BEGIN:VCARD\nFN:Ana\nTEL:+5511977776666\nEND:VCARD",
+                        }
+                    ]
+                }
+            },
+        },
+    }
+    item = _one(body)
+    assert "Ana" in item["corpo"]
+    assert "5511977776666" in item["corpo"]
 
 
 def test_inbound_localizacao():

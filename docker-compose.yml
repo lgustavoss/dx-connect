@@ -107,8 +107,11 @@ services:
     volumes:
       # Código + tests + pytest.ini do host (evita rebuild só por alteração em tests/).
       - ./backend:/app
-      # scripts/ na raiz (check_changelog, ci_detect_changes) — pytest no Docker importa daqui.
+      # No container o backend fica em /app, então parents[2] dos testes é /.
+      # scripts, .github e deploy são montados aí para o pytest achar a raiz do repo.
       - ./scripts:/scripts:ro
+      - ./.github:/.github:ro
+      - ./deploy:/deploy:ro
 
 volumes:
   postgres_data:
