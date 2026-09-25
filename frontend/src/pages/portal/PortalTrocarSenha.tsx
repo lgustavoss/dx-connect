@@ -5,6 +5,7 @@ import { usePortalAuth } from '../../contexts/PortalAuthContext'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
+import { AlertaSenhaTemporaria } from '../../components/ui/AlertaSenhaTemporaria'
 
 const fieldClass =
   'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-[0.9375rem] text-slate-900 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/25'
@@ -50,6 +51,7 @@ export function PortalTrocarSenha() {
     <div className="mx-auto w-full min-w-0 max-w-md space-y-5">
       <div>
         <h1 className="text-xl font-semibold text-slate-900">Definir nova senha</h1>
+        {user.must_change_password ? <AlertaSenhaTemporaria /> : null}
         <p className="mt-1 text-sm text-slate-600">
           Por segurança, altere a senha temporária antes de continuar.
         </p>

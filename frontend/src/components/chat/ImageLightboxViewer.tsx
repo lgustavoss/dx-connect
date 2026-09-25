@@ -105,15 +105,15 @@ export function ImageLightboxViewer({ src, alt = '' }: Props) {
   return (
     <div
       ref={rootRef}
-      className="relative flex max-h-[85vh] max-w-full flex-col items-center gap-3"
+      className="relative flex h-[calc(100dvh-2rem)] w-full min-h-0 flex-col items-center gap-3"
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="flex max-h-[calc(85vh-3.5rem)] max-w-full items-center justify-center overflow-hidden">
+      <div className="flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden">
         <img
           src={src}
           alt={alt}
           draggable={false}
-          className="max-h-[calc(85vh-3.5rem)] max-w-full touch-none select-none object-contain shadow-2xl"
+          className="max-h-full max-w-full touch-none select-none object-contain shadow-2xl"
           style={{
             transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale}) rotate(${rotation}deg)`,
             cursor: dragging ? 'grabbing' : scale > 1 || offset.x !== 0 || offset.y !== 0 ? 'grab' : 'zoom-in',
