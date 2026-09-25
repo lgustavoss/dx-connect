@@ -12,7 +12,7 @@ pydantic-settings==2.15.0
 PyJWT[crypto]==2.14.0
 cryptography>=50.0.1
 bcrypt>=5.0.0,<6
-svix>=2.3.0
+svix>=2.5.0
 pywebpush==2.5.0
 weasyprint==70.0
 openpyxl==3.1.5
