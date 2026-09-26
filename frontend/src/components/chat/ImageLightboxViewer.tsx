@@ -105,7 +105,7 @@ export function ImageLightboxViewer({ src, alt = '' }: Props) {
   return (
     <div
       ref={rootRef}
-      className="relative flex h-[calc(100dvh-2rem)] w-full min-h-0 flex-col items-center gap-3"
+      className="relative flex h-full min-h-0 w-full max-h-full flex-col items-center gap-3 overflow-hidden"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden">

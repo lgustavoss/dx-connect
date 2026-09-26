@@ -86,10 +86,13 @@ import { useTicketsAbertosContato } from '../../hooks/useTicketsAbertosContato'
 import {
   marcarWhatsappChatAtivo,
   whatsappConversaLink,
+  caminhoVoltaHistoricoSeguro,
   resolveWhatsappListFallback,
   WHATSAPP_LIST_PATHS,
+  type WhatsappListReturnState,
 } from '../../lib/whatsappListReturn'
 import { useChatHub } from '../../contexts/ChatHubContext'
+import { AtendimentosAnterioresFaixa } from '../../components/chat/AtendimentosAnterioresFaixa'
 import { ChatFilaAguardandoSheet } from '../../components/chat/ChatFilaAguardandoSheet'
 import { chatWhatsappLink } from '../../lib/chatHubPaths'
 import { marcarTicketAtivo, TICKETS_PATH } from '../../lib/ticketAtivo'
@@ -434,60 +437,63 @@ function WhatsappZoomLightbox({
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/90 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[200] flex flex-col bg-black/90 p-4 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={onClose}
     >
-      <button
-        type="button"
-        className="absolute top-4 right-4 flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-white/10 text-3xl font-bold text-white transition-colors touch-manipulation hover:bg-white/20"
-        onClick={onClose}
-        aria-label="Fechar"
+      <div className="z-30 flex h-12 shrink-0 items-center justify-between" onClick={(e) => e.stopPropagation()}>
+        {index >= 0 && galeria.length > 1 ? (
+          <p className="text-sm font-medium text-white/80">
+            {index + 1} / {galeria.length}
+          </p>
+        ) : (
+          <span />
+        )}
+        <button
+          type="button"
+          className="flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-white/15 text-3xl font-bold text-white transition-colors touch-manipulation hover:bg-white/25"
+          onClick={onClose}
+          aria-label="Fechar"
+        >
+          &times;
+        </button>
+      </div>
+      <div
+        className="relative z-0 flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
       >
-        &times;
-      </button>
-      {index >= 0 && galeria.length > 1 && (
-        <p className="absolute top-5 left-1/2 -translate-x-1/2 text-sm font-medium text-white/80">
-          {index + 1} / {galeria.length}
-        </p>
-      )}
-      {podePrev && (
-        <button
-          type="button"
-          className="absolute left-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-2xl text-white hover:bg-white/20 sm:left-6"
-          onClick={(e) => {
-            e.stopPropagation()
-            onChangeMsgId(galeria[index - 1].id)
-          }}
-          aria-label="Imagem anterior"
-        >
-          ‹
-        </button>
-      )}
-      {podeNext && (
-        <button
-          type="button"
-          className="absolute right-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-2xl text-white hover:bg-white/20 sm:right-6"
-          onClick={(e) => {
-            e.stopPropagation()
-            onChangeMsgId(galeria[index + 1].id)
-          }}
-          aria-label="Próxima imagem"
-        >
-          ›
-        </button>
-      )}
-      {indisponivel ? (
-        <p className="max-w-md text-center text-sm text-white/80">{MSG_MIDIA_WHATSAPP_INDISPONIVEL}</p>
-      ) : temporaria ? (
-        <p className="max-w-md text-center text-sm text-white/80">{MSG_MIDIA_WHATSAPP_TEMPORARIA}</p>
-      ) : loading || !url ? (
-        <p className="text-sm text-white/70 animate-pulse">Carregando imagem…</p>
-      ) : (
-        <ImageLightboxViewer src={url} />
-      )}
+        {podePrev && (
+          <button
+            type="button"
+            className="absolute left-1 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-2xl text-white hover:bg-white/20 sm:left-2"
+            onClick={() => onChangeMsgId(galeria[index - 1].id)}
+            aria-label="Imagem anterior"
+          >
+            ‹
+          </button>
+        )}
+        {podeNext && (
+          <button
+            type="button"
+            className="absolute right-1 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-2xl text-white hover:bg-white/20 sm:right-2"
+            onClick={() => onChangeMsgId(galeria[index + 1].id)}
+            aria-label="Próxima imagem"
+          >
+            ›
+          </button>
+        )}
+        {indisponivel ? (
+          <p className="max-w-md text-center text-sm text-white/80">{MSG_MIDIA_WHATSAPP_INDISPONIVEL}</p>
+        ) : temporaria ? (
+          <p className="max-w-md text-center text-sm text-white/80">{MSG_MIDIA_WHATSAPP_TEMPORARIA}</p>
+        ) : loading || !url ? (
+          <p className="animate-pulse text-sm text-white/70">Carregando imagem…</p>
+        ) : (
+          <ImageLightboxViewer src={url} />
+        )}
+      </div>
       {caption && (
         <p
-          className="mt-4 max-w-2xl rounded-xl bg-black/40 px-4 py-2 text-center text-sm text-white backdrop-blur-md"
+          className="mt-3 max-w-2xl shrink-0 self-center rounded-xl bg-black/40 px-4 py-2 text-center text-sm text-white backdrop-blur-md"
           onClick={(e) => e.stopPropagation()}
         >
           {caption}
@@ -497,10 +503,10 @@ function WhatsappZoomLightbox({
         <a
           href={url}
           download="whatsapp-imagem.jpg"
-          className="absolute bottom-4 right-4 flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-cyan-600/30 transition-all hover:scale-105 hover:bg-cyan-700"
+          className="z-30 mt-3 shrink-0 self-end rounded-xl bg-cyan-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-cyan-600/30 transition-all hover:bg-cyan-700"
           onClick={(e) => e.stopPropagation()}
         >
-          📥 Baixar Imagem
+          Baixar imagem
         </a>
       )}
     </div>
@@ -656,9 +662,11 @@ const WA_DETALHES_SESSION_KEY = 'deskrudder-wa-conversa-detalhes'
 type WhatsappConversaProps = {
   /** Conversa aberta pelo hub (sem id na URL) (#654). */
   chatIdProp?: number
+  /** Consulta a partir do histórico: fora da mesa e somente leitura (#1102). */
+  modoConsulta?: boolean
 }
 
-export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
+export function WhatsappConversa({ chatIdProp, modoConsulta = false }: WhatsappConversaProps = {}) {
 
   const { chatId } = useParams<{ chatId: string }>()
 
@@ -780,6 +788,13 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
     searchParams.get('from'),
     WHATSAPP_LIST_PATHS.atendendo,
   )
+  const voltarConsulta = useCallback(() => {
+    const daUrl = caminhoVoltaHistoricoSeguro(searchParams.get('volta'))
+    const doState = caminhoVoltaHistoricoSeguro(
+      (location.state as WhatsappListReturnState | null)?.whatsappListReturn,
+    )
+    navigate(daUrl || doState || '/whatsapp/historico')
+  }, [location.state, navigate, searchParams])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -823,11 +838,14 @@ export function WhatsappConversa({ chatIdProp }: WhatsappConversaProps = {}) {
       }
       // Sai para lista segura — nunca history.back pela pilha de chats (#653)
       e.preventDefault()
-      sairParaListaSegura()
+      if (modoConsulta) voltarConsulta()
+      else sairParaListaSegura()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [
+    modoConsulta,
+    voltarConsulta,
     sairParaListaSegura,
     modalEncerrar,
     zoomMsgId,
@@ -1686,9 +1704,15 @@ useEffect(() => {
           ? `Este chat está com ${chat.atendente_nome || 'outro atendente'}.`
           : undefined
 
-  const modoHub = chatIdProp != null || location.pathname.startsWith('/chat/')
+  const modoHub = !modoConsulta && (chatIdProp != null || location.pathname.startsWith('/chat/'))
 
-  const podeAceitarDrop = Boolean(podeEnviar && !encerrado && !modoInterno && !enviando)
+  function abrirNaMesa() {
+    if (!chat) return
+    abrirChat('whatsapp', chat.id)
+    navigate(chatWhatsappLink('atendendo'))
+  }
+
+  const podeAceitarDrop = Boolean(!modoConsulta && podeEnviar && !encerrado && !modoInterno && !enviando)
 
   function resetDrag() {
     dragDepthRef.current = 0
@@ -1738,7 +1762,7 @@ useEffect(() => {
 
     <div
       className={
-        modoHub
+        modoHub || modoConsulta
           ? 'flex h-full min-h-0 overflow-hidden bg-white dark:bg-slate-950'
           : 'flex h-[calc(100vh-140px)] min-h-[500px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-950'
       }
@@ -1748,7 +1772,7 @@ useEffect(() => {
 
       {/* SIDEBAR RECOLHÍVEL — oculta no hub unificado (/chat) */}
 
-      {!modoHub && (
+      {!modoHub && !modoConsulta && (
       <aside className={`
 
         transition-all duration-300 ease-in-out border-r border-slate-100 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900/30
@@ -1880,9 +1904,9 @@ useEffect(() => {
           <div className="flex items-center gap-2 px-3 py-2 sm:px-4">
 
             <VoltarButton
-              onClick={voltarLista}
+              onClick={modoConsulta ? voltarConsulta : voltarLista}
               label="Voltar"
-              aria-label="Voltar à lista"
+              aria-label={modoConsulta ? 'Voltar ao histórico' : 'Voltar à lista'}
               className="h-11 shrink-0 px-2 text-xs font-medium md:h-9"
             />
 
@@ -1931,7 +1955,7 @@ useEffect(() => {
 
             <div className="flex shrink-0 items-center gap-1 md:gap-2">
 
-              {chat?.estado === 'aguardando_atendente' && (
+              {!modoConsulta && chat?.estado === 'aguardando_atendente' && (
                 <Button
                   type="button"
                   variant="primary"
@@ -1955,7 +1979,7 @@ useEffect(() => {
                 </Button>
               )}
 
-              {!encerrado && (
+              {!modoConsulta && !encerrado && (
                 <>
                   {chat && (
                     <div className="hidden md:flex">
@@ -2184,7 +2208,7 @@ useEffect(() => {
                   >
                     {chat.empresa_nome}
                   </Link>
-                ) : podeDefinirEmpresa ? (
+                ) : podeDefinirEmpresa && !modoConsulta ? (
                   <button
                     type="button"
                     onClick={abrirModalEmpresaContexto}
@@ -2204,7 +2228,23 @@ useEffect(() => {
 
         </header>
 
-        {chat && !chat.funcionario_rede_id && (
+        {modoConsulta && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
+            <p>
+              Consulta do histórico.
+              {encerrado
+                ? ' Este atendimento não está aberto na mesa.'
+                : ' Este atendimento ainda está em curso na mesa.'}
+            </p>
+            {!encerrado && chat ? (
+              <Button variant="primary" className="h-8 shrink-0 text-xs" onClick={abrirNaMesa}>
+                Abrir na mesa
+              </Button>
+            ) : null}
+          </div>
+        )}
+
+        {chat && !chat.funcionario_rede_id && !modoConsulta && (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950 dark:border-violet-900/40 dark:bg-violet-950/30 dark:text-violet-100">
             <p>{CONTATO_CLIENTE.bannerNaoVinculado}</p>
             <Button variant="primary" className="h-8 shrink-0 text-xs" onClick={() => setModalVincFuncionario(true)}>
@@ -2213,7 +2253,7 @@ useEffect(() => {
           </div>
         )}
 
-        {precisaEmpresaContexto && (
+        {precisaEmpresaContexto && !modoConsulta && (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
             <p>
               Este contato pertence a mais de uma empresa. Pergunte ao cliente qual empresa deseja
@@ -2226,7 +2266,7 @@ useEffect(() => {
           </div>
         )}
 
-        {mostrarBannerDemandaInatividade && (
+        {mostrarBannerDemandaInatividade && !modoConsulta && (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
             <p>
               Atendimento encerrado por inatividade. Reler a conversa se precisar e{' '}
@@ -2242,7 +2282,7 @@ useEffect(() => {
           </div>
         )}
 
-        {!encerrado && chat?.estado === 'em_atendimento' && !isResponsavel && (
+        {!modoConsulta && !encerrado && chat?.estado === 'em_atendimento' && !isResponsavel && (
           <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
             {isAdmin ? (
               <>
@@ -2266,7 +2306,7 @@ useEffect(() => {
             <WhatsappDemandasPanel
               key={chat.id}
               chatId={chat.id}
-              podeRegistrar={isResponsavel}
+              podeRegistrar={isResponsavel && !modoConsulta}
               onDemandasChange={refrescarTimelineDemandas}
             />
           </div>
@@ -2287,6 +2327,15 @@ useEffect(() => {
           }}
 
         >
+
+          {id ? (
+            <AtendimentosAnterioresFaixa
+              chatId={id}
+              protocoloAtual={chat?.protocolo}
+              inicioAtual={chat?.atendimento_inicio_at || chat?.created_at}
+            />
+          ) : null}
+          <div id="wa-atendimento-atual" />
 
           {mergeTimelineChat(msgs, demandasTimeline).map((item) => {
             if (item.kind === 'demanda') {
@@ -2513,7 +2562,11 @@ useEffect(() => {
 
         <footer className="shrink-0 border-t border-slate-100 bg-white p-3 dark:border-slate-800 dark:bg-slate-950 sm:p-4 [:is(html[data-vv-keyboard='0'])_&]:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
 
-          {msgRespondida && (
+          {modoConsulta ? (
+            <p className="py-1 text-center text-xs text-slate-500">Somente leitura — consulta do histórico.</p>
+          ) : null}
+
+          {!modoConsulta && msgRespondida && (
             <div className="flex items-center justify-between bg-slate-100 dark:bg-slate-900 border-l-4 border-cyan-600 px-4 py-2 rounded-t-xl mb-1 text-xs animate-in slide-in-from-bottom-2 duration-150">
               <div className="min-w-0 flex-1">
                 <p className="font-bold text-cyan-600 dark:text-cyan-400">
@@ -2534,17 +2587,17 @@ useEffect(() => {
             </div>
           )}
 
-          {modoInterno && (
+          {!modoConsulta && modoInterno && (
             <p className="mb-2 text-sm text-amber-600">
               Este chat pertence a outro atendente. A mensagem será registrada como comentário interno e não será enviada ao cliente.
             </p>
           )}
 
-          {!encerrado && !modoInterno && !podeEnviar && (
+          {!modoConsulta && !encerrado && !modoInterno && !podeEnviar && (
             <p className="mb-2 text-[11px] text-amber-800 dark:text-amber-200">{motivoAnexoDesabilitado}</p>
           )}
 
-          {arquivoPendente && (
+          {!modoConsulta && arquivoPendente && (
             <div
               className="mb-2 rounded-xl border border-cyan-200 bg-cyan-50/80 p-3 dark:border-cyan-900/40 dark:bg-cyan-950/20"
               tabIndex={arquivoPendente.type.startsWith('audio/') ? 0 : undefined}
@@ -2613,7 +2666,7 @@ useEffect(() => {
             </div>
           )}
 
-          {!arquivoPendente ? (
+          {!modoConsulta && !arquivoPendente ? (
             <WhatsappComposerBar
               texto={texto}
               onTextoChange={setTexto}

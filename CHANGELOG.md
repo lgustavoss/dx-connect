@@ -16,6 +16,12 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 #### Melhorias
 
 - Minhas solicitações (#881): a resposta da equipe aparece como **Desenvolvedor**
+- WhatsApp (#1102): abrir um atendimento pelo histórico não entra na mesa; voltar restaura a lista com o filtro
+- WhatsApp (#1105): na conversa, dá para ver o atendimento anterior do mesmo cliente e voltar sem sair do chat atual
+
+#### Correções
+
+- WhatsApp (#1103): o botão de fechar a imagem ampliada volta a funcionar, também com zoom
 
 ## [26.09.002] - 2026-09-25
 

@@ -1337,6 +1337,14 @@ export namespace WhatsappChats {
     motivo_id?: number | null
     descricao_curta?: string | null
   }
+  export interface Anterior {
+    id: number
+    protocolo: string
+    estado: string
+    atendimento_inicio_at?: string | null
+    encerramento_at?: string | null
+    created_at?: string | null
+  }
   export interface DemandaUpdate {
     natureza_id?: number
     motivo_id?: number | null
@@ -1505,6 +1513,7 @@ export const whatsappChats = {
   avaliacoes: (params?: Record<string, string | number | undefined>) =>
     listPaginated<WhatsappChats.Avaliacao>('/whatsapp/chats/avaliacoes', params),
   get: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}`),
+  anterior: (id: number) => api<WhatsappChats.Anterior | null>(`/whatsapp/chats/${id}/anterior`),
   mensagens: (id: number) => api<WhatsappChats.Mensagem[]>(`/whatsapp/chats/${id}/mensagens`),
   downloadPdf: async (id: number) => {
     const token = getAuthToken()
