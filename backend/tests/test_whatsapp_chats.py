@@ -241,6 +241,43 @@ def test_listar_encerrados_filtra_e_respeita_rbac(client, seed_base, auth_header
     assert denied.status_code == 403
 
 
+def test_chat_anterior_mesmo_contato_e_rbac(client, seed_base, auth_headers):
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "anterior-1105"},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "anterior-1105"}
+    wa = "5511988776655"
+
+    client.post("/v1/webhooks/evolution", json=_webhook_body(wa_id=wa, msg_id="ant-1"), headers=h)
+    fila = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["admin"]).json()
+    primeiro_id = next(c["id"] for c in fila if c["wa_id"] == wa)
+    client.post(f"/v1/whatsapp/chats/{primeiro_id}/assumir", headers=auth_headers["a1"])
+    client.post(f"/v1/whatsapp/chats/{primeiro_id}/encerrar", headers=auth_headers["a1"])
+
+    sozinho = client.get(f"/v1/whatsapp/chats/{primeiro_id}/anterior", headers=auth_headers["a1"])
+    assert sozinho.status_code == 200
+    assert sozinho.json() is None
+
+    client.post("/v1/webhooks/evolution", json=_webhook_body(wa_id=wa, msg_id="ant-2", text="De novo"), headers=h)
+    fila2 = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["admin"]).json()
+    segundo_id = next(c["id"] for c in fila2 if c["wa_id"] == wa and c["id"] != primeiro_id)
+
+    atual = client.get(f"/v1/whatsapp/chats/{segundo_id}/anterior", headers=auth_headers["a1"])
+    assert atual.status_code == 200
+    corpo = atual.json()
+    assert corpo["id"] == primeiro_id
+    assert corpo["protocolo"]
+
+    # O atendimento anterior está no setor do a1; a2 vê a fila nova, mas não o histórico.
+    oculto = client.get(f"/v1/whatsapp/chats/{segundo_id}/anterior", headers=auth_headers["a2"])
+    assert oculto.status_code == 200
+    assert oculto.json() is None
+    negado = client.get(f"/v1/whatsapp/chats/{primeiro_id}/anterior", headers=auth_headers["a2"])
+    assert negado.status_code == 403
+
+
 def test_colaborador_mesmo_setor_ve_chat_em_atendimento(client, seed_base, auth_headers, db_session):
     """#455 — colega do setor consulta chat activo; envio ao cliente continua bloqueado (#403)."""
     client.patch(

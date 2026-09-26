@@ -18,6 +18,7 @@ from app.models.rede import Rede
 from app.models.funcionario_rede import FuncionarioRede, FuncionarioRedeEmpresa
 from app.models.whatsapp_chat import WhatsappChat, WhatsappChatTicket, WhatsappMensagem, WhatsappSettings
 from app.services import whatsapp_media_retencao as wpp_midia_retencao
+from app.services.whatsapp_chat_anterior import candidatos_chat_anterior
 from app.schemas.lista_paginada import ListaPaginada
 from app.schemas.whatsapp_chat import (
     WhatsappAbrirTicketBody,
@@ -27,6 +28,7 @@ from app.schemas.whatsapp_chat import (
     WhatsappChatDemandaRead,
     WhatsappChatDemandaUpdate,
     WhatsappChatMensagemCreate,
+    WhatsappChatAnteriorRead,
     WhatsappChatRead,
     WhatsappContatoRead,
     WhatsappEmpresaContextoBody,
@@ -1423,6 +1425,32 @@ def obter(
         db.commit()
         db.refresh(c)
     return _chat_read(db, c, atendente_id=atendente.id)
+
+
+@router.get("/{chat_id}/anterior", response_model=WhatsappChatAnteriorRead | None)
+def obter_chat_anterior(
+    chat_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    """Atendimento imediatamente anterior do mesmo contato (#1105)."""
+    c = db.query(WhatsappChat).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not _pode_ver_chat(db, atendente, c):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este chat")
+    for prev in candidatos_chat_anterior(db, c):
+        if not _pode_ver_chat(db, atendente, prev):
+            continue
+        return WhatsappChatAnteriorRead(
+            id=prev.id,
+            protocolo=prev.protocolo,
+            estado=prev.estado,
+            atendimento_inicio_at=prev.atendimento_inicio_at,
+            encerramento_at=prev.encerramento_at,
+            created_at=prev.created_at,
+        )
+    return None
 
 
 @router.get("/{chat_id}/pdf")
