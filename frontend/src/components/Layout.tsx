@@ -3,7 +3,7 @@ import { Outlet, Navigate, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Sidebar } from './Sidebar'
 import { ThemeToggle } from './ThemeToggle'
-import { NavbarNotificacoes } from './NavbarNotificacoes'
+import { NavbarAtalhoChats, NavbarNotificacoes } from './NavbarNotificacoes'
 import { useAlertaFilaSemResponsavel, setChatInternoAlertUserId } from '../hooks/useAlertaFilaSemResponsavel'
 import { EventStreamProvider, useEventStream } from '../contexts/EventStreamContext'
 import { BrandLogo } from '../brand'
@@ -153,6 +153,7 @@ function LayoutInner() {
           </div>
 
           <div className="min-w-0 flex-1" />
+          <NavbarAtalhoChats enabled={notificacoesEnabled} />
           <NavbarNotificacoes enabled={notificacoesEnabled} />
           <ThemeToggle />
           <PontoHeaderChip />

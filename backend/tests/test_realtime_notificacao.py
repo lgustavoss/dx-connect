@@ -9,14 +9,9 @@ from app.services.realtime_emit import emit_notificacao_contagem
 def test_build_notificacao_resumo(client, seed_base, db_session):
     r = build_notificacao_resumo(db_session, seed_base["a1"])
     assert r.sem_responsavel_count >= 0
+    assert r.chats_em_atendimento_count >= 0
     assert r.total_pendencias == (
-        r.sem_responsavel_count
-        + r.nao_lidas_count
-        + r.wpp_fila_count
-        + r.wpp_respostas_count
-        + r.portal_fila_count
-        + r.portal_respostas_count
-        + r.chat_interno_nao_lidas_count
+        r.sem_responsavel_count + r.nao_lidas_count + r.ponto_he_pendentes_count
     )
 
 
@@ -37,6 +32,7 @@ def test_emit_notificacao_contagem_payload(client, seed_base, db_session, monkey
     assert etype == "notificacao.contagem"
     assert "sem_responsavel_count" in payload
     assert "total_pendencias" in payload
+    assert "chats_em_atendimento_count" in payload
 
 
 def test_marcar_visto_emite_contagem(client, seed_base, auth_headers, db_session, monkeypatch):
