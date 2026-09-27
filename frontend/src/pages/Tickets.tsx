@@ -848,8 +848,8 @@ export function Tickets() {
             </div>
 
             {/* Desktop/tablet: tabela */}
-            <div className="hidden overflow-hidden sm:block">
-              <table className="w-full table-auto text-left text-sm">
+            <div className="hidden overflow-x-auto sm:block">
+              <table className="w-full min-w-[64rem] table-auto text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
                   <CabecalhoOrdenavel
@@ -992,7 +992,7 @@ export function Tickets() {
                     }`}
                   >
                     <td
-                      className="max-w-[10rem] truncate px-4 py-3.5 align-top font-mono text-sm text-slate-900 sm:max-w-[12rem] sm:px-6 dark:text-slate-100"
+                      className="whitespace-nowrap px-4 py-3.5 align-top font-mono text-sm text-slate-900 sm:px-6 dark:text-slate-100"
                       title={exibirProtocolo(t.protocolo)}
                     >
                       {exibirProtocolo(t.protocolo)}

@@ -156,7 +156,7 @@ def test_enviar_ao_cliente_zera_nao_lidas(client, seed_base, auth_headers, monke
 
 
 def test_wpp_respostas_resumo_alinhado_com_meus(client, seed_base, auth_headers, db_session):
-    """#S202608-0010: sino (resumo/itens) e lista meus usam a mesma regra de não lidas."""
+    """#S202608-0010: resumo e lista meus usam a mesma regra de não lidas. O sino não lista chats (#1106)."""
     from app.api.notificacoes import build_notificacao_itens, build_notificacao_resumo
 
     client.patch(
@@ -186,11 +186,10 @@ def test_wpp_respostas_resumo_alinhado_com_meus(client, seed_base, auth_headers,
 
     resumo = build_notificacao_resumo(db_session, seed_base["a1"])
     assert resumo.wpp_respostas_count >= 1
+    assert resumo.chats_em_atendimento_count >= 1
 
     itens = build_notificacao_itens(db_session, seed_base["a1"], limit=15)
-    wpp_itens = [i for i in itens if i.tipo == "wpp_chats_com_resposta" and i.chat_id == cid]
-    assert len(wpp_itens) >= 1
-    assert wpp_itens[0].count >= 1
+    assert [i for i in itens if i.tipo in ("wpp_chats_com_resposta", "wpp_chats_na_fila")] == []
 
     assert client.post(f"/v1/whatsapp/chats/{cid}/visto", headers=auth_headers["a1"]).status_code == 204
 
@@ -559,6 +558,122 @@ def test_transferir_registra_mensagem_interna(client, seed_base, auth_headers):
     transfer_msgs = [m for m in msgs if m.get("evento_sistema") == "transferencia"]
     assert len(transfer_msgs) == 1
     assert "Financeiro" in transfer_msgs[0]["corpo"]
+    assert not any("Seu atendimento foi transferido" in (m.get("corpo") or "") for m in msgs)
+
+
+def test_transferir_envia_aviso_ao_cliente(client, seed_base, auth_headers, monkeypatch):
+    enviados: list[str] = []
+
+    def fake_send(base, instance, key, number, text, *, quoted=None):
+        enviados.append(text)
+        return True, None, "wamid-tr-cli"
+
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "tr-cli"},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "tr-cli"}
+    client.post("/v1/webhooks/evolution", json=_webhook_body(wa_id="5511999000111", msg_id="tr-cli-1"), headers=h)
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+    assert client.post(f"/v1/whatsapp/chats/{cid}/assumir", headers=auth_headers["a1"]).status_code == 200
+
+    monkeypatch.setattr("app.services.evolution_api.evolution_send_text", fake_send)
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={
+            "evolution_base_url": "http://evolution.test",
+            "evolution_instance_name": "inst",
+            "evolution_api_key": "key",
+        },
+        headers=auth_headers["admin"],
+    )
+
+    r = client.post(
+        f"/v1/whatsapp/chats/{cid}/transferir",
+        json={"setor_id": seed_base["setor2"].id, "atendente_id": seed_base["a2"].id},
+        headers=auth_headers["admin"],
+    )
+    assert r.status_code == 200
+    assert enviados == ["Seu atendimento foi transferido para Atendente 2, do setor Financeiro."]
+    assert "Atendente 1" not in enviados[0]
+
+    msgs = client.get(f"/v1/whatsapp/chats/{cid}/mensagens", headers=auth_headers["admin"]).json()
+    assert any(m.get("evento_sistema") == "transferencia" for m in msgs)
+    cliente = [m for m in msgs if m.get("corpo") == enviados[0]]
+    assert len(cliente) == 1
+    assert cliente[0]["evento_sistema"] is None
+    assert cliente[0]["wa_message_id"] == "wamid-tr-cli"
+
+
+def test_transferir_segue_quando_evolution_falha(client, seed_base, auth_headers, monkeypatch):
+    def fake_send(base, instance, key, number, text, *, quoted=None):
+        return False, "timeout", None
+
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "tr-fail"},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "tr-fail"}
+    client.post("/v1/webhooks/evolution", json=_webhook_body(wa_id="5511999000222", msg_id="tr-fail-1"), headers=h)
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+    assert client.post(f"/v1/whatsapp/chats/{cid}/assumir", headers=auth_headers["a1"]).status_code == 200
+
+    monkeypatch.setattr("app.services.evolution_api.evolution_send_text", fake_send)
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={
+            "evolution_base_url": "http://evolution.test",
+            "evolution_instance_name": "inst",
+            "evolution_api_key": "key",
+        },
+        headers=auth_headers["admin"],
+    )
+
+    r = client.post(
+        f"/v1/whatsapp/chats/{cid}/transferir",
+        json={"setor_id": seed_base["setor2"].id, "atendente_id": None},
+        headers=auth_headers["a1"],
+    )
+    assert r.status_code == 200
+    assert r.json()["estado"] == "aguardando_atendente"
+
+    msgs = client.get(f"/v1/whatsapp/chats/{cid}/mensagens", headers=auth_headers["admin"]).json()
+    transfer_msgs = [m for m in msgs if m.get("evento_sistema") == "transferencia"]
+    assert len(transfer_msgs) == 1
+    assert "Financeiro" in transfer_msgs[0]["corpo"]
+    assert not any("Seu atendimento foi transferido" in (m.get("corpo") or "") for m in msgs)
+
+
+def test_atalho_conta_classificacao_pendente_como_atendendo(client, seed_base, auth_headers, db_session):
+    from app.api.notificacoes import build_notificacao_resumo
+    from app.models.whatsapp_chat import WhatsappChat
+
+    client.patch(
+        "/v1/settings/whatsapp",
+        json={"webhook_secret": "tr-pend"},
+        headers=auth_headers["admin"],
+    )
+    h = {"X-Dx-Webhook-Secret": "tr-pend"}
+    client.post("/v1/webhooks/evolution", json=_webhook_body(wa_id="5511999000333", msg_id="tr-pend-1"), headers=h)
+    cid = client.get("/v1/whatsapp/chats/fila", headers=auth_headers["a1"]).json()[0]["id"]
+    assert client.post(f"/v1/whatsapp/chats/{cid}/assumir", headers=auth_headers["a1"]).status_code == 200
+
+    chat = db_session.get(WhatsappChat, cid)
+    chat.estado = "encerrado"
+    chat.classificacao_demanda_pendente = True
+    db_session.commit()
+
+    meus = client.get("/v1/whatsapp/chats/meus", headers=auth_headers["a1"]).json()
+    assert any(c["id"] == cid for c in meus)
+
+    resumo_a1 = build_notificacao_resumo(db_session, seed_base["a1"])
+    assert resumo_a1.chats_em_atendimento_count == 1
+    resumo_a2 = build_notificacao_resumo(db_session, seed_base["a2"])
+    assert resumo_a2.chats_em_atendimento_count == 0
+    resumo_admin = build_notificacao_resumo(db_session, seed_base["admin"])
+    assert resumo_admin.chats_em_atendimento_count == 1
 
 
 def _criar_funcionario_colaborador(db_session, seed_base, *, nome="João Cliente", email="joao.cliente@test.local"):

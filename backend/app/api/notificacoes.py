@@ -175,13 +175,30 @@ def _count_portal_fila(db: Session, atendente: Atendente) -> int:
     return int(db.execute(stmt).scalar_one())
 
 
+def _count_em_atendimento(
+    db: Session,
+    model,
+    atendente: Atendente,
+    *,
+    incluir_classificacao_pendente: bool = False,
+) -> int:
+    """Mesma visibilidade de /meus: admin vê todos; atendente só os próprios."""
+    cond = model.estado == "em_atendimento"
+    if incluir_classificacao_pendente:
+        cond = or_(cond, model.classificacao_demanda_pendente.is_(True))
+    stmt = select(func.count()).select_from(model).where(cond)
+    if atendente.role != "admin":
+        stmt = stmt.where(model.atendente_id == atendente.id)
+    return int(db.execute(stmt).scalar_one())
+
+
 def build_notificacao_itens(
     db: Session,
     atendente: Atendente,
     *,
     limit: int = 15,
 ) -> list[NotificacaoItem]:
-    """Lista de pendências navegáveis (paridade com build_notificacao_resumo)."""
+    """Itens do sino: tickets e hora extra. Chats ficam no atalho da barra."""
     out: list[NotificacaoItem] = []
 
     sem = _count_sem_responsavel(db, atendente)
@@ -194,20 +211,6 @@ def build_notificacao_itens(
                 descricao="Sem responsável — em aberto",
                 count=sem,
                 href="/tickets?sem_responsavel=1",
-                created_at=datetime.now(timezone.utc),
-            )
-        )
-
-    wpp_fila = _count_wpp_fila(db, atendente)
-    if wpp_fila > 0:
-        out.append(
-            NotificacaoItem(
-                tipo="wpp_chats_na_fila",
-                ticket_id=None,
-                titulo="Chats na fila",
-                descricao="WhatsApp — aguardando atendimento",
-                count=wpp_fila,
-                href="/chat/espera",
                 created_at=datetime.now(timezone.utc),
             )
         )
@@ -228,39 +231,6 @@ def build_notificacao_itens(
                     created_at=datetime.now(timezone.utc),
                 )
             )
-
-    ultima_nao_lida_at = chat_nao_lidas_svc.wpp_ultima_nao_lida_at_subq(atendente.id)
-    stmt_wpp = (
-        select(WhatsappChat)
-        .where(
-            WhatsappChat.estado == "em_atendimento",
-            WhatsappChat.atendente_id == atendente.id,
-            chat_nao_lidas_svc.exists_wpp_inbound_nao_lido(atendente.id),
-        )
-        .order_by(ultima_nao_lida_at.desc(), WhatsappChat.id.desc())
-        .limit(limit)
-    )
-    if atendente.role != "admin":
-        vis = ids_setores_visiveis_atendente(db, atendente)
-        stmt_wpp = stmt_wpp.where(or_(WhatsappChat.setor_id.is_(None), WhatsappChat.setor_id.in_(vis)))
-    chats = db.execute(stmt_wpp).scalars().all()
-    for c in chats:
-        uc = chat_nao_lidas_svc.contar_nao_lidas_whatsapp_por_id(db, c.id, atendente.id)
-        if uc <= 0:
-            uc = 1
-        nome = (c.cliente_nome or "").strip() or c.wa_id
-        out.append(
-            NotificacaoItem(
-                tipo="wpp_chats_com_resposta",
-                ticket_id=None,
-                chat_id=c.id,
-                titulo=f"{c.protocolo} — {nome}",
-                descricao="WhatsApp — cliente respondeu",
-                count=uc,
-                href="/chat/atendendo",
-                created_at=datetime.now(timezone.utc),
-            )
-        )
 
     last_unread_at = _last_unread_message_at_subq(atendente.id)
     stmt = _apply_escopo_tickets_nao_lidos(
@@ -297,25 +267,6 @@ def build_notificacao_itens(
             )
         )
 
-    for resumo in chat_interno_svc.listar_conversas_com_nao_lidas(db, atendente, limit=limit):
-        preview = resumo.ultima_mensagem_corpo
-        descricao = (
-            f"Chat interno — {chat_interno_svc.preview_corpo(preview)}"
-            if preview
-            else "Chat interno — nova mensagem"
-        )
-        out.append(
-            NotificacaoItem(
-                tipo="chat_interno",
-                conversa_id=resumo.conversa.id,
-                titulo=resumo.titulo,
-                descricao=descricao,
-                count=resumo.nao_lidas_count,
-                href="/chat/interno",
-                created_at=resumo.ultima_mensagem_em or resumo.conversa.created_at,
-            )
-        )
-
     return out
 
 
@@ -333,6 +284,9 @@ def build_notificacao_resumo(db: Session, atendente: Atendente) -> NotificacaoRe
         from app.services.ponto_hora_extra import contar_pendentes_admin
 
         he_pend = contar_pendentes_admin(db, atendente.tenant_id)
+    chats_em_atendimento = _count_em_atendimento(
+        db, WhatsappChat, atendente, incluir_classificacao_pendente=True
+    ) + _count_em_atendimento(db, PortalChat, atendente)
     return NotificacaoResumo(
         sem_responsavel_count=sem,
         nao_lidas_count=nao,
@@ -342,14 +296,8 @@ def build_notificacao_resumo(db: Session, atendente: Atendente) -> NotificacaoRe
         portal_respostas_count=portal_resp,
         chat_interno_nao_lidas_count=chat_interno,
         ponto_he_pendentes_count=he_pend,
-        total_pendencias=sem
-        + nao
-        + wpp_fila
-        + wpp_resp
-        + portal_fila
-        + portal_resp
-        + chat_interno
-        + he_pend,
+        chats_em_atendimento_count=chats_em_atendimento,
+        total_pendencias=sem + nao + he_pend,
     )
 
 
