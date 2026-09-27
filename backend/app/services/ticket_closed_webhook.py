@@ -247,7 +247,7 @@ def process_pending_webhooks(db: Session, *, limit: int = 20) -> int:
             body = row.payload_json.encode("utf-8")
             extra: dict[str, str] | None = None
             row_secret = secret
-            if row.event_type == "saas.solicitacao":
+            if row.event_type in ("saas.solicitacao", "saas.solicitacao.comentario"):
                 row_secret = None
                 token = (settings.SAAS_INSTANCE_INGEST_TOKEN or "").strip()
                 extra = {"Authorization": f"Bearer {token}"} if token else None

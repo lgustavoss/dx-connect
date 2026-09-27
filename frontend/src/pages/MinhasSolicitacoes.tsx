@@ -180,7 +180,7 @@ export function MinhasSolicitacoesPage() {
       })
       setDetalhe(atualizado)
       setResposta('')
-      toast.showSuccess('Resposta enviada')
+      toast.showSuccess('Complemento enviado')
     } catch (err) {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível enviar'))
     } finally {
@@ -248,16 +248,18 @@ export function MinhasSolicitacoesPage() {
 
         {podeResponder ? (
           <Card className="space-y-3 p-5">
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">Responder</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              Complementar pedido
+            </label>
             <textarea
               className={TEXTAREA_FIELD_CLASS}
               rows={3}
               value={resposta}
               onChange={(e) => setResposta(e.target.value)}
-              placeholder="Escreva uma mensagem para a equipe…"
+              placeholder="Acrescente uma informação ao pedido…"
             />
             <Button type="button" variant="primary" loading={enviando} onClick={() => void enviarResposta()}>
-              Enviar resposta
+              Enviar complemento
             </Button>
           </Card>
         ) : STATUS_FINAIS.has(detalhe.status) ? (

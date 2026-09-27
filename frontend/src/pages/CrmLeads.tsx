@@ -449,38 +449,6 @@ export function CrmLeads() {
 
       {vista === 'lista' ? (
         <>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setEstagioId('')}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
-                estagioId === ''
-                  ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200'
-              }`}
-            >
-              Todas
-              {Object.values(contagens).length > 0
-                ? ` (${Object.values(contagens).reduce((a, b) => a + b, 0)})`
-                : ''}
-            </button>
-            {estagios.map((e) => (
-              <button
-                key={e.id}
-                type="button"
-                onClick={() => setEstagioId(e.id)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
-                  estagioId === e.id
-                    ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200'
-                }`}
-              >
-                {e.nome}
-                {contagens[e.id] != null ? ` (${contagens[e.id]})` : ''}
-              </button>
-            ))}
-          </div>
-
           <Card>
             <BarraBuscaPaginacao
               busca={busca}
@@ -491,19 +459,40 @@ export function CrmLeads() {
               onPageChange={setPage}
               disabled={loading}
               extra={
-                <div className="flex flex-wrap items-center gap-3">
-                  <Select
-                    label="Estágio"
-                    labelStyle="overline"
-                    value={estagioId === '' ? '' : estagioId}
-                    onChange={(v) => setEstagioId(v === '' ? '' : Number(v))}
-                    options={estagios.map((e) => ({
-                      value: e.id,
-                      label: contagens[e.id] != null ? `${e.nome} (${contagens[e.id]})` : e.nome,
-                    }))}
-                    includeEmpty
-                    emptyLabel="Todos os estágios"
-                  />
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <fieldset className="flex flex-wrap items-center gap-x-4 gap-y-2 border-0 p-0">
+                    <legend className="sr-only">Estágio</legend>
+                    <span className="text-sm text-slate-500 dark:text-slate-400">Estágio</span>
+                    <label className="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                      <input
+                        type="radio"
+                        name="filtro-estagio-lead"
+                        checked={estagioId === ''}
+                        onChange={() => setEstagioId('')}
+                        className="size-4 border-slate-300"
+                      />
+                      Todas
+                      {Object.values(contagens).length > 0
+                        ? ` (${Object.values(contagens).reduce((a, b) => a + b, 0)})`
+                        : ''}
+                    </label>
+                    {estagios.map((e) => (
+                      <label
+                        key={e.id}
+                        className="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300"
+                      >
+                        <input
+                          type="radio"
+                          name="filtro-estagio-lead"
+                          checked={estagioId === e.id}
+                          onChange={() => setEstagioId(e.id)}
+                          className="size-4 border-slate-300"
+                        />
+                        {e.nome}
+                        {contagens[e.id] != null ? ` (${contagens[e.id]})` : ''}
+                      </label>
+                    ))}
+                  </fieldset>
                   <label className="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                     <input
                       type="checkbox"
@@ -545,7 +534,7 @@ export function CrmLeads() {
                             <div className="text-xs text-slate-400">Origem: {lead.origem}</div>
                           ) : null}
                         </td>
-                        <td className="px-3 py-2.5 text-slate-700 dark:text-slate-300">
+                        <td className="whitespace-nowrap px-3 py-2.5 align-middle text-slate-700 dark:text-slate-300">
                           {lead.estagio_nome || '—'}
                         </td>
                         <td className="px-3 py-2.5 text-slate-600 dark:text-slate-400">

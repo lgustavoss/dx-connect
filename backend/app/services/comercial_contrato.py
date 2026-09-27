@@ -67,7 +67,7 @@ TEMPLATE_PADRAO_HTML = """<!DOCTYPE html>
   <p><strong>{{contratante.razao_social}}</strong> &nbsp; CNPJ {{contratante.cnpj}}</p>
   <p>{{contratante.endereco}}</p>
   <p>Responsável legal: {{contratante.resp_legal}}</p>
-  <p class="muted">Base WebPosto: {{contratante.nome_base_webposto}}</p>
+  <p class="muted">Nome da rede: {{contratante.nome_base_webposto}}</p>
   <h2>Objeto e valores</h2>
   {{contrato.itens}}
   <p><strong>Mensalidade:</strong> {{contrato.valor_mensalidade}}</p>
@@ -104,7 +104,7 @@ CATALOGO_CHAVES_CONTRATO: tuple[dict[str, str], ...] = (
     {"grupo": "contratante", "chave": "contratante.resp_legal_nome", "descricao": "Nome do responsável legal"},
     {"grupo": "contratante", "chave": "contratante.resp_legal_cpf", "descricao": "CPF do responsável legal"},
     {"grupo": "contratante", "chave": "contratante.resp_legal", "descricao": "Responsável legal (nome · CPF)"},
-    {"grupo": "contratante", "chave": "contratante.nome_base_webposto", "descricao": "Nome da base WebPosto (Rede)"},
+    {"grupo": "contratante", "chave": "contratante.nome_base_webposto", "descricao": "Nome da rede"},
     {"grupo": "contrato", "chave": "contrato.itens", "descricao": "Tabela HTML com itens e mensalidade"},
     {"grupo": "contrato", "chave": "contrato.valor_mensalidade", "descricao": "Mensalidade formatada (R$)"},
     {"grupo": "contrato", "chave": "contrato.data_inicio", "descricao": "Data de início (dd/mm/aaaa)"},
@@ -176,7 +176,7 @@ def assert_pronto_para_contrato(db: Session, linha: CrmNegociacaoCnpjLinha) -> C
     if not (neg.nome_base_webposto or "").strip():
         raise HTTPException(
             status_code=400,
-            detail="Informe o nome da base WebPosto na negociação antes de gerar o contrato.",
+            detail="Informe o nome da rede na negociação antes de gerar o contrato.",
         )
     if not (linha.razao_social or "").strip() or not _digits(linha.cnpj):
         raise HTTPException(
@@ -1311,7 +1311,7 @@ def converter_pos_assinatura(db: Session, contrato: Contrato, linha: CrmNegociac
     if not nome_base:
         raise HTTPException(
             status_code=400,
-            detail="Informe o nome da base WebPosto na negociação para criar a Rede.",
+            detail="Informe o nome da rede na negociação para criar a Rede.",
         )
     cnpj_digits = _digits(linha.cnpj)
     if not cnpj_digits:
