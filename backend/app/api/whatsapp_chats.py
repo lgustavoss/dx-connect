@@ -2704,6 +2704,12 @@ def transferir(
             evento_sistema="transferencia",
         )
     )
+    aviso_cliente = _enviar_aviso_transferencia_cliente(
+        db,
+        chat=c,
+        texto=_texto_aviso_transferencia_cliente(destino=destino, setor_nome=setor.nome),
+        atendente=atendente,
+    )
     from app.services.audit_operacional import audit_whatsapp_chat
 
     audit_whatsapp_chat(
@@ -2741,4 +2747,63 @@ def transferir(
     emit_chat_fila_from_model(db, c2, estado_anterior=estado_anterior)
     if transfer_msg:
         emit_chat_mensagem_from_models(db, c2, transfer_msg, exclude_atendente_id=atendente.id)
+    if aviso_cliente is not None:
+        aviso_loaded = (
+            db.query(WhatsappMensagem)
+            .options(joinedload(WhatsappMensagem.atendente))
+            .filter(WhatsappMensagem.id == aviso_cliente.id)
+            .first()
+        )
+        if aviso_loaded:
+            emit_chat_mensagem_from_models(db, c2, aviso_loaded, exclude_atendente_id=atendente.id)
     return _chat_read(db, c2)
+
+
+def _texto_aviso_transferencia_cliente(*, destino: Atendente | None, setor_nome: str) -> str:
+    setor = (setor_nome or "").strip() or "o setor"
+    if destino is not None:
+        nome = (destino.nome or "").strip() or "um atendente"
+        return f"Seu atendimento foi transferido para {nome}, do setor {setor}."
+    return f"Seu atendimento foi transferido para a fila do setor {setor}."
+
+
+def _enviar_aviso_transferencia_cliente(
+    db: Session,
+    *,
+    chat: WhatsappChat,
+    texto: str,
+    atendente: Atendente,
+) -> WhatsappMensagem | None:
+    """Envia o aviso ao cliente no WhatsApp. A transferência segue mesmo se o envio falhar."""
+    row = db.query(WhatsappSettings).order_by(WhatsappSettings.id.asc()).first()
+    if not _evolution_configurada(row):
+        logger.info(
+            "Aviso de transferência ao cliente não enviado: integração Evolution incompleta (chat %s)",
+            chat.id,
+        )
+        return None
+    ok, err, sent_wa_id = evolution_api.evolution_send_text(
+        row.evolution_base_url,
+        row.evolution_instance_name,
+        row.evolution_api_key,
+        chat.wa_id,
+        texto,
+    )
+    if not ok:
+        logger.warning("Falha ao avisar o cliente da transferência (chat %s): %s", chat.id, err)
+        return None
+    aviso = WhatsappMensagem(
+        chat_id=chat.id,
+        direcao="outbound",
+        corpo=texto,
+        tipo_midia="texto",
+        mimetype=None,
+        midia_nome_arquivo=None,
+        wa_message_id=sent_wa_id,
+        atendente_id=atendente.id,
+        evento_sistema=None,
+        status_entrega=status_inicial_outbound_whatsapp(wa_message_id=sent_wa_id),
+    )
+    db.add(aviso)
+    db.flush()
+    return aviso

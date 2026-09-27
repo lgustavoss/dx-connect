@@ -35,7 +35,15 @@ class NotificacaoResumo(BaseModel):
         default=0,
         description="Pedidos de hora extra pendentes (só admins)",
     )
-    total_pendencias: int = Field(ge=0, description="Soma usada no badge (sem duplicar fila vs. não lidas)")
+    chats_em_atendimento_count: int = Field(
+        ge=0,
+        default=0,
+        description="Chats da lista Atendendo: em atendimento (WhatsApp e portal) e, no WhatsApp, encerrado ainda sem classificação de demanda",
+    )
+    total_pendencias: int = Field(
+        ge=0,
+        description="Badge do sino: tickets na fila, tickets com resposta não lida e hora extra pendente",
+    )
 
 
 class NotificacaoItem(BaseModel):

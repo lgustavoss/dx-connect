@@ -1912,6 +1912,7 @@ export namespace Notificacoes {
     portal_respostas_count: number;
     chat_interno_nao_lidas_count: number;
     ponto_he_pendentes_count?: number;
+    chats_em_atendimento_count?: number;
     total_pendencias: number;
   }
   export interface Item {

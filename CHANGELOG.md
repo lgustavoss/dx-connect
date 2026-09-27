@@ -18,6 +18,9 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Minhas solicitações (#881): a resposta da equipe aparece como **Desenvolvedor**
 - WhatsApp (#1102): abrir um atendimento pelo histórico não entra na mesa; voltar restaura a lista com o filtro
 - WhatsApp (#1105): na conversa, dá para ver o atendimento anterior do mesmo cliente e voltar sem sair do chat atual
+- Barra superior (#1106): atalho de chats mostra quantos estão na lista Atendendo; o sino avisa só de tickets
+- WhatsApp (#1104): ao transferir, o cliente recebe no WhatsApp o novo atendente e o setor; o aviso continua no histórico do atendente
+- Tickets (#1101): a lista deixa de cortar o texto na borda; em tela estreita a tabela rola na horizontal
 
 #### Correções
 
