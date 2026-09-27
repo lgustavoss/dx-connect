@@ -77,6 +77,7 @@ class SaasSolicitacaoProdutoComentario(Base):
     publico_cliente = Column(Boolean, nullable=False, default=True, server_default="true")
     autor_atendente_id = Column(Integer, nullable=True)
     autor_nome = Column(String(255), nullable=True)
+    origem_externa_id = Column(String(80), nullable=True, unique=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     solicitacao = relationship("SaasSolicitacaoProduto", back_populates="comentarios")

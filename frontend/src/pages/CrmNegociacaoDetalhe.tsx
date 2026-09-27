@@ -415,7 +415,7 @@ export function CrmNegociacaoDetalhe() {
         </p>
         <div className="mt-3 max-w-lg">
           <Input
-            label="Nome da Rede (base WebPosto)"
+            label="Nome da rede"
             value={nomeBase}
             onChange={(e) => setNomeBase(e.target.value)}
             onBlur={() => void saveNomeBase()}
@@ -429,8 +429,8 @@ export function CrmNegociacaoDetalhe() {
             disabled={linhasAssinadas.size > 0 || savingNomeBase || !neg.ativa}
             hint={
               linhasAssinadas.size > 0
-                ? 'Bloqueado após o contrato assinado — este nome é o da Rede no cadastro.'
-                : 'Salvo ao sair do campo. Vários CNPJs desta venda partilham a mesma Rede.'
+                ? 'Bloqueado após o contrato assinado — este nome é o da rede no cadastro.'
+                : 'Opcional. Nome da rede do cliente, mesmo sem um sistema específico. Salvo ao sair do campo.'
             }
           />
         </div>

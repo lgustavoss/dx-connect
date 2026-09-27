@@ -10,6 +10,14 @@ from pydantic import BaseModel, ConfigDict, Field
 TipoSolicitacao = Literal["sugestao", "problema"]
 
 
+class SaasSolicitacaoComentarioIngest(BaseModel):
+    instance_slug: str = Field(..., min_length=1, max_length=80)
+    origem_solicitacao_id: int = Field(..., ge=1)
+    origem_comentario_id: int = Field(..., ge=1)
+    corpo: str = Field(..., min_length=1, max_length=20000)
+    autor_nome: str | None = Field(None, max_length=255)
+
+
 class SaasSolicitacaoIngest(BaseModel):
     instance_slug: str = Field(..., min_length=1, max_length=80)
     origem_solicitacao_id: int = Field(..., ge=1)

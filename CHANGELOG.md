@@ -10,6 +10,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 #### Melhorias
 
 - Fila de solicitações (#881): o painel mostra quem mudou o status e por qual canal
+- Fila de solicitações (#1099): o complemento escrito pelo autor do pedido aparece no painel
 
 ### DeskRudder
 
@@ -21,6 +22,9 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Barra superior (#1106): atalho de chats mostra quantos estão na lista Atendendo; o sino avisa só de tickets
 - WhatsApp (#1104): ao transferir, o cliente recebe no WhatsApp o novo atendente e o setor; o aviso continua no histórico do atendente
 - Tickets (#1101): a lista deixa de cortar o texto na borda; em tela estreita a tabela rola na horizontal
+- CRM (#1097): o campo de nome da rede não trata o WebPosto como o único tipo de cliente
+- CRM (#1100): na lista de leads, o estágio fica na mesma linha dos outros filtros
+- Minhas solicitações (#1099): o autor complementa o próprio pedido
 
 #### Correções
 

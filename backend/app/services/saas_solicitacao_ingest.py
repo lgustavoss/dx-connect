@@ -14,11 +14,20 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
 from app.models.cliente_saas import ClienteSaaS
-from app.models.saas_solicitacao_produto import SaasSolicitacaoProduto, SaasSolicitacaoProdutoAnexo
-from app.models.solicitacao_melhoria import SolicitacaoMelhoria, SolicitacaoMelhoriaAnexo
+from app.models.saas_solicitacao_produto import (
+    SaasSolicitacaoProduto,
+    SaasSolicitacaoProdutoAnexo,
+    SaasSolicitacaoProdutoComentario,
+)
+from app.models.solicitacao_melhoria import (
+    SolicitacaoMelhoria,
+    SolicitacaoMelhoriaAnexo,
+    SolicitacaoMelhoriaComentario,
+)
 from app.models.webhook_outbox import WebhookOutbox
 from app.schemas.saas_solicitacao import (
     SaasSolicitacaoAnexoRead,
+    SaasSolicitacaoComentarioIngest,
     SaasSolicitacaoComentarioRead,
     SaasSolicitacaoDetalhe,
     SaasSolicitacaoHistoricoRead,
@@ -33,6 +42,7 @@ logger = logging.getLogger(__name__)
 
 EVENT_SAAS_SOLICITACAO = "saas.solicitacao"
 EVENT_SAAS_SOLICITACAO_MEDIA = "saas.solicitacao.media"
+EVENT_SAAS_SOLICITACAO_COMENTARIO = "saas.solicitacao.comentario"
 
 
 def hash_ingest_token(token: str) -> str:
@@ -401,6 +411,112 @@ def enfileirar_copia_saas(db: Session, row: SolicitacaoMelhoria) -> None:
         logger.exception(
             "Falha ao enfileirar cópia SaaS da solicitação id=%s (pedido local mantém-se)",
             getattr(row, "id", None),
+        )
+
+
+def _chave_comentario_cliente(slug: str, origem_solicitacao_id: int, origem_comentario_id: int) -> str:
+    return f"{slug}:{origem_solicitacao_id}:{origem_comentario_id}"
+
+
+def gravar_comentario_cliente(
+    db: Session,
+    *,
+    slug: str,
+    origem_solicitacao_id: int,
+    origem_comentario_id: int,
+    corpo: str,
+    autor_nome: str | None,
+) -> SaasSolicitacaoProdutoComentario | None:
+    """Copia o complemento do autor para a fila. Idempotente. Sem commit."""
+    texto = (corpo or "").strip()
+    if not texto:
+        return None
+    dest = (
+        db.query(SaasSolicitacaoProduto)
+        .filter(
+            SaasSolicitacaoProduto.instance_slug == slug.strip().lower(),
+            SaasSolicitacaoProduto.origem_solicitacao_id == origem_solicitacao_id,
+        )
+        .first()
+    )
+    if dest is None:
+        raise HTTPException(status_code=404, detail="Solicitação ainda não está na fila")
+    chave = _chave_comentario_cliente(slug.strip().lower(), origem_solicitacao_id, origem_comentario_id)
+    ja = (
+        db.query(SaasSolicitacaoProdutoComentario)
+        .filter(SaasSolicitacaoProdutoComentario.origem_externa_id == chave)
+        .first()
+    )
+    if ja:
+        return ja
+    row = SaasSolicitacaoProdutoComentario(
+        solicitacao_id=dest.id,
+        corpo=texto,
+        publico_cliente=True,
+        autor_nome=(autor_nome or "").strip() or None,
+        origem_externa_id=chave,
+    )
+    db.add(row)
+    db.flush()
+    return row
+
+
+def publicar_comentario_cliente(
+    db: Session,
+    solicitacao: SolicitacaoMelhoria,
+    comentario: SolicitacaoMelhoriaComentario,
+) -> None:
+    """Envia o complemento do autor ao painel. Falha não desfaz o comentário local."""
+    try:
+        slug = instance_slug_local()
+        if settings.SAAS_CONTROL_PLANE:
+            gravar_comentario_cliente(
+                db,
+                slug=slug,
+                origem_solicitacao_id=int(solicitacao.id),
+                origem_comentario_id=int(comentario.id),
+                corpo=comentario.corpo,
+                autor_nome=comentario.autor_nome,
+            )
+            return
+        url = (settings.SAAS_CONTROL_PLANE_INGEST_URL or "").strip()
+        token = (settings.SAAS_INSTANCE_INGEST_TOKEN or "").strip()
+        slug_cfg = (settings.SAAS_INSTANCE_SLUG or "").strip()
+        if not url or not token or not slug_cfg:
+            return
+        dedup_key = (
+            f"{EVENT_SAAS_SOLICITACAO_COMENTARIO}:{slug}:{solicitacao.id}:{comentario.id}"
+        )
+        if _dedup_ja_processado(db, dedup_key):
+            return
+        target = f"{url.rstrip('/')}/{int(solicitacao.id)}/comentarios"
+        body = SaasSolicitacaoComentarioIngest(
+            instance_slug=slug,
+            origem_solicitacao_id=int(solicitacao.id),
+            origem_comentario_id=int(comentario.id),
+            corpo=comentario.corpo,
+            autor_nome=comentario.autor_nome,
+        )
+        db.add(
+            WebhookOutbox(
+                event_type=EVENT_SAAS_SOLICITACAO_COMENTARIO,
+                dedup_key=dedup_key,
+                target_url=target,
+                payload_json=body.model_dump_json(),
+                status=STATUS_PENDENTE,
+                scheduled_at=_utcnow(),
+            )
+        )
+        db.flush()
+    except HTTPException:
+        logger.warning(
+            "Complemento da solicitação id=%s ainda não entrou na fila SaaS",
+            getattr(solicitacao, "id", None),
+        )
+    except Exception:
+        logger.exception(
+            "Falha ao publicar complemento da solicitação id=%s",
+            getattr(solicitacao, "id", None),
         )
 
 

@@ -461,16 +461,19 @@ def adicionar_comentario(
     if row.autor_atendente_id != atendente.id:
         raise HTTPException(status_code=403, detail="Só o autor pode responder nesta solicitação")
 
-    db.add(
-        SolicitacaoMelhoriaComentario(
-            solicitacao_id=row.id,
-            corpo=data.corpo.strip(),
-            publico_cliente=True,
-            origem="manual",
-            autor_atendente_id=atendente.id,
-            autor_nome=atendente.nome,
-        )
+    comentario = SolicitacaoMelhoriaComentario(
+        solicitacao_id=row.id,
+        corpo=data.corpo.strip(),
+        publico_cliente=True,
+        origem="manual",
+        autor_atendente_id=atendente.id,
+        autor_nome=atendente.nome,
     )
+    db.add(comentario)
+    db.flush()
+    from app.services.saas_solicitacao_ingest import publicar_comentario_cliente
+
+    publicar_comentario_cliente(db, row, comentario)
     db.commit()
     return _carregar(db, row.id)
 

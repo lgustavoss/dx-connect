@@ -113,6 +113,33 @@ def test_comentarios_publico_vs_interno(client, seed_base, auth_headers):
     assert "Nota interna" not in "".join(c["corpo"] for c in admin_view["comentarios"])
 
 
+def test_complemento_autor_aparece_na_fila_saas(client, seed_base, auth_headers, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SAAS_CONTROL_PLANE", True)
+    monkeypatch.setattr(settings, "SAAS_INSTANCE_SLUG", "local")
+    sid = _criar(client, auth_headers["a1"]).json()["id"]
+    r = client.post(
+        f"/v1/solicitacoes-melhoria/{sid}/comentarios",
+        headers=auth_headers["a1"],
+        json={"corpo": "Segue o print do erro no fechamento.", "publico_cliente": True},
+    )
+    assert r.status_code == 200, r.text
+
+    lista = client.get("/v1/saas/solicitacoes", headers=auth_headers["ops"]).json()["items"]
+    saas_id = next(i["id"] for i in lista if i["origem_solicitacao_id"] == sid)
+    detalhe = client.get(f"/v1/saas/solicitacoes/{saas_id}", headers=auth_headers["ops"])
+    assert detalhe.status_code == 200, detalhe.text
+    assert any("print do erro" in c["corpo"] for c in detalhe.json()["comentarios"])
+
+    outro = client.post(
+        f"/v1/solicitacoes-melhoria/{sid}/comentarios",
+        headers=auth_headers["a2"],
+        json={"corpo": "Eu também quero isto", "publico_cliente": True},
+    )
+    assert outro.status_code == 403
+
+
 def test_a2_nao_comenta_solicitacao_de_a1(client, seed_base, auth_headers):
     sid = _criar(client, auth_headers["a1"]).json()["id"]
     # Mesma org (tenant) — pode ler, mas só autor responde
