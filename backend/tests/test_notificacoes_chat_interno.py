@@ -18,22 +18,23 @@ def test_resumo_inclui_chat_interno_nao_lidas(db_session, seed_base):
 
     resumo_admin = build_notificacao_resumo(db_session, seed_base["admin"])
     assert resumo_admin.chat_interno_nao_lidas_count == 1
-    assert resumo_admin.total_pendencias >= 1
+    assert resumo_admin.total_pendencias == (
+        resumo_admin.sem_responsavel_count
+        + resumo_admin.nao_lidas_count
+        + resumo_admin.ponto_he_pendentes_count
+    )
 
     resumo_a1 = build_notificacao_resumo(db_session, seed_base["a1"])
     assert resumo_a1.chat_interno_nao_lidas_count == 0
 
 
-def test_itens_chat_interno_link_conversa(db_session, seed_base):
-    conversa = _enviar_direta(db_session, seed_base, seed_base["a1"], seed_base["admin"], "Olá")
+def test_itens_chat_interno_nao_entra_no_sino(db_session, seed_base):
+    _enviar_direta(db_session, seed_base, seed_base["a1"], seed_base["admin"], "Olá")
 
     itens = build_notificacao_itens(db_session, seed_base["admin"], limit=15)
-    chat_itens = [i for i in itens if i.tipo == "chat_interno"]
-    assert len(chat_itens) >= 1
-    item = chat_itens[0]
-    assert item.conversa_id == conversa.id
-    assert item.href == "/chat/interno"
-    assert item.count >= 1
+    assert [i for i in itens if i.tipo == "chat_interno"] == []
+    resumo = build_notificacao_resumo(db_session, seed_base["admin"])
+    assert resumo.chat_interno_nao_lidas_count == 1
 
 
 def test_visto_zera_contador_chat_interno(client, seed_base, auth_headers, db_session):

@@ -14,12 +14,17 @@ from app.models.saas_solicitacao_produto import (
 )
 from app.services import saas_solicitacao_ingest as ingest
 from app.services.solicitacao_melhoria import (
+    AUTOR_PUBLICO_CLIENTE,
     aplicar_comentario_origem_saas,
     aplicar_status_origem_saas,
     aplicar_versao_alvo_origem_saas,
 )
 from app.services.solicitacao_melhoria_copy import normalizar_versao_alvo
-from app.services.saas_solicitacao_triagem import _deve_aplicar_local
+from app.services.saas_solicitacao_triagem import (
+    CANAL_RELEASE,
+    _deve_aplicar_local,
+    registrar_historico_status,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +76,19 @@ def _marcar_concluida_release(
     if normalizar_versao_alvo(row.versao_alvo) != versao_n:
         row.versao_alvo = versao_n
         alterou = True
+    status_anterior = row.status
     if row.status != "concluida":
         row.status = "concluida"
         alterou = True
+        registrar_historico_status(
+            db,
+            row,
+            status_anterior=status_anterior,
+            status_novo="concluida",
+            motivo=None,
+            ops=None,
+            canal=CANAL_RELEASE,
+        )
     if alterou:
         row.triagem_atualizada_em = _agora()
         db.add(row)
@@ -102,7 +117,7 @@ def _marcar_concluida_release(
                 solicitacao_id=row.id,
                 corpo=comentario,
                 publico_cliente=True,
-                autor_nome="DeskRudder",
+                autor_nome="Deploy",
             )
         )
         db.flush()
@@ -112,7 +127,7 @@ def _marcar_concluida_release(
                 row.origem_solicitacao_id,
                 corpo=comentario,
                 origem_externa_id=origem_sync,
-                autor_nome="DeskRudder",
+                autor_nome=AUTOR_PUBLICO_CLIENTE,
             )
         alterou = True
     return alterou

@@ -1,11 +1,11 @@
 # Necessário para `Form()` / `UploadFile` (envio de mídia WhatsApp, etc.).
 python-multipart==0.0.32
 fastapi==0.141.1
-starlette==1.6.0
+starlette==1.7.0
 uvicorn[standard]==0.53.0
 gunicorn==26.2.0
 sqlalchemy==2.0.54
-psycopg2-binary==2.9.12
+psycopg2-binary==2.9.13
 alembic==1.20.0
 pydantic[email]==2.13.5
 pydantic-settings==2.15.0

@@ -14,13 +14,23 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
 from app.models.cliente_saas import ClienteSaaS
-from app.models.saas_solicitacao_produto import SaasSolicitacaoProduto, SaasSolicitacaoProdutoAnexo
-from app.models.solicitacao_melhoria import SolicitacaoMelhoria, SolicitacaoMelhoriaAnexo
+from app.models.saas_solicitacao_produto import (
+    SaasSolicitacaoProduto,
+    SaasSolicitacaoProdutoAnexo,
+    SaasSolicitacaoProdutoComentario,
+)
+from app.models.solicitacao_melhoria import (
+    SolicitacaoMelhoria,
+    SolicitacaoMelhoriaAnexo,
+    SolicitacaoMelhoriaComentario,
+)
 from app.models.webhook_outbox import WebhookOutbox
 from app.schemas.saas_solicitacao import (
     SaasSolicitacaoAnexoRead,
+    SaasSolicitacaoComentarioIngest,
     SaasSolicitacaoComentarioRead,
     SaasSolicitacaoDetalhe,
+    SaasSolicitacaoHistoricoRead,
     SaasSolicitacaoIngest,
     SaasSolicitacaoListaItem,
 )
@@ -32,6 +42,7 @@ logger = logging.getLogger(__name__)
 
 EVENT_SAAS_SOLICITACAO = "saas.solicitacao"
 EVENT_SAAS_SOLICITACAO_MEDIA = "saas.solicitacao.media"
+EVENT_SAAS_SOLICITACAO_COMENTARIO = "saas.solicitacao.comentario"
 
 
 def hash_ingest_token(token: str) -> str:
@@ -403,6 +414,112 @@ def enfileirar_copia_saas(db: Session, row: SolicitacaoMelhoria) -> None:
         )
 
 
+def _chave_comentario_cliente(slug: str, origem_solicitacao_id: int, origem_comentario_id: int) -> str:
+    return f"{slug}:{origem_solicitacao_id}:{origem_comentario_id}"
+
+
+def gravar_comentario_cliente(
+    db: Session,
+    *,
+    slug: str,
+    origem_solicitacao_id: int,
+    origem_comentario_id: int,
+    corpo: str,
+    autor_nome: str | None,
+) -> SaasSolicitacaoProdutoComentario | None:
+    """Copia o complemento do autor para a fila. Idempotente. Sem commit."""
+    texto = (corpo or "").strip()
+    if not texto:
+        return None
+    dest = (
+        db.query(SaasSolicitacaoProduto)
+        .filter(
+            SaasSolicitacaoProduto.instance_slug == slug.strip().lower(),
+            SaasSolicitacaoProduto.origem_solicitacao_id == origem_solicitacao_id,
+        )
+        .first()
+    )
+    if dest is None:
+        raise HTTPException(status_code=404, detail="Solicitação ainda não está na fila")
+    chave = _chave_comentario_cliente(slug.strip().lower(), origem_solicitacao_id, origem_comentario_id)
+    ja = (
+        db.query(SaasSolicitacaoProdutoComentario)
+        .filter(SaasSolicitacaoProdutoComentario.origem_externa_id == chave)
+        .first()
+    )
+    if ja:
+        return ja
+    row = SaasSolicitacaoProdutoComentario(
+        solicitacao_id=dest.id,
+        corpo=texto,
+        publico_cliente=True,
+        autor_nome=(autor_nome or "").strip() or None,
+        origem_externa_id=chave,
+    )
+    db.add(row)
+    db.flush()
+    return row
+
+
+def publicar_comentario_cliente(
+    db: Session,
+    solicitacao: SolicitacaoMelhoria,
+    comentario: SolicitacaoMelhoriaComentario,
+) -> None:
+    """Envia o complemento do autor ao painel. Falha não desfaz o comentário local."""
+    try:
+        slug = instance_slug_local()
+        if settings.SAAS_CONTROL_PLANE:
+            gravar_comentario_cliente(
+                db,
+                slug=slug,
+                origem_solicitacao_id=int(solicitacao.id),
+                origem_comentario_id=int(comentario.id),
+                corpo=comentario.corpo,
+                autor_nome=comentario.autor_nome,
+            )
+            return
+        url = (settings.SAAS_CONTROL_PLANE_INGEST_URL or "").strip()
+        token = (settings.SAAS_INSTANCE_INGEST_TOKEN or "").strip()
+        slug_cfg = (settings.SAAS_INSTANCE_SLUG or "").strip()
+        if not url or not token or not slug_cfg:
+            return
+        dedup_key = (
+            f"{EVENT_SAAS_SOLICITACAO_COMENTARIO}:{slug}:{solicitacao.id}:{comentario.id}"
+        )
+        if _dedup_ja_processado(db, dedup_key):
+            return
+        target = f"{url.rstrip('/')}/{int(solicitacao.id)}/comentarios"
+        body = SaasSolicitacaoComentarioIngest(
+            instance_slug=slug,
+            origem_solicitacao_id=int(solicitacao.id),
+            origem_comentario_id=int(comentario.id),
+            corpo=comentario.corpo,
+            autor_nome=comentario.autor_nome,
+        )
+        db.add(
+            WebhookOutbox(
+                event_type=EVENT_SAAS_SOLICITACAO_COMENTARIO,
+                dedup_key=dedup_key,
+                target_url=target,
+                payload_json=body.model_dump_json(),
+                status=STATUS_PENDENTE,
+                scheduled_at=_utcnow(),
+            )
+        )
+        db.flush()
+    except HTTPException:
+        logger.warning(
+            "Complemento da solicitação id=%s ainda não entrou na fila SaaS",
+            getattr(solicitacao, "id", None),
+        )
+    except Exception:
+        logger.exception(
+            "Falha ao publicar complemento da solicitação id=%s",
+            getattr(solicitacao, "id", None),
+        )
+
+
 def item_lista(
     row: SaasSolicitacaoProduto,
     *,
@@ -430,11 +547,13 @@ def item_lista(
         github_issue_url=row.github_issue_url,
         peso_clientes=peso_clientes,
         pedidos_grupo=pedidos_grupo,
+        ultimo_ator_nome=row.ultimo_ator_nome,
     )
 
 
 def detalhe(db: Session, row: SaasSolicitacaoProduto) -> SaasSolicitacaoDetalhe:
     from app.services import saas_solicitacao_grupo as grupo
+    from app.services.saas_solicitacao_triagem import rotulo_canal
 
     pesos = grupo.pesos_por_id(db, [row])
     pc, pg = pesos.get(row.id, (1, 1))
@@ -456,12 +575,27 @@ def detalhe(db: Session, row: SaasSolicitacaoProduto) -> SaasSolicitacaoDetalhe:
         .all()
     )
     anexos = [anexo_read(a) for a in anexos_rows]
+    historico = [
+        SaasSolicitacaoHistoricoRead(
+            id=h.id,
+            status_anterior=h.status_anterior,
+            status_novo=h.status_novo,
+            status_novo_rotulo=rotulo_status(h.status_novo),
+            motivo=h.motivo,
+            autor_nome=h.autor_nome,
+            canal=h.canal,
+            canal_rotulo=rotulo_canal(h.canal),
+            created_at=h.created_at,
+        )
+        for h in (row.historico or [])
+    ]
     return SaasSolicitacaoDetalhe(
         **base.model_dump(),
         descricao=row.descricao,
         motivo_nao_desenvolvimento=row.motivo_nao_desenvolvimento,
         triagem_atualizada_em=row.triagem_atualizada_em,
         comentarios=comentarios,
+        historico=historico,
         anexos=anexos,
         github_repo=row.github_repo,
         grupo=[grupo.membro_read(m) for m in grupo.membros(db, row)],
@@ -476,6 +610,7 @@ def obter(db: Session, solicitacao_id: int) -> SaasSolicitacaoProduto:
             joinedload(SaasSolicitacaoProduto.cliente),
             joinedload(SaasSolicitacaoProduto.comentarios),
             joinedload(SaasSolicitacaoProduto.anexos),
+            joinedload(SaasSolicitacaoProduto.historico),
         )
         .filter(SaasSolicitacaoProduto.id == solicitacao_id)
         .first()

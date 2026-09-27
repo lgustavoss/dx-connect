@@ -26,15 +26,43 @@ function badgeText(n: number): string {
   return String(n)
 }
 
+const chatIcon = (
+  <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={1.75}
+      d="M8 10h8M8 14h5M6 18l-2 3V6a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H6z"
+    />
+  </svg>
+)
+
+export function NavbarAtalhoChats({ enabled }: { enabled: boolean }) {
+  const resumo = usePendenciasResumo(enabled)
+  const n = resumo.chats_em_atendimento_count ?? 0
+  const badge = badgeText(n)
+  const titulo = n > 0 ? `${n} em atendimento` : 'Chats'
+  return (
+    <Link
+      to="/chat/atendendo"
+      className="relative flex size-10 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 active:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800 dark:active:bg-slate-800 touch-manipulation md:size-9"
+      aria-label={n > 0 ? `Chats, ${n} em atendimento` : 'Chats'}
+      title={titulo}
+    >
+      {chatIcon}
+      {badge ? (
+        <span className="absolute -right-0.5 -top-0.5 flex min-w-[1.125rem] justify-center rounded-full bg-cyan-600 px-1 text-[10px] font-semibold leading-4 text-white shadow-sm dark:bg-cyan-500">
+          {badge}
+        </span>
+      ) : null}
+    </Link>
+  )
+}
+
 function ResumoRodape({ resumo }: { resumo: Notificacoes.Resumo }) {
   const partes: string[] = []
   if (resumo.sem_responsavel_count > 0) partes.push(`Fila: ${resumo.sem_responsavel_count}`)
   if (resumo.nao_lidas_count > 0) partes.push(`Não lidas: ${resumo.nao_lidas_count}`)
-  if (resumo.wpp_fila_count > 0) partes.push(`WPP fila: ${resumo.wpp_fila_count}`)
-  if (resumo.wpp_respostas_count > 0) partes.push(`WPP resposta: ${resumo.wpp_respostas_count}`)
-  if (resumo.chat_interno_nao_lidas_count > 0) {
-    partes.push(`Chat interno: ${resumo.chat_interno_nao_lidas_count}`)
-  }
   if (partes.length === 0) return null
   return (
     <div className="shrink-0 border-t border-slate-200/90 bg-white px-4 py-3 text-xs text-slate-600 dark:border-slate-800/90 dark:bg-slate-950 dark:text-slate-300 sm:border-slate-100 sm:px-3 sm:pt-2 sm:text-[11px] sm:text-slate-400 dark:sm:border-slate-800 dark:sm:text-slate-500">

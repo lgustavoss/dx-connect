@@ -37,6 +37,9 @@ from app.services.solicitacao_melhoria_copy import (
 
 MSG_TRIAGEM_SAAS = "A triagem de produto é feita no painel SaaS DeskRudder"
 
+# Rótulo que o cliente vê. O nome real do ops fica só no control-plane (#881).
+AUTOR_PUBLICO_CLIENTE = "Desenvolvedor"
+
 
 def organizacao_id_de(atendente: Atendente) -> int:
     return int(getattr(atendente, "tenant_id", None) or 1)
@@ -391,7 +394,11 @@ def aplicar_comentario_origem_saas(
     origem_externa_id: str,
     autor_nome: str | None,
 ) -> SolicitacaoMelhoriaComentario | None:
-    """Comentário público vindo do SaaS. Idempotente por origem_externa_id. Sem commit."""
+    """Comentário público vindo do SaaS. Idempotente por origem_externa_id. Sem commit.
+
+    O nome recebido é ignorado: a instância grava sempre AUTOR_PUBLICO_CLIENTE.
+    """
+    _ = autor_nome
     texto = (corpo or "").strip()
     if not texto:
         return None
@@ -404,6 +411,10 @@ def aplicar_comentario_origem_saas(
         .first()
     )
     if ja:
+        if (ja.autor_nome or "") != AUTOR_PUBLICO_CLIENTE:
+            ja.autor_nome = AUTOR_PUBLICO_CLIENTE
+            db.add(ja)
+            db.flush()
         return ja
     c = SolicitacaoMelhoriaComentario(
         solicitacao_id=row.id,
@@ -412,7 +423,7 @@ def aplicar_comentario_origem_saas(
         origem="saas",
         origem_externa_id=origem_externa_id,
         autor_atendente_id=None,
-        autor_nome=(autor_nome or "").strip() or "DeskRudder",
+        autor_nome=AUTOR_PUBLICO_CLIENTE,
     )
     db.add(c)
     db.flush()
@@ -450,16 +461,19 @@ def adicionar_comentario(
     if row.autor_atendente_id != atendente.id:
         raise HTTPException(status_code=403, detail="Só o autor pode responder nesta solicitação")
 
-    db.add(
-        SolicitacaoMelhoriaComentario(
-            solicitacao_id=row.id,
-            corpo=data.corpo.strip(),
-            publico_cliente=True,
-            origem="manual",
-            autor_atendente_id=atendente.id,
-            autor_nome=atendente.nome,
-        )
+    comentario = SolicitacaoMelhoriaComentario(
+        solicitacao_id=row.id,
+        corpo=data.corpo.strip(),
+        publico_cliente=True,
+        origem="manual",
+        autor_atendente_id=atendente.id,
+        autor_nome=atendente.nome,
     )
+    db.add(comentario)
+    db.flush()
+    from app.services.saas_solicitacao_ingest import publicar_comentario_cliente
+
+    publicar_comentario_cliente(db, row, comentario)
     db.commit()
     return _carregar(db, row.id)
 

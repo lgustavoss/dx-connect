@@ -5,7 +5,7 @@ export function WhatsappLayout() {
   const loc = useLocation()
   const { user } = useAuth()
 
-  if (/\/whatsapp\/c\//.test(loc.pathname)) {
+  if (/\/whatsapp\/c\//.test(loc.pathname) || /\/whatsapp\/historico\/\d+/.test(loc.pathname)) {
     return (
       <div className="h-full w-full animate-in fade-in duration-300">
         <Outlet />

@@ -1337,6 +1337,14 @@ export namespace WhatsappChats {
     motivo_id?: number | null
     descricao_curta?: string | null
   }
+  export interface Anterior {
+    id: number
+    protocolo: string
+    estado: string
+    atendimento_inicio_at?: string | null
+    encerramento_at?: string | null
+    created_at?: string | null
+  }
   export interface DemandaUpdate {
     natureza_id?: number
     motivo_id?: number | null
@@ -1505,6 +1513,7 @@ export const whatsappChats = {
   avaliacoes: (params?: Record<string, string | number | undefined>) =>
     listPaginated<WhatsappChats.Avaliacao>('/whatsapp/chats/avaliacoes', params),
   get: (id: number) => api<WhatsappChats.Chat>(`/whatsapp/chats/${id}`),
+  anterior: (id: number) => api<WhatsappChats.Anterior | null>(`/whatsapp/chats/${id}/anterior`),
   mensagens: (id: number) => api<WhatsappChats.Mensagem[]>(`/whatsapp/chats/${id}/mensagens`),
   downloadPdf: async (id: number) => {
     const token = getAuthToken()
@@ -1903,6 +1912,7 @@ export namespace Notificacoes {
     portal_respostas_count: number;
     chat_interno_nao_lidas_count: number;
     ponto_he_pendentes_count?: number;
+    chats_em_atendimento_count?: number;
     total_pendencias: number;
   }
   export interface Item {
@@ -5897,6 +5907,18 @@ export namespace SaasSolicitacoesProduto {
     github_issue_url?: string | null;
     peso_clientes?: number;
     pedidos_grupo?: number;
+    ultimo_ator_nome?: string | null;
+  }
+  export interface Historico {
+    id: number;
+    status_anterior?: string | null;
+    status_novo: string;
+    status_novo_rotulo: string;
+    motivo?: string | null;
+    autor_nome?: string | null;
+    canal: string;
+    canal_rotulo: string;
+    created_at: string;
   }
   export interface Comentario {
     id: number;
@@ -5910,6 +5932,7 @@ export namespace SaasSolicitacoesProduto {
     motivo_nao_desenvolvimento?: string | null;
     triagem_atualizada_em?: string | null;
     comentarios: Comentario[];
+    historico?: Historico[];
     anexos?: Anexo[];
     github_repo?: string | null;
     grupo?: GrupoMembro[];

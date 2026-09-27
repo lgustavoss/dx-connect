@@ -60,6 +60,12 @@ def test_concluir_pedidos_release_idempotente(client, seed_base, auth_headers, m
     assert minhas["status"] == "concluida"
     assert minhas["versao_alvo"] == "2026.08.99"
     assert minhas["versao_alvo_rotulo"] == "Disponível a partir da versão 2026.08.99 (ou superior)"
+    aviso = next(c for c in minhas["comentarios"] if "2026.08.99" in c["corpo"])
+    assert aviso["autor_nome"] == "Desenvolvedor"
+    db_session.expire_all()
+    saas = db_session.get(SaasSolicitacaoProduto, saas_id)
+    assert any(c.autor_nome == "Deploy" for c in saas.comentarios)
+    assert any(h.canal == "release" and h.autor_nome == "Deploy" for h in saas.historico)
 
     stats2 = concluir_pedidos_release(db_session, versao="2026.08.99", textos_changelog=[texto])
     assert stats2["concluidos"] == 0

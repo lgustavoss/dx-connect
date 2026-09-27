@@ -73,6 +73,7 @@ import { ConfigDomainIndexRedirect, ConfigDomainLayout } from './pages/config/Co
 import { ConfigLegacyRedirect } from './pages/config/ConfigLegacyRedirect'
 import { WhatsappLayout } from './pages/whatsapp/WhatsappLayout'
 import { WhatsappHistorico } from './pages/whatsapp/WhatsappHistorico'
+import { WhatsappConversa } from './pages/whatsapp/WhatsappConversa'
 import { WhatsappAvaliacoes } from './pages/whatsapp/WhatsappAvaliacoes'
 import { ChatInternoSetorCanal } from './pages/chat-interno/ChatInternoSetorCanal'
 import { ChatHubShell } from './pages/chat/ChatHubShell'
@@ -537,6 +538,7 @@ function AppRoutes() {
           <Route index element={<Navigate to="/chat/atendendo" replace />} />
           <Route path="atendendo" element={<Navigate to="/chat/atendendo" replace />} />
           <Route path="historico" element={<WhatsappHistorico />} />
+          <Route path="historico/:chatId" element={<WhatsappConversa modoConsulta />} />
           <Route path="fila" element={<Navigate to="/chat/espera" replace />} />
           <Route path="meus" element={<Navigate to="/chat/atendendo" replace />} />
           <Route path="c/:chatId" element={<RedirectChatConversa canal="whatsapp" />} />

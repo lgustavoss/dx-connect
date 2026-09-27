@@ -10,6 +10,14 @@ from pydantic import BaseModel, ConfigDict, Field
 TipoSolicitacao = Literal["sugestao", "problema"]
 
 
+class SaasSolicitacaoComentarioIngest(BaseModel):
+    instance_slug: str = Field(..., min_length=1, max_length=80)
+    origem_solicitacao_id: int = Field(..., ge=1)
+    origem_comentario_id: int = Field(..., ge=1)
+    corpo: str = Field(..., min_length=1, max_length=20000)
+    autor_nome: str | None = Field(None, max_length=255)
+
+
 class SaasSolicitacaoIngest(BaseModel):
     instance_slug: str = Field(..., min_length=1, max_length=80)
     origem_solicitacao_id: int = Field(..., ge=1)
@@ -42,6 +50,21 @@ class SaasSolicitacaoListaItem(BaseModel):
     github_issue_url: str | None = None
     peso_clientes: int = 1
     pedidos_grupo: int = 1
+    ultimo_ator_nome: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SaasSolicitacaoHistoricoRead(BaseModel):
+    id: int
+    status_anterior: str | None
+    status_novo: str
+    status_novo_rotulo: str
+    motivo: str | None
+    autor_nome: str | None
+    canal: str
+    canal_rotulo: str
+    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -79,6 +102,7 @@ class SaasSolicitacaoDetalhe(SaasSolicitacaoListaItem):
     motivo_nao_desenvolvimento: str | None = None
     triagem_atualizada_em: datetime | None = None
     comentarios: list[SaasSolicitacaoComentarioRead] = Field(default_factory=list)
+    historico: list[SaasSolicitacaoHistoricoRead] = Field(default_factory=list)
     anexos: list[SaasSolicitacaoAnexoRead] = Field(default_factory=list)
     github_repo: str | None = None
     grupo: list[SaasSolicitacaoGrupoMembro] = Field(default_factory=list)

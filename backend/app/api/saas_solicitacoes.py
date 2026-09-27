@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -24,6 +24,8 @@ from app.services import saas_solicitacao_triagem as triagem
 from app.schemas.saas_solicitacao import (
     SaasSolicitacaoAnexoRead,
     SaasSolicitacaoComentarioCreate,
+    SaasSolicitacaoComentarioIngest,
+    SaasSolicitacaoComentarioRead,
     SaasSolicitacaoDetalhe,
     SaasSolicitacaoGithubUpdate,
     SaasSolicitacaoImplementar,
@@ -45,6 +47,10 @@ class OrdenarSolicitacoesPor(str, Enum):
     ingested_at = "ingested_at"
     created_at_origem = "created_at_origem"
     titulo = "titulo"
+
+
+def _canal_fila(request: Request) -> str:
+    return getattr(request.state, "saas_fila_canal", "painel")
 
 
 def exigir_saas_control_plane() -> None:
@@ -80,6 +86,41 @@ def ingest_solicitacao(
     if row.cliente is None:
         row.cliente = cliente
     return ingest.item_lista(row)
+
+
+@router.post("/ingest/solicitacoes/{origem_id}/comentarios", response_model=SaasSolicitacaoComentarioRead)
+def ingest_solicitacao_comentario(
+    origem_id: int,
+    data: SaasSolicitacaoComentarioIngest,
+    db: Session = Depends(get_db),
+    _: None = Depends(exigir_saas_control_plane),
+    authorization: str | None = Header(None),
+    x_saas_instance_token: str | None = Header(None, alias="X-Saas-Instance-Token"),
+):
+    """Recebe o complemento escrito pelo autor na instância."""
+    if data.origem_solicitacao_id != origem_id:
+        raise HTTPException(status_code=400, detail="Identificador do pedido não confere")
+    token = _token_from_headers(authorization, x_saas_instance_token)
+    cliente = ingest.autenticar_ingest(db, slug=data.instance_slug, token=token)
+    row = ingest.gravar_comentario_cliente(
+        db,
+        slug=cliente.slug,
+        origem_solicitacao_id=origem_id,
+        origem_comentario_id=data.origem_comentario_id,
+        corpo=data.corpo,
+        autor_nome=data.autor_nome,
+    )
+    db.commit()
+    if row is None:
+        raise HTTPException(status_code=400, detail="Comentário vazio")
+    db.refresh(row)
+    return SaasSolicitacaoComentarioRead(
+        id=row.id,
+        corpo=row.corpo,
+        publico_cliente=row.publico_cliente,
+        autor_nome=row.autor_nome,
+        created_at=row.created_at,
+    )
 
 
 @router.post(
@@ -241,23 +282,25 @@ def obter(
 def alterar_status(
     solicitacao_id: int,
     data: SaasSolicitacaoStatusUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
     ops: Atendente = Depends(exigir_fila_saas),
 ):
-    return triagem.alterar_status(db, solicitacao_id, ops, data)
+    return triagem.alterar_status(db, solicitacao_id, ops, data, canal=_canal_fila(request))
 
 
 @router.post("/solicitacoes/{solicitacao_id}/implementar", response_model=SaasSolicitacaoDetalhe)
 def implementar(
     solicitacao_id: int,
+    request: Request,
     data: SaasSolicitacaoImplementar = SaasSolicitacaoImplementar(),
     db: Session = Depends(get_db),
     _: None = Depends(exigir_saas_control_plane),
     ops: Atendente = Depends(exigir_fila_saas),
 ):
     """G2: cria/liga issue GitHub e avança para em_desenvolvimento."""
-    return triagem.implementar(db, solicitacao_id, ops, data)
+    return triagem.implementar(db, solicitacao_id, ops, data, canal=_canal_fila(request))
 
 
 @router.post("/solicitacoes/{solicitacao_id}/comentarios", response_model=SaasSolicitacaoDetalhe)

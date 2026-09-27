@@ -5,6 +5,31 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### SaaS Control Plane
+
+#### Melhorias
+
+- Fila de solicitações (#881): o painel mostra quem mudou o status e por qual canal
+- Fila de solicitações (#1099): o complemento escrito pelo autor do pedido aparece no painel
+
+### DeskRudder
+
+#### Melhorias
+
+- Minhas solicitações (#881): a resposta da equipe aparece como **Desenvolvedor**
+- WhatsApp (#1102): abrir um atendimento pelo histórico não entra na mesa; voltar restaura a lista com o filtro
+- WhatsApp (#1105): na conversa, dá para ver o atendimento anterior do mesmo cliente e voltar sem sair do chat atual
+- Barra superior (#1106): atalho de chats mostra quantos estão na lista Atendendo; o sino avisa só de tickets
+- WhatsApp (#1104): ao transferir, o cliente recebe no WhatsApp o novo atendente e o setor; o aviso continua no histórico do atendente
+- Tickets (#1101): a lista deixa de cortar o texto na borda; em tela estreita a tabela rola na horizontal
+- CRM (#1097): o campo de nome da rede não trata o WebPosto como o único tipo de cliente
+- CRM (#1100): na lista de leads, o estágio fica na mesma linha dos outros filtros
+- Minhas solicitações (#1099): o autor complementa o próprio pedido
+
+#### Correções
+
+- WhatsApp (#1103): o botão de fechar a imagem ampliada volta a funcionar, também com zoom
+
 ## [26.09.002] - 2026-09-25
 
 ### SaaS Control Plane

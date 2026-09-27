@@ -34,6 +34,7 @@ class SaasSolicitacaoProduto(Base):
     ingested_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     motivo_nao_desenvolvimento = Column(Text, nullable=True)
     triagem_atualizada_em = Column(DateTime(timezone=True), nullable=True)
+    ultimo_ator_nome = Column(String(255), nullable=True)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     github_repo = Column(String(200), nullable=True)
     github_issue_number = Column(Integer, nullable=True)
@@ -54,6 +55,12 @@ class SaasSolicitacaoProduto(Base):
         order_by="SaasSolicitacaoProdutoAnexo.created_at",
         cascade="all, delete-orphan",
     )
+    historico = relationship(
+        "SaasSolicitacaoProdutoHistorico",
+        back_populates="solicitacao",
+        order_by="SaasSolicitacaoProdutoHistorico.created_at",
+        cascade="all, delete-orphan",
+    )
 
 
 class SaasSolicitacaoProdutoComentario(Base):
@@ -70,9 +77,34 @@ class SaasSolicitacaoProdutoComentario(Base):
     publico_cliente = Column(Boolean, nullable=False, default=True, server_default="true")
     autor_atendente_id = Column(Integer, nullable=True)
     autor_nome = Column(String(255), nullable=True)
+    origem_externa_id = Column(String(80), nullable=True, unique=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     solicitacao = relationship("SaasSolicitacaoProduto", back_populates="comentarios")
+
+
+class SaasSolicitacaoProdutoHistorico(Base):
+    """Quem mudou o status no control-plane. O cliente não recebe este nome."""
+
+    __tablename__ = "saas_solicitacoes_produto_historico"
+
+    id = Column(Integer, primary_key=True, index=True)
+    solicitacao_id = Column(
+        Integer,
+        ForeignKey("saas_solicitacoes_produto.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    status_anterior = Column(String(40), nullable=True)
+    status_novo = Column(String(40), nullable=False)
+    motivo = Column(Text, nullable=True)
+    atendente_id = Column(Integer, ForeignKey("atendentes.id", ondelete="SET NULL"), nullable=True)
+    autor_nome = Column(String(255), nullable=True)
+    canal = Column(String(16), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    solicitacao = relationship("SaasSolicitacaoProduto", back_populates="historico")
+    atendente = relationship("Atendente")
 
 
 class SaasSolicitacaoProdutoAnexo(Base):

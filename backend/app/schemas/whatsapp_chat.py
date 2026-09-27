@@ -92,6 +92,17 @@ class WhatsappChatRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class WhatsappChatAnteriorRead(BaseModel):
+    """Atendimento anterior do mesmo cliente (#1105)."""
+
+    id: int
+    protocolo: str
+    estado: str
+    atendimento_inicio_at: datetime | None = None
+    encerramento_at: datetime | None = None
+    created_at: datetime | None = None
+
+
 class WhatsappEmpresaCatalogoRead(BaseModel):
     id: int
     nome: str

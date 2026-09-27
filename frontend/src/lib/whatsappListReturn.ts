@@ -78,6 +78,24 @@ export function resolveWhatsappListFallback(
   return fallback
 }
 
+/** Caminho de volta da consulta. Só a lista `/whatsapp/historico`, com ou sem filtro. */
+export function caminhoVoltaHistoricoSeguro(raw: string | null | undefined): string | null {
+  const path = (raw || '').trim()
+  if (!path.startsWith('/whatsapp/historico') || path.includes('\\') || path.includes('\n')) return null
+  const semQuery = path.split('?')[0]
+  if (semQuery !== WHATSAPP_LIST_PATHS.historico) return null
+  return path
+}
+
+/** Consulta do histórico com o filtro na query, para o Voltar sobreviver a um refresh (#1102). */
+export function consultaHistoricoTo(chatId: number, returnPath: string) {
+  const volta = caminhoVoltaHistoricoSeguro(returnPath)
+  const params = new URLSearchParams()
+  if (volta) params.set('volta', volta)
+  const qs = params.toString()
+  return qs ? `/whatsapp/historico/${chatId}?${qs}` : `/whatsapp/historico/${chatId}`
+}
+
 export function buildHistoricoReturnPath(filters: {
   busca: string
   atendenteId: number | ''

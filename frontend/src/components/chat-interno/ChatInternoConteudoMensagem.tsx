@@ -194,24 +194,28 @@ export function ChatInternoConteudoMensagem({
         {zoomAberto &&
           createPortal(
             <div
-              className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/90 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+              className="fixed inset-0 z-[200] flex flex-col bg-black/90 p-4 backdrop-blur-sm animate-in fade-in duration-200"
               role="dialog"
               aria-modal="true"
               aria-label="Imagem ampliada"
               onClick={() => setZoomAberto(false)}
             >
-              <button
-                type="button"
-                className="absolute top-4 right-4 flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-white/10 text-3xl font-bold text-white transition-colors hover:bg-white/20"
-                onClick={() => setZoomAberto(false)}
-                aria-label="Fechar"
-              >
-                &times;
-              </button>
-              <ImageLightboxViewer src={url} />
+              <div className="z-30 flex h-12 shrink-0 justify-end" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  className="flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-white/15 text-3xl font-bold text-white transition-colors hover:bg-white/25"
+                  onClick={() => setZoomAberto(false)}
+                  aria-label="Fechar"
+                >
+                  &times;
+                </button>
+              </div>
+              <div className="relative z-0 flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                <ImageLightboxViewer src={url} />
+              </div>
               {legenda ? (
                 <p
-                  className="mt-4 max-w-2xl rounded-xl bg-black/40 px-4 py-2 text-center text-sm text-white backdrop-blur-md"
+                  className="mt-3 max-w-2xl shrink-0 self-center rounded-xl bg-black/40 px-4 py-2 text-center text-sm text-white backdrop-blur-md"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {legenda}
@@ -220,7 +224,7 @@ export function ChatInternoConteudoMensagem({
               <a
                 href={url}
                 download={mensagem.nome_arquivo || 'imagem.jpg'}
-                className="absolute bottom-4 right-4 flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg transition-all hover:scale-105 hover:bg-sky-500"
+                className="z-30 mt-3 shrink-0 self-end rounded-xl bg-sky-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg hover:bg-sky-500"
                 onClick={(e) => e.stopPropagation()}
               >
                 Baixar
