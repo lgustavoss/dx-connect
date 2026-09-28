@@ -16,6 +16,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - WhatsApp (#1122): no atendimento anterior, áudio, vídeo, imagem e arquivos disponíveis podem ser abertos
 - WhatsApp (#1123): no modo escuro, o botão de ver o atendimento anterior continua legível com o mouse em cima
 - WhatsApp (#1102): abrir um atendimento pelo histórico deixa de derrubar a tela
+- Chat (#S202609-0025): o painel de emoji e figurinha deixa de fechar sozinho — clicar num emoji insere na mensagem e a aba Figurinha abre normalmente
+- WhatsApp (#S202609-0025): figurinha recebida aparece no tamanho de figurinha e não abre mais como imagem ampliada
 
 ## [26.09.003] - 2026-09-27
 
