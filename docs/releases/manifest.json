@@ -3798,6 +3798,19 @@
           "text": "WhatsApp (#1103): o botão de fechar a imagem ampliada volta a funcionar, também com zoom"
         }
       ]
+    },
+    {
+      "version": "26.09.004",
+      "version_display": "v26.09.004",
+      "date": "2026-09-27",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp (#1102): abrir um atendimento pelo histórico deixa de derrubar a tela"
+        }
+      ]
     }
   ]
 }

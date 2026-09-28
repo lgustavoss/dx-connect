@@ -1,71 +1,16 @@
 {
-  "current_version": "26.09.003",
-  "current_version_display": "v26.09.003",
+  "current_version": "26.09.004",
+  "current_version_display": "v26.09.004",
   "current": {
-    "version": "26.09.003",
-    "version_display": "v26.09.003",
+    "version": "26.09.004",
+    "version_display": "v26.09.004",
     "date": "2026-09-27",
     "status": "published",
     "changes": [
       {
-        "product": "saas",
-        "category": "melhorias",
-        "text": "Fila de solicitações (#881): o painel mostra quem mudou o status e por qual canal"
-      },
-      {
-        "product": "saas",
-        "category": "melhorias",
-        "text": "Fila de solicitações (#1099): o complemento escrito pelo autor do pedido aparece no painel"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Minhas solicitações (#881): a resposta da equipe aparece como **Desenvolvedor**"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "WhatsApp (#1102): abrir um atendimento pelo histórico não entra na mesa; voltar restaura a lista com o filtro"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "WhatsApp (#1105): na conversa, dá para ver o atendimento anterior do mesmo cliente e voltar sem sair do chat atual"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Barra superior (#1106): atalho de chats mostra quantos estão na lista Atendendo; o sino avisa só de tickets"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "WhatsApp (#1104): ao transferir, o cliente recebe no WhatsApp o novo atendente e o setor; o aviso continua no histórico do atendente"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Tickets (#1101): a lista deixa de cortar o texto na borda; em tela estreita a tabela rola na horizontal"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "CRM (#1097): o campo de nome da rede não trata o WebPosto como o único tipo de cliente"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "CRM (#1100): na lista de leads, o estágio fica na mesma linha dos outros filtros"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Minhas solicitações (#1099): o autor complementa o próprio pedido"
-      },
-      {
         "product": "deskrudder",
         "category": "correcoes",
-        "text": "WhatsApp (#1103): o botão de fechar a imagem ampliada volta a funcionar, também com zoom"
+        "text": "WhatsApp (#1102): abrir um atendimento pelo histórico deixa de derrubar a tela"
       }
     ]
   },
@@ -3866,6 +3811,19 @@
           "product": "deskrudder",
           "category": "correcoes",
           "text": "WhatsApp (#1103): o botão de fechar a imagem ampliada volta a funcionar, também com zoom"
+        }
+      ]
+    },
+    {
+      "version": "26.09.004",
+      "version_display": "v26.09.004",
+      "date": "2026-09-27",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp (#1102): abrir um atendimento pelo histórico deixa de derrubar a tela"
         }
       ]
     }
