@@ -10,6 +10,9 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 #### Melhorias
 
 - CRM (#1098): o histórico da negociação mostra quem escreveu a nota e o horário; o autor pode corrigir por 5 minutos e marcar um lembrete de reunião, que fica na tela até a pessoa fechar o aviso
+- Minhas solicitações (#1125): a lista mostra, em coluna, a versão em que o pedido concluído ficou disponível
+- Sobre (#1126): a introdução deixa de falar de melhorias de DevOps
+- Minhas solicitações (#1127): a lista abre nas pendentes, mostra quem abriu o pedido e aceita mais de um status ao mesmo tempo
 
 #### Correções
 
