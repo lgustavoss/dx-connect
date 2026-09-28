@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ClipboardEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type ClipboardEvent } from 'react'
 import { Button } from '../../components/ui/Button'
 import { KbConsultaButton } from '../../components/KbConsultaModal'
 import { RespostasProntasPicker } from '../../components/RespostasProntasPicker'
@@ -61,7 +61,10 @@ export function WhatsappComposerBar({
   placeholder,
 }: Props) {
   const [menuAberto, setMenuAberto] = useState(false)
-  const [painelEmojiAberto, setPainelEmojiAberto] = useState(false)
+  /** Uma só instância montada: duas instâncias fecham uma à outra no mousedown «fora». */
+  const [painelEmoji, setPainelEmoji] = useState<'desktop' | 'mobile' | null>(null)
+  const painelEmojiAberto = painelEmoji != null
+  const fecharPainelEmoji = useCallback(() => setPainelEmoji(null), [])
   const [gravando, setGravando] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const emojiRef = useRef<HTMLDivElement>(null)
@@ -155,7 +158,7 @@ export function WhatsappComposerBar({
             aria-label="Anexos"
             title={modoInterno ? 'Anexos indisponíveis em modo interno' : 'Anexos'}
             onClick={() => {
-              setPainelEmojiAberto(false)
+              setPainelEmoji(null)
               setMenuAberto((o) => !o)
             }}
             className={`${btnIcon} text-xl`}
@@ -182,7 +185,7 @@ export function WhatsappComposerBar({
                 className="block w-full border-t border-slate-100 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 md:hidden dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
                 onClick={() => {
                   setMenuAberto(false)
-                  setPainelEmojiAberto(true)
+                  setPainelEmoji('mobile')
                 }}
               >
                 Emoji e figurinhas
@@ -199,17 +202,18 @@ export function WhatsappComposerBar({
             title="Emoji e figurinhas"
             aria-label="Emoji e figurinhas"
             aria-expanded={painelEmojiAberto}
-            onClick={() => setPainelEmojiAberto((o) => !o)}
+            onClick={() => setPainelEmoji((o) => (o === 'desktop' ? null : 'desktop'))}
             className={`${btnIcon} text-lg`}
           >
             😊
           </button>
-          {painelEmojiAberto && (
+          {painelEmoji === 'desktop' && (
             <WhatsappEmojiFigurinhaPanel
               disabled={acoesBloqueadas || modoInterno || !podeEnviar}
               onInserirEmoji={inserirEmojiNoCursor}
               onEnviarFigurinha={onEnviarFigurinha}
-              onFechar={() => setPainelEmojiAberto(false)}
+              onFechar={fecharPainelEmoji}
+              ancoraRef={emojiRef}
             />
           )}
         </div>
@@ -276,13 +280,13 @@ export function WhatsappComposerBar({
         )}
 
         {/* Painel emoji aberto a partir do menu + (mobile) */}
-        {painelEmojiAberto && (
+        {painelEmoji === 'mobile' && (
           <div className="absolute bottom-full left-2 z-30 mb-2 md:hidden">
             <WhatsappEmojiFigurinhaPanel
               disabled={acoesBloqueadas || modoInterno || !podeEnviar}
               onInserirEmoji={inserirEmojiNoCursor}
               onEnviarFigurinha={onEnviarFigurinha}
-              onFechar={() => setPainelEmojiAberto(false)}
+              onFechar={fecharPainelEmoji}
             />
           </div>
         )}
