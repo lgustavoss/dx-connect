@@ -91,7 +91,7 @@ import {
   WHATSAPP_LIST_PATHS,
   type WhatsappListReturnState,
 } from '../../lib/whatsappListReturn'
-import { useChatHub } from '../../contexts/ChatHubContext'
+import { useChatHubOpcional } from '../../contexts/ChatHubContext'
 import { AtendimentosAnterioresFaixa } from '../../components/chat/AtendimentosAnterioresFaixa'
 import { ChatFilaAguardandoSheet } from '../../components/chat/ChatFilaAguardandoSheet'
 import { chatWhatsappLink } from '../../lib/chatHubPaths'
@@ -778,7 +778,10 @@ export function WhatsappConversa({ chatIdProp, modoConsulta = false }: WhatsappC
   const [exportandoPdf, setExportandoPdf] = useState(false)
   const [filaAguardandoAberta, setFilaAguardandoAberta] = useState(false)
   const [assumindo, setAssumindo] = useState(false)
-  const { filaCount, refreshContagens, abrirChat } = useChatHub()
+  const hub = useChatHubOpcional()
+  const filaCount = hub?.filaCount ?? 0
+  const refreshContagens = hub?.refreshContagens
+  const abrirChat = hub?.abrirChat
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
@@ -1487,10 +1490,10 @@ useEffect(() => {
       )
       setChat((prev) => mergeWhatsappChat(prev, atualizado))
       setModalAssumirSetor(false)
-      void refreshContagens()
+      void refreshContagens?.()
       void refetchPendenciasResumo()
       toast.showSuccess('Chat assumido.')
-      abrirChat('whatsapp', chat.id)
+      abrirChat?.('whatsapp', chat.id)
       navigate(chatWhatsappLink('atendendo'), { replace: true })
     } catch (err) {
       if (await tratarBloqueioJornadaAoAssumir(err, toast)) {
@@ -1545,7 +1548,7 @@ useEffect(() => {
             ? 'Atendimento encerrado. Aguardando avaliação do cliente.'
             : 'Atendimento encerrado.',
     )
-    void refreshContagens()
+    void refreshContagens?.()
     void refetchPendenciasResumo()
     const naMesa = chatIdProp != null || location.pathname.startsWith('/chat/')
     // Demanda pendente: o painel fica aberto para classificar. Caso contrário, fecha como Voltar.
@@ -1708,7 +1711,7 @@ useEffect(() => {
 
   function abrirNaMesa() {
     if (!chat) return
-    abrirChat('whatsapp', chat.id)
+    abrirChat?.('whatsapp', chat.id)
     navigate(chatWhatsappLink('atendendo'))
   }
 
