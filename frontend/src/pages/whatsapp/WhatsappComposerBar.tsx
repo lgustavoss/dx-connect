@@ -87,7 +87,7 @@ export function WhatsappComposerBar({
 
   useEffect(() => {
     if (!enviando) enviandoLocalRef.current = false
-  }, [enviando])
+  }, [enviando, texto])
 
   const temTexto = texto.trim().length > 0
   /** Não incluir `enviando`: disabled no textarea remove o foco (#539). */

@@ -22,6 +22,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - WhatsApp (#1102): abrir um atendimento pelo histórico deixa de derrubar a tela
 - Chat (#S202609-0025): o painel de emoji e figurinha deixa de fechar sozinho — clicar num emoji insere na mensagem e a aba Figurinha abre normalmente
 - WhatsApp (#S202609-0025): figurinha recebida aparece no tamanho de figurinha e não abre mais como imagem ampliada
+- WhatsApp (#1139): ao enviar, o campo de mensagem limpa na hora e a mensagem aparece como «enviando» — dá para digitar a próxima sem esperar, o texto novo não some mais e, se o envio falhar, a mensagem fica na conversa com a opção de tentar de novo; quando o WhatsApp demora a responder, a mensagem não é mais enviada em dobro ao cliente
 
 ## [26.09.003] - 2026-09-27
 

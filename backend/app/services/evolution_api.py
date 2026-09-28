@@ -16,6 +16,9 @@ from app.services.email_outbox_policy import TRANSIENT_HTTP_CODES, http_retry_de
 
 logger = logging.getLogger(__name__)
 
+# Timeout, 502 e 504 podem ocorrer depois de a Evolution já ter entregue — repetir duplica a mensagem no cliente.
+SEND_TEXT_RETRY_CODES = frozenset({429, 503})
+
 
 def _request_json(
     method: str,
@@ -53,13 +56,14 @@ def _request_json_with_retry(
     body: dict[str, Any] | None = None,
     timeout: int = 20,
     max_attempts: int | None = None,
+    retry_codes: frozenset[int] = TRANSIENT_HTTP_CODES,
 ) -> tuple[int, Any | None, str | None]:
     attempts = max(1, int(max_attempts or settings.EVOLUTION_HTTP_MAX_ATTEMPTS))
     last: tuple[int, Any | None, str | None] = (0, None, "sem resposta")
     for attempt in range(1, attempts + 1):
         code, data, err = _request_json(method, url, headers=headers, body=body, timeout=timeout)
         last = (code, data, err)
-        if code in (200, 201) or code not in TRANSIENT_HTTP_CODES:
+        if code in (200, 201) or code not in retry_codes:
             if attempt > 1 and code in (200, 201):
                 log_event(
                     logger,
@@ -364,11 +368,20 @@ def evolution_send_text(
     body: dict[str, Any] = {"number": number_digits, "text": text}
     if quoted:
         body["quoted"] = quoted
+    inicio = time.monotonic()
     code, data, err = _request_json_with_retry(
         "POST",
         url,
         headers=headers,
         body=body,
+        retry_codes=SEND_TEXT_RETRY_CODES,
+    )
+    log_event(
+        logger,
+        "evolution_send_text",
+        level=logging.INFO if code in (200, 201) else logging.WARNING,
+        http_status=code,
+        duracao_ms=int((time.monotonic() - inicio) * 1000),
     )
     if code in (200, 201):
         return True, None, _extract_wa_message_id(data)
