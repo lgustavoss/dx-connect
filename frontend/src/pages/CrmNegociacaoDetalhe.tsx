@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useEventStream } from '../contexts/EventStreamContext'
 import {
   ApiError,
   comercialContratos,
@@ -89,6 +90,30 @@ function formatDateTime(iso: string | null | undefined): string {
   return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
+const JANELA_EDICAO_MS = 5 * 60 * 1000
+
+function podeEditarNota(a: Crm.Atividade, agora: number): boolean {
+  if (!a.pode_editar || !a.created_at) return false
+  const criada = new Date(a.created_at).getTime()
+  if (Number.isNaN(criada)) return false
+  return agora - criada <= JANELA_EDICAO_MS
+}
+
+function paraInputLocal(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+function deInputLocal(valor: string): string | null {
+  if (!valor.trim()) return null
+  const d = new Date(valor)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toISOString()
+}
+
 type LinhaForm = {
   cnpj: string
   razao_social: string
@@ -113,6 +138,7 @@ export function CrmNegociacaoDetalhe() {
   const navigate = useNavigate()
   const voltar = useVoltarAnterior('/crm/leads')
   const toast = useToast()
+  const { subscribe } = useEventStream()
 
   const [loading, setLoading] = useState(true)
   const [forbidden, setForbidden] = useState(false)
@@ -133,12 +159,18 @@ export function CrmNegociacaoDetalhe() {
   const [deleteLinhaId, setDeleteLinhaId] = useState<number | null>(null)
 
   const [notaTexto, setNotaTexto] = useState('')
+  const [lembreteNota, setLembreteNota] = useState('')
   const [savingNota, setSavingNota] = useState(false)
+  const [editandoId, setEditandoId] = useState<number | null>(null)
+  const [editTexto, setEditTexto] = useState('')
+  const [editLembrete, setEditLembrete] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [agoraMs, setAgoraMs] = useState(() => Date.now())
   const loadedOnceRef = useRef(false)
 
   const [propostaAberta, setPropostaAberta] = useState(false)
   const [contratoAberto, setContratoAberto] = useState(true)
-  const [historicoAberto, setHistoricoAberto] = useState(false)
+  const [historicoAberto, setHistoricoAberto] = useState(true)
   const docInitRef = useRef(false)
   const [propostaBadge, setPropostaBadge] = useState<string | null>(null)
   const [contratoBadge, setContratoBadge] = useState<string | null>(null)
@@ -184,6 +216,18 @@ export function CrmNegociacaoDetalhe() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (!historicoAberto) return
+    const timer = window.setInterval(() => setAgoraMs(Date.now()), 15000)
+    return () => window.clearInterval(timer)
+  }, [historicoAberto])
+
+  useEffect(() => {
+    return subscribe('crm.lembrete', (payload) => {
+      if (payload.negociacao_id === negociacaoId) void load()
+    })
+  }, [subscribe, negociacaoId, load])
 
   const refreshDocBadges = useCallback(async () => {
     if (Number.isNaN(negociacaoId)) return
@@ -334,8 +378,13 @@ export function CrmNegociacaoDetalhe() {
     if (!neg || !notaTexto.trim()) return
     setSavingNota(true)
     try {
-      await crmNegociacoes.addAtividade(neg.id, { tipo: 'nota', texto: notaTexto.trim() })
+      await crmNegociacoes.addAtividade(neg.id, {
+        tipo: 'nota',
+        texto: notaTexto.trim(),
+        lembrete_em: deInputLocal(lembreteNota),
+      })
       setNotaTexto('')
+      setLembreteNota('')
       toast.showSuccess('Nota registrada.')
       const acts = await crmNegociacoes.listAtividades(neg.id, { limit: 50, offset: 0 })
       setAtividades(acts.items)
@@ -343,6 +392,25 @@ export function CrmNegociacaoDetalhe() {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar a nota.'))
     } finally {
       setSavingNota(false)
+    }
+  }
+
+  async function salvarEdicaoNota(atividadeId: number) {
+    if (!neg || !editTexto.trim()) return
+    setSavingEdit(true)
+    try {
+      await crmNegociacoes.updateAtividade(neg.id, atividadeId, {
+        texto: editTexto.trim(),
+        lembrete_em: deInputLocal(editLembrete),
+      })
+      toast.showSuccess('Nota atualizada.')
+      setEditandoId(null)
+      const acts = await crmNegociacoes.listAtividades(neg.id, { limit: 50, offset: 0 })
+      setAtividades(acts.items)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível atualizar a nota.'))
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -597,37 +665,108 @@ export function CrmNegociacaoDetalhe() {
         open={historicoAberto}
         onOpenChange={setHistoricoAberto}
       >
-        <form onSubmit={handleAddNota} className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end">
-          <div className="flex-1">
-            <Input
-              label="Nova nota"
-              value={notaTexto}
-              onChange={(e) => setNotaTexto(e.target.value)}
-              placeholder="Registrar contato, reunião…"
-            />
+        <form onSubmit={handleAddNota} className="mb-4 flex flex-col gap-3">
+          <Input
+            label="Nova nota"
+            value={notaTexto}
+            onChange={(e) => setNotaTexto(e.target.value)}
+            placeholder="Tentativa de contato, reunião marcada…"
+          />
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <Input
+                id="lembrete-nota-nova"
+                label="Lembrete de reunião"
+                type="datetime-local"
+                value={lembreteNota}
+                onChange={(e) => setLembreteNota(e.target.value)}
+                hint="Opcional. Avisa você na data e hora escolhidas."
+              />
+            </div>
+            <Button type="submit" disabled={savingNota || !notaTexto.trim()}>
+              {savingNota ? 'Salvando…' : 'Adicionar'}
+            </Button>
           </div>
-          <Button type="submit" disabled={savingNota || !notaTexto.trim()}>
-            {savingNota ? 'Salvando…' : 'Adicionar'}
-          </Button>
         </form>
         {atividades.length === 0 ? (
           <p className="text-sm text-slate-500">Sem atividades ainda.</p>
         ) : (
           <ul className="space-y-3">
-            {atividades.map((a) => (
-              <li
-                key={a.id}
-                className="border-l-2 border-slate-200 pl-3 dark:border-slate-700"
-              >
-                <div className="flex flex-wrap items-baseline gap-2 text-xs text-slate-500">
-                  <span className="font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                    {TIPO_ATIVIDADE_LABEL[a.tipo] || a.tipo}
-                  </span>
-                  <span>{formatDateTime(a.created_at)}</span>
-                </div>
-                <p className="mt-0.5 text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap">{a.texto}</p>
-              </li>
-            ))}
+            {atividades.map((a) => {
+              const editavel = podeEditarNota(a, agoraMs)
+              const editando = editandoId === a.id
+              return (
+                <li
+                  key={a.id}
+                  className="border-l-2 border-slate-200 pl-3 dark:border-slate-700"
+                >
+                  <div className="flex flex-wrap items-baseline gap-2 text-xs text-slate-500">
+                    <span className="font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                      {TIPO_ATIVIDADE_LABEL[a.tipo] || a.tipo}
+                    </span>
+                    <span>{a.autor_nome || '—'}</span>
+                    <span>{formatDateTime(a.created_at)}</span>
+                    {a.updated_at ? <span>· editada</span> : null}
+                  </div>
+                  {editando ? (
+                    <form
+                      className="mt-2 space-y-2"
+                      onSubmit={(e) => {
+                        e.preventDefault()
+                        void salvarEdicaoNota(a.id)
+                      }}
+                    >
+                      <Input
+                        id={`nota-texto-${a.id}`}
+                        label="Texto"
+                        value={editTexto}
+                        onChange={(ev) => setEditTexto(ev.target.value)}
+                      />
+                      <Input
+                        id={`lembrete-nota-${a.id}`}
+                        label="Lembrete de reunião"
+                        type="datetime-local"
+                        value={editLembrete}
+                        onChange={(ev) => setEditLembrete(ev.target.value)}
+                        hint="Deixe em branco para remover o lembrete."
+                      />
+                      <div className="flex gap-2">
+                        <Button type="submit" disabled={savingEdit || !editTexto.trim()}>
+                          {savingEdit ? 'Salvando…' : 'Salvar'}
+                        </Button>
+                        <Button type="button" variant="secondary" onClick={() => setEditandoId(null)}>
+                          Cancelar
+                        </Button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      <p className="mt-0.5 text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap">{a.texto}</p>
+                      {a.lembrete_em ? (
+                        <p className="mt-1 text-xs text-slate-500">
+                          Lembrete: {formatDateTime(a.lembrete_em)}
+                          {a.lembrete_disparado_em ? ' · avisado' : ''}
+                        </p>
+                      ) : null}
+                      {editavel ? (
+                        <button
+                          type="button"
+                          className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+                          onClick={() => {
+                            setEditandoId(a.id)
+                            setEditTexto(a.texto)
+                            setEditLembrete(paraInputLocal(a.lembrete_em))
+                          }}
+                        >
+                          <IconPencil className="size-3.5" />
+                          Editar
+                        </button>
+                      ) : null}
+                    </>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         )}
       </CollapsibleCard>

@@ -7,6 +7,10 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### DeskRudder
 
+#### Melhorias
+
+- CRM (#1098): o histórico da negociação mostra quem escreveu a nota e o horário; o autor pode corrigir por 5 minutos e marcar um lembrete de reunião, que fica na tela até a pessoa fechar o aviso
+
 #### Correções
 
 - WhatsApp (#1102): abrir um atendimento pelo histórico deixa de derrubar a tela

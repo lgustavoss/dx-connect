@@ -576,6 +576,24 @@ def emit_chat_interno_mensagem_atualizada(
         _emit_notificacao_after_counter_change(db)
 
 
+def emit_crm_lembrete(payload: dict[str, Any]) -> None:
+    """Lembrete de reunião do CRM (#1098) — só o autor da nota."""
+    autor_id = payload.get("autor_id")
+    if not autor_id:
+        return
+    _publish_to_atendentes(
+        [int(autor_id)],
+        "crm.lembrete",
+        {
+            "atividade_id": payload.get("atividade_id"),
+            "negociacao_id": payload.get("negociacao_id"),
+            "texto": payload.get("texto") or "",
+            "lead_nome": payload.get("lead_nome"),
+            "lembrete_em": payload.get("lembrete_em"),
+        },
+    )
+
+
 def emit_ponto_he_atualizada(
     db: Session,
     *,

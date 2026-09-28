@@ -6,6 +6,9 @@ interface ToastItem {
   id: number
   type: ToastType
   message: string
+  /** Não some sozinho; o fechamento fica com quem exibiu o aviso. */
+  persistente?: boolean
+  onClose?: () => void
 }
 
 function textoParaToast(input: unknown): string {
@@ -29,6 +32,7 @@ interface ToastContextValue {
   showError: (message: unknown) => void
   showWarning: (message: unknown) => void
   showInfo: (message: unknown) => void
+  showInfoPersistente: (message: unknown, onClose?: () => void) => void
 }
 
 const ToastContext = createContext<ToastContextValue | undefined>(undefined)
@@ -40,12 +44,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((current) => current.filter((t) => t.id !== id))
   }, [])
 
-  const show = useCallback((type: ToastType, message: unknown) => {
+  const show = useCallback((type: ToastType, message: unknown, persistente = false, onClose?: () => void) => {
     const id = Date.now() + Math.random()
     const text = textoParaToast(message)
-    setToasts((current) => [...current, { id, type, message: text }])
-    // Remover automaticamente após 4s
-    setTimeout(() => remove(id), 4000)
+    setToasts((current) => [...current, { id, type, message: text, persistente, onClose }])
+    if (!persistente) {
+      setTimeout(() => remove(id), 4000)
+    }
+  }, [remove])
+
+  const fechar = useCallback((toast: ToastItem) => {
+    toast.onClose?.()
+    remove(toast.id)
   }, [remove])
 
   const value = useMemo<ToastContextValue>(
@@ -54,6 +64,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       showError: (message) => show('error', message),
       showWarning: (message) => show('warning', message),
       showInfo: (message) => show('info', message),
+      showInfoPersistente: (message, onClose) => show('info', message, true, onClose),
     }),
     [show],
   )
@@ -92,7 +103,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <p className="flex-1 leading-snug">{toast.message}</p>
               <button
                 type="button"
-                onClick={() => remove(toast.id)}
+                onClick={() => fechar(toast)}
                 className="ml-2 text-base leading-none opacity-70 hover:opacity-100"
                 aria-label="Fechar aviso"
               >

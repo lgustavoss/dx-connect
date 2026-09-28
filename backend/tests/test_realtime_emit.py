@@ -127,3 +127,30 @@ def test_ids_atendentes_ticket_mensagem_por_setor(client, seed_base, db_session)
     assert seed_base["a1"].id in ids
     assert seed_base["admin"].id in ids
     assert seed_base["a2"].id not in ids
+
+
+def test_emit_crm_lembrete_so_para_o_autor(monkeypatch):
+    from app.services.realtime_emit import emit_crm_lembrete
+
+    eventos: list[tuple[list[int], str, dict]] = []
+
+    def fake_publish(atendente_ids, event_type, payload):
+        eventos.append((list(atendente_ids), event_type, payload))
+
+    monkeypatch.setattr("app.services.realtime_emit._publish_to_atendentes", fake_publish)
+    emit_crm_lembrete(
+        {
+            "autor_id": 7,
+            "atividade_id": 3,
+            "negociacao_id": 9,
+            "texto": "Reunião",
+            "lead_nome": "Posto Alpha",
+            "lembrete_em": "2026-09-28T15:00:00+00:00",
+        }
+    )
+    assert len(eventos) == 1
+    ids, tipo, payload = eventos[0]
+    assert ids == [7]
+    assert tipo == "crm.lembrete"
+    assert payload["negociacao_id"] == 9
+    assert payload["lead_nome"] == "Posto Alpha"

@@ -3921,6 +3921,17 @@ export const crmNegociacoes = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  updateAtividade: (negociacaoId: number, atividadeId: number, data: Crm.AtividadeUpdate) =>
+    api<Crm.Atividade>(`/crm/negociacoes/${negociacaoId}/atividades/${atividadeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+};
+
+export const crmLembretes = {
+  pendentes: () => api<Crm.LembretePendente[]>('/crm/lembretes-pendentes'),
+  confirmar: (atividadeId: number) =>
+    api<void>(`/crm/lembretes/${atividadeId}/ciente`, { method: 'POST' }),
 };
 
 export namespace Crm {
@@ -4104,14 +4115,34 @@ export namespace Crm {
     id: number;
     negociacao_id: number;
     autor_id: number;
+    autor_nome?: string | null;
     tipo: string;
     texto: string;
     created_at?: string | null;
+    updated_at?: string | null;
+    lembrete_em?: string | null;
+    lembrete_disparado_em?: string | null;
+    pode_editar?: boolean;
   }
 
   export interface AtividadeCreate {
     tipo?: string;
     texto: string;
+    lembrete_em?: string | null;
+  }
+
+  export interface AtividadeUpdate {
+    texto?: string;
+    lembrete_em?: string | null;
+  }
+
+  export interface LembretePendente {
+    atividade_id: number;
+    negociacao_id: number;
+    autor_id: number;
+    texto: string;
+    lead_nome?: string | null;
+    lembrete_em?: string | null;
   }
 }
 
