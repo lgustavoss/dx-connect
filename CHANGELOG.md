@@ -28,6 +28,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
+- WhatsApp (#1102): abrir um atendimento pelo histórico deixa de derrubar a tela
 - WhatsApp (#1103): o botão de fechar a imagem ampliada volta a funcionar, também com zoom
 
 ## [26.09.002] - 2026-09-25
