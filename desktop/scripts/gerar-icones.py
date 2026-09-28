@@ -1,4 +1,4 @@
-"""Gera ícone e imagens do instalador a partir da logo sem fundo e de uma captura do painel.
+"""Gera ícone (logo com contorno branco) e imagens do instalador (logo sem fundo + captura do painel).
 
 Uso (na pasta desktop/): python scripts/gerar-icones.py
 Requer Pillow.
@@ -10,13 +10,14 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 RAIZ = Path(__file__).resolve().parents[1]
 LOGO = RAIZ.parent / "frontend" / "public" / "deskrudder-mark-alpha.png"
+LOGO_CONTORNO = RAIZ.parent / "frontend" / "public" / "deskrudder-pwa-512-outline.png"
 CAPTURA = RAIZ.parent / "frontend" / "public" / "marketing" / "shot-dashboard.png"
 BUILD = RAIZ / "build"
 FONTES = Path("C:/Windows/Fonts")
 
 
-def logo_quadrada(tamanho: int, margem: float = 0.04) -> Image.Image:
-    logo = Image.open(LOGO).convert("RGBA")
+def logo_quadrada(tamanho: int, margem: float = 0.04, origem: Path = LOGO) -> Image.Image:
+    logo = Image.open(origem).convert("RGBA")
     logo = logo.crop(logo.getbbox())
     lado = int(max(logo.size) * (1 + 2 * margem))
     tela = Image.new("RGBA", (lado, lado), (0, 0, 0, 0))
@@ -85,8 +86,8 @@ def sidebar() -> Image.Image:
 
 def main() -> None:
     BUILD.mkdir(exist_ok=True)
-    logo_quadrada(512).save(BUILD / "icon.png")
-    logo_quadrada(256).save(
+    logo_quadrada(512, margem=0.02, origem=LOGO_CONTORNO).save(BUILD / "icon.png")
+    logo_quadrada(256, margem=0.02, origem=LOGO_CONTORNO).save(
         BUILD / "icon.ico",
         sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
     )
