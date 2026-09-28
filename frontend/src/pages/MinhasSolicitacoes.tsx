@@ -16,7 +16,6 @@ import { SolicitacoesMelhoriaTimeline } from '../components/solicitacoes/Solicit
 import { useAuth } from '../contexts/AuthContext'
 import {
   classesCardMensagemStatus,
-  SAAS_SOLICITACAO_FASES,
   SAAS_SOLICITACAO_STATUS,
   statusNaFase,
   type SaasSolicitacaoFase,
@@ -68,6 +67,14 @@ function contarPorFase(items: SolicitacoesMelhoria.ListaItem[], fase: SaasSolici
   return items.filter((item) => statusNaFase(item.status, fase)).length
 }
 
+function statusDaUrl(raw: string): string[] {
+  const validos = new Set(SAAS_SOLICITACAO_STATUS.map((s) => s.value))
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => validos.has(s as (typeof SAAS_SOLICITACAO_STATUS)[number]['value']))
+}
+
 /** Lista + detalhe das solicitações do usuário (#803). */
 export function MinhasSolicitacoesPage() {
   const { id } = useParams()
@@ -85,8 +92,19 @@ export function MinhasSolicitacoesPage() {
   const [debouncedBusca, setDebouncedBusca] = useState('')
 
   const tipoFiltro = searchParams.get('tipo') || ''
-  const faseFiltro = (searchParams.get('fase') || '') as SaasSolicitacaoFase | ''
-  const statusFiltro = searchParams.get('status') || ''
+  const faseLegada = (searchParams.get('fase') || '') as SaasSolicitacaoFase | ''
+  const vistaParam = searchParams.get('vista') || ''
+  const statusSelecionados = statusDaUrl(searchParams.get('status') || '')
+  const vista =
+    statusSelecionados.length > 0
+      ? 'status'
+      : vistaParam === 'pendentes' || vistaParam === 'finalizadas' || vistaParam === 'todas'
+        ? vistaParam
+        : faseLegada === 'finalizadas'
+          ? 'finalizadas'
+          : faseLegada === 'aguardando' || faseLegada === 'desenvolvimento'
+            ? 'fase'
+            : 'pendentes'
 
   function patchFiltros(next: Record<string, string | null>) {
     setSearchParams(
@@ -152,8 +170,7 @@ export function MinhasSolicitacoesPage() {
       total: lista.length,
       sugestoes: lista.filter((i) => i.tipo === 'sugestao').length,
       problemas: lista.filter((i) => i.tipo === 'problema').length,
-      aguardando: contarPorFase(lista, 'aguardando'),
-      desenvolvimento: contarPorFase(lista, 'desenvolvimento'),
+      pendentes: contarPorFase(lista, 'aguardando') + contarPorFase(lista, 'desenvolvimento'),
       finalizadas: contarPorFase(lista, 'finalizadas'),
     }),
     [lista],
@@ -162,13 +179,30 @@ export function MinhasSolicitacoesPage() {
   const listaFiltrada = useMemo(() => {
     return lista.filter((item) => {
       if (tipoFiltro && item.tipo !== tipoFiltro) return false
-      if (statusFiltro && item.status !== statusFiltro) return false
-      if (faseFiltro && !statusNaFase(item.status, faseFiltro)) return false
+      if (vista === 'status' && !statusSelecionados.includes(item.status)) return false
+      if (vista === 'finalizadas' && !STATUS_FINAIS.has(item.status)) return false
+      if (vista === 'pendentes' && STATUS_FINAIS.has(item.status)) return false
+      if (vista === 'fase' && !statusNaFase(item.status, faseLegada as SaasSolicitacaoFase)) return false
       if (!debouncedBusca) return true
-      const hay = `${item.titulo} ${item.protocolo || ''}`.toLowerCase()
+      const hay = `${item.titulo} ${item.protocolo || ''} ${item.autor_nome || ''}`.toLowerCase()
       return hay.includes(debouncedBusca)
     })
-  }, [lista, tipoFiltro, faseFiltro, statusFiltro, debouncedBusca])
+  }, [lista, tipoFiltro, vista, faseLegada, statusSelecionados, debouncedBusca])
+
+  function escolherVista(proxima: 'pendentes' | 'finalizadas' | 'todas') {
+    patchFiltros({ vista: proxima, status: null, fase: null })
+  }
+
+  function alternarStatus(valor: string) {
+    const next = statusSelecionados.includes(valor)
+      ? statusSelecionados.filter((s) => s !== valor)
+      : [...statusSelecionados, valor]
+    patchFiltros({
+      status: next.length ? next.join(',') : null,
+      vista: next.length ? null : 'pendentes',
+      fase: null,
+    })
+  }
 
   async function enviarResposta() {
     if (!detalhe || !resposta.trim()) return
@@ -332,28 +366,18 @@ export function MinhasSolicitacoesPage() {
 
               <div>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Fase
+                  Ver
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <FiltroChip active={!faseFiltro} onClick={() => patchFiltros({ fase: null })}>
+                  <FiltroChip active={vista === 'pendentes'} count={resumo.pendentes} onClick={() => escolherVista('pendentes')}>
+                    Pendentes
+                  </FiltroChip>
+                  <FiltroChip active={vista === 'finalizadas'} count={resumo.finalizadas} onClick={() => escolherVista('finalizadas')}>
+                    Finalizadas
+                  </FiltroChip>
+                  <FiltroChip active={vista === 'todas'} count={resumo.total} onClick={() => escolherVista('todas')}>
                     Todas
                   </FiltroChip>
-                  {SAAS_SOLICITACAO_FASES.map((f) => (
-                    <FiltroChip
-                      key={f.value}
-                      active={faseFiltro === f.value}
-                      count={
-                        f.value === 'aguardando'
-                          ? resumo.aguardando
-                          : f.value === 'desenvolvimento'
-                            ? resumo.desenvolvimento
-                            : resumo.finalizadas
-                      }
-                      onClick={() => patchFiltros({ fase: faseFiltro === f.value ? null : f.value })}
-                    >
-                      {f.label}
-                    </FiltroChip>
-                  ))}
                 </div>
               </div>
 
@@ -362,15 +386,12 @@ export function MinhasSolicitacoesPage() {
                   Status
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <FiltroChip active={!statusFiltro} onClick={() => patchFiltros({ status: null })}>
-                    Todos
-                  </FiltroChip>
                   {SAAS_SOLICITACAO_STATUS.map((s) => (
                     <FiltroChip
                       key={s.value}
-                      active={statusFiltro === s.value}
+                      active={statusSelecionados.includes(s.value)}
                       count={lista.filter((i) => i.status === s.value).length}
-                      onClick={() => patchFiltros({ status: statusFiltro === s.value ? null : s.value })}
+                      onClick={() => alternarStatus(s.value)}
                     >
                       {s.label}
                     </FiltroChip>
@@ -387,7 +408,7 @@ export function MinhasSolicitacoesPage() {
                   type="search"
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
-                  placeholder="Título ou protocolo…"
+                  placeholder="Título, protocolo ou quem abriu…"
                   className={INPUT_FIELD_CLASS}
                 />
               </div>
@@ -402,7 +423,7 @@ export function MinhasSolicitacoesPage() {
                 className="text-cyan-700 underline dark:text-cyan-400"
                 onClick={() => {
                   setBusca('')
-                  patchFiltros({ tipo: null, fase: null, status: null })
+                  patchFiltros({ tipo: null, fase: null, status: null, vista: 'pendentes' })
                 }}
               >
                 Limpar filtros

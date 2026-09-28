@@ -47,7 +47,7 @@ export function Sobre() {
       backTo="/"
       title="Sobre"
       brandCaption={APP_DESCRIPTION}
-      description={`Consulte a versão em uso e o que mudou nas atualizações do ${APP_NAME} nesta instância (helpdesk). Melhorias de DevOps não aparecem aqui.`}
+      description={`Consulte a versão em uso e o que mudou nas atualizações do ${APP_NAME} nesta instância.`}
       versionLabel={versionLabel}
       notes={notes}
       loading={loading}
