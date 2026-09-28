@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Outlet, Navigate, Link, useLocation } from 'react-router-dom'
+import { crmLembretes } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from './ui/Toast'
 import { Sidebar } from './Sidebar'
 import { ThemeToggle } from './ThemeToggle'
 import { NavbarAtalhoChats, NavbarNotificacoes } from './NavbarNotificacoes'
@@ -37,6 +39,8 @@ const menuIcon = (
 function LayoutInner() {
   const { user, logout, isAdmin, isComercialOuAdmin, isFinanceiroOuAdmin } = useAuth()
   const { subscribe } = useEventStream()
+  const toast = useToast()
+  const lembretesAvisados = useRef(new Set<number>())
   const location = useLocation()
   useVisualViewportCss()
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
@@ -58,6 +62,54 @@ function LayoutInner() {
       logout()
     })
   }, [subscribe, logout])
+
+  const avisarLembrete = useCallback(
+    (payload: { atividade_id?: unknown; lead_nome?: unknown; texto?: unknown }) => {
+      const id = Number(payload.atividade_id)
+      if (!Number.isFinite(id) || id <= 0 || lembretesAvisados.current.has(id)) return
+      lembretesAvisados.current.add(id)
+      const lead =
+        typeof payload.lead_nome === 'string' && payload.lead_nome.trim()
+          ? payload.lead_nome.trim()
+          : 'cliente'
+      const texto = typeof payload.texto === 'string' ? payload.texto.trim() : ''
+      toast.showInfoPersistente(
+        texto ? `Lembrete de reunião com ${lead}: ${texto}` : `Lembrete de reunião com ${lead}.`,
+        () => {
+          void crmLembretes.confirmar(id).catch(() => {
+            lembretesAvisados.current.delete(id)
+          })
+        },
+      )
+    },
+    [toast],
+  )
+
+  useEffect(() => {
+    return subscribe('crm.lembrete', (payload) => {
+      avisarLembrete(payload)
+    })
+  }, [subscribe, avisarLembrete])
+
+  useEffect(() => {
+    if (!notificacoesEnabled || !isComercialOuAdmin) return
+    let cancelado = false
+    const buscar = async () => {
+      try {
+        const itens = await crmLembretes.pendentes()
+        if (cancelado) return
+        for (const item of itens) avisarLembrete(item)
+      } catch {
+        /* o próximo ciclo tenta de novo */
+      }
+    }
+    void buscar()
+    const timer = window.setInterval(() => void buscar(), 60_000)
+    return () => {
+      cancelado = true
+      window.clearInterval(timer)
+    }
+  }, [notificacoesEnabled, isComercialOuAdmin, avisarLembrete])
 
   if (user?.must_change_password && location.pathname !== '/alterar-senha') {
     return <Navigate to="/alterar-senha" replace />

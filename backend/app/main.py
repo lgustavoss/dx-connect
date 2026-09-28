@@ -323,6 +323,31 @@ async def lifespan(app: FastAPI):
         name="web-push-outbox",
     ).start()
 
+    def crm_lembrete_loop() -> None:
+        from app.database import SessionLocal
+        from app.services.crm import reivindicar_lembretes_vencidos
+        from app.services.realtime_emit import emit_crm_lembrete
+
+        while True:
+            db = SessionLocal()
+            try:
+                payloads = reivindicar_lembretes_vencidos(db)
+                db.commit()
+                for payload in payloads:
+                    emit_crm_lembrete(payload)
+            except Exception as e:
+                logger.warning("Worker lembrete CRM: %s", e)
+                db.rollback()
+            finally:
+                db.close()
+            time.sleep(30)
+
+    threading.Thread(
+        target=crm_lembrete_loop,
+        daemon=True,
+        name="crm-lembrete",
+    ).start()
+
     def whatsapp_inactivity_loop() -> None:
         from app.database import SessionLocal
         from app.services.whatsapp_avaliacao import process_whatsapp_avaliacao_timeouts
