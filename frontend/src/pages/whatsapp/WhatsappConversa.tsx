@@ -299,7 +299,11 @@ function ConteudoMensagemWhatsApp({
 
   const mediaClass = 'max-h-64 max-w-full rounded-lg border border-black/5 shadow-sm'
 
-  if (tipo === 'imagem' || tipo === 'figurinha') {
+  if (tipo === 'figurinha') {
+    return <img src={url} alt="Figurinha" className="max-h-40 max-w-[10rem] select-none" draggable={false} />
+  }
+
+  if (tipo === 'imagem') {
     return (
       <div className="space-y-1">
         <img
