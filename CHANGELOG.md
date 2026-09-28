@@ -5,6 +5,12 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### DeskRudder
+
+#### Correções
+
+- WhatsApp (#1102): abrir um atendimento pelo histórico deixa de derrubar a tela
+
 ## [26.09.003] - 2026-09-27
 
 ### SaaS Control Plane
