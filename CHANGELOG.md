@@ -9,6 +9,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- App para Windows (#1130): o DeskRudder fica no ícone da bandeja como o WhatsApp — fechar a janela não encerra os alertas da fila, o contador de pendências aparece no ícone e dá para abrir junto com o computador (o app pergunta na primeira vez); o instalador mostra a logo do DeskRudder e uma imagem do painel (#S202609-0027)
 - CRM (#1098): o histórico da negociação mostra quem escreveu a nota e o horário; o autor pode corrigir por 5 minutos e marcar um lembrete de reunião, que fica na tela até a pessoa fechar o aviso
 
 #### Correções
