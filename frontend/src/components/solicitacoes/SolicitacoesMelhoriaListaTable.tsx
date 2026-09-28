@@ -27,13 +27,15 @@ export function SolicitacoesMelhoriaListaTable({ items, itemPath }: Props) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[640px] text-left text-sm">
+      <table className="w-full min-w-[880px] text-left text-sm">
         <thead>
           <tr className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
             <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Tipo</th>
             <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Protocolo</th>
             <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Título</th>
             <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Status</th>
+            <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Versão</th>
+            <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Quem</th>
             <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6">Quando</th>
           </tr>
         </thead>
@@ -68,9 +70,6 @@ export function SolicitacoesMelhoriaListaTable({ items, itemPath }: Props) {
               </td>
               <td className="px-4 py-3 sm:px-6">
                 <p className="font-medium text-slate-800 dark:text-slate-100">{item.titulo}</p>
-                {item.versao_alvo_rotulo ? (
-                  <p className="mt-0.5 text-xs text-emerald-700 dark:text-emerald-300">{item.versao_alvo_rotulo}</p>
-                ) : null}
               </td>
               <td className="px-4 py-3 sm:px-6">
                 <span
@@ -79,6 +78,10 @@ export function SolicitacoesMelhoriaListaTable({ items, itemPath }: Props) {
                   {item.status_rotulo || rotuloStatusSolicitacao(item.status)}
                 </span>
               </td>
+              <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300 sm:px-6">
+                {item.versao_alvo_rotulo || <span className="text-slate-400 dark:text-slate-500">—</span>}
+              </td>
+              <td className="px-4 py-3 text-slate-600 dark:text-slate-300 sm:px-6">{item.autor_nome || '—'}</td>
               <td className="whitespace-nowrap px-4 py-3 text-slate-500 sm:px-6">{formatWhen(item.created_at)}</td>
             </tr>
           ))}
