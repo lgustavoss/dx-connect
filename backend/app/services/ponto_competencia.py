@@ -17,6 +17,8 @@ from app.schemas.ponto import (
     PontoCienciaItem,
     PontoCienciaMe,
     PontoCompetenciaRead,
+    PontoResumoFechamentoItem,
+    PontoResumoFechamentoRead,
     PontoSetupItem,
     PontoSetupStatus,
 )
@@ -94,11 +96,10 @@ def setup_status(db: Session, admin: Atendente) -> PontoSetupStatus:
     itens.append(
         PontoSetupItem(
             codigo="fecho_automatico",
-            titulo="Revise o fecho automático",
+            titulo="Saída esquecida",
             detalhe=(
-                "Fecho automático ativo."
-                if st.fecho_automatico_ativo
-                else "Fecho por esquecimento está desligado (padrão até o admin ativar)."
+                "Jornada aberta por esquecimento: o colaborador solicita inclusão/correção do horário. "
+                "Não há fecho automático."
             ),
             destino="ponto_settings",
             ok=True,  # informativo; não bloqueia
@@ -425,3 +426,88 @@ def periodo_competencia(ano: int, mes: int) -> tuple[date, date]:
     _validar_ano_mes(ano, mes)
     ultimo = monthrange(ano, mes)[1]
     return date(ano, mes, 1), date(ano, mes, ultimo)
+
+
+def _ultimo_dia_mes_anterior(ano: int, mes: int) -> date:
+    if mes == 1:
+        return date(ano - 1, 12, 31)
+    return date(ano, mes - 1, monthrange(ano, mes - 1)[1])
+
+
+def resumo_fechamento_equipe(
+    db: Session,
+    admin: Atendente,
+    *,
+    ano: int,
+    mes: int,
+) -> PontoResumoFechamentoRead:
+    """Agrega calendário + banco + ciência do espelho (1 request no lugar de N×3)."""
+    _ = admin  # RBAC já exigiu admin na rota
+    _validar_ano_mes(ano, mes)
+    desde, ate = periodo_competencia(ano, mes)
+    hoje = ponto_svc.hoje_negocio()
+    ate_saldo_ini = _ultimo_dia_mes_anterior(ano, mes)
+
+    ativos = (
+        db.query(Atendente)
+        .filter(Atendente.ativo.is_(True), Atendente.role.in_(ROLES_ATENDENTE))
+        .order_by(Atendente.nome.asc())
+        .all()
+    )
+    ciencias = {
+        c.atendente_id: c
+        for c in db.query(PontoEspelhoCiencia)
+        .filter(
+            PontoEspelhoCiencia.ano == ano,
+            PontoEspelhoCiencia.mes == mes,
+        )
+        .all()
+    }
+    itens: list[PontoResumoFechamentoItem] = []
+    for a in ativos:
+        cal = ponto_svc.calendario(db, a, ano, mes)
+        bh = ponto_svc.banco_horas(db, a, desde=desde, ate=ate)
+        saldo_ini = ponto_svc.saldo_banco_ate(db, a, ate=ate_saldo_ini)
+
+        dias = cal.dias or []
+        esperados = [d for d in dias if d.esperado]
+        dias_no_mes = len(esperados)
+        dias_trabalhados = sum(1 for d in esperados if d.tem_entrada)
+        dias_a_trabalhar = sum(1 for d in esperados if d.data >= hoje and not d.tem_entrada)
+        faltas = sum(1 for d in esperados if d.data < hoje and not d.tem_entrada)
+        dias_abaixo = sum(1 for d in dias if d.classe_visual == "abaixo")
+        atrasos = sum(1 for d in dias if d.atrasado)
+
+        segundos_necessarios = bh.segundos_esperados
+        segundos_trabalhados = bh.segundos_realizados
+        segundos_a_trabalhar = max(0, segundos_necessarios - segundos_trabalhados)
+        saldo_mes = bh.saldo_segundos
+        saldo_atual = saldo_ini + saldo_mes
+        alerta = faltas > 0 or dias_abaixo > 0 or atrasos > 0
+
+        c = ciencias.get(a.id)
+        itens.append(
+            PontoResumoFechamentoItem(
+                atendente_id=a.id,
+                atendente_nome=a.nome,
+                dias_no_mes=dias_no_mes,
+                dias_trabalhados=dias_trabalhados,
+                dias_a_trabalhar=dias_a_trabalhar,
+                faltas=faltas,
+                segundos_necessarios=segundos_necessarios,
+                segundos_trabalhados=segundos_trabalhados,
+                segundos_a_trabalhar=segundos_a_trabalhar,
+                saldo_mes_anterior_segundos=saldo_ini,
+                saldo_mes_segundos=saldo_mes,
+                saldo_atual_segundos=saldo_atual,
+                segundos_he_pagos=bh.segundos_he_pagos,
+                segundos_credito_banco=bh.segundos_credito_banco,
+                segundos_debito_banco=bh.segundos_debito_banco,
+                dias_abaixo=dias_abaixo,
+                atrasos=atrasos,
+                alerta=alerta,
+                ciencia_confirmada=c is not None,
+                ciencia_em=c.confirmado_em if c else None,
+            )
+        )
+    return PontoResumoFechamentoRead(ano=ano, mes=mes, itens=itens)

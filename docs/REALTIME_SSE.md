@@ -28,6 +28,7 @@ Evento inicial ao conectar:
 | `chat.interno.mensagem` | Nova mensagem no chat interno | `{ conversa_id, tipo, setor_id?, remetente_id, corpo_preview }` |
 | `chat.interno.mensagem.atualizada` | Mensagem editada, apagada ou reação alterada | `{ conversa_id, mensagem_id, acao }` — `acao`: `editada` \| `apagada` \| `reacao` |
 | `ponto.he_atualizada` | Pedido/decisão/concessão de hora extra (#982) | `{ he_id, atendente_id, estado, origem }` |
+| `crm.lembrete` | Lembrete de reunião ligado a uma nota do CRM (#1098) | `{ atividade_id, negociacao_id, texto, lead_nome, lembrete_em }` — só o autor. O envio é reservado por UPDATE condicional (um worker). O aviso fica na tela até a pessoa fechar; aí o painel confirma. Sem isso, repete após 2 minutos e também aparece ao abrir o sistema |
 
 Destinatários filtrados por RBAC (setor homônimo + admin).
 

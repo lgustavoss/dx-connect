@@ -91,6 +91,21 @@ def settings_update(db: Session, admin: Atendente, data: PontoSettingsUpdate) ->
                 detail="politica_geolocalizacao deve ser opcional, recomendada ou obrigatoria.",
             )
         payload["politica_geolocalizacao"] = p
+    if "he_destino_excedente" in payload:
+        d = (payload["he_destino_excedente"] or "").strip().lower()
+        if d not in ("banco", "pagamento", "misto"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="he_destino_excedente deve ser banco, pagamento ou misto.",
+            )
+        payload["he_destino_excedente"] = d
+    if "he_banco_primeiros_minutos" in payload:
+        m = payload["he_banco_primeiros_minutos"]
+        if m is None or m < 0 or m > 24 * 60:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="he_banco_primeiros_minutos deve estar entre 0 e 1440.",
+            )
     for k, v in payload.items():
         setattr(row, k, v)
     registrar_audit(
@@ -238,12 +253,17 @@ def remover_local(db: Session, admin: Atendente, local_id: int) -> None:
     db.commit()
 
 
-def eh_feriado(db: Session, tenant_id: int, dia: date) -> bool:
-    """Feriado nacional (se ativo) ou custom da instância."""
-    settings = get_or_create_settings(db, tenant_id)
-    if settings.usar_feriados_nacionais and is_feriado_nacional_br(dia):
-        return True
-    custom = (
+def _data_mesma_md(ref: date, *, ano: int) -> date | None:
+    """Projeta dia/mês de `ref` no `ano` (None se inválido, ex. 29/02 em ano não bissexto)."""
+    try:
+        return date(ano, ref.month, ref.day)
+    except ValueError:
+        return None
+
+
+def feriado_custom_no_dia(db: Session, tenant_id: int, dia: date) -> PontoFeriado | None:
+    """Feriado custom ativo no dia: data exata ou recorrente anual (mesmo dia/mês)."""
+    exact = (
         db.query(PontoFeriado)
         .filter(
             PontoFeriado.tenant_id == tenant_id,
@@ -252,7 +272,30 @@ def eh_feriado(db: Session, tenant_id: int, dia: date) -> bool:
         )
         .first()
     )
-    return custom is not None
+    if exact:
+        return exact
+    candidatos = (
+        db.query(PontoFeriado)
+        .filter(
+            PontoFeriado.tenant_id == tenant_id,
+            PontoFeriado.ativo.is_(True),
+            PontoFeriado.recorrente_anual.is_(True),
+            PontoFeriado.data <= dia,
+        )
+        .all()
+    )
+    for row in candidatos:
+        if row.data.month == dia.month and row.data.day == dia.day:
+            return row
+    return None
+
+
+def eh_feriado(db: Session, tenant_id: int, dia: date) -> bool:
+    """Feriado nacional (se ativo) ou custom da instância (inclui recorrente anual)."""
+    settings = get_or_create_settings(db, tenant_id)
+    if settings.usar_feriados_nacionais and is_feriado_nacional_br(dia):
+        return True
+    return feriado_custom_no_dia(db, tenant_id, dia) is not None
 
 
 def listar_feriados(
@@ -262,28 +305,87 @@ def listar_feriados(
     ano: int | None = None,
 ) -> list[PontoFeriadoRead]:
     q = db.query(PontoFeriado).filter(PontoFeriado.tenant_id == tenant_id)
-    if ano is not None:
-        q = q.filter(PontoFeriado.data >= date(ano, 1, 1), PontoFeriado.data <= date(ano, 12, 31))
     rows = q.order_by(PontoFeriado.data.asc()).all()
-    return [PontoFeriadoRead.model_validate(r) for r in rows]
+    if ano is None:
+        return [PontoFeriadoRead.model_validate(r) for r in rows]
+
+    out: list[PontoFeriadoRead] = []
+    md_vistos: set[tuple[int, int]] = set()
+    # 1) Datas fixas do ano
+    for r in rows:
+        if r.data.year == ano:
+            out.append(PontoFeriadoRead.model_validate(r))
+            md_vistos.add((r.data.month, r.data.day))
+    # 2) Recorrentes de outros anos (a partir do ano da data cadastrada)
+    for r in rows:
+        if not r.recorrente_anual or r.data.year > ano:
+            continue
+        if r.data.year == ano:
+            continue  # já incluído
+        proj = _data_mesma_md(r.data, ano=ano)
+        if proj is None:
+            continue
+        key = (proj.month, proj.day)
+        if key in md_vistos:
+            continue
+        md_vistos.add(key)
+        out.append(
+            PontoFeriadoRead(
+                id=r.id,
+                data=proj,
+                nome=r.nome,
+                ativo=r.ativo,
+                recorrente_anual=True,
+            )
+        )
+    out.sort(key=lambda x: x.data)
+    return out
+
+
+def _conflito_mes_dia(
+    db: Session,
+    tenant_id: int,
+    *,
+    data_ref: date,
+    recorrente: bool,
+) -> PontoFeriado | None:
+    """Impede dois feriados no mesmo dia/mês quando um (ou o novo) é recorrente."""
+    rows = (
+        db.query(PontoFeriado)
+        .filter(PontoFeriado.tenant_id == tenant_id)
+        .all()
+    )
+    for r in rows:
+        if r.data.month != data_ref.month or r.data.day != data_ref.day:
+            continue
+        if r.data == data_ref:
+            return r
+        if recorrente or r.recorrente_anual:
+            return r
+    return None
 
 
 def criar_feriado(db: Session, admin: Atendente, data: PontoFeriadoCreate) -> PontoFeriadoRead:
     nome = (data.nome or "").strip()
     if not nome:
         raise HTTPException(status_code=400, detail="Informe o nome do feriado.")
-    exists = (
-        db.query(PontoFeriado)
-        .filter(PontoFeriado.tenant_id == admin.tenant_id, PontoFeriado.data == data.data)
-        .first()
+    recorrente = bool(data.recorrente_anual) if data.recorrente_anual is not None else False
+    conflito = _conflito_mes_dia(
+        db, admin.tenant_id, data_ref=data.data, recorrente=recorrente
     )
-    if exists:
-        raise HTTPException(status_code=400, detail="Já existe feriado nesta data.")
+    if conflito:
+        if conflito.data == data.data:
+            raise HTTPException(status_code=400, detail="Já existe feriado nesta data.")
+        raise HTTPException(
+            status_code=400,
+            detail="Já existe feriado (recorrente ou nesta data) neste dia/mês.",
+        )
     row = PontoFeriado(
         tenant_id=admin.tenant_id,
         data=data.data,
         nome=nome[:255],
         ativo=True if data.ativo is None else bool(data.ativo),
+        recorrente_anual=recorrente,
     )
     db.add(row)
     db.flush()
@@ -293,7 +395,11 @@ def criar_feriado(db: Session, admin: Atendente, data: PontoFeriadoCreate) -> Po
         row.id,
         "create",
         admin.id,
-        payload={"data": data.data.isoformat(), "nome": nome},
+        payload={
+            "data": data.data.isoformat(),
+            "nome": nome,
+            "recorrente_anual": recorrente,
+        },
     )
     db.commit()
     db.refresh(row)
@@ -314,7 +420,11 @@ def remover_feriado(db: Session, admin: Atendente, feriado_id: int) -> None:
         row.id,
         "delete",
         admin.id,
-        payload={"data": row.data.isoformat(), "nome": row.nome},
+        payload={
+            "data": row.data.isoformat(),
+            "nome": row.nome,
+            "recorrente_anual": bool(getattr(row, "recorrente_anual", False)),
+        },
     )
     db.delete(row)
     db.commit()

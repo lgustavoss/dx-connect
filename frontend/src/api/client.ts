@@ -752,61 +752,56 @@ export const ponto = {
       method: 'POST',
       body: JSON.stringify({ motivo }),
     }),
-  criarJustificativa: (data: Ponto.JustificativaCreate) =>
-    api<Ponto.Justificativa>('/ponto/justificativas', { method: 'POST', body: JSON.stringify(data) }),
-  criarJustificativaComAnexo: (data: Ponto.JustificativaCreate, arquivo: File) => {
-    const fd = new FormData()
-    fd.append('data_ref', data.data_ref)
-    fd.append('tipo', data.tipo)
-    fd.append('motivo', data.motivo)
-    fd.append('arquivo', arquivo)
-    return api<Ponto.Justificativa>('/ponto/justificativas/upload', { method: 'POST', body: fd })
+  criarSolicitacaoAjuste: (data: Ponto.SolicitacaoAjusteCreate, arquivo?: File | null) => {
+    if (arquivo) {
+      const fd = new FormData()
+      fd.append('tipo', data.tipo)
+      fd.append('motivo', data.motivo)
+      if (data.tipo_batida) fd.append('tipo_batida', data.tipo_batida)
+      if (data.horario_solicitado) fd.append('horario_solicitado', data.horario_solicitado)
+      if (data.batida_id != null) fd.append('batida_id', String(data.batida_id))
+      if (data.data_ref) fd.append('data_ref', data.data_ref)
+      fd.append('arquivo', arquivo)
+      return api<Ponto.SolicitacaoAjuste>('/ponto/solicitacoes-ajuste/com-anexo', {
+        method: 'POST',
+        body: fd,
+      })
+    }
+    return api<Ponto.SolicitacaoAjuste>('/ponto/solicitacoes-ajuste', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
   },
-  minhasJustificativas: () => api<Ponto.Justificativa[]>('/ponto/justificativas/me'),
-  justificativasAdmin: (estado?: string) =>
-    api<Ponto.Justificativa[]>(withParams('/ponto/justificativas', { estado })),
-  decidirJustificativa: (id: number, data: Ponto.JustificativaDecisao) =>
-    api<Ponto.Justificativa>(`/ponto/justificativas/${id}/decidir`, {
+  minhasSolicitacoesAjuste: () =>
+    api<Ponto.SolicitacaoAjuste[]>('/ponto/solicitacoes-ajuste/me'),
+  solicitacoesAjusteAdmin: (estado?: string) =>
+    api<Ponto.SolicitacaoAjuste[]>(withParams('/ponto/solicitacoes-ajuste', { estado })),
+  decidirSolicitacaoAjuste: (id: number, data: Ponto.SolicitacaoAjusteDecisao) =>
+    api<Ponto.SolicitacaoAjuste>(`/ponto/solicitacoes-ajuste/${id}/decidir`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  justificativaAnexoUrl: (id: number) =>
-    `${apiOrigin()}${API_VERSION_PREFIX}/ponto/justificativas/${id}/anexo`,
-  baixarJustificativaAnexo: async (id: number, nome?: string | null) => {
+  fetchSolicitacaoAjusteAnexoBlob: async (id: number): Promise<Blob> => {
     const token = getAuthToken()
     const headers: Record<string, string> = {}
     if (token) headers.Authorization = `Bearer ${token}`
     if (isMultiTenantMode()) {
-      const tid = resolveTenantIdFromHostname()
-      if (tid) headers['X-Dx-Tenant-Id'] = String(tid)
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
     }
     const res = await fetch(
-      `${apiOrigin()}${API_VERSION_PREFIX}/ponto/justificativas/${id}/anexo`,
+      `${apiOrigin()}${API_VERSION_PREFIX}/ponto/solicitacoes-ajuste/${id}/anexo`,
       { headers },
     )
-    if (!res.ok) throw new ApiError('Falha ao baixar anexo', res.status, await res.text())
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = nome || `justificativa-${id}`
-    a.click()
-    URL.revokeObjectURL(url)
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin()
+      throw new ApiError('Sessão expirada ou inválida.', 401, {})
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+    }
+    return res.blob()
   },
-  solicitarAusencia: (data: Ponto.AusenciaCreate) =>
-    api<Ponto.Ausencia>('/ponto/ausencias', { method: 'POST', body: JSON.stringify(data) }),
-  minhasAusencias: () => api<Ponto.Ausencia[]>('/ponto/ausencias/me'),
-  ausenciasAdmin: (estado?: string) =>
-    api<Ponto.Ausencia[]>(withParams('/ponto/ausencias', { estado })),
-  concederAusencia: (data: Ponto.AusenciaConceder) =>
-    api<Ponto.Ausencia>('/ponto/ausencias/conceder', { method: 'POST', body: JSON.stringify(data) }),
-  decidirAusencia: (id: number, data: Ponto.AusenciaDecisao) =>
-    api<Ponto.Ausencia>(`/ponto/ausencias/${id}/decidir`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-  removerAusencia: (id: number) =>
-    api<void>(`/ponto/ausencias/${id}`, { method: 'DELETE' }),
   convocadosAdmin: (params?: { atendente_id?: number; desde?: string; ate?: string; estado?: string }) =>
     api<Ponto.DiaConvocado[]>(withParams('/ponto/convocados', params)),
   concederDiaConvocado: (data: Ponto.DiaConvocadoCreate) =>
@@ -816,25 +811,6 @@ export const ponto = {
     }),
   cancelarDiaConvocado: (id: number) =>
     api<Ponto.DiaConvocado>(`/ponto/convocados/${id}`, { method: 'DELETE' }),
-  horaExtraMeStatus: () => api<Ponto.HoraExtraMeStatus>('/ponto/hora-extra/me/status'),
-  minhasHoraExtra: () => api<Ponto.HoraExtra[]>('/ponto/hora-extra/me'),
-  solicitarHoraExtra: (data?: Ponto.HoraExtraCreate) =>
-    api<Ponto.HoraExtra>('/ponto/hora-extra', {
-      method: 'POST',
-      body: JSON.stringify(data ?? {}),
-    }),
-  horaExtraAdmin: (estado?: string) =>
-    api<Ponto.HoraExtra[]>(withParams('/ponto/hora-extra', { estado })),
-  decidirHoraExtra: (id: number, data: Ponto.HoraExtraDecisao) =>
-    api<Ponto.HoraExtra>(`/ponto/hora-extra/${id}/decidir`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-  concederHoraExtra: (data: Ponto.HoraExtraConceder) =>
-    api<Ponto.HoraExtra>('/ponto/hora-extra/conceder', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
   exportCsv: async (params?: { atendente_id?: number; desde?: string; ate?: string }) => {
     const token = getAuthToken()
     const headers: Record<string, string> = {}
@@ -915,27 +891,6 @@ export const ponto = {
     }
     return res.blob()
   },
-  solicitarCobertura: (data: Ponto.CoberturaCreate) =>
-    api<Ponto.Cobertura>('/ponto/coberturas', { method: 'POST', body: JSON.stringify(data) }),
-  minhasCoberturas: () => api<Ponto.Cobertura[]>('/ponto/coberturas/me'),
-  colegasCobertura: () => api<Ponto.CoberturaColega[]>('/ponto/coberturas/colegas'),
-  responderCobertura: (id: number, data: Ponto.CoberturaResposta) =>
-    api<Ponto.Cobertura>(`/ponto/coberturas/${id}/responder`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-  coberturasAdmin: (estado?: string) =>
-    api<Ponto.Cobertura[]>(withParams('/ponto/coberturas', { estado })),
-  concederCobertura: (data: Ponto.CoberturaConceder) =>
-    api<Ponto.Cobertura>('/ponto/coberturas/conceder', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-  decidirCobertura: (id: number, data: Ponto.CoberturaDecisao) =>
-    api<Ponto.Cobertura>(`/ponto/coberturas/${id}/decidir`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
   setupStatus: () => api<Ponto.SetupStatus>('/ponto/setup-status'),
   competencia: (ano: number, mes: number) =>
     api<Ponto.Competencia>(`/ponto/competencias/${ano}/${mes}`),
@@ -948,6 +903,8 @@ export const ponto = {
     }),
   cienciasAdmin: (ano: number, mes: number) =>
     api<Ponto.CienciaItem[]>(`/ponto/competencias/${ano}/${mes}/ciencias`),
+  resumoFechamentoEquipe: (ano: number, mes: number) =>
+    api<Ponto.ResumoFechamento>(`/ponto/competencias/${ano}/${mes}/resumo-equipe`),
   minhaCiencia: (ano: number, mes: number) =>
     api<Ponto.CienciaMe>(withParams('/ponto/me/ciencia', { ano, mes })),
   confirmarCiencia: (ano: number, mes: number) =>
@@ -1912,6 +1869,7 @@ export namespace Notificacoes {
     portal_respostas_count: number;
     chat_interno_nao_lidas_count: number;
     ponto_he_pendentes_count?: number;
+    ponto_ajuste_pendentes_count?: number;
     chats_em_atendimento_count?: number;
     total_pendencias: number;
   }
@@ -2663,6 +2621,7 @@ export namespace Atendentes {
     role?: string;
     ativo?: boolean;
     setor_ids?: number[];
+    must_change_password?: boolean;
     modo_jornada?: ModoJornada;
     usa_escala?: boolean;
     horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
@@ -2684,6 +2643,7 @@ export namespace Atendentes {
     role?: string;
     ativo?: boolean;
     setor_ids?: number[];
+    must_change_password?: boolean;
     modo_jornada?: ModoJornada;
     usa_escala?: boolean;
     horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
@@ -3921,6 +3881,17 @@ export const crmNegociacoes = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  updateAtividade: (negociacaoId: number, atividadeId: number, data: Crm.AtividadeUpdate) =>
+    api<Crm.Atividade>(`/crm/negociacoes/${negociacaoId}/atividades/${atividadeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+};
+
+export const crmLembretes = {
+  pendentes: () => api<Crm.LembretePendente[]>('/crm/lembretes-pendentes'),
+  confirmar: (atividadeId: number) =>
+    api<void>(`/crm/lembretes/${atividadeId}/ciente`, { method: 'POST' }),
 };
 
 export namespace Crm {
@@ -4104,14 +4075,34 @@ export namespace Crm {
     id: number;
     negociacao_id: number;
     autor_id: number;
+    autor_nome?: string | null;
     tipo: string;
     texto: string;
     created_at?: string | null;
+    updated_at?: string | null;
+    lembrete_em?: string | null;
+    lembrete_disparado_em?: string | null;
+    pode_editar?: boolean;
   }
 
   export interface AtividadeCreate {
     tipo?: string;
     texto: string;
+    lembrete_em?: string | null;
+  }
+
+  export interface AtividadeUpdate {
+    texto?: string;
+    lembrete_em?: string | null;
+  }
+
+  export interface LembretePendente {
+    atividade_id: number;
+    negociacao_id: number;
+    autor_id: number;
+    texto: string;
+    lead_nome?: string | null;
+    lembrete_em?: string | null;
   }
 }
 
@@ -4929,6 +4920,7 @@ export namespace Ponto {
     | 'folga_com_ponto'
     | 'folga_programada'
     | 'ferias'
+    | 'abono'
     | 'livre'
     | 'atraso'
     | 'feriado'
@@ -4975,6 +4967,8 @@ export namespace Ponto {
     duracao_segundos: number | null
     segundos_pausa?: number
     aberto: boolean
+    entrada_batida_id?: number | null
+    saida_batida_id?: number | null
     entrada_latitude?: number | null
     entrada_longitude?: number | null
     entrada_fora_area?: boolean
@@ -5041,6 +5035,7 @@ export namespace Ponto {
     data: string
     itens: HojeItem[]
   }
+  export type HeDestinoExcedente = 'banco' | 'pagamento' | 'misto'
   export interface BancoHoras {
     atendente_id: number
     atendente_nome?: string | null
@@ -5049,6 +5044,9 @@ export namespace Ponto {
     segundos_esperados: number
     segundos_realizados: number
     saldo_segundos: number
+    segundos_credito_banco?: number
+    segundos_debito_banco?: number
+    segundos_he_pagos?: number
     dias_escala: number
     dias_feriado?: number
   }
@@ -5059,6 +5057,7 @@ export namespace Ponto {
     jornadas_abertas: number
     online_sem_ponto: number
     justificativas_pendentes: number
+    solicitacoes_ajuste_pendentes?: number
     he_acima_teto_mensal?: number
     itens: HojeItem[]
   }
@@ -5071,6 +5070,9 @@ export namespace Ponto {
     pausa_minima_minutos?: number
     he_teto_mensal_minutos?: number | null
     politica_geolocalizacao: PoliticaGeolocalizacao
+    banco_horas_ativo?: boolean
+    he_destino_excedente?: HeDestinoExcedente
+    he_banco_primeiros_minutos?: number
   }
   export interface SettingsPublic {
     politica_geolocalizacao: PoliticaGeolocalizacao
@@ -5085,6 +5087,9 @@ export namespace Ponto {
     pausa_minima_minutos?: number
     he_teto_mensal_minutos?: number | null
     politica_geolocalizacao?: PoliticaGeolocalizacao
+    banco_horas_ativo?: boolean
+    he_destino_excedente?: HeDestinoExcedente
+    he_banco_primeiros_minutos?: number
   }
   export interface Local {
     id: number
@@ -5119,11 +5124,13 @@ export namespace Ponto {
     data: string
     nome: string
     ativo: boolean
+    recorrente_anual?: boolean
   }
   export interface FeriadoCreate {
     data: string
     nome: string
     ativo?: boolean
+    recorrente_anual?: boolean
   }
   export interface AlertasMe {
     sem_entrada_em_dia_escala: boolean
@@ -5155,6 +5162,39 @@ export namespace Ponto {
     tipo?: Tipo
     registrado_em?: string
     motivo: string
+  }
+  export interface SolicitacaoAjusteCreate {
+    tipo: 'inclusao' | 'correcao' | 'abono'
+    motivo: string
+    tipo_batida?: 'entrada' | 'saida' | null
+    horario_solicitado?: string | null
+    batida_id?: number | null
+    data_ref?: string | null
+  }
+  export interface SolicitacaoAjuste {
+    id: number
+    atendente_id: number
+    atendente_nome?: string | null
+    tipo: 'inclusao' | 'correcao' | 'abono' | string
+    estado: string
+    motivo: string
+    data_ref: string
+    tipo_batida?: string | null
+    horario_solicitado?: string | null
+    horario_anterior?: string | null
+    batida_id?: number | null
+    tem_anexo?: boolean
+    anexo_nome?: string | null
+    anexo_content_type?: string | null
+    anexo_tamanho_bytes?: number | null
+    decisao_motivo?: string | null
+    decidido_por_id?: number | null
+    decidido_em?: string | null
+    created_at?: string | null
+  }
+  export interface SolicitacaoAjusteDecisao {
+    estado: 'aprovada' | 'rejeitada'
+    decisao_motivo?: string | null
   }
   export interface JustificativaCreate {
     data_ref: string
@@ -5316,6 +5356,33 @@ export namespace Ponto {
     atendente_nome: string
     confirmada: boolean
     confirmado_em?: string | null
+  }
+  export interface ResumoFechamentoItem {
+    atendente_id: number
+    atendente_nome: string
+    dias_no_mes: number
+    dias_trabalhados: number
+    dias_a_trabalhar: number
+    faltas: number
+    segundos_necessarios: number
+    segundos_trabalhados: number
+    segundos_a_trabalhar: number
+    saldo_mes_anterior_segundos: number
+    saldo_mes_segundos: number
+    saldo_atual_segundos: number
+    segundos_he_pagos?: number
+    segundos_credito_banco?: number
+    segundos_debito_banco?: number
+    dias_abaixo?: number
+    atrasos?: number
+    alerta?: boolean
+    ciencia_confirmada?: boolean
+    ciencia_em?: string | null
+  }
+  export interface ResumoFechamento {
+    ano: number
+    mes: number
+    itens: ResumoFechamentoItem[]
   }
   export interface HoraExtra {
     id: number

@@ -222,14 +222,34 @@ class CrmMoverEstagioRequest(BaseModel):
 class CrmAtividadeCreate(BaseModel):
     tipo: str = "nota"
     texto: str = Field(..., min_length=1)
+    lembrete_em: datetime | None = None
+
+
+class CrmAtividadeUpdate(BaseModel):
+    texto: str | None = Field(None, min_length=1)
+    lembrete_em: datetime | None = None
+
+
+class CrmLembretePendenteRead(BaseModel):
+    atividade_id: int
+    negociacao_id: int
+    autor_id: int
+    texto: str
+    lead_nome: str | None = None
+    lembrete_em: datetime | None = None
 
 
 class CrmAtividadeRead(BaseModel):
     id: int
     negociacao_id: int
     autor_id: int
+    autor_nome: str | None = None
     tipo: str
     texto: str
     created_at: datetime | None = None
+    updated_at: datetime | None = None
+    lembrete_em: datetime | None = None
+    lembrete_disparado_em: datetime | None = None
+    pode_editar: bool = False
 
     model_config = ConfigDict(from_attributes=True)

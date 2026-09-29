@@ -16,7 +16,7 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 
 /** Classes base de campo de texto (mesmas do Input). Útil para máscaras sem o componente. */
 export const INPUT_FIELD_CLASS = `
-            w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900
+            box-border h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900
             placeholder:text-slate-400 focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500
             disabled:bg-slate-50 disabled:text-slate-500
             dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:placeholder:text-slate-500

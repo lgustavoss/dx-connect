@@ -12,6 +12,7 @@ import { CheckboxField } from '../components/ui/CheckboxField'
 import { useToast } from '../components/ui/Toast'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { FormSection } from '../components/ui/FormSection'
+import { PasswordEyeToggle } from '../components/ui/PasswordEyeToggle'
 import { SemPermissao } from './SemPermissao'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
@@ -54,6 +55,7 @@ export function FuncionarioRedeForm() {
   const [empresaId, setEmpresaId] = useState<number | ''>('')
   const [empresaIds, setEmpresaIds] = useState<number[]>([])
   const [senhaPortal, setSenhaPortal] = useState('')
+  const [mostrarSenhaPortal, setMostrarSenhaPortal] = useState(false)
   const [mustChangePassword, setMustChangePassword] = useState(true)
   const [portalHabilitado, setPortalHabilitado] = useState(false)
   const [notificarEmailPortal, setNotificarEmailPortal] = useState(true)
@@ -408,12 +410,19 @@ export function FuncionarioRedeForm() {
               </p>
               <Input
                 label={isEdit ? 'Nova senha do portal (opcional)' : 'Senha do portal (opcional)'}
-                type="password"
+                type={mostrarSenhaPortal ? 'text' : 'password'}
                 value={senhaPortal}
                 onChange={(e) => setSenhaPortal(e.target.value)}
                 autoComplete="new-password"
                 placeholder={email.trim() ? 'Mínimo 8 caracteres' : 'Informe o e-mail primeiro'}
                 disabled={!email.trim()}
+                endAdornment={
+                  <PasswordEyeToggle
+                    visible={mostrarSenhaPortal}
+                    onToggle={() => setMostrarSenhaPortal((v) => !v)}
+                    disabled={!email.trim()}
+                  />
+                }
               />
               <Switch
                 bare

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.auth import exigir_admin, obter_atendente_atual
@@ -17,10 +17,6 @@ from app.schemas.ponto import (
     PontoAjusteUpdate,
     PontoAlertasMe,
     PontoAnularBody,
-    PontoAusenciaConceder,
-    PontoAusenciaCreate,
-    PontoAusenciaDecisao,
-    PontoAusenciaRead,
     PontoBancoHorasRead,
     PontoBatidaAdminItem,
     PontoBatidaRead,
@@ -28,12 +24,6 @@ from app.schemas.ponto import (
     PontoCalendarioRead,
     PontoCienciaItem,
     PontoCienciaMe,
-    PontoCoberturaColega,
-    PontoCoberturaConceder,
-    PontoCoberturaCreate,
-    PontoCoberturaDecisao,
-    PontoCoberturaRead,
-    PontoCoberturaResposta,
     PontoCompetenciaRead,
     PontoCompetenciaReabrir,
     PontoDiaConvocadoCreate,
@@ -44,34 +34,26 @@ from app.schemas.ponto import (
     PontoFeriadoRead,
     PontoHistoricoRead,
     PontoHojeRead,
-    PontoHoraExtraConceder,
-    PontoHoraExtraCreate,
-    PontoHoraExtraDecisao,
-    PontoHoraExtraMeStatus,
-    PontoHoraExtraRead,
-    PontoJustificativaCreate,
-    PontoJustificativaDecisao,
-    PontoJustificativaRead,
     PontoLocalCreate,
     PontoLocalRead,
     PontoLocalUpdate,
+    PontoResumoFechamentoRead,
     PontoResumoSemanaRead,
     PontoSettingsPublicRead,
     PontoSettingsRead,
     PontoSettingsUpdate,
     PontoSetupStatus,
+    PontoSolicitacaoAjusteCreate,
+    PontoSolicitacaoAjusteDecisao,
+    PontoSolicitacaoAjusteRead,
 )
 from app.services import ponto as ponto_svc
-from app.services import ponto_ausencia as ausencia_svc
-from app.services import ponto_cobertura as cob_svc
 from app.services import ponto_convocado as convocado_svc
 from app.services import ponto_competencia as comp_svc
 from app.services import ponto_folha as folha_svc
-from app.services import ponto_hora_extra as he_svc
-from app.services import ponto_justificativa as just_svc
-from app.services import ponto_justificativa_storage as just_anexo_svc
 from app.services import ponto_relatorio as ponto_relatorio_svc
 from app.services import ponto_settings as ponto_settings_svc
+from app.services import ponto_solicitacao_ajuste as sol_ajuste_svc
 
 router = APIRouter(prefix="/ponto", tags=["ponto"])
 
@@ -248,84 +230,115 @@ def exportar_folha_xlsx(
     )
 
 
-@router.post("/coberturas", response_model=PontoCoberturaRead, status_code=201)
-def solicitar_cobertura(
-    data: PontoCoberturaCreate,
+@router.post("/solicitacoes-ajuste", response_model=PontoSolicitacaoAjusteRead, status_code=201)
+def criar_solicitacao_ajuste(
+    data: PontoSolicitacaoAjusteCreate,
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    return cob_svc.solicitar(
+    return sol_ajuste_svc.criar(
         db,
         atendente,
-        cobertor_id=data.cobertor_id,
-        data_ref=data.data_ref,
+        tipo=data.tipo,
         motivo=data.motivo,
+        horario_solicitado=data.horario_solicitado,
+        tipo_batida=data.tipo_batida,
+        batida_id=data.batida_id,
+        data_ref=data.data_ref,
     )
 
 
-@router.get("/coberturas/me", response_model=list[PontoCoberturaRead])
-def minhas_coberturas(
+@router.post("/solicitacoes-ajuste/com-anexo", response_model=PontoSolicitacaoAjusteRead, status_code=201)
+async def criar_solicitacao_ajuste_com_anexo(
+    tipo: str = Form(...),
+    motivo: str = Form(...),
+    tipo_batida: str | None = Form(None),
+    horario_solicitado: str | None = Form(None),
+    batida_id: int | None = Form(None),
+    data_ref: str | None = Form(None),
+    arquivo: UploadFile = File(...),
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    return cob_svc.listar_me(db, atendente)
+    from app.services import ponto_justificativa_storage as storage
 
+    raw = await arquivo.read()
+    try:
+        nome, mime = storage.validar_anexo_justificativa(arquivo.filename, arquivo.content_type, len(raw))
+        key = storage.gravar_bytes(raw, mimetype=mime, nome_original=nome)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
-@router.get("/coberturas/colegas", response_model=list[PontoCoberturaColega])
-def colegas_cobertura(
-    db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
-):
-    return cob_svc.listar_colegas(db, atendente)
+    horario_dt: datetime | None = None
+    if horario_solicitado and horario_solicitado.strip():
+        try:
+            horario_dt = datetime.fromisoformat(horario_solicitado.replace("Z", "+00:00"))
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail="Horário solicitado inválido.") from e
 
+    data_dia: date | None = None
+    if data_ref and data_ref.strip():
+        try:
+            data_dia = date.fromisoformat(data_ref.strip())
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail="Data de referência inválida.") from e
 
-@router.post("/coberturas/{cobertura_id}/responder", response_model=PontoCoberturaRead)
-def responder_cobertura(
-    cobertura_id: int,
-    data: PontoCoberturaResposta,
-    db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
-):
-    return cob_svc.responder_cobertor(db, atendente, cobertura_id, aceitar=data.aceitar)
-
-
-@router.get("/coberturas", response_model=list[PontoCoberturaRead])
-def listar_coberturas_admin(
-    estado: str | None = Query("pendente_admin"),
-    db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
-):
-    return cob_svc.listar_admin(db, admin, estado=estado)
-
-
-@router.post("/coberturas/conceder", response_model=PontoCoberturaRead, status_code=201)
-def conceder_cobertura(
-    data: PontoCoberturaConceder,
-    db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
-):
-    return cob_svc.conceder_admin(
+    return sol_ajuste_svc.criar(
         db,
-        admin,
-        solicitante_id=data.solicitante_id,
-        cobertor_id=data.cobertor_id,
-        data_ref=data.data_ref,
-        motivo=data.motivo,
+        atendente,
+        tipo=tipo,
+        motivo=motivo,
+        horario_solicitado=horario_dt,
+        tipo_batida=tipo_batida or None,
+        batida_id=batida_id,
+        data_ref=data_dia,
+        anexo_storage_key=key,
+        anexo_nome=nome,
+        anexo_content_type=mime,
+        anexo_tamanho_bytes=len(raw),
     )
 
 
-@router.post("/coberturas/{cobertura_id}/decidir", response_model=PontoCoberturaRead)
-def decidir_cobertura(
-    cobertura_id: int,
-    data: PontoCoberturaDecisao,
+@router.get("/solicitacoes-ajuste/me", response_model=list[PontoSolicitacaoAjusteRead])
+def minhas_solicitacoes_ajuste(
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    return sol_ajuste_svc.listar_me(db, atendente)
+
+
+@router.get("/solicitacoes-ajuste", response_model=list[PontoSolicitacaoAjusteRead])
+def listar_solicitacoes_ajuste(
+    estado: str | None = Query("pendente"),
     db: Session = Depends(get_db),
     admin: Atendente = Depends(exigir_admin),
 ):
-    return cob_svc.decidir_admin(
+    return sol_ajuste_svc.listar_para_aprovador(db, admin, estado=estado)
+
+
+@router.get("/solicitacoes-ajuste/{solicitacao_id}/anexo")
+def baixar_anexo_solicitacao_ajuste(
+    solicitacao_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    data, nome, ctype = sol_ajuste_svc.obter_anexo(db, atendente, solicitacao_id)
+    disposition = f"attachment; filename*=UTF-8''{quote(nome)}"
+    return Response(content=data, media_type=ctype, headers={"Content-Disposition": disposition})
+
+
+@router.post("/solicitacoes-ajuste/{solicitacao_id}/decidir", response_model=PontoSolicitacaoAjusteRead)
+def decidir_solicitacao_ajuste(
+    solicitacao_id: int,
+    data: PontoSolicitacaoAjusteDecisao,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return sol_ajuste_svc.decidir(
         db,
         admin,
-        cobertura_id,
-        aprovar=data.aprovar,
+        solicitacao_id,
+        estado=data.estado,
         decisao_motivo=data.decisao_motivo,
     )
 
@@ -387,6 +400,16 @@ def listar_ciencias(
     admin: Atendente = Depends(exigir_admin),
 ):
     return comp_svc.listar_ciencias_admin(db, admin, ano=ano, mes=mes)
+
+
+@router.get("/competencias/{ano}/{mes}/resumo-equipe", response_model=PontoResumoFechamentoRead)
+def resumo_fechamento_equipe(
+    ano: int,
+    mes: int,
+    db: Session = Depends(get_db),
+    admin: Atendente = Depends(exigir_admin),
+):
+    return comp_svc.resumo_fechamento_equipe(db, admin, ano=ano, mes=mes)
 
 
 @router.get("/me/ciencia", response_model=PontoCienciaMe)
@@ -637,183 +660,6 @@ def remover_local(
     return Response(status_code=204)
 
 
-@router.post("/justificativas", response_model=PontoJustificativaRead, status_code=201)
-def criar_justificativa(
-    data: PontoJustificativaCreate,
-    db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
-):
-    return just_svc.criar(
-        db,
-        atendente,
-        data_ref=data.data_ref,
-        tipo=data.tipo,
-        motivo=data.motivo,
-    )
-
-
-@router.post("/justificativas/upload", response_model=PontoJustificativaRead, status_code=201)
-async def criar_justificativa_com_anexo(
-    data_ref: date = Form(...),
-    tipo: str = Form(...),
-    motivo: str = Form(...),
-    arquivo: UploadFile = File(...),
-    db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
-):
-    raw = await arquivo.read()
-    try:
-        nome, mime = just_anexo_svc.validar_anexo_justificativa(
-            arquivo.filename, arquivo.content_type, len(raw)
-        )
-        key = just_anexo_svc.gravar_bytes(raw, mimetype=mime, nome_original=nome)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    return just_svc.criar(
-        db,
-        atendente,
-        data_ref=data_ref,
-        tipo=tipo,
-        motivo=motivo,
-        anexo_nome=nome,
-        anexo_content_type=mime,
-        anexo_storage_key=key,
-        anexo_tamanho_bytes=len(raw),
-    )
-
-
-@router.get("/justificativas/{justificativa_id}/anexo")
-def baixar_anexo_justificativa(
-    justificativa_id: int,
-    db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
-):
-    row = just_svc.obter_para_anexo(
-        db,
-        justificativa_id=justificativa_id,
-        tenant_id=atendente.tenant_id,
-        solicitante=atendente,
-    )
-    path = just_anexo_svc.caminho_absoluto(row.anexo_storage_key)
-    if path is None:
-        raise HTTPException(status_code=404, detail="Arquivo do anexo não encontrado")
-    return FileResponse(
-        path,
-        media_type=row.anexo_content_type or "application/octet-stream",
-        filename=row.anexo_nome or path.name,
-    )
-
-
-@router.get("/justificativas/me", response_model=list[PontoJustificativaRead])
-def minhas_justificativas(
-    db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
-):
-    return just_svc.listar_me(db, atendente)
-
-
-@router.get("/justificativas", response_model=list[PontoJustificativaRead])
-def listar_justificativas_admin(
-    estado: str | None = Query("pendente"),
-    db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
-):
-    return just_svc.listar_admin(db, admin, estado=estado)
-
-
-@router.post("/justificativas/{justificativa_id}/decidir", response_model=PontoJustificativaRead)
-def decidir_justificativa(
-    justificativa_id: int,
-    data: PontoJustificativaDecisao,
-    db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
-):
-    return just_svc.decidir(
-        db,
-        admin,
-        justificativa_id,
-        estado=data.estado,
-        decisao_motivo=data.decisao_motivo,
-        aplicar_batidas=data.aplicar_batidas,
-    )
-
-
-@router.post("/ausencias", response_model=PontoAusenciaRead, status_code=201)
-def solicitar_ausencia(
-    data: PontoAusenciaCreate,
-    db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
-):
-    return ausencia_svc.solicitar(
-        db,
-        atendente,
-        tipo=data.tipo,
-        desde=data.desde,
-        ate=data.ate,
-        motivo=data.motivo,
-    )
-
-
-@router.get("/ausencias/me", response_model=list[PontoAusenciaRead])
-def minhas_ausencias(
-    db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
-):
-    return ausencia_svc.listar_me(db, atendente)
-
-
-@router.get("/ausencias", response_model=list[PontoAusenciaRead])
-def listar_ausencias_admin(
-    estado: str | None = Query("pendente"),
-    db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
-):
-    return ausencia_svc.listar_admin(db, admin, estado=estado)
-
-
-@router.post("/ausencias/conceder", response_model=PontoAusenciaRead, status_code=201)
-def conceder_ausencia(
-    data: PontoAusenciaConceder,
-    db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
-):
-    return ausencia_svc.conceder_admin(
-        db,
-        admin,
-        atendente_id=data.atendente_id,
-        tipo=data.tipo,
-        desde=data.desde,
-        ate=data.ate,
-        motivo=data.motivo,
-    )
-
-
-@router.post("/ausencias/{ausencia_id}/decidir", response_model=PontoAusenciaRead)
-def decidir_ausencia(
-    ausencia_id: int,
-    data: PontoAusenciaDecisao,
-    db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
-):
-    return ausencia_svc.decidir(
-        db,
-        admin,
-        ausencia_id,
-        aprovar=data.aprovar,
-        decisao_motivo=data.decisao_motivo,
-    )
-
-
-@router.delete("/ausencias/{ausencia_id}", status_code=204)
-def remover_ausencia(
-    ausencia_id: int,
-    db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
-):
-    ausencia_svc.remover_admin(db, admin, ausencia_id)
-    return Response(status_code=204)
-
-
 @router.post("/convocados/conceder", response_model=PontoDiaConvocadoRead, status_code=201)
 def conceder_dia_convocado(
     data: PontoDiaConvocadoCreate,
@@ -858,83 +704,3 @@ def cancelar_dia_convocado(
     admin: Atendente = Depends(exigir_admin),
 ):
     return convocado_svc.cancelar_admin(db, admin, convocado_id)
-
-
-@router.get("/hora-extra/me/status", response_model=PontoHoraExtraMeStatus)
-def hora_extra_me_status(
-    db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
-):
-    ponto_svc.exigir_acesso_ponto(atendente)
-    return PontoHoraExtraMeStatus(**he_svc.me_status(db, atendente))
-
-
-@router.get("/hora-extra/me", response_model=list[PontoHoraExtraRead])
-def minhas_hora_extra(
-    db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
-):
-    ponto_svc.exigir_acesso_ponto(atendente)
-    return he_svc.listar_me(db, atendente)
-
-
-@router.post("/hora-extra", response_model=PontoHoraExtraRead, status_code=201)
-def solicitar_hora_extra(
-    data: PontoHoraExtraCreate,
-    db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
-):
-    ponto_svc.exigir_acesso_ponto(atendente)
-    return he_svc.solicitar(
-        db,
-        atendente,
-        motivo=data.motivo,
-        modo=data.modo,
-        ate_horario=data.ate_horario,
-        duracao_minutos=data.duracao_minutos,
-    )
-
-
-@router.get("/hora-extra", response_model=list[PontoHoraExtraRead])
-def listar_hora_extra_admin(
-    estado: str | None = Query("pendente"),
-    db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
-):
-    return he_svc.listar_admin(db, admin, estado=estado)
-
-
-@router.post("/hora-extra/{he_id}/decidir", response_model=PontoHoraExtraRead)
-def decidir_hora_extra(
-    he_id: int,
-    data: PontoHoraExtraDecisao,
-    db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
-):
-    return he_svc.decidir(
-        db,
-        admin,
-        he_id,
-        aprovar=data.aprovar,
-        modo=data.modo,
-        ate_horario=data.ate_horario,
-        duracao_minutos=data.duracao_minutos,
-        decisao_motivo=data.decisao_motivo,
-    )
-
-
-@router.post("/hora-extra/conceder", response_model=PontoHoraExtraRead, status_code=201)
-def conceder_hora_extra(
-    data: PontoHoraExtraConceder,
-    db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
-):
-    return he_svc.conceder_admin(
-        db,
-        admin,
-        atendente_id=data.atendente_id,
-        modo=data.modo,
-        ate_horario=data.ate_horario,
-        duracao_minutos=data.duracao_minutos,
-        motivo=data.motivo,
-    )

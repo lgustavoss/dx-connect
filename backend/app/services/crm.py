@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi import HTTPException
-from sqlalchemy import or_
+from sqlalchemy import or_, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.atendente import Atendente
 from app.models.crm import (
+    ATIVIDADE_LIGACAO,
     ATIVIDADE_MUDANCA_ESTAGIO,
+    ATIVIDADE_NOTA,
+    ATIVIDADE_REUNIAO,
     ATIVIDADE_TIPOS,
     FUNIL_SEED,
     FUNIL_TIPOS,
@@ -26,6 +29,8 @@ from app.models.crm import (
 from app.schemas.comercial_custo import CustoTefOverride
 from app.schemas.crm import (
     CrmAtividadeCreate,
+    CrmAtividadeRead,
+    CrmAtividadeUpdate,
     CrmLeadCreate,
     CrmLeadUpdate,
     CrmLinhaCreate,
@@ -36,6 +41,12 @@ from app.schemas.crm import (
     FunilEstagioUpdate,
 )
 from app.services import comercial_custo as custo_svc
+
+# O autor edita a própria nota até 5 minutos depois de salvar (#1098).
+NOTA_EDICAO = timedelta(minutes=5)
+# Sem confirmação do autor, outro aviso só depois desta folga (evita rajada entre workers).
+LEMBRETE_RETRY = timedelta(minutes=2)
+TIPOS_NOTA_EDITAVEIS = frozenset({ATIVIDADE_NOTA, ATIVIDADE_LIGACAO, ATIVIDADE_REUNIAO})
 
 
 def ensure_funil_padrao(db: Session) -> None:
@@ -619,15 +630,58 @@ def mover_estagio(
     return obter_negociacao(db, neg.id)
 
 
+def _como_utc(valor: datetime) -> datetime:
+    if valor.tzinfo is None:
+        return valor.replace(tzinfo=timezone.utc)
+    return valor.astimezone(timezone.utc)
+
+
+def _validar_lembrete_futuro(quando: datetime) -> datetime:
+    momento = _como_utc(quando)
+    if momento <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="O lembrete precisa ser uma data e hora futuras.")
+    return momento
+
+
+def nota_pode_editar(row: CrmNegociacaoAtividade, ator: Atendente, *, agora: datetime | None = None) -> bool:
+    if row.autor_id != ator.id or row.tipo not in TIPOS_NOTA_EDITAVEIS or row.created_at is None:
+        return False
+    agora = agora or datetime.now(timezone.utc)
+    return agora - _como_utc(row.created_at) <= NOTA_EDICAO
+
+
+def serializar_atividade(row: CrmNegociacaoAtividade, ator: Atendente) -> CrmAtividadeRead:
+    autor = row.autor
+    return CrmAtividadeRead(
+        id=row.id,
+        negociacao_id=row.negociacao_id,
+        autor_id=row.autor_id,
+        autor_nome=autor.nome if autor is not None else None,
+        tipo=row.tipo,
+        texto=row.texto,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+        lembrete_em=row.lembrete_em,
+        lembrete_disparado_em=row.lembrete_disparado_em,
+        pode_editar=nota_pode_editar(row, ator),
+    )
+
+
 def listar_atividades(
     db: Session, negociacao_id: int, *, offset: int = 0, limit: int = 50
 ) -> tuple[list[CrmNegociacaoAtividade], int]:
     obter_negociacao(db, negociacao_id)
-    q = db.query(CrmNegociacaoAtividade).filter(CrmNegociacaoAtividade.negociacao_id == negociacao_id)
-    total = q.count()
-    rows = q.order_by(CrmNegociacaoAtividade.created_at.desc(), CrmNegociacaoAtividade.id.desc()).offset(
-        offset
-    ).limit(limit).all()
+    filtro = CrmNegociacaoAtividade.negociacao_id == negociacao_id
+    total = db.query(CrmNegociacaoAtividade).filter(filtro).count()
+    rows = (
+        db.query(CrmNegociacaoAtividade)
+        .options(joinedload(CrmNegociacaoAtividade.autor))
+        .filter(filtro)
+        .order_by(CrmNegociacaoAtividade.created_at.desc(), CrmNegociacaoAtividade.id.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
     return rows, total
 
 
@@ -643,12 +697,161 @@ def criar_atividade(
         )
     if tipo == ATIVIDADE_MUDANCA_ESTAGIO:
         raise HTTPException(status_code=400, detail="Use POST .../mover-estagio para mudança de estágio.")
+    lembrete = _validar_lembrete_futuro(data.lembrete_em) if data.lembrete_em is not None else None
     row = CrmNegociacaoAtividade(
         negociacao_id=negociacao_id,
         autor_id=ator.id,
         tipo=tipo,
         texto=data.texto.strip(),
+        lembrete_em=lembrete,
     )
     db.add(row)
     db.flush()
+    db.refresh(row)
     return row
+
+
+def editar_atividade(
+    db: Session,
+    negociacao_id: int,
+    atividade_id: int,
+    data: CrmAtividadeUpdate,
+    ator: Atendente,
+) -> CrmNegociacaoAtividade:
+    row = (
+        db.query(CrmNegociacaoAtividade)
+        .options(joinedload(CrmNegociacaoAtividade.autor))
+        .filter(
+            CrmNegociacaoAtividade.id == atividade_id,
+            CrmNegociacaoAtividade.negociacao_id == negociacao_id,
+        )
+        .first()
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Nota não encontrada.")
+    if row.tipo not in TIPOS_NOTA_EDITAVEIS:
+        raise HTTPException(status_code=400, detail="Só é possível editar notas, ligações e reuniões.")
+    if row.autor_id != ator.id:
+        raise HTTPException(status_code=403, detail="Só o autor pode editar esta nota.")
+    if not nota_pode_editar(row, ator):
+        raise HTTPException(status_code=400, detail="O prazo de 5 minutos para editar esta nota já passou.")
+    campos = data.model_fields_set
+    if not campos:
+        raise HTTPException(status_code=400, detail="Nada para atualizar.")
+    if "texto" in campos:
+        texto = (data.texto or "").strip()
+        if not texto:
+            raise HTTPException(status_code=400, detail="O texto da nota não pode ficar vazio.")
+        row.texto = texto
+    if "lembrete_em" in campos:
+        if data.lembrete_em is None:
+            row.lembrete_em = None
+            row.lembrete_tentativa_em = None
+            row.lembrete_disparado_em = None
+        else:
+            row.lembrete_em = _validar_lembrete_futuro(data.lembrete_em)
+            row.lembrete_tentativa_em = None
+            row.lembrete_disparado_em = None
+    row.updated_at = datetime.now(timezone.utc)
+    db.flush()
+    db.refresh(row)
+    return row
+
+
+def _filtro_lembrete_vencido(agora: datetime):
+    return (
+        CrmNegociacaoAtividade.lembrete_em.isnot(None),
+        CrmNegociacaoAtividade.lembrete_em <= agora,
+        CrmNegociacaoAtividade.lembrete_disparado_em.is_(None),
+    )
+
+
+def _payload_lembrete(row: CrmNegociacaoAtividade) -> dict:
+    lead = row.negociacao.lead if row.negociacao is not None else None
+    texto = (row.texto or "").strip()
+    if len(texto) > 140:
+        texto = texto[:137] + "..."
+    quando = row.lembrete_em
+    return {
+        "autor_id": row.autor_id,
+        "atividade_id": row.id,
+        "negociacao_id": row.negociacao_id,
+        "texto": texto,
+        "lead_nome": lead.nome if lead is not None else None,
+        "lembrete_em": quando.isoformat() if quando is not None else None,
+    }
+
+
+def listar_lembretes_pendentes(db: Session, ator: Atendente, *, limit: int = 20) -> list[dict]:
+    """Lembretes vencidos que o autor ainda não confirmou — o painel busca ao abrir."""
+    agora = datetime.now(timezone.utc)
+    rows = (
+        db.query(CrmNegociacaoAtividade)
+        .options(joinedload(CrmNegociacaoAtividade.negociacao).joinedload(CrmNegociacao.lead))
+        .filter(
+            CrmNegociacaoAtividade.autor_id == ator.id,
+            *_filtro_lembrete_vencido(agora),
+        )
+        .order_by(CrmNegociacaoAtividade.lembrete_em.asc(), CrmNegociacaoAtividade.id.asc())
+        .limit(limit)
+        .all()
+    )
+    return [_payload_lembrete(row) for row in rows]
+
+
+def confirmar_lembrete(db: Session, atividade_id: int, ator: Atendente) -> None:
+    row = db.query(CrmNegociacaoAtividade).filter(CrmNegociacaoAtividade.id == atividade_id).first()
+    if row is None or row.lembrete_em is None:
+        raise HTTPException(status_code=404, detail="Lembrete não encontrado.")
+    if row.autor_id != ator.id:
+        raise HTTPException(status_code=403, detail="Só o autor confirma este lembrete.")
+    if row.lembrete_disparado_em is None:
+        row.lembrete_disparado_em = datetime.now(timezone.utc)
+        db.flush()
+
+
+def reivindicar_lembretes_vencidos(db: Session, *, limit: int = 50) -> list[dict]:
+    """Reserva o aviso com UPDATE condicional. Não marca como visto — isso é a confirmação do autor."""
+    agora = datetime.now(timezone.utc)
+    limite_retry = agora - LEMBRETE_RETRY
+    candidatos = (
+        db.query(CrmNegociacaoAtividade.id)
+        .filter(
+            *_filtro_lembrete_vencido(agora),
+            or_(
+                CrmNegociacaoAtividade.lembrete_tentativa_em.is_(None),
+                CrmNegociacaoAtividade.lembrete_tentativa_em <= limite_retry,
+            ),
+        )
+        .order_by(CrmNegociacaoAtividade.lembrete_em.asc(), CrmNegociacaoAtividade.id.asc())
+        .limit(limit)
+        .all()
+    )
+    reservados: list[int] = []
+    for (atividade_id,) in candidatos:
+        result = db.execute(
+            update(CrmNegociacaoAtividade)
+            .where(
+                CrmNegociacaoAtividade.id == atividade_id,
+                CrmNegociacaoAtividade.lembrete_disparado_em.is_(None),
+                or_(
+                    CrmNegociacaoAtividade.lembrete_tentativa_em.is_(None),
+                    CrmNegociacaoAtividade.lembrete_tentativa_em <= limite_retry,
+                ),
+            )
+            .values(lembrete_tentativa_em=agora)
+            .execution_options(synchronize_session=False)
+        )
+        if (result.rowcount or 0) > 0:
+            reservados.append(atividade_id)
+    if not reservados:
+        return []
+    db.flush()
+    db.expire_all()
+    rows = (
+        db.query(CrmNegociacaoAtividade)
+        .options(joinedload(CrmNegociacaoAtividade.negociacao).joinedload(CrmNegociacao.lead))
+        .filter(CrmNegociacaoAtividade.id.in_(reservados))
+        .all()
+    )
+    return [_payload_lembrete(row) for row in rows]

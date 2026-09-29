@@ -13,6 +13,8 @@ from app.models.crm import CrmNegociacaoCnpjLinha
 from app.schemas.crm import (
     CrmAtividadeCreate,
     CrmAtividadeRead,
+    CrmAtividadeUpdate,
+    CrmLembretePendenteRead,
     CrmLeadCreate,
     CrmLeadRead,
     CrmLeadUpdate,
@@ -298,10 +300,13 @@ def listar_atividades(
     offset: int = Query(0, ge=0),
     limit: int = Query(_DEFAULT_PAGE, ge=1, le=_MAX_PAGE),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_comercial_ou_admin),
 ):
     rows, total = svc.listar_atividades(db, negociacao_id, offset=offset, limit=limit)
-    return ListaPaginada(items=rows, total=total)
+    return ListaPaginada(
+        items=[svc.serializar_atividade(row, atendente) for row in rows],
+        total=total,
+    )
 
 
 @router.post(
@@ -319,4 +324,41 @@ def criar_atividade(
     registrar_audit(db, "crm_negociacao_atividade", row.id, "create", atendente.id)
     db.commit()
     db.refresh(row)
-    return row
+    return svc.serializar_atividade(row, atendente)
+
+
+@router.patch(
+    "/negociacoes/{negociacao_id}/atividades/{atividade_id}",
+    response_model=CrmAtividadeRead,
+)
+def editar_atividade(
+    negociacao_id: int,
+    atividade_id: int,
+    data: CrmAtividadeUpdate,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+):
+    row = svc.editar_atividade(db, negociacao_id, atividade_id, data, atendente)
+    registrar_audit(db, "crm_negociacao_atividade", row.id, "update", atendente.id)
+    db.commit()
+    db.refresh(row)
+    return svc.serializar_atividade(row, atendente)
+
+
+@router.get("/lembretes-pendentes", response_model=list[CrmLembretePendenteRead])
+def listar_lembretes_pendentes(
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+):
+    return svc.listar_lembretes_pendentes(db, atendente)
+
+
+@router.post("/lembretes/{atividade_id}/ciente", status_code=204)
+def confirmar_lembrete(
+    atividade_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+):
+    svc.confirmar_lembrete(db, atividade_id, atendente)
+    db.commit()
+    return None

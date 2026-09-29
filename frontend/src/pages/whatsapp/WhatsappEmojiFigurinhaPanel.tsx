@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 
 import { WHATSAPP_EMOJIS } from '../../lib/whatsappEmojis'
 
@@ -9,20 +9,31 @@ type Props = {
   onInserirEmoji: (emoji: string) => void
   onEnviarFigurinha: (file: File) => void
   onFechar: () => void
+  /** Clique aqui dentro não conta como «fora» (ex.: botão que abre/fecha o painel). */
+  ancoraRef?: RefObject<HTMLElement | null>
 }
 
-export function WhatsappEmojiFigurinhaPanel({ disabled, onInserirEmoji, onEnviarFigurinha, onFechar }: Props) {
+export function WhatsappEmojiFigurinhaPanel({
+  disabled,
+  onInserirEmoji,
+  onEnviarFigurinha,
+  onFechar,
+  ancoraRef,
+}: Props) {
   const [tab, setTab] = useState<Tab>('emoji')
   const panelRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) onFechar()
+      const alvo = e.target as Node
+      if (panelRef.current?.contains(alvo)) return
+      if (ancoraRef?.current?.contains(alvo)) return
+      onFechar()
     }
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
-  }, [onFechar])
+  }, [onFechar, ancoraRef])
 
   return (
     <div
@@ -66,7 +77,7 @@ export function WhatsappEmojiFigurinhaPanel({ disabled, onInserirEmoji, onEnviar
       ) : (
         <div className="space-y-2 p-3">
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Envie um ficheiro WebP ou PNG (tamanho típico de figurinha WhatsApp).
+            Envie um arquivo WebP ou PNG (tamanho típico de figurinha WhatsApp).
           </p>
           <button
             type="button"

@@ -11,7 +11,10 @@ def test_build_notificacao_resumo(client, seed_base, db_session):
     assert r.sem_responsavel_count >= 0
     assert r.chats_em_atendimento_count >= 0
     assert r.total_pendencias == (
-        r.sem_responsavel_count + r.nao_lidas_count + r.ponto_he_pendentes_count
+        r.sem_responsavel_count
+        + r.nao_lidas_count
+        + getattr(r, "ponto_ajuste_pendentes_count", 0)
+        + r.ponto_he_pendentes_count
     )
 
 
