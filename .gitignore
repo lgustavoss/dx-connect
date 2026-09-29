@@ -16,6 +16,10 @@ frontend/.playwright-browsers
 frontend/public/_crop-*.png
 frontend/public/_debug-*.png
 
+# Desktop (Electron)
+desktop/node_modules
+desktop/release
+
 # Python
 **/__pycache__/
 

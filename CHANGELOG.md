@@ -43,6 +43,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Ponto (#1135): saíram da tela os pedidos de hora extra, justificativa, cobertura de plantão e férias/folga — para hora além da jornada, basta manter o ponto em aberto
 - Ponto (#1132): o banco credita o excesso além da jornada e debita o que faltar (atraso/falta), conforme a política da empresa
 - Ponto (#1133): um único botão de bater ponto; o período sem saída fica em aberto e a batida do dia seguinte não fecha o dia anterior
+- App para Windows (#1130): o DeskRudder fica no ícone da bandeja como o WhatsApp — fechar a janela não encerra os alertas da fila, o contador de pendências aparece no ícone e dá para abrir junto com o computador (o app pergunta na primeira vez); o instalador mostra a logo do DeskRudder e uma imagem do painel (#S202609-0027)
 - CRM (#1098): o histórico da negociação mostra quem escreveu a nota e o horário; o autor pode corrigir por 5 minutos e marcar um lembrete de reunião, que fica na tela até a pessoa fechar o aviso
 - Minhas solicitações (#1125): a lista mostra, em coluna, a versão em que o pedido concluído ficou disponível
 - Sobre (#1126): a introdução deixa de falar de melhorias de DevOps
@@ -56,6 +57,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - WhatsApp (#1102): abrir um atendimento pelo histórico deixa de derrubar a tela
 - Chat (#S202609-0025): o painel de emoji e figurinha deixa de fechar sozinho — clicar num emoji insere na mensagem e a aba Figurinha abre normalmente
 - WhatsApp (#S202609-0025): figurinha recebida aparece no tamanho de figurinha e não abre mais como imagem ampliada
+- WhatsApp (#1139): ao enviar, o campo de mensagem limpa na hora e a mensagem aparece como «enviando» — dá para digitar a próxima sem esperar, o texto novo não some mais e, se o envio falhar, a mensagem fica na conversa com a opção de tentar de novo; quando o WhatsApp demora a responder, a mensagem não é mais enviada em dobro ao cliente
 
 ## [26.09.003] - 2026-09-27
 
