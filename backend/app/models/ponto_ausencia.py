@@ -13,7 +13,7 @@ class PontoAusencia(Base):
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False, index=True)
     atendente_id = Column(Integer, ForeignKey("atendentes.id", ondelete="CASCADE"), nullable=False, index=True)
-    # ferias | folga_programada
+    # ferias | folga_programada | abono
     tipo = Column(String(32), nullable=False)
     desde = Column(Date, nullable=False, index=True)
     ate = Column(Date, nullable=False, index=True)

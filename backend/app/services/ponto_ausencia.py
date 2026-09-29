@@ -13,7 +13,7 @@ from app.models.ponto_ausencia import PontoAusencia
 from app.schemas.ponto import PontoAusenciaRead
 from app.services import ponto as ponto_svc
 
-TIPOS = frozenset({"ferias", "folga_programada"})
+TIPOS = frozenset({"ferias", "folga_programada", "abono"})
 ESTADOS = frozenset({"pendente", "aprovada", "rejeitada"})
 
 
@@ -45,8 +45,39 @@ def _validar_periodo(desde: date, ate: date) -> None:
 def _validar_tipo(tipo: str) -> str:
     t = (tipo or "").strip().lower()
     if t not in TIPOS:
-        raise HTTPException(status_code=400, detail="Tipo deve ser ferias ou folga_programada.")
+        raise HTTPException(
+            status_code=400,
+            detail="Tipo deve ser ferias, folga_programada ou abono.",
+        )
     return t
+
+
+def criar_abono_aprovado(
+    db: Session,
+    *,
+    tenant_id: int,
+    atendente_id: int,
+    data_ref: date,
+    motivo: str | None,
+    decidido_por_id: int | None,
+) -> PontoAusencia:
+    """Cria ausência de um dia tipo abono já aprovada (efeito de solicitação de ajuste)."""
+    row = PontoAusencia(
+        tenant_id=tenant_id,
+        atendente_id=atendente_id,
+        tipo="abono",
+        desde=data_ref,
+        ate=data_ref,
+        motivo=(motivo or "")[:1000] or None,
+        estado="aprovada",
+        origem="solicitacao",
+        decidido_por_id=decidido_por_id,
+        decidido_em=datetime.now(timezone.utc),
+        decisao_motivo="Folga concedida (desconto no banco) via solicitação de ajuste",
+    )
+    db.add(row)
+    db.flush()
+    return row
 
 
 def tipo_ausencia_aprovada_no_dia(db: Session, atendente_id: int, dia: date) -> str | None:

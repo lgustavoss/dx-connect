@@ -2,6 +2,8 @@
 
 from datetime import date, datetime, timedelta, timezone
 
+import pytest
+
 from app.services.escala import PONTO_TZ
 
 
@@ -148,6 +150,7 @@ def test_convocado_cancelar_reverte_calendario(client, seed_base, auth_headers):
     assert dia2["status"] in ("folga", "livre")
 
 
+@pytest.mark.skip(reason="API de ausências removida (#1135); conflito passa a ser follow-up")
 def test_convocado_conflita_com_ausencia(client, seed_base, auth_headers):
     admin = auth_headers["admin"]
     a1 = seed_base["a1"]

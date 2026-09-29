@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
 import type { Ponto } from '../api/client'
 import { Button } from './ui/Button'
+import { PontoMesNav } from './PontoMesNav'
 
-const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
+const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
 function formatarDuracao(segundos: number | null | undefined): string {
   if (segundos == null || segundos < 0) return '—'
@@ -48,7 +49,7 @@ function rotuloClasse(classe: Ponto.ClasseVisualDia | undefined): string {
     case 'feriado':
       return 'Feriado'
     case 'ausencia':
-      return 'Férias / folga'
+      return 'Férias / folga / folga (banco)'
     default:
       return 'Sem jornada'
   }
@@ -64,8 +65,12 @@ type Props = {
   loading?: boolean
   diaSelecionado: string | null
   onSelecionarDia: (iso: string) => void
-  onMesAnterior: () => void
-  onMesSeguinte: () => void
+  ano: number
+  mes: number
+  onMudarMes: (ano: number, mes: number) => void
+  onSolicitarInclusao?: (iso: string) => void
+  onSolicitarCorrecao?: (iso: string) => void
+  onSolicitarAbono?: (iso: string) => void
 }
 
 export function PontoCalendarioMes({
@@ -73,8 +78,12 @@ export function PontoCalendarioMes({
   loading,
   diaSelecionado,
   onSelecionarDia,
-  onMesAnterior,
-  onMesSeguinte,
+  ano,
+  mes,
+  onMudarMes,
+  onSolicitarInclusao,
+  onSolicitarCorrecao,
+  onSolicitarAbono,
 }: Props) {
   const hoje = hojeIsoLocal()
   const porData = useMemo(() => {
@@ -86,7 +95,8 @@ export function PontoCalendarioMes({
   const celulas = useMemo(() => {
     if (!calendario) return []
     const primeiro = new Date(calendario.ano, calendario.mes - 1, 1)
-    const offset = (primeiro.getDay() + 6) % 7
+    // getDay(): 0=domingo … 6=sábado — calendário inicia no domingo
+    const offset = primeiro.getDay()
     const diasNoMes = new Date(calendario.ano, calendario.mes, 0).getDate()
     const cells: Array<{ iso: string | null; diaNum: number | null }> = []
     for (let i = 0; i < offset; i++) cells.push({ iso: null, diaNum: null })
@@ -98,26 +108,18 @@ export function PontoCalendarioMes({
     return cells
   }, [calendario])
 
-  const titulo = calendario
-    ? new Date(calendario.ano, calendario.mes - 1, 1).toLocaleDateString('pt-BR', {
-        month: 'long',
-        year: 'numeric',
-      })
-    : '…'
-
   const detalhe = diaSelecionado ? porData.get(diaSelecionado) : null
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Button type="button" variant="secondary" onClick={onMesAnterior} disabled={loading}>
-          ← Anterior
-        </Button>
-        <p className="text-sm font-semibold capitalize text-slate-900 dark:text-slate-100">{titulo}</p>
-        <Button type="button" variant="secondary" onClick={onMesSeguinte} disabled={loading}>
-          Seguinte →
-        </Button>
-      </div>
+      <PontoMesNav
+        ano={ano}
+        mes={mes}
+        onChange={onMudarMes}
+        disabled={!!loading}
+        variante="longo"
+        className="justify-between"
+      />
 
       {calendario?.jornada_diaria_minutos != null && (
         <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -183,7 +185,7 @@ export function PontoCalendarioMes({
             ['ok', 'Dentro da meta'],
             ['he', 'Hora extra'],
             ['feriado', 'Feriado'],
-            ['ausencia', 'Férias / folga'],
+            ['ausencia', 'Férias / folga / folga (banco)'],
             ['neutro', 'Sem jornada'],
           ] as const
         ).map(([k, label]) => (
@@ -214,6 +216,38 @@ export function PontoCalendarioMes({
               </>
             ) : null}
           </p>
+          {(() => {
+            const esp = detalhe.segundos_esperados ?? 0
+            const trab = detalhe.segundos_trabalhados ?? 0
+            const ehFalta =
+              !!detalhe.esperado &&
+              !detalhe.tem_entrada &&
+              !detalhe.feriado &&
+              !detalhe.ausencia_tipo &&
+              detalhe.data < hoje
+            const deficitParcial =
+              esp > 0 &&
+              detalhe.tem_entrada &&
+              detalhe.tem_saida &&
+              trab < esp &&
+              !detalhe.ausencia_tipo
+            if (ehFalta) {
+              return (
+                <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">
+                  Falta (sem desconto no banco). Se houve acordo para usar o banco, converta em
+                  folga.
+                </p>
+              )
+            }
+            if (deficitParcial) {
+              return (
+                <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
+                  −{formatarDuracao(esp - trab)} no banco (automático)
+                </p>
+              )
+            }
+            return null
+          })()}
           <p className="mt-2 text-xs text-slate-500">
             Entrada: {detalhe.tem_entrada ? 'sim' : 'não'} · Saída: {detalhe.tem_saida ? 'sim' : 'não'}
             {detalhe.atrasado ? ' · Atraso' : ''}
@@ -222,13 +256,61 @@ export function PontoCalendarioMes({
               ? ' · Férias'
               : detalhe.ausencia_tipo === 'folga_programada'
                 ? ' · Folga programada'
-                : ''}
+                : detalhe.ausencia_tipo === 'abono'
+                  ? ' · Folga (banco)'
+                  : ''}
             {detalhe.dia_convocado ? ' · Dia convocado' : ''}
             {detalhe.pausa_abaixo_minimo ? ' · Pausa abaixo do mínimo' : ''}
           </p>
-          <p className="mt-2 text-xs text-cyan-700 dark:text-cyan-300">
-            O histórico ao lado filtra este dia automaticamente.
-          </p>
+          {onSolicitarInclusao || onSolicitarCorrecao || onSolicitarAbono ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {onSolicitarInclusao ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => onSolicitarInclusao(detalhe.data)}
+                >
+                  Solicitar inclusão
+                </Button>
+              ) : null}
+              {onSolicitarCorrecao ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => onSolicitarCorrecao(detalhe.data)}
+                >
+                  Solicitar correção
+                </Button>
+              ) : null}
+              {onSolicitarAbono ? (
+                <Button
+                  type="button"
+                  variant={
+                    detalhe.esperado &&
+                    !detalhe.tem_entrada &&
+                    !detalhe.feriado &&
+                    !detalhe.ausencia_tipo &&
+                    detalhe.data < hoje
+                      ? 'primary'
+                      : 'secondary'
+                  }
+                  onClick={() => onSolicitarAbono(detalhe.data)}
+                >
+                  {detalhe.esperado &&
+                  !detalhe.tem_entrada &&
+                  !detalhe.feriado &&
+                  !detalhe.ausencia_tipo &&
+                  detalhe.data < hoje
+                    ? 'Converter em folga (banco)'
+                    : 'Solicitar folga (banco)'}
+                </Button>
+              ) : null}
+            </div>
+          ) : (
+            <p className="mt-2 text-xs text-cyan-700 dark:text-cyan-300">
+              Selecione um dia para pedir inclusão, correção ou folga (banco).
+            </p>
+          )}
         </div>
       ) : null}
     </div>

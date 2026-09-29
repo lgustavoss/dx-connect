@@ -30,6 +30,8 @@ class AtendenteBase(BaseModel):
 class AtendenteCreate(AtendenteBase):
     senha: str
     setor_ids: list[int] = []  # atendente: pelo menos um setor; admin: pode vazio
+    # Senha definida pelo admin → por padrão exige troca no próximo login
+    must_change_password: bool = True
 
 
 class AtendenteUpdate(BaseModel):
@@ -39,6 +41,7 @@ class AtendenteUpdate(BaseModel):
     role: str | None = None
     ativo: bool | None = None
     setor_ids: list[int] | None = None
+    must_change_password: bool | None = None
     modo_jornada: ModoJornada | None = None
     usa_escala: bool | None = None
     horario_semana: dict[str, Any] | None = None

@@ -3,6 +3,8 @@
 from datetime import date, datetime, timedelta, timezone
 from io import BytesIO
 
+import pytest
+
 from app.services.escala import PONTO_TZ
 
 
@@ -23,6 +25,7 @@ def _patch_jornada_semanal(client, headers, atendente_id: int, *, fim="18:00"):
     )
 
 
+@pytest.mark.skip(reason="Ausências programadas removidas da API (#1135)")
 def test_ausencia_admin_agenda_sem_falta(client, seed_base, auth_headers):
     admin = auth_headers["admin"]
     user = auth_headers["a1"]
@@ -53,6 +56,7 @@ def test_ausencia_admin_agenda_sem_falta(client, seed_base, auth_headers):
     assert dia["classe_visual"] == "ausencia"
 
 
+@pytest.mark.skip(reason="Ausências programadas removidas da API (#1135)")
 def test_colaborador_solicita_folga_admin_aprova(client, seed_base, auth_headers):
     admin = auth_headers["admin"]
     user = auth_headers["a1"]
@@ -120,6 +124,7 @@ def test_pausa_minima_flag_calendario(client, seed_base, auth_headers):
     assert dia["segundos_pausa"] < 60 * 60
 
 
+@pytest.mark.skip(reason="Justificativas removidas da API (#1135)")
 def test_justificativa_com_anexo_pdf(client, seed_base, auth_headers):
     admin = auth_headers["admin"]
     user = auth_headers["a1"]

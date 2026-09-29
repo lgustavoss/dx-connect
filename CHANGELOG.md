@@ -9,6 +9,40 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Ponto: fechamento da equipe carrega o resumo em uma só chamada (preparado para equipes maiores)
+- Atendentes: opção «Exigir troca de senha no próximo login» (já existia no fluxo de login); ao definir senha nova, a exigência fica ligada por padrão
+- Ponto: no cadastro do atendente, abas Dados e Ponto; removidos tolerância de atraso e teto de HE WhatsApp (ajuste vai ao banco; WhatsApp exige jornada aberta)
+- Ponto: ajuda do ponto atualizada (falta × folga × déficit, fechamento e feriados recorrentes); botão discreto «Ajuda» com texto distinto para colaborador e admin
+- Ponto: feriado da instância pode marcar «repetir todos os anos» (mesmo dia/mês vale automaticamente nos anos seguintes)
+- Ponto: aba Configurações mais compacta — interruptores modernos, campos em grade e menos largura desperdiçada
+- Ponto: calendário destaca falta com «Converter em folga (banco)» e mostra déficit parcial automático (−Xh no banco)
+- Ponto: fechamento e espelho PDF/Excel/folha RH com saldo inicial, crédito e débito do banco e faltas não abonadas (p/ desconto em folha)
+- Ponto: removida a auditoria técnica da equipe — o calendário e o histórico de solicitações bastam no dia a dia
+- Ponto: calendário do mês começa no domingo; na correção de horário, a fila mostra anterior → novo
+- Ponto: na equipe, o admin só aprova/rejeita pedidos do colaborador (sem ajuste manual nem dia convocado); fila e histórico de solicitações redesenhados
+- Ponto: tela Ponto da equipe em abas (Hoje, Espelho, Ajustes, Fechamento e Configurações), com aviso de pedidos pendentes
+- Ponto: aba Espelho na equipe — calendário e cards de um colaborador; exportar (CSV, PDF, Excel, folha RH) só dessa pessoa no mês
+- Ponto: aba Ajustes com filtro de colaborador e mês (fila + histórico do período)
+- Ponto: clicar no nome do mês abre o seletor de calendário (Ajustes e Espelho)
+- Ponto: fechamento mensal com texto explicando o que o Fechar mês faz; reabrir pede motivo na tela (sem prompt do navegador)
+- Ponto: no fechamento, resumo da equipe no mês (OK/alerta/faltas/ciência) com Ver espelho e PDF por colaborador
+- Ponto: relatório PDF/Excel mensal — colaborador no cabeçalho, uma linha por dia, horários sem data repetida, duração em horas (ex.: 7h55) e pausa entre turnos
+- Ponto: espelho de fechamento sem ajustes admin; calendário completo com feriado, folga (sábado/domingo) e falta
+- Ponto: espelho PDF com logo da empresa, título centralizado, colaborador em destaque e «Gerado em» no rodapé
+- Ponto: logo do espelho/PDF sem margem branca excessiva (recorte automático no upload e na geração)
+- Ponto: configurações — jornada diária em horas; removidos fecho automático e teto mensal de HE; nota legal sobre banco negativo entre meses
+- Ponto: falta integral não debita o banco (evita dupla penalidade com desconto salarial); déficit parcial e folga (banco) continuam abatendo horas
+- Ponto: ao aprovar solicitação de ajuste não pede mais motivo; rejeição abre campo na tela. Pedidos de inclusão/correção/folga aceitam anexo (PDF ou imagem, ex. atestado)
+- Ponto: avisos de atraso ou “saída prevista” saíram do banner — déficit parcial desconta no banco; falta integral não; folga concedida (acordo) não conta como falta e desconta a carga do dia no banco após aprovação
+- Ponto: Meu ponto em duas abas — Operação (bater ponto, ciência do espelho e solicitações com filtro) e Espelho do mês (cards e calendário do mês selecionado)
+- Ponto: solicitação de inclusão ou correção a partir do clique no dia do calendário
+- Ponto (#1138): nas configurações, o admin define se o excesso vai para banco, pagamento ou misto (ex.: 2h no banco e o restante pago); o espelho e a folha mostram HE a pagar
+- Ponto: o indicador da barra superior (Fora do ponto / Trabalhando) abre o registro rápido sem sair da tela atual
+- Ponto: Meu ponto mostra o resumo do mês em cards (dias, horas, faltas e banco), no modelo do app de referência
+- Ponto (#1135): o colaborador pede inclusão ou correção de batida; o administrador aprova e o sistema aplica o ajuste
+- Ponto (#1135): saíram da tela os pedidos de hora extra, justificativa, cobertura de plantão e férias/folga — para hora além da jornada, basta manter o ponto em aberto
+- Ponto (#1132): o banco credita o excesso além da jornada e debita o que faltar (atraso/falta), conforme a política da empresa
+- Ponto (#1133): um único botão de bater ponto; o período sem saída fica em aberto e a batida do dia seguinte não fecha o dia anterior
 - CRM (#1098): o histórico da negociação mostra quem escreveu a nota e o horário; o autor pode corrigir por 5 minutos e marcar um lembrete de reunião, que fica na tela até a pessoa fechar o aviso
 - Minhas solicitações (#1125): a lista mostra, em coluna, a versão em que o pedido concluído ficou disponível
 - Sobre (#1126): a introdução deixa de falar de melhorias de DevOps
@@ -16,6 +50,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
+- WhatsApp (#1135): fora do horário previsto, pegar chat novo exige ponto em aberto no dia (sem pedido de hora extra)
 - WhatsApp (#1122): no atendimento anterior, áudio, vídeo, imagem e arquivos disponíveis podem ser abertos
 - WhatsApp (#1123): no modo escuro, o botão de ver o atendimento anterior continua legível com o mouse em cima
 - WhatsApp (#1102): abrir um atendimento pelo histórico deixa de derrubar a tela

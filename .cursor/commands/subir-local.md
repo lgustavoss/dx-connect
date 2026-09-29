@@ -165,6 +165,22 @@ docker compose up -d --build
 docker compose run --rm --no-deps backend alembic upgrade head
 ```
 
+### Backend “congelou” (API não responde / reload do uvicorn)
+
+Sintoma comum em dev: logs com `Waiting for connections to close` e `/health` não responde. O reload do uvicorn fica preso em conexões SSE abertas (event stream do painel).
+
+O `docker-compose.yml` já usa `--timeout-graceful-shutdown 3` para forçar o fechamento. Se ainda travar:
+
+```bash
+docker compose up -d --force-recreate --no-deps backend
+```
+
+Depois confirme:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
 ### Banco dessincronizado (migrations falham / colunas faltando)
 
 Sintomas: `DuplicateTable` no Alembic, `UndefinedColumn` nos logs, `/health` lento ou 500.

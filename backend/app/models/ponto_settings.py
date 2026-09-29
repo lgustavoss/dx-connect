@@ -23,6 +23,12 @@ class PontoSettings(Base):
     he_teto_mensal_minutos = Column(Integer, nullable=True)
     # opcional | recomendada | obrigatoria (#844)
     politica_geolocalizacao = Column(String(20), nullable=False, default="opcional", server_default="opcional")
+    # Política do excesso além da jornada (#1138)
+    banco_horas_ativo = Column(Boolean, nullable=False, default=True, server_default="true")
+    # banco | pagamento | misto
+    he_destino_excedente = Column(String(20), nullable=False, default="banco", server_default="banco")
+    # Em misto: primeiros N min/dia de excesso → banco; resto → pago
+    he_banco_primeiros_minutos = Column(Integer, nullable=False, default=120, server_default="120")
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
@@ -52,3 +58,5 @@ class PontoFeriado(Base):
     data = Column(Date, nullable=False)
     nome = Column(String(255), nullable=False)
     ativo = Column(Boolean, nullable=False, default=True, server_default="true")
+    # Se True, vale todo ano no mesmo dia/mês a partir do ano de `data`.
+    recorrente_anual = Column(Boolean, nullable=False, default=False, server_default="false")
