@@ -9,6 +9,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- PDV (#1142 / #S202609-0029): no cadastro e edição, ícone de olho para ver a senha de acesso remoto ao digitar
+- Funcionário da rede: ícone de olho também na senha do portal do cliente
 - Ponto: fechamento da equipe carrega o resumo em uma só chamada (preparado para equipes maiores)
 - Atendentes: opção «Exigir troca de senha no próximo login» (já existia no fluxo de login); ao definir senha nova, a exigência fica ligada por padrão
 - Ponto: no cadastro do atendente, abas Dados e Ponto; removidos tolerância de atraso e teto de HE WhatsApp (ajuste vai ao banco; WhatsApp exige jornada aberta)

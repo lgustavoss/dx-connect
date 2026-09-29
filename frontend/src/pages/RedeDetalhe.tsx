@@ -30,6 +30,7 @@ import {
 } from '../components/empresa/empresaFormCopy'
 import { IconPencil } from '../components/ui/IconPencil'
 import { IconTrash } from '../components/ui/IconTrash'
+import { PasswordEyeToggle } from '../components/ui/PasswordEyeToggle'
 import { useToast } from '../components/ui/Toast'
 import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { maskCnpjCpf, digitsOnly, isCnpj } from '../utils/maskCnpjCpf'
@@ -180,6 +181,7 @@ export function RedeDetalhe() {
   const [empresaIdFuncionario, setEmpresaIdFuncionario] = useState<number | ''>('')
   const [empresaIdsFuncionario, setEmpresaIdsFuncionario] = useState<number[]>([])
   const [senhaPortalFuncionario, setSenhaPortalFuncionario] = useState('')
+  const [mostrarSenhaPortalFuncionario, setMostrarSenhaPortalFuncionario] = useState(false)
   const [mustChangePasswordFuncionario, setMustChangePasswordFuncionario] = useState(true)
   const [portalHabilitadoFuncionario, setPortalHabilitadoFuncionario] = useState(false)
   const [notificarEmailPortalFuncionario, setNotificarEmailPortalFuncionario] = useState(true)
@@ -1741,12 +1743,19 @@ export function RedeDetalhe() {
                           ? 'Nova senha do portal (opcional)'
                           : 'Senha do portal (opcional)'
                       }
-                      type="password"
+                      type={mostrarSenhaPortalFuncionario ? 'text' : 'password'}
                       value={senhaPortalFuncionario}
                       onChange={(e) => setSenhaPortalFuncionario(e.target.value)}
                       autoComplete="new-password"
                       placeholder={emailFuncionario.trim() ? 'Mínimo 8 caracteres' : 'Informe o e-mail primeiro'}
                       disabled={!emailFuncionario.trim()}
+                      endAdornment={
+                        <PasswordEyeToggle
+                          visible={mostrarSenhaPortalFuncionario}
+                          onToggle={() => setMostrarSenhaPortalFuncionario((v) => !v)}
+                          disabled={!emailFuncionario.trim()}
+                        />
+                      }
                     />
                     <Switch
                       bare

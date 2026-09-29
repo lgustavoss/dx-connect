@@ -4,7 +4,7 @@ import { ApiError, atendentes, setores, type Atendentes, type Setores } from '..
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
-import { IconEye, IconEyeOff } from '../components/ui/IconEye'
+import { PasswordEyeToggle } from '../components/ui/PasswordEyeToggle'
 import { Switch } from '../components/ui/Switch'
 import { CheckboxField } from '../components/ui/CheckboxField'
 import { Select } from '../components/ui/Select'
@@ -352,19 +352,10 @@ export function AtendenteForm() {
                       onChange={(e) => setSenha(e.target.value)}
                       required={!isEdit}
                       endAdornment={
-                        <button
-                          type="button"
-                          onClick={() => setMostrarSenha((v) => !v)}
-                          className="inline-flex size-9 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/30 dark:text-slate-400 dark:hover:bg-white/70 dark:hover:text-slate-200"
-                          aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
-                          aria-pressed={mostrarSenha}
-                        >
-                          {mostrarSenha ? (
-                            <IconEyeOff ariaHidden={false} />
-                          ) : (
-                            <IconEye ariaHidden={false} />
-                          )}
-                        </button>
+                        <PasswordEyeToggle
+                          visible={mostrarSenha}
+                          onToggle={() => setMostrarSenha((v) => !v)}
+                        />
                       }
                     />
                     <Select
