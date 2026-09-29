@@ -1,5 +1,4 @@
-import { ApiError, ponto } from '../api/client'
-import { mensagemFalhaParaToast } from '../api/errorMessage'
+import { ApiError } from '../api/client'
 
 type ToastLike = {
   showError: (msg: string) => void
@@ -7,7 +6,7 @@ type ToastLike = {
   showWarning?: (msg: string) => void
 }
 
-/** Trata 403 de jornada/HE ao assumir WhatsApp; opcionalmente solicita HE. */
+/** Trata 403 de jornada ao assumir WhatsApp (#1135 — sem pedido de HE). */
 export async function tratarBloqueioJornadaAoAssumir(
   err: unknown,
   toast: ToastLike,
@@ -15,17 +14,14 @@ export async function tratarBloqueioJornadaAoAssumir(
   if (!(err instanceof ApiError) || err.status !== 403) return false
   const detail = String((err.body as { detail?: string } | null)?.detail ?? err.message ?? '')
   const isJornada =
-    /jornada/i.test(detail) || /hora extra/i.test(detail) || /pegar novos chats/i.test(detail)
+    /jornada/i.test(detail) ||
+    /ponto em aberto/i.test(detail) ||
+    /pegar novos chats/i.test(detail) ||
+    /hora extra/i.test(detail)
   if (!isJornada) return false
-  toast.showError(detail || 'Sua jornada terminou. Peça hora extra a um administrador.')
-  try {
-    await ponto.solicitarHoraExtra({ motivo: 'Pedido ao tentar atender WhatsApp após a jornada.' })
-    toast.showSuccess?.('Pedido de hora extra enviado aos administradores.')
-  } catch (e2) {
-    // Pedido pode já existir — só avisa.
-    if (!(e2 instanceof ApiError && e2.status === 400)) {
-      toast.showWarning?.(mensagemFalhaParaToast(e2, 'Não foi possível registrar o pedido de HE.'))
-    }
-  }
+  toast.showError(
+    detail ||
+      'Sua jornada prevista terminou. Mantenha o ponto em aberto para pegar chats no WhatsApp.',
+  )
   return true
 }

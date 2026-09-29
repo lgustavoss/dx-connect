@@ -49,6 +49,15 @@ def _agora_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def hoje_negocio() -> date:
+    """Data civil do ponto (America/Sao_Paulo)."""
+    return _agora_utc().astimezone(PONTO_TZ).date()
+
+
+def _hoje() -> date:
+    return hoje_negocio()
+
+
 def _as_utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
@@ -82,6 +91,38 @@ def ultima_batida(db: Session, atendente_id: int) -> PontoBatida | None:
     )
 
 
+def _batidas_no_dia(db: Session, atendente_id: int, dia: date) -> list[PontoBatida]:
+    inicio, fim = _bounds_periodo(dia, dia)
+    if inicio is None or fim is None:
+        return []
+    return (
+        _q_ativas(db)
+        .filter(
+            PontoBatida.atendente_id == atendente_id,
+            PontoBatida.registrado_em >= inicio,
+            PontoBatida.registrado_em < fim,
+        )
+        .order_by(PontoBatida.registrado_em.asc(), PontoBatida.id.asc())
+        .all()
+    )
+
+
+def _entrada_aberta_no_dia(db: Session, atendente_id: int, dia: date) -> PontoBatida | None:
+    """Entrada ainda sem saída no dia civil. Não atravessa a meia-noite."""
+    aberta: PontoBatida | None = None
+    for b in _batidas_no_dia(db, atendente_id, dia):
+        if b.tipo == "entrada":
+            aberta = b
+        elif b.tipo == "saida":
+            aberta = None
+    return aberta
+
+
+def _ultima_batida_no_dia(db: Session, atendente_id: int, dia: date) -> PontoBatida | None:
+    bats = _batidas_no_dia(db, atendente_id, dia)
+    return bats[-1] if bats else None
+
+
 def _entrada_da_jornada_aberta(db: Session, atendente_id: int) -> PontoBatida | None:
     """Retorna a entrada que abriu a jornada atual (se houver)."""
     batidas = (
@@ -100,8 +141,8 @@ def _entrada_da_jornada_aberta(db: Session, atendente_id: int) -> PontoBatida | 
 
 
 def em_jornada_aberta(db: Session, atendente_id: int) -> bool:
-    ultima = ultima_batida(db, atendente_id)
-    return bool(ultima and ultima.tipo in TIPOS_EM_JORNADA)
+    """True se há entrada sem saída no dia civil atual (America/Sao_Paulo)."""
+    return _entrada_aberta_no_dia(db, atendente_id, _hoje()) is not None
 
 
 def em_pausa_aberta(db: Session, atendente_id: int) -> bool:
@@ -118,19 +159,10 @@ def segundos_trabalhados_hoje(db: Session, atendente: Atendente) -> int:
     """Tempo líquido do dia civil (America/Sao_Paulo), descontando pausas (#1066)."""
     agora = _agora_utc()
     hoje = agora.astimezone(PONTO_TZ).date()
-    inicio_dia, fim_dia = _bounds_periodo(hoje, hoje)
+    inicio_dia, _fim_dia = _bounds_periodo(hoje, hoje)
     if inicio_dia is None:
         return 0
-    entrada = _entrada_da_jornada_aberta(db, atendente.id)
-    inicio_q = inicio_dia
-    if entrada is not None:
-        ent = _as_utc(entrada.registrado_em)
-        if ent < inicio_q:
-            inicio_q = ent
-    q = _q_ativas(db).filter(PontoBatida.atendente_id == atendente.id).filter(PontoBatida.registrado_em >= inicio_q)
-    if fim_dia is not None:
-        q = q.filter(PontoBatida.registrado_em < fim_dia)
-    batidas = q.order_by(PontoBatida.registrado_em.asc(), PontoBatida.id.asc()).all()
+    batidas = _batidas_no_dia(db, atendente.id, hoje)
     intervalos = _intervalos_de_batidas(batidas)
     total = 0
     for i in intervalos:
@@ -146,7 +178,7 @@ def segundos_trabalhados_hoje(db: Session, atendente: Atendente) -> int:
         ini = max(_as_utc(i.entrada_em), inicio_dia)
         bruto = max(0, int((agora - ini).total_seconds()))
         pausas = i.segundos_pausa
-        ultima = ultima_batida(db, atendente.id)
+        ultima = _ultima_batida_no_dia(db, atendente.id, hoje)
         if ultima and ultima.tipo == "pausa_inicio":
             pausa_ini = max(_as_utc(ultima.registrado_em), inicio_dia)
             pausas += max(0, int((agora - pausa_ini).total_seconds()))
@@ -155,9 +187,9 @@ def segundos_trabalhados_hoje(db: Session, atendente: Atendente) -> int:
 
 
 def estado_atual(db: Session, atendente: Atendente) -> PontoEstadoRead:
-    ultima = ultima_batida(db, atendente.id)
-    entrada = _entrada_da_jornada_aberta(db, atendente.id)
-    hoje = datetime.now(PONTO_TZ).date()
+    hoje = _hoje()
+    ultima = _ultima_batida_no_dia(db, atendente.id, hoje)
+    entrada = _entrada_aberta_no_dia(db, atendente.id, hoje)
     hoje_esp = None
     rotulo = None
     if escala_svc.escala_configurada(atendente):
@@ -212,7 +244,8 @@ def bater(
         longitude=float(longitude) if has_lon else None,
     )
 
-    ultima = ultima_batida(db, atendente.id)
+    when_ref = registrado_em or _agora_utc()
+    ultima = _ultima_batida_no_dia(db, atendente.id, _data_negocio(when_ref))
     em_jornada = bool(ultima and ultima.tipo in TIPOS_EM_JORNADA)
     em_pausa = bool(ultima and ultima.tipo == "pausa_inicio")
 
@@ -220,7 +253,7 @@ def bater(
         if em_jornada:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Já existe uma jornada aberta. Registre a saída antes de uma nova entrada.",
+                detail="Já existe um período em aberto neste dia. Registre a saída antes de uma nova entrada.",
             )
         origem_chk = (origem or "web").strip().lower()
         if origem_chk not in ("admin", "sistema"):
@@ -230,7 +263,7 @@ def bater(
         if not em_jornada:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Não há jornada aberta para registrar saída.",
+                detail="Não há período em aberto neste dia para registrar saída.",
             )
         if em_pausa:
             # #841: fecha a pausa automaticamente no mesmo instante (origem sistema).
@@ -337,6 +370,8 @@ def _intervalos_de_batidas(batidas: list[PontoBatida]) -> list[PontoIntervaloRea
                     duracao_segundos=None,
                     segundos_pausa=pausas,
                     aberto=True,
+                    entrada_batida_id=entrada.id,
+                    saida_batida_id=None,
                     entrada_latitude=entrada.latitude,
                     entrada_longitude=entrada.longitude,
                     entrada_fora_area=bool(getattr(entrada, "fora_area", False)),
@@ -353,6 +388,8 @@ def _intervalos_de_batidas(batidas: list[PontoBatida]) -> list[PontoIntervaloRea
                     duracao_segundos=trabalhado,
                     segundos_pausa=pausas,
                     aberto=False,
+                    entrada_batida_id=entrada.id,
+                    saida_batida_id=saida.id,
                     entrada_latitude=entrada.latitude,
                     entrada_longitude=entrada.longitude,
                     entrada_fora_area=bool(getattr(entrada, "fora_area", False)),
@@ -482,7 +519,7 @@ def _status_dia(
     atrasado: bool = False,
     ausencia_tipo: str | None = None,
 ) -> str:
-    if ausencia_tipo in ("ferias", "folga_programada"):
+    if ausencia_tipo in ("ferias", "folga_programada", "abono"):
         if tem_entrada and tem_saida:
             return "ok"
         if tem_entrada or tem_saida:
@@ -520,7 +557,7 @@ def _classe_visual_dia(
     ausencia_tipo: str | None = None,
 ) -> str:
     """Paleta #842: vermelho abaixo / verde ok / azul HE / laranja feriado / violeta ausência."""
-    if ausencia_tipo in ("ferias", "folga_programada"):
+    if ausencia_tipo in ("ferias", "folga_programada", "abono"):
         return "ausencia"
     if feriado:
         return "feriado"
@@ -693,7 +730,7 @@ def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
     from app.services import ponto_convocado as conv_svc
     from app.services.presenca import PRESENCA_TTL_SEC
 
-    hoje = datetime.now(PONTO_TZ).date()
+    hoje = _hoje()
     agora = _agora_utc()
     limite_online = agora - timedelta(seconds=PRESENCA_TTL_SEC)
     feriado_hoje = ponto_settings_svc.eh_feriado(db, admin.tenant_id, hoje)
@@ -713,7 +750,8 @@ def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
         ausencia_tipo = ausencia_svc.tipo_ausencia_aprovada_no_dia(db, a.id, hoje)
         conv = conv_svc.convocado_ativo_no_dia(db, a.id, hoje)
         esperado = conv_svc.eh_dia_esperado_efetivo(db, a, hoje) if not feriado_hoje else False
-        entrada = _entrada_da_jornada_aberta(db, a.id)
+        entrada = _entrada_aberta_no_dia(db, a.id, hoje)
+        ultima_hoje = _ultima_batida_no_dia(db, a.id, hoje)
         inicio, fim = _bounds_periodo(hoje, hoje)
         bats = (
             _q_ativas(db)
@@ -747,7 +785,7 @@ def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
                 nome=a.nome,
                 esperado=bool(esperado and not feriado_hoje and not ausencia_tipo),
                 em_jornada=entrada is not None,
-                em_pausa=em_pausa_aberta(db, a.id),
+                em_pausa=bool(ultima_hoje and ultima_hoje.tipo == "pausa_inicio"),
                 entrada_em=entrada.registrado_em if entrada else None,
                 status=st,  # type: ignore[arg-type]
                 online=online,
@@ -760,18 +798,10 @@ def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
 
 
 def digest_hoje(db: Session, admin: Atendente) -> PontoDigestRead:
-    from app.models.ponto_justificativa import PontoJustificativa
-    from app.services import ponto_hora_extra as he_svc
+    from app.services import ponto_solicitacao_ajuste as sol_svc
 
     hoje = visao_hoje(db, admin)
-    pendentes = (
-        db.query(PontoJustificativa)
-        .filter(
-            PontoJustificativa.tenant_id == admin.tenant_id,
-            PontoJustificativa.estado == "pendente",
-        )
-        .count()
-    )
+    pendentes = sol_svc.contar_pendentes(db, admin.tenant_id)
     faltas = sum(1 for i in hoje.itens if i.status == "falta")
     atrasos = sum(1 for i in hoje.itens if i.atrasado or i.status == "atraso")
     abertas = sum(1 for i in hoje.itens if i.em_jornada)
@@ -787,10 +817,37 @@ def digest_hoje(db: Session, admin: Atendente) -> PontoDigestRead:
         atrasos=atrasos,
         jornadas_abertas=abertas,
         online_sem_ponto=online_sem,
-        justificativas_pendentes=pendentes,
-        he_acima_teto_mensal=he_svc.contar_acima_teto_mensal(db, admin.tenant_id),
+        justificativas_pendentes=0,
+        solicitacoes_ajuste_pendentes=pendentes,
+        he_acima_teto_mensal=0,
         itens=destaque[:40],
     )
+
+
+def _split_he_excedente(
+    extra: int,
+    *,
+    banco_ativo: bool,
+    destino: str,
+    limiar_minutos: int,
+) -> tuple[int, int]:
+    """Divide excesso do dia em (segundos_banco, segundos_pagos) conforme política (#1138)."""
+    if extra <= 0:
+        return 0, 0
+    dest = (destino or "banco").strip().lower()
+    if dest == "pagamento":
+        return 0, extra
+    if dest == "misto":
+        limiar_seg = max(0, int(limiar_minutos)) * 60
+        bank = min(extra, limiar_seg)
+        paid = extra - bank
+        if not banco_ativo:
+            return 0, bank + paid
+        return bank, paid
+    # destino == "banco"
+    if not banco_ativo:
+        return 0, 0
+    return extra, 0
 
 
 def banco_horas(
@@ -808,28 +865,69 @@ def banco_horas(
     usa = escala_svc.escala_configurada(atendente)
     settings = ponto_settings_svc.get_or_create_settings(db, atendente.tenant_id)
     meta_default = int(getattr(settings, "jornada_diaria_minutos", None) or 480) * 60
+    banco_ativo = bool(getattr(settings, "banco_horas_ativo", True))
+    destino = (getattr(settings, "he_destino_excedente", None) or "banco").strip().lower()
+    limiar_min = int(getattr(settings, "he_banco_primeiros_minutos", None) or 120)
     ausencias = ausencia_svc.mapa_ausencias_aprovadas(db, atendente.id, desde=desde, ate=ate)
     convocados = conv_svc.mapa_convocados(db, atendente.id, desde=desde, ate=ate)
     dias_escala = 0
     dias_feriado = 0
     esperado = 0
+    realizado = 0
+    saldo = 0
+    credito = 0
+    debito = 0
+    he_pagos = 0
     d = desde
     while d <= ate:
         feriado = ponto_settings_svc.eh_feriado(db, atendente.tenant_id, d)
-        if feriado or d in ausencias:
-            if feriado:
-                dias_feriado += 1
+        esperado_dia = 0
+        aus_tipo = ausencias.get(d)
+        # férias/folga programada: sem carga. abono = folga concedida (não é falta) que ainda debita.
+        if feriado:
+            dias_feriado += 1
+        elif aus_tipo in ("ferias", "folga_programada"):
+            pass
         elif conv_svc.eh_dia_esperado_efetivo(db, atendente, d):
             dias_escala += 1
             conv = convocados.get(d)
             seg = conv_svc.segundos_esperados_efetivo(db, atendente, d, conv)
-            esperado += seg if seg > 0 else meta_default
+            esperado_dia = seg if seg > 0 else meta_default
+        hist_dia = historico(db, atendente, desde=d, ate=d, offset=0, limit=10_000)
+        realizado_dia = hist_dia.total_segundos_fechados
+        esperado += esperado_dia
+        realizado += realizado_dia
+        if esperado_dia > 0:
+            diff = realizado_dia - esperado_dia
+            if diff > 0:
+                bank_d, paid_d = _split_he_excedente(
+                    diff,
+                    banco_ativo=banco_ativo,
+                    destino=destino,
+                    limiar_minutos=limiar_min,
+                )
+                saldo += bank_d
+                credito += bank_d
+                he_pagos += paid_d
+            elif diff < 0 and banco_ativo:
+                # Falta integral (nenhum tempo fechado e sem jornada aberta): não debita o banco.
+                # Desconto salarial da falta é caminho separado; abono explícito debita a carga.
+                # Déficit parcial (ex.: 6h de 8h) continua no banco.
+                tem_aberto = any(i.aberto for i in hist_dia.intervalos)
+                falta_integral = (
+                    realizado_dia == 0 and not tem_aberto and aus_tipo != "abono"
+                )
+                if not falta_integral:
+                    saldo += diff
+                    debito += -diff
         d += timedelta(days=1)
 
-    hist = historico(db, atendente, desde=desde, ate=ate, offset=0, limit=10_000)
-    realizado = hist.total_segundos_fechados
     if not usa and dias_escala == 0:
         esperado = 0
+        saldo = 0
+        credito = 0
+        debito = 0
+        he_pagos = 0
     return PontoBancoHorasRead(
         atendente_id=atendente.id,
         atendente_nome=atendente.nome,
@@ -837,47 +935,58 @@ def banco_horas(
         ate=ate,
         segundos_esperados=esperado,
         segundos_realizados=realizado,
-        saldo_segundos=realizado - esperado,
+        saldo_segundos=saldo,
+        segundos_credito_banco=credito,
+        segundos_debito_banco=debito,
+        segundos_he_pagos=he_pagos,
         dias_escala=dias_escala,
         dias_feriado=dias_feriado,
     )
+
+
+def saldo_banco_ate(
+    db: Session,
+    atendente: Atendente,
+    *,
+    ate: date,
+    meses_lookback: int = 12,
+) -> int:
+    """Saldo acumulado do banco até `ate` (inclusive), com janela de lookback."""
+    if meses_lookback < 1:
+        meses_lookback = 1
+    y, m = ate.year, ate.month - (meses_lookback - 1)
+    while m <= 0:
+        m += 12
+        y -= 1
+    desde = date(y, m, 1)
+    if desde > ate:
+        return 0
+    return banco_horas(db, atendente, desde=desde, ate=ate).saldo_segundos
 
 
 JORNADA_ALERTA_HORAS = 12.0
 
 
 def alertas_me(db: Session, atendente: Atendente) -> "PontoAlertasMe":
+    """Avisos acionáveis do ponto.
+
+    Atraso / janela de entrada-saída / “dia sem batida” não geram banner:
+    déficit parcial vai para o banco; falta integral não debita o banco (desconto
+    salarial é separado); abono concede folga debitando a carga.
+    Mantém jornada longa (~12 h) e pausa abaixo do mínimo.
+    """
     from app.schemas.ponto import PontoAlertasMe
-    from app.services import ponto_ausencia as ausencia_svc
     from app.services.presenca import PRESENCA_TTL_SEC
 
     exigir_acesso_ponto(atendente)
-    hoje = datetime.now(PONTO_TZ).date()
+    hoje = _hoje()
     agora = _agora_utc()
-    agora_local = agora.astimezone(PONTO_TZ)
     msgs: list[str] = []
-    sem_entrada = False
-    online_sem = False
     jornada_longa = False
     horas_aberta: float | None = None
-    lembrete_entrada = False
-    lembrete_saida = False
     pausa_baixa = False
 
-    feriado = ponto_settings_svc.eh_feriado(db, atendente.tenant_id, hoje)
-    from app.services import ponto_cobertura as cob_svc
-    from app.services import ponto_convocado as conv_svc
-
-    ausencia_tipo = ausencia_svc.tipo_ausencia_aprovada_no_dia(db, atendente.id, hoje)
-    conv = conv_svc.convocado_ativo_no_dia(db, atendente.id, hoje)
-    jornada_ativa = escala_svc.escala_configurada(atendente) or (
-        cob_svc.papel_cobertura_aprovada(db, atendente.id, hoje) is not None
-    ) or conv is not None
-    esperado = None
-    if not feriado and not ausencia_tipo:
-        esperado = conv_svc.eh_dia_esperado_efetivo(db, atendente, hoje)
-
-    entrada = _entrada_da_jornada_aberta(db, atendente.id)
+    entrada = _entrada_aberta_no_dia(db, atendente.id, hoje)
     inicio, fim = _bounds_periodo(hoje, hoje)
     bats_hoje = (
         _q_ativas(db)
@@ -889,7 +998,6 @@ def alertas_me(db: Session, atendente: Atendente) -> "PontoAlertasMe":
         .all()
     )
     tem_entrada_hoje = any(b.tipo == "entrada" for b in bats_hoje)
-    primeira = _primeira_entrada_do_dia(bats_hoje)
 
     settings = ponto_settings_svc.get_or_create_settings(db, atendente.tenant_id)
     pausa_min = int(getattr(settings, "pausa_minima_minutos", None) or 0)
@@ -907,35 +1015,7 @@ def alertas_me(db: Session, atendente: Atendente) -> "PontoAlertasMe":
     if hb is not None and hb.tzinfo is None:
         hb = hb.replace(tzinfo=timezone.utc)
     online = bool(hb and hb >= agora - timedelta(seconds=PRESENCA_TTL_SEC))
-
-    # Modo nenhum: sem avisos de falta/atraso/lembretes de tolerância (#959 / #968)
-    if jornada_ativa:
-        if esperado is True and not tem_entrada_hoje and entrada is None:
-            liberacao = conv_svc.liberacao_entrada_em(atendente, hoje, conv)
-            if liberacao is not None and agora_local >= liberacao:
-                sem_entrada = True
-                lembrete_entrada = True
-                limite = conv_svc.limite_atraso_em(atendente, hoje, conv)
-                if limite is not None and agora_local <= limite:
-                    msgs.append("Janela de entrada — registre o ponto agora.")
-                elif conv:
-                    msgs.append(
-                        "Hoje é dia convocado pela empresa e ainda não há entrada registrada."
-                    )
-                else:
-                    msgs.append(
-                        "Hoje é dia de trabalho na sua jornada e ainda não há entrada registrada."
-                    )
-
-        if _atrasado_entrada(atendente, primeira, conv=conv):
-            msgs.append("Entrada registrada após o horário previsto (fora da tolerância).")
-
-    if online and entrada is None:
-        online_sem = True
-        if "ainda não há entrada" not in " ".join(msgs).lower() and "Janela de entrada" not in " ".join(
-            msgs
-        ):
-            msgs.append("Você está online no painel sem jornada de ponto aberta.")
+    online_sem = bool(online and entrada is None)
 
     if entrada is not None:
         horas_aberta = (_as_utc(agora) - _as_utc(entrada.registrado_em)).total_seconds() / 3600.0
@@ -944,23 +1024,14 @@ def alertas_me(db: Session, atendente: Atendente) -> "PontoAlertasMe":
             msgs.append(
                 f"Jornada aberta há cerca de {horas_aberta:.0f} h — lembre-se de registrar a saída."
             )
-        elif jornada_ativa:
-            inicio_saida = conv_svc.liberacao_saida_lembrete_em(atendente, hoje, conv)
-            saida_prev = conv_svc.saida_prevista_em(atendente, hoje, conv)
-            if inicio_saida is not None and agora_local >= inicio_saida:
-                lembrete_saida = True
-                if saida_prev is not None and agora_local >= saida_prev:
-                    msgs.append("Horário de saída previsto já passou — registre a saída.")
-                else:
-                    msgs.append("Janela de saída — registre o ponto ao encerrar.")
 
     return PontoAlertasMe(
-        sem_entrada_em_dia_escala=sem_entrada,
+        sem_entrada_em_dia_escala=False,
         online_sem_ponto=online_sem,
         jornada_aberta_longa=jornada_longa,
         horas_jornada_aberta=horas_aberta,
-        lembrete_entrada_tolerancia=lembrete_entrada,
-        lembrete_saida_tolerancia=lembrete_saida,
+        lembrete_entrada_tolerancia=False,
+        lembrete_saida_tolerancia=False,
         pausa_abaixo_minimo=pausa_baixa,
         mensagens=msgs,
     )
@@ -1050,7 +1121,7 @@ def resumo_semana(
     from app.schemas.ponto import PontoResumoSemanaRead
 
     exigir_acesso_ponto(atendente)
-    dia_ref = ref or datetime.now(PONTO_TZ).date()
+    dia_ref = ref or _hoje()
     desde, ate = _semana_bounds(dia_ref)
     bh = banco_horas(db, atendente, desde=desde, ate=ate)
     return PontoResumoSemanaRead(
@@ -1148,6 +1219,7 @@ def admin_atualizar_batida(
     tipo: str | None,
     registrado_em: datetime | None,
     motivo: str,
+    commit: bool = True,
 ) -> PontoBatida:
     from app.services import ponto_competencia as comp_svc
 
@@ -1197,8 +1269,9 @@ def admin_atualizar_batida(
             mes=dia.month,
             motivo="Ajuste administrativo após fechamento da competência",
         )
-    db.commit()
-    db.refresh(batida)
+    if commit:
+        db.commit()
+        db.refresh(batida)
     return batida
 
 

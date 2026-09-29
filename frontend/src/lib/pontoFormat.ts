@@ -50,6 +50,20 @@ export function hojeIso(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/** Janela de até 12 meses anteriores ao mês — o saldo líquido é o saldo inicial da competência. */
+export function boundsSaldoInicialMes(ano: number, mes: number): { desde: string; ate: string } {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const ateDate = new Date(ano, mes - 1, 0) // último dia do mês anterior
+  const ateAno = ateDate.getFullYear()
+  const ateMes = ateDate.getMonth() + 1
+  const ateDia = ateDate.getDate()
+  const desdeDate = new Date(ateAno, ateMes - 12, 1)
+  return {
+    desde: `${desdeDate.getFullYear()}-${pad(desdeDate.getMonth() + 1)}-01`,
+    ate: `${ateAno}-${pad(ateMes)}-${pad(ateDia)}`,
+  }
+}
+
 export function linkMapaOsm(lat: number, lon: number): string {
   return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=17/${lat}/${lon}`
 }

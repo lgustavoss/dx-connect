@@ -259,44 +259,143 @@ def test_ponto_export_csv(client, seed_base, auth_headers):
     assert r403.status_code == 403
 
 
-def test_ponto_justificativa_fluxo(client, seed_base, auth_headers):
+def test_ponto_solicitacao_ajuste_inclusao_e_correcao(client, seed_base, auth_headers):
     a1 = seed_base["a1"]
-    r = client.post(
-        "/v1/ponto/justificativas",
-        headers=auth_headers["a1"],
-        json={"data_ref": "2026-08-19", "tipo": "esquecimento", "motivo": "Esqueci de bater saída"},
-    )
-    assert r.status_code == 201, r.text
-    jid = r.json()["id"]
+    admin = auth_headers["admin"]
+    user = auth_headers["a1"]
 
-    r_me = client.get("/v1/ponto/justificativas/me", headers=auth_headers["a1"])
+    r_inc = client.post(
+        "/v1/ponto/solicitacoes-ajuste",
+        headers=user,
+        json={
+            "tipo": "inclusao",
+            "tipo_batida": "entrada",
+            "horario_solicitado": "2026-09-20T11:00:00+00:00",
+            "motivo": "Esqueci de bater a entrada",
+            "data_ref": "2026-09-20",
+        },
+    )
+    assert r_inc.status_code == 201, r_inc.text
+    sid = r_inc.json()["id"]
+
+    r_me = client.get("/v1/ponto/solicitacoes-ajuste/me", headers=user)
     assert r_me.status_code == 200
-    assert any(j["id"] == jid for j in r_me.json())
+    assert any(j["id"] == sid for j in r_me.json())
 
     r403 = client.post(
-        f"/v1/ponto/justificativas/{jid}/decidir",
-        headers=auth_headers["a1"],
-        json={"estado": "aprovada", "decisao_motivo": "ok"},
+        f"/v1/ponto/solicitacoes-ajuste/{sid}/decidir",
+        headers=user,
+        json={"estado": "aprovada", "decisao_motivo": "ok ok ok"},
     )
     assert r403.status_code == 403
 
     r_ok = client.post(
-        f"/v1/ponto/justificativas/{jid}/decidir",
-        headers=auth_headers["admin"],
-        json={
-            "estado": "aprovada",
-            "decisao_motivo": "Confirmado com o gestor",
-            "aplicar_batidas": [
-                {
-                    "tipo": "saida",
-                    "registrado_em": "2026-08-19T21:00:00+00:00",
-                    "motivo": "saída esquecida",
-                }
-            ],
-        },
+        f"/v1/ponto/solicitacoes-ajuste/{sid}/decidir",
+        headers=admin,
+        json={"estado": "aprovada", "decisao_motivo": "Confirmado com o gestor"},
     )
     assert r_ok.status_code == 200, r_ok.text
     assert r_ok.json()["estado"] == "aprovada"
+
+    hist = client.get(
+        "/v1/ponto/me/batidas",
+        headers=user,
+        params={"desde": "2026-09-20", "ate": "2026-09-20"},
+    )
+    assert hist.status_code == 200
+    intervalos = hist.json()["intervalos"]
+    assert len(intervalos) >= 1
+    assert intervalos[0].get("entrada_batida_id") is not None
+    batida_id = intervalos[0]["entrada_batida_id"]
+
+    r_cor = client.post(
+        "/v1/ponto/solicitacoes-ajuste",
+        headers=user,
+        json={
+            "tipo": "correcao",
+            "tipo_batida": "entrada",
+            "horario_solicitado": "2026-09-20T11:15:00+00:00",
+            "motivo": "Horário registrado errado",
+            "batida_id": batida_id,
+            "data_ref": "2026-09-20",
+        },
+    )
+    assert r_cor.status_code == 201, r_cor.text
+    cid = r_cor.json()["id"]
+    assert r_cor.json().get("horario_anterior") is not None
+
+    r_rej = client.post(
+        f"/v1/ponto/solicitacoes-ajuste/{cid}/decidir",
+        headers=admin,
+        json={"estado": "rejeitada", "decisao_motivo": "Sem evidência suficiente"},
+    )
+    assert r_rej.status_code == 200
+    assert r_rej.json()["estado"] == "rejeitada"
+
+    dig = client.get("/v1/ponto/digest", headers=admin)
+    assert dig.status_code == 200
+    assert "solicitacoes_ajuste_pendentes" in dig.json()
+    assert dig.json()["solicitacoes_ajuste_pendentes"] == 0
+    _ = a1
+
+
+def test_ponto_solicitacao_ajuste_com_anexo_e_aprovacao_sem_motivo(client, seed_base, auth_headers):
+    from io import BytesIO
+
+    user = auth_headers["a1"]
+    admin = auth_headers["admin"]
+    pdf = b"%PDF-1.4 atestado teste"
+
+    r = client.post(
+        "/v1/ponto/solicitacoes-ajuste/com-anexo",
+        headers=user,
+        data={
+            "tipo": "inclusao",
+            "tipo_batida": "entrada",
+            "horario_solicitado": "2026-09-21T12:00:00+00:00",
+            "motivo": "Atestado médico — inclusão",
+            "data_ref": "2026-09-21",
+        },
+        files={"arquivo": ("atestado.pdf", BytesIO(pdf), "application/pdf")},
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["tem_anexo"] is True
+    assert body["anexo_nome"]
+    sid = body["id"]
+
+    dl = client.get(f"/v1/ponto/solicitacoes-ajuste/{sid}/anexo", headers=admin)
+    assert dl.status_code == 200
+    assert dl.content == pdf
+
+    r_ok = client.post(
+        f"/v1/ponto/solicitacoes-ajuste/{sid}/decidir",
+        headers=admin,
+        json={"estado": "aprovada"},
+    )
+    assert r_ok.status_code == 200, r_ok.text
+    assert r_ok.json()["estado"] == "aprovada"
+    assert r_ok.json()["decisao_motivo"] == "Aprovado"
+
+    r_rej_sem = client.post(
+        "/v1/ponto/solicitacoes-ajuste",
+        headers=user,
+        json={
+            "tipo": "inclusao",
+            "tipo_batida": "saida",
+            "horario_solicitado": "2026-09-21T17:00:00+00:00",
+            "motivo": "Esqueci a saída",
+            "data_ref": "2026-09-21",
+        },
+    )
+    assert r_rej_sem.status_code == 201
+    rid = r_rej_sem.json()["id"]
+    bad = client.post(
+        f"/v1/ponto/solicitacoes-ajuste/{rid}/decidir",
+        headers=admin,
+        json={"estado": "rejeitada"},
+    )
+    assert bad.status_code == 400
 
 
 def test_ponto_alertas_me(client, seed_base, auth_headers, db_session):
@@ -428,17 +527,22 @@ def test_ponto_banco_digest_settings_fecho(client, seed_base, auth_headers, db_s
     bh = client.get(
         "/v1/ponto/me/banco-horas",
         headers=auth_headers["a1"],
-        params={"desde": "2026-08-01", "ate": "2026-08-31"},
+        params={"desde": "2026-08-03", "ate": "2026-08-03"},
     )
     assert bh.status_code == 200, bh.text
     body = bh.json()
     assert body["segundos_realizados"] > 0
-    assert "saldo_segundos" in body
+    # 09:00–18:00 = 9h; jornada 8h → +1h no dia (déficit de outros dias não entra neste recorte)
+    assert body["saldo_segundos"] == 3600
+    assert body.get("segundos_credito_banco", 0) == 3600
+    assert body.get("segundos_debito_banco", 0) == 0
+    assert body.get("segundos_he_pagos", 0) == 0
 
     dig = client.get("/v1/ponto/digest", headers=auth_headers["admin"])
     assert dig.status_code == 200
     assert "faltas" in dig.json()
-    assert "justificativas_pendentes" in dig.json()
+    assert "solicitacoes_ajuste_pendentes" in dig.json()
+    assert dig.json()["justificativas_pendentes"] == 0
 
     st = client.get("/v1/ponto/settings", headers=auth_headers["admin"])
     assert st.status_code == 200
@@ -533,3 +637,58 @@ def test_ponto_me_segundos_trabalhados_hoje_liquido(db_session, seed_base, monke
     assert estado.segundos_trabalhados_hoje == 5400
     assert estado.em_jornada is True
     assert estado.em_pausa is False
+
+
+def test_ponto_dia_seguinte_nao_fecha_o_anterior(db_session, seed_base, monkeypatch):
+    from datetime import timedelta, timezone
+
+    from app.services import ponto as ponto_svc
+
+    a1: Atendente = seed_base["a1"]
+    manha = datetime(2026, 9, 28, 11, 0, tzinfo=timezone.utc)
+    almoco = manha + timedelta(hours=4)
+    volta = manha + timedelta(hours=6)
+    seguinte = datetime(2026, 9, 29, 11, 0, tzinfo=timezone.utc)
+
+    ponto_svc.bater(db_session, a1, "entrada", registrado_em=manha, commit=False)
+    ponto_svc.bater(db_session, a1, "saida", registrado_em=almoco, commit=False)
+    ponto_svc.bater(db_session, a1, "entrada", registrado_em=volta, commit=True)
+
+    class _Agora(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            base = seguinte
+            return base.astimezone(tz) if tz is not None else base
+
+    monkeypatch.setattr(ponto_svc, "datetime", _Agora)
+    monkeypatch.setattr(ponto_svc, "_agora_utc", lambda: seguinte)
+
+    estado = ponto_svc.estado_atual(db_session, a1)
+    assert estado.em_jornada is False
+
+    nova = ponto_svc.bater(db_session, a1, "entrada", registrado_em=seguinte, commit=True)
+    assert nova.tipo == "entrada"
+
+    ontem = ponto_svc.historico(
+        db_session, a1, desde=date(2026, 9, 28), ate=date(2026, 9, 28)
+    )
+    abertos = [i for i in ontem.intervalos if i.aberto]
+    assert len(abertos) == 1
+    assert abertos[0].data == date(2026, 9, 28)
+    assert ontem.total_segundos_fechados == 4 * 3600
+
+
+def test_banco_horas_so_recebe_hora_alem_da_jornada(db_session, seed_base):
+    from datetime import timedelta, timezone
+
+    from app.services import ponto as ponto_svc
+
+    a1: Atendente = seed_base["a1"]
+    inicio = datetime(2026, 9, 28, 12, 0, tzinfo=timezone.utc)
+    ponto_svc.bater(db_session, a1, "entrada", registrado_em=inicio, commit=False)
+    ponto_svc.bater(
+        db_session, a1, "saida", registrado_em=inicio + timedelta(hours=3), commit=True
+    )
+    bh = ponto_svc.banco_horas(db_session, a1, desde=date(2026, 9, 28), ate=date(2026, 9, 28))
+    assert bh.segundos_realizados == 3 * 3600
+    assert bh.saldo_segundos == 0

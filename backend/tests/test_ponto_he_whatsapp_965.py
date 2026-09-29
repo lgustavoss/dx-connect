@@ -1,4 +1,4 @@
-"""Bloqueio de pegar WhatsApp após jornada + HE admin (#965)."""
+"""Bloqueio de pegar WhatsApp fora do horário sem jornada aberta (#1135)."""
 
 from datetime import datetime, timedelta
 
@@ -36,7 +36,6 @@ def _janela_encerrada(*, agora: datetime | None = None, fim: str | None = None) 
 
 
 def _patch_jornada_semanal(client, headers, atendente_id: int, *, fim: str | None = None):
-    """Grade só hoje (TZ do ponto) com saída no passado para forçar fora da jornada."""
     keys = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"]
     agora = datetime.now(PONTO_TZ)
     hoje_key = keys[agora.weekday()]
@@ -60,7 +59,7 @@ def _criar_chat_fila(db_session, seed_base, *, wa_suffix: str):
 
     chat = WhatsappChat(
         wa_id=f"551199999{wa_suffix}",
-        protocolo=f"WPP-TEST-965-{wa_suffix}",
+        protocolo=f"WPP-TEST-1135-{wa_suffix}",
         estado="aguardando_atendente",
         setor_id=seed_base["setor1"].id,
     )
@@ -70,7 +69,7 @@ def _criar_chat_fila(db_session, seed_base, *, wa_suffix: str):
     return chat.id
 
 
-def test_assumir_bloqueado_apos_jornada(client, seed_base, auth_headers, db_session):
+def test_assumir_bloqueado_apos_jornada_sem_ponto_aberto(client, seed_base, auth_headers, db_session):
     admin = auth_headers["admin"]
     user = auth_headers["a1"]
     a1 = seed_base["a1"]
@@ -79,30 +78,29 @@ def test_assumir_bloqueado_apos_jornada(client, seed_base, auth_headers, db_sess
     chat_id = _criar_chat_fila(db_session, seed_base, wa_suffix="650")
     r = client.post(f"/v1/whatsapp/chats/{chat_id}/assumir", headers=user)
     assert r.status_code == 403, r.text
-    assert "jornada" in r.json()["detail"].lower()
-    pend = client.get("/v1/ponto/hora-extra?estado=pendente", headers=admin)
-    assert pend.status_code == 200
-    assert any(x["atendente_id"] == a1.id for x in pend.json())
+    detail = r.json()["detail"].lower()
+    assert "jornada" in detail or "ponto" in detail
 
 
-def test_assumir_ok_com_he(client, seed_base, auth_headers, db_session):
+def test_assumir_ok_com_jornada_aberta(client, seed_base, auth_headers, db_session):
     admin = auth_headers["admin"]
     user = auth_headers["a1"]
     a1 = seed_base["a1"]
     assert _patch_jornada_semanal(client, admin, a1.id).status_code == 200
-    chat_id = _criar_chat_fila(db_session, seed_base, wa_suffix="651")
-    assert client.post(f"/v1/whatsapp/chats/{chat_id}/assumir", headers=user).status_code == 403
-    pend = client.get("/v1/ponto/hora-extra?estado=pendente", headers=admin).json()
-    he_id = next(x["id"] for x in pend if x["atendente_id"] == a1.id)
-    dec = client.post(
-        f"/v1/ponto/hora-extra/{he_id}/decidir",
+    # Entrada via admin (ignora janela da escala) para manter ponto aberto após o horário.
+    ent = client.post(
+        "/v1/ponto/batidas",
         headers=admin,
-        json={"aprovar": True, "modo": "resto_do_dia"},
+        json={
+            "atendente_id": a1.id,
+            "tipo": "entrada",
+            "registrado_em": datetime.now(PONTO_TZ).isoformat(),
+            "motivo": "jornada ainda aberta para HE operacional",
+        },
     )
-    assert dec.status_code == 200, dec.text
-    assert dec.json()["estado"] == "aprovada"
-    chat_id2 = _criar_chat_fila(db_session, seed_base, wa_suffix="652")
-    r = client.post(f"/v1/whatsapp/chats/{chat_id2}/assumir", headers=user)
+    assert ent.status_code in (200, 201), ent.text
+    chat_id = _criar_chat_fila(db_session, seed_base, wa_suffix="651")
+    r = client.post(f"/v1/whatsapp/chats/{chat_id}/assumir", headers=user)
     assert r.status_code == 200, r.text
 
 
@@ -118,27 +116,3 @@ def test_assumir_ok_modo_nenhum(client, seed_base, auth_headers, db_session):
     chat_id = _criar_chat_fila(db_session, seed_base, wa_suffix="653")
     r = client.post(f"/v1/whatsapp/chats/{chat_id}/assumir", headers=user)
     assert r.status_code == 200, r.text
-
-
-def test_he_rejeitada(client, seed_base, auth_headers, db_session):
-    admin = auth_headers["admin"]
-    user = auth_headers["a1"]
-    a1 = seed_base["a1"]
-    assert _patch_jornada_semanal(client, admin, a1.id).status_code == 200
-    sol = client.post(
-        "/v1/ponto/hora-extra",
-        headers=user,
-        json={"motivo": "Pico de demanda"},
-    )
-    assert sol.status_code == 201, sol.text
-    he_id = sol.json()["id"]
-    dec = client.post(
-        f"/v1/ponto/hora-extra/{he_id}/decidir",
-        headers=admin,
-        json={"aprovar": False, "decisao_motivo": "Sem necessidade"},
-    )
-    assert dec.status_code == 200
-    assert dec.json()["estado"] == "rejeitada"
-    st = client.get("/v1/ponto/hora-extra/me/status", headers=user)
-    assert st.status_code == 200
-    assert st.json()["pode_pegar_whatsapp"] is False

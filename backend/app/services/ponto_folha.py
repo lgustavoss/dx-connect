@@ -30,7 +30,11 @@ COLUNAS = [
     "dias_feriado",
     "previsto_horas",
     "realizado_horas",
+    "banco_saldo_inicial_horas",
+    "banco_credito_horas",
+    "banco_debito_horas",
     "banco_horas",
+    "he_pagas_horas",
     "atrasos",
     "faltas",
     "he_minutos",
@@ -80,13 +84,18 @@ def _linha_folha(
     ate: date,
     ajustes_n: int,
 ) -> dict:
+    from app.services import ponto_ausencia as ausencia_svc
+
     bh = ponto_svc.banco_horas(db, atendente, desde=desde, ate=ate)
+    saldo_inicial = ponto_svc.saldo_banco_ate(db, atendente, ate=desde - timedelta(days=1))
+    ausencias = ausencia_svc.mapa_ausencias_aprovadas(db, atendente.id, desde=desde, ate=ate)
     faltas = 0
     atrasos = 0
     d = desde
     usa = escala_svc.escala_configurada(atendente)
     while d <= ate:
         feriado = ponto_settings_svc.eh_feriado(db, atendente.tenant_id, d)
+        aus_tipo = ausencias.get(d)
         esp = cob_svc.eh_dia_esperado_efetivo(db, atendente, d) if not feriado else False
         ini, fim = ponto_svc._bounds_periodo(d, d)
         bats = (
@@ -108,6 +117,7 @@ def _linha_folha(
             tem_saida=ts,
             feriado=feriado,
             atrasado=atrasado,
+            ausencia_tipo=aus_tipo,
         )
         if st == "falta":
             faltas += 1
@@ -126,7 +136,15 @@ def _linha_folha(
         "dias_feriado": bh.dias_feriado,
         "previsto_horas": _segundos_para_horas(bh.segundos_esperados),
         "realizado_horas": _segundos_para_horas(bh.segundos_realizados),
+        "banco_saldo_inicial_horas": _segundos_para_horas(saldo_inicial),
+        "banco_credito_horas": _segundos_para_horas(
+            int(getattr(bh, "segundos_credito_banco", 0) or 0)
+        ),
+        "banco_debito_horas": _segundos_para_horas(
+            int(getattr(bh, "segundos_debito_banco", 0) or 0)
+        ),
         "banco_horas": _segundos_para_horas(bh.saldo_segundos),
+        "he_pagas_horas": _segundos_para_horas(getattr(bh, "segundos_he_pagos", 0) or 0),
         "atrasos": atrasos,
         "faltas": faltas,
         "he_minutos": he,

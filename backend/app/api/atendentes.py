@@ -190,6 +190,7 @@ def criar_atendente(
         senha_hash=hash_senha(data.senha),
         role=role,
         ativo=data.ativo,
+        must_change_password=bool(getattr(data, "must_change_password", True)),
         tolerancia_atraso_minutos=int(data.tolerancia_atraso_minutos or 0) if modo != "nenhum" else 0,
         usar_local_empresa=bool(getattr(data, "usar_local_empresa", True)),
         local_empresa_raio_metros=getattr(data, "local_empresa_raio_metros", None),
@@ -328,9 +329,18 @@ def atualizar_atendente(
     if not atendente or atendente.role == "saas_ops":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atendente não encontrado")
     update = data.model_dump(exclude_unset=True)
-    if "senha" in update and update["senha"]:
-        atendente.senha_hash = hash_senha(update.pop("senha"))
-        atendente.must_change_password = False
+    senha_nova = update.pop("senha", None)
+    must_change_in_payload = "must_change_password" in update
+    must_change_val = update.pop("must_change_password", None) if must_change_in_payload else None
+    if senha_nova:
+        atendente.senha_hash = hash_senha(senha_nova)
+        # Admin definiu senha: por padrão exige troca; respeita flag explícita se enviada
+        if must_change_in_payload:
+            atendente.must_change_password = bool(must_change_val)
+        else:
+            atendente.must_change_password = True
+    elif must_change_in_payload:
+        atendente.must_change_password = bool(must_change_val)
     if "role" in update and update["role"] is not None:
         update["role"] = validar_role(update["role"])
     if "setor_ids" in update:

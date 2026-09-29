@@ -208,7 +208,7 @@ export function Select({
         aria-controls={listboxId}
         aria-label={ariaLabel ?? label ?? placeholder}
         onClick={() => !disabled && setOpen((o) => !o)}
-        className={`flex w-full items-center justify-between gap-2 rounded-xl border-0 bg-white py-2 pl-3 pr-2.5 text-left text-sm shadow-sm ring-1 ring-slate-200/90 transition-[box-shadow,ring] hover:ring-slate-300/80 focus:outline-none focus:ring-2 focus:ring-slate-400/35 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-900/80 dark:text-slate-100 dark:ring-slate-600/90 dark:hover:ring-slate-500 dark:focus:ring-slate-500/40 ${
+        className={`box-border flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-3 text-left text-sm transition-[border-color,box-shadow] focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100 dark:focus:border-cyan-500/60 dark:focus:ring-cyan-500/40 dark:disabled:bg-slate-900/30 ${
           value === '' ? 'text-slate-500 dark:text-slate-400' : 'text-slate-900 dark:text-slate-100'
         }`}
       >

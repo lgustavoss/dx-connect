@@ -192,7 +192,14 @@ def _logo_html(db: Session) -> str:
         raw = path.read_bytes()
     except OSError:
         return ""
-    mime = (emp.logo_mimetype or "image/png").split(";")[0].strip()
+    from app.services.system_logo_storage import aparar_espaco_branco
+
+    trimmed = aparar_espaco_branco(raw)
+    if trimmed:
+        raw = trimmed
+        mime = "image/png"
+    else:
+        mime = (emp.logo_mimetype or "image/png").split(";")[0].strip()
     b64 = base64.b64encode(raw).decode("ascii")
     return f'<img src="data:{mime};base64,{b64}" alt=""/>'
 

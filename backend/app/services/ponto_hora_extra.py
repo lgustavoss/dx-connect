@@ -66,26 +66,24 @@ def he_ativa(db: Session, atendente: Atendente, when: datetime | None = None) ->
 
 
 def pode_pegar_whatsapp(db: Session, atendente: Atendente, when: datetime | None = None) -> bool:
+    """Fora do horário previsto: só se a jornada do dia ainda estiver aberta (#1135)."""
     if not fora_da_jornada(atendente, when):
         return True
-    return he_ativa(db, atendente, when) is not None
+    from app.services import ponto as ponto_svc
+
+    return ponto_svc.em_jornada_aberta(db, atendente.id)
 
 
 def exigir_pode_pegar_whatsapp(db: Session, atendente: Atendente) -> None:
-    """Bloqueia assumir/iniciar WhatsApp fora da jornada sem HE (#965)."""
+    """Bloqueia assumir WhatsApp fora do horário sem ponto em aberto (#1135)."""
     if pode_pegar_whatsapp(db, atendente):
         return
-    garantir_pedido_pendente(
-        db,
-        atendente,
-        motivo="Tentativa de pegar chat WhatsApp após o fim da jornada.",
-        commit=True,
-    )
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail=(
-            "Sua jornada já terminou. Peça hora extra a um administrador "
-            "para pegar novos chats no WhatsApp."
+            "Sua jornada prevista já terminou. Mantenha o ponto em aberto "
+            "(bata a entrada e só registre a saída ao finalizar) para pegar "
+            "novos chats no WhatsApp."
         ),
     )
 
