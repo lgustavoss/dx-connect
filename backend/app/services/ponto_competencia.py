@@ -445,7 +445,7 @@ def resumo_fechamento_equipe(
     _ = admin  # RBAC já exigiu admin na rota
     _validar_ano_mes(ano, mes)
     desde, ate = periodo_competencia(ano, mes)
-    hoje = ponto_svc._hoje()
+    hoje = ponto_svc.hoje_negocio()
     ate_saldo_ini = _ultimo_dia_mes_anterior(ano, mes)
 
     ativos = (

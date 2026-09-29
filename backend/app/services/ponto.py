@@ -49,8 +49,13 @@ def _agora_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _hoje() -> date:
+def hoje_negocio() -> date:
+    """Data civil do ponto (America/Sao_Paulo)."""
     return _agora_utc().astimezone(PONTO_TZ).date()
+
+
+def _hoje() -> date:
+    return hoje_negocio()
 
 
 def _as_utc(dt: datetime) -> datetime:
