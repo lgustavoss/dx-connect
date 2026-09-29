@@ -80,6 +80,7 @@ import { WhatsappEncerrarModal } from './WhatsappEncerrarModal'
 import { WhatsappDemandaTimelineMarco } from './WhatsappDemandaTimelineMarco'
 import { ACCEPT_ANEXO, type TipoAnexoPicker } from './WhatsappBarraAnexos'
 import { WhatsappComposerBar } from './WhatsappComposerBar'
+import { WhatsappMensagemPendente, type EnvioTextoPendente } from './WhatsappMensagemPendente'
 import { WhatsappPreviaAnexo } from './WhatsappPreviaAnexo'
 import { useWhatsappVoltarLista } from '../../hooks/useWhatsappVoltarLista'
 import { useTicketsAbertosContato } from '../../hooks/useTicketsAbertosContato'
@@ -299,7 +300,11 @@ function ConteudoMensagemWhatsApp({
 
   const mediaClass = 'max-h-64 max-w-full rounded-lg border border-black/5 shadow-sm'
 
-  if (tipo === 'imagem' || tipo === 'figurinha') {
+  if (tipo === 'figurinha') {
+    return <img src={url} alt="Figurinha" className="max-h-40 max-w-[10rem] select-none" draggable={false} />
+  }
+
+  if (tipo === 'imagem') {
     return (
       <div className="space-y-1">
         <img
@@ -725,6 +730,9 @@ export function WhatsappConversa({ chatIdProp, modoConsulta = false }: WhatsappC
 
   const [enviando, setEnviando] = useState(false)
   const enviandoRef = useRef(false)
+  /** Texto ao cliente sai do campo na hora; a bolha fica «enviando» até o servidor confirmar. */
+  const [enviosPendentes, setEnviosPendentes] = useState<EnvioTextoPendente[]>([])
+  const filaEnvioTextoRef = useRef<Promise<void>>(Promise.resolve())
   const enviandoMidiaRef = useRef(false)
   const [reagirMsgId, setReagirMsgId] = useState<number | null>(null)
   /** Primeira inbound não lida ao abrir — divisor estilo WhatsApp (#951). */
@@ -1090,6 +1098,7 @@ export function WhatsappConversa({ chatIdProp, modoConsulta = false }: WhatsappC
     if (!id) return
 
     setLoading(true)
+    setEnviosPendentes([])
     setDivisorNaoLidasMsgId(null)
     viuEmAtendimentoRef.current = false
     inatividadeToastFeitoRef.current = false
@@ -1344,36 +1353,84 @@ useEffect(() => {
 
   async function enviar() {
 
-    if (!chat || !texto.trim() || enviando || enviandoRef.current || (!modoInterno && !podeEnviar)) return
+    if (!chat || !texto.trim() || (!modoInterno && !podeEnviar)) return
 
-    enviandoRef.current = true
-    setEnviando(true)
+    const conteudo = texto.trim()
+    setTexto('')
 
-    try {
-      if (modoInterno) {
-        await whatsappChats.comentarInterno(chat.id, texto.trim())
-      } else {
-        await whatsappChats.enviar(chat.id, texto.trim(), msgRespondida?.wa_message_id || null)
+    if (modoInterno) {
+      if (enviandoRef.current) {
+        setTexto(conteudo)
+        return
       }
-
-      setTexto('')
-      setMsgRespondida(null)
-
-      stickToBottomRef.current = true
-      await carregar()
-      if (!modoInterno) {
-        atualizarSidebarAposEnvioCliente()
+      enviandoRef.current = true
+      try {
+        await whatsappChats.comentarInterno(chat.id, conteudo)
+        stickToBottomRef.current = true
+        await carregar()
+      } catch (err) {
+        toast.showError(mensagemFalhaParaToast(err))
+        setTexto((atual) => (atual.trim() ? atual : conteudo))
+      } finally {
+        enviandoRef.current = false
       }
-
-    } catch (err) {
-
-      toast.showError(mensagemFalhaParaToast(err))
-
-    } finally {
-      enviandoRef.current = false
-      setEnviando(false)
+      return
     }
 
+    const citada = msgRespondida
+    const envio: EnvioTextoPendente = {
+      tempId: crypto.randomUUID(),
+      texto: conteudo,
+      quotedWaMessageId: citada?.wa_message_id || null,
+      quotedPreview: citada
+        ? citada.tipo_midia && citada.tipo_midia !== 'texto'
+          ? `[${citada.tipo_midia}]`
+          : citada.corpo || null
+        : null,
+      criadoEm: new Date().toISOString(),
+      maiorIdAntes: msgs.reduce((max, m) => Math.max(max, m.id), 0),
+      estado: 'enviando',
+    }
+    setMsgRespondida(null)
+    setEnviosPendentes((prev) => [...prev, envio])
+    stickToBottomRef.current = true
+    requestAnimationFrame(() => {
+      if (scrollRef.current) scrollWhatsappToBottom(scrollRef.current)
+    })
+    enfileirarEnvioTexto(chat.id, envio)
+  }
+
+  function enfileirarEnvioTexto(chatId: number, envio: EnvioTextoPendente) {
+    filaEnvioTextoRef.current = filaEnvioTextoRef.current.then(() => processarEnvioTexto(chatId, envio))
+  }
+
+  async function processarEnvioTexto(chatId: number, envio: EnvioTextoPendente) {
+    try {
+      const enviada = await whatsappChats.enviar(chatId, envio.texto, envio.quotedWaMessageId)
+      if (chatRef.current?.id !== chatId) return
+      const msg = normalizarReacoesMensagem(enviada, userIdRef.current)
+      setMsgs((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]))
+      setEnviosPendentes((prev) => prev.filter((e) => e.tempId !== envio.tempId))
+      void carregar().catch(() => {})
+      atualizarSidebarAposEnvioCliente()
+    } catch (err) {
+      if (chatRef.current?.id !== chatId) return
+      toast.showError(mensagemFalhaParaToast(err))
+      setEnviosPendentes((prev) =>
+        prev.map((e) => (e.tempId === envio.tempId ? { ...e, estado: 'falhou' } : e)),
+      )
+    }
+  }
+
+  function tentarEnvioDeNovo(envio: EnvioTextoPendente) {
+    if (!chat || !podeEnviar) return
+    const novo: EnvioTextoPendente = {
+      ...envio,
+      estado: 'enviando',
+      maiorIdAntes: msgs.reduce((max, m) => Math.max(max, m.id), 0),
+    }
+    setEnviosPendentes((prev) => prev.map((e) => (e.tempId === envio.tempId ? novo : e)))
+    enfileirarEnvioTexto(chat.id, novo)
   }
 
   async function transferirChat() {
@@ -2556,6 +2613,22 @@ useEffect(() => {
             )
 
           })}
+
+          {enviosPendentes
+            .filter(
+              (e) =>
+                !msgs.some(
+                  (m) => m.id > e.maiorIdAntes && m.direcao === 'outbound' && (m.corpo || '').trim().endsWith(e.texto),
+                ),
+            )
+            .map((e) => (
+              <WhatsappMensagemPendente
+                key={e.tempId}
+                envio={e}
+                onTentarDeNovo={() => tentarEnvioDeNovo(e)}
+                onDescartar={() => setEnviosPendentes((prev) => prev.filter((x) => x.tempId !== e.tempId))}
+              />
+            ))}
 
         </div>
 

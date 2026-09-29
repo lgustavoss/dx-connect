@@ -153,6 +153,12 @@ class CrmNegociacaoAtividade(Base):
     tipo = Column(String(40), nullable=False, default=ATIVIDADE_NOTA)
     texto = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    updated_at = Column(DateTime(timezone=True), nullable=True)
+    # Lembrete de reunião ligado à nota (#1098).
+    # tentativa_em reserva o envio para um worker; disparado_em só entra quando o autor confirma.
+    lembrete_em = Column(DateTime(timezone=True), nullable=True, index=True)
+    lembrete_tentativa_em = Column(DateTime(timezone=True), nullable=True)
+    lembrete_disparado_em = Column(DateTime(timezone=True), nullable=True)
 
     negociacao = relationship("CrmNegociacao", back_populates="atividades")
     autor = relationship("Atendente", foreign_keys=[autor_id])

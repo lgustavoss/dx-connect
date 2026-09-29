@@ -216,17 +216,17 @@ def build_notificacao_itens(
         )
 
     if atendente.role == "admin":
-        from app.services.ponto_hora_extra import contar_pendentes_admin
+        from app.services.ponto_solicitacao_ajuste import contar_pendentes
 
-        he_n = contar_pendentes_admin(db, atendente.tenant_id)
-        if he_n > 0:
+        aj_n = contar_pendentes(db, atendente.tenant_id)
+        if aj_n > 0:
             out.append(
                 NotificacaoItem(
-                    tipo="ponto_he_pendente",
+                    tipo="ponto_ajuste_pendente",
                     ticket_id=None,
-                    titulo="Hora extra",
-                    descricao="Pedidos após o fim da jornada (WhatsApp)",
-                    count=he_n,
+                    titulo="Ajustes de ponto",
+                    descricao="Inclusões ou correções aguardando aprovação",
+                    count=aj_n,
                     href="/equipe/ponto",
                     created_at=datetime.now(timezone.utc),
                 )
@@ -279,11 +279,11 @@ def build_notificacao_resumo(db: Session, atendente: Atendente) -> NotificacaoRe
     portal_fila = _count_portal_fila(db, atendente)
     portal_resp = chat_nao_lidas_svc.count_portal_respostas_pendentes(db, atendente)
     chat_interno = chat_interno_svc.contar_total_nao_lidas_atendente(db, atendente)
-    he_pend = 0
+    ajuste_pend = 0
     if atendente.role == "admin":
-        from app.services.ponto_hora_extra import contar_pendentes_admin
+        from app.services.ponto_solicitacao_ajuste import contar_pendentes
 
-        he_pend = contar_pendentes_admin(db, atendente.tenant_id)
+        ajuste_pend = contar_pendentes(db, atendente.tenant_id)
     chats_em_atendimento = _count_em_atendimento(
         db, WhatsappChat, atendente, incluir_classificacao_pendente=True
     ) + _count_em_atendimento(db, PortalChat, atendente)
@@ -295,9 +295,10 @@ def build_notificacao_resumo(db: Session, atendente: Atendente) -> NotificacaoRe
         portal_fila_count=portal_fila,
         portal_respostas_count=portal_resp,
         chat_interno_nao_lidas_count=chat_interno,
-        ponto_he_pendentes_count=he_pend,
+        ponto_he_pendentes_count=0,
+        ponto_ajuste_pendentes_count=ajuste_pend,
         chats_em_atendimento_count=chats_em_atendimento,
-        total_pendencias=sem + nao + he_pend,
+        total_pendencias=sem + nao + ajuste_pend,
     )
 
 

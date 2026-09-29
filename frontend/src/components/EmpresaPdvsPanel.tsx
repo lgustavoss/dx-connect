@@ -6,6 +6,7 @@ import { IconCopy } from './ui/IconCopy'
 import { IconEye, IconEyeOff } from './ui/IconEye'
 import { IconPencil } from './ui/IconPencil'
 import { Input } from './ui/Input'
+import { PasswordEyeToggle } from './ui/PasswordEyeToggle'
 import { Select } from './ui/Select'
 import { Switch } from './ui/Switch'
 import { useToast } from './ui/Toast'
@@ -40,6 +41,7 @@ export function EmpresaPdvsPanel({ empresaId }: Props) {
   const [saving, setSaving] = useState(false)
   const [senhaRevelada, setSenhaRevelada] = useState<{ pdvId: number; senha: string } | null>(null)
   const [revelandoPdvId, setRevelandoPdvId] = useState<number | null>(null)
+  const [mostrarSenhaForm, setMostrarSenhaForm] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -60,6 +62,7 @@ export function EmpresaPdvsPanel({ empresaId }: Props) {
     setEditId(null)
     setForm({ ...emptyForm(), rotulo_id: rotulos[0]?.id ?? 0 })
     setSenhaRevelada(null)
+    setMostrarSenhaForm(false)
     setModalOpen(true)
   }
 
@@ -77,6 +80,7 @@ export function EmpresaPdvsPanel({ empresaId }: Props) {
       ativo: row.ativo,
     })
     setSenhaRevelada(null)
+    setMostrarSenhaForm(false)
     setModalOpen(true)
   }
 
@@ -329,9 +333,16 @@ export function EmpresaPdvsPanel({ empresaId }: Props) {
               />
               <Input
                 label={editId ? 'Nova senha (deixe vazio para manter)' : 'Senha de acesso remoto'}
-                type="password"
+                type={mostrarSenhaForm ? 'text' : 'password'}
                 value={form.acesso_remoto_senha ?? ''}
                 onChange={(e) => setForm((f) => ({ ...f, acesso_remoto_senha: e.target.value }))}
+                autoComplete="new-password"
+                endAdornment={
+                  <PasswordEyeToggle
+                    visible={mostrarSenhaForm}
+                    onToggle={() => setMostrarSenhaForm((v) => !v)}
+                  />
+                }
               />
               <Input
                 label="Observações"

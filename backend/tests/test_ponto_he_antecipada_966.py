@@ -1,4 +1,8 @@
-"""HE antecipada + teto (#966)."""
+"""HE antecipada + teto (#966) — descontinuado em #1135 (sem solicitação/concessão de HE)."""
+
+import pytest
+
+pytestmark = pytest.mark.skip(reason="HE solicitada/concedida removida do produto (#1135)")
 
 from datetime import datetime, timedelta, timezone
 

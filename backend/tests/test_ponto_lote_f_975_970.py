@@ -2,6 +2,8 @@
 
 from datetime import date, timedelta
 
+import pytest
+
 
 def _patch_jornada_hoje(client, headers, atendente_id: int, *, ativo=True):
     keys = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"]
@@ -46,6 +48,7 @@ def test_export_folha_csv_colunas(client, seed_base, auth_headers):
         "faltas",
         "he_minutos",
         "banco_horas",
+        "he_pagas_horas",
         "ajustes",
     ):
         assert col in header
@@ -64,6 +67,7 @@ def test_export_folha_xlsx(client, seed_base, auth_headers):
     assert r.content[:2] == b"PK"  # zip/xlsx
 
 
+@pytest.mark.skip(reason="Cobertura de plantão removida da API (#1135)")
 def test_cobertura_fluxo_solicitar_aceitar_homologar(client, seed_base, auth_headers):
     admin = auth_headers["admin"]
     a1h = auth_headers["a1"]
@@ -120,6 +124,7 @@ def test_cobertura_fluxo_solicitar_aceitar_homologar(client, seed_base, auth_hea
     assert dia2["esperado"] is True
 
 
+@pytest.mark.skip(reason="Cobertura de plantão removida da API (#1135)")
 def test_cobertura_admin_conceder(client, seed_base, auth_headers):
     admin = auth_headers["admin"]
     a1 = seed_base["a1"]
@@ -140,6 +145,7 @@ def test_cobertura_admin_conceder(client, seed_base, auth_headers):
     assert r.json()["origem"] == "admin"
 
 
+@pytest.mark.skip(reason="Cobertura de plantão removida da API (#1135)")
 def test_cobertura_colegas_e_me(client, seed_base, auth_headers):
     a1h = auth_headers["a1"]
     cols = client.get("/v1/ponto/coberturas/colegas", headers=a1h)

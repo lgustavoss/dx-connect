@@ -33,7 +33,12 @@ class NotificacaoResumo(BaseModel):
     ponto_he_pendentes_count: int = Field(
         ge=0,
         default=0,
-        description="Pedidos de hora extra pendentes (só admins)",
+        description="Legado (#1135): sempre 0 — HE solicitada foi removida",
+    )
+    ponto_ajuste_pendentes_count: int = Field(
+        ge=0,
+        default=0,
+        description="Solicitações de inclusão/correção de ponto pendentes (só admins)",
     )
     chats_em_atendimento_count: int = Field(
         ge=0,
@@ -42,7 +47,7 @@ class NotificacaoResumo(BaseModel):
     )
     total_pendencias: int = Field(
         ge=0,
-        description="Badge do sino: tickets na fila, tickets com resposta não lida e hora extra pendente",
+        description="Badge do sino: tickets na fila, tickets com resposta não lida e ajustes de ponto pendentes",
     )
 
 
@@ -54,6 +59,7 @@ class NotificacaoItem(BaseModel):
         "wpp_chats_com_resposta",
         "chat_interno",
         "ponto_he_pendente",
+        "ponto_ajuste_pendente",
     ]
     ticket_id: int | None = None
     chat_id: int | None = None

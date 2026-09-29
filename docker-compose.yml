@@ -87,6 +87,8 @@ services:
       - "8000"
       - --reload
       # Evita reload travado em "Waiting for connections to close" (SSE / event stream).
+      - --timeout-graceful-shutdown
+      - "3"
       - --reload-exclude
       - alembic/*
       - --reload-exclude

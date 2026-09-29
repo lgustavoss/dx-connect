@@ -94,6 +94,8 @@ class PontoIntervaloRead(BaseModel):
     duracao_segundos: int | None = None
     segundos_pausa: int = 0
     aberto: bool = False
+    entrada_batida_id: int | None = None
+    saida_batida_id: int | None = None
     entrada_latitude: float | None = None
     entrada_longitude: float | None = None
     entrada_fora_area: bool = False
@@ -133,6 +135,7 @@ StatusDiaPonto = Literal[
     "folga_com_ponto",
     "folga_programada",
     "ferias",
+    "abono",
     "livre",
     "atraso",
     "feriado",
@@ -147,7 +150,7 @@ class PontoCalendarioDia(BaseModel):
     status: StatusDiaPonto
     atrasado: bool = False
     feriado: bool = False
-    ausencia_tipo: str | None = None  # ferias | folga_programada
+    ausencia_tipo: str | None = None  # ferias | folga_programada | abono
     dia_convocado: bool = False
     pausa_abaixo_minimo: bool = False
     # #842 — meta de jornada × realizado (cores do calendário)
@@ -186,6 +189,9 @@ class PontoHojeRead(BaseModel):
     itens: list[PontoHojeItem]
 
 
+HeDestinoExcedente = Literal["banco", "pagamento", "misto"]
+
+
 class PontoBancoHorasRead(BaseModel):
     atendente_id: int
     atendente_nome: str | None = None
@@ -194,6 +200,11 @@ class PontoBancoHorasRead(BaseModel):
     segundos_esperados: int
     segundos_realizados: int
     saldo_segundos: int
+    # Crédito gerado no banco no período (excesso além da jornada).
+    segundos_credito_banco: int = 0
+    # Débito abatido do banco no período (déficit parcial + folga/banco). Absoluto.
+    segundos_debito_banco: int = 0
+    segundos_he_pagos: int = 0
     dias_escala: int
     dias_feriado: int = 0
 
@@ -204,7 +215,8 @@ class PontoDigestRead(BaseModel):
     atrasos: int
     jornadas_abertas: int
     online_sem_ponto: int
-    justificativas_pendentes: int
+    justificativas_pendentes: int = 0  # legado; sempre 0 após #1135
+    solicitacoes_ajuste_pendentes: int = 0
     he_acima_teto_mensal: int = 0
     itens: list[PontoHojeItem]
 
@@ -218,6 +230,9 @@ class PontoSettingsRead(BaseModel):
     pausa_minima_minutos: int = 0
     he_teto_mensal_minutos: int | None = None
     politica_geolocalizacao: PoliticaGeolocalizacao = "opcional"
+    banco_horas_ativo: bool = True
+    he_destino_excedente: HeDestinoExcedente = "banco"
+    he_banco_primeiros_minutos: int = 120
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -231,12 +246,16 @@ class PontoSettingsUpdate(BaseModel):
     pausa_minima_minutos: int | None = Field(default=None, ge=0, le=240)
     he_teto_mensal_minutos: int | None = Field(default=None, ge=30, le=31 * 24 * 60)
     politica_geolocalizacao: PoliticaGeolocalizacao | None = None
+    banco_horas_ativo: bool | None = None
+    he_destino_excedente: HeDestinoExcedente | None = None
+    he_banco_primeiros_minutos: int | None = Field(default=None, ge=0, le=24 * 60)
 
 
 class PontoFeriadoCreate(BaseModel):
     data: date
     nome: str = Field(..., min_length=1, max_length=255)
     ativo: bool | None = True
+    recorrente_anual: bool | None = False
 
 
 class PontoFeriadoRead(BaseModel):
@@ -244,6 +263,7 @@ class PontoFeriadoRead(BaseModel):
     data: date
     nome: str
     ativo: bool = True
+    recorrente_anual: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -290,6 +310,45 @@ class PontoResumoSemanaRead(BaseModel):
     he_minutos: int
     dias_escala: int
     dias_feriado: int = 0
+
+
+class PontoSolicitacaoAjusteCreate(BaseModel):
+    tipo: Literal["inclusao", "correcao", "abono"]
+    motivo: str = Field(..., min_length=3, max_length=1000)
+    tipo_batida: Literal["entrada", "saida"] | None = None
+    horario_solicitado: datetime | None = None
+    batida_id: int | None = None
+    data_ref: date | None = None
+
+
+class PontoSolicitacaoAjusteRead(BaseModel):
+    id: int
+    atendente_id: int
+    atendente_nome: str | None = None
+    tipo: str
+    estado: str
+    motivo: str
+    data_ref: date
+    tipo_batida: str | None = None
+    horario_solicitado: datetime | None = None
+    horario_anterior: datetime | None = None
+    batida_id: int | None = None
+    tem_anexo: bool = False
+    anexo_nome: str | None = None
+    anexo_content_type: str | None = None
+    anexo_tamanho_bytes: int | None = None
+    decisao_motivo: str | None = None
+    decidido_por_id: int | None = None
+    decidido_em: datetime | None = None
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PontoSolicitacaoAjusteDecisao(BaseModel):
+    estado: Literal["aprovada", "rejeitada"]
+    # Aprovação pode omitir (backend preenche "Aprovado"); rejeição exige ≥ 3 chars.
+    decisao_motivo: str | None = Field(default=None, max_length=1000)
 
 
 class PontoJustificativaCreate(BaseModel):
@@ -541,3 +600,34 @@ class PontoCienciaItem(BaseModel):
     atendente_nome: str
     confirmada: bool
     confirmado_em: datetime | None = None
+
+
+class PontoResumoFechamentoItem(BaseModel):
+    """Uma linha do resumo de fechamento (equipe × competência)."""
+
+    atendente_id: int
+    atendente_nome: str
+    dias_no_mes: int
+    dias_trabalhados: int
+    dias_a_trabalhar: int
+    faltas: int
+    segundos_necessarios: int
+    segundos_trabalhados: int
+    segundos_a_trabalhar: int
+    saldo_mes_anterior_segundos: int
+    saldo_mes_segundos: int
+    saldo_atual_segundos: int
+    segundos_he_pagos: int = 0
+    segundos_credito_banco: int = 0
+    segundos_debito_banco: int = 0
+    dias_abaixo: int = 0
+    atrasos: int = 0
+    alerta: bool = False
+    ciencia_confirmada: bool = False
+    ciencia_em: datetime | None = None
+
+
+class PontoResumoFechamentoRead(BaseModel):
+    ano: int
+    mes: int
+    itens: list[PontoResumoFechamentoItem]

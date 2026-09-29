@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 
@@ -187,3 +188,155 @@ def test_comercial_pode_simular_custos(client, auth_headers):
         ).status_code
         == 403
     )
+
+
+def _negociacao_comercial(client, auth_headers) -> int:
+    r = client.post(
+        "/v1/crm/leads",
+        headers=auth_headers["comercial"],
+        json={"nome": "Posto Lembrete"},
+    )
+    assert r.status_code == 201, r.text
+    return r.json()["negociacao_ativa_id"]
+
+
+def test_nota_mostra_autor_e_autor_edita_em_5_minutos(client, auth_headers, db_session, seed_base):
+    h = auth_headers["comercial"]
+    neg_id = _negociacao_comercial(client, auth_headers)
+    quando = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
+
+    nota = client.post(
+        f"/v1/crm/negociacoes/{neg_id}/atividades",
+        headers=h,
+        json={"tipo": "nota", "texto": "Reunião marcada", "lembrete_em": quando},
+    )
+    assert nota.status_code == 201, nota.text
+    body = nota.json()
+    assert body["autor_nome"] == "Comercial"
+    assert body["autor_id"] == seed_base["comercial"].id
+    assert body["pode_editar"] is True
+    assert body["lembrete_em"] is not None
+    atividade_id = body["id"]
+
+    edit = client.patch(
+        f"/v1/crm/negociacoes/{neg_id}/atividades/{atividade_id}",
+        headers=h,
+        json={"texto": "Reunião remarcada para quinta"},
+    )
+    assert edit.status_code == 200, edit.text
+    assert edit.json()["texto"] == "Reunião remarcada para quinta"
+    assert edit.json()["updated_at"] is not None
+    assert edit.json()["lembrete_em"] is not None
+
+    alheio = client.patch(
+        f"/v1/crm/negociacoes/{neg_id}/atividades/{atividade_id}",
+        headers=auth_headers["admin"],
+        json={"texto": "Não sou o autor"},
+    )
+    assert alheio.status_code == 403
+
+    bloqueado = client.post(
+        f"/v1/crm/negociacoes/{neg_id}/atividades",
+        headers=auth_headers["a1"],
+        json={"tipo": "nota", "texto": "Atendente não comercial"},
+    )
+    assert bloqueado.status_code == 403
+
+    from app.models.crm import CrmNegociacaoAtividade
+
+    row = db_session.get(CrmNegociacaoAtividade, atividade_id)
+    row.created_at = datetime.now(timezone.utc) - timedelta(minutes=6)
+    db_session.commit()
+
+    tarde = client.patch(
+        f"/v1/crm/negociacoes/{neg_id}/atividades/{atividade_id}",
+        headers=h,
+        json={"texto": "Fora da janela"},
+    )
+    assert tarde.status_code == 400
+    assert "5 minutos" in tarde.json()["detail"]
+
+
+def test_mudanca_de_estagio_nao_edita_e_lembrete_no_passado_rejeitado(client, auth_headers):
+    h = auth_headers["comercial"]
+    neg_id = _negociacao_comercial(client, auth_headers)
+    mv = client.post(
+        f"/v1/crm/negociacoes/{neg_id}/mover-estagio",
+        headers=h,
+        json={"estagio_slug": "em_negociacao"},
+    )
+    assert mv.status_code == 200, mv.text
+
+    acts = client.get(f"/v1/crm/negociacoes/{neg_id}/atividades", headers=h)
+    estagio = next(a for a in acts.json()["items"] if a["tipo"] == "mudanca_estagio")
+    assert estagio["pode_editar"] is False
+    edit = client.patch(
+        f"/v1/crm/negociacoes/{neg_id}/atividades/{estagio['id']}",
+        headers=h,
+        json={"texto": "Alterar estágio na mão"},
+    )
+    assert edit.status_code == 400
+
+    passado = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+    ruim = client.post(
+        f"/v1/crm/negociacoes/{neg_id}/atividades",
+        headers=h,
+        json={"tipo": "nota", "texto": "Tarde demais", "lembrete_em": passado},
+    )
+    assert ruim.status_code == 400
+
+
+def test_lembrete_repete_ate_o_autor_confirmar(client, auth_headers, db_session, seed_base):
+    from app.models.crm import CrmNegociacaoAtividade
+    from app.services.crm import reivindicar_lembretes_vencidos
+
+    h = auth_headers["comercial"]
+    neg_id = _negociacao_comercial(client, auth_headers)
+    futuro = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+    nota = client.post(
+        f"/v1/crm/negociacoes/{neg_id}/atividades",
+        headers=h,
+        json={"tipo": "reuniao", "texto": "Apresentação do sistema", "lembrete_em": futuro},
+    )
+    assert nota.status_code == 201, nota.text
+    atividade_id = nota.json()["id"]
+
+    row = db_session.get(CrmNegociacaoAtividade, atividade_id)
+    row.lembrete_em = datetime.now(timezone.utc) - timedelta(minutes=1)
+    db_session.commit()
+
+    pendentes = client.get("/v1/crm/lembretes-pendentes", headers=h)
+    assert pendentes.status_code == 200, pendentes.text
+    assert [item["atividade_id"] for item in pendentes.json()] == [atividade_id]
+    assert client.get("/v1/crm/lembretes-pendentes", headers=auth_headers["a1"]).status_code == 403
+
+    payloads = reivindicar_lembretes_vencidos(db_session)
+    db_session.commit()
+    assert len(payloads) == 1
+    assert payloads[0]["negociacao_id"] == neg_id
+    assert payloads[0]["lead_nome"] == "Posto Lembrete"
+    assert payloads[0]["texto"] == "Apresentação do sistema"
+    db_session.refresh(row)
+    assert row.lembrete_disparado_em is None
+    assert row.lembrete_tentativa_em is not None
+    # Segunda reserva na mesma janela não dispara de novo (outro worker).
+    assert reivindicar_lembretes_vencidos(db_session) == []
+
+    row.lembrete_tentativa_em = datetime.now(timezone.utc) - timedelta(minutes=3)
+    db_session.commit()
+    de_novo = reivindicar_lembretes_vencidos(db_session)
+    db_session.commit()
+    assert len(de_novo) == 1
+    assert de_novo[0]["atividade_id"] == atividade_id
+
+    alheio = client.post(f"/v1/crm/lembretes/{atividade_id}/ciente", headers=auth_headers["admin"])
+    assert alheio.status_code == 403
+
+    ok = client.post(f"/v1/crm/lembretes/{atividade_id}/ciente", headers=h)
+    assert ok.status_code == 204, ok.text
+    assert client.get("/v1/crm/lembretes-pendentes", headers=h).json() == []
+    db_session.refresh(row)
+    row.lembrete_tentativa_em = datetime.now(timezone.utc) - timedelta(minutes=3)
+    db_session.commit()
+    assert reivindicar_lembretes_vencidos(db_session) == []
+    assert seed_base["comercial"].id == row.autor_id

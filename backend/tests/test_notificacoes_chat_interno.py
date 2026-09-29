@@ -21,6 +21,7 @@ def test_resumo_inclui_chat_interno_nao_lidas(db_session, seed_base):
     assert resumo_admin.total_pendencias == (
         resumo_admin.sem_responsavel_count
         + resumo_admin.nao_lidas_count
+        + getattr(resumo_admin, "ponto_ajuste_pendentes_count", 0)
         + resumo_admin.ponto_he_pendentes_count
     )
 

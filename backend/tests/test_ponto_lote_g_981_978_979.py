@@ -76,3 +76,40 @@ def test_ciencia_somente_apos_fechamento(client, seed_base, auth_headers):
     me = client.get(f"/v1/ponto/me/ciencia?ano={ano}&mes={mes}", headers=user)
     assert me.json()["confirmada"] is True
     assert me.json()["pode_confirmar"] is False
+
+
+def test_resumo_fechamento_equipe(client, seed_base, auth_headers):
+    admin = auth_headers["admin"]
+    user = auth_headers["a1"]
+    a1 = seed_base["a1"]
+    hoje = date.today()
+    if hoje.month == 1:
+        ano, mes = hoje.year - 1, 12
+    else:
+        ano, mes = hoje.year, hoje.month - 1
+
+    r = client.get(f"/v1/ponto/competencias/{ano}/{mes}/resumo-equipe", headers=admin)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ano"] == ano
+    assert body["mes"] == mes
+    assert isinstance(body["itens"], list)
+    assert any(i["atendente_id"] == a1.id for i in body["itens"])
+    item = next(i for i in body["itens"] if i["atendente_id"] == a1.id)
+    assert "faltas" in item
+    assert "saldo_mes_anterior_segundos" in item
+    assert "segundos_credito_banco" in item
+    assert "ciencia_confirmada" in item
+    assert item["ciencia_confirmada"] is False
+
+    assert client.post(f"/v1/ponto/competencias/{ano}/{mes}/fechar", headers=admin).status_code == 200
+    assert client.post(f"/v1/ponto/me/ciencia?ano={ano}&mes={mes}", headers=user).status_code == 200
+
+    r2 = client.get(f"/v1/ponto/competencias/{ano}/{mes}/resumo-equipe", headers=admin)
+    assert r2.status_code == 200, r2.text
+    item2 = next(i for i in r2.json()["itens"] if i["atendente_id"] == a1.id)
+    assert item2["ciencia_confirmada"] is True
+
+    # Atendente não acessa resumo admin
+    deny = client.get(f"/v1/ponto/competencias/{ano}/{mes}/resumo-equipe", headers=user)
+    assert deny.status_code == 403

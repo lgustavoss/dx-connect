@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { ponto } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 
 /** Banner de lembretes de ponto (#773 / #769 / #968) — sem batida automática. */
 export function PontoAlertasBanner() {
   const { user } = useAuth()
+  const location = useLocation()
   const [mensagens, setMensagens] = useState<string[]>([])
   const [dismissed, setDismissed] = useState(false)
+  const jaEmMeuPonto = location.pathname === '/ponto' || location.pathname.startsWith('/ponto/')
 
   useEffect(() => {
     if (!user || user.must_change_password || user.role === 'saas_ops') return
@@ -45,12 +47,17 @@ export function PontoAlertasBanner() {
     <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100">
       <div className="mx-auto flex max-w-6xl flex-wrap items-start justify-between gap-2">
         <div className="space-y-0.5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-800/80 dark:text-amber-200/80">
+            Avisos do ponto
+          </p>
           {mensagens.map((m) => (
             <p key={m}>{m}</p>
           ))}
-          <Link to="/ponto" className="font-medium underline underline-offset-2">
-            Ir para Meu ponto
-          </Link>
+          {!jaEmMeuPonto ? (
+            <Link to="/ponto" className="font-medium underline underline-offset-2">
+              Ir para Meu ponto
+            </Link>
+          ) : null}
         </div>
         <button
           type="button"

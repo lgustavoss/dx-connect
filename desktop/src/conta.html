@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    />
+    <title>DeskRudder</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        color: #e2e8f0;
+        background: radial-gradient(circle at top, #0f2a3a 0%, #0b1220 60%);
+      }
+      main {
+        width: min(24rem, calc(100vw - 2rem));
+        padding: 2rem;
+        border: 1px solid #1e293b;
+        border-radius: 1rem;
+        background: rgba(15, 23, 42, 0.85);
+      }
+      header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; }
+      header img { width: 48px; height: 48px; border-radius: 12px; }
+      h1 { margin: 0; font-size: 1.4rem; }
+      h1 span { color: #22d3ee; }
+      label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.4rem; }
+      .campo {
+        display: flex;
+        align-items: center;
+        border: 1px solid #334155;
+        border-radius: 0.6rem;
+        background: #1e293b;
+      }
+      .campo:focus-within { border-color: #22d3ee; }
+      input {
+        flex: 1;
+        min-width: 0;
+        padding: 0.7rem 0.75rem;
+        border: 0;
+        outline: 0;
+        font-size: 1rem;
+        color: inherit;
+        background: transparent;
+      }
+      .sufixo { padding-right: 0.75rem; font-size: 0.85rem; color: #94a3b8; }
+      p.ajuda { margin: 0.5rem 0 0; font-size: 0.8rem; color: #94a3b8; }
+      p.erro { min-height: 1.2rem; margin: 0.75rem 0 0; font-size: 0.85rem; color: #f87171; }
+      button {
+        width: 100%;
+        margin-top: 1rem;
+        padding: 0.75rem;
+        border: 0;
+        border-radius: 0.6rem;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #0b1220;
+        background: linear-gradient(90deg, #06b6d4, #2563eb);
+        cursor: pointer;
+      }
+      button:disabled { opacity: 0.6; cursor: wait; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="../build/icon.png" alt="" />
+        <h1>Desk<span>Rudder</span></h1>
+      </header>
+      <form id="form" novalidate>
+        <label for="slug">Conta da empresa</label>
+        <div class="campo">
+          <input id="slug" name="slug" autocomplete="off" spellcheck="false" placeholder="minhaempresa" autofocus />
+          <span class="sufixo">.deskrudder.com.br</span>
+        </div>
+        <p class="ajuda">O mesmo identificador do endereço do painel no navegador.</p>
+        <p class="erro" id="erro" role="alert"></p>
+        <button type="submit" id="entrar">Continuar</button>
+      </form>
+    </main>
+    <script src="conta.js"></script>
+  </body>
+</html>

@@ -3,7 +3,13 @@ import { fetchWhatsAppMidiaBlob, whatsappChats, type WhatsappChats } from '../..
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { resolveWhatsappMidiaObjectUrl } from '../../lib/whatsappMidiaCache'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
+import { visualTipoArquivo } from '../../lib/fileTypeIcon'
+import { CustomAudioPlayer } from '../CustomAudioPlayer'
+import { DocumentoPreviewLightbox } from './DocumentoPreviewLightbox'
 import { useToast } from '../ui/Toast'
+
+const ROTULO_SEM_LEGENDA =
+  /^(?:\[\s*[^\]]+\s*\]:\s*)?\[(Imagem|Áudio|Vídeo|Documento|Figurinha|Contacto|Localização)(\s+enviad[oa])?\]$/i
 
 type Bloco = {
   chat: WhatsappChats.Anterior
@@ -31,23 +37,66 @@ function rotuloCorte(chat: WhatsappChats.Anterior) {
   return inicio ? `Atendimento ${proto} iniciado em ${inicio}` : `Atendimento ${proto}`
 }
 
-function MiniImagem({ chatId, mensagemId }: { chatId: number; mensagemId: number }) {
+function legendaVisivel(corpo: string | null | undefined) {
+  const texto = (corpo || '').trim()
+  if (!texto || ROTULO_SEM_LEGENDA.test(texto)) return null
+  return corpo
+}
+
+function MiniMidia({ chatId, m }: { chatId: number; m: WhatsappChats.Mensagem }) {
+  const tipo = (m.tipo_midia || 'texto').toLowerCase()
   const [url, setUrl] = useState<string | null>(null)
+  const [falhou, setFalhou] = useState(false)
+  const [docAberto, setDocAberto] = useState(false)
+
   useEffect(() => {
     let cancel = false
-    void resolveWhatsappMidiaObjectUrl(chatId, mensagemId, () => fetchWhatsAppMidiaBlob(chatId, mensagemId))
+    void resolveWhatsappMidiaObjectUrl(chatId, m.id, () => fetchWhatsAppMidiaBlob(chatId, m.id))
       .then((u) => {
         if (!cancel) setUrl(u)
       })
       .catch(() => {
-        if (!cancel) setUrl(null)
+        if (!cancel) setFalhou(true)
       })
     return () => {
       cancel = true
     }
-  }, [chatId, mensagemId])
-  if (!url) return <p className="text-xs italic opacity-70">Imagem</p>
-  return <img src={url} alt="" className="max-h-40 max-w-full rounded-lg object-contain" />
+  }, [chatId, m.id])
+
+  if (falhou) return <p className="text-xs italic opacity-70">Arquivo indisponível</p>
+  if (!url) return <p className="text-xs italic opacity-70">Carregando…</p>
+
+  if (tipo === 'imagem' || tipo === 'figurinha') {
+    return <img src={url} alt="" className="max-h-40 max-w-full rounded-lg object-contain" />
+  }
+  if (tipo === 'audio') return <CustomAudioPlayer src={url} />
+  if (tipo === 'video') {
+    return <video src={url} controls className="max-h-48 max-w-full rounded-lg" />
+  }
+
+  const visual = visualTipoArquivo(m.midia_nome_original, m.mimetype)
+  const rotulo = (m.midia_nome_original || '').trim() || visual.label
+  return (
+    <>
+      <button
+        type="button"
+        className="flex items-center gap-2 text-left text-xs font-semibold underline"
+        onClick={() => setDocAberto(true)}
+        aria-label="Abrir arquivo"
+      >
+        <span aria-hidden>{visual.emoji}</span>
+        <span className="min-w-0 break-all">{rotulo}</span>
+      </button>
+      {docAberto ? (
+        <DocumentoPreviewLightbox
+          url={url}
+          nome={m.midia_nome_original}
+          mime={m.mimetype}
+          onClose={() => setDocAberto(false)}
+        />
+      ) : null}
+    </>
+  )
 }
 
 function Bolha({ chatId, m }: { chatId: number; m: WhatsappChats.Mensagem }) {
@@ -55,6 +104,8 @@ function Bolha({ chatId, m }: { chatId: number; m: WhatsappChats.Mensagem }) {
   const inbound = m.direcao === 'inbound'
   const hora = quando(m.created_at)
   const tipo = (m.tipo_midia || 'texto').toLowerCase()
+  const midiaAberta = tipo !== 'texto' && Boolean(m.midia_disponivel) && !m.apagada
+  const legenda = legendaVisivel(m.corpo)
   if (sistema) {
     return (
       <p className="mx-auto max-w-md rounded-full bg-amber-100/90 px-3 py-1 text-center text-[11px] text-amber-950 dark:bg-amber-950/40 dark:text-amber-100">
@@ -72,16 +123,18 @@ function Bolha({ chatId, m }: { chatId: number; m: WhatsappChats.Mensagem }) {
             : 'bg-cyan-600 text-white'
         }`}
       >
-        {tipo === 'imagem' && m.midia_disponivel && !m.apagada ? (
-          <MiniImagem chatId={chatId} mensagemId={m.id} />
-        ) : null}
+        {midiaAberta ? <MiniMidia chatId={chatId} m={m} /> : null}
         {m.apagada ? (
           <p className="italic opacity-70">Mensagem apagada</p>
-        ) : (
+        ) : tipo === 'texto' ? (
           m.corpo ? <p className="whitespace-pre-wrap break-words">{m.corpo}</p> : null
-        )}
-        {tipo !== 'texto' && tipo !== 'imagem' ? (
-          <p className="text-[11px] opacity-80">{tipo === 'audio' ? 'Áudio' : tipo === 'video' ? 'Vídeo' : 'Arquivo'}</p>
+        ) : legenda ? (
+          <p className="whitespace-pre-wrap break-words">{legenda}</p>
+        ) : null}
+        {!midiaAberta && tipo !== 'texto' && !m.apagada ? (
+          <p className="text-[11px] opacity-80">
+            {tipo === 'audio' ? 'Áudio' : tipo === 'video' ? 'Vídeo' : tipo === 'imagem' || tipo === 'figurinha' ? 'Imagem' : 'Arquivo'}
+          </p>
         ) : null}
         {hora ? <p className={`text-[10px] ${inbound ? 'text-slate-400' : 'text-cyan-100'}`}>{hora}</p> : null}
       </div>
@@ -165,7 +218,7 @@ export function AtendimentosAnterioresFaixa({
         <div className="sticky top-0 z-10 flex justify-center">
           <button
             type="button"
-            className="rounded-full bg-white/95 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-cyan-50 dark:bg-slate-900/95 dark:text-slate-100 dark:ring-slate-700"
+            className="rounded-full bg-white/95 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-cyan-50 hover:text-slate-800 dark:bg-slate-900/95 dark:text-slate-100 dark:ring-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-100"
             disabled={carregando}
             onClick={() => void carregar(disponivel)}
           >

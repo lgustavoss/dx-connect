@@ -1,4 +1,8 @@
-"""Lote D: solicitação HE (#969) + teto mensal (#974)."""
+"""Lote D: solicitação HE (#969) + teto mensal (#974) — descontinuado em #1135."""
+
+import pytest
+
+pytestmark = pytest.mark.skip(reason="HE solicitada/concedida removida do produto (#1135)")
 
 from datetime import date
 

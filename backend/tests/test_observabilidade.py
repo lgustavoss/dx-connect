@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from app.services.email_outbox_policy import MAX_EMAIL_SEND_ATTEMPTS, retry_delay_seconds
 
 
@@ -95,6 +97,27 @@ def test_evolution_send_text_retenta_falha_transiente(monkeypatch):
     assert err is None
     assert mid == "wa-msg-1"
     assert calls["n"] == 3
+
+
+@pytest.mark.parametrize("code", [0, 502, 504])
+def test_evolution_send_text_nao_retenta_resposta_ambigua(monkeypatch, code):
+    """Timeout/502/504 podem vir depois da entrega — repetir duplicaria a mensagem no cliente."""
+    from app.services import evolution_api
+
+    calls = {"n": 0}
+
+    def fake_request(method, url, *, headers, body=None, timeout=20):
+        calls["n"] += 1
+        return code, None, "timed out"
+
+    monkeypatch.setattr(evolution_api, "_request_json", fake_request)
+    monkeypatch.setattr(evolution_api.settings, "EVOLUTION_HTTP_MAX_ATTEMPTS", 3)
+    monkeypatch.setattr(evolution_api.time, "sleep", lambda s: None)
+
+    ok, err, mid = evolution_api.evolution_send_text("http://evo.local", "inst", "key", "5511999999999", "oi")
+    assert ok is False
+    assert mid is None
+    assert calls["n"] == 1
 
 
 def test_ticket_mensagem_email_retry_ate_falha_permanente(client, seed_base, auth_headers, monkeypatch, db_session):
