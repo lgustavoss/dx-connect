@@ -9,6 +9,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Minhas solicitações: ao publicar uma versão, a coluna da versão em que o pedido ficou disponível volta a ser preenchida
 - PDV (#1142 / #S202609-0029): no cadastro e edição, ícone de olho para ver a senha de acesso remoto ao digitar
 - Funcionário da rede: ícone de olho também na senha do portal do cliente
 - Ponto: fechamento da equipe carrega o resumo em uma só chamada (preparado para equipes maiores)

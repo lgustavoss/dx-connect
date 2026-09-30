@@ -2,8 +2,80 @@
 
 from __future__ import annotations
 
+import importlib.util
+from pathlib import Path
+
 from app.models.saas_solicitacao_produto import SaasSolicitacaoProduto
 from app.services.saas_solicitacao_release import concluir_pedidos_release, extrair_referencias_release
+
+_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "concluir_solicitacoes_release.py"
+_spec = importlib.util.spec_from_file_location("concluir_solicitacoes_release", _SCRIPT)
+assert _spec is not None and _spec.loader is not None
+_release_script = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_release_script)
+textos_da_versao = _release_script.textos_da_versao
+
+
+def test_textos_da_versao_le_release_notes_sem_changelog():
+    """Produção: a imagem não tem CHANGELOG nem scripts/prepare_release."""
+    notes = {
+        "current": {
+            "version": "26.09.005",
+            "changes": [
+                {"text": "PDV (#1142 / #S202609-0029): olho na senha"},
+                {"text": "Ponto (#1132): banco de horas"},
+            ],
+        },
+        "releases": [
+            {
+                "version": "26.09.004",
+                "changes": [{"text": "WhatsApp (#1102): correção antiga"}],
+            }
+        ],
+    }
+    textos = textos_da_versao("26.09.005", changelog=None, release_notes=notes)
+    assert textos == [
+        "PDV (#1142 / #S202609-0029): olho na senha",
+        "Ponto (#1132): banco de horas",
+    ]
+    assert textos_da_versao("v26.09.004", changelog=None, release_notes=notes) == [
+        "WhatsApp (#1102): correção antiga"
+    ]
+    assert textos_da_versao("26.09.099", changelog=None, release_notes=notes) == []
+
+
+def test_textos_da_versao_prioriza_secao_publicada_do_changelog():
+    changelog = """## [Unreleased]
+
+- Rascunho (#S202609-0099): ainda não publicado
+
+## [26.09.005] - 2026-09-29
+
+- PDV (#S202609-0029): publicado
+"""
+    notes = {
+        "current": {
+            "version": "26.09.003",
+            "changes": [{"text": "Versão antiga (#881): não usar"}],
+        }
+    }
+    assert textos_da_versao("26.09.005", changelog=changelog, release_notes=notes) == [
+        "PDV (#S202609-0029): publicado"
+    ]
+
+
+def test_textos_da_versao_unreleased_so_antes_de_publicar():
+    changelog = """## [Unreleased]
+
+- Chat (#S202609-0028): em preparação
+
+## [26.09.004] - 2026-09-27
+
+- WhatsApp (#1102): já publicado
+"""
+    assert textos_da_versao("26.09.005", changelog=changelog, release_notes=None) == [
+        "Chat (#S202609-0028): em preparação"
+    ]
 
 
 def test_extrair_referencias_protocolo_e_issue():
