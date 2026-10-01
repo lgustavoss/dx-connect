@@ -20,8 +20,10 @@ import {
 } from '../lib/pontoOfflineQueue'
 import {
   formatarDuracao,
+  formatarDataRef,
   formatarHora,
   formatarHoraCurta,
+  quandoSolicitado,
   hojeIso,
   boundsSaldoInicialMes,
   rotuloPoliticaGeo,
@@ -48,11 +50,16 @@ function boundsMes(ano: number, mes: number): { desde: string; ate: string } {
   }
 }
 
+function horarioComDataRef(dataRef: string, horarioLocal: string): string {
+  const hora = horarioLocal.includes('T') ? horarioLocal.split('T')[1]?.slice(0, 5) : horarioLocal.slice(0, 5)
+  return `${dataRef}T${hora || '08:00'}`
+}
+
 function rotuloHorarioSolicitacao(s: Ponto.SolicitacaoAjuste): string {
   if (s.tipo === 'abono') return s.motivo
-  const novo = formatarHora(s.horario_solicitado)
+  const novo = quandoSolicitado(s.data_ref, s.horario_solicitado)
   if (s.tipo === 'correcao' && s.horario_anterior) {
-    return `${formatarHora(s.horario_anterior)} → ${novo} — ${s.motivo}`
+    return `${formatarDataRef(s.data_ref)} · ${formatarHoraCurta(s.horario_anterior)} → ${formatarHoraCurta(s.horario_solicitado)} — ${s.motivo}`
   }
   if (s.tipo === 'inclusao') return `Novo horário: ${novo} — ${s.motivo}`
   return `Horário: ${novo} — ${s.motivo}`
@@ -295,7 +302,7 @@ export function MeuPonto() {
           {
             tipo: solTipo,
             tipo_batida: solTipoBatida,
-            horario_solicitado: new Date(solHorario).toISOString(),
+            horario_solicitado: new Date(horarioComDataRef(solDataRef, solHorario)).toISOString(),
             motivo: solMotivo.trim(),
             batida_id: solTipo === 'correcao' ? Number(solBatidaId) : null,
             data_ref: solDataRef || null,
@@ -316,6 +323,17 @@ export function MeuPonto() {
       toast.showError(mensagemFalhaParaToast(err, 'Não foi possível enviar a solicitação.'))
     } finally {
       setEnviandoSol(false)
+    }
+  }
+
+  async function excluirSolicitacao(s: Ponto.SolicitacaoAjuste) {
+    if (!window.confirm('Excluir esta solicitação pendente?')) return
+    try {
+      await ponto.cancelarSolicitacaoAjuste(s.id)
+      toast.showSuccess('Solicitação excluída.')
+      await carregar(true)
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível excluir a solicitação.'))
     }
   }
 
@@ -407,6 +425,8 @@ export function MeuPonto() {
         return 'Aprovada'
       case 'rejeitada':
         return 'Negada'
+      case 'cancelada':
+        return 'Excluída'
       default:
         return estadoSol
     }
@@ -692,7 +712,7 @@ export function MeuPonto() {
                     className="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800"
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{s.data_ref}</span>
+                      <span className="font-medium">{formatarDataRef(s.data_ref)}</span>
                       <span className="text-slate-500">·</span>
                       <span>
                         {s.tipo === 'inclusao'
@@ -713,6 +733,15 @@ export function MeuPonto() {
                       </span>
                     </div>
                     <p className="text-slate-600 dark:text-slate-300">{rotuloHorarioSolicitacao(s)}</p>
+                    {s.estado === 'pendente' ? (
+                      <button
+                        type="button"
+                        className="mt-1 text-xs font-medium text-rose-700 underline dark:text-rose-300"
+                        onClick={() => void excluirSolicitacao(s)}
+                      >
+                        Excluir solicitação
+                      </button>
+                    ) : null}
                     {s.tem_anexo ? (
                       <button
                         type="button"
@@ -801,9 +830,13 @@ export function MeuPonto() {
               type="date"
               value={solDataRef}
               onChange={(e) => {
-                setSolDataRef(e.target.value)
+                const data = e.target.value
+                setSolDataRef(data)
+                if (solTipo === 'inclusao') {
+                  setSolHorario((atual) => horarioComDataRef(data, atual))
+                }
                 if (solTipo === 'correcao' || solTipo === 'abono') {
-                  void abrirSolicitacao(solTipo, e.target.value)
+                  void abrirSolicitacao(solTipo, data)
                 }
               }}
             />
