@@ -643,9 +643,10 @@ def calendario(
     convocados = conv_svc.mapa_convocados(db, atendente.id, desde=desde, ate=ate)
     pausa_min = int(getattr(settings, "pausa_minima_minutos", None) or 0)
     papeis = cob_svc.mapa_papeis_periodo(db, atendente.id, desde=desde, ate=ate)
+    feriados = ponto_settings_svc.datas_feriado(db, atendente.tenant_id, desde, ate)
     dias_out: list[PontoCalendarioDia] = []
     for d in dias_mes:
-        feriado = ponto_settings_svc.eh_feriado(db, atendente.tenant_id, d)
+        feriado = d in feriados
         ausencia_tipo = ausencias.get(d)
         conv = convocados.get(d)
         esp_escala = escala_svc.eh_dia_de_trabalho(atendente, d) if usa else False
@@ -725,15 +726,115 @@ def calendario(
     )
 
 
+def _entrada_aberta_nas_batidas(batidas: list[PontoBatida]) -> PontoBatida | None:
+    aberta: PontoBatida | None = None
+    for b in batidas:
+        if b.tipo == "entrada":
+            aberta = b
+        elif b.tipo == "saida":
+            aberta = None
+    return aberta
+
+
+def _recusar_duas_jornadas_abertas(batidas: list[PontoBatida]) -> None:
+    abertos = [i for i in _intervalos_de_batidas(batidas) if i.aberto]
+    if len(abertos) > 1:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Este ajuste deixaria duas jornadas abertas no mesmo dia. "
+                "Inclua a saída do período anterior antes de uma nova entrada."
+            ),
+        )
+
+
+def _contexto_visao_hoje(
+    db: Session, ids: list[int], hoje: date
+) -> tuple[
+    dict[int, list[PontoBatida]],
+    dict[int, str],
+    dict[int, object],
+    dict[int, str],
+]:
+    """Batidas, ausência, convocação e papel de cobertura do dia, em quatro consultas."""
+    from sqlalchemy import or_
+
+    from app.models.ponto_ausencia import PontoAusencia
+    from app.models.ponto_cobertura import PontoCobertura
+    from app.models.ponto_dia_convocado import PontoDiaConvocado
+
+    batidas_por_pessoa: dict[int, list[PontoBatida]] = {}
+    ausencia_por_pessoa: dict[int, str] = {}
+    convocado_por_pessoa: dict[int, object] = {}
+    papel_por_pessoa: dict[int, str] = {}
+    if not ids:
+        return batidas_por_pessoa, ausencia_por_pessoa, convocado_por_pessoa, papel_por_pessoa
+
+    inicio, fim = _bounds_periodo(hoje, hoje)
+    if inicio is not None and fim is not None:
+        for b in (
+            _q_ativas(db)
+            .filter(
+                PontoBatida.atendente_id.in_(ids),
+                PontoBatida.registrado_em >= inicio,
+                PontoBatida.registrado_em < fim,
+            )
+            .order_by(PontoBatida.registrado_em.asc(), PontoBatida.id.asc())
+            .all()
+        ):
+            batidas_por_pessoa.setdefault(b.atendente_id, []).append(b)
+
+    for row in (
+        db.query(PontoAusencia)
+        .filter(
+            PontoAusencia.atendente_id.in_(ids),
+            PontoAusencia.estado == "aprovada",
+            PontoAusencia.desde <= hoje,
+            PontoAusencia.ate >= hoje,
+        )
+        .order_by(PontoAusencia.id.asc())
+        .all()
+    ):
+        ausencia_por_pessoa[row.atendente_id] = row.tipo
+
+    for row in (
+        db.query(PontoDiaConvocado)
+        .filter(
+            PontoDiaConvocado.atendente_id.in_(ids),
+            PontoDiaConvocado.data_ref == hoje,
+            PontoDiaConvocado.estado == "ativa",
+        )
+        .all()
+    ):
+        convocado_por_pessoa[row.atendente_id] = row
+
+    for row in (
+        db.query(PontoCobertura)
+        .filter(
+            PontoCobertura.estado == "aprovada",
+            PontoCobertura.data_ref == hoje,
+            or_(
+                PontoCobertura.solicitante_id.in_(ids),
+                PontoCobertura.cobertor_id.in_(ids),
+            ),
+        )
+        .order_by(PontoCobertura.id.asc())
+        .all()
+    ):
+        if row.solicitante_id in ids:
+            papel_por_pessoa[row.solicitante_id] = "solicitante"
+        if row.cobertor_id in ids:
+            papel_por_pessoa[row.cobertor_id] = "cobertor"
+    return batidas_por_pessoa, ausencia_por_pessoa, convocado_por_pessoa, papel_por_pessoa
+
+
 def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
-    from app.services import ponto_ausencia as ausencia_svc
-    from app.services import ponto_convocado as conv_svc
     from app.services.presenca import PRESENCA_TTL_SEC
 
     hoje = _hoje()
     agora = _agora_utc()
     limite_online = agora - timedelta(seconds=PRESENCA_TTL_SEC)
-    feriado_hoje = ponto_settings_svc.eh_feriado(db, admin.tenant_id, hoje)
+    feriado_hoje = hoje in ponto_settings_svc.datas_feriado(db, admin.tenant_id, hoje, hoje)
     atendentes = (
         db.query(Atendente)
         .filter(
@@ -744,24 +845,31 @@ def visao_hoje(db: Session, admin: Atendente) -> PontoHojeRead:
         .order_by(Atendente.nome.asc())
         .all()
     )
+    ids = [a.id for a in atendentes]
+    batidas_por_pessoa, ausencia_por_pessoa, convocado_por_pessoa, papel_por_pessoa = (
+        _contexto_visao_hoje(db, ids, hoje)
+    )
     itens: list[PontoHojeItem] = []
     for a in atendentes:
         usa = escala_svc.escala_configurada(a)
-        ausencia_tipo = ausencia_svc.tipo_ausencia_aprovada_no_dia(db, a.id, hoje)
-        conv = conv_svc.convocado_ativo_no_dia(db, a.id, hoje)
-        esperado = conv_svc.eh_dia_esperado_efetivo(db, a, hoje) if not feriado_hoje else False
-        entrada = _entrada_aberta_no_dia(db, a.id, hoje)
-        ultima_hoje = _ultima_batida_no_dia(db, a.id, hoje)
-        inicio, fim = _bounds_periodo(hoje, hoje)
-        bats = (
-            _q_ativas(db)
-            .filter(
-                PontoBatida.atendente_id == a.id,
-                PontoBatida.registrado_em >= inicio,
-                PontoBatida.registrado_em < fim,
-            )
-            .all()
-        )
+        ausencia_tipo = ausencia_por_pessoa.get(a.id)
+        conv = convocado_por_pessoa.get(a.id)
+        papel = papel_por_pessoa.get(a.id)
+        if feriado_hoje:
+            esperado = False
+        elif conv is not None:
+            esperado = True
+        elif papel == "solicitante":
+            esperado = False
+        elif papel == "cobertor":
+            esperado = True
+        elif usa:
+            esperado = escala_svc.eh_dia_de_trabalho(a, hoje)
+        else:
+            esperado = False
+        bats = batidas_por_pessoa.get(a.id, [])
+        entrada = _entrada_aberta_nas_batidas(bats)
+        ultima_hoje = bats[-1] if bats else None
         te = any(b.tipo == "entrada" for b in bats)
         ts = any(b.tipo == "saida" for b in bats)
         atrasado = _atrasado_entrada(a, _primeira_entrada_do_dia(bats), conv=conv)
@@ -870,6 +978,26 @@ def banco_horas(
     limiar_min = int(getattr(settings, "he_banco_primeiros_minutos", None) or 120)
     ausencias = ausencia_svc.mapa_ausencias_aprovadas(db, atendente.id, desde=desde, ate=ate)
     convocados = conv_svc.mapa_convocados(db, atendente.id, desde=desde, ate=ate)
+    from app.services import ponto_cobertura as cob_svc
+
+    papeis = cob_svc.mapa_papeis_periodo(db, atendente.id, desde=desde, ate=ate)
+    feriados = ponto_settings_svc.datas_feriado(db, atendente.tenant_id, desde, ate)
+    inicio_periodo, fim_periodo = _bounds_periodo(desde, ate)
+    batidas_periodo = (
+        _q_ativas(db)
+        .filter(
+            PontoBatida.atendente_id == atendente.id,
+            PontoBatida.registrado_em >= inicio_periodo,
+            PontoBatida.registrado_em < fim_periodo,
+        )
+        .order_by(PontoBatida.registrado_em.asc(), PontoBatida.id.asc())
+        .all()
+        if inicio_periodo is not None and fim_periodo is not None
+        else []
+    )
+    batidas_por_dia: dict[date, list[PontoBatida]] = {}
+    for batida in batidas_periodo:
+        batidas_por_dia.setdefault(_data_negocio(batida.registrado_em), []).append(batida)
     dias_escala = 0
     dias_feriado = 0
     esperado = 0
@@ -880,21 +1008,37 @@ def banco_horas(
     he_pagos = 0
     d = desde
     while d <= ate:
-        feriado = ponto_settings_svc.eh_feriado(db, atendente.tenant_id, d)
+        feriado = d in feriados
         esperado_dia = 0
         aus_tipo = ausencias.get(d)
+        conv = convocados.get(d)
+        papel = papeis.get(d)
+        if conv is not None:
+            dia_esperado = True
+        elif papel == "solicitante":
+            dia_esperado = False
+        elif papel == "cobertor":
+            dia_esperado = True
+        elif usa:
+            dia_esperado = escala_svc.eh_dia_de_trabalho(atendente, d)
+        else:
+            dia_esperado = False
         # férias/folga programada: sem carga. abono = folga concedida (não é falta) que ainda debita.
         if feriado:
             dias_feriado += 1
         elif aus_tipo in ("ferias", "folga_programada"):
             pass
-        elif conv_svc.eh_dia_esperado_efetivo(db, atendente, d):
+        elif dia_esperado:
             dias_escala += 1
-            conv = convocados.get(d)
-            seg = conv_svc.segundos_esperados_efetivo(db, atendente, d, conv)
+            if conv is not None:
+                seg = conv_svc.segundos_esperados_convocado(conv)
+                if seg <= 0:
+                    seg = escala_svc.segundos_esperados_dia(atendente, d)
+            else:
+                seg = escala_svc.segundos_esperados_dia(atendente, d)
             esperado_dia = seg if seg > 0 else meta_default
-        hist_dia = historico(db, atendente, desde=d, ate=d, offset=0, limit=10_000)
-        realizado_dia = hist_dia.total_segundos_fechados
+        intervalos_dia = _intervalos_de_batidas(batidas_por_dia.get(d, []))
+        realizado_dia = sum(i.duracao_segundos or 0 for i in intervalos_dia if not i.aberto)
         esperado += esperado_dia
         realizado += realizado_dia
         if esperado_dia > 0:
@@ -913,7 +1057,7 @@ def banco_horas(
                 # Falta integral (nenhum tempo fechado e sem jornada aberta): não debita o banco.
                 # Desconto salarial da falta é caminho separado; abono explícito debita a carga.
                 # Déficit parcial (ex.: 6h de 8h) continua no banco.
-                tem_aberto = any(i.aberto for i in hist_dia.intervalos)
+                tem_aberto = any(i.aberto for i in intervalos_dia)
                 falta_integral = (
                     realizado_dia == 0 and not tem_aberto and aus_tipo != "abono"
                 )
@@ -1182,6 +1326,7 @@ def admin_criar_batida(
     )
     db.add(batida)
     db.flush()
+    _recusar_duas_jornadas_abertas(_batidas_no_dia(db, alvo.id, dia))
     registrar_audit(
         db,
         "ponto_batida",
@@ -1237,6 +1382,7 @@ def admin_atualizar_batida(
             detail="Informe o motivo do ajuste (mínimo 3 caracteres).",
         )
     antes = {"tipo": batida.tipo, "registrado_em": batida.registrado_em.isoformat()}
+    dia_antes = _data_negocio(batida.registrado_em)
     if tipo is not None:
         if tipo not in TIPOS_VALIDOS:
             raise HTTPException(status_code=400, detail="Tipo inválido")
@@ -1244,7 +1390,10 @@ def admin_atualizar_batida(
     if registrado_em is not None:
         batida.registrado_em = _as_utc(registrado_em)
     batida.origem = batida.origem or "admin"
+    db.flush()
     dia = _data_negocio(batida.registrado_em)
+    for dia_chk in {dia, dia_antes}:
+        _recusar_duas_jornadas_abertas(_batidas_no_dia(db, batida.atendente_id, dia_chk))
     pos_fechamento = comp_svc.competencia_fechada_para_data(db, admin.tenant_id, dia)
     registrar_audit(
         db,

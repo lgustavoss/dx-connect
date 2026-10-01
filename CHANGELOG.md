@@ -11,11 +11,17 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Minhas solicitações: ao publicar uma versão, a coluna da versão em que o pedido ficou disponível volta a ser preenchida
 - PDV (#1142 / #S202609-0029): no cadastro e edição, ícone de olho para ver a senha de acesso remoto ao digitar
 - Funcionário da rede: ícone de olho também na senha do portal do cliente
 - Ponto: fechamento da equipe carrega o resumo em uma só chamada (preparado para equipes maiores)
 - Atendentes: opção «Exigir troca de senha no próximo login» (já existia no fluxo de login); ao definir senha nova, a exigência fica ligada por padrão
-- Ponto: no cadastro do atendente, abas Dados e Ponto; removidos tolerância de atraso e teto de HE WhatsApp (ajuste vai ao banco; WhatsApp exige jornada aberta)
+- Ponto: no cadastro do atendente, abas Dados e Ponto; removidos tolerância de atraso e teto de HE WhatsApp (ajuste vai ao banco)
+- Ponto: na jornada semanal do atendente, dá para informar início e fim do intervalo. As horas previstas descontam esse intervalo (8h–18h com almoço de 1h = 9h). Sem o intervalo preenchido e salvo, a meta continua a janela inteira
+- Ponto: ajuste que deixaria duas entradas em aberto no mesmo dia é recusado; entrada, saída do almoço e retorno continuam válidos
+- Ponto: na solicitação de inclusão, a data do dia aparece junto com o horário
+- Ponto: o colaborador exclui a própria solicitação enquanto ela ainda está pendente
+- Ponto: Meu ponto carrega o calendário e o banco do mês com menos consultas
 - Ponto: ajuda do ponto atualizada (falta × folga × déficit, fechamento e feriados recorrentes); botão discreto «Ajuda» com texto distinto para colaborador e admin
 - Ponto: feriado da instância pode marcar «repetir todos os anos» (mesmo dia/mês vale automaticamente nos anos seguintes)
 - Ponto: aba Configurações mais compacta — interruptores modernos, campos em grade e menos largura desperdiçada
@@ -55,7 +61,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
-- WhatsApp (#1135): fora do horário previsto, pegar chat novo exige ponto em aberto no dia (sem pedido de hora extra)
+- WhatsApp: depois do horário previsto, quem continua no atendimento pode pegar chat. A hora extra se acerta depois com o gerente — o sistema não impede o atendimento
+- Ponto: os dois períodos do dia (manhã e tarde) entram no tempo trabalhado; a meta desconta o intervalo quando ele está preenchido
 - WhatsApp (#1122): no atendimento anterior, áudio, vídeo, imagem e arquivos disponíveis podem ser abertos
 - WhatsApp (#1123): no modo escuro, o botão de ver o atendimento anterior continua legível com o mouse em cima
 - Chat (#S202609-0025): o painel de emoji e figurinha deixa de fechar sozinho — clicar num emoji insere na mensagem e a aba Figurinha abre normalmente

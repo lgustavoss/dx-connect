@@ -1,4 +1,4 @@
-"""Bloqueio de pegar WhatsApp fora do horário sem jornada aberta (#1135)."""
+"""Assumir WhatsApp depois do horário previsto não depende do ponto (#1135)."""
 
 from datetime import datetime, timedelta
 
@@ -69,7 +69,8 @@ def _criar_chat_fila(db_session, seed_base, *, wa_suffix: str):
     return chat.id
 
 
-def test_assumir_bloqueado_apos_jornada_sem_ponto_aberto(client, seed_base, auth_headers, db_session):
+def test_assumir_ok_apos_jornada_mesmo_sem_ponto_aberto(client, seed_base, auth_headers, db_session):
+    """Passou do horário previsto: ainda pode pegar chat. A hora extra se acerta depois."""
     admin = auth_headers["admin"]
     user = auth_headers["a1"]
     a1 = seed_base["a1"]
@@ -77,9 +78,7 @@ def test_assumir_bloqueado_apos_jornada_sem_ponto_aberto(client, seed_base, auth
     assert r_patch.status_code == 200, r_patch.text
     chat_id = _criar_chat_fila(db_session, seed_base, wa_suffix="650")
     r = client.post(f"/v1/whatsapp/chats/{chat_id}/assumir", headers=user)
-    assert r.status_code == 403, r.text
-    detail = r.json()["detail"].lower()
-    assert "jornada" in detail or "ponto" in detail
+    assert r.status_code == 200, r.text
 
 
 def test_assumir_ok_com_jornada_aberta(client, seed_base, auth_headers, db_session):

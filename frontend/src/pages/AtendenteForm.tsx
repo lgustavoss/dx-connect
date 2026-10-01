@@ -18,6 +18,7 @@ import { AtendenteLocaisSection } from '../components/AtendenteLocaisSection'
 import {
   horarioSemanaFromApi,
   horarioSemanaPadrao,
+  horarioSemanaParaApi,
   validarHorarioSemana,
   type HorarioSemana,
 } from '../lib/horarioSemana'
@@ -156,7 +157,7 @@ export function AtendenteForm() {
   }
 
   function payloadJornada(): Atendentes.Create | Atendentes.Update {
-    // Tolerância e teto de HE WhatsApp saíram do cadastro: déficit vai ao banco; WhatsApp exige jornada aberta.
+    // Tolerância e teto de HE WhatsApp saíram do cadastro: déficit vai ao banco; o chat não trava após o horário.
     if (modoJornada === 'nenhum') {
       return {
         modo_jornada: 'nenhum',
@@ -176,7 +177,7 @@ export function AtendenteForm() {
       return {
         modo_jornada: 'semanal',
         usa_escala: true,
-        horario_semana: horarioSemana,
+        horario_semana: horarioSemanaParaApi(horarioSemana),
         escala_horas_trabalho: null,
         escala_horas_folga: null,
         escala_inicio_em: null,
@@ -448,7 +449,11 @@ export function AtendenteForm() {
                   />
                   {modoJornada === 'semanal' && (
                     <div className="mt-4">
-                      <HorarioSemanaEditor value={horarioSemana} onChange={setHorarioSemana} />
+                      <HorarioSemanaEditor
+                        value={horarioSemana}
+                        onChange={setHorarioSemana}
+                        mostrarIntervalo
+                      />
                     </div>
                   )}
                   {modoJornada === 'ciclo' && (

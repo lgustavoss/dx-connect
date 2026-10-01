@@ -781,6 +781,8 @@ export const ponto = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  cancelarSolicitacaoAjuste: (id: number) =>
+    api<Ponto.SolicitacaoAjuste>(`/ponto/solicitacoes-ajuste/${id}`, { method: 'DELETE' }),
   fetchSolicitacaoAjusteAnexoBlob: async (id: number): Promise<Blob> => {
     const token = getAuthToken()
     const headers: Record<string, string> = {}
@@ -2599,7 +2601,7 @@ export namespace Atendentes {
     must_change_password?: boolean;
     modo_jornada?: ModoJornada;
     usa_escala?: boolean;
-    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string; intervalo_inicio?: string | null; intervalo_fim?: string | null }> | null;
     escala_horas_trabalho?: number | null;
     escala_horas_folga?: number | null;
     escala_inicio_em?: string | null;
@@ -2624,7 +2626,7 @@ export namespace Atendentes {
     must_change_password?: boolean;
     modo_jornada?: ModoJornada;
     usa_escala?: boolean;
-    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string; intervalo_inicio?: string | null; intervalo_fim?: string | null }> | null;
     escala_horas_trabalho?: number | null;
     escala_horas_folga?: number | null;
     escala_inicio_em?: string | null;
@@ -2646,7 +2648,7 @@ export namespace Atendentes {
     must_change_password?: boolean;
     modo_jornada?: ModoJornada;
     usa_escala?: boolean;
-    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string; intervalo_inicio?: string | null; intervalo_fim?: string | null }> | null;
     escala_horas_trabalho?: number | null;
     escala_horas_folga?: number | null;
     escala_inicio_em?: string | null;
@@ -4275,7 +4277,7 @@ export namespace Sla {
     horario_timezone: string;
     horario_inicio: string | null;
     horario_fim: string | null;
-    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string; intervalo_inicio?: string | null; intervalo_fim?: string | null }> | null;
     usar_feriados_nacionais: boolean;
     ativo: boolean;
   }
@@ -4286,7 +4288,7 @@ export namespace Sla {
     horario_timezone?: string;
     horario_inicio?: string | null;
     horario_fim?: string | null;
-    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string; intervalo_inicio?: string | null; intervalo_fim?: string | null }> | null;
     usar_feriados_nacionais?: boolean;
     ativo?: boolean;
   }
@@ -4297,7 +4299,7 @@ export namespace Sla {
     horario_timezone?: string;
     horario_inicio?: string | null;
     horario_fim?: string | null;
-    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string }> | null;
+    horario_semana?: Record<string, { ativo?: boolean; inicio?: string; fim?: string; intervalo_inicio?: string | null; intervalo_fim?: string | null }> | null;
     usar_feriados_nacionais?: boolean;
     ativo?: boolean;
   }
