@@ -1,12 +1,17 @@
 {
-  "current_version": "26.09.005",
-  "current_version_display": "v26.09.005",
+  "current_version": "26.10.001",
+  "current_version_display": "v26.10.001",
   "current": {
-    "version": "26.09.005",
-    "version_display": "v26.09.005",
-    "date": "2026-09-29",
+    "version": "26.10.001",
+    "version_display": "v26.10.001",
+    "date": "2026-10-01",
     "status": "published",
     "changes": [
+      {
+        "product": "deskrudder",
+        "category": "melhorias",
+        "text": "Minhas solicitações: ao publicar uma versão, a coluna da versão em que o pedido ficou disponível volta a ser preenchida"
+      },
       {
         "product": "deskrudder",
         "category": "melhorias",
@@ -30,7 +35,32 @@
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "Ponto: no cadastro do atendente, abas Dados e Ponto; removidos tolerância de atraso e teto de HE WhatsApp (ajuste vai ao banco; WhatsApp exige jornada aberta)"
+        "text": "Ponto: no cadastro do atendente, abas Dados e Ponto; removidos tolerância de atraso e teto de HE WhatsApp (ajuste vai ao banco)"
+      },
+      {
+        "product": "deskrudder",
+        "category": "melhorias",
+        "text": "Ponto: na jornada semanal do atendente, dá para informar início e fim do intervalo. As horas previstas descontam esse intervalo (8h–18h com almoço de 1h = 9h). Sem o intervalo preenchido e salvo, a meta continua a janela inteira"
+      },
+      {
+        "product": "deskrudder",
+        "category": "melhorias",
+        "text": "Ponto: ajuste que deixaria duas entradas em aberto no mesmo dia é recusado; entrada, saída do almoço e retorno continuam válidos"
+      },
+      {
+        "product": "deskrudder",
+        "category": "melhorias",
+        "text": "Ponto: na solicitação de inclusão, a data do dia aparece junto com o horário"
+      },
+      {
+        "product": "deskrudder",
+        "category": "melhorias",
+        "text": "Ponto: o colaborador exclui a própria solicitação enquanto ela ainda está pendente"
+      },
+      {
+        "product": "deskrudder",
+        "category": "melhorias",
+        "text": "Ponto: Meu ponto carrega o calendário e o banco do mês com menos consultas"
       },
       {
         "product": "deskrudder",
@@ -215,7 +245,12 @@
       {
         "product": "deskrudder",
         "category": "correcoes",
-        "text": "WhatsApp (#1135): fora do horário previsto, pegar chat novo exige ponto em aberto no dia (sem pedido de hora extra)"
+        "text": "WhatsApp: depois do horário previsto, quem continua no atendimento pode pegar chat. A hora extra se acerta depois com o gerente — o sistema não impede o atendimento"
+      },
+      {
+        "product": "deskrudder",
+        "category": "correcoes",
+        "text": "Ponto: os dois períodos do dia (manhã e tarde) entram no tempo trabalhado; a meta desconta o intervalo quando ele está preenchido"
       },
       {
         "product": "deskrudder",
@@ -226,6 +261,11 @@
         "product": "deskrudder",
         "category": "correcoes",
         "text": "WhatsApp (#1123): no modo escuro, o botão de ver o atendimento anterior continua legível com o mouse em cima"
+      },
+      {
+        "product": "deskrudder",
+        "category": "correcoes",
+        "text": "WhatsApp (#1102): abrir um atendimento pelo histórico deixa de derrubar a tela"
       },
       {
         "product": "deskrudder",
@@ -4282,6 +4322,289 @@
           "product": "deskrudder",
           "category": "correcoes",
           "text": "WhatsApp (#1123): no modo escuro, o botão de ver o atendimento anterior continua legível com o mouse em cima"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Chat (#S202609-0025): o painel de emoji e figurinha deixa de fechar sozinho — clicar num emoji insere na mensagem e a aba Figurinha abre normalmente"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp (#S202609-0025): figurinha recebida aparece no tamanho de figurinha e não abre mais como imagem ampliada"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp (#1139): ao enviar, o campo de mensagem limpa na hora e a mensagem aparece como «enviando» — dá para digitar a próxima sem esperar, o texto novo não some mais e, se o envio falhar, a mensagem fica na conversa com a opção de tentar de novo; quando o WhatsApp demora a responder, a mensagem não é mais enviada em dobro ao cliente"
+        }
+      ]
+    },
+    {
+      "version": "26.10.001",
+      "version_display": "v26.10.001",
+      "date": "2026-10-01",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Minhas solicitações: ao publicar uma versão, a coluna da versão em que o pedido ficou disponível volta a ser preenchida"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "PDV (#1142 / #S202609-0029): no cadastro e edição, ícone de olho para ver a senha de acesso remoto ao digitar"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Funcionário da rede: ícone de olho também na senha do portal do cliente"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: fechamento da equipe carrega o resumo em uma só chamada (preparado para equipes maiores)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Atendentes: opção «Exigir troca de senha no próximo login» (já existia no fluxo de login); ao definir senha nova, a exigência fica ligada por padrão"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: no cadastro do atendente, abas Dados e Ponto; removidos tolerância de atraso e teto de HE WhatsApp (ajuste vai ao banco)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: na jornada semanal do atendente, dá para informar início e fim do intervalo. As horas previstas descontam esse intervalo (8h–18h com almoço de 1h = 9h). Sem o intervalo preenchido e salvo, a meta continua a janela inteira"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: ajuste que deixaria duas entradas em aberto no mesmo dia é recusado; entrada, saída do almoço e retorno continuam válidos"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: na solicitação de inclusão, a data do dia aparece junto com o horário"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: o colaborador exclui a própria solicitação enquanto ela ainda está pendente"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: Meu ponto carrega o calendário e o banco do mês com menos consultas"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: ajuda do ponto atualizada (falta × folga × déficit, fechamento e feriados recorrentes); botão discreto «Ajuda» com texto distinto para colaborador e admin"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: feriado da instância pode marcar «repetir todos os anos» (mesmo dia/mês vale automaticamente nos anos seguintes)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: aba Configurações mais compacta — interruptores modernos, campos em grade e menos largura desperdiçada"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: calendário destaca falta com «Converter em folga (banco)» e mostra déficit parcial automático (−Xh no banco)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: fechamento e espelho PDF/Excel/folha RH com saldo inicial, crédito e débito do banco e faltas não abonadas (p/ desconto em folha)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: removida a auditoria técnica da equipe — o calendário e o histórico de solicitações bastam no dia a dia"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: calendário do mês começa no domingo; na correção de horário, a fila mostra anterior → novo"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: na equipe, o admin só aprova/rejeita pedidos do colaborador (sem ajuste manual nem dia convocado); fila e histórico de solicitações redesenhados"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: tela Ponto da equipe em abas (Hoje, Espelho, Ajustes, Fechamento e Configurações), com aviso de pedidos pendentes"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: aba Espelho na equipe — calendário e cards de um colaborador; exportar (CSV, PDF, Excel, folha RH) só dessa pessoa no mês"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: aba Ajustes com filtro de colaborador e mês (fila + histórico do período)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: clicar no nome do mês abre o seletor de calendário (Ajustes e Espelho)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: fechamento mensal com texto explicando o que o Fechar mês faz; reabrir pede motivo na tela (sem prompt do navegador)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: no fechamento, resumo da equipe no mês (OK/alerta/faltas/ciência) com Ver espelho e PDF por colaborador"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: relatório PDF/Excel mensal — colaborador no cabeçalho, uma linha por dia, horários sem data repetida, duração em horas (ex.: 7h55) e pausa entre turnos"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: espelho de fechamento sem ajustes admin; calendário completo com feriado, folga (sábado/domingo) e falta"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: espelho PDF com logo da empresa, título centralizado, colaborador em destaque e «Gerado em» no rodapé"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: logo do espelho/PDF sem margem branca excessiva (recorte automático no upload e na geração)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: configurações — jornada diária em horas; removidos fecho automático e teto mensal de HE; nota legal sobre banco negativo entre meses"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: falta integral não debita o banco (evita dupla penalidade com desconto salarial); déficit parcial e folga (banco) continuam abatendo horas"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: ao aprovar solicitação de ajuste não pede mais motivo; rejeição abre campo na tela. Pedidos de inclusão/correção/folga aceitam anexo (PDF ou imagem, ex. atestado)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: avisos de atraso ou “saída prevista” saíram do banner — déficit parcial desconta no banco; falta integral não; folga concedida (acordo) não conta como falta e desconta a carga do dia no banco após aprovação"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: Meu ponto em duas abas — Operação (bater ponto, ciência do espelho e solicitações com filtro) e Espelho do mês (cards e calendário do mês selecionado)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: solicitação de inclusão ou correção a partir do clique no dia do calendário"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#1138): nas configurações, o admin define se o excesso vai para banco, pagamento ou misto (ex.: 2h no banco e o restante pago); o espelho e a folha mostram HE a pagar"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: o indicador da barra superior (Fora do ponto / Trabalhando) abre o registro rápido sem sair da tela atual"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: Meu ponto mostra o resumo do mês em cards (dias, horas, faltas e banco), no modelo do app de referência"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#1135): o colaborador pede inclusão ou correção de batida; o administrador aprova e o sistema aplica o ajuste"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#1135): saíram da tela os pedidos de hora extra, justificativa, cobertura de plantão e férias/folga — para hora além da jornada, basta manter o ponto em aberto"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#1132): o banco credita o excesso além da jornada e debita o que faltar (atraso/falta), conforme a política da empresa"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#1133): um único botão de bater ponto; o período sem saída fica em aberto e a batida do dia seguinte não fecha o dia anterior"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "App para Windows (#1130): o DeskRudder fica no ícone da bandeja como o WhatsApp — fechar a janela não encerra os alertas da fila, o contador de pendências aparece no ícone e dá para abrir junto com o computador (o app pergunta na primeira vez); o instalador mostra a logo do DeskRudder e uma imagem do painel (#S202609-0027)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "CRM (#1098): o histórico da negociação mostra quem escreveu a nota e o horário; o autor pode corrigir por 5 minutos e marcar um lembrete de reunião, que fica na tela até a pessoa fechar o aviso"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Minhas solicitações (#1125): a lista mostra, em coluna, a versão em que o pedido concluído ficou disponível"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Sobre (#1126): a introdução deixa de falar de melhorias de DevOps"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Minhas solicitações (#1127): a lista abre nas pendentes, mostra quem abriu o pedido e aceita mais de um status ao mesmo tempo"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp: depois do horário previsto, quem continua no atendimento pode pegar chat. A hora extra se acerta depois com o gerente — o sistema não impede o atendimento"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Ponto: os dois períodos do dia (manhã e tarde) entram no tempo trabalhado; a meta desconta o intervalo quando ele está preenchido"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp (#1122): no atendimento anterior, áudio, vídeo, imagem e arquivos disponíveis podem ser abertos"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp (#1123): no modo escuro, o botão de ver o atendimento anterior continua legível com o mouse em cima"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp (#1102): abrir um atendimento pelo histórico deixa de derrubar a tela"
         },
         {
           "product": "deskrudder",
