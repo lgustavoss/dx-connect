@@ -15,6 +15,18 @@ export function formatarHora(iso: string | null | undefined): string {
   }
 }
 
+export function formatarDataRef(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
+  if (!m) return iso
+  return `${m[3]}/${m[2]}/${m[1]}`
+}
+
+/** Data de referência junto do horário pedido na inclusão ou correção. */
+export function quandoSolicitado(dataRef: string, horarioIso: string | null | undefined): string {
+  return `${formatarDataRef(dataRef)} às ${formatarHoraCurta(horarioIso)}`
+}
+
 export function formatarHoraCurta(iso: string | null | undefined): string {
   if (!iso) return '—'
   try {

@@ -66,26 +66,18 @@ def he_ativa(db: Session, atendente: Atendente, when: datetime | None = None) ->
 
 
 def pode_pegar_whatsapp(db: Session, atendente: Atendente, when: datetime | None = None) -> bool:
-    """Fora do horário previsto: só se a jornada do dia ainda estiver aberta (#1135)."""
-    if not fora_da_jornada(atendente, when):
-        return True
-    from app.services import ponto as ponto_svc
+    """Fim do horário previsto não impede pegar WhatsApp.
 
-    return ponto_svc.em_jornada_aberta(db, atendente.id)
+    Quem continua no atendimento depois da jornada gera hora extra no ponto.
+    O motivo se acerta com o gerente depois — a fila não espera essa decisão.
+    """
+    del db, atendente, when
+    return True
 
 
 def exigir_pode_pegar_whatsapp(db: Session, atendente: Atendente) -> None:
-    """Bloqueia assumir WhatsApp fora do horário sem ponto em aberto (#1135)."""
-    if pode_pegar_whatsapp(db, atendente):
-        return
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail=(
-            "Sua jornada prevista já terminou. Mantenha o ponto em aberto "
-            "(bata a entrada e só registre a saída ao finalizar) para pegar "
-            "novos chats no WhatsApp."
-        ),
-    )
+    """Não bloqueia assumir chat após a carga horária prevista."""
+    pode_pegar_whatsapp(db, atendente)
 
 
 def _to_read(row: PontoHoraExtra) -> PontoHoraExtraRead:
@@ -469,7 +461,7 @@ def me_status(db: Session, atendente: Atendente) -> dict:
     consumido_m = _consumido_mes(db, atendente)
     return {
         "fora_da_jornada": fora,
-        "pode_pegar_whatsapp": (not fora) or ativa is not None,
+        "pode_pegar_whatsapp": pode_pegar_whatsapp(db, atendente),
         "he_ativa": _to_read(ativa) if ativa else None,
         "pedido_pendente": _to_read(pendente) if pendente else None,
         "ultimo_rejeitado": _to_read(rejeitada) if rejeitada and not pendente and not ativa else None,

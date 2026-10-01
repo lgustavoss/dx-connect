@@ -354,6 +354,42 @@ def decidir(
     return _to_read(row)
 
 
+def cancelar(
+    db: Session,
+    atendente: Atendente,
+    solicitacao_id: int,
+) -> PontoSolicitacaoAjusteRead:
+    """O autor exclui a própria solicitação enquanto ela ainda está pendente."""
+    ponto_svc.exigir_acesso_ponto(atendente)
+    row = (
+        db.query(PontoSolicitacaoAjuste)
+        .options(joinedload(PontoSolicitacaoAjuste.atendente))
+        .filter(
+            PontoSolicitacaoAjuste.id == solicitacao_id,
+            PontoSolicitacaoAjuste.tenant_id == atendente.tenant_id,
+        )
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Solicitação não encontrada")
+    if row.atendente_id != atendente.id:
+        raise HTTPException(status_code=403, detail="Só o autor pode excluir a própria solicitação.")
+    if row.estado != "pendente":
+        raise HTTPException(status_code=400, detail="Só é possível excluir uma solicitação pendente.")
+    row.estado = "cancelada"
+    registrar_audit(
+        db,
+        "ponto_solicitacao_ajuste",
+        row.id,
+        "cancelar",
+        atendente.id,
+        payload={"tipo": row.tipo, "data_ref": str(row.data_ref)},
+    )
+    db.commit()
+    db.refresh(row)
+    return _to_read(row)
+
+
 def obter_anexo(
     db: Session,
     viewer: Atendente,

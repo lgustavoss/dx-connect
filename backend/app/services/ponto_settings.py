@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -296,6 +296,38 @@ def eh_feriado(db: Session, tenant_id: int, dia: date) -> bool:
     if settings.usar_feriados_nacionais and is_feriado_nacional_br(dia):
         return True
     return feriado_custom_no_dia(db, tenant_id, dia) is not None
+
+
+def _feriado_custom_nas_rows(rows: list[PontoFeriado], dia: date) -> bool:
+    for row in rows:
+        if not row.ativo:
+            continue
+        if row.data == dia:
+            return True
+        if row.recorrente_anual and row.data <= dia and row.data.month == dia.month and row.data.day == dia.day:
+            return True
+    return False
+
+
+def datas_feriado(db: Session, tenant_id: int, desde: date, ate: date) -> set[date]:
+    """Dias de feriado no período, com uma leitura de settings e da tabela."""
+    if ate < desde:
+        return set()
+    settings = get_or_create_settings(db, tenant_id)
+    rows = (
+        db.query(PontoFeriado)
+        .filter(PontoFeriado.tenant_id == tenant_id, PontoFeriado.ativo.is_(True))
+        .all()
+    )
+    out: set[date] = set()
+    dia = desde
+    while dia <= ate:
+        if settings.usar_feriados_nacionais and is_feriado_nacional_br(dia):
+            out.add(dia)
+        elif _feriado_custom_nas_rows(rows, dia):
+            out.add(dia)
+        dia += timedelta(days=1)
+    return out
 
 
 def listar_feriados(

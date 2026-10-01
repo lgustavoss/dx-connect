@@ -327,6 +327,15 @@ def baixar_anexo_solicitacao_ajuste(
     return Response(content=data, media_type=ctype, headers={"Content-Disposition": disposition})
 
 
+@router.delete("/solicitacoes-ajuste/{solicitacao_id}", response_model=PontoSolicitacaoAjusteRead)
+def cancelar_solicitacao_ajuste(
+    solicitacao_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    return sol_ajuste_svc.cancelar(db, atendente, solicitacao_id)
+
+
 @router.post("/solicitacoes-ajuste/{solicitacao_id}/decidir", response_model=PontoSolicitacaoAjusteRead)
 def decidir_solicitacao_ajuste(
     solicitacao_id: int,
