@@ -21,9 +21,12 @@ import { useAuth } from '../contexts/AuthContext'
 import { useEventStream } from '../contexts/EventStreamContext'
 import {
   boundsSaldoInicialMes,
+  formatarDataRef,
   formatarDuracao,
   formatarHora,
+  formatarHoraCurta,
   hojeIso,
+  quandoSolicitado,
   rotuloPoliticaGeo,
 } from '../lib/pontoFormat'
 import { SemPermissao } from './SemPermissao'
@@ -84,9 +87,9 @@ function rotuloTipoSolicitacao(tipo: string): string {
 
 function rotuloHorarioSolicitacao(s: Ponto.SolicitacaoAjuste): string | null {
   if (s.tipo === 'abono') return null
-  const novo = formatarHora(s.horario_solicitado)
+  const novo = quandoSolicitado(s.data_ref, s.horario_solicitado)
   if (s.tipo === 'correcao' && s.horario_anterior) {
-    return `${formatarHora(s.horario_anterior)} → ${novo}`
+    return `${formatarDataRef(s.data_ref)} · ${formatarHoraCurta(s.horario_anterior)} → ${formatarHoraCurta(s.horario_solicitado)}`
   }
   if (s.tipo === 'inclusao') return `Novo horário: ${novo}`
   return `Horário: ${novo}`

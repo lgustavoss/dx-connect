@@ -158,6 +158,48 @@ def dias_do_mes(ano: int, mes: int) -> list[date]:
     return out
 
 
+def _segundos_hhmm(parsed: tuple[int, int]) -> int:
+    return parsed[0] * 3600 + parsed[1] * 60
+
+
+def segundos_intervalo_cfg(cfg: dict[str, Any] | None) -> int:
+    """Pausa configurada no dia (intervalo_inicio → intervalo_fim). 0 se não houver."""
+    if not isinstance(cfg, dict):
+        return 0
+    ini = parse_hhmm(cfg.get("intervalo_inicio"))
+    fim = parse_hhmm(cfg.get("intervalo_fim"))
+    if ini is None and fim is None:
+        return 0
+    if ini is None or fim is None:
+        return 0
+    bruto = _segundos_hhmm(fim) - _segundos_hhmm(ini)
+    return bruto if bruto > 0 else 0
+
+
+def _validar_intervalo_dia(k: str, ini: tuple[int, int], fim: tuple[int, int], cfg: dict[str, Any]) -> None:
+    i_ini = parse_hhmm(cfg.get("intervalo_inicio"))
+    i_fim = parse_hhmm(cfg.get("intervalo_fim"))
+    tem_ini = bool(str(cfg.get("intervalo_inicio") or "").strip())
+    tem_fim = bool(str(cfg.get("intervalo_fim") or "").strip())
+    if not tem_ini and not tem_fim:
+        return
+    if i_ini is None or i_fim is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Em {k}, informe início e fim do intervalo (HH:MM).",
+        )
+    if i_ini >= i_fim:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Em {k}, o intervalo deve começar antes de terminar.",
+        )
+    if i_ini <= ini or i_fim >= fim:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Em {k}, o intervalo precisa ficar dentro do horário de trabalho.",
+        )
+
+
 def _validar_horario_semana_payload(hs: dict[str, Any] | None) -> None:
     if not hs or not isinstance(hs, dict):
         raise HTTPException(
@@ -183,6 +225,7 @@ def _validar_horario_semana_payload(hs: dict[str, Any] | None) -> None:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Em {k}, o início deve ser anterior ao fim.",
             )
+        _validar_intervalo_dia(k, ini, fim, cfg)
         ativos += 1
     if ativos < 1:
         raise HTTPException(
@@ -264,15 +307,20 @@ def validar_horario_previsto(entrada: str | None, saida: str | None) -> None:
 
 
 def segundos_esperados_dia(atendente: Atendente, dia: date | None = None) -> int:
-    """Duração esperada de um dia de trabalho."""
+    """Duração esperada de um dia de trabalho, já sem o intervalo configurado."""
     d = dia or datetime.now(PONTO_TZ).date()
     janela = horario_previsto_do_dia(atendente, d)
     if janela:
         pe, ps = janela
-        ini = pe[0] * 3600 + pe[1] * 60
-        fim = ps[0] * 3600 + ps[1] * 60
+        ini = _segundos_hhmm(pe)
+        fim = _segundos_hhmm(ps)
         if fim > ini:
-            return fim - ini
+            desconto = 0
+            if modo_jornada(atendente) == "semanal":
+                hs = horario_semana_dict(atendente) or {}
+                cfg = hs.get(WEEKDAY_KEYS[d.weekday()])
+                desconto = segundos_intervalo_cfg(cfg if isinstance(cfg, dict) else None)
+            return max(0, fim - ini - desconto)
     if ciclo_configurado(atendente) and atendente.escala_horas_trabalho:
         return int(atendente.escala_horas_trabalho) * 3600
     return 0
