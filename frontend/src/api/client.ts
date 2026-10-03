@@ -1331,6 +1331,43 @@ export async function fetchWhatsAppMidiaBlob(chatId: number, mensagemId: number)
   return res.blob()
 }
 
+export namespace WhatsappFigurinhas {
+  export interface Figurinha {
+    id: number
+    mimetype: string
+    created_at: string
+  }
+}
+
+/** Galeria pessoal de figurinhas: cada atendente só vê e altera as próprias. */
+export const whatsappFigurinhas = {
+  listar: () => api<WhatsappFigurinhas.Figurinha[]>('/whatsapp/figurinhas'),
+  salvarDeMensagem: (chatId: number, mensagemId: number) =>
+    api<WhatsappFigurinhas.Figurinha>('/whatsapp/figurinhas/de-mensagem', {
+      method: 'POST',
+      body: JSON.stringify({ chat_id: chatId, mensagem_id: mensagemId }),
+    }),
+  remover: (id: number) => api<void>(`/whatsapp/figurinhas/${id}`, { method: 'DELETE' }),
+  arquivoBlob: async (id: number): Promise<Blob> => {
+    const token = getAuthToken()
+    const headers: Record<string, string> = {}
+    if (token) headers.Authorization = `Bearer ${token}`
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+    }
+    const res = await fetch(`${apiOrigin()}${API_VERSION_PREFIX}/whatsapp/figurinhas/${id}/arquivo`, { headers })
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin()
+      throw new ApiError('Sessão expirada ou inválida.', 401, {})
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+    }
+    return res.blob()
+  },
+}
+
 export async function fetchPortalMidiaBlob(chatId: number, mensagemId: number): Promise<Blob> {
   const token = getAuthToken()
   const headers: Record<string, string> = {}
