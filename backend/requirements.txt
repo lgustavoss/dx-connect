@@ -10,7 +10,7 @@ alembic==1.20.0
 pydantic[email]==2.13.5
 pydantic-settings==2.15.0
 PyJWT[crypto]==2.15.0
-cryptography>=50.0.1
+cryptography>=50.0.2
 bcrypt>=5.0.0,<6
 svix>=2.5.0
 pywebpush==2.5.0
