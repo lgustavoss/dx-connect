@@ -7,6 +7,7 @@ import {
   atendentes,
   tickets,
   whatsappChats,
+  whatsappFigurinhas,
   fetchWhatsAppMidiaBlob,
   type Setores,
   type Atendentes,
@@ -15,6 +16,7 @@ import {
 } from '../../api/client'
 
 import { resolveWhatsappMidiaObjectUrl, revokeWhatsappMidiaForChat, getWhatsappMidiaObjectUrl } from '../../lib/whatsappMidiaCache'
+import { copiarImagemParaAreaDeTransferencia } from '../../lib/copiarImagem'
 import {
   erroMidiaWhatsappIndisponivel,
   erroMidiaWhatsappTemporaria,
@@ -176,6 +178,8 @@ function ConteudoMensagemWhatsApp({
   const [indisponivel, setIndisponivel] = useState(() => midiaWhatsappIndisponivel(m))
   const [recuperarSeq, setRecuperarSeq] = useState(0)
   const [docPreviewAberto, setDocPreviewAberto] = useState(false)
+  const [salvandoFigurinha, setSalvandoFigurinha] = useState(false)
+  const toast = useToast()
   const expiradaLocal = midiaWhatsappExpiradaLocal(m)
 
   useEffect(() => {
@@ -301,7 +305,26 @@ function ConteudoMensagemWhatsApp({
   const mediaClass = 'max-h-64 max-w-full rounded-lg border border-black/5 shadow-sm'
 
   if (tipo === 'figurinha') {
-    return <img src={url} alt="Figurinha" className="max-h-40 max-w-[10rem] select-none" draggable={false} />
+    return (
+      <div className="group/figurinha space-y-1">
+        <img src={url} alt="Figurinha" className="max-h-40 max-w-[10rem] select-none" draggable={false} />
+        <button
+          type="button"
+          disabled={salvandoFigurinha}
+          className="text-[11px] font-semibold underline opacity-0 transition-opacity focus:opacity-100 group-hover/figurinha:opacity-80 disabled:opacity-40 [@media(hover:none)]:opacity-80"
+          onClick={() => {
+            setSalvandoFigurinha(true)
+            void whatsappFigurinhas
+              .salvarDeMensagem(chatId, m.id)
+              .then(() => toast.showSuccess('Figurinha adicionada às suas figurinhas.'))
+              .catch((e) => toast.showError(mensagemFalhaParaToast(e)))
+              .finally(() => setSalvandoFigurinha(false))
+          }}
+        >
+          Adicionar às figurinhas
+        </button>
+      </div>
+    )
   }
 
   if (tipo === 'imagem') {
@@ -395,6 +418,7 @@ function WhatsappZoomLightbox({
   const index = galeria.findIndex((m) => m.id === zoomMsgId)
   const msgAtiva = msgs.find((m) => m.id === zoomMsgId) || null
   const caption = msgAtiva ? legendaMidiaVisivel(msgAtiva.corpo) : null
+  const toast = useToast()
   const [url, setUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [indisponivel, setIndisponivel] = useState(false)
@@ -505,14 +529,26 @@ function WhatsappZoomLightbox({
         </p>
       )}
       {url && (
-        <a
-          href={url}
-          download="whatsapp-imagem.jpg"
-          className="z-30 mt-3 shrink-0 self-end rounded-xl bg-cyan-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-cyan-600/30 transition-all hover:bg-cyan-700"
-          onClick={(e) => e.stopPropagation()}
-        >
-          Baixar imagem
-        </a>
+        <div className="z-30 mt-3 flex shrink-0 gap-2 self-end" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className="rounded-xl bg-white/15 px-4 py-2.5 text-xs font-bold text-white transition-all hover:bg-white/25"
+            onClick={() => {
+              void copiarImagemParaAreaDeTransferencia(url)
+                .then(() => toast.showSuccess('Imagem copiada.'))
+                .catch(() => toast.showError('Não foi possível copiar a imagem.'))
+            }}
+          >
+            Copiar imagem
+          </button>
+          <a
+            href={url}
+            download="whatsapp-imagem.jpg"
+            className="rounded-xl bg-cyan-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-cyan-600/30 transition-all hover:bg-cyan-700"
+          >
+            Baixar imagem
+          </a>
+        </div>
       )}
     </div>
   )

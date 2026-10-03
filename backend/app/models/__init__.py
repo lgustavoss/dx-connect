@@ -30,6 +30,7 @@ from app.models.whatsapp_chat import (
     WhatsappSettings,
 )
 from app.models.whatsapp_chat_demanda import WhatsappChatDemanda
+from app.models.whatsapp_figurinha_favorita import WhatsappFigurinhaFavorita
 from app.models.whatsapp_demanda_motivo_sugestao import WhatsappDemandaMotivoSugestao
 from app.models.comercial_custo import CustoCatalogoItem, SalarioMinimoReferencia
 from app.models.empresa_sistema import EmpresaSistema
@@ -136,6 +137,7 @@ __all__ = [
     "WhatsappMensagemReacao",
     "WhatsappChatTicket",
     "WhatsappChatDemanda",
+    "WhatsappFigurinhaFavorita",
     "WhatsappDemandaMotivoSugestao",
     "SalarioMinimoReferencia",
     "CustoCatalogoItem",
