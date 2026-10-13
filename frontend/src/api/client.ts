@@ -564,6 +564,8 @@ export const kb = {
   updateCategory: (id: number, data: Kb.CategoryUpdate) =>
     api<Kb.Category>(`/kb/categories/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteCategory: (id: number) => api<void>(`/kb/categories/${id}`, { method: 'DELETE' }),
+  excluirCategorias: (ids: number[]) =>
+    api<Kb.ExclusaoLote>('/kb/categories/excluir-lote', { method: 'POST', body: JSON.stringify({ ids }) }),
   reorderCategories: (items: { id: number; ordem: number }[]) =>
     api<Kb.Category[]>('/kb/categories/reorder', {
       method: 'PUT',
@@ -588,6 +590,8 @@ export const kb = {
     api<Kb.Article>(`/kb/articles/${id}/publish`, { method: 'POST' }),
   archiveArticle: (id: number) =>
     api<Kb.Article>(`/kb/articles/${id}/archive`, { method: 'POST' }),
+  excluirArtigos: (ids: number[]) =>
+    api<Kb.ExclusaoLote>('/kb/articles/excluir-lote', { method: 'POST', body: JSON.stringify({ ids }) }),
   consulta: (params?: { busca?: string; category_id?: number; limit?: number }) =>
     api<Kb.ArticleBrief[]>(withParams('/kb/articles/consulta', params)),
   getPublicado: (id: number) => api<Kb.Article>(`/kb/articles/publicados/${id}`),
@@ -4699,6 +4703,14 @@ export namespace Tickets {
 }
 
 export namespace Kb {
+  export interface ExclusaoIgnorada {
+    id: number;
+    motivo: string;
+  }
+  export interface ExclusaoLote {
+    excluidos: number[];
+    ignorados: ExclusaoIgnorada[];
+  }
   export interface Category {
     id: number;
     nome: string;

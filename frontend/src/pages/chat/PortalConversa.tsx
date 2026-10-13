@@ -452,7 +452,7 @@ export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
             <Button
               type="button"
               variant="primary"
-              className="h-8 shrink-0 px-3 text-xs font-semibold"
+              className="h-11 shrink-0 px-4 text-xs font-semibold"
               loading={assumindo}
               onClick={() => void assumirChat()}
             >
@@ -466,7 +466,7 @@ export function PortalConversa({ chatIdProp }: PortalConversaProps = {}) {
                 <Button
                   type="button"
                   variant="primary"
-                  className="hidden h-8 text-xs sm:inline-flex"
+                  className="hidden h-11 shrink-0 px-4 text-xs font-semibold sm:inline-flex"
                   onClick={() => setModalTransferir(true)}
                 >
                   Transferir

@@ -28,6 +28,29 @@ type VistaCrm = 'lista' | 'kanban'
 
 const VISTA_KEY = 'dx-crm-vista'
 
+function chaveVista(userId: number | null | undefined): string {
+  return userId != null ? `${VISTA_KEY}:${userId}` : VISTA_KEY
+}
+
+function lerVista(userId: number | null | undefined): VistaCrm {
+  try {
+    const daPessoa = userId != null ? localStorage.getItem(chaveVista(userId)) : null
+    const v = daPessoa ?? localStorage.getItem(VISTA_KEY)
+    return v === 'kanban' ? 'kanban' : 'lista'
+  } catch {
+    return 'lista'
+  }
+}
+
+function gravarVista(userId: number | null | undefined, v: VistaCrm) {
+  try {
+    localStorage.setItem(chaveVista(userId), v)
+    if (userId != null) localStorage.setItem(VISTA_KEY, v)
+  } catch {
+    /* ignore */
+  }
+}
+
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—'
   const d = new Date(iso)
@@ -35,21 +58,13 @@ function formatDate(iso: string | null | undefined): string {
   return d.toLocaleDateString('pt-BR')
 }
 
-function lerVistaInicial(): VistaCrm {
-  try {
-    const v = localStorage.getItem(VISTA_KEY)
-    return v === 'kanban' ? 'kanban' : 'lista'
-  } catch {
-    return 'lista'
-  }
-}
-
 export function CrmLeads() {
   const navigate = useNavigate()
   const toast = useToast()
   const { user, isAdmin } = useAuth()
 
-  const [vista, setVista] = useState<VistaCrm>(lerVistaInicial)
+  const [vista, setVista] = useState<VistaCrm>(() => lerVista(user?.id))
+  const vistaOwnerRef = useRef<number | undefined>(user?.id)
   const [estagios, setEstagios] = useState<Crm.FunilEstagio[]>([])
   const [contagens, setContagens] = useState<Record<number, number>>({})
   const [list, setList] = useState<Crm.Lead[]>([])
@@ -84,15 +99,17 @@ export function CrmLeads() {
   const [responsaveis, setResponsaveis] = useState<Atendentes.Atendente[]>([])
   const loadGenRef = useRef(0)
 
+  useEffect(() => {
+    if (vistaOwnerRef.current === user?.id) return
+    vistaOwnerRef.current = user?.id
+    setVista(lerVista(user?.id))
+  }, [user?.id])
+
   function mudarVista(v: VistaCrm) {
     if (v === vista) return
     setLoading(true)
     setVista(v)
-    try {
-      localStorage.setItem(VISTA_KEY, v)
-    } catch {
-      /* ignore */
-    }
+    gravarVista(user?.id, v)
   }
 
   useEffect(() => {

@@ -9,6 +9,9 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- CRM (#S202610-0004): ao abrir os leads, a tela volta na última escolha da pessoa (lista ou kanban)
+- Chat (#S202609-0030): os botões Atender e Transferir ficam do mesmo tamanho
+- Ajuda (#1096 / #S202609-0005): dá para marcar vários artigos ou várias categorias e excluir de uma vez, com confirmação
 - Chat WhatsApp (#S202610-0001): cada atendente tem sua galeria de figurinhas. Na conversa, «Adicionar às figurinhas» salva uma figurinha recebida, e na aba Figurinha basta clicar para enviar. As figurinhas de um atendente não aparecem para os outros
 - Chat WhatsApp (#S202610-0002): na imagem ampliada, botão «Copiar imagem» ao lado de «Baixar imagem»; no app Windows, o clique com o botão direito em imagem ou texto selecionado mostra «Copiar»
 - Minhas solicitações: ao publicar uma versão, a coluna da versão em que o pedido ficou disponível volta a ser preenchida

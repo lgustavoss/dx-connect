@@ -448,3 +448,85 @@ def test_kb_feedback_artigo_publico(client, auth_headers, db_session):
 
     r404 = client.post("/v1/kb/public/articles/slug-inexistente/feedback", json={"util": True})
     assert r404.status_code == 404
+
+
+def test_kb_excluir_artigos_em_lote(client, auth_headers, db_session):
+    a = client.post(
+        "/v1/kb/articles",
+        headers=auth_headers["admin"],
+        json={"titulo": "Lote A", "conteudo_markdown": "a"},
+    ).json()
+    b = client.post(
+        "/v1/kb/articles",
+        headers=auth_headers["admin"],
+        json={"titulo": "Lote B", "conteudo_markdown": "b"},
+    ).json()
+    r = client.post(
+        "/v1/kb/articles/excluir-lote",
+        headers=auth_headers["admin"],
+        json={"ids": [a["id"], b["id"], 999999]},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert set(body["excluidos"]) == {a["id"], b["id"]}
+    assert body["ignorados"] == [{"id": 999999, "motivo": "Artigo não encontrado."}]
+    assert client.get(f"/v1/kb/articles/{a['id']}", headers=auth_headers["admin"]).status_code == 404
+    assert db_session.query(KbArticle).filter(KbArticle.id == b["id"]).first() is None
+    assert db_session.query(KbArticleVersion).filter(KbArticleVersion.article_id == a["id"]).count() == 0
+
+
+def test_kb_excluir_artigos_em_lote_atendente_403(client, auth_headers):
+    r = client.post("/v1/kb/articles/excluir-lote", headers=auth_headers["a1"], json={"ids": [1]})
+    assert r.status_code == 403
+
+
+def test_kb_excluir_categorias_em_lote_atendente_403(client, auth_headers):
+    r = client.post("/v1/kb/categories/excluir-lote", headers=auth_headers["a1"], json={"ids": [1]})
+    assert r.status_code == 403
+
+
+def test_kb_excluir_categorias_em_lote_pai_e_filha(client, auth_headers):
+    pai = client.post("/v1/kb/categories", headers=auth_headers["admin"], json={"nome": "Lote pai"}).json()
+    filha = client.post(
+        "/v1/kb/categories",
+        headers=auth_headers["admin"],
+        json={"nome": "Lote filha", "parent_id": pai["id"]},
+    ).json()
+    art = client.post(
+        "/v1/kb/articles",
+        headers=auth_headers["admin"],
+        json={"titulo": "Na filha", "category_id": filha["id"], "conteudo_markdown": "x"},
+    ).json()
+    r = client.post(
+        "/v1/kb/categories/excluir-lote",
+        headers=auth_headers["admin"],
+        json={"ids": [pai["id"], filha["id"]]},
+    )
+    assert r.status_code == 200, r.text
+    assert set(r.json()["excluidos"]) == {pai["id"], filha["id"]}
+    assert r.json()["ignorados"] == []
+    restante = client.get(f"/v1/kb/articles/{art['id']}", headers=auth_headers["admin"]).json()
+    assert restante["category_id"] is None
+    lista = client.get("/v1/kb/categories", headers=auth_headers["admin"]).json()
+    ids = {c["id"] for c in lista}
+    assert pai["id"] not in ids
+    assert filha["id"] not in ids
+
+
+def test_kb_excluir_categorias_em_lote_pai_com_filha_de_fora(client, auth_headers):
+    pai = client.post("/v1/kb/categories", headers=auth_headers["admin"], json={"nome": "Pai bloqueado"}).json()
+    client.post(
+        "/v1/kb/categories",
+        headers=auth_headers["admin"],
+        json={"nome": "Filha de fora", "parent_id": pai["id"]},
+    )
+    r = client.post(
+        "/v1/kb/categories/excluir-lote",
+        headers=auth_headers["admin"],
+        json={"ids": [pai["id"]]},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["excluidos"] == []
+    assert r.json()["ignorados"][0]["id"] == pai["id"]
+    lista = client.get("/v1/kb/categories", headers=auth_headers["admin"]).json()
+    assert any(c["id"] == pai["id"] for c in lista)
