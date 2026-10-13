@@ -61,6 +61,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
+- Tickets (#S202610-0003): na lista de chamados abertos, a coluna Responsável mostra o atendente e a coluna SLA mostra o prazo
 - WhatsApp: depois do horário previsto, quem continua no atendimento pode pegar chat. A hora extra se acerta depois com o gerente — o sistema não impede o atendimento
 - Ponto: os dois períodos do dia (manhã e tarde) entram no tempo trabalhado; a meta desconta o intervalo quando ele está preenchido
 - WhatsApp (#1122): no atendimento anterior, áudio, vídeo, imagem e arquivos disponíveis podem ser abertos

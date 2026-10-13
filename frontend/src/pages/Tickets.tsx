@@ -1058,11 +1058,6 @@ export function Tickets() {
                         </span>
                       </td>
                     )}
-                    {situacao === 'abertos' && (
-                      <td className="hidden px-4 py-3.5 align-top lg:table-cell sm:px-6">
-                        <SlaBadge estado={t.sla_estado} />
-                      </td>
-                    )}
                     <td className="hidden px-4 py-3.5 align-top text-slate-600 md:table-cell sm:px-6 dark:text-slate-400">
                       <span className="block break-words whitespace-normal leading-snug">
                         {t.atendente_nome ?? 'Na fila'}
@@ -1081,6 +1076,11 @@ export function Tickets() {
                     {mostrarColunasFila && (
                       <td className="hidden px-4 py-3.5 align-top lg:table-cell sm:px-6">
                         <BadgeAutoDistribuicao ticket={t} />
+                      </td>
+                    )}
+                    {situacao === 'abertos' && (
+                      <td className="hidden px-4 py-3.5 align-top lg:table-cell sm:px-6">
+                        <SlaBadge estado={t.sla_estado} />
                       </td>
                     )}
                   </tr>
