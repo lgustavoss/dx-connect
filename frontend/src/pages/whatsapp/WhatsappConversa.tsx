@@ -2055,7 +2055,7 @@ useEffect(() => {
                 <Button
                   type="button"
                   variant="primary"
-                  className="h-11 shrink-0 px-3 text-xs font-semibold"
+                  className="h-11 shrink-0 px-4 text-xs font-semibold"
                   loading={assumindo}
                   onClick={() => void assumirChat()}
                 >
@@ -2090,7 +2090,7 @@ useEffect(() => {
                   {podeTransferir && (
                     <Button
                       variant="primary"
-                      className="hidden md:inline-flex h-8 text-xs"
+                      className="hidden h-11 shrink-0 px-4 text-xs font-semibold md:inline-flex"
                       onClick={() => setModalTransferir(true)}
                     >
                       Transferir

@@ -178,6 +178,20 @@ class KbPortalSettingsRead(BaseModel):
 _HEX_COLOR = r"^#[0-9A-Fa-f]{6}$"
 
 
+class KbExclusaoLote(BaseModel):
+    ids: list[int] = Field(..., min_length=1, max_length=100)
+
+
+class KbExclusaoIgnorada(BaseModel):
+    id: int
+    motivo: str
+
+
+class KbExclusaoLoteResultado(BaseModel):
+    excluidos: list[int]
+    ignorados: list[KbExclusaoIgnorada]
+
+
 class KbPortalSettingsUpdate(BaseModel):
     portal_titulo: str | None = Field(None, max_length=120)
     texto_boas_vindas: str | None = Field(None, max_length=500)

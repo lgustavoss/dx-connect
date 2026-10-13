@@ -37,6 +37,9 @@ export function KbCategoriasPage({ embedded = false }: { embedded?: boolean }) {
   const [reordering, setReordering] = useState(false)
   const [excluirAlvo, setExcluirAlvo] = useState<Kb.Category | null>(null)
   const [excluindo, setExcluindo] = useState(false)
+  const [selecionados, setSelecionados] = useState<number[]>([])
+  const [confirmarLote, setConfirmarLote] = useState(false)
+  const [excluindoLote, setExcluindoLote] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -145,6 +148,46 @@ export function KbCategoriasPage({ embedded = false }: { embedded?: boolean }) {
     : []
   const bloqueiaExcluir = filhosExcluir.length > 0
 
+  const idsVisiveis = categorias.map((c) => c.id)
+  const todosMarcados = idsVisiveis.length > 0 && idsVisiveis.every((id) => selecionados.includes(id))
+
+  function alternarSelecao(id: number) {
+    setSelecionados((atual) => (atual.includes(id) ? atual.filter((item) => item !== id) : [...atual, id]))
+  }
+
+  function alternarTodos() {
+    setSelecionados(todosMarcados ? [] : idsVisiveis)
+  }
+
+  async function confirmarExclusaoLote() {
+    if (selecionados.length === 0) return
+    setExcluindoLote(true)
+    try {
+      const resultado = await kb.excluirCategorias(selecionados)
+      if (resultado.excluidos.length > 0) {
+        const n = resultado.excluidos.length
+        toast.showSuccess(n === 1 ? '1 categoria excluída.' : `${n} categorias excluídas.`)
+      }
+      if (resultado.ignorados.length > 0) {
+        const nomes = resultado.ignorados.map((item) => {
+          const cat = categorias.find((c) => c.id === item.id)
+          return cat ? `${cat.nome}: ${item.motivo}` : item.motivo
+        })
+        toast.showWarning(nomes.join(' '))
+      }
+      if (resultado.excluidos.length === 0 && resultado.ignorados.length === 0) {
+        toast.showWarning('Nenhuma categoria foi excluída.')
+      }
+      setConfirmarLote(false)
+      setSelecionados((atual) => atual.filter((id) => !resultado.excluidos.includes(id)))
+      load()
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível excluir as categorias.'))
+    } finally {
+      setExcluindoLote(false)
+    }
+  }
+
   async function confirmarExcluir() {
     if (!excluirAlvo || bloqueiaExcluir) return
     setExcluindo(true)
@@ -183,6 +226,18 @@ export function KbCategoriasPage({ embedded = false }: { embedded?: boolean }) {
       }
     >
       <Card>
+        {!loading && categorias.length > 0 ? (
+          <div className="mb-3 flex justify-end px-4 pt-4 sm:px-5">
+            <Button
+              type="button"
+              variant="danger"
+              disabled={selecionados.length === 0 || excluindoLote}
+              onClick={() => setConfirmarLote(true)}
+            >
+              Excluir selecionados{selecionados.length > 0 ? ` (${selecionados.length})` : ''}
+            </Button>
+          </div>
+        ) : null}
         {loading ? (
           <p className="text-slate-500">Carregando…</p>
         ) : arvore.length === 0 ? (
@@ -193,6 +248,15 @@ export function KbCategoriasPage({ embedded = false }: { embedded?: boolean }) {
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
                   <th className="w-10 px-2 py-3" aria-label="Ordenar" />
+                  <th className="w-10 px-2 py-3">
+                    <input
+                      type="checkbox"
+                      className="size-4 rounded border-slate-300"
+                      checked={todosMarcados}
+                      onChange={alternarTodos}
+                      aria-label="Selecionar todas as categorias"
+                    />
+                  </th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500">Nome</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500">Artigos</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500">Ordem</th>
@@ -219,6 +283,15 @@ export function KbCategoriasPage({ embedded = false }: { embedded?: boolean }) {
                       >
                         ≡
                       </button>
+                    </td>
+                    <td className="px-2 py-3">
+                      <input
+                        type="checkbox"
+                        className="size-4 rounded border-slate-300"
+                        checked={selecionados.includes(categoria.id)}
+                        onChange={() => alternarSelecao(categoria.id)}
+                        aria-label={`Selecionar ${categoria.nome}`}
+                      />
                     </td>
                     <td className="px-4 py-3 font-medium">
                       <span style={{ paddingLeft: depth * 20 }} className="inline-block">
@@ -342,6 +415,23 @@ export function KbCategoriasPage({ embedded = false }: { embedded?: boolean }) {
           </>
         ) : null}
       </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirmarLote}
+        title="Excluir categorias"
+        message={
+          selecionados.length === 1
+            ? 'Excluir 1 categoria? Artigos ligados a ela ficam sem categoria. Se houver subcategoria fora da seleção, ela não é excluída.'
+            : `Excluir ${selecionados.length} categorias? Artigos ligados a elas ficam sem categoria. Categorias com subcategoria fora da seleção não são excluídas.`
+        }
+        confirmLabel="Excluir"
+        variant="danger"
+        loading={excluindoLote}
+        onConfirm={() => void confirmarExclusaoLote()}
+        onCancel={() => {
+          if (!excluindoLote) setConfirmarLote(false)
+        }}
+      />
     </ConfigListPageShell>
   )
 }

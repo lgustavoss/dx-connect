@@ -32,6 +32,8 @@ from app.schemas.kb import (
     KbArticleVersionRead,
     KbArticleMotivoLinkItem,
     KbArticleMotivoLinksUpdate,
+    KbExclusaoLote,
+    KbExclusaoLoteResultado,
     KbCategoryCreate,
     KbCategoryRead,
     KbCategoryReorder,
@@ -51,7 +53,13 @@ from app.schemas.portal_chat import (
 )
 from app.schemas.lista_paginada import ListaPaginada
 from app.services.instancia_branding import branding_kb_publico as montar_branding_kb_publico
-from app.services.kb import listar_artigos_sugeridos, registrar_versao_artigo, slug_disponivel
+from app.services.kb import (
+    excluir_artigos_em_lote,
+    excluir_categorias_em_lote,
+    listar_artigos_sugeridos,
+    registrar_versao_artigo,
+    slug_disponivel,
+)
 from app.services.kb_feedback import registrar_feedback_artigo_publico
 from app.core.login_protection import client_ip
 from app.services.system_logo_storage import caminho_absoluto_logo
@@ -349,6 +357,17 @@ def atualizar_categoria(
     )
     cnt = db.query(func.count(KbArticle.id)).filter(KbArticle.category_id == row.id).scalar() or 0
     return _category_read(row, int(cnt))
+
+
+@router.post("/categories/excluir-lote", response_model=KbExclusaoLoteResultado)
+def excluir_categorias_lote(
+    data: KbExclusaoLote,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_admin),
+):
+    excluidos, ignorados = excluir_categorias_em_lote(db, atendente.tenant_id, atendente.id, data.ids)
+    db.commit()
+    return KbExclusaoLoteResultado(excluidos=excluidos, ignorados=ignorados)
 
 
 @router.delete("/categories/{category_id}", status_code=204)
@@ -695,6 +714,17 @@ def arquivar_artigo(
     db.commit()
     row = _get_article_or_404(db, atendente.tenant_id, row.id)
     return _article_read(row)
+
+
+@router.post("/articles/excluir-lote", response_model=KbExclusaoLoteResultado)
+def excluir_artigos_lote(
+    data: KbExclusaoLote,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_admin),
+):
+    excluidos, ignorados = excluir_artigos_em_lote(db, atendente.tenant_id, atendente.id, data.ids)
+    db.commit()
+    return KbExclusaoLoteResultado(excluidos=excluidos, ignorados=ignorados)
 
 
 @router.get("/articles/{article_id}/versions", response_model=list[KbArticleVersionRead])
