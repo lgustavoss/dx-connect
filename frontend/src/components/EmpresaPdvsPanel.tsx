@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { empresaPdvs, pdvRotulos, pdvTiposAcessoRemoto, type EmpresaPdv, type PdvCatalogo } from '../api/client'
+import { ApiError, empresaPdvs, pdvRotulos, pdvTiposAcessoRemoto, type EmpresaPdv, type PdvCatalogo } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Button } from './ui/Button'
 import { IconCopy } from './ui/IconCopy'
@@ -12,8 +12,13 @@ import { Switch } from './ui/Switch'
 import { useToast } from './ui/Toast'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 
-type Props = { empresaId: number }
+type Props = {
+  empresaId: number
+  onEmpresaNome?: (nome: string) => void
+  onIndisponivel?: () => void
+}
 
 const emptyForm = (): EmpresaPdv.Create => ({
   codigo: '',
@@ -27,10 +32,11 @@ const emptyForm = (): EmpresaPdv.Create => ({
   ativo: true,
 })
 
-export function EmpresaPdvsPanel({ empresaId }: Props) {
+export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel }: Props) {
   const toast = useToast()
   const { user } = useAuth()
-  const isAdmin = user?.role === 'admin'
+  const podeVer = temPermissao(user, 'pdv.acessos.ver') || temPermissao(user, 'empresas.editar')
+  const podeEditar = temPermissao(user, 'empresas.editar')
   const [items, setItems] = useState<EmpresaPdv.Item[]>([])
   const [loading, setLoading] = useState(true)
   const [rotulos, setRotulos] = useState<PdvCatalogo.Item[]>([])
@@ -47,16 +53,30 @@ export function EmpresaPdvsPanel({ empresaId }: Props) {
     setLoading(true)
     empresaPdvs
       .list(empresaId, { incluir_inativos: true })
-      .then((r) => setItems(r.items))
-      .catch((err) => toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível carregar os PDVs.')))
+      .then((r) => {
+        setItems(r.items)
+        onEmpresaNome?.(r.empresa_nome)
+      })
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 404 && onIndisponivel) {
+          onIndisponivel()
+          return
+        }
+        toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível carregar os PDVs.'))
+      })
       .finally(() => setLoading(false))
-  }, [empresaId, toast])
+  }, [empresaId, onEmpresaNome, onIndisponivel, toast])
 
   useEffect(() => {
+    if (!podeVer) {
+      setLoading(false)
+      return
+    }
     load()
+    if (!podeEditar) return
     coletarTodasPaginas<PdvCatalogo.Item>((o, l) => pdvRotulos.list({ offset: o, limit: l })).then(setRotulos)
     coletarTodasPaginas<PdvCatalogo.Item>((o, l) => pdvTiposAcessoRemoto.list({ offset: o, limit: l })).then(setTipos)
-  }, [load])
+  }, [load, podeVer, podeEditar])
 
   function abrirNovo() {
     setEditId(null)
@@ -85,7 +105,7 @@ export function EmpresaPdvsPanel({ empresaId }: Props) {
   }
 
   async function revelarSenha(pdvId: number) {
-    if (!isAdmin) return
+    if (!podeVer) return
     if (senhaRevelada?.pdvId === pdvId) {
       setSenhaRevelada(null)
       return
@@ -150,6 +170,10 @@ export function EmpresaPdvsPanel({ empresaId }: Props) {
     }
   }
 
+  if (!podeVer) {
+    return <p className="text-sm text-slate-500">Você não tem permissão para ver os PDVs desta empresa.</p>
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -157,7 +181,7 @@ export function EmpresaPdvsPanel({ empresaId }: Props) {
           Terminais/pontos de venda desta empresa. O código (ex.: 001) identifica o ponto; pode ser alterado se a
           numeração mudar (único por empresa).
         </p>
-        {isAdmin ? (
+        {podeEditar ? (
           <Button type="button" onClick={abrirNovo}>
             Novo PDV
           </Button>
@@ -169,7 +193,7 @@ export function EmpresaPdvsPanel({ empresaId }: Props) {
       ) : items.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center dark:border-slate-600">
           <p className="text-sm text-slate-600 dark:text-slate-300">Nenhum PDV cadastrado.</p>
-          {isAdmin ? (
+          {podeEditar ? (
             <Button type="button" className="mt-3" onClick={abrirNovo}>
               Cadastrar primeiro PDV
             </Button>
@@ -219,7 +243,7 @@ export function EmpresaPdvsPanel({ empresaId }: Props) {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {row.tem_senha_remota && isAdmin ? (
+                    {row.tem_senha_remota && podeVer ? (
                       senhaRevelada?.pdvId === row.id ? (
                         <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-200">
                           {senhaRevelada.senha}
@@ -264,7 +288,7 @@ export function EmpresaPdvsPanel({ empresaId }: Props) {
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {isAdmin ? (
+                    {podeEditar ? (
                       <Button
                         type="button"
                         variant="ghost"
@@ -283,7 +307,7 @@ export function EmpresaPdvsPanel({ empresaId }: Props) {
         </div>
       )}
 
-      {modalOpen && isAdmin ? (
+      {modalOpen && podeEditar ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">

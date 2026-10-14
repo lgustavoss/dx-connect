@@ -15,6 +15,8 @@ import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { Input } from '../ui/Input'
 import { Select } from '../ui/Select'
 import { useToast } from '../ui/Toast'
+import { useAuth } from '../../contexts/AuthContext'
+import { temPermissao } from '../../lib/permissoes'
 import { maskCnpjCpf } from '../../utils/maskCnpjCpf'
 import { CrmDadosFiscaisFields } from './CrmDadosFiscaisFields'
 import { emptyFiscal, fiscaisDaLinha, fiscalPayload, formatPercentualPt, parsePercentualPt } from './crmFiscais'
@@ -92,6 +94,9 @@ type Props = {
 export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded = false }: Props) {
   const toast = useToast()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const podeEmitir = temPermissao(user, 'contratos.emitir')
+  const podeCancelarContrato = temPermissao(user, 'contratos.cancelar')
   const linhas = negociacao.linhas || []
   const pdfInputRef = useRef<HTMLInputElement>(null)
 
@@ -180,7 +185,7 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
     (c) => c.negociacao_linha_cnpj_id === linhaId && ATIVOS.has(c.status),
   )
   const podeGerar =
-    linhaId !== '' && (!contratoDaLinha || contratoDaLinha.status === 'rascunho')
+    podeEmitir && linhaId !== '' && (!contratoDaLinha || contratoDaLinha.status === 'rascunho')
   const mostrarFormularioGeracao = podeGerar && (!contratoDaLinha || editarGeracao)
 
   useEffect(() => {
@@ -646,7 +651,7 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
               >
                 {baixandoId === preview.id ? 'Baixando…' : 'Baixar PDF'}
               </Button>
-              {preview.status === 'rascunho' ? (
+              {podeEmitir && preview.status === 'rascunho' ? (
                 <Button
                   variant="secondary"
                   onClick={() => void handleEnviado(preview.id)}
@@ -655,21 +660,21 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
                   {enviandoId === preview.id ? 'Salvando…' : 'Marcar enviado'}
                 </Button>
               ) : null}
-              {preview.status === 'rascunho' || preview.status === 'enviado' ? (
-                <>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setAssinandoId(preview.id)}
-                    disabled={!preview.tem_pdf_assinado}
-                  >
-                    Marcar assinado
-                  </Button>
-                  <Button variant="ghost" onClick={() => setCancelarId(preview.id)}>
-                    Cancelar contrato
-                  </Button>
-                </>
+              {podeEmitir && (preview.status === 'rascunho' || preview.status === 'enviado') ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => setAssinandoId(preview.id)}
+                  disabled={!preview.tem_pdf_assinado}
+                >
+                  Marcar assinado
+                </Button>
               ) : null}
-              {preview.status === 'assinado' ? (
+              {podeCancelarContrato && (preview.status === 'rascunho' || preview.status === 'enviado') ? (
+                <Button variant="ghost" onClick={() => setCancelarId(preview.id)}>
+                  Cancelar contrato
+                </Button>
+              ) : null}
+              {podeCancelarContrato && preview.status === 'assinado' ? (
                 <Button variant="ghost" onClick={() => setCancelarId(preview.id)}>
                   Rescindir
                 </Button>

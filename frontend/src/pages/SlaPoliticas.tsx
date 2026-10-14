@@ -6,6 +6,8 @@ import { Button } from '../components/ui/Button'
 import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
 import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 
@@ -51,6 +53,8 @@ function buildPreview(
 
 export function SlaPoliticasPage({ embedded = false }: { embedded?: boolean }) {
   const toast = useToast()
+  const { user } = useAuth()
+  const podeEditar = temPermissao(user, 'sla.editar')
   const [list, setList] = useState<Sla.Policy[]>([])
   const [calendars, setCalendars] = useState<Sla.BusinessCalendar[]>([])
   const [prioridades, setPrioridades] = useState<Sla.Prioridade[]>([])
@@ -208,7 +212,7 @@ export function SlaPoliticasPage({ embedded = false }: { embedded?: boolean }) {
       denied={denied}
       title="SLA"
       subtitle="Metas de primeira resposta e resolução por setor, prioridade e natureza (opcional)."
-      actions={<Button onClick={iniciarNova}>Nova política</Button>}
+      actions={podeEditar ? <Button onClick={iniciarNova}>Nova política</Button> : undefined}
     >
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <FiltroInativos incluirInativos={incluirInativos} onChange={setIncluirInativos} />
@@ -276,10 +280,12 @@ export function SlaPoliticasPage({ embedded = false }: { embedded?: boolean }) {
                       {p.business_calendar_nome ?? (comercial ? '—' : '24×7')}
                     </td>
                     <td className="p-2">
-                      <Button type="button" variant="ghost" className="px-2 py-1" onClick={() => iniciarEdicao(p)}>
-                        Editar
-                      </Button>
-                      {p.ativo ? (
+                      {podeEditar ? (
+                        <Button type="button" variant="ghost" className="px-2 py-1" onClick={() => iniciarEdicao(p)}>
+                          Editar
+                        </Button>
+                      ) : null}
+                      {podeEditar && p.ativo ? (
                         <Button type="button" variant="ghost" className="px-2 py-1" onClick={() => desativar(p)}>
                           Desativar
                         </Button>

@@ -13,12 +13,18 @@ import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBus
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 
 type ColunaRede = 'nome' | 'ativo'
 
 export function Redes() {
   const navigate = useNavigate()
   const toast = useToast()
+  const { user } = useAuth()
+  const podeCriar = temPermissao(user, 'redes.criar')
+  const podeEditar = temPermissao(user, 'redes.editar')
+  const podeExcluir = temPermissao(user, 'redes.excluir')
   const { ordenarPor, ordem, aoOrdenarColuna, sortParams } = useOrdenacaoLista<ColunaRede>()
   const [list, setList] = useState<Redes.Rede[]>([])
   const [total, setTotal] = useState(0)
@@ -94,7 +100,7 @@ export function Redes() {
     <PageContainer>
       <PageHeader
         title="Redes"
-        actions={<Button onClick={() => navigate('/redes/novo')}>Nova rede</Button>}
+        actions={podeCriar ? <Button onClick={() => navigate('/redes/novo')}>Nova rede</Button> : undefined}
       />
       <Card>
         <BarraBuscaPaginacao
@@ -185,12 +191,16 @@ export function Redes() {
                     </td>
                     <td className="px-4 py-3.5 text-right sm:px-6" onClick={(e) => e.stopPropagation()}>
                       <div className="inline-flex gap-1.5">
-                        <Button variant="ghost" onClick={() => navigate(`/redes/${r.id}/editar`)} aria-label="Editar rede">
-                          <IconPencil ariaHidden={false} />
-                        </Button>
-                        <Button variant="ghost" onClick={() => handleDelete(r.id)} aria-label="Excluir rede">
-                          <IconTrash ariaHidden={false} />
-                        </Button>
+                        {podeEditar ? (
+                          <Button variant="ghost" onClick={() => navigate(`/redes/${r.id}/editar`)} aria-label="Editar rede">
+                            <IconPencil ariaHidden={false} />
+                          </Button>
+                        ) : null}
+                        {podeExcluir ? (
+                          <Button variant="ghost" onClick={() => handleDelete(r.id)} aria-label="Excluir rede">
+                            <IconTrash ariaHidden={false} />
+                          </Button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

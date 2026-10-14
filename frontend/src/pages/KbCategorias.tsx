@@ -6,6 +6,8 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
@@ -26,6 +28,10 @@ const emptyForm = (): FormState => ({ nome: '', ordem: '0', parent_id: '' })
 
 export function KbCategoriasPage({ embedded = false }: { embedded?: boolean }) {
   const toast = useToast()
+  const { user } = useAuth()
+  const podeCriar = temPermissao(user, 'ajuda.categorias.criar')
+  const podeEditar = temPermissao(user, 'ajuda.categorias.editar')
+  const podeExcluir = temPermissao(user, 'ajuda.categorias.excluir')
   const [categorias, setCategorias] = useState<Kb.Category[]>([])
   const [loading, setLoading] = useState(true)
   const [forbidden, setForbidden] = useState(false)
@@ -220,13 +226,15 @@ export function KbCategoriasPage({ embedded = false }: { embedded?: boolean }) {
       title="Categorias"
       subtitle="Organize os manuais em categorias. Arraste pelo ícone ≡ para mudar a ordem."
       actions={
-        <Button type="button" onClick={() => abrirNovo()}>
-          Nova categoria
-        </Button>
+        podeCriar ? (
+          <Button type="button" onClick={() => abrirNovo()}>
+            Nova categoria
+          </Button>
+        ) : undefined
       }
     >
       <Card>
-        {!loading && categorias.length > 0 ? (
+        {!loading && podeExcluir && categorias.length > 0 ? (
           <div className="mb-3 flex justify-end px-4 pt-4 sm:px-5">
             <Button
               type="button"
@@ -303,17 +311,21 @@ export function KbCategoriasPage({ embedded = false }: { embedded?: boolean }) {
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{categoria.ordem}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap justify-end gap-2">
-                        {depth === 0 ? (
+                        {podeCriar && depth === 0 ? (
                           <Button type="button" variant="secondary" onClick={() => abrirNovo(categoria.id)}>
                             Subcategoria
                           </Button>
                         ) : null}
-                        <Button type="button" variant="secondary" onClick={() => abrirEditar(categoria)}>
-                          Editar
-                        </Button>
-                        <Button type="button" variant="secondary" onClick={() => setExcluirAlvo(categoria)}>
-                          Excluir
-                        </Button>
+                        {podeEditar ? (
+                          <Button type="button" variant="secondary" onClick={() => abrirEditar(categoria)}>
+                            Editar
+                          </Button>
+                        ) : null}
+                        {podeExcluir ? (
+                          <Button type="button" variant="secondary" onClick={() => setExcluirAlvo(categoria)}>
+                            Excluir
+                          </Button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

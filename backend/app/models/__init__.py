@@ -2,6 +2,7 @@ from app.models.rede import Rede
 from app.models.empresa import Empresa
 from app.models.tipo_negocio import TipoNegocio
 from app.models.atendente import Atendente, AtendenteSetor
+from app.models.permissao_grupo import PermissaoGrupo, PermissaoGrupoItem
 from app.models.ponto_batida import PontoBatida
 from app.models.ponto_justificativa import PontoJustificativa
 from app.models.ponto_hora_extra import PontoHoraExtra
@@ -106,6 +107,8 @@ __all__ = [
     "SetorDistribuicaoRoundRobin",
     "Atendente",
     "AtendenteSetor",
+    "PermissaoGrupo",
+    "PermissaoGrupoItem",
     "SaasSetor",
     "PontoBatida",
     "PontoJustificativa",

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useParams, useLocation } from 'react-router-dom'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { Layout } from './components/Layout'
@@ -38,6 +38,11 @@ import { Setores } from './pages/Setores'
 import { SetorForm } from './pages/SetorForm'
 import { SetorDetalhe } from './pages/SetorDetalhe'
 import { Atendentes } from './pages/Atendentes'
+import { GruposPermissao } from './pages/GruposPermissao'
+import { GrupoPermissaoForm } from './pages/GrupoPermissaoForm'
+import { GrupoPermissaoDetalhe } from './pages/GrupoPermissaoDetalhe'
+import { temPermissao } from './lib/permissoes'
+import { todasPermissoesConfig } from './pages/config/configNav'
 import { AtendenteForm } from './pages/AtendenteForm'
 import { AtendenteDetalhe } from './pages/AtendenteDetalhe'
 import { FuncionariosRede } from './pages/FuncionariosRede'
@@ -169,7 +174,7 @@ function LayoutOrLanding() {
   return <Layout />
 }
 
-function AdminRoute({ children }: { children: React.ReactNode }) {
+function PermissaoRoute({ children, codigo }: { children: React.ReactNode; codigo: string }) {
   const { user, loading } = useAuth()
   if (loading) {
     return <PageLoading fullscreen label="Carregando sessão…" />
@@ -177,32 +182,21 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   if (!user) {
     return <Navigate to="/login" replace />
   }
-  if (user.role !== 'admin') {
+  if (!temPermissao(user, codigo)) {
     return <AcessoNegado />
   }
   return <>{children}</>
 }
 
-function ComercialOuAdminRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth()
-  if (loading) {
-    return <PageLoading fullscreen label="Carregando sessão…" />
-  }
-  if (!user) {
-    return <Navigate to="/login" replace />
-  }
-  if (user.role !== 'admin' && user.role !== 'comercial') {
-    return (
-      <AcessoNegado
-        title="Área exclusiva para comercial ou administradores"
-        detail="Você está autenticado, mas esta página só pode ser acessada por usuários com perfil comercial ou administrador."
-      />
-    )
-  }
-  return <>{children}</>
-}
-
-function FinanceiroOuAdminRoute({ children }: { children: React.ReactNode }) {
+function AlgumaPermissaoRoute({
+  children,
+  codigos,
+  tambemFinanceiro = false,
+}: {
+  children: React.ReactNode
+  codigos: string[]
+  tambemFinanceiro?: boolean
+}) {
   const { user, loading, isFinanceiroOuAdmin } = useAuth()
   if (loading) {
     return <PageLoading fullscreen label="Carregando sessão…" />
@@ -210,15 +204,24 @@ function FinanceiroOuAdminRoute({ children }: { children: React.ReactNode }) {
   if (!user) {
     return <Navigate to="/login" replace />
   }
-  if (!isFinanceiroOuAdmin) {
-    return (
-      <AcessoNegado
-        title="Área exclusiva para o financeiro ou administradores"
-        detail="Você está autenticado, mas esta página só pode ser acessada por quem atende o setor Financeiro ou por administradores."
-      />
-    )
+  const liberado =
+    codigos.some((codigo) => temPermissao(user, codigo)) || (tambemFinanceiro && isFinanceiroOuAdmin)
+  if (!liberado) {
+    return <AcessoNegado />
   }
   return <>{children}</>
+}
+
+function Inicio() {
+  const { user, loading } = useAuth()
+  if (loading) return <PageLoading fullscreen label="Carregando sessão…" />
+  if (temPermissao(user, 'dashboard.ver')) return <Dashboard />
+  if (temPermissao(user, 'tickets.ver')) return <Navigate to="/tickets" replace />
+  if (temPermissao(user, 'chat.atender') || temPermissao(user, 'whatsapp.atender')) {
+    return <Navigate to="/chat/atendendo" replace />
+  }
+  if (temPermissao(user, 'ponto.meu')) return <Navigate to="/ponto" replace />
+  return <Navigate to="/minha-conta" replace />
 }
 
 function RedirectKbArtigoEditar() {
@@ -340,61 +343,61 @@ function AppRoutes() {
         path="/"
         element={<LayoutOrLanding />}
       >
-        <Route index element={<Dashboard />} />
-        <Route path="dashboard/tickets" element={<DashboardTickets />} />
-        <Route path="dashboard/chats" element={<DashboardChats />} />
-        <Route path="ponto" element={<MeuPonto />} />
+        <Route index element={<Inicio />} />
+        <Route path="dashboard/tickets" element={<PermissaoRoute codigo="dashboard.ver"><DashboardTickets /></PermissaoRoute>} />
+        <Route path="dashboard/chats" element={<PermissaoRoute codigo="dashboard.ver"><DashboardChats /></PermissaoRoute>} />
+        <Route path="ponto" element={<PermissaoRoute codigo="ponto.meu"><MeuPonto /></PermissaoRoute>} />
         <Route
           path="equipe/online"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="presenca.ver">
               <PresencaOnline />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="equipe/ponto"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="ponto.equipe">
               <PontoEquipe />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="relatorios/tickets"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="relatorios.ver">
               <RelatoriosTickets />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="relatorios/chats"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="relatorios.ver">
               <RelatoriosChats />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route path="alterar-senha" element={<AlterarSenha />} />
         <Route path="minha-conta" element={<MinhaConta />} />
         <Route path="ajuda" element={<AjudaLayout />}>
           <Route index element={<Navigate to="consultar" replace />} />
-          <Route path="consultar" element={<KbConsultaSection />} />
+          <Route path="consultar" element={<PermissaoRoute codigo="ajuda.consultar"><KbConsultaSection /></PermissaoRoute>} />
           <Route
             path="categorias"
             element={
-              <AdminRoute>
+              <PermissaoRoute codigo="ajuda.categorias.ver">
                 <KbCategoriasPage embedded />
-              </AdminRoute>
+              </PermissaoRoute>
             }
           />
           <Route
             path="artigos"
             element={
-              <AdminRoute>
+              <PermissaoRoute codigo="ajuda.artigos.ver">
                 <KbArtigosPage embedded />
-              </AdminRoute>
+              </PermissaoRoute>
             }
           />
         </Route>
@@ -402,17 +405,17 @@ function AppRoutes() {
         <Route
           path="ajuda/artigos/novo"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="ajuda.artigos.criar">
               <KbArtigoForm />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="ajuda/artigos/:id/editar"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="ajuda.artigos.editar">
               <KbArtigoForm />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route path="notificacoes/preferencias" element={<NotificacoesPreferencias />} />
@@ -423,52 +426,52 @@ function AppRoutes() {
         <Route
           path="solicitacoes-melhoria"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="solicitacoes.ver">
               <SolicitacoesMelhoriaAdminPage />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="solicitacoes-melhoria/:id"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="solicitacoes.ver">
               <SolicitacoesMelhoriaAdminPage />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
-        <Route path="tickets" element={<Tickets />} />
-        <Route path="tickets/novo" element={<TicketNovo />} />
-        <Route path="tickets/:id" element={<RedirectTicketDetalhe />} />
+        <Route path="tickets" element={<PermissaoRoute codigo="tickets.ver"><Tickets /></PermissaoRoute>} />
+        <Route path="tickets/novo" element={<PermissaoRoute codigo="tickets.criar"><TicketNovo /></PermissaoRoute>} />
+        <Route path="tickets/:id" element={<PermissaoRoute codigo="tickets.ver"><RedirectTicketDetalhe /></PermissaoRoute>} />
         <Route
           path="crm/leads"
           element={
-            <ComercialOuAdminRoute>
+            <PermissaoRoute codigo="crm.ver">
               <CrmLeads />
-            </ComercialOuAdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="crm/negociacoes/:id"
           element={
-            <ComercialOuAdminRoute>
+            <PermissaoRoute codigo="crm.ver">
               <CrmNegociacaoDetalhe />
-            </ComercialOuAdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="crm/contratos"
           element={
-            <ComercialOuAdminRoute>
+            <PermissaoRoute codigo="contratos.ver">
               <CrmContratos />
-            </ComercialOuAdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="faturamento"
           element={
-            <FinanceiroOuAdminRoute>
+            <AlgumaPermissaoRoute codigos={['faturamento.ver']} tambemFinanceiro>
               <Faturamento />
-            </FinanceiroOuAdminRoute>
+            </AlgumaPermissaoRoute>
           }
         />
         <Route path="chat" element={<ChatHubShell />}>
@@ -537,17 +540,17 @@ function AppRoutes() {
         <Route path="whatsapp" element={<WhatsappLayout />}>
           <Route index element={<Navigate to="/chat/atendendo" replace />} />
           <Route path="atendendo" element={<Navigate to="/chat/atendendo" replace />} />
-          <Route path="historico" element={<WhatsappHistorico />} />
-          <Route path="historico/:chatId" element={<WhatsappConversa modoConsulta />} />
+          <Route path="historico" element={<PermissaoRoute codigo="chat.historico"><WhatsappHistorico /></PermissaoRoute>} />
+          <Route path="historico/:chatId" element={<PermissaoRoute codigo="chat.historico"><WhatsappConversa modoConsulta /></PermissaoRoute>} />
           <Route path="fila" element={<Navigate to="/chat/espera" replace />} />
           <Route path="meus" element={<Navigate to="/chat/atendendo" replace />} />
           <Route path="c/:chatId" element={<RedirectChatConversa canal="whatsapp" />} />
           <Route
             path="avaliacoes"
             element={
-              <AdminRoute>
+              <PermissaoRoute codigo="chat.avaliacoes">
                 <WhatsappAvaliacoes />
-              </AdminRoute>
+              </PermissaoRoute>
             }
           />
         </Route>
@@ -555,114 +558,114 @@ function AppRoutes() {
         <Route
           path="redes/:id"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="redes.ver">
               <RedeDetalhe />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="redes/novo"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="redes.criar">
               <RedeForm />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="redes/:id/editar"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="redes.editar">
               <RedeForm />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="redes"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="redes.ver">
               <Redes />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="empresas/novo"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="empresas.criar">
               <EmpresaForm />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="empresas/:id/editar"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="empresas.editar">
               <EmpresaForm />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="empresas/:id"
           element={
-            <AdminRoute>
+            <AlgumaPermissaoRoute codigos={['empresas.ver', 'pdv.acessos.ver', 'empresas.editar']}>
               <EmpresaDetalhe />
-            </AdminRoute>
+            </AlgumaPermissaoRoute>
           }
         />
         <Route
           path="empresas"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="empresas.ver">
               <Empresas />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="setores/novo"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="setores.criar">
               <SetorForm />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="setores/:id/editar"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="setores.editar">
               <SetorForm />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="setores/:id"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="setores.ver">
               <SetorDetalhe />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route path="setores" element={<Navigate to="/configuracoes/equipe/setores" replace />} />
         <Route
           path="atendentes/novo"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="atendentes.criar">
               <AtendenteForm />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="atendentes/:id/editar"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="atendentes.editar">
               <AtendenteForm />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="atendentes/:id"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="atendentes.ver">
               <AtendenteDetalhe />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route path="atendentes" element={<Navigate to="/configuracoes/equipe/atendentes" replace />} />
@@ -670,49 +673,49 @@ function AppRoutes() {
         <Route
           path="funcionarios-rede/novo"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="funcionarios.criar">
               <FuncionarioRedeForm />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="funcionarios-rede/:id/editar"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="funcionarios.editar">
               <FuncionarioRedeForm />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="funcionarios-rede"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="funcionarios.ver">
               <FuncionariosRede />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="respostas-prontas/novo"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="respostas.criar">
               <RespostaProntaForm />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="respostas-prontas/:id/editar"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="respostas.editar">
               <RespostaProntaForm />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="respostas-prontas/:id"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="respostas.ver">
               <RespostaProntaDetalhe />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route path="respostas-prontas" element={<Navigate to="/configuracoes/tickets/respostas-prontas" replace />} />
@@ -728,25 +731,25 @@ function AppRoutes() {
         <Route
           path="status-ticket/novo"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="status_ticket.criar">
               <StatusTicketForm />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="status-ticket/:id/editar"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="status_ticket.editar">
               <StatusTicketForm />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="status-ticket/:id"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="status_ticket.ver">
               <StatusTicketDetalhe />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route path="status-ticket" element={<Navigate to="/configuracoes/tickets/status-ticket" replace />} />
@@ -754,68 +757,95 @@ function AppRoutes() {
         <Route
           path="tipos-negocio/novo"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="tipos_negocio.criar">
               <TipoNegocioForm />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="tipos-negocio/:id/editar"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="tipos_negocio.editar">
               <TipoNegocioForm />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route
           path="tipos-negocio/:id"
           element={
-            <AdminRoute>
+            <PermissaoRoute codigo="tipos_negocio.ver">
               <TipoNegocioDetalhe />
-            </AdminRoute>
+            </PermissaoRoute>
           }
         />
         <Route path="tipos-negocio" element={<Navigate to="/configuracoes/comercial/tipos-negocio" replace />} />
         <Route
           path="configuracoes"
           element={
-            <AdminRoute>
+            <AlgumaPermissaoRoute codigos={todasPermissoesConfig()}>
               <ConfigHubPage />
-            </AdminRoute>
+            </AlgumaPermissaoRoute>
+          }
+        />
+        <Route
+          path="configuracoes/equipe/grupos-permissao/novo"
+          element={
+            <PermissaoRoute codigo="grupos.criar">
+              <GrupoPermissaoForm />
+            </PermissaoRoute>
+          }
+        />
+        <Route
+          path="configuracoes/equipe/grupos-permissao/:id/editar"
+          element={
+            <PermissaoRoute codigo="grupos.editar">
+              <GrupoPermissaoForm />
+            </PermissaoRoute>
+          }
+        />
+        <Route
+          path="configuracoes/equipe/grupos-permissao/:id"
+          element={
+            <PermissaoRoute codigo="grupos.ver">
+              <GrupoPermissaoDetalhe />
+            </PermissaoRoute>
           }
         />
         <Route
           path="configuracoes/:domain"
           element={
-            <AdminRoute>
+            <AlgumaPermissaoRoute codigos={todasPermissoesConfig()}>
               <ConfigDomainLayout />
-            </AdminRoute>
+            </AlgumaPermissaoRoute>
           }
         >
           <Route index element={<ConfigDomainIndexRedirect />} />
-          <Route path="setores" element={<Setores embedded />} />
-          <Route path="atendentes" element={<Atendentes embedded />} />
-          <Route path="status-ticket" element={<StatusTicketPage embedded />} />
-          <Route path="natureza-motivo" element={<TicketNaturezaMotivoPage embedded />} />
-          <Route path="respostas-prontas" element={<RespostasProntasPage embedded />} />
-          <Route path="roteamento" element={<RoteamentoRegrasPage embedded />} />
+          <Route path="setores" element={<PermissaoRoute codigo="setores.ver"><Setores embedded /></PermissaoRoute>} />
+          <Route path="atendentes" element={<PermissaoRoute codigo="atendentes.ver"><Atendentes embedded /></PermissaoRoute>} />
+          <Route path="grupos-permissao" element={<PermissaoRoute codigo="grupos.ver"><GruposPermissao embedded /></PermissaoRoute>} />
+          <Route path="status-ticket" element={<PermissaoRoute codigo="status_ticket.ver"><StatusTicketPage embedded /></PermissaoRoute>} />
+          <Route path="natureza-motivo" element={<PermissaoRoute codigo="natureza.ver"><TicketNaturezaMotivoPage embedded /></PermissaoRoute>} />
+          <Route path="respostas-prontas" element={<PermissaoRoute codigo="respostas.ver"><RespostasProntasPage embedded /></PermissaoRoute>} />
+          <Route path="roteamento" element={<PermissaoRoute codigo="roteamento.ver"><RoteamentoRegrasPage embedded /></PermissaoRoute>} />
+          <Route element={<PermissaoRoute codigo="sla.ver"><Outlet /></PermissaoRoute>}>
           <Route path="sla" element={<SlaConfigLayout />}>
             <Route index element={<Navigate to="politicas" replace />} />
             <Route path="politicas" element={<SlaPoliticasPage embedded />} />
             <Route path="calendarios" element={<SlaCalendariosPage embedded />} />
           </Route>
-          <Route path="whatsapp" element={<ConfigWhatsapp embedded />} />
-          <Route path="email" element={<ConfigEmpresaEmail embedded section="email" />} />
-          <Route path="base-conhecimento" element={<KbPortalSettingsPage embedded />} />
-          <Route path="funil-crm" element={<ConfigCrmFunil embedded />} />
-          <Route path="propostas" element={<ConfigPropostaTemplates embedded />} />
-          <Route path="contratos" element={<ConfigContratoTemplates embedded />} />
-          <Route path="custos" element={<ConfigComercialCustos embedded />} />
-          <Route path="implantacao" element={<ConfigImplantacaoChecklist embedded />} />
-          <Route path="empresa" element={<ConfigEmpresaEmail embedded section="empresa" />} />
-          <Route path="tipos-negocio" element={<TiposNegocio embedded />} />
-          <Route path="pdv" element={<ConfigPdvCatalogos embedded />} />
-          <Route path="auditoria" element={<Auditoria embedded />} />
+          </Route>
+          <Route path="whatsapp" element={<PermissaoRoute codigo="canais.whatsapp.ver"><ConfigWhatsapp embedded /></PermissaoRoute>} />
+          <Route path="email" element={<PermissaoRoute codigo="canais.email.ver"><ConfigEmpresaEmail embedded section="email" /></PermissaoRoute>} />
+          <Route path="base-conhecimento" element={<PermissaoRoute codigo="ajuda.portal"><KbPortalSettingsPage embedded /></PermissaoRoute>} />
+          <Route path="funil-crm" element={<PermissaoRoute codigo="funil.editar"><ConfigCrmFunil embedded /></PermissaoRoute>} />
+          <Route path="propostas" element={<PermissaoRoute codigo="propostas.modelos"><ConfigPropostaTemplates embedded /></PermissaoRoute>} />
+          <Route path="contratos" element={<PermissaoRoute codigo="contratos.modelos"><ConfigContratoTemplates embedded /></PermissaoRoute>} />
+          <Route path="custos" element={<AlgumaPermissaoRoute codigos={['custos.ver', 'custos.simular', 'custos.editar']}><ConfigComercialCustos embedded /></AlgumaPermissaoRoute>} />
+          <Route path="implantacao" element={<PermissaoRoute codigo="implantacao.editar"><ConfigImplantacaoChecklist embedded /></PermissaoRoute>} />
+          <Route path="empresa" element={<PermissaoRoute codigo="instalacao.ver"><ConfigEmpresaEmail embedded section="empresa" /></PermissaoRoute>} />
+          <Route path="tipos-negocio" element={<PermissaoRoute codigo="tipos_negocio.ver"><TiposNegocio embedded /></PermissaoRoute>} />
+          <Route path="pdv" element={<PermissaoRoute codigo="pdv.ver"><ConfigPdvCatalogos embedded /></PermissaoRoute>} />
+          <Route path="auditoria" element={<PermissaoRoute codigo="auditoria.ver"><Auditoria embedded /></PermissaoRoute>} />
           <Route path="sugestoes" element={<Navigate to="/solicitacoes-melhoria" replace />} />
         </Route>
         <Route path="configuracoes/atendimento/*" element={<ConfigLegacyRedirect />} />

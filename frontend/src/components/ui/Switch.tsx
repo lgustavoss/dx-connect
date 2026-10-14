@@ -89,25 +89,21 @@ export function Switch({
         {...rest}
         onClick={() => !disabled && onCheckedChange(!checked)}
         className={`
-          relative inline-flex h-7 w-11 shrink-0 cursor-pointer rounded-full border transition-colors duration-200
+          relative inline-flex h-7 w-11 shrink-0 cursor-pointer rounded-full transition-colors duration-200
           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900
           disabled:cursor-not-allowed disabled:opacity-45
           ${
             checked
-              ? 'border-emerald-600 bg-emerald-600 dark:border-emerald-500 dark:bg-emerald-500'
-              : 'border-slate-300/60 bg-slate-200 dark:border-slate-600 dark:bg-slate-700/80'
+              ? 'bg-emerald-600 dark:bg-emerald-500'
+              : 'bg-slate-200 dark:bg-slate-700'
           }
         `}
       >
         <span
           aria-hidden
           className={`
-            pointer-events-none absolute left-0.5 top-0.5 size-5 rounded-full shadow-sm ring-1 transition-transform duration-200 ease-out
-            ${
-              checked
-                ? 'translate-x-[22px] bg-white ring-emerald-900/10'
-                : 'translate-x-0 bg-white ring-slate-900/5 dark:bg-slate-300 dark:ring-slate-900/20'
-            }
+            pointer-events-none absolute top-0.5 left-0.5 size-6 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out
+            ${checked ? 'translate-x-4' : 'translate-x-0'}
           `}
         />
       </button>

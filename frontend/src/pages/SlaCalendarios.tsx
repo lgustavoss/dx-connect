@@ -8,6 +8,8 @@ import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
 import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { Switch } from '../components/ui/Switch'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import {
@@ -51,6 +53,8 @@ function resumoHorario(c: Sla.BusinessCalendar): string {
 
 export function SlaCalendariosPage({ embedded = false }: { embedded?: boolean }) {
   const toast = useToast()
+  const { user } = useAuth()
+  const podeEditar = temPermissao(user, 'sla.editar')
   const [list, setList] = useState<Sla.BusinessCalendar[]>([])
   const [setorOpts, setSetorOpts] = useState<{ id: number; nome: string }[]>([])
   const [loading, setLoading] = useState(true)
@@ -182,7 +186,7 @@ export function SlaCalendariosPage({ embedded = false }: { embedded?: boolean })
       denied={denied}
       title="Calendários comerciais"
       subtitle="Horário útil compartilhado entre políticas SLA (minutos contam só dentro destes intervalos)."
-      actions={<Button onClick={iniciarNova}>Novo calendário</Button>}
+      actions={podeEditar ? <Button onClick={iniciarNova}>Novo calendário</Button> : undefined}
     >
       <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
         Vincule calendários em{' '}
@@ -239,10 +243,12 @@ export function SlaCalendariosPage({ embedded = false }: { embedded?: boolean })
                   <td className="p-2 text-slate-600 dark:text-slate-400">{resumoHorario(c)}</td>
                   <td className="p-2">{c.usar_feriados_nacionais ? 'Sim' : 'Não'}</td>
                   <td className="p-2">
-                    <Button type="button" variant="ghost" className="px-2 py-1" onClick={() => iniciarEdicao(c)}>
-                      Editar
-                    </Button>
-                    {c.ativo ? (
+                    {podeEditar ? (
+                      <Button type="button" variant="ghost" className="px-2 py-1" onClick={() => iniciarEdicao(c)}>
+                        Editar
+                      </Button>
+                    ) : null}
+                    {podeEditar && c.ativo ? (
                       <Button type="button" variant="ghost" className="px-2 py-1" onClick={() => desativar(c)}>
                         Desativar
                       </Button>

@@ -21,6 +21,7 @@ import { useToast } from '../components/ui/Toast'
 import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { exibirProtocolo } from '../lib/exibirProtocolo'
@@ -114,7 +115,9 @@ export function Tickets() {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const toast = useToast()
-  const { isAdmin } = useAuth()
+  const { user } = useAuth()
+  const verTodos = temPermissao(user, 'atendimento.ver_todos')
+  const podeCriar = temPermissao(user, 'tickets.criar')
   const [forbidden, setForbidden] = useState(false)
   /** Ticket aberto no lugar da lista — a URL continua `/tickets` (#655). */
   const [ticketAtivoId, setTicketAtivoId] = useState<number | null>(() => lerTicketAtivoSession())
@@ -229,14 +232,14 @@ export function Tickets() {
     (situacao === 'abertos' && filtroStatus !== '') ||
     filtroFila !== '' ||
     filtroSla !== '' ||
-    (isAdmin && filtroAtendente !== '')
+    (verTodos && filtroAtendente !== '')
 
   const qtdFiltrosRefinamento =
     (filtroEmpresa !== '' ? 1 : 0) +
     (filtroSetor !== '' ? 1 : 0) +
     (situacao === 'abertos' && filtroStatus !== '' ? 1 : 0) +
     (situacao === 'abertos' && filtroSla !== '' ? 1 : 0) +
-    (isAdmin && filtroAtendente !== '' ? 1 : 0)
+    (verTodos && filtroAtendente !== '' ? 1 : 0)
 
   useEffect(() => {
     if (situacao !== 'abertos' && filtroSla !== '') setFiltroSla('')
@@ -306,7 +309,7 @@ export function Tickets() {
   }, [])
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (!verTodos) {
       setAtendentesOpt([])
       setFiltroAtendente('')
       resetarPagina()
@@ -315,7 +318,7 @@ export function Tickets() {
     coletarTodasPaginas<Atendentes.Atendente>((o, l) =>
       atendentes.list({ incluir_inativos: false, offset: o, limit: l }),
     ).then(setAtendentesOpt)
-  }, [isAdmin, resetarPagina])
+  }, [verTodos, resetarPagina])
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedBusca(busca.trim()), 400)
@@ -346,7 +349,7 @@ export function Tickets() {
         com_responsavel: filtroFila === 'com_responsavel' ? true : undefined,
         meus: filtroFila === 'meus' ? true : undefined,
         atendente_id:
-          isAdmin &&
+          verTodos &&
           filtroFila !== 'sem_responsavel' &&
           filtroFila !== 'meus' &&
           filtroAtendente !== ''
@@ -385,7 +388,7 @@ export function Tickets() {
     filtroFila,
     filtroAtendente,
     filtroSla,
-    isAdmin,
+    verTodos,
     ordenarPor,
     ordem,
     sortParamsEfetivos,
@@ -467,9 +470,11 @@ export function Tickets() {
                 )
               })}
             </div>
-            <Link to="/tickets/novo">
-              <Button className="w-full sm:w-auto">Novo ticket</Button>
-            </Link>
+            {podeCriar ? (
+              <Link to="/tickets/novo">
+                <Button className="w-full sm:w-auto">Novo ticket</Button>
+              </Link>
+            ) : null}
           </div>
         }
       />
@@ -572,7 +577,7 @@ export function Tickets() {
             <p className="mt-2 max-w-xl text-xs text-slate-500 dark:text-slate-400">
               <span className="font-medium text-slate-600 dark:text-slate-300">Na fila</span> — sem responsável.{' '}
               <span className="font-medium text-slate-600 dark:text-slate-300">Em atendimento</span> — já com responsável atribuído.
-              {isAdmin && ' Use «Mais filtros» para filtrar por atendente da equipe.'}
+              {verTodos && ' Use «Mais filtros» para filtrar por atendente da equipe.'}
             </p>
             </div>
           )}
@@ -639,7 +644,7 @@ export function Tickets() {
                   emptyLabel="Todas"
                   placeholder="Todas"
                 />
-                {!isAdmin && empresasOpt.length === 0 && (
+                {!verTodos && empresasOpt.length === 0 && (
                   <p className="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
                     Empresas no filtro aparecem só para redes que já tiveram ticket nos setores que você atende. Até lá,
                     use a busca por protocolo (inclui # e hífen), assunto ou empresa.
@@ -676,7 +681,7 @@ export function Tickets() {
                   placeholder="Todos"
                 />
               )}
-              {isAdmin && (
+              {verTodos && (
                 <Select
                   label="Responsável (equipe)"
                   labelStyle="overline"

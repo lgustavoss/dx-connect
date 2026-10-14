@@ -81,5 +81,11 @@ class EmpresaPdvRead(EmpresaPdvBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ListaPdvsEmpresa(BaseModel):
+    items: list[EmpresaPdvRead]
+    total: int
+    empresa_nome: str
+
+
 class EmpresaPdvCredencialRead(BaseModel):
     acesso_remoto_senha: str

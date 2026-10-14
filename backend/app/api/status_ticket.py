@@ -10,7 +10,7 @@ from app.models import StatusTicket
 from app.models.atendente import Atendente
 from app.schemas.status_ticket import StatusTicketCreate, StatusTicketUpdate, StatusTicketRead
 from app.schemas.lista_paginada import ListaPaginada
-from app.core.auth import obter_atendente_atual, exigir_admin
+from app.core.auth import obter_atendente_atual, exigir_permissao
 from app.core.audit import registrar_audit
 
 router = APIRouter(prefix="/status-ticket", tags=["status-ticket"])
@@ -62,7 +62,7 @@ def listar(
 def criar(
     data: StatusTicketCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("status_ticket.criar")),
 ):
     if db.query(StatusTicket).filter(StatusTicket.slug == data.slug).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Slug já existe")
@@ -79,7 +79,7 @@ def criar(
 def obter(
     status_id: int,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("status_ticket.ver")),
 ):
     st = db.query(StatusTicket).filter(StatusTicket.id == status_id).first()
     if not st:
@@ -92,7 +92,7 @@ def atualizar(
     status_id: int,
     data: StatusTicketUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("status_ticket.editar")),
 ):
     st = db.query(StatusTicket).filter(StatusTicket.id == status_id).first()
     if not st:
@@ -109,7 +109,7 @@ def atualizar(
 def excluir(
     status_id: int,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("status_ticket.excluir")),
 ):
     st = db.query(StatusTicket).filter(StatusTicket.id == status_id).first()
     if not st:

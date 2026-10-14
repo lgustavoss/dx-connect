@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.audit import registrar_audit
-from app.core.auth import exigir_admin, exigir_comercial_ou_admin
+from app.core.auth import exigir_permissao
 from app.database import get_db
 from app.models.atendente import Atendente
 from app.models.crm import CrmNegociacaoCnpjLinha
@@ -42,7 +42,7 @@ _DEFAULT_PAGE = 50
 def listar_funil(
     incluir_inativos: bool = Query(False),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_comercial_ou_admin),
+    _: Atendente = Depends(exigir_permissao("funil.ver")),
 ):
     return svc.listar_estagios(db, incluir_inativos=incluir_inativos)
 
@@ -51,7 +51,7 @@ def listar_funil(
 def criar_funil_estagio(
     data: FunilEstagioCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("funil.editar")),
 ):
     row = svc.criar_estagio(db, data)
     registrar_audit(db, "crm_funil_estagio", row.id, "create", atendente.id)
@@ -65,7 +65,7 @@ def atualizar_funil_estagio(
     estagio_id: int,
     data: FunilEstagioUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("funil.editar")),
 ):
     row = svc.obter_estagio(db, estagio_id=estagio_id, apenas_ativos=False)
     row = svc.atualizar_estagio(db, row, data)
@@ -85,7 +85,7 @@ def listar_leads(
     so_minhas: bool = Query(False, description="Filtra só leads do utilizador logado"),
     ativo: bool | None = Query(True),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("crm.ver")),
 ):
     rows, total = svc.listar_leads(
         db,
@@ -105,7 +105,7 @@ def listar_leads(
 def criar_lead(
     data: CrmLeadCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("crm.criar")),
 ):
     lead = svc.criar_lead(db, data, atendente)
     registrar_audit(db, "crm_lead", lead.id, "create", atendente.id)
@@ -118,7 +118,7 @@ def criar_lead(
 def obter_lead(
     lead_id: int,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_comercial_ou_admin),
+    _: Atendente = Depends(exigir_permissao("crm.ver")),
 ):
     lead = svc.obter_lead(db, lead_id)
     return CrmLeadRead(**svc.lead_to_read(db, lead))
@@ -129,7 +129,7 @@ def atualizar_lead(
     lead_id: int,
     data: CrmLeadUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("crm.editar")),
 ):
     lead = svc.obter_lead(db, lead_id)
     lead = svc.atualizar_lead(db, lead, data)
@@ -150,7 +150,7 @@ def listar_negociacoes(
     q: str | None = Query(None),
     so_minhas: bool = Query(False),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("crm.ver")),
 ):
     rows, total = svc.listar_negociacoes(
         db,
@@ -174,7 +174,7 @@ def listar_negociacoes(
 def criar_negociacao(
     data: CrmNegociacaoCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("crm.criar")),
 ):
     neg = svc.criar_negociacao(db, data, atendente)
     registrar_audit(db, "crm_negociacao", neg.id, "create", atendente.id)
@@ -187,7 +187,7 @@ def criar_negociacao(
 def obter_negociacao(
     negociacao_id: int,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_comercial_ou_admin),
+    _: Atendente = Depends(exigir_permissao("crm.ver")),
 ):
     neg = svc.obter_negociacao(db, negociacao_id)
     return CrmNegociacaoRead(**svc.negociacao_to_read(neg))
@@ -198,7 +198,7 @@ def atualizar_negociacao(
     negociacao_id: int,
     data: CrmNegociacaoUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("crm.editar")),
 ):
     neg = svc.obter_negociacao(db, negociacao_id)
     neg = svc.atualizar_negociacao(db, neg, data)
@@ -213,7 +213,7 @@ def mover_estagio(
     negociacao_id: int,
     body: CrmMoverEstagioRequest,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("crm.editar")),
 ):
     neg = svc.obter_negociacao(db, negociacao_id)
     neg = svc.mover_estagio(
@@ -239,7 +239,7 @@ def adicionar_linha(
     negociacao_id: int,
     data: CrmLinhaCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("crm.criar")),
 ):
     neg = svc.obter_negociacao(db, negociacao_id)
     linha = svc.add_linha(db, neg, data)
@@ -255,7 +255,7 @@ def atualizar_linha(
     linha_id: int,
     data: CrmLinhaUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("crm.editar")),
 ):
     linha = (
         db.query(CrmNegociacaoCnpjLinha)
@@ -276,7 +276,7 @@ def excluir_linha(
     negociacao_id: int,
     linha_id: int,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("crm.editar")),
 ):
     linha = (
         db.query(CrmNegociacaoCnpjLinha)
@@ -300,7 +300,7 @@ def listar_atividades(
     offset: int = Query(0, ge=0),
     limit: int = Query(_DEFAULT_PAGE, ge=1, le=_MAX_PAGE),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("crm.ver")),
 ):
     rows, total = svc.listar_atividades(db, negociacao_id, offset=offset, limit=limit)
     return ListaPaginada(
@@ -318,7 +318,7 @@ def criar_atividade(
     negociacao_id: int,
     data: CrmAtividadeCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("crm.criar")),
 ):
     row = svc.criar_atividade(db, negociacao_id, data, atendente)
     registrar_audit(db, "crm_negociacao_atividade", row.id, "create", atendente.id)
@@ -336,7 +336,7 @@ def editar_atividade(
     atividade_id: int,
     data: CrmAtividadeUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("crm.editar")),
 ):
     row = svc.editar_atividade(db, negociacao_id, atividade_id, data, atendente)
     registrar_audit(db, "crm_negociacao_atividade", row.id, "update", atendente.id)
@@ -348,7 +348,7 @@ def editar_atividade(
 @router.get("/lembretes-pendentes", response_model=list[CrmLembretePendenteRead])
 def listar_lembretes_pendentes(
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("crm.ver")),
 ):
     return svc.listar_lembretes_pendentes(db, atendente)
 
@@ -357,7 +357,7 @@ def listar_lembretes_pendentes(
 def confirmar_lembrete(
     atividade_id: int,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("crm.editar")),
 ):
     svc.confirmar_lembrete(db, atividade_id, atendente)
     db.commit()

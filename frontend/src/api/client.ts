@@ -502,6 +502,25 @@ export const atendentes = {
   delete: (id: number) => api<void>(`/atendentes/${id}`, { method: 'DELETE' }),
 };
 
+export const permissaoGrupos = {
+  list: () => api<PermissaoGrupos.Grupo[]>('/permissao-grupos'),
+  catalogo: () => api<PermissaoGrupos.CatalogoItem[]>('/permissao-grupos/catalogo'),
+  create: (data: PermissaoGrupos.Create) =>
+    api<PermissaoGrupos.Grupo>('/permissao-grupos', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: PermissaoGrupos.Update) =>
+    api<PermissaoGrupos.Grupo>(`/permissao-grupos/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id: number) => api<void>(`/permissao-grupos/${id}`, { method: 'DELETE' }),
+  membros: (id: number) => api<PermissaoGrupos.Membro[]>(`/permissao-grupos/${id}/membros`),
+  candidatos: (id: number) => api<PermissaoGrupos.Membro[]>(`/permissao-grupos/${id}/candidatos`),
+  vincular: (id: number, atendenteId: number) =>
+    api<PermissaoGrupos.Membro>(`/permissao-grupos/${id}/membros`, {
+      method: 'POST',
+      body: JSON.stringify({ atendente_id: atendenteId }),
+    }),
+  desvincular: (id: number, atendenteId: number) =>
+    api<void>(`/permissao-grupos/${id}/membros/${atendenteId}`, { method: 'DELETE' }),
+};
+
 export const funcionariosRede = {
   list: (params?: {
     rede_id?: number;
@@ -2629,6 +2648,38 @@ export namespace Setores {
   }
 }
 
+export namespace PermissaoGrupos {
+  export interface CatalogoItem {
+    modulo: string
+    codigo: string
+    nome: string
+    descricao: string
+    pacote?: string | null
+  }
+  export interface Grupo {
+    id: number
+    nome: string
+    slug: string
+    sistema: boolean
+    permissoes: string[]
+    membros: number
+  }
+  export interface Create {
+    nome: string
+    permissoes: string[]
+  }
+  export interface Update {
+    nome?: string
+    permissoes?: string[]
+  }
+  export interface Membro {
+    id: number
+    nome: string
+    email: string
+    ativo: boolean
+  }
+}
+
 export namespace Atendentes {
   export type ModoJornada = 'nenhum' | 'semanal' | 'ciclo'
   export interface Atendente {
@@ -2656,12 +2707,16 @@ export namespace Atendentes {
     /** Cargos da equipe DeskRudder (painel SaaS); vários por usuário. */
     saas_setor_ids?: number[];
     saas_setor_nomes?: string[];
+    grupo_ids?: number[];
+    grupo_nomes?: string[];
+    permissoes?: string[];
   }
   export interface Create {
     email: string;
     nome: string;
     senha: string;
     role?: string;
+    grupo_ids?: number[];
     ativo?: boolean;
     setor_ids?: number[];
     must_change_password?: boolean;
@@ -2684,6 +2739,7 @@ export namespace Atendentes {
     nome?: string;
     senha?: string;
     role?: string;
+    grupo_ids?: number[];
     ativo?: boolean;
     setor_ids?: number[];
     must_change_password?: boolean;
@@ -4168,7 +4224,7 @@ export const pdvTiposAcessoRemoto = {
 
 export const empresaPdvs = {
   list: (empresaId: number, params?: { incluir_inativos?: boolean }) =>
-    listPaginated<EmpresaPdv.Item>(`/empresas/${empresaId}/pdvs`, params),
+    api<EmpresaPdv.Lista>(withParams(`/empresas/${empresaId}/pdvs`, params)),
   create: (empresaId: number, data: EmpresaPdv.Create) =>
     api<EmpresaPdv.Item>(`/empresas/${empresaId}/pdvs`, { method: 'POST', body: JSON.stringify(data) }),
   update: (empresaId: number, pdvId: number, data: EmpresaPdv.Update) =>
@@ -4199,6 +4255,11 @@ export namespace PdvCatalogo {
 }
 
 export namespace EmpresaPdv {
+  export interface Lista {
+    items: Item[]
+    total: number
+    empresa_nome: string
+  }
   export interface Item {
     id: number;
     empresa_id: number;

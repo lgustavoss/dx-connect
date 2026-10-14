@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.audit import registrar_audit
-from app.core.auth import exigir_admin
+from app.core.auth import exigir_permissao
 from app.core.ticket_prioridade import PrioridadeTicket
 from app.database import get_db
 from app.models.atendente import Atendente
@@ -134,7 +134,7 @@ def listar_calendarios(
     setor_id: int | None = Query(None),
     incluir_inativos: bool = Query(False),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("sla.ver")),
 ):
     q = db.query(BusinessCalendar).filter(BusinessCalendar.tenant_id == atendente.tenant_id)
     if setor_id is not None:
@@ -149,7 +149,7 @@ def listar_calendarios(
 def criar_calendario(
     data: BusinessCalendarCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("sla.editar")),
 ):
     if data.setor_id is not None:
         _validar_setor(db, atendente.tenant_id, data.setor_id)
@@ -176,7 +176,7 @@ def criar_calendario(
 def obter_calendario(
     calendar_id: int,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("sla.ver")),
 ):
     row = (
         db.query(BusinessCalendar)
@@ -193,7 +193,7 @@ def atualizar_calendario(
     calendar_id: int,
     data: BusinessCalendarUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("sla.editar")),
 ):
     row = (
         db.query(BusinessCalendar)
@@ -233,7 +233,7 @@ def atualizar_calendario(
 
 
 @router.get("/prioridades", response_model=SlaPrioridadesDisponiveis)
-def listar_prioridades_sla(_: Atendente = Depends(exigir_admin)):
+def listar_prioridades_sla(_: Atendente = Depends(exigir_permissao("sla.ver"))):
     return SlaPrioridadesDisponiveis()
 
 
@@ -242,7 +242,7 @@ def listar_policies(
     setor_id: int | None = Query(None),
     incluir_inativos: bool = Query(False),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("sla.ver")),
 ):
     q = db.query(SlaPolicy).filter(SlaPolicy.tenant_id == atendente.tenant_id)
     if setor_id is not None:
@@ -262,7 +262,7 @@ def listar_policies(
 def criar_policy(
     data: SlaPolicyCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("sla.editar")),
 ):
     try:
         validar_metas_sla(
@@ -305,7 +305,7 @@ def criar_policy(
 def obter_policy(
     policy_id: int,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("sla.ver")),
 ):
     policy = (
         db.query(SlaPolicy)
@@ -322,7 +322,7 @@ def atualizar_policy(
     policy_id: int,
     data: SlaPolicyUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("sla.editar")),
 ):
     policy = (
         db.query(SlaPolicy)

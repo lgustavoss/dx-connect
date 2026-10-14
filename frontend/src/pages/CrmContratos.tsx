@@ -13,6 +13,7 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { textoDiasFidelidade } from '../components/crm/CrmContratoCard'
 import { maskCnpjCpf } from '../utils/maskCnpjCpf'
 import { SemPermissao } from './SemPermissao'
@@ -43,7 +44,8 @@ function classeDias(dias: number | null | undefined): string {
 
 export function CrmContratos() {
   const toast = useToast()
-  const { isAdmin } = useAuth()
+  const { user } = useAuth()
+  const podeVerTodos = temPermissao(user, 'contratos.ver_todos')
   const [list, setList] = useState<ComercialContrato.Contrato[]>([])
   const [loading, setLoading] = useState(true)
   const [forbidden, setForbidden] = useState(false)
@@ -59,14 +61,14 @@ export function CrmContratos() {
   }, [busca])
 
   useEffect(() => {
-    if (!isAdmin) return
+    if (!podeVerTodos) return
     atendentes
       .list({ limit: 100, offset: 0 })
       .then(({ items }) => {
         setResponsaveis(items.filter((a) => a.ativo && (a.role === 'comercial' || a.role === 'admin')))
       })
       .catch(() => setResponsaveis([]))
-  }, [isAdmin])
+  }, [podeVerTodos])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -75,7 +77,7 @@ export function CrmContratos() {
       .list({
         status: status || undefined,
         cnpj: debouncedBusca || undefined,
-        responsavel_id: isAdmin && responsavelId !== '' ? responsavelId : undefined,
+        responsavel_id: podeVerTodos && responsavelId !== '' ? responsavelId : undefined,
       })
       .then(setList)
       .catch((err) => {
@@ -88,7 +90,7 @@ export function CrmContratos() {
         setList([])
       })
       .finally(() => setLoading(false))
-  }, [status, debouncedBusca, responsavelId, isAdmin, toast])
+  }, [status, debouncedBusca, responsavelId, podeVerTodos, toast])
 
   useEffect(() => {
     load()
@@ -98,7 +100,7 @@ export function CrmContratos() {
     return (
       <SemPermissao
         title="Você não tem permissão para ver contratos."
-        detail="A lista de contratos é só para o perfil comercial e administradores."
+        detail="Peça ao gestor da equipe a permissão de visualizar contratos."
         voltarPara="/"
         voltarLabel="Voltar para o Dashboard"
       />
@@ -110,7 +112,7 @@ export function CrmContratos() {
       <div>
         <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Contratos</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          {isAdmin
+          {podeVerTodos
             ? 'Todos os contratos da instância. Filtre por responsável ou abra a negociação para gerar, enviar ou assinar.'
             : 'Contratos das suas negociações. Abra a negociação para gerar, enviar ou assinar.'}
         </p>
@@ -141,7 +143,7 @@ export function CrmContratos() {
             placeholder="Filtrar…"
           />
         </div>
-        {isAdmin ? (
+        {podeVerTodos ? (
           <div className="min-w-[200px]">
             <Select
               label="Responsável"

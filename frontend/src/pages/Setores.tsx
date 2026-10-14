@@ -9,6 +9,8 @@ import { useToast } from '../components/ui/Toast'
 import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
@@ -18,6 +20,10 @@ type ColunaSetor = 'nome' | 'slug' | 'ativo'
 export function Setores({ embedded = false }: { embedded?: boolean }) {
   const toast = useToast()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const podeCriar = temPermissao(user, 'setores.criar')
+  const podeEditar = temPermissao(user, 'setores.editar')
+  const podeExcluir = temPermissao(user, 'setores.excluir')
   const { ordenarPor, ordem, aoOrdenarColuna, sortParams } = useOrdenacaoLista<ColunaSetor>()
   const [list, setList] = useState<Setores.Setor[]>([])
   const [total, setTotal] = useState(0)
@@ -95,7 +101,7 @@ export function Setores({ embedded = false }: { embedded?: boolean }) {
       forbidden={forbidden}
       denied={denied}
       title="Setores"
-      actions={<Button onClick={() => navigate('/setores/novo')}>Novo setor</Button>}
+      actions={podeCriar ? <Button onClick={() => navigate('/setores/novo')}>Novo setor</Button> : undefined}
     >
       <Card>
         <BarraBuscaPaginacao
@@ -154,8 +160,8 @@ export function Setores({ embedded = false }: { embedded?: boolean }) {
                     <td className="px-4 py-3.5 text-right sm:px-6" onClick={(ev) => ev.stopPropagation()}>
                       <ListaAcoesVerEditar
                         onVer={() => navigate(`/setores/${s.id}`)}
-                        onEditar={() => navigate(`/setores/${s.id}/editar`)}
-                        onExcluir={() => handleDelete(s.id)}
+                        onEditar={podeEditar ? () => navigate(`/setores/${s.id}/editar`) : undefined}
+                        onExcluir={podeExcluir ? () => handleDelete(s.id) : undefined}
                         editarLabel="Editar setor"
                         verLabel="Visualizar setor"
                       />

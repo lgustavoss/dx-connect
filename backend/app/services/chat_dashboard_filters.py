@@ -6,6 +6,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.setor_scope import ids_setores_visiveis_atendente
+from app.services.permissao_grupos import tem_permissao
 from app.models.atendente import Atendente
 from app.models.whatsapp_chat import WhatsappChat
 
@@ -33,11 +34,11 @@ def apply_chat_dashboard_filters(
     setor_id: int | None = None,
     atendente_id: int | None = None,
 ):
-    if atendente.role != "admin":
+    if not tem_permissao(atendente, "atendimento.ver_todos"):
         vis = ids_setores_visiveis_atendente(db, atendente)
         stmt = stmt.where(or_(WhatsappChat.setor_id.is_(None), WhatsappChat.setor_id.in_(vis)))
     if setor_id is not None:
-        if atendente.role != "admin":
+        if not tem_permissao(atendente, "atendimento.ver_todos"):
             vis = ids_setores_visiveis_atendente(db, atendente)
             if setor_id not in vis:
                 return stmt.where(WhatsappChat.id == -1)

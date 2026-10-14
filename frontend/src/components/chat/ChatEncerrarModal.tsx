@@ -11,6 +11,8 @@ import {
   formatarHoraDemanda,
   rotuloDemanda,
 } from '../../lib/whatsappDemandaUtils'
+import { useAuth } from '../../contexts/AuthContext'
+import { temPermissao } from '../../lib/permissoes'
 import {
   DEMANDA_FORM_VAZIO,
   WhatsappDemandaFormFields,
@@ -58,6 +60,8 @@ export function ChatEncerrarModal<TChat extends { estado: string }>({
   onDemandasChange,
 }: Props<TChat>) {
   const toast = useToast()
+  const { user } = useAuth()
+  const podeSemDemanda = temPermissao(user, 'chat.encerrar_sem_demanda')
   const [demandas, setDemandas] = useState<ChatDemanda[]>([])
   const [loadingDemandas, setLoadingDemandas] = useState(false)
   const [salvando, setSalvando] = useState(false)
@@ -73,7 +77,11 @@ export function ChatEncerrarModal<TChat extends { estado: string }>({
 
   const semDemandas = demandas.length === 0
   const demandasResolvidas = demandas.filter((d) => d.desfecho === 'resolvido_sessao')
-  const demandaOpcional = encerramentoPorInatividade && semDemandas
+  const demandaOpcional = podeSemDemanda && encerramentoPorInatividade && semDemandas
+
+  useEffect(() => {
+    if (!podeSemDemanda && acao === 'sem_demanda') setAcao('registrar')
+  }, [podeSemDemanda, acao])
 
   useEffect(() => {
     if (!open) {
@@ -253,15 +261,17 @@ export function ChatEncerrarModal<TChat extends { estado: string }>({
                   <p className="text-xs text-slate-500">
                     Registrar demanda é opcional neste encerramento por inatividade.
                   </p>
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <input
-                      type="radio"
-                      name="acao-encerrar"
-                      checked={acao === 'sem_demanda'}
-                      onChange={() => selecionarAcao('sem_demanda')}
-                    />
-                    {chatJaEncerrado ? 'Concluir sem registrar demanda' : 'Encerrar sem registrar demanda'}
-                  </label>
+                  {podeSemDemanda ? (
+                    <label className="flex cursor-pointer items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name="acao-encerrar"
+                        checked={acao === 'sem_demanda'}
+                        onChange={() => selecionarAcao('sem_demanda')}
+                      />
+                      {chatJaEncerrado ? 'Concluir sem registrar demanda' : 'Encerrar sem registrar demanda'}
+                    </label>
+                  ) : null}
                   <label className="flex cursor-pointer items-center gap-2 text-sm">
                     <input
                       type="radio"
@@ -283,15 +293,17 @@ export function ChatEncerrarModal<TChat extends { estado: string }>({
                     />
                     Registrar demanda e encerrar
                   </label>
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <input
-                      type="radio"
-                      name="acao-encerrar"
-                      checked={acao === 'sem_demanda'}
-                      onChange={() => selecionarAcao('sem_demanda')}
-                    />
-                    Encerrar sem registrar demanda
-                  </label>
+                  {podeSemDemanda ? (
+                    <label className="flex cursor-pointer items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name="acao-encerrar"
+                        checked={acao === 'sem_demanda'}
+                        onChange={() => selecionarAcao('sem_demanda')}
+                      />
+                      Encerrar sem registrar demanda
+                    </label>
+                  ) : null}
                   {acao === 'sem_demanda' && (
                     <CheckboxField
                       checked={confirmarSemDemanda}

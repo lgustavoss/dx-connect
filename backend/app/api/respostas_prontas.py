@@ -5,7 +5,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.audit import registrar_audit
-from app.core.auth import exigir_admin, obter_atendente_atual
+from app.core.auth import obter_atendente_atual, exigir_permissao
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
 from app.core.setor_scope import ids_setores_visiveis_atendente
 from app.database import get_db
@@ -98,7 +98,7 @@ def listar(
     ordenar_por: OrdenarRespostasProntasPor | None = Query(None),
     ordem: OrdemLista = Query(OrdemLista.asc),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("respostas.ver")),
 ):
     q = db.query(RespostaPronta).options(joinedload(RespostaPronta.setor))
     if not incluir_inativos:
@@ -125,7 +125,7 @@ def listar(
 def criar(
     data: RespostaProntaCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("respostas.criar")),
 ):
     _validar_setor(db, atendente.tenant_id, data.setor_id)
     row = RespostaPronta(
@@ -154,7 +154,7 @@ def criar(
 def obter(
     resposta_id: int,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("respostas.ver")),
 ):
     row = (
         db.query(RespostaPronta)
@@ -172,7 +172,7 @@ def atualizar(
     resposta_id: int,
     data: RespostaProntaUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("respostas.editar")),
 ):
     row = db.query(RespostaPronta).filter(RespostaPronta.id == resposta_id).first()
     if not row:
@@ -199,7 +199,7 @@ def atualizar(
 def excluir(
     resposta_id: int,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("respostas.excluir")),
 ):
     row = db.query(RespostaPronta).filter(RespostaPronta.id == resposta_id).first()
     if not row:

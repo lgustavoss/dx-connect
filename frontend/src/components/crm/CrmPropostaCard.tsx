@@ -11,6 +11,8 @@ import { Card } from '../ui/Card'
 import { Input, TEXTAREA_FIELD_CLASS } from '../ui/Input'
 import { Select } from '../ui/Select'
 import { useToast } from '../ui/Toast'
+import { useAuth } from '../../contexts/AuthContext'
+import { temPermissao } from '../../lib/permissoes'
 import { maskCnpjCpf } from '../../utils/maskCnpjCpf'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -50,6 +52,8 @@ type Props = {
 
 export function CrmPropostaCard({ negociacao, onChanged, embedded = false }: Props) {
   const toast = useToast()
+  const { user } = useAuth()
+  const podeEmitir = temPermissao(user, 'propostas.emitir')
   const linhas = negociacao.linhas || []
 
   const [templates, setTemplates] = useState<ComercialProposta.Template[]>([])
@@ -214,9 +218,11 @@ export function CrmPropostaCard({ negociacao, onChanged, embedded = false }: Pro
               placeholder="Prazo, forma de pagamento, observações visíveis ao cliente…"
             />
           </label>
-          <Button onClick={() => void handleGerar()} disabled={gerando}>
-            {gerando ? 'Gerando…' : 'Gerar proposta'}
-          </Button>
+          {podeEmitir ? (
+            <Button onClick={() => void handleGerar()} disabled={gerando}>
+              {gerando ? 'Gerando…' : 'Gerar proposta'}
+            </Button>
+          ) : null}
         </div>
       )}
 
@@ -234,7 +240,7 @@ export function CrmPropostaCard({ negociacao, onChanged, embedded = false }: Pro
               >
                 {baixandoId === preview.id ? 'Baixando…' : 'Baixar PDF'}
               </Button>
-              {preview.status === 'rascunho' ? (
+              {podeEmitir && preview.status === 'rascunho' ? (
                 <Button variant="secondary" onClick={() => setEnviarId(preview.id)}>
                   Marcar enviada
                 </Button>
@@ -278,7 +284,7 @@ export function CrmPropostaCard({ negociacao, onChanged, embedded = false }: Pro
                   <Button variant="ghost" onClick={() => void handlePdf(p.id)} disabled={baixandoId === p.id}>
                     PDF
                   </Button>
-                  {p.status !== 'substituida' && p.status !== 'enviada' ? (
+                  {podeEmitir && p.status !== 'substituida' && p.status !== 'enviada' ? (
                     <Button variant="ghost" onClick={() => setEnviarId(p.id)}>
                       Enviada
                     </Button>

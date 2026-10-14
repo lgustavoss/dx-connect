@@ -4,6 +4,8 @@ import { Link, useLocation } from 'react-router-dom'
 import { system } from '../api/client'
 import { BrandLogo } from '../brand'
 import { useTheme } from '../contexts/ThemeContext'
+import { temPermissao, type UsuarioPermissao } from '../lib/permissoes'
+import { permissoesDoPrefixo, todasPermissoesConfig } from '../pages/config/configNav'
 
 const icons: Record<string, React.ReactNode> = {
   dashboard: (
@@ -242,6 +244,9 @@ interface NavLink {
   activePrefix?: string
   /** Só na instância comercial (control-plane SaaS). */
   saasOnly?: boolean
+  /** Código do grupo de permissão. Acesso total também libera. */
+  permissao?: string
+  permissoesAlguma?: string[]
 }
 
 interface NavGroup {
@@ -253,6 +258,8 @@ interface NavGroup {
   comercialOuAdmin?: boolean
   financeiroOuAdmin?: boolean
   saasOnly?: boolean
+  permissao?: string
+  permissoesAlguma?: string[]
   /** Ex.: conversa aberta `/whatsapp/c/:id` mantém o grupo Chat ativo */
   extraActivePrefixes?: string[]
   children: NavLink[]
@@ -269,12 +276,15 @@ interface NavItemLink {
   comercialOuAdmin?: boolean
   financeiroOuAdmin?: boolean
   saasOnly?: boolean
+  permissao?: string
+  /** Qualquer um destes códigos libera o item. Combina com o atalho legado (financeiro/comercial/admin). */
+  permissoesAlguma?: string[]
 }
 
 type NavItem = NavItemLink | NavGroup
 
 const navStructure: NavItem[] = [
-  { type: 'link', to: '/', label: 'Dashboard', icon: 'dashboard' },
+  { type: 'link', to: '/', label: 'Dashboard', icon: 'dashboard', permissao: 'dashboard.ver' },
   {
     type: 'group',
     id: 'ponto',
@@ -282,18 +292,18 @@ const navStructure: NavItem[] = [
     icon: 'ponto',
     extraActivePrefixes: ['/ponto', '/equipe/online', '/equipe/ponto'],
     children: [
-      { to: '/ponto', label: 'Meu ponto', icon: 'ponto' },
+      { to: '/ponto', label: 'Meu ponto', icon: 'ponto', permissao: 'ponto.meu' },
       {
         to: '/equipe/online',
         label: 'Equipe online',
         icon: 'equipeOnline',
-        adminOnly: true,
+        permissao: 'presenca.ver',
       },
       {
         to: '/equipe/ponto',
         label: 'Ponto da equipe',
         icon: 'equipeOnline',
-        adminOnly: true,
+        permissao: 'ponto.equipe',
       },
     ],
   },
@@ -310,18 +320,21 @@ const navStructure: NavItem[] = [
         label: 'Chat',
         icon: 'chat',
         activePrefix: '/chat/',
+        permissoesAlguma: ['chat.atender', 'whatsapp.atender'],
       },
       {
         to: '/tickets',
         label: 'Tickets',
         icon: 'tickets',
         activePrefix: '/tickets',
+        permissao: 'tickets.ver',
       },
       {
         to: '/whatsapp/historico',
         label: 'Histórico',
         icon: 'chatHistory',
         activePrefix: '/whatsapp/',
+        permissao: 'chat.historico',
       },
     ],
   },
@@ -330,21 +343,20 @@ const navStructure: NavItem[] = [
     id: 'comercial',
     label: 'Comercial',
     icon: 'tiposNegocio',
-    comercialOuAdmin: true,
     extraActivePrefixes: ['/crm/'],
     children: [
       {
         to: '/crm/leads',
         label: 'CRM',
         icon: 'tiposNegocio',
-        comercialOuAdmin: true,
+        permissao: 'crm.ver',
         activePrefix: '/crm/leads',
       },
       {
         to: '/crm/contratos',
         label: 'Contratos',
         icon: 'tiposNegocio',
-        comercialOuAdmin: true,
+        permissao: 'contratos.ver',
         activePrefix: '/crm/contratos',
       },
     ],
@@ -354,6 +366,7 @@ const navStructure: NavItem[] = [
     to: '/faturamento',
     label: 'Faturamento',
     icon: 'auditoria',
+    permissoesAlguma: ['faturamento.ver'],
     financeiroOuAdmin: true,
   },
   {
@@ -361,11 +374,10 @@ const navStructure: NavItem[] = [
     id: 'clientes',
     label: 'Clientes',
     icon: 'clientes',
-    adminOnly: true,
     children: [
-      { to: '/redes', label: 'Redes', icon: 'redes' },
-      { to: '/empresas', label: 'Empresas', icon: 'empresas' },
-      { to: '/funcionarios-rede', label: 'Funcionários da rede', icon: 'funcionarios' },
+      { to: '/redes', label: 'Redes', icon: 'redes', permissao: 'redes.ver' },
+      { to: '/empresas', label: 'Empresas', icon: 'empresas', permissao: 'empresas.ver' },
+      { to: '/funcionarios-rede', label: 'Funcionários da rede', icon: 'funcionarios', permissao: 'funcionarios.ver' },
     ],
   },
   {
@@ -375,9 +387,9 @@ const navStructure: NavItem[] = [
     icon: 'ajuda',
     extraActivePrefixes: ['/ajuda/artigos/', '/ajuda/categorias'],
     children: [
-      { to: '/ajuda/consultar', label: 'Consultar', icon: 'ajudaConsultar' },
-      { to: '/ajuda/categorias', label: 'Categorias', icon: 'ajudaCategorias', adminOnly: true },
-      { to: '/ajuda/artigos', label: 'Artigos', icon: 'ajudaArtigos', adminOnly: true },
+      { to: '/ajuda/consultar', label: 'Consultar', icon: 'ajudaConsultar', permissao: 'ajuda.consultar' },
+      { to: '/ajuda/categorias', label: 'Categorias', icon: 'ajudaCategorias', permissao: 'ajuda.categorias.ver' },
+      { to: '/ajuda/artigos', label: 'Artigos', icon: 'ajudaArtigos', permissao: 'ajuda.artigos.ver' },
     ],
   },
   {
@@ -385,7 +397,7 @@ const navStructure: NavItem[] = [
     id: 'configuracoes',
     label: 'Configurações',
     icon: 'configuracoes',
-    adminOnly: true,
+    permissoesAlguma: todasPermissoesConfig(),
     extraActivePrefixes: [
       '/configuracoes/',
       '/setores',
@@ -396,15 +408,15 @@ const navStructure: NavItem[] = [
       '/auditoria',
     ],
     children: [
-      { to: '/configuracoes', label: 'Visão geral', icon: 'configuracoes' },
-      { to: '/configuracoes/equipe', label: 'Equipe', icon: 'setores' },
-      { to: '/configuracoes/tickets', label: 'Tickets', icon: 'tickets' },
-      { to: '/configuracoes/canais', label: 'Canais', icon: 'chat' },
-      { to: '/configuracoes/comercial', label: 'Comercial / CRM', icon: 'tiposNegocio' },
-      { to: '/configuracoes/empresa', label: 'Empresa', icon: 'empresas' },
-      { to: '/configuracoes/postos-pdv', label: 'PDV', icon: 'pdv' },
-      { to: '/configuracoes/administracao', label: 'Administração', icon: 'configuracoes' },
-      { to: '/solicitacoes-melhoria', label: 'Sugestões', icon: 'ajudaConsultar', adminOnly: true },
+      { to: '/configuracoes', label: 'Visão geral', icon: 'configuracoes', permissoesAlguma: todasPermissoesConfig() },
+      { to: '/configuracoes/equipe', label: 'Equipe', icon: 'setores', permissoesAlguma: permissoesDoPrefixo('equipe') },
+      { to: '/configuracoes/tickets', label: 'Tickets', icon: 'tickets', permissoesAlguma: permissoesDoPrefixo('tickets') },
+      { to: '/configuracoes/canais', label: 'Canais', icon: 'chat', permissoesAlguma: permissoesDoPrefixo('canais') },
+      { to: '/configuracoes/comercial', label: 'Comercial / CRM', icon: 'tiposNegocio', permissoesAlguma: permissoesDoPrefixo('comercial') },
+      { to: '/configuracoes/empresa', label: 'Empresa', icon: 'empresas', permissoesAlguma: permissoesDoPrefixo('empresa') },
+      { to: '/configuracoes/postos-pdv', label: 'PDV', icon: 'pdv', permissoesAlguma: permissoesDoPrefixo('postos-pdv') },
+      { to: '/configuracoes/administracao', label: 'Administração', icon: 'configuracoes', permissoesAlguma: permissoesDoPrefixo('administracao') },
+      { to: '/solicitacoes-melhoria', label: 'Sugestões', icon: 'ajudaConsultar', permissao: 'solicitacoes.ver' },
     ],
   },
 ]
@@ -426,16 +438,33 @@ function navGroupMatchesPath(pathname: string, group: NavGroup): boolean {
 }
 
 function navItemVisivel(
-  item: { adminOnly?: boolean; comercialOuAdmin?: boolean; financeiroOuAdmin?: boolean; saasOnly?: boolean },
+  item: {
+    adminOnly?: boolean
+    comercialOuAdmin?: boolean
+    financeiroOuAdmin?: boolean
+    saasOnly?: boolean
+    permissao?: string
+    permissoesAlguma?: string[]
+  },
   isAdmin: boolean,
   isComercialOuAdmin: boolean,
   isFinanceiroOuAdmin: boolean,
   saasEnabled: boolean,
+  usuario: UsuarioPermissao,
 ): boolean {
+  if (item.saasOnly && !saasEnabled) return false
+  if (item.permissao) return temPermissao(usuario, item.permissao)
+  if (item.permissoesAlguma?.length) {
+    const alguma = item.permissoesAlguma.some((codigo) => temPermissao(usuario, codigo))
+    const legado =
+      (item.financeiroOuAdmin && isFinanceiroOuAdmin) ||
+      (item.comercialOuAdmin && isComercialOuAdmin) ||
+      (item.adminOnly && isAdmin)
+    return alguma || Boolean(legado)
+  }
   if (item.adminOnly && !isAdmin) return false
   if (item.comercialOuAdmin && !isComercialOuAdmin) return false
   if (item.financeiroOuAdmin && !isFinanceiroOuAdmin) return false
-  if (item.saasOnly && !saasEnabled) return false
   return true
 }
 
@@ -445,9 +474,10 @@ function navChildrenVisible(
   isComercialOuAdmin: boolean,
   isFinanceiroOuAdmin: boolean,
   saasEnabled: boolean,
+  usuario: UsuarioPermissao,
 ): NavLink[] {
   return children.filter((child) =>
-    navItemVisivel(child, isAdmin, isComercialOuAdmin, isFinanceiroOuAdmin, saasEnabled),
+    navItemVisivel(child, isAdmin, isComercialOuAdmin, isFinanceiroOuAdmin, saasEnabled, usuario),
   )
 }
 
@@ -460,6 +490,7 @@ interface SidebarProps {
   isFinanceiroOuAdmin: boolean
   userNome: string
   userRole: string
+  usuario: UsuarioPermissao
   onLogout: () => void
 }
 
@@ -472,6 +503,7 @@ export function Sidebar({
   isFinanceiroOuAdmin,
   userNome,
   userRole,
+  usuario,
   onLogout,
 }: SidebarProps) {
   const location = useLocation()
@@ -522,15 +554,30 @@ export function Sidebar({
     [closeFlyout, openFlyout]
   )
 
-  const items = navStructure.filter((item) =>
-    navItemVisivel(item, isAdmin, isComercialOuAdmin, isFinanceiroOuAdmin, saasEnabled),
-  ) as NavItem[]
+  const items = navStructure.filter((item) => {
+    if (!navItemVisivel(item, isAdmin, isComercialOuAdmin, isFinanceiroOuAdmin, saasEnabled, usuario)) {
+      return false
+    }
+    if (item.type === 'group') {
+      return (
+        navChildrenVisible(
+          item.children,
+          isAdmin,
+          isComercialOuAdmin,
+          isFinanceiroOuAdmin,
+          saasEnabled,
+          usuario,
+        ).length > 0
+      )
+    }
+    return true
+  }) as NavItem[]
 
   // Abrir grupo automaticamente quando a rota pertence a ele
   useEffect(() => {
     for (const item of navStructure) {
       if (item.type === 'group') {
-        if (navItemVisivel(item, isAdmin, isComercialOuAdmin, isFinanceiroOuAdmin, saasEnabled)) {
+        if (navItemVisivel(item, isAdmin, isComercialOuAdmin, isFinanceiroOuAdmin, saasEnabled, usuario)) {
           if (navGroupMatchesPath(location.pathname, item)) {
             setOpenGroup(item.id)
             return
@@ -538,7 +585,7 @@ export function Sidebar({
         }
       }
     }
-  }, [location.pathname, isAdmin, isComercialOuAdmin, isFinanceiroOuAdmin, saasEnabled])
+  }, [location.pathname, isAdmin, isComercialOuAdmin, isFinanceiroOuAdmin, saasEnabled, usuario])
 
   // No drawer mobile usamos acordeão (não flyout); evita estado do flyout “preso”
   useEffect(() => {
@@ -603,6 +650,7 @@ export function Sidebar({
                 isComercialOuAdmin,
                 isFinanceiroOuAdmin,
                 saasEnabled,
+                usuario,
               ).map((child) => (
                 <li key={child.to} role="none">
                   <Link
@@ -719,6 +767,7 @@ export function Sidebar({
                         isComercialOuAdmin,
                         isFinanceiroOuAdmin,
                         saasEnabled,
+                        usuario,
                       ).map(
                         (child) => (
                         <li key={child.to} className="min-w-0 border-l border-slate-200 pl-3 ml-4 dark:border-slate-700">

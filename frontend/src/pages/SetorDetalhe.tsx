@@ -10,6 +10,8 @@ import { BadgeAtivo } from '../components/ui/BadgeAtivo'
 import { SelectComPesquisa } from '../components/ui/SelectComPesquisa'
 import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { SemPermissao } from './SemPermissao'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
@@ -39,6 +41,8 @@ export function SetorDetalhe() {
   const { id } = useParams()
   const toast = useToast()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const podeEditar = temPermissao(user, 'setores.editar')
   const voltarAnterior = useVoltarAnterior('/setores')
 
   const setorId = Number(id)
@@ -285,7 +289,7 @@ export function SetorDetalhe() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => navigate(`/setores/${setor.id}/editar`)}>Editar</Button>
+          {podeEditar ? <Button onClick={() => navigate(`/setores/${setor.id}/editar`)}>Editar</Button> : null}
           <Link
             to={`/chat/interno/setor/${setor.id}`}
             className="inline-flex items-center justify-center rounded-lg border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700 transition-colors hover:bg-violet-100 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-300 dark:hover:bg-violet-900/40"
@@ -314,6 +318,7 @@ export function SetorDetalhe() {
           <Select
             label="Modo"
             value={distModo}
+            disabled={!podeEditar}
             onChange={(v) => setDistModo(v as Setores.DistribuicaoModo)}
             options={MODO_OPCOES.map((o) => ({ value: o.value, label: o.label }))}
           />
@@ -329,6 +334,7 @@ export function SetorDetalhe() {
                 min={1}
                 max={1440}
                 value={distTimeout}
+                disabled={!podeEditar}
                 onChange={(e) => setDistTimeout(Number(e.target.value) || 1)}
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
               />
@@ -340,6 +346,7 @@ export function SetorDetalhe() {
               <Select
                 label="Estratégia"
                 value={distEstrategia}
+                disabled={!podeEditar}
                 onChange={(v) => setDistEstrategia(v as Setores.DistribuicaoEstrategia)}
                 options={ESTRATEGIA_OPCOES.map((o) => ({ value: o.value, label: o.label }))}
               />
@@ -349,6 +356,7 @@ export function SetorDetalhe() {
                   <input
                     type="checkbox"
                     checked={distUsarTodos}
+                    disabled={!podeEditar}
                     onChange={(e) => setDistUsarTodos(e.target.checked)}
                     className="size-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
                   />
@@ -366,6 +374,7 @@ export function SetorDetalhe() {
                               <input
                                 type="checkbox"
                                 checked={distElegiveisIds.includes(a.id)}
+                                disabled={!podeEditar}
                                 onChange={() => toggleElegivel(a.id)}
                                 className="size-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
                               />
@@ -381,32 +390,36 @@ export function SetorDetalhe() {
             </>
           )}
 
-          <div>
-            <Button onClick={handleSalvarDistribuicao} loading={savingDist}>
-              Salvar distribuição
-            </Button>
-          </div>
+          {podeEditar ? (
+            <div>
+              <Button onClick={handleSalvarDistribuicao} loading={savingDist}>
+                Salvar distribuição
+              </Button>
+            </div>
+          ) : null}
         </div>
       </Card>
 
       <Card title="Atendentes vinculados">
         <div className="space-y-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-            <div className="flex-1">
-              <SelectComPesquisa
-                id="setor-add-atendente"
-                label="Adicionar atendente"
-                value={addingId}
-                onChange={(v) => setAddingId(v)}
-                items={atendenteItems}
-              />
+          {podeEditar ? (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <div className="flex-1">
+                <SelectComPesquisa
+                  id="setor-add-atendente"
+                  label="Adicionar atendente"
+                  value={addingId}
+                  onChange={(v) => setAddingId(v)}
+                  items={atendenteItems}
+                />
+              </div>
+              <div className="sm:pb-[2px]">
+                <Button onClick={handleAdd} disabled={addingId === ''} loading={saving}>
+                  Adicionar
+                </Button>
+              </div>
             </div>
-            <div className="sm:pb-[2px]">
-              <Button onClick={handleAdd} disabled={addingId === ''} loading={saving}>
-                Adicionar
-              </Button>
-            </div>
-          </div>
+          ) : null}
 
           {vinculados.length === 0 ? (
             <p className="text-slate-500 dark:text-slate-400">Nenhum atendente vinculado.</p>
@@ -443,9 +456,11 @@ export function SetorDetalhe() {
                         <td className="px-4 py-3.5 text-slate-600 dark:text-slate-400">{a.email}</td>
                         <td className="px-4 py-3.5 text-slate-600 dark:text-slate-400">{a.role === 'admin' ? 'Administrador' : 'Atendente'}</td>
                         <td className="px-4 py-3.5 text-right">
-                          <Button variant="secondary" onClick={() => handleRemove(a)} loading={saving}>
-                            Remover
-                          </Button>
+                          {podeEditar ? (
+                            <Button variant="secondary" onClick={() => handleRemove(a)} loading={saving}>
+                              Remover
+                            </Button>
+                          ) : null}
                         </td>
                       </tr>
                     ))}

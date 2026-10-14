@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
-from app.core.auth import exigir_admin, obter_atendente_atual
+from app.core.auth import obter_atendente_atual, exigir_permissao
 from app.core.tenant_context import TenantIdDep
 from app.database import get_db
 from app.models import Empresa, Setor, Tenant
@@ -72,7 +72,7 @@ def get_tenant_atual(
 def list_inbound_addresses(
     tenant_id: TenantIdDep,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("canais.email.ver")),
 ):
     sync_inbound_addresses_for_tenant(db, tenant_id)
     rows = (
@@ -94,7 +94,7 @@ def create_inbound_address(
     data: TenantInboundAddressCreate,
     tenant_id: TenantIdDep,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("canais.email.editar")),
 ):
     raise HTTPException(
         status_code=status.HTTP_410_GONE,
@@ -108,7 +108,7 @@ def update_inbound_address(
     data: TenantInboundAddressUpdate,
     tenant_id: TenantIdDep,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("canais.email.editar")),
 ):
     row = (
         db.query(TenantInboundAddress)

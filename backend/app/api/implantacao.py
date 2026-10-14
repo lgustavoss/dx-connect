@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.audit import registrar_audit
-from app.core.auth import exigir_admin, exigir_comercial_ou_admin
+from app.core.auth import exigir_permissao
+from app.services.permissao_grupos import tem_permissao
 from app.database import get_db
 from app.models.atendente import Atendente
 from app.schemas.implantacao import (
@@ -23,9 +24,9 @@ router = APIRouter(prefix="/comercial", tags=["comercial-implantacao"])
 def listar_templates(
     incluir_inativos: bool = Query(False),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("implantacao.ver")),
 ):
-    if incluir_inativos and atendente.role != "admin":
+    if incluir_inativos and not tem_permissao(atendente, "implantacao.editar"):
         incluir_inativos = False
     rows = svc.listar_templates(db, incluir_inativos=incluir_inativos, tenant_id=atendente.tenant_id)
     db.commit()
@@ -36,7 +37,7 @@ def listar_templates(
 def criar_template(
     data: ImplantacaoTemplateCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("implantacao.editar")),
 ):
     row = svc.criar_template(db, data, atendente.tenant_id)
     registrar_audit(db, "implantacao_checklist_template", row.id, "create", atendente.id)
@@ -49,7 +50,7 @@ def atualizar_template(
     template_id: int,
     data: ImplantacaoTemplateUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("implantacao.editar")),
 ):
     row = svc.obter_template(db, template_id, apenas_ativos=False)
     row = svc.atualizar_template(db, row, data, atendente.tenant_id)

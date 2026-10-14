@@ -8,6 +8,8 @@ import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { IconPencil } from '../components/ui/IconPencil'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { MODAL_PANEL_COMPACT } from '../lib/modalPanel'
@@ -82,6 +84,8 @@ const emptyForm = (): PdvCatalogo.Create => ({
 
 export function ConfigPdvCatalogos({ embedded = false }: { embedded?: boolean }) {
   const toast = useToast()
+  const { user } = useAuth()
+  const podeEditar = temPermissao(user, 'pdv.editar')
   const [forbidden, setForbidden] = useState(false)
   const [aba, setAba] = useState<Aba>('rotulos')
   const config = ABAS.find((t) => t.id === aba) ?? ABAS[0]
@@ -216,11 +220,11 @@ export function ConfigPdvCatalogos({ embedded = false }: { embedded?: boolean })
     </button>
   )
 
-  const actionsBtn = (
+  const actionsBtn = podeEditar ? (
     <Button type="button" onClick={abrirNovo}>
       {config.novoRotulo}
     </Button>
-  )
+  ) : null
 
   const conteudo = (
     <>
@@ -264,9 +268,11 @@ export function ConfigPdvCatalogos({ embedded = false }: { embedded?: boolean })
         ) : items.length === 0 ? (
           <div className="py-10 text-center">
             <p className="text-sm text-slate-500 dark:text-slate-400">{config.vazio}</p>
-            <Button type="button" variant="secondary" className="mt-4" onClick={abrirNovo}>
-              {config.novoRotulo}
-            </Button>
+            {podeEditar ? (
+              <Button type="button" variant="secondary" className="mt-4" onClick={abrirNovo}>
+                {config.novoRotulo}
+              </Button>
+            ) : null}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -303,15 +309,17 @@ export function ConfigPdvCatalogos({ embedded = false }: { embedded?: boolean })
                       </span>
                     </td>
                     <td className="px-4 py-3.5 text-right sm:px-6">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="!px-2 !py-2"
-                        onClick={() => abrirEditar(item)}
-                        aria-label={`Editar ${item.nome}`}
-                      >
-                        <IconPencil ariaHidden={false} />
-                      </Button>
+                      {podeEditar ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="!px-2 !py-2"
+                          onClick={() => abrirEditar(item)}
+                          aria-label={`Editar ${item.nome}`}
+                        >
+                          <IconPencil ariaHidden={false} />
+                        </Button>
+                      ) : null}
                     </td>
                   </tr>
                 ))}

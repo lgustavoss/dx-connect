@@ -19,6 +19,7 @@ from app.schemas.dashboard import (
     SnapshotCanais,
 )
 from app.services.chat_dashboard_filters import apply_chat_dashboard_filters, period_bounds, resolve_period
+from app.services.permissao_grupos import tem_permissao
 from app.services.dashboard_demandas_analise import (
     gerar_insights_demandas,
     maior_demanda_global,
@@ -281,7 +282,7 @@ def _por_atendente(
     setor_id: int | None,
     drill: ChatDrillDown,
 ) -> list[ContagemIdNome]:
-    if atendente.role != "admin":
+    if not tem_permissao(atendente, "atendimento.ver_todos"):
         return []
     filtrar = _filtrar(db, atendente, setor_id, drill)
     stmt = (

@@ -7,6 +7,8 @@ import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { IconEye } from '../components/ui/IconEye'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { SemPermissao } from './SemPermissao'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { exibirProtocolo } from '../lib/exibirProtocolo'
@@ -85,6 +87,9 @@ function MetricCard({
 
 export function Dashboard() {
   const toast = useToast()
+  const { user } = useAuth()
+  const podeCriarTicket = temPermissao(user, 'tickets.criar')
+  const podeChat = temPermissao(user, 'chat.atender') || temPermissao(user, 'whatsapp.atender')
   const { ordenarPor, ordem, aoOrdenarColuna } = useOrdenacaoLista<ColunaUltimos>()
   const { preset, de, ate, aplicarPreset, marcarCustom, onDeChange, onAteChange } =
     useDashboardPeriodo('este_mes')
@@ -180,12 +185,16 @@ export function Dashboard() {
       <DashboardNav
         actions={
           <>
-            <Link to="/tickets/novo">
-              <Button variant="secondary">Novo ticket</Button>
-            </Link>
-            <Link to="/chat/atendendo">
-              <Button variant="secondary">Ir para WhatsApp</Button>
-            </Link>
+            {podeCriarTicket ? (
+              <Link to="/tickets/novo">
+                <Button variant="secondary">Novo ticket</Button>
+              </Link>
+            ) : null}
+            {podeChat ? (
+              <Link to="/chat/atendendo">
+                <Button variant="secondary">Ir para WhatsApp</Button>
+              </Link>
+            ) : null}
           </>
         }
       />

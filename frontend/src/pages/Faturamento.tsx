@@ -11,6 +11,8 @@ import { Input, TEXTAREA_FIELD_CLASS } from '../components/ui/Input'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
 import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { SemPermissao } from './SemPermissao'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -50,6 +52,9 @@ function classeStatus(status: string): string {
 
 export function Faturamento() {
   const toast = useToast()
+  const { user, isFinanceiroOuAdmin } = useAuth()
+  const podeGerar = isFinanceiroOuAdmin || temPermissao(user, 'faturamento.gerar')
+  const podeAprovar = isFinanceiroOuAdmin || temPermissao(user, 'faturamento.aprovar')
   const [list, setList] = useState<Faturamento.Fatura[]>([])
   const [contratos, setContratos] = useState<Faturamento.ContratoElegivel[]>([])
   const [loading, setLoading] = useState(true)
@@ -218,12 +223,16 @@ export function Faturamento() {
               emptyLabel="Escolher contrato…"
             />
           </div>
-          <Button variant="secondary" onClick={gerarAvulsa} disabled={gerando || contratoId === ''}>
-            Gerar fatura
-          </Button>
-          <Button onClick={gerarMes} disabled={gerando} loading={gerando}>
-            Gerar faturas do mês
-          </Button>
+          {podeGerar ? (
+            <>
+              <Button variant="secondary" onClick={gerarAvulsa} disabled={gerando || contratoId === ''}>
+                Gerar fatura
+              </Button>
+              <Button onClick={gerarMes} disabled={gerando} loading={gerando}>
+                Gerar faturas do mês
+              </Button>
+            </>
+          ) : null}
         </div>
         <p className="text-xs text-slate-500 dark:text-slate-400">
           O job automático cria faturas novas da competência (não reabre rejeitadas). «Gerar faturas do mês»
@@ -317,7 +326,7 @@ export function Faturamento() {
                       ) : null}
                     </td>
                     <td className="px-4 py-3">
-                      {f.status === 'aguardando_aprovacao' ? (
+                      {podeAprovar && f.status === 'aguardando_aprovacao' ? (
                         <div className="flex flex-wrap gap-2">
                           <Button
                             variant="secondary"

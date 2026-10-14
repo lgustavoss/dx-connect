@@ -18,6 +18,8 @@ import { FuncionariosEmpresaLista } from '../components/FuncionariosEmpresaLista
 import { EmpresaPdvsPanel } from '../components/EmpresaPdvsPanel'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { Button } from '../components/ui/Button'
 import { VoltarButton } from '../components/ui/VoltarButton'
 import { Input } from '../components/ui/Input'
@@ -68,6 +70,9 @@ type ColunaEmpresaRede = 'nome' | 'cnpj_cpf'
 type ColunaFuncRede = 'nome' | 'email' | 'tipo'
 
 export function RedeDetalhe() {
+  const { user } = useAuth()
+  const podeCriarTicket = temPermissao(user, 'tickets.criar')
+  const podeVerPdvs = temPermissao(user, 'pdv.acessos.ver') || temPermissao(user, 'empresas.editar')
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const voltarAnterior = useVoltarAnterior('/redes')
@@ -975,18 +980,20 @@ export function RedeDetalhe() {
                   >
                     Funcionários
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setAbaModalEmpresa('pdvs')}
-                    aria-current={abaModalEmpresa === 'pdvs' ? 'page' : undefined}
-                    className={
-                      abaModalEmpresa === 'pdvs'
-                        ? 'border-b-2 border-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 dark:border-sky-400 dark:bg-slate-800/50 dark:text-white'
-                        : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/30 dark:hover:text-slate-200'
-                    }
-                  >
-                    PDVs
-                  </button>
+                  {podeVerPdvs ? (
+                    <button
+                      type="button"
+                      onClick={() => setAbaModalEmpresa('pdvs')}
+                      aria-current={abaModalEmpresa === 'pdvs' ? 'page' : undefined}
+                      className={
+                        abaModalEmpresa === 'pdvs'
+                          ? 'border-b-2 border-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 dark:border-sky-400 dark:bg-slate-800/50 dark:text-white'
+                          : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/30 dark:hover:text-slate-200'
+                      }
+                    >
+                      PDVs
+                    </button>
+                  ) : null}
                 </nav>
               </div>
 
@@ -1221,7 +1228,7 @@ export function RedeDetalhe() {
                 </>
               )}
 
-              {abaModalEmpresa === 'pdvs' && editingEmpresaId != null && (
+              {podeVerPdvs && abaModalEmpresa === 'pdvs' && editingEmpresaId != null && (
                 <EmpresaPdvsPanel empresaId={editingEmpresaId} />
               )}
 
@@ -1635,9 +1642,11 @@ export function RedeDetalhe() {
             onPageChange={setPageTicketsRede}
             disabled={loadingTicketsRede}
             extra={
-              <Link to="/tickets/novo">
-                <Button type="button">Novo ticket</Button>
-              </Link>
+              podeCriarTicket ? (
+                <Link to="/tickets/novo">
+                  <Button type="button">Novo ticket</Button>
+                </Link>
+              ) : undefined
             }
           />
           <TicketsTabelaContexto

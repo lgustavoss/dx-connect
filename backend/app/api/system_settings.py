@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from starlette.responses import FileResponse
 
 from app.config import settings as app_settings
-from app.core.auth import exigir_admin
+from app.core.auth import exigir_permissao
 from app.database import get_db
 from app.models.atendente import Atendente
 from app.models.email_settings import EmailSettings
@@ -102,7 +102,7 @@ def _email_out(row: EmailSettings | None, db: Session) -> EmailSettingsRead:
 @router.get("/empresa-sistema", response_model=EmpresaSistemaRead)
 def get_empresa_sistema(
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("instalacao.ver")),
 ):
     return _company_out(_get_company_row(db))
 
@@ -111,7 +111,7 @@ def get_empresa_sistema(
 def put_empresa_sistema(
     data: EmpresaSistemaUpdate,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("instalacao.editar")),
 ):
     row = _get_or_create_company(db)
     payload = data.model_dump(exclude_unset=True)
@@ -159,7 +159,7 @@ def put_empresa_sistema(
 @router.get("/empresa-sistema/logo")
 def get_empresa_sistema_logo(
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("instalacao.ver")),
 ):
     row = _get_company_row(db)
     if not row or not row.logo_filename:
@@ -180,7 +180,7 @@ def get_empresa_sistema_logo(
 async def post_empresa_sistema_logo(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("instalacao.editar")),
 ):
     row = _get_or_create_company(db)
     data = await file.read()
@@ -204,7 +204,7 @@ async def post_empresa_sistema_logo(
 @router.delete("/empresa-sistema/logo", response_model=EmpresaSistemaRead)
 def delete_empresa_sistema_logo(
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("instalacao.editar")),
 ):
     row = _get_or_create_company(db)
     apagar_logo(row.logo_filename)
@@ -218,7 +218,7 @@ def delete_empresa_sistema_logo(
 @router.get("/email", response_model=EmailSettingsRead)
 def get_email_settings(
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("canais.email.ver")),
 ):
     return _email_out(get_singleton_email_settings(db), db)
 
@@ -227,7 +227,7 @@ def get_email_settings(
 def put_email_settings(
     data: EmailSettingsUpdate,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("canais.email.editar")),
 ):
     row = _get_or_create_email(db)
     payload = data.model_dump(exclude_unset=True)
@@ -268,7 +268,7 @@ def put_email_settings(
 @router.post("/email/test-transactional", response_model=EmailTestResult)
 def test_transactional_email(
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("canais.email.editar")),
 ):
     dest = (admin.email or "").strip()
     if not dest:

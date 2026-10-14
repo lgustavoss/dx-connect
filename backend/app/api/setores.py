@@ -10,7 +10,8 @@ from app.models.atendente import Atendente
 from app.schemas.setor import SetorCreate, SetorUpdate, SetorRead
 from app.schemas.setor_distribuicao import SetorDistribuicaoRead, SetorDistribuicaoUpdate
 from app.schemas.lista_paginada import ListaPaginada
-from app.core.auth import obter_atendente_atual, exigir_admin
+from app.core.auth import obter_atendente_atual, exigir_permissao
+from app.services.permissao_grupos import tem_permissao
 from app.core.audit import registrar_audit
 from app.core.setor_scope import ids_setores_visiveis_atendente
 from app.services.chat_interno import obter_ou_criar_canal_setor
@@ -45,7 +46,9 @@ def listar_setores(
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
     q = db.query(Setor).filter(Setor.tenant_id == atendente.tenant_id)
-    if atendente.role != "admin":
+    if not (
+        tem_permissao(atendente, "setores.ver") or tem_permissao(atendente, "atendimento.ver_todos")
+    ):
         vis = ids_setores_visiveis_atendente(db, atendente)
         q = q.filter(Setor.id.in_(vis))
     if not incluir_inativos:
@@ -70,7 +73,7 @@ def listar_setores(
 def criar_setor(
     data: SetorCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("setores.criar")),
 ):
     if (
         db.query(Setor)
@@ -93,7 +96,7 @@ def criar_setor(
 def obter_setor(
     setor_id: int,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("setores.ver")),
 ):
     setor = db.query(Setor).filter(Setor.id == setor_id).first()
     if not setor:
@@ -106,7 +109,7 @@ def atualizar_setor(
     setor_id: int,
     data: SetorUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("setores.editar")),
 ):
     setor = db.query(Setor).filter(Setor.id == setor_id).first()
     if not setor:
@@ -127,7 +130,7 @@ def atualizar_distribuicao_setor(
     setor_id: int,
     data: SetorDistribuicaoUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("setores.editar")),
 ):
     setor = db.query(Setor).filter(Setor.id == setor_id, Setor.tenant_id == atendente.tenant_id).first()
     if not setor:
@@ -151,7 +154,7 @@ def atualizar_distribuicao_setor(
 def excluir_setor(
     setor_id: int,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("setores.excluir")),
 ):
     setor = db.query(Setor).filter(Setor.id == setor_id).first()
     if not setor:
