@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { useAuth } from '../contexts/AuthContext'
+import { destinoEmpresa, temPermissao } from '../lib/permissoes'
 import { SemPermissao } from './SemPermissao'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
@@ -37,10 +38,10 @@ function DetailRow({ label, value }: { label: string; value: string | null | und
 const linkEmpresaClass =
   'font-medium text-slate-800 underline decoration-slate-300 underline-offset-2 hover:decoration-slate-500 dark:text-slate-100 dark:decoration-slate-700 dark:hover:decoration-slate-500'
 
-function renderEmpresaVinculo(em: FuncionariosRede.EmpresaVinculo, admin: boolean) {
-  if (admin) {
+function renderEmpresaVinculo(em: FuncionariosRede.EmpresaVinculo, destino: string | null) {
+  if (destino) {
     return (
-      <Link to={`/empresas/${em.id}`} className={linkEmpresaClass}>
+      <Link to={destino} className={linkEmpresaClass}>
         {em.nome}
       </Link>
     )
@@ -48,7 +49,10 @@ function renderEmpresaVinculo(em: FuncionariosRede.EmpresaVinculo, admin: boolea
   return <span className="font-medium text-slate-800 dark:text-slate-100">{em.nome}</span>
 }
 
-function buildVinculoExtra(func: FuncionariosRede.Funcionario, admin: boolean): ReactNode {
+function buildVinculoExtra(
+  func: FuncionariosRede.Funcionario,
+  destinoDe: (empresaId: number) => string | null,
+): ReactNode {
   if (func.tipo === 'socio') {
     return (
       <p className="text-sm text-slate-700 dark:text-slate-200">
@@ -60,7 +64,7 @@ function buildVinculoExtra(func: FuncionariosRede.Funcionario, admin: boolean): 
   if (func.tipo === 'colaborador' && empresas.length > 0) {
     return (
       <p className="text-sm text-slate-700 dark:text-slate-200">
-        Colaborador da empresa {renderEmpresaVinculo(empresas[0], admin)}.
+        Colaborador da empresa {renderEmpresaVinculo(empresas[0], destinoDe(empresas[0].id))}.
       </p>
     )
   }
@@ -68,7 +72,7 @@ function buildVinculoExtra(func: FuncionariosRede.Funcionario, admin: boolean): 
     return (
       <ul className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-slate-700 dark:text-slate-200">
         {empresas.map((em) => (
-          <li key={em.id}>{renderEmpresaVinculo(em, admin)}</li>
+          <li key={em.id}>{renderEmpresaVinculo(em, destinoDe(em.id))}</li>
         ))}
       </ul>
     )
@@ -82,8 +86,12 @@ export function FuncionarioRedeDetalhe() {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const voltarPara = (location.state as { voltarPara?: string } | null)?.voltarPara
-  const { isAdmin } = useAuth()
-  const voltarHistorico = useVoltarAnterior(isAdmin ? '/funcionarios-rede' : '/chat/atendendo')
+  const { user } = useAuth()
+  const podeVerCadastro = temPermissao(user, 'funcionarios.ver')
+  const podeEditar = temPermissao(user, 'funcionarios.editar')
+  const podeExcluir = temPermissao(user, 'funcionarios.excluir')
+  const podeVerRede = temPermissao(user, 'redes.ver')
+  const voltarHistorico = useVoltarAnterior(podeVerCadastro ? '/funcionarios-rede' : '/chat/atendendo')
   const voltar = useCallback(() => {
     if (voltarPara) {
       navigate(voltarPara)
@@ -257,8 +265,8 @@ export function FuncionarioRedeDetalhe() {
         <SemPermissao
           title="Você não tem permissão para acessar este contato."
           detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
-          voltarPara={isAdmin ? '/funcionarios-rede' : '/chat/atendendo'}
-          voltarLabel={isAdmin ? 'Voltar para Funcionários' : 'Voltar para chats'}
+          voltarPara={podeVerCadastro ? '/funcionarios-rede' : '/chat/atendendo'}
+          voltarLabel={podeVerCadastro ? 'Voltar para Funcionários' : 'Voltar para chats'}
         />
       </div>
     )
@@ -278,7 +286,7 @@ export function FuncionarioRedeDetalhe() {
       ? new Date(createdRaw).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
       : null
   const telefoneFmt = formatTelefoneBrExibicao(f.telefone) || null
-  const vinculoExtra = buildVinculoExtra(f, isAdmin)
+  const vinculoExtra = buildVinculoExtra(f, (empresaId) => destinoEmpresa(user, empresaId))
   const redeNome = f.rede_nome?.trim() || null
 
   const tabBtn = (key: Aba, label: string) => (
@@ -324,13 +332,11 @@ export function FuncionarioRedeDetalhe() {
             <Button variant="secondary" onClick={voltar}>
               Voltar
             </Button>
-            {isAdmin ? (
-              <>
-                <Button onClick={abrirEdicao}>Editar</Button>
-                <Button variant="danger" onClick={handleExcluir}>
-                  Excluir
-                </Button>
-              </>
+            {podeEditar ? <Button onClick={abrirEdicao}>Editar</Button> : null}
+            {podeExcluir ? (
+              <Button variant="danger" onClick={handleExcluir}>
+                Excluir
+              </Button>
             ) : null}
           </div>
         </div>
@@ -352,7 +358,7 @@ export function FuncionarioRedeDetalhe() {
                 <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Rede</dt>
                 <dd className="text-sm">
                   {f.rede_id != null && redeNome ? (
-                    isAdmin ? (
+                    podeVerRede ? (
                       <Link
                         to={`/redes/${f.rede_id}`}
                         className="font-medium text-slate-800 underline decoration-slate-300 underline-offset-2 transition-colors hover:text-slate-950 hover:decoration-slate-500 dark:text-slate-100 dark:decoration-slate-700 dark:hover:decoration-slate-500"

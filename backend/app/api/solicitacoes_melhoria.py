@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.core.auth import exigir_admin, obter_atendente_atual
+from app.core.auth import obter_atendente_atual, exigir_permissao
 from app.models.atendente import Atendente
 from app.schemas.solicitacao_melhoria import (
     SolicitacaoAnexoRead,
@@ -114,7 +114,7 @@ def listar_admin(
     desde: datetime | None = Query(None),
     ate: datetime | None = Query(None),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("solicitacoes.ver")),
 ):
     rows = svc.listar_admin(
         db, status_filtro=status, tipo=tipo, organizacao_id=organizacao_id, desde=desde, ate=ate
@@ -138,7 +138,7 @@ def alterar_status(
     solicitacao_id: int,
     data: SolicitacaoMelhoriaStatusUpdate,
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("solicitacoes.editar")),
 ):
     row = svc.alterar_status(db, solicitacao_id, admin, data)
     return svc.serializar(row, incluir_github=True, incluir_internos=True)
@@ -160,7 +160,7 @@ def comentar(
 def criar_github(
     solicitacao_id: int,
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("solicitacoes.editar")),
 ):
     row = svc.obter_para_leitura(db, solicitacao_id, admin)
     row = gh_svc.criar_issue(db, row, admin)
@@ -171,7 +171,7 @@ def criar_github(
 def sync_github(
     solicitacao_id: int,
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("solicitacoes.editar")),
 ):
     row = svc.obter_para_leitura(db, solicitacao_id, admin)
     row = gh_svc.sincronizar_issue(db, row, admin)

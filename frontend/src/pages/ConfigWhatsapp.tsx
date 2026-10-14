@@ -9,6 +9,8 @@ import { Button } from '../components/ui/Button'
 import { Switch } from '../components/ui/Switch'
 import { INPUT_FIELD_CLASS, TEXTAREA_FIELD_CLASS } from '../components/ui/Input'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import {
   horarioSemanaFromApi,
@@ -130,6 +132,8 @@ function renderQrPayload(data: Record<string, unknown> | null | undefined) {
 
 export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
   const toast = useToast()
+  const { user } = useAuth()
+  const podeEditar = temPermissao(user, 'canais.whatsapp.editar')
   const [loading, setLoading] = useState(true)
   const [aba, setAba] = useState<Aba>('conexao')
   const [flags, setFlags] = useState({
@@ -382,13 +386,13 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
                 </div>
 
                 <div className="flex flex-wrap gap-2 pt-1">
-                  <Button type="button" loading={provisionando} onClick={() => void prepararEMostrarQr()}>
+                  <Button type="button" loading={provisionando} disabled={!podeEditar} onClick={() => void prepararEMostrarQr()}>
                     Gerar QR Code para conectar
                   </Button>
-                  <Button type="button" variant="secondary" onClick={() => void atualizarQr()}>
+                  <Button type="button" variant="secondary" disabled={!podeEditar} onClick={() => void atualizarQr()}>
                     Gerar novo QR Code
                   </Button>
-                  <Button type="button" variant="danger" onClick={() => void reporTudo()}>
+                  <Button type="button" variant="danger" disabled={!podeEditar} onClick={() => void reporTudo()}>
                     Desconectar e reiniciar
                   </Button>
                 </div>
@@ -502,6 +506,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
             <div className="flex justify-end pt-2">
               <Button
                 type="button"
+                disabled={!podeEditar}
                 loading={salvandoMsgs}
                 onClick={() => {
                   setSalvandoMsgs(true)
@@ -596,6 +601,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
             <div className="flex justify-end pt-2">
               <Button
                 type="button"
+                disabled={!podeEditar}
                 loading={salvandoInatividade}
                 onClick={() => {
                   const avisoMin = Number.parseInt(inativAvisoMinutos, 10)
@@ -714,6 +720,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
             <div className="flex justify-end pt-2">
               <Button
                 type="button"
+                disabled={!podeEditar}
                 loading={salvandoAvaliacao}
                 onClick={() => {
                   const janela = Number.parseInt(avaliacaoJanelaMinutos, 10)
@@ -780,6 +787,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
             <div className="flex justify-end pt-2">
               <Button
                 type="button"
+                disabled={!podeEditar}
                 loading={salvandoMidia}
                 onClick={() => {
                   const img = Number.parseInt(retencaoImagem, 10)
@@ -848,6 +856,7 @@ export function ConfigWhatsapp({ embedded = false }: { embedded?: boolean }) {
             <div className="flex justify-end pt-2">
               <Button
                 type="button"
+                disabled={!podeEditar}
                 loading={salvandoHorarios}
                 onClick={() => {
                   const erroHorario = validarHorarioSemana(horarioSemana)

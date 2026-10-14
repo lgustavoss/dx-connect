@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageContainer, PageHeader } from '../../components/ui/PageContainer'
 import { Input } from '../../components/ui/Input'
-import { CONFIG_GROUPS, configGroupIndexPath, configItemPath } from './configNav'
+import { useAuth } from '../../contexts/AuthContext'
+import { temPermissao } from '../../lib/permissoes'
+import { CONFIG_GROUPS, PERMISSAO_CONFIG, configGroupIndexPath, configItemPath } from './configNav'
 
 function normalize(s: string): string {
   return s
@@ -13,21 +15,31 @@ function normalize(s: string): string {
 
 /** Hub de Configurações com busca e cartões por domínio (#833). */
 export function ConfigHubPage() {
+  const { user } = useAuth()
   const [q, setQ] = useState('')
   const query = normalize(q.trim())
 
   const groups = useMemo(() => {
-    if (!query) return CONFIG_GROUPS
-    return CONFIG_GROUPS.map((g) => {
-      const items = g.items.filter((item) => {
-        const hay = normalize(
-          [item.label, item.hint, ...item.keywords, g.label, g.description].join(' '),
-        )
-        return hay.includes(query)
+    const visiveis = CONFIG_GROUPS.map((g) => ({
+      ...g,
+      items: g.items.filter((item) => {
+        const codigo = PERMISSAO_CONFIG[item.slug]
+        return !codigo || temPermissao(user, codigo)
+      }),
+    })).filter((g) => g.items.length > 0)
+    if (!query) return visiveis
+    return visiveis
+      .map((g) => {
+        const items = g.items.filter((item) => {
+          const hay = normalize(
+            [item.label, item.hint, ...item.keywords, g.label, g.description].join(' '),
+          )
+          return hay.includes(query)
+        })
+        return { ...g, items }
       })
-      return { ...g, items }
-    }).filter((g) => g.items.length > 0)
-  }, [query])
+      .filter((g) => g.items.length > 0)
+  }, [query, user])
 
   return (
     <PageContainer>

@@ -36,7 +36,8 @@ from app.services.dashboard_demandas_analise import (
 )
 from app.services.ticket_dashboard_filters import normalizar_prioridade, resolve_period
 from app.schemas.ticket import TicketRead
-from app.core.auth import exigir_admin, obter_atendente_atual
+from app.core.auth import exigir_permissao
+from app.services.permissao_grupos import tem_permissao
 from app.api.tickets import _ticket_para_read
 from app.core.setor_scope import ids_setores_visiveis_atendente
 
@@ -44,14 +45,14 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 def _filtro_setor_atendente(db: Session, q, atendente: Atendente):
-    if atendente.role != "admin":
+    if not tem_permissao(atendente, "atendimento.ver_todos"):
         vis = ids_setores_visiveis_atendente(db, atendente)
         return q.filter(Ticket.setor_id.in_(vis))
     return q
 
 
 def _filtro_whatsapp_scope(db: Session, q, atendente: Atendente):
-    if atendente.role != "admin":
+    if not tem_permissao(atendente, "atendimento.ver_todos"):
         vis = ids_setores_visiveis_atendente(db, atendente)
         return q.filter(or_(WhatsappChat.setor_id.is_(None), WhatsappChat.setor_id.in_(vis)))
     return q
@@ -68,7 +69,7 @@ _CHAT_ESTADO_ROTULO = {
 @router.get("", response_model=DashboardResponse)
 def obter_dashboard(
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
+    atendente: Atendente = Depends(exigir_permissao("dashboard.ver")),
 ):
     hoje = date.today()
 
@@ -194,7 +195,7 @@ def obter_dashboard_geral(
     de: date | None = Query(None, description="Início do período do CSAT"),
     ate: date | None = Query(None, description="Fim do período do CSAT (default: hoje)"),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
+    atendente: Atendente = Depends(exigir_permissao("dashboard.ver")),
 ):
     return montar_dashboard_geral(db, atendente, de=de, ate=ate)
 
@@ -219,7 +220,7 @@ def obter_dashboard_tickets(
     drill_tipo: str | None = Query(None, description="Tipo do drill-down cross-filter (ex.: empresa, atendente)"),
     drill_valor: str | None = Query(None, description="Valor do drill-down (id ou código conforme o tipo)"),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
+    atendente: Atendente = Depends(exigir_permissao("dashboard.ver")),
 ):
     prio = None
     if prioridade is not None:
@@ -258,7 +259,7 @@ def obter_dashboard_chats(
     drill_tipo: str | None = Query(None, description="Tipo do drill-down cross-filter (ex.: estado, atendente)"),
     drill_valor: str | None = Query(None, description="Valor do drill-down (id ou código conforme o tipo)"),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
+    atendente: Atendente = Depends(exigir_permissao("dashboard.ver")),
 ):
     return montar_dashboard_chats(
         db,
@@ -291,7 +292,7 @@ def listar_dashboard_chats_demandas(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
+    atendente: Atendente = Depends(exigir_permissao("dashboard.ver")),
 ):
     inicio, fim = resolve_period(de, ate)
     return listar_demandas_drilldown(
@@ -317,7 +318,7 @@ def listar_dashboard_chats_demandas(
 def aceitar_sugestao_motivo_demanda(
     body: SugestaoMotivoOutrosAcao,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("natureza.editar")),
 ):
     motivo = aceitar_sugestao_motivo_outros(
         db,
@@ -339,7 +340,7 @@ def aceitar_sugestao_motivo_demanda(
 def ignorar_sugestao_motivo_demanda(
     body: SugestaoMotivoOutrosAcao,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("natureza.editar")),
 ):
     ignorar_sugestao_motivo_outros(
         db,

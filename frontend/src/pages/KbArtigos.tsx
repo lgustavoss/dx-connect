@@ -7,6 +7,8 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { KbListaFiltros, KB_PAGE_SIZE } from '../components/kb/KbListaFiltros'
 import { KbArtigoPreviewModal } from '../components/kb/KbArtigoPreviewModal'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
@@ -22,6 +24,10 @@ const LOTE_ARTIGOS_MAX = 100
 export function KbArtigosPage({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate()
   const toast = useToast()
+  const { user } = useAuth()
+  const podeCriar = temPermissao(user, 'ajuda.artigos.criar')
+  const podeEditar = temPermissao(user, 'ajuda.artigos.editar')
+  const podeExcluir = temPermissao(user, 'ajuda.artigos.excluir')
   const [list, setList] = useState<Kb.ArticleBrief[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -203,9 +209,11 @@ export function KbArtigosPage({ embedded = false }: { embedded?: boolean }) {
       title="Artigos"
       subtitle="Rascunho, publicação e arquivamento de manuais."
       actions={
-        <Button type="button" onClick={() => navigate('/ajuda/artigos/novo')}>
-          Novo artigo
-        </Button>
+        podeCriar ? (
+          <Button type="button" onClick={() => navigate('/ajuda/artigos/novo')}>
+            Novo artigo
+          </Button>
+        ) : undefined
       }
     >
       <Card className="p-4 sm:p-5">
@@ -232,7 +240,7 @@ export function KbArtigosPage({ embedded = false }: { embedded?: boolean }) {
           paginacao={{ page, total, onPageChange: setPage, disabled: loading }}
         />
 
-        {!loading && (list.length > 0 || selecionados.length > 0) ? (
+        {!loading && podeExcluir && (list.length > 0 || selecionados.length > 0) ? (
           <div className="mb-3 flex flex-wrap justify-end gap-2">
             {temMaisPaginas ? (
               <Button
@@ -312,7 +320,7 @@ export function KbArtigosPage({ embedded = false }: { embedded?: boolean }) {
                         <Button type="button" variant="secondary" onClick={() => abrirPreview(item)}>
                           Visualizar
                         </Button>
-                        {item.status === 'rascunho' ? (
+                        {podeEditar && item.status === 'rascunho' ? (
                           <Button
                             type="button"
                             loading={publicandoId === item.id}
@@ -321,13 +329,15 @@ export function KbArtigosPage({ embedded = false }: { embedded?: boolean }) {
                             Publicar
                           </Button>
                         ) : null}
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={() => navigate(`/ajuda/artigos/${item.id}/editar`)}
-                        >
-                          Editar
-                        </Button>
+                        {podeEditar ? (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => navigate(`/ajuda/artigos/${item.id}/editar`)}
+                          >
+                            Editar
+                          </Button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

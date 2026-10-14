@@ -41,7 +41,8 @@ from app.schemas.ticket import (
 )
 from app.schemas.ticket_anexo import TicketAnexoCreateResponse, TicketAnexoRead
 from app.schemas.lista_paginada import ListaPaginada
-from app.core.auth import obter_atendente_atual, exigir_admin
+from app.core.auth import obter_atendente_atual, exigir_admin, exigir_permissao
+from app.services.permissao_grupos import tem_permissao
 from app.config import settings
 from app.core.ticket_prioridade import PrioridadeTicket
 from app.services.ticket_classificacao_rules import (
@@ -430,7 +431,7 @@ def _negociacao_id_do_ticket(db: Session | None, t: Ticket) -> int | None:
 def _pode_ver_ticket(db: Session, atendente: Atendente, ticket: Ticket) -> bool:
     if ticket.tenant_id != atendente.tenant_id:
         return False
-    if atendente.role == "admin":
+    if tem_permissao(atendente, "atendimento.ver_todos"):
         return True
     vis = ids_setores_visiveis_atendente(db, atendente)
     return ticket.setor_id in vis
@@ -438,7 +439,7 @@ def _pode_ver_ticket(db: Session, atendente: Atendente, ticket: Ticket) -> bool:
 
 def _pode_enviar_mensagem_publica(atendente: Atendente, ticket: Ticket) -> bool:
     """Andamento visível na conversa (tipo publico): admin, responsável ou fila sem responsável."""
-    if atendente.role == "admin":
+    if tem_permissao(atendente, "atendimento.ver_todos"):
         return True
     if ticket.atendente_id is None:
         return True
@@ -446,7 +447,7 @@ def _pode_enviar_mensagem_publica(atendente: Atendente, ticket: Ticket) -> bool:
 
 
 def _pode_editar_mensagem_email(atendente: Atendente, mensagem: TicketMensagem) -> bool:
-    if atendente.role == "admin":
+    if tem_permissao(atendente, "atendimento.ver_todos"):
         return True
     return mensagem.atendente_id == atendente.id
 
@@ -523,7 +524,7 @@ def listar(
         description="asc = A→Z / menor primeiro; desc = Z→A / maior primeiro",
     ),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
+    atendente: Atendente = Depends(exigir_permissao("tickets.ver")),
 ):
     q = (
         db.query(Ticket)
@@ -532,7 +533,7 @@ def listar(
         .join(Ticket.status)
         .filter(Ticket.tenant_id == atendente.tenant_id)
     )
-    if atendente.role != "admin":
+    if not tem_permissao(atendente, "atendimento.ver_todos"):
         vis = ids_setores_visiveis_atendente(db, atendente)
         q = q.filter(Ticket.setor_id.in_(vis))
     if empresa_id is not None:
@@ -544,7 +545,7 @@ def listar(
     if status_id is not None:
         q = q.filter(Ticket.status_id == status_id)
     if atendente_id is not None:
-        if atendente.role != "admin":
+        if not tem_permissao(atendente, "atendimento.ver_todos"):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Apenas administradores podem filtrar por outro responsável",
@@ -707,7 +708,7 @@ def listar(
 def criar(
     data: TicketCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
+    atendente: Atendente = Depends(exigir_permissao("tickets.criar")),
 ):
     try:
         modo = validar_escopo_criacao_manual(
@@ -762,7 +763,7 @@ def criar(
         evaluate_routing,
     )
 
-    if data.aplicar_roteamento and atendente.role != "admin":
+    if data.aplicar_roteamento and not tem_permissao(atendente, "atendimento.ver_todos"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Apenas administradores podem forçar roteamento sobre setor explícito.",
@@ -806,7 +807,7 @@ def criar(
         )
 
     # Atendente só pode abrir ticket em setor que ele atende
-    if atendente.role != "admin":
+    if not tem_permissao(atendente, "atendimento.ver_todos"):
         vis = ids_setores_visiveis_atendente(db, atendente)
         if setor_id_efetivo not in vis:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este setor")
@@ -1270,7 +1271,7 @@ def criar_filhos_em_massa_endpoint(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
 
     setor_id = data.setor_id if data.setor_id is not None else ticket.setor_id
-    if atendente.role != "admin":
+    if not tem_permissao(atendente, "atendimento.ver_todos"):
         vis = ids_setores_visiveis_atendente(db, atendente)
         if setor_id not in vis:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este setor")
@@ -1754,8 +1755,8 @@ def reabrir(
     db: Session = Depends(get_db),
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
-    if atendente.role != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Apenas administradores podem reabrir tickets")
+    if not tem_permissao(atendente, "tickets.reabrir"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para reabrir tickets")
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
@@ -1802,14 +1803,14 @@ def atualizar(
     ticket_id: int,
     data: TicketUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
+    atendente: Atendente = Depends(exigir_permissao("tickets.editar")),
 ):
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket não encontrado")
     if not _pode_ver_ticket(db, atendente, ticket):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este ticket")
-    if ticket.fechado_em is not None and atendente.role != "admin":
+    if ticket.fechado_em is not None and not tem_permissao(atendente, "tickets.reabrir"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Ticket fechado. Apenas administradores podem reabrir ou alterar este ticket.",
@@ -1882,7 +1883,7 @@ def atualizar(
             )
 
     if "setor_id" in update:
-        if atendente.role != "admin":
+        if not tem_permissao(atendente, "atendimento.ver_todos"):
             permitidos = ids_setores_visiveis_atendente(db, atendente)
             if update["setor_id"] not in permitidos:
                 raise HTTPException(
@@ -1895,7 +1896,7 @@ def atualizar(
 
     setor_final = update["setor_id"] if "setor_id" in update else ticket.setor_id
 
-    if "atendente_id" in update and atendente.role != "admin":
+    if "atendente_id" in update and not tem_permissao(atendente, "atendimento.ver_todos"):
         novo_at = update["atendente_id"]
         if novo_at is not None and novo_at != atendente.id:
             raise HTTPException(

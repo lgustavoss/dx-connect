@@ -9,6 +9,8 @@ import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { IconPencil } from '../components/ui/IconPencil'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { MODAL_PANEL_COMPACT } from '../lib/modalPanel'
@@ -30,6 +32,9 @@ const emptyMotivo = (naturezaId: number): MotivoForm => ({
 
 export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: boolean }) {
   const toast = useToast()
+  const { user } = useAuth()
+  const podeCriar = temPermissao(user, 'natureza.criar')
+  const podeEditar = temPermissao(user, 'natureza.editar')
   const [forbidden, setForbidden] = useState(false)
   const [aba, setAba] = useState<Aba>('naturezas')
 
@@ -216,9 +221,11 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
       denied={denied}
       title="Natureza e motivo"
       actions={
-        <Button type="button" onClick={abrirNovo}>
-          {aba === 'naturezas' ? 'Nova natureza' : 'Novo motivo'}
-        </Button>
+        podeCriar ? (
+          <Button type="button" onClick={abrirNovo}>
+            {aba === 'naturezas' ? 'Nova natureza' : 'Novo motivo'}
+          </Button>
+        ) : undefined
       }
     >
       <div className="border-b border-slate-200 dark:border-slate-800">
@@ -278,9 +285,11 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
                     <td className="px-4 py-3.5 text-center tabular-nums sm:px-6">{item.ordem}</td>
                     <td className="px-4 py-3.5 sm:px-6">{item.ativo ? 'Ativo' : 'Inativo'}</td>
                     <td className="px-4 py-3.5 text-right sm:px-6">
-                      <button type="button" onClick={() => abrirEditarNatureza(item)} aria-label={`Editar ${item.nome}`}>
-                        <IconPencil />
-                      </button>
+                      {podeEditar ? (
+                        <button type="button" onClick={() => abrirEditarNatureza(item)} aria-label={`Editar ${item.nome}`}>
+                          <IconPencil />
+                        </button>
+                      ) : null}
                     </td>
                   </tr>
                 ))}
@@ -310,9 +319,11 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
                   <td className="px-4 py-3.5 text-center tabular-nums sm:px-6">{item.ordem}</td>
                   <td className="px-4 py-3.5 sm:px-6">{item.ativo ? 'Ativo' : 'Inativo'}</td>
                   <td className="px-4 py-3.5 text-right sm:px-6">
-                    <button type="button" onClick={() => abrirEditarMotivo(item)} aria-label={`Editar ${item.nome}`}>
-                      <IconPencil />
-                    </button>
+                    {podeEditar ? (
+                      <button type="button" onClick={() => abrirEditarMotivo(item)} aria-label={`Editar ${item.nome}`}>
+                        <IconPencil />
+                      </button>
+                    ) : null}
                   </td>
                 </tr>
               ))}

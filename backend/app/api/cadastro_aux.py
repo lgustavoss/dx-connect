@@ -10,7 +10,7 @@ import urllib.request
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.core.auth import exigir_admin, obter_atendente_atual
+from app.core.auth import obter_atendente_atual, exigir_permissao
 from app.database import get_db
 from app.models.atendente import Atendente
 from app.models.ibge_municipio import IbgeMunicipio
@@ -106,7 +106,7 @@ def listar_municipios(
 @router.post("/municipios/sincronizar")
 def sincronizar_municipios_ibge(
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("instalacao.editar")),
 ):
     """Força recarga completa dos municípios a partir do IBGE (apenas administrador)."""
     try:

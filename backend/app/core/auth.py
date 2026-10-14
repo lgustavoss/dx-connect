@@ -120,6 +120,30 @@ def exigir_admin(atendente: Atendente = Depends(obter_atendente_atual)) -> Atend
     return atendente
 
 
+def exigir_permissao(codigo: str):
+    """Libera a rota para quem tem o código, ou acesso total."""
+
+    def _dep(atendente: Atendente = Depends(obter_atendente_atual)) -> Atendente:
+        from app.services.permissao_grupos import tem_permissao
+
+        if not tem_permissao(atendente, codigo):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para esta ação.")
+        return atendente
+
+    return _dep
+
+
+def exigir_alguma_permissao(*codigos: str):
+    def _dep(atendente: Atendente = Depends(obter_atendente_atual)) -> Atendente:
+        from app.services.permissao_grupos import tem_permissao
+
+        if not any(tem_permissao(atendente, codigo) for codigo in codigos):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para esta ação.")
+        return atendente
+
+    return _dep
+
+
 def exigir_comercial_ou_admin(atendente: Atendente = Depends(obter_atendente_atual)) -> Atendente:
     """CRM e simulação de custos (#336 / #322): admin ou perfil comercial."""
     if atendente.role not in ("admin", "comercial"):
@@ -128,6 +152,25 @@ def exigir_comercial_ou_admin(atendente: Atendente = Depends(obter_atendente_atu
             detail="Acesso restrito a perfil comercial ou administrador",
         )
     return atendente
+
+
+def exigir_faturamento(codigo: str):
+    """Fatura: permissão do grupo ou, como hoje, vínculo ao setor Financeiro."""
+
+    def _dep(
+        atendente: Atendente = Depends(obter_atendente_atual),
+        db: Session = Depends(get_db),
+    ) -> Atendente:
+        from app.services.permissao_grupos import tem_permissao
+
+        if tem_permissao(atendente, codigo) or atendente_e_financeiro(db, atendente):
+            return atendente
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Sem permissão para esta ação de faturamento.",
+        )
+
+    return _dep
 
 
 def exigir_financeiro_ou_admin(

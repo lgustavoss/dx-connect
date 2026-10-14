@@ -24,7 +24,7 @@ export const CONFIG_GROUPS: ConfigNavGroup[] = [
     id: 'equipe',
     pathPrefix: 'equipe',
     label: 'Equipe',
-    description: 'Setores e atendentes que operam o painel.',
+    description: 'Setores, atendentes e grupos de permissão.',
     icon: 'setores',
     items: [
       {
@@ -38,6 +38,12 @@ export const CONFIG_GROUPS: ConfigNavGroup[] = [
         label: 'Atendentes',
         hint: 'Usuários internos que operam tickets e o chat.',
         keywords: ['utilizador', 'usuário', 'login', 'perfil'],
+      },
+      {
+        slug: 'grupos-permissao',
+        label: 'Grupos de permissão',
+        hint: 'Quem pode administrar, atender ou usar o comercial. Uma pessoa pode estar em mais de um grupo.',
+        keywords: ['perfil', 'permissão', 'acesso', 'papel'],
       },
     ],
   },
@@ -204,6 +210,41 @@ export const CONFIG_GROUPS: ConfigNavGroup[] = [
     ],
   },
 ]
+
+/** Código que libera a tela de configuração. Quem tem acesso total passa em qualquer um. */
+export const PERMISSAO_CONFIG: Record<string, string> = {
+  setores: 'setores.ver',
+  atendentes: 'atendentes.ver',
+  'grupos-permissao': 'grupos.ver',
+  'status-ticket': 'status_ticket.ver',
+  'natureza-motivo': 'natureza.ver',
+  'respostas-prontas': 'respostas.ver',
+  roteamento: 'roteamento.ver',
+  sla: 'sla.ver',
+  whatsapp: 'canais.whatsapp.ver',
+  email: 'canais.email.ver',
+  'base-conhecimento': 'ajuda.portal',
+  'tipos-negocio': 'tipos_negocio.ver',
+  'funil-crm': 'funil.editar',
+  propostas: 'propostas.modelos',
+  contratos: 'contratos.modelos',
+  custos: 'custos.ver',
+  implantacao: 'implantacao.editar',
+  empresa: 'instalacao.ver',
+  pdv: 'pdv.ver',
+  auditoria: 'auditoria.ver',
+  sugestoes: 'solicitacoes.ver',
+}
+
+export function permissoesDoPrefixo(pathPrefix: string): string[] {
+  const group = CONFIG_GROUPS.find((item) => item.pathPrefix === pathPrefix)
+  if (!group) return []
+  return group.items.map((item) => PERMISSAO_CONFIG[item.slug]).filter((codigo): codigo is string => !!codigo)
+}
+
+export function todasPermissoesConfig(): string[] {
+  return Object.values(PERMISSAO_CONFIG)
+}
 
 export function configItemPath(group: ConfigNavGroup, item: ConfigNavItem): string {
   return `/configuracoes/${group.pathPrefix}/${item.slug}`

@@ -38,6 +38,7 @@ from app.schemas.comercial_contrato import (
     ContratoTemplateCreate,
     ContratoTemplateUpdate,
 )
+from app.services.permissao_grupos import tem_permissao
 from app.services import comercial_proposta as proposta_svc
 from app.services import crm as crm_svc
 from app.services.ticket_anexo_storage import caminho_absoluto_arquivo, gravar_bytes_em_disco, validar_upload
@@ -410,15 +411,21 @@ def obter_contrato(db: Session, contrato_id: int, *, atendente: Atendente | None
     return row
 
 
+def _ve_todos_os_contratos(atendente: Atendente | None) -> bool:
+    if atendente is None:
+        return True
+    return tem_permissao(atendente, "contratos.ver_todos")
+
+
 def _assert_acesso_negociacao(neg: CrmNegociacao | None, atendente: Atendente | None) -> None:
-    if atendente is None or atendente.role == "admin":
+    if _ve_todos_os_contratos(atendente):
         return
     if neg is None or neg.responsavel_id != atendente.id:
         raise HTTPException(status_code=403, detail="Você não tem permissão para este contrato.")
 
 
 def _assert_acesso_contrato(row: Contrato, atendente: Atendente | None) -> None:
-    if atendente is None or atendente.role == "admin":
+    if _ve_todos_os_contratos(atendente):
         return
     linha = row.linha
     neg = linha.negociacao if linha else None

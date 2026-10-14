@@ -19,6 +19,8 @@ import { Select } from '../components/ui/Select'
 import { SelectCidadeUf } from '../components/ui/SelectCidadeUf'
 import { SelectUf } from '../components/ui/SelectUf'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { isCnpj, maskCnpjCpf } from '../utils/maskCnpjCpf'
 import { digitsOnly, formatTelefoneBrExibicao, maskCep, maskTelefoneBr } from '../utils/masks'
@@ -36,6 +38,9 @@ type ConfigEmpresaEmailProps = {
 
 export function ConfigEmpresaEmail({ embedded = false, section }: ConfigEmpresaEmailProps) {
   const toast = useToast()
+  const { user } = useAuth()
+  const podeEditarEmpresa = temPermissao(user, 'instalacao.editar')
+  const podeEditarEmail = temPermissao(user, 'canais.email.editar')
   const [loading, setLoading] = useState(true)
   const [abaInterna, setAbaInterna] = useState<Aba>('empresa')
   const aba = section ?? abaInterna
@@ -412,6 +417,7 @@ export function ConfigEmpresaEmail({ embedded = false, section }: ConfigEmpresaE
                     <input
                       type="file"
                       accept="image/png,image/jpeg,image/webp"
+                      disabled={!podeEditarEmpresa}
                       onChange={(e) => {
                         const f = e.target.files?.[0] ?? null
                         setLogoFile(f)
@@ -420,10 +426,10 @@ export function ConfigEmpresaEmail({ embedded = false, section }: ConfigEmpresaE
                       }}
                       className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-medium file:text-slate-800 hover:file:bg-slate-200 dark:text-slate-300 dark:file:bg-slate-800 dark:file:text-slate-100 dark:hover:file:bg-slate-700 sm:w-auto"
                     />
-                    <Button type="button" variant="secondary" onClick={() => void uploadLogo()} disabled={!logoFile || logoUploading}>
+                    <Button type="button" variant="secondary" onClick={() => void uploadLogo()} disabled={!podeEditarEmpresa || !logoFile || logoUploading}>
                       {logoUploading ? 'Enviando…' : 'Enviar logo'}
                     </Button>
-                    <Button type="button" variant="ghost" onClick={() => void removerLogo()} disabled={logoDeleting || (!logoBlobUrl && !logoLoading)}>
+                    <Button type="button" variant="ghost" onClick={() => void removerLogo()} disabled={!podeEditarEmpresa || logoDeleting || (!logoBlobUrl && !logoLoading)}>
                       {logoDeleting ? 'Removendo…' : 'Remover logo'}
                     </Button>
                   </div>
@@ -599,7 +605,7 @@ export function ConfigEmpresaEmail({ embedded = false, section }: ConfigEmpresaE
               </div>
             </div>
             <div className="flex flex-wrap gap-3 pt-2">
-              <Button type="submit" disabled={salvandoEmpresa}>
+              <Button type="submit" disabled={salvandoEmpresa || !podeEditarEmpresa}>
                 {salvandoEmpresa ? 'Salvando…' : 'Salvar empresa'}
               </Button>
             </div>
@@ -657,7 +663,7 @@ export function ConfigEmpresaEmail({ embedded = false, section }: ConfigEmpresaE
                   type="button"
                   variant="secondary"
                   onClick={() => void testarTransactional()}
-                  disabled={testandoTransactional || !emailOutbound?.outbound_configured}
+                  disabled={!podeEditarEmail || testandoTransactional || !emailOutbound?.outbound_configured}
                 >
                   {testandoTransactional ? 'Enviando…' : 'Enviar teste para o meu e-mail'}
                 </Button>
@@ -699,7 +705,7 @@ export function ConfigEmpresaEmail({ embedded = false, section }: ConfigEmpresaE
                   variant="secondary"
                   className="mt-3"
                   onClick={() => void salvarGraceEmail()}
-                  disabled={salvandoGrace}
+                  disabled={salvandoGrace || !podeEditarEmail}
                 >
                   {salvandoGrace ? 'Salvando…' : 'Salvar tempo de espera'}
                 </Button>

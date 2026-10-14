@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ApiError, tickets, type Tickets } from '../../api/client'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { useAuth } from '../../contexts/AuthContext'
+import { temPermissao } from '../../lib/permissoes'
 import { useToast } from '../ui/Toast'
 import { CheckboxField } from '../ui/CheckboxField'
 import { Input } from '../ui/Input'
@@ -19,7 +20,8 @@ export function TicketImplantacaoChecklist({
   fechado: boolean
 }) {
   const toast = useToast()
-  const { isAdmin } = useAuth()
+  const { user, isAdmin } = useAuth()
+  const podeVerPdvs = temPermissao(user, 'pdv.acessos.ver') || temPermissao(user, 'empresas.editar')
   const [data, setData] = useState<Tickets.Checklist | null>(null)
   const [savingId, setSavingId] = useState<number | null>(null)
   const [obsDraft, setObsDraft] = useState<Record<number, string>>({})
@@ -105,18 +107,18 @@ export function TicketImplantacaoChecklist({
             {item.chave === CHAVE_PDVS ? (
               <p className="mt-1 pl-7 text-xs text-slate-600 dark:text-slate-300">
                 PDVs ativos: {data.pdvs_ativos ?? 0}
-                {isAdmin && empresaId ? (
+                {podeVerPdvs && empresaId ? (
                   <>
                     {' · '}
                     <Link
                       to={`/empresas/${empresaId}?aba=pdvs`}
                       className="font-medium text-cyan-700 underline dark:text-cyan-400"
                     >
-                      Abrir cadastro de PDVs
+                      Ver PDVs
                     </Link>
                   </>
                 ) : (
-                  <span className="text-slate-500"> · o admin cadastra os PDVs na empresa</span>
+                  <span className="text-slate-500"> · os PDVs ficam no cadastro da empresa</span>
                 )}
               </p>
             ) : null}

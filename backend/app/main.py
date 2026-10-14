@@ -19,6 +19,7 @@ from app.api import (
     empresas,
     setores,
     atendentes,
+    permissao_grupos,
     funcionarios_rede,
     status_ticket,
     tickets,
@@ -681,6 +682,7 @@ app.include_router(redes.router, prefix=API_V1_PREFIX)
 app.include_router(empresas.router, prefix=API_V1_PREFIX)
 app.include_router(setores.router, prefix=API_V1_PREFIX)
 app.include_router(atendentes.router, prefix=API_V1_PREFIX)
+app.include_router(permissao_grupos.router, prefix=API_V1_PREFIX)
 app.include_router(funcionarios_rede.router, prefix=API_V1_PREFIX)
 app.include_router(status_ticket.router, prefix=API_V1_PREFIX)
 app.include_router(tickets.router, prefix=API_V1_PREFIX)

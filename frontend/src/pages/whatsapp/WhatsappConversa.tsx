@@ -66,6 +66,7 @@ import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
 
 import { useAuth } from '../../contexts/AuthContext'
+import { destinoEmpresa } from '../../lib/permissoes'
 import { useEventStream } from '../../contexts/EventStreamContext'
 import { refetchPendenciasResumo } from '../../hooks/useAlertaFilaSemResponsavel'
 import { CustomAudioPlayer } from '../../components/CustomAudioPlayer'
@@ -2295,15 +2296,23 @@ useEffect(() => {
                     {ticketsAbertosContato} aberto{ticketsAbertosContato === 1 ? '' : 's'}
                   </Link>
                 ) : null}
-                {chat.empresa_nome && chat.empresa_id ? (
+                {chat.empresa_nome && chat.empresa_id && destinoEmpresa(user, chat.empresa_id) ? (
                   <Link
-                    to={`/empresas/${chat.empresa_id}`}
+                    to={destinoEmpresa(user, chat.empresa_id)!}
                     state={{ voltarPara: `${location.pathname}${location.search}` }}
                     className="inline-flex max-w-full truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-700 transition-colors hover:border-cyan-400 hover:text-cyan-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-cyan-600 dark:hover:text-cyan-300"
-                    title="Ver detalhe da empresa"
+                    title={
+                      destinoEmpresa(user, chat.empresa_id)?.includes('aba=pdvs')
+                        ? 'Ver PDVs e acesso remoto'
+                        : 'Ver detalhe da empresa'
+                    }
                   >
                     {chat.empresa_nome}
                   </Link>
+                ) : chat.empresa_nome ? (
+                  <span className="inline-flex max-w-full truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+                    {chat.empresa_nome}
+                  </span>
                 ) : podeDefinirEmpresa && !modoConsulta ? (
                   <button
                     type="button"

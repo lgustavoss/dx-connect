@@ -7,6 +7,8 @@ import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { ListaAcoesVerEditar } from '../components/ui/ListaAcoesVerEditar'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
@@ -18,6 +20,10 @@ type Coluna = 'titulo' | 'ordem' | 'ativo'
 export function RespostasProntasPage({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate()
   const toast = useToast()
+  const { user } = useAuth()
+  const podeCriar = temPermissao(user, 'respostas.criar')
+  const podeEditar = temPermissao(user, 'respostas.editar')
+  const podeExcluir = temPermissao(user, 'respostas.excluir')
   const { ordenarPor, ordem: ordemLista, aoOrdenarColuna, sortParams } = useOrdenacaoLista<Coluna>()
   const [list, setList] = useState<RespostasProntas.Resposta[]>([])
   const [total, setTotal] = useState(0)
@@ -96,7 +102,7 @@ export function RespostasProntasPage({ embedded = false }: { embedded?: boolean 
       denied={denied}
       title="Respostas prontas"
       subtitle="Macros reutilizáveis no ticket — globais ou por setor."
-      actions={<Button onClick={() => navigate('/respostas-prontas/novo')}>Nova resposta</Button>}
+      actions={podeCriar ? <Button onClick={() => navigate('/respostas-prontas/novo')}>Nova resposta</Button> : undefined}
     >
       <Card>
         <BarraBuscaPaginacao
@@ -151,8 +157,8 @@ export function RespostasProntasPage({ embedded = false }: { embedded?: boolean 
                     <td className="px-4 py-3.5 text-right sm:px-6" onClick={(ev) => ev.stopPropagation()}>
                       <ListaAcoesVerEditar
                         onVer={() => navigate(`/respostas-prontas/${item.id}`)}
-                        onEditar={() => navigate(`/respostas-prontas/${item.id}/editar`)}
-                        onExcluir={() => handleDelete(item.id)}
+                        onEditar={podeEditar ? () => navigate(`/respostas-prontas/${item.id}/editar`) : undefined}
+                        onExcluir={podeExcluir ? () => handleDelete(item.id) : undefined}
                         verLabel="Visualizar resposta"
                         editarLabel="Editar resposta"
                       />

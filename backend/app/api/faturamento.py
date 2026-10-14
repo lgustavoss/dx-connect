@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.core.audit import registrar_audit
-from app.core.auth import exigir_financeiro_ou_admin
+from app.core.auth import exigir_faturamento
 from app.database import get_db
 from app.models.atendente import Atendente
 from app.schemas.faturamento import (
@@ -27,7 +27,7 @@ def listar_faturas(
     competencia: str | None = Query(None),
     status: str | None = Query(None),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_financeiro_ou_admin),
+    _: Atendente = Depends(exigir_faturamento("faturamento.ver")),
 ):
     rows = svc.listar_faturas(db, competencia=competencia, status_filtro=status)
     return [svc.fatura_para_read(db, r) for r in rows]
@@ -36,7 +36,7 @@ def listar_faturas(
 @router.get("/contratos-elegiveis", response_model=list[ContratoElegivelRead])
 def listar_contratos_elegiveis(
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_financeiro_ou_admin),
+    _: Atendente = Depends(exigir_faturamento("faturamento.ver")),
 ):
     return svc.listar_contratos_elegiveis(db)
 
@@ -46,7 +46,7 @@ def gerar_fatura(
     data: FaturaGerarIn,
     response: Response,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_financeiro_ou_admin),
+    atendente: Atendente = Depends(exigir_faturamento("faturamento.gerar")),
 ):
     row, created = svc.gerar_fatura_contrato(db, data.contrato_id, data.competencia)
     registrar_audit(
@@ -66,7 +66,7 @@ def gerar_fatura(
 def gerar_competencia(
     data: FaturaGerarCompetenciaIn,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_financeiro_ou_admin),
+    atendente: Atendente = Depends(exigir_faturamento("faturamento.gerar")),
 ):
     competencia, criadas, existentes, reabertas, audit_id = svc.gerar_competencia(
         db, data.competencia, reabrir_rejeitadas=True
@@ -93,7 +93,7 @@ def gerar_competencia(
 def aprovar_fatura(
     fatura_id: int,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_financeiro_ou_admin),
+    atendente: Atendente = Depends(exigir_faturamento("faturamento.aprovar")),
 ):
     row = svc.obter_fatura(db, fatura_id)
     row = svc.aprovar_fatura(db, row, atendente)
@@ -107,7 +107,7 @@ def rejeitar_fatura(
     fatura_id: int,
     data: FaturaRejeitarIn,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_financeiro_ou_admin),
+    atendente: Atendente = Depends(exigir_faturamento("faturamento.aprovar")),
 ):
     row = svc.obter_fatura(db, fatura_id)
     row = svc.rejeitar_fatura(db, row, data.motivo)

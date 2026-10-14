@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
-from app.core.auth import exigir_admin
+from app.core.auth import exigir_permissao
 from app.database import get_db
 from app.models.atendente import Atendente
 from app.schemas.relatorio import RelatorioTicketsResponse
@@ -49,7 +49,7 @@ def relatorio_tickets(
     offset: int = Query(0, ge=0),
     limit: int = Query(PREVIEW_LIMIT, ge=1, le=PREVIEW_LIMIT),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("relatorios.ver")),
 ):
     prio = _parse_prioridade(prioridade)
     if format == "csv":
@@ -111,7 +111,7 @@ def relatorio_chats(
     offset: int = Query(0, ge=0),
     limit: int = Query(PREVIEW_LIMIT_CHATS, ge=1, le=PREVIEW_LIMIT_CHATS),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("relatorios.ver")),
 ):
     if format == "csv":
         conteudo = exportar_relatorio_chats_csv(

@@ -8,6 +8,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.setor_scope import ids_setores_visiveis_atendente
+from app.services.permissao_grupos import tem_permissao
 from app.models import Ticket
 from app.models.atendente import Atendente
 from app.models.ticket_avaliacao import TicketAvaliacao
@@ -31,14 +32,14 @@ def clear_dashboard_geral_cache() -> None:
 
 
 def _ticket_scope(stmt, db: Session, atendente: Atendente):
-    if atendente.role != "admin":
+    if not tem_permissao(atendente, "atendimento.ver_todos"):
         vis = ids_setores_visiveis_atendente(db, atendente)
         return stmt.where(Ticket.setor_id.in_(vis))
     return stmt
 
 
 def _whatsapp_scope(stmt, db: Session, atendente: Atendente):
-    if atendente.role != "admin":
+    if not tem_permissao(atendente, "atendimento.ver_todos"):
         vis = ids_setores_visiveis_atendente(db, atendente)
         return stmt.where(or_(WhatsappChat.setor_id.is_(None), WhatsappChat.setor_id.in_(vis)))
     return stmt

@@ -24,7 +24,7 @@ from app.services.funcionario_escopo import (
 from app.services.inbound_ticket_reconcile import reconciliar_tickets_pendentes_por_email
 from app.services.funcionario_rede_resolver import assert_email_unico_por_rede, resolver_remetente_por_email
 from app.schemas.lista_paginada import ListaPaginada
-from app.core.auth import exigir_admin, obter_atendente_atual
+from app.core.auth import exigir_permissao, obter_atendente_atual
 from app.core.audit import registrar_audit
 from app.core.security import hash_senha
 
@@ -128,7 +128,7 @@ def listar(
     ordenar_por: OrdenarFuncionariosPor | None = Query(None),
     ordem: OrdemLista = Query(OrdemLista.asc),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("funcionarios.ver")),
 ):
     q = db.query(FuncionarioRede)
     if rede_id is not None:
@@ -177,7 +177,7 @@ def listar(
 def resolver_por_email(
     email: str = Query(..., min_length=3, max_length=255),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("funcionarios.ver")),
 ):
     rem = resolver_remetente_por_email(db, email)
     empresas = []
@@ -200,7 +200,7 @@ def resolver_por_email(
 def criar(
     data: FuncionarioRedeCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("funcionarios.criar")),
 ):
     escopo = _escopo_para_tipo(data.tipo, data.escopo_empresas)
     if escopo not in ("all", "selected"):
@@ -280,7 +280,7 @@ def atualizar(
     funcionario_id: int,
     data: FuncionarioRedeUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("funcionarios.editar")),
 ):
     f = db.query(FuncionarioRede).filter(FuncionarioRede.id == funcionario_id).first()
     if not f:
@@ -355,7 +355,7 @@ def atualizar(
 def excluir(
     funcionario_id: int,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("funcionarios.excluir")),
 ):
     f = db.query(FuncionarioRede).filter(FuncionarioRede.id == funcionario_id).first()
     if not f:

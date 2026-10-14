@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core.audit import registrar_audit
-from app.core.auth import exigir_admin, exigir_comercial_ou_admin
+from app.core.auth import exigir_permissao
+from app.services.permissao_grupos import tem_permissao
 from app.database import get_db
 from app.models.atendente import Atendente
 from app.schemas.comercial_contrato import (
@@ -31,7 +32,7 @@ router = APIRouter(prefix="/comercial", tags=["comercial-contratos"])
 
 @router.get("/contrato-templates/chaves", response_model=list[ContratoChaveCatalogoItem])
 def listar_chaves_template(
-    _: Atendente = Depends(exigir_comercial_ou_admin),
+    _: Atendente = Depends(exigir_permissao("contratos.ver")),
 ):
     """Catálogo de placeholders {{chave}} para o modelo HTML do contrato."""
     return svc.catalogo_chaves_contrato()
@@ -41,9 +42,9 @@ def listar_chaves_template(
 def listar_templates(
     incluir_inativos: bool = Query(False),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("contratos.ver")),
 ):
-    if incluir_inativos and atendente.role != "admin":
+    if incluir_inativos and not tem_permissao(atendente, "contratos.modelos"):
         incluir_inativos = False
     svc.garantir_template_padrao(db)
     rows = svc.listar_templates(db, incluir_inativos=incluir_inativos)
@@ -55,7 +56,7 @@ def listar_templates(
 def criar_template(
     data: ContratoTemplateCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("contratos.modelos")),
 ):
     row = svc.criar_template(db, data)
     registrar_audit(db, "comercial_contrato_template", row.id, "create", atendente.id)
@@ -68,7 +69,7 @@ def criar_template(
 def preview_template(
     data: ContratoTemplatePreviewIn,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("contratos.modelos")),
 ):
     return ContratoTemplatePreviewOut(html=svc.preencher_template_preview(db, data.conteudo_html))
 
@@ -78,7 +79,7 @@ def atualizar_template(
     template_id: int,
     data: ContratoTemplateUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("contratos.modelos")),
 ):
     row = svc.obter_template(db, template_id, apenas_ativos=False)
     row = svc.atualizar_template(db, row, data)
@@ -91,7 +92,7 @@ def atualizar_template(
 @router.get("/contrato-politica", response_model=ContratoPoliticaRead)
 def obter_politica(
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_comercial_ou_admin),
+    _: Atendente = Depends(exigir_permissao("contratos.ver")),
 ):
     row = svc.garantir_politica(db)
     db.commit()
@@ -102,7 +103,7 @@ def obter_politica(
 def atualizar_politica(
     data: ContratoPoliticaUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("contratos.politica")),
 ):
     row = svc.atualizar_politica(db, data)
     registrar_audit(db, "comercial_contrato_politica", row.id, "update", atendente.id)
@@ -119,10 +120,16 @@ def listar_contratos(
     so_minhas: bool | None = Query(None),
     responsavel_id: int | None = Query(None),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("contratos.ver")),
 ):
+    ve_todos = tem_permissao(atendente, "contratos.ver_todos")
+    if responsavel_id is not None and not ve_todos:
+        raise HTTPException(
+            status_code=403,
+            detail="Sem permissão para ver contratos de outra pessoa.",
+        )
     filtrar_minhas = so_minhas
-    if atendente.role != "admin":
+    if not ve_todos:
         filtrar_minhas = True
     elif filtrar_minhas is None:
         filtrar_minhas = False
@@ -145,7 +152,7 @@ def listar_contratos(
 def gerar_contrato(
     data: ContratoGerarIn,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("contratos.emitir")),
 ):
     row = svc.gerar_contrato(db, data, atendente)
     registrar_audit(
@@ -165,7 +172,7 @@ def gerar_contrato(
 def obter_contrato(
     contrato_id: int,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("contratos.ver")),
 ):
     return svc.contrato_para_read(svc.obter_contrato(db, contrato_id, atendente=atendente), incluir_html=True)
 
@@ -175,7 +182,7 @@ def baixar_pdf(
     contrato_id: int,
     pdf_id: int | None = Query(None),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("contratos.ver")),
 ):
     row = svc.obter_contrato(db, contrato_id, atendente=atendente)
     pdf_row, pdf = svc.garantir_pdf(db, row, pdf_id=pdf_id)
@@ -193,7 +200,7 @@ def anexar_pdf_assinado(
     arquivo: UploadFile = File(...),
     referencia_externa: str | None = Form(None),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("contratos.emitir")),
 ):
     row = svc.obter_contrato(db, contrato_id, atendente=atendente)
     conteudo = arquivo.file.read()
@@ -222,7 +229,7 @@ def anexar_pdf_assinado(
 def baixar_pdf_assinado(
     contrato_id: int,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("contratos.ver")),
 ):
     row = svc.obter_contrato(db, contrato_id, atendente=atendente)
     pdf, nome = svc.bytes_pdf_assinado(row)
@@ -238,7 +245,7 @@ def marcar_enviado(
     contrato_id: int,
     data: ContratoMarcarEnviadoIn,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("contratos.emitir")),
 ):
     row = svc.obter_contrato(db, contrato_id, atendente=atendente)
     row = svc.marcar_enviado(db, row, data, atendente)
@@ -260,7 +267,7 @@ def marcar_assinado(
     contrato_id: int,
     data: ContratoMarcarAssinadoIn,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("contratos.emitir")),
 ):
     row = svc.obter_contrato(db, contrato_id, atendente=atendente)
     row = svc.marcar_assinado(db, row, data, atendente)
@@ -300,7 +307,7 @@ def marcar_assinado(
 def cancelar_contrato(
     contrato_id: int,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_comercial_ou_admin),
+    atendente: Atendente = Depends(exigir_permissao("contratos.cancelar")),
 ):
     row = svc.obter_contrato(db, contrato_id, atendente=atendente)
     era_assinado = row.status == "assinado"

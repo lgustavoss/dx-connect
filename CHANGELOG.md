@@ -9,6 +9,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Equipe (#S202609-0024): grupos de permissão no lugar do perfil fixo. Cada ação é marcada à parte (só o acesso total liga tudo). O clique no grupo abre a consulta, com as permissões e as pessoas vinculadas — dá para incluir ou tirar alguém dali. Criar ou editar uma empresa, por exemplo, também marca visualizar. O menu, as rotas e os botões de criar, editar e excluir seguem a mesma permissão da API. Ver os PDVs e o código de acesso remoto é uma permissão à parte, incluída em quem atende: dá para ver a empresa sem ver esses códigos. Na tela só de PDVs aparece o nome da empresa, e o código remoto fica nas redes que já tiveram ticket no setor de quem atende. O funil e a lista completa de contratos também seguem a permissão marcada
 - CRM (#S202610-0004): ao abrir os leads, a tela volta na última escolha da pessoa (lista ou kanban)
 - Chat (#S202609-0030): os botões Atender e Transferir ficam do mesmo tamanho
 - Ajuda (#1096 / #S202609-0005): dá para marcar vários artigos ou várias categorias e excluir de uma vez, com confirmação

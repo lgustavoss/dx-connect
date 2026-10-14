@@ -3,17 +3,19 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.services.audit_operacional import audit_view_credential
 from app.core.audit import registrar_audit
-from app.core.auth import exigir_admin, obter_atendente_atual
+from app.core.auth import exigir_permissao, exigir_alguma_permissao
+from app.core.setor_scope import ids_setores_visiveis_atendente, select_rede_ids_com_ticket_nos_setores
 from app.database import get_db
 from app.models import Empresa
 from app.models.atendente import Atendente
+from app.services.permissao_grupos import tem_permissao
 from app.models.empresa_pdv import EmpresaPdv, PdvRotulo, PdvTipoAcessoRemoto
-from app.schemas.lista_paginada import ListaPaginada
 from app.schemas.pdv import (
     EmpresaPdvCreate,
     EmpresaPdvCredencialRead,
     EmpresaPdvRead,
     EmpresaPdvUpdate,
+    ListaPdvsEmpresa,
 )
 from app.services.empresa_pdv_rules import validar_papel_principal_auxiliar
 from app.services.secret_box import decrypt_str, encrypt_str
@@ -24,6 +26,22 @@ router = APIRouter(prefix="/empresas", tags=["empresa-pdvs"])
 def _empresa_or_404(db: Session, empresa_id: int) -> Empresa:
     emp = db.query(Empresa).filter(Empresa.id == empresa_id).first()
     if not emp:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empresa não encontrada")
+    return emp
+
+
+def _empresa_para_leitura_pdv(db: Session, atendente: Atendente, empresa_id: int) -> Empresa:
+    """Cadastro da empresa vê qualquer uma. Quem só atende fica nas redes com ticket no próprio setor."""
+    emp = _empresa_or_404(db, empresa_id)
+    if tem_permissao(atendente, "empresas.ver") or tem_permissao(atendente, "empresas.editar"):
+        return emp
+    vis = ids_setores_visiveis_atendente(db, atendente)
+    no_escopo = (
+        db.query(Empresa.id)
+        .filter(Empresa.id == emp.id, Empresa.rede_id.in_(select_rede_ids_com_ticket_nos_setores(vis)))
+        .first()
+    )
+    if not no_escopo:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empresa não encontrada")
     return emp
 
@@ -65,14 +83,14 @@ def _validar_refs(db: Session, data: EmpresaPdvCreate | EmpresaPdvUpdate, empres
             raise HTTPException(status_code=400, detail="Tipo de acesso remoto inválido ou inativo.")
 
 
-@router.get("/{empresa_id}/pdvs", response_model=ListaPaginada[EmpresaPdvRead])
+@router.get("/{empresa_id}/pdvs", response_model=ListaPdvsEmpresa)
 def listar_pdvs(
     empresa_id: int,
     incluir_inativos: bool = Query(False),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(obter_atendente_atual),
+    atendente: Atendente = Depends(exigir_alguma_permissao("pdv.acessos.ver", "empresas.editar")),
 ):
-    _empresa_or_404(db, empresa_id)
+    emp = _empresa_para_leitura_pdv(db, atendente, empresa_id)
     q = (
         db.query(EmpresaPdv)
         .options(joinedload(EmpresaPdv.rotulo), joinedload(EmpresaPdv.tipo_acesso_remoto))
@@ -81,7 +99,7 @@ def listar_pdvs(
     if not incluir_inativos:
         q = q.filter(EmpresaPdv.ativo.is_(True))
     rows = q.order_by(EmpresaPdv.codigo.asc(), EmpresaPdv.id.asc()).all()
-    return ListaPaginada(items=[_to_read(r) for r in rows], total=len(rows))
+    return ListaPdvsEmpresa(items=[_to_read(r) for r in rows], total=len(rows), empresa_nome=emp.nome)
 
 
 @router.post("/{empresa_id}/pdvs", response_model=EmpresaPdvRead, status_code=201)
@@ -89,7 +107,7 @@ def criar_pdv(
     empresa_id: int,
     data: EmpresaPdvCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("empresas.editar")),
 ):
     _empresa_or_404(db, empresa_id)
     _validar_refs(db, data, empresa_id)
@@ -134,7 +152,7 @@ def atualizar_pdv(
     pdv_id: int,
     data: EmpresaPdvUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("empresas.editar")),
 ):
     _empresa_or_404(db, empresa_id)
     row = (
@@ -188,9 +206,9 @@ def revelar_credencial(
     empresa_id: int,
     pdv_id: int,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_alguma_permissao("pdv.acessos.ver", "empresas.editar")),
 ):
-    _empresa_or_404(db, empresa_id)
+    _empresa_para_leitura_pdv(db, atendente, empresa_id)
     row = db.query(EmpresaPdv).filter(EmpresaPdv.id == pdv_id, EmpresaPdv.empresa_id == empresa_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="PDV não encontrado")

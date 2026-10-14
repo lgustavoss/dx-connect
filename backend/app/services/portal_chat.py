@@ -205,6 +205,10 @@ def encerrar_portal_chat(db: Session, chat: PortalChat, atendente: Atendente) ->
         raise HTTPException(status_code=400, detail="Encerre apenas chats em atendimento.")
     if atendente.role != "admin" and chat.atendente_id != atendente.id:
         raise HTTPException(status_code=403, detail="Apenas o atendente responsável pode encerrar.")
+    from app.models.portal_chat_demanda import PortalChatDemanda
+    from app.services.permissao_grupos import exigir_demanda_ou_permissao
+
+    exigir_demanda_ou_permissao(db, atendente, chat_id=chat.id, modelo=PortalChatDemanda)
     from app.services.portal_avaliacao import finalizar_atendimento_portal
 
     st = db.query(WhatsappSettings).order_by(WhatsappSettings.id.asc()).first()

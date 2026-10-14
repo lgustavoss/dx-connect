@@ -12,7 +12,7 @@ from app.models.atendente import Atendente
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
 from app.schemas.audit_log import AuditLogRead
 from app.schemas.lista_paginada import ListaPaginada
-from app.core.auth import exigir_admin
+from app.core.auth import exigir_permissao
 from app.services.audit_export import exportar_audit_csv
 from app.services.ticket_dashboard_filters import period_bounds, resolve_period
 
@@ -61,7 +61,7 @@ def listar_audit(
     ordenar_por: OrdenarAuditPor | None = Query(None),
     ordem: OrdemLista = Query(OrdemLista.asc),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("auditoria.ver")),
 ):
     de_dt = ate_dt = None
     if de is not None or ate is not None:

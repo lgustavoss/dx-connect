@@ -21,7 +21,8 @@ from app.schemas.empresa import (
     RedeListaResumo,
 )
 from app.schemas.lista_paginada import ListaPaginada
-from app.core.auth import exigir_admin, obter_atendente_atual
+from app.core.auth import exigir_alguma_permissao, exigir_permissao, obter_atendente_atual
+from app.services.permissao_grupos import tem_permissao
 from app.core.audit import registrar_audit
 from app.core.setor_scope import ids_setores_visiveis_atendente, select_rede_ids_com_ticket_nos_setores
 
@@ -52,9 +53,9 @@ def listar_empresas(
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
     """Admin: modelo completo. Atendente: resumo (PII mínima) só de redes que já tiveram ticket nos setores que ele atende."""
-    admin = atendente.role == "admin"
+    cadastro = tem_permissao(atendente, "empresas.ver")
     q = db.query(Empresa).filter(Empresa.tenant_id == atendente.tenant_id)
-    if not admin:
+    if not cadastro:
         vis = ids_setores_visiveis_atendente(db, atendente)
         q = q.filter(Empresa.rede_id.in_(select_rede_ids_com_ticket_nos_setores(vis)))
     if rede_id is not None:
@@ -75,33 +76,33 @@ def listar_empresas(
     total = q.count()
     if ordenar_por is None:
         order_cols = [Empresa.nome.asc(), Empresa.id.asc()]
-        if not admin:
+        if not cadastro:
             q = q.options(joinedload(Empresa.rede))
     else:
         if ordenar_por == OrdenarEmpresasPor.rede:
             q = q.join(Empresa.rede)
-            if not admin:
+            if not cadastro:
                 q = q.options(contains_eager(Empresa.rede))
             primary = expr_ordem(Rede.nome, ordem)
         elif ordenar_por == OrdenarEmpresasPor.nome:
-            if not admin:
+            if not cadastro:
                 q = q.options(joinedload(Empresa.rede))
             primary = expr_ordem(Empresa.nome, ordem)
         elif ordenar_por == OrdenarEmpresasPor.cnpj_cpf:
-            if not admin:
+            if not cadastro:
                 q = q.options(joinedload(Empresa.rede))
             primary = expr_ordem(Empresa.cnpj_cpf, ordem)
         elif ordenar_por == OrdenarEmpresasPor.cidade:
-            if not admin:
+            if not cadastro:
                 q = q.options(joinedload(Empresa.rede))
             primary = expr_ordem(Empresa.cidade, ordem)
         else:
-            if not admin:
+            if not cadastro:
                 q = q.options(joinedload(Empresa.rede))
             primary = expr_ordem(Empresa.ativo, ordem)
         order_cols = [primary, expr_ordem(Empresa.id, ordem)]
     items = q.order_by(*order_cols).offset(offset).limit(limit).all()
-    if not admin:
+    if not cadastro:
         resumos: list[EmpresaListaResumo] = []
         for e in items:
             r = e.rede
@@ -124,7 +125,7 @@ def _digitos(s: str) -> str:
 @router.get("/consultar-cnpj/{cnpj}", response_model=ConsultaCNPJResponse)
 def consultar_cnpj(
     cnpj: str,
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_alguma_permissao("empresas.criar", "empresas.editar")),
 ):
     """Consulta dados do CNPJ na ReceitaWS e retorna normalizado para preenchimento do formulário."""
     digits = _digitos(cnpj)
@@ -189,7 +190,7 @@ def consultar_cnpj(
 def criar_empresa(
     data: EmpresaCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("empresas.criar")),
 ):
     rede = (
         db.query(Rede)
@@ -212,7 +213,7 @@ def criar_empresa(
 def obter_empresa(
     empresa_id: int,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("empresas.ver")),
 ):
     empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
     if not empresa:
@@ -225,7 +226,7 @@ def atualizar_empresa(
     empresa_id: int,
     data: EmpresaUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("empresas.editar")),
 ):
     empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
     if not empresa:
@@ -242,7 +243,7 @@ def atualizar_empresa(
 def excluir_empresa(
     empresa_id: int,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("empresas.excluir")),
 ):
     empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
     if not empresa:

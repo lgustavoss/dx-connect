@@ -10,10 +10,14 @@ import { SemPermissao } from './SemPermissao'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 import { interpretarFalhaCarregamento } from '../api/errorMessage'
 import { VoltarButton } from '../components/ui/VoltarButton'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 
 export function StatusTicketDetalhe() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const podeEditar = temPermissao(user, 'status_ticket.editar')
   const voltarAnterior = useVoltarAnterior('/status-ticket')
   const statusId = id ? parseInt(id, 10) : NaN
 
@@ -86,7 +90,7 @@ export function StatusTicketDetalhe() {
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">{item.nome}</h1>
           <BadgeAtivo ativo={item.ativo} />
         </div>
-        <Button onClick={() => navigate(`/status-ticket/${item.id}/editar`)}>Editar</Button>
+        {podeEditar ? <Button onClick={() => navigate(`/status-ticket/${item.id}/editar`)}>Editar</Button> : null}
       </header>
 
       <Card title="Dados do status">

@@ -22,6 +22,7 @@ from app.schemas.dashboard import (
     SerieVolumeDia,
 )
 from app.services.dashboard_drilldown import TicketDrillDown, apply_ticket_drill_down
+from app.services.permissao_grupos import tem_permissao
 from app.services.ticket_dashboard_filters import (
     apply_ticket_dashboard_filters,
     period_bounds,
@@ -388,7 +389,7 @@ def _por_atendente(
     prioridade: str | None,
     drill: TicketDrillDown,
 ):
-    if atendente.role != "admin":
+    if not tem_permissao(atendente, "atendimento.ver_todos"):
         return []
     filtrar = _filtros(db, atendente, rede_id, setor_id, prioridade, drill)
     stmt = (

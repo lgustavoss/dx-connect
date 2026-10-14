@@ -28,6 +28,7 @@ import { Button } from '../components/ui/Button'
 import { VoltarButton } from '../components/ui/VoltarButton'
 import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../contexts/AuthContext'
+import { destinoEmpresa, temPermissao } from '../lib/permissoes'
 import { useEventStream } from '../contexts/EventStreamContext'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { refetchPendenciasResumo } from '../hooks/useAlertaFilaSemResponsavel'
@@ -219,6 +220,11 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
   const voltarAnterior = onVoltar ?? voltarPadrao
   const toast = useToast()
   const { isAdmin, user } = useAuth()
+  const podeEditarTicket = temPermissao(user, 'tickets.editar')
+  const podeReabrir = temPermissao(user, 'tickets.reabrir')
+  const verTodos = temPermissao(user, 'atendimento.ver_todos')
+  const podeCadastrarContato = temPermissao(user, 'funcionarios.criar')
+  const podeCriarTicket = temPermissao(user, 'tickets.criar')
   const [atribuindo, setAtribuindo] = useState(false)
   const [fechando, setFechando] = useState(false)
   const [gerandoCsatLink, setGerandoCsatLink] = useState(false)
@@ -406,7 +412,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
     return `${n} relacionado${n === 1 ? '' : 's'}`
   }, [ticket])
 
-  const podeEditarHierarquia = !!ticket && (!ticket.fechado_em || isAdmin)
+  const podeEditarHierarquia = !!ticket && podeEditarTicket && (!ticket.fechado_em || podeReabrir)
 
   /** Mensagem “da equipe” (público no fluxo): admin, responsável ou ticket ainda sem responsável. */
   const podeMensagemPublica = useMemo(() => {
@@ -1087,7 +1093,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
 
   // Se o usuário conseguiu carregar o ticket, o backend já validou o escopo de setor.
   // Aqui só bloqueamos o botão quando já existe responsável.
-  const podeAtribuirAMim = !!ticket && !ticket.atendente_id && !!user
+  const podeAtribuirAMim = !!ticket && !ticket.atendente_id && !!user && podeEditarTicket
 
   async function handleAtribuirAMim() {
     if (!ticket || !user || !podeAtribuirAMim) return
@@ -1285,8 +1291,9 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
   const ticketAtual = ticket
 
   function tentarEditarTicket(acao: () => void) {
-    if (ticketAtual.fechado_em && !isAdmin) {
-      toast.showWarning('Ticket fechado — apenas admin pode alterar.')
+    if (!podeEditarTicket) return
+    if (ticketAtual.fechado_em && !podeReabrir) {
+      toast.showWarning('Ticket fechado — só quem pode reabrir consegue alterar.')
       return
     }
     acao()
@@ -1302,7 +1309,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
 
   const botoesAcaoTicket = (
     <>
-      {isAdmin && ticket.fechado_em && (
+      {podeReabrir && ticket.fechado_em && (
         <Button
           type="button"
           variant="secondary"
@@ -1344,12 +1351,12 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
         type="button"
         variant="secondary"
         className={`${classeBtnAcao} border border-cyan-200/90 bg-cyan-50/90 text-cyan-950 hover:bg-cyan-100 dark:border-cyan-800/70 dark:bg-cyan-950/45 dark:text-cyan-100 dark:hover:bg-cyan-950/70`}
-        disabled={Boolean(ticket.fechado_em) && !isAdmin}
+        disabled={(Boolean(ticket.fechado_em) && !podeReabrir) || !podeEditarTicket}
         onClick={() => tentarEditarTicket(() => abrirModalGerir('geral'))}
       >
         Gerir
       </Button>
-      {!ticket.fechado_em && (
+      {podeEditarTicket && !ticket.fechado_em && (
         <>
           <span
             className="hidden h-7 w-px shrink-0 bg-slate-200 dark:bg-slate-700 lg:inline-block"
@@ -1432,9 +1439,9 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
                   <span className="mx-1 text-slate-400 dark:text-slate-500">·</span>
                 )}
                 {ticket.empresa_nome &&
-                  (ticket.empresa_id != null ? (
+                  (ticket.empresa_id != null && destinoEmpresa(user, ticket.empresa_id) ? (
                     <Link
-                      to={`/empresas/${ticket.empresa_id}`}
+                      to={destinoEmpresa(user, ticket.empresa_id)!}
                       className="font-medium text-cyan-700 underline decoration-cyan-700/35 underline-offset-2 hover:text-cyan-900 dark:text-cyan-400 dark:decoration-cyan-400/35 dark:hover:text-cyan-300"
                     >
                       {ticket.empresa_nome}
@@ -1456,7 +1463,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
                 {requerCadastroFuncionario ? (
                   <>
                     <p className="font-medium">{CONTATO_CLIENTE.remetenteSemCadastro}</p>
-                    {isAdmin && (
+                    {podeCadastrarContato && (
                       <Link to={linkCadastroFuncionario} className="mt-1 inline-block font-semibold underline underline-offset-2">
                         {CONTATO_CLIENTE.cadastrarTicket}
                       </Link>
@@ -1465,13 +1472,15 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
                 ) : (
                   <>
                     <p className="font-medium">Defina a empresa do ticket</p>
-                    <button
-                      type="button"
-                      onClick={() => abrirModalGerir('geral')}
-                      className="mt-1 font-semibold underline underline-offset-2"
-                    >
-                      Gerir ticket
-                    </button>
+                    {podeEditarTicket ? (
+                      <button
+                        type="button"
+                        onClick={() => abrirModalGerir('geral')}
+                        className="mt-1 font-semibold underline underline-offset-2"
+                      >
+                        Gerir ticket
+                      </button>
+                    ) : null}
                   </>
                 )}
               </div>
@@ -1846,13 +1855,13 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
             {ticket.fechado_em ? (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-800/60 dark:bg-emerald-950/25 dark:text-emerald-100">
                 Ticket fechado — não é possível enviar novas mensagens.
-                {isAdmin ? (
+                {podeReabrir ? (
                   <span className="mt-1 block text-xs text-emerald-800/80 dark:text-emerald-200/80">
                     Use o botão <span className="font-semibold">Reabrir</span> acima para voltar a responder.
                   </span>
                 ) : (
                   <span className="mt-1 block text-xs text-emerald-800/80 dark:text-emerald-200/80">
-                    Apenas um administrador pode reabrir este ticket.
+                    Só quem pode reabrir tickets consegue voltar a responder.
                   </span>
                 )}
               </div>
@@ -2216,7 +2225,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
                   )}
                 </div>
 
-                {podeEditarHierarquia && (
+                {podeEditarHierarquia && podeCriarTicket && (
                   <div className="rounded-lg border border-cyan-200/90 bg-cyan-50/50 p-3 dark:border-cyan-900/40 dark:bg-cyan-950/20">
                     <p className="text-xs font-semibold uppercase tracking-wide text-cyan-800 dark:text-cyan-300">
                       Abrir filhos em massa (por empresa da rede)
@@ -2236,6 +2245,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
 
                 {podeEditarHierarquia && (
                   <div className="flex flex-wrap gap-2">
+                    {podeCriarTicket ? (
                     <Button
                       type="button"
                       variant="secondary"
@@ -2247,6 +2257,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
                     >
                       Abrir ticket filho
                     </Button>
+                    ) : null}
                   </div>
                 )}
 
@@ -2476,7 +2487,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
                       }))}
                       placeholder="Setor"
                     />
-                    {!isAdmin && setoresParaSelect.length === 0 && (
+                    {!verTodos && setoresParaSelect.length === 0 && (
                       <p className="text-xs text-amber-700 dark:text-amber-400">Nenhum setor vinculado ao seu usuário.</p>
                     )}
                   </>
@@ -2522,12 +2533,12 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
                       value={editPrioridade}
                       onChange={(v) => setEditPrioridade(v as PrioridadeTicket)}
                       options={PRIORIDADE_OPCOES.map((o) => ({ value: o.value, label: o.label }))}
-                      disabled={Boolean(ticket?.fechado_em) && !isAdmin}
+                      disabled={Boolean(ticket?.fechado_em) && !podeReabrir}
                     />
                     <TicketClassificacaoFields
                       value={editClassificacao}
                       onChange={setEditClassificacao}
-                      disabled={Boolean(ticket?.fechado_em) && !isAdmin}
+                      disabled={Boolean(ticket?.fechado_em) && !podeReabrir}
                     />
                   </>
                 )}

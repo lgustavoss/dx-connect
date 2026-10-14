@@ -11,6 +11,8 @@ import { SemPermissao } from './SemPermissao'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
 import { interpretarFalhaCarregamento } from '../api/errorMessage'
 import { VoltarButton } from '../components/ui/VoltarButton'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 
 const roleLabel: Record<string, string> = {
   admin: 'Administrador',
@@ -26,6 +28,8 @@ function fmtMediaAvaliacao(media: number | null): string {
 export function AtendenteDetalhe() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const podeEditar = temPermissao(user, 'atendentes.editar')
   const voltarAnterior = useVoltarAnterior('/atendentes')
   const atendenteId = id ? parseInt(id, 10) : NaN
 
@@ -113,10 +117,14 @@ export function AtendenteDetalhe() {
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">{atendente.nome}</h1>
           <div className="flex flex-wrap items-center gap-2">
             <BadgeAtivo ativo={atendente.ativo} labelAtivo="Ativo" labelInativo="Inativo" />
-            <span className="text-sm text-slate-600 dark:text-slate-400">{roleLabel[atendente.role] ?? atendente.role}</span>
+            <span className="text-sm text-slate-600 dark:text-slate-400">
+              {atendente.grupo_nomes && atendente.grupo_nomes.length > 0
+                ? atendente.grupo_nomes.join(', ')
+                : (roleLabel[atendente.role] ?? atendente.role)}
+            </span>
           </div>
         </div>
-        <Button onClick={() => navigate(`/atendentes/${atendente.id}/editar`)}>Editar</Button>
+        {podeEditar ? <Button onClick={() => navigate(`/atendentes/${atendente.id}/editar`)}>Editar</Button> : null}
       </header>
 
       <Card title="Dados do atendente">
@@ -124,7 +132,14 @@ export function AtendenteDetalhe() {
           <DetailRow label="ID" value={String(atendente.id)} mono />
           <DetailRow label="Nome" value={atendente.nome} />
           <DetailRow label="E-mail" value={atendente.email} />
-          <DetailRow label="Perfil" value={roleLabel[atendente.role] ?? atendente.role} />
+          <DetailRow
+            label="Grupos"
+            value={
+              atendente.grupo_nomes && atendente.grupo_nomes.length > 0
+                ? atendente.grupo_nomes.join(', ')
+                : (roleLabel[atendente.role] ?? atendente.role)
+            }
+          />
           <DetailRow label="Setores" value={setoresVinculados} />
           <DetailRow label="Situação" value={atendente.ativo ? 'Ativo' : 'Inativo'} />
           {atendente.must_change_password ? (

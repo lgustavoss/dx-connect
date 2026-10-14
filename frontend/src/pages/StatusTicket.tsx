@@ -9,6 +9,8 @@ import { ListaAcoesVerEditar } from '../components/ui/ListaAcoesVerEditar'
 import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
@@ -18,6 +20,9 @@ type ColunaStatus = 'nome' | 'slug' | 'ordem' | 'ativo'
 export function StatusTicketPage({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate()
   const toast = useToast()
+  const { user } = useAuth()
+  const podeCriar = temPermissao(user, 'status_ticket.criar')
+  const podeEditar = temPermissao(user, 'status_ticket.editar')
   const { ordenarPor, ordem: ordemLista, aoOrdenarColuna, sortParams } = useOrdenacaoLista<ColunaStatus>()
   const [list, setList] = useState<StatusTicket.Status[]>([])
   const [total, setTotal] = useState(0)
@@ -85,7 +90,7 @@ export function StatusTicketPage({ embedded = false }: { embedded?: boolean }) {
       forbidden={forbidden}
       denied={denied}
       title="Status de ticket"
-      actions={<Button onClick={() => navigate('/status-ticket/novo')}>Novo status</Button>}
+      actions={podeCriar ? <Button onClick={() => navigate('/status-ticket/novo')}>Novo status</Button> : undefined}
     >
       <Card>
         <BarraBuscaPaginacao
@@ -146,7 +151,7 @@ export function StatusTicketPage({ embedded = false }: { embedded?: boolean }) {
                     <td className="px-4 py-3.5 text-right sm:px-6" onClick={(ev) => ev.stopPropagation()}>
                       <ListaAcoesVerEditar
                         onVer={() => navigate(`/status-ticket/${s.id}`)}
-                        onEditar={() => navigate(`/status-ticket/${s.id}/editar`)}
+                        onEditar={podeEditar ? () => navigate(`/status-ticket/${s.id}/editar`) : undefined}
                         verLabel="Visualizar status"
                         editarLabel="Editar status"
                       />

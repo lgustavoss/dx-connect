@@ -8,7 +8,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.core.auth import exigir_admin, obter_atendente_atual
+from app.core.auth import obter_atendente_atual, exigir_permissao
 from app.database import get_db
 from app.models.atendente import Atendente
 from app.schemas.lista_paginada import ListaPaginada
@@ -145,7 +145,7 @@ def exportar_csv(
     desde: date | None = Query(None),
     ate: date | None = Query(None),
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     conteudo = ponto_svc.export_csv_admin(
         db, admin, atendente_id=atendente_id, desde=desde, ate=ate
@@ -163,7 +163,7 @@ def exportar_pdf(
     desde: date | None = Query(None),
     ate: date | None = Query(None),
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     pdf = ponto_relatorio_svc.export_pdf_mensal(
         db, admin, atendente_id=atendente_id, desde=desde, ate=ate
@@ -181,7 +181,7 @@ def exportar_xlsx(
     desde: date | None = Query(None),
     ate: date | None = Query(None),
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     xlsx = ponto_relatorio_svc.export_xlsx_mensal(
         db, admin, atendente_id=atendente_id, desde=desde, ate=ate
@@ -199,7 +199,7 @@ def exportar_folha_csv(
     desde: date = Query(...),
     ate: date = Query(...),
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     """Template contábil/folha RH (#975) — colunas documentadas no cabeçalho CSV."""
     conteudo = folha_svc.export_folha_csv(
@@ -218,7 +218,7 @@ def exportar_folha_xlsx(
     desde: date = Query(...),
     ate: date = Query(...),
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     xlsx = folha_svc.export_folha_xlsx(
         db, admin, atendente_id=atendente_id, desde=desde, ate=ate
@@ -311,7 +311,7 @@ def minhas_solicitacoes_ajuste(
 def listar_solicitacoes_ajuste(
     estado: str | None = Query("pendente"),
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     return sol_ajuste_svc.listar_para_aprovador(db, admin, estado=estado)
 
@@ -341,7 +341,7 @@ def decidir_solicitacao_ajuste(
     solicitacao_id: int,
     data: PontoSolicitacaoAjusteDecisao,
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     return sol_ajuste_svc.decidir(
         db,
@@ -355,7 +355,7 @@ def decidir_solicitacao_ajuste(
 @router.get("/setup-status", response_model=PontoSetupStatus)
 def ponto_setup_status(
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     """Checklist de configuração do módulo ponto (#981)."""
     return comp_svc.setup_status(db, admin)
@@ -365,7 +365,7 @@ def ponto_setup_status(
 def listar_competencias(
     ano: int | None = Query(None),
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     return comp_svc.listar_competencias(db, admin, ano=ano)
 
@@ -375,7 +375,7 @@ def obter_competencia(
     ano: int,
     mes: int,
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     return comp_svc.obter_competencia(db, admin, ano=ano, mes=mes)
 
@@ -385,7 +385,7 @@ def fechar_competencia(
     ano: int,
     mes: int,
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     return comp_svc.fechar_competencia(db, admin, ano=ano, mes=mes)
 
@@ -396,7 +396,7 @@ def reabrir_competencia(
     mes: int,
     data: PontoCompetenciaReabrir,
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     return comp_svc.reabrir_competencia(db, admin, ano=ano, mes=mes, motivo=data.motivo)
 
@@ -406,7 +406,7 @@ def listar_ciencias(
     ano: int,
     mes: int,
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     return comp_svc.listar_ciencias_admin(db, admin, ano=ano, mes=mes)
 
@@ -416,7 +416,7 @@ def resumo_fechamento_equipe(
     ano: int,
     mes: int,
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     return comp_svc.resumo_fechamento_equipe(db, admin, ano=ano, mes=mes)
 
@@ -449,7 +449,7 @@ def listar_batidas_admin(
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     itens, total = ponto_svc.listar_batidas_admin(
         db,
@@ -467,7 +467,7 @@ def listar_batidas_admin(
 def criar_batida_admin(
     data: PontoAjusteCreate,
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     batida = ponto_svc.admin_criar_batida(
         db,
@@ -485,7 +485,7 @@ def atualizar_batida_admin(
     batida_id: int,
     data: PontoAjusteUpdate,
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     batida = ponto_svc.admin_atualizar_batida(
         db,
@@ -503,7 +503,7 @@ def anular_batida_admin(
     batida_id: int,
     data: PontoAnularBody,
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     batida = ponto_svc.admin_anular_batida(db, admin, batida_id, motivo=data.motivo.strip())
     return PontoBatidaRead.model_validate(batida)
@@ -515,7 +515,7 @@ def calendario_admin(
     ano: int = Query(..., ge=2000, le=2100),
     mes: int = Query(..., ge=1, le=12),
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     alvo = (
         db.query(Atendente)
@@ -530,7 +530,7 @@ def calendario_admin(
 @router.get("/hoje", response_model=PontoHojeRead)
 def visao_hoje(
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     return ponto_svc.visao_hoje(db, admin)
 
@@ -538,7 +538,7 @@ def visao_hoje(
 @router.get("/digest", response_model=PontoDigestRead)
 def digest_diario(
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     return ponto_svc.digest_hoje(db, admin)
 
@@ -569,7 +569,7 @@ def banco_horas_admin(
     desde: date = Query(...),
     ate: date = Query(...),
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     alvo = (
         db.query(Atendente)
@@ -584,7 +584,7 @@ def banco_horas_admin(
 @router.get("/settings", response_model=PontoSettingsRead)
 def ler_settings_ponto(
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     out = ponto_settings_svc.settings_read(db, admin.tenant_id)
     db.commit()
@@ -595,7 +595,7 @@ def ler_settings_ponto(
 def atualizar_settings_ponto(
     data: PontoSettingsUpdate,
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     return ponto_settings_svc.settings_update(db, admin, data)
 
@@ -604,7 +604,7 @@ def atualizar_settings_ponto(
 def listar_feriados(
     ano: int | None = Query(None, ge=2000, le=2100),
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     return ponto_settings_svc.listar_feriados(db, admin.tenant_id, ano=ano)
 
@@ -613,7 +613,7 @@ def listar_feriados(
 def criar_feriado(
     data: PontoFeriadoCreate,
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     return ponto_settings_svc.criar_feriado(db, admin, data)
 
@@ -622,7 +622,7 @@ def criar_feriado(
 def remover_feriado(
     feriado_id: int,
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     ponto_settings_svc.remover_feriado(db, admin, feriado_id)
     return Response(status_code=204)
@@ -633,7 +633,7 @@ def listar_locais(
     atendente_id: int | None = Query(None),
     so_orfos: bool = Query(False, description="Só locais legados sem atendente"),
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     return ponto_settings_svc.listar_locais(
         db, admin.tenant_id, atendente_id=atendente_id, so_orfos=so_orfos
@@ -644,7 +644,7 @@ def listar_locais(
 def criar_local(
     data: PontoLocalCreate,
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     return ponto_settings_svc.criar_local(db, admin, data)
 
@@ -654,7 +654,7 @@ def atualizar_local(
     local_id: int,
     data: PontoLocalUpdate,
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     return ponto_settings_svc.atualizar_local(db, admin, local_id, data)
 
@@ -663,7 +663,7 @@ def atualizar_local(
 def remover_local(
     local_id: int,
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     ponto_settings_svc.remover_local(db, admin, local_id)
     return Response(status_code=204)
@@ -673,7 +673,7 @@ def remover_local(
 def conceder_dia_convocado(
     data: PontoDiaConvocadoCreate,
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     return convocado_svc.criar_admin(
         db,
@@ -694,7 +694,7 @@ def listar_dias_convocados(
     ate: date | None = Query(None),
     estado: str | None = Query("ativa"),
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     return convocado_svc.listar_admin(
         db,
@@ -710,6 +710,6 @@ def listar_dias_convocados(
 def cancelar_dia_convocado(
     convocado_id: int,
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_admin),
+    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
 ):
     return convocado_svc.cancelar_admin(db, admin, convocado_id)
