@@ -83,6 +83,7 @@ class ContratoMarcarEnviadoIn(BaseModel):
 class ContratoMarcarAssinadoIn(BaseModel):
     assinado_em: datetime | None = None
     avancar_funil: bool = False
+    abrir_ticket_implantacao: bool = False
     referencia_externa: str | None = Field(None, max_length=120)
 
 

@@ -3698,6 +3698,7 @@ export namespace ComercialContrato {
   export interface MarcarAssinadoRequest {
     assinado_em?: string | null;
     avancar_funil?: boolean;
+    abrir_ticket_implantacao?: boolean;
     referencia_externa?: string | null;
   }
   export interface Politica {
@@ -3837,6 +3838,13 @@ export const comercialContratos = {
   gerar: (data: ComercialContrato.GerarRequest) =>
     api<ComercialContrato.Contrato>('/comercial/contratos', {
       method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  obterEmpresaDaLinha: (linhaId: number) =>
+    api<Empresas.Empresa>(`/comercial/contratos/linhas/${linhaId}/empresa`),
+  salvarEmpresaDaLinha: (linhaId: number, data: Crm.DadosFiscais) =>
+    api<Empresas.Empresa>(`/comercial/contratos/linhas/${linhaId}/empresa`, {
+      method: 'PUT',
       body: JSON.stringify(data),
     }),
   marcarEnviado: (id: number, data: ComercialContrato.MarcarEnviadoRequest = {}) =>

@@ -1,17 +1,6 @@
-import type { Crm } from '../../api/client'
+import type { Crm, Empresas } from '../../api/client'
 import { maskCnpjCpf } from '../../utils/maskCnpjCpf'
 import { digitsOnly, maskCep, maskTelefoneBr } from '../../utils/masks'
-
-export const FISCAIS_OBRIGATORIOS = [
-  'endereco',
-  'numero',
-  'bairro',
-  'cidade',
-  'estado',
-  'cep',
-  'resp_legal_nome',
-  'resp_legal_cpf',
-] as const
 
 export const emptyFiscal = (): Crm.DadosFiscais => ({
   endereco: '',
@@ -30,6 +19,37 @@ export const emptyFiscal = (): Crm.DadosFiscais => ({
   resp_legal_cargo: '',
 })
 
+export function fiscaisDaEmpresa(emp: Empresas.Empresa, lead?: Crm.Lead | null): Crm.DadosFiscais {
+  return fiscaisDaLinha(
+    {
+      id: 0,
+      negociacao_id: 0,
+      item_ids: [],
+      quantidade_pdvs: 1,
+      desconto_posto_100k: false,
+      valor_negociado: '0',
+      ordem: 0,
+      dados_fiscais: {
+        endereco: emp.endereco,
+        numero: emp.numero,
+        complemento: emp.complemento,
+        bairro: emp.bairro,
+        cidade: emp.cidade,
+        estado: emp.estado,
+        cep: emp.cep,
+        inscricao_estadual: emp.inscricao_estadual,
+        email: emp.email,
+        telefone: emp.telefone,
+        resp_legal_nome: emp.resp_legal_nome,
+        resp_legal_cpf: emp.resp_legal_cpf,
+        resp_legal_rg: emp.resp_legal_rg,
+        resp_legal_cargo: emp.resp_legal_cargo,
+      },
+    },
+    lead,
+  )
+}
+
 export function fiscaisDaLinha(ln: Crm.Linha, lead?: Crm.Lead | null): Crm.DadosFiscais {
   const d = ln.dados_fiscais || {}
   const email = (d.email || lead?.email || '').trim()
@@ -44,9 +64,18 @@ export function fiscaisDaLinha(ln: Crm.Linha, lead?: Crm.Lead | null): Crm.Dados
   }
 }
 
-export function linhaProntaParaContrato(ln: Crm.Linha): boolean {
-  const d = ln.dados_fiscais || {}
-  return FISCAIS_OBRIGATORIOS.every((c) => String(d[c] || '').trim().length > 0)
+export function fiscalIncompleto(d: Crm.DadosFiscais): boolean {
+  const p = fiscalPayload(d)
+  return (
+    !p.endereco ||
+    !p.numero ||
+    !p.bairro ||
+    !p.cidade ||
+    !p.estado ||
+    !p.cep ||
+    !p.resp_legal_nome ||
+    !p.resp_legal_cpf
+  )
 }
 
 export function fiscalPayload(d: Crm.DadosFiscais): Crm.DadosFiscais {

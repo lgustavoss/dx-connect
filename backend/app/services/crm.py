@@ -529,13 +529,23 @@ def add_linha(db: Session, neg: CrmNegociacao, data: CrmLinhaCreate) -> CrmNegoc
     return linha
 
 
+def _so_digitos(valor: str | None) -> str:
+    return "".join(c for c in (valor or "") if c.isdigit())
+
+
 def atualizar_linha(db: Session, linha: CrmNegociacaoCnpjLinha, data: CrmLinhaUpdate) -> CrmNegociacaoCnpjLinha:
-    if _linha_tem_contrato_assinado(db, linha.id):
-        raise HTTPException(
-            status_code=400,
-            detail="Esta linha tem contrato assinado. Pacote, valores e dados fiscais não podem ser alterados.",
-        )
+    # O contrato assinado guarda a própria cópia. Pacote e valor podem mudar para o próximo contrato.
     neg = obter_negociacao(db, linha.negociacao_id)
+    payload_previo = data.model_dump(exclude_unset=True)
+    if "cnpj" in payload_previo and _linha_tem_contrato_assinado(db, linha.id):
+        if _so_digitos(payload_previo.get("cnpj")) != _so_digitos(linha.cnpj):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "O CNPJ não muda depois do contrato assinado. "
+                    "A empresa vinculada continua a mesma, e o próximo contrato usa esse CNPJ."
+                ),
+            )
     est = obter_estagio(db, estagio_id=neg.estagio_id)
     payload = data.model_dump(exclude_unset=True, exclude={"limpar_tef_override", "tef_override"})
     if "dados_fiscais" in payload and payload["dados_fiscais"] is not None:

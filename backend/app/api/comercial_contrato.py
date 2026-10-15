@@ -11,6 +11,9 @@ from app.core.auth import exigir_permissao
 from app.services.permissao_grupos import tem_permissao
 from app.database import get_db
 from app.models.atendente import Atendente
+from app.models.empresa import Empresa
+from app.schemas.crm import DadosFiscaisLinha
+from app.schemas.empresa import EmpresaRead
 from app.schemas.comercial_contrato import (
     ContratoChaveCatalogoItem,
     ContratoGerarIn,
@@ -148,6 +151,45 @@ def listar_contratos(
     ]
 
 
+@router.get("/contratos/linhas/{linha_id}/empresa", response_model=EmpresaRead)
+def obter_empresa_da_linha(
+    linha_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_permissao("contratos.emitir")),
+):
+    linha = svc.obter_linha(db, linha_id)
+    svc._assert_acesso_negociacao(linha.negociacao, atendente)
+    if not linha.empresa_id:
+        raise HTTPException(status_code=404, detail="Esta linha ainda não tem empresa cadastrada.")
+    emp = db.query(Empresa).filter(Empresa.id == linha.empresa_id).first()
+    if emp is None:
+        raise HTTPException(status_code=404, detail="Esta linha ainda não tem empresa cadastrada.")
+    return emp
+
+
+@router.put("/contratos/linhas/{linha_id}/empresa", response_model=EmpresaRead)
+def salvar_empresa_da_linha(
+    linha_id: int,
+    data: DadosFiscaisLinha,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_permissao("contratos.emitir")),
+):
+    linha = svc.obter_linha(db, linha_id)
+    ja_tinha = linha.empresa_id is not None
+    emp = svc.cadastrar_empresa_da_linha(db, linha, data, atendente)
+    registrar_audit(
+        db,
+        "empresa",
+        emp.id,
+        "update" if ja_tinha else "create",
+        atendente.id,
+        payload={"linha_id": linha.id, "origem": "contrato"},
+    )
+    db.commit()
+    db.refresh(emp)
+    return emp
+
+
 @router.post("/contratos", response_model=ContratoRead, status_code=201)
 def gerar_contrato(
     data: ContratoGerarIn,
@@ -277,7 +319,11 @@ def marcar_assinado(
         row.id,
         "update",
         atendente.id,
-        payload={"status": row.status, "avancar_funil": data.avancar_funil},
+        payload={
+            "status": row.status,
+            "avancar_funil": data.avancar_funil,
+            "abrir_ticket_implantacao": data.abrir_ticket_implantacao,
+        },
     )
     from app.services.implantacao import ticket_por_contrato
     from app.services.ticket_distribuicao import pos_criar_ticket_na_fila

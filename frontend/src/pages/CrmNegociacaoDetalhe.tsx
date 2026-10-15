@@ -30,7 +30,6 @@ import { SemPermissao } from './SemPermissao'
 import { CrmPropostaCard } from '../components/crm/CrmPropostaCard'
 import { CrmContratoCard } from '../components/crm/CrmContratoCard'
 import { maskCnpjCpf } from '../utils/maskCnpjCpf'
-import { linhaProntaParaContrato } from '../components/crm/crmFiscais'
 
 const TIPO_ATIVIDADE_LABEL: Record<string, string> = {
   nota: 'Nota',
@@ -590,10 +589,10 @@ export function CrmNegociacaoDetalhe() {
                       CNPJ: {ln.cnpj ? maskCnpjCpf(ln.cnpj) : '— (opcional até Documentação)'} · PDVs: {ln.quantidade_pdvs}
                       {ln.desconto_posto_100k ? ' · desconto posto <100k' : ''}
                       {linhasAssinadas.has(ln.id)
-                        ? ' · contrato assinado (edição bloqueada)'
-                        : linhaProntaParaContrato(ln)
-                          ? ' · dados fiscais ok'
-                          : ' · dados fiscais no gerar contrato'}
+                        ? ' · contrato assinado (o documento não muda)'
+                        : ln.empresa_id
+                          ? ' · empresa vinculada'
+                          : ' · empresa no gerar contrato'}
                     </div>
                     <div className="mt-1 text-xs text-slate-500">
                       Pacote:{' '}
@@ -605,21 +604,15 @@ export function CrmNegociacaoDetalhe() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    {linhasAssinadas.has(ln.id) ? (
-                      <p className="max-w-[14rem] text-right text-xs text-slate-500">
-                        Pacote e valores ficam só de leitura para coincidir com o contrato assinado.
-                      </p>
-                    ) : (
-                      <>
-                        <Button variant="secondary" onClick={() => openEditLinha(ln)}>
-                          <IconPencil className="size-4" />
-                          Editar
-                        </Button>
-                        <Button variant="danger" onClick={() => setDeleteLinhaId(ln.id)}>
-                          <IconTrash className="size-5" />
-                          Remover
-                        </Button>
-                      </>
+                    <Button variant="secondary" onClick={() => openEditLinha(ln)}>
+                      <IconPencil className="size-4" />
+                      Editar
+                    </Button>
+                    {linhasAssinadas.has(ln.id) ? null : (
+                      <Button variant="danger" onClick={() => setDeleteLinhaId(ln.id)}>
+                        <IconTrash className="size-5" />
+                        Remover
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -783,6 +776,12 @@ export function CrmNegociacaoDetalhe() {
                 value={linhaForm.cnpj}
                 onChange={(e) => setLinhaForm((p) => ({ ...p, cnpj: e.target.value }))}
                 placeholder="Opcional até Documentação"
+                disabled={linhaModal !== 'create' && linhasAssinadas.has(linhaModal.id)}
+                hint={
+                  linhaModal !== 'create' && linhasAssinadas.has(linhaModal.id)
+                    ? 'Depois da assinatura o CNPJ fica o da empresa. O próximo contrato usa o mesmo.'
+                    : undefined
+                }
               />
               <Input
                 label="Razão social"
@@ -790,7 +789,7 @@ export function CrmNegociacaoDetalhe() {
                 onChange={(e) => setLinhaForm((p) => ({ ...p, razao_social: e.target.value }))}
               />
               <p className="text-xs text-slate-500">
-                Endereço, responsável legal e contacto da empresa são preenchidos ao gerar o contrato.
+                Endereço, responsável legal e contato da empresa são preenchidos ao gerar o contrato.
               </p>
               <Input
                 label="Valor negociado (R$)"
