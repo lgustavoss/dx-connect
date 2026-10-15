@@ -14,7 +14,7 @@ from app.schemas.whatsapp_settings import (
     WhatsappSettingsUpdate,
     WhatsappTesteConexaoResultado,
 )
-from app.core.auth import exigir_admin
+from app.core.auth import exigir_permissao
 from app.models.atendente import Atendente
 from app.services import evolution_api
 from app.services import evolution_embedded
@@ -126,7 +126,7 @@ def _get_or_create(db: Session) -> WhatsappSettings:
 @router.get("", response_model=WhatsappSettingsRead)
 def obter(
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("canais.whatsapp.ver")),
 ):
     return _read_out(_get_row(db))
 
@@ -135,7 +135,7 @@ def obter(
 def atualizar(
     data: WhatsappSettingsUpdate,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("canais.whatsapp.editar")),
 ):
     row = _get_or_create(db)
     payload = data.model_dump(exclude_unset=True)
@@ -219,7 +219,7 @@ def atualizar(
 @router.post("/testar-conexao", response_model=WhatsappTesteConexaoResultado)
 def testar_conexao(
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("canais.whatsapp.editar")),
 ):
     row = _get_row(db)
     if not row or not row.evolution_base_url or not row.evolution_instance_name or not row.evolution_api_key:
@@ -238,7 +238,7 @@ def testar_conexao(
 @router.post("/provisao-embutida", response_model=WhatsappProvisionEmbutidoResponse)
 def provisionar_embutido(
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("canais.whatsapp.editar")),
 ):
     row = _get_or_create(db)
     out = evolution_embedded.provisionar_e_ligar_webhook(db, row)
@@ -248,7 +248,7 @@ def provisionar_embutido(
 @router.get("/qr-code")
 def obter_qr_code(
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("canais.whatsapp.editar")),
 ) -> dict[str, Any]:
     row = _get_or_create(db)
     return evolution_embedded.obter_qrcode(db, row)
@@ -257,7 +257,7 @@ def obter_qr_code(
 @router.get("/estado-embutido")
 def estado_embutido(
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("canais.whatsapp.ver")),
 ) -> dict[str, Any]:
     row = _get_row(db)
     if not row:
@@ -268,7 +268,7 @@ def estado_embutido(
 @router.post("/repor-embutido", status_code=status.HTTP_204_NO_CONTENT)
 def repor_embutido(
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("canais.whatsapp.editar")),
 ):
     row = _get_or_create(db)
     evolution_embedded.repor_instancia(db, row)

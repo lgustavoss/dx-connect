@@ -17,6 +17,7 @@ import {
 } from 'recharts'
 import { ApiError, dashboard, setores, type Dashboard, type Setores } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
@@ -59,6 +60,11 @@ function DashboardChatsSkeleton() {
 export function DashboardChats() {
   const toast = useToast()
   const { user } = useAuth()
+  const verTodos = temPermissao(user, 'atendimento.ver_todos')
+  const podeChat = temPermissao(user, 'chat.atender') || temPermissao(user, 'whatsapp.atender')
+  const podeAvaliacoes = temPermissao(user, 'chat.avaliacoes')
+  const podeRelatorio = temPermissao(user, 'relatorios.ver')
+  const podeClassificar = temPermissao(user, 'natureza.editar')
   const { preset, de, ate, aplicarPreset, marcarCustom, onDeChange, onAteChange } =
     useDashboardPeriodo('este_mes')
   const [setorId, setSetorId] = useState<number | ''>('')
@@ -193,13 +199,17 @@ export function DashboardChats() {
       <DashboardNav
         actions={
           <>
-            <Link to="/chat/atendendo">
-              <Button>Ir para atendimento</Button>
-            </Link>
-            <Link to="/whatsapp/avaliacoes">
-              <Button variant="secondary">Ver avaliações</Button>
-            </Link>
-            {user?.role === 'admin' ? (
+            {podeChat ? (
+              <Link to="/chat/atendendo">
+                <Button>Ir para atendimento</Button>
+              </Link>
+            ) : null}
+            {podeAvaliacoes ? (
+              <Link to="/whatsapp/avaliacoes">
+                <Button variant="secondary">Ver avaliações</Button>
+              </Link>
+            ) : null}
+            {podeRelatorio ? (
               <Link to={relatorioHref}>
                 <Button variant="secondary">Exportar planilha</Button>
               </Link>
@@ -424,7 +434,7 @@ export function DashboardChats() {
             </div>
           </Card>
 
-          {user?.role === 'admin' && atendentesChart.length > 0 ? (
+          {verTodos && atendentesChart.length > 0 ? (
             <Card
               title="Atendentes com mais chats assumidos"
               description="Clique em um atendente para filtrar os demais gráficos e indicadores"
@@ -471,7 +481,7 @@ export function DashboardChats() {
         de={de}
         ate={ate}
         setorId={setorId}
-        isAdmin={user?.role === 'admin'}
+        isAdmin={podeClassificar}
         onRecarregar={() => setReloadKey((k) => k + 1)}
       />
     </PageContainer>

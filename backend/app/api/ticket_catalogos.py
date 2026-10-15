@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.auth import exigir_admin, obter_atendente_atual
+from app.core.auth import obter_atendente_atual, exigir_permissao, exigir_alguma_permissao
 from app.core.audit import registrar_audit
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
 from app.database import get_db
@@ -57,7 +57,7 @@ def listar_naturezas(
     ordenar_por: OrdenarCatalogo | None = Query(OrdenarCatalogo.ordem),
     ordem: OrdemLista = Query(OrdemLista.asc),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(obter_atendente_atual),
+    _: Atendente = Depends(exigir_alguma_permissao("natureza.ver", "tickets.ver", "tickets.criar")),
 ):
     q = db.query(TicketNatureza)
     if not incluir_inativos:
@@ -82,7 +82,7 @@ def listar_naturezas(
 def criar_natureza(
     data: TicketNaturezaCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("natureza.criar")),
 ):
     if db.query(TicketNatureza).filter(TicketNatureza.slug == data.slug).first():
         raise HTTPException(status_code=400, detail="Slug de natureza já existe.")
@@ -100,7 +100,7 @@ def atualizar_natureza(
     natureza_id: int,
     data: TicketNaturezaUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("natureza.editar")),
 ):
     row = db.query(TicketNatureza).filter(TicketNatureza.id == natureza_id).first()
     if not row:
@@ -159,7 +159,7 @@ def listar_motivos(
 def criar_motivo(
     data: TicketMotivoCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("natureza.criar")),
 ):
     natureza = db.query(TicketNatureza).filter(TicketNatureza.id == data.natureza_id).first()
     if not natureza:
@@ -191,7 +191,7 @@ def atualizar_motivo(
     motivo_id: int,
     data: TicketMotivoUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("natureza.editar")),
 ):
     row = (
         db.query(TicketMotivo)

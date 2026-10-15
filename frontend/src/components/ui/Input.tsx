@@ -7,7 +7,7 @@ import {
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string
-  /** Texto de ajuda curto sob o rótulo (ex.: diferença entre campos). */
+  /** Texto de ajuda curto sob o campo, para a linha de inputs continuar alinhada. */
   hint?: ReactNode
   error?: string
   /** Conteúdo à direita (ex.: botão de mostrar senha). O campo ganha padding extra. */
@@ -72,11 +72,6 @@ export const Input = forwardRef(function InputInner(
           {label}
         </label>
       )}
-      {hint ? (
-        <p id={`${inputId}-hint`} className="mb-1.5 text-xs leading-snug text-slate-500 dark:text-slate-400">
-          {hint}
-        </p>
-      ) : null}
       {endAdornment ? (
         <div className="relative">
           {field}
@@ -85,6 +80,11 @@ export const Input = forwardRef(function InputInner(
       ) : (
         field
       )}
+      {hint ? (
+        <p id={`${inputId}-hint`} className="mt-1.5 text-xs leading-snug text-slate-500 dark:text-slate-400">
+          {hint}
+        </p>
+      ) : null}
     </div>
   )
 })

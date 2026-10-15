@@ -11,7 +11,7 @@ from app.models.atendente import Atendente
 from app.schemas.rede import RedeCreate, RedeUpdate, RedeRead
 from app.schemas.funcionario_rede import FuncionarioRedeComVinculo
 from app.schemas.lista_paginada import ListaPaginada
-from app.core.auth import obter_atendente_atual, exigir_admin
+from app.core.auth import exigir_permissao, obter_atendente_atual
 from app.core.audit import registrar_audit
 
 router = APIRouter(prefix="/redes", tags=["redes"])
@@ -35,7 +35,7 @@ def listar_redes(
     ordenar_por: OrdenarRedesPor | None = Query(None),
     ordem: OrdemLista = Query(OrdemLista.asc),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("redes.ver")),
 ):
     q = db.query(Rede).filter(Rede.tenant_id == atendente.tenant_id)
     if not incluir_inativos:
@@ -62,7 +62,7 @@ def listar_redes(
 def criar_rede(
     data: RedeCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("redes.criar")),
 ):
     rede = Rede(**data.model_dump(), tenant_id=atendente.tenant_id)
     db.add(rede)
@@ -89,7 +89,7 @@ def listar_funcionarios_da_rede(
     ordenar_por: OrdenarFuncRedePor | None = Query(None),
     ordem: OrdemLista = Query(OrdemLista.asc),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("redes.ver")),
 ):
     rede = db.query(Rede).filter(Rede.id == rede_id).first()
     if not rede:
@@ -165,7 +165,7 @@ def listar_funcionarios_da_rede(
 def obter_rede(
     rede_id: int,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("redes.ver")),
 ):
     rede = db.query(Rede).filter(Rede.id == rede_id).first()
     if not rede:
@@ -178,7 +178,7 @@ def atualizar_rede(
     rede_id: int,
     data: RedeUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("redes.editar")),
 ):
     rede = db.query(Rede).filter(Rede.id == rede_id).first()
     if not rede:
@@ -195,7 +195,7 @@ def atualizar_rede(
 def excluir_rede(
     rede_id: int,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("redes.excluir")),
 ):
     rede = db.query(Rede).filter(Rede.id == rede_id).first()
     if not rede:

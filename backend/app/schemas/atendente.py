@@ -30,6 +30,8 @@ class AtendenteBase(BaseModel):
 class AtendenteCreate(AtendenteBase):
     senha: str
     setor_ids: list[int] = []  # atendente: pelo menos um setor; admin: pode vazio
+    # Se vier, substitui o perfil. Se omitido, `role` vira o grupo padrão correspondente.
+    grupo_ids: list[int] | None = None
     # Senha definida pelo admin → por padrão exige troca no próximo login
     must_change_password: bool = True
 
@@ -39,6 +41,7 @@ class AtendenteUpdate(BaseModel):
     nome: str | None = None
     senha: str | None = None
     role: str | None = None
+    grupo_ids: list[int] | None = None
     ativo: bool | None = None
     setor_ids: list[int] | None = None
     must_change_password: bool | None = None
@@ -65,6 +68,9 @@ class AtendenteRead(AtendenteBase):
     created_at: datetime | None = None
     updated_at: datetime | None = None
     setor_ids: list[int] = []
+    grupo_ids: list[int] = []
+    grupo_nomes: list[str] = []
+    permissoes: list[str] = []
     e_financeiro: bool = False
     must_change_password: bool = False
     saas_setor_ids: list[int] = []

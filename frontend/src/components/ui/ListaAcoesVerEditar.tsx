@@ -5,7 +5,7 @@ import { IconTrash } from './IconTrash'
 
 type Props = {
   onVer: () => void
-  onEditar: () => void
+  onEditar?: () => void
   onExcluir?: () => void
   verLabel?: string
   editarLabel?: string
@@ -23,9 +23,11 @@ export function ListaAcoesVerEditar({
       <Button variant="ghost" onClick={onVer} aria-label={verLabel}>
         <IconEye ariaHidden={false} />
       </Button>
-      <Button variant="ghost" onClick={onEditar} aria-label={editarLabel}>
-        <IconPencil ariaHidden={false} />
-      </Button>
+      {onEditar ? (
+        <Button variant="ghost" onClick={onEditar} aria-label={editarLabel}>
+          <IconPencil ariaHidden={false} />
+        </Button>
+      ) : null}
       {onExcluir ? (
         <Button variant="ghost" onClick={onExcluir} aria-label="Excluir">
           <IconTrash ariaHidden={false} />

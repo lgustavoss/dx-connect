@@ -14,6 +14,8 @@ import { maskCnpjCpf, digitsOnly } from '../utils/maskCnpjCpf'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 
 type ColunaEmpresa = 'nome' | 'cnpj_cpf' | 'rede'
 
@@ -47,6 +49,10 @@ export function Empresas() {
   const navigate = useNavigate()
   const { ordenarPor, ordem, aoOrdenarColuna, sortParams } = useOrdenacaoLista<ColunaEmpresa>()
   const toast = useToast()
+  const { user } = useAuth()
+  const podeCriar = temPermissao(user, 'empresas.criar')
+  const podeEditar = temPermissao(user, 'empresas.editar')
+  const podeExcluir = temPermissao(user, 'empresas.excluir')
   const [list, setList] = useState<Empresas.Empresa[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -145,7 +151,7 @@ export function Empresas() {
     <PageContainer>
       <PageHeader
         title="Empresas"
-        actions={<Button onClick={() => navigate('/empresas/novo')}>Nova empresa</Button>}
+        actions={podeCriar ? <Button onClick={() => navigate('/empresas/novo')}>Nova empresa</Button> : undefined}
       />
 
       <Card>
@@ -252,8 +258,8 @@ export function Empresas() {
                       <td className="py-3 pr-2 text-right" onClick={(ev) => ev.stopPropagation()}>
                         <ListaAcoesVerEditar
                           onVer={() => navigate(`/empresas/${e.id}`)}
-                          onEditar={() => navigate(`/empresas/${e.id}/editar`)}
-                          onExcluir={() => handleDelete(e.id)}
+                          onEditar={podeEditar ? () => navigate(`/empresas/${e.id}/editar`) : undefined}
+                          onExcluir={podeExcluir ? () => handleDelete(e.id) : undefined}
                           verLabel="Visualizar empresa"
                           editarLabel="Editar empresa"
                         />

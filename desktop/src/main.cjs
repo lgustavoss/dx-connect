@@ -188,6 +188,17 @@ function criarJanela(iniciarOculto) {
     if (!principal || codigo === -3 || url.startsWith('file:')) return
     void janela?.loadFile(CONTA_HTML, { query: { erro: 'conexao' } })
   })
+  wc.on('context-menu', (_e, params) => {
+    const temImagem = params.mediaType === 'image' && params.hasImageContents
+    const temTexto = params.selectionText.trim().length > 0
+    if (!temImagem && !temTexto) return
+    Menu.buildFromTemplate([
+      {
+        label: 'Copiar',
+        click: () => (temImagem ? wc.copyImageAt(params.x, params.y) : wc.copy()),
+      },
+    ]).popup({ window: janela })
+  })
   wc.on('before-input-event', (_e, input) => {
     if (input.type !== 'keyDown') return
     if (input.key === 'F5' || (input.control && input.key.toLowerCase() === 'r')) wc.reload()

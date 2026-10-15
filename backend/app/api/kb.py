@@ -7,7 +7,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.audit import registrar_audit
-from app.core.auth import exigir_admin, obter_atendente_atual
+from app.core.auth import obter_atendente_atual, exigir_permissao, exigir_alguma_permissao
 from app.core.kb_public_rate_limit import (
     check_kb_public_chat_rate_limit,
     check_kb_public_feedback_rate_limit,
@@ -32,6 +32,8 @@ from app.schemas.kb import (
     KbArticleVersionRead,
     KbArticleMotivoLinkItem,
     KbArticleMotivoLinksUpdate,
+    KbExclusaoLote,
+    KbExclusaoLoteResultado,
     KbCategoryCreate,
     KbCategoryRead,
     KbCategoryReorder,
@@ -51,7 +53,13 @@ from app.schemas.portal_chat import (
 )
 from app.schemas.lista_paginada import ListaPaginada
 from app.services.instancia_branding import branding_kb_publico as montar_branding_kb_publico
-from app.services.kb import listar_artigos_sugeridos, registrar_versao_artigo, slug_disponivel
+from app.services.kb import (
+    excluir_artigos_em_lote,
+    excluir_categorias_em_lote,
+    listar_artigos_sugeridos,
+    registrar_versao_artigo,
+    slug_disponivel,
+)
 from app.services.kb_feedback import registrar_feedback_artigo_publico
 from app.core.login_protection import client_ip
 from app.services.system_logo_storage import caminho_absoluto_logo
@@ -268,7 +276,7 @@ def _assert_motivo_link_item_valido(db: Session, item: KbArticleMotivoLinkItem) 
 @router.get("/categories", response_model=list[KbCategoryRead])
 def listar_categorias(
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
+    atendente: Atendente = Depends(exigir_alguma_permissao("ajuda.categorias.ver", "ajuda.consultar")),
 ):
     rows = (
         db.query(KbCategory, func.count(KbArticle.id).label("artigos_count"))
@@ -285,7 +293,7 @@ def listar_categorias(
 def criar_categoria(
     data: KbCategoryCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("ajuda.categorias.criar")),
 ):
     if data.parent_id is not None:
         _assert_parent_categoria_valida(db, atendente.tenant_id, data.parent_id)
@@ -316,7 +324,7 @@ def atualizar_categoria(
     category_id: int,
     data: KbCategoryUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("ajuda.categorias.editar")),
 ):
     row = _get_category_or_404(db, atendente.tenant_id, category_id)
     update = data.model_dump(exclude_unset=True)
@@ -351,11 +359,22 @@ def atualizar_categoria(
     return _category_read(row, int(cnt))
 
 
+@router.post("/categories/excluir-lote", response_model=KbExclusaoLoteResultado)
+def excluir_categorias_lote(
+    data: KbExclusaoLote,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_permissao("ajuda.categorias.excluir")),
+):
+    excluidos, ignorados = excluir_categorias_em_lote(db, atendente.tenant_id, atendente.id, data.ids)
+    db.commit()
+    return KbExclusaoLoteResultado(excluidos=excluidos, ignorados=ignorados)
+
+
 @router.delete("/categories/{category_id}", status_code=204)
 def excluir_categoria(
     category_id: int,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("ajuda.categorias.excluir")),
 ):
     row = _get_category_or_404(db, atendente.tenant_id, category_id)
     subcategorias = (
@@ -379,7 +398,7 @@ def excluir_categoria(
 def reordenar_categorias(
     data: KbCategoryReorder,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("ajuda.categorias.editar")),
 ):
     ids = [item.id for item in data.items]
     rows = (
@@ -419,7 +438,7 @@ def listar_artigos_admin(
     ordenar_por: OrdenarKbArtigosPor | None = Query(None),
     ordem: OrdemLista = Query(OrdemLista.desc),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("ajuda.artigos.ver")),
 ):
     q = (
         db.query(KbArticle)
@@ -456,7 +475,7 @@ def consultar_artigos_publicados(
     category_id: int | None = Query(None, ge=1),
     limit: int = Query(25, ge=1, le=50),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
+    atendente: Atendente = Depends(exigir_permissao("ajuda.consultar")),
 ):
     q = (
         db.query(KbArticle)
@@ -498,7 +517,7 @@ def sugestoes_artigos(
 def listar_vinculos_motivo_artigo(
     article_id: int,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("ajuda.artigos.ver")),
 ):
     _get_article_or_404(db, atendente.tenant_id, article_id)
     rows = (
@@ -519,7 +538,7 @@ def atualizar_vinculos_motivo_artigo(
     article_id: int,
     data: KbArticleMotivoLinksUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("ajuda.artigos.editar")),
 ):
     _get_article_or_404(db, atendente.tenant_id, article_id)
     vistos_motivo: set[int] = set()
@@ -589,7 +608,7 @@ def ler_artigo_publicado(
 def obter_artigo(
     article_id: int,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("ajuda.artigos.ver")),
 ):
     return _article_read(_get_article_or_404(db, atendente.tenant_id, article_id))
 
@@ -598,7 +617,7 @@ def obter_artigo(
 def criar_artigo(
     data: KbArticleCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("ajuda.artigos.criar")),
 ):
     if data.category_id is not None:
         _get_category_or_404(db, atendente.tenant_id, data.category_id)
@@ -629,7 +648,7 @@ def atualizar_artigo(
     article_id: int,
     data: KbArticleUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("ajuda.artigos.editar")),
 ):
     row = _get_article_or_404(db, atendente.tenant_id, article_id)
     if _status_str(row) == KbArticleStatus.arquivado.value:
@@ -662,7 +681,7 @@ def atualizar_artigo(
 def publicar_artigo(
     article_id: int,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("ajuda.artigos.editar")),
 ):
     row = _get_article_or_404(db, atendente.tenant_id, article_id)
     if not (row.titulo or "").strip():
@@ -683,7 +702,7 @@ def publicar_artigo(
 def arquivar_artigo(
     article_id: int,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("ajuda.artigos.editar")),
 ):
     row = _get_article_or_404(db, atendente.tenant_id, article_id)
     row.status = KbArticleStatus.arquivado
@@ -697,11 +716,22 @@ def arquivar_artigo(
     return _article_read(row)
 
 
+@router.post("/articles/excluir-lote", response_model=KbExclusaoLoteResultado)
+def excluir_artigos_lote(
+    data: KbExclusaoLote,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_permissao("ajuda.artigos.excluir")),
+):
+    excluidos, ignorados = excluir_artigos_em_lote(db, atendente.tenant_id, atendente.id, data.ids)
+    db.commit()
+    return KbExclusaoLoteResultado(excluidos=excluidos, ignorados=ignorados)
+
+
 @router.get("/articles/{article_id}/versions", response_model=list[KbArticleVersionRead])
 def listar_versoes_artigo(
     article_id: int,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("ajuda.artigos.ver")),
 ):
     _get_article_or_404(db, atendente.tenant_id, article_id)
     rows = (
@@ -720,7 +750,7 @@ def obter_versao_artigo(
     article_id: int,
     version_id: int,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("ajuda.artigos.ver")),
 ):
     _get_article_or_404(db, atendente.tenant_id, article_id)
     row = (
@@ -737,7 +767,7 @@ def obter_versao_artigo(
 @router.post("/images", response_model=KbImageUploadResponse, status_code=201)
 async def upload_imagem_kb(
     file: UploadFile = File(...),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("ajuda.artigos.criar")),
 ):
     data = await file.read()
     saved = gravar_imagem_bytes(data, file.content_type)
@@ -822,7 +852,7 @@ def _portal_settings_read(row: KbPortalSettings) -> KbPortalSettingsRead:
 @router.get("/portal-settings", response_model=KbPortalSettingsRead)
 def obter_portal_settings(
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("ajuda.portal")),
 ):
     row = _get_or_create_portal_settings(db, atendente.tenant_id)
     db.commit()
@@ -833,7 +863,7 @@ def obter_portal_settings(
 def atualizar_portal_settings(
     data: KbPortalSettingsUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("ajuda.portal")),
 ):
     row = _get_or_create_portal_settings(db, atendente.tenant_id)
     update = data.model_dump(exclude_unset=True)

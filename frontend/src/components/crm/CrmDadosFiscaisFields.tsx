@@ -13,11 +13,11 @@ export function CrmDadosFiscaisFields({ value, onChange, disabled }: Props) {
   return (
     <fieldset className="space-y-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700" disabled={disabled}>
       <legend className="px-1 text-sm font-medium text-slate-700 dark:text-slate-300">
-        Dados fiscais do contratante
+        Empresa do contrato
       </legend>
       <p className="text-xs text-slate-500">
-        Endereço e responsável legal entram no PDF. E-mail e telefone vão para a ficha da Empresa ao assinar, para
-        atendimento (chat) depois da conversão.
+        Este é o cadastro da empresa. O contrato usa estes dados. Uma correção na ficha depois não altera um contrato
+        já gerado.
       </p>
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="sm:col-span-2">

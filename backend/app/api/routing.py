@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.audit import registrar_audit
-from app.core.auth import exigir_admin
+from app.core.auth import exigir_permissao
 from app.database import get_db
 from app.models.atendente import Atendente
 from app.models.rede import Rede
@@ -64,7 +64,7 @@ def _row_para_read(rule: RoutingRule) -> RoutingRuleRead:
 def listar_regras(
     incluir_inativos: bool = Query(False),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("roteamento.ver")),
 ):
     q = db.query(RoutingRule).filter(RoutingRule.tenant_id == atendente.tenant_id)
     if not incluir_inativos:
@@ -77,7 +77,7 @@ def listar_regras(
 def criar_regra(
     data: RoutingRuleCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("roteamento.editar")),
 ):
     _validar_rede(db, atendente.tenant_id, data.rede_id)
     _validar_acoes(db, atendente.tenant_id, data.acoes)
@@ -110,7 +110,7 @@ def criar_regra(
 def reordenar_regras(
     data: RoutingRuleReorder,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("roteamento.editar")),
 ):
     ids = [item.id for item in data.items]
     rules = (
@@ -138,7 +138,7 @@ def reordenar_regras(
 def simular_regra(
     data: RoutingSimulateRequest,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("roteamento.editar")),
 ):
     ctx = RoutingContext(
         email_from=data.email_from,
@@ -157,7 +157,7 @@ def simular_regra(
 def obter_regra(
     rule_id: int,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("roteamento.ver")),
 ):
     rule = db.query(RoutingRule).filter(RoutingRule.id == rule_id).first()
     if not rule:
@@ -170,7 +170,7 @@ def atualizar_regra(
     rule_id: int,
     data: RoutingRuleUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("roteamento.editar")),
 ):
     rule = db.query(RoutingRule).filter(
         RoutingRule.id == rule_id, RoutingRule.tenant_id == atendente.tenant_id
@@ -204,7 +204,7 @@ def atualizar_regra(
 def excluir_regra(
     rule_id: int,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("roteamento.editar")),
 ):
     rule = db.query(RoutingRule).filter(
         RoutingRule.id == rule_id, RoutingRule.tenant_id == atendente.tenant_id

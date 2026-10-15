@@ -50,7 +50,8 @@ from app.schemas.whatsapp_chat import (
 from app.services.funcionario_escopo import empresa_ids_vinculados, funcionario_visivel_no_tenant, rede_id_efetiva, sincronizar_vinculos_empresas, validar_empresa_ids_na_rede
 from app.services.funcionario_rede_resolver import assert_email_unico_por_rede
 from app.core.audit import registrar_audit
-from app.core.auth import exigir_admin, obter_atendente_atual
+from app.core.auth import obter_atendente_atual, exigir_permissao, exigir_alguma_permissao
+from app.services.permissao_grupos import tem_permissao
 from app.api.tickets import _gerar_protocolo, _pode_ver_ticket
 from app.core.setor_scope import ids_setores_visiveis_atendente
 from app.config import settings
@@ -279,7 +280,7 @@ def _aplicar_setor_ao_assumir(
         return
     setores_atendente = list(getattr(atendente, "setores", None) or [])
     if setor_id is not None:
-        if atendente.role != "admin":
+        if not tem_permissao(atendente, "atendimento.ver_todos"):
             ids = {s.id for s in setores_atendente}
             if setor_id not in ids:
                 raise HTTPException(status_code=403, detail="Sem permissão para este setor")
@@ -736,7 +737,7 @@ def _pode_registrar_demanda(db: Session, atendente: Atendente, c: WhatsappChat) 
     """Responsável/admin: em atendimento, ou após encerramento automático por inatividade."""
     if not _pode_ver_chat(db, atendente, c):
         return False
-    if atendente.role != "admin" and c.atendente_id != atendente.id:
+    if not tem_permissao(atendente, "atendimento.ver_todos") and c.atendente_id != atendente.id:
         return False
     if c.estado == "em_atendimento":
         return True
@@ -825,12 +826,12 @@ def _mensagem_read(
 @router.get("/fila", response_model=list[WhatsappChatRead])
 def listar_fila(
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
+    atendente: Atendente = Depends(exigir_alguma_permissao("chat.atender", "whatsapp.atender")),
 ):
     q = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(
         WhatsappChat.estado == "aguardando_atendente"
     )
-    if atendente.role != "admin":
+    if not tem_permissao(atendente, "atendimento.ver_todos"):
         vis = ids_setores_visiveis_atendente(db, atendente)
         q = q.filter((WhatsappChat.setor_id.is_(None)) | (WhatsappChat.setor_id.in_(vis)))
     rows = q.order_by(WhatsappChat.created_at.asc()).all()
@@ -855,7 +856,7 @@ def listar_meus_ativos(
             )
         )
     )
-    if atendente.role != "admin":
+    if not tem_permissao(atendente, "atendimento.ver_todos"):
         q = q.filter(WhatsappChat.atendente_id == atendente.id)
     rows = q.order_by(WhatsappChat.atendimento_inicio_at.desc().nullslast()).all()
     return [_chat_read(db, c, atendente_id=atendente.id) for c in rows]
@@ -878,7 +879,7 @@ def listar_encerrados(
     offset: int = Query(0, ge=0),
     limit: int = Query(_DEFAULT_PAGE, ge=1, le=_MAX_PAGE),
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
+    atendente: Atendente = Depends(exigir_permissao("chat.historico")),
 ):
     estados = _estados_historico_filtro(estado)
     q = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.estado.in_(estados))
@@ -922,7 +923,7 @@ def listar_encerrados(
         q = q.filter(ref_data >= encerramento_inicio)
     if encerramento_fim:
         q = q.filter(ref_data <= encerramento_fim)
-    if atendente.role != "admin":
+    if not tem_permissao(atendente, "atendimento.ver_todos"):
         vis = ids_setores_visiveis_atendente(db, atendente)
         q = q.filter(or_(WhatsappChat.atendente_id == atendente.id, WhatsappChat.setor_id.in_(vis)))
     total = q.count()
@@ -945,7 +946,7 @@ def listar_avaliacoes(
     offset: int = Query(0, ge=0),
     limit: int = Query(_DEFAULT_PAGE, ge=1, le=_MAX_PAGE),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("chat.avaliacoes")),
 ):
     q = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS)
     if incluir_sem_resposta:
@@ -1926,7 +1927,7 @@ def excluir_demanda(
     )
     if not row:
         raise HTTPException(status_code=404, detail="Demanda não encontrada")
-    if atendente.role != "admin" and row.atendente_id != atendente.id:
+    if not tem_permissao(atendente, "atendimento.ver_todos") and row.atendente_id != atendente.id:
         raise HTTPException(status_code=403, detail="Somente quem registrou ou admin pode excluir")
     remover_marco_demanda_mensagem(db, chat_id=chat_id, demanda_id=demanda_id)
     db.delete(row)
@@ -1952,7 +1953,7 @@ def assumir(
     c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
-    if atendente.role != "admin" and c.setor_id is not None:
+    if not tem_permissao(atendente, "atendimento.ver_todos") and c.setor_id is not None:
         vis = ids_setores_visiveis_atendente(db, atendente)
         if c.setor_id not in vis:
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
@@ -2036,7 +2037,7 @@ def encerrar(
     c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
-    if atendente.role != "admin" and c.setor_id is not None:
+    if not tem_permissao(atendente, "atendimento.ver_todos") and c.setor_id is not None:
         vis = ids_setores_visiveis_atendente(db, atendente)
         if c.setor_id not in vis:
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
@@ -2046,8 +2047,12 @@ def encerrar(
         return _chat_read(db, c)
     if c.estado != "em_atendimento":
         raise HTTPException(status_code=400, detail="Encerre apenas chats em atendimento")
-    if atendente.role != "admin" and c.atendente_id != atendente.id:
+    if not tem_permissao(atendente, "atendimento.ver_todos") and c.atendente_id != atendente.id:
         raise HTTPException(status_code=403, detail="Apenas o atendente responsável pode encerrar este chat")
+    from app.models.whatsapp_chat_demanda import WhatsappChatDemanda
+    from app.services.permissao_grupos import exigir_demanda_ou_permissao
+
+    exigir_demanda_ou_permissao(db, atendente, chat_id=c.id, modelo=WhatsappChatDemanda)
     st_auto = db.query(WhatsappSettings).order_by(WhatsappSettings.id.asc()).first()
     from app.services.whatsapp_avaliacao import finalizar_atendimento_whatsapp
 
@@ -2083,7 +2088,7 @@ def enviar_mensagem(
     c = db.query(WhatsappChat).filter(WhatsappChat.id == chat_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
-    if atendente.role != "admin" and c.setor_id is not None:
+    if not tem_permissao(atendente, "atendimento.ver_todos") and c.setor_id is not None:
         vis = ids_setores_visiveis_atendente(db, atendente)
         if c.setor_id not in vis:
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
@@ -2128,7 +2133,7 @@ async def enviar_mensagem_midia(
     c = db.query(WhatsappChat).filter(WhatsappChat.id == chat_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
-    if atendente.role != "admin" and c.setor_id is not None:
+    if not tem_permissao(atendente, "atendimento.ver_todos") and c.setor_id is not None:
         vis = ids_setores_visiveis_atendente(db, atendente)
         if c.setor_id not in vis:
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
@@ -2259,7 +2264,7 @@ def comentar_interno(
     c = db.query(WhatsappChat).filter(WhatsappChat.id == chat_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
-    if atendente.role != "admin" and c.setor_id is not None:
+    if not tem_permissao(atendente, "atendimento.ver_todos") and c.setor_id is not None:
         vis = ids_setores_visiveis_atendente(db, atendente)
         if c.setor_id not in vis:
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
@@ -2303,7 +2308,7 @@ def marcar_chat_visto(
     c = db.query(WhatsappChat).filter(WhatsappChat.id == chat_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
-    if atendente.role != "admin" and c.setor_id is not None:
+    if not tem_permissao(atendente, "atendimento.ver_todos") and c.setor_id is not None:
         vis = ids_setores_visiveis_atendente(db, atendente)
         if c.setor_id not in vis:
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
@@ -2369,7 +2374,7 @@ def pausar_inatividade(
         raise HTTPException(status_code=404, detail="Chat não encontrado")
     if c.estado != "em_atendimento":
         raise HTTPException(status_code=400, detail="Só é possível pausar inatividade em chats em atendimento")
-    if c.atendente_id != atendente.id and atendente.role != "admin":
+    if c.atendente_id != atendente.id and not tem_permissao(atendente, "atendimento.ver_todos"):
         raise HTTPException(status_code=403, detail="Apenas o responsável pode pausar a inatividade")
     c.inatividade_pausada = True
     c.inatividade_retomada_em = None
@@ -2388,7 +2393,7 @@ def retomar_inatividade(
     c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
-    if c.atendente_id != atendente.id and atendente.role != "admin":
+    if c.atendente_id != atendente.id and not tem_permissao(atendente, "atendimento.ver_todos"):
         raise HTTPException(status_code=403, detail="Apenas o responsável pode retomar a inatividade")
     c.inatividade_pausada = False
     c.inatividade_retomada_em = datetime.now(timezone.utc)
@@ -2410,10 +2415,14 @@ def concluir_classificacao_demanda(
         raise HTTPException(status_code=404, detail="Chat não encontrado")
     if not getattr(c, "classificacao_demanda_pendente", False):
         return _chat_read(db, c)
-    if atendente.role != "admin" and c.atendente_id != atendente.id:
+    if not tem_permissao(atendente, "atendimento.ver_todos") and c.atendente_id != atendente.id:
         raise HTTPException(status_code=403, detail="Apenas o responsável pode concluir a classificação")
     if c.estado not in ("encerrado", "aguardando_avaliacao"):
         raise HTTPException(status_code=400, detail="Classificação só se aplica a chats já encerrados por inatividade")
+    from app.models.whatsapp_chat_demanda import WhatsappChatDemanda
+    from app.services.permissao_grupos import exigir_demanda_ou_permissao
+
+    exigir_demanda_ou_permissao(db, atendente, chat_id=c.id, modelo=WhatsappChatDemanda)
     c.classificacao_demanda_pendente = False
     db.commit()
     c2 = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
@@ -2547,7 +2556,7 @@ def abrir_ticket(
     c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Chat não encontrado")
-    if atendente.role != "admin":
+    if not tem_permissao(atendente, "atendimento.ver_todos"):
         vis = ids_setores_visiveis_atendente(db, atendente)
         if data.setor_id not in vis:
             raise HTTPException(status_code=403, detail="Sem permissão para este setor")
@@ -2642,7 +2651,7 @@ def transferir(
     if c.estado in ("encerrado", "aguardando_avaliacao"):
         raise HTTPException(status_code=400, detail="Chat encerrado não pode ser transferido")
     # Permissão: admin ou atendente responsável atual
-    if atendente.role != "admin" and c.atendente_id not in (None, atendente.id):
+    if not tem_permissao(atendente, "atendimento.ver_todos") and c.atendente_id not in (None, atendente.id):
         raise HTTPException(status_code=403, detail="Apenas o atendente responsável pode transferir este chat")
 
     setor = db.query(Setor).filter(Setor.id == data.setor_id, Setor.ativo.is_(True)).first()
@@ -2652,7 +2661,7 @@ def transferir(
     # Atendente pode transferir para qualquer setor.
     # Porém, só pode escolher um responsável (atendente_id) se tiver acesso ao setor destino (ou for admin).
     vis_destino_ok = True
-    if atendente.role != "admin":
+    if not tem_permissao(atendente, "atendimento.ver_todos"):
         vis = ids_setores_visiveis_atendente(db, atendente)
         vis_destino_ok = data.setor_id in vis
 

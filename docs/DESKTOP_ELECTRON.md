@@ -11,6 +11,7 @@ Diferenças em relação ao PWA:
 | Alerta da fila com a janela fechada | Para ao fechar | Continua (sem throttling e autoplay liberado) |
 | Contador de pendências | Título da aba | Tooltip da bandeja + piscar na barra de tarefas |
 | Uma instância | — | Segundo clique no atalho reabre a janela |
+| Botão direito | Menu do navegador | Só «Copiar», em imagem ou texto selecionado (nada nos demais lugares) |
 
 ## Código
 
@@ -63,3 +64,4 @@ O instalador **não é assinado**: o Windows SmartScreen mostra «O Windows prot
 | 9 | Link externo no chat | Abre no navegador padrão |
 | 10 | Menu da bandeja → Trocar empresa | Volta para a tela de conta |
 | 11 | Menu da bandeja → Sair | Encerra o app e para os alertas |
+| 12 | Botão direito numa imagem do chat → Copiar | Imagem colável no Paint/WhatsApp; em texto selecionado copia o texto |

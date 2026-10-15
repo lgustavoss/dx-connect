@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 
 import { WHATSAPP_EMOJIS } from '../../lib/whatsappEmojis'
+import { WhatsappFigurinhasGaleria } from './WhatsappFigurinhasGaleria'
 
 type Tab = 'emoji' | 'figurinha'
 
@@ -76,13 +77,18 @@ export function WhatsappEmojiFigurinhaPanel({
         </div>
       ) : (
         <div className="space-y-2 p-3">
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Envie um arquivo WebP ou PNG (tamanho típico de figurinha WhatsApp).
-          </p>
+          <WhatsappFigurinhasGaleria
+            disabled={disabled}
+            onEnviar={(file) => {
+              onEnviarFigurinha(file)
+              onFechar()
+            }}
+          />
           <button
             type="button"
             disabled={disabled}
-            className="w-full rounded-lg border border-dashed border-slate-300 px-3 py-4 text-sm font-medium text-slate-700 hover:border-cyan-400 hover:bg-cyan-50 disabled:opacity-40 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-cyan-950/30"
+            title="Arquivo WebP ou PNG (tamanho típico de figurinha WhatsApp)"
+            className="w-full rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:border-cyan-400 hover:bg-cyan-50 disabled:opacity-40 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-cyan-950/30"
             onClick={() => fileRef.current?.click()}
           >
             Escolher figurinha…

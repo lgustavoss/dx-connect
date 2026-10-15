@@ -6,7 +6,7 @@ interface IconTrashProps {
 export function IconTrash({ className = 'size-5', ariaHidden = true }: IconTrashProps) {
   return (
     <svg
-      className={className}
+      className={`${className} text-red-600 dark:text-red-400`}
       fill="none"
       stroke="currentColor"
       viewBox="0 0 24 24"

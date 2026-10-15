@@ -16,6 +16,8 @@ import { IconPencil } from '../components/ui/IconPencil'
 import { IconTrash } from '../components/ui/IconTrash'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { MODAL_PANEL_COMPACT } from '../lib/modalPanel'
@@ -86,6 +88,9 @@ function fmtDataIso(iso: string | null | undefined): string {
 
 export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean }) {
   const toast = useToast()
+  const { user } = useAuth()
+  const podeEditar = temPermissao(user, 'custos.editar')
+  const podeSimular = temPermissao(user, 'custos.simular')
   const [forbidden, setForbidden] = useState(false)
   const [aba, setAba] = useState<Aba>('sm')
 
@@ -408,8 +413,9 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
     </button>
   )
 
-  const actionsBtn =
-    aba === 'sm' ? (
+  const actionsBtn = !podeEditar
+    ? null
+    : aba === 'sm' ? (
       <Button
         type="button"
         onClick={() => {
@@ -448,7 +454,7 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
         <nav className="-mb-px flex gap-1" aria-label="Seções do catálogo de custos">
           {tabBtn('sm', 'Salário mínimo')}
           {tabBtn('itens', 'Itens de custo')}
-          {tabBtn('simular', 'Simular')}
+          {podeSimular ? tabBtn('simular', 'Simular') : null}
         </nav>
       </div>
 
@@ -460,17 +466,19 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
             ) : !smVigente ? (
               <div className="py-10 text-center">
                 <p className="text-sm text-slate-500">Nenhum salário mínimo definido ainda.</p>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="mt-4"
-                  onClick={() => {
-                    setSmForm(emptySmForm())
-                    setSmModal(true)
-                  }}
-                >
-                  Definir SM
-                </Button>
+                {podeEditar ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="mt-4"
+                    onClick={() => {
+                      setSmForm(emptySmForm())
+                      setSmModal(true)
+                    }}
+                  >
+                    Definir SM
+                  </Button>
+                ) : null}
               </div>
             ) : (
               <div className="space-y-3">
@@ -552,7 +560,7 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
                             {row.vigencia_fim ? fmtDataIso(row.vigencia_fim) : 'hoje'}
                           </td>
                           <td className="px-4 py-3.5 text-right sm:px-6">
-                            {!vigente ? (
+                            {podeEditar && !vigente ? (
                               <Button
                                 type="button"
                                 variant="ghost"
@@ -655,7 +663,7 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
                         </span>
                       </td>
                       <td className="px-4 py-3.5 text-right sm:px-6">
-                        <div className="flex justify-end gap-1">
+                        {podeEditar ? <div className="flex justify-end gap-1">
                           <Button
                             type="button"
                             variant="ghost"
@@ -695,7 +703,7 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
                           >
                             <IconTrash ariaHidden={false} />
                           </Button>
-                        </div>
+                        </div> : null}
                       </td>
                     </tr>
                   ))}

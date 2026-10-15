@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ApiError, atendentes, setores, type Atendentes, type Setores } from '../api/client'
+import { ApiError, atendentes, permissaoGrupos, setores, type Atendentes, type PermissaoGrupos, type Setores } from '../api/client'
 import { coletarTodasPaginas } from '../api/collectPages'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
@@ -48,7 +48,8 @@ export function AtendenteForm() {
   const [nome, setNome] = useState('')
   const [senha, setSenha] = useState('')
   const [mostrarSenha, setMostrarSenha] = useState(false)
-  const [role, setRole] = useState<'admin' | 'atendente' | 'comercial'>('atendente')
+  const [grupos, setGrupos] = useState<PermissaoGrupos.Grupo[]>([])
+  const [grupoIds, setGrupoIds] = useState<number[]>([])
   const [ativo, setAtivo] = useState(true)
   const [mustChangePassword, setMustChangePassword] = useState(true)
   const [setorIds, setSetorIds] = useState<number[]>([])
@@ -70,6 +71,26 @@ export function AtendenteForm() {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
+    permissaoGrupos
+      .list()
+      .then((gs) => {
+        if (cancelled) return
+        setGrupos(gs)
+        if (!isEdit) {
+          const padrao = gs.find((g) => g.sistema && g.slug === 'atendente')
+          if (padrao) setGrupoIds([padrao.id])
+        }
+      })
+      .catch((err) => {
+        if (!cancelled && err instanceof ApiError && err.status === 403) setForbidden(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isEdit])
+
+  useEffect(() => {
     if (!isEdit) return
     if (!id || Number.isNaN(atendenteId)) {
       setInexistente({ detalhe: 'O identificador na URL é inválido.' })
@@ -88,7 +109,7 @@ export function AtendenteForm() {
         setNome(a.nome)
         setSenha('')
         setMostrarSenha(false)
-        setRole((a.role as 'admin' | 'atendente' | 'comercial') || 'atendente')
+        setGrupoIds(a.grupo_ids ?? [])
         setAtivo(a.ativo)
         setMustChangePassword(Boolean(a.must_change_password))
         setSetorIds(a.setor_ids ?? [])
@@ -231,13 +252,18 @@ export function AtendenteForm() {
     }
     setSaving(true)
     try {
+      if (grupoIds.length === 0) {
+        toast.showWarning('Escolha pelo menos um grupo de permissão.')
+        setAba('dados')
+        return
+      }
       const escala = payloadJornada()
       const locais = payloadLocais()
       if (isEdit && !Number.isNaN(atendenteId)) {
         await atendentes.update(atendenteId, {
           email,
           nome: nome.trim(),
-          role,
+          grupo_ids: grupoIds,
           ativo,
           must_change_password: mustChangePassword,
           setor_ids: setorIds,
@@ -253,7 +279,7 @@ export function AtendenteForm() {
           email,
           nome: nome.trim(),
           senha,
-          role,
+          grupo_ids: grupoIds,
           setor_ids: setorIds,
           ativo,
           must_change_password: mustChangePassword,
@@ -359,25 +385,39 @@ export function AtendenteForm() {
                         />
                       }
                     />
-                    <Select
-                      label="Perfil"
-                      value={role}
-                      onChange={(v) =>
-                        setRole(
-                          v === 'admin' ? 'admin' : v === 'comercial' ? 'comercial' : 'atendente',
-                        )
-                      }
-                      options={[
-                        { value: 'atendente', label: 'Atendente' },
-                        { value: 'comercial', label: 'Comercial' },
-                        { value: 'admin', label: 'Administrador' },
-                      ]}
-                    />
+                  </div>
+                </FormSection>
+
+                <FormSection title="Grupos de permissão">
+                  <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                    O acesso nas telas segue o grupo mais amplo marcado. Uma pessoa pode estar em
+                    mais de um grupo.
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {grupos.map((g) => (
+                      <CheckboxField
+                        key={g.id}
+                        variant="inline"
+                        checked={grupoIds.includes(g.id)}
+                        onChange={() =>
+                          setGrupoIds((cur) =>
+                            cur.includes(g.id) ? cur.filter((idGrupo) => idGrupo !== g.id) : [...cur, g.id],
+                          )
+                        }
+                      >
+                        <span className="font-medium text-slate-800 dark:text-slate-100">
+                          {g.nome}
+                          {g.sistema ? (
+                            <span className="ml-2 text-xs font-normal text-slate-500">Padrão</span>
+                          ) : null}
+                        </span>
+                      </CheckboxField>
+                    ))}
                   </div>
                 </FormSection>
 
                 <FormSection title="Setores">
-                  {role === 'admin' && (
+                  {grupos.some((g) => grupoIds.includes(g.id) && g.permissoes.includes('admin')) && (
                     <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
                       Opcional, mas recomendado: vincule administradores a setores para poderem ser
                       responsáveis em tickets do setor.

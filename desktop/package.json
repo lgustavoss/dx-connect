@@ -1,7 +1,7 @@
 {
   "name": "deskrudder-desktop",
   "productName": "DeskRudder",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "DeskRudder para Windows — painel da instância com ícone na bandeja",
   "private": true,
   "main": "src/main.cjs",

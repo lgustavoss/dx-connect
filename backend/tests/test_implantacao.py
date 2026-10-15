@@ -13,7 +13,11 @@ def _assinar_contrato(client, h):
     assert c.status_code == 201, c.text
     cid = c.json()["id"]
     _anexar_pdf_assinado(client, h, cid)
-    ass = client.post(f"/v1/comercial/contratos/{cid}/marcar-assinado", headers=h, json={})
+    ass = client.post(
+        f"/v1/comercial/contratos/{cid}/marcar-assinado",
+        headers=h,
+        json={"abrir_ticket_implantacao": True},
+    )
     assert ass.status_code == 200, ass.text
     return ass.json()
 
@@ -95,6 +99,35 @@ def test_marcar_assinado_abre_ticket_idempotente(client, auth_headers):
     assert again.status_code == 400
     body2 = client.get(f"/v1/comercial/contratos/{body['id']}", headers=h).json()
     assert body2["implantacao_ticket_id"] == tid
+
+
+def test_ticket_so_abre_quando_pedido(client, auth_headers):
+    h = auth_headers["comercial"]
+    _, linha = _negociacao_com_linha(client, h)
+    primeiro = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": linha["id"]})
+    assert primeiro.status_code == 201, primeiro.text
+    cid = primeiro.json()["id"]
+    _anexar_pdf_assinado(client, h, cid)
+    sem = client.post(f"/v1/comercial/contratos/{cid}/marcar-assinado", headers=h, json={})
+    assert sem.status_code == 200, sem.text
+    assert sem.json()["implantacao_ticket_id"] is None
+
+    aditivo = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": linha["id"]})
+    assert aditivo.status_code == 201, aditivo.text
+    aid = aditivo.json()["id"]
+    assert aid != cid
+    _anexar_pdf_assinado(client, h, aid, referencia="prot-aditivo")
+    com = client.post(
+        f"/v1/comercial/contratos/{aid}/marcar-assinado",
+        headers=h,
+        json={"abrir_ticket_implantacao": True},
+    )
+    assert com.status_code == 200, com.text
+    assert com.json()["implantacao_ticket_id"]
+    assert com.json()["implantacao_ticket_id"] != sem.json()["implantacao_ticket_id"]
+    antigo = client.get(f"/v1/comercial/contratos/{cid}", headers=h).json()
+    assert antigo["status"] == "assinado"
+    assert antigo["implantacao_ticket_id"] is None
 
 
 def test_checklist_rbac_e_fechar_bloqueado(client, auth_headers, seed_base, db_session):

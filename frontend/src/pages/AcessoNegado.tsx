@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom'
 
 export function AcessoNegado({
-  title = 'Área exclusiva para administradores',
-  detail = 'Você está autenticado, mas esta página só pode ser acessada por usuários com perfil de administrador. Se precisar de acesso, solicite ao gestor da equipe.',
+  title = 'Sem permissão para esta página',
+  detail = 'Sua conta não tem a permissão desta página. Peça ao gestor da equipe para incluir a permissão no seu grupo.',
 }: {
   title?: string
   detail?: string
@@ -20,10 +20,10 @@ export function AcessoNegado({
           Ir para o início
         </Link>
         <Link
-          to="/tickets"
+          to="/minha-conta"
           className="inline-flex rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
         >
-          Ver tickets
+          Minha conta
         </Link>
       </div>
     </div>

@@ -9,7 +9,7 @@ from app.models import TipoNegocio
 from app.models.atendente import Atendente
 from app.schemas.tipo_negocio import TipoNegocioCreate, TipoNegocioUpdate, TipoNegocioRead
 from app.schemas.lista_paginada import ListaPaginada
-from app.core.auth import obter_atendente_atual, exigir_admin
+from app.core.auth import obter_atendente_atual, exigir_permissao
 from app.core.audit import registrar_audit
 
 router = APIRouter(prefix="/tipos-negocio", tags=["tipos-negocio"])
@@ -55,7 +55,7 @@ def listar(
 def criar(
     data: TipoNegocioCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("tipos_negocio.criar")),
 ):
     t = TipoNegocio(**data.model_dump())
     db.add(t)
@@ -70,7 +70,7 @@ def criar(
 def obter(
     tipo_id: int,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("tipos_negocio.ver")),
 ):
     t = db.query(TipoNegocio).filter(TipoNegocio.id == tipo_id).first()
     if not t:
@@ -83,7 +83,7 @@ def atualizar(
     tipo_id: int,
     data: TipoNegocioUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("tipos_negocio.editar")),
 ):
     t = db.query(TipoNegocio).filter(TipoNegocio.id == tipo_id).first()
     if not t:
@@ -100,7 +100,7 @@ def atualizar(
 def excluir(
     tipo_id: int,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("tipos_negocio.excluir")),
 ):
     t = db.query(TipoNegocio).filter(TipoNegocio.id == tipo_id).first()
     if not t:

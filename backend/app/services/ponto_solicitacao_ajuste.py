@@ -17,6 +17,7 @@ from app.models.ponto_batida import PontoBatida
 from app.models.ponto_solicitacao_ajuste import PontoSolicitacaoAjuste
 from app.schemas.ponto import PontoSolicitacaoAjusteRead
 from app.services import ponto as ponto_svc
+from app.services.permissao_grupos import tem_permissao
 from app.services import ponto_ausencia as ausencia_svc
 from app.services import ponto_settings as ponto_settings_svc
 from app.services.escala import PONTO_TZ
@@ -58,11 +59,11 @@ def _to_read(row: PontoSolicitacaoAjuste) -> PontoSolicitacaoAjusteRead:
 
 
 def _exigir_pode_decidir(aprovador: Atendente) -> None:
-    """Hook de escopo: hoje só admin; depois supervisor por setor entra aqui."""
-    if aprovador.role != "admin":
+    """Hook de escopo: ponto da equipe; supervisor por setor entra na #1137."""
+    if not tem_permissao(aprovador, "ponto.equipe"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Apenas administradores podem decidir solicitações de ponto.",
+            detail="Sem permissão para decidir solicitações de ponto.",
         )
 
 
@@ -407,7 +408,7 @@ def obter_anexo(
     )
     if not row:
         raise HTTPException(status_code=404, detail="Solicitação não encontrada")
-    if viewer.role != "admin" and row.atendente_id != viewer.id:
+    if not tem_permissao(viewer, "ponto.equipe") and row.atendente_id != viewer.id:
         raise HTTPException(status_code=403, detail="Sem permissão para este anexo")
     if not row.anexo_storage_key:
         raise HTTPException(status_code=404, detail="Esta solicitação não tem anexo")

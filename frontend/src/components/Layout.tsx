@@ -174,6 +174,7 @@ function LayoutInner() {
         isFinanceiroOuAdmin={isFinanceiroOuAdmin ?? false}
         userNome={user?.nome ?? ''}
         userRole={perfilExibicao(user?.role)}
+        usuario={{ role: user?.role, permissoes: user?.permissoes }}
         onLogout={logout}
       />
 

@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
+from app.models.permissao_grupo import atendente_permissao_grupo
 
 # Tabela associativa: atendente <-> setor (N:N)
 atendente_setor = Table(
@@ -58,6 +59,11 @@ class Atendente(Base):
     setores = relationship(
         "Setor",
         secondary=atendente_setor,
+        back_populates="atendentes",
+    )
+    grupos_permissao = relationship(
+        "PermissaoGrupo",
+        secondary=atendente_permissao_grupo,
         back_populates="atendentes",
     )
     saas_setores = relationship(

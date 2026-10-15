@@ -9,11 +9,13 @@ import { ListaAcoesVerEditar } from '../components/ui/ListaAcoesVerEditar'
 import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 
-type ColunaAtendente = 'nome' | 'email' | 'role'
+type ColunaAtendente = 'nome' | 'email'
 
 const roleLabel: Record<string, string> = {
   admin: 'Administrador',
@@ -24,6 +26,9 @@ const roleLabel: Record<string, string> = {
 
 export function Atendentes({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const podeCriar = temPermissao(user, 'atendentes.criar')
+  const podeEditar = temPermissao(user, 'atendentes.editar')
   const toast = useToast()
   const { ordenarPor, ordem, aoOrdenarColuna, sortParams } = useOrdenacaoLista<ColunaAtendente>()
   const [list, setList] = useState<Atendentes.Atendente[]>([])
@@ -90,7 +95,7 @@ export function Atendentes({ embedded = false }: { embedded?: boolean }) {
       forbidden={forbidden}
       denied={denied}
       title="Atendentes"
-      actions={<Button onClick={() => navigate('/atendentes/novo')}>Novo atendente</Button>}
+      actions={podeCriar ? <Button onClick={() => navigate('/atendentes/novo')}>Novo atendente</Button> : undefined}
     >
       <Card>
         <BarraBuscaPaginacao
@@ -114,7 +119,9 @@ export function Atendentes({ embedded = false }: { embedded?: boolean }) {
                 <tr className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
                   <CabecalhoOrdenavel coluna="nome" rotulo="Nome" ordenarPor={ordenarPor} ordem={ordem} aoOrdenar={aoOrdenarColuna} />
                   <CabecalhoOrdenavel coluna="email" rotulo="E-mail" ordenarPor={ordenarPor} ordem={ordem} aoOrdenar={aoOrdenarColuna} />
-                  <CabecalhoOrdenavel coluna="role" rotulo="Perfil" ordenarPor={ordenarPor} ordem={ordem} aoOrdenar={aoOrdenarColuna} />
+                  <th className="px-4 py-3 text-xs font-semibold uppercase text-slate-500 sm:px-6 dark:text-slate-400">
+                    Grupos
+                  </th>
                   <th className="w-px px-4 py-3 text-right text-xs font-semibold uppercase text-slate-500 sm:px-6 dark:text-slate-400">
                     <span className="sr-only">Ações</span>
                   </th>
@@ -147,12 +154,14 @@ export function Atendentes({ embedded = false }: { embedded?: boolean }) {
                       {a.email}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3.5 text-slate-600 sm:px-6 dark:text-slate-400">
-                      {roleLabel[a.role] ?? a.role}
+                      {a.grupo_nomes && a.grupo_nomes.length > 0
+                        ? a.grupo_nomes.join(', ')
+                        : (roleLabel[a.role] ?? a.role)}
                     </td>
                     <td className="px-4 py-3.5 text-right sm:px-6" onClick={(ev) => ev.stopPropagation()}>
                       <ListaAcoesVerEditar
                         onVer={() => navigate(`/atendentes/${a.id}`)}
-                        onEditar={() => navigate(`/atendentes/${a.id}/editar`)}
+                        onEditar={podeEditar ? () => navigate(`/atendentes/${a.id}/editar`) : undefined}
                         verLabel="Visualizar atendente"
                         editarLabel="Editar atendente"
                       />

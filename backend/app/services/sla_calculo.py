@@ -18,6 +18,7 @@ from app.core.business_calendar import (
 from app.models.sla_policy import SlaPolicy
 from app.models.status_ticket import StatusTicket
 from app.models.ticket import Ticket, TicketHistorico, TicketMensagem
+from app.services.permissao_grupos import tem_permissao
 from app.services.sla_policy import carregar_calendario_policy
 
 logger = logging.getLogger(__name__)
@@ -457,7 +458,7 @@ def contar_tickets_sla_em_risco(db: Session, atendente) -> int:
         Ticket.sla_policy_id.isnot(None),
         Ticket.sla_violado.is_(False),
     )
-    if atendente.role != "admin":
+    if not tem_permissao(atendente, "atendimento.ver_todos"):
         vis = ids_setores_visiveis_atendente(db, atendente)
         q = q.filter(Ticket.setor_id.in_(vis))
     return len(selecionar_tickets_sla_em_risco(db, q.all()))

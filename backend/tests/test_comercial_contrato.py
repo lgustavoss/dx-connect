@@ -58,6 +58,16 @@ DADOS_FISCAIS_OK = {
 }
 
 
+def _cadastrar_empresa_linha(client, h, linha_id: int, fiscais: dict | None = None):
+    r = client.put(
+        f"/v1/comercial/contratos/linhas/{linha_id}/empresa",
+        headers=h,
+        json=fiscais or DADOS_FISCAIS_OK,
+    )
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
 def _negociacao_com_linha(client, h, *, item_id: int | None = None, cnpj: str = "12.345.678/0001-95"):
     lead = client.post("/v1/crm/leads", headers=h, json={"nome": "Posto Contrato"}).json()
     neg_id = lead["negociacao_ativa_id"]
@@ -76,7 +86,10 @@ def _negociacao_com_linha(client, h, *, item_id: int | None = None, cnpj: str = 
     }
     ln = client.post(f"/v1/crm/negociacoes/{neg_id}/linhas", headers=h, json=payload)
     assert ln.status_code == 201, ln.text
-    return neg_id, ln.json()
+    linha = ln.json()
+    emp = _cadastrar_empresa_linha(client, h, linha["id"])
+    linha["empresa_id"] = emp["id"]
+    return neg_id, linha
 
 
 def _anexar_pdf_assinado(client, h, contrato_id: int, *, referencia: str | None = "prot-1"):
@@ -352,7 +365,10 @@ def test_assinado_nao_edita_snapshot(client, auth_headers, seed_base):
     assert env.status_code == 200
     assert env.json()["status"] == "enviado"
     regen = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": linha["id"]})
-    assert regen.status_code == 400
+    assert regen.status_code == 201, regen.text
+    assert regen.json()["id"] == cid
+    assert regen.json()["status"] == "rascunho"
+    assert regen.json()["enviado_em"] is None
 
     sem_pdf = client.post(
         f"/v1/comercial/contratos/{cid}/marcar-assinado",
@@ -371,8 +387,30 @@ def test_assinado_nao_edita_snapshot(client, auth_headers, seed_base):
     assert ass.json()["assinado_em"]
     assert ass.json()["empresa_id"]
     assert ass.json()["tem_pdf_assinado"] is True
-    regen2 = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": linha["id"]})
-    assert regen2.status_code == 400
+    html_assinado = client.get(
+        f"/v1/comercial/contratos/{cid}",
+        headers=h,
+        params={"incluir_html": "true"},
+    ).json()["conteudo_html_snapshot"]
+    patch_ln = client.patch(
+        f"/v1/crm/negociacoes/{c.json()['negociacao_id']}/linhas/{linha['id']}",
+        headers=h,
+        json={"valor_negociado": "250"},
+    )
+    assert patch_ln.status_code == 200, patch_ln.text
+    aditivo = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": linha["id"]})
+    assert aditivo.status_code == 201, aditivo.text
+    assert aditivo.json()["id"] != cid
+    assert aditivo.json()["status"] == "rascunho"
+    assert "250,00" in aditivo.json()["conteudo_html_snapshot"]
+    congelado = client.get(
+        f"/v1/comercial/contratos/{cid}",
+        headers=h,
+        params={"incluir_html": "true"},
+    ).json()
+    assert congelado["status"] == "assinado"
+    assert congelado["conteudo_html_snapshot"] == html_assinado
+    assert "250,00" not in congelado["conteudo_html_snapshot"]
 
     neg_id = c.json()["negociacao_id"]
     neg = client.get(f"/v1/crm/negociacoes/{neg_id}", headers=h)
@@ -409,6 +447,8 @@ def test_segunda_linha_pode_ter_contrato_proprio(client, auth_headers, seed_base
         },
     )
     assert l1.status_code == 201 and l2.status_code == 201
+    _cadastrar_empresa_linha(client, h, l1.json()["id"])
+    _cadastrar_empresa_linha(client, h, l2.json()["id"])
     c1 = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": l1.json()["id"]})
     c2 = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": l2.json()["id"]})
     assert c1.status_code == 201 and c2.status_code == 201
@@ -579,6 +619,7 @@ def test_versao_do_modelo_fica_gravada_no_contrato(client, auth_headers, seed_ba
 
 def test_gerar_exige_fiscal_e_base_webposto(client, auth_headers, seed_base):
     h = auth_headers["comercial"]
+    h_admin = auth_headers["admin"]
     lead = client.post("/v1/crm/leads", headers=h, json={"nome": "Sem Fiscal"}).json()
     neg_id = lead["negociacao_ativa_id"]
     ln = client.post(
@@ -592,11 +633,25 @@ def test_gerar_exige_fiscal_e_base_webposto(client, auth_headers, seed_base):
     client.patch(f"/v1/crm/negociacoes/{neg_id}", headers=h, json={"nome_base_webposto": "base_x"})
     r2 = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": ln.json()["id"]})
     assert r2.status_code == 400
-    client.patch(
+    antes = _total_empresas(client, h_admin)
+    incompleto = client.put(
+        f"/v1/comercial/contratos/linhas/{ln.json()['id']}/empresa",
+        headers=h,
+        json={"endereco": "Rua Sem Numero"},
+    )
+    assert incompleto.status_code == 400
+    assert "empresa" in incompleto.json()["detail"].lower()
+    assert _total_empresas(client, h_admin) == antes
+    ainda = client.patch(
         f"/v1/crm/negociacoes/{neg_id}/linhas/{ln.json()['id']}",
         headers=h,
         json={"dados_fiscais": DADOS_FISCAIS_OK},
     )
+    assert ainda.status_code == 200
+    sem_empresa = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": ln.json()["id"]})
+    assert sem_empresa.status_code == 400
+    assert "empresa" in sem_empresa.json()["detail"].lower()
+    _cadastrar_empresa_linha(client, h, ln.json()["id"])
     ok = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": ln.json()["id"]})
     assert ok.status_code == 201, ok.text
     html = ok.json()["conteudo_html_snapshot"] or ""
@@ -659,6 +714,8 @@ def test_conversao_idempotente_mesma_rede_dois_cnpjs(client, auth_headers, seed_
             "dados_fiscais": DADOS_FISCAIS_OK,
         },
     ).json()
+    _cadastrar_empresa_linha(client, h, l1["id"])
+    _cadastrar_empresa_linha(client, h, l2["id"])
     c1 = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": l1["id"]}).json()
     c2 = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": l2["id"]}).json()
     _anexar_pdf_assinado(client, h, c1["id"])
@@ -707,6 +764,7 @@ def test_conversao_cnpj_existente_vincula_rede_da_empresa(
             "dados_fiscais": DADOS_FISCAIS_OK,
         },
     ).json()
+    _cadastrar_empresa_linha(client, h, ln["id"])
     cid = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": ln["id"]}).json()["id"]
     _anexar_pdf_assinado(client, h, cid)
     ass = client.post(f"/v1/comercial/contratos/{cid}/marcar-assinado", headers=h, json={})
@@ -744,6 +802,12 @@ def test_conversao_copia_contato_e_cria_colaborador(client, auth_headers, seed_b
             },
         },
     ).json()
+    _cadastrar_empresa_linha(
+        client,
+        h,
+        ln["id"],
+        {**DADOS_FISCAIS_OK, "email": "empresa@email.com", "telefone": "3432221111"},
+    )
     cid = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": ln["id"]}).json()["id"]
     _anexar_pdf_assinado(client, h, cid)
     ass = client.post(f"/v1/comercial/contratos/{cid}/marcar-assinado", headers=h, json={}).json()
@@ -781,6 +845,7 @@ def test_conversao_usa_contato_do_lead_se_linha_nao_tem(client, auth_headers, se
             "dados_fiscais": DADOS_FISCAIS_OK,
         },
     ).json()
+    _cadastrar_empresa_linha(client, h, ln["id"])
     cid = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": ln["id"]}).json()["id"]
     _anexar_pdf_assinado(client, h, cid)
     ass = client.post(f"/v1/comercial/contratos/{cid}/marcar-assinado", headers=h, json={}).json()
@@ -800,7 +865,14 @@ def test_bloqueia_edicao_apos_contrato_assinado(client, auth_headers, seed_base)
         headers=h,
         json={"valor_negociado": "1"},
     )
-    assert patch_ln.status_code == 400
+    assert patch_ln.status_code == 200, patch_ln.text
+    patch_cnpj = client.patch(
+        f"/v1/crm/negociacoes/{neg_id}/linhas/{linha['id']}",
+        headers=h,
+        json={"cnpj": "11.222.333/0001-81"},
+    )
+    assert patch_cnpj.status_code == 400
+    assert "cnpj" in patch_cnpj.json()["detail"].lower()
     patch_neg = client.patch(
         f"/v1/crm/negociacoes/{neg_id}",
         headers=h,
@@ -809,4 +881,53 @@ def test_bloqueia_edicao_apos_contrato_assinado(client, auth_headers, seed_base)
     assert patch_neg.status_code == 400
     deleted = client.delete(f"/v1/crm/negociacoes/{neg_id}/linhas/{linha['id']}", headers=h)
     assert deleted.status_code == 400
+
+
+def _total_empresas(client, h) -> int:
+    r = client.get("/v1/empresas", headers=h, params={"page_size": 1})
+    assert r.status_code == 200, r.text
+    return r.json()["total"]
+
+
+def test_atendente_nao_cadastra_empresa_pelo_contrato(client, auth_headers, seed_base):
+    r = client.put(
+        "/v1/comercial/contratos/linhas/1/empresa",
+        headers=auth_headers["a1"],
+        json=DADOS_FISCAIS_OK,
+    )
+    assert r.status_code == 403
+
+
+def test_empresa_da_linha_serve_ao_contrato_e_pdf_fica_congelado(client, auth_headers, seed_base):
+    h = auth_headers["comercial"]
+    h_admin = auth_headers["admin"]
+    antes = _total_empresas(client, h_admin)
+    _, linha = _negociacao_com_linha(client, h)
+    assert linha["empresa_id"]
+    assert _total_empresas(client, h_admin) == antes + 1
+    ficha = client.get(f"/v1/empresas/{linha['empresa_id']}", headers=h_admin).json()
+    assert ficha["endereco"] == "Rua das Palmeiras"
+    assert ficha["resp_legal_nome"] == "Maria Silva"
+
+    gerado = client.post("/v1/comercial/contratos", headers=h, json={"linha_id": linha["id"]})
+    assert gerado.status_code == 201, gerado.text
+    assert "Rua das Palmeiras" in (gerado.json()["conteudo_html_snapshot"] or "")
+
+    edit = client.patch(
+        f"/v1/empresas/{linha['empresa_id']}",
+        headers=h_admin,
+        json={"endereco": "Rua Nova Depois"},
+    )
+    assert edit.status_code == 200, edit.text
+    congelado = client.get(f"/v1/comercial/contratos/{gerado.json()['id']}", headers=h).json()
+    html = congelado["conteudo_html_snapshot"] or ""
+    assert "Rua das Palmeiras" in html
+    assert "Rua Nova Depois" not in html
+
+    _anexar_pdf_assinado(client, h, gerado.json()["id"])
+    antes_ass = _total_empresas(client, h_admin)
+    ass = client.post(f"/v1/comercial/contratos/{gerado.json()['id']}/marcar-assinado", headers=h, json={})
+    assert ass.status_code == 200, ass.text
+    assert ass.json()["empresa_id"] == linha["empresa_id"]
+    assert _total_empresas(client, h_admin) == antes_ass
 

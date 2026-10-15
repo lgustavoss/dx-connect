@@ -4,6 +4,8 @@ import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { Button } from '../../components/ui/Button'
 import { CheckboxField } from '../../components/ui/CheckboxField'
 import { useToast } from '../../components/ui/Toast'
+import { useAuth } from '../../contexts/AuthContext'
+import { temPermissao } from '../../lib/permissoes'
 import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import {
   analisarDemandaPosRegistro,
@@ -54,6 +56,8 @@ export function WhatsappEncerrarModal({
   onDemandasChange,
 }: Props) {
   const toast = useToast()
+  const { user } = useAuth()
+  const podeSemDemanda = temPermissao(user, 'chat.encerrar_sem_demanda')
   const [demandas, setDemandas] = useState<WhatsappChats.Demanda[]>([])
   const [loadingDemandas, setLoadingDemandas] = useState(false)
   const [salvando, setSalvando] = useState(false)
@@ -72,6 +76,10 @@ export function WhatsappEncerrarModal({
   )
 
   const semDemandas = demandas.length === 0
+
+  useEffect(() => {
+    if (!podeSemDemanda && acao === 'sem_demanda') setAcao('registrar')
+  }, [podeSemDemanda, acao])
   const demandasResolvidas = demandas.filter((d) => d.desfecho === 'resolvido_sessao')
   // Pós-inatividade também pede registro (como Encerrar manual); só permite skip com confirmação.
   const demandaOpcional = false
@@ -270,15 +278,17 @@ export function WhatsappEncerrarModal({
                 />
                 {chatJaEncerrado ? 'Registrar demanda e concluir' : 'Registrar demanda e encerrar'}
               </label>
-              <label className="flex cursor-pointer items-center gap-2 text-sm">
-                <input
-                  type="radio"
-                  name="acao-encerrar"
-                  checked={acao === 'sem_demanda'}
-                  onChange={() => selecionarAcao('sem_demanda')}
-                />
-                {chatJaEncerrado ? 'Concluir sem registrar demanda' : 'Encerrar sem registrar demanda'}
-              </label>
+              {podeSemDemanda ? (
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="acao-encerrar"
+                    checked={acao === 'sem_demanda'}
+                    onChange={() => selecionarAcao('sem_demanda')}
+                  />
+                  {chatJaEncerrado ? 'Concluir sem registrar demanda' : 'Encerrar sem registrar demanda'}
+                </label>
+              ) : null}
               {acao === 'sem_demanda' && (
                 <CheckboxField
                   checked={confirmarSemDemanda}

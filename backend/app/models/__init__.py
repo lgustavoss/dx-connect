@@ -2,6 +2,7 @@ from app.models.rede import Rede
 from app.models.empresa import Empresa
 from app.models.tipo_negocio import TipoNegocio
 from app.models.atendente import Atendente, AtendenteSetor
+from app.models.permissao_grupo import PermissaoGrupo, PermissaoGrupoItem
 from app.models.ponto_batida import PontoBatida
 from app.models.ponto_justificativa import PontoJustificativa
 from app.models.ponto_hora_extra import PontoHoraExtra
@@ -30,6 +31,7 @@ from app.models.whatsapp_chat import (
     WhatsappSettings,
 )
 from app.models.whatsapp_chat_demanda import WhatsappChatDemanda
+from app.models.whatsapp_figurinha_favorita import WhatsappFigurinhaFavorita
 from app.models.whatsapp_demanda_motivo_sugestao import WhatsappDemandaMotivoSugestao
 from app.models.comercial_custo import CustoCatalogoItem, SalarioMinimoReferencia
 from app.models.empresa_sistema import EmpresaSistema
@@ -105,6 +107,8 @@ __all__ = [
     "SetorDistribuicaoRoundRobin",
     "Atendente",
     "AtendenteSetor",
+    "PermissaoGrupo",
+    "PermissaoGrupoItem",
     "SaasSetor",
     "PontoBatida",
     "PontoJustificativa",
@@ -136,6 +140,7 @@ __all__ = [
     "WhatsappMensagemReacao",
     "WhatsappChatTicket",
     "WhatsappChatDemanda",
+    "WhatsappFigurinhaFavorita",
     "WhatsappDemandaMotivoSugestao",
     "SalarioMinimoReferencia",
     "CustoCatalogoItem",

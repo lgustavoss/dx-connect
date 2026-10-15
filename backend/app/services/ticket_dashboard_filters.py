@@ -7,6 +7,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.core.setor_scope import ids_setores_visiveis_atendente
+from app.services.permissao_grupos import tem_permissao
 from app.core.ticket_prioridade import PrioridadeTicket
 from app.models import Ticket
 from app.models.atendente import Atendente
@@ -100,13 +101,13 @@ def apply_ticket_dashboard_filters(
     prioridade: str | None = None,
     atendente_id: int | None = None,
 ):
-    if atendente.role != "admin":
+    if not tem_permissao(atendente, "atendimento.ver_todos"):
         vis = ids_setores_visiveis_atendente(db, atendente)
         stmt = stmt.where(Ticket.setor_id.in_(vis))
     if rede_id is not None:
         stmt = stmt.where(Ticket.rede_id == rede_id)
     if setor_id is not None:
-        if atendente.role != "admin":
+        if not tem_permissao(atendente, "atendimento.ver_todos"):
             vis = ids_setores_visiveis_atendente(db, atendente)
             if setor_id not in vis:
                 return stmt.where(Ticket.id == -1)

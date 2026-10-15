@@ -502,6 +502,25 @@ export const atendentes = {
   delete: (id: number) => api<void>(`/atendentes/${id}`, { method: 'DELETE' }),
 };
 
+export const permissaoGrupos = {
+  list: () => api<PermissaoGrupos.Grupo[]>('/permissao-grupos'),
+  catalogo: () => api<PermissaoGrupos.CatalogoItem[]>('/permissao-grupos/catalogo'),
+  create: (data: PermissaoGrupos.Create) =>
+    api<PermissaoGrupos.Grupo>('/permissao-grupos', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: number, data: PermissaoGrupos.Update) =>
+    api<PermissaoGrupos.Grupo>(`/permissao-grupos/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id: number) => api<void>(`/permissao-grupos/${id}`, { method: 'DELETE' }),
+  membros: (id: number) => api<PermissaoGrupos.Membro[]>(`/permissao-grupos/${id}/membros`),
+  candidatos: (id: number) => api<PermissaoGrupos.Membro[]>(`/permissao-grupos/${id}/candidatos`),
+  vincular: (id: number, atendenteId: number) =>
+    api<PermissaoGrupos.Membro>(`/permissao-grupos/${id}/membros`, {
+      method: 'POST',
+      body: JSON.stringify({ atendente_id: atendenteId }),
+    }),
+  desvincular: (id: number, atendenteId: number) =>
+    api<void>(`/permissao-grupos/${id}/membros/${atendenteId}`, { method: 'DELETE' }),
+};
+
 export const funcionariosRede = {
   list: (params?: {
     rede_id?: number;
@@ -564,6 +583,8 @@ export const kb = {
   updateCategory: (id: number, data: Kb.CategoryUpdate) =>
     api<Kb.Category>(`/kb/categories/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteCategory: (id: number) => api<void>(`/kb/categories/${id}`, { method: 'DELETE' }),
+  excluirCategorias: (ids: number[]) =>
+    api<Kb.ExclusaoLote>('/kb/categories/excluir-lote', { method: 'POST', body: JSON.stringify({ ids }) }),
   reorderCategories: (items: { id: number; ordem: number }[]) =>
     api<Kb.Category[]>('/kb/categories/reorder', {
       method: 'PUT',
@@ -588,6 +609,8 @@ export const kb = {
     api<Kb.Article>(`/kb/articles/${id}/publish`, { method: 'POST' }),
   archiveArticle: (id: number) =>
     api<Kb.Article>(`/kb/articles/${id}/archive`, { method: 'POST' }),
+  excluirArtigos: (ids: number[]) =>
+    api<Kb.ExclusaoLote>('/kb/articles/excluir-lote', { method: 'POST', body: JSON.stringify({ ids }) }),
   consulta: (params?: { busca?: string; category_id?: number; limit?: number }) =>
     api<Kb.ArticleBrief[]>(withParams('/kb/articles/consulta', params)),
   getPublicado: (id: number) => api<Kb.Article>(`/kb/articles/publicados/${id}`),
@@ -1329,6 +1352,43 @@ export async function fetchWhatsAppMidiaBlob(chatId: number, mensagemId: number)
     throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
   }
   return res.blob()
+}
+
+export namespace WhatsappFigurinhas {
+  export interface Figurinha {
+    id: number
+    mimetype: string
+    created_at: string
+  }
+}
+
+/** Galeria pessoal de figurinhas: cada atendente só vê e altera as próprias. */
+export const whatsappFigurinhas = {
+  listar: () => api<WhatsappFigurinhas.Figurinha[]>('/whatsapp/figurinhas'),
+  salvarDeMensagem: (chatId: number, mensagemId: number) =>
+    api<WhatsappFigurinhas.Figurinha>('/whatsapp/figurinhas/de-mensagem', {
+      method: 'POST',
+      body: JSON.stringify({ chat_id: chatId, mensagem_id: mensagemId }),
+    }),
+  remover: (id: number) => api<void>(`/whatsapp/figurinhas/${id}`, { method: 'DELETE' }),
+  arquivoBlob: async (id: number): Promise<Blob> => {
+    const token = getAuthToken()
+    const headers: Record<string, string> = {}
+    if (token) headers.Authorization = `Bearer ${token}`
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname())
+    }
+    const res = await fetch(`${apiOrigin()}${API_VERSION_PREFIX}/whatsapp/figurinhas/${id}/arquivo`, { headers })
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin()
+      throw new ApiError('Sessão expirada ou inválida.', 401, {})
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody)
+    }
+    return res.blob()
+  },
 }
 
 export async function fetchPortalMidiaBlob(chatId: number, mensagemId: number): Promise<Blob> {
@@ -2588,6 +2648,38 @@ export namespace Setores {
   }
 }
 
+export namespace PermissaoGrupos {
+  export interface CatalogoItem {
+    modulo: string
+    codigo: string
+    nome: string
+    descricao: string
+    pacote?: string | null
+  }
+  export interface Grupo {
+    id: number
+    nome: string
+    slug: string
+    sistema: boolean
+    permissoes: string[]
+    membros: number
+  }
+  export interface Create {
+    nome: string
+    permissoes: string[]
+  }
+  export interface Update {
+    nome?: string
+    permissoes?: string[]
+  }
+  export interface Membro {
+    id: number
+    nome: string
+    email: string
+    ativo: boolean
+  }
+}
+
 export namespace Atendentes {
   export type ModoJornada = 'nenhum' | 'semanal' | 'ciclo'
   export interface Atendente {
@@ -2615,12 +2707,16 @@ export namespace Atendentes {
     /** Cargos da equipe DeskRudder (painel SaaS); vários por usuário. */
     saas_setor_ids?: number[];
     saas_setor_nomes?: string[];
+    grupo_ids?: number[];
+    grupo_nomes?: string[];
+    permissoes?: string[];
   }
   export interface Create {
     email: string;
     nome: string;
     senha: string;
     role?: string;
+    grupo_ids?: number[];
     ativo?: boolean;
     setor_ids?: number[];
     must_change_password?: boolean;
@@ -2643,6 +2739,7 @@ export namespace Atendentes {
     nome?: string;
     senha?: string;
     role?: string;
+    grupo_ids?: number[];
     ativo?: boolean;
     setor_ids?: number[];
     must_change_password?: boolean;
@@ -3601,6 +3698,7 @@ export namespace ComercialContrato {
   export interface MarcarAssinadoRequest {
     assinado_em?: string | null;
     avancar_funil?: boolean;
+    abrir_ticket_implantacao?: boolean;
     referencia_externa?: string | null;
   }
   export interface Politica {
@@ -3740,6 +3838,13 @@ export const comercialContratos = {
   gerar: (data: ComercialContrato.GerarRequest) =>
     api<ComercialContrato.Contrato>('/comercial/contratos', {
       method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  obterEmpresaDaLinha: (linhaId: number) =>
+    api<Empresas.Empresa>(`/comercial/contratos/linhas/${linhaId}/empresa`),
+  salvarEmpresaDaLinha: (linhaId: number, data: Crm.DadosFiscais) =>
+    api<Empresas.Empresa>(`/comercial/contratos/linhas/${linhaId}/empresa`, {
+      method: 'PUT',
       body: JSON.stringify(data),
     }),
   marcarEnviado: (id: number, data: ComercialContrato.MarcarEnviadoRequest = {}) =>
@@ -4127,7 +4232,7 @@ export const pdvTiposAcessoRemoto = {
 
 export const empresaPdvs = {
   list: (empresaId: number, params?: { incluir_inativos?: boolean }) =>
-    listPaginated<EmpresaPdv.Item>(`/empresas/${empresaId}/pdvs`, params),
+    api<EmpresaPdv.Lista>(withParams(`/empresas/${empresaId}/pdvs`, params)),
   create: (empresaId: number, data: EmpresaPdv.Create) =>
     api<EmpresaPdv.Item>(`/empresas/${empresaId}/pdvs`, { method: 'POST', body: JSON.stringify(data) }),
   update: (empresaId: number, pdvId: number, data: EmpresaPdv.Update) =>
@@ -4158,6 +4263,11 @@ export namespace PdvCatalogo {
 }
 
 export namespace EmpresaPdv {
+  export interface Lista {
+    items: Item[]
+    total: number
+    empresa_nome: string
+  }
   export interface Item {
     id: number;
     empresa_id: number;
@@ -4662,6 +4772,14 @@ export namespace Tickets {
 }
 
 export namespace Kb {
+  export interface ExclusaoIgnorada {
+    id: number;
+    motivo: string;
+  }
+  export interface ExclusaoLote {
+    excluidos: number[];
+    ignorados: ExclusaoIgnorada[];
+  }
   export interface Category {
     id: number;
     nome: string;

@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.core.auth import exigir_admin, exigir_comercial_ou_admin
+from app.core.auth import exigir_permissao
 from app.core.audit import registrar_audit
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
 from app.database import get_db
@@ -56,7 +56,7 @@ def listar_salario_minimo(
     ordenar_por: OrdenarSm | None = Query(OrdenarSm.vigencia_inicio),
     ordem: OrdemLista = Query(OrdemLista.desc),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("custos.editar")),
 ):
     q = db.query(SalarioMinimoReferencia)
     total = q.count()
@@ -77,7 +77,7 @@ def listar_salario_minimo(
 def salario_minimo_na_data(
     data: date = Query(..., description="Data de referência"),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("custos.ver")),
 ):
     return svc.obter_sm_na_data(db, data)
 
@@ -86,7 +86,7 @@ def salario_minimo_na_data(
 def criar_salario_minimo(
     data: SalarioMinimoCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("custos.editar")),
 ):
     row = svc.criar_sm(db, data)
     registrar_audit(db, "salario_minimo", row.id, "create", atendente.id)
@@ -99,7 +99,7 @@ def criar_salario_minimo(
 def atualizar_valor_salario_minimo(
     data: SalarioMinimoAtualizarValor,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("custos.editar")),
 ):
     """Novo valor a partir de uma data: fecha o vigente e mantém o histórico intacto."""
     row = svc.atualizar_valor_sm(db, data)
@@ -114,7 +114,7 @@ def atualizar_salario_minimo(
     sm_id: int,
     data: SalarioMinimoUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("custos.editar")),
 ):
     row = db.query(SalarioMinimoReferencia).filter(SalarioMinimoReferencia.id == sm_id).first()
     if not row:
@@ -130,7 +130,7 @@ def atualizar_salario_minimo(
 def excluir_salario_minimo(
     sm_id: int,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("custos.editar")),
 ):
     row = db.query(SalarioMinimoReferencia).filter(SalarioMinimoReferencia.id == sm_id).first()
     if not row:
@@ -151,7 +151,7 @@ def listar_itens_custo(
     ordenar_por: OrdenarItem | None = Query(OrdenarItem.ordem),
     ordem: OrdemLista = Query(OrdemLista.asc),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_comercial_ou_admin),
+    _: Atendente = Depends(exigir_permissao("custos.ver")),
 ):
     """Lista itens do catálogo — leitura para montar pacote na negociação (#343). Mutações continuam admin."""
     q = db.query(CustoCatalogoItem)
@@ -181,7 +181,7 @@ def listar_itens_custo(
 def criar_item_custo(
     data: CustoCatalogoItemCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("custos.editar")),
 ):
     row = svc.criar_item(db, data)
     registrar_audit(db, "custo_catalogo_item", row.id, "create", atendente.id)
@@ -195,7 +195,7 @@ def atualizar_item_custo(
     item_id: int,
     data: CustoCatalogoItemUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("custos.editar")),
 ):
     row = db.query(CustoCatalogoItem).filter(CustoCatalogoItem.id == item_id).first()
     if not row:
@@ -211,7 +211,7 @@ def atualizar_item_custo(
 def excluir_item_custo(
     item_id: int,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("custos.editar")),
 ):
     row = db.query(CustoCatalogoItem).filter(CustoCatalogoItem.id == item_id).first()
     if not row:
@@ -226,7 +226,7 @@ def excluir_item_custo(
 def simular_custo(
     body: CustoSimularRequest,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_comercial_ou_admin),
+    _: Atendente = Depends(exigir_permissao("custos.simular")),
 ):
     """Simula pacote de custos; devolve também snapshot imutável (#331/#332/#335). Comercial + admin (#336)."""
     return svc.simular_custo(

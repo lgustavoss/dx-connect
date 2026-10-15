@@ -23,6 +23,7 @@ import {
   type Setores,
 } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
@@ -86,6 +87,9 @@ function DashboardTicketsSkeleton() {
 export function DashboardTickets() {
   const toast = useToast()
   const { user } = useAuth()
+  const verTodos = temPermissao(user, 'atendimento.ver_todos')
+  const podeCriarTicket = temPermissao(user, 'tickets.criar')
+  const podeRelatorio = temPermissao(user, 'relatorios.ver')
   const { preset, de, ate, aplicarPreset, marcarCustom, onDeChange, onAteChange } =
     useDashboardPeriodo('este_mes')
   const [redeId, setRedeId] = useState<number | ''>('')
@@ -265,10 +269,12 @@ export function DashboardTickets() {
       <DashboardNav
         actions={
           <>
-            <Link to="/tickets/novo">
-              <Button>Novo ticket</Button>
-            </Link>
-            {user?.role === 'admin' ? (
+            {podeCriarTicket ? (
+              <Link to="/tickets/novo">
+                <Button>Novo ticket</Button>
+              </Link>
+            ) : null}
+            {podeRelatorio ? (
               <Link to={relatorioHref}>
                 <Button variant="secondary">Exportar planilha</Button>
               </Link>
@@ -663,7 +669,7 @@ export function DashboardTickets() {
             </div>
           </Card>
 
-          {user?.role === 'admin' && atendentesChart.length > 0 ? (
+          {verTodos && atendentesChart.length > 0 ? (
             <Card
               title="Atendentes com mais tickets"
               description="Clique em um atendente para filtrar os demais gráficos e indicadores"

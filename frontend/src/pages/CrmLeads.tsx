@@ -19,6 +19,7 @@ import { IconPencil } from '../components/ui/IconPencil'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { SemPermissao } from './SemPermissao'
 
 const DND_LEAD = 'application/x-crm-lead'
@@ -28,6 +29,29 @@ type VistaCrm = 'lista' | 'kanban'
 
 const VISTA_KEY = 'dx-crm-vista'
 
+function chaveVista(userId: number | null | undefined): string {
+  return userId != null ? `${VISTA_KEY}:${userId}` : VISTA_KEY
+}
+
+function lerVista(userId: number | null | undefined): VistaCrm {
+  try {
+    const daPessoa = userId != null ? localStorage.getItem(chaveVista(userId)) : null
+    const v = daPessoa ?? localStorage.getItem(VISTA_KEY)
+    return v === 'kanban' ? 'kanban' : 'lista'
+  } catch {
+    return 'lista'
+  }
+}
+
+function gravarVista(userId: number | null | undefined, v: VistaCrm) {
+  try {
+    localStorage.setItem(chaveVista(userId), v)
+    if (userId != null) localStorage.setItem(VISTA_KEY, v)
+  } catch {
+    /* ignore */
+  }
+}
+
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—'
   const d = new Date(iso)
@@ -35,21 +59,14 @@ function formatDate(iso: string | null | undefined): string {
   return d.toLocaleDateString('pt-BR')
 }
 
-function lerVistaInicial(): VistaCrm {
-  try {
-    const v = localStorage.getItem(VISTA_KEY)
-    return v === 'kanban' ? 'kanban' : 'lista'
-  } catch {
-    return 'lista'
-  }
-}
-
 export function CrmLeads() {
   const navigate = useNavigate()
   const toast = useToast()
   const { user, isAdmin } = useAuth()
+  const podeEditarFunil = temPermissao(user, 'funil.editar')
 
-  const [vista, setVista] = useState<VistaCrm>(lerVistaInicial)
+  const [vista, setVista] = useState<VistaCrm>(() => lerVista(user?.id))
+  const vistaOwnerRef = useRef<number | undefined>(user?.id)
   const [estagios, setEstagios] = useState<Crm.FunilEstagio[]>([])
   const [contagens, setContagens] = useState<Record<number, number>>({})
   const [list, setList] = useState<Crm.Lead[]>([])
@@ -84,15 +101,17 @@ export function CrmLeads() {
   const [responsaveis, setResponsaveis] = useState<Atendentes.Atendente[]>([])
   const loadGenRef = useRef(0)
 
+  useEffect(() => {
+    if (vistaOwnerRef.current === user?.id) return
+    vistaOwnerRef.current = user?.id
+    setVista(lerVista(user?.id))
+  }, [user?.id])
+
   function mudarVista(v: VistaCrm) {
     if (v === vista) return
     setLoading(true)
     setVista(v)
-    try {
-      localStorage.setItem(VISTA_KEY, v)
-    } catch {
-      /* ignore */
-    }
+    gravarVista(user?.id, v)
   }
 
   useEffect(() => {
@@ -351,7 +370,7 @@ export function CrmLeads() {
   }
 
   async function reordenarColunas(dragId: number, targetId: number) {
-    if (!isAdmin || dragId === targetId || reorderingCols) return
+    if (!podeEditarFunil || dragId === targetId || reorderingCols) return
     const ordered = [...estagios].sort((a, b) => a.ordem - b.ordem || a.id - b.id)
     const dragged = ordered.find((e) => e.id === dragId)
     if (!dragged) return
@@ -426,7 +445,7 @@ export function CrmLeads() {
           <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">CRM — Leads</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Funil comercial: contatos, negociações e estágios.
-            {isAdmin ? (
+            {podeEditarFunil ? (
               <>
                 {' '}
                 <Link
@@ -582,7 +601,7 @@ export function CrmLeads() {
             ) : null}
             <p className="text-xs text-slate-500">
               Arraste os cartões entre colunas
-              {isAdmin ? ' · ≡ no cabeçalho reordena · lápis renomeia' : ''}.
+              {podeEditarFunil ? ' · ≡ no cabeçalho reordena · lápis renomeia' : ''}.
             </p>
           </div>
 
@@ -619,7 +638,7 @@ export function CrmLeads() {
                       e.preventDefault()
                       setDropColId(null)
                       const colRaw = e.dataTransfer.getData(DND_COL)
-                      if (colRaw && isAdmin) {
+                      if (colRaw && podeEditarFunil) {
                         void reordenarColunas(Number(colRaw), col.id)
                         return
                       }
@@ -630,7 +649,7 @@ export function CrmLeads() {
                     }}
                   >
                     <div className="flex items-center gap-1.5 border-b border-slate-200/80 px-2 py-2 dark:border-slate-700/80">
-                      {isAdmin ? (
+                      {podeEditarFunil ? (
                         <button
                           type="button"
                           draggable={!reorderingCols && !editing}
@@ -680,7 +699,7 @@ export function CrmLeads() {
                       <span className="shrink-0 rounded-md bg-slate-200/80 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                         {contagens[col.id] ?? cards.length}
                       </span>
-                      {isAdmin && !editing ? (
+                      {podeEditarFunil && !editing ? (
                         <button
                           type="button"
                           onClick={() => iniciarEdicaoColuna(col)}

@@ -13,6 +13,8 @@ import { Button } from '../components/ui/Button'
 import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
 import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 
@@ -47,6 +49,8 @@ function formVazio(): RoutingRules.Create {
 
 export function RoteamentoRegrasPage({ embedded = false }: { embedded?: boolean }) {
   const toast = useToast()
+  const { user } = useAuth()
+  const podeEditar = temPermissao(user, 'roteamento.editar')
   const [list, setList] = useState<RoutingRules.Regra[]>([])
   const [loading, setLoading] = useState(true)
   const [forbidden, setForbidden] = useState(false)
@@ -215,7 +219,7 @@ export function RoteamentoRegrasPage({ embedded = false }: { embedded?: boolean 
       denied={denied}
       title="Roteamento automático"
       subtitle="Regras avaliadas em ordem — a primeira que casar define setor, prioridade ou classificação."
-      actions={<Button onClick={iniciarNova}>Nova regra</Button>}
+      actions={podeEditar ? <Button onClick={iniciarNova}>Nova regra</Button> : undefined}
     >
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <FiltroInativos incluirInativos={incluirInativos} onChange={setIncluirInativos} />
@@ -288,12 +292,16 @@ export function RoteamentoRegrasPage({ embedded = false }: { embedded?: boolean 
                     {r.acoes.atendente_id ? `atendente #${r.acoes.atendente_id}` : ''}
                   </td>
                   <td className="p-2">
-                    <Button type="button" variant="ghost" className="px-2 py-1" onClick={() => iniciarEdicao(r)}>
-                      Editar
-                    </Button>
-                    <Button type="button" variant="ghost" className="px-2 py-1" onClick={() => excluir(r.id)}>
-                      Excluir
-                    </Button>
+                    {podeEditar ? (
+                      <>
+                        <Button type="button" variant="ghost" className="px-2 py-1" onClick={() => iniciarEdicao(r)}>
+                          Editar
+                        </Button>
+                        <Button type="button" variant="ghost" className="px-2 py-1" onClick={() => excluir(r.id)}>
+                          Excluir
+                        </Button>
+                      </>
+                    ) : null}
                   </td>
                 </tr>
               ))

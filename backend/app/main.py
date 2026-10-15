@@ -19,6 +19,7 @@ from app.api import (
     empresas,
     setores,
     atendentes,
+    permissao_grupos,
     funcionarios_rede,
     status_ticket,
     tickets,
@@ -33,6 +34,7 @@ from app.api import (
     ponto,
     whatsapp_settings,
     whatsapp_chats,
+    whatsapp_figurinhas,
     whatsapp_webhook,
     email_inbound_webhook,
     resend_inbound_webhook,
@@ -680,6 +682,7 @@ app.include_router(redes.router, prefix=API_V1_PREFIX)
 app.include_router(empresas.router, prefix=API_V1_PREFIX)
 app.include_router(setores.router, prefix=API_V1_PREFIX)
 app.include_router(atendentes.router, prefix=API_V1_PREFIX)
+app.include_router(permissao_grupos.router, prefix=API_V1_PREFIX)
 app.include_router(funcionarios_rede.router, prefix=API_V1_PREFIX)
 app.include_router(status_ticket.router, prefix=API_V1_PREFIX)
 app.include_router(tickets.router, prefix=API_V1_PREFIX)
@@ -695,6 +698,7 @@ app.include_router(ponto.router, prefix=API_V1_PREFIX)
 app.include_router(web_push.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_settings.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_chats.router, prefix=API_V1_PREFIX)
+app.include_router(whatsapp_figurinhas.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_webhook.router, prefix=API_V1_PREFIX)
 app.include_router(email_inbound_webhook.router, prefix=API_V1_PREFIX)
 app.include_router(resend_inbound_webhook.router, prefix=API_V1_PREFIX)

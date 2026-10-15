@@ -14,6 +14,8 @@ import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { SemPermissao } from './SemPermissao'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
@@ -23,6 +25,10 @@ type ColunaFuncionario = 'nome' | 'email' | 'tipo'
 
 export function FuncionariosRede() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const podeCriar = temPermissao(user, 'funcionarios.criar')
+  const podeEditar = temPermissao(user, 'funcionarios.editar')
+  const podeExcluir = temPermissao(user, 'funcionarios.excluir')
   const toast = useToast()
   const { ordenarPor, ordem, aoOrdenarColuna, sortParams } = useOrdenacaoLista<ColunaFuncionario>()
   const [list, setList] = useState<FuncionarioRedeTipo.Funcionario[]>([])
@@ -103,7 +109,7 @@ export function FuncionariosRede() {
     <PageContainer>
       <PageHeader
         title="Funcionários da rede"
-        actions={<Button onClick={() => navigate('/funcionarios-rede/novo')}>Novo</Button>}
+        actions={podeCriar ? <Button onClick={() => navigate('/funcionarios-rede/novo')}>Novo</Button> : undefined}
       />
       <Card>
         <BarraBuscaPaginacao
@@ -204,12 +210,16 @@ export function FuncionariosRede() {
                     </td>
                     <td className="px-4 py-3.5 text-right sm:px-6" onClick={(ev) => ev.stopPropagation()}>
                       <div className="inline-flex gap-1.5">
-                        <Button variant="ghost" onClick={() => navigate(`/funcionarios-rede/${f.id}/editar`)} aria-label="Editar funcionário">
-                          <IconPencil ariaHidden={false} />
-                        </Button>
-                        <Button variant="ghost" onClick={() => handleDelete(f.id)} aria-label="Excluir funcionário">
-                          <IconTrash ariaHidden={false} />
-                        </Button>
+                        {podeEditar ? (
+                          <Button variant="ghost" onClick={() => navigate(`/funcionarios-rede/${f.id}/editar`)} aria-label="Editar funcionário">
+                            <IconPencil ariaHidden={false} />
+                          </Button>
+                        ) : null}
+                        {podeExcluir ? (
+                          <Button variant="ghost" onClick={() => handleDelete(f.id)} aria-label="Excluir funcionário">
+                            <IconTrash ariaHidden={false} />
+                          </Button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

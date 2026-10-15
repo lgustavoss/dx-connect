@@ -2,15 +2,16 @@ from enum import Enum
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import or_
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.database import get_db
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
-from app.models import Atendente, Setor
+from app.models import Atendente, PermissaoGrupo, Setor
 from app.schemas.atendente import AtendenteCreate, AtendenteRead, AtendenteUpdate, TrocaSenhaPropria
 from app.schemas.ticket_csat import AtendenteAvaliacoesRead, AvaliacaoResumoRead
 from app.schemas.lista_paginada import ListaPaginada
-from app.core.auth import exigir_admin, obter_atendente_atual, validar_role
+from app.core.auth import obter_atendente_atual, validar_role, exigir_permissao
+from app.services.permissao_grupos import codigos_efetivos, tem_permissao
 from app.services.atendente_avaliacoes import calcular_avaliacoes_atendente
 from app.services.escala import (
     horario_semana_dict,
@@ -22,6 +23,12 @@ from app.services.escala import (
 from app.core.setor_scope import atendente_e_financeiro, ids_setores_mesmo_nome, ids_setores_visiveis_atendente
 from app.core.security import hash_senha, verificar_senha
 from app.core.audit import registrar_audit
+from app.services.permissao_grupos import (
+    aplicar_grupos,
+    aplicar_role_legado,
+    ensure_sistema,
+    garantir_admin_ativo,
+)
 
 router = APIRouter(prefix="/atendentes", tags=["atendentes"])
 
@@ -36,10 +43,23 @@ class OrdenarAtendentesPor(str, Enum):
     ativo = "ativo"
 
 
+def _grupos_no_read(atendente: Atendente) -> tuple[list[int], list[str], list[str]]:
+    grupos = list(getattr(atendente, "grupos_permissao", None) or [])
+    ids = [g.id for g in grupos]
+    nomes = [g.nome for g in grupos]
+    return ids, nomes, codigos_efetivos(atendente)
+
+
+def _garantir_grupos(db: Session, tenant_id: int) -> None:
+    if ensure_sistema(db, tenant_id):
+        db.commit()
+
+
 def _atendente_para_read(atendente: Atendente, *, e_financeiro: bool = False) -> AtendenteRead:
     saas = sorted(getattr(atendente, "saas_setores", None) or [], key=lambda s: (s.nome or "", s.id))
     modo = modo_jornada_de(atendente)
     usa = modo in ("semanal", "ciclo")
+    grupo_ids, grupo_nomes, permissoes = _grupos_no_read(atendente)
     return AtendenteRead(
         id=atendente.id,
         email=atendente.email,
@@ -49,6 +69,9 @@ def _atendente_para_read(atendente: Atendente, *, e_financeiro: bool = False) ->
         created_at=atendente.created_at,
         updated_at=atendente.updated_at,
         setor_ids=[s.id for s in atendente.setores],
+        grupo_ids=grupo_ids,
+        grupo_nomes=grupo_nomes,
+        permissoes=permissoes,
         e_financeiro=e_financeiro,
         must_change_password=bool(getattr(atendente, "must_change_password", False)),
         modo_jornada=modo,  # type: ignore[arg-type]
@@ -128,8 +151,9 @@ def listar_atendentes(
     ordenar_por: OrdenarAtendentesPor | None = Query(None),
     ordem: OrdemLista = Query(OrdemLista.asc),
     db: Session = Depends(get_db),
-    atendente_logado: Atendente = Depends(exigir_admin),
+    atendente_logado: Atendente = Depends(exigir_permissao("atendentes.ver")),
 ):
+    _garantir_grupos(db, atendente_logado.tenant_id)
     q = db.query(Atendente).filter(
         Atendente.tenant_id == atendente_logado.tenant_id,
         Atendente.role != "saas_ops",
@@ -151,7 +175,10 @@ def listar_atendentes(
     else:
         order_cols = [expr_ordem(Atendente.ativo, ordem), expr_ordem(Atendente.id, ordem)]
     rows = (
-        q.options(joinedload(Atendente.setores))
+        q.options(
+            joinedload(Atendente.setores),
+            selectinload(Atendente.grupos_permissao).selectinload(PermissaoGrupo.itens),
+        )
         .order_by(*order_cols)
         .offset(offset)
         .limit(limit)
@@ -164,8 +191,9 @@ def listar_atendentes(
 def criar_atendente(
     data: AtendenteCreate,
     db: Session = Depends(get_db),
-    atendente_logado: Atendente = Depends(exigir_admin),
+    atendente_logado: Atendente = Depends(exigir_permissao("atendentes.criar")),
 ):
+    _garantir_grupos(db, atendente_logado.tenant_id)
     if (
         db.query(Atendente)
         .filter(Atendente.tenant_id == atendente_logado.tenant_id, Atendente.email == data.email)
@@ -212,6 +240,10 @@ def criar_atendente(
     )
     db.add(atendente)
     db.flush()
+    if data.grupo_ids is not None:
+        aplicar_grupos(db, atendente, data.grupo_ids)
+    else:
+        aplicar_role_legado(db, atendente, role)
     registrar_audit(db, "atendente", atendente.id, "create", atendente_logado.id)
     for setor_id in data.setor_ids:
         setor = db.query(Setor).filter(Setor.id == setor_id).first()
@@ -227,7 +259,17 @@ def me(
     atendente: Atendente = Depends(obter_atendente_atual),
     db: Session = Depends(get_db),
 ):
-    return _atendente_para_read(atendente, e_financeiro=atendente_e_financeiro(db, atendente))
+    _garantir_grupos(db, atendente.tenant_id)
+    atual = (
+        db.query(Atendente)
+        .options(
+            joinedload(Atendente.setores),
+            selectinload(Atendente.grupos_permissao).selectinload(PermissaoGrupo.itens),
+        )
+        .filter(Atendente.id == atendente.id)
+        .first()
+    )
+    return _atendente_para_read(atual or atendente, e_financeiro=atendente_e_financeiro(db, atual or atendente))
 
 
 @router.post("/me/trocar-senha", response_model=AtendenteRead)
@@ -260,7 +302,10 @@ def listar_atendentes_por_setor(
     """Atendentes vinculados ao setor (e homônimos) + administradores (elegíveis como responsáveis sem vínculo ao setor; #38)."""
     if not db.query(Setor).filter(Setor.id == setor_id).first():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setor não encontrado")
-    if atendente_logado.role != "admin":
+    if not (
+        tem_permissao(atendente_logado, "atendentes.ver")
+        or tem_permissao(atendente_logado, "atendimento.ver_todos")
+    ):
         if setor_id not in ids_setores_visiveis_atendente(db, atendente_logado):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este setor")
     alvo_ids = list(ids_setores_mesmo_nome(db, setor_id))
@@ -293,7 +338,7 @@ def listar_atendentes_por_setor(
 def obter_avaliacoes_atendente(
     atendente_id: int,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("atendentes.ver")),
 ):
     atendente = db.query(Atendente).filter(Atendente.id == atendente_id).first()
     if not atendente:
@@ -310,9 +355,15 @@ def obter_avaliacoes_atendente(
 def obter_atendente(
     atendente_id: int,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    logado: Atendente = Depends(exigir_permissao("atendentes.ver")),
 ):
-    atendente = db.query(Atendente).filter(Atendente.id == atendente_id).first()
+    _garantir_grupos(db, logado.tenant_id)
+    atendente = (
+        db.query(Atendente)
+        .options(selectinload(Atendente.grupos_permissao).selectinload(PermissaoGrupo.itens))
+        .filter(Atendente.id == atendente_id)
+        .first()
+    )
     if not atendente or atendente.role == "saas_ops":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atendente não encontrado")
     return _atendente_para_read(atendente)
@@ -323,12 +374,23 @@ def atualizar_atendente(
     atendente_id: int,
     data: AtendenteUpdate,
     db: Session = Depends(get_db),
-    atendente_logado: Atendente = Depends(exigir_admin),
+    atendente_logado: Atendente = Depends(exigir_permissao("atendentes.editar")),
 ):
-    atendente = db.query(Atendente).filter(Atendente.id == atendente_id).first()
+    _garantir_grupos(db, atendente_logado.tenant_id)
+    atendente = (
+        db.query(Atendente)
+        .options(selectinload(Atendente.grupos_permissao))
+        .filter(Atendente.id == atendente_id)
+        .first()
+    )
     if not atendente or atendente.role == "saas_ops":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atendente não encontrado")
+    era_admin_ativo = atendente.role == "admin" and bool(atendente.ativo)
     update = data.model_dump(exclude_unset=True)
+    grupo_ids_enviados = "grupo_ids" in update
+    grupo_ids = update.pop("grupo_ids", None)
+    role_enviado = "role" in update
+    role_novo = update.pop("role", None)
     senha_nova = update.pop("senha", None)
     must_change_in_payload = "must_change_password" in update
     must_change_val = update.pop("must_change_password", None) if must_change_in_payload else None
@@ -341,8 +403,6 @@ def atualizar_atendente(
             atendente.must_change_password = True
     elif must_change_in_payload:
         atendente.must_change_password = bool(must_change_val)
-    if "role" in update and update["role"] is not None:
-        update["role"] = validar_role(update["role"])
     if "setor_ids" in update:
         setor_ids = update.pop("setor_ids")
         atendente.setores.clear()
@@ -403,6 +463,13 @@ def atualizar_atendente(
 
     for k, v in update.items():
         setattr(atendente, k, v)
+    if grupo_ids_enviados:
+        aplicar_grupos(db, atendente, grupo_ids or [])
+    elif role_enviado and role_novo is not None:
+        aplicar_role_legado(db, atendente, validar_role(role_novo))
+    elif era_admin_ativo and not atendente.ativo:
+        db.flush()
+        garantir_admin_ativo(db, atendente.tenant_id)
     registrar_audit(db, "atendente", atendente_id, "update", atendente_logado.id)
     db.commit()
     db.refresh(atendente)
@@ -413,10 +480,15 @@ def atualizar_atendente(
 def excluir_atendente(
     atendente_id: int,
     db: Session = Depends(get_db),
-    _: Atendente = Depends(exigir_admin),
+    _: Atendente = Depends(exigir_permissao("atendentes.excluir")),
 ):
     atendente = db.query(Atendente).filter(Atendente.id == atendente_id).first()
     if not atendente or atendente.role == "saas_ops":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atendente não encontrado")
+    era_admin_ativo = atendente.role == "admin" and bool(atendente.ativo)
+    tenant_id = atendente.tenant_id
     db.delete(atendente)
+    if era_admin_ativo:
+        db.flush()
+        garantir_admin_ativo(db, tenant_id)
     db.commit()

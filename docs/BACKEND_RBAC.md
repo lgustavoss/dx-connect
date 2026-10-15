@@ -12,6 +12,8 @@ Política alinhada à issue **#38** (admin / atendente + setor) e **#336** (perf
 
 Dependência: `exigir_comercial_ou_admin` em `app.core.auth`.
 
+Os grupos de permissão (`/v1/permissao-grupos`, #S202609-0024) são a origem do acesso. O catálogo lista as ações de atendimento, chat, ponto, CRM, propostas, contratos, custos, faturamento, cadastros e configurações. Listar tickets, o painel, o próprio ponto, a fila e o histórico de chat, a consulta da ajuda e as listas de natureza e de catálogo de PDV exigem o código correspondente (listas compartilhadas aceitam também quem já pode usar a tela que as consome). Ver os PDVs de uma empresa e o código de acesso remoto é `pdv.acessos.ver` (pacote de atendimento); ver o cadastro da empresa não libera isso. Quem só tem essa permissão vê o nome da empresa e os PDVs das redes que já tiveram ticket no próprio setor. Editar a empresa continua podendo alterar os PDVs. Ver contratos de qualquer responsável é `contratos.ver_todos`. Reordenar o funil é `funil.editar`. Na tela, só o acesso total (`admin`) liga tudo de uma vez; as outras ações são marcadas uma a uma. Criar, editar ou qualquer outra ação do mesmo recurso grava também o `ver` correspondente. Os códigos `comercial` e `operacional` continuam como atalho dos grupos padrão (o conjunto inteiro do perfil antigo). Uma ação comercial isolada não promove o perfil. Quem está no setor Financeiro continua acessando faturas mesmo sem o código. `saas_ops` não entra nos grupos. Aprovar ponto por supervisor de setor fica para a #1137.
+
 ## Autenticação
 
 | Prefixo | Quem acessa |

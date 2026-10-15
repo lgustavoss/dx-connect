@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.audit import registrar_audit
-from app.core.auth import exigir_admin, obter_atendente_atual
+from app.core.auth import obter_atendente_atual, exigir_permissao, exigir_alguma_permissao
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
 from app.database import get_db
 from app.models.atendente import Atendente
@@ -58,7 +58,9 @@ def listar_rotulos(
     ordenar_por: OrdenarCatalogo | None = Query(OrdenarCatalogo.ordem_exibicao),
     ordem: OrdemLista = Query(OrdemLista.asc),
     db: Session = Depends(get_db),
-    _: Atendente = Depends(obter_atendente_atual),
+    _: Atendente = Depends(
+        exigir_alguma_permissao("pdv.ver", "pdv.editar", "empresas.ver", "empresas.editar")
+    ),
 ):
     return _listar_catalogo(db, PdvRotulo, incluir_inativos, busca, offset, limit, ordenar_por, ordem)
 
@@ -67,7 +69,7 @@ def listar_rotulos(
 def criar_rotulo(
     data: PdvRotuloCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("pdv.editar")),
 ):
     row = PdvRotulo(**data.model_dump())
     db.add(row)
@@ -83,7 +85,7 @@ def atualizar_rotulo(
     rotulo_id: int,
     data: PdvRotuloUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("pdv.editar")),
 ):
     row = db.query(PdvRotulo).filter(PdvRotulo.id == rotulo_id).first()
     if not row:
@@ -114,7 +116,7 @@ def listar_tipos_acesso(
 def criar_tipo_acesso(
     data: PdvTipoAcessoRemotoCreate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("pdv.editar")),
 ):
     row = PdvTipoAcessoRemoto(**data.model_dump())
     db.add(row)
@@ -130,7 +132,7 @@ def atualizar_tipo_acesso(
     tipo_id: int,
     data: PdvTipoAcessoRemotoUpdate,
     db: Session = Depends(get_db),
-    atendente: Atendente = Depends(exigir_admin),
+    atendente: Atendente = Depends(exigir_permissao("pdv.editar")),
 ):
     row = db.query(PdvTipoAcessoRemoto).filter(PdvTipoAcessoRemoto.id == tipo_id).first()
     if not row:

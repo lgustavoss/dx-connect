@@ -355,9 +355,37 @@ def test_worker_nao_age_quando_ultima_mensagem_recente_do_cliente(
 
 
 def test_worker_nao_age_so_com_auto_assumido(client, seed_base, auth_headers, db_session, monkeypatch):
-    """Mensagem de sistema ao assumir não conta como resposta do atendente."""
+    """Só a mensagem do bot ao assumir não inicia o prazo."""
     _configurar_evolution(db_session)
     chat = _chat_em_atendimento(db_session, wa_id="5511888776655")
+    antiga = datetime.now(timezone.utc) - timedelta(minutes=30)
+    db_session.add(
+        WhatsappMensagem(
+            chat_id=chat.id,
+            direcao="outbound",
+            corpo="[ BOT ]: Atendimento iniciado",
+            tipo_midia="texto",
+            evento_sistema="auto_assumido",
+            created_at=antiga,
+        )
+    )
+    db_session.commit()
+
+    monkeypatch.setattr(
+        "app.services.whatsapp_inactivity_worker.evolution_api.evolution_send_text",
+        lambda *_a, **_k: (True, None, "wa-out-assumido"),
+    )
+
+    n = process_whatsapp_inactivity_closures(db_session)
+    assert n == 0
+
+
+def test_worker_avisa_com_pouca_interacao_sem_resposta_do_atendente(
+    client, seed_base, auth_headers, db_session, monkeypatch
+):
+    """Mensagem da pessoa já conta, mesmo sem resposta humana do atendente (#S202610-0008)."""
+    _configurar_evolution(db_session)
+    chat = _chat_em_atendimento(db_session, wa_id="5511888776600")
     antiga = datetime.now(timezone.utc) - timedelta(minutes=30)
     db_session.add(
         WhatsappMensagem(
@@ -380,13 +408,26 @@ def test_worker_nao_age_so_com_auto_assumido(client, seed_base, auth_headers, db
     )
     db_session.commit()
 
+    enviados: list[str] = []
+
+    def fake_send(base, inst, key, wa, text):
+        enviados.append(text)
+        return True, None, "wa-out-pouca"
+
     monkeypatch.setattr(
         "app.services.whatsapp_inactivity_worker.evolution_api.evolution_send_text",
-        lambda *_a, **_k: (True, None, "wa-out-assumido"),
+        fake_send,
     )
 
     n = process_whatsapp_inactivity_closures(db_session)
-    assert n == 0
+    assert n == 1
+    assert len(enviados) == 1
+    aviso = (
+        db_session.query(WhatsappMensagem)
+        .filter(WhatsappMensagem.chat_id == chat.id, WhatsappMensagem.evento_sistema == "auto_inativ_aviso")
+        .first()
+    )
+    assert aviso is not None
 
 
 def test_worker_nao_avisa_se_ultima_mensagem_recente(

@@ -136,6 +136,10 @@ jobs:
         if: needs.changes.outputs.frontend == 'true'
         run: npm audit --audit-level=high
 
+      - name: Testes do alerta da fila
+        if: needs.changes.outputs.frontend == 'true'
+        run: npm test
+
       - name: Build de produção
         if: needs.changes.outputs.frontend == 'true'
         env:

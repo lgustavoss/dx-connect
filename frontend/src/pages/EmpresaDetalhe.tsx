@@ -13,6 +13,8 @@ import {
 } from '../api/client'
 import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { maskCnpjCpf } from '../utils/maskCnpjCpf'
 import { maskCep, formatTelefoneBrExibicao } from '../utils/masks'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
@@ -39,6 +41,12 @@ function DetailRow({ label, value }: { label: string; value: string | null | und
 }
 
 export function EmpresaDetalhe() {
+  const { user } = useAuth()
+  const podeCriarTicket = temPermissao(user, 'tickets.criar')
+  const podeVerEmpresa = temPermissao(user, 'empresas.ver')
+  const podeEditarEmpresa = temPermissao(user, 'empresas.editar')
+  const podeExcluirEmpresa = temPermissao(user, 'empresas.excluir')
+  const podeVerPdvs = temPermissao(user, 'pdv.acessos.ver') || podeEditarEmpresa
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const location = useLocation()
@@ -61,6 +69,9 @@ export function EmpresaDetalhe() {
   const [loading, setLoading] = useState(true)
   const [loadFailure, setLoadFailure] = useState<{ titulo: string; detalhe?: string } | null>(null)
   const [forbidden, setForbidden] = useState(false)
+  const [nomeAcesso, setNomeAcesso] = useState<string | null>(null)
+  const [acessoIndisponivel, setAcessoIndisponivel] = useState(false)
+  const marcarAcessoIndisponivel = useCallback(() => setAcessoIndisponivel(true), [])
   const [aba, setAba] = useState<Aba>('geral')
 
   useEffect(() => {
@@ -214,6 +225,8 @@ export function EmpresaDetalhe() {
     }
   }
 
+  const abaVisivel: Aba = aba === 'pdvs' && !podeVerPdvs ? 'geral' : aba
+
   if (loading) {
     return (
       <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6 pb-10">
@@ -224,12 +237,36 @@ export function EmpresaDetalhe() {
     )
   }
 
+  if (forbidden && podeVerPdvs && !podeVerEmpresa) {
+    if (acessoIndisponivel) {
+      return <CarregamentoFalhou titulo="Empresa não encontrada." onVoltar={voltar} />
+    }
+    return (
+      <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6 pb-10">
+        <VoltarButton onClick={voltar} />
+        <header className="space-y-1">
+          {nomeAcesso != null ? (
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">{nomeAcesso}</h1>
+          ) : (
+            <div className="h-9 w-2/3 max-w-md animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
+          )}
+          <p className="text-sm text-slate-500 dark:text-slate-400">Códigos de acesso remoto desta empresa.</p>
+        </header>
+        <EmpresaPdvsPanel
+          empresaId={empresaId}
+          onEmpresaNome={setNomeAcesso}
+          onIndisponivel={marcarAcessoIndisponivel}
+        />
+      </div>
+    )
+  }
+
   if (forbidden) {
     return (
       <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6 pb-10">
         <SemPermissao
           title="Você não tem permissão para acessar esta empresa."
-          detail="Se isso estiver incorreto, peça ao administrador para ajustar seu perfil."
+          detail="Peça ao gestor da equipe a permissão de visualizar a empresa ou a de ver os PDVs."
           voltarPara="/empresas"
           voltarLabel="Voltar para Empresas"
         />
@@ -265,9 +302,9 @@ export function EmpresaDetalhe() {
     <button
       type="button"
       onClick={() => setAba(key)}
-      aria-current={aba === key ? 'page' : undefined}
+      aria-current={abaVisivel === key ? 'page' : undefined}
       className={
-        aba === key
+        abaVisivel === key
           ? 'border-b-2 border-sky-500 px-3 py-2 text-sm font-semibold text-slate-900 dark:border-sky-400 dark:bg-slate-800/50 dark:text-white'
           : 'border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/30 dark:hover:text-slate-200'
       }
@@ -304,10 +341,12 @@ export function EmpresaDetalhe() {
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
-            <Button onClick={abrirEdicao}>Editar</Button>
-            <Button variant="danger" onClick={handleExcluir}>
-              Excluir
-            </Button>
+            {podeEditarEmpresa ? <Button onClick={abrirEdicao}>Editar</Button> : null}
+            {podeExcluirEmpresa ? (
+              <Button variant="danger" onClick={handleExcluir}>
+                Excluir
+              </Button>
+            ) : null}
           </div>
         </div>
 
@@ -318,12 +357,12 @@ export function EmpresaDetalhe() {
             {tabBtn('tickets', 'Tickets')}
             {tabBtn('chats', 'Chats')}
             {tabBtn('funcionarios', 'Funcionários')}
-            {tabBtn('pdvs', 'PDVs')}
+            {podeVerPdvs ? tabBtn('pdvs', 'PDVs') : null}
           </nav>
         </div>
       </header>
 
-      {aba === 'geral' && (
+      {abaVisivel === 'geral' && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
             <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
@@ -414,7 +453,7 @@ export function EmpresaDetalhe() {
         </div>
       )}
 
-      {aba === 'analises' && (
+      {abaVisivel === 'analises' && (
         <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
           <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
             Estatísticas de tickets e demandas WhatsApp só desta empresa — use o período para treinar, priorizar
@@ -428,7 +467,7 @@ export function EmpresaDetalhe() {
         </section>
       )}
 
-      {aba === 'tickets' && (
+      {abaVisivel === 'tickets' && (
         <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
           <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
             Tickets abertos e encerrados vinculados a esta empresa.
@@ -445,9 +484,11 @@ export function EmpresaDetalhe() {
             onPageChange={setPageT}
             disabled={loadingT}
             extra={
-              <Link to="/tickets/novo">
-                <Button type="button">Novo ticket</Button>
-              </Link>
+              podeCriarTicket ? (
+                <Link to="/tickets/novo">
+                  <Button type="button">Novo ticket</Button>
+                </Link>
+              ) : undefined
             }
           />
           <TicketsTabelaContexto
@@ -459,13 +500,13 @@ export function EmpresaDetalhe() {
         </section>
       )}
 
-      {aba === 'chats' && (
+      {abaVisivel === 'chats' && (
         <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
           <EmpresaChatsPanel empresaId={empresa.id} returnPath={`/empresas/${empresa.id}`} />
         </section>
       )}
 
-      {aba === 'funcionarios' && (
+      {abaVisivel === 'funcionarios' && (
         <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
           <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
             Funcionários da rede associados a esta empresa (sócio, supervisor ou colaborador).
@@ -505,7 +546,7 @@ export function EmpresaDetalhe() {
         </section>
       )}
 
-      {aba === 'pdvs' && (
+      {abaVisivel === 'pdvs' && (
         <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
           <EmpresaPdvsPanel empresaId={empresa.id} />
         </section>

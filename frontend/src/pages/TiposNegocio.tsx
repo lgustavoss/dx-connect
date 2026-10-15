@@ -7,6 +7,8 @@ import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { ListaAcoesVerEditar } from '../components/ui/ListaAcoesVerEditar'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../contexts/AuthContext'
+import { temPermissao } from '../lib/permissoes'
 import { FiltroInativos } from '../components/ui/FiltroInativos'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { ConfigListPageShell } from '../components/config/ConfigListPageShell'
@@ -18,6 +20,10 @@ type ColunaTipo = 'nome' | 'ativo'
 export function TiposNegocio({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate()
   const toast = useToast()
+  const { user } = useAuth()
+  const podeCriar = temPermissao(user, 'tipos_negocio.criar')
+  const podeEditar = temPermissao(user, 'tipos_negocio.editar')
+  const podeExcluir = temPermissao(user, 'tipos_negocio.excluir')
   const { ordenarPor, ordem, aoOrdenarColuna, sortParams } = useOrdenacaoLista<ColunaTipo>()
   const [list, setList] = useState<TiposNegocio.Tipo[]>([])
   const [total, setTotal] = useState(0)
@@ -95,7 +101,7 @@ export function TiposNegocio({ embedded = false }: { embedded?: boolean }) {
       forbidden={forbidden}
       denied={denied}
       title="Tipos de negócio"
-      actions={<Button onClick={() => navigate('/tipos-negocio/novo')}>Novo tipo</Button>}
+      actions={podeCriar ? <Button onClick={() => navigate('/tipos-negocio/novo')}>Novo tipo</Button> : undefined}
     >
       <Card>
         <BarraBuscaPaginacao
@@ -152,8 +158,8 @@ export function TiposNegocio({ embedded = false }: { embedded?: boolean }) {
                     <td className="px-4 py-3.5 text-right sm:px-6" onClick={(ev) => ev.stopPropagation()}>
                       <ListaAcoesVerEditar
                         onVer={() => navigate(`/tipos-negocio/${t.id}`)}
-                        onEditar={() => navigate(`/tipos-negocio/${t.id}/editar`)}
-                        onExcluir={() => handleDelete(t.id)}
+                        onEditar={podeEditar ? () => navigate(`/tipos-negocio/${t.id}/editar`) : undefined}
+                        onExcluir={podeExcluir ? () => handleDelete(t.id) : undefined}
                         verLabel="Visualizar tipo"
                         editarLabel="Editar tipo"
                       />

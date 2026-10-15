@@ -29,6 +29,7 @@ from app.schemas.ponto import (
 )
 from app.services import escala as escala_svc
 from app.services import ponto_settings as ponto_settings_svc
+from app.services.permissao_grupos import tem_permissao
 
 PONTO_TZ = ZoneInfo("America/Sao_Paulo")
 TIPOS_VALIDOS = frozenset({"entrada", "saida", "pausa_inicio", "pausa_fim"})
@@ -41,6 +42,11 @@ def exigir_acesso_ponto(atendente: Atendente) -> Atendente:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Controle de ponto indisponível para este perfil",
+        )
+    if not tem_permissao(atendente, "ponto.meu"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Sem permissão para esta ação.",
         )
     return atendente
 
