@@ -3,6 +3,11 @@ import { notificacoes, type Notificacoes } from '../api/client'
 import { useEventStream } from '../contexts/EventStreamContext'
 import { APP_NAME } from '../brand'
 import { isCapacitorNative } from '../lib/capacitorNative'
+import {
+  aoIniciarWebAudio,
+  htmlDevePararPorqueWebAssumiu,
+  podeIniciarHtml,
+} from './filaLoopCanal.mjs'
 
 const LS_KEY_LAST_SEM_RESP = 'dxconnect.notificacoes.last_sem_responsavel'
 const LS_KEY_LAST_NAO_LIDAS = 'dxconnect.notificacoes.last_nao_lidas'
@@ -92,8 +97,14 @@ let filaAguardandoMuted = readFilaAguardandoMuted()
 let wppFilaLoopAudio: HTMLAudioElement | null = null
 /** Loop contínuo activo (fila > 0 e não silenciado). */
 let wppFilaLoopWanted = false
-let wppFilaLoopEndedHandler: (() => void) | null = null
 let wppFilaLoopRetryTimer: number | null = null
+/** Contexto mantido aberto depois do primeiro uso da página — o toque da fila sai sem um clique novo. */
+let filaAudioCtx: AudioContext | null = null
+let filaAlertBuffer: AudioBuffer | null = null
+let filaAlertBufferLoading: Promise<AudioBuffer | null> | null = null
+let filaLoopSource: AudioBufferSourceNode | null = null
+let filaLoopStarting = false
+let filaLoopStartPromise: Promise<boolean> | null = null
 /** Áudio desbloqueado por gesto do usuário — melhora play em aba em background (#652). */
 let audioUnlocked = false
 let audioUnlockInstalled = false
@@ -113,6 +124,8 @@ let sseSlowPollMode = false
 let sseListenerCount = 0
 let sseUnsubscribe: (() => void) | null = null
 let chatInternoSseUnsubscribe: (() => void) | null = null
+let chatFilaSomUnsubscribe: (() => void) | null = null
+let portalFilaSomUnsubscribe: (() => void) | null = null
 let lastSemIncreaseAt = 0
 const recentAlertKeys = new Map<string, number>()
 
@@ -444,16 +457,177 @@ function clearWppFilaLoopRetry() {
   }
 }
 
+function audioContextCtor(): typeof AudioContext | null {
+  if (typeof window === 'undefined') return null
+  return (
+    window.AudioContext ||
+    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext ||
+    null
+  )
+}
+
+function getFilaAudioContext(): AudioContext | null {
+  const Ctor = audioContextCtor()
+  if (!Ctor) return null
+  if (!filaAudioCtx || filaAudioCtx.state === 'closed') {
+    const ctx = new Ctor()
+    ctx.onstatechange = () => {
+      if (ctx.state !== 'running' || !wppFilaLoopWanted || filaAguardandoMuted || filaLoopSource) return
+      void startFilaWebAudioLoop()
+    }
+    filaAudioCtx = ctx
+  }
+  return filaAudioCtx
+}
+
+/** Gesto já ocorrido nesta página: deixa o contexto rodando para o alerta tocar sozinho depois. */
+function primeFilaAudioContext() {
+  const ctx = getFilaAudioContext()
+  if (!ctx) return
+  if (ctx.state !== 'running') {
+    void ctx.resume().catch(() => undefined)
+    try {
+      const buf = ctx.createBuffer(1, 1, ctx.sampleRate)
+      const src = ctx.createBufferSource()
+      src.buffer = buf
+      src.connect(ctx.destination)
+      src.start()
+    } catch {
+      // ignore
+    }
+  }
+  void loadFilaAlertBuffer()
+}
+
+function loadFilaAlertBuffer(): Promise<AudioBuffer | null> {
+  if (filaAlertBuffer) return Promise.resolve(filaAlertBuffer)
+  if (filaAlertBufferLoading) return filaAlertBufferLoading
+  const ctx = getFilaAudioContext()
+  if (!ctx) return Promise.resolve(null)
+  filaAlertBufferLoading = fetch(SOUND_WPP_FILA)
+    .then((res) => res.arrayBuffer())
+    .then((raw) => ctx.decodeAudioData(raw.slice(0)))
+    .then((buf) => {
+      filaAlertBuffer = buf
+      return buf
+    })
+    .catch(() => {
+      filaAlertBufferLoading = null
+      return null
+    })
+  return filaAlertBufferLoading
+}
+
+function stopFilaWebAudioLoop() {
+  const src = filaLoopSource
+  filaLoopSource = null
+  if (!src) return
+  try {
+    src.stop()
+  } catch {
+    // já parou
+  }
+  try {
+    src.disconnect()
+  } catch {
+    // ignore
+  }
+}
+
+function silenciarHtmlLoop() {
+  const audio = wppFilaLoopAudio
+  if (!audio) return
+  try {
+    audio.pause()
+  } catch {
+    // ignore
+  }
+  try {
+    audio.currentTime = 0
+  } catch {
+    // ignore
+  }
+}
+
+async function startFilaWebAudioLoop(): Promise<boolean> {
+  if (!wppFilaLoopWanted || filaAguardandoMuted) return false
+  if (filaLoopSource) return true
+  if (filaLoopStartPromise) return filaLoopStartPromise
+  const ctx = getFilaAudioContext()
+  if (!ctx) return false
+  filaLoopStarting = true
+  const run = (async (): Promise<boolean> => {
+    try {
+      if (ctx.state === 'suspended') {
+        await ctx.resume()
+      }
+      if (ctx.state !== 'running') return false
+      const buf = await loadFilaAlertBuffer()
+      if (!buf || !wppFilaLoopWanted || filaAguardandoMuted || filaLoopSource) return Boolean(filaLoopSource)
+      if (ctx.state !== 'running') return false
+      const source = ctx.createBufferSource()
+      source.buffer = buf
+      source.loop = true
+      const gain = ctx.createGain()
+      gain.gain.value = 0.38
+      source.connect(gain)
+      gain.connect(ctx.destination)
+      source.onended = () => {
+        if (filaLoopSource === source) filaLoopSource = null
+      }
+      if (aoIniciarWebAudio({ htmlExiste: wppFilaLoopAudio != null }).silenciarHtml) {
+        silenciarHtmlLoop()
+      }
+      source.start()
+      filaLoopSource = source
+      setFilaAudioNeedsGesture(false)
+      return true
+    } catch {
+      return false
+    } finally {
+      filaLoopStarting = false
+    }
+  })()
+  filaLoopStartPromise = run
+  try {
+    return await run
+  } finally {
+    if (filaLoopStartPromise === run) filaLoopStartPromise = null
+  }
+}
+
 function getWppFilaLoopAudio(): HTMLAudioElement {
   const src = SOUND_WPP_FILA
   if (!wppFilaLoopAudio) {
     wppFilaLoopAudio = getAudioElement(audioKey('wpp_fila_loop', src), src)
+    // loop nativo: o 'ended' → play() seguinte falha sem clique e o alerta cala fora da tela de chat
+    wppFilaLoopAudio.loop = true
   }
   return wppFilaLoopAudio
 }
 
 function startFilaLoopPlayback() {
   if (!wppFilaLoopWanted || filaAguardandoMuted) return
+  if (filaLoopSource || filaLoopStarting) return
+  void startFilaWebAudioLoop().then((ok) => {
+    if (
+      !podeIniciarHtml({
+        webOk: ok,
+        webTocando: Boolean(filaLoopSource),
+        webComecando: filaLoopStarting,
+        wanted: wppFilaLoopWanted,
+        muted: filaAguardandoMuted,
+      })
+    ) {
+      return
+    }
+    startFilaHtmlLoop()
+  })
+}
+
+function startFilaHtmlLoop() {
+  if (!wppFilaLoopWanted || filaAguardandoMuted) return
+  if (filaLoopSource) return
   if (oneShotPlaying) {
     clearWppFilaLoopRetry()
     wppFilaLoopRetryTimer = window.setTimeout(() => {
@@ -475,13 +649,22 @@ function startFilaLoopPlayback() {
   if (playPromise && typeof playPromise.then === 'function') {
     playPromise
       .then(() => {
+        if (htmlDevePararPorqueWebAssumiu(Boolean(filaLoopSource))) {
+          silenciarHtmlLoop()
+          return
+        }
         setFilaAudioNeedsGesture(false)
       })
       .catch(() => {
         if (!wppFilaLoopWanted || filaAguardandoMuted || oneShotPlaying) return
+        if (htmlDevePararPorqueWebAssumiu(Boolean(filaLoopSource))) return
         const filaCount = currentResumo.wpp_fila_count + currentResumo.portal_fila_count
-        // Em segundo plano o SO bloqueia play — notifica e retenta ao voltar (#652)
-        if (isAppInBackground()) {
+        const abaOculta =
+          !nativeAppActive ||
+          (typeof document !== 'undefined' && document.visibilityState === 'hidden')
+        // Aba oculta: o SO bloqueia play — notifica e retenta ao voltar (#652).
+        // Aba visível (ex.: respondendo chamado) continua tentando e pede um clique.
+        if (abaOculta) {
           notifyFilaDesktop(filaCount)
           return
         }
@@ -493,18 +676,15 @@ function startFilaLoopPlayback() {
         clearWppFilaLoopRetry()
         wppFilaLoopRetryTimer = window.setTimeout(() => {
           wppFilaLoopRetryTimer = null
-          if (wppFilaLoopWanted && !filaAguardandoMuted && !isAppInBackground()) {
+          const visivel =
+            nativeAppActive &&
+            (typeof document === 'undefined' || document.visibilityState !== 'hidden')
+          if (wppFilaLoopWanted && !filaAguardandoMuted && visivel) {
             startFilaLoopPlayback()
           }
         }, 1200)
       })
   }
-}
-
-function onFilaLoopEnded() {
-  if (!wppFilaLoopWanted || filaAguardandoMuted) return
-  // Recomeça na sequência, sem intervalo fixo (sem silêncio artificial)
-  startFilaLoopPlayback()
 }
 
 /** Remove pulses enfileirados e corta o one-shot da fila que estiver a tocar. */
@@ -529,11 +709,8 @@ function stopWppFilaOneShots() {
 function stopWppFilaLoop() {
   wppFilaLoopWanted = false
   clearWppFilaLoopRetry()
+  stopFilaWebAudioLoop()
   const audio = wppFilaLoopAudio
-  if (audio && wppFilaLoopEndedHandler) {
-    audio.removeEventListener('ended', wppFilaLoopEndedHandler)
-    wppFilaLoopEndedHandler = null
-  }
   if (audio) {
     audio.pause()
     try {
@@ -547,13 +724,9 @@ function stopWppFilaLoop() {
 function ensureWppFilaLoop() {
   if (filaAguardandoMuted) return
   wppFilaLoopWanted = true
-  const audio = getWppFilaLoopAudio()
-  if (!wppFilaLoopEndedHandler) {
-    wppFilaLoopEndedHandler = onFilaLoopEnded
-    audio.addEventListener('ended', wppFilaLoopEndedHandler)
-  }
-  // Já a tocar até ao fim — não reinicia a meio (deixa o 'ended' encadear)
-  if (!audio.paused && !audio.ended) return
+  if (filaLoopSource || filaLoopStarting) return
+  const audio = wppFilaLoopAudio
+  if (audio && !audio.paused && !audio.ended) return
   startFilaLoopPlayback()
 }
 
@@ -829,6 +1002,7 @@ function preloadSounds() {
 
 /** Desbloqueia reprodução após gesto do utilizador (autoplay / aba em background). */
 export function unlockAlertAudio() {
+  primeFilaAudioContext()
   if (audioUnlocked) return
   audioUnlocked = true
   const sources = [
@@ -856,19 +1030,6 @@ export function unlockAlertAudio() {
       .catch(() => {
         audio.muted = wasMuted
       })
-  }
-  try {
-    const Ctx =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-    if (Ctx) {
-      const ctx = new Ctx()
-      void ctx.resume().finally(() => {
-        void ctx.close().catch(() => {})
-      })
-    }
-  } catch {
-    // ignore
   }
 }
 
@@ -957,9 +1118,10 @@ function installAudioUnlockListeners() {
   audioUnlockInstalled = true
   const onGesture = () => {
     unlockAlertAudio()
-    window.removeEventListener('pointerdown', onGesture)
-    window.removeEventListener('keydown', onGesture)
-    window.removeEventListener('touchstart', onGesture)
+    if (!wppFilaLoopWanted || filaAguardandoMuted) return
+    if (filaLoopSource) return
+    if (wppFilaLoopAudio && !wppFilaLoopAudio.paused && !wppFilaLoopAudio.ended) return
+    startFilaLoopPlayback()
   }
   window.addEventListener('pointerdown', onGesture, { passive: true })
   window.addEventListener('keydown', onGesture)
@@ -1118,6 +1280,11 @@ export function useAlertaFilaSemResponsavel(enabled: boolean) {
       sseUnsubscribe = subscribe('notificacao.contagem', (payload) => {
         applyNotificacaoResumoSse(payload)
       })
+      const tocarFilaForaDoChat = () => {
+        void refetchPendenciasResumo(true)
+      }
+      chatFilaSomUnsubscribe = subscribe('chat.fila', tocarFilaForaDoChat)
+      portalFilaSomUnsubscribe = subscribe('portal.chat.fila', tocarFilaForaDoChat)
       chatInternoSseUnsubscribe = subscribe('chat.interno.mensagem', (payload) => {
         if (!shouldPlayChatInternoSound(payload)) return
         const conversaId = typeof payload.conversa_id === 'number' ? payload.conversa_id : 'x'
@@ -1137,6 +1304,10 @@ export function useAlertaFilaSemResponsavel(enabled: boolean) {
         sseUnsubscribe = null
         chatInternoSseUnsubscribe?.()
         chatInternoSseUnsubscribe = null
+        chatFilaSomUnsubscribe?.()
+        chatFilaSomUnsubscribe = null
+        portalFilaSomUnsubscribe?.()
+        portalFilaSomUnsubscribe = null
       }
     }
   }, [enabled, subscribe])
