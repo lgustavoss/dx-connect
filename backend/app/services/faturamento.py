@@ -89,13 +89,18 @@ def fatura_para_read(db: Session, row: Fatura) -> dict:
 
 
 def _contratos_faturaveis(db: Session) -> list[Contrato]:
-    return (
+    """Um contrato assinado por linha. O mais recente inclui a mudança e é o que fatura."""
+    rows = (
         db.query(Contrato)
         .options(joinedload(Contrato.linha))
         .filter(Contrato.status == CONTRATO_ASSINADO, Contrato.empresa_id.isnot(None))
         .order_by(Contrato.id.asc())
         .all()
     )
+    por_linha: dict[int, Contrato] = {}
+    for row in rows:
+        por_linha[row.negociacao_linha_cnpj_id] = row
+    return list(por_linha.values())
 
 
 def _emite_nfse_empresa(db: Session, empresa_id: int | None) -> bool:

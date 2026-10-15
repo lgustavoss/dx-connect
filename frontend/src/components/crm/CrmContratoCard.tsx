@@ -4,7 +4,6 @@ import {
   comercialContratoPolitica,
   comercialContratoTemplates,
   comercialContratos,
-  crmNegociacoes,
   type ComercialContrato,
   type Crm,
 } from '../../api/client'
@@ -19,7 +18,15 @@ import { useAuth } from '../../contexts/AuthContext'
 import { temPermissao } from '../../lib/permissoes'
 import { maskCnpjCpf } from '../../utils/maskCnpjCpf'
 import { CrmDadosFiscaisFields } from './CrmDadosFiscaisFields'
-import { emptyFiscal, fiscaisDaLinha, fiscalPayload, formatPercentualPt, parsePercentualPt } from './crmFiscais'
+import {
+  emptyFiscal,
+  fiscaisDaEmpresa,
+  fiscaisDaLinha,
+  fiscalIncompleto,
+  fiscalPayload,
+  formatPercentualPt,
+  parsePercentualPt,
+} from './crmFiscais'
 import { marcarTicketAtivo, TICKETS_PATH } from '../../lib/ticketAtivo'
 import { exibirProtocolo } from '../../lib/exibirProtocolo'
 
@@ -123,6 +130,7 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
   const [enviandoId, setEnviandoId] = useState<number | null>(null)
   const [assinandoId, setAssinandoId] = useState<number | null>(null)
   const [avancarFunil, setAvancarFunil] = useState(true)
+  const [abrirTicket, setAbrirTicket] = useState(true)
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [referenciaAnexo, setReferenciaAnexo] = useState('')
   const [anexandoPdf, setAnexandoPdf] = useState(false)
@@ -185,7 +193,12 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
     (c) => c.negociacao_linha_cnpj_id === linhaId && ATIVOS.has(c.status),
   )
   const podeGerar =
-    podeEmitir && linhaId !== '' && (!contratoDaLinha || contratoDaLinha.status === 'rascunho')
+    podeEmitir &&
+    linhaId !== '' &&
+    (!contratoDaLinha ||
+      contratoDaLinha.status === 'rascunho' ||
+      contratoDaLinha.status === 'enviado' ||
+      contratoDaLinha.status === 'assinado')
   const mostrarFormularioGeracao = podeGerar && (!contratoDaLinha || editarGeracao)
 
   useEffect(() => {
@@ -197,8 +210,23 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
       setFiscais(emptyFiscal())
       return
     }
-    setFiscais(fiscaisDaLinha(linhaSel, lead))
-  }, [linhaId, lead?.email, lead?.telefone, JSON.stringify(linhaSel?.dados_fiscais)])
+    if (!linhaSel.empresa_id) {
+      setFiscais(fiscaisDaLinha(linhaSel, lead))
+      return
+    }
+    let cancelado = false
+    void comercialContratos
+      .obterEmpresaDaLinha(linhaSel.id)
+      .then((emp) => {
+        if (!cancelado) setFiscais(fiscaisDaEmpresa(emp, lead))
+      })
+      .catch(() => {
+        if (!cancelado) setFiscais(fiscaisDaLinha(linhaSel, lead))
+      })
+    return () => {
+      cancelado = true
+    }
+  }, [linhaId, linhaSel?.id, linhaSel?.empresa_id, lead?.email, lead?.telefone, JSON.stringify(linhaSel?.dados_fiscais)])
 
   useEffect(() => {
     if (!preview?.conteudo_html_snapshot && preview?.id) {
@@ -231,11 +259,16 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
         return
       }
     }
+    if (fiscalIncompleto(fiscais)) {
+      toast.showWarning(
+        'Complete o cadastro da empresa (endereço completo e responsável legal) antes de gerar o contrato.',
+      )
+      return
+    }
     setGerando(true)
     try {
-      await crmNegociacoes.updateLinha(negociacao.id, linhaId, {
-        dados_fiscais: fiscalPayload(fiscais),
-      })
+      const emp = await comercialContratos.salvarEmpresaDaLinha(linhaId, fiscalPayload(fiscais))
+      setFiscais(fiscaisDaEmpresa(emp, lead))
       const row = await comercialContratos.gerar({
         linha_id: linhaId,
         template_id: templateId === '' ? null : templateId,
@@ -300,7 +333,7 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
       setPreview(row)
       setPdfFile(null)
       if (pdfInputRef.current) pdfInputRef.current.value = ''
-      toast.showSuccess('PDF assinado anexado. Já podes marcar o contrato como assinado.')
+      toast.showSuccess('PDF assinado anexado. Já pode marcar o contrato como assinado.')
       await load()
       onChanged()
     } catch (err) {
@@ -335,12 +368,14 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
     try {
       const row = await comercialContratos.marcarAssinado(id, {
         avancar_funil: avancarFunil,
+        abrir_ticket_implantacao: abrirTicket,
       })
       setPreview(row)
+      const ticket = abrirTicket ? 'O ticket de implantação foi aberto.' : 'Nenhum ticket de implantação foi aberto.'
       toast.showSuccess(
         avancarFunil
-          ? 'Contrato assinado, Rede/Empresa vinculadas e funil atualizado.'
-          : 'Contrato marcado como assinado. Rede e Empresa foram criadas ou vinculadas.',
+          ? `Contrato assinado e funil atualizado. ${ticket}`
+          : `Contrato marcado como assinado. ${ticket}`,
       )
       setAssinandoId(null)
       await load()
@@ -379,8 +414,9 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
   const inner = (
     <>
       <p className="mb-3 text-sm text-slate-500">
-        Um contrato por CNPJ. O PDF do cliente não inclui custo nem margem — esses valores ficam só neste
-        painel. O nome da Rede (acima) e os dados fiscais abaixo são obrigatórios para gerar.
+        O PDF do cliente não inclui custo nem margem — esses valores ficam só neste painel. O nome da rede
+        (acima) e a empresa abaixo são obrigatórios para gerar. Depois de assinado, o documento não muda: a
+        alteração vira um contrato novo, no mesmo modelo, com o que a linha tiver agora.
       </p>
 
       {linhas.length === 0 ? (
@@ -393,17 +429,25 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
             onChange={(v) => setLinhaId(v ? Number(v) : '')}
             options={linhaOptions}
           />
-          {contratoDaLinha && contratoDaLinha.status !== 'rascunho' ? (
+          {contratoDaLinha?.status === 'assinado' ? (
             <p className="text-xs text-amber-800 dark:text-amber-200">
-              Esta linha já tem contrato {STATUS_LABEL[contratoDaLinha.status] || contratoDaLinha.status}.
-              {contratoDaLinha.status === 'assinado'
-                ? ' Para gerar outro, rescinda o atual (com estimativa de multa, se aplicável).'
-                : ' Para gerar outro, cancele o atual.'}
+              Este contrato está assinado e não muda mais. Para incluir uma mudança, como um módulo, edite a
+              linha e gere um contrato novo. Ele usa o mesmo modelo e leva o que a linha tiver agora.
             </p>
           ) : null}
-          {podeGerar && contratoDaLinha?.status === 'rascunho' && !editarGeracao ? (
+          {contratoDaLinha?.status === 'enviado' && !editarGeracao ? (
+            <p className="text-xs text-slate-600 dark:text-slate-300">
+              Este contrato foi enviado para assinatura. Se o cliente encontrou um erro, corrija os dados e gere
+              novamente. Ele volta para rascunho.
+            </p>
+          ) : null}
+          {podeGerar && contratoDaLinha && !editarGeracao ? (
             <Button variant="secondary" onClick={() => setEditarGeracao(true)}>
-              Alterar rascunho
+              {contratoDaLinha.status === 'enviado'
+                ? 'Corrigir e gerar novamente'
+                : contratoDaLinha.status === 'assinado'
+                  ? 'Gerar aditivo'
+                  : 'Alterar rascunho'}
             </Button>
           ) : null}
           {mostrarFormularioGeracao ? (
@@ -539,9 +583,13 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
           <Button onClick={() => void handleGerar()} disabled={gerando}>
             {gerando
               ? 'Gerando…'
-              : contratoDaLinha?.status === 'rascunho'
-                ? 'Atualizar contrato'
-                : 'Gerar contrato'}
+              : contratoDaLinha?.status === 'enviado'
+                ? 'Gerar novamente'
+                : contratoDaLinha?.status === 'assinado'
+                  ? 'Gerar aditivo'
+                  : contratoDaLinha?.status === 'rascunho'
+                    ? 'Atualizar contrato'
+                    : 'Gerar contrato'}
           </Button>
             </>
           ) : null}
@@ -663,7 +711,15 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
               {podeEmitir && (preview.status === 'rascunho' || preview.status === 'enviado') ? (
                 <Button
                   variant="secondary"
-                  onClick={() => setAssinandoId(preview.id)}
+                  onClick={() => {
+                    const jaTemTicket = contratos.some(
+                      (c) =>
+                        c.negociacao_linha_cnpj_id === preview.negociacao_linha_cnpj_id &&
+                        c.implantacao_ticket_id,
+                    )
+                    setAbrirTicket(!jaTemTicket)
+                    setAssinandoId(preview.id)
+                  }}
                   disabled={!preview.tem_pdf_assinado}
                 >
                   Marcar assinado
@@ -707,7 +763,7 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
           <p className="text-sm font-medium text-slate-700 dark:text-slate-300">PDF assinado</p>
           <p className="text-xs text-slate-500">
             Exporte o PDF gerado, assine no ClickSign ou outro e anexe aqui. Referência/protocolo é opcional.
-            Marcar assinado só fica disponível depois do anexo — isso cria ou vincula Rede e Empresa (sem PDVs).
+            Marcar assinado só fica disponível depois do anexo. O contrato fica ligado à empresa já cadastrada, sem criar outra com o mesmo CNPJ.
           </p>
           {preview.tem_pdf_assinado ? (
             <p className="text-sm text-slate-700 dark:text-slate-300">
@@ -807,23 +863,40 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Marcar contrato como assinado</h2>
             <p className="mt-1 text-sm text-slate-500">
               Confirma o PDF anexado
-              {preview?.referencia_externa ? ` (ref. ${preview.referencia_externa})` : ''}. A Rede e a
-              Empresa do CNPJ são criadas ou vinculadas; PDVs ficam para a implantação.
+              {preview?.referencia_externa ? ` (ref. ${preview.referencia_externa})` : ''}. A rede e a
+              empresa do CNPJ são criadas ou vinculadas.
             </p>
-            <div className="mt-4 space-y-1">
-              <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={avancarFunil}
-                  onChange={(e) => setAvancarFunil(e.target.checked)}
-                  className="size-4 rounded border-slate-300"
-                />
-                Avançar funil para «Contrato assinado»
-              </label>
-              <p className="pl-6 text-xs text-slate-500">
-                Pode pular proposta ou outros estágios — há cliente que manda a documentação e já fecha o
-                contrato. Desmarque só se quiser deixar o funil onde está.
-              </p>
+            <div className="mt-4 space-y-3">
+              <div className="space-y-1">
+                <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={abrirTicket}
+                    onChange={(e) => setAbrirTicket(e.target.checked)}
+                    className="size-4 rounded border-slate-300"
+                  />
+                  Abrir ticket de implantação
+                </label>
+                <p className="pl-6 text-xs text-slate-500">
+                  Marque quando a implantação ainda não começou. Em um aditivo, deixe desmarcado se o ticket
+                  da primeira assinatura já cobre o cliente.
+                </p>
+              </div>
+              <div className="space-y-1">
+                <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={avancarFunil}
+                    onChange={(e) => setAvancarFunil(e.target.checked)}
+                    className="size-4 rounded border-slate-300"
+                  />
+                  Avançar funil para «Contrato assinado»
+                </label>
+                <p className="pl-6 text-xs text-slate-500">
+                  Pode pular proposta ou outros estágios — há cliente que manda a documentação e já fecha o
+                  contrato. Desmarque só se quiser deixar o funil onde está.
+                </p>
+              </div>
             </div>
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="secondary" onClick={() => setAssinandoId(null)}>
