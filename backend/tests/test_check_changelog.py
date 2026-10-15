@@ -19,6 +19,8 @@ from check_changelog import (  # noqa: E402
     extract_published_history,
     extract_unreleased_block,
     has_new_published_version,
+    merge_drops_unpublished,
+    unpublished_bullet_texts,
     is_deps_only_change,
     is_saas_path,
     parse_unreleased_bullets,
@@ -238,3 +240,47 @@ def test_has_new_published_version_passo5():
     head = _PREAMBLE + "## [Unreleased]\n\n## [26.09.001] - 2026-09-12\n\n- x\n\n" + _PUBLISHED
     assert has_new_published_version(base, head) is True
     assert has_new_published_version(head, head) is False
+
+
+def test_unpublished_ignora_bullet_ja_na_calver():
+    staging = _PREAMBLE + "## [Unreleased]\n\n" + _PUBLISHED
+    main = (
+        _PREAMBLE
+        + "## [Unreleased]\n\n### DeskRudder\n\n#### Melhorias\n\n"
+        + "- Contato no chat (#1012)\n"
+        + "- Feature nova só na main (#1100)\n\n"
+        + _PUBLISHED
+    )
+    assert unpublished_bullet_texts(main, staging) == ["Feature nova só na main (#1100)"]
+
+
+def test_merge_que_esvazia_unreleased_perde_novidade():
+    staging = _PREAMBLE + "## [Unreleased]\n\n" + _PUBLISHED
+    main = (
+        _PREAMBLE
+        + "## [Unreleased]\n\n### DeskRudder\n\n#### Melhorias\n\n"
+        + "- Contato no chat (#1012)\n"
+        + "- Feature nova só na main (#1100)\n\n"
+        + _PUBLISHED
+    )
+    merged = (
+        _PREAMBLE
+        + "## [Unreleased]\n\n"
+        + "## [26.08.019] - 2026-08-31\n\n### DeskRudder\n\n#### Melhorias\n\n"
+        + "- Contato no chat (#1012)\n"
+        + "- Feature nova só na main (#1100)\n"
+    )
+    assert merge_drops_unpublished(merged, main, staging) == ["Feature nova só na main (#1100)"]
+
+
+def test_merge_com_unreleased_preserva_novidade():
+    staging = _PREAMBLE + "## [Unreleased]\n\n" + _PUBLISHED
+    main = (
+        _PREAMBLE
+        + "## [Unreleased]\n\n### DeskRudder\n\n#### Melhorias\n\n"
+        + "- Contato no chat (#1012)\n"
+        + "- Feature nova só na main (#1100)\n\n"
+        + _PUBLISHED
+    )
+    merged = compose_changelog_for_main_sync(main, staging)
+    assert merge_drops_unpublished(merged, main, staging) == []

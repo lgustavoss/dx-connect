@@ -203,6 +203,46 @@ def compose_changelog_for_main_sync(main_text: str, staging_text: str) -> str:
     return preamble + format_unreleased_section(leftover) + published
 
 
+def unpublished_bullet_texts(head_text: str, base_text: str) -> list[str]:
+    """Bullets da head que a staging ainda não publicou — o que o deploy precisa ler."""
+    return parse_unreleased_bullets(compose_changelog_for_main_sync(head_text, base_text))
+
+
+def merge_drops_unpublished(merged_text: str, head_text: str, base_text: str) -> list[str]:
+    """Novidades que o merge não deixou em [Unreleased] (caem numa versão já publicada)."""
+    got = set(parse_unreleased_bullets(merged_text))
+    return [text for text in unpublished_bullet_texts(head_text, base_text) if text not in got]
+
+
+def merged_changelog_text(base: str, head: str) -> tuple[str | None, str | None]:
+    """CHANGELOG.md como o Git gravaria ao mergear head em base.
+
+    O CI não pode confiar só no arquivo da head: o 3-way encaixa bullets novos
+    dentro da última CalVer da staging e deixa [Unreleased] vazio. O deploy então recusa.
+    """
+    r = subprocess.run(
+        ["git", "merge-tree", "--write-tree", base, head],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        cwd=ROOT,
+    )
+    tree = (r.stdout or "").strip().splitlines()[0] if (r.stdout or "").strip() else ""
+    if r.returncode != 0 or not tree:
+        detail = (r.stderr or "").strip() or "merge com conflito"
+        return None, (
+            "O merge deste PR na staging tem conflito. "
+            "Resolva numa branch a partir da staging e mantenha as novidades em ## [Unreleased]. "
+            f"({detail})"
+        )
+    try:
+        return _run("git", "show", f"{tree}:CHANGELOG.md"), None
+    except RuntimeError as e:
+        return None, f"Não foi possível ler CHANGELOG.md do merge ({e})"
+
+
 def changelog_for_staging_pr(base: str, head: str) -> tuple[str | None, str | None]:
     """Lê CHANGELOG da base e da head e devolve o resultado composto (sem git merge)."""
     try:
@@ -341,7 +381,25 @@ def main() -> int:
         default=CHANGELOG,
         help="Caminho do CHANGELOG (usa versão do head)",
     )
+    ap.add_argument(
+        "--write-changelog",
+        action="store_true",
+        help="Grava CHANGELOG.md com [Unreleased] só do que a base ainda não publicou (head = main, base = staging).",
+    )
     args = ap.parse_args()
+    if args.write_changelog:
+        try:
+            base_text = _run("git", "show", f"{args.base}:CHANGELOG.md")
+            head_text = _run("git", "show", f"{args.head}:CHANGELOG.md")
+        except RuntimeError as e:
+            print(f"::error::Não foi possível ler CHANGELOG.md ({e})", file=sys.stderr)
+            return 1
+        written = compose_changelog_for_main_sync(head_text, base_text)
+        args.changelog.write_text(written, encoding="utf-8", newline="\n")
+        n = len(parse_unreleased_bullets(written))
+        print(f"CHANGELOG.md gravado com {n} item(ns) em [Unreleased] (ainda não publicados na base).")
+        return 0
+
     staging_pr = is_staging_base(args.base, args.pr_base_ref or None)
 
     paths = changed_files(args.base, args.head)
@@ -359,13 +417,32 @@ def main() -> int:
         return 0
 
     if staging_pr:
-        text, compose_err = changelog_for_staging_pr(args.base, args.head)
-        if compose_err:
-            print(f"::error::{compose_err}", file=sys.stderr)
+        merged, merge_err = merged_changelog_text(args.base, args.head)
+        if merge_err or merged is None:
+            print(f"::error::{merge_err or 'Não foi possível simular o merge do CHANGELOG.'}", file=sys.stderr)
             return 1
-        if text is None:
-            print("::error::Não foi possível compor CHANGELOG para validar [Unreleased].", file=sys.stderr)
+        try:
+            base_text = _run("git", "show", f"{args.base}:CHANGELOG.md")
+            head_text = _run("git", "show", f"{args.head}:CHANGELOG.md")
+        except RuntimeError as e:
+            print(f"::error::Não foi possível ler CHANGELOG.md ({e})", file=sys.stderr)
             return 1
+        dropped = merge_drops_unpublished(merged, head_text, base_text)
+        if dropped:
+            sample = "\n".join(f"  - {item}" for item in dropped[:8])
+            extra = f"\n  … e mais {len(dropped) - 8}" if len(dropped) > 8 else ""
+            print(
+                "::error::O merge deste PR na staging tiraria as novidades de ## [Unreleased] "
+                f"({len(dropped)} item(ns)). O Git encaixa esses bullets numa versão já publicada "
+                "e o deploy recusa publicar com a seção vazia.\n"
+                "Faça a branch a partir da staging, mergeie a main e grave o changelog com:\n"
+                "  python scripts/check_changelog.py --base origin/staging --head origin/main "
+                "--write-changelog\n"
+                f"Itens que o merge perderia:\n{sample}{extra}",
+                file=sys.stderr,
+            )
+            return 1
+        text = merged
     else:
         try:
             text = _run("git", "show", f"{args.head}:{args.changelog.relative_to(ROOT).as_posix()}")
@@ -419,7 +496,7 @@ def main() -> int:
         return 1
 
     parts = [f"{p}={len(by_prod.get(p, []))}" for p in sorted(needed or by_prod.keys())]
-    suffix = " (PR para staging: Unreleased da head)" if staging_pr else ""
+    suffix = " (PR para staging: merge preserva [Unreleased])" if staging_pr else ""
     print(f"OK: CHANGELOG [Unreleased] com {len(bullets)} item(ns) ({', '.join(parts)}){suffix}.")
     return 0
 
