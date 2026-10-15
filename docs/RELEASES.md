@@ -30,7 +30,7 @@ feature → PR main (+ CHANGELOG com tags Produto/DevOps) → PR main → stagin
 ```
 
 1. **Cada PR para `main`** com mudança visível: bullets em `CHANGELOG.md` → `## [Unreleased]` na **subseção** certa (tag Produto ou DevOps)
-2. **PR `main → staging`**: o `[Unreleased]` descreve **todo o lote** que será publicado
+2. **PR `main → staging`**: o `[Unreleased]` descreve **todo o lote** que será publicado. O CI simula o merge: se o Git colocar os bullets novos dentro de uma versão já publicada, o check falha (o deploy só lê `[Unreleased]`). Nesse caso o PR sai de uma branch `merge/main-into-staging-…`, com o changelog regravado para manter só o que ainda não foi publicado.
 3. **Merge em `staging`**: **só após análise e aprovação humana no GitHub** (`staging` = produção). Agentes/CI **não** mergeiam este PR automaticamente — usar `/release-staging` para abrir o PR e parar.
 4. **Deploy em `staging`**: consome `[Unreleased]`, gera nova CalVer, append em `docs/releases/manifest.json` (cada bullet com `product`), zera `[Unreleased]` e commita em `staging` (`chore(release): publica v… [skip ci]`)
 5. **Sync na `main`** (obrigatório, mesmo comando `/release-staging`): após Deploy verde, PR `chore/sync-changelog-…` → `main` **mergeando** `origin/staging` (não só copiar arquivos — isso atualiza o merge-base e evita conflito de CHANGELOG no próximo release). Preservar bullets de `[Unreleased]` que existam só na `main`. Ver Passo 5 em `.cursor/commands/release-staging.md`.

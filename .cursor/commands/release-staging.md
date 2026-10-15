@@ -20,38 +20,46 @@ gh pr list --base staging --head main --state open
 
 Se já existir PR aberto `main` → `staging`, **reutilize** (não duplique).
 
-## Passo 2 — Conflitos no GitHub?
+## Passo 2 — O merge esvazia o `[Unreleased]`?
 
-O CI **não** simula `git merge` do repositório (isso falhava em todo release: o deploy esvazia `[Unreleased]` na staging). Ele compõe `[Unreleased]` da head + histórico da base.
-
-O GitHub ainda pode marcar conflito em `CHANGELOG.md` neste PR se o Passo 5 do release **anterior** foi só cópia de arquivos (sem merge `staging → main`). Nesse caso:
-
-1. Branch a partir de `origin/staging`: `merge/main-into-staging-YYYYMMDD`
-2. `git merge origin/main` e resolver (**obrigatório:** manter bullets de `[Unreleased]` da `main` — não aceitar `[Unreleased]` vazio da `staging`)
-3. Validar localmente: `python scripts/check_changelog.py --base origin/staging --head HEAD`
-4. Push da branch e **um** PR → `staging`
-5. **Pare** — entregue o URL; **não** mergeie
-
-Depois de **um** Passo 5 com `git merge origin/staging` na `main`, o próximo `main → staging` tende a auto-mergear o CHANGELOG (merge-base já tem `[Unreleased]` vazio).
-
-Não manter dois PRs de release abertos sem explicar; preferir **um** PR mergeável.
-
-### Checklist CHANGELOG antes do merge release
+O CI simula `git merge-tree` da head na `staging`. Se os bullets novos caírem dentro de uma CalVer já publicada, o check falha — é o mesmo erro do deploy (`[Unreleased]` vazio).
 
 ```bash
 git fetch origin
 python scripts/check_changelog.py --base origin/staging --head origin/main
 ```
 
-Deve imprimir `OK` com bullets (Unreleased da head). Se a head tiver `[Unreleased]` vazio, não mergeie.
+- **`OK` com “merge preserva [Unreleased]”** — o PR pode ser `main` → `staging` (Passo 3a).
+- **Erro de merge** (bullets fora do `[Unreleased]`, ou conflito) — não abra o PR da `main`. Siga o Passo 3b.
 
-## Passo 3 — Criar PR (sem merge)
+Não manter dois PRs de release abertos sem explicar; preferir **um** PR mergeável.
+
+## Passo 3a — PR direto (só se o Passo 2 passou)
 
 ```bash
 gh pr create --base staging --head main --title "release: main → staging" --body-file .cursor/pr-body-temp.md
 ```
 
-Corpo do PR: Summary do lote (`[Unreleased]`) + test plan. **Sem** avisos sobre quem aprova/mergeia (isso é óbvio e irrelevante no GitHub).
+## Passo 3b — Branch com o CHANGELOG que o deploy vai ler
+
+Quando o 3-way da `main` encaixa as novidades na versão já publicada:
+
+```bash
+git checkout -b merge/main-into-staging-YYYYMMDD origin/staging
+git merge origin/main --no-edit
+python scripts/check_changelog.py --base origin/staging --head origin/main --write-changelog
+git add CHANGELOG.md
+git commit -m "fix(changelog): mantem o lote em Unreleased no release"
+python scripts/check_changelog.py --base origin/staging --head HEAD
+git push -u origin HEAD
+gh pr create --base staging --head merge/main-into-staging-YYYYMMDD --title "release: main → staging" --body-file .cursor/pr-body-temp.md
+```
+
+O `--write-changelog` grava em `[Unreleased]` só o que a `staging` ainda não publicou, e mantém o histórico CalVer da `staging`. Conflitos em outros arquivos: resolva e inclua no mesmo commit.
+
+O check local tem de imprimir `OK` antes do push. **Pare** — entregue o URL; **não** mergeie.
+
+Corpo do PR (3a ou 3b): Summary do lote (`[Unreleased]`) + test plan. **Sem** avisos sobre quem aprova/mergeia (isso é óbvio e irrelevante no GitHub).
 
 ## Passo 4 — Entrega (pré-merge)
 
