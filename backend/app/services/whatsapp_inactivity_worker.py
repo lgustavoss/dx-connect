@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import desc, or_
+from sqlalchemy import and_, desc, or_
 from sqlalchemy.orm import Session
 
 from app.models.whatsapp_chat import WhatsappChat, WhatsappMensagem, WhatsappSettings
@@ -32,24 +32,25 @@ def _render_template(template: str, *, db: Session, chat: WhatsappChat, st: What
     return render_webhook(template, db=db, chat=chat, st=st, atendente_nome="BOT")
 
 
-def _mensagens_relevantes_q(db: Session, chat_id: int):
-    return db.query(WhatsappMensagem).filter(
-        WhatsappMensagem.chat_id == chat_id,
-        or_(
-            WhatsappMensagem.evento_sistema.is_(None),
-            WhatsappMensagem.evento_sistema != "comentario_interno",
-        ),
-    )
-
-
-def _ultima_outbound_humana(db: Session, chat_id: int) -> WhatsappMensagem | None:
-    """Mensagem enviada pelo atendente (não BOT / auto_assumido / avisos de sistema)."""
+def _ultima_atividade_humana(db: Session, chat_id: int) -> WhatsappMensagem | None:
+    """Última mensagem da pessoa ou do atendente. BOT, auto_assumido e aviso não contam."""
     return (
         db.query(WhatsappMensagem)
         .filter(
             WhatsappMensagem.chat_id == chat_id,
-            WhatsappMensagem.direcao == "outbound",
-            WhatsappMensagem.evento_sistema.is_(None),
+            or_(
+                and_(
+                    WhatsappMensagem.direcao == "inbound",
+                    or_(
+                        WhatsappMensagem.evento_sistema.is_(None),
+                        WhatsappMensagem.evento_sistema != "comentario_interno",
+                    ),
+                ),
+                and_(
+                    WhatsappMensagem.direcao == "outbound",
+                    WhatsappMensagem.evento_sistema.is_(None),
+                ),
+            ),
         )
         .order_by(desc(WhatsappMensagem.created_at), desc(WhatsappMensagem.id))
         .first()
@@ -60,31 +61,21 @@ def _referencia_inatividade_cliente(db: Session, chat: WhatsappChat) -> datetime
     """
     Momento a partir do qual o silêncio conta para inatividade.
 
-    Conta desde a **última mensagem relevante** (inbound do cliente **ou** outbound
-    humana do atendente), desde que já exista pelo menos uma outbound humana
-    (não dispara na fila / só com auto_assumido/BOT).
-
-    Comentários internos e eventos de sistema não contam como atividade.
+    Igual ao relógio da conversa: última mensagem da pessoa ou do atendente,
+    ou a retomada manual. Mensagem só do bot (auto_assumido, aviso) não inicia
+    nem reinicia o prazo. Sem mensagem humana e sem retomada, não dispara.
     """
-    last_out = _ultima_outbound_humana(db, chat.id)
-    if not last_out or last_out.created_at is None:
-        return None
-
-    last_in = (
-        _mensagens_relevantes_q(db, chat.id)
-        .filter(WhatsappMensagem.direcao == "inbound")
-        .order_by(desc(WhatsappMensagem.created_at), desc(WhatsappMensagem.id))
-        .first()
-    )
-
-    candidatos: list[datetime] = [last_out.created_at]
-    if last_in is not None and last_in.created_at is not None:
-        candidatos.append(last_in.created_at)
+    last = _ultima_atividade_humana(db, chat.id)
+    candidatos: list[datetime] = []
+    if last is not None and last.created_at is not None:
+        candidatos.append(last.created_at)
 
     retomada = getattr(chat, "inatividade_retomada_em", None)
     if retomada is not None:
         candidatos.append(retomada)
 
+    if not candidatos:
+        return None
     return max(candidatos)
 
 
@@ -215,8 +206,8 @@ def _processar_chat_inatividade(
     if aviso_min < 1 or pos_aviso_min < 1:
         return False
 
-    # Relógio e fase pós-aviso usam só actividade humana (cliente/atendente).
-    # Marcos de sistema (ex.: demanda_registrada) NÃO substituem o auto_inativ_aviso (#712).
+    # Relógio igual ao da tela: última mensagem da pessoa ou do atendente.
+    # Marcos de sistema (ex.: demanda_registrada, auto_assumido) NÃO substituem o aviso (#712).
     referencia = _referencia_inatividade_cliente(db, chat)
     if referencia is None:
         return False

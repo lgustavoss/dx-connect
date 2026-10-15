@@ -65,6 +65,9 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
+- Chat (#S202610-0008): o aviso de inatividade sai sozinho quando o tempo da conversa acaba, mesmo quando quase não houve troca de mensagens
+- Chat (#S202610-0007): o alerta sonoro de chat aguardando toca em qualquer tela. Depois que a pessoa usa o sistema uma vez, o toque sai sozinho quando um cliente chama, mesmo se ela tiver se afastado do computador
+- CRM (#S202610-0005): no contrato comercial, os campos da mesma linha ficam alinhados — o texto de ajuda fica embaixo do campo e não empurra o vizinho
 - Tickets (#S202610-0003): na lista de chamados abertos, a coluna Responsável mostra o atendente e a coluna SLA mostra o prazo
 - WhatsApp: depois do horário previsto, quem continua no atendimento pode pegar chat. A hora extra se acerta depois com o gerente — o sistema não impede o atendimento
 - Ponto: os dois períodos do dia (manhã e tarde) entram no tempo trabalhado; a meta desconta o intervalo quando ele está preenchido
