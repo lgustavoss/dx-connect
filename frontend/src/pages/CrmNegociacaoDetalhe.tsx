@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useEventStream } from '../contexts/EventStreamContext'
 import {
   ApiError,
@@ -502,6 +502,25 @@ export function CrmNegociacaoDetalhe() {
           />
         </div>
       </div>
+
+      <Card title="Chats vinculados">
+        {(neg.chats || []).length === 0 ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400">Nenhum chat vinculado a esta negociação.</p>
+        ) : (
+          <ul className="space-y-2">
+            {(neg.chats || []).map((chat) => (
+              <li key={chat.id}>
+                <Link
+                  to={`/whatsapp/c/${chat.id}`}
+                  className="text-sm font-medium text-violet-700 hover:underline dark:text-violet-300"
+                >
+                  {chat.cliente_nome || chat.wa_id} · {chat.protocolo}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
 
       <Card title="Avançar estágio">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">

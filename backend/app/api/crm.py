@@ -190,7 +190,11 @@ def obter_negociacao(
     _: Atendente = Depends(exigir_permissao("crm.ver")),
 ):
     neg = svc.obter_negociacao(db, negociacao_id)
-    return CrmNegociacaoRead(**svc.negociacao_to_read(neg))
+    from app.services.whatsapp_chat_negociacao import chats_da_negociacao
+
+    dados = svc.negociacao_to_read(neg)
+    dados["chats"] = chats_da_negociacao(db, neg.id)
+    return CrmNegociacaoRead(**dados)
 
 
 @router.patch("/negociacoes/{negociacao_id}", response_model=CrmNegociacaoRead)

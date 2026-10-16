@@ -77,6 +77,9 @@ class WhatsappChatRead(BaseModel):
     funcionario_tipo: str | None = None
     empresa_id: int | None = None
     empresa_nome: str | None = None
+    negociacao_id: int | None = None
+    negociacao_titulo: str | None = None
+    negociacao_lead_nome: str | None = None
     # Empresas do funcionário vinculado — útil quando falta empresa_id de contexto (#592).
     empresas_opcoes: list[WhatsappEmpresaOpcaoRead] = Field(default_factory=list)
     inatividade_pausada: bool = False
@@ -190,6 +193,18 @@ class WhatsappChatComentarioInternoCreate(BaseModel):
 
 class WhatsappVincularTicketBody(BaseModel):
     ticket_id: int
+
+
+class WhatsappNegociacaoOpcaoRead(BaseModel):
+    id: int
+    titulo: str | None = None
+    lead_nome: str | None = None
+    lead_telefone: str | None = None
+    estagio_nome: str | None = None
+
+
+class WhatsappVincularNegociacaoBody(BaseModel):
+    negociacao_id: int
 
 
 class WhatsappVincularFuncionarioBody(BaseModel):
