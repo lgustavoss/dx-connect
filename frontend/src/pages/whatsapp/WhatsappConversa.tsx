@@ -78,6 +78,8 @@ import {
 } from '../../lib/whatsappChatMeta'
 import { WhatsappTicketsModal } from './WhatsappTicketsModal'
 import { WhatsappVincFuncionarioModal } from './WhatsappVincFuncionarioModal'
+import { WhatsappVincNegociacaoModal } from '../../components/chat/WhatsappVincNegociacaoModal'
+import { temPermissao } from '../../lib/permissoes'
 import { WhatsappDemandasPanel } from './WhatsappDemandasPanel'
 import { WhatsappEncerrarModal } from './WhatsappEncerrarModal'
 import { WhatsappDemandaTimelineMarco } from './WhatsappDemandaTimelineMarco'
@@ -803,6 +805,8 @@ export function WhatsappConversa({ chatIdProp, modoConsulta = false }: WhatsappC
   const [transferAtendenteId, setTransferAtendenteId] = useState<number | ''>('')
   const [transferindo, setTransferindo] = useState(false)
   const [modalVincFuncionario, setModalVincFuncionario] = useState(false)
+  const [modalVincNegociacao, setModalVincNegociacao] = useState(false)
+  const podeVincularCrm = temPermissao(user, 'crm.ver')
   const [modalEmpresaContexto, setModalEmpresaContexto] = useState(false)
   const [empresaContextoId, setEmpresaContextoId] = useState<number | ''>('')
   const [salvandoEmpresaContexto, setSalvandoEmpresaContexto] = useState(false)
@@ -2351,10 +2355,39 @@ useEffect(() => {
 
         {chat && !chat.funcionario_rede_id && !modoConsulta && (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950 dark:border-violet-900/40 dark:bg-violet-950/30 dark:text-violet-100">
-            <p>{CONTATO_CLIENTE.bannerNaoVinculado}</p>
-            <Button variant="primary" className="h-8 shrink-0 text-xs" onClick={() => setModalVincFuncionario(true)}>
-              {CONTATO_CLIENTE.vincularEmpresa}
-            </Button>
+            <p>
+              {chat.negociacao_id
+                ? `Vinculado à negociação ${chat.negociacao_lead_nome || chat.negociacao_titulo || `#${chat.negociacao_id}`}. Quando a empresa for cadastrada, este contato passa a ficar nela.`
+                : CONTATO_CLIENTE.bannerNaoVinculado}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="primary" className="h-8 shrink-0 text-xs" onClick={() => setModalVincFuncionario(true)}>
+                {CONTATO_CLIENTE.vincularEmpresa}
+              </Button>
+              {podeVincularCrm && !chat.negociacao_id ? (
+                <Button variant="secondary" className="h-8 shrink-0 text-xs" onClick={() => setModalVincNegociacao(true)}>
+                  Vincular ao CRM
+                </Button>
+              ) : null}
+              {podeVincularCrm && chat.negociacao_id ? (
+                <Button
+                  variant="secondary"
+                  className="h-8 shrink-0 text-xs"
+                  onClick={() => {
+                    void whatsappChats
+                      .desvincularNegociacao(chat.id)
+                      .then((atualizado) => {
+                        setChat(atualizado)
+                      })
+                      .catch((err: unknown) => {
+                        toast.showError(mensagemFalhaParaToast(err, 'Não foi possível desvincular a negociação.'))
+                      })
+                  }}
+                >
+                  Desvincular negociação
+                </Button>
+              ) : null}
+            </div>
           </div>
         )}
 
@@ -2889,6 +2922,18 @@ useEffect(() => {
     </Card>
   </div>
 )}
+
+        {modalVincNegociacao && chat ? (
+          <WhatsappVincNegociacaoModal
+            open={modalVincNegociacao}
+            onClose={() => setModalVincNegociacao(false)}
+            onEscolhida={async (negociacaoId) => {
+              const atualizado = await whatsappChats.vincularNegociacao(chat.id, negociacaoId)
+              setChat(mergeWhatsappChat(chat, atualizado))
+              setModalVincNegociacao(false)
+            }}
+          />
+        ) : null}
 
         {modalVincFuncionario && chat && (
           <WhatsappVincFuncionarioModal

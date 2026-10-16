@@ -345,6 +345,9 @@ def cadastrar_empresa_da_linha(db: Session, linha: CrmNegociacaoCnpjLinha, fisca
         )
         linha.empresa_id = existente.id
         db.flush()
+        from app.services.whatsapp_chat_negociacao import repassar_chats_da_negociacao
+
+        repassar_chats_da_negociacao(db, neg.id, ator)
         return existente
 
     rede = (
@@ -370,6 +373,9 @@ def cadastrar_empresa_da_linha(db: Session, linha: CrmNegociacaoCnpjLinha, fisca
     db.flush()
     linha.empresa_id = empresa.id
     db.flush()
+    from app.services.whatsapp_chat_negociacao import repassar_chats_da_negociacao
+
+    repassar_chats_da_negociacao(db, neg.id, ator)
     return empresa
 
 
@@ -1584,6 +1590,9 @@ def converter_pos_assinatura(db: Session, contrato: Contrato, linha: CrmNegociac
     neg = linha.negociacao or crm_svc.obter_negociacao(db, linha.negociacao_id)
     if linha.empresa_id:
         _vincular_assinatura_empresa_existente(db, contrato, linha, neg)
+        from app.services.whatsapp_chat_negociacao import repassar_chats_da_negociacao
+
+        repassar_chats_da_negociacao(db, neg.id, ator)
         return
     nome_base = (neg.nome_base_webposto or "").strip()
     if not nome_base:
@@ -1678,4 +1687,7 @@ def converter_pos_assinatura(db: Session, contrato: Contrato, linha: CrmNegociac
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     db.flush()
+    from app.services.whatsapp_chat_negociacao import repassar_chats_da_negociacao
+
+    repassar_chats_da_negociacao(db, neg.id, ator)
 

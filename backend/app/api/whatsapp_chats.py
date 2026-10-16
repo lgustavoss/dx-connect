@@ -39,6 +39,8 @@ from app.schemas.whatsapp_chat import (
     WhatsappReacaoRead,
     WhatsappTransferirChatBody,
     WhatsappVincularFuncionarioBody,
+    WhatsappNegociacaoOpcaoRead,
+    WhatsappVincularNegociacaoBody,
     WhatsappCadastrarFuncionarioBody,
     WhatsappVincularTicketBody,
     WhatsappEmpresaOpcaoRead,
@@ -693,6 +695,11 @@ def _chat_read(
         funcionario_tipo=func.tipo if func else None,
         empresa_id=getattr(c, "empresa_id", None),
         empresa_nome=_empresa_nome_exibicao(emp),
+        negociacao_id=getattr(c, "negociacao_id", None),
+        negociacao_titulo=c.negociacao.titulo if getattr(c, "negociacao", None) else None,
+        negociacao_lead_nome=(
+            c.negociacao.lead.nome if getattr(c, "negociacao", None) and c.negociacao.lead else None
+        ),
         empresas_opcoes=_empresas_funcionario(db, func) if func else [],
         inatividade_pausada=bool(getattr(c, "inatividade_pausada", False)),
         inatividade_retomada_em=getattr(c, "inatividade_retomada_em", None),
@@ -1190,6 +1197,17 @@ def _chat_aberto_por_wa_id(db: Session, wa_id: str) -> WhatsappChat | None:
     from app.services.whatsapp_contato_match import chat_aberto_por_wa_id as _find
 
     return _find(db, wa_id, load_options=_CHAT_LOAD_OPTIONS)
+
+
+@router.get("/negociacoes", response_model=list[WhatsappNegociacaoOpcaoRead])
+def listar_negociacoes_abertas(
+    q: str | None = Query(None),
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    from app.services.whatsapp_chat_negociacao import buscar_negociacoes_abertas
+
+    return buscar_negociacoes_abertas(db, atendente, q)
 
 
 @router.get("/contatos", response_model=ListaPaginada[WhatsappContatoRead])
@@ -2457,6 +2475,50 @@ def vincular_ticket(
     c2 = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
     assert c2 is not None
     return _chat_read(db, c2)
+
+
+def _salvar_chat_vinculo(db: Session, chat: WhatsappChat) -> WhatsappChatRead:
+    estado = chat.estado
+    db.commit()
+    c2 = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat.id).first()
+    assert c2 is not None
+    emit_chat_fila_from_model(db, c2, estado_anterior=estado)
+    return _chat_read(db, c2)
+
+
+@router.post("/{chat_id}/vincular-negociacao", response_model=WhatsappChatRead)
+def vincular_negociacao(
+    chat_id: int,
+    data: WhatsappVincularNegociacaoBody,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    from app.services.whatsapp_chat_negociacao import vincular_negociacao as vincular
+
+    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not _pode_ver_chat(db, atendente, c):
+        raise HTTPException(status_code=403, detail="Sem permissão para este chat")
+    vincular(db, c, data.negociacao_id, atendente)
+    return _salvar_chat_vinculo(db, c)
+
+
+@router.post("/{chat_id}/desvincular-negociacao", response_model=WhatsappChatRead)
+def desvincular_negociacao(
+    chat_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(obter_atendente_atual),
+):
+    from app.services.whatsapp_chat_negociacao import desvincular_negociacao as desvincular
+
+    c = db.query(WhatsappChat).options(*_CHAT_LOAD_OPTIONS).filter(WhatsappChat.id == chat_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat não encontrado")
+    if not _pode_ver_chat(db, atendente, c):
+        raise HTTPException(status_code=403, detail="Sem permissão para este chat")
+    desvincular(db, c, atendente)
+    return _salvar_chat_vinculo(db, c)
 
 
 @router.post("/{chat_id}/vincular-funcionario", response_model=WhatsappChatRead)

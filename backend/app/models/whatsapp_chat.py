@@ -77,6 +77,9 @@ class WhatsappChat(Base):
         Integer, ForeignKey("funcionarios_rede.id", ondelete="SET NULL"), nullable=True, index=True
     )
     empresa_id = Column(Integer, ForeignKey("empresas.id", ondelete="SET NULL"), nullable=True, index=True)
+    negociacao_id = Column(
+        Integer, ForeignKey("crm_negociacoes.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     inatividade_pausada = Column(Boolean, nullable=False, default=False, server_default="false")
     inatividade_retomada_em = Column(DateTime(timezone=True), nullable=True)
     # Após encerramento por inatividade: responsável deve registar (ou confirmar sem) demanda.
@@ -89,6 +92,7 @@ class WhatsappChat(Base):
     setor = relationship("Setor", backref="whatsapp_chats")
     funcionario_rede = relationship("FuncionarioRede", backref="whatsapp_chats")
     empresa = relationship("Empresa", backref="whatsapp_chats")
+    negociacao = relationship("CrmNegociacao")
     mensagens = relationship(
         "WhatsappMensagem",
         back_populates="chat",
