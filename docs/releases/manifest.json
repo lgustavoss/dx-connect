@@ -4400,6 +4400,34 @@
           "text": "Tickets (#S202610-0003): na lista de chamados abertos, a coluna Responsável mostra o atendente e a coluna SLA mostra o prazo"
         }
       ]
+    },
+    {
+      "version": "26.10.003",
+      "version_display": "v26.10.003",
+      "date": "2026-10-19",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Acesso remoto (#1184): lista dos computadores que usam o servidor da equipe, com online ou offline, e vínculo do ID a um PDV. Quem ainda não tem PDV aparece para vincular. Dá para desvincular um ID trocado, excluir do servidor um computador offline que não será mais usado e abrir a conexão neste computador. No cadastro do PDV, o ID mostra se o computador está online"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Chat (#S202610-0006): dá para vincular a conversa a uma negociação do CRM antes de existir empresa. Quando a empresa dessa negociação é cadastrada, o contato passa a ficar nela"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Tickets (#S202610-0011): ao fechar um ticket, Cancelar fica neutro e só o botão que confirma o fechamento continua vermelho"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Chat (#S202610-0009): no modo escuro, o nome do setor continua legível ao passar o mouse quando se inicia a conversa"
+        }
+      ]
     }
   ]
 }
