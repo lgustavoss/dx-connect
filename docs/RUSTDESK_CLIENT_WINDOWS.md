@@ -28,8 +28,8 @@ Fonte: `deploy/rustdesk-client/server.config.json`
 ## O que o CI faz
 
 1. Clona [rustdesk/rustdesk](https://github.com/rustdesk/rustdesk) (tag escolhida)
-2. Aplica `deploy/rustdesk-client/scripts/apply_branding.py` (nome DeskRudder, host/chave, ícones do exe/tray e o PNG embutido do Sciter em `get_icon()`)
-3. Compila o cliente Windows (UI Sciter + instalador portable)
+2. Aplica `deploy/rustdesk-client/scripts/apply_branding.py` (nome DeskRudder, host/chave em `RENDEZVOUS_SERVERS` + `PROD_RENDEZVOUS_SERVER`, ícones e PNG do Sciter em `get_icon()`)
+3. Compila o cliente Windows (UI Sciter), renomeia o binário para `DeskRudder.exe` (necessário para o Windows reconhecer a instalação) e empacota o portable
 4. Publica o artefato `DeskRudder-AcessoRemoto-*.exe`
 
 ## Pasta no repo
@@ -45,6 +45,14 @@ Fonte: `deploy/rustdesk-client/server.config.json`
 ## Licença
 
 RustDesk é **AGPL-3.0**. Ao distribuir o binário modificado, mantenham o código/diff disponível (este repo + tag do upstream já documentam o processo).
+
+## Atualizar um PC que já instalou a versão antiga
+
+Builds antigos gravavam `rustdesk.exe` em `Program Files (x86)\DeskRudder` e o app continuava pedindo instalação. Nesse caso:
+
+1. Desinstalar pelo atalho **Uninstall DeskRudder** (ou Apps e recursos)
+2. Apagar a pasta `C:\Program Files (x86)\DeskRudder` se sobrar
+3. Baixar o artefato novo do Actions e instalar de novo — a pasta deve ter `DeskRudder.exe`
 
 ## Fora do v1
 

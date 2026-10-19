@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Aplica marca DeskRudder + servidor Duplex num clone do rustdesk.
 
-Nao renomeia o crate `rustdesk` (evita quebrar scripts de build).
-Altera: APP_NAME na UI, icones (exe/tray/Sciter), RENDEZVOUS_SERVERS e RS_PUB_KEY.
+Nao renomeia o crate `rustdesk` no Cargo (evita quebrar scripts de build).
+O CI deve renomear o binario para DeskRudder.exe apos o cargo build — o
+instalador/is_installed() procura `{APP_NAME}.exe`.
+
+Altera: APP_NAME, icones, RENDEZVOUS_SERVERS, PROD_RENDEZVOUS_SERVER, RS_PUB_KEY.
 """
 
 from __future__ import annotations
@@ -152,6 +155,16 @@ def patch_config_rs(path: Path, host: str, key: str) -> None:
         text,
         count=1,
     )
+    # Sem PROD_RENDEZVOUS_SERVER preenchido, using_public_server() fica true e a UI
+    # mostra "configure seu proprio servidor" mesmo com RENDEZVOUS_SERVERS customizado.
+    text, n_prod = re.subn(
+        r'pub static ref PROD_RENDEZVOUS_SERVER:\s*RwLock<String>\s*=\s*'
+        r'RwLock::new\(""\.to_owned\(\)\);',
+        f'pub static ref PROD_RENDEZVOUS_SERVER: RwLock<String> = '
+        f'RwLock::new("{host}".to_owned());',
+        text,
+        count=1,
+    )
     text, n2 = re.subn(
         r'pub const RENDEZVOUS_SERVERS:\s*&\[&str\]\s*=\s*&\[.*?\];',
         f'pub const RENDEZVOUS_SERVERS: &[&str] = &["{host}"];',
@@ -168,9 +181,15 @@ def patch_config_rs(path: Path, host: str, key: str) -> None:
 
     if text == orig:
         raise SystemExit(f"Nenhuma alteracao em {path} — upstream mudou o formato?")
+    if n_prod < 1:
+        raise SystemExit(
+            f"PROD_RENDEZVOUS_SERVER nao foi alterado em {path} — tip de servidor "
+            "publico continuaria aparecendo"
+        )
     path.write_text(text, encoding="utf-8")
     print(
-        f"  config.rs: APP_NAME={n1 + n1b} RENDEZVOUS={n2} RS_PUB_KEY={n3}",
+        f"  config.rs: APP_NAME={n1 + n1b} PROD_RENDEZVOUS={n_prod} "
+        f"RENDEZVOUS={n2} RS_PUB_KEY={n3}",
         flush=True,
     )
 
@@ -234,10 +253,13 @@ def main() -> int:
         return 1
     patch_config_rs(cfg_rs, host, key)
 
-    # Sanity: chave e host presentes
+    # Sanity: chave, host e servidor de produto presentes
     body = cfg_rs.read_text(encoding="utf-8")
     if host not in body or key not in body or "DeskRudder" not in body:
         print("Verificacao falhou apos patch.", file=sys.stderr)
+        return 1
+    if f'RwLock::new("{host}".to_owned())' not in body:
+        print("Verificacao falhou: PROD_RENDEZVOUS_SERVER sem host.", file=sys.stderr)
         return 1
 
     ui_body = (src / "src" / "ui.rs").read_text(encoding="utf-8")
