@@ -1,6 +1,7 @@
 # Cliente acesso remoto DeskRudder (Windows)
 
-**Produto:** um `.exe` só — `DeskRudder-AcessoRemoto-*.exe` — gerado pelo GitHub Actions.
+**Produto:** um `.exe` só — `DeskRudder-AcessoRemoto-*.exe` — gerado pelo GitHub Actions.  
+Cliente **só-recebe** (postos): ID/senha + status + logo; atalho **DeskRudder - Acesso Remoto**.
 
 Como gerar: ver [`docs/RUSTDESK_CLIENT_WINDOWS.md`](../../docs/RUSTDESK_CLIENT_WINDOWS.md)  
 (Actions → «RustDesk DeskRudder Windows» → Run workflow → artefato **e** Release `acesso-remoto-windows`).  
