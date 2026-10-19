@@ -9,7 +9,7 @@ Não precisa de colar string nem de rodar comandos.
 
 1. O workflow precisa estar na branch padrão (`main`) — após o merge deste PR, ele aparece em Actions.
 2. No GitHub: **Actions** → workflow **«RustDesk DeskRudder Windows»**
-3. **Run workflow** (tag padrão `1.5.0`)
+3. **Run workflow** — deixe a tag **`1.5.0`** (não existe `1.5.1` no upstream; tag inválida falha no checkout)
 4. Esperar o job (~40–90 min na 1.ª vez)
 5. Em **Artifacts**, baixar `DeskRudder-AcessoRemoto-windows`
 6. Distribuir o `.exe` aos PCs dos clientes
