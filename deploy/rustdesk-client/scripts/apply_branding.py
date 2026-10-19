@@ -5,7 +5,8 @@ Nao renomeia o crate `rustdesk` no Cargo (evita quebrar scripts de build).
 O CI deve renomear o binario para DeskRudder.exe apos o cargo build — o
 instalador/is_installed() procura `{APP_NAME}.exe`.
 
-Altera: APP_NAME, icones, RENDEZVOUS_SERVERS, PROD_RENDEZVOUS_SERVER, RS_PUB_KEY.
+Altera: APP_NAME, icones, RENDEZVOUS_SERVERS, PROD_RENDEZVOUS_SERVER, RS_PUB_KEY,
+modo incoming-only (so ser acessado), UI host com logo, nome do atalho Windows.
 """
 
 from __future__ import annotations
@@ -17,6 +18,9 @@ import re
 import shutil
 import sys
 from pathlib import Path
+
+# Nome do atalho na Area de Trabalho / menu Iniciar (APP_NAME do exe continua DeskRudder).
+SHORTCUT_DISPLAY_NAME = "DeskRudder - Acesso Remoto"
 
 
 def load_server(cfg_path: Path) -> tuple[str, str]:
@@ -210,6 +214,231 @@ def patch_cargo_bundle_name(path: Path) -> None:
         print("  Cargo.toml bundle name -> DeskRudder", flush=True)
 
 
+def patch_incoming_only(config_rs: Path) -> None:
+    """Forca modo so-recebe: este PC e acessado, nao controla outros."""
+    text = config_rs.read_text(encoding="utf-8")
+    # Upstream: le HARD_SETTINGS["conn-type"] == "incoming".
+    old = (
+        "pub fn is_incoming_only() -> bool {\n"
+        "    HARD_SETTINGS\n"
+        "        .read()\n"
+        "        .unwrap()\n"
+        '        .get("conn-type")\n'
+        '        .map_or(false, |x| x == ("incoming"))\n'
+        "}"
+    )
+    new = (
+        "pub fn is_incoming_only() -> bool {\n"
+        "    // DeskRudder Acesso Remoto: build so para ser acessado remotamente.\n"
+        "    true\n"
+        "}"
+    )
+    if old not in text:
+        raise SystemExit(f"is_incoming_only() nao encontrado em {config_rs}")
+    config_rs.write_text(text.replace(old, new, 1), encoding="utf-8")
+    print("  config.rs: is_incoming_only() -> true (host-only)", flush=True)
+
+
+def patch_host_only_ui(index_tis: Path) -> None:
+    """UI host: painel esquerdo (ID/senha) + status + logo a direita (sem conectar)."""
+    if not index_tis.is_file():
+        raise SystemExit(f"Falta {index_tis}")
+    text = index_tis.read_text(encoding="utf-8")
+    orig = text
+
+    text2, n = re.subn(
+        r"const incoming_only_width = 180;",
+        "const incoming_only_width = 640;",
+        text,
+        count=1,
+    )
+    if n < 1:
+        raise SystemExit("incoming_only_width nao encontrado em index.tis")
+    text = text2
+
+    # Com logo a direita, o painel esquerdo mantem largura fixa (~200px do CSS).
+    text2, n = re.subn(
+        r'<div \.left-pane style=\{incoming_only \? "width:\*" : ""\}>',
+        "<div .left-pane>",
+        text,
+        count=1,
+    )
+    if n < 1:
+        raise SystemExit("left-pane style incoming_only nao encontrado")
+    text = text2
+
+    # Largura do campo ID no painel esquerdo (nao usar a largura total da janela).
+    text2, n = re.subn(
+        r'var input_width = incoming_only \? \(incoming_only_width - 20\) \+ "px" : "250px";',
+        'var input_width = incoming_only ? "180px" : "250px";',
+        text,
+        count=1,
+    )
+    if n < 1:
+        raise SystemExit("input_width incoming_only nao encontrado")
+    text = text2
+
+    old_right = """                    {incoming_only ? <ConnectStatus @{this.connect_status} /> : ""}
+                </div>
+                {!incoming_only && <div .right-pane>
+                    <div .right-content>
+                        <div .card-connect>
+                            <div .title>{translate('Control Remote Desktop')}</div>
+                            <ID @{this.remote_id} />
+                            <div .right-buttons>
+                                <button .button .outline #file-transfer>{translate('Transfer file')}</button>
+                                <button .button #connect>{translate('Connect')}</button>
+                            </div>
+                        </div>
+                        <MultipleSessions @{this.multipleSessions} />
+                    </div>
+                    {!outgoing_only ? <ConnectStatus @{this.connect_status} /> : ""}
+                </div>}"""
+
+    new_right = """                    {incoming_only ? <ConnectStatus @{this.connect_status} /> : ""}
+                </div>
+                {incoming_only && <div .right-pane>
+                    <div .right-content style="flow:vertical;size:*;vertical-align:middle;horizontal-align:center;padding:2em;">
+                        <img src={handler.get_icon()} style="width:148px;height:148px;" />
+                        <div .title style="margin-top:1.2em;text-align:center;">DeskRudder</div>
+                        <div .lighter-text style="text-align:center;margin-top:0.4em;">Acesso Remoto</div>
+                    </div>
+                </div>}
+                {!incoming_only && <div .right-pane>
+                    <div .right-content>
+                        <div .card-connect>
+                            <div .title>{translate('Control Remote Desktop')}</div>
+                            <ID @{this.remote_id} />
+                            <div .right-buttons>
+                                <button .button .outline #file-transfer>{translate('Transfer file')}</button>
+                                <button .button #connect>{translate('Connect')}</button>
+                            </div>
+                        </div>
+                        <MultipleSessions @{this.multipleSessions} />
+                    </div>
+                    {!outgoing_only ? <ConnectStatus @{this.connect_status} /> : ""}
+                </div>}"""
+
+    if old_right not in text:
+        raise SystemExit(
+            "Bloco right-pane de App.render() nao encontrado em index.tis — upstream mudou?"
+        )
+    text = text.replace(old_right, new_right, 1)
+
+    # Sem campo #remote_id no modo host-only.
+    text2, n = re.subn(
+        r"if \(!handler\.get_remote_id\(\)\) \{\n"
+        r"        view\.focus = \$\(#remote_id\);\n"
+        r"    \}",
+        "if (!incoming_only && !handler.get_remote_id()) {\n"
+        "        var remoteIdEl = $(#remote_id);\n"
+        "        if (remoteIdEl) view.focus = remoteIdEl;\n"
+        "    }",
+        text,
+        count=1,
+    )
+    if n < 1:
+        raise SystemExit("focus #remote_id em self.ready() nao encontrado")
+    text = text2
+
+    if text == orig:
+        raise SystemExit("patch_host_only_ui sem alteracoes")
+    index_tis.write_text(text, encoding="utf-8")
+    print("  index.tis: UI host-only (ID + status + logo)", flush=True)
+
+
+def patch_shortcut_display_name(windows_rs: Path) -> None:
+    """Atalho da Area de Trabalho / menu Iniciar: DeskRudder - Acesso Remoto."""
+    if not windows_rs.is_file():
+        raise SystemExit(f"Falta {windows_rs}")
+    text = windows_rs.read_text(encoding="utf-8")
+    name = SHORTCUT_DISPLAY_NAME
+
+    old_mk = (
+        "    let mk_shortcut_commands = embedded_shortcut_commands(\n"
+        "        shortcut_bytes(&exe, None, shortcut_icon_location.as_deref())?,\n"
+        '        &format!("{app_name}.lnk"),\n'
+        '        "mk_shortcut",\n'
+        "    );"
+    )
+    new_mk = (
+        f'    let shortcut_link_name = "{name}";\n'
+        "    let mk_shortcut_commands = embedded_shortcut_commands(\n"
+        "        shortcut_bytes(&exe, None, shortcut_icon_location.as_deref())?,\n"
+        '        &format!("{shortcut_link_name}.lnk"),\n'
+        '        "mk_shortcut",\n'
+        "    );"
+    )
+    if old_mk not in text:
+        raise SystemExit("mk_shortcut_commands nao encontrado em windows.rs")
+    text = text.replace(old_mk, new_mk, 1)
+
+    old_desktop = (
+        "        shortcuts = format!(\n"
+        '            "copy /Y \\"{}\\\\{}.lnk\\" \\"%PUBLIC%\\\\Desktop\\\\\\"",\n'
+        "            tmp_path,\n"
+        "            crate::get_app_name()\n"
+        "        );"
+    )
+    new_desktop = (
+        "        shortcuts = format!(\n"
+        '            "copy /Y \\"{}\\\\{}.lnk\\" \\"%PUBLIC%\\\\Desktop\\\\\\"",\n'
+        "            tmp_path,\n"
+        "            shortcut_link_name\n"
+        "        );"
+    )
+    if old_desktop not in text:
+        raise SystemExit("copy Desktop shortcut nao encontrado em windows.rs")
+    text = text.replace(old_desktop, new_desktop, 1)
+
+    old_start = (
+        'copy /Y \\"{tmp_path}\\\\{app_name}.lnk\\" \\"{start_menu}\\\\\\"'
+    )
+    new_start = (
+        'copy /Y \\"{tmp_path}\\\\{shortcut_link_name}.lnk\\" '
+        '\\"{start_menu}\\\\\\"'
+    )
+    if old_start not in text:
+        raise SystemExit("copy Start Menu shortcut nao encontrado")
+    text = text.replace(old_start, new_start, 1)
+
+    old_del_tmp = (
+        'if exist \\"{tmp_path}\\\\{app_name}.lnk\\" '
+        'del /f /q \\"{tmp_path}\\\\{app_name}.lnk\\"'
+    )
+    new_del_tmp = (
+        'if exist \\"{tmp_path}\\\\{shortcut_link_name}.lnk\\" '
+        'del /f /q \\"{tmp_path}\\\\{shortcut_link_name}.lnk\\"'
+    )
+    if old_del_tmp not in text:
+        raise SystemExit("del tmp shortcut nao encontrado")
+    text = text.replace(old_del_tmp, new_del_tmp, 1)
+
+    old_display = 'reg add {subkey} /f /v DisplayName /t REG_SZ /d \\"{app_name}\\"'
+    new_display = f'reg add {{subkey}} /f /v DisplayName /t REG_SZ /d \\"{name}\\"'
+    if old_display not in text:
+        raise SystemExit("DisplayName reg add nao encontrado")
+    text = text.replace(old_display, new_display, 1)
+
+    # Desinstalar: remove atalho novo e o antigo (DeskRudder.lnk) se existir.
+    old_uninst = (
+        'if exist \\"%PUBLIC%\\\\Desktop\\\\{app_name}.lnk\\" '
+        'del /f /q \\"%PUBLIC%\\\\Desktop\\\\{app_name}.lnk\\"'
+    )
+    new_uninst = (
+        f'if exist \\"%PUBLIC%\\\\Desktop\\\\{name}.lnk\\" '
+        f'del /f /q \\"%PUBLIC%\\\\Desktop\\\\{name}.lnk\\"\n'
+        '    if exist \\"%PUBLIC%\\\\Desktop\\\\{app_name}.lnk\\" '
+        'del /f /q \\"%PUBLIC%\\\\Desktop\\\\{app_name}.lnk\\"'
+    )
+    if old_uninst not in text:
+        raise SystemExit("uninstall Desktop shortcut nao encontrado")
+    text = text.replace(old_uninst, new_uninst, 1)
+
+    windows_rs.write_text(text, encoding="utf-8")
+    print(f"  windows.rs: atalho/DisplayName -> {name}", flush=True)
+
+
 def main() -> int:
     here = Path(__file__).resolve().parent.parent
     ap = argparse.ArgumentParser(description=__doc__)
@@ -252,6 +481,9 @@ def main() -> int:
         print(f"Falta {cfg_rs} (submodule hbb_common?).", file=sys.stderr)
         return 1
     patch_config_rs(cfg_rs, host, key)
+    patch_incoming_only(cfg_rs)
+    patch_host_only_ui(src / "src" / "ui" / "index.tis")
+    patch_shortcut_display_name(src / "src" / "platform" / "windows.rs")
 
     # Sanity: chave, host e servidor de produto presentes
     body = cfg_rs.read_text(encoding="utf-8")
@@ -261,11 +493,27 @@ def main() -> int:
     if f'RwLock::new("{host}".to_owned())' not in body:
         print("Verificacao falhou: PROD_RENDEZVOUS_SERVER sem host.", file=sys.stderr)
         return 1
+    if "DeskRudder Acesso Remoto: build so para ser acessado" not in body:
+        print("Verificacao falhou: is_incoming_only nao patchado.", file=sys.stderr)
+        return 1
 
     ui_body = (src / "src" / "ui.rs").read_text(encoding="utf-8")
     our_b64 = base64.b64encode(png_128.read_bytes()).decode("ascii")
     if our_b64 not in ui_body:
         print("Verificacao falhou: get_icon() sem PNG DeskRudder.", file=sys.stderr)
+        return 1
+
+    index_body = (src / "src" / "ui" / "index.tis").read_text(encoding="utf-8")
+    if "Acesso Remoto</div>" not in index_body or "handler.get_icon()" not in index_body:
+        print("Verificacao falhou: UI host-only sem logo.", file=sys.stderr)
+        return 1
+    if "Control Remote Desktop" in index_body and "incoming_only && <div .right-pane>" not in index_body:
+        print("Verificacao falhou: painel de conexao outgoing ainda ativo sem logo.", file=sys.stderr)
+        return 1
+
+    win_body = (src / "src" / "platform" / "windows.rs").read_text(encoding="utf-8")
+    if SHORTCUT_DISPLAY_NAME not in win_body:
+        print("Verificacao falhou: atalho sem nome DeskRudder - Acesso Remoto.", file=sys.stderr)
         return 1
 
     print(">> OK")
