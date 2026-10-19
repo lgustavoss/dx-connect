@@ -51,6 +51,9 @@ jobs:
           path: rustdesk
 
       - name: Aplicar marca DeskRudder + servidor Duplex
+        env:
+          PYTHONUTF8: "1"
+          PYTHONIOENCODING: utf-8
         run: |
           python3 dx-connect/deploy/rustdesk-client/scripts/apply_branding.py rustdesk \
             --config dx-connect/deploy/rustdesk-client/server.config.json \
