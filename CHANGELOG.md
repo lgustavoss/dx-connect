@@ -9,6 +9,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Acesso remoto (#1184): lista dos computadores que usam o servidor da equipe, com online ou offline, e vínculo do ID a um PDV. Quem ainda não tem PDV aparece para vincular. Dá para desvincular um ID trocado, excluir do servidor um computador offline que não será mais usado e abrir a conexão neste computador. No cadastro do PDV, o ID mostra se o computador está online
 - Chat (#S202610-0006): dá para vincular a conversa a uma negociação do CRM antes de existir empresa. Quando a empresa dessa negociação é cadastrada, o contato passa a ficar nela
 - Equipe (#S202609-0024): grupos de permissão no lugar do perfil fixo. Cada ação é marcada à parte (só o acesso total liga tudo). O clique no grupo abre a consulta, com as permissões e as pessoas vinculadas — dá para incluir ou tirar alguém dali. Criar ou editar uma empresa, por exemplo, também marca visualizar. O menu, as rotas e os botões de criar, editar e excluir seguem a mesma permissão da API. Ver os PDVs e o código de acesso remoto é uma permissão à parte, incluída em quem atende: dá para ver a empresa sem ver esses códigos. Na tela só de PDVs aparece o nome da empresa, e o código remoto fica nas redes que já tiveram ticket no setor de quem atende. O funil e a lista completa de contratos também seguem a permissão marcada
 - CRM (#S202610-0004): ao abrir os leads, a tela volta na última escolha da pessoa (lista ou kanban)
