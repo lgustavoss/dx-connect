@@ -28,7 +28,7 @@ Fonte: `deploy/rustdesk-client/server.config.json`
 ## O que o CI faz
 
 1. Clona [rustdesk/rustdesk](https://github.com/rustdesk/rustdesk) (tag escolhida)
-2. Aplica `deploy/rustdesk-client/scripts/apply_branding.py` (nome DeskRudder, ícones, host/chave)
+2. Aplica `deploy/rustdesk-client/scripts/apply_branding.py` (nome DeskRudder, host/chave, ícones do exe/tray e o PNG embutido do Sciter em `get_icon()`)
 3. Compila o cliente Windows (UI Sciter + instalador portable)
 4. Publica o artefato `DeskRudder-AcessoRemoto-*.exe`
 
