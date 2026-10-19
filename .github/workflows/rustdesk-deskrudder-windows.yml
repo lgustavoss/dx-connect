@@ -117,7 +117,8 @@ jobs:
           cargo update -p sciter-rs --precise 674e07d3066ca9a92ced3816203ab6b652629d1e
           cargo build --locked --features inline,vram,hwcodec --release --bins
           mkdir -p ./Release
-          mv ./target/release/rustdesk.exe ./Release/rustdesk.exe
+          # APP_NAME=DeskRudder: is_installed()/atalhos procuram DeskRudder.exe, nao rustdesk.exe
+          mv ./target/release/rustdesk.exe ./Release/DeskRudder.exe
           curl -LJ -o ./Release/sciter.dll \
             https://github.com/c-smile/sciter-sdk/raw/master/bin.win/x32/sciter.dll
           curl -LJ -o ./usbmmidd_v2.zip \
@@ -129,7 +130,7 @@ jobs:
           sed -i '/dpiAware/d' res/manifest.xml || true
           pushd ./libs/portable
           python3 -m pip install -r requirements.txt
-          python3 ./generate.py -f ../../Release/ -o . -e ../../Release/rustdesk.exe
+          python3 ./generate.py -f ../../Release/ -o . -e ../../Release/DeskRudder.exe
           popd
 
           mkdir -p ../dist
