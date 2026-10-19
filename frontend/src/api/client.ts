@@ -4273,6 +4273,79 @@ export const empresaPdvs = {
     api<EmpresaPdv.Credencial>(`/empresas/${empresaId}/pdvs/${pdvId}/credencial`),
 };
 
+export const rustdeskPeers = {
+  list: (params?: { filtro?: RustdeskFrota.Filtro }) =>
+    api<RustdeskFrota.Lista>(withParams('/rustdesk/peers', params)),
+  vincular: (rustdeskId: string, data: RustdeskFrota.Vincular) =>
+    api<RustdeskFrota.VinculoResultado>(`/rustdesk/peers/${encodeURIComponent(rustdeskId)}/vincular`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  desvincular: (rustdeskId: string, pdvId: number) =>
+    api<RustdeskFrota.DesvincularResultado>(`/rustdesk/peers/${encodeURIComponent(rustdeskId)}/desvincular`, {
+      method: 'POST',
+      body: JSON.stringify({ pdv_id: pdvId }),
+    }),
+  excluir: (rustdeskId: string) =>
+    api<RustdeskFrota.ExcluirResultado>(`/rustdesk/peers/${encodeURIComponent(rustdeskId)}/excluir`, {
+      method: 'POST',
+    }),
+};
+
+export namespace RustdeskFrota {
+  export type Filtro = 'todos' | 'online' | 'offline' | 'sem_vinculo' | 'vinculado'
+  export interface Vinculo {
+    empresa_id: number
+    empresa_nome: string
+    rede_id?: number | null
+    rede_nome?: string
+    rotulo_nome?: string
+    pdv_id: number
+    pdv_codigo: string
+    pdv_ativo: boolean
+    tipo_acesso_remoto_nome?: string | null
+  }
+  export interface Peer {
+    rustdesk_id: string
+    hostname?: string | null
+    username?: string | null
+    sistema?: string | null
+    ip?: string | null
+    last_seen?: string | null
+    online?: boolean | null
+    vinculos: Vinculo[]
+    sem_vinculo: boolean
+    id_repetido: boolean
+  }
+  export interface PdvAusente extends Vinculo {
+    acesso_remoto_id?: string | null
+  }
+  export interface Lista {
+    items: Peer[]
+    total: number
+    pdvs_nao_vistos: PdvAusente[]
+    monitoramento_online: boolean
+    agent_configurado: boolean
+    agent_indisponivel: boolean
+    sincronizado_em?: string | null
+  }
+  export interface Vincular {
+    pdv_id: number
+    confirmar_substituicao?: boolean
+  }
+  export interface VinculoResultado extends Vinculo {
+    acesso_remoto_id: string
+  }
+  export interface DesvincularResultado {
+    pdv_id: number
+    acesso_remoto_id?: string | null
+  }
+  export interface ExcluirResultado {
+    rustdesk_id: string
+    removido: boolean
+  }
+}
+
 export namespace PdvCatalogo {
   export interface Item {
     id: number;
@@ -4314,6 +4387,8 @@ export namespace EmpresaPdv {
     observacoes?: string | null;
     ativo: boolean;
     tem_senha_remota: boolean;
+    rustdesk_visto?: boolean;
+    rustdesk_online?: boolean | null;
     created_at?: string | null;
     updated_at?: string | null;
   }
