@@ -1,14 +1,14 @@
 # Cliente acesso remoto DeskRudder (Windows)
 
-Spike do instalador personalizado (marca DeskRudder + servidor Duplex).
+**Produto:** um `.exe` só — `DeskRudder-AcessoRemoto-*.exe` — gerado pelo GitHub Actions.
+
+Como gerar: ver [`docs/RUSTDESK_CLIENT_WINDOWS.md`](../../docs/RUSTDESK_CLIENT_WINDOWS.md)  
+(Actions → «RustDesk DeskRudder Windows» → Run workflow → descarregar o artefacto).
 
 | Pasta / ficheiro | Função |
 |------------------|--------|
-| `server.config.json` | Host, relay e chave pública |
-| `config.env.example` | Variáveis para build |
-| `branding/` | `icon.ico` e PNGs DeskRudder |
-| `scripts/encode_config.py` | Gera/decodifica a string `--config` |
-| `scripts/apply_branding.sh` | Aplica marca + servidor num clone do rustdesk |
-| `windows/Install-DeskRudderRemote.ps1` | Fase 0: oficial + config |
-
-Documentação: [`docs/RUSTDESK_CLIENT_WINDOWS.md`](../../docs/RUSTDESK_CLIENT_WINDOWS.md).
+| `server.config.json` | Host, relay e chave pública da Duplex |
+| `branding/` | Ícones DeskRudder |
+| `scripts/apply_branding.py` | Patch no código RustDesk antes do build |
+| `scripts/encode_config.py` | Debug da string `--config` |
+| `windows/Install-DeskRudderRemote.ps1` | Legado / emergência (oficial + config) — **não** é o fluxo principal |

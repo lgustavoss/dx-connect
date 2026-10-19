@@ -1,87 +1,59 @@
-# Cliente Windows DeskRudder (RustDesk personalizado)
+# Cliente Windows DeskRudder (acesso remoto)
 
-Instalador / build do **acesso remoto** com marca DeskRudder e servidor OSS da Duplex (`hbbs`/`hbbr`).
+**O que o utilizador final recebe:** um único ficheiro  
+`DeskRudder-AcessoRemoto-<versão>.exe`  
+Já tem a marca DeskRudder e o servidor da Duplex (`31.97.160.79` + chave).  
+Não precisa de colar string nem de correr comandos.
 
-Escopo v1: **somente Windows**. Relacionado à frota no painel (`#1184`, tela Acesso remoto).
+## Como obter o `.exe` (equipa)
 
-## Servidor (já validado)
+1. No GitHub: **Actions** → workflow **«RustDesk DeskRudder Windows»**
+2. **Run workflow** (tag padrão `1.5.0`)
+3. Esperar o job (~40–90 min na 1.ª vez)
+4. Em **Artifacts**, descarregar `DeskRudder-AcessoRemoto-windows`
+5. Distribuir o `.exe` aos PCs dos clientes
+
+Workflow: `.github/workflows/rustdesk-deskrudder-windows.yml`
+
+## Servidor embutido
 
 | Campo | Valor |
 |-------|--------|
 | ID Server / Relay | `31.97.160.79` |
 | Key (pública) | `kEoYK77jUT92KWnj1XmqYRgIRKv4VkGNMjFjm33HtjI=` |
-| Portas | `21115`–`21117` |
 
-Fonte no repo: `deploy/rustdesk-client/server.config.json`.
+Fonte: `deploy/rustdesk-client/server.config.json`
 
-String de importação (Settings → Network → Import / `rustdesk.exe --config`):
+## O que o CI faz
 
-```text
-9JiI6ISawFmIsISPJpGdINzMtpmRq1kTHtmV0Y3SSl0ZSlVcthVMq52VLJTOUVla3czSZ9WRrJiOikXZrJCLikzNuAjNx4yN54SMzIiOikXYsVmciwiI5cjLwYTMucTOuEzMiojI0N3boJye
-```
+1. Clona [rustdesk/rustdesk](https://github.com/rustdesk/rustdesk) (tag escolhida)
+2. Aplica `deploy/rustdesk-client/scripts/apply_branding.py` (nome DeskRudder, ícones, host/chave)
+3. Compila o cliente Windows (UI Sciter + instalador portable)
+4. Publica o artefacto `DeskRudder-AcessoRemoto-*.exe`
 
-Regenerar / decodificar:
+## Pasta no repo
 
-```bash
-python3 deploy/rustdesk-client/scripts/encode_config.py
-python3 deploy/rustdesk-client/scripts/encode_config.py --decode '…'
-```
-
-## Duas fases
-
-### Fase 0 — config no RustDesk oficial (rápido)
-
-Script: `deploy/rustdesk-client/windows/Install-DeskRudderRemote.ps1`
-
-1. Baixe o `.exe` Windows em [releases do RustDesk](https://github.com/rustdesk/rustdesk/releases).
-2. No PowerShell:
-
-```powershell
-cd deploy\rustdesk-client\windows
-.\Install-DeskRudderRemote.ps1 -InstallerPath C:\Temp\rustdesk-….exe
-```
-
-Aplica `--config` com o servidor Duplex. **Não** altera nome/logo do aplicativo.
-
-### Fase 1 — `.exe` DeskRudder (nome + logo + servidor embutidos)
-
-Build a partir do código open source ([docs oficiais Windows](https://rustdesk.com/docs/en/dev/build/windows/)).
-
-**Máquina de build:** Windows com VS C++, Rust, vcpkg, LLVM, Flutter (versões recentes do RustDesk usam Flutter — confira o `README` do tag pinado).
-
-```bash
-git clone --recurse-submodules https://github.com/rustdesk/rustdesk.git
-# opcional: git checkout <tag estável>
-bash deploy/rustdesk-client/scripts/apply_branding.sh /caminho/para/rustdesk
-```
-
-O script:
-
-- Copia ícones de `deploy/rustdesk-client/branding/`
-- Ajusta `Cargo.toml` (`deskrudder` / DeskRudder)
-- Em `libs/hbb_common/src/config.rs`: `APP_NAME`, `RENDEZVOUS_SERVERS`, `RS_PUB_KEY`
-
-Depois, no clone (Git Bash), siga o guia de build e, tipicamente:
-
-```bash
-python build.py --portable --flutter --feature IddDriver hwcodec
-```
-
-Artefacto esperado: instalador / portable Windows com marca DeskRudder apontando só ao servidor Duplex.
+| Caminho | Função |
+|---------|--------|
+| `deploy/rustdesk-client/server.config.json` | Host e chave |
+| `deploy/rustdesk-client/branding/` | `icon.ico` e PNGs |
+| `deploy/rustdesk-client/scripts/apply_branding.py` | Patch no clone |
+| `deploy/rustdesk-client/scripts/encode_config.py` | Gera/decodifica string de import (debug) |
+| `.github/workflows/rustdesk-deskrudder-windows.yml` | Build do `.exe` |
 
 ## Licença
 
-RustDesk é **AGPL-3.0**. Ao distribuir um binário modificado, é obrigatório disponibilizar o código correspondente (fork ou diff + instruções).
+RustDesk é **AGPL-3.0**. Ao distribuir o binário modificado, mantenham o código/diff disponível (este repo + tag do upstream já documentam o processo).
 
-## O que ainda não fazemos neste lote
+## Fora do v1
 
-- macOS / Linux / Android
-- RustDesk Server Pro / Custom Client Generator
-- Assinatura Authenticode (pode entrar depois)
-- Publicar o `.exe` automaticamente no painel SaaS
+- macOS / Linux / Android  
+- Assinatura Authenticode (pode entrar depois)  
+- UI Flutter moderna (o CI atual usa o build Sciter, estável no Actions)  
+- Publicar automaticamente no painel SaaS  
 
 ## Referências
 
-- [Client configuration](https://rustdesk.com/docs/en/self-host/client-configuration/)
-- [Build Windows](https://rustdesk.com/docs/en/dev/build/windows/)
-- Agente da frota no VPS: `scripts/rustdesk_hbbs_agent.py`
+- [Client configuration](https://rustdesk.com/docs/en/self-host/client-configuration/)  
+- [Build Windows](https://rustdesk.com/docs/en/dev/build/windows/)  
+- Frota no painel: issue `#1184` / tela Acesso remoto  
