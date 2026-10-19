@@ -116,6 +116,7 @@ CATALOGO: tuple[tuple[str, str, str, str, str], ...] = (
     ("PDV", "pdv.ver", "Visualizar", "Ver os catálogos de PDV.", ""),
     ("PDV", "pdv.editar", "Editar", "Alterar os catálogos de PDV.", ""),
     ("PDV", "pdv.acessos.ver", "Ver acessos da empresa", "Ver os PDVs da empresa e o código de acesso remoto, sem o cadastro da empresa.", "operacional"),
+    ("PDV", "rustdesk.monitorar", "Monitorar acesso remoto", "Ver os computadores no servidor de acesso remoto, inclusive os que ainda não têm PDV.", "operacional"),
     ("Auditoria", "auditoria.ver", "Visualizar", "Ver o histórico de alterações.", ""),
     ("Sugestões", "solicitacoes.ver", "Visualizar", "Ver sugestões enviadas pelos clientes.", ""),
     ("Sugestões", "solicitacoes.editar", "Editar", "Triar sugestões e sincronizar o acompanhamento.", ""),

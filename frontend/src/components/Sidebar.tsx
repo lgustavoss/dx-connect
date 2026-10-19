@@ -377,6 +377,7 @@ const navStructure: NavItem[] = [
     children: [
       { to: '/redes', label: 'Redes', icon: 'redes', permissao: 'redes.ver' },
       { to: '/empresas', label: 'Empresas', icon: 'empresas', permissao: 'empresas.ver' },
+      { to: '/acesso-remoto', label: 'Acesso remoto', icon: 'pdv', permissao: 'rustdesk.monitorar' },
       { to: '/funcionarios-rede', label: 'Funcionários da rede', icon: 'funcionarios', permissao: 'funcionarios.ver' },
     ],
   },

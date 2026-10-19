@@ -8,6 +8,9 @@ const CAMPOS_VINCULO: (keyof WhatsappChats.Chat)[] = [
   'funcionario_tipo',
   'empresa_id',
   'empresa_nome',
+  'negociacao_id',
+  'negociacao_titulo',
+  'negociacao_lead_nome',
 ]
 
 function copiarCamposVinculo(origem: WhatsappChats.Chat, destino: WhatsappChats.Chat): WhatsappChats.Chat {
@@ -28,7 +31,10 @@ export function mergeWhatsappChat(
 ): WhatsappChats.Chat {
   if (!prev || prev.id !== next.id) return next
   const merged: WhatsappChats.Chat = { ...prev, ...next }
-  if (prev.funcionario_rede_id && !next.funcionario_rede_id) {
+  if (
+    (prev.funcionario_rede_id && !next.funcionario_rede_id) ||
+    (prev.negociacao_id && !next.negociacao_id)
+  ) {
     return copiarCamposVinculo(prev, merged)
   }
   return merged

@@ -1208,6 +1208,9 @@ export namespace WhatsappChats {
     funcionario_tipo?: string | null
     empresa_id?: number | null
     empresa_nome?: string | null
+    negociacao_id?: number | null
+    negociacao_titulo?: string | null
+    negociacao_lead_nome?: string | null
     empresas_opcoes?: EmpresaOpcao[]
     inatividade_pausada?: boolean
     inatividade_retomada_em?: string | null
@@ -1222,6 +1225,13 @@ export namespace WhatsappChats {
   export interface EmpresaOpcao {
     id: number
     nome: string
+  }
+  export interface NegociacaoOpcao {
+    id: number
+    titulo?: string | null
+    lead_nome?: string | null
+    lead_telefone?: string | null
+    estagio_nome?: string | null
   }
   export interface FuncionarioOpcao {
     id: number
@@ -1631,6 +1641,19 @@ export const whatsappChats = {
       method: 'POST',
       body: JSON.stringify({ ticket_id: ticketId }),
     }),
+  buscarNegociacoes: (q: string) => {
+    const params = new URLSearchParams()
+    if (q.trim()) params.set('q', q.trim())
+    const qs = params.toString()
+    return api<WhatsappChats.NegociacaoOpcao[]>(`/whatsapp/chats/negociacoes${qs ? `?${qs}` : ''}`)
+  },
+  vincularNegociacao: (id: number, negociacaoId: number) =>
+    api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/vincular-negociacao`, {
+      method: 'POST',
+      body: JSON.stringify({ negociacao_id: negociacaoId }),
+    }),
+  desvincularNegociacao: (id: number) =>
+    api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/desvincular-negociacao`, { method: 'POST' }),
   vincularFuncionario: (id: number, data: { funcionario_rede_id: number; empresa_id?: number | null }) =>
     api<WhatsappChats.Chat>(`/whatsapp/chats/${id}/vincular-funcionario`, {
       method: 'POST',
@@ -4144,6 +4167,14 @@ export namespace Crm {
     ordem?: number;
   }
 
+  export interface NegociacaoChat {
+    id: number;
+    protocolo: string;
+    cliente_nome?: string | null;
+    wa_id: string;
+    estado: string;
+  }
+
   export interface Negociacao {
     id: number;
     lead_id: number;
@@ -4155,6 +4186,7 @@ export namespace Crm {
     titulo?: string | null;
     nome_base_webposto?: string | null;
     linhas: Linha[];
+    chats?: NegociacaoChat[];
     created_at?: string | null;
     updated_at?: string | null;
   }
@@ -4241,6 +4273,79 @@ export const empresaPdvs = {
     api<EmpresaPdv.Credencial>(`/empresas/${empresaId}/pdvs/${pdvId}/credencial`),
 };
 
+export const rustdeskPeers = {
+  list: (params?: { filtro?: RustdeskFrota.Filtro }) =>
+    api<RustdeskFrota.Lista>(withParams('/rustdesk/peers', params)),
+  vincular: (rustdeskId: string, data: RustdeskFrota.Vincular) =>
+    api<RustdeskFrota.VinculoResultado>(`/rustdesk/peers/${encodeURIComponent(rustdeskId)}/vincular`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  desvincular: (rustdeskId: string, pdvId: number) =>
+    api<RustdeskFrota.DesvincularResultado>(`/rustdesk/peers/${encodeURIComponent(rustdeskId)}/desvincular`, {
+      method: 'POST',
+      body: JSON.stringify({ pdv_id: pdvId }),
+    }),
+  excluir: (rustdeskId: string) =>
+    api<RustdeskFrota.ExcluirResultado>(`/rustdesk/peers/${encodeURIComponent(rustdeskId)}/excluir`, {
+      method: 'POST',
+    }),
+};
+
+export namespace RustdeskFrota {
+  export type Filtro = 'todos' | 'online' | 'offline' | 'sem_vinculo' | 'vinculado'
+  export interface Vinculo {
+    empresa_id: number
+    empresa_nome: string
+    rede_id?: number | null
+    rede_nome?: string
+    rotulo_nome?: string
+    pdv_id: number
+    pdv_codigo: string
+    pdv_ativo: boolean
+    tipo_acesso_remoto_nome?: string | null
+  }
+  export interface Peer {
+    rustdesk_id: string
+    hostname?: string | null
+    username?: string | null
+    sistema?: string | null
+    ip?: string | null
+    last_seen?: string | null
+    online?: boolean | null
+    vinculos: Vinculo[]
+    sem_vinculo: boolean
+    id_repetido: boolean
+  }
+  export interface PdvAusente extends Vinculo {
+    acesso_remoto_id?: string | null
+  }
+  export interface Lista {
+    items: Peer[]
+    total: number
+    pdvs_nao_vistos: PdvAusente[]
+    monitoramento_online: boolean
+    agent_configurado: boolean
+    agent_indisponivel: boolean
+    sincronizado_em?: string | null
+  }
+  export interface Vincular {
+    pdv_id: number
+    confirmar_substituicao?: boolean
+  }
+  export interface VinculoResultado extends Vinculo {
+    acesso_remoto_id: string
+  }
+  export interface DesvincularResultado {
+    pdv_id: number
+    acesso_remoto_id?: string | null
+  }
+  export interface ExcluirResultado {
+    rustdesk_id: string
+    removido: boolean
+  }
+}
+
 export namespace PdvCatalogo {
   export interface Item {
     id: number;
@@ -4282,6 +4387,8 @@ export namespace EmpresaPdv {
     observacoes?: string | null;
     ativo: boolean;
     tem_senha_remota: boolean;
+    rustdesk_visto?: boolean;
+    rustdesk_online?: boolean | null;
     created_at?: string | null;
     updated_at?: string | null;
   }

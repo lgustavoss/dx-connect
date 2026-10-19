@@ -105,6 +105,7 @@ PROBES = [
     ("pdv.ver", "GET", "/v1/pdv-rotulos"),
     ("pdv.editar", "POST", "/v1/pdv-rotulos"),
     ("pdv.acessos.ver", "GET", "/v1/empresas/999999/pdvs"),
+    ("rustdesk.monitorar", "GET", "/v1/rustdesk/peers"),
     ("auditoria.ver", "GET", "/v1/audit"),
     ("solicitacoes.ver", "GET", "/v1/solicitacoes-melhoria/admin"),
     ("solicitacoes.editar", "PATCH", "/v1/solicitacoes-melhoria/999999/status"),

@@ -5,6 +5,18 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### DeskRudder
+
+#### Melhorias
+
+- Acesso remoto (#1184): lista dos computadores que usam o servidor da equipe, com online ou offline, e vínculo do ID a um PDV. Quem ainda não tem PDV aparece para vincular. Dá para desvincular um ID trocado, excluir do servidor um computador offline que não será mais usado e abrir a conexão neste computador. No cadastro do PDV, o ID mostra se o computador está online
+- Chat (#S202610-0006): dá para vincular a conversa a uma negociação do CRM antes de existir empresa. Quando a empresa dessa negociação é cadastrada, o contato passa a ficar nela
+
+#### Correções
+
+- Tickets (#S202610-0011): ao fechar um ticket, Cancelar fica neutro e só o botão que confirma o fechamento continua vermelho
+- Chat (#S202610-0009): no modo escuro, o nome do setor continua legível ao passar o mouse quando se inicia a conversa
+
 ## [26.10.002] - 2026-10-15
 
 ### DeskRudder

@@ -42,6 +42,7 @@ from app.api import (
     pdv_catalogos,
     ticket_catalogos,
     empresa_pdvs,
+    rustdesk_peers,
     comercial_custos,
     comercial_proposta,
     comercial_contrato,
@@ -712,6 +713,7 @@ app.include_router(implantacao.router, prefix=API_V1_PREFIX)
 app.include_router(faturamento.router, prefix=API_V1_PREFIX)
 app.include_router(crm.router, prefix=API_V1_PREFIX)
 app.include_router(empresa_pdvs.router, prefix=API_V1_PREFIX)
+app.include_router(rustdesk_peers.router, prefix=API_V1_PREFIX)
 app.include_router(system_settings.router, prefix=API_V1_PREFIX)
 app.include_router(tenant.router, prefix=API_V1_PREFIX)
 app.include_router(public_csat.router, prefix=API_V1_PREFIX)

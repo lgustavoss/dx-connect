@@ -18,6 +18,7 @@ from app.schemas.pdv import (
     ListaPdvsEmpresa,
 )
 from app.services.empresa_pdv_rules import validar_papel_principal_auxiliar
+from app.services.rustdesk_peers import mapa_online, normalizar_id_remoto
 from app.services.secret_box import decrypt_str, encrypt_str
 
 router = APIRouter(prefix="/empresas", tags=["empresa-pdvs"])
@@ -46,7 +47,9 @@ def _empresa_para_leitura_pdv(db: Session, atendente: Atendente, empresa_id: int
     return emp
 
 
-def _to_read(row: EmpresaPdv) -> EmpresaPdvRead:
+def _to_read(row: EmpresaPdv, mapa: dict[str, bool | None]) -> EmpresaPdvRead:
+    chave = normalizar_id_remoto(row.acesso_remoto_id)
+    visto = bool(chave and chave in mapa)
     return EmpresaPdvRead(
         id=row.id,
         empresa_id=row.empresa_id,
@@ -61,6 +64,8 @@ def _to_read(row: EmpresaPdv) -> EmpresaPdvRead:
         observacoes=row.observacoes,
         ativo=bool(row.ativo),
         tem_senha_remota=bool(row.acesso_remoto_senha_cifrada),
+        rustdesk_visto=visto,
+        rustdesk_online=mapa[chave] if visto and chave else None,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
@@ -99,7 +104,8 @@ def listar_pdvs(
     if not incluir_inativos:
         q = q.filter(EmpresaPdv.ativo.is_(True))
     rows = q.order_by(EmpresaPdv.codigo.asc(), EmpresaPdv.id.asc()).all()
-    return ListaPdvsEmpresa(items=[_to_read(r) for r in rows], total=len(rows), empresa_nome=emp.nome)
+    mapa = mapa_online(db)
+    return ListaPdvsEmpresa(items=[_to_read(r, mapa) for r in rows], total=len(rows), empresa_nome=emp.nome)
 
 
 @router.post("/{empresa_id}/pdvs", response_model=EmpresaPdvRead, status_code=201)
@@ -143,7 +149,7 @@ def criar_pdv(
         .filter(EmpresaPdv.id == row.id)
         .first()
     )
-    return _to_read(row)
+    return _to_read(row, mapa_online(db))
 
 
 @router.patch("/{empresa_id}/pdvs/{pdv_id}", response_model=EmpresaPdvRead)
@@ -198,7 +204,7 @@ def atualizar_pdv(
     registrar_audit(db, "empresa_pdv", row.id, "update", atendente.id)
     db.commit()
     db.refresh(row)
-    return _to_read(row)
+    return _to_read(row, mapa_online(db))
 
 
 @router.get("/{empresa_id}/pdvs/{pdv_id}/credencial", response_model=EmpresaPdvCredencialRead)

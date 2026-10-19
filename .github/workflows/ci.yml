@@ -63,7 +63,7 @@ jobs:
             --base "$PR_BASE_SHA" \
             --head "$PR_HEAD_SHA" \
             --pr-base-ref "$PR_BASE_REF"
-          # PR → staging: compõe [Unreleased] da head + histórico da base (sem git merge).
+          # PR → staging: simula o merge (git merge-tree). [Unreleased] vazio no resultado falha o CI.
 
   backend:
     needs: changes
