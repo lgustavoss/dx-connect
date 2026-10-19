@@ -1,7 +1,7 @@
 """Solicitações de inclusão/correção/abono de ponto (#1135 / abono).
 
-Aprovação nesta versão: só admin. O parâmetro `aprovador` e o filtro por
-tenant isolam o ponto de extensão para supervisor de setor (grupos de permissão).
+Quem tem ponto da equipe ou acesso total decide qualquer pedido. Quem só tem
+`ponto.aprovar` decide os pedidos das pessoas dos próprios setores (#1137).
 """
 
 from __future__ import annotations
@@ -15,9 +15,10 @@ from app.core.audit import registrar_audit
 from app.models.atendente import Atendente
 from app.models.ponto_batida import PontoBatida
 from app.models.ponto_solicitacao_ajuste import PontoSolicitacaoAjuste
+from app.models.setor import Setor
 from app.schemas.ponto import PontoSolicitacaoAjusteRead
 from app.services import ponto as ponto_svc
-from app.services.permissao_grupos import tem_permissao
+from app.services.permissao_grupos import codigos_de, tem_permissao
 from app.services import ponto_ausencia as ausencia_svc
 from app.services import ponto_settings as ponto_settings_svc
 from app.services.escala import PONTO_TZ
@@ -58,13 +59,45 @@ def _to_read(row: PontoSolicitacaoAjuste) -> PontoSolicitacaoAjusteRead:
     )
 
 
+def _ve_todos_os_pedidos(aprovador: Atendente) -> bool:
+    if aprovador.role == "admin" or "admin" in codigos_de(aprovador):
+        return True
+    return tem_permissao(aprovador, "ponto.equipe")
+
+
 def _exigir_pode_decidir(aprovador: Atendente) -> None:
-    """Hook de escopo: ponto da equipe; supervisor por setor entra na #1137."""
-    if not tem_permissao(aprovador, "ponto.equipe"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Sem permissão para decidir solicitações de ponto.",
-        )
+    if _ve_todos_os_pedidos(aprovador) or tem_permissao(aprovador, "ponto.aprovar"):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Sem permissão para decidir solicitações de ponto.",
+    )
+
+
+def _ids_setor(aprovador: Atendente) -> set[int]:
+    return {setor.id for setor in (aprovador.setores or [])}
+
+
+def _pedido_no_escopo(aprovador: Atendente, alvo: Atendente | None) -> bool:
+    if _ve_todos_os_pedidos(aprovador):
+        return True
+    if alvo is None:
+        return False
+    meus = _ids_setor(aprovador)
+    if not meus:
+        return False
+    return bool(meus.intersection(setor.id for setor in (alvo.setores or [])))
+
+
+def _restringir_ao_escopo(q, aprovador: Atendente):
+    if _ve_todos_os_pedidos(aprovador):
+        return q
+    meus = _ids_setor(aprovador)
+    if not meus:
+        return q.filter(PontoSolicitacaoAjuste.id == -1)
+    return q.filter(
+        PontoSolicitacaoAjuste.atendente.has(Atendente.setores.any(Setor.id.in_(meus)))
+    )
 
 
 def contar_pendentes(db: Session, tenant_id: int) -> int:
@@ -257,6 +290,7 @@ def listar_para_aprovador(
         .options(joinedload(PontoSolicitacaoAjuste.atendente))
         .filter(PontoSolicitacaoAjuste.tenant_id == aprovador.tenant_id)
     )
+    q = _restringir_ao_escopo(q, aprovador)
     if estado:
         q = q.filter(PontoSolicitacaoAjuste.estado == estado)
     rows = q.order_by(PontoSolicitacaoAjuste.created_at.asc()).limit(200).all()
@@ -282,7 +316,7 @@ def decidir(
 
     row = (
         db.query(PontoSolicitacaoAjuste)
-        .options(joinedload(PontoSolicitacaoAjuste.atendente))
+        .options(joinedload(PontoSolicitacaoAjuste.atendente).joinedload(Atendente.setores))
         .filter(
             PontoSolicitacaoAjuste.id == solicitacao_id,
             PontoSolicitacaoAjuste.tenant_id == aprovador.tenant_id,
@@ -291,6 +325,8 @@ def decidir(
     )
     if not row:
         raise HTTPException(status_code=404, detail="Solicitação não encontrada")
+    if not _pedido_no_escopo(aprovador, row.atendente):
+        raise HTTPException(status_code=403, detail="Sem permissão para decidir esta solicitação.")
     if row.estado != "pendente":
         raise HTTPException(status_code=400, detail="Solicitação já foi decidida")
 
@@ -396,10 +432,10 @@ def obter_anexo(
     viewer: Atendente,
     solicitacao_id: int,
 ) -> tuple[bytes, str, str]:
-    """Retorna (bytes, nome, content_type). Owner ou admin do tenant."""
-    ponto_svc.exigir_acesso_ponto(viewer)
+    """Retorna (bytes, nome, content_type). Autor, ponto da equipe ou supervisor do setor."""
     row = (
         db.query(PontoSolicitacaoAjuste)
+        .options(joinedload(PontoSolicitacaoAjuste.atendente).joinedload(Atendente.setores))
         .filter(
             PontoSolicitacaoAjuste.id == solicitacao_id,
             PontoSolicitacaoAjuste.tenant_id == viewer.tenant_id,
@@ -408,7 +444,9 @@ def obter_anexo(
     )
     if not row:
         raise HTTPException(status_code=404, detail="Solicitação não encontrada")
-    if not tem_permissao(viewer, "ponto.equipe") and row.atendente_id != viewer.id:
+    if row.atendente_id == viewer.id:
+        ponto_svc.exigir_acesso_ponto(viewer)
+    elif not _pedido_no_escopo(viewer, row.atendente):
         raise HTTPException(status_code=403, detail="Sem permissão para este anexo")
     if not row.anexo_storage_key:
         raise HTTPException(status_code=404, detail="Esta solicitação não tem anexo")

@@ -692,3 +692,66 @@ def test_banco_horas_so_recebe_hora_alem_da_jornada(db_session, seed_base):
     bh = ponto_svc.banco_horas(db_session, a1, desde=date(2026, 9, 28), ate=date(2026, 9, 28))
     assert bh.segundos_realizados == 3 * 3600
     assert bh.saldo_segundos == 0
+
+
+def test_supervisor_do_setor_decide_so_o_proprio_setor(client, seed_base, auth_headers):
+    admin = auth_headers["admin"]
+    do_setor = auth_headers["a1"]
+    outro = auth_headers["a2"]
+
+    def pedir(headers, dia: str):
+        resposta = client.post(
+            "/v1/ponto/solicitacoes-ajuste",
+            headers=headers,
+            json={
+                "tipo": "inclusao",
+                "tipo_batida": "entrada",
+                "horario_solicitado": f"{dia}T11:00:00+00:00",
+                "motivo": "Esqueci de bater a entrada",
+                "data_ref": dia,
+            },
+        )
+        assert resposta.status_code == 201, resposta.text
+        return resposta.json()["id"]
+
+    id_setor = pedir(do_setor, "2026-09-21")
+    id_outro = pedir(outro, "2026-09-22")
+
+    grupo = client.post(
+        "/v1/permissao-grupos",
+        headers=admin,
+        json={"nome": "Supervisor ponto", "permissoes": ["ponto.aprovar"]},
+    )
+    assert grupo.status_code == 201, grupo.text
+    vinculo = client.patch(
+        f"/v1/atendentes/{seed_base['a1'].id}",
+        headers=admin,
+        json={"grupo_ids": [grupo.json()["id"]]},
+    )
+    assert vinculo.status_code == 200, vinculo.text
+
+    fila = client.get("/v1/ponto/solicitacoes-ajuste", headers=do_setor)
+    assert fila.status_code == 200, fila.text
+    ids = {item["id"] for item in fila.json()}
+    assert id_setor in ids
+    assert id_outro not in ids
+
+    geral = client.get("/v1/ponto/solicitacoes-ajuste", headers=admin)
+    assert geral.status_code == 200
+    ids_admin = {item["id"] for item in geral.json()}
+    assert {id_setor, id_outro} <= ids_admin
+
+    fora = client.post(
+        f"/v1/ponto/solicitacoes-ajuste/{id_outro}/decidir",
+        headers=do_setor,
+        json={"estado": "rejeitada", "decisao_motivo": "Fora do meu setor"},
+    )
+    assert fora.status_code == 403
+
+    dentro = client.post(
+        f"/v1/ponto/solicitacoes-ajuste/{id_setor}/decidir",
+        headers=do_setor,
+        json={"estado": "aprovada", "decisao_motivo": "Confirmado no setor"},
+    )
+    assert dentro.status_code == 200, dentro.text
+    assert dentro.json()["estado"] == "aprovada"

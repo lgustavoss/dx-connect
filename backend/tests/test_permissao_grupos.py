@@ -280,6 +280,6 @@ def test_permissao_invalida(client, auth_headers, seed_base):
     r = client.post(
         "/v1/permissao-grupos",
         headers=auth_headers["admin"],
-        json={"nome": "Estranho", "permissoes": ["ponto.aprovar"]},
+        json={"nome": "Estranho", "permissoes": ["ponto.inexistente"]},
     )
     assert r.status_code == 400
