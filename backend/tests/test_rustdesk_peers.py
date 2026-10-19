@@ -97,6 +97,26 @@ def base(db_session, seed_base, pdv_catalogo):
     return {"empresa": emp, "rotulo": pdv_catalogo["rotulo"]}
 
 
+def test_configuracao_para_colar_no_cliente(client, auth_headers, monkeypatch):
+    monkeypatch.setattr(settings, "RUSTDESK_ID_SERVER", None)
+    monkeypatch.setattr(settings, "RUSTDESK_RELAY_SERVER", None)
+    monkeypatch.setattr(settings, "RUSTDESK_PUBLIC_KEY", None)
+    vazio = client.get("/v1/rustdesk/configuracao", headers=auth_headers["admin"])
+    assert vazio.status_code == 200
+    assert vazio.json()["configurado"] is False
+
+    monkeypatch.setattr(settings, "RUSTDESK_ID_SERVER", "203.0.113.10")
+    monkeypatch.setattr(settings, "RUSTDESK_RELAY_SERVER", "203.0.113.10:21117")
+    monkeypatch.setattr(settings, "RUSTDESK_PUBLIC_KEY", "chave-publica-de-teste")
+    cheio = client.get("/v1/rustdesk/configuracao", headers=auth_headers["admin"])
+    assert cheio.status_code == 200
+    corpo = cheio.json()
+    assert corpo["configurado"] is True
+    assert corpo["servidor_id"] == "203.0.113.10"
+    assert corpo["servidor_relay"] == "203.0.113.10:21117"
+    assert corpo["chave"] == "chave-publica-de-teste"
+
+
 def test_lista_cruza_pdv_e_marca_online(client, auth_headers, base):
     r = client.get("/v1/rustdesk/peers", headers=auth_headers["admin"])
     assert r.status_code == 200, r.text
