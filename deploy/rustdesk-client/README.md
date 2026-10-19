@@ -3,8 +3,8 @@
 **Produto:** um `.exe` só — `DeskRudder-AcessoRemoto-*.exe` — gerado pelo GitHub Actions.
 
 Como gerar: ver [`docs/RUSTDESK_CLIENT_WINDOWS.md`](../../docs/RUSTDESK_CLIENT_WINDOWS.md)  
-(Actions → «RustDesk DeskRudder Windows» → Run workflow → baixar o artefato).  
-O workflow só aparece em Actions depois de estar na `main`.
+(Actions → «RustDesk DeskRudder Windows» → Run workflow → artefato **e** Release `acesso-remoto-windows`).  
+No painel: **Acesso remoto** → **Baixar instalador Windows**.
 
 | Pasta / arquivo | Função |
 |------------------|--------|
