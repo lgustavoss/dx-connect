@@ -3,9 +3,10 @@
 **Produto:** um `.exe` só — `DeskRudder-AcessoRemoto-*.exe` — gerado pelo GitHub Actions.
 
 Como gerar: ver [`docs/RUSTDESK_CLIENT_WINDOWS.md`](../../docs/RUSTDESK_CLIENT_WINDOWS.md)  
-(Actions → «RustDesk DeskRudder Windows» → Run workflow → descarregar o artefacto).
+(Actions → «RustDesk DeskRudder Windows» → Run workflow → baixar o artefato).  
+O workflow só aparece em Actions depois de estar na `main`.
 
-| Pasta / ficheiro | Função |
+| Pasta / arquivo | Função |
 |------------------|--------|
 | `server.config.json` | Host, relay e chave pública da Duplex |
 | `branding/` | Ícones DeskRudder |

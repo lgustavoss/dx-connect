@@ -1,5 +1,5 @@
 # Gera o instalador Windows DeskRudder (RustDesk com servidor Duplex + marca).
-# Resultado: artefact DeskRudder-AcessoRemoto-*.exe — um ficheiro, sem colar config.
+# Resultado: artefato DeskRudder-AcessoRemoto-*.exe — um arquivo, sem colar config.
 #
 # Disparo: Actions → «RustDesk DeskRudder Windows» → Run workflow
 # Duração típica: 40–90 min (primeira vez; cache vcpkg ajuda nas seguintes).
