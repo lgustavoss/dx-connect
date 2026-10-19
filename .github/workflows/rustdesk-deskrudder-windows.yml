@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   LLVM_VERSION: "15.0.6"
@@ -143,10 +143,38 @@ jobs:
           echo "Built ../dist/${OUT}"
           ls -lh ../dist/
 
-      - name: Upload instalador
+      - name: Upload instalador (artifact)
         uses: actions/upload-artifact@v4
         with:
           name: DeskRudder-AcessoRemoto-windows
           path: dist/DeskRudder-AcessoRemoto-*.exe
           if-no-files-found: error
           retention-days: 30
+
+      # Link estável usado na tela Acesso remoto do painel:
+      # https://github.com/lgustavoss/dx-connect/releases/download/acesso-remoto-windows/DeskRudder-AcessoRemoto.exe
+      - name: Publicar Release (download do painel)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VER="${VERSION:-1.5.0}"
+          SRC="dist/DeskRudder-AcessoRemoto-${VER}.exe"
+          STABLE="dist/DeskRudder-AcessoRemoto.exe"
+          test -f "$SRC"
+          cp -f "$SRC" "$STABLE"
+          NOTES="Instalador Windows com servidor Duplex e marca DeskRudder (base RustDesk ${VER}). Atualizado pelo workflow «RustDesk DeskRudder Windows». Usado no botão «Baixar instalador Windows» em Acesso remoto."
+          if gh release view acesso-remoto-windows --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload acesso-remoto-windows "$STABLE" \
+              --repo "${{ github.repository }}" --clobber
+            gh release edit acesso-remoto-windows \
+              --repo "${{ github.repository }}" \
+              --title "DeskRudder Acesso Remoto (Windows)" \
+              --notes "$NOTES"
+          else
+            gh release create acesso-remoto-windows "$STABLE" \
+              --repo "${{ github.repository }}" \
+              --title "DeskRudder Acesso Remoto (Windows)" \
+              --notes "$NOTES" \
+              --latest=false
+          fi
