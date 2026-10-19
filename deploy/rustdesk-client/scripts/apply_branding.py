@@ -96,7 +96,7 @@ def patch_cargo_bundle_name(path: Path) -> None:
     )
     if n:
         path.write_text(text2, encoding="utf-8")
-        print("  Cargo.toml bundle name → DeskRudder", flush=True)
+        print("  Cargo.toml bundle name -> DeskRudder", flush=True)
 
 
 def main() -> int:
