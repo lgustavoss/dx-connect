@@ -10,10 +10,13 @@ on:
   workflow_dispatch:
     inputs:
       rustdesk_ref:
-        description: "Tag/branch do rustdesk/rustdesk"
+        description: "Tag do rustdesk/rustdesk (tem de existir no GitHub)"
         required: true
         default: "1.5.0"
-        type: string
+        type: choice
+        options:
+          - "1.5.0"
+          - "1.4.9"
 
 concurrency:
   group: rustdesk-deskrudder-windows
