@@ -37,7 +37,7 @@ Fonte: `deploy/rustdesk-client/server.config.json`
 | Caminho | Função |
 |---------|--------|
 | `deploy/rustdesk-client/server.config.json` | Host e chave |
-| `deploy/rustdesk-client/branding/` | Ícone de acesso remoto (setas opostas): `icon.ico`, tray e PNGs — regenerar com `scripts/render_remote_icons.py` |
+| `deploy/rustdesk-client/branding/` | Arte oficial + `icon.ico`/tray/PNGs — regenerar com `scripts/render_remote_icons.py` |
 | `deploy/rustdesk-client/scripts/apply_branding.py` | Patch no clone |
 | `deploy/rustdesk-client/scripts/encode_config.py` | Gera/decodifica string de import (debug) |
 | `.github/workflows/rustdesk-deskrudder-windows.yml` | Build do `.exe` |

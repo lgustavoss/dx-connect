@@ -1,175 +1,132 @@
 #!/usr/bin/env python3
-"""Gera icones do cliente Windows de acesso remoto (duas setas opostas).
+"""Gera icones do cliente Windows a partir da arte oficial de Acesso Remoto.
 
-Paleta alinhada a frontend/src/brand (teal -> sky). Distinto do mark do app
-do painel (D + atendente).
+Fonte padrao: branding/icon-source-official.png
+- tamanhos grandes: arte completa (com wordmark)
+- 16/32/48/tray: recorte do mark (personagem + setas), sem texto
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageFilter
 
-TEAL_LIGHT = (20, 184, 166, 255)  # #14B8A6
-TEAL = (13, 148, 136, 255)  # #0D9488
-SKY = (2, 132, 199, 255)  # #0284C7
-SHADOW = (11, 45, 74, 110)  # navy translucido
-WHITE = (248, 250, 252, 255)  # #F8FAFC
+BRANDING = Path(__file__).resolve().parent.parent / "branding"
+DEFAULT_SOURCE = BRANDING / "icon-source-official.png"
 
 
-def _lerp(a: tuple[int, ...], b: tuple[int, ...], t: float) -> tuple[int, ...]:
-    return tuple(int(round(x + (y - x) * t)) for x, y in zip(a, b))
+def _to_rgba_transparent(im: Image.Image, white_threshold: int = 248) -> Image.Image:
+    """Converte fundo quase branco em transparencia."""
+    rgba = im.convert("RGBA")
+    px = rgba.load()
+    w, h = rgba.size
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]  # type: ignore[misc]
+            if r >= white_threshold and g >= white_threshold and b >= white_threshold:
+                px[x, y] = (r, g, b, 0)  # type: ignore[index]
+    return rgba
 
 
-def _gradient_tile(size: int, radius: float) -> Image.Image:
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    px = img.load()
-    r = max(1.0, radius)
-    for y in range(size):
-        ty = y / max(1, size - 1)
-        for x in range(size):
-            cx = min(x, size - 1 - x)
-            cy = min(y, size - 1 - y)
-            if cx < r and cy < r:
-                dx = r - cx
-                dy = r - cy
-                if dx * dx + dy * dy > r * r:
-                    continue
-            # gradiente horizontal teal -> sky (como o conceito)
-            t = x / max(1, size - 1)
-            # leve inclinacao
-            t = min(1.0, max(0.0, t * 0.85 + ty * 0.15))
-            if t < 0.45:
-                color = _lerp(TEAL_LIGHT, TEAL, t / 0.45)
-            else:
-                color = _lerp(TEAL, SKY, (t - 0.45) / 0.55)
-            px[x, y] = color  # type: ignore[index]
-    return img
+def _content_bbox(im: Image.Image, alpha_min: int = 8) -> tuple[int, int, int, int]:
+    """Bounding box do conteudo opaco."""
+    alpha = im.split()[-1]
+    bbox = alpha.point(lambda p: 255 if p > alpha_min else 0).getbbox()
+    if not bbox:
+        return (0, 0, im.width, im.height)
+    return bbox
 
 
-def _arrow_polygon(
-    left: float,
-    top: float,
-    width: float,
-    height: float,
-    *,
-    pointing_right: bool,
-) -> list[tuple[float, float]]:
-    """Seta com entalhe leve na cauda (leitura boa em 16–32px)."""
-    body_h = height * 0.42
-    cy = top + height / 2
-    body_top = cy - body_h / 2
-    body_bot = cy + body_h / 2
-    head_w = width * 0.34
-    notch = height * 0.12
-
-    if pointing_right:
-        tip_x = left + width
-        head_base = tip_x - head_w
-        tail_x = left
-        return [
-            (tail_x + notch, body_top),
-            (head_base, body_top),
-            (head_base, top),
-            (tip_x, cy),
-            (head_base, top + height),
-            (head_base, body_bot),
-            (tail_x, body_bot),
-            (tail_x + notch, body_top + body_h * 0.35),
-        ]
-    tip_x = left
-    head_base = tip_x + head_w
-    tail_x = left + width
-    return [
-        (tail_x - notch, body_bot),
-        (head_base, body_bot),
-        (head_base, top + height),
-        (tip_x, cy),
-        (head_base, top),
-        (head_base, body_top),
-        (tail_x, body_top),
-        (tail_x - notch, body_bot - body_h * 0.35),
-    ]
+def _crop_pad_square(im: Image.Image, pad_ratio: float = 0.06) -> Image.Image:
+    left, top, right, bottom = _content_bbox(im)
+    crop = im.crop((left, top, right, bottom))
+    side = max(crop.width, crop.height)
+    pad = int(round(side * pad_ratio))
+    canvas_side = side + 2 * pad
+    out = Image.new("RGBA", (canvas_side, canvas_side), (0, 0, 0, 0))
+    ox = (canvas_side - crop.width) // 2
+    oy = (canvas_side - crop.height) // 2
+    out.paste(crop, (ox, oy), crop)
+    return out
 
 
-def draw_remote_mark(size: int) -> Image.Image:
-    """Tile arredondado + duas setas horizontais opostas."""
-    pad = size * 0.04
-    tile = int(round(size - 2 * pad))
-    radius = tile * 0.22
-    base = _gradient_tile(tile, radius)
-
-    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    ox = oy = int(round(pad))
-    canvas.paste(base, (ox, oy), base)
-
-    # camada das setas (com sombra) dentro do tile
-    layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(layer)
-
-    margin_x = size * 0.18
-    arrow_w = size - 2 * margin_x
-    arrow_h = size * 0.28
-    gap = size * 0.06
-    top_y = size / 2 - gap / 2 - arrow_h
-    bot_y = size / 2 + gap / 2
-
-    top_pts = _arrow_polygon(margin_x, top_y, arrow_w, arrow_h, pointing_right=True)
-    bot_pts = _arrow_polygon(margin_x, bot_y, arrow_w, arrow_h, pointing_right=False)
-
-    # sombra
-    shadow_shift = max(1.0, size * 0.02)
-    shadow = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    sdraw = ImageDraw.Draw(shadow)
-    sdraw.polygon([(x + shadow_shift, y + shadow_shift) for x, y in top_pts], fill=SHADOW)
-    sdraw.polygon([(x + shadow_shift, y + shadow_shift) for x, y in bot_pts], fill=SHADOW)
-    if size >= 48:
-        shadow = shadow.filter(ImageFilter.GaussianBlur(radius=max(1, size // 64)))
-    layer = Image.alpha_composite(layer, shadow)
-
-    draw = ImageDraw.Draw(layer)
-    draw.polygon(top_pts, fill=WHITE)
-    draw.polygon(bot_pts, fill=WHITE)
-
-    return Image.alpha_composite(canvas, layer)
+def _mark_without_text(im: Image.Image) -> Image.Image:
+    """Recorta a metade superior do conteudo (ilustracao), descartando o wordmark."""
+    left, top, right, bottom = _content_bbox(im)
+    height = bottom - top
+    # wordmark ocupa ~25–35% inferior da arte
+    cut = top + int(height * 0.68)
+    crop = im.crop((left, top, right, cut))
+    return _crop_pad_square(crop, pad_ratio=0.08)
 
 
-def write_branding(out_dir: Path) -> None:
+def _fit_square(im: Image.Image, size: int) -> Image.Image:
+    fitted = im.copy()
+    fitted.thumbnail((size, size), Image.Resampling.LANCZOS)
+    out = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    ox = (size - fitted.width) // 2
+    oy = (size - fitted.height) // 2
+    out.paste(fitted, (ox, oy), fitted)
+    if size <= 48:
+        # leve sharpen ajuda leitura em taskbar
+        out = out.filter(ImageFilter.UnsharpMask(radius=0.6, percent=120, threshold=2))
+    return out
+
+
+def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
+    if not source.is_file():
+        raise SystemExit(f"Arte fonte nao encontrada: {source}")
+
     out_dir.mkdir(parents=True, exist_ok=True)
-    draw_remote_mark(1024).save(out_dir / "icon-source-1024.png")
+    raw = Image.open(source)
+    rgba = _to_rgba_transparent(raw)
+    full = _crop_pad_square(rgba, pad_ratio=0.04)
+    mark = _mark_without_text(rgba)
 
-    sizes = {
-        "deskrudder-16.png": 16,
-        "deskrudder-32.png": 32,
-        "deskrudder-48.png": 48,
-        "deskrudder-64.png": 64,
-        "deskrudder-128.png": 128,
-        "deskrudder-256.png": 256,
-        "32x32.png": 32,
-        "128x128.png": 128,
-        "128x128@2x.png": 128,
-        "icon.png": 256,
+    full.save(out_dir / "icon-source-1024.png")
+    # manter copia canonica se veio de outro caminho
+    if source.resolve() != (out_dir / "icon-source-official.png").resolve():
+        rgba.convert("RGB").save(out_dir / "icon-source-official.png")
+
+    # grandes: arte completa; pequenos: so o mark
+    mapping = {
+        "deskrudder-16.png": (mark, 16),
+        "deskrudder-32.png": (mark, 32),
+        "deskrudder-48.png": (mark, 48),
+        "deskrudder-64.png": (mark, 64),
+        "deskrudder-128.png": (full, 128),
+        "deskrudder-256.png": (full, 256),
+        "32x32.png": (mark, 32),
+        "128x128.png": (full, 128),
+        "128x128@2x.png": (full, 128),
+        "icon.png": (full, 256),
     }
-    cache: dict[int, Image.Image] = {}
-    for name, s in sizes.items():
-        if s not in cache:
-            cache[s] = draw_remote_mark(s)
-        cache[s].save(out_dir / name)
+    rendered: dict[tuple[int, str], Image.Image] = {}
+    for name, (base, size) in mapping.items():
+        key = (size, "mark" if base is mark else "full")
+        if key not in rendered:
+            rendered[key] = _fit_square(base, size)
+        rendered[key].save(out_dir / name)
 
-    # ICO: Pillow grava melhor a partir do maior + sizes
     ico_sizes = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
-    biggest = draw_remote_mark(256)
-    biggest.save(out_dir / "icon.ico", format="ICO", sizes=ico_sizes)
-
-    tray = draw_remote_mark(32)
-    tray.save(out_dir / "tray-icon.ico", format="ICO", sizes=[(32, 32)])
-    print(f">> icones escritos em {out_dir}")
+    # ICO: misturar mark nos pequenos e full nos grandes
+    frames = []
+    for w, h in ico_sizes:
+        base = mark if w <= 64 else full
+        frames.append(_fit_square(base, w))
+    frames[-1].save(
+        out_dir / "icon.ico",
+        format="ICO",
+        sizes=ico_sizes,
+        append_images=frames[:-1],
+    )
+    _fit_square(mark, 32).save(out_dir / "tray-icon.ico", format="ICO", sizes=[(32, 32)])
+    print(f">> icones gerados de {source.name} em {out_dir}")
 
 
 def main() -> int:
-    here = Path(__file__).resolve().parent.parent / "branding"
-    write_branding(here)
+    write_branding(BRANDING, DEFAULT_SOURCE)
     return 0
 
 
