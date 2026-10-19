@@ -29,6 +29,7 @@ CATALOGO: tuple[tuple[str, str, str, str, str], ...] = (
     ("WhatsApp", "whatsapp.atender", "Atender WhatsApp", "Usar a fila e os chats de WhatsApp dos próprios setores.", "operacional"),
     ("Ponto", "ponto.meu", "Meu ponto", "Registrar e consultar o próprio ponto.", "operacional"),
     ("Ponto", "ponto.equipe", "Ponto da equipe", "Ver e ajustar o ponto da equipe, competências e locais.", ""),
+    ("Ponto", "ponto.aprovar", "Aprovar ajustes", "Aprovar ou recusar ajustes de ponto das pessoas dos próprios setores.", ""),
     ("Ponto", "presenca.ver", "Equipe online", "Ver quem está online.", ""),
     ("Dashboard", "dashboard.ver", "Dashboard", "Ver os painéis dos próprios setores.", "operacional"),
     ("Relatórios", "relatorios.ver", "Relatórios", "Ver relatórios de tickets e chats.", ""),

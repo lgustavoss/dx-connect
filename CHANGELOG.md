@@ -9,6 +9,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Ponto (#1137): o supervisor do setor aprova ou recusa ajuste de ponto só das pessoas dos próprios setores. Quem administra o ponto da equipe continua vendo todos
 - Acesso remoto: instalador Windows **DeskRudder** (um `.exe` com servidor Duplex e marca) gerado no GitHub Actions — ver `docs/RUSTDESK_CLIENT_WINDOWS.md`
 - Acesso remoto (#1184): lista dos computadores que usam o servidor da equipe, com online ou offline, e vínculo do ID a um PDV. Quem ainda não tem PDV aparece para vincular. Dá para desvincular um ID trocado, excluir do servidor um computador offline que não será mais usado e abrir a conexão neste computador. No cadastro do PDV, o ID mostra se o computador está online
 - Chat (#S202610-0006): dá para vincular a conversa a uma negociação do CRM antes de existir empresa. Quando a empresa dessa negociação é cadastrada, o contato passa a ficar nela
