@@ -32,6 +32,7 @@ import { Redes } from './pages/Redes'
 import { RedeDetalhe } from './pages/RedeDetalhe'
 import { RedeForm } from './pages/RedeForm'
 import { Empresas } from './pages/Empresas'
+import { RustdeskPeers } from './pages/RustdeskPeers'
 import { EmpresaForm } from './pages/EmpresaForm'
 import { EmpresaDetalhe } from './pages/EmpresaDetalhe'
 import { Setores } from './pages/Setores'
@@ -616,6 +617,15 @@ function AppRoutes() {
           element={
             <PermissaoRoute codigo="empresas.ver">
               <Empresas />
+            </PermissaoRoute>
+          }
+        />
+        <Route path="rustdesk" element={<Navigate to="/acesso-remoto" replace />} />
+        <Route
+          path="acesso-remoto"
+          element={
+            <PermissaoRoute codigo="rustdesk.monitorar">
+              <RustdeskPeers />
             </PermissaoRoute>
           }
         />

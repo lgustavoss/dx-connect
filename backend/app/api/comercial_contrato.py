@@ -185,8 +185,12 @@ def salvar_empresa_da_linha(
         atendente.id,
         payload={"linha_id": linha.id, "origem": "contrato"},
     )
+    negociacao_id = linha.negociacao_id
     db.commit()
     db.refresh(emp)
+    from app.services.whatsapp_chat_negociacao import emitir_fila_dos_chats
+
+    emitir_fila_dos_chats(db, negociacao_id)
     return emp
 
 
@@ -338,8 +342,12 @@ def marcar_assinado(
             atendente.id,
             payload={"origem": "implantacao_contrato", "contrato_id": row.id},
         )
+    negociacao_id = svc.obter_linha(db, row.negociacao_linha_cnpj_id).negociacao_id
     db.commit()
     db.refresh(row)
+    from app.services.whatsapp_chat_negociacao import emitir_fila_dos_chats
+
+    emitir_fila_dos_chats(db, negociacao_id)
     if ticket_impl:
         from app.models.ticket import Ticket
 

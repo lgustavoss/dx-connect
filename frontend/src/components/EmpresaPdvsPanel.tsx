@@ -13,6 +13,12 @@ import { useToast } from './ui/Toast'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { useAuth } from '../contexts/AuthContext'
 import { temPermissao } from '../lib/permissoes'
+import { formatarIdRustdesk, tipoHospedadoNoServidor } from '../lib/rustdeskId'
+
+function idRustdesk(row: Pick<EmpresaPdv.Item, 'tipo_acesso_remoto_nome' | 'rustdesk_visto' | 'acesso_remoto_id'>) {
+  if (!tipoHospedadoNoServidor(row.tipo_acesso_remoto_nome) && !row.rustdesk_visto) return row.acesso_remoto_id ?? ''
+  return formatarIdRustdesk(row.acesso_remoto_id)
+}
 
 type Props = {
   empresaId: number
@@ -227,11 +233,31 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel }: P
                   <td className="px-4 py-3">
                     {row.acesso_remoto_id ? (
                       <span className="inline-flex items-center gap-1">
-                        <span className="font-mono text-slate-700 dark:text-slate-200">{row.acesso_remoto_id}</span>
+                        <span className="font-mono tracking-wide text-slate-700 dark:text-slate-200">{idRustdesk(row)}</span>
+                        {row.rustdesk_online === true ? (
+                          <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+                            Online
+                          </span>
+                        ) : null}
+                        {row.rustdesk_online === false ? (
+                          <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                            Offline
+                          </span>
+                        ) : null}
+                        {row.rustdesk_visto && row.rustdesk_online == null ? (
+                          <span className="text-[10px] text-slate-400">Sem sinal</span>
+                        ) : null}
+                        {!row.rustdesk_visto &&
+                        row.acesso_remoto_id &&
+                        tipoHospedadoNoServidor(row.tipo_acesso_remoto_nome) ? (
+                          <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                            Fora do servidor
+                          </span>
+                        ) : null}
                         <button
                           type="button"
                           className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                          onClick={() => void copiarTexto(row.acesso_remoto_id!, 'ID de acesso copiado.')}
+                          onClick={() => void copiarTexto(idRustdesk(row), 'ID de acesso copiado.')}
                           aria-label="Copiar ID de acesso remoto"
                           title="Copiar ID"
                         >

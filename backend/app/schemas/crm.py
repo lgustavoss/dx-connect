@@ -196,6 +196,14 @@ class CrmNegociacaoUpdate(BaseModel):
     responsavel_id: int | None = None
 
 
+class CrmNegociacaoChatRead(BaseModel):
+    id: int
+    protocolo: str
+    cliente_nome: str | None = None
+    wa_id: str
+    estado: str
+
+
 class CrmNegociacaoRead(BaseModel):
     id: int
     lead_id: int
@@ -207,6 +215,7 @@ class CrmNegociacaoRead(BaseModel):
     titulo: str | None = None
     nome_base_webposto: str | None = None
     linhas: list[CrmLinhaRead] = Field(default_factory=list)
+    chats: list[CrmNegociacaoChatRead] = Field(default_factory=list)
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

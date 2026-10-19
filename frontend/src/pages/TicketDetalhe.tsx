@@ -2631,7 +2631,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
             <div className="mt-5 flex flex-wrap justify-end gap-2">
               <Button
                 type="button"
-                variant="cancel"
+                variant="secondary"
                 onClick={() => setModalFecharAberto(false)}
                 disabled={fechando}
               >

@@ -93,6 +93,13 @@ class Settings(BaseSettings):
     TICKET_DISTRIBUICAO_WORKER_INTERVAL_SECONDS: int = 45
     SLA_WORKER_INTERVAL_SECONDS: int = 60
 
+    # Agente ao lado do hbbs (RustDesk gratuito). Vazio = a tela lista só o cache local.
+    RUSTDESK_AGENT_URL: str | None = None
+    RUSTDESK_AGENT_TOKEN: str | None = None
+    # O hbbs trata o computador como inacessível após 30s sem o registro do cliente.
+    RUSTDESK_ONLINE_SECONDS: int = 45
+    RUSTDESK_SYNC_MIN_INTERVAL_SECONDS: int = 30
+
     # Control-plane comercial DeskRudder (painel de licenças / SaaS).
     # True só na instância deskrudder.com.br — False nas instâncias dos clientes.
     SAAS_CONTROL_PLANE: bool = False

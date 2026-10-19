@@ -76,6 +76,8 @@ class EmpresaPdvRead(EmpresaPdvBase):
     rotulo_nome: str | None = None
     tipo_acesso_remoto_nome: str | None = None
     tem_senha_remota: bool = False
+    rustdesk_visto: bool = False
+    rustdesk_online: bool | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
