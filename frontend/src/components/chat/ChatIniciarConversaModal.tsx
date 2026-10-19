@@ -213,7 +213,7 @@ export function ChatIniciarConversaModal({
                         className={`flex min-h-11 w-full items-center rounded-xl px-3 py-2.5 text-left text-sm ${
                           selected
                             ? 'bg-slate-900 font-medium text-white dark:bg-cyan-600'
-                            : 'bg-slate-50 text-slate-800 ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-slate-800/60 dark:text-slate-100 dark:ring-slate-700'
+                            : 'bg-slate-50 text-slate-800 ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-slate-800/60 dark:text-slate-100 dark:ring-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-100'
                         }`}
                       >
                         {s.nome}
