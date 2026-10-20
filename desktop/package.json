@@ -6,10 +6,14 @@
   "private": true,
   "main": "src/main.cjs",
   "author": "DuplexSoft",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lgustavoss/dx-connect.git"
+  },
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win nsis",
-    "dist:dir": "electron-builder --win dir",
+    "dist": "electron-builder --win nsis --publish never",
+    "dist:dir": "electron-builder --win dir --publish never",
     "baixar-remoto": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/baixar-remoto-controle.ps1",
     "publicar-setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/publicar-setup-release.ps1"
   },

@@ -36,6 +36,10 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Acesso remoto: **Atualizar agora** baixa e instala sozinho (com UAC) e reabre o app — sem precisar abrir o navegador
 - Acesso remoto: logo do painel com mais nitidez; barra de título escura acompanha o tema do Windows
 
+#### Interno
+
+- App Atendente Setup: `electron-builder` no CI usa `--publish never` (Release via `gh`); evita falha «Cannot detect repository»
+
 ## [26.10.003] - 2026-10-19
 
 ### DeskRudder
