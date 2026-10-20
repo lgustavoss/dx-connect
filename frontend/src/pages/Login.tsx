@@ -25,6 +25,8 @@ import {
 import { isCapacitorNative } from '../lib/capacitorNative'
 import { unlockAlertAudio } from '../hooks/useAlertaFilaSemResponsavel'
 import { isSaasControlPlaneFrontend, SAAS_LICENCAS_PATH } from '../lib/saasControlPlane'
+import { DesktopAppDownloadCard } from '../components/DesktopAppDownloadCard'
+import { isMobileForPwaInstall } from '../lib/pwaInstallPolicy'
 
 const fieldClass =
   'w-full rounded-xl border border-white/10 bg-white/[0.06] px-3.5 py-3 text-base text-slate-100 placeholder:text-slate-500 shadow-inner shadow-black/20 backdrop-blur-sm transition-colors focus:border-cyan-400/50 focus:outline-none focus:ring-2 focus:ring-cyan-400/25'
@@ -556,6 +558,9 @@ function LoginCredenciais({ variant = 'tenant' }: { variant?: 'tenant' | 'ops' }
               ? 'Acesso da equipe DeskRudder — gestão de licenças, leads e instâncias SaaS.'
               : 'Use o usuário cadastrado pelo administrador. Problemas para acessar? Contate o suporte interno.'}
           </p>
+          {!isOps && !isCapacitorNative() && !isMobileForPwaInstall() ? (
+            <DesktopAppDownloadCard variante="login" />
+          ) : null}
           <div className="flex flex-col gap-2.5">
             {isOps ? (
               <p className="text-center">

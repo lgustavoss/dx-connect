@@ -1,15 +1,17 @@
 {
   "name": "deskrudder-desktop",
   "productName": "DeskRudder",
-  "version": "1.0.1",
-  "description": "DeskRudder para Windows — painel da instância com ícone na bandeja",
+  "version": "1.1.0",
+  "description": "DeskRudder para Windows — painel da instância, bandeja e acesso remoto (controle) embutido",
   "private": true,
   "main": "src/main.cjs",
   "author": "DuplexSoft",
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --win nsis",
-    "dist:dir": "electron-builder --win dir"
+    "dist:dir": "electron-builder --win dir",
+    "baixar-remoto": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/baixar-remoto-controle.ps1",
+    "publicar-setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/publicar-setup-release.ps1"
   },
   "build": {
     "appId": "br.com.deskrudder.desktop",
@@ -23,6 +25,13 @@
       "build/icon.png",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "vendor/remoto-controle",
+        "to": "remoto-controle",
+        "filter": ["**/*"]
+      }
+    ],
     "win": {
       "target": "nsis",
       "icon": "build/icon.ico"
@@ -34,12 +43,14 @@
       "installerSidebar": "build/installerSidebar.bmp",
       "uninstallerSidebar": "build/uninstallerSidebar.bmp",
       "oneClick": false,
-      "perMachine": false,
+      "perMachine": true,
+      "allowElevation": true,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "DeskRudder",
-      "artifactName": "DeskRudder-Setup-${version}.${ext}"
+      "artifactName": "DeskRudder-Setup-${version}.${ext}",
+      "include": "installer-remoto.nsh"
     }
   },
   "devDependencies": {

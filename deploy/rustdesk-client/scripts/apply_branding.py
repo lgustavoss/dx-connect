@@ -6,7 +6,11 @@ O CI deve renomear o binario para DeskRudder.exe apos o cargo build — o
 instalador/is_installed() procura `{APP_NAME}.exe`.
 
 Altera: APP_NAME, icones, RENDEZVOUS_SERVERS, PROD_RENDEZVOUS_SERVER, RS_PUB_KEY,
-modo incoming-only (so ser acessado), UI host com logo, nome do atalho Windows.
+nome do atalho Windows, canal de update (version.json).
+
+Profiles (--profile):
+  posto     — incoming-only + UI host (PDV)
+  controle  — atendente (pode iniciar sessao); update no Release controle
 """
 
 from __future__ import annotations
@@ -24,19 +28,45 @@ SHORTCUT_DISPLAY_NAME = "DeskRudder - Acesso Remoto"
 # Pasta sob Program Files (x86): DeskRudder\Acesso Remoto (outros instaladores irao ao lado).
 INSTALL_DIR_RELATIVE = r"DeskRudder\Acesso Remoto"
 WEBSITE_URL = "https://deskrudder.com.br/"
-# Canal de atualizacao (Release GitHub acesso-remoto-windows).
+# Canais de atualizacao (Release GitHub).
+RELEASE_TAG_POSTO = "acesso-remoto-windows"
+RELEASE_TAG_CONTROLE = "acesso-remoto-controle-windows"
+INSTALLER_NAME_POSTO = "DeskRudder-AcessoRemoto.exe"
+INSTALLER_NAME_CONTROLE = "DeskRudder-AcessoRemoto-Controle.exe"
+
+# Preenchidos em main() conforme --profile.
 UPDATE_VERSION_JSON_URL = (
-    "https://github.com/lgustavoss/dx-connect/releases/download/"
-    "acesso-remoto-windows/version.json"
+    f"https://github.com/lgustavoss/dx-connect/releases/download/"
+    f"{RELEASE_TAG_POSTO}/version.json"
 )
 DOWNLOAD_INSTALLER_URL = (
-    "https://github.com/lgustavoss/dx-connect/releases/download/"
-    "acesso-remoto-windows/DeskRudder-AcessoRemoto.exe"
+    f"https://github.com/lgustavoss/dx-connect/releases/download/"
+    f"{RELEASE_TAG_POSTO}/{INSTALLER_NAME_POSTO}"
 )
+UPDATE_RELEASE_TAG = RELEASE_TAG_POSTO
+
 # Altura minima da janela host-only com o cartao "Instalar" visivel.
 HOST_WINDOW_HEIGHT_UNINSTALLED = 580
 HOST_WINDOW_HEIGHT_INSTALLED = 480
 HOST_WINDOW_WIDTH = 640
+
+
+def configurar_canal_update(profile: str) -> None:
+    """Define URLs de version.json / download conforme posto (so-recebe) ou controle."""
+    global UPDATE_VERSION_JSON_URL, DOWNLOAD_INSTALLER_URL, UPDATE_RELEASE_TAG
+    if profile == "controle":
+        tag = RELEASE_TAG_CONTROLE
+        nome = INSTALLER_NAME_CONTROLE
+    else:
+        tag = RELEASE_TAG_POSTO
+        nome = INSTALLER_NAME_POSTO
+    UPDATE_RELEASE_TAG = tag
+    UPDATE_VERSION_JSON_URL = (
+        f"https://github.com/lgustavoss/dx-connect/releases/download/{tag}/version.json"
+    )
+    DOWNLOAD_INSTALLER_URL = (
+        f"https://github.com/lgustavoss/dx-connect/releases/download/{tag}/{nome}"
+    )
 
 
 def load_client_version(path: Path) -> str:
@@ -261,7 +291,18 @@ def patch_incoming_only(config_rs: Path) -> None:
     print("  config.rs: is_incoming_only() -> true (host-only)", flush=True)
 
 
-def patch_host_only_ui(index_tis: Path) -> None:
+def _host_logo_data_uri(branding: Path) -> str:
+    """PNG de alta resolucao (mark) para o painel direito — evita upscale do get_icon 128."""
+    for name in ("ui-logo-512.png", "ui-logo-256.png", "deskrudder-256.png", "icon.png"):
+        p = branding / name
+        if p.is_file():
+            b64 = base64.b64encode(p.read_bytes()).decode("ascii")
+            print(f"  host logo: {name}", flush=True)
+            return f"data:image/png;base64,{b64}"
+    raise SystemExit("Nenhum PNG de logo UI em branding/ (ui-logo-512.png)")
+
+
+def patch_host_only_ui(index_tis: Path, branding: Path) -> None:
     """UI host: painel esquerdo (ID/senha) + status + logo a direita (sem conectar)."""
     if not index_tis.is_file():
         raise SystemExit(f"Falta {index_tis}")
@@ -270,12 +311,14 @@ def patch_host_only_ui(index_tis: Path) -> None:
     w = HOST_WINDOW_WIDTH
     h_un = HOST_WINDOW_HEIGHT_UNINSTALLED
     h_in = HOST_WINDOW_HEIGHT_INSTALLED
+    logo_uri = _host_logo_data_uri(branding)
 
     text2, n = re.subn(
         r"const incoming_only_width = 180;",
         f"const incoming_only_width = {w};\n"
         f"const incoming_only_height_uninstalled = {h_un};\n"
-        f"const incoming_only_height_installed = {h_in};",
+        f"const incoming_only_height_installed = {h_in};\n"
+        f'const deskrudder_host_logo = "{logo_uri}";',
         text,
         count=1,
     )
@@ -348,10 +391,10 @@ def patch_host_only_ui(index_tis: Path) -> None:
                 </div>
                 {incoming_only && <div .right-pane>
                     <div .right-content style="flow:vertical;size:*;vertical-align:middle;horizontal-align:center;padding:2em;">
-                        <img src={handler.get_icon()} style="width:148px;height:148px;" />
+                        <img src={deskrudder_host_logo} style="width:200px;height:200px;" />
                         <div .title style="margin-top:1.2em;text-align:center;">DeskRudder</div>
                         <div .lighter-text style="text-align:center;margin-top:0.4em;">Acesso Remoto</div>
-                        <div .lighter-text style="text-align:center;margin-top:0.8em;">Versão {handler.get_version()}</div>
+                        <div .lighter-text style="text-align:center;margin-top:0.8em;">Versao {handler.get_version()}</div>
                     </div>
                 </div>}
                 {!incoming_only && <div .right-pane>
@@ -647,7 +690,7 @@ async fn do_check_deskrudder_update() -> hbb_common::ResultType<()> {{
     if get_version_number(latest) > get_version_number(crate::VERSION) {{
         // Ultimo segmento = versao (usado por get_new_version()).
         *SOFTWARE_UPDATE_URL.lock().unwrap() = format!(
-            "https://github.com/lgustavoss/dx-connect/releases/download/acesso-remoto-windows/{{}}",
+            "https://github.com/lgustavoss/dx-connect/releases/download/{UPDATE_RELEASE_TAG}/{{}}",
             latest
         );
     }} else {{
@@ -658,7 +701,7 @@ async fn do_check_deskrudder_update() -> hbb_common::ResultType<()> {{
     if old not in text:
         raise SystemExit("check_software_update() nao encontrado em common.rs")
     common_rs.write_text(text.replace(old, new, 1), encoding="utf-8")
-    print("  common.rs: check update -> version.json DeskRudder", flush=True)
+    print(f"  common.rs: check update -> version.json ({UPDATE_RELEASE_TAG})", flush=True)
 
 
 def patch_update_banner(index_tis: Path) -> None:
@@ -797,21 +840,82 @@ def patch_install_version_label(install_tis: Path) -> None:
     new = (
         '<div style="font-size: 2em;">{translate(\'Installation\')}</div>\n'
         '            <div .lighter-text style="margin-top: 0.4em;">'
-        "Versão {handler.get_version()}</div>"
+        "Versao {handler.get_version()}</div>"
     )
     if old not in text:
         raise SystemExit("titulo Installation nao encontrado em install.tis")
     install_tis.write_text(text.replace(old, new, 1), encoding="utf-8")
-    print("  install.tis: label Versão", flush=True)
+    print("  install.tis: label Versao", flush=True)
 
 
 def patch_system_dark_theme(ui_rs: Path, index_tis: Path) -> None:
-    """Tema escuro segue o Windows quando o usuario nao fixou a opcao."""
+    """Tema escuro segue o Windows + barra de titulo imersiva (DWM)."""
     if not ui_rs.is_file():
         raise SystemExit(f"Falta {ui_rs}")
     text = ui_rs.read_text(encoding="utf-8")
 
-    method = """
+    # HWND da janela principal para DwmSetWindowAttribute
+    if "DESKRUDDER_MAIN_HWND" not in text:
+        hwnd_store = """
+lazy_static::lazy_static! {
+    static ref DESKRUDDER_MAIN_HWND: Mutex<isize> = Mutex::new(0);
+}
+
+#[cfg(windows)]
+fn deskrudder_set_titlebar_dark(hwnd: isize, dark: bool) {
+    if hwnd == 0 {
+        return;
+    }
+    #[link(name = "dwmapi")]
+    extern "system" {
+        fn DwmSetWindowAttribute(
+            hwnd: isize,
+            dwAttribute: u32,
+            pvAttribute: *const core::ffi::c_void,
+            cbAttribute: u32,
+        ) -> i32;
+    }
+    // 20 = DWMWA_USE_IMMERSIVE_DARK_MODE (Win10 20H1+); 19 = valor anterior
+    let mut use_dark: i32 = if dark { 1 } else { 0 };
+    unsafe {
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            20,
+            &use_dark as *const i32 as *const core::ffi::c_void,
+            4,
+        );
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            19,
+            &use_dark as *const i32 as *const core::ffi::c_void,
+            4,
+        );
+    }
+}
+"""
+        # inserir apos lazy_static CUR_SESSION block ou STUPID_VALUES
+        anchor_ls = "lazy_static::lazy_static! {\n    // stupid workaround"
+        if anchor_ls not in text:
+            raise SystemExit("lazy_static STUPID_VALUES nao encontrado em ui.rs")
+        text = text.replace(anchor_ls, hwnd_store + "\nlazy_static::lazy_static! {\n    // stupid workaround", 1)
+
+    # Guardar HWND apos create
+    old_hwnd = (
+        "    #[cfg(windows)]\n"
+        "    crate::platform::try_set_window_foreground(frame.get_hwnd() as _);"
+    )
+    new_hwnd = (
+        "    #[cfg(windows)]\n"
+        "    {\n"
+        "        let hwnd = frame.get_hwnd() as isize;\n"
+        "        *DESKRUDDER_MAIN_HWND.lock().unwrap() = hwnd;\n"
+        "        crate::platform::try_set_window_foreground(hwnd as _);\n"
+        "    }"
+    )
+    if old_hwnd in text and "DESKRUDDER_MAIN_HWND.lock()" not in text:
+        text = text.replace(old_hwnd, new_hwnd, 1)
+
+    methods = """
     fn is_system_dark_theme(&self) -> bool {
         #[cfg(windows)]
         {
@@ -831,24 +935,71 @@ def patch_system_dark_theme(ui_rs: Path, index_tis: Path) -> None:
             false
         }
     }
+
+    fn set_titlebar_dark(&self, dark: bool) {
+        #[cfg(windows)]
+        {
+            let hwnd = *DESKRUDDER_MAIN_HWND.lock().unwrap();
+            deskrudder_set_titlebar_dark(hwnd, dark);
+        }
+    }
 """
     anchor = "    pub fn is_custom_client(&self) -> bool {\n        crate::common::is_custom_client()\n    }"
     if "fn is_system_dark_theme" not in text:
         if anchor not in text:
             raise SystemExit("anchor is_custom_client nao encontrado em ui.rs")
-        text = text.replace(anchor, anchor + method, 1)
+        text = text.replace(anchor, anchor + methods, 1)
+    elif "fn set_titlebar_dark" not in text:
+        # ja tem is_system_dark_theme de build anterior — acrescentar set_titlebar_dark
+        insert_after = "    fn is_system_dark_theme(&self) -> bool {\n"
+        # find end of is_system_dark_theme function — fragile; prefer replace block
+        old_sys = """    fn is_system_dark_theme(&self) -> bool {
+        #[cfg(windows)]
+        {
+            use winreg::enums::*;
+            use winreg::RegKey;
+            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+            if let Ok(key) = hkcu.open_subkey(
+                r"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+            ) {
+                let light: u32 = key.get_value("AppsUseLightTheme").unwrap_or(1);
+                return light == 0;
+            }
+            false
+        }
+        #[cfg(not(windows))]
+        {
+            false
+        }
+    }
+"""
+        if old_sys in text:
+            text = text.replace(old_sys, methods, 1)
+        else:
+            raise SystemExit("is_system_dark_theme presente mas formato inesperado")
 
     dispatch_line = "        fn is_custom_client();\n"
-    dispatch_new = "        fn is_custom_client();\n        fn is_system_dark_theme();\n"
-    if "fn is_system_dark_theme();" not in text:
-        if dispatch_line not in text:
+    dispatch_new = (
+        "        fn is_custom_client();\n"
+        "        fn is_system_dark_theme();\n"
+        "        fn set_titlebar_dark(bool);\n"
+    )
+    if "fn set_titlebar_dark(bool);" not in text:
+        if "fn is_system_dark_theme();" in text and "fn set_titlebar_dark" not in text:
+            text = text.replace(
+                "        fn is_system_dark_theme();\n",
+                "        fn is_system_dark_theme();\n        fn set_titlebar_dark(bool);\n",
+                1,
+            )
+        elif dispatch_line in text:
+            text = text.replace(dispatch_line, dispatch_new, 1)
+        else:
             raise SystemExit("dispatch is_custom_client nao encontrado")
-        text = text.replace(dispatch_line, dispatch_new, 1)
 
     ui_rs.write_text(text, encoding="utf-8")
-    print("  ui.rs: is_system_dark_theme() (Windows)", flush=True)
+    print("  ui.rs: tema sistema + titlebar dark (DWM)", flush=True)
 
-    # updateTheme: Y/N manuais; vazio = seguir sistema
+    # updateTheme: Y/N manuais; vazio = seguir sistema; sincroniza barra de titulo
     idx = index_tis.read_text(encoding="utf-8")
     old_theme = """function updateTheme() {
     var root_element = self;
@@ -860,7 +1011,8 @@ def patch_system_dark_theme(ui_rs: Path, index_tis: Path) -> None:
         root_element.attributes.toggleClass("darktheme", false);
     }
 }"""
-    new_theme = """function updateTheme() {
+    # tambem aceitar versao ja patchada sem titlebar
+    old_theme_partial = """function updateTheme() {
     var root_element = self;
     var opt = handler.get_option("allow-darktheme");
     var dark;
@@ -869,10 +1021,26 @@ def patch_system_dark_theme(ui_rs: Path, index_tis: Path) -> None:
     else dark = handler.is_system_dark_theme();
     root_element.attributes.toggleClass("darktheme", dark);
 }"""
-    if old_theme not in idx:
+    new_theme = """function updateTheme() {
+    var root_element = self;
+    var opt = handler.get_option("allow-darktheme");
+    var dark;
+    if (opt == "Y") dark = true;
+    else if (opt == "N") dark = false;
+    else dark = handler.is_system_dark_theme();
+    root_element.attributes.toggleClass("darktheme", dark);
+    try { handler.set_titlebar_dark(dark); } catch(e) {}
+}"""
+    if old_theme in idx:
+        idx = idx.replace(old_theme, new_theme, 1)
+    elif old_theme_partial in idx:
+        idx = idx.replace(old_theme_partial, new_theme, 1)
+    elif "set_titlebar_dark" in idx:
+        pass
+    else:
         raise SystemExit("updateTheme() nao encontrado em index.tis")
-    index_tis.write_text(idx.replace(old_theme, new_theme, 1), encoding="utf-8")
-    print("  index.tis: tema escuro segue Windows (se opcao vazia)", flush=True)
+    index_tis.write_text(idx, encoding="utf-8")
+    print("  index.tis: tema escuro + titlebar DWM", flush=True)
 
 
 def main() -> int:
@@ -897,18 +1065,29 @@ def main() -> int:
         default=here / "CLIENT_VERSION",
         help="Arquivo com versao DeskRudder X.Y.Z",
     )
+    ap.add_argument(
+        "--profile",
+        choices=("posto", "controle"),
+        default="posto",
+        help="posto=so-recebe (PDV); controle=atendente (pode iniciar sessao)",
+    )
     args = ap.parse_args()
     src = args.rustdesk_src.resolve()
     if not (src / ".git").exists() and not (src / "Cargo.toml").is_file():
         print(f"Nao parece um clone rustdesk: {src}", file=sys.stderr)
         return 1
 
+    profile: str = args.profile
+    configurar_canal_update(profile)
+
     host, key = load_server(args.config.resolve())
     brand = args.branding.resolve()
     client_version = load_client_version(args.client_version.resolve())
     print(f">> Branding DeskRudder em {src}")
+    print(f"   profile={profile}")
     print(f"   host={host}")
     print(f"   client_version={client_version}")
+    print(f"   update={UPDATE_VERSION_JSON_URL}")
 
     copy_icons(brand, src)
     patch_cargo_bundle_name(src / "Cargo.toml")
@@ -930,13 +1109,15 @@ def main() -> int:
         print(f"Falta {cfg_rs} (submodule hbb_common?).", file=sys.stderr)
         return 1
     patch_config_rs(cfg_rs, host, key)
-    patch_incoming_only(cfg_rs)
+    if profile == "posto":
+        patch_incoming_only(cfg_rs)
     index_tis = src / "src" / "ui" / "index.tis"
     install_tis = src / "src" / "ui" / "install.tis"
     windows_rs = src / "src" / "platform" / "windows.rs"
     ui_rs = src / "src" / "ui.rs"
     common_rs = src / "src" / "common.rs"
-    patch_host_only_ui(index_tis)
+    if profile == "posto":
+        patch_host_only_ui(index_tis, brand)
     patch_shortcut_display_name(windows_rs)
     # UpdateMe antes do patch de URLs (ele ainda contem rustdesk.com no upstream).
     patch_update_check(common_rs)
@@ -955,8 +1136,12 @@ def main() -> int:
     if f'RwLock::new("{host}".to_owned())' not in body:
         print("Verificacao falhou: PROD_RENDEZVOUS_SERVER sem host.", file=sys.stderr)
         return 1
-    if "DeskRudder Acesso Remoto: build so para ser acessado" not in body:
-        print("Verificacao falhou: is_incoming_only nao patchado.", file=sys.stderr)
+    if profile == "posto":
+        if "DeskRudder Acesso Remoto: build so para ser acessado" not in body:
+            print("Verificacao falhou: is_incoming_only nao patchado.", file=sys.stderr)
+            return 1
+    elif "DeskRudder Acesso Remoto: build so para ser acessado" in body:
+        print("Verificacao falhou: profile controle nao deve forcar incoming_only.", file=sys.stderr)
         return 1
 
     ui_body = ui_rs.read_text(encoding="utf-8")
@@ -964,31 +1149,44 @@ def main() -> int:
     if our_b64 not in ui_body:
         print("Verificacao falhou: get_icon() sem PNG DeskRudder.", file=sys.stderr)
         return 1
-    if "fn is_system_dark_theme" not in ui_body:
-        print("Verificacao falhou: is_system_dark_theme ausente.", file=sys.stderr)
+    if "fn is_system_dark_theme" not in ui_body or "set_titlebar_dark" not in ui_body:
+        print("Verificacao falhou: tema/titlebar ausente em ui.rs.", file=sys.stderr)
+        return 1
+    if "DwmSetWindowAttribute" not in ui_body:
+        print("Verificacao falhou: DWM titlebar ausente.", file=sys.stderr)
         return 1
 
     index_body = index_tis.read_text(encoding="utf-8")
-    if "Acesso Remoto</div>" not in index_body or "handler.get_icon()" not in index_body:
-        print("Verificacao falhou: UI host-only sem logo.", file=sys.stderr)
-        return 1
-    if "incoming_only_height_uninstalled" not in index_body:
-        print("Verificacao falhou: altura da janela host nao patchada.", file=sys.stderr)
-        return 1
+    if profile == "posto":
+        if "Acesso Remoto</div>" not in index_body or "deskrudder_host_logo" not in index_body:
+            print("Verificacao falhou: UI host-only sem logo.", file=sys.stderr)
+            return 1
+        if "data:image/png;base64," not in index_body:
+            print("Verificacao falhou: logo host sem data URI.", file=sys.stderr)
+            return 1
+        if "incoming_only_height_uninstalled" not in index_body:
+            print("Verificacao falhou: altura da janela host nao patchada.", file=sys.stderr)
+            return 1
+        if "Versao {handler.get_version()}" not in index_body:
+            print("Verificacao falhou: versao nao aparece na UI.", file=sys.stderr)
+            return 1
     if "handler.is_system_dark_theme()" not in index_body:
         print("Verificacao falhou: tema do sistema nao ligado.", file=sys.stderr)
         return 1
+    if "set_titlebar_dark" not in index_body:
+        print("Verificacao falhou: titlebar dark nao ligado na UI.", file=sys.stderr)
+        return 1
     if "deskrudder.com.br" not in index_body:
         print("Verificacao falhou: website DeskRudder ausente.", file=sys.stderr)
-        return 1
-    if "Versão {handler.get_version()}" not in index_body:
-        print("Verificacao falhou: versao nao aparece na UI.", file=sys.stderr)
         return 1
     if "Atualização disponível" not in index_body:
         print("Verificacao falhou: banner de atualizacao ausente.", file=sys.stderr)
         return 1
     if "Atualizar agora" not in index_body or "Instalando..." not in index_body:
         print("Verificacao falhou: fluxo in-app de update incompleto.", file=sys.stderr)
+        return 1
+    if DOWNLOAD_INSTALLER_URL not in index_body:
+        print("Verificacao falhou: URL de download do profile ausente no banner.", file=sys.stderr)
         return 1
 
     ui_iface = (src / "src" / "ui_interface.rs").read_text(encoding="utf-8")
@@ -1007,7 +1205,7 @@ def main() -> int:
         return 1
 
     install_body = install_tis.read_text(encoding="utf-8")
-    if "Versão {handler.get_version()}" not in install_body:
+    if "Versao {handler.get_version()}" not in install_body:
         print("Verificacao falhou: versao ausente na tela de instalacao.", file=sys.stderr)
         return 1
 

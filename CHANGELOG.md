@@ -11,6 +11,12 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- App desktop do atendente: Setup com elevação embute o Acesso Remoto (controle); a frota abre o cliente local com a senha do cadastro; menu **Recarregar painel** limpa cache após deploy
+- App Windows: painel instala em `DeskRudder\Painel` (Program Files x86), ao lado de `DeskRudder\Acesso Remoto`
+- App Windows: download pelo painel (Sobre) e link amigável `/app/download` na instância (Setup direto no domínio do cliente)
+- App Windows: workflow **Desktop DeskRudder Windows** no Actions gera o Setup (Electron + remoto controle) e publica o Release `desktop-windows`
+- Acesso remoto: build **controle** (atendente) no Actions (`profile=controle`), Release e update em `acesso-remoto-controle-windows`, separado do instalador só-recebe do posto
+- No PC, o navegador deixa de sugerir «Instale o app» (PWA); no celular o convite de instalação continua
 - Tickets (#S202610-0012): na tela Natureza e motivo, os motivos ficam agrupados por natureza, com expandir e recolher
 - Acesso remoto: link curto `/acesso-remoto/download` no domínio da instância para o posto baixar o instalador Windows sem entrar no painel, com botão de copiar na tela da frota
 - Acesso remoto: na mesma tela da frota, os dados do servidor (ID, relay e chave) para colar no RustDesk ao configurar o computador do cliente
@@ -27,6 +33,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Acesso remoto: janela inicial maior (botão Instalar visível), link para deskrudder.com.br, pasta `DeskRudder\Acesso Remoto` e tema escuro alinhado ao Windows
 - Acesso remoto: versão DeskRudder visível no app e na instalação; aviso quando há atualização no Release (`version.json`)
 - Acesso remoto: **Atualizar agora** baixa e instala sozinho (com UAC) e reabre o app — sem precisar abrir o navegador
+- Acesso remoto: logo do painel com mais nitidez; barra de título escura acompanha o tema do Windows
 
 ## [26.10.003] - 2026-10-19
 

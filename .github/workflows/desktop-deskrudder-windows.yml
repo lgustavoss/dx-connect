@@ -1,0 +1,129 @@
+# Gera o Setup Windows do atendente (Electron + Acesso Remoto controle embutido).
+#
+# Pré-requisito: Release `acesso-remoto-controle-windows` com
+# DeskRudder-AcessoRemoto-Controle.exe (Actions → RustDesk DeskRudder Windows → profile=controle).
+#
+# Disparo: Actions → «Desktop DeskRudder Windows» → Run workflow
+# Resultado: Release `desktop-windows` / DeskRudder-Setup.exe (link /app/download).
+
+name: Desktop DeskRudder Windows
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Publicar/atualizar Release desktop-windows (link /app/download)"
+        required: true
+        default: true
+        type: boolean
+
+concurrency:
+  group: desktop-deskrudder-windows
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-setup:
+    name: DeskRudder Setup (Windows)
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Baixar Acesso Remoto (controle) para o vendor
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          DEST="desktop/vendor/remoto-controle"
+          mkdir -p "$DEST"
+          ASSET="DeskRudder-AcessoRemoto-Controle.exe"
+          OUT="$DEST/$ASSET"
+          if gh release download acesso-remoto-controle-windows \
+            --repo "${{ github.repository }}" \
+            --pattern "$ASSET" \
+            --dir "$DEST" \
+            --clobber; then
+            echo "Baixado do Release acesso-remoto-controle-windows"
+          else
+            echo "::error::Release acesso-remoto-controle-windows sem $ASSET. Rode antes o workflow «RustDesk DeskRudder Windows» com profile=controle."
+            exit 1
+          fi
+          test -f "$OUT"
+          ls -lh "$OUT"
+
+      - name: Instalar dependências Electron
+        working-directory: desktop
+        run: npm ci
+
+      - name: Gerar Setup (electron-builder NSIS)
+        working-directory: desktop
+        env:
+          # Sem certificado; evita falha por descoberta automática de assinatura.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          GH_TOKEN: ${{ github.token }}
+        run: npm run dist
+
+      - name: Resolver artefato
+        id: art
+        working-directory: desktop
+        run: |
+          set -euo pipefail
+          VER="$(node -p "require('./package.json').version")"
+          SRC="release/DeskRudder-Setup-${VER}.exe"
+          test -f "$SRC"
+          echo "version=${VER}" >> "$GITHUB_OUTPUT"
+          echo "setup_path=${SRC}" >> "$GITHUB_OUTPUT"
+          ls -lh "$SRC"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeskRudder-Setup-windows
+          path: desktop/release/DeskRudder-Setup-*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publicar Release desktop-windows
+        if: ${{ inputs.publish_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VER="${{ steps.art.outputs.version }}"
+          SRC="desktop/${{ steps.art.outputs.setup_path }}"
+          STABLE_DIR="dist-desktop"
+          mkdir -p "$STABLE_DIR"
+          STABLE="$STABLE_DIR/DeskRudder-Setup.exe"
+          cp -f "$SRC" "$STABLE"
+          TAG="desktop-windows"
+          TITLE="DeskRudder Setup ${VER} (Windows)"
+          NOTES="DeskRudder Setup **${VER}** (atendente: painel Electron + Acesso Remoto controle). Link amigável: \`/app/download\` no domínio da instância."
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$STABLE" \
+              --repo "${{ github.repository }}" --clobber
+            gh release edit "$TAG" \
+              --repo "${{ github.repository }}" \
+              --title "$TITLE" \
+              --notes "$NOTES"
+          else
+            gh release create "$TAG" "$STABLE" \
+              --repo "${{ github.repository }}" \
+              --title "$TITLE" \
+              --notes "$NOTES" \
+              --latest=false
+          fi
+          echo "Publicado: https://github.com/${{ github.repository }}/releases/download/${TAG}/DeskRudder-Setup.exe"

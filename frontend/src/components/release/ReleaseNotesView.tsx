@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { System } from '../../api/client'
 import { solicitacoesMelhoria, type SolicitacoesMelhoria } from '../../api/client'
 import { Card } from '../../components/ui/Card'
@@ -117,6 +117,8 @@ export type ReleaseNotesViewProps = {
   showSugestoesCta?: boolean
   /** Painel ops (#920): etiqueta Produto / DevOps em cada bullet. */
   showProductTags?: boolean
+  /** Conteúdo acima da versão (ex.: download do app Windows). */
+  topSlot?: ReactNode
 }
 
 /** Lista compartilhada de versão + histórico (#674 / #920). */
@@ -134,6 +136,7 @@ export function ReleaseNotesView({
   showBrandLogo = true,
   showSugestoesCta = true,
   showProductTags = false,
+  topSlot,
 }: ReleaseNotesViewProps) {
   const navigate = useNavigate()
   const [minhas, setMinhas] = useState<SolicitacoesMelhoria.ListaItem[]>([])
@@ -183,6 +186,8 @@ export function ReleaseNotesView({
           {description}
         </p>
       </div>
+
+      {topSlot}
 
       <Card className="space-y-2 p-5">
         <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Versão atual</p>
