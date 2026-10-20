@@ -11,6 +11,7 @@ import {
 } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { Button } from '../components/ui/Button'
+import { IconCopy } from '../components/ui/IconCopy'
 import { IconTrash } from '../components/ui/IconTrash'
 import { Input } from '../components/ui/Input'
 import { PageContainer, PageHeader } from '../components/ui/PageContainer'
@@ -85,6 +86,76 @@ function BotaoIcone({
         {children}
       </button>
     </span>
+  )
+}
+
+function textoConfiguracao(config: RustdeskFrota.Configuracao) {
+  return [
+    `Servidor de ID: ${config.servidor_id}`,
+    `Servidor de Relay: ${config.servidor_relay}`,
+    `Chave: ${config.chave}`,
+  ].join('\n')
+}
+
+function CampoConfiguracao({
+  rotulo,
+  valor,
+  onCopiar,
+}: {
+  rotulo: string
+  valor: string
+  onCopiar: (texto: string, sucesso: string) => void
+}) {
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{rotulo}</p>
+        <p className="truncate font-mono text-sm text-slate-800 dark:text-slate-100" title={valor}>
+          {valor}
+        </p>
+      </div>
+      <BotaoIcone title={`Copiar ${rotulo}`} onClick={() => onCopiar(valor, `${rotulo} copiado.`)}>
+        <IconCopy className="size-4" />
+      </BotaoIcone>
+    </div>
+  )
+}
+
+function PainelConfiguracao({
+  config,
+  onCopiar,
+}: {
+  config: RustdeskFrota.Configuracao | null
+  onCopiar: (texto: string, sucesso: string) => void
+}) {
+  if (!config) return null
+  if (!config.configurado) {
+    return (
+      <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-300">
+        Os dados para colar no RustDesk ainda não foram informados nesta instância.
+      </p>
+    )
+  }
+  return (
+    <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/40">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="max-w-3xl">
+          <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Configuração do RustDesk</h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+            No computador do cliente, abra o RustDesk em Configurações e depois Rede. Cole cada valor no campo com o
+            mesmo nome. O servidor de API fica em branco.
+          </p>
+        </div>
+        <Button type="button" variant="secondary" onClick={() => onCopiar(textoConfiguracao(config), 'Configuração copiada.')}>
+          Copiar tudo
+        </Button>
+      </div>
+      <div className="grid gap-2 md:grid-cols-3">
+        <CampoConfiguracao rotulo="Servidor de ID" valor={config.servidor_id} onCopiar={onCopiar} />
+        <CampoConfiguracao rotulo="Servidor de Relay" valor={config.servidor_relay} onCopiar={onCopiar} />
+        <CampoConfiguracao rotulo="Chave" valor={config.chave} onCopiar={onCopiar} />
+      </div>
+    </section>
   )
 }
 
@@ -177,6 +248,16 @@ export function RustdeskPeers() {
   const [salvando, setSalvando] = useState(false)
   const [confirmacao, setConfirmacao] = useState<string | null>(null)
   const [acaoPendente, setAcaoPendente] = useState<AcaoPendente | null>(null)
+  const [configuracao, setConfiguracao] = useState<RustdeskFrota.Configuracao | null>(null)
+
+  async function copiarTexto(texto: string, sucesso: string) {
+    try {
+      await navigator.clipboard.writeText(texto)
+      toast.showSuccess(sucesso)
+    } catch {
+      toast.showError('Não foi possível copiar. Selecione o texto manualmente.')
+    }
+  }
 
   const carregar = useCallback(() => {
     setLoading(true)
@@ -192,6 +273,13 @@ export function RustdeskPeers() {
     const timer = window.setInterval(carregar, 30_000)
     return () => window.clearInterval(timer)
   }, [carregar])
+
+  useEffect(() => {
+    rustdeskPeers
+      .configuracao()
+      .then(setConfiguracao)
+      .catch(() => setConfiguracao(null))
+  }, [])
 
   useEffect(() => {
     if (!peerAlvo || !podeVincular) return
@@ -339,6 +427,8 @@ export function RustdeskPeers() {
           </a>
         }
       />
+
+      <PainelConfiguracao config={configuracao} onCopiar={(texto, sucesso) => void copiarTexto(texto, sucesso)} />
 
       {lista?.agent_indisponivel ? (
         <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-300">

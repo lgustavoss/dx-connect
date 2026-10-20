@@ -5,6 +5,7 @@ from app.core.auth import exigir_permissao
 from app.database import get_db
 from app.models.atendente import Atendente
 from app.schemas.rustdesk import (
+    RustdeskConfiguracaoRead,
     RustdeskDesvincularIn,
     RustdeskDesvincularOut,
     RustdeskExcluirOut,
@@ -17,6 +18,13 @@ from app.services import rustdesk_peers as svc
 router = APIRouter(prefix="/rustdesk", tags=["rustdesk"])
 
 _FILTROS = {"todos", "online", "offline", "sem_vinculo", "vinculado"}
+
+
+@router.get("/configuracao", response_model=RustdeskConfiguracaoRead)
+def ler_configuracao(
+    _: Atendente = Depends(exigir_permissao("rustdesk.monitorar")),
+):
+    return svc.configuracao_cliente()
 
 
 @router.get("/peers", response_model=RustdeskListaRead)
