@@ -72,7 +72,8 @@ O instalador é pensado para o PC que **vai ser acessado** (PDV / posto):
 - Atalho na Área de Trabalho / menu Iniciar: **DeskRudder - Acesso Remoto** (o `.exe` instalado continua `DeskRudder.exe`)
 - Pasta de instalação: `C:\Program Files (x86)\DeskRudder\Acesso Remoto` (outros apps DeskRudder podem ficar em pastas irmãs)
 - Link «Desenvolvido por DeskRudder» → https://deskrudder.com.br/
-- Tema escuro segue o Windows se a opção não foi fixada no menu (⋮ → Tema escuro)
+- Tema escuro segue o Windows (conteúdo + barra de título) se a opção não foi fixada no menu (⋮ → Tema escuro)
+- Logo do painel usa arte em alta resolução (`ui-logo-512.png`)
 
 ### Senha (uso único × permanente)
 
