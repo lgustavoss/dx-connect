@@ -41,12 +41,12 @@ jobs:
 
     steps:
       - name: Checkout DX Connect (branding + scripts)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: dx-connect
 
       - name: Checkout RustDesk
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: rustdesk/rustdesk
           ref: ${{ inputs.rustdesk_ref }}
@@ -58,11 +58,15 @@ jobs:
           PYTHONUTF8: "1"
           PYTHONIOENCODING: utf-8
         run: |
+          CLIENT_VER="$(tr -d '[:space:]' < dx-connect/deploy/rustdesk-client/CLIENT_VERSION)"
+          echo "CLIENT_VERSION=${CLIENT_VER}" >> "$GITHUB_ENV"
           python3 dx-connect/deploy/rustdesk-client/scripts/apply_branding.py rustdesk \
             --config dx-connect/deploy/rustdesk-client/server.config.json \
-            --branding dx-connect/deploy/rustdesk-client/branding
+            --branding dx-connect/deploy/rustdesk-client/branding \
+            --client-version dx-connect/deploy/rustdesk-client/CLIENT_VERSION
           grep -nE 'RENDEZVOUS_SERVERS|RS_PUB_KEY|DeskRudder' \
             rustdesk/libs/hbb_common/src/config.rs | head -20
+          grep -nE '^version =' rustdesk/Cargo.toml | head -3
 
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@v7
@@ -137,10 +141,12 @@ jobs:
           popd
 
           mkdir -p ../dist
-          VER="${VERSION:-1.5.0}"
-          OUT="DeskRudder-AcessoRemoto-${VER}.exe"
+          # Nome do artefato usa a versao DeskRudder (CLIENT_VERSION), nao so a tag RustDesk.
+          CLIENT_VER="${CLIENT_VERSION:?}"
+          RD_VER="${VERSION:-1.5.0}"
+          OUT="DeskRudder-AcessoRemoto-${CLIENT_VER}.exe"
           mv ./target/release/rustdesk-portable-packer.exe "../dist/${OUT}"
-          echo "Built ../dist/${OUT}"
+          echo "Built ../dist/${OUT} (DeskRudder ${CLIENT_VER}, base RustDesk ${RD_VER})"
           ls -lh ../dist/
 
       - name: Upload instalador (artifact)
@@ -153,28 +159,40 @@ jobs:
 
       # Link estável usado na tela Acesso remoto do painel:
       # https://github.com/lgustavoss/dx-connect/releases/download/acesso-remoto-windows/DeskRudder-AcessoRemoto.exe
+      # version.json: canal de atualizacao do cliente (banner no app).
       - name: Publicar Release (download do painel)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          VER="${VERSION:-1.5.0}"
-          SRC="dist/DeskRudder-AcessoRemoto-${VER}.exe"
+          CLIENT_VER="${CLIENT_VERSION:?}"
+          RD_VER="${VERSION:-1.5.0}"
+          SRC="dist/DeskRudder-AcessoRemoto-${CLIENT_VER}.exe"
           STABLE="dist/DeskRudder-AcessoRemoto.exe"
+          VERSION_JSON="dist/version.json"
           test -f "$SRC"
           cp -f "$SRC" "$STABLE"
-          NOTES="Instalador Windows com servidor Duplex e marca DeskRudder (base RustDesk ${VER}). Atualizado pelo workflow «RustDesk DeskRudder Windows». Usado no botão «Baixar instalador Windows» em Acesso remoto."
+          python3 - <<PY
+          import json
+          from pathlib import Path
+          Path("${VERSION_JSON}").write_text(json.dumps({
+              "version": "${CLIENT_VER}",
+              "rustdesk_base": "${RD_VER}",
+              "download_url": "https://github.com/${{ github.repository }}/releases/download/acesso-remoto-windows/DeskRudder-AcessoRemoto.exe",
+          }, indent=2) + "\n", encoding="utf-8")
+          PY
+          NOTES="DeskRudder Acesso Remoto **${CLIENT_VER}** (base RustDesk ${RD_VER}). Instalador com servidor Duplex. Usado no botão «Baixar instalador Windows» e no aviso de atualização do cliente."
           if gh release view acesso-remoto-windows --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release upload acesso-remoto-windows "$STABLE" \
+            gh release upload acesso-remoto-windows "$STABLE" "$VERSION_JSON" \
               --repo "${{ github.repository }}" --clobber
             gh release edit acesso-remoto-windows \
               --repo "${{ github.repository }}" \
-              --title "DeskRudder Acesso Remoto (Windows)" \
+              --title "DeskRudder Acesso Remoto ${CLIENT_VER} (Windows)" \
               --notes "$NOTES"
           else
-            gh release create acesso-remoto-windows "$STABLE" \
+            gh release create acesso-remoto-windows "$STABLE" "$VERSION_JSON" \
               --repo "${{ github.repository }}" \
-              --title "DeskRudder Acesso Remoto (Windows)" \
+              --title "DeskRudder Acesso Remoto ${CLIENT_VER} (Windows)" \
               --notes "$NOTES" \
               --latest=false
           fi

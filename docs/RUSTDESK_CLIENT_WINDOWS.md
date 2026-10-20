@@ -1,9 +1,28 @@
 # Cliente Windows DeskRudder (acesso remoto)
 
 **O que o usuário final recebe:** um único arquivo  
-`DeskRudder-AcessoRemoto-<versão>.exe`  
+`DeskRudder-AcessoRemoto-<versão-DeskRudder>.exe`  
 Já tem a marca DeskRudder e o servidor da Duplex (`31.97.160.79` + chave).  
 Não precisa de colar string nem de rodar comandos.
+
+## Versão (importante)
+
+Há **duas** versões envolvidas:
+
+| O quê | Onde | Muda quando |
+|-------|------|-------------|
+| **Versão DeskRudder** (`CLIENT_VERSION`, ex.: `1.0.0`) | Aparece no app, na instalação e no aviso de update | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION` e gera um build novo |
+| **Tag RustDesk** (ex.: `1.5.0`) | Base do código open-source no workflow | Só quando escolhemos uma tag mais nova do upstream no Actions |
+
+A tag `1.5.0` **não sobe sozinha** a cada build — é a base do RustDesk. O que o posto precisa olhar é a **versão DeskRudder**.
+
+Canal de atualização: o Release publica `version.json`; o cliente compara e mostra o banner **Atualização disponível**.
+
+Ao clicar em **Atualizar agora**:
+
+1. Baixa o `.exe` estável para a pasta temporária  
+2. Pede elevação (UAC) e roda com `--update`  
+3. Substitui os arquivos em `DeskRudder\Acesso Remoto` e **reabre** o app (e a bandeja)
 
 ## Como obter o `.exe` (equipe)
 
@@ -45,6 +64,19 @@ O instalador é pensado para o PC que **vai ser acessado** (PDV / posto):
 - Painel direito só com a logo DeskRudder (sem «Controle um computador remoto»)
 - Conexões de saída bloqueadas (`is_incoming_only`)
 - Atalho na Área de Trabalho / menu Iniciar: **DeskRudder - Acesso Remoto** (o `.exe` instalado continua `DeskRudder.exe`)
+- Pasta de instalação: `C:\Program Files (x86)\DeskRudder\Acesso Remoto` (outros apps DeskRudder podem ficar em pastas irmãs)
+- Link «Desenvolvido por DeskRudder» → https://deskrudder.com.br/
+- Tema escuro segue o Windows se a opção não foi fixada no menu (⋮ → Tema escuro)
+
+### Senha (uso único × permanente)
+
+Por padrão o app usa **senha de uso único** (muda se alguém clicar no ícone de atualizar). **Não há senha permanente pré-configurada.**
+
+Para acesso estável no posto:
+
+1. Clique no lápis ao lado da senha
+2. **Definir senha permanente** e escolha uma senha da equipe
+3. Em **Usar senha permanente** (ou «ambas»), o refresh da senha de uso único deixa de impedir o acesso
 
 ## Pasta no repo
 
