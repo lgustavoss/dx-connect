@@ -32,6 +32,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Acesso remoto: versão DeskRudder visível no app e na instalação; aviso quando há atualização no Release (`version.json`)
 - Acesso remoto: **Atualizar agora** baixa e instala sozinho (com UAC) e reabre o app — sem precisar abrir o navegador
 - Acesso remoto: logo do painel com mais nitidez; barra de título escura acompanha o tema do Windows
+- Acesso remoto: logo e ícones do instalador Windows regenerados a partir da arte oficial sem fundo (versão 1.0.2)
 
 ## [26.10.003] - 2026-10-19
 
