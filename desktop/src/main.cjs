@@ -310,7 +310,7 @@ function criarJanela(iniciarOculto) {
     title: 'DeskRudder',
     icon: icone.isEmpty() ? undefined : icone,
     backgroundColor: '#0b1220',
-    autoHideMenuBar: true,
+    autoHideMenuBar: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -321,7 +321,7 @@ function criarJanela(iniciarOculto) {
       spellcheck: true,
     },
   })
-  janela.removeMenu()
+  montarMenuJanela()
 
   janela.once('ready-to-show', () => {
     if (!iniciarOculto) janela?.show()
@@ -409,23 +409,87 @@ function definirAutostart(ativo) {
   app.setLoginItemSettings({ openAtLogin: ativo, args: [ARG_OCULTO] })
 }
 
+function sincronizarMenus() {
+  montarMenuBandeja()
+  montarMenuJanela()
+}
+
+function itemIniciarComWindows() {
+  return {
+    label: 'Iniciar com o Windows',
+    type: 'checkbox',
+    checked: autostartAtivo(),
+    enabled: app.isPackaged,
+    click: (item) => {
+      definirAutostart(item.checked)
+      salvarConfig({ autostartPerguntado: true })
+      sincronizarMenus()
+    },
+  }
+}
+
+function itemAlertasNaBandeja() {
+  return {
+    label: 'Manter na bandeja e alertar com o painel fechado',
+    type: 'checkbox',
+    checked: alertasNaBandeja,
+    click: (item) => definirAlertasNaBandeja(item.checked),
+  }
+}
+
+function definirAlertasNaBandeja(ativo) {
+  alertasNaBandeja = Boolean(ativo)
+  salvarConfig({ alertasNaBandeja })
+  if (alertasNaBandeja) {
+    criarBandeja()
+  } else {
+    destruirBandeja()
+    mostrarJanela()
+  }
+  sincronizarMenus()
+}
+
+function montarMenuJanela() {
+  if (!janela) return
+  janela.setMenu(
+    Menu.buildFromTemplate([
+      {
+        label: 'DeskRudder',
+        submenu: [
+          itemIniciarComWindows(),
+          itemAlertasNaBandeja(),
+          { type: 'separator' },
+          {
+            label: 'Recarregar painel',
+            click: async () => {
+              await limparCacheDoPainel()
+              janela?.webContents.reloadIgnoringCache()
+            },
+          },
+          { label: 'Trocar empresa…', click: () => void trocarEmpresa() },
+          { type: 'separator' },
+          {
+            label: 'Sair',
+            click: () => {
+              saindo = true
+              app.quit()
+            },
+          },
+        ],
+      },
+    ]),
+  )
+}
+
 function montarMenuBandeja() {
   if (!bandeja) return
   bandeja.setContextMenu(
     Menu.buildFromTemplate([
       { label: 'Abrir DeskRudder', click: mostrarJanela },
       { type: 'separator' },
-      {
-        label: 'Iniciar com o Windows',
-        type: 'checkbox',
-        checked: autostartAtivo(),
-        enabled: app.isPackaged,
-        click: (item) => {
-          definirAutostart(item.checked)
-          salvarConfig({ autostartPerguntado: true })
-          montarMenuBandeja()
-        },
-      },
+      itemIniciarComWindows(),
+      itemAlertasNaBandeja(),
+      { type: 'separator' },
       {
         label: 'Recarregar painel',
         click: async () => {
@@ -446,7 +510,14 @@ function montarMenuBandeja() {
   )
 }
 
+function destruirBandeja() {
+  if (!bandeja) return
+  bandeja.destroy()
+  bandeja = null
+}
+
 function criarBandeja() {
+  if (bandeja) return
   let img = carregarIconeApp()
   if (img.isEmpty()) img = nativeImage.createFromPath(ICONE_PNG)
   if (!img.isEmpty()) img = img.resize({ width: 32, height: 32 })
@@ -482,11 +553,11 @@ async function perguntarAutostartSeNecessario() {
     cancelId: 1,
     title: 'DeskRudder',
     message: 'Abrir o DeskRudder ao iniciar o computador?',
-    detail: 'Assim você recebe os alertas da fila sem precisar abrir o app. Dá para mudar depois no ícone da bandeja.',
+    detail: 'Assim você recebe os alertas da fila sem precisar abrir o app. Dá para mudar depois no menu DeskRudder.',
   })
   definirAutostart(response === 0)
   salvarConfig({ autostartPerguntado: true })
-  montarMenuBandeja()
+  sincronizarMenus()
 }
 
 // ── Ciclo de vida ───────────────────────────────────────────────────────────
