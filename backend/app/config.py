@@ -96,6 +96,10 @@ class Settings(BaseSettings):
     # Agente ao lado do hbbs (RustDesk gratuito). Vazio = a tela lista só o cache local.
     RUSTDESK_AGENT_URL: str | None = None
     RUSTDESK_AGENT_TOKEN: str | None = None
+    # Dados públicos que o RustDesk do PDV cola em Configurações, na aba Rede.
+    RUSTDESK_ID_SERVER: str | None = None
+    RUSTDESK_RELAY_SERVER: str | None = None
+    RUSTDESK_PUBLIC_KEY: str | None = None
     # O hbbs trata o computador como inacessível após 30s sem o registro do cliente.
     RUSTDESK_ONLINE_SECONDS: int = 45
     RUSTDESK_SYNC_MIN_INTERVAL_SECONDS: int = 30

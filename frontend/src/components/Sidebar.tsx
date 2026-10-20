@@ -303,7 +303,7 @@ const navStructure: NavItem[] = [
         to: '/equipe/ponto',
         label: 'Ponto da equipe',
         icon: 'equipeOnline',
-        permissao: 'ponto.equipe',
+        permissoesAlguma: ['ponto.equipe', 'ponto.aprovar'],
       },
     ],
   },

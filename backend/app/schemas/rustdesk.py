@@ -63,3 +63,10 @@ class RustdeskDesvincularOut(BaseModel):
 class RustdeskExcluirOut(BaseModel):
     rustdesk_id: str
     removido: bool = True
+
+
+class RustdeskConfiguracaoRead(BaseModel):
+    configurado: bool
+    servidor_id: str = ""
+    servidor_relay: str = ""
+    chave: str = ""

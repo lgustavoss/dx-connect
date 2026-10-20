@@ -18,6 +18,7 @@ PROBES = [
     ("whatsapp.atender", "GET", "/v1/whatsapp/chats/fila"),
     ("ponto.meu", "GET", "/v1/ponto/me"),
     ("ponto.equipe", "GET", "/v1/ponto/batidas/export.csv"),
+    ("ponto.aprovar", "GET", "/v1/ponto/solicitacoes-ajuste"),
     ("presenca.ver", "GET", "/v1/presenca/online"),
     ("dashboard.ver", "GET", "/v1/dashboard"),
     ("relatorios.ver", "GET", "/v1/relatorios/tickets"),

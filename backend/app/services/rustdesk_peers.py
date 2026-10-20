@@ -105,6 +105,19 @@ class AgentErro(Exception):
     pass
 
 
+def configuracao_cliente() -> dict:
+    """Valores que o RustDesk do PDV cola em Configurações → Rede. A chave é pública."""
+    servidor_id = (settings.RUSTDESK_ID_SERVER or "").strip()
+    servidor_relay = (settings.RUSTDESK_RELAY_SERVER or "").strip()
+    chave = (settings.RUSTDESK_PUBLIC_KEY or "").strip()
+    return {
+        "configurado": bool(servidor_id and servidor_relay and chave),
+        "servidor_id": servidor_id,
+        "servidor_relay": servidor_relay,
+        "chave": chave,
+    }
+
+
 def obter_snapshot() -> dict:
     url = (settings.RUSTDESK_AGENT_URL or "").strip().rstrip("/")
     token = (settings.RUSTDESK_AGENT_TOKEN or "").strip()

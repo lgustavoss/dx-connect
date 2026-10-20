@@ -4274,6 +4274,7 @@ export const empresaPdvs = {
 };
 
 export const rustdeskPeers = {
+  configuracao: () => api<RustdeskFrota.Configuracao>('/rustdesk/configuracao'),
   list: (params?: { filtro?: RustdeskFrota.Filtro }) =>
     api<RustdeskFrota.Lista>(withParams('/rustdesk/peers', params)),
   vincular: (rustdeskId: string, data: RustdeskFrota.Vincular) =>
@@ -4293,6 +4294,12 @@ export const rustdeskPeers = {
 };
 
 export namespace RustdeskFrota {
+  export interface Configuracao {
+    configurado: boolean
+    servidor_id: string
+    servidor_relay: string
+    chave: string
+  }
   export type Filtro = 'todos' | 'online' | 'offline' | 'sem_vinculo' | 'vinculado'
   export interface Vinculo {
     empresa_id: number
