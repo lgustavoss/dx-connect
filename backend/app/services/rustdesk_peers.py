@@ -77,7 +77,14 @@ def calcular_online(last_seen: datetime | None, monitoramento: bool | None = Non
 
 
 def mapa_online(db: Session) -> dict[str, bool | None]:
-    return {row.rustdesk_id: calcular_online(row.last_seen) for row in db.query(RustdeskPeer).all()}
+    """Online/offline atual (sincroniza o cache do hbbs, igual à tela de acesso remoto)."""
+    sincronizar(db)
+    mapa: dict[str, bool | None] = {}
+    for row in db.query(RustdeskPeer).all():
+        chave = normalizar_id_remoto(row.rustdesk_id)
+        if chave:
+            mapa[chave] = calcular_online(row.last_seen)
+    return mapa
 
 
 def _truncar(valor: object, limite: int) -> str | None:

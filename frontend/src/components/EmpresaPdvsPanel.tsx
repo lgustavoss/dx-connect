@@ -14,6 +14,8 @@ import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { useAuth } from '../contexts/AuthContext'
 import { temPermissao } from '../lib/permissoes'
 import { formatarIdRustdesk, tipoHospedadoNoServidor } from '../lib/rustdeskId'
+import { conectarAcessoRemoto, senhaDoPdv } from '../lib/acessoRemotoConectar'
+import { IconeConectarRemoto } from './IconeConectarRemoto'
 
 function idRustdesk(row: Pick<EmpresaPdv.Item, 'tipo_acesso_remoto_nome' | 'rustdesk_visto' | 'acesso_remoto_id'>) {
   if (!tipoHospedadoNoServidor(row.tipo_acesso_remoto_nome) && !row.rustdesk_visto) return row.acesso_remoto_id ?? ''
@@ -54,6 +56,7 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel }: P
   const [senhaRevelada, setSenhaRevelada] = useState<{ pdvId: number; senha: string } | null>(null)
   const [revelandoPdvId, setRevelandoPdvId] = useState<number | null>(null)
   const [mostrarSenhaForm, setMostrarSenhaForm] = useState(false)
+  const [conectandoPdvId, setConectandoPdvId] = useState<number | null>(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -124,6 +127,20 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel }: P
       toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível revelar a senha.'))
     } finally {
       setRevelandoPdvId(null)
+    }
+  }
+
+  async function conectarPdv(row: EmpresaPdv.Item) {
+    if (!row.acesso_remoto_id?.trim()) {
+      toast.showWarning('Este PDV não tem ID de acesso remoto.')
+      return
+    }
+    setConectandoPdvId(row.id)
+    try {
+      const { senha, avisou } = await senhaDoPdv(empresaId, row.id, toast)
+      await conectarAcessoRemoto(row.acesso_remoto_id, senha, toast, avisou)
+    } finally {
+      setConectandoPdvId(null)
     }
   }
 
@@ -314,17 +331,36 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel }: P
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {podeEditar ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="!px-2 !py-2"
-                        onClick={() => abrirEditar(row)}
-                        aria-label={`Editar PDV ${row.codigo}`}
-                      >
-                        <IconPencil ariaHidden={false} />
-                      </Button>
-                    ) : null}
+                    <div className="inline-flex items-center justify-end gap-0.5">
+                      {row.acesso_remoto_id &&
+                      (tipoHospedadoNoServidor(row.tipo_acesso_remoto_nome) || row.rustdesk_visto) ? (
+                        <button
+                          type="button"
+                          className="inline-flex size-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 disabled:pointer-events-none disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                          title="Conectar"
+                          aria-label={`Conectar ao PDV ${row.codigo}`}
+                          disabled={conectandoPdvId === row.id}
+                          onClick={() => void conectarPdv(row)}
+                        >
+                          {conectandoPdvId === row.id ? (
+                            <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                          ) : (
+                            <IconeConectarRemoto />
+                          )}
+                        </button>
+                      ) : null}
+                      {podeEditar ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="!px-2 !py-2"
+                          onClick={() => abrirEditar(row)}
+                          aria-label={`Editar PDV ${row.codigo}`}
+                        >
+                          <IconPencil ariaHidden={false} />
+                        </Button>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))}
