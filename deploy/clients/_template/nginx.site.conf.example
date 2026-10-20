@@ -40,6 +40,11 @@ server {
     root FRONTEND_DIST;
     index index.html;
 
+    # Download do instalador Windows sem login no painel (Release estável no GitHub).
+    location = /acesso-remoto/download {
+        return 302 https://github.com/lgustavoss/dx-connect/releases/download/acesso-remoto-windows/DeskRudder-AcessoRemoto.exe;
+    }
+
     location / {
         try_files $uri $uri/ /index.html;
     }

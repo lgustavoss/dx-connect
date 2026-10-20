@@ -20,7 +20,10 @@ import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../contexts/AuthContext'
 import { temPermissao } from '../lib/permissoes'
 import { formatarIdRustdesk } from '../lib/rustdeskId'
-import { RUSTDESK_WINDOWS_INSTALLER_URL } from '../lib/rustdeskInstaller'
+import {
+  RUSTDESK_WINDOWS_INSTALLER_PATH,
+  urlDownloadInstaladorNaInstancia,
+} from '../lib/rustdeskInstaller'
 
 const FILTROS: { id: RustdeskFrota.Filtro; rotulo: string }[] = [
   { id: 'todos', rotulo: 'Todos' },
@@ -118,6 +121,28 @@ function CampoConfiguracao({
         <IconCopy className="size-4" />
       </BotaoIcone>
     </div>
+  )
+}
+
+function PainelDownloadInstalador({ onCopiar }: { onCopiar: (texto: string, sucesso: string) => void }) {
+  const linkCurto = urlDownloadInstaladorNaInstancia()
+  return (
+    <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/40">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="max-w-3xl">
+          <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Instalador Windows</h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+            Envie este link para o posto: ao abrir no navegador, o download começa sem entrar no painel.
+          </p>
+        </div>
+        <a href={RUSTDESK_WINDOWS_INSTALLER_PATH} title="Baixar DeskRudder Acesso Remoto para Windows">
+          <Button type="button" variant="secondary">
+            Baixar instalador Windows
+          </Button>
+        </a>
+      </div>
+      <CampoConfiguracao rotulo="Link para o posto" valor={linkCurto} onCopiar={onCopiar} />
+    </section>
   )
 }
 
@@ -414,21 +439,12 @@ export function RustdeskPeers() {
       <PageHeader
         title="Acesso remoto"
         subtitle="Computadores registrados no servidor deste cliente. Online significa que aceita conexão remota agora. O vínculo grava o ID no PDV; a senha continua a do cadastro."
-        actions={
-          <a
-            href={RUSTDESK_WINDOWS_INSTALLER_URL}
-            target="_blank"
-            rel="noreferrer"
-            title="Baixar DeskRudder Acesso Remoto para Windows"
-          >
-            <Button type="button" variant="secondary">
-              Baixar instalador Windows
-            </Button>
-          </a>
-        }
       />
 
-      <PainelConfiguracao config={configuracao} onCopiar={(texto, sucesso) => void copiarTexto(texto, sucesso)} />
+      <div className="space-y-3">
+        <PainelDownloadInstalador onCopiar={(texto, sucesso) => void copiarTexto(texto, sucesso)} />
+        <PainelConfiguracao config={configuracao} onCopiar={(texto, sucesso) => void copiarTexto(texto, sucesso)} />
+      </div>
 
       {lista?.agent_indisponivel ? (
         <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-300">

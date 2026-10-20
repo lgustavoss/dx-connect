@@ -32,9 +32,15 @@ Ao clicar em **Atualizar agora**:
 4. Esperar o job (~40–90 min na 1.ª vez)
 5. Em **Artifacts**, baixar `DeskRudder-AcessoRemoto-windows` (ou usar o Release abaixo)
 6. O workflow também publica (ou atualiza) o Release **`acesso-remoto-windows`** com o arquivo estável `DeskRudder-AcessoRemoto.exe`
-7. No painel, a tela **Acesso remoto** tem o botão **Baixar instalador Windows** apontando para esse Release
+7. No painel, a tela **Acesso remoto** tem o botão **Baixar instalador Windows** e o link curto para enviar ao posto
 
-URL estável (pública):
+URL curta na instância (sem login — Nginx redireciona; o SPA também cobre se o Nginx ainda não tiver a regra):
+
+`https://{cliente}.deskrudder.com.br/acesso-remoto/download`
+
+Exemplo Duplex: `https://duplexsoft.deskrudder.com.br/acesso-remoto/download`
+
+URL do arquivo no GitHub (destino do redirect):
 
 `https://github.com/lgustavoss/dx-connect/releases/download/acesso-remoto-windows/DeskRudder-AcessoRemoto.exe`
 
