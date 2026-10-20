@@ -4,6 +4,10 @@
 #   posto     — só-recebe (PDV); Release acesso-remoto-windows
 #   controle  — atendente (pode iniciar sessão); Release acesso-remoto-controle-windows
 #
+# Branding: os dois profiles usam a mesma pasta
+#   dx-connect/deploy/rustdesk-client/branding/ (icon.ico, tray, PNG Sciter, ui-logo).
+# Após mudar a arte: subir CLIENT_VERSION e disparar o workflow para posto e para controle.
+#
 # Disparo: Actions → «RustDesk DeskRudder Windows» → Run workflow
 # Duração típica: 40–90 min (primeira vez; cache vcpkg ajuda nas seguintes).
 

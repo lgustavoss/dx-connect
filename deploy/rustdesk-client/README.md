@@ -14,9 +14,11 @@ Docs: [`docs/RUSTDESK_CLIENT_WINDOWS.md`](../../docs/RUSTDESK_CLIENT_WINDOWS.md)
 | Pasta / arquivo | Função |
 |------------------|--------|
 | `server.config.json` | Host, relay e chave pública da Duplex |
-| `branding/` | Arte oficial + PNGs/`icon.ico`/`tray-icon.ico` do acesso remoto |
-| `branding/icon-source-official.png` | Arte-fonte (DeskRudder Acesso Remoto) |
+| `branding/` | **Mesma arte** para `posto` e `controle` — ICO, tray, PNG Sciter e `ui-logo` |
+| `branding/icon-source-official.png` | Arte-fonte PNG com alpha (DeskRudder Acesso Remoto) |
 | `scripts/render_remote_icons.py` | Regenera PNGs/ICO a partir da arte oficial |
-| `scripts/apply_branding.py` | Patch no código RustDesk antes do build (inclui ícone Sciter em `get_icon()`) |
+| `scripts/apply_branding.py` | Patch no RustDesk antes do build (`--profile posto\|controle`; branding compartilhado) |
+
+O workflow **RustDesk DeskRudder Windows** usa sempre `deploy/rustdesk-client/branding/` nos dois profiles. Depois de atualizar a arte: regenerar com `render_remote_icons.py`, subir `CLIENT_VERSION` e rodar o Actions duas vezes (`posto` e `controle`).
 | `scripts/encode_config.py` | Debug da string `--config` |
 | `windows/Install-DeskRudderRemote.ps1` | Legado / emergência (oficial + config) — **não** é o fluxo principal |

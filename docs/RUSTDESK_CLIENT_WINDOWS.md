@@ -12,7 +12,9 @@ Há **dois perfis** de build (mesmo workflow, input `profile`):
 Já tem a marca DeskRudder e o servidor da Duplex (`31.97.160.79` + chave).  
 Não precisa de colar string nem de rodar comandos.
 
-O perfil **controle** usa o mesmo branding e servidor, **sem** forçar `incoming_only` (UI completa do RustDesk + canal de update próprio). Fluxo oficial do atendente: frota do painel → um clique (senha do cadastro). Máquinas fora do servidor DeskRudder: RustDesk padrão.
+O perfil **controle** usa o **mesmo** `branding/` e servidor, **sem** forçar `incoming_only` (UI completa do RustDesk + canal de update próprio). Fluxo oficial do atendente: frota do painel → um clique (senha do cadastro). Máquinas fora do servidor DeskRudder: RustDesk padrão.
+
+Ao trocar a arte em `deploy/rustdesk-client/branding/`: regenere os ICO/PNG, suba `CLIENT_VERSION` e rode o workflow **duas vezes** (`posto` e `controle`) para os dois Releases receberem a mesma marca.
 
 ## Versão (importante)
 
