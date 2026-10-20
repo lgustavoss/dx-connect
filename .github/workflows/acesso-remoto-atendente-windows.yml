@@ -1,0 +1,36 @@
+# Instalador do Acesso Remoto para o PC do ATENDENTE (pode iniciar sessão / frota).
+# Rode isto só quando mudar o remoto — não a cada update do painel Electron.
+#
+# Actions → «Acesso Remoto Atendente (Windows)» → Run workflow
+# Resultado: Release acesso-remoto-controle-windows / DeskRudder-AcessoRemoto-Controle.exe
+# Duração típica: 40–90 min (1.ª vez).
+
+name: Acesso Remoto Atendente (Windows)
+
+on:
+  workflow_dispatch:
+    inputs:
+      rustdesk_ref:
+        description: "Tag do rustdesk/rustdesk (tem de existir no GitHub)"
+        required: true
+        default: "1.5.0"
+        type: choice
+        options:
+          - "1.5.0"
+          - "1.4.9"
+
+concurrency:
+  group: acesso-remoto-atendente-windows
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Instalador atendente (controle)
+    uses: ./.github/workflows/rustdesk-windows-reusable.yml
+    with:
+      profile: controle
+      rustdesk_ref: ${{ inputs.rustdesk_ref }}
+      publish_release: true

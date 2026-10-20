@@ -23,6 +23,9 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
+- Acesso remoto: no painel, **Baixar instalador Windows** inicia o download sem abrir a tela intermediária «Baixando o instalador…» (o link curto para o posto continua igual)
+- App Windows: em Sobre (e no login), **Baixar app Windows** inicia o download sem sair da tela (o link `/app/download` continua para compartilhar)
+- Actions: **Acesso Remoto Cliente**, **Acesso Remoto Atendente** e **App Atendente Setup** (Setup rápido reaproveita o Release do remoto)
 - Acesso remoto: o instalador Windows ganha ícone próprio (duas setas em sentidos opostos, separado do app do painel) na barra de título, na taskbar e na bandeja — deixa de usar o ícone do RustDesk embutido na UI Sciter
 - Acesso remoto: após instalar, o app deixa de pedir instalação de novo (binário `DeskRudder.exe`) e some o aviso de «configure seu próprio servidor» — o servidor Duplex já vem embutido
 - Acesso remoto: ícone e arte do instalador Windows passam a usar a marca oficial «DeskRudder Acesso Remoto»

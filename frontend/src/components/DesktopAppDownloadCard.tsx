@@ -1,9 +1,6 @@
 import { Button } from './ui/Button'
 import { IconCopy } from './ui/IconCopy'
-import {
-  DESKTOP_WINDOWS_INSTALLER_PATH,
-  urlDownloadAppNaInstancia,
-} from '../lib/desktopInstaller'
+import { iniciarDownloadAppWindows, urlDownloadAppNaInstancia } from '../lib/desktopInstaller'
 
 type Props = {
   onCopiar?: (texto: string, sucesso: string) => void
@@ -11,7 +8,7 @@ type Props = {
   variante?: 'painel' | 'login'
 }
 
-/** Download do Setup Electron do atendente via link amigável da instância (`/app/download`). */
+/** Download do Setup do atendente (botão inicia o .exe; link curto `/app/download` para compartilhar). */
 export function DesktopAppDownloadCard({ onCopiar, variante = 'painel' }: Props) {
   const linkCurto = urlDownloadAppNaInstancia()
 
@@ -19,12 +16,13 @@ export function DesktopAppDownloadCard({ onCopiar, variante = 'painel' }: Props)
     return (
       <p className="text-center text-sm text-slate-400">
         No computador do atendimento,{' '}
-        <a
-          href={DESKTOP_WINDOWS_INSTALLER_PATH}
+        <button
+          type="button"
           className="font-medium text-cyan-400/90 underline-offset-2 hover:text-cyan-300 hover:underline"
+          onClick={() => iniciarDownloadAppWindows()}
         >
           baixe o app DeskRudder para Windows
-        </a>
+        </button>
         .
       </p>
     )
@@ -36,15 +34,18 @@ export function DesktopAppDownloadCard({ onCopiar, variante = 'painel' }: Props)
         <div className="max-w-3xl">
           <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">App para Windows</h2>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            Instalador do DeskRudder no PC do atendente (painel + acesso remoto). O botão e o link curto baixam o
-            Setup direto neste domínio.
+            Instalador do DeskRudder no PC do atendente (painel + acesso remoto). O botão inicia o download nesta
+            tela; o link curto serve para compartilhar.
           </p>
         </div>
-        <a href={DESKTOP_WINDOWS_INSTALLER_PATH} title="Baixar DeskRudder Setup para Windows">
-          <Button type="button" variant="secondary">
-            Baixar app Windows
-          </Button>
-        </a>
+        <Button
+          type="button"
+          variant="secondary"
+          title="Baixar DeskRudder Setup para Windows"
+          onClick={() => iniciarDownloadAppWindows()}
+        >
+          Baixar app Windows
+        </Button>
       </div>
       {onCopiar ? (
         <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900">
