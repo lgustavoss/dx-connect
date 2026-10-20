@@ -15,9 +15,9 @@ O app desktop é uma janela Electron que carrega o **painel web da instância** 
 
 | Recurso | PWA | Desktop |
 |---------|-----|---------|
-| Ícone na bandeja | Não | Sim; fechar a janela só esconde (se marcado no Setup) |
-| Iniciar com o Windows | Só pelo Edge (`edge://apps`) | Pergunta **no Setup** + opção no menu da bandeja |
-| Alerta da fila com a janela fechada | Para ao fechar | Continua se a opção de bandeja foi aceita no Setup (sem throttling e autoplay liberado) |
+| Ícone na bandeja | Não | Sim; fechar a janela só esconde (se a bandeja estiver ligada) |
+| Iniciar com o Windows | Só pelo Edge (`edge://apps`) | Pergunta **no Setup** + menu **DeskRudder** da janela (e da bandeja) |
+| Alerta da fila com a janela fechada | Para ao fechar | Continua se a bandeja estiver ligada (Setup ou menu depois; sem throttling e autoplay liberado) |
 | Contador de pendências | Título da aba | Tooltip da bandeja + piscar na barra de tarefas |
 | Uma instância | — | Segundo clique no atalho reabre a janela |
 | Acesso remoto na frota | `rustdesk://` (precisa cliente instalado) | Prefere `DeskRudder.exe` em `Program Files (x86)\DeskRudder\Acesso Remoto` |
@@ -83,7 +83,7 @@ Saída local: `desktop/release/DeskRudder-Setup-{versão}.exe` (NSIS **por máqu
 1. Painel Electron → `C:\Program Files (x86)\DeskRudder\Painel\`
 2. Acesso Remoto (controle) embutido → `C:\Program Files (x86)\DeskRudder\Acesso Remoto\`
 
-O assistente pergunta: **iniciar com o Windows** e **manter na bandeja / alertar com o painel fechado** (defaults Sim). Garante atalho **DeskRudder** na área de trabalho (além do atalho do Acesso Remoto) e abre o painel ao concluir.
+O assistente pergunta: **iniciar com o Windows** e **manter na bandeja / alertar com o painel fechado** (defaults Sim). Depois dá para mudar no menu **DeskRudder** da janela, sem reinstalar. Garante atalho **DeskRudder** na área de trabalho (além do atalho do Acesso Remoto) e abre o painel ao concluir.
 
 Versão do shell em `desktop/package.json`. O cliente remoto tem versão própria (`deploy/rustdesk-client/CLIENT_VERSION`) e banner de update no Release `acesso-remoto-controle-windows`.
 
@@ -111,11 +111,12 @@ O shell embute Chromium (como o Chrome). Se o consumo ficar inaceitável no uso 
 | 2 | Conta válida | Abre o login do painel da instância |
 | 3 | Setup (opções) | Checkboxes iniciar com Windows + alertas na bandeja; `installer-prefs.json` em Painel\ |
 | 3b | 1ª execução sem prefs (dev / install antigo) | Pergunta «Abrir o DeskRudder ao iniciar o computador?» |
-| 4 | Fechar a janela (X) | Com bandeja ligada: some para a bandeja (aviso na 1ª vez). Com bandeja desligada no Setup: encerra o app (sem ícone perto do relógio) |
+| 4 | Fechar a janela (X) | Com bandeja ligada: some para a bandeja (aviso na 1ª vez). Com bandeja desligada: encerra o app (sem ícone perto do relógio) |
+| 4c | Menu DeskRudder → Manter na bandeja | Liga/desliga depois do Setup, sem reinstalar; ícone perto do relógio aparece ou some na hora. Ao desligar com a janela oculta, o painel reabre |
 | 4b | Área de trabalho após Setup | Atalhos **DeskRudder** (painel) e Acesso Remoto; ícone colorido na barra de tarefas |
 | 5 | Clique no ícone da bandeja | Reabre a janela |
 | 6 | Chat na fila com a janela escondida | Som da fila + notificação do Windows; tooltip mostra o contador |
-| 7 | Menu da bandeja → Iniciar com o Windows | Marca/desmarca; reiniciar o PC abre escondido na bandeja |
+| 7 | Menu DeskRudder (janela ou bandeja) → Iniciar com o Windows | Marca/desmarca; reiniciar o PC abre escondido na bandeja (se a bandeja estiver ligada) |
 | 8 | Abrir o atalho com o app já aberto | Reabre a mesma janela (sem 2ª instância) |
 | 9 | Link externo no chat | Abre no navegador padrão |
 | 10 | Menu da bandeja → Trocar empresa | Volta para a tela de conta |
