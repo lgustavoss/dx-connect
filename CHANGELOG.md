@@ -11,6 +11,29 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Tickets (#S202610-0012): na tela Natureza e motivo, os motivos ficam agrupados por natureza, com expandir e recolher
+- Acesso remoto: link curto `/acesso-remoto/download` no domínio da instância para o posto baixar o instalador Windows sem entrar no painel, com botão de copiar na tela da frota
+- Acesso remoto: na mesma tela da frota, os dados do servidor (ID, relay e chave) para colar no RustDesk ao configurar o computador do cliente
+- Ponto (#1137): o supervisor do setor aprova ou recusa ajuste de ponto só das pessoas dos próprios setores. Quem administra o ponto da equipe continua vendo todos
+- Acesso remoto: instalador Windows **DeskRudder** (um `.exe` com servidor Duplex e marca) gerado no GitHub Actions — ver `docs/RUSTDESK_CLIENT_WINDOWS.md`
+
+#### Correções
+
+- Acesso remoto: o instalador Windows ganha ícone próprio (duas setas em sentidos opostos, separado do app do painel) na barra de título, na taskbar e na bandeja — deixa de usar o ícone do RustDesk embutido na UI Sciter
+- Acesso remoto: após instalar, o app deixa de pedir instalação de novo (binário `DeskRudder.exe`) e some o aviso de «configure seu próprio servidor» — o servidor Duplex já vem embutido
+- Acesso remoto: ícone e arte do instalador Windows passam a usar a marca oficial «DeskRudder Acesso Remoto»
+- Acesso remoto: botão **Baixar instalador Windows** na tela da frota — baixa o DeskRudder Acesso Remoto já com o servidor da equipe
+- Acesso remoto: instalador Windows fica só para ser acessado (ID/senha + status + logo), sem painel para controlar outro PC; atalho **DeskRudder - Acesso Remoto**
+- Acesso remoto: janela inicial maior (botão Instalar visível), link para deskrudder.com.br, pasta `DeskRudder\Acesso Remoto` e tema escuro alinhado ao Windows
+- Acesso remoto: versão DeskRudder visível no app e na instalação; aviso quando há atualização no Release (`version.json`)
+- Acesso remoto: **Atualizar agora** baixa e instala sozinho (com UAC) e reabre o app — sem precisar abrir o navegador
+
+## [26.10.003] - 2026-10-19
+
+### DeskRudder
+
+#### Melhorias
+
 - Acesso remoto (#1184): lista dos computadores que usam o servidor da equipe, com online ou offline, e vínculo do ID a um PDV. Quem ainda não tem PDV aparece para vincular. Dá para desvincular um ID trocado, excluir do servidor um computador offline que não será mais usado e abrir a conexão neste computador. No cadastro do PDV, o ID mostra se o computador está online
 - Chat (#S202610-0006): dá para vincular a conversa a uma negociação do CRM antes de existir empresa. Quando a empresa dessa negociação é cadastrada, o contato passa a ficar nela
 

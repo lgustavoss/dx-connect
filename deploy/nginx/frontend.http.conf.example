@@ -11,6 +11,11 @@ server {
     root /var/www/dx-connect/dist;
     index index.html;
 
+    # Download do instalador Windows sem login no painel.
+    location = /acesso-remoto/download {
+        return 302 https://github.com/lgustavoss/dx-connect/releases/download/acesso-remoto-windows/DeskRudder-AcessoRemoto.exe;
+    }
+
     location / {
         try_files $uri $uri/ /index.html;
     }

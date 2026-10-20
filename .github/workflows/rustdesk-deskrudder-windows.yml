@@ -1,0 +1,198 @@
+# Gera o instalador Windows DeskRudder (RustDesk com servidor Duplex + marca).
+# Resultado: artefato DeskRudder-AcessoRemoto-*.exe — um arquivo, sem colar config.
+#
+# Disparo: Actions → «RustDesk DeskRudder Windows» → Run workflow
+# Duração típica: 40–90 min (primeira vez; cache vcpkg ajuda nas seguintes).
+
+name: RustDesk DeskRudder Windows
+
+on:
+  workflow_dispatch:
+    inputs:
+      rustdesk_ref:
+        description: "Tag do rustdesk/rustdesk (tem de existir no GitHub)"
+        required: true
+        default: "1.5.0"
+        type: choice
+        options:
+          - "1.5.0"
+          - "1.4.9"
+
+concurrency:
+  group: rustdesk-deskrudder-windows
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  LLVM_VERSION: "15.0.6"
+  VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VERSION: ${{ inputs.rustdesk_ref }}
+
+jobs:
+  build-windows:
+    name: DeskRudder Acesso Remoto (Windows x86 Sciter)
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout DX Connect (branding + scripts)
+        uses: actions/checkout@v5
+        with:
+          path: dx-connect
+
+      - name: Checkout RustDesk
+        uses: actions/checkout@v5
+        with:
+          repository: rustdesk/rustdesk
+          ref: ${{ inputs.rustdesk_ref }}
+          submodules: recursive
+          path: rustdesk
+
+      - name: Aplicar marca DeskRudder + servidor Duplex
+        env:
+          PYTHONUTF8: "1"
+          PYTHONIOENCODING: utf-8
+        run: |
+          CLIENT_VER="$(tr -d '[:space:]' < dx-connect/deploy/rustdesk-client/CLIENT_VERSION)"
+          echo "CLIENT_VERSION=${CLIENT_VER}" >> "$GITHUB_ENV"
+          python3 dx-connect/deploy/rustdesk-client/scripts/apply_branding.py rustdesk \
+            --config dx-connect/deploy/rustdesk-client/server.config.json \
+            --branding dx-connect/deploy/rustdesk-client/branding \
+            --client-version dx-connect/deploy/rustdesk-client/CLIENT_VERSION
+          grep -nE 'RENDEZVOUS_SERVERS|RS_PUB_KEY|DeskRudder' \
+            rustdesk/libs/hbb_common/src/config.rs | head -20
+          grep -nE '^version =' rustdesk/Cargo.toml | head -3
+
+      - name: Export GitHub Actions cache environment variables
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Install LLVM and Clang (32-bit, Sciter)
+        uses: rustdesk-org/install-llvm-action-32bit@6aa7d9ad3df84dff01cd4596dd0fc880a7f47fce
+        with:
+          version: ${{ env.LLVM_VERSION }}
+
+      - name: Install Rust toolchain (nightly i686 para Sciter)
+        run: |
+          rustup toolchain install nightly-2023-10-13-i686-pc-windows-msvc \
+            --target i686-pc-windows-msvc --component rustfmt \
+            --profile minimal --no-self-update --force-non-host
+          rustup default nightly-2023-10-13-i686-pc-windows-msvc --force-non-host
+          rustc -vV
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rustdesk
+          prefix-key: deskrudder-sciter-i686
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install vcpkg dependencies
+        working-directory: rustdesk
+        env:
+          VCPKG_DEFAULT_HOST_TRIPLET: x86-windows-static
+        run: |
+          if ! "$VCPKG_ROOT/vcpkg" install --triplet x86-windows-static --x-install-root="$VCPKG_ROOT/installed"; then
+            find "${VCPKG_ROOT}/" -name "*.log" | while read -r _1; do
+              echo "$_1:"
+              echo "======"
+              cat "$_1" | tail -n 80
+              echo "======"
+            done
+            exit 1
+          fi
+
+      - name: Build RustDesk (Sciter) + portable packer
+        working-directory: rustdesk
+        run: |
+          set -euo pipefail
+          python3 res/inline-sciter.py
+          sed -i 's/branch = "dyn"/branch = "dyn_x86"/g' ./Cargo.toml
+          cargo update -p sciter-rs --precise 674e07d3066ca9a92ced3816203ab6b652629d1e
+          cargo build --locked --features inline,vram,hwcodec --release --bins
+          mkdir -p ./Release
+          # APP_NAME=DeskRudder: is_installed()/atalhos procuram DeskRudder.exe, nao rustdesk.exe
+          mv ./target/release/rustdesk.exe ./Release/DeskRudder.exe
+          curl -LJ -o ./Release/sciter.dll \
+            https://github.com/c-smile/sciter-sdk/raw/master/bin.win/x32/sciter.dll
+          curl -LJ -o ./usbmmidd_v2.zip \
+            https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip
+          python3 -m zipfile -e usbmmidd_v2.zip .
+          rm -rf ./usbmmidd_v2/deviceinstaller.exe ./usbmmidd_v2/usbmmidd.bat || true
+          mv ./usbmmidd_v2 ./Release || true
+
+          sed -i '/dpiAware/d' res/manifest.xml || true
+          pushd ./libs/portable
+          python3 -m pip install -r requirements.txt
+          python3 ./generate.py -f ../../Release/ -o . -e ../../Release/DeskRudder.exe
+          popd
+
+          mkdir -p ../dist
+          # Nome do artefato usa a versao DeskRudder (CLIENT_VERSION), nao so a tag RustDesk.
+          CLIENT_VER="${CLIENT_VERSION:?}"
+          RD_VER="${VERSION:-1.5.0}"
+          OUT="DeskRudder-AcessoRemoto-${CLIENT_VER}.exe"
+          mv ./target/release/rustdesk-portable-packer.exe "../dist/${OUT}"
+          echo "Built ../dist/${OUT} (DeskRudder ${CLIENT_VER}, base RustDesk ${RD_VER})"
+          ls -lh ../dist/
+
+      - name: Upload instalador (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeskRudder-AcessoRemoto-windows
+          path: dist/DeskRudder-AcessoRemoto-*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      # Link estável usado na tela Acesso remoto do painel:
+      # https://github.com/lgustavoss/dx-connect/releases/download/acesso-remoto-windows/DeskRudder-AcessoRemoto.exe
+      # version.json: canal de atualizacao do cliente (banner no app).
+      - name: Publicar Release (download do painel)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          CLIENT_VER="${CLIENT_VERSION:?}"
+          RD_VER="${VERSION:-1.5.0}"
+          SRC="dist/DeskRudder-AcessoRemoto-${CLIENT_VER}.exe"
+          STABLE="dist/DeskRudder-AcessoRemoto.exe"
+          VERSION_JSON="dist/version.json"
+          test -f "$SRC"
+          cp -f "$SRC" "$STABLE"
+          python3 - <<PY
+          import json
+          from pathlib import Path
+          Path("${VERSION_JSON}").write_text(json.dumps({
+              "version": "${CLIENT_VER}",
+              "rustdesk_base": "${RD_VER}",
+              "download_url": "https://github.com/${{ github.repository }}/releases/download/acesso-remoto-windows/DeskRudder-AcessoRemoto.exe",
+          }, indent=2) + "\n", encoding="utf-8")
+          PY
+          NOTES="DeskRudder Acesso Remoto **${CLIENT_VER}** (base RustDesk ${RD_VER}). Instalador com servidor Duplex. Usado no botão «Baixar instalador Windows» e no aviso de atualização do cliente."
+          if gh release view acesso-remoto-windows --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload acesso-remoto-windows "$STABLE" "$VERSION_JSON" \
+              --repo "${{ github.repository }}" --clobber
+            gh release edit acesso-remoto-windows \
+              --repo "${{ github.repository }}" \
+              --title "DeskRudder Acesso Remoto ${CLIENT_VER} (Windows)" \
+              --notes "$NOTES"
+          else
+            gh release create acesso-remoto-windows "$STABLE" "$VERSION_JSON" \
+              --repo "${{ github.repository }}" \
+              --title "DeskRudder Acesso Remoto ${CLIENT_VER} (Windows)" \
+              --notes "$NOTES" \
+              --latest=false
+          fi

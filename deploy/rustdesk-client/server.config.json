@@ -1,0 +1,7 @@
+{
+  "host": "31.97.160.79",
+  "relay": "31.97.160.79",
+  "key": "kEoYK77jUT92KWnj1XmqYRgIRKv4VkGNMjFjm33HtjI=",
+  "api": "",
+  "notes": "Servidor OSS hbbs/hbbr da Duplex. A chave é a pública (id_ed25519.pub), não a privada."
+}

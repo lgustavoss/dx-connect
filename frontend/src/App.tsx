@@ -33,6 +33,7 @@ import { RedeDetalhe } from './pages/RedeDetalhe'
 import { RedeForm } from './pages/RedeForm'
 import { Empresas } from './pages/Empresas'
 import { RustdeskPeers } from './pages/RustdeskPeers'
+import { AcessoRemotoDownload } from './pages/AcessoRemotoDownload'
 import { EmpresaForm } from './pages/EmpresaForm'
 import { EmpresaDetalhe } from './pages/EmpresaDetalhe'
 import { Setores } from './pages/Setores'
@@ -297,6 +298,7 @@ function AppRoutes() {
       <Route path="/esqueci-senha" element={<EsqueciSenha />} />
       <Route path="/redefinir-senha" element={<RedefinirSenha />} />
       <Route path="/avaliar-ticket" element={<AvaliarTicket />} />
+      <Route path="/acesso-remoto/download" element={<AcessoRemotoDownload />} />
       <Route path="/kb" element={<KbPublicLayout />}>
         <Route index element={<KbPublicHome />} />
         <Route path="a/:slug" element={<KbPublicArtigo />} />
@@ -359,9 +361,9 @@ function AppRoutes() {
         <Route
           path="equipe/ponto"
           element={
-            <PermissaoRoute codigo="ponto.equipe">
+            <AlgumaPermissaoRoute codigos={['ponto.equipe', 'ponto.aprovar']}>
               <PontoEquipe />
-            </PermissaoRoute>
+            </AlgumaPermissaoRoute>
           }
         />
         <Route

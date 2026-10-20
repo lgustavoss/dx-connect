@@ -311,9 +311,9 @@ def minhas_solicitacoes_ajuste(
 def listar_solicitacoes_ajuste(
     estado: str | None = Query("pendente"),
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
+    aprovador: Atendente = Depends(obter_atendente_atual),
 ):
-    return sol_ajuste_svc.listar_para_aprovador(db, admin, estado=estado)
+    return sol_ajuste_svc.listar_para_aprovador(db, aprovador, estado=estado)
 
 
 @router.get("/solicitacoes-ajuste/{solicitacao_id}/anexo")
@@ -341,11 +341,11 @@ def decidir_solicitacao_ajuste(
     solicitacao_id: int,
     data: PontoSolicitacaoAjusteDecisao,
     db: Session = Depends(get_db),
-    admin: Atendente = Depends(exigir_permissao("ponto.equipe")),
+    aprovador: Atendente = Depends(obter_atendente_atual),
 ):
     return sol_ajuste_svc.decidir(
         db,
-        admin,
+        aprovador,
         solicitacao_id,
         estado=data.estado,
         decisao_motivo=data.decisao_motivo,
