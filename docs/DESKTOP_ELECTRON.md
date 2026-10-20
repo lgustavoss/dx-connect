@@ -53,17 +53,20 @@ No modo dev, «Iniciar com o Windows» fica desativado e a pergunta da 1ª execu
 
 ### Caminho oficial (GitHub Actions)
 
-Igual ao RustDesk: disparo manual no Actions.
+Três workflows no Actions (nomes na UI):
 
-1. **Uma vez (ou quando atualizar o remoto):** Actions → **RustDesk DeskRudder Windows** → Run workflow → **profile = controle**  
-   (gera/atualiza o Release `acesso-remoto-controle-windows`)
-2. Actions → **Desktop DeskRudder Windows** → Run workflow (publicar Release = true)  
-   - Baixa o `.exe` controle para o vendor  
-   - `npm ci` + `electron-builder` (NSIS)  
-   - Artefato `DeskRudder-Setup-windows`  
-   - Release **`desktop-windows`** / `DeskRudder-Setup.exe`
+| Actions (nome) | Quando rodar | Arquivo / Release |
+|----------------|--------------|-------------------|
+| **Acesso Remoto Cliente (Windows)** | Atualizar remoto do **posto** | `DeskRudder-AcessoRemoto.exe` |
+| **Acesso Remoto Atendente (Windows)** | Atualizar remoto do **atendente** (~40–90 min) | `…-Controle.exe` |
+| **App Atendente Setup (Windows)** | Atualizar **painel** + embutir o remoto já publicado (rápido) | `DeskRudder-Setup.exe` |
 
-Workflow: [`.github/workflows/desktop-deskrudder-windows.yml`](../.github/workflows/desktop-deskrudder-windows.yml)
+Fluxo típico do atendente:
+
+1. (Só se o remoto mudou ou é a 1.ª vez) **Acesso Remoto Atendente (Windows)**  
+2. **App Atendente Setup (Windows)** → Release `desktop-windows` / `/app/download`
+
+Workflows: [desktop](../.github/workflows/desktop-deskrudder-windows.yml) · [remoto atendente](../.github/workflows/acesso-remoto-atendente-windows.yml)
 
 ### Local (opcional)
 

@@ -21,7 +21,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { temPermissao } from '../lib/permissoes'
 import { formatarIdRustdesk } from '../lib/rustdeskId'
 import {
-  RUSTDESK_WINDOWS_INSTALLER_PATH,
+  iniciarDownloadInstaladorWindows,
   urlDownloadInstaladorNaInstancia,
 } from '../lib/rustdeskInstaller'
 import { conectarRemotoPreferindoDesktop, isDeskRudderDesktop } from '../lib/deskrudderDesktop'
@@ -136,11 +136,14 @@ function PainelDownloadInstalador({ onCopiar }: { onCopiar: (texto: string, suce
             Envie este link para o posto: ao abrir no navegador, o download começa sem entrar no painel.
           </p>
         </div>
-        <a href={RUSTDESK_WINDOWS_INSTALLER_PATH} title="Baixar DeskRudder Acesso Remoto para Windows">
-          <Button type="button" variant="secondary">
-            Baixar instalador Windows
-          </Button>
-        </a>
+        <Button
+          type="button"
+          variant="secondary"
+          title="Baixar DeskRudder Acesso Remoto para Windows"
+          onClick={() => iniciarDownloadInstaladorWindows()}
+        >
+          Baixar instalador Windows
+        </Button>
       </div>
       <CampoConfiguracao rotulo="Link para o posto" valor={linkCurto} onCopiar={onCopiar} />
     </section>
