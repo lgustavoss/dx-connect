@@ -8,7 +8,7 @@ JPEG com xadrez de “transparencia” achatado e suportado de forma best-effort
 
 - tamanhos grandes: arte completa (com wordmark)
 - 16/32/48/tray + ui-logo: mark (personagem + setas), sem texto
-- ui-logo: placa opaca na cor do tema escuro do painel host
+- ui-logo: PNG com alpha real (sem placa opaca) — funciona no tema escuro e claro
 """
 
 from __future__ import annotations
@@ -20,7 +20,6 @@ from PIL import Image, ImageFilter
 
 BRANDING = Path(__file__).resolve().parent.parent / "branding"
 DEFAULT_SOURCE = BRANDING / "icon-source-official.png"
-UI_DARK = (30, 30, 36)
 
 
 def _to_rgba_transparent(im: Image.Image) -> Image.Image:
@@ -252,19 +251,13 @@ def _fit_square(im: Image.Image, size: int) -> Image.Image:
     return out
 
 
-def _opaque_ui_logo(mark: Image.Image, size: int) -> Image.Image:
-    """Mark sobre placa opaca do tema escuro.
+def _ui_logo(mark: Image.Image, size: int) -> Image.Image:
+    """Mark com fundo transparente para o painel host (dark e light).
 
-    Nao faz chroma-key no resultado: apos o resize, o branco da seta/cursor
-    gera meios-tons que um filtro de 'migalha' comia e furava o preenchimento.
+    Sem chroma-key pos-resize: meios-tons do cursor branco nao podem ser
+    filtrados como 'migalha' — isso furava o preenchimento da seta.
     """
-    fitted = mark.copy()
-    fitted.thumbnail((size, size), Image.Resampling.LANCZOS)
-    layer = Image.new("RGBA", (size, size), (*UI_DARK, 255))
-    ox = (size - fitted.width) // 2
-    oy = (size - fitted.height) // 2
-    layer.paste(fitted, (ox, oy), fitted)
-    return layer.convert("RGB")
+    return _fit_square(mark, size)
 
 
 def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
@@ -299,8 +292,8 @@ def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
             rendered[key] = _fit_square(base, size)
         rendered[key].save(out_dir / name)
 
-    _opaque_ui_logo(mark, 512).save(out_dir / "ui-logo-512.png")
-    _opaque_ui_logo(mark, 256).save(out_dir / "ui-logo-256.png")
+    _ui_logo(mark, 512).save(out_dir / "ui-logo-512.png")
+    _ui_logo(mark, 256).save(out_dir / "ui-logo-256.png")
 
     ico_sizes = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
     frames = []
