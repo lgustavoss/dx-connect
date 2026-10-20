@@ -5,6 +5,20 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### DeskRudder
+
+#### Correções
+
+- Acesso remoto: no painel, **Baixar instalador Windows** inicia o download sem abrir a tela intermediária «Baixando o instalador…» (o link curto para o posto continua igual)
+- App Windows: em Sobre (e no login), **Baixar app Windows** inicia o download sem sair da tela (o link `/app/download` continua para compartilhar)
+- Links `/app/download` e `/acesso-remoto/download`: o download do `.exe` inicia de imediato (sem ficar parado na tela «Baixando…»)
+- Actions: **Acesso Remoto Cliente**, **Acesso Remoto Atendente** e **App Atendente Setup** (Setup rápido reaproveita o Release do remoto)
+
+#### Interno
+
+- App Atendente Setup: `electron-builder` no CI usa `--publish never` (Release via `gh`); evita falha «Cannot detect repository»
+- Download `/app/download` e `/acesso-remoto/download`: redirect imediato no `index.html` (antes do SPA) quando o Nginx ainda não tem o 302; link de reserva na tela intermediária
+
 ## [26.10.005] - 2026-10-20
 
 ### DeskRudder
@@ -36,10 +50,6 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
-- Acesso remoto: no painel, **Baixar instalador Windows** inicia o download sem abrir a tela intermediária «Baixando o instalador…» (o link curto para o posto continua igual)
-- App Windows: em Sobre (e no login), **Baixar app Windows** inicia o download sem sair da tela (o link `/app/download` continua para compartilhar)
-- Links `/app/download` e `/acesso-remoto/download`: o download do `.exe` inicia de imediato (sem ficar parado na tela «Baixando…»)
-- Actions: **Acesso Remoto Cliente**, **Acesso Remoto Atendente** e **App Atendente Setup** (Setup rápido reaproveita o Release do remoto)
 - Acesso remoto: o instalador Windows ganha ícone próprio (duas setas em sentidos opostos, separado do app do painel) na barra de título, na taskbar e na bandeja — deixa de usar o ícone do RustDesk embutido na UI Sciter
 - Acesso remoto: após instalar, o app deixa de pedir instalação de novo (binário `DeskRudder.exe`) e some o aviso de «configure seu próprio servidor» — o servidor Duplex já vem embutido
 - Acesso remoto: ícone e arte do instalador Windows passam a usar a marca oficial «DeskRudder Acesso Remoto»
@@ -48,11 +58,6 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Acesso remoto: janela inicial maior (botão Instalar visível), link para deskrudder.com.br, pasta `DeskRudder\Acesso Remoto` e tema escuro alinhado ao Windows
 - Acesso remoto: versão DeskRudder visível no app e na instalação; aviso quando há atualização no Release (`version.json`)
 - Acesso remoto: **Atualizar agora** baixa e instala sozinho (com UAC) e reabre o app — sem precisar abrir o navegador
-
-#### Interno
-
-- App Atendente Setup: `electron-builder` no CI usa `--publish never` (Release via `gh`); evita falha «Cannot detect repository»
-- Download `/app/download` e `/acesso-remoto/download`: redirect imediato no `index.html` (antes do SPA) quando o Nginx ainda não tem o 302; link de reserva na tela intermediária
 
 ## [26.10.003] - 2026-10-19
 
