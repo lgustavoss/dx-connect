@@ -8,6 +8,7 @@ Fonte padrao: branding/icon-source-official.png
 
 from __future__ import annotations
 
+from collections import deque
 from pathlib import Path
 
 from PIL import Image, ImageFilter
@@ -16,16 +17,114 @@ BRANDING = Path(__file__).resolve().parent.parent / "branding"
 DEFAULT_SOURCE = BRANDING / "icon-source-official.png"
 
 
+def _is_bg_neutral(r: int, g: int, b: int) -> bool:
+    """Fundo tipico: quase branco OU xadrez cinza (export JPEG 'sem fundo').
+
+    Nao confundir com pele (tom quente, r > b) nem azuis da arte.
+    """
+    mx, mn = max(r, g, b), min(r, g, b)
+    # cinza verdadeiro: canais muito proximos
+    if mx - mn > 12:
+        return False
+    # pele / tons quentes
+    if r - b > 8:
+        return False
+    # branco / off-white
+    if mn >= 235:
+        return True
+    # cinza medio do checkerboard (~190–220)
+    if 185 <= mn <= 225:
+        return True
+    return False
+
+
 def _to_rgba_transparent(im: Image.Image, white_threshold: int = 248) -> Image.Image:
-    """Converte fundo quase branco em transparencia."""
+    """Remove fundo (branco ou xadrez) por flood-fill a partir das bordas.
+
+    Evita apagar branco do conteudo (cursor, logos nos notebooks): so pixels
+    conectados a borda e com cor de fundo sao tornados transparentes.
+    """
     rgba = im.convert("RGBA")
-    px = rgba.load()
     w, h = rgba.size
+    px = rgba.load()
+    visited = bytearray(w * h)
+    stack: list[tuple[int, int]] = []
+
+    def _push(x: int, y: int) -> None:
+        i = y * w + x
+        if visited[i]:
+            return
+        r, g, b, _a = px[x, y]  # type: ignore[misc]
+        if r >= white_threshold and g >= white_threshold and b >= white_threshold:
+            pass
+        elif _is_bg_neutral(r, g, b):
+            pass
+        else:
+            return
+        visited[i] = 1
+        stack.append((x, y))
+
+    for x in range(w):
+        _push(x, 0)
+        _push(x, h - 1)
+    for y in range(h):
+        _push(0, y)
+        _push(w - 1, y)
+
+    while stack:
+        x, y = stack.pop()
+        px[x, y] = (0, 0, 0, 0)  # type: ignore[index]
+        if x > 0:
+            _push(x - 1, y)
+        if x + 1 < w:
+            _push(x + 1, y)
+        if y > 0:
+            _push(x, y - 1)
+        if y + 1 < h:
+            _push(x, y + 1)
+
+    # Buracos internos do xadrez (grade da rede): so cinza verdadeiro.
     for y in range(h):
         for x in range(w):
             r, g, b, a = px[x, y]  # type: ignore[misc]
-            if r >= white_threshold and g >= white_threshold and b >= white_threshold:
-                px[x, y] = (r, g, b, 0)  # type: ignore[index]
+            if not a:
+                continue
+            if _is_bg_neutral(r, g, b) and min(r, g, b) < 235:
+                px[x, y] = (0, 0, 0, 0)  # type: ignore[index]
+
+    # Celulas brancas do xadrez sao pequenas; cursor/logos DELL sao componentes maiores.
+    seen = [[False] * w for _ in range(h)]
+    for y in range(h):
+        for x in range(w):
+            if seen[y][x]:
+                continue
+            r, g, b, a = px[x, y]  # type: ignore[misc]
+            if not a or min(r, g, b) < 235 or max(r, g, b) - min(r, g, b) > 28:
+                seen[y][x] = True
+                continue
+            q: deque[tuple[int, int]] = deque([(x, y)])
+            seen[y][x] = True
+            cells: list[tuple[int, int]] = []
+            while q:
+                cx, cy = q.popleft()
+                cells.append((cx, cy))
+                for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                    nx, ny = cx + dx, cy + dy
+                    if not (0 <= nx < w and 0 <= ny < h) or seen[ny][nx]:
+                        continue
+                    rr, gg, bb, aa = px[nx, ny]  # type: ignore[misc]
+                    if (
+                        aa
+                        and min(rr, gg, bb) >= 235
+                        and max(rr, gg, bb) - min(rr, gg, bb) <= 28
+                    ):
+                        seen[ny][nx] = True
+                        q.append((nx, ny))
+                    else:
+                        seen[ny][nx] = True
+            if len(cells) < 300:
+                for cx, cy in cells:
+                    px[cx, cy] = (0, 0, 0, 0)  # type: ignore[index]
     return rgba
 
 
@@ -55,8 +154,8 @@ def _mark_without_text(im: Image.Image) -> Image.Image:
     """Recorta a metade superior do conteudo (ilustracao), descartando o wordmark."""
     left, top, right, bottom = _content_bbox(im)
     height = bottom - top
-    # wordmark ocupa ~25–35% inferior da arte
-    cut = top + int(height * 0.68)
+    # wordmark ocupa ~22–30% inferior; manter seta dupla do mark
+    cut = top + int(height * 0.78)
     crop = im.crop((left, top, right, cut))
     return _crop_pad_square(crop, pad_ratio=0.08)
 
@@ -85,9 +184,13 @@ def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
     mark = _mark_without_text(rgba)
 
     full.save(out_dir / "icon-source-1024.png")
-    # manter copia canonica se veio de outro caminho
-    if source.resolve() != (out_dir / "icon-source-official.png").resolve():
-        rgba.convert("RGB").save(out_dir / "icon-source-official.png")
+    # Canonico com alpha (PNG), mesmo se a fonte chegou como JPEG
+    official = out_dir / "icon-source-official.png"
+    if source.resolve() != official.resolve():
+        rgba.save(official)
+    else:
+        # regrava com transparencia limpa
+        rgba.save(official)
 
     # grandes: arte completa; pequenos: so o mark
     mapping = {
