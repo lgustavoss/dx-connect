@@ -18,6 +18,12 @@ A tag `1.5.0` **não sobe sozinha** a cada build — é a base do RustDesk. O qu
 
 Canal de atualização: o Release publica `version.json`; o cliente compara e mostra o banner **Atualização disponível**.
 
+Ao clicar em **Atualizar agora**:
+
+1. Baixa o `.exe` estável para a pasta temporária  
+2. Pede elevação (UAC) e roda com `--update`  
+3. Substitui os arquivos em `DeskRudder\Acesso Remoto` e **reabre** o app (e a bandeja)
+
 ## Como obter o `.exe` (equipe)
 
 1. O workflow precisa estar na branch padrão (`main`) — após o merge deste PR, ele aparece em Actions.

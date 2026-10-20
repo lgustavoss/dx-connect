@@ -662,7 +662,7 @@ async fn do_check_deskrudder_update() -> hbb_common::ResultType<()> {{
 
 
 def patch_update_banner(index_tis: Path) -> None:
-    """Banner de atualizacao em pt-BR com download do nosso Release."""
+    """Banner: baixa o .exe, roda --update (UAC) e reabre o app."""
     text = index_tis.read_text(encoding="utf-8")
     old = (
         "class UpdateMe: Reactor.Component {\n"
@@ -684,7 +684,33 @@ def patch_update_banner(index_tis: Path) -> None:
         "\n"
         "    event click $(#install-me) {\n"
         '        handler.open_url("https://rustdesk.com/download");\n'
-        "        return;"
+        "        return;\n"
+        "        if (!is_win) {\n"
+        '            handler.open_url("https://rustdesk.com");\n'
+        "            return;\n"
+        "        }\n"
+        "        var url = software_update_url + '.' + handler.get_software_ext();\n"
+        "        var path = handler.get_software_store_path();\n"
+        "        var onsuccess = function(md5) {\n"
+        '            $(#download-percent).content(translate("Installing ..."));\n'
+        "            handler.update_me(path);\n"
+        "        };\n"
+        "        var onerror = function(err) {\n"
+        '            msgbox("custom-error", "Download Error", "Failed to download"); \n'
+        "        };\n"
+        "        var onprogress = function(loaded, total) {\n"
+        "            if (!total) total = 5 * 1024 * 1024;\n"
+        "            var el = $(#download-percent);\n"
+        '            el.style.set{display: "block"};\n'
+        '            el.content("Downloading %" + (loaded * 100 / total));\n'
+        "        };\n"
+        '        stdout.println("Downloading " + url + " to " + path);\n'
+        "        download(\n"
+        "            url,\n"
+        "            self.url(path),\n"
+        "            onsuccess, onerror, onprogress);\n"
+        "    }\n"
+        "}\n"
     )
     new = (
         "class UpdateMe: Reactor.Component {\n"
@@ -693,19 +719,75 @@ def patch_update_banner(index_tis: Path) -> None:
         "            <div>Atualização disponível</div>\n"
         "            <div>Há uma versão mais nova do DeskRudder Acesso Remoto "
         "({handler.get_new_version()}). A sua é {handler.get_version()}.</div>\n"
-        "            <div #install-me.link>Baixar atualização</div>\n"
-        '            <div #download-percent style="display:hidden; padding-top: 1em;" />\n'
+        "            <div #install-me.link>Atualizar agora</div>\n"
+        '            <div #download-percent style="display:none; padding-top: 1em;" />\n'
         "        </div>;\n"
         "    }\n"
         "\n"
         "    event click $(#install-me) {\n"
-        f'        handler.open_url("{DOWNLOAD_INSTALLER_URL}");\n'
-        "        return;"
+        f'        var url = "{DOWNLOAD_INSTALLER_URL}";\n'
+        "        var path = handler.get_software_store_path();\n"
+        "        var onsuccess = function(md5) {\n"
+        '            $(#download-percent).content("Instalando...");\n'
+        "            handler.update_me(path);\n"
+        "        };\n"
+        "        var onerror = function(err) {\n"
+        '            msgbox("custom-error", "Erro no download", '
+        '"Não foi possível baixar a atualização. Tente de novo ou baixe pelo painel.");\n'
+        "        };\n"
+        "        var onprogress = function(loaded, total) {\n"
+        "            if (!total) total = 5 * 1024 * 1024;\n"
+        "            var el = $(#download-percent);\n"
+        '            el.style.set{display: "block"};\n'
+        '            el.content("Baixando %" + (loaded * 100 / total));\n'
+        "        };\n"
+        '        $(#download-percent).style.set{display: "block"};\n'
+        '        $(#download-percent).content("Baixando...");\n'
+        "        download(url, self.url(path), onsuccess, onerror, onprogress);\n"
+        "    }\n"
+        "}\n"
     )
     if old not in text:
         raise SystemExit("UpdateMe class nao encontrada em index.tis (upstream mudou?)")
     index_tis.write_text(text.replace(old, new, 1), encoding="utf-8")
-    print("  index.tis: banner atualizacao DeskRudder", flush=True)
+    print("  index.tis: update in-app (download + instalar)", flush=True)
+
+
+def patch_update_me_handler(ui_interface_rs: Path) -> None:
+    """Sciter update_me: com caminho do .exe baixado, chama update_to (--update + UAC)."""
+    text = ui_interface_rs.read_text(encoding="utf-8")
+    old = (
+        "pub fn update_me(_path: String) {\n"
+        "    goto_install();\n"
+        "}"
+    )
+    new = (
+        "pub fn update_me(_path: String) {\n"
+        "    #[cfg(windows)]\n"
+        "    {\n"
+        "        if !_path.is_empty() {\n"
+        "            std::thread::spawn(move || {\n"
+        "                match crate::platform::windows::update_to(&_path) {\n"
+        "                    Ok(_) => {\n"
+        "                        // --update troca os arquivos e reabre a janela/tray.\n"
+        "                        std::process::exit(0);\n"
+        "                    }\n"
+        "                    Err(e) => {\n"
+        "                        log::error!(\"DeskRudder update_to failed: {}\", e);\n"
+        "                        let _ = std::fs::remove_file(&_path);\n"
+        "                    }\n"
+        "                }\n"
+        "            });\n"
+        "            return;\n"
+        "        }\n"
+        "    }\n"
+        "    goto_install();\n"
+        "}"
+    )
+    if old not in text:
+        raise SystemExit("update_me() nao encontrado em ui_interface.rs")
+    ui_interface_rs.write_text(text.replace(old, new, 1), encoding="utf-8")
+    print("  ui_interface.rs: update_me -> update_to (--update)", flush=True)
 
 
 def patch_install_version_label(install_tis: Path) -> None:
@@ -856,11 +938,13 @@ def main() -> int:
     common_rs = src / "src" / "common.rs"
     patch_host_only_ui(index_tis)
     patch_shortcut_display_name(windows_rs)
+    # UpdateMe antes do patch de URLs (ele ainda contem rustdesk.com no upstream).
+    patch_update_check(common_rs)
+    patch_update_banner(index_tis)
+    patch_update_me_handler(src / "src" / "ui_interface.rs")
     patch_website_urls(index_tis, install_tis)
     patch_install_path(windows_rs, install_tis)
     patch_system_dark_theme(ui_rs, index_tis)
-    patch_update_check(common_rs)
-    patch_update_banner(index_tis)
     patch_install_version_label(install_tis)
 
     # Sanity: chave, host e servidor de produto presentes
@@ -902,6 +986,14 @@ def main() -> int:
         return 1
     if "Atualização disponível" not in index_body:
         print("Verificacao falhou: banner de atualizacao ausente.", file=sys.stderr)
+        return 1
+    if "Atualizar agora" not in index_body or "Instalando..." not in index_body:
+        print("Verificacao falhou: fluxo in-app de update incompleto.", file=sys.stderr)
+        return 1
+
+    ui_iface = (src / "src" / "ui_interface.rs").read_text(encoding="utf-8")
+    if "update_to(&_path)" not in ui_iface:
+        print("Verificacao falhou: update_me sem update_to.", file=sys.stderr)
         return 1
 
     cargo_body = (src / "Cargo.toml").read_text(encoding="utf-8")
