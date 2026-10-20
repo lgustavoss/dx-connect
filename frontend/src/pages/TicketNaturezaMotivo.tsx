@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ApiError, ticketClassificacao, type TicketClassificacao } from '../api/client'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -21,6 +21,8 @@ type Aba = 'naturezas' | 'motivos'
 type NaturezaForm = TicketClassificacao.NaturezaCreate
 type MotivoForm = TicketClassificacao.MotivoCreate
 
+const MOTIVOS_LIMITE = 200
+
 const emptyNatureza = (): NaturezaForm => ({ nome: '', slug: '', ordem: 0, ativo: true })
 const emptyMotivo = (naturezaId: number): MotivoForm => ({
   natureza_id: naturezaId,
@@ -38,6 +40,7 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
   const [forbidden, setForbidden] = useState(false)
   const [aba, setAba] = useState<Aba>('naturezas')
 
+  const [catalogoNaturezas, setCatalogoNaturezas] = useState<TicketClassificacao.Natureza[]>([])
   const [naturezas, setNaturezas] = useState<TicketClassificacao.Natureza[]>([])
   const [motivos, setMotivos] = useState<TicketClassificacao.Motivo[]>([])
   const [total, setTotal] = useState(0)
@@ -46,6 +49,7 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
   const [debouncedBusca, setDebouncedBusca] = useState('')
   const [incluirInativos, setIncluirInativos] = useState(false)
   const [filtroNaturezaId, setFiltroNaturezaId] = useState<number | ''>('')
+  const [abertas, setAbertas] = useState<number[]>([])
   const [loading, setLoading] = useState(true)
 
   const [modalOpen, setModalOpen] = useState(false)
@@ -66,8 +70,8 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
   const loadNaturezasCatalogo = useCallback(() => {
     ticketClassificacao
       .listNaturezas({ limit: 100, incluir_inativos: true })
-      .then(({ items }) => setNaturezas(items))
-      .catch(() => setNaturezas([]))
+      .then(({ items }) => setCatalogoNaturezas(items))
+      .catch(() => setCatalogoNaturezas([]))
   }, [])
 
   useEffect(() => {
@@ -77,27 +81,43 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
   const load = useCallback(() => {
     setLoading(true)
     setForbidden(false)
-    const params = {
-      incluir_inativos: incluirInativos,
-      busca: debouncedBusca || undefined,
-      offset: (page - 1) * PAGE_SIZE_PADRAO,
-      limit: PAGE_SIZE_PADRAO,
-    }
-    const req =
-      aba === 'naturezas'
-        ? ticketClassificacao.listNaturezas(params)
-        : ticketClassificacao.listMotivos({
-            ...params,
-            natureza_id: filtroNaturezaId === '' ? undefined : Number(filtroNaturezaId),
-          })
-    req
-      .then(({ items, total: t }) => {
-        if (aba === 'naturezas') {
-          setNaturezas(items as TicketClassificacao.Natureza[])
+    if (aba === 'naturezas') {
+      ticketClassificacao
+        .listNaturezas({
+          incluir_inativos: incluirInativos,
+          busca: debouncedBusca || undefined,
+          offset: (page - 1) * PAGE_SIZE_PADRAO,
+          limit: PAGE_SIZE_PADRAO,
+        })
+        .then(({ items, total: t }) => {
+          setNaturezas(items)
           setMotivos([])
-        } else {
-          setMotivos(items as TicketClassificacao.Motivo[])
-        }
+          setTotal(t)
+        })
+        .catch((err) => {
+          if (err instanceof ApiError && err.status === 403) {
+            setForbidden(true)
+            setTotal(0)
+            return
+          }
+          toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível carregar o catálogo.'))
+          setTotal(0)
+        })
+        .finally(() => setLoading(false))
+      return
+    }
+
+    ticketClassificacao
+      .listMotivos({
+        incluir_inativos: incluirInativos,
+        busca: debouncedBusca || undefined,
+        natureza_id: filtroNaturezaId === '' ? undefined : Number(filtroNaturezaId),
+        offset: 0,
+        limit: MOTIVOS_LIMITE,
+      })
+      .then(({ items, total: t }) => {
+        setMotivos(items)
+        setNaturezas([])
         setTotal(t)
       })
       .catch((err) => {
@@ -116,12 +136,57 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
     load()
   }, [load])
 
+  const gruposMotivo = useMemo(() => {
+    const porNatureza = new Map<number, TicketClassificacao.Motivo[]>()
+    for (const motivo of motivos) {
+      const lista = porNatureza.get(motivo.natureza_id) ?? []
+      lista.push(motivo)
+      porNatureza.set(motivo.natureza_id, lista)
+    }
+    const idsOrdem = catalogoNaturezas.map((n) => n.id)
+    const ids = [
+      ...idsOrdem.filter((id) => porNatureza.has(id)),
+      ...[...porNatureza.keys()].filter((id) => !idsOrdem.includes(id)),
+    ]
+    if (filtroNaturezaId !== '') {
+      return ids
+        .filter((id) => id === Number(filtroNaturezaId))
+        .map((id) => ({
+          naturezaId: id,
+          nome:
+            catalogoNaturezas.find((n) => n.id === id)?.nome ??
+            porNatureza.get(id)?.[0]?.natureza_nome ??
+            `Natureza #${id}`,
+          itens: porNatureza.get(id) ?? [],
+        }))
+    }
+    return ids.map((id) => ({
+      naturezaId: id,
+      nome:
+        catalogoNaturezas.find((n) => n.id === id)?.nome ??
+        porNatureza.get(id)?.[0]?.natureza_nome ??
+        `Natureza #${id}`,
+      itens: porNatureza.get(id) ?? [],
+    }))
+  }, [catalogoNaturezas, filtroNaturezaId, motivos])
+
+  useEffect(() => {
+    if (aba !== 'motivos') return
+    if (filtroNaturezaId !== '') {
+      setAbertas([Number(filtroNaturezaId)])
+      return
+    }
+    if (debouncedBusca) {
+      setAbertas(gruposMotivo.map((g) => g.naturezaId))
+    }
+  }, [aba, debouncedBusca, filtroNaturezaId, gruposMotivo])
+
   function abrirNovo() {
     setEditId(null)
     if (aba === 'naturezas') {
       setFormNatureza(emptyNatureza())
     } else {
-      const nid = filtroNaturezaId === '' ? naturezas[0]?.id ?? 0 : Number(filtroNaturezaId)
+      const nid = filtroNaturezaId === '' ? catalogoNaturezas[0]?.id ?? 0 : Number(filtroNaturezaId)
       setFormMotivo(emptyMotivo(nid))
     }
     setModalOpen(true)
@@ -148,6 +213,12 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
   function fecharModal() {
     setModalOpen(false)
     setEditId(null)
+  }
+
+  function alternarGrupo(naturezaId: number) {
+    setAbertas((atual) =>
+      atual.includes(naturezaId) ? atual.filter((id) => id !== naturezaId) : [...atual, naturezaId],
+    )
   }
 
   async function salvar() {
@@ -193,7 +264,7 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
 
   const denied = (
     <SemPermissao
-      title="Apenas administradores podem gerir naturezas e motivos."
+      title="Sem permissão para gerir naturezas e motivos."
       voltarPara="/configuracoes/tickets/natureza-motivo"
       voltarLabel="Voltar"
     />
@@ -240,21 +311,35 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
           busca={busca}
           onBuscaChange={setBusca}
           placeholder={aba === 'naturezas' ? 'Buscar natureza…' : 'Buscar motivo…'}
-          page={page}
+          page={aba === 'naturezas' ? page : 1}
           total={total}
+          pageSize={aba === 'motivos' ? Math.max(total, 1) : PAGE_SIZE_PADRAO}
           onPageChange={setPage}
           disabled={loading}
           extra={
             <div className="flex flex-wrap items-center gap-3">
               {aba === 'motivos' ? (
-                <Select
-                  value={filtroNaturezaId}
-                  onChange={(v) => setFiltroNaturezaId(v === '' ? '' : Number(v))}
-                  options={naturezas.map((n) => ({ value: n.id, label: n.nome }))}
-                  includeEmpty
-                  emptyLabel="Todas as naturezas"
-                  aria-label="Filtrar por natureza"
-                />
+                <>
+                  <Select
+                    value={filtroNaturezaId}
+                    onChange={(v) => setFiltroNaturezaId(v === '' ? '' : Number(v))}
+                    options={catalogoNaturezas.map((n) => ({ value: n.id, label: n.nome }))}
+                    includeEmpty
+                    emptyLabel="Todas as naturezas"
+                    aria-label="Filtrar por natureza"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={gruposMotivo.length === 0}
+                    onClick={() => setAbertas(gruposMotivo.map((g) => g.naturezaId))}
+                  >
+                    Expandir todas
+                  </Button>
+                  <Button type="button" variant="secondary" disabled={abertas.length === 0} onClick={() => setAbertas([])}>
+                    Recolher todas
+                  </Button>
+                </>
               ) : null}
               <FiltroInativos incluirInativos={incluirInativos} onChange={setIncluirInativos} />
             </div>
@@ -279,7 +364,10 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {naturezas.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/80 focus-within:bg-slate-50/80 dark:hover:bg-white/5 dark:focus-within:bg-slate-800/50">
+                  <tr
+                    key={item.id}
+                    className="hover:bg-slate-50/80 focus-within:bg-slate-50/80 dark:hover:bg-white/5 dark:focus-within:bg-slate-800/50"
+                  >
                     <td className="px-4 py-3.5 font-medium sm:px-6">{item.nome}</td>
                     <td className="px-4 py-3.5 font-mono text-xs text-slate-500 sm:px-6">{item.slug}</td>
                     <td className="px-4 py-3.5 text-center tabular-nums sm:px-6">{item.ordem}</td>
@@ -296,39 +384,93 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
               </tbody>
             </table>
           )
-        ) : motivos.length === 0 ? (
+        ) : gruposMotivo.length === 0 ? (
           <p className="py-10 text-center text-sm text-slate-500">Nenhum motivo cadastrado.</p>
         ) : (
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/60 text-xs font-semibold uppercase text-slate-500 dark:border-slate-800 dark:bg-slate-800/40">
-                <th className="px-4 py-3 sm:px-6">Natureza</th>
-                <th className="px-4 py-3 sm:px-6">Motivo</th>
-                <th className="px-4 py-3 sm:px-6">Slug</th>
-                <th className="px-4 py-3 text-center sm:px-6">Ordem</th>
-                <th className="px-4 py-3 sm:px-6">Situação</th>
-                <th className="w-px px-4 py-3 sm:px-6" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {motivos.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50/80 focus-within:bg-slate-50/80 dark:hover:bg-white/5 dark:focus-within:bg-slate-800/50">
-                  <td className="px-4 py-3.5 text-slate-600 sm:px-6">{item.natureza_nome ?? item.natureza_id}</td>
-                  <td className="px-4 py-3.5 font-medium sm:px-6">{item.nome}</td>
-                  <td className="px-4 py-3.5 font-mono text-xs text-slate-500 sm:px-6">{item.slug}</td>
-                  <td className="px-4 py-3.5 text-center tabular-nums sm:px-6">{item.ordem}</td>
-                  <td className="px-4 py-3.5 sm:px-6">{item.ativo ? 'Ativo' : 'Inativo'}</td>
-                  <td className="px-4 py-3.5 text-right sm:px-6">
-                    {podeEditar ? (
-                      <button type="button" onClick={() => abrirEditarMotivo(item)} aria-label={`Editar ${item.nome}`}>
-                        <IconPencil />
-                      </button>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="space-y-2 p-2 sm:p-3">
+            {total > MOTIVOS_LIMITE ? (
+              <p className="px-2 text-xs text-slate-500 dark:text-slate-400">
+                Mostrando os primeiros {MOTIVOS_LIMITE} de {total} motivos. Use a busca ou o filtro por natureza para
+                afinar.
+              </p>
+            ) : null}
+            {gruposMotivo.map((grupo) => {
+              const aberta = abertas.includes(grupo.naturezaId)
+              return (
+                <section
+                  key={grupo.naturezaId}
+                  className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800"
+                >
+                  <button
+                    type="button"
+                    aria-expanded={aberta}
+                    onClick={() => alternarGrupo(grupo.naturezaId)}
+                    className="flex w-full items-center justify-between gap-3 bg-slate-50/80 px-4 py-3 text-left transition hover:bg-slate-100/80 dark:bg-slate-800/40 dark:hover:bg-slate-800/70"
+                  >
+                    <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      <svg
+                        className={`size-4 shrink-0 text-slate-400 transition-transform ${aberta ? 'rotate-90' : ''}`}
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        aria-hidden
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                      {grupo.nome}
+                    </span>
+                    <span className="text-xs font-medium tabular-nums text-slate-500 dark:text-slate-400">
+                      {grupo.itens.length} {grupo.itens.length === 1 ? 'motivo' : 'motivos'}
+                    </span>
+                  </button>
+                  {aberta ? (
+                    grupo.itens.length === 0 ? (
+                      <p className="px-4 py-6 text-center text-sm text-slate-500">Nenhum motivo nesta natureza.</p>
+                    ) : (
+                      <table className="w-full text-left text-sm">
+                        <thead>
+                          <tr className="border-y border-slate-100 bg-white text-xs font-semibold uppercase text-slate-500 dark:border-slate-800 dark:bg-slate-950/40">
+                            <th className="px-4 py-2.5 sm:px-6">Motivo</th>
+                            <th className="px-4 py-2.5 sm:px-6">Slug</th>
+                            <th className="px-4 py-2.5 text-center sm:px-6">Ordem</th>
+                            <th className="px-4 py-2.5 sm:px-6">Situação</th>
+                            <th className="w-px px-4 py-2.5 sm:px-6" />
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {grupo.itens.map((item) => (
+                            <tr
+                              key={item.id}
+                              className="hover:bg-slate-50/80 focus-within:bg-slate-50/80 dark:hover:bg-white/5 dark:focus-within:bg-slate-800/50"
+                            >
+                              <td className="px-4 py-3 font-medium sm:px-6">{item.nome}</td>
+                              <td className="px-4 py-3 font-mono text-xs text-slate-500 sm:px-6">{item.slug}</td>
+                              <td className="px-4 py-3 text-center tabular-nums sm:px-6">{item.ordem}</td>
+                              <td className="px-4 py-3 sm:px-6">{item.ativo ? 'Ativo' : 'Inativo'}</td>
+                              <td className="px-4 py-3 text-right sm:px-6">
+                                {podeEditar ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => abrirEditarMotivo(item)}
+                                    aria-label={`Editar ${item.nome}`}
+                                  >
+                                    <IconPencil />
+                                  </button>
+                                ) : null}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )
+                  ) : null}
+                </section>
+              )
+            })}
+          </div>
         )}
       </Card>
 
@@ -344,7 +486,7 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
                   label="Natureza"
                   value={formMotivo.natureza_id || ''}
                   onChange={(v) => setFormMotivo((f) => ({ ...f, natureza_id: Number(v) }))}
-                  options={naturezas.map((n) => ({ value: n.id, label: n.nome }))}
+                  options={catalogoNaturezas.map((n) => ({ value: n.id, label: n.nome }))}
                   disabled={editId != null}
                 />
               ) : null}
