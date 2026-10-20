@@ -20,6 +20,7 @@ import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../contexts/AuthContext'
 import { temPermissao } from '../lib/permissoes'
 import { formatarIdRustdesk } from '../lib/rustdeskId'
+import { RUSTDESK_WINDOWS_INSTALLER_URL } from '../lib/rustdeskInstaller'
 
 const FILTROS: { id: RustdeskFrota.Filtro; rotulo: string }[] = [
   { id: 'todos', rotulo: 'Todos' },
@@ -413,6 +414,18 @@ export function RustdeskPeers() {
       <PageHeader
         title="Acesso remoto"
         subtitle="Computadores registrados no servidor deste cliente. Online significa que aceita conexão remota agora. O vínculo grava o ID no PDV; a senha continua a do cadastro."
+        actions={
+          <a
+            href={RUSTDESK_WINDOWS_INSTALLER_URL}
+            target="_blank"
+            rel="noreferrer"
+            title="Baixar DeskRudder Acesso Remoto para Windows"
+          >
+            <Button type="button" variant="secondary">
+              Baixar instalador Windows
+            </Button>
+          </a>
+        }
       />
 
       <PainelConfiguracao config={configuracao} onCopiar={(texto, sucesso) => void copiarTexto(texto, sucesso)} />

@@ -29,6 +29,7 @@ import {
   quandoSolicitado,
   rotuloPoliticaGeo,
 } from '../lib/pontoFormat'
+import { temPermissao } from '../lib/permissoes'
 import { SemPermissao } from './SemPermissao'
 
 type ResumoFechamentoColab = {
@@ -100,6 +101,8 @@ type AbaEquipe = 'hoje' | 'espelho' | 'ajustes' | 'fechamento' | 'config'
 export function PontoEquipe() {
   const toast = useToast()
   const { user } = useAuth()
+  const podeEquipe = temPermissao(user, 'ponto.equipe')
+  const podeAprovar = temPermissao(user, 'ponto.aprovar')
   const { subscribe } = useEventStream()
   const [hoje, setHoje] = useState<Ponto.HojeLista | null>(null)
   const [equipe, setEquipe] = useState<Atendentes.Atendente[]>([])
@@ -129,7 +132,7 @@ export function PontoEquipe() {
   const [calendario, setCalendario] = useState<Ponto.Calendario | null>(null)
   const [diaCal, setDiaCal] = useState<string | null>(null)
   const [loadingCal, setLoadingCal] = useState(false)
-  const [aba, setAba] = useState<AbaEquipe>('hoje')
+  const [aba, setAba] = useState<AbaEquipe>(!podeEquipe && podeAprovar ? 'ajustes' : 'hoje')
   const [exportMenuAberto, setExportMenuAberto] = useState(false)
   const exportMenuRef = useRef<HTMLDivElement>(null)
   const [ajusteAno, setAjusteAno] = useState(agoraCal.getFullYear())
@@ -153,6 +156,24 @@ export function PontoEquipe() {
 
   const carregar = useCallback(
     async (silencioso = false) => {
+      if (!podeEquipe) {
+        try {
+          const solAdj = await ponto.solicitacoesAjusteAdmin('pendente')
+          setSolAjustePendentes(solAdj)
+          setSemPermissao(false)
+        } catch (err) {
+          if (err instanceof ApiError && err.status === 403) {
+            setSemPermissao(true)
+            return
+          }
+          if (!silencioso) {
+            toast.showError(mensagemFalhaParaToast(err, 'Não foi possível carregar os ajustes de ponto.'))
+          }
+        } finally {
+          setLoading(false)
+        }
+        return
+      }
       try {
         const [dia, dig, st, fer, setupSt, comp, cins, solAdj] = await Promise.all([
           ponto.hoje(),
@@ -185,17 +206,18 @@ export function PontoEquipe() {
         setLoading(false)
       }
     },
-    [compAno, compMes, toast],
+    [compAno, compMes, podeEquipe, toast],
   )
 
   useEffect(() => {
+    if (!podeEquipe) return
     void coletarTodasPaginas<Atendentes.Atendente>((o, l) =>
       atendentes.list({ incluir_inativos: false, offset: o, limit: l }),
     ).then((lista) => {
       setEquipe(lista)
       setAtendenteId((cur) => (cur || (lista[0] ? String(lista[0].id) : '')))
     })
-  }, [])
+  }, [podeEquipe])
 
   useEffect(() => {
     void carregar()
@@ -316,6 +338,19 @@ export function PontoEquipe() {
       return true
     })
   }, [solAjusteHistorico, ajusteAno, ajusteMes, ajusteAtendenteId])
+
+  const colaboradoresAjuste = useMemo(() => {
+    if (podeEquipe) return equipe.map((a) => ({ value: String(a.id), label: a.nome }))
+    const porId = new Map<number, string>()
+    for (const s of [...solAjustePendentes, ...solAjusteHistorico]) {
+      if (!porId.has(s.atendente_id)) {
+        porId.set(s.atendente_id, s.atendente_nome?.trim() || `Atendente #${s.atendente_id}`)
+      }
+    }
+    return [...porId.entries()]
+      .sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'))
+      .map(([id, nome]) => ({ value: String(id), label: nome }))
+  }, [podeEquipe, equipe, solAjustePendentes, solAjusteHistorico])
 
   const rotuloMesAjuste = useMemo(
     () =>
@@ -618,7 +653,9 @@ export function PontoEquipe() {
     {
       id: 'ajustes',
       label: 'Ajustes',
-      badge: solicitacoesPendentes > 0 ? solicitacoesPendentes : undefined,
+      badge: (podeEquipe ? solicitacoesPendentes : solAjustePendentes.length) > 0
+        ? (podeEquipe ? solicitacoesPendentes : solAjustePendentes.length)
+        : undefined,
     },
     {
       id: 'fechamento',
@@ -632,10 +669,12 @@ export function PontoEquipe() {
     },
   ]
 
-  if (user?.role !== 'admin' || semPermissao) {
+  const abasVisiveis = podeEquipe ? abas : abas.filter((t) => t.id === 'ajustes')
+
+  if ((!podeEquipe && !podeAprovar) || semPermissao) {
     return (
       <SemPermissao
-        title="Acesso restrito a administradores."
+        title="Sem permissão para o ponto da equipe."
         voltarPara="/ponto"
         voltarLabel="Ir para Meu ponto"
       />
@@ -645,8 +684,12 @@ export function PontoEquipe() {
   return (
     <PageContainer>
       <PageHeader
-        title="Ponto da equipe"
-        subtitle="O colaborador pede o ajuste; você decide. Batidas, fechamento e configurações ficam nas outras abas."
+        title={podeEquipe ? 'Ponto da equipe' : 'Ajustes de ponto'}
+        subtitle={
+          podeEquipe
+            ? 'O colaborador pede o ajuste; você decide. Batidas, fechamento e configurações ficam nas outras abas.'
+            : 'Pedidos de inclusão, correção ou folga das pessoas dos seus setores.'
+        }
         actions={
           <Button
             type="button"
@@ -660,7 +703,7 @@ export function PontoEquipe() {
       />
 
       <div className="mb-4 flex flex-wrap gap-1 border-b border-slate-200 dark:border-slate-800">
-        {abas.map((t) => (
+        {abasVisiveis.map((t) => (
           <button
             key={t.id}
             type="button"
@@ -824,10 +867,7 @@ export function PontoEquipe() {
                   label="Colaborador"
                   value={ajusteAtendenteId}
                   onChange={(v) => setAjusteAtendenteId(String(v))}
-                  options={[
-                    { value: '', label: 'Todos' },
-                    ...equipe.map((a) => ({ value: String(a.id), label: a.nome })),
-                  ]}
+                  options={[{ value: '', label: 'Todos' }, ...colaboradoresAjuste]}
                 />
               </div>
               <div className="pt-[1.625rem]">

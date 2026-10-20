@@ -359,9 +359,9 @@ function AppRoutes() {
         <Route
           path="equipe/ponto"
           element={
-            <PermissaoRoute codigo="ponto.equipe">
+            <AlgumaPermissaoRoute codigos={['ponto.equipe', 'ponto.aprovar']}>
               <PontoEquipe />
-            </PermissaoRoute>
+            </AlgumaPermissaoRoute>
           }
         />
         <Route
