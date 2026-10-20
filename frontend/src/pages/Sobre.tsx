@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { system, type System } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { APP_DESCRIPTION, APP_NAME } from '../brand'
+import { DesktopAppDownloadCard } from '../components/DesktopAppDownloadCard'
 import { ReleaseNotesView } from '../components/release/ReleaseNotesView'
 import { useToast } from '../components/ui/Toast'
 
@@ -11,6 +12,18 @@ export function Sobre() {
   const [loading, setLoading] = useState(true)
   const [info, setInfo] = useState<System.Info | null>(null)
   const [notes, setNotes] = useState<System.ReleaseNotes | null>(null)
+
+  const copiar = useCallback(
+    async (texto: string, sucesso: string) => {
+      try {
+        await navigator.clipboard.writeText(texto)
+        toast.showSuccess(sucesso)
+      } catch {
+        toast.showError('Não foi possível copiar. Selecione o texto e copie manualmente.')
+      }
+    },
+    [toast],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -51,6 +64,7 @@ export function Sobre() {
       versionLabel={versionLabel}
       notes={notes}
       loading={loading}
+      topSlot={<DesktopAppDownloadCard onCopiar={(texto, sucesso) => void copiar(texto, sucesso)} />}
     />
   )
 }

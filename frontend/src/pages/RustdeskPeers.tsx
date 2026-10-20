@@ -24,6 +24,7 @@ import {
   RUSTDESK_WINDOWS_INSTALLER_PATH,
   urlDownloadInstaladorNaInstancia,
 } from '../lib/rustdeskInstaller'
+import { conectarRemotoPreferindoDesktop, isDeskRudderDesktop } from '../lib/deskrudderDesktop'
 
 const FILTROS: { id: RustdeskFrota.Filtro; rotulo: string }[] = [
   { id: 'todos', rotulo: 'Todos' },
@@ -274,6 +275,15 @@ export function RustdeskPeers() {
   const [confirmacao, setConfirmacao] = useState<string | null>(null)
   const [acaoPendente, setAcaoPendente] = useState<AcaoPendente | null>(null)
   const [configuracao, setConfiguracao] = useState<RustdeskFrota.Configuracao | null>(null)
+  const [remotoDesktopInstalado, setRemotoDesktopInstalado] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    if (!isDeskRudderDesktop() || !window.deskrudderDesktop) {
+      setRemotoDesktopInstalado(null)
+      return
+    }
+    void window.deskrudderDesktop.remotoStatus().then((s) => setRemotoDesktopInstalado(s.instalado))
+  }, [])
 
   async function copiarTexto(texto: string, sucesso: string) {
     try {
@@ -387,9 +397,30 @@ export function RustdeskPeers() {
       toast.showWarning('Este ID está em mais de um PDV. A senha não foi preenchida.')
       avisou = true
     }
-    abrirClienteRustdesk(peer.rustdesk_id, senha)
+    const viaDesktop = await conectarRemotoPreferindoDesktop(peer.rustdesk_id, senha)
+    if (viaDesktop) {
+      if (!viaDesktop.ok) {
+        toast.showWarning(viaDesktop.erro || 'Não foi possível abrir o acesso remoto neste computador.')
+        return
+      }
+      if (viaDesktop.modo === 'protocolo' || viaDesktop.modo === 'protocolo-fallback') {
+        const status = await window.deskrudderDesktop?.remotoStatus()
+        if (status && !status.instalado) {
+          toast.showWarning(
+            'O DeskRudder Acesso Remoto não está instalado neste PC. Reinstale o app DeskRudder (Baixar app Windows em Sobre) ou peça o instalador de controle à equipe.',
+          )
+          return
+        }
+      }
+    } else {
+      abrirClienteRustdesk(peer.rustdesk_id, senha)
+    }
     if (!avisou) {
-      toast.showSuccess(senha ? 'Acesso remoto aberto com o ID e a senha do cadastro.' : 'Acesso remoto aberto com este ID.')
+      toast.showSuccess(
+        senha
+          ? 'Acesso remoto aberto com o ID e a senha do cadastro (janela DeskRudder - Acesso Remoto).'
+          : 'Acesso remoto aberto com este ID (janela DeskRudder - Acesso Remoto).',
+      )
     }
   }
 
@@ -440,6 +471,21 @@ export function RustdeskPeers() {
         title="Acesso remoto"
         subtitle="Computadores registrados no servidor deste cliente. Online significa que aceita conexão remota agora. O vínculo grava o ID no PDV; a senha continua a do cadastro."
       />
+
+      {remotoDesktopInstalado === false ? (
+        <p
+          role="status"
+          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
+        >
+          O DeskRudder Acesso Remoto (controle) não foi encontrado neste PC. Reinstale o{' '}
+          <strong className="font-semibold">DeskRudder Setup</strong> do atendente (com elevação) ou coloque o
+          cliente controle em{' '}
+          <code className="rounded bg-amber-100/80 px-1 dark:bg-amber-900/50">
+            Program Files (x86)\DeskRudder\Acesso Remoto
+          </code>
+          . Sem isso, conectar pela frota pode falhar.
+        </p>
+      ) : null}
 
       <div className="space-y-3">
         <PainelDownloadInstalador onCopiar={(texto, sucesso) => void copiarTexto(texto, sucesso)} />

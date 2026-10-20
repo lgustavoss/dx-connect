@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { isMarketingHost } from '../lib/marketingHost'
 import { isSaasControlPlaneFrontend } from '../lib/saasControlPlane'
+import { isMobileForPwaInstall } from '../lib/pwaInstallPolicy'
 import { isIosSafari, isStandaloneDisplay } from '../lib/pwaDisplay'
 import { Button } from './ui/Button'
 
@@ -41,7 +42,7 @@ export function PwaInstallBanner({ enabled }: Props) {
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    if (!enabled) return
+    if (!enabled || !isMobileForPwaInstall()) return
     const onPrompt = (e: Event) => {
       e.preventDefault()
       setDeferred(e as BeforeInstallPromptEvent)
@@ -71,6 +72,7 @@ export function PwaInstallBanner({ enabled }: Props) {
 
   if (!enabled || dismissed) return null
   if (typeof window === 'undefined') return null
+  if (!isMobileForPwaInstall()) return null
   if (isStandaloneDisplay()) return null
   if (isMarketingHost() || isSaasControlPlaneFrontend()) return null
 
@@ -87,8 +89,8 @@ export function PwaInstallBanner({ enabled }: Props) {
         <p className="font-semibold text-slate-900 dark:text-white">Adicionar à tela inicial</p>
         <p className="text-xs text-slate-600 dark:text-slate-300 sm:text-sm">
           {ios
-            ? 'No Safari, toque em Partilhar e depois em Adicionar ao Ecrã Início — o DeskRudder abre como app neste endereço.'
-            : 'Instale o DeskRudder neste telemóvel para abrir o painel sem a barra do browser.'}
+            ? 'No Safari, toque em Compartilhar e depois em Adicionar à Tela de Início — o DeskRudder abre como app neste endereço.'
+            : 'Instale o DeskRudder neste celular para abrir o painel sem a barra do navegador.'}
         </p>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">

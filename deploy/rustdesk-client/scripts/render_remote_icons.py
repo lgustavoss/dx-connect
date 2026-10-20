@@ -97,6 +97,9 @@ def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
         "deskrudder-64.png": (mark, 64),
         "deskrudder-128.png": (full, 128),
         "deskrudder-256.png": (full, 256),
+        # Painel host (Sciter): mark nitido, sem wordmark duplicado
+        "ui-logo-256.png": (mark, 256),
+        "ui-logo-512.png": (mark, 512),
         "32x32.png": (mark, 32),
         "128x128.png": (full, 128),
         "128x128@2x.png": (full, 128),

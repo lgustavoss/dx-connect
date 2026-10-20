@@ -5,6 +5,21 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### DeskRudder
+
+#### Melhorias
+
+- App desktop do atendente: Setup com elevação embute o Acesso Remoto (controle); a frota abre o cliente local com a senha do cadastro; menu **Recarregar painel** limpa cache após deploy
+- App Windows: painel instala em `DeskRudder\Painel` (Program Files x86), ao lado de `DeskRudder\Acesso Remoto`
+- App Windows: download pelo painel (Sobre) e link amigável `/app/download` na instância (Setup direto no domínio do cliente)
+- App Windows: workflow **Desktop DeskRudder Windows** no Actions gera o Setup (Electron + remoto controle) e publica o Release `desktop-windows`
+- Acesso remoto: build **controle** (atendente) no Actions (`profile=controle`), Release e update em `acesso-remoto-controle-windows`, separado do instalador só-recebe do posto
+- No PC, o navegador deixa de sugerir «Instale o app» (PWA); no celular o convite de instalação continua
+
+#### Correções
+
+- Acesso remoto: logo do painel com mais nitidez; barra de título escura acompanha o tema do Windows
+
 ## [26.10.004] - 2026-10-19
 
 ### DeskRudder
