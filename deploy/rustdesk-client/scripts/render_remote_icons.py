@@ -2,35 +2,174 @@
 """Gera icones do cliente Windows a partir da arte oficial de Acesso Remoto.
 
 Fonte padrao: branding/icon-source-official.png
+
+Preferivel: PNG com alpha real (export do Figma/Photoshop).
+JPEG com xadrez de “transparencia” achatado e suportado de forma best-effort.
+
 - tamanhos grandes: arte completa (com wordmark)
-- 16/32/48/tray: recorte do mark (personagem + setas), sem texto
+- 16/32/48/tray + ui-logo: mark (personagem + setas), sem texto
+- ui-logo: placa opaca na cor do tema escuro do painel host
 """
 
 from __future__ import annotations
 
+from collections import deque
 from pathlib import Path
 
 from PIL import Image, ImageFilter
 
 BRANDING = Path(__file__).resolve().parent.parent / "branding"
 DEFAULT_SOURCE = BRANDING / "icon-source-official.png"
+UI_DARK = (30, 30, 36)
 
 
-def _to_rgba_transparent(im: Image.Image, white_threshold: int = 248) -> Image.Image:
-    """Converte fundo quase branco em transparencia."""
-    rgba = im.convert("RGBA")
-    px = rgba.load()
-    w, h = rgba.size
+def _to_rgba_transparent(im: Image.Image) -> Image.Image:
+    """Remove fundo branco ou xadrez JPEG; preserva pele e brancos internos."""
+    if im.mode == "RGBA":
+        # Reusa alpha se ja parece util (cantos transparentes)
+        a0 = im.getpixel((0, 0))[3]
+        if a0 == 0:
+            return im
+
+    rgb = im.convert("RGB")
+    w, h = rgb.size
+    px = rgb.load()
+
+    def chroma_warm_mn(x: int, y: int) -> tuple[int, int, int, int, int, int]:
+        r, g, b = px[x, y]  # type: ignore[misc]
+        mx, mn = max(r, g, b), min(r, g, b)
+        return r, g, b, mx - mn, r - b, mn
+
+    grey_chk = [[False] * w for _ in range(h)]
+    bright = [[False] * w for _ in range(h)]
     for y in range(h):
         for x in range(w):
-            r, g, b, a = px[x, y]  # type: ignore[misc]
-            if r >= white_threshold and g >= white_threshold and b >= white_threshold:
-                px[x, y] = (r, g, b, 0)  # type: ignore[index]
+            _r, _g, _b, ch, warm, mn = chroma_warm_mn(x, y)
+            if ch <= 16 and warm <= 8 and 175 <= mn <= 235:
+                grey_chk[y][x] = True
+            if ch <= 16 and mn >= 240:
+                bright[y][x] = True
+
+    # Celula branca do xadrez: bright vizinha de cinza
+    was_chk = [row[:] for row in grey_chk]
+    for y in range(h):
+        for x in range(w):
+            if not bright[y][x]:
+                continue
+            for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < w and 0 <= ny < h and grey_chk[ny][nx]:
+                    was_chk[y][x] = True
+                    break
+
+    # Protege blobs brancos internos (cursor / DELL)
+    seen = [[False] * w for _ in range(h)]
+    protect = [[False] * w for _ in range(h)]
+    for y in range(h):
+        for x in range(w):
+            if seen[y][x] or not bright[y][x]:
+                continue
+            q: deque[tuple[int, int]] = deque([(x, y)])
+            cells: list[tuple[int, int]] = []
+            seen[y][x] = True
+            touches = False
+            chk_n = 0
+            while q:
+                cx, cy = q.popleft()
+                cells.append((cx, cy))
+                if cx in (0, w - 1) or cy in (0, h - 1):
+                    touches = True
+                if was_chk[cy][cx]:
+                    chk_n += 1
+                for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                    nx, ny = cx + dx, cy + dy
+                    if 0 <= nx < w and 0 <= ny < h and not seen[ny][nx] and bright[ny][nx]:
+                        seen[ny][nx] = True
+                        q.append((nx, ny))
+            if touches:
+                continue
+            if 300 <= len(cells) <= 8000 and chk_n / len(cells) < 0.25:
+                for cx, cy in cells:
+                    protect[cy][cx] = True
+
+    border = [[False] * w for _ in range(h)]
+    q = deque()
+
+    def push(x: int, y: int) -> None:
+        if border[y][x] or protect[y][x]:
+            return
+        _r, _g, _b, ch, warm, mn = chroma_warm_mn(x, y)
+        if not (ch <= 18 and warm <= 10 and mn >= 175):
+            return
+        border[y][x] = True
+        q.append((x, y))
+
+    for x in range(w):
+        push(x, 0)
+        push(x, h - 1)
+    for y in range(h):
+        push(0, y)
+        push(w - 1, y)
+    while q:
+        x, y = q.popleft()
+        for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < w and 0 <= ny < h:
+                push(nx, ny)
+
+    rgba = Image.new("RGBA", (w, h))
+    out = rgba.load()
+    alpha = [[255] * w for _ in range(h)]
+    for y in range(h):
+        for x in range(w):
+            if (was_chk[y][x] and not protect[y][x]) or border[y][x]:
+                alpha[y][x] = 0
+            if protect[y][x]:
+                alpha[y][x] = 255
+
+    # Maior componente
+    seen = [[False] * w for _ in range(h)]
+    best: list[tuple[int, int]] = []
+    for y in range(h):
+        for x in range(w):
+            if seen[y][x] or alpha[y][x] == 0:
+                seen[y][x] = True
+                continue
+            q = deque([(x, y)])
+            cells: list[tuple[int, int]] = []
+            seen[y][x] = True
+            while q:
+                cx, cy = q.popleft()
+                cells.append((cx, cy))
+                for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                    nx, ny = cx + dx, cy + dy
+                    if 0 <= nx < w and 0 <= ny < h and not seen[ny][nx]:
+                        if alpha[ny][nx] > 0:
+                            seen[ny][nx] = True
+                            q.append((nx, ny))
+                        else:
+                            seen[ny][nx] = True
+            if len(cells) > len(best):
+                best = cells
+    keep = [[False] * w for _ in range(h)]
+    for cx, cy in best:
+        keep[cy][cx] = True
+    for y in range(h):
+        for x in range(w):
+            if protect[y][x]:
+                keep[y][x] = True
+
+    for y in range(h):
+        for x in range(w):
+            r, g, b = px[x, y]  # type: ignore[misc]
+            if keep[y][x] and alpha[y][x]:
+                out[x, y] = (r, g, b, 255)  # type: ignore[index]
+            else:
+                out[x, y] = (0, 0, 0, 0)  # type: ignore[index]
     return rgba
 
 
 def _content_bbox(im: Image.Image, alpha_min: int = 8) -> tuple[int, int, int, int]:
-    """Bounding box do conteudo opaco."""
     alpha = im.split()[-1]
     bbox = alpha.point(lambda p: 255 if p > alpha_min else 0).getbbox()
     if not bbox:
@@ -51,13 +190,53 @@ def _crop_pad_square(im: Image.Image, pad_ratio: float = 0.06) -> Image.Image:
     return out
 
 
+def _drop_small_components(im: Image.Image, min_pixels: int = 400) -> Image.Image:
+    """Remove fragmentos soltos (ex.: topo de letras do wordmark)."""
+    w, h = im.size
+    px = im.load()
+    seen = [[False] * w for _ in range(h)]
+    keep = [[False] * w for _ in range(h)]
+    for y in range(h):
+        for x in range(w):
+            if seen[y][x]:
+                continue
+            if px[x, y][3] < 10:  # type: ignore[index]
+                seen[y][x] = True
+                continue
+            q: deque[tuple[int, int]] = deque([(x, y)])
+            cells: list[tuple[int, int]] = []
+            seen[y][x] = True
+            while q:
+                cx, cy = q.popleft()
+                cells.append((cx, cy))
+                for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                    nx, ny = cx + dx, cy + dy
+                    if not (0 <= nx < w and 0 <= ny < h) or seen[ny][nx]:
+                        continue
+                    if px[nx, ny][3] >= 10:  # type: ignore[index]
+                        seen[ny][nx] = True
+                        q.append((nx, ny))
+                    else:
+                        seen[ny][nx] = True
+            if len(cells) >= min_pixels:
+                for cx, cy in cells:
+                    keep[cy][cx] = True
+    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    opx = out.load()
+    for y in range(h):
+        for x in range(w):
+            if keep[y][x]:
+                opx[x, y] = px[x, y]  # type: ignore[index]
+    return out
+
+
 def _mark_without_text(im: Image.Image) -> Image.Image:
-    """Recorta a metade superior do conteudo (ilustracao), descartando o wordmark."""
     left, top, right, bottom = _content_bbox(im)
     height = bottom - top
-    # wordmark ocupa ~25–35% inferior da arte
-    cut = top + int(height * 0.68)
+    # 0.78 evita cortar o topo do wordmark (tracinhos orfaos)
+    cut = top + int(height * 0.78)
     crop = im.crop((left, top, right, cut))
+    crop = _drop_small_components(crop, min_pixels=400)
     return _crop_pad_square(crop, pad_ratio=0.08)
 
 
@@ -69,9 +248,23 @@ def _fit_square(im: Image.Image, size: int) -> Image.Image:
     oy = (size - fitted.height) // 2
     out.paste(fitted, (ox, oy), fitted)
     if size <= 48:
-        # leve sharpen ajuda leitura em taskbar
         out = out.filter(ImageFilter.UnsharpMask(radius=0.6, percent=120, threshold=2))
     return out
+
+
+def _opaque_ui_logo(mark: Image.Image, size: int) -> Image.Image:
+    """Mark sobre placa opaca do tema escuro.
+
+    Nao faz chroma-key no resultado: apos o resize, o branco da seta/cursor
+    gera meios-tons que um filtro de 'migalha' comia e furava o preenchimento.
+    """
+    fitted = mark.copy()
+    fitted.thumbnail((size, size), Image.Resampling.LANCZOS)
+    layer = Image.new("RGBA", (size, size), (*UI_DARK, 255))
+    ox = (size - fitted.width) // 2
+    oy = (size - fitted.height) // 2
+    layer.paste(fitted, (ox, oy), fitted)
+    return layer.convert("RGB")
 
 
 def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
@@ -85,11 +278,8 @@ def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
     mark = _mark_without_text(rgba)
 
     full.save(out_dir / "icon-source-1024.png")
-    # manter copia canonica se veio de outro caminho
-    if source.resolve() != (out_dir / "icon-source-official.png").resolve():
-        rgba.convert("RGB").save(out_dir / "icon-source-official.png")
+    rgba.save(out_dir / "icon-source-official.png")
 
-    # grandes: arte completa; pequenos: so o mark
     mapping = {
         "deskrudder-16.png": (mark, 16),
         "deskrudder-32.png": (mark, 32),
@@ -97,9 +287,6 @@ def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
         "deskrudder-64.png": (mark, 64),
         "deskrudder-128.png": (full, 128),
         "deskrudder-256.png": (full, 256),
-        # Painel host (Sciter): mark nitido, sem wordmark duplicado
-        "ui-logo-256.png": (mark, 256),
-        "ui-logo-512.png": (mark, 512),
         "32x32.png": (mark, 32),
         "128x128.png": (full, 128),
         "128x128@2x.png": (full, 128),
@@ -112,12 +299,14 @@ def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
             rendered[key] = _fit_square(base, size)
         rendered[key].save(out_dir / name)
 
+    _opaque_ui_logo(mark, 512).save(out_dir / "ui-logo-512.png")
+    _opaque_ui_logo(mark, 256).save(out_dir / "ui-logo-256.png")
+
     ico_sizes = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
-    # ICO: misturar mark nos pequenos e full nos grandes
     frames = []
-    for w, h in ico_sizes:
-        base = mark if w <= 64 else full
-        frames.append(_fit_square(base, w))
+    for iw, ih in ico_sizes:
+        base = mark if iw <= 64 else full
+        frames.append(_fit_square(base, iw))
     frames[-1].save(
         out_dir / "icon.ico",
         format="ICO",

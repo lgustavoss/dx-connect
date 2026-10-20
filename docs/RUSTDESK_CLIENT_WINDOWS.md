@@ -13,6 +13,8 @@ Assim o Setup do painel fica rápido; o build longo do RustDesk só roda quando 
 **Cliente — o que o posto recebe:**  
 `DeskRudder-AcessoRemoto-<versão>.exe` com marca DeskRudder e servidor Duplex (`31.97.160.79` + chave).
 
+Cliente e atendente usam o **mesmo** `deploy/rustdesk-client/branding/`. Ao trocar a arte: regenere os ICO/PNG, suba `CLIENT_VERSION` e rode **Acesso Remoto Cliente** e **Acesso Remoto Atendente** para os dois Releases receberem a mesma marca.
+
 ## Versão (importante)
 
 Há **duas** versões envolvidas:
