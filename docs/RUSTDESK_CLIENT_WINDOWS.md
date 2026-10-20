@@ -81,7 +81,8 @@ O instalador é pensado para o PC que **vai ser acessado** (PDV / posto):
 - Pasta de instalação: `C:\Program Files (x86)\DeskRudder\Acesso Remoto` (outros apps DeskRudder podem ficar em pastas irmãs)
 - Link «Desenvolvido por DeskRudder» → https://deskrudder.com.br/
 - Tema escuro segue o Windows (conteúdo + barra de título) se a opção não foi fixada no menu (⋮ → Tema escuro)
-- Logo do painel usa arte em alta resolução com fundo transparente (`ui-logo-512.png`) — sem placa opaca no tema escuro nem no claro
+- Logo do painel usa arte em alta resolução com fundo transparente (`ui-logo-512.png`) — sem placa opaca no tema escuro nem no claro; tamanho acompanha a janela
+- Janela inicial ~760×720 (antes de instalar) para o botão **Instalar** do cartão UAC ficar visível
 
 ### Senha (uso único × permanente)
 
