@@ -190,11 +190,53 @@ def _crop_pad_square(im: Image.Image, pad_ratio: float = 0.06) -> Image.Image:
     return out
 
 
+def _drop_small_components(im: Image.Image, min_pixels: int = 400) -> Image.Image:
+    """Remove fragmentos soltos (ex.: topo de letras do wordmark)."""
+    w, h = im.size
+    px = im.load()
+    seen = [[False] * w for _ in range(h)]
+    keep = [[False] * w for _ in range(h)]
+    for y in range(h):
+        for x in range(w):
+            if seen[y][x]:
+                continue
+            if px[x, y][3] < 10:  # type: ignore[index]
+                seen[y][x] = True
+                continue
+            q: deque[tuple[int, int]] = deque([(x, y)])
+            cells: list[tuple[int, int]] = []
+            seen[y][x] = True
+            while q:
+                cx, cy = q.popleft()
+                cells.append((cx, cy))
+                for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                    nx, ny = cx + dx, cy + dy
+                    if not (0 <= nx < w and 0 <= ny < h) or seen[ny][nx]:
+                        continue
+                    if px[nx, ny][3] >= 10:  # type: ignore[index]
+                        seen[ny][nx] = True
+                        q.append((nx, ny))
+                    else:
+                        seen[ny][nx] = True
+            if len(cells) >= min_pixels:
+                for cx, cy in cells:
+                    keep[cy][cx] = True
+    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    opx = out.load()
+    for y in range(h):
+        for x in range(w):
+            if keep[y][x]:
+                opx[x, y] = px[x, y]  # type: ignore[index]
+    return out
+
+
 def _mark_without_text(im: Image.Image) -> Image.Image:
     left, top, right, bottom = _content_bbox(im)
     height = bottom - top
-    cut = top + int(height * 0.82)
+    # 0.78 evita cortar o topo do wordmark (tracinhos orfaos)
+    cut = top + int(height * 0.78)
     crop = im.crop((left, top, right, cut))
+    crop = _drop_small_components(crop, min_pixels=400)
     return _crop_pad_square(crop, pad_ratio=0.08)
 
 
