@@ -24,10 +24,26 @@ SHORTCUT_DISPLAY_NAME = "DeskRudder - Acesso Remoto"
 # Pasta sob Program Files (x86): DeskRudder\Acesso Remoto (outros instaladores irao ao lado).
 INSTALL_DIR_RELATIVE = r"DeskRudder\Acesso Remoto"
 WEBSITE_URL = "https://deskrudder.com.br/"
+# Canal de atualizacao (Release GitHub acesso-remoto-windows).
+UPDATE_VERSION_JSON_URL = (
+    "https://github.com/lgustavoss/dx-connect/releases/download/"
+    "acesso-remoto-windows/version.json"
+)
+DOWNLOAD_INSTALLER_URL = (
+    "https://github.com/lgustavoss/dx-connect/releases/download/"
+    "acesso-remoto-windows/DeskRudder-AcessoRemoto.exe"
+)
 # Altura minima da janela host-only com o cartao "Instalar" visivel.
 HOST_WINDOW_HEIGHT_UNINSTALLED = 580
 HOST_WINDOW_HEIGHT_INSTALLED = 480
 HOST_WINDOW_WIDTH = 640
+
+
+def load_client_version(path: Path) -> str:
+    ver = path.read_text(encoding="utf-8").strip()
+    if not re.fullmatch(r"\d+\.\d+\.\d+", ver):
+        raise SystemExit(f"CLIENT_VERSION invalida em {path}: {ver!r} (use X.Y.Z)")
+    return ver
 
 def load_server(cfg_path: Path) -> tuple[str, str]:
     data = json.loads(cfg_path.read_text(encoding="utf-8"))
@@ -335,6 +351,7 @@ def patch_host_only_ui(index_tis: Path) -> None:
                         <img src={handler.get_icon()} style="width:148px;height:148px;" />
                         <div .title style="margin-top:1.2em;text-align:center;">DeskRudder</div>
                         <div .lighter-text style="text-align:center;margin-top:0.4em;">Acesso Remoto</div>
+                        <div .lighter-text style="text-align:center;margin-top:0.8em;">Versão {handler.get_version()}</div>
                     </div>
                 </div>}
                 {!incoming_only && <div .right-pane>
@@ -559,6 +576,153 @@ def patch_install_path(windows_rs: Path, install_tis: Path) -> None:
     install_tis.write_text(it.replace(old_append, new_append, 1), encoding="utf-8")
     print(f"  install.tis: Change Path -> …\\{rel}", flush=True)
 
+def patch_client_version(cargo_toml: Path, portable_cargo: Path, client_version: str) -> None:
+    """Versao do produto DeskRudder (independente da tag RustDesk upstream)."""
+    text = cargo_toml.read_text(encoding="utf-8")
+    text2, n = re.subn(
+        r'(?m)^version = "[^"]+"',
+        f'version = "{client_version}"',
+        text,
+        count=1,
+    )
+    if n < 1:
+        raise SystemExit(f"version= nao encontrado em {cargo_toml}")
+    cargo_toml.write_text(text2, encoding="utf-8")
+    print(f"  Cargo.toml version -> {client_version}", flush=True)
+
+    if portable_cargo.is_file():
+        ptext = portable_cargo.read_text(encoding="utf-8")
+        ptext2, pn = re.subn(
+            r'(?m)^version = "[^"]+"',
+            f'version = "{client_version}"',
+            ptext,
+            count=1,
+        )
+        if pn:
+            portable_cargo.write_text(ptext2, encoding="utf-8")
+            print(f"  portable Cargo.toml version -> {client_version}", flush=True)
+
+
+def patch_update_check(common_rs: Path) -> None:
+    """Substitui check do RustDesk (desligado em custom client) pelo version.json nosso."""
+    text = common_rs.read_text(encoding="utf-8")
+    old = """pub fn check_software_update() {
+    if is_custom_client() {
+        return;
+    }
+    let opt = LocalConfig::get_option(keys::OPTION_ENABLE_CHECK_UPDATE);
+    if config::option2bool(keys::OPTION_ENABLE_CHECK_UPDATE, &opt) {
+        std::thread::spawn(move || allow_err!(do_check_software_update()));
+    }
+}"""
+    new = f"""pub fn check_software_update() {{
+    // DeskRudder Acesso Remoto: canal proprio (version.json no Release GitHub).
+    std::thread::spawn(move || allow_err!(do_check_deskrudder_update()));
+}}
+
+#[tokio::main(flavor = "current_thread")]
+async fn do_check_deskrudder_update() -> hbb_common::ResultType<()> {{
+    const URL: &str = "{UPDATE_VERSION_JSON_URL}";
+    let proxy_conf = Config::get_socks();
+    let tls_url = get_url_for_tls(URL, &proxy_conf);
+    let tls_type = get_cached_tls_type(tls_url).unwrap_or(TlsType::Rustls);
+    let client = create_http_client_async(tls_type, false);
+    let resp = match client.get(URL).send().await {{
+        Ok(r) => r,
+        Err(err) => {{
+            log::warn!("DeskRudder update check failed: {{}}", err);
+            return Ok(());
+        }}
+    }};
+    if !resp.status().is_success() {{
+        log::warn!("DeskRudder update check HTTP {{}}", resp.status());
+        return Ok(());
+    }}
+    let bytes = resp.bytes().await?;
+    let v: serde_json::Value = serde_json::from_slice(&bytes)?;
+    let latest = v.get("version").and_then(|x| x.as_str()).unwrap_or("").trim();
+    if latest.is_empty() {{
+        return Ok(());
+    }}
+    if get_version_number(latest) > get_version_number(crate::VERSION) {{
+        // Ultimo segmento = versao (usado por get_new_version()).
+        *SOFTWARE_UPDATE_URL.lock().unwrap() = format!(
+            "https://github.com/lgustavoss/dx-connect/releases/download/acesso-remoto-windows/{{}}",
+            latest
+        );
+    }} else {{
+        *SOFTWARE_UPDATE_URL.lock().unwrap() = "".to_string();
+    }}
+    Ok(())
+}}"""
+    if old not in text:
+        raise SystemExit("check_software_update() nao encontrado em common.rs")
+    common_rs.write_text(text.replace(old, new, 1), encoding="utf-8")
+    print("  common.rs: check update -> version.json DeskRudder", flush=True)
+
+
+def patch_update_banner(index_tis: Path) -> None:
+    """Banner de atualizacao em pt-BR com download do nosso Release."""
+    text = index_tis.read_text(encoding="utf-8")
+    old = (
+        "class UpdateMe: Reactor.Component {\n"
+        "    function render() {\n"
+        '        var update_or_download = "download"; // !is_win ? "download" : "update";\n'
+        "        return <div .install-me>\n"
+        "            <div>{translate('Status')}</div>\n"
+        "            <div>There is a newer version of {handler.get_app_name()} "
+        "({handler.get_new_version()}) available.</div>\n"
+        "            {is_custom_client\n"
+        '                ? <div style="font-size: 1em; font-weight: normal; '
+        'text-align: left; padding-top: 1em;">{translate(\'Enable \\"Auto update\\" '
+        "or contact your administrator for the latest version.')}</div>\n"
+        "                : <div #install-me.link>{translate('Click to ' + "
+        "update_or_download)}</div>}\n"
+        '            <div #download-percent style="display:hidden; padding-top: 1em;" />\n'
+        "        </div>;\n"
+        "    }\n"
+        "\n"
+        "    event click $(#install-me) {\n"
+        '        handler.open_url("https://rustdesk.com/download");\n'
+        "        return;"
+    )
+    new = (
+        "class UpdateMe: Reactor.Component {\n"
+        "    function render() {\n"
+        "        return <div .install-me>\n"
+        "            <div>Atualização disponível</div>\n"
+        "            <div>Há uma versão mais nova do DeskRudder Acesso Remoto "
+        "({handler.get_new_version()}). A sua é {handler.get_version()}.</div>\n"
+        "            <div #install-me.link>Baixar atualização</div>\n"
+        '            <div #download-percent style="display:hidden; padding-top: 1em;" />\n'
+        "        </div>;\n"
+        "    }\n"
+        "\n"
+        "    event click $(#install-me) {\n"
+        f'        handler.open_url("{DOWNLOAD_INSTALLER_URL}");\n'
+        "        return;"
+    )
+    if old not in text:
+        raise SystemExit("UpdateMe class nao encontrada em index.tis (upstream mudou?)")
+    index_tis.write_text(text.replace(old, new, 1), encoding="utf-8")
+    print("  index.tis: banner atualizacao DeskRudder", flush=True)
+
+
+def patch_install_version_label(install_tis: Path) -> None:
+    """Mostra a versao na tela de instalacao."""
+    text = install_tis.read_text(encoding="utf-8")
+    old = '<div style="font-size: 2em;">{translate(\'Installation\')}</div>'
+    new = (
+        '<div style="font-size: 2em;">{translate(\'Installation\')}</div>\n'
+        '            <div .lighter-text style="margin-top: 0.4em;">'
+        "Versão {handler.get_version()}</div>"
+    )
+    if old not in text:
+        raise SystemExit("titulo Installation nao encontrado em install.tis")
+    install_tis.write_text(text.replace(old, new, 1), encoding="utf-8")
+    print("  install.tis: label Versão", flush=True)
+
+
 def patch_system_dark_theme(ui_rs: Path, index_tis: Path) -> None:
     """Tema escuro segue o Windows quando o usuario nao fixou a opcao."""
     if not ui_rs.is_file():
@@ -645,6 +809,12 @@ def main() -> int:
         default=here / "branding",
         help="Pasta com icon.ico e PNGs",
     )
+    ap.add_argument(
+        "--client-version",
+        type=Path,
+        default=here / "CLIENT_VERSION",
+        help="Arquivo com versao DeskRudder X.Y.Z",
+    )
     args = ap.parse_args()
     src = args.rustdesk_src.resolve()
     if not (src / ".git").exists() and not (src / "Cargo.toml").is_file():
@@ -653,11 +823,18 @@ def main() -> int:
 
     host, key = load_server(args.config.resolve())
     brand = args.branding.resolve()
+    client_version = load_client_version(args.client_version.resolve())
     print(f">> Branding DeskRudder em {src}")
     print(f"   host={host}")
+    print(f"   client_version={client_version}")
 
     copy_icons(brand, src)
     patch_cargo_bundle_name(src / "Cargo.toml")
+    patch_client_version(
+        src / "Cargo.toml",
+        src / "libs" / "portable" / "Cargo.toml",
+        client_version,
+    )
     patch_portable_metadata(src / "libs" / "portable" / "Cargo.toml")
 
     png_128 = brand / "128x128.png"
@@ -676,11 +853,15 @@ def main() -> int:
     install_tis = src / "src" / "ui" / "install.tis"
     windows_rs = src / "src" / "platform" / "windows.rs"
     ui_rs = src / "src" / "ui.rs"
+    common_rs = src / "src" / "common.rs"
     patch_host_only_ui(index_tis)
     patch_shortcut_display_name(windows_rs)
     patch_website_urls(index_tis, install_tis)
     patch_install_path(windows_rs, install_tis)
     patch_system_dark_theme(ui_rs, index_tis)
+    patch_update_check(common_rs)
+    patch_update_banner(index_tis)
+    patch_install_version_label(install_tis)
 
     # Sanity: chave, host e servidor de produto presentes
     body = cfg_rs.read_text(encoding="utf-8")
@@ -715,6 +896,27 @@ def main() -> int:
         return 1
     if "deskrudder.com.br" not in index_body:
         print("Verificacao falhou: website DeskRudder ausente.", file=sys.stderr)
+        return 1
+    if "Versão {handler.get_version()}" not in index_body:
+        print("Verificacao falhou: versao nao aparece na UI.", file=sys.stderr)
+        return 1
+    if "Atualização disponível" not in index_body:
+        print("Verificacao falhou: banner de atualizacao ausente.", file=sys.stderr)
+        return 1
+
+    cargo_body = (src / "Cargo.toml").read_text(encoding="utf-8")
+    if not re.search(rf'(?m)^version = "{re.escape(client_version)}"$', cargo_body):
+        print("Verificacao falhou: Cargo.toml sem CLIENT_VERSION.", file=sys.stderr)
+        return 1
+
+    common_body = common_rs.read_text(encoding="utf-8")
+    if "do_check_deskrudder_update" not in common_body:
+        print("Verificacao falhou: check de update DeskRudder ausente.", file=sys.stderr)
+        return 1
+
+    install_body = install_tis.read_text(encoding="utf-8")
+    if "Versão {handler.get_version()}" not in install_body:
+        print("Verificacao falhou: versao ausente na tela de instalacao.", file=sys.stderr)
         return 1
 
     win_body = windows_rs.read_text(encoding="utf-8")

@@ -1,9 +1,22 @@
 # Cliente Windows DeskRudder (acesso remoto)
 
 **O que o usuário final recebe:** um único arquivo  
-`DeskRudder-AcessoRemoto-<versão>.exe`  
+`DeskRudder-AcessoRemoto-<versão-DeskRudder>.exe`  
 Já tem a marca DeskRudder e o servidor da Duplex (`31.97.160.79` + chave).  
 Não precisa de colar string nem de rodar comandos.
+
+## Versão (importante)
+
+Há **duas** versões envolvidas:
+
+| O quê | Onde | Muda quando |
+|-------|------|-------------|
+| **Versão DeskRudder** (`CLIENT_VERSION`, ex.: `1.0.0`) | Aparece no app, na instalação e no aviso de update | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION` e gera um build novo |
+| **Tag RustDesk** (ex.: `1.5.0`) | Base do código open-source no workflow | Só quando escolhemos uma tag mais nova do upstream no Actions |
+
+A tag `1.5.0` **não sobe sozinha** a cada build — é a base do RustDesk. O que o posto precisa olhar é a **versão DeskRudder**.
+
+Canal de atualização: o Release publica `version.json`; o cliente compara e mostra o banner **Atualização disponível**.
 
 ## Como obter o `.exe` (equipe)
 
