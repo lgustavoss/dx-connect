@@ -4501,6 +4501,49 @@
           "text": "Acesso remoto: **Atualizar agora** baixa e instala sozinho (com UAC) e reabre o app — sem precisar abrir o navegador"
         }
       ]
+    },
+    {
+      "version": "26.10.005",
+      "version_display": "v26.10.005",
+      "date": "2026-10-20",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "App desktop do atendente: Setup com elevação embute o Acesso Remoto (controle); a frota abre o cliente local com a senha do cadastro; menu **Recarregar painel** limpa cache após deploy"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "App Windows: painel instala em `DeskRudder\\Painel` (Program Files x86), ao lado de `DeskRudder\\Acesso Remoto`"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "App Windows: download pelo painel (Sobre) e link amigável `/app/download` na instância (Setup direto no domínio do cliente)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "App Windows: workflow **Desktop DeskRudder Windows** no Actions gera o Setup (Electron + remoto controle) e publica o Release `desktop-windows`"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Acesso remoto: build **controle** (atendente) no Actions (`profile=controle`), Release e update em `acesso-remoto-controle-windows`, separado do instalador só-recebe do posto"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "No PC, o navegador deixa de sugerir «Instale o app» (PWA); no celular o convite de instalação continua"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: logo do painel com mais nitidez; barra de título escura acompanha o tema do Windows"
+        }
+      ]
     }
   ]
 }

@@ -1,76 +1,46 @@
 {
-  "current_version": "26.10.004",
-  "current_version_display": "v26.10.004",
+  "current_version": "26.10.005",
+  "current_version_display": "v26.10.005",
   "current": {
-    "version": "26.10.004",
-    "version_display": "v26.10.004",
-    "date": "2026-10-19",
+    "version": "26.10.005",
+    "version_display": "v26.10.005",
+    "date": "2026-10-20",
     "status": "published",
     "changes": [
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "Tickets (#S202610-0012): na tela Natureza e motivo, os motivos ficam agrupados por natureza, com expandir e recolher"
+        "text": "App desktop do atendente: Setup com elevação embute o Acesso Remoto (controle); a frota abre o cliente local com a senha do cadastro; menu **Recarregar painel** limpa cache após deploy"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "Acesso remoto: link curto `/acesso-remoto/download` no domínio da instância para o posto baixar o instalador Windows sem entrar no painel, com botão de copiar na tela da frota"
+        "text": "App Windows: painel instala em `DeskRudder\\Painel` (Program Files x86), ao lado de `DeskRudder\\Acesso Remoto`"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "Acesso remoto: na mesma tela da frota, os dados do servidor (ID, relay e chave) para colar no RustDesk ao configurar o computador do cliente"
+        "text": "App Windows: download pelo painel (Sobre) e link amigável `/app/download` na instância (Setup direto no domínio do cliente)"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "Ponto (#1137): o supervisor do setor aprova ou recusa ajuste de ponto só das pessoas dos próprios setores. Quem administra o ponto da equipe continua vendo todos"
+        "text": "App Windows: workflow **Desktop DeskRudder Windows** no Actions gera o Setup (Electron + remoto controle) e publica o Release `desktop-windows`"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "Acesso remoto: instalador Windows **DeskRudder** (um `.exe` com servidor Duplex e marca) gerado no GitHub Actions — ver `docs/RUSTDESK_CLIENT_WINDOWS.md`"
+        "text": "Acesso remoto: build **controle** (atendente) no Actions (`profile=controle`), Release e update em `acesso-remoto-controle-windows`, separado do instalador só-recebe do posto"
+      },
+      {
+        "product": "deskrudder",
+        "category": "melhorias",
+        "text": "No PC, o navegador deixa de sugerir «Instale o app» (PWA); no celular o convite de instalação continua"
       },
       {
         "product": "deskrudder",
         "category": "correcoes",
-        "text": "Acesso remoto: o instalador Windows ganha ícone próprio (duas setas em sentidos opostos, separado do app do painel) na barra de título, na taskbar e na bandeja — deixa de usar o ícone do RustDesk embutido na UI Sciter"
-      },
-      {
-        "product": "deskrudder",
-        "category": "correcoes",
-        "text": "Acesso remoto: após instalar, o app deixa de pedir instalação de novo (binário `DeskRudder.exe`) e some o aviso de «configure seu próprio servidor» — o servidor Duplex já vem embutido"
-      },
-      {
-        "product": "deskrudder",
-        "category": "correcoes",
-        "text": "Acesso remoto: ícone e arte do instalador Windows passam a usar a marca oficial «DeskRudder Acesso Remoto»"
-      },
-      {
-        "product": "deskrudder",
-        "category": "correcoes",
-        "text": "Acesso remoto: botão **Baixar instalador Windows** na tela da frota — baixa o DeskRudder Acesso Remoto já com o servidor da equipe"
-      },
-      {
-        "product": "deskrudder",
-        "category": "correcoes",
-        "text": "Acesso remoto: instalador Windows fica só para ser acessado (ID/senha + status + logo), sem painel para controlar outro PC; atalho **DeskRudder - Acesso Remoto**"
-      },
-      {
-        "product": "deskrudder",
-        "category": "correcoes",
-        "text": "Acesso remoto: janela inicial maior (botão Instalar visível), link para deskrudder.com.br, pasta `DeskRudder\\Acesso Remoto` e tema escuro alinhado ao Windows"
-      },
-      {
-        "product": "deskrudder",
-        "category": "correcoes",
-        "text": "Acesso remoto: versão DeskRudder visível no app e na instalação; aviso quando há atualização no Release (`version.json`)"
-      },
-      {
-        "product": "deskrudder",
-        "category": "correcoes",
-        "text": "Acesso remoto: **Atualizar agora** baixa e instala sozinho (com UAC) e reabre o app — sem precisar abrir o navegador"
+        "text": "Acesso remoto: logo do painel com mais nitidez; barra de título escura acompanha o tema do Windows"
       }
     ]
   },
@@ -4574,6 +4544,49 @@
           "product": "deskrudder",
           "category": "correcoes",
           "text": "Acesso remoto: **Atualizar agora** baixa e instala sozinho (com UAC) e reabre o app — sem precisar abrir o navegador"
+        }
+      ]
+    },
+    {
+      "version": "26.10.005",
+      "version_display": "v26.10.005",
+      "date": "2026-10-20",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "App desktop do atendente: Setup com elevação embute o Acesso Remoto (controle); a frota abre o cliente local com a senha do cadastro; menu **Recarregar painel** limpa cache após deploy"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "App Windows: painel instala em `DeskRudder\\Painel` (Program Files x86), ao lado de `DeskRudder\\Acesso Remoto`"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "App Windows: download pelo painel (Sobre) e link amigável `/app/download` na instância (Setup direto no domínio do cliente)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "App Windows: workflow **Desktop DeskRudder Windows** no Actions gera o Setup (Electron + remoto controle) e publica o Release `desktop-windows`"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Acesso remoto: build **controle** (atendente) no Actions (`profile=controle`), Release e update em `acesso-remoto-controle-windows`, separado do instalador só-recebe do posto"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "No PC, o navegador deixa de sugerir «Instale o app» (PWA); no celular o convite de instalação continua"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: logo do painel com mais nitidez; barra de título escura acompanha o tema do Windows"
         }
       ]
     }
