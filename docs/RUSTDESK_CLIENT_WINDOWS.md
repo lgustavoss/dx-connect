@@ -45,6 +45,19 @@ O instalador é pensado para o PC que **vai ser acessado** (PDV / posto):
 - Painel direito só com a logo DeskRudder (sem «Controle um computador remoto»)
 - Conexões de saída bloqueadas (`is_incoming_only`)
 - Atalho na Área de Trabalho / menu Iniciar: **DeskRudder - Acesso Remoto** (o `.exe` instalado continua `DeskRudder.exe`)
+- Pasta de instalação: `C:\Program Files (x86)\DeskRudder\Acesso Remoto` (outros apps DeskRudder podem ficar em pastas irmãs)
+- Link «Desenvolvido por DeskRudder» → https://deskrudder.com.br/
+- Tema escuro segue o Windows se a opção não foi fixada no menu (⋮ → Tema escuro)
+
+### Senha (uso único × permanente)
+
+Por padrão o app usa **senha de uso único** (muda se alguém clicar no ícone de atualizar). **Não há senha permanente pré-configurada.**
+
+Para acesso estável no posto:
+
+1. Clique no lápis ao lado da senha
+2. **Definir senha permanente** e escolha uma senha da equipe
+3. Em **Usar senha permanente** (ou «ambas»), o refresh da senha de uso único deixa de impedir o acesso
 
 ## Pasta no repo
 
