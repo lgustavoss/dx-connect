@@ -14,3 +14,14 @@ export function urlDownloadAppNaInstancia(): string {
   }
   return `${window.location.origin}${DESKTOP_WINDOWS_INSTALLER_PATH}`
 }
+
+/** Dispara o download do Setup sem navegar o SPA (sem tela intermediária). */
+export function iniciarDownloadAppWindows(): void {
+  const a = document.createElement('a')
+  a.href = DESKTOP_WINDOWS_INSTALLER_URL
+  a.rel = 'noopener'
+  a.target = '_blank'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+}

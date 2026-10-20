@@ -1,32 +1,34 @@
-# Gera o Setup Windows do atendente (Electron + Acesso Remoto controle embutido).
+# Setup do ATENDENTE: painel DeskRudder + Acesso Remoto embutido.
+# Rápido: só monta o Electron e baixa o remoto já publicado.
 #
-# Pré-requisito: Release `acesso-remoto-controle-windows` com
-# DeskRudder-AcessoRemoto-Controle.exe (Actions → RustDesk DeskRudder Windows → profile=controle).
+# Pré-requisito (1.ª vez ou ao atualizar o remoto):
+#   Actions → «Acesso Remoto Atendente (Windows)»
 #
-# Disparo: Actions → «Desktop DeskRudder Windows» → Run workflow
-# Resultado: Release `desktop-windows` / DeskRudder-Setup.exe (link /app/download).
+# Actions → «App Atendente Setup (Windows)» → Run workflow
+# Resultado: Release desktop-windows / DeskRudder-Setup.exe (link /app/download)
+# Duração típica: poucos minutos.
 
-name: Desktop DeskRudder Windows
+name: App Atendente Setup (Windows)
 
 on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: "Publicar/atualizar Release desktop-windows (link /app/download)"
+        description: "Publicar Release desktop-windows (/app/download)"
         required: true
         default: true
         type: boolean
 
 concurrency:
-  group: desktop-deskrudder-windows
+  group: app-atendente-setup-windows
   cancel-in-progress: true
 
 permissions:
   contents: write
 
 jobs:
-  build-setup:
-    name: DeskRudder Setup (Windows)
+  setup:
+    name: Setup painel + remoto
     runs-on: windows-2022
     defaults:
       run:
@@ -43,7 +45,7 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/package-lock.json
 
-      - name: Baixar Acesso Remoto (controle) para o vendor
+      - name: Baixar remoto atendente (Release)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -51,19 +53,15 @@ jobs:
           DEST="desktop/vendor/remoto-controle"
           mkdir -p "$DEST"
           ASSET="DeskRudder-AcessoRemoto-Controle.exe"
-          OUT="$DEST/$ASSET"
-          if gh release download acesso-remoto-controle-windows \
+          if ! gh release download acesso-remoto-controle-windows \
             --repo "${{ github.repository }}" \
             --pattern "$ASSET" \
             --dir "$DEST" \
             --clobber; then
-            echo "Baixado do Release acesso-remoto-controle-windows"
-          else
-            echo "::error::Release acesso-remoto-controle-windows sem $ASSET. Rode antes o workflow «RustDesk DeskRudder Windows» com profile=controle."
+            echo "::error::Falta o Release acesso-remoto-controle-windows. Rode antes o workflow «Acesso Remoto Atendente (Windows)» (só quando o remoto mudar). Depois rode de novo este Setup."
             exit 1
           fi
-          test -f "$OUT"
-          ls -lh "$OUT"
+          ls -lh "$DEST/$ASSET"
 
       - name: Instalar dependências Electron
         working-directory: desktop
@@ -72,7 +70,6 @@ jobs:
       - name: Gerar Setup (electron-builder NSIS)
         working-directory: desktop
         env:
-          # Sem certificado; evita falha por descoberta automática de assinatura.
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           GH_TOKEN: ${{ github.token }}
         run: npm run dist
@@ -110,8 +107,8 @@ jobs:
           STABLE="$STABLE_DIR/DeskRudder-Setup.exe"
           cp -f "$SRC" "$STABLE"
           TAG="desktop-windows"
-          TITLE="DeskRudder Setup ${VER} (Windows)"
-          NOTES="DeskRudder Setup **${VER}** (atendente: painel Electron + Acesso Remoto controle). Link amigável: \`/app/download\` no domínio da instância."
+          TITLE="DeskRudder App Atendente ${VER} (Windows)"
+          NOTES="Setup **${VER}** do atendente (painel + Acesso Remoto). Link amigável: \`/app/download\`. Remoto embutido vem do Release acesso-remoto-controle-windows."
           if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             gh release upload "$TAG" "$STABLE" \
               --repo "${{ github.repository }}" --clobber

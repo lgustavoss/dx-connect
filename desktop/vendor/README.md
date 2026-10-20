@@ -6,11 +6,9 @@ O Setup do atendente (`npm run dist` ou o workflow **Desktop DeskRudder Windows*
 
 ## Como obter
 
-**Preferido:** Actions → **Desktop DeskRudder Windows** (baixa o controle sozinho e gera o Setup).
+1. Actions → **Acesso Remoto Atendente (Windows)** (quando o remoto mudar)  
+2. Actions → **App Atendente Setup (Windows)** (a cada update do painel — rápido)
 
-Manual:
-
-1. Actions → **RustDesk DeskRudder Windows** → **profile = controle**
-2. Na pasta `desktop/`: `npm run baixar-remoto` (ou o script `scripts/baixar-remoto-controle.ps1`)
+Dev local: `npm run baixar-remoto` se o Release controle já existir.
 
 Sem esse arquivo, o NSIS ainda gera o Setup do painel, mas avisa na instalação que o remoto não veio no pacote.
