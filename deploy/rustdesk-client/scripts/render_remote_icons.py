@@ -211,21 +211,18 @@ def _fit_square(im: Image.Image, size: int) -> Image.Image:
 
 
 def _opaque_ui_logo(mark: Image.Image, size: int) -> Image.Image:
+    """Mark sobre placa opaca do tema escuro.
+
+    Nao faz chroma-key no resultado: apos o resize, o branco da seta/cursor
+    gera meios-tons que um filtro de 'migalha' comia e furava o preenchimento.
+    """
     fitted = mark.copy()
     fitted.thumbnail((size, size), Image.Resampling.LANCZOS)
     layer = Image.new("RGBA", (size, size), (*UI_DARK, 255))
     ox = (size - fitted.width) // 2
     oy = (size - fitted.height) // 2
     layer.paste(fitted, (ox, oy), fitted)
-    rgb = layer.convert("RGB")
-    px = rgb.load()
-    for y in range(size):
-        for x in range(size):
-            r, g, b = px[x, y]  # type: ignore[misc]
-            mx, mn = max(r, g, b), min(r, g, b)
-            if mx - mn <= 16 and r - b <= 8 and 175 <= mn <= 235:
-                px[x, y] = UI_DARK  # type: ignore[index]
-    return rgb
+    return layer.convert("RGB")
 
 
 def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
