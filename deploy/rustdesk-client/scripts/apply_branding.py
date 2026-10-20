@@ -45,10 +45,14 @@ DOWNLOAD_INSTALLER_URL = (
 )
 UPDATE_RELEASE_TAG = RELEASE_TAG_POSTO
 
-# Altura minima da janela host-only com o cartao "Instalar" visivel.
-HOST_WINDOW_HEIGHT_UNINSTALLED = 580
-HOST_WINDOW_HEIGHT_INSTALLED = 480
-HOST_WINDOW_WIDTH = 640
+# Janela host-only: precisa caber o cartao UAC + botao Instalar no painel esquerdo.
+# 580 cortava o botao em DPI 100–125%; 720 deixa folga. Min um pouco abaixo do default.
+HOST_WINDOW_WIDTH = 760
+HOST_WINDOW_HEIGHT_UNINSTALLED = 720
+HOST_WINDOW_HEIGHT_INSTALLED = 560
+HOST_WINDOW_MIN_WIDTH = 680
+HOST_WINDOW_MIN_HEIGHT_UNINSTALLED = 660
+HOST_WINDOW_MIN_HEIGHT_INSTALLED = 480
 
 
 def configurar_canal_update(profile: str) -> None:
@@ -311,6 +315,9 @@ def patch_host_only_ui(index_tis: Path, branding: Path) -> None:
     w = HOST_WINDOW_WIDTH
     h_un = HOST_WINDOW_HEIGHT_UNINSTALLED
     h_in = HOST_WINDOW_HEIGHT_INSTALLED
+    min_w = HOST_WINDOW_MIN_WIDTH
+    min_h_un = HOST_WINDOW_MIN_HEIGHT_UNINSTALLED
+    min_h_in = HOST_WINDOW_MIN_HEIGHT_INSTALLED
     logo_uri = _host_logo_data_uri(branding)
 
     text2, n = re.subn(
@@ -318,6 +325,9 @@ def patch_host_only_ui(index_tis: Path, branding: Path) -> None:
         f"const incoming_only_width = {w};\n"
         f"const incoming_only_height_uninstalled = {h_un};\n"
         f"const incoming_only_height_installed = {h_in};\n"
+        f"const incoming_only_min_width = {min_w};\n"
+        f"const incoming_only_min_height_uninstalled = {min_h_un};\n"
+        f"const incoming_only_min_height_installed = {min_h_in};\n"
         f'const deskrudder_host_logo = "{logo_uri}";',
         text,
         count=1,
@@ -337,9 +347,9 @@ def patch_host_only_ui(index_tis: Path, branding: Path) -> None:
     )
     new_min = (
         "if (incoming_only) {\n"
-        "  view.windowMinSize = (scaleIt(incoming_only_width), "
+        "  view.windowMinSize = (scaleIt(incoming_only_min_width), "
         "scaleIt((handler.is_installed() || disable_installation) "
-        "? incoming_only_height_installed : incoming_only_height_uninstalled));\n"
+        "? incoming_only_min_height_installed : incoming_only_min_height_uninstalled));\n"
         "} else {\n"
         "  view.windowMinSize = (scaleIt(560), scaleIt(300));\n"
         "}"
@@ -348,10 +358,10 @@ def patch_host_only_ui(index_tis: Path, branding: Path) -> None:
         raise SystemExit("windowMinSize incoming_only nao encontrado")
     text = text.replace(old_min, new_min, 1)
 
-    # Com logo a direita, o painel esquerdo mantem largura fixa (~200px do CSS).
+    # Painel esquerdo um pouco mais largo: menos wrap no cartao UAC/Instalar.
     text2, n = re.subn(
         r'<div \.left-pane style=\{incoming_only \? "width:\*" : ""\}>',
-        "<div .left-pane>",
+        '<div .left-pane style={incoming_only ? "width:248px;min-width:248px;" : ""}>',
         text,
         count=1,
     )
@@ -390,11 +400,11 @@ def patch_host_only_ui(index_tis: Path, branding: Path) -> None:
     new_right = """                    {incoming_only ? <ConnectStatus @{this.connect_status} /> : ""}
                 </div>
                 {incoming_only && <div .right-pane>
-                    <div .right-content style="flow:vertical;size:*;vertical-align:middle;horizontal-align:center;padding:2em;">
-                        <img src={deskrudder_host_logo} style="width:200px;height:200px;" />
-                        <div .title style="margin-top:1.2em;text-align:center;">DeskRudder</div>
-                        <div .lighter-text style="text-align:center;margin-top:0.4em;">Acesso Remoto</div>
-                        <div .lighter-text style="text-align:center;margin-top:0.8em;">Versao {handler.get_version()}</div>
+                    <div .right-content style="flow:vertical;size:*;vertical-align:middle;horizontal-align:center;padding:1.5em;">
+                        <img src={deskrudder_host_logo} style="display:block;width:48%;max-width:300px;min-width:140px;height:width(100%);margin:0 *;" />
+                        <div .title style="margin-top:1em;text-align:center;">DeskRudder</div>
+                        <div .lighter-text style="text-align:center;margin-top:0.35em;">Acesso Remoto</div>
+                        <div .lighter-text style="text-align:center;margin-top:0.6em;">Versao {handler.get_version()}</div>
                     </div>
                 </div>}
                 {!incoming_only && <div .right-pane>
@@ -1166,6 +1176,12 @@ def main() -> int:
             return 1
         if "incoming_only_height_uninstalled" not in index_body:
             print("Verificacao falhou: altura da janela host nao patchada.", file=sys.stderr)
+            return 1
+        if "incoming_only_min_height_uninstalled" not in index_body:
+            print("Verificacao falhou: altura minima da janela host nao patchada.", file=sys.stderr)
+            return 1
+        if "height:width(100%)" not in index_body:
+            print("Verificacao falhou: logo host nao e responsiva.", file=sys.stderr)
             return 1
         if "Versao {handler.get_version()}" not in index_body:
             print("Verificacao falhou: versao nao aparece na UI.", file=sys.stderr)

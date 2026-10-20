@@ -43,6 +43,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Acesso remoto: logo e ícones do instalador Windows regenerados a partir da arte oficial sem fundo (versão 1.0.2)
 - Acesso remoto: arte oficial PNG com transparência real — mesma marca no instalador do posto e no do atendente (versão 1.0.3)
 - Acesso remoto: logo do painel host sem quadrado cinza — fundo transparente no tema escuro e no claro (versão 1.0.4)
+- Acesso remoto: janela inicial maior (botão Instalar visível) e logo central que acompanha o tamanho da janela (versão 1.0.5)
 
 #### Interno
 
