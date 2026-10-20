@@ -1,9 +1,18 @@
 # Cliente Windows DeskRudder (acesso remoto)
 
-**O que o usuário final recebe:** um único arquivo  
+Há **dois perfis** de build (mesmo workflow, input `profile`):
+
+| Perfil | Artefato | Release GitHub | Uso |
+|--------|----------|----------------|-----|
+| **posto** (padrão) | `DeskRudder-AcessoRemoto-*.exe` | `acesso-remoto-windows` | PC do posto — **só recebe** conexão; vínculo a PDV no painel |
+| **controle** | `DeskRudder-AcessoRemoto-Controle-*.exe` | `acesso-remoto-controle-windows` | PC do **atendente** — inicia sessão a partir da frota; embutido no Setup Electron |
+
+**Posto — o que o usuário final recebe:** um único arquivo  
 `DeskRudder-AcessoRemoto-<versão-DeskRudder>.exe`  
 Já tem a marca DeskRudder e o servidor da Duplex (`31.97.160.79` + chave).  
 Não precisa de colar string nem de rodar comandos.
+
+O perfil **controle** usa o mesmo branding e servidor, **sem** forçar `incoming_only` (UI completa do RustDesk + canal de update próprio). Fluxo oficial do atendente: frota do painel → um clique (senha do cadastro). Máquinas fora do servidor DeskRudder: RustDesk padrão.
 
 ## Versão (importante)
 
@@ -28,11 +37,11 @@ Ao clicar em **Atualizar agora**:
 
 1. O workflow precisa estar na branch padrão (`main`) — após o merge deste PR, ele aparece em Actions.
 2. No GitHub: **Actions** → workflow **«RustDesk DeskRudder Windows»**
-3. **Run workflow** — deixe a tag **`1.5.0`** (não existe `1.5.1` no upstream; tag inválida falha no checkout)
+3. **Run workflow** — tag **`1.5.0`** e **profile** `posto` ou `controle`
 4. Esperar o job (~40–90 min na 1.ª vez)
-5. Em **Artifacts**, baixar `DeskRudder-AcessoRemoto-windows` (ou usar o Release abaixo)
-6. O workflow também publica (ou atualiza) o Release **`acesso-remoto-windows`** com o arquivo estável `DeskRudder-AcessoRemoto.exe`
-7. No painel, a tela **Acesso remoto** tem o botão **Baixar instalador Windows** e o link curto para enviar ao posto
+5. Em **Artifacts**, baixar `DeskRudder-AcessoRemoto-posto-windows` ou `…-controle-windows`
+6. O workflow publica o Release correspondente (`acesso-remoto-windows` ou `acesso-remoto-controle-windows`) com o `.exe` estável + `version.json`
+7. **Posto:** no painel, tela **Acesso remoto** → **Baixar instalador Windows** / link curto. **Controle:** embutir no Setup do atendente (`desktop/scripts/baixar-remoto-controle.ps1`) — ver [`DESKTOP_ELECTRON.md`](DESKTOP_ELECTRON.md)
 
 URL curta na instância (sem login — Nginx redireciona; o SPA também cobre se o Nginx ainda não tiver a regra):
 

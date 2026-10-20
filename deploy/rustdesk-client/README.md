@@ -1,12 +1,15 @@
 # Cliente acesso remoto DeskRudder (Windows)
 
-**Produto:** um `.exe` só — `DeskRudder-AcessoRemoto-*.exe` — gerado pelo GitHub Actions.  
-Cliente **só-recebe** (postos): ID/senha + status + logo; atalho **DeskRudder - Acesso Remoto**; instala em `DeskRudder\Acesso Remoto`.  
-Versão do produto: `CLIENT_VERSION` (independente da tag RustDesk do workflow).  
-Atualização no app: banner → baixa → UAC/`--update` → reabre o DeskRudder.
-Como gerar: ver [`docs/RUSTDESK_CLIENT_WINDOWS.md`](../../docs/RUSTDESK_CLIENT_WINDOWS.md)  
-(Actions → «RustDesk DeskRudder Windows» → Run workflow → artefato **e** Release `acesso-remoto-windows`).  
-No painel: **Acesso remoto** → **Baixar instalador Windows**.
+**Produto:** builds Windows via GitHub Actions (`apply_branding.py --profile posto|controle`).
+
+| Profile | Artefato | Release | Comportamento |
+|---------|----------|---------|---------------|
+| `posto` | `DeskRudder-AcessoRemoto-*.exe` | `acesso-remoto-windows` | Só-recebe (PDV) |
+| `controle` | `DeskRudder-AcessoRemoto-Controle-*.exe` | `acesso-remoto-controle-windows` | Atendente / frota; Setup Electron |
+
+Atalho **DeskRudder - Acesso Remoto**; pasta `DeskRudder\Acesso Remoto`.  
+Versão: `CLIENT_VERSION`. Update: banner → `version.json` do Release do profile.  
+Docs: [`docs/RUSTDESK_CLIENT_WINDOWS.md`](../../docs/RUSTDESK_CLIENT_WINDOWS.md), Setup atendente: [`docs/DESKTOP_ELECTRON.md`](../../docs/DESKTOP_ELECTRON.md).
 
 | Pasta / arquivo | Função |
 |------------------|--------|

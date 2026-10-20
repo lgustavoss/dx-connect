@@ -1,5 +1,8 @@
 # Gera o instalador Windows DeskRudder (RustDesk com servidor Duplex + marca).
-# Resultado: artefato DeskRudder-AcessoRemoto-*.exe — um arquivo, sem colar config.
+#
+# Perfis:
+#   posto     — só-recebe (PDV); Release acesso-remoto-windows
+#   controle  — atendente (pode iniciar sessão); Release acesso-remoto-controle-windows
 #
 # Disparo: Actions → «RustDesk DeskRudder Windows» → Run workflow
 # Duração típica: 40–90 min (primeira vez; cache vcpkg ajuda nas seguintes).
@@ -17,9 +20,17 @@ on:
         options:
           - "1.5.0"
           - "1.4.9"
+      profile:
+        description: "posto = PDV só-recebe; controle = atendente (frota)"
+        required: true
+        default: "posto"
+        type: choice
+        options:
+          - "posto"
+          - "controle"
 
 concurrency:
-  group: rustdesk-deskrudder-windows
+  group: rustdesk-deskrudder-windows-${{ inputs.profile }}
   cancel-in-progress: true
 
 permissions:
@@ -30,10 +41,11 @@ env:
   VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   VERSION: ${{ inputs.rustdesk_ref }}
+  PROFILE: ${{ inputs.profile }}
 
 jobs:
   build-windows:
-    name: DeskRudder Acesso Remoto (Windows x86 Sciter)
+    name: DeskRudder Acesso Remoto (${{ inputs.profile }})
     runs-on: windows-2022
     defaults:
       run:
@@ -63,7 +75,8 @@ jobs:
           python3 dx-connect/deploy/rustdesk-client/scripts/apply_branding.py rustdesk \
             --config dx-connect/deploy/rustdesk-client/server.config.json \
             --branding dx-connect/deploy/rustdesk-client/branding \
-            --client-version dx-connect/deploy/rustdesk-client/CLIENT_VERSION
+            --client-version dx-connect/deploy/rustdesk-client/CLIENT_VERSION \
+            --profile "${{ inputs.profile }}"
           grep -nE 'RENDEZVOUS_SERVERS|RS_PUB_KEY|DeskRudder' \
             rustdesk/libs/hbb_common/src/config.rs | head -20
           grep -nE '^version =' rustdesk/Cargo.toml | head -3
@@ -91,7 +104,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rustdesk
-          prefix-key: deskrudder-sciter-i686
+          prefix-key: deskrudder-sciter-i686-${{ inputs.profile }}
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
@@ -141,58 +154,73 @@ jobs:
           popd
 
           mkdir -p ../dist
-          # Nome do artefato usa a versao DeskRudder (CLIENT_VERSION), nao so a tag RustDesk.
           CLIENT_VER="${CLIENT_VERSION:?}"
           RD_VER="${VERSION:-1.5.0}"
-          OUT="DeskRudder-AcessoRemoto-${CLIENT_VER}.exe"
+          if [ "${PROFILE}" = "controle" ]; then
+            OUT="DeskRudder-AcessoRemoto-Controle-${CLIENT_VER}.exe"
+          else
+            OUT="DeskRudder-AcessoRemoto-${CLIENT_VER}.exe"
+          fi
           mv ./target/release/rustdesk-portable-packer.exe "../dist/${OUT}"
-          echo "Built ../dist/${OUT} (DeskRudder ${CLIENT_VER}, base RustDesk ${RD_VER})"
+          echo "Built ../dist/${OUT} (profile=${PROFILE}, DeskRudder ${CLIENT_VER}, base RustDesk ${RD_VER})"
           ls -lh ../dist/
 
       - name: Upload instalador (artifact)
         uses: actions/upload-artifact@v4
         with:
-          name: DeskRudder-AcessoRemoto-windows
-          path: dist/DeskRudder-AcessoRemoto-*.exe
+          name: DeskRudder-AcessoRemoto-${{ inputs.profile }}-windows
+          path: dist/DeskRudder-AcessoRemoto*.exe
           if-no-files-found: error
           retention-days: 30
 
-      # Link estável usado na tela Acesso remoto do painel:
-      # https://github.com/lgustavoss/dx-connect/releases/download/acesso-remoto-windows/DeskRudder-AcessoRemoto.exe
-      # version.json: canal de atualizacao do cliente (banner no app).
-      - name: Publicar Release (download do painel)
+      - name: Publicar Release (download + version.json)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           CLIENT_VER="${CLIENT_VERSION:?}"
           RD_VER="${VERSION:-1.5.0}"
-          SRC="dist/DeskRudder-AcessoRemoto-${CLIENT_VER}.exe"
-          STABLE="dist/DeskRudder-AcessoRemoto.exe"
+          PROFILE="${PROFILE:?}"
+          if [ "$PROFILE" = "controle" ]; then
+            TAG="acesso-remoto-controle-windows"
+            SRC="dist/DeskRudder-AcessoRemoto-Controle-${CLIENT_VER}.exe"
+            STABLE="dist/DeskRudder-AcessoRemoto-Controle.exe"
+            TITLE="DeskRudder Acesso Remoto Controle ${CLIENT_VER} (Windows)"
+            NOTES="DeskRudder Acesso Remoto **controle** **${CLIENT_VER}** (base RustDesk ${RD_VER}). Para o PC do atendente (frota / Setup desktop). Banner de atualização usa este Release."
+            ARTIFACT_FILTER="DeskRudder-AcessoRemoto-Controle*.exe"
+          else
+            TAG="acesso-remoto-windows"
+            SRC="dist/DeskRudder-AcessoRemoto-${CLIENT_VER}.exe"
+            STABLE="dist/DeskRudder-AcessoRemoto.exe"
+            TITLE="DeskRudder Acesso Remoto ${CLIENT_VER} (Windows)"
+            NOTES="DeskRudder Acesso Remoto **${CLIENT_VER}** (base RustDesk ${RD_VER}). Instalador só-recebe com servidor Duplex. Usado no botão «Baixar instalador Windows» e no aviso de atualização do cliente do posto."
+            ARTIFACT_FILTER="DeskRudder-AcessoRemoto-*.exe"
+          fi
           VERSION_JSON="dist/version.json"
           test -f "$SRC"
           cp -f "$SRC" "$STABLE"
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/$(basename "$STABLE")"
           python3 - <<PY
           import json
           from pathlib import Path
           Path("${VERSION_JSON}").write_text(json.dumps({
               "version": "${CLIENT_VER}",
               "rustdesk_base": "${RD_VER}",
-              "download_url": "https://github.com/${{ github.repository }}/releases/download/acesso-remoto-windows/DeskRudder-AcessoRemoto.exe",
+              "profile": "${PROFILE}",
+              "download_url": "${DOWNLOAD_URL}",
           }, indent=2) + "\n", encoding="utf-8")
           PY
-          NOTES="DeskRudder Acesso Remoto **${CLIENT_VER}** (base RustDesk ${RD_VER}). Instalador com servidor Duplex. Usado no botão «Baixar instalador Windows» e no aviso de atualização do cliente."
-          if gh release view acesso-remoto-windows --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release upload acesso-remoto-windows "$STABLE" "$VERSION_JSON" \
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$STABLE" "$VERSION_JSON" \
               --repo "${{ github.repository }}" --clobber
-            gh release edit acesso-remoto-windows \
+            gh release edit "$TAG" \
               --repo "${{ github.repository }}" \
-              --title "DeskRudder Acesso Remoto ${CLIENT_VER} (Windows)" \
+              --title "$TITLE" \
               --notes "$NOTES"
           else
-            gh release create acesso-remoto-windows "$STABLE" "$VERSION_JSON" \
+            gh release create "$TAG" "$STABLE" "$VERSION_JSON" \
               --repo "${{ github.repository }}" \
-              --title "DeskRudder Acesso Remoto ${CLIENT_VER} (Windows)" \
+              --title "$TITLE" \
               --notes "$NOTES" \
               --latest=false
           fi

@@ -1,6 +1,7 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, dialog, shell, ipcMain, net } = require('electron')
+const { app, BrowserWindow, Tray, Menu, nativeImage, dialog, shell, ipcMain, net, session } = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
+const { spawn } = require('node:child_process')
 
 const APP_ID = 'br.com.deskrudder.desktop'
 const APEX = 'deskrudder.com.br'
@@ -9,6 +10,7 @@ const SLUG_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/
 const SLUGS_RESERVADOS = new Set(['www', 'api', 'mail', 'ftp', 'cdn', 'static', 'app', 'admin', 'status', 'portal'])
 const ICONE = path.join(__dirname, '..', 'build', 'icon.png')
 const CONTA_HTML = path.join(__dirname, 'conta.html')
+const UA_DESKTOP = ' DeskRudderDesktop/1'
 
 // Alerta da fila (alerta.mp3 em loop) precisa tocar com a janela escondida na bandeja.
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
@@ -77,14 +79,96 @@ async function contaExiste(slug) {
   }
 }
 
-function abrirPainelOuConta() {
+/** Limpa cache HTTP + service workers para o painel refletir o deploy (não apaga login). */
+async function limparCacheDoPainel() {
+  const sess = session.defaultSession
+  try {
+    await sess.clearCache()
+    await sess.clearStorageData({ storages: ['cachestorage', 'serviceworkers'] })
+  } catch (err) {
+    console.warn('DeskRudder: falha ao limpar cache do painel', err)
+  }
+}
+
+async function abrirPainelOuConta() {
   if (!janela) return
   const { slug } = lerConfig()
   if (slug) {
-    void janela.loadURL(urlPainel(slug))
+    await limparCacheDoPainel()
+    void janela.loadURL(urlPainel(slug), {
+      userAgent: `${janela.webContents.getUserAgent()}${UA_DESKTOP}`,
+      httpReferrer: { url: urlPainel(slug), policy: 'same-origin' },
+      extraHeaders: 'Cache-Control: no-cache\nPragma: no-cache\n',
+    })
   } else {
     void janela.loadFile(CONTA_HTML)
   }
+}
+
+function caminhosExeRemoto() {
+  const x86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)'
+  const pf = process.env.ProgramFiles || 'C:\\Program Files'
+  return [
+    path.join(x86, 'DeskRudder', 'Acesso Remoto', 'DeskRudder.exe'),
+    path.join(pf, 'DeskRudder', 'Acesso Remoto', 'DeskRudder.exe'),
+  ]
+}
+
+function acharExeRemoto() {
+  for (const p of caminhosExeRemoto()) {
+    try {
+      if (fs.existsSync(p)) return p
+    } catch {
+      /* ignore */
+    }
+  }
+  return null
+}
+
+/**
+ * Abre sessão remota via URL rustdesk:// (senha na query).
+ * Com o .exe instalado, passa a URL como argumento (evita flags --connect/--password
+ * que diferem entre builds Sciter); senão usa o protocolo registrado no Windows.
+ * @returns {{ ok: boolean, modo?: string, erro?: string }}
+ */
+function conectarRemoto(id, senha) {
+  const digitos = String(id || '').replace(/\s+/g, '')
+  if (!/^\d{6,}$/.test(digitos)) {
+    return { ok: false, erro: 'ID de acesso remoto inválido.' }
+  }
+  const senhaLimpa = senha != null ? String(senha).trim() : ''
+  const params = new URLSearchParams()
+  if (senhaLimpa) params.set('password', senhaLimpa)
+  const consulta = params.toString()
+  const url = `rustdesk://connection/new/${digitos}${consulta ? `?${consulta}` : ''}`
+
+  const exe = acharExeRemoto()
+  if (exe) {
+    try {
+      const filho = spawn(exe, [url], { detached: true, stdio: 'ignore' })
+      filho.unref()
+      return { ok: true, modo: 'exe' }
+    } catch (err) {
+      console.warn('DeskRudder: falha ao abrir exe remoto', err)
+    }
+  }
+  try {
+    void shell.openExternal(url)
+  } catch (err) {
+    console.warn('DeskRudder: falha ao abrir protocolo remoto', err)
+    return {
+      ok: false,
+      erro:
+        'Não foi possível abrir o acesso remoto. Confira se o DeskRudder Acesso Remoto (controle) está instalado.',
+    }
+  }
+  return { ok: true, modo: 'protocolo' }
+}
+
+function origemPermitidaPainel(url) {
+  if (!url || typeof url !== 'string') return false
+  if (url.startsWith('file:')) return true
+  return hostDaInstancia(url)
 }
 
 ipcMain.handle('conta:definir', async (event, raw) => {
@@ -95,13 +179,34 @@ ipcMain.handle('conta:definir', async (event, raw) => {
   if (existe === null) return { ok: false, erro: 'Sem conexão com a internet. Verifique a rede e tente de novo.' }
   if (!existe) return { ok: false, erro: 'Conta não encontrada. Confira o identificador com o administrador.' }
   salvarConfig({ slug })
-  if (janela) void janela.loadURL(urlPainel(slug))
+  await abrirPainelOuConta()
   return { ok: true }
 })
 
 ipcMain.handle('conta:atual', (event) => {
   if (!event.senderFrame?.url.startsWith('file:')) return null
   return lerConfig().slug ?? null
+})
+
+ipcMain.handle('remoto:status', (event) => {
+  if (!origemPermitidaPainel(event.senderFrame?.url)) return { instalado: false }
+  return { instalado: Boolean(acharExeRemoto()), caminho: acharExeRemoto() }
+})
+
+ipcMain.handle('remoto:conectar', (event, id, senha) => {
+  if (!origemPermitidaPainel(event.senderFrame?.url)) {
+    return { ok: false, erro: 'Origem não permitida.' }
+  }
+  return conectarRemoto(id, senha)
+})
+
+ipcMain.handle('painel:recarregar', async (event) => {
+  if (!origemPermitidaPainel(event.senderFrame?.url) && !event.senderFrame?.url?.startsWith('file:')) {
+    return { ok: false }
+  }
+  await limparCacheDoPainel()
+  if (janela) janela.webContents.reloadIgnoringCache()
+  return { ok: true }
 })
 
 // ── Janela ──────────────────────────────────────────────────────────────────
@@ -201,11 +306,32 @@ function criarJanela(iniciarOculto) {
   })
   wc.on('before-input-event', (_e, input) => {
     if (input.type !== 'keyDown') return
-    if (input.key === 'F5' || (input.control && input.key.toLowerCase() === 'r')) wc.reload()
+    if (input.key === 'F5' || (input.control && input.key.toLowerCase() === 'r')) {
+      void limparCacheDoPainel().then(() => wc.reloadIgnoringCache())
+    }
     if (!app.isPackaged && input.key === 'F12') wc.toggleDevTools()
   })
 
-  abrirPainelOuConta()
+  // No shell desktop o service worker do PWA compete com o deploy — desregistra no painel.
+  wc.on('did-finish-load', () => {
+    const url = wc.getURL()
+    if (!hostDaInstancia(url)) return
+    void wc.executeJavaScript(`
+      (async () => {
+        try {
+          if (!('serviceWorker' in navigator)) return;
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map((r) => r.unregister()));
+          if (window.caches && caches.keys) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map((k) => caches.delete(k)));
+          }
+        } catch (_) {}
+      })();
+    `).catch(() => {})
+  })
+
+  void abrirPainelOuConta()
 }
 
 // ── Bandeja e iniciar com o Windows ─────────────────────────────────────────
@@ -234,6 +360,13 @@ function montarMenuBandeja() {
           definirAutostart(item.checked)
           salvarConfig({ autostartPerguntado: true })
           montarMenuBandeja()
+        },
+      },
+      {
+        label: 'Recarregar painel',
+        click: async () => {
+          await limparCacheDoPainel()
+          janela?.webContents.reloadIgnoringCache()
         },
       },
       { label: 'Trocar empresa…', click: () => void trocarEmpresa() },
@@ -301,6 +434,11 @@ app.on('window-all-closed', () => {
 })
 
 app.whenReady().then(() => {
+  const sess = session.defaultSession
+  const ua = sess.getUserAgent()
+  if (!ua.includes('DeskRudderDesktop')) {
+    sess.setUserAgent(`${ua}${UA_DESKTOP}`)
+  }
   const iniciarOculto = process.argv.includes(ARG_OCULTO)
   criarBandeja()
   criarJanela(iniciarOculto)

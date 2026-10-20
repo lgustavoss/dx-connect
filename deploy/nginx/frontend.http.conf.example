@@ -16,6 +16,11 @@ server {
         return 302 https://github.com/lgustavoss/dx-connect/releases/download/acesso-remoto-windows/DeskRudder-AcessoRemoto.exe;
     }
 
+    # Setup DeskRudder (atendente) — link amigável /app/download.
+    location = /app/download {
+        return 302 https://github.com/lgustavoss/dx-connect/releases/download/desktop-windows/DeskRudder-Setup.exe;
+    }
+
     location / {
         try_files $uri $uri/ /index.html;
     }

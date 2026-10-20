@@ -6,7 +6,11 @@ O CI deve renomear o binario para DeskRudder.exe apos o cargo build — o
 instalador/is_installed() procura `{APP_NAME}.exe`.
 
 Altera: APP_NAME, icones, RENDEZVOUS_SERVERS, PROD_RENDEZVOUS_SERVER, RS_PUB_KEY,
-modo incoming-only (so ser acessado), UI host com logo, nome do atalho Windows.
+nome do atalho Windows, canal de update (version.json).
+
+Profiles (--profile):
+  posto     — incoming-only + UI host (PDV)
+  controle  — atendente (pode iniciar sessao); update no Release controle
 """
 
 from __future__ import annotations
@@ -24,19 +28,45 @@ SHORTCUT_DISPLAY_NAME = "DeskRudder - Acesso Remoto"
 # Pasta sob Program Files (x86): DeskRudder\Acesso Remoto (outros instaladores irao ao lado).
 INSTALL_DIR_RELATIVE = r"DeskRudder\Acesso Remoto"
 WEBSITE_URL = "https://deskrudder.com.br/"
-# Canal de atualizacao (Release GitHub acesso-remoto-windows).
+# Canais de atualizacao (Release GitHub).
+RELEASE_TAG_POSTO = "acesso-remoto-windows"
+RELEASE_TAG_CONTROLE = "acesso-remoto-controle-windows"
+INSTALLER_NAME_POSTO = "DeskRudder-AcessoRemoto.exe"
+INSTALLER_NAME_CONTROLE = "DeskRudder-AcessoRemoto-Controle.exe"
+
+# Preenchidos em main() conforme --profile.
 UPDATE_VERSION_JSON_URL = (
-    "https://github.com/lgustavoss/dx-connect/releases/download/"
-    "acesso-remoto-windows/version.json"
+    f"https://github.com/lgustavoss/dx-connect/releases/download/"
+    f"{RELEASE_TAG_POSTO}/version.json"
 )
 DOWNLOAD_INSTALLER_URL = (
-    "https://github.com/lgustavoss/dx-connect/releases/download/"
-    "acesso-remoto-windows/DeskRudder-AcessoRemoto.exe"
+    f"https://github.com/lgustavoss/dx-connect/releases/download/"
+    f"{RELEASE_TAG_POSTO}/{INSTALLER_NAME_POSTO}"
 )
+UPDATE_RELEASE_TAG = RELEASE_TAG_POSTO
+
 # Altura minima da janela host-only com o cartao "Instalar" visivel.
 HOST_WINDOW_HEIGHT_UNINSTALLED = 580
 HOST_WINDOW_HEIGHT_INSTALLED = 480
 HOST_WINDOW_WIDTH = 640
+
+
+def configurar_canal_update(profile: str) -> None:
+    """Define URLs de version.json / download conforme posto (so-recebe) ou controle."""
+    global UPDATE_VERSION_JSON_URL, DOWNLOAD_INSTALLER_URL, UPDATE_RELEASE_TAG
+    if profile == "controle":
+        tag = RELEASE_TAG_CONTROLE
+        nome = INSTALLER_NAME_CONTROLE
+    else:
+        tag = RELEASE_TAG_POSTO
+        nome = INSTALLER_NAME_POSTO
+    UPDATE_RELEASE_TAG = tag
+    UPDATE_VERSION_JSON_URL = (
+        f"https://github.com/lgustavoss/dx-connect/releases/download/{tag}/version.json"
+    )
+    DOWNLOAD_INSTALLER_URL = (
+        f"https://github.com/lgustavoss/dx-connect/releases/download/{tag}/{nome}"
+    )
 
 
 def load_client_version(path: Path) -> str:
@@ -660,7 +690,7 @@ async fn do_check_deskrudder_update() -> hbb_common::ResultType<()> {{
     if get_version_number(latest) > get_version_number(crate::VERSION) {{
         // Ultimo segmento = versao (usado por get_new_version()).
         *SOFTWARE_UPDATE_URL.lock().unwrap() = format!(
-            "https://github.com/lgustavoss/dx-connect/releases/download/acesso-remoto-windows/{{}}",
+            "https://github.com/lgustavoss/dx-connect/releases/download/{UPDATE_RELEASE_TAG}/{{}}",
             latest
         );
     }} else {{
@@ -671,7 +701,7 @@ async fn do_check_deskrudder_update() -> hbb_common::ResultType<()> {{
     if old not in text:
         raise SystemExit("check_software_update() nao encontrado em common.rs")
     common_rs.write_text(text.replace(old, new, 1), encoding="utf-8")
-    print("  common.rs: check update -> version.json DeskRudder", flush=True)
+    print(f"  common.rs: check update -> version.json ({UPDATE_RELEASE_TAG})", flush=True)
 
 
 def patch_update_banner(index_tis: Path) -> None:
@@ -1035,18 +1065,29 @@ def main() -> int:
         default=here / "CLIENT_VERSION",
         help="Arquivo com versao DeskRudder X.Y.Z",
     )
+    ap.add_argument(
+        "--profile",
+        choices=("posto", "controle"),
+        default="posto",
+        help="posto=so-recebe (PDV); controle=atendente (pode iniciar sessao)",
+    )
     args = ap.parse_args()
     src = args.rustdesk_src.resolve()
     if not (src / ".git").exists() and not (src / "Cargo.toml").is_file():
         print(f"Nao parece um clone rustdesk: {src}", file=sys.stderr)
         return 1
 
+    profile: str = args.profile
+    configurar_canal_update(profile)
+
     host, key = load_server(args.config.resolve())
     brand = args.branding.resolve()
     client_version = load_client_version(args.client_version.resolve())
     print(f">> Branding DeskRudder em {src}")
+    print(f"   profile={profile}")
     print(f"   host={host}")
     print(f"   client_version={client_version}")
+    print(f"   update={UPDATE_VERSION_JSON_URL}")
 
     copy_icons(brand, src)
     patch_cargo_bundle_name(src / "Cargo.toml")
@@ -1068,13 +1109,15 @@ def main() -> int:
         print(f"Falta {cfg_rs} (submodule hbb_common?).", file=sys.stderr)
         return 1
     patch_config_rs(cfg_rs, host, key)
-    patch_incoming_only(cfg_rs)
+    if profile == "posto":
+        patch_incoming_only(cfg_rs)
     index_tis = src / "src" / "ui" / "index.tis"
     install_tis = src / "src" / "ui" / "install.tis"
     windows_rs = src / "src" / "platform" / "windows.rs"
     ui_rs = src / "src" / "ui.rs"
     common_rs = src / "src" / "common.rs"
-    patch_host_only_ui(index_tis, brand)
+    if profile == "posto":
+        patch_host_only_ui(index_tis, brand)
     patch_shortcut_display_name(windows_rs)
     # UpdateMe antes do patch de URLs (ele ainda contem rustdesk.com no upstream).
     patch_update_check(common_rs)
@@ -1093,8 +1136,12 @@ def main() -> int:
     if f'RwLock::new("{host}".to_owned())' not in body:
         print("Verificacao falhou: PROD_RENDEZVOUS_SERVER sem host.", file=sys.stderr)
         return 1
-    if "DeskRudder Acesso Remoto: build so para ser acessado" not in body:
-        print("Verificacao falhou: is_incoming_only nao patchado.", file=sys.stderr)
+    if profile == "posto":
+        if "DeskRudder Acesso Remoto: build so para ser acessado" not in body:
+            print("Verificacao falhou: is_incoming_only nao patchado.", file=sys.stderr)
+            return 1
+    elif "DeskRudder Acesso Remoto: build so para ser acessado" in body:
+        print("Verificacao falhou: profile controle nao deve forcar incoming_only.", file=sys.stderr)
         return 1
 
     ui_body = ui_rs.read_text(encoding="utf-8")
@@ -1110,15 +1157,19 @@ def main() -> int:
         return 1
 
     index_body = index_tis.read_text(encoding="utf-8")
-    if "Acesso Remoto</div>" not in index_body or "deskrudder_host_logo" not in index_body:
-        print("Verificacao falhou: UI host-only sem logo.", file=sys.stderr)
-        return 1
-    if "data:image/png;base64," not in index_body:
-        print("Verificacao falhou: logo host sem data URI.", file=sys.stderr)
-        return 1
-    if "incoming_only_height_uninstalled" not in index_body:
-        print("Verificacao falhou: altura da janela host nao patchada.", file=sys.stderr)
-        return 1
+    if profile == "posto":
+        if "Acesso Remoto</div>" not in index_body or "deskrudder_host_logo" not in index_body:
+            print("Verificacao falhou: UI host-only sem logo.", file=sys.stderr)
+            return 1
+        if "data:image/png;base64," not in index_body:
+            print("Verificacao falhou: logo host sem data URI.", file=sys.stderr)
+            return 1
+        if "incoming_only_height_uninstalled" not in index_body:
+            print("Verificacao falhou: altura da janela host nao patchada.", file=sys.stderr)
+            return 1
+        if "Versao {handler.get_version()}" not in index_body:
+            print("Verificacao falhou: versao nao aparece na UI.", file=sys.stderr)
+            return 1
     if "handler.is_system_dark_theme()" not in index_body:
         print("Verificacao falhou: tema do sistema nao ligado.", file=sys.stderr)
         return 1
@@ -1128,14 +1179,14 @@ def main() -> int:
     if "deskrudder.com.br" not in index_body:
         print("Verificacao falhou: website DeskRudder ausente.", file=sys.stderr)
         return 1
-    if "Versao {handler.get_version()}" not in index_body:
-        print("Verificacao falhou: versao nao aparece na UI.", file=sys.stderr)
-        return 1
     if "Atualização disponível" not in index_body:
         print("Verificacao falhou: banner de atualizacao ausente.", file=sys.stderr)
         return 1
     if "Atualizar agora" not in index_body or "Instalando..." not in index_body:
         print("Verificacao falhou: fluxo in-app de update incompleto.", file=sys.stderr)
+        return 1
+    if DOWNLOAD_INSTALLER_URL not in index_body:
+        print("Verificacao falhou: URL de download do profile ausente no banner.", file=sys.stderr)
         return 1
 
     ui_iface = (src / "src" / "ui_interface.rs").read_text(encoding="utf-8")
