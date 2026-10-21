@@ -653,20 +653,37 @@ def patch_install_path(windows_rs: Path, install_tis: Path) -> None:
     install_tis.write_text(it.replace(old_append, new_append, 1), encoding="utf-8")
     print(f"  install.tis: Change Path -> …\\{rel}", flush=True)
 
-def patch_client_version(cargo_toml: Path, portable_cargo: Path, client_version: str) -> None:
-    """Versao do produto DeskRudder (independente da tag RustDesk upstream)."""
-    text = cargo_toml.read_text(encoding="utf-8")
-    text2, n = re.subn(
-        r'(?m)^version = "[^"]+"',
-        f'version = "{client_version}"',
-        text,
-        count=1,
-    )
-    if n < 1:
-        raise SystemExit(f"version= nao encontrado em {cargo_toml}")
-    cargo_toml.write_text(text2, encoding="utf-8")
-    print(f"  Cargo.toml version -> {client_version}", flush=True)
+def patch_client_version(
+    cargo_toml: Path,
+    portable_cargo: Path,
+    common_rs: Path,
+    ui_interface_rs: Path,
+    client_version: str,
+) -> None:
+    """Separa versao de protocolo (Cargo/RustDesk) da versao DeskRudder (UI/update).
 
+    `crate::VERSION` vem do Cargo.toml e e o que o peer anuncia. Se for < 1.2.0
+    (ex.: CLIENT_VERSION 1.0.x), o modo mapa de teclado some e atalhos do PDV
+    (tecla D etc.) falham. Por isso o Cargo.toml principal permanece na tag
+    upstream (1.5.0); so a UI/update usam DESKRUDDER_CLIENT_VERSION.
+    """
+    text = cargo_toml.read_text(encoding="utf-8")
+    m = re.search(r'(?m)^version = "([^"]+)"', text)
+    if not m:
+        raise SystemExit(f"version= nao encontrado em {cargo_toml}")
+    protocol_ver = m.group(1)
+    if protocol_ver == client_version:
+        raise SystemExit(
+            f"Cargo.toml version={protocol_ver!r} nao pode ser igual a CLIENT_VERSION — "
+            "isso desliga o modo mapa (peer < 1.2.0). Mantenha a tag RustDesk no Cargo.toml."
+        )
+    print(
+        f"  Cargo.toml version (protocolo) = {protocol_ver} (inalterado); "
+        f"DeskRudder UI = {client_version}",
+        flush=True,
+    )
+
+    # Instalador portable: metadado do .exe empacotador pode ser a versao DeskRudder.
     if portable_cargo.is_file():
         ptext = portable_cargo.read_text(encoding="utf-8")
         ptext2, pn = re.subn(
@@ -678,6 +695,55 @@ def patch_client_version(cargo_toml: Path, portable_cargo: Path, client_version:
         if pn:
             portable_cargo.write_text(ptext2, encoding="utf-8")
             print(f"  portable Cargo.toml version -> {client_version}", flush=True)
+
+    common = common_rs.read_text(encoding="utf-8")
+    const_line = f'pub const DESKRUDDER_CLIENT_VERSION: &str = "{client_version}";\n'
+    if "pub const DESKRUDDER_CLIENT_VERSION:" in common:
+        common2, n = re.subn(
+            r'pub const DESKRUDDER_CLIENT_VERSION: &str = "[^"]+";\n',
+            const_line,
+            common,
+            count=1,
+        )
+        if n < 1:
+            raise SystemExit("DESKRUDDER_CLIENT_VERSION presente mas replace falhou")
+        common = common2
+    else:
+        marker = (
+            "lazy_static::lazy_static! {\n"
+            "    pub static ref SOFTWARE_UPDATE_URL:"
+        )
+        if marker not in common:
+            raise SystemExit("SOFTWARE_UPDATE_URL nao encontrado em common.rs")
+        common = common.replace(
+            marker,
+            f"{const_line}\n{marker}",
+            1,
+        )
+    common_rs.write_text(common, encoding="utf-8")
+    print(f"  common.rs: DESKRUDDER_CLIENT_VERSION = {client_version}", flush=True)
+
+    ui = ui_interface_rs.read_text(encoding="utf-8")
+    old_get = (
+        "#[inline]\n"
+        "pub fn get_version() -> String {\n"
+        "    crate::VERSION.to_owned()\n"
+        "}"
+    )
+    new_get = (
+        "#[inline]\n"
+        "pub fn get_version() -> String {\n"
+        "    // Versao DeskRudder (UI/update). crate::VERSION = tag RustDesk (protocolo/teclado).\n"
+        "    crate::DESKRUDDER_CLIENT_VERSION.to_owned()\n"
+        "}"
+    )
+    if "crate::DESKRUDDER_CLIENT_VERSION.to_owned()" in ui:
+        print("  ui_interface.rs: get_version() ja usa DESKRUDDER_CLIENT_VERSION", flush=True)
+    elif old_get in ui:
+        ui_interface_rs.write_text(ui.replace(old_get, new_get, 1), encoding="utf-8")
+        print("  ui_interface.rs: get_version() -> DESKRUDDER_CLIENT_VERSION", flush=True)
+    else:
+        raise SystemExit("get_version() nao encontrado em ui_interface.rs")
 
 
 def patch_update_check(common_rs: Path) -> None:
@@ -721,7 +787,8 @@ async fn do_check_deskrudder_update() -> hbb_common::ResultType<()> {{
     if latest.is_empty() {{
         return Ok(());
     }}
-    if get_version_number(latest) > get_version_number(crate::VERSION) {{
+    // Comparar com versao DeskRudder (nao crate::VERSION / tag RustDesk).
+    if get_version_number(latest) > get_version_number(crate::DESKRUDDER_CLIENT_VERSION) {{
         // Ultimo segmento = versao (usado por get_new_version()).
         *SOFTWARE_UPDATE_URL.lock().unwrap() = format!(
             "https://github.com/lgustavoss/dx-connect/releases/download/{UPDATE_RELEASE_TAG}/{{}}",
@@ -1125,9 +1192,13 @@ def main() -> int:
 
     copy_icons(brand, src)
     patch_cargo_bundle_name(src / "Cargo.toml")
+    common_rs = src / "src" / "common.rs"
+    ui_interface_rs = src / "src" / "ui_interface.rs"
     patch_client_version(
         src / "Cargo.toml",
         src / "libs" / "portable" / "Cargo.toml",
+        common_rs,
+        ui_interface_rs,
         client_version,
     )
     patch_portable_metadata(src / "libs" / "portable" / "Cargo.toml")
@@ -1151,14 +1222,13 @@ def main() -> int:
     install_tis = src / "src" / "ui" / "install.tis"
     windows_rs = src / "src" / "platform" / "windows.rs"
     ui_rs = src / "src" / "ui.rs"
-    common_rs = src / "src" / "common.rs"
     if profile == "posto":
         patch_host_only_ui(index_tis, brand)
     patch_shortcut_display_name(windows_rs)
     # UpdateMe antes do patch de URLs (ele ainda contem rustdesk.com no upstream).
     patch_update_check(common_rs)
     patch_update_banner(index_tis)
-    patch_update_me_handler(src / "src" / "ui_interface.rs")
+    patch_update_me_handler(ui_interface_rs)
     patch_website_urls(index_tis, install_tis)
     patch_install_path(windows_rs, install_tis)
     patch_system_dark_theme(ui_rs, index_tis)
@@ -1241,19 +1311,35 @@ def main() -> int:
         print("Verificacao falhou: URL de download do profile ausente no banner.", file=sys.stderr)
         return 1
 
-    ui_iface = (src / "src" / "ui_interface.rs").read_text(encoding="utf-8")
+    ui_iface = ui_interface_rs.read_text(encoding="utf-8")
     if "update_to(&_path)" not in ui_iface:
         print("Verificacao falhou: update_me sem update_to.", file=sys.stderr)
         return 1
+    if "crate::DESKRUDDER_CLIENT_VERSION.to_owned()" not in ui_iface:
+        print("Verificacao falhou: get_version() sem DESKRUDDER_CLIENT_VERSION.", file=sys.stderr)
+        return 1
 
     cargo_body = (src / "Cargo.toml").read_text(encoding="utf-8")
-    if not re.search(rf'(?m)^version = "{re.escape(client_version)}"$', cargo_body):
-        print("Verificacao falhou: Cargo.toml sem CLIENT_VERSION.", file=sys.stderr)
+    if re.search(rf'(?m)^version = "{re.escape(client_version)}"$', cargo_body):
+        print(
+            "Verificacao falhou: Cargo.toml nao pode usar CLIENT_VERSION "
+            "(peer < 1.2.0 desliga modo mapa).",
+            file=sys.stderr,
+        )
+        return 1
+    if not re.search(r'(?m)^version = "1\.\d+\.\d+"$', cargo_body):
+        print("Verificacao falhou: Cargo.toml sem versao RustDesk 1.x.", file=sys.stderr)
         return 1
 
     common_body = common_rs.read_text(encoding="utf-8")
     if "do_check_deskrudder_update" not in common_body:
         print("Verificacao falhou: check de update DeskRudder ausente.", file=sys.stderr)
+        return 1
+    if f'pub const DESKRUDDER_CLIENT_VERSION: &str = "{client_version}";' not in common_body:
+        print("Verificacao falhou: DESKRUDDER_CLIENT_VERSION ausente.", file=sys.stderr)
+        return 1
+    if "get_version_number(crate::DESKRUDDER_CLIENT_VERSION)" not in common_body:
+        print("Verificacao falhou: update check nao usa DESKRUDDER_CLIENT_VERSION.", file=sys.stderr)
         return 1
 
     install_body = install_tis.read_text(encoding="utf-8")
