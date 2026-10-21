@@ -5,6 +5,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+## [26.10.006] - 2026-10-21
+
 ### DeskRudder
 
 #### Melhorias
@@ -25,7 +27,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Acesso remoto: logo do painel host sem quadrado cinza — fundo transparente no tema escuro e no claro (versão 1.0.4)
 - Acesso remoto: janela inicial maior (botão Instalar visível) e logo central que acompanha o tamanho da janela (versão 1.0.5)
 
-#### Interno
+#### Interno / Infra
 
 - App Atendente Setup: `electron-builder` no CI usa `--publish never` (Release via `gh`); evita falha «Cannot detect repository»
 - Download `/app/download` e `/acesso-remoto/download`: redirect imediato no `index.html` (antes do SPA) quando o Nginx ainda não tem o 302; link de reserva na tela intermediária
