@@ -192,18 +192,32 @@ def test_vincular_exige_editar_empresa_e_confirma_substituicao(client, auth_head
     pdv = (
         client.get(f"/v1/empresas/{base['empresa'].id}/pdvs", headers=auth_headers["admin"]).json()["items"]
     )
-    alvo = next(item for item in pdv if item["codigo"] == "004")
+    anydesk = next(item for item in pdv if item["codigo"] == "004")
+    acrescenta = client.post(
+        "/v1/rustdesk/peers/555000555/vincular",
+        headers=auth_headers["admin"],
+        json={"pdv_id": anydesk["id"]},
+    )
+    assert acrescenta.status_code == 200, acrescenta.text
+    assert acrescenta.json()["acesso_remoto_id"] == "555000555"
+    detalhe = client.get(f"/v1/empresas/{base['empresa'].id}/pdvs", headers=auth_headers["admin"]).json()
+    pdv004 = next(item for item in detalhe["items"] if item["codigo"] == "004")
+    ids = {a["acesso_remoto_id"] for a in pdv004["acessos"]}
+    assert "888" in ids
+    assert "555000555" in ids
+
+    rust = next(item for item in pdv if item["codigo"] == "001")
     conflito = client.post(
         "/v1/rustdesk/peers/555000555/vincular",
         headers=auth_headers["admin"],
-        json={"pdv_id": alvo["id"]},
+        json={"pdv_id": rust["id"]},
     )
     assert conflito.status_code == 409, conflito.text
 
     ok = client.post(
         "/v1/rustdesk/peers/555000555/vincular",
         headers=auth_headers["admin"],
-        json={"pdv_id": alvo["id"], "confirmar_substituicao": True},
+        json={"pdv_id": rust["id"], "confirmar_substituicao": True},
     )
     assert ok.status_code == 200, ok.text
     assert ok.json()["acesso_remoto_id"] == "555000555"

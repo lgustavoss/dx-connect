@@ -64,8 +64,21 @@ export async function senhaDoPdv(
   pdvId: number,
   toast: ToastMin,
 ): Promise<{ senha: string | null; avisou: boolean }> {
+  return senhaDoAcesso(empresaId, pdvId, null, toast)
+}
+
+/** Tenta a senha de um acesso remoto; 404 = sem senha cadastrada (não avisa). */
+export async function senhaDoAcesso(
+  empresaId: number,
+  pdvId: number,
+  acessoId: number | null,
+  toast: ToastMin,
+): Promise<{ senha: string | null; avisou: boolean }> {
   try {
-    const credencial = await empresaPdvs.revelarCredencial(empresaId, pdvId)
+    const credencial =
+      acessoId != null
+        ? await empresaPdvs.revelarCredencialAcesso(empresaId, pdvId, acessoId)
+        : await empresaPdvs.revelarCredencial(empresaId, pdvId)
     return { senha: credencial.acesso_remoto_senha?.trim() || null, avisou: false }
   } catch (err) {
     if (!(err instanceof ApiError) || err.status !== 404) {

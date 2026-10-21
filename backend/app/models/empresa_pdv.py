@@ -29,6 +29,7 @@ class PdvTipoAcessoRemoto(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     pdvs = relationship("EmpresaPdv", back_populates="tipo_acesso_remoto")
+    acessos_pdv = relationship("EmpresaPdvAcessoRemoto", back_populates="tipo_acesso_remoto")
 
 
 class EmpresaPdv(Base):
@@ -52,3 +53,25 @@ class EmpresaPdv(Base):
     empresa = relationship("Empresa", back_populates="pdvs")
     rotulo = relationship("PdvRotulo", back_populates="pdvs")
     tipo_acesso_remoto = relationship("PdvTipoAcessoRemoto", back_populates="pdvs")
+    acessos_remotos = relationship(
+        "EmpresaPdvAcessoRemoto",
+        back_populates="pdv",
+        cascade="all, delete-orphan",
+        order_by="EmpresaPdvAcessoRemoto.ordem_exibicao",
+    )
+
+
+class EmpresaPdvAcessoRemoto(Base):
+    __tablename__ = "empresa_pdv_acessos_remotos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    pdv_id = Column(Integer, ForeignKey("empresa_pdvs.id", ondelete="CASCADE"), nullable=False, index=True)
+    tipo_acesso_remoto_id = Column(Integer, ForeignKey("pdv_tipos_acesso_remoto.id"), nullable=True)
+    acesso_remoto_id = Column(String(255), nullable=True)
+    acesso_remoto_senha_cifrada = Column(Text, nullable=True)
+    ordem_exibicao = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    pdv = relationship("EmpresaPdv", back_populates="acessos_remotos")
+    tipo_acesso_remoto = relationship("PdvTipoAcessoRemoto", back_populates="acessos_pdv")

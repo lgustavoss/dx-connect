@@ -73,6 +73,7 @@ export function EmpresaDetalhe() {
   const [acessoIndisponivel, setAcessoIndisponivel] = useState(false)
   const marcarAcessoIndisponivel = useCallback(() => setAcessoIndisponivel(true), [])
   const [aba, setAba] = useState<Aba>('geral')
+  const [pdvFormAberto, setPdvFormAberto] = useState(false)
 
   useEffect(() => {
     const q = searchParams.get('aba')
@@ -341,8 +342,8 @@ export function EmpresaDetalhe() {
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
-            {podeEditarEmpresa ? <Button onClick={abrirEdicao}>Editar</Button> : null}
-            {podeExcluirEmpresa ? (
+            {podeEditarEmpresa && !pdvFormAberto ? <Button onClick={abrirEdicao}>Editar</Button> : null}
+            {podeExcluirEmpresa && !pdvFormAberto ? (
               <Button variant="danger" onClick={handleExcluir}>
                 Excluir
               </Button>
@@ -547,8 +548,14 @@ export function EmpresaDetalhe() {
       )}
 
       {abaVisivel === 'pdvs' && (
-        <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7">
-          <EmpresaPdvsPanel empresaId={empresa.id} />
+        <section
+          className={
+            pdvFormAberto
+              ? ''
+              : 'rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm dark:border-slate-800/80 dark:bg-slate-900/70 dark:shadow-none sm:p-7'
+          }
+        >
+          <EmpresaPdvsPanel empresaId={empresa.id} onFormAberto={setPdvFormAberto} />
         </section>
       )}
     </div>

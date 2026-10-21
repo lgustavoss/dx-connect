@@ -4271,6 +4271,8 @@ export const empresaPdvs = {
     api<EmpresaPdv.Item>(`/empresas/${empresaId}/pdvs/${pdvId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   revelarCredencial: (empresaId: number, pdvId: number) =>
     api<EmpresaPdv.Credencial>(`/empresas/${empresaId}/pdvs/${pdvId}/credencial`),
+  revelarCredencialAcesso: (empresaId: number, pdvId: number, acessoId: number) =>
+    api<EmpresaPdv.Credencial>(`/empresas/${empresaId}/pdvs/${pdvId}/acessos/${acessoId}/credencial`),
 };
 
 export const rustdeskPeers = {
@@ -4380,6 +4382,22 @@ export namespace EmpresaPdv {
     total: number
     empresa_nome: string
   }
+  export interface Acesso {
+    id: number
+    tipo_acesso_remoto_id?: number | null
+    tipo_acesso_remoto_nome?: string | null
+    acesso_remoto_id?: string | null
+    tem_senha_remota: boolean
+    pode_conectar: boolean
+    rustdesk_visto?: boolean
+    rustdesk_online?: boolean | null
+  }
+  export interface AcessoWrite {
+    id?: number | null
+    tipo_acesso_remoto_id?: number | null
+    acesso_remoto_id?: string | null
+    acesso_remoto_senha?: string | null
+  }
   export interface Item {
     id: number;
     empresa_id: number;
@@ -4396,6 +4414,7 @@ export namespace EmpresaPdv {
     tem_senha_remota: boolean;
     rustdesk_visto?: boolean;
     rustdesk_online?: boolean | null;
+    acessos?: Acesso[];
     created_at?: string | null;
     updated_at?: string | null;
   }
@@ -4409,6 +4428,7 @@ export namespace EmpresaPdv {
     acesso_remoto_senha?: string | null;
     observacoes?: string | null;
     ativo?: boolean;
+    acessos?: AcessoWrite[];
   }
   export interface Update {
     codigo?: string;
@@ -4420,6 +4440,7 @@ export namespace EmpresaPdv {
     acesso_remoto_senha?: string | null;
     observacoes?: string | null;
     ativo?: boolean;
+    acessos?: AcessoWrite[];
   }
   export interface Credencial {
     acesso_remoto_senha: string;
