@@ -21,10 +21,12 @@ Há **duas** versões envolvidas:
 
 | O quê | Onde | Muda quando |
 |-------|------|-------------|
-| **Versão DeskRudder** (`CLIENT_VERSION`, ex.: `1.0.0`) | Aparece no app, na instalação e no aviso de update | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION` e gera um build novo |
-| **Tag RustDesk** (ex.: `1.5.0`) | Base do código open-source no workflow | Só quando escolhemos uma tag mais nova do upstream no Actions |
+| **Versão DeskRudder** (`CLIENT_VERSION`, ex.: `1.0.6`) | UI («Versão …»), instalação e aviso de update (`DESKRUDDER_CLIENT_VERSION`) | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION` e gera um build novo |
+| **Tag RustDesk** (ex.: `1.5.0`) | `Cargo.toml` → `crate::VERSION` anunciada ao peer (protocolo / modo de teclado) | Só quando escolhemos uma tag mais nova do upstream no Actions |
 
 A tag `1.5.0` **não sobe sozinha** a cada build — é a base do RustDesk. O que o posto precisa olhar é a **versão DeskRudder**.
+
+Importante: **não** gravar `CLIENT_VERSION` no `Cargo.toml` principal. Se o peer anunciar `1.0.x` (abaixo de 1.2.0), o modo mapa de teclado some e atalhos do PDV (ex. tecla **D**) deixam de funcionar.
 
 Canal de atualização: o Release publica `version.json`; o cliente compara e mostra o banner **Atualização disponível**.
 
