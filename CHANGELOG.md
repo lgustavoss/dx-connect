@@ -27,6 +27,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
+- Catálogos (#S202610-0016): não dá para desativar item ainda em uso — rótulo e tipo de acesso de PDV, tipo de negócio (só empresa ativa), natureza (motivo ativo, ou ticket/chat em aberto) e motivo de ticket (só em aberto; encerrados não travam), e estágio do funil (lead ou negociação em aberto; perdidos não travam). A tela avisa o que ainda está vinculado
 - Tickets (#S202610-0013): ao abrir um chamado de coordenação de rede, o sistema cria um ticket filho para cada empresa ativa (até 100 por vez; o restante no detalhe do chamado)
 - Acesso remoto do atendente: o app deixa de mostrar ID/senha deste PC e não entra mais na frota como computador sem vínculo (versão 1.0.6). Quem já apareceu fica offline — dá para excluir na tela Acesso remoto
 - Acesso remoto: conectar no painel abre o **DeskRudder Acesso Remoto**, e não o RustDesk oficial

@@ -375,6 +375,11 @@ export function ConfigPdvCatalogos({ embedded = false }: { embedded?: boolean })
                 checked={form.ativo ?? true}
                 onCheckedChange={(ativo) => setForm((f) => ({ ...f, ativo }))}
                 label="Ativo"
+                description={
+                  aba === 'rotulos'
+                    ? 'Não dá para desativar se algum PDV ainda usa este rótulo.'
+                    : 'Não dá para desativar se algum PDV ainda usa este tipo de acesso.'
+                }
                 showStatusPill
               />
               <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
