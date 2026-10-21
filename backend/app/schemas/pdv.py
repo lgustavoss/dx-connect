@@ -43,6 +43,25 @@ class PdvTipoAcessoRemotoRead(PdvCatalogoBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class EmpresaPdvAcessoWrite(BaseModel):
+    id: int | None = None
+    tipo_acesso_remoto_id: int | None = None
+    acesso_remoto_id: str | None = Field(default=None, max_length=255)
+    acesso_remoto_senha: str | None = Field(default=None, max_length=500)
+
+
+class EmpresaPdvAcessoRead(BaseModel):
+    id: int
+    tipo_acesso_remoto_id: int | None = None
+    tipo_acesso_remoto_nome: str | None = None
+    acesso_remoto_id: str | None = None
+    tem_senha_remota: bool = False
+    pode_conectar: bool = False
+    rustdesk_visto: bool = False
+    rustdesk_online: bool | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+
 class EmpresaPdvBase(BaseModel):
     codigo: str = Field(min_length=1, max_length=32)
     rotulo_id: int
@@ -56,6 +75,7 @@ class EmpresaPdvBase(BaseModel):
 
 class EmpresaPdvCreate(EmpresaPdvBase):
     acesso_remoto_senha: str | None = Field(default=None, max_length=500)
+    acessos: list[EmpresaPdvAcessoWrite] | None = None
 
 
 class EmpresaPdvUpdate(BaseModel):
@@ -68,6 +88,7 @@ class EmpresaPdvUpdate(BaseModel):
     acesso_remoto_senha: str | None = Field(default=None, max_length=500)
     observacoes: str | None = None
     ativo: bool | None = None
+    acessos: list[EmpresaPdvAcessoWrite] | None = None
 
 
 class EmpresaPdvRead(EmpresaPdvBase):
@@ -78,6 +99,7 @@ class EmpresaPdvRead(EmpresaPdvBase):
     tem_senha_remota: bool = False
     rustdesk_visto: bool = False
     rustdesk_online: bool | None = None
+    acessos: list[EmpresaPdvAcessoRead] = []
     created_at: datetime | None = None
     updated_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)

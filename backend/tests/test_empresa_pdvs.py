@@ -230,3 +230,92 @@ def test_api_atualizar_codigo_pdv(client, auth_headers, seed_base, pdv_catalogo)
     )
     assert conflito.status_code == 400
     assert "código" in conflito.json()["detail"].lower()
+
+
+def test_criar_pdv_varios_acessos_e_conectar_so_deskrudder(client, auth_headers, seed_base, pdv_catalogo, db_session):
+    from app.models.empresa_pdv import PdvTipoAcessoRemoto
+
+    desk = PdvTipoAcessoRemoto(nome="DeskRudder", ativo=True, ordem_exibicao=2)
+    db_session.add(desk)
+    db_session.commit()
+    emp = seed_base["empresa"]
+    r = client.post(
+        f"/v1/empresas/{emp.id}/pdvs",
+        headers=auth_headers["admin"],
+        json={
+            "codigo": "020",
+            "rotulo_id": pdv_catalogo["rotulo"].id,
+            "papel": "principal",
+            "acessos": [
+                {
+                    "tipo_acesso_remoto_id": pdv_catalogo["tipo"].id,
+                    "acesso_remoto_id": "any-111",
+                    "acesso_remoto_senha": "senha-any",
+                },
+                {
+                    "tipo_acesso_remoto_id": desk.id,
+                    "acesso_remoto_id": "123456789",
+                    "acesso_remoto_senha": "senha-desk",
+                },
+            ],
+        },
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert len(body["acessos"]) == 2
+    anydesk = next(a for a in body["acessos"] if a["acesso_remoto_id"] == "any-111")
+    deskr = next(a for a in body["acessos"] if a["acesso_remoto_id"] == "123456789")
+    assert anydesk["pode_conectar"] is False
+    assert deskr["pode_conectar"] is True
+    assert body["acesso_remoto_id"] == "123456789"
+    assert body["tipo_acesso_remoto_nome"] == "DeskRudder"
+
+    cred_any = client.get(
+        f"/v1/empresas/{emp.id}/pdvs/{body['id']}/acessos/{anydesk['id']}/credencial",
+        headers=auth_headers["admin"],
+    )
+    assert cred_any.status_code == 200
+    assert cred_any.json()["acesso_remoto_senha"] == "senha-any"
+
+    cred_desk = client.get(
+        f"/v1/empresas/{emp.id}/pdvs/{body['id']}/acessos/{deskr['id']}/credencial",
+        headers=auth_headers["admin"],
+    )
+    assert cred_desk.status_code == 200
+    assert cred_desk.json()["acesso_remoto_senha"] == "senha-desk"
+
+
+def test_criar_pdv_legado_vira_filho(client, auth_headers, seed_base, pdv_catalogo):
+    emp = seed_base["empresa"]
+    r = client.post(
+        f"/v1/empresas/{emp.id}/pdvs",
+        headers=auth_headers["admin"],
+        json={
+            "codigo": "021",
+            "rotulo_id": pdv_catalogo["rotulo"].id,
+            "papel": "principal",
+            "tipo_acesso_remoto_id": pdv_catalogo["tipo"].id,
+            "acesso_remoto_id": "999888",
+            "acesso_remoto_senha": "x",
+        },
+    )
+    assert r.status_code == 201, r.text
+    assert len(r.json()["acessos"]) == 1
+    assert r.json()["acessos"][0]["pode_conectar"] is False
+    assert r.json()["acessos"][0]["acesso_remoto_id"] == "999888"
+
+
+def test_atendente_nao_edita_pdv(client, auth_headers, seed_base, pdv_catalogo):
+    emp = seed_base["empresa"]
+    criado = client.post(
+        f"/v1/empresas/{emp.id}/pdvs",
+        headers=auth_headers["admin"],
+        json={"codigo": "022", "rotulo_id": pdv_catalogo["rotulo"].id, "papel": "principal"},
+    )
+    assert criado.status_code == 201
+    r = client.patch(
+        f"/v1/empresas/{emp.id}/pdvs/{criado.json()['id']}",
+        headers=auth_headers["a1"],
+        json={"observacoes": "não deveria"},
+    )
+    assert r.status_code == 403
