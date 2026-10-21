@@ -14,3 +14,17 @@ export function urlDownloadInstaladorNaInstancia(): string {
   }
   return `${window.location.origin}${RUSTDESK_WINDOWS_INSTALLER_PATH}`
 }
+
+/**
+ * Dispara o download sem navegar o SPA (evita a tela «Baixando o instalador…»).
+ * O link curto `/acesso-remoto/download` continua para enviar ao posto.
+ */
+export function iniciarDownloadInstaladorWindows(): void {
+  const a = document.createElement('a')
+  a.href = RUSTDESK_WINDOWS_INSTALLER_URL
+  a.rel = 'noopener'
+  a.target = '_blank'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+}

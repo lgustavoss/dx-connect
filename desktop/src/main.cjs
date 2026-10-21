@@ -8,9 +8,10 @@ const APEX = 'deskrudder.com.br'
 const ARG_OCULTO = '--oculto'
 const SLUG_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/
 const SLUGS_RESERVADOS = new Set(['www', 'api', 'mail', 'ftp', 'cdn', 'static', 'app', 'admin', 'status', 'portal'])
-const ICONE = path.join(__dirname, '..', 'build', 'icon.png')
+const ICONE_PNG = path.join(__dirname, '..', 'build', 'icon.png')
 const CONTA_HTML = path.join(__dirname, 'conta.html')
 const UA_DESKTOP = ' DeskRudderDesktop/1'
+const PREFS_INSTALADOR = 'installer-prefs.json'
 
 // Alerta da fila (alerta.mp3 em loop) precisa tocar com a janela escondida na bandeja.
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
@@ -26,6 +27,18 @@ let janela = null
 let bandeja = null
 let saindo = false
 let ultimaContagem = 0
+/** Fechar a janela esconde na bandeja (true) ou encerra o app (false). */
+let alertasNaBandeja = true
+
+/** Ícone do .exe empacotado (barra de tarefas) com fallback para PNG. */
+function carregarIconeApp() {
+  if (app.isPackaged) {
+    const doExe = nativeImage.createFromPath(process.execPath)
+    if (!doExe.isEmpty()) return doExe
+  }
+  const png = nativeImage.createFromPath(ICONE_PNG)
+  return png.isEmpty() ? nativeImage.createEmpty() : png
+}
 
 // ── Configuração persistida (userData/config.json) ──────────────────────────
 
@@ -33,7 +46,53 @@ function caminhoConfig() {
   return path.join(app.getPath('userData'), 'config.json')
 }
 
-/** @returns {{ slug?: string, autostartPerguntado?: boolean, avisoBandejaMostrado?: boolean }} */
+/**
+ * Prefs gravadas pelo Setup NSIS (ao lado do .exe).
+ * @returns {{ iniciarComWindows?: boolean, alertasNaBandeja?: boolean } | null}
+ */
+function lerPrefsInstalador() {
+  const candidatos = []
+  if (app.isPackaged) {
+    candidatos.push(path.join(path.dirname(process.execPath), PREFS_INSTALADOR))
+    candidatos.push(path.join(process.resourcesPath, PREFS_INSTALADOR))
+  } else {
+    candidatos.push(path.join(__dirname, '..', PREFS_INSTALADOR))
+  }
+  for (const p of candidatos) {
+    try {
+      if (!fs.existsSync(p)) continue
+      return JSON.parse(fs.readFileSync(p, 'utf8'))
+    } catch {
+      /* tenta o próximo */
+    }
+  }
+  return null
+}
+
+/**
+ * Aplica prefs do Setup uma vez (autostart + modo bandeja).
+ * @returns {boolean} true se havia prefs do instalador
+ */
+function aplicarPrefsInstaladorSeNecessario() {
+  const cfg = lerConfig()
+  if (cfg.prefsInstaladorAplicadas) {
+    if (typeof cfg.alertasNaBandeja === 'boolean') alertasNaBandeja = cfg.alertasNaBandeja
+    return true
+  }
+  const prefs = lerPrefsInstalador()
+  if (!prefs) return false
+  const iniciar = prefs.iniciarComWindows !== false
+  alertasNaBandeja = prefs.alertasNaBandeja !== false
+  if (app.isPackaged) definirAutostart(iniciar)
+  salvarConfig({
+    prefsInstaladorAplicadas: true,
+    autostartPerguntado: true,
+    alertasNaBandeja,
+  })
+  return true
+}
+
+/** @returns {{ slug?: string, autostartPerguntado?: boolean, avisoBandejaMostrado?: boolean, alertasNaBandeja?: boolean, prefsInstaladorAplicadas?: boolean }} */
 function lerConfig() {
   try {
     return JSON.parse(fs.readFileSync(caminhoConfig(), 'utf8'))
@@ -241,6 +300,7 @@ function atualizarContagem(titulo) {
 }
 
 function criarJanela(iniciarOculto) {
+  const icone = carregarIconeApp()
   janela = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -248,9 +308,9 @@ function criarJanela(iniciarOculto) {
     minHeight: 560,
     show: false,
     title: 'DeskRudder',
-    icon: ICONE,
+    icon: icone.isEmpty() ? undefined : icone,
     backgroundColor: '#0b1220',
-    autoHideMenuBar: true,
+    autoHideMenuBar: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -261,7 +321,7 @@ function criarJanela(iniciarOculto) {
       spellcheck: true,
     },
   })
-  janela.removeMenu()
+  montarMenuJanela()
 
   janela.once('ready-to-show', () => {
     if (!iniciarOculto) janela?.show()
@@ -269,6 +329,10 @@ function criarJanela(iniciarOculto) {
 
   janela.on('close', (e) => {
     if (saindo) return
+    if (!alertasNaBandeja) {
+      saindo = true
+      return
+    }
     e.preventDefault()
     janela?.hide()
     avisarQueContinuaNaBandeja()
@@ -345,23 +409,87 @@ function definirAutostart(ativo) {
   app.setLoginItemSettings({ openAtLogin: ativo, args: [ARG_OCULTO] })
 }
 
+function sincronizarMenus() {
+  montarMenuBandeja()
+  montarMenuJanela()
+}
+
+function itemIniciarComWindows() {
+  return {
+    label: 'Iniciar com o Windows',
+    type: 'checkbox',
+    checked: autostartAtivo(),
+    enabled: app.isPackaged,
+    click: (item) => {
+      definirAutostart(item.checked)
+      salvarConfig({ autostartPerguntado: true })
+      sincronizarMenus()
+    },
+  }
+}
+
+function itemAlertasNaBandeja() {
+  return {
+    label: 'Manter na bandeja e alertar com o painel fechado',
+    type: 'checkbox',
+    checked: alertasNaBandeja,
+    click: (item) => definirAlertasNaBandeja(item.checked),
+  }
+}
+
+function definirAlertasNaBandeja(ativo) {
+  alertasNaBandeja = Boolean(ativo)
+  salvarConfig({ alertasNaBandeja })
+  if (alertasNaBandeja) {
+    criarBandeja()
+  } else {
+    destruirBandeja()
+    mostrarJanela()
+  }
+  sincronizarMenus()
+}
+
+function montarMenuJanela() {
+  if (!janela) return
+  janela.setMenu(
+    Menu.buildFromTemplate([
+      {
+        label: 'DeskRudder',
+        submenu: [
+          itemIniciarComWindows(),
+          itemAlertasNaBandeja(),
+          { type: 'separator' },
+          {
+            label: 'Recarregar painel',
+            click: async () => {
+              await limparCacheDoPainel()
+              janela?.webContents.reloadIgnoringCache()
+            },
+          },
+          { label: 'Trocar empresa…', click: () => void trocarEmpresa() },
+          { type: 'separator' },
+          {
+            label: 'Sair',
+            click: () => {
+              saindo = true
+              app.quit()
+            },
+          },
+        ],
+      },
+    ]),
+  )
+}
+
 function montarMenuBandeja() {
   if (!bandeja) return
   bandeja.setContextMenu(
     Menu.buildFromTemplate([
       { label: 'Abrir DeskRudder', click: mostrarJanela },
       { type: 'separator' },
-      {
-        label: 'Iniciar com o Windows',
-        type: 'checkbox',
-        checked: autostartAtivo(),
-        enabled: app.isPackaged,
-        click: (item) => {
-          definirAutostart(item.checked)
-          salvarConfig({ autostartPerguntado: true })
-          montarMenuBandeja()
-        },
-      },
+      itemIniciarComWindows(),
+      itemAlertasNaBandeja(),
+      { type: 'separator' },
       {
         label: 'Recarregar painel',
         click: async () => {
@@ -382,8 +510,17 @@ function montarMenuBandeja() {
   )
 }
 
+function destruirBandeja() {
+  if (!bandeja) return
+  bandeja.destroy()
+  bandeja = null
+}
+
 function criarBandeja() {
-  const img = nativeImage.createFromPath(ICONE).resize({ width: 32, height: 32 })
+  if (bandeja) return
+  let img = carregarIconeApp()
+  if (img.isEmpty()) img = nativeImage.createFromPath(ICONE_PNG)
+  if (!img.isEmpty()) img = img.resize({ width: 32, height: 32 })
   bandeja = new Tray(img)
   bandeja.setToolTip('DeskRudder')
   bandeja.on('click', mostrarJanela)
@@ -416,11 +553,11 @@ async function perguntarAutostartSeNecessario() {
     cancelId: 1,
     title: 'DeskRudder',
     message: 'Abrir o DeskRudder ao iniciar o computador?',
-    detail: 'Assim você recebe os alertas da fila sem precisar abrir o app. Dá para mudar depois no ícone da bandeja.',
+    detail: 'Assim você recebe os alertas da fila sem precisar abrir o app. Dá para mudar depois no menu DeskRudder.',
   })
   definirAutostart(response === 0)
   salvarConfig({ autostartPerguntado: true })
-  montarMenuBandeja()
+  sincronizarMenus()
 }
 
 // ── Ciclo de vida ───────────────────────────────────────────────────────────
@@ -439,10 +576,14 @@ app.whenReady().then(() => {
   if (!ua.includes('DeskRudderDesktop')) {
     sess.setUserAgent(`${ua}${UA_DESKTOP}`)
   }
-  const iniciarOculto = process.argv.includes(ARG_OCULTO)
-  criarBandeja()
+  const tinhaPrefsSetup = aplicarPrefsInstaladorSeNecessario()
+  if (!tinhaPrefsSetup && typeof lerConfig().alertasNaBandeja === 'boolean') {
+    alertasNaBandeja = lerConfig().alertasNaBandeja
+  }
+  const iniciarOculto = alertasNaBandeja && process.argv.includes(ARG_OCULTO)
+  if (alertasNaBandeja) criarBandeja()
   criarJanela(iniciarOculto)
-  if (!iniciarOculto) {
+  if (!iniciarOculto && !tinhaPrefsSetup) {
     janela?.webContents.once('did-finish-load', () => void perguntarAutostartSeNecessario())
   }
 })

@@ -5,6 +5,31 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### DeskRudder
+
+#### Melhorias
+
+- Empresas → PDVs: o ícone de computador abre a conexão de acesso remoto (com a senha do cadastro), como na tela Acesso remoto
+- App Windows: o Setup pergunta se deve **iniciar com o Windows** e se deve **manter na bandeja** (alertas com o painel fechado); cria atalho **DeskRudder** na área de trabalho além do Acesso Remoto. Depois dá para ligar ou desligar no menu **DeskRudder** da janela (sem reinstalar)
+
+#### Correções
+
+- Empresas → PDVs: o selo Online/Offline passa a usar o mesmo sinal da tela Acesso remoto (antes podia ficar Offline com o computador ligado)
+- App Windows: ícone na barra de tarefas deixa de aparecer todo branco (ICO com vários tamanhos no Setup)
+- Acesso remoto: no painel, **Baixar instalador Windows** inicia o download sem abrir a tela intermediária «Baixando o instalador…» (o link curto para o posto continua igual)
+- App Windows: em Sobre (e no login), **Baixar app Windows** inicia o download sem sair da tela (o link `/app/download` continua para compartilhar)
+- Links `/app/download` e `/acesso-remoto/download`: o download do `.exe` inicia de imediato (sem ficar parado na tela «Baixando…»)
+- Actions: **Acesso Remoto Cliente**, **Acesso Remoto Atendente** e **App Atendente Setup** (Setup rápido reaproveita o Release do remoto)
+- Acesso remoto: logo e ícones do instalador Windows regenerados a partir da arte oficial sem fundo (versão 1.0.2)
+- Acesso remoto: arte oficial PNG com transparência real — mesma marca no instalador do posto e no do atendente (versão 1.0.3)
+- Acesso remoto: logo do painel host sem quadrado cinza — fundo transparente no tema escuro e no claro (versão 1.0.4)
+- Acesso remoto: janela inicial maior (botão Instalar visível) e logo central que acompanha o tamanho da janela (versão 1.0.5)
+
+#### Interno
+
+- App Atendente Setup: `electron-builder` no CI usa `--publish never` (Release via `gh`); evita falha «Cannot detect repository»
+- Download `/app/download` e `/acesso-remoto/download`: redirect imediato no `index.html` (antes do SPA) quando o Nginx ainda não tem o 302; link de reserva na tela intermediária
+
 ## [26.10.005] - 2026-10-20
 
 ### DeskRudder

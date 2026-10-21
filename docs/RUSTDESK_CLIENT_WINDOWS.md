@@ -1,18 +1,19 @@
 # Cliente Windows DeskRudder (acesso remoto)
 
-Há **dois perfis** de build (mesmo workflow, input `profile`):
+Há **três workflows** no Actions (nomes na UI):
 
-| Perfil | Artefato | Release GitHub | Uso |
-|--------|----------|----------------|-----|
-| **posto** (padrão) | `DeskRudder-AcessoRemoto-*.exe` | `acesso-remoto-windows` | PC do posto — **só recebe** conexão; vínculo a PDV no painel |
-| **controle** | `DeskRudder-AcessoRemoto-Controle-*.exe` | `acesso-remoto-controle-windows` | PC do **atendente** — inicia sessão a partir da frota; embutido no Setup Electron |
+| Workflow | Artefato | Release | Uso |
+|----------|----------|---------|-----|
+| **Acesso Remoto Cliente (Windows)** | `DeskRudder-AcessoRemoto.exe` | `acesso-remoto-windows` | PC do **posto** — só recebe |
+| **Acesso Remoto Atendente (Windows)** | `DeskRudder-AcessoRemoto-Controle.exe` | `acesso-remoto-controle-windows` | Remoto do **atendente** (frota) |
+| **App Atendente Setup (Windows)** | `DeskRudder-Setup.exe` | `desktop-windows` | Painel + embute o remoto atendente já publicado |
 
-**Posto — o que o usuário final recebe:** um único arquivo  
-`DeskRudder-AcessoRemoto-<versão-DeskRudder>.exe`  
-Já tem a marca DeskRudder e o servidor da Duplex (`31.97.160.79` + chave).  
-Não precisa de colar string nem de rodar comandos.
+Assim o Setup do painel fica rápido; o build longo do RustDesk só roda quando o remoto muda.
 
-O perfil **controle** usa o mesmo branding e servidor, **sem** forçar `incoming_only` (UI completa do RustDesk + canal de update próprio). Fluxo oficial do atendente: frota do painel → um clique (senha do cadastro). Máquinas fora do servidor DeskRudder: RustDesk padrão.
+**Cliente — o que o posto recebe:**  
+`DeskRudder-AcessoRemoto-<versão>.exe` com marca DeskRudder e servidor Duplex (`31.97.160.79` + chave).
+
+Cliente e atendente usam o **mesmo** `deploy/rustdesk-client/branding/`. Ao trocar a arte: regenere os ICO/PNG, suba `CLIENT_VERSION` e rode **Acesso Remoto Cliente** e **Acesso Remoto Atendente** para os dois Releases receberem a mesma marca.
 
 ## Versão (importante)
 
@@ -36,12 +37,10 @@ Ao clicar em **Atualizar agora**:
 ## Como obter o `.exe` (equipe)
 
 1. O workflow precisa estar na branch padrão (`main`) — após o merge deste PR, ele aparece em Actions.
-2. No GitHub: **Actions** → workflow **«RustDesk DeskRudder Windows»**
-3. **Run workflow** — tag **`1.5.0`** e **profile** `posto` ou `controle`
-4. Esperar o job (~40–90 min na 1.ª vez)
-5. Em **Artifacts**, baixar `DeskRudder-AcessoRemoto-posto-windows` ou `…-controle-windows`
-6. O workflow publica o Release correspondente (`acesso-remoto-windows` ou `acesso-remoto-controle-windows`) com o `.exe` estável + `version.json`
-7. **Posto:** no painel, tela **Acesso remoto** → **Baixar instalador Windows** / link curto. **Controle:** embutir no Setup do atendente (`desktop/scripts/baixar-remoto-controle.ps1`) — ver [`DESKTOP_ELECTRON.md`](DESKTOP_ELECTRON.md)
+2. No GitHub: **Actions** → escolha o workflow da tabela acima  
+3. **Run workflow** — tag RustDesk **`1.5.0`** (nos builds de remoto)  
+4. Remoto: ~40–90 min na 1.ª vez; Setup Electron: poucos minutos  
+5. **Posto:** `/acesso-remoto/download`. **Atendente:** primeiro «Acesso Remoto Atendente», depois «App Atendente Setup» → `/app/download` — ver [`DESKTOP_ELECTRON.md`](DESKTOP_ELECTRON.md)
 
 URL curta na instância (sem login — Nginx redireciona; o SPA também cobre se o Nginx ainda não tiver a regra):
 
@@ -82,7 +81,8 @@ O instalador é pensado para o PC que **vai ser acessado** (PDV / posto):
 - Pasta de instalação: `C:\Program Files (x86)\DeskRudder\Acesso Remoto` (outros apps DeskRudder podem ficar em pastas irmãs)
 - Link «Desenvolvido por DeskRudder» → https://deskrudder.com.br/
 - Tema escuro segue o Windows (conteúdo + barra de título) se a opção não foi fixada no menu (⋮ → Tema escuro)
-- Logo do painel usa arte em alta resolução (`ui-logo-512.png`)
+- Logo do painel usa arte em alta resolução com fundo transparente (`ui-logo-512.png`) — sem placa opaca no tema escuro nem no claro; tamanho acompanha a janela
+- Janela inicial ~760×720 (antes de instalar) para o botão **Instalar** do cartão UAC ficar visível
 
 ### Senha (uso único × permanente)
 

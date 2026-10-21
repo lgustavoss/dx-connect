@@ -87,9 +87,16 @@ def sidebar() -> Image.Image:
 def main() -> None:
     BUILD.mkdir(exist_ok=True)
     logo_quadrada(512, margem=0.02, origem=LOGO_CONTORNO).save(BUILD / "icon.png")
-    logo_quadrada(256, margem=0.02, origem=LOGO_CONTORNO).save(
+    # ICO multi-tamanho (Windows precisa de 16/32/48 no .exe).
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from gerar_icon_ico import LADOS, escrever_ico  # noqa: E402
+
+    base = Image.open(BUILD / "icon.png").convert("RGBA")
+    escrever_ico(
         BUILD / "icon.ico",
-        sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
+        [base.resize((lado, lado), Image.Resampling.LANCZOS) for lado in LADOS],
     )
     lateral = sidebar()
     lateral.save(BUILD / "installerSidebar.bmp")

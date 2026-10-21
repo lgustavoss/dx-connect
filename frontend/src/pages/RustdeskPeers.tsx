@@ -21,10 +21,12 @@ import { useAuth } from '../contexts/AuthContext'
 import { temPermissao } from '../lib/permissoes'
 import { formatarIdRustdesk } from '../lib/rustdeskId'
 import {
-  RUSTDESK_WINDOWS_INSTALLER_PATH,
+  iniciarDownloadInstaladorWindows,
   urlDownloadInstaladorNaInstancia,
 } from '../lib/rustdeskInstaller'
-import { conectarRemotoPreferindoDesktop, isDeskRudderDesktop } from '../lib/deskrudderDesktop'
+import { conectarAcessoRemoto, senhaDoPdv } from '../lib/acessoRemotoConectar'
+import { isDeskRudderDesktop } from '../lib/deskrudderDesktop'
+import { IconeConectarRemoto } from '../components/IconeConectarRemoto'
 
 const FILTROS: { id: RustdeskFrota.Filtro; rotulo: string }[] = [
   { id: 'todos', rotulo: 'Todos' },
@@ -33,28 +35,6 @@ const FILTROS: { id: RustdeskFrota.Filtro; rotulo: string }[] = [
   { id: 'sem_vinculo', rotulo: 'Sem vínculo' },
   { id: 'vinculado', rotulo: 'Vinculados' },
 ]
-
-function IconeConectar() {
-  return (
-    <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-      <rect x="3" y="4" width="18" height="12" rx="1.5" strokeWidth={2} />
-      <path strokeLinecap="round" strokeWidth={2} d="M8 20h8M12 16v4" />
-    </svg>
-  )
-}
-
-function abrirClienteRustdesk(id: string, senha?: string | null) {
-  const digitos = id.replace(/\s+/g, '')
-  const params = new URLSearchParams()
-  if (senha?.trim()) params.set('password', senha.trim())
-  const consulta = params.toString()
-  const link = document.createElement('a')
-  link.href = `rustdesk://connection/new/${digitos}${consulta ? `?${consulta}` : ''}`
-  link.rel = 'noreferrer'
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-}
 
 function IconeVinculo({ ligado }: { ligado: boolean }) {
   return (
@@ -136,11 +116,14 @@ function PainelDownloadInstalador({ onCopiar }: { onCopiar: (texto: string, suce
             Envie este link para o posto: ao abrir no navegador, o download começa sem entrar no painel.
           </p>
         </div>
-        <a href={RUSTDESK_WINDOWS_INSTALLER_PATH} title="Baixar DeskRudder Acesso Remoto para Windows">
-          <Button type="button" variant="secondary">
-            Baixar instalador Windows
-          </Button>
-        </a>
+        <Button
+          type="button"
+          variant="secondary"
+          title="Baixar DeskRudder Acesso Remoto para Windows"
+          onClick={() => iniciarDownloadInstaladorWindows()}
+        >
+          Baixar instalador Windows
+        </Button>
       </div>
       <CampoConfiguracao rotulo="Link para o posto" valor={linkCurto} onCopiar={onCopiar} />
     </section>
@@ -384,44 +367,14 @@ export function RustdeskPeers() {
     let senha: string | null = null
     let avisou = false
     if (unico) {
-      try {
-        const credencial = await empresaPdvs.revelarCredencial(unico.empresa_id, unico.pdv_id)
-        senha = credencial.acesso_remoto_senha?.trim() || null
-      } catch (err) {
-        if (!(err instanceof ApiError) || err.status !== 404) {
-          toast.showWarning('A senha do cadastro não foi usada. O acesso remoto pode pedi-la.')
-          avisou = true
-        }
-      }
+      const r = await senhaDoPdv(unico.empresa_id, unico.pdv_id, toast)
+      senha = r.senha
+      avisou = r.avisou
     } else if (peer.vinculos.length > 1) {
       toast.showWarning('Este ID está em mais de um PDV. A senha não foi preenchida.')
       avisou = true
     }
-    const viaDesktop = await conectarRemotoPreferindoDesktop(peer.rustdesk_id, senha)
-    if (viaDesktop) {
-      if (!viaDesktop.ok) {
-        toast.showWarning(viaDesktop.erro || 'Não foi possível abrir o acesso remoto neste computador.')
-        return
-      }
-      if (viaDesktop.modo === 'protocolo' || viaDesktop.modo === 'protocolo-fallback') {
-        const status = await window.deskrudderDesktop?.remotoStatus()
-        if (status && !status.instalado) {
-          toast.showWarning(
-            'O DeskRudder Acesso Remoto não está instalado neste PC. Reinstale o app DeskRudder (Baixar app Windows em Sobre) ou peça o instalador de controle à equipe.',
-          )
-          return
-        }
-      }
-    } else {
-      abrirClienteRustdesk(peer.rustdesk_id, senha)
-    }
-    if (!avisou) {
-      toast.showSuccess(
-        senha
-          ? 'Acesso remoto aberto com o ID e a senha do cadastro (janela DeskRudder - Acesso Remoto).'
-          : 'Acesso remoto aberto com este ID (janela DeskRudder - Acesso Remoto).',
-      )
-    }
+    await conectarAcessoRemoto(peer.rustdesk_id, senha, toast, avisou)
   }
 
   function pedirDesvincular(rustdeskId: string, v: RustdeskFrota.Vinculo) {
@@ -581,7 +534,7 @@ export function RustdeskPeers() {
                     <td className="px-4 py-3 text-right">
                       <div className="inline-flex items-center justify-end gap-0.5">
                         <BotaoIcone title="Conectar" onClick={() => void conectar(peer)}>
-                          <IconeConectar />
+                          <IconeConectarRemoto />
                         </BotaoIcone>
                         {podeVincular ? (
                           <>
