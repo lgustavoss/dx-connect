@@ -9,8 +9,8 @@ from app.core.audit import registrar_audit
 from app.core.ordenacao_lista import OrdemLista, expr_ordem
 from app.database import get_db
 from app.models.atendente import Atendente
-from app.models.ticket import Ticket
 from app.models.ticket_classificacao import TicketMotivo, TicketNatureza
+from app.services.catalogo_vinculos import garantir_motivo_pode_desativar, garantir_natureza_pode_desativar
 from app.schemas.lista_paginada import ListaPaginada
 from app.schemas.ticket_classificacao import (
     TicketMotivoCreate,
@@ -114,6 +114,11 @@ def atualizar_natureza(
         )
         if dup:
             raise HTTPException(status_code=400, detail="Slug de natureza já existe.")
+    if payload.get("ativo") is False and row.ativo:
+        try:
+            garantir_natureza_pode_desativar(db, natureza_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     for k, v in payload.items():
         setattr(row, k, v)
     registrar_audit(db, "ticket_natureza", row.id, "update", atendente.id)
@@ -219,10 +224,11 @@ def atualizar_motivo(
         )
         if dup:
             raise HTTPException(status_code=400, detail="Slug de motivo já existe nesta natureza.")
-    if payload.get("ativo") is False:
-        em_uso = db.query(Ticket.id).filter(Ticket.motivo_id == motivo_id).first()
-        if em_uso:
-            pass  # permitir desativar mesmo em uso — leitura histórica mantida
+    if payload.get("ativo") is False and row.ativo:
+        try:
+            garantir_motivo_pode_desativar(db, motivo_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     for k, v in payload.items():
         setattr(row, k, v)
     registrar_audit(db, "ticket_motivo", row.id, "update", atendente.id)

@@ -255,7 +255,7 @@ export function ConfigCrmFunil({ embedded = false }: { embedded?: boolean }) {
                 checked={form.ativo}
                 onCheckedChange={(ativo) => setForm((p) => ({ ...p, ativo }))}
                 label="Estágio ativo"
-                description="Inativos deixam de aparecer no funil e no Kanban."
+                description="Não dá para desativar se algum lead ou negociação ainda em aberto está neste estágio. Perdidos não impedem."
                 showStatusPill
                 statusOnText="Ativo"
                 statusOffText="Inativo"

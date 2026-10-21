@@ -520,6 +520,11 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
               />
               <Switch
                 label="Ativo"
+                description={
+                  aba === 'naturezas'
+                    ? 'Não dá para desativar se houver motivo ativo, ou ticket ou chat ainda em aberto. Encerrados não impedem.'
+                    : 'Não dá para desativar se algum ticket ou chat ainda em aberto usa este motivo. Encerrados não impedem.'
+                }
                 checked={aba === 'naturezas' ? formNatureza.ativo ?? true : formMotivo.ativo ?? true}
                 onCheckedChange={(ativo) =>
                   aba === 'naturezas'
