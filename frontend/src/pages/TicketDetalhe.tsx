@@ -2231,7 +2231,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
                       Abrir filhos em massa (por empresa da rede)
                     </p>
                     <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                      Cria um ticket filho para cada empresa selecionada — útil para rollouts ou tarefas iguais em toda a rede.
+                      Empresas novas da rede, ou que ficaram de fora na abertura, podem receber um ticket filho aqui.
                     </p>
                     <div className="mt-3">
                       <TicketFilhosMassaPanel

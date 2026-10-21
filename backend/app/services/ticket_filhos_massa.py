@@ -121,6 +121,7 @@ def criar_filhos_em_massa(
             rede_id=empresa.rede_id,
             setor_id=setor_id,
             status_id=status_inicial.id,
+            prioridade=parent.prioridade,
             assunto=assunto.strip(),
             descricao=descricao,
             parent_ticket_id=parent.id,
@@ -143,3 +144,29 @@ def criar_filhos_em_massa(
         )
         criados.append(ticket)
     return criados
+
+
+def criar_filhos_todas_empresas_na_abertura(
+    db: Session,
+    *,
+    parent: Ticket,
+    atendente: Atendente,
+) -> list[Ticket]:
+    """Na abertura de um ticket de coordenação, cria um filho por empresa ativa da rede.
+
+    Redes com mais de MAX_FILHOS_MASSA empresas ativas ficam com o restante pendente:
+    o painel de filhos em massa no detalhe do pai cobre o que não entrou nesta leva.
+    """
+    _, _, opcoes = listar_opcoes_filhos_massa(db, parent)
+    ids = [o.id for o in opcoes if not o.ja_tem_filho][:MAX_FILHOS_MASSA]
+    if not ids:
+        return []
+    return criar_filhos_em_massa(
+        db,
+        parent=parent,
+        atendente=atendente,
+        empresa_ids=ids,
+        assunto=parent.assunto,
+        descricao=parent.descricao,
+        setor_id=parent.setor_id,
+    )
