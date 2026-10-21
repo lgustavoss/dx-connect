@@ -151,6 +151,24 @@ def test_selo_no_pdv(client, auth_headers, base):
     assert por_visto["003"] is False
 
 
+def test_selo_pdv_sincroniza_antes_de_ler_online(client, auth_headers, base, db_session, monkeypatch):
+    """A aba PDVs da empresa usa o mesmo cache atualizado da tela Acesso remoto."""
+    peer = db_session.query(RustdeskPeer).filter_by(rustdesk_id="123456789").one()
+    peer.last_seen = datetime.now(timezone.utc) - timedelta(hours=3)
+    db_session.commit()
+
+    def fake_sync(db, *, forcar=False):
+        row = db.query(RustdeskPeer).filter_by(rustdesk_id="123456789").one()
+        row.last_seen = datetime.now(timezone.utc)
+        db.commit()
+
+    monkeypatch.setattr(svc, "sincronizar", fake_sync)
+    r = client.get(f"/v1/empresas/{base['empresa'].id}/pdvs", headers=auth_headers["admin"])
+    assert r.status_code == 200, r.text
+    por_codigo = {item["codigo"]: item["rustdesk_online"] for item in r.json()["items"]}
+    assert por_codigo["001"] is True
+
+
 def test_vincular_exige_editar_empresa_e_confirma_substituicao(client, auth_headers, seed_base, base):
     grupo = client.post(
         "/v1/permissao-grupos",

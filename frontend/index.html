@@ -5,6 +5,21 @@
     <script>
       (function () {
         try {
+          // Links curtos de download: redirecionar antes do SPA (Nginx 302 é o ideal;
+          // isto cobre instâncias sem a location no Nginx e evita tela «Baixando…» presa).
+          var path = location.pathname.replace(/\/+$/, '') || '/'
+          if (path === '/app/download') {
+            location.replace(
+              'https://github.com/lgustavoss/dx-connect/releases/download/desktop-windows/DeskRudder-Setup.exe',
+            )
+            return
+          }
+          if (path === '/acesso-remoto/download') {
+            location.replace(
+              'https://github.com/lgustavoss/dx-connect/releases/download/acesso-remoto-windows/DeskRudder-AcessoRemoto.exe',
+            )
+            return
+          }
           var legacy = 'dx-connect-theme'
           var k = 'deskrudder-theme'
           var t = localStorage.getItem(k) || localStorage.getItem(legacy)

@@ -1,15 +1,19 @@
 {
   "name": "deskrudder-desktop",
   "productName": "DeskRudder",
-  "version": "1.1.0",
+  "version": "1.1.2",
   "description": "DeskRudder para Windows — painel da instância, bandeja e acesso remoto (controle) embutido",
   "private": true,
   "main": "src/main.cjs",
   "author": "DuplexSoft",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lgustavoss/dx-connect.git"
+  },
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win nsis",
-    "dist:dir": "electron-builder --win dir",
+    "dist": "electron-builder --win nsis --publish never",
+    "dist:dir": "electron-builder --win dir --publish never",
     "baixar-remoto": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/baixar-remoto-controle.ps1",
     "publicar-setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/publicar-setup-release.ps1"
   },
@@ -49,6 +53,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "DeskRudder",
+      "runAfterFinish": true,
       "artifactName": "DeskRudder-Setup-${version}.${ext}",
       "include": "installer-remoto.nsh"
     }
