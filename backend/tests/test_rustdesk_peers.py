@@ -207,7 +207,7 @@ def test_vincular_exige_editar_empresa_e_confirma_substituicao(client, auth_head
     )
     assert ok.status_code == 200, ok.text
     assert ok.json()["acesso_remoto_id"] == "555000555"
-    assert ok.json()["tipo_acesso_remoto_nome"] == "RustDesk"
+    assert ok.json()["tipo_acesso_remoto_nome"] == "DeskRudder"
 
 
 def test_sincronizar_substitui_cache(db_session, monkeypatch):
@@ -334,3 +334,35 @@ def test_desvincular_e_excluir_offline(client, auth_headers, seed_base, base, mo
     assert chamadas == ["999000111"]
     depois = client.get("/v1/rustdesk/peers", headers=auth_headers["admin"]).json()
     assert "999000111" not in {item["rustdesk_id"] for item in depois["items"]}
+
+
+@pytest.mark.parametrize(
+    "nome, esperado",
+    [
+        ("DeskRudder", True),
+        ("DeskRudder Acesso Remoto", True),
+        ("RustDesk", True),
+        ("Acesso remoto", True),
+        ("AnyDesk", False),
+        ("TeamViewer", False),
+        (None, False),
+        ("", False),
+    ],
+)
+def test_nome_tipo_hospedado_reconhece_deskrudder(nome, esperado):
+    assert svc._nome_e_rustdesk(nome) is esperado
+
+
+def test_garantir_tipo_cria_deskrudder(db_session, seed_base):
+    tipo = svc.garantir_tipo_rustdesk(db_session)
+    assert tipo.nome == "DeskRudder"
+    assert tipo.ativo is True
+
+
+def test_garantir_tipo_mantem_nome_longo(db_session, seed_base):
+    existente = PdvTipoAcessoRemoto(nome="DeskRudder Acesso Remoto", ativo=True, ordem_exibicao=0)
+    db_session.add(existente)
+    db_session.flush()
+    tipo = svc.garantir_tipo_rustdesk(db_session)
+    assert tipo.id == existente.id
+    assert tipo.nome == "DeskRudder Acesso Remoto"

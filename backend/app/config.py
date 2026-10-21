@@ -96,7 +96,7 @@ class Settings(BaseSettings):
     # Agente ao lado do hbbs (RustDesk gratuito). Vazio = a tela lista só o cache local.
     RUSTDESK_AGENT_URL: str | None = None
     RUSTDESK_AGENT_TOKEN: str | None = None
-    # Dados públicos que o RustDesk do PDV cola em Configurações, na aba Rede.
+    # Dados públicos que o DeskRudder Acesso Remoto do PDV cola em Configurações, na aba Rede.
     RUSTDESK_ID_SERVER: str | None = None
     RUSTDESK_RELAY_SERVER: str | None = None
     RUSTDESK_PUBLIC_KEY: str | None = None

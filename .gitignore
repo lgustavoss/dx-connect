@@ -35,4 +35,5 @@ backend/.venv/
 
 # MCP Cursor — token e URL local/produção (não commitar)
 .cursor/mcp.json
+.cursor/pr-body-temp.md
 

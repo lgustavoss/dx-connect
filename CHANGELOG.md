@@ -9,6 +9,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Empresas → PDVs: o tipo de acesso remoto da frota passa a se chamar **DeskRudder** (nomes antigos RustDesk / Acesso remoto continuam reconhecidos)
 - Empresas → PDVs: o ícone de computador abre a conexão de acesso remoto (com a senha do cadastro), como na tela Acesso remoto
 - App Windows: o Setup pergunta se deve **iniciar com o Windows** e se deve **manter na bandeja** (alertas com o painel fechado); cria atalho **DeskRudder** na área de trabalho além do Acesso Remoto. Depois dá para ligar ou desligar no menu **DeskRudder** da janela (sem reinstalar)
 - App desktop do atendente: Setup com elevação embute o Acesso Remoto (controle); a frota abre o cliente local com a senha do cadastro; menu **Recarregar painel** limpa cache após deploy
@@ -25,6 +26,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
+- Acesso remoto do atendente: o app deixa de mostrar ID/senha deste PC e não entra mais na frota como computador sem vínculo (versão 1.0.6). Quem já apareceu fica offline — dá para excluir na tela Acesso remoto
+- Acesso remoto: conectar no painel abre o **DeskRudder Acesso Remoto**, e não o RustDesk oficial
 - Empresas → PDVs: o selo Online/Offline passa a usar o mesmo sinal da tela Acesso remoto (antes podia ficar Offline com o computador ligado)
 - App Windows: ícone na barra de tarefas deixa de aparecer todo branco (ICO com vários tamanhos no Setup)
 - Acesso remoto: no painel, **Baixar instalador Windows** inicia o download sem abrir a tela intermediária «Baixando o instalador…» (o link curto para o posto continua igual)

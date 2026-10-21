@@ -66,7 +66,7 @@ Fonte: `deploy/rustdesk-client/server.config.json`
 ## O que o CI faz
 
 1. Clona [rustdesk/rustdesk](https://github.com/rustdesk/rustdesk) (tag escolhida)
-2. Aplica `deploy/rustdesk-client/scripts/apply_branding.py` (nome DeskRudder, host/chave em `RENDEZVOUS_SERVERS` + `PROD_RENDEZVOUS_SERVER`, ícones e PNG do Sciter em `get_icon()`, modo só-recebe, UI com logo e atalho **DeskRudder - Acesso Remoto**)
+2. Aplica `deploy/rustdesk-client/scripts/apply_branding.py` (nome DeskRudder, host/chave em `RENDEZVOUS_SERVERS` + `PROD_RENDEZVOUS_SERVER`, ícones e PNG do Sciter em `get_icon()`, modo só-recebe no posto / só-controla no atendente, UI com logo e atalho **DeskRudder - Acesso Remoto**)
 3. Compila o cliente Windows (UI Sciter), renomeia o binário para `DeskRudder.exe` (necessário para o Windows reconhecer a instalação) e empacota o portable
 4. Publica o artefato `DeskRudder-AcessoRemoto-*.exe` e atualiza o Release `acesso-remoto-windows` (link do painel)
 
@@ -93,6 +93,16 @@ Para acesso estável no posto:
 1. Clique no lápis ao lado da senha
 2. **Definir senha permanente** e escolha uma senha da equipe
 3. Em **Usar senha permanente** (ou «ambas»), o refresh da senha de uso único deixa de impedir o acesso
+
+## Comportamento do cliente (atendente)
+
+O instalador de **controle** (`DeskRudder-AcessoRemoto-Controle.exe`, embutido no Setup do painel) é o PC que **inicia** a sessão:
+
+- Painel para controlar outro computador (ID do posto + Conectar)
+- Sem ID/senha deste PC — o atendente não é acessado e **não se registra** no servidor (`is_outgoing_only`)
+- Por isso o notebook do atendente **não aparece** na frota como computador sem vínculo
+- Quem já se registrou com o build antigo fica offline na frota — exclua na tela Acesso remoto
+- Atalho e pasta iguais ao do posto (`DeskRudder - Acesso Remoto` / `DeskRudder\Acesso Remoto`)
 
 ## Pasta no repo
 

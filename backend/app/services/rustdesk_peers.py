@@ -48,10 +48,33 @@ def normalizar_id_remoto(valor: str | None) -> str | None:
     return compacto.casefold()
 
 
-def _nome_e_rustdesk(nome: str | None) -> bool:
+_NOME_TIPO_HOSPEDADO = "DeskRudder"
+_NOMES_TIPO_ANTIGOS = frozenset({"rustdesk", "acessoremoto"})
+
+
+def _compactar_nome_tipo(nome: str | None) -> str:
     if not nome:
+        return ""
+    return "".join(nome.split()).casefold()
+
+
+def _nome_e_rustdesk(nome: str | None) -> bool:
+    compacto = _compactar_nome_tipo(nome)
+    if not compacto:
         return False
-    return "".join(nome.split()).casefold() in {"rustdesk", "acessoremoto"}
+    return compacto in _NOMES_TIPO_ANTIGOS or compacto.startswith("deskrudder")
+
+
+def _alinhar_nome_tipo_hospedado(row: PdvTipoAcessoRemoto, tipos: list[PdvTipoAcessoRemoto]) -> None:
+    if _compactar_nome_tipo(row.nome) not in _NOMES_TIPO_ANTIGOS:
+        return
+    if any(
+        _compactar_nome_tipo(outro.nome).startswith("deskrudder")
+        for outro in tipos
+        if outro.id != row.id
+    ):
+        return
+    row.nome = _NOME_TIPO_HOSPEDADO
 
 
 def _limite_online() -> timedelta:
@@ -113,7 +136,7 @@ class AgentErro(Exception):
 
 
 def configuracao_cliente() -> dict:
-    """Valores que o RustDesk do PDV cola em Configurações → Rede. A chave é pública."""
+    """Valores que o DeskRudder Acesso Remoto cola em Configurações → Rede. A chave é pública."""
     servidor_id = (settings.RUSTDESK_ID_SERVER or "").strip()
     servidor_relay = (settings.RUSTDESK_RELAY_SERVER or "").strip()
     chave = (settings.RUSTDESK_PUBLIC_KEY or "").strip()
@@ -324,15 +347,23 @@ def listar(db: Session, filtro: str) -> dict:
 
 def garantir_tipo_rustdesk(db: Session) -> PdvTipoAcessoRemoto:
     tipos = db.query(PdvTipoAcessoRemoto).order_by(PdvTipoAcessoRemoto.id.asc()).all()
-    ativo = next((row for row in tipos if row.ativo and _nome_e_rustdesk(row.nome)), None)
+    ativo = next(
+        (row for row in tipos if row.ativo and _compactar_nome_tipo(row.nome).startswith("deskrudder")),
+        None,
+    )
+    if not ativo:
+        ativo = next((row for row in tipos if row.ativo and _nome_e_rustdesk(row.nome)), None)
     if ativo:
+        _alinhar_nome_tipo_hospedado(ativo, tipos)
+        db.flush()
         return ativo
     inativo = next((row for row in tipos if _nome_e_rustdesk(row.nome)), None)
     if inativo:
         inativo.ativo = True
+        _alinhar_nome_tipo_hospedado(inativo, tipos)
         db.flush()
         return inativo
-    criado = PdvTipoAcessoRemoto(nome="Acesso remoto", ativo=True, ordem_exibicao=0)
+    criado = PdvTipoAcessoRemoto(nome=_NOME_TIPO_HOSPEDADO, ativo=True, ordem_exibicao=0)
     db.add(criado)
     db.flush()
     return criado
