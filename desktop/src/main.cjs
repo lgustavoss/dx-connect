@@ -185,7 +185,8 @@ function acharExeRemoto() {
 }
 
 /**
- * Abre sessão remota via URL rustdesk:// (senha na query).
+ * Abre sessão remota via URL deskrudder:// (senha na query).
+ * O instalador DeskRudder registra esse esquema (APP_NAME); rustdesk:// abre o cliente oficial.
  * Com o .exe instalado, passa a URL como argumento (evita flags --connect/--password
  * que diferem entre builds Sciter); senão usa o protocolo registrado no Windows.
  * @returns {{ ok: boolean, modo?: string, erro?: string }}
@@ -199,7 +200,7 @@ function conectarRemoto(id, senha) {
   const params = new URLSearchParams()
   if (senhaLimpa) params.set('password', senhaLimpa)
   const consulta = params.toString()
-  const url = `rustdesk://connection/new/${digitos}${consulta ? `?${consulta}` : ''}`
+  const url = `deskrudder://connection/new/${digitos}${consulta ? `?${consulta}` : ''}`
 
   const exe = acharExeRemoto()
   if (exe) {

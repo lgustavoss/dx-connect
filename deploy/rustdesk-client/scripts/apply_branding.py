@@ -10,7 +10,7 @@ nome do atalho Windows, canal de update (version.json).
 
 Profiles (--profile):
   posto     — incoming-only + UI host (PDV)
-  controle  — atendente (pode iniciar sessao); update no Release controle
+  controle  — atendente outgoing-only (controla outros, sem ID na frota)
 """
 
 from __future__ import annotations
@@ -293,6 +293,30 @@ def patch_incoming_only(config_rs: Path) -> None:
         raise SystemExit(f"is_incoming_only() nao encontrado em {config_rs}")
     config_rs.write_text(text.replace(old, new, 1), encoding="utf-8")
     print("  config.rs: is_incoming_only() -> true (host-only)", flush=True)
+
+
+def patch_outgoing_only(config_rs: Path) -> None:
+    """Forca modo so-controla: este PC inicia sessao e nao se registra no hbbs."""
+    text = config_rs.read_text(encoding="utf-8")
+    old = (
+        "pub fn is_outgoing_only() -> bool {\n"
+        "    HARD_SETTINGS\n"
+        "        .read()\n"
+        "        .unwrap()\n"
+        '        .get("conn-type")\n'
+        '        .map_or(false, |x| x == ("outgoing"))\n'
+        "}"
+    )
+    new = (
+        "pub fn is_outgoing_only() -> bool {\n"
+        "    // DeskRudder Acesso Remoto: build so para controlar outros PCs.\n"
+        "    true\n"
+        "}"
+    )
+    if old not in text:
+        raise SystemExit(f"is_outgoing_only() nao encontrado em {config_rs}")
+    config_rs.write_text(text.replace(old, new, 1), encoding="utf-8")
+    print("  config.rs: is_outgoing_only() -> true (atendente)", flush=True)
 
 
 def _host_logo_data_uri(branding: Path) -> str:
@@ -1121,6 +1145,8 @@ def main() -> int:
     patch_config_rs(cfg_rs, host, key)
     if profile == "posto":
         patch_incoming_only(cfg_rs)
+    elif profile == "controle":
+        patch_outgoing_only(cfg_rs)
     index_tis = src / "src" / "ui" / "index.tis"
     install_tis = src / "src" / "ui" / "install.tis"
     windows_rs = src / "src" / "platform" / "windows.rs"
@@ -1150,8 +1176,18 @@ def main() -> int:
         if "DeskRudder Acesso Remoto: build so para ser acessado" not in body:
             print("Verificacao falhou: is_incoming_only nao patchado.", file=sys.stderr)
             return 1
-    elif "DeskRudder Acesso Remoto: build so para ser acessado" in body:
-        print("Verificacao falhou: profile controle nao deve forcar incoming_only.", file=sys.stderr)
+        if "DeskRudder Acesso Remoto: build so para controlar" in body:
+            print("Verificacao falhou: profile posto nao deve forcar outgoing_only.", file=sys.stderr)
+            return 1
+    elif profile == "controle":
+        if "DeskRudder Acesso Remoto: build so para controlar" not in body:
+            print("Verificacao falhou: is_outgoing_only nao patchado.", file=sys.stderr)
+            return 1
+        if "DeskRudder Acesso Remoto: build so para ser acessado" in body:
+            print("Verificacao falhou: profile controle nao deve forcar incoming_only.", file=sys.stderr)
+            return 1
+    else:
+        print(f"Verificacao falhou: profile desconhecido {profile!r}.", file=sys.stderr)
         return 1
 
     ui_body = ui_rs.read_text(encoding="utf-8")

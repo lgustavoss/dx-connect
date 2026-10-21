@@ -6,13 +6,18 @@ type ToastMin = {
   showWarning: (msg: string) => void
 }
 
-export function abrirClienteRustdesk(id: string, senha?: string | null) {
+/** Protocolo do instalador DeskRudder (APP_NAME), não o rustdesk:// do cliente oficial. */
+export function urlConexaoDeskRudder(id: string, senha?: string | null) {
   const digitos = id.replace(/\s+/g, '')
   const params = new URLSearchParams()
   if (senha?.trim()) params.set('password', senha.trim())
   const consulta = params.toString()
+  return `deskrudder://connection/new/${digitos}${consulta ? `?${consulta}` : ''}`
+}
+
+export function abrirClienteRustdesk(id: string, senha?: string | null) {
   const link = document.createElement('a')
-  link.href = `rustdesk://connection/new/${digitos}${consulta ? `?${consulta}` : ''}`
+  link.href = urlConexaoDeskRudder(id, senha)
   link.rel = 'noreferrer'
   document.body.appendChild(link)
   link.click()

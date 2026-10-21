@@ -64,7 +64,7 @@ const ABAS: {
     rotulo: 'Acesso remoto',
     titulo: 'Tipos de acesso remoto',
     descricao: 'Ferramentas usadas para suporte remoto ao PDV — independente do rótulo do dispositivo.',
-    exemplos: 'Ex.: AnyDesk, TeamViewer, RustDesk',
+    exemplos: 'Ex.: AnyDesk, TeamViewer, DeskRudder',
     placeholderBusca: 'Buscar tipo…',
     vazio: 'Nenhum tipo de acesso cadastrado.',
     novoRotulo: 'Novo tipo',

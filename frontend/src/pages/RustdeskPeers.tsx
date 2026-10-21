@@ -141,7 +141,7 @@ function PainelConfiguracao({
   if (!config.configurado) {
     return (
       <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-300">
-        Os dados para colar no RustDesk ainda não foram informados nesta instância.
+        Os dados para colar no DeskRudder Acesso Remoto ainda não foram informados nesta instância.
       </p>
     )
   }
@@ -149,10 +149,10 @@ function PainelConfiguracao({
     <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/40">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="max-w-3xl">
-          <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Configuração do RustDesk</h2>
+          <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Configuração do DeskRudder Acesso Remoto</h2>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            No computador do cliente, abra o RustDesk em Configurações e depois Rede. Cole cada valor no campo com o
-            mesmo nome. O servidor de API fica em branco.
+            No computador do cliente, abra o DeskRudder Acesso Remoto em Configurações e depois Rede. Cole cada valor no
+            campo com o mesmo nome. O servidor de API fica em branco.
           </p>
         </div>
         <Button type="button" variant="secondary" onClick={() => onCopiar(textoConfiguracao(config), 'Configuração copiada.')}>
@@ -422,7 +422,7 @@ export function RustdeskPeers() {
     <PageContainer maxWidth="7xl">
       <PageHeader
         title="Acesso remoto"
-        subtitle="Computadores registrados no servidor deste cliente. Online significa que aceita conexão remota agora. O vínculo grava o ID no PDV; a senha continua a do cadastro."
+        subtitle="Computadores registrados no servidor deste cliente. Online significa que aceita conexão remota agora. O vínculo grava o ID no PDV; a senha continua a do cadastro. ID de PC de atendente, sem vínculo e offline, pode ser excluído."
       />
 
       {remotoDesktopInstalado === false ? (

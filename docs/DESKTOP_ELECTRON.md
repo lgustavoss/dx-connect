@@ -20,7 +20,7 @@ O app desktop é uma janela Electron que carrega o **painel web da instância** 
 | Alerta da fila com a janela fechada | Para ao fechar | Continua se a bandeja estiver ligada (Setup ou menu depois; sem throttling e autoplay liberado) |
 | Contador de pendências | Título da aba | Tooltip da bandeja + piscar na barra de tarefas |
 | Uma instância | — | Segundo clique no atalho reabre a janela |
-| Acesso remoto na frota | `rustdesk://` (precisa cliente instalado) | Prefere `DeskRudder.exe` em `Program Files (x86)\DeskRudder\Acesso Remoto` |
+| Acesso remoto na frota | `deskrudder://` (precisa do DeskRudder Acesso Remoto instalado) | Prefere `DeskRudder.exe` em `Program Files (x86)\DeskRudder\Acesso Remoto` |
 | Cache após deploy | Depende do navegador / SW | Limpa cache + desregistra SW ao abrir; menu **Recarregar painel** |
 
 ## Código
@@ -64,8 +64,8 @@ Três workflows no Actions (nomes na UI):
 
 Fluxo típico do atendente:
 
-1. (Só se o remoto mudou ou é a 1.ª vez) **Acesso Remoto Atendente (Windows)**  
-2. **App Atendente Setup (Windows)** → Release `desktop-windows` / `/app/download`
+1. (Só se o remoto mudou ou é a 1.ª vez) **Acesso Remoto Atendente (Windows)** — obrigatório na 1.0.6 (atendente sem ID na frota)
+2. **App Atendente Setup (Windows)** → Release `desktop-windows` / `/app/download` — 1.1.3 abre o DeskRudder Acesso Remoto (não o RustDesk)
 
 Workflows: [desktop](../.github/workflows/desktop-deskrudder-windows.yml) · [remoto atendente](../.github/workflows/acesso-remoto-atendente-windows.yml)
 
@@ -123,7 +123,7 @@ O shell embute Chromium (como o Chrome). Se o consumo ficar inaceitável no uso 
 | 11 | Menu da bandeja → Sair | Encerra o app e para os alertas |
 | 12 | Botão direito numa imagem do chat → Copiar | Imagem colável no Paint/WhatsApp; em texto selecionado copia o texto |
 | 13 | Deploy novo no servidor | Melhorias aparecem após abrir o app ou **Recarregar painel** (sem reinstalar o Setup) |
-| 14 | Frota → Conectar (com remoto instalado) | Abre janela **DeskRudder - Acesso Remoto** com ID/senha (via `rustdesk://` no `.exe` local) |
+| 14 | Frota → Conectar (com remoto instalado) | Abre janela **DeskRudder - Acesso Remoto** com ID/senha (via `deskrudder://` no `.exe` local) |
 | 15 | Navegador no PC | Não sugere «Instale o app» (PWA); no celular continua sugerindo |
 | 16 | Setup com remoto no vendor | UAC → painel + `--silent-install` do controle (se falhar, assistente normal) |
 | 17 | `/app/download` após workflow Desktop (ou `publicar-setup`) + Nginx | Baixa `DeskRudder-Setup.exe` sem mostrar URL do repositório |
