@@ -69,7 +69,11 @@ from app.services.ticket_vinculos import (
     outro_ticket_id,
     rotulo_vinculo,
 )
-from app.services.ticket_filhos_massa import criar_filhos_em_massa, listar_opcoes_filhos_massa
+from app.services.ticket_filhos_massa import (
+    criar_filhos_em_massa,
+    criar_filhos_todas_empresas_na_abertura,
+    listar_opcoes_filhos_massa,
+)
 from app.services.ticket_escopo import (
     rede_id_de_empresa,
     rede_id_efetivo_ticket,
@@ -182,6 +186,16 @@ def _assert_parent_valido(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Vínculo inválido: esse vínculo formaria um ciclo entre tickets.",
         )
+
+
+def _publicar_tickets_novos_na_fila(db: Session, tickets: list[Ticket]) -> None:
+    for t in tickets:
+        if t.atendente_id is None:
+            if tentar_distribuicao_imediata(db, t):
+                db.commit()
+                emit_notificacao_after_counter_change(db)
+            else:
+                emit_ticket_fila(db, t)
 
 
 def _opcoes_carregamento_ticket_detalhe():
@@ -865,6 +879,22 @@ def criar(
         )
     )
     db.commit()
+    filhos_abertura: list[Ticket] = []
+    if modo == "coordenacao" and data.parent_ticket_id is None:
+        try:
+            filhos_abertura = criar_filhos_todas_empresas_na_abertura(
+                db, parent=ticket, atendente=atendente
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+        if filhos_abertura:
+            _registrar_historico(
+                db, ticket.id, atendente.id, "filhos_em_massa", "", str(len(filhos_abertura))
+            )
+            for filho in filhos_abertura:
+                if filho.atendente_id is None:
+                    sincronizar_fila_desde_at(filho)
+            db.commit()
     msg_abertura = (
         db.query(TicketMensagem)
         .options(joinedload(TicketMensagem.atendente))
@@ -896,6 +926,7 @@ def criar(
             exclude_atendente_id=atendente.id,
             emit_notificacao=not contagem_ja_emitida,
         )
+    _publicar_tickets_novos_na_fila(db, filhos_abertura)
     ticket_out = (
         db.query(Ticket)
         .options(*_opcoes_carregamento_ticket_detalhe())
@@ -1311,13 +1342,7 @@ def criar_filhos_em_massa_endpoint(
         if filho.atendente_id is None:
             sincronizar_fila_desde_at(filho)
     db.commit()
-    for filho in criados:
-        if filho.atendente_id is None:
-            if tentar_distribuicao_imediata(db, filho):
-                db.commit()
-                emit_notificacao_after_counter_change(db)
-            else:
-                emit_ticket_fila(db, filho)
+    _publicar_tickets_novos_na_fila(db, criados)
 
     empresa_nomes = {
         e.id: e.nome

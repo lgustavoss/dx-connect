@@ -211,19 +211,25 @@ export function TicketNovo() {
         payload.empresa_id = Number(empresaId)
       }
       const created = await tickets.create(payload)
+      const nFilhos = created.children?.length ?? 0
+      let anexosOk = 0
       if (anexosSelecionados.length > 0) {
-        let ok = 0
         for (const f of anexosSelecionados) {
           try {
             await tickets.uploadAnexo(created.id, f)
-            ok += 1
+            anexosOk += 1
           } catch (err) {
             toast.showWarning(mensagemFalhaParaToast(err, `Falha ao enviar anexo \"${f.name}\".`))
           }
         }
-        toast.showSuccess(ok > 0 ? `Ticket criado com ${ok} anexo(s).` : 'Ticket criado.')
+      }
+      if (modoCoordenacao && nFilhos > 0) {
+        const base = `Ticket de coordenação criado com ${nFilhos} chamado${nFilhos === 1 ? '' : 's'} nas empresas da rede.`
+        toast.showSuccess(anexosOk > 0 ? `${base} ${anexosOk} anexo(s) no chamado de coordenação.` : base)
+      } else if (modoCoordenacao) {
+        toast.showSuccess('Ticket de coordenação criado. Esta rede ainda não tem empresas ativas.')
       } else {
-        toast.showSuccess('Ticket criado.')
+        toast.showSuccess(anexosOk > 0 ? `Ticket criado com ${anexosOk} anexo(s).` : 'Ticket criado.')
       }
       abrirTicket(created.id)
     } catch (err) {
@@ -307,18 +313,26 @@ export function TicketNovo() {
           <div className="space-y-6">
             <FormSection title="Identificação">
               {!paiResumo && (
-                <CheckboxField
-                  checked={modoCoordenacao}
-                  disabled={semSetorPermitido}
-                  onChange={(e) => {
-                    const next = e.target.checked
-                    setModoCoordenacao(next)
-                    if (next) setEmpresaId('')
-                    else setRedeId('')
-                  }}
-                >
-                  Coordenação de rede (sem empresa — ex.: rollout em várias lojas)
-                </CheckboxField>
+                <>
+                  <CheckboxField
+                    checked={modoCoordenacao}
+                    disabled={semSetorPermitido}
+                    onChange={(e) => {
+                      const next = e.target.checked
+                      setModoCoordenacao(next)
+                      if (next) setEmpresaId('')
+                      else setRedeId('')
+                    }}
+                  >
+                    Coordenação de rede (abre um ticket em cada empresa)
+                  </CheckboxField>
+                  {modoCoordenacao && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Cria o chamado de coordenação e, automaticamente, um ticket filho para cada empresa ativa da
+                      rede. Se a rede tiver mais de 100 empresas, as demais podem ser abertas no detalhe do chamado.
+                    </p>
+                  )}
+                </>
               )}
 
               {modoCoordenacao && !paiResumo ? (
