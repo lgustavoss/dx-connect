@@ -28,6 +28,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
+- Acesso remoto: barra de título e menu Sobre mostram **DeskRemote** (antes DeskRudder); ícone pequeno da janela/bandeja vira um **D** vermelho legível (versão 1.0.12)
 - Acesso remoto: logo e ícones do **DeskRemote** atualizados com a arte oficial (D + atendente + nuvem), fundo transparente e glow preservado (versão 1.0.11)
 - Acesso remoto: o produto passa a se chamar **DeskRemote** na janela, no atalho e nos textos do painel (versão 1.0.10). O tipo da frota no cadastro também; nomes antigos (DeskRudder / RustDesk) continuam reconhecidos. Pasta e `.exe` no Windows seguem iguais para não quebrar quem já instalou
 - Acesso remoto: dá para **atualizar o posto à distância** sem alguém na frente do PC (versão 1.0.9) — o app enfileira o instalador e o serviço Windows aplica com `--update` sem pedir UAC; a sessão remota pode cair enquanto o app troca os arquivos

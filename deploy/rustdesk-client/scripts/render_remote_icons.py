@@ -6,9 +6,9 @@ Fonte padrao: branding/icon-source-official.png
 Preferivel: PNG com alpha real (export do Figma/Photoshop).
 JPEG com xadrez de “transparencia” achatado e suportado de forma best-effort.
 
-- tamanhos grandes: arte completa (com wordmark)
-- 16/32/48/tray + ui-logo: mark (personagem + setas), sem texto
-- ui-logo: PNG com alpha real (sem placa opaca) — funciona no tema escuro e claro
+- tamanhos grandes (128+): arte completa
+- ui-logo 256/512: arte completa (painel host)
+- 16/32/48/64/tray e frames ICO <= 64: mark «D» simplificado (legivel na titlebar)
 """
 
 from __future__ import annotations
@@ -16,10 +16,14 @@ from __future__ import annotations
 from collections import deque
 from pathlib import Path
 
-from PIL import Image, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 BRANDING = Path(__file__).resolve().parent.parent / "branding"
 DEFAULT_SOURCE = BRANDING / "icon-source-official.png"
+
+# Vermelho da arte DeskRemote (D metalico).
+_BRAND_RED = (220, 28, 42, 255)
+_BRAND_RED_DARK = (140, 12, 24, 255)
 
 
 def _to_rgba_transparent(im: Image.Image) -> Image.Image:
@@ -251,13 +255,57 @@ def _fit_square(im: Image.Image, size: int) -> Image.Image:
     return out
 
 
-def _ui_logo(mark: Image.Image, size: int) -> Image.Image:
-    """Mark com fundo transparente para o painel host (dark e light).
+def _simplified_d_mark(size: int) -> Image.Image:
+    """«D» solido legivel na titlebar/taskbar (16–48px).
 
-    Sem chroma-key pos-resize: meios-tons do cursor branco nao podem ser
-    filtrados como 'migalha' — isso furava o preenchimento da seta.
+    A arte completa vira um borrão vermelho nesses tamanhos; o mark geometrico
+    mantem a identidade DeskRemote sem o personagem/globo.
     """
-    return _fit_square(mark, size)
+    scale = 8
+    canvas = size * scale
+    img = Image.new("RGBA", (canvas, canvas), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    cx = cy = canvas // 2
+
+    if size >= 24:
+        glow_r = int(canvas * 0.40)
+        for i in range(5, 0, -1):
+            a = int(36 * i / 5)
+            rr = glow_r + i * scale
+            draw.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=(220, 28, 42, a))
+
+    font = None
+    for path in (
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+    ):
+        try:
+            font = ImageFont.truetype(path, int(canvas * 0.82))
+            break
+        except OSError:
+            continue
+
+    if font is None:
+        raise SystemExit("Fonte bold nao encontrada para mark D da titlebar")
+
+    text = "D"
+    bbox = draw.textbbox((0, 0), text, font=font)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    x = (canvas - tw) // 2 - bbox[0]
+    y = (canvas - th) // 2 - bbox[1] - int(canvas * 0.03)
+    draw.text((x + scale, y + scale), text, font=font, fill=_BRAND_RED_DARK)
+    draw.text((x, y), text, font=font, fill=_BRAND_RED)
+
+    out = img.resize((size, size), Image.Resampling.LANCZOS)
+    if size <= 32:
+        out = out.filter(ImageFilter.UnsharpMask(radius=0.5, percent=140, threshold=1))
+    return out
+
+
+def _ui_logo(full: Image.Image, size: int) -> Image.Image:
+    """Arte completa com fundo transparente para o painel host (dark e light)."""
+    return _fit_square(full, size)
 
 
 def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
@@ -268,45 +316,51 @@ def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
     raw = Image.open(source)
     rgba = _to_rgba_transparent(raw)
     full = _crop_pad_square(rgba, pad_ratio=0.04)
-    mark = _mark_without_text(rgba)
 
     full.save(out_dir / "icon-source-1024.png")
     rgba.save(out_dir / "icon-source-official.png")
 
-    mapping = {
-        "deskrudder-16.png": (mark, 16),
-        "deskrudder-32.png": (mark, 32),
-        "deskrudder-48.png": (mark, 48),
-        "deskrudder-64.png": (mark, 64),
-        "deskrudder-128.png": (full, 128),
-        "deskrudder-256.png": (full, 256),
-        "32x32.png": (mark, 32),
-        "128x128.png": (full, 128),
-        "128x128@2x.png": (full, 128),
-        "icon.png": (full, 256),
-    }
-    rendered: dict[tuple[int, str], Image.Image] = {}
-    for name, (base, size) in mapping.items():
-        key = (size, "mark" if base is mark else "full")
-        if key not in rendered:
-            rendered[key] = _fit_square(base, size)
-        rendered[key].save(out_dir / name)
+    # Cache de marks simplificados e full
+    simple: dict[int, Image.Image] = {}
+    full_fit: dict[int, Image.Image] = {}
 
-    _ui_logo(mark, 512).save(out_dir / "ui-logo-512.png")
-    _ui_logo(mark, 256).save(out_dir / "ui-logo-256.png")
+    def icon_for(size: int) -> Image.Image:
+        if size <= 64:
+            if size not in simple:
+                simple[size] = _simplified_d_mark(size)
+            return simple[size]
+        if size not in full_fit:
+            full_fit[size] = _fit_square(full, size)
+        return full_fit[size]
+
+    mapping = {
+        "deskrudder-16.png": 16,
+        "deskrudder-32.png": 32,
+        "deskrudder-48.png": 48,
+        "deskrudder-64.png": 64,
+        "deskrudder-128.png": 128,
+        "deskrudder-256.png": 256,
+        "32x32.png": 32,
+        "128x128.png": 128,
+        "128x128@2x.png": 128,
+        "icon.png": 256,
+    }
+    for name, size in mapping.items():
+        icon_for(size).save(out_dir / name)
+
+    # Painel host: arte completa (nao o D simplificado)
+    _ui_logo(full, 512).save(out_dir / "ui-logo-512.png")
+    _ui_logo(full, 256).save(out_dir / "ui-logo-256.png")
 
     ico_sizes = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
-    frames = []
-    for iw, ih in ico_sizes:
-        base = mark if iw <= 64 else full
-        frames.append(_fit_square(base, iw))
+    frames = [icon_for(iw) for iw, _ih in ico_sizes]
     frames[-1].save(
         out_dir / "icon.ico",
         format="ICO",
         sizes=ico_sizes,
         append_images=frames[:-1],
     )
-    _fit_square(mark, 32).save(out_dir / "tray-icon.ico", format="ICO", sizes=[(32, 32)])
+    icon_for(32).save(out_dir / "tray-icon.ico", format="ICO", sizes=[(32, 32)])
     print(f">> icones gerados de {source.name} em {out_dir}")
 
 

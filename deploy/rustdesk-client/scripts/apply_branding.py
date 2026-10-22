@@ -236,7 +236,12 @@ def patch_portable_metadata(cargo_toml: Path) -> None:
         return
     text = cargo_toml.read_text(encoding="utf-8")
     orig = text
-    text = re.sub(r'(?m)^ProductName = ".*"$', 'ProductName = "DeskRudder"', text, count=1)
+    text = re.sub(
+        r'(?m)^ProductName = ".*"$',
+        f'ProductName = "{PRODUCT_DISPLAY_NAME}"',
+        text,
+        count=1,
+    )
     text = re.sub(
         r'(?m)^FileDescription = ".*"$',
         f'FileDescription = "{PRODUCT_DISPLAY_NAME}"',
@@ -251,7 +256,44 @@ def patch_portable_metadata(cargo_toml: Path) -> None:
     )
     if text != orig:
         cargo_toml.write_text(text, encoding="utf-8")
-        print("  portable Cargo.toml ProductName/FileDescription -> DeskRudder", flush=True)
+        print(
+            f"  portable Cargo.toml ProductName/FileDescription -> {PRODUCT_DISPLAY_NAME}",
+            flush=True,
+        )
+
+
+def patch_window_display_name(ui_rs: Path) -> None:
+    """Titlebar + Sobre usam DeskRemote; APP_NAME/exe continua DeskRudder."""
+    if not ui_rs.is_file():
+        raise SystemExit(f"Falta {ui_rs}")
+    text = ui_rs.read_text(encoding="utf-8")
+    name = PRODUCT_DISPLAY_NAME
+
+    old_title = "frame.set_title(&crate::get_app_name());"
+    new_title = f'frame.set_title("{name}");'
+    if old_title in text:
+        text = text.replace(old_title, new_title, 1)
+    elif f'frame.set_title("{name}");' not in text:
+        raise SystemExit("frame.set_title(get_app_name) nao encontrado em ui.rs")
+
+    old_fn = (
+        "    fn get_app_name(&self) -> String {\n"
+        "        get_app_name()\n"
+        "    }"
+    )
+    new_fn = (
+        "    fn get_app_name(&self) -> String {\n"
+        f'        // Nome de exibicao na UI; exe/APP_NAME continua DeskRudder.\n'
+        f'        "{name}".to_owned()\n'
+        "    }"
+    )
+    if old_fn in text:
+        text = text.replace(old_fn, new_fn, 1)
+    elif f'"{name}".to_owned()' not in text or "fn get_app_name(&self)" not in text:
+        raise SystemExit("UI get_app_name() nao encontrado para patch de display name")
+
+    ui_rs.write_text(text, encoding="utf-8")
+    print(f"  ui.rs: titlebar/Sobre -> {name}", flush=True)
 
 
 def patch_config_rs(path: Path, host: str, key: str) -> None:
@@ -1599,6 +1641,7 @@ def main() -> int:
     if not png_128.is_file():
         png_128 = brand / "deskrudder-128.png"
     patch_sciter_window_icon(src / "src" / "ui.rs", png_128)
+    patch_window_display_name(src / "src" / "ui.rs")
     patch_powered_by(src / "src" / "lang")
 
     cfg_rs = src / "libs" / "hbb_common" / "src" / "config.rs"
@@ -1660,6 +1703,18 @@ def main() -> int:
     our_b64 = base64.b64encode(png_128.read_bytes()).decode("ascii")
     if our_b64 not in ui_body:
         print("Verificacao falhou: get_icon() sem PNG DeskRudder.", file=sys.stderr)
+        return 1
+    if f'frame.set_title("{PRODUCT_DISPLAY_NAME}");' not in ui_body:
+        print(
+            f"Verificacao falhou: titlebar sem set_title({PRODUCT_DISPLAY_NAME}).",
+            file=sys.stderr,
+        )
+        return 1
+    if f'"{PRODUCT_DISPLAY_NAME}".to_owned()' not in ui_body:
+        print(
+            f"Verificacao falhou: UI get_app_name sem {PRODUCT_DISPLAY_NAME}.",
+            file=sys.stderr,
+        )
         return 1
     if "fn is_system_dark_theme" not in ui_body or "set_titlebar_dark" not in ui_body:
         print("Verificacao falhou: tema/titlebar ausente em ui.rs.", file=sys.stderr)
