@@ -54,6 +54,59 @@ HOST_WINDOW_MIN_WIDTH = 680
 HOST_WINDOW_MIN_HEIGHT_UNINSTALLED = 660
 HOST_WINDOW_MIN_HEIGHT_INSTALLED = 480
 
+# Textos visíveis injetados em .tis (posto e controle).
+# O Sciter Windows lê index.tis / install.tis como Latin-1: UTF-8 literal vira
+# mojibake (Atualização → AtualizaÃ§Ã£o). Markup usa entidades HTML; strings
+# TIS usam \uXXXX. O Python-fonte pode (e deve) ter acentos em UTF-8.
+COPY_BANNER_TITULO = "Atualização disponível"
+COPY_BANNER_CORPO_ANTES = "Há uma versão mais nova do DeskRudder Acesso Remoto "
+COPY_BANNER_CORPO_SUA = "A sua é "
+COPY_BANNER_CTA = "Atualizar agora"
+COPY_BANNER_INSTALANDO = "Instalando..."
+COPY_BANNER_ERRO_TITULO = "Erro no download"
+COPY_BANNER_ERRO_CORPO = (
+    "Não foi possível baixar a atualização. Tente de novo ou baixe pelo painel."
+)
+COPY_BANNER_BAIXANDO = "Baixando..."
+COPY_BANNER_BAIXANDO_PCT = "Baixando %"
+COPY_HOST_VERSAO = "Versão"
+
+
+def sciter_html(texto: str) -> str:
+    """Texto visível em markup TIS (ASCII + entidades numéricas)."""
+    return texto.encode("ascii", "xmlcharrefreplace").decode("ascii")
+
+
+def sciter_tis_str(texto: str) -> str:
+    """Conteúdo de string TIS entre aspas. Não-ASCII vira \\uXXXX."""
+    partes: list[str] = []
+    for ch in texto:
+        code = ord(ch)
+        if code > 127:
+            partes.append(f"\\u{code:04X}")
+        elif ch == "\\":
+            partes.append("\\\\")
+        elif ch == '"':
+            partes.append('\\"')
+        else:
+            partes.append(ch)
+    return "".join(partes)
+
+
+def _selftest_sciter_copy() -> None:
+    titulo = sciter_html(COPY_BANNER_TITULO)
+    if titulo != "Atualiza&#231;&#227;o dispon&#237;vel":
+        raise SystemExit(f"selftest sciter_html falhou: {titulo!r}")
+    if sciter_html(COPY_HOST_VERSAO) != "Vers&#227;o":
+        raise SystemExit("selftest Versão falhou")
+    nao = sciter_tis_str("Não")
+    if nao != "N\\u00E3o":
+        raise SystemExit(f"selftest sciter_tis_str falhou: {nao!r}")
+    if any(ord(ch) > 127 for ch in sciter_html(COPY_BANNER_ERRO_CORPO)):
+        raise SystemExit("selftest: HTML do erro ainda tem UTF-8 literal")
+    if any(ord(ch) > 127 for ch in sciter_tis_str(COPY_BANNER_ERRO_CORPO)):
+        raise SystemExit("selftest: string TIS do erro ainda tem UTF-8 literal")
+
 
 def configurar_canal_update(profile: str) -> None:
     """Define URLs de version.json / download conforme posto (so-recebe) ou controle."""
@@ -421,14 +474,17 @@ def patch_host_only_ui(index_tis: Path, branding: Path) -> None:
                     {!outgoing_only ? <ConnectStatus @{this.connect_status} /> : ""}
                 </div>}"""
 
-    new_right = """                    {incoming_only ? <ConnectStatus @{this.connect_status} /> : ""}
+    new_right = (
+        """                    {incoming_only ? <ConnectStatus @{this.connect_status} /> : ""}
                 </div>
                 {incoming_only && <div .right-pane>
                     <div .right-content style="flow:vertical;size:*;vertical-align:middle;horizontal-align:center;padding:1.5em;">
                         <img src={deskrudder_host_logo} style="display:block;width:48%;max-width:300px;min-width:140px;height:width(100%);margin:0 *;" />
                         <div .title style="margin-top:1em;text-align:center;">DeskRudder</div>
                         <div .lighter-text style="text-align:center;margin-top:0.35em;">Acesso Remoto</div>
-                        <div .lighter-text style="text-align:center;margin-top:0.6em;">Versao {handler.get_version()}</div>
+                        <div .lighter-text style="text-align:center;margin-top:0.6em;">"""
+        + sciter_html(COPY_HOST_VERSAO)
+        + """ {handler.get_version()}</div>
                     </div>
                 </div>}
                 {!incoming_only && <div .right-pane>
@@ -445,6 +501,7 @@ def patch_host_only_ui(index_tis: Path, branding: Path) -> None:
                     </div>
                     {!outgoing_only ? <ConnectStatus @{this.connect_status} /> : ""}
                 </div>}"""
+    )
 
     if old_right not in text:
         raise SystemExit(
@@ -856,16 +913,17 @@ def patch_update_banner(index_tis: Path) -> None:
         "    }\n"
         "}\n"
     )
-    # index.tis do RustDesk e ASCII-only; UTF-8 no Sciter Windows vira mojibake.
-    # Mesmo padrao de "Versao" (sem acento) usado no restante da UI host.
+    # Markup: entidades HTML. Strings TIS: \uXXXX. Ver sciter_html / sciter_tis_str.
     new = (
         "class UpdateMe: Reactor.Component {\n"
         "    function render() {\n"
         "        return <div .install-me>\n"
-        "            <div>Atualizacao disponivel</div>\n"
-        "            <div>Ha uma versao mais nova do DeskRudder Acesso Remoto "
-        "({handler.get_new_version()}). A sua e {handler.get_version()}.</div>\n"
-        "            <div #install-me.link>Atualizar agora</div>\n"
+        "            <div>" + sciter_html(COPY_BANNER_TITULO) + "</div>\n"
+        "            <div>" + sciter_html(COPY_BANNER_CORPO_ANTES)
+        + "({handler.get_new_version()}). "
+        + sciter_html(COPY_BANNER_CORPO_SUA)
+        + "{handler.get_version()}.</div>\n"
+        "            <div #install-me.link>" + sciter_html(COPY_BANNER_CTA) + "</div>\n"
         '            <div #download-percent style="display:none; padding-top: 1em;" />\n'
         "        </div>;\n"
         "    }\n"
@@ -874,21 +932,30 @@ def patch_update_banner(index_tis: Path) -> None:
         f'        var url = "{DOWNLOAD_INSTALLER_URL}";\n'
         "        var path = handler.get_software_store_path();\n"
         "        var onsuccess = function(md5) {\n"
-        '            $(#download-percent).content("Instalando...");\n'
+        '            $(#download-percent).content("'
+        + sciter_tis_str(COPY_BANNER_INSTALANDO)
+        + '");\n'
         "            handler.update_me(path);\n"
         "        };\n"
         "        var onerror = function(err) {\n"
-        '            msgbox("custom-error", "Erro no download", '
-        '"Nao foi possivel baixar a atualizacao. Tente de novo ou baixe pelo painel.");\n'
+        '            msgbox("custom-error", "'
+        + sciter_tis_str(COPY_BANNER_ERRO_TITULO)
+        + '", "'
+        + sciter_tis_str(COPY_BANNER_ERRO_CORPO)
+        + '");\n'
         "        };\n"
         "        var onprogress = function(loaded, total) {\n"
         "            if (!total) total = 5 * 1024 * 1024;\n"
         "            var el = $(#download-percent);\n"
         '            el.style.set{display: "block"};\n'
-        '            el.content("Baixando %" + (loaded * 100 / total));\n'
+        '            el.content("'
+        + sciter_tis_str(COPY_BANNER_BAIXANDO_PCT)
+        + '" + (loaded * 100 / total));\n'
         "        };\n"
         '        $(#download-percent).style.set{display: "block"};\n'
-        '        $(#download-percent).content("Baixando...");\n'
+        '        $(#download-percent).content("'
+        + sciter_tis_str(COPY_BANNER_BAIXANDO)
+        + '");\n'
         "        download(url, self.url(path), onsuccess, onerror, onprogress);\n"
         "    }\n"
         "}\n"
@@ -943,12 +1010,13 @@ def patch_install_version_label(install_tis: Path) -> None:
     new = (
         '<div style="font-size: 2em;">{translate(\'Installation\')}</div>\n'
         '            <div .lighter-text style="margin-top: 0.4em;">'
-        "Versao {handler.get_version()}</div>"
+        + sciter_html(COPY_HOST_VERSAO)
+        + " {handler.get_version()}</div>"
     )
     if old not in text:
         raise SystemExit("titulo Installation nao encontrado em install.tis")
     install_tis.write_text(text.replace(old, new, 1), encoding="utf-8")
-    print("  install.tis: label Versao", flush=True)
+    print("  install.tis: label Versão", flush=True)
 
 
 def patch_system_dark_theme(ui_rs: Path, index_tis: Path) -> None:
@@ -1146,6 +1214,75 @@ fn deskrudder_set_titlebar_dark(hwnd: isize, dark: bool) {
     print("  index.tis: tema escuro + titlebar DWM", flush=True)
 
 
+def patch_sciter_uri_connect(ui_rs: Path) -> None:
+    """Sciter so aceita --connect ID [senha]. O Windows entrega deskrudder:// e o app saia."""
+    text = ui_rs.read_text(encoding="utf-8")
+    if "deskrudder_connect_args_from_uri" in text:
+        print("  ui.rs: deskrudder:// ja vira --connect", flush=True)
+        return
+    start_fn = "pub fn start(args: &mut [String]) {\n"
+    if start_fn not in text:
+        raise SystemExit("pub fn start nao encontrado em ui.rs")
+    helpers = '''fn deskrudder_percent_decode(s: &str) -> String {
+    let s = s.replace('+', " ");
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() {
+            if let Ok(v) = u8::from_str_radix(std::str::from_utf8(&b[i + 1..i + 3]).unwrap_or(""), 16) {
+                out.push(v);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+fn deskrudder_connect_args_from_uri(uri: &str) -> Option<Vec<String>> {
+    let scheme_end = uri.find("://")?;
+    let rest = uri[scheme_end + 3..].trim_start_matches('/');
+    let rest = rest.strip_prefix("connection/new/")?;
+    let (id_part, query) = rest.split_once('?').unwrap_or((rest, ""));
+    let id = id_part.trim();
+    if id.is_empty() || !id.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    let mut args = vec!["--connect".to_string(), id.to_string()];
+    for pair in query.split('&') {
+        if let Some(raw) = pair.strip_prefix("password=") {
+            let pass = deskrudder_percent_decode(raw);
+            if !pass.is_empty() {
+                args.push(pass);
+            }
+        }
+    }
+    Some(args)
+}
+
+'''
+    inject = (
+        helpers
+        + start_fn
+        + """    // DeskRudder: o handler Windows passa deskrudder://connection/new/{id}?password=
+    // O Sciter so trata --connect ID [senha]; URI solta cai em "Wrong command" e o processo sai.
+    if !args.is_empty() && args[0].to_ascii_lowercase().starts_with("deskrudder://") {
+        if let Some(cmd) = deskrudder_connect_args_from_uri(&args[0]) {
+            if let Ok(exe) = std::env::current_exe() {
+                let _ = std::process::Command::new(exe).args(&cmd).spawn();
+            }
+        }
+        return;
+    }
+"""
+    )
+    ui_rs.write_text(text.replace(start_fn, inject, 1), encoding="utf-8")
+    print("  ui.rs: deskrudder://connection/new/{id} -> --connect", flush=True)
+
+
 def main() -> int:
     here = Path(__file__).resolve().parent.parent
     ap = argparse.ArgumentParser(description=__doc__)
@@ -1175,6 +1312,7 @@ def main() -> int:
         help="posto=so-recebe (PDV); controle=atendente (pode iniciar sessao)",
     )
     args = ap.parse_args()
+    _selftest_sciter_copy()
     src = args.rustdesk_src.resolve()
     if not (src / ".git").exists() and not (src / "Cargo.toml").is_file():
         print(f"Nao parece um clone rustdesk: {src}", file=sys.stderr)
@@ -1234,6 +1372,7 @@ def main() -> int:
     patch_website_urls(index_tis, install_tis)
     patch_install_path(windows_rs, install_tis)
     patch_system_dark_theme(ui_rs, index_tis)
+    patch_sciter_uri_connect(ui_rs)
     patch_install_version_label(install_tis)
 
     # Sanity: chave, host e servidor de produto presentes
@@ -1270,6 +1409,9 @@ def main() -> int:
     if "fn is_system_dark_theme" not in ui_body or "set_titlebar_dark" not in ui_body:
         print("Verificacao falhou: tema/titlebar ausente em ui.rs.", file=sys.stderr)
         return 1
+    if "deskrudder_connect_args_from_uri" not in ui_body:
+        print("Verificacao falhou: parser deskrudder:// ausente em ui.rs.", file=sys.stderr)
+        return 1
     if "DwmSetWindowAttribute" not in ui_body:
         print("Verificacao falhou: DWM titlebar ausente.", file=sys.stderr)
         return 1
@@ -1291,8 +1433,8 @@ def main() -> int:
         if "height:width(100%)" not in index_body:
             print("Verificacao falhou: logo host nao e responsiva.", file=sys.stderr)
             return 1
-        if "Versao {handler.get_version()}" not in index_body:
-            print("Verificacao falhou: versao nao aparece na UI.", file=sys.stderr)
+        if sciter_html(COPY_HOST_VERSAO) + " {handler.get_version()}" not in index_body:
+            print("Verificacao falhou: versão não aparece na UI.", file=sys.stderr)
             return 1
     if "handler.is_system_dark_theme()" not in index_body:
         print("Verificacao falhou: tema do sistema nao ligado.", file=sys.stderr)
@@ -1303,11 +1445,27 @@ def main() -> int:
     if "deskrudder.com.br" not in index_body:
         print("Verificacao falhou: website DeskRudder ausente.", file=sys.stderr)
         return 1
-    if "Atualizacao disponivel" not in index_body:
-        print("Verificacao falhou: banner de atualizacao ausente.", file=sys.stderr)
+    if sciter_html(COPY_BANNER_TITULO) not in index_body:
+        print("Verificacao falhou: banner de atualização ausente.", file=sys.stderr)
         return 1
-    if "Atualizar agora" not in index_body or "Instalando..." not in index_body:
+    if sciter_html(COPY_BANNER_CORPO_ANTES) not in index_body:
+        print("Verificacao falhou: texto do banner de atualização ausente.", file=sys.stderr)
+        return 1
+    if sciter_html(COPY_BANNER_CTA) not in index_body:
+        print("Verificacao falhou: CTA do banner de atualização ausente.", file=sys.stderr)
+        return 1
+    if sciter_tis_str(COPY_BANNER_INSTALANDO) not in index_body:
         print("Verificacao falhou: fluxo in-app de update incompleto.", file=sys.stderr)
+        return 1
+    if sciter_tis_str(COPY_BANNER_ERRO_CORPO) not in index_body:
+        print("Verificacao falhou: mensagem de erro do update ausente.", file=sys.stderr)
+        return 1
+    if any(b > 127 for b in index_tis.read_bytes()):
+        print(
+            "Verificacao falhou: index.tis tem byte não-ASCII "
+            "(Sciter Windows quebra acentos UTF-8).",
+            file=sys.stderr,
+        )
         return 1
     if DOWNLOAD_INSTALLER_URL not in index_body:
         print("Verificacao falhou: URL de download do profile ausente no banner.", file=sys.stderr)
@@ -1345,8 +1503,15 @@ def main() -> int:
         return 1
 
     install_body = install_tis.read_text(encoding="utf-8")
-    if "Versao {handler.get_version()}" not in install_body:
-        print("Verificacao falhou: versao ausente na tela de instalacao.", file=sys.stderr)
+    if sciter_html(COPY_HOST_VERSAO) + " {handler.get_version()}" not in install_body:
+        print("Verificacao falhou: versão ausente na tela de instalação.", file=sys.stderr)
+        return 1
+    if any(b > 127 for b in install_tis.read_bytes()):
+        print(
+            "Verificacao falhou: install.tis tem byte não-ASCII "
+            "(Sciter Windows quebra acentos UTF-8).",
+            file=sys.stderr,
+        )
         return 1
 
     win_body = windows_rs.read_text(encoding="utf-8")

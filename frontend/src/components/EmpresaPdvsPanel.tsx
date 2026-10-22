@@ -17,8 +17,8 @@ import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { useAuth } from '../contexts/AuthContext'
 import { temPermissao } from '../lib/permissoes'
 import { formatarIdRustdesk, tipoHospedadoNoServidor } from '../lib/rustdeskId'
-import { conectarAcessoRemoto, senhaDoAcesso } from '../lib/acessoRemotoConectar'
-import { IconeConectarRemoto } from './IconeConectarRemoto'
+import { senhaDoAcesso } from '../lib/acessoRemotoConectar'
+import { BotaoConectarRemoto } from './BotaoConectarRemoto'
 
 const MAX_ACESSOS = 10
 
@@ -143,7 +143,6 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel, onF
   const [senhaRevelada, setSenhaRevelada] = useState<{ chave: string; senha: string } | null>(null)
   const [revelandoChave, setRevelandoChave] = useState<string | null>(null)
   const [mostrarSenhaForm, setMostrarSenhaForm] = useState<Record<string, boolean>>({})
-  const [conectandoChave, setConectandoChave] = useState<string | null>(null)
   const [detalhe, setDetalhe] = useState<EmpresaPdv.Item | null>(null)
   const topoRef = useRef<HTMLDivElement>(null)
 
@@ -247,20 +246,6 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel, onF
     preencherForm(row)
     setSenhaRevelada(null)
     setTela('form')
-  }
-
-  async function conectarAcesso(row: EmpresaPdv.Item, acesso: EmpresaPdv.Acesso, chave: string) {
-    if (!acesso.pode_conectar || !acesso.acesso_remoto_id?.trim()) {
-      toast.showWarning('Só o DeskRudder abre daqui. Nos outros programas, copie o ID e a senha.')
-      return
-    }
-    setConectandoChave(chave)
-    try {
-      const { senha, avisou } = await senhaDoAcesso(empresaId, row.id, acesso.id > 0 ? acesso.id : null, toast)
-      await conectarAcessoRemoto(acesso.acesso_remoto_id, senha, toast, avisou)
-    } finally {
-      setConectandoChave(null)
-    }
   }
 
   async function copiarTexto(texto: string, sucesso: string) {
@@ -466,16 +451,15 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel, onF
                           revelandoChave === chave,
                         )}
                       </p>
-                      {acesso.pode_conectar ? (
-                        <Button
-                          type="button"
-                          variant="secondary"
+                      {acesso.pode_conectar && acesso.acesso_remoto_id?.trim() ? (
+                        <BotaoConectarRemoto
+                          variant="botao"
                           className="mt-1"
-                          disabled={conectandoChave === chave}
-                          onClick={() => void conectarAcesso(detalhe, acesso, chave)}
-                        >
-                          {conectandoChave === chave ? 'Abrindo…' : 'Conectar'}
-                        </Button>
+                          rustdeskId={acesso.acesso_remoto_id}
+                          carregarSenha={() =>
+                            senhaDoAcesso(empresaId, detalhe.id, acesso.id > 0 ? acesso.id : null, toast)
+                          }
+                        />
                       ) : (
                         <p className="text-xs text-slate-500 dark:text-slate-400">
                           O painel não abre o {nome}. Clique no ID e na senha para copiar e cole no programa.
@@ -728,7 +712,6 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel, onF
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {items.map((row) => {
                 const conectar = acessoParaConectar(row)
-                const chaveLista = `lista-${row.id}-${conectar?.id ?? 0}`
                 return (
                   <tr
                     key={row.id}
@@ -742,20 +725,19 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel, onF
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="inline-flex items-center justify-end gap-0.5">
                         {conectar?.acesso_remoto_id ? (
-                          <button
-                            type="button"
-                            className="inline-flex size-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 disabled:pointer-events-none disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                          <BotaoConectarRemoto
+                            rustdeskId={conectar.acesso_remoto_id}
                             title="Conectar no DeskRudder"
-                            aria-label={`Conectar ao PDV ${row.codigo}`}
-                            disabled={conectandoChave === chaveLista}
-                            onClick={() => void conectarAcesso(row, conectar, chaveLista)}
-                          >
-                            {conectandoChave === chaveLista ? (
-                              <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                            ) : (
-                              <IconeConectarRemoto />
-                            )}
-                          </button>
+                            ariaLabel={`Conectar ao PDV ${row.codigo}`}
+                            carregarSenha={() =>
+                              senhaDoAcesso(
+                                empresaId,
+                                row.id,
+                                conectar.id > 0 ? conectar.id : null,
+                                toast,
+                              )
+                            }
+                          />
                         ) : null}
                         <Button
                           type="button"
