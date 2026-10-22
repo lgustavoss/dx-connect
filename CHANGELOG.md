@@ -28,6 +28,10 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
+- Acesso remoto: logo e ícones do **DeskRemote** atualizados com a arte oficial (D + atendente + nuvem), fundo transparente e glow preservado (versão 1.0.11)
+- Acesso remoto: o produto passa a se chamar **DeskRemote** na janela, no atalho e nos textos do painel (versão 1.0.10). O tipo da frota no cadastro também; nomes antigos (DeskRudder / RustDesk) continuam reconhecidos. Pasta e `.exe` no Windows seguem iguais para não quebrar quem já instalou
+- Acesso remoto: dá para **atualizar o posto à distância** sem alguém na frente do PC (versão 1.0.9) — o app enfileira o instalador e o serviço Windows aplica com `--update` sem pedir UAC; a sessão remota pode cair enquanto o app troca os arquivos
+- Acesso remoto: transferência de arquivo fica ligada por padrão no posto e no atendente; o menu **Transferir arquivo** usa a senha da sessão quando der (versão 1.0.9)
 - Acesso remoto: o clique no computador volta a abrir o **DeskRudder Acesso Remoto**. Depois que o painel passou a usar `deskrudder://` (em vez de `rustdesk://`), o Chrome ignorava o clique sintético e o cliente Sciter só entendia `--connect` — o Windows entregava o link e o app saía sem conectar. O `rustdesk://` antigo abria o RustDesk oficial (Flutter), que aceita o URI
 - Acesso remoto: cliente controle **1.0.8** passa a aceitar `deskrudder://connection/new/{id}` (vira `--connect` com a senha)
 - Acesso remoto: textos do app (atendente e posto) com acentos corretos no aviso de atualização e no rótulo de versão — o Sciter no Windows não lê UTF-8 no `.tis` (versão 1.0.8)

@@ -33,7 +33,7 @@ export async function conectarAcessoRemoto(
       const status = await window.deskrudderDesktop?.remotoStatus()
       if (status && !status.instalado) {
         toast.showWarning(
-          'O DeskRudder Acesso Remoto não está instalado neste PC. Reinstale o app DeskRudder (Baixar app Windows em Sobre) ou peça o instalador de controle à equipe.',
+          'O DeskRemote não está instalado neste PC. Reinstale o app DeskRudder (Baixar app Windows em Sobre) ou peça o instalador de controle à equipe.',
         )
         return
       }
@@ -44,8 +44,8 @@ export async function conectarAcessoRemoto(
   if (!avisou) {
     toast.showSuccess(
       senha
-        ? 'Acesso remoto aberto com o ID e a senha do cadastro (janela DeskRudder - Acesso Remoto).'
-        : 'Acesso remoto aberto com este ID (janela DeskRudder - Acesso Remoto).',
+        ? 'Acesso remoto aberto com o ID e a senha do cadastro (janela DeskRemote).'
+        : 'Acesso remoto aberto com este ID (janela DeskRemote).',
     )
   }
 }

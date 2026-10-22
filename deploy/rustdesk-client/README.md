@@ -8,14 +8,14 @@
 | **Acesso Remoto Atendente (Windows)** | `controle` | `acesso-remoto-controle-windows` |
 | **App Atendente Setup (Windows)** | Electron (+ baixa o Release controle) | `desktop-windows` |
 
-Atalho **DeskRudder - Acesso Remoto**; pasta `DeskRudder\Acesso Remoto`.  
+Atalho **DeskRemote**; pasta `DeskRudder\Acesso Remoto` (compatibilidade).  
 Docs: [`docs/RUSTDESK_CLIENT_WINDOWS.md`](../../docs/RUSTDESK_CLIENT_WINDOWS.md), Setup: [`docs/DESKTOP_ELECTRON.md`](../../docs/DESKTOP_ELECTRON.md).
 
 | Pasta / arquivo | Função |
 |------------------|--------|
 | `server.config.json` | Host, relay e chave pública da Duplex |
 | `branding/` | **Mesma arte** para `posto` e `controle` — ICO, tray, PNG Sciter e `ui-logo` |
-| `branding/icon-source-official.png` | Arte-fonte PNG com alpha (DeskRudder Acesso Remoto) |
+| `branding/icon-source-official.png` | Arte-fonte PNG com alpha (DeskRemote) |
 | `scripts/render_remote_icons.py` | Regenera PNGs/ICO a partir da arte oficial |
 | `scripts/apply_branding.py` | Patch no RustDesk antes do build (`--profile posto\|controle`; branding compartilhado) |
 | `scripts/encode_config.py` | Debug da string `--config` |

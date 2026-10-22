@@ -1,7 +1,12 @@
-/** Tipo cuja frota fica no servidor da equipe (DeskRudder Acesso Remoto). */
+/** Tipo cuja frota fica no servidor da equipe (DeskRemote / nomes antigos). */
 export function tipoHospedadoNoServidor(nome: string | null | undefined): boolean {
   const compacto = (nome ?? '').replace(/\s/g, '').toLowerCase()
-  return compacto === 'rustdesk' || compacto === 'acessoremoto' || compacto.startsWith('deskrudder')
+  return (
+    compacto === 'rustdesk' ||
+    compacto === 'acessoremoto' ||
+    compacto.startsWith('deskrudder') ||
+    compacto.startsWith('deskremote')
+  )
 }
 
 /** Agrupa o ID em blocos de 3 dígitos, da direita para a esquerda. */

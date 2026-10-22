@@ -12,11 +12,15 @@ MAX_ACESSOS_REMOTOS = 10
 
 
 def tipo_permite_conectar(nome: str | None) -> bool:
-    """Só DeskRudder (e nomes antigos da frota) abre o cliente integrado."""
+    """Só DeskRemote (e nomes antigos da frota) abre o cliente integrado."""
     compacto = "".join((nome or "").split()).casefold()
     if not compacto:
         return False
-    return compacto in {"rustdesk", "acessoremoto"} or compacto.startswith("deskrudder")
+    return (
+        compacto in {"rustdesk", "acessoremoto"}
+        or compacto.startswith("deskrudder")
+        or compacto.startswith("deskremote")
+    )
 
 
 def acessos_ordenados(pdv: EmpresaPdv) -> list[EmpresaPdvAcessoRemoto]:
