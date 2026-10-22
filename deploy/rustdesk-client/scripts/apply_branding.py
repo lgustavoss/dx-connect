@@ -62,7 +62,7 @@ COPY_BANNER_TITULO = "Atualização disponível"
 COPY_BANNER_CORPO_ANTES = "Há uma versão mais nova do DeskRudder Acesso Remoto "
 COPY_BANNER_CORPO_SUA = "A sua é "
 COPY_BANNER_CTA = "Atualizar agora"
-COPY_BANNER_INSTALANDO = "Instalando..."
+COPY_BANNER_INSTALANDO = "Aplicando atualização (a sessão remota pode cair)..."
 COPY_BANNER_ERRO_TITULO = "Erro no download"
 COPY_BANNER_ERRO_CORPO = (
     "Não foi possível baixar a atualização. Tente de novo ou baixe pelo painel."
@@ -983,6 +983,7 @@ def patch_update_me_handler(ui_interface_rs: Path) -> None:
         "                match crate::platform::windows::update_to(&_path) {\n"
         "                    Ok(_) => {\n"
         "                        // --update troca os arquivos e reabre a janela/tray.\n"
+        "                        // Update silencioso: o servico SYSTEM aplica a fila.\n"
         "                        std::process::exit(0);\n"
         "                    }\n"
         "                    Err(e) => {\n"
@@ -1001,6 +1002,254 @@ def patch_update_me_handler(ui_interface_rs: Path) -> None:
         raise SystemExit("update_me() nao encontrado em ui_interface.rs")
     ui_interface_rs.write_text(text.replace(old, new, 1), encoding="utf-8")
     print("  ui_interface.rs: update_me -> update_to (--update)", flush=True)
+
+
+def patch_silent_update(windows_rs: Path) -> None:
+    """Update remoto sem UAC: fila em Public\\DeskRudder + watcher no --service (SYSTEM).
+
+    PCs sem monitor/operador nao conseguem confirmar o UAC do run_uac. O fluxo:
+      1) UI baixa o .exe e grava o caminho em %PUBLIC%\\DeskRudder\\pending_update.txt
+      2) O servico Windows (--service, SYSTEM) le a fila e roda o .exe com --update
+      3) Se ja estiver elevado, aplica direto; se nao houver servico, cai no UAC
+    """
+    if not windows_rs.is_file():
+        raise SystemExit(f"Falta {windows_rs}")
+    text = windows_rs.read_text(encoding="utf-8")
+
+    helpers = r'''
+// DeskRudder: update silencioso via servico SYSTEM (sem prompt UAC).
+fn deskrudder_pending_update_path() -> Option<std::path::PathBuf> {
+    let public = std::env::var_os("PUBLIC")?;
+    Some(std::path::PathBuf::from(public).join("DeskRudder").join("pending_update.txt"))
+}
+
+fn deskrudder_run_update_exe(file: &str) -> ResultType<()> {
+    let mut cmd = std::process::Command::new(file);
+    cmd.arg("--update");
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    match cmd.spawn() {
+        Ok(_) => Ok(()),
+        Err(e) => bail!("Failed to spawn update exe: {}", e),
+    }
+}
+
+fn deskrudder_try_queue_silent_update(file: &str) -> bool {
+    if !is_installed() || !is_self_service_running() {
+        return false;
+    }
+    let Some(pending) = deskrudder_pending_update_path() else {
+        return false;
+    };
+    if let Some(parent) = pending.parent() {
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            log::error!("DeskRudder: cannot create {:?}: {}", parent, e);
+            return false;
+        }
+    }
+    if let Err(e) = std::fs::write(&pending, file) {
+        log::error!("DeskRudder: cannot write pending update: {}", e);
+        return false;
+    }
+    log::info!("DeskRudder: queued silent update via {:?}", pending);
+    true
+}
+
+fn deskrudder_start_silent_update_watcher() {
+    std::thread::spawn(|| {
+        log::info!("DeskRudder: silent update watcher started");
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(2));
+            let Some(pending) = deskrudder_pending_update_path() else {
+                continue;
+            };
+            let Ok(content) = std::fs::read_to_string(&pending) else {
+                continue;
+            };
+            let path = content.trim().to_string();
+            let _ = std::fs::remove_file(&pending);
+            if path.is_empty() {
+                continue;
+            }
+            if !path.to_lowercase().ends_with(".exe") {
+                log::error!("DeskRudder: invalid pending update path: {}", path);
+                continue;
+            }
+            if !std::path::Path::new(&path).is_file() {
+                log::error!("DeskRudder: pending update exe missing: {}", path);
+                continue;
+            }
+            log::info!("DeskRudder: applying silent update from {}", path);
+            if let Err(e) = deskrudder_run_update_exe(&path) {
+                log::error!("DeskRudder: silent update failed: {}", e);
+            }
+        }
+    });
+}
+
+'''
+
+    anchor = (
+        "// Used for auto update and manual update in the main window.\n"
+        "pub fn update_to(file: &str) -> ResultType<()> {"
+    )
+    if "deskrudder_pending_update_path" in text:
+        print("  windows.rs: silent update helpers ja presentes", flush=True)
+    elif anchor not in text:
+        raise SystemExit("update_to() anchor nao encontrado em windows.rs")
+    else:
+        text = text.replace(anchor, helpers + anchor, 1)
+        print("  windows.rs: helpers update silencioso", flush=True)
+
+    old_uac = (
+        "        if !run_uac(file, \"--update\")? {\n"
+        "            bail!(\n"
+        "                \"Failed to run the update exe with UAC, error: {:?}\",\n"
+        "                std::io::Error::last_os_error()\n"
+        "            );\n"
+        "        }"
+    )
+    new_uac = (
+        "        // DeskRudder: preferir update silencioso (SYSTEM) antes do UAC.\n"
+        "        // Necessario em PCs sem monitor/operador (UAC nao tem quem confirmar).\n"
+        "        if is_root() {\n"
+        "            deskrudder_run_update_exe(file)?;\n"
+        "        } else if deskrudder_try_queue_silent_update(file) {\n"
+        "            // Tempo para o --service ler a fila antes da UI sair.\n"
+        "            std::thread::sleep(std::time::Duration::from_millis(2000));\n"
+        "        } else if !run_uac(file, \"--update\")? {\n"
+        "            bail!(\n"
+        "                \"Failed to run the update exe with UAC, error: {:?}\",\n"
+        "                std::io::Error::last_os_error()\n"
+        "            );\n"
+        "        }"
+    )
+    if "deskrudder_try_queue_silent_update(file)" in text:
+        print("  windows.rs: update_to ja usa fila silenciosa", flush=True)
+    elif old_uac not in text:
+        raise SystemExit("run_uac(--update) nao encontrado em update_to (upstream mudou?)")
+    else:
+        text = text.replace(old_uac, new_uac, 1)
+        print("  windows.rs: update_to -> silent queue / SYSTEM / UAC", flush=True)
+
+    old_svc = (
+        "    // Tell the system that the service is running now\n"
+        "    status_handle.set_service_status(next_status)?;\n"
+        "\n"
+        "    let mut session_id = unsafe { get_current_session(share_rdp()) };"
+    )
+    new_svc = (
+        "    // Tell the system that the service is running now\n"
+        "    status_handle.set_service_status(next_status)?;\n"
+        "\n"
+        "    // DeskRudder: watcher de update silencioso (Public\\DeskRudder\\pending_update.txt)\n"
+        "    deskrudder_start_silent_update_watcher();\n"
+        "\n"
+        "    let mut session_id = unsafe { get_current_session(share_rdp()) };"
+    )
+    watcher_call_marker = (
+        "    // DeskRudder: watcher de update silencioso (Public\\DeskRudder\\pending_update.txt)\n"
+        "    deskrudder_start_silent_update_watcher();"
+    )
+    if watcher_call_marker in text:
+        print("  windows.rs: watcher ja iniciado no --service", flush=True)
+    elif old_svc not in text:
+        raise SystemExit("run_service status_handle anchor nao encontrado (upstream mudou?)")
+    else:
+        text = text.replace(old_svc, new_svc, 1)
+        print("  windows.rs: watcher silent update no --service", flush=True)
+
+    windows_rs.write_text(text, encoding="utf-8")
+
+
+def patch_file_transfer_defaults(common_rs: Path) -> None:
+    """Garante transferencia de arquivo no posto e copy-paste no controle.
+
+    Defaults do RustDesk ja tendem a Y, mas forcamos em DEFAULT_* no startup
+    para builds DeskRudder (evita opcao N residual / custom.txt). Tambem mantem
+    allow-scope-violation-close=N para nao fechar a sessao em mensagem fora de escopo.
+    """
+    text = common_rs.read_text(encoding="utf-8")
+    old = """pub fn global_init() -> bool {
+    #[cfg(all(target_os = "linux", feature = "drm"))]
+    crate::platform::linux::dispatch_wayland_display_probe();
+    #[cfg(target_os = "linux")]
+    {
+        if !crate::platform::linux::is_x11() {
+            crate::server::wayland::init();
+        }
+    }
+    true
+}"""
+    new = """pub fn global_init() -> bool {
+    #[cfg(all(target_os = "linux", feature = "drm"))]
+    crate::platform::linux::dispatch_wayland_display_probe();
+    #[cfg(target_os = "linux")]
+    {
+        if !crate::platform::linux::is_x11() {
+            crate::server::wayland::init();
+        }
+    }
+    // DeskRudder: transferencia de arquivo sempre habilitada por padrao.
+    // Posto (enable-file-transfer) + controle (enable-file-copy-paste).
+    // Nao fechar sessao em scope-violation (clipboard/file durante remoto).
+    {
+        let mut settings = config::DEFAULT_SETTINGS.write().unwrap();
+        settings.insert("enable-file-transfer".to_owned(), "Y".to_owned());
+        settings.insert("allow-scope-violation-close".to_owned(), "N".to_owned());
+    }
+    {
+        let mut local = config::DEFAULT_LOCAL_SETTINGS.write().unwrap();
+        local.insert("enable-file-copy-paste".to_owned(), "Y".to_owned());
+    }
+    true
+}"""
+    if 'settings.insert("enable-file-transfer"' in text:
+        print("  common.rs: defaults de file transfer ja presentes", flush=True)
+        return
+    if old not in text:
+        raise SystemExit("global_init() nao encontrado em common.rs (upstream mudou?)")
+    common_rs.write_text(text.replace(old, new, 1), encoding="utf-8")
+    print("  common.rs: defaults enable-file-transfer / copy-paste", flush=True)
+
+
+def patch_transfer_file_spawn(remote_rs: Path) -> None:
+    """Garante spawn de --file-transfer com a senha da sessao (owned String).
+
+    O upstream passa &self.password no vec de args; se a senha vier vazia
+    (login so pela UI), a janela de transferencia pede de novo — sem derrubar
+    a sessao remota atual. Logamos o caso para diagnostico.
+    """
+    if not remote_rs.is_file():
+        raise SystemExit(f"Falta {remote_rs}")
+    text = remote_rs.read_text(encoding="utf-8")
+    old = """    fn transfer_file(&mut self) {
+        let id = self.get_id();
+        let args = vec!["--file-transfer", &id, &self.password];
+        if let Err(err) = crate::run_me(args) {
+            log::error!("Failed to spawn file transfer: {}", err);
+        }
+    }"""
+    new = """    fn transfer_file(&mut self) {
+        let id = self.get_id();
+        // DeskRudder: owned password para o spawn; se vazia, a janela FT pede login.
+        let password = self.password.clone();
+        if password.is_empty() {
+            log::warn!(
+                "DeskRudder: spawning file-transfer without password (window will prompt)"
+            );
+        }
+        let args = vec!["--file-transfer", &id, &password];
+        if let Err(err) = crate::run_me(args) {
+            log::error!("Failed to spawn file transfer: {}", err);
+        }
+    }"""
+    if "DeskRudder: spawning file-transfer without password" in text:
+        print("  remote.rs: transfer_file ja patchado", flush=True)
+        return
+    if old not in text:
+        raise SystemExit("transfer_file() nao encontrado em remote.rs (upstream mudou?)")
+    remote_rs.write_text(text.replace(old, new, 1), encoding="utf-8")
+    print("  remote.rs: transfer_file com senha owned + log", flush=True)
 
 
 def patch_install_version_label(install_tis: Path) -> None:
@@ -1369,6 +1618,9 @@ def main() -> int:
     patch_update_check(common_rs)
     patch_update_banner(index_tis)
     patch_update_me_handler(ui_interface_rs)
+    patch_silent_update(windows_rs)
+    patch_file_transfer_defaults(common_rs)
+    patch_transfer_file_spawn(src / "src" / "ui" / "remote.rs")
     patch_website_urls(index_tis, install_tis)
     patch_install_path(windows_rs, install_tis)
     patch_system_dark_theme(ui_rs, index_tis)
@@ -1501,6 +1753,15 @@ def main() -> int:
     if "get_version_number(crate::DESKRUDDER_CLIENT_VERSION)" not in common_body:
         print("Verificacao falhou: update check nao usa DESKRUDDER_CLIENT_VERSION.", file=sys.stderr)
         return 1
+    if 'settings.insert("enable-file-transfer"' not in common_body:
+        print("Verificacao falhou: default enable-file-transfer ausente.", file=sys.stderr)
+        return 1
+    if 'local.insert("enable-file-copy-paste"' not in common_body:
+        print("Verificacao falhou: default enable-file-copy-paste ausente.", file=sys.stderr)
+        return 1
+    if "allow-scope-violation-close" not in common_body:
+        print("Verificacao falhou: allow-scope-violation-close nao forcado.", file=sys.stderr)
+        return 1
 
     install_body = install_tis.read_text(encoding="utf-8")
     if sciter_html(COPY_HOST_VERSAO) + " {handler.get_version()}" not in install_body:
@@ -1523,6 +1784,20 @@ def main() -> int:
         if "DeskRudder\\Acesso Remoto" not in win_body:
             print("Verificacao falhou: pasta de instalacao Acesso Remoto ausente.", file=sys.stderr)
             return 1
+    if "deskrudder_try_queue_silent_update" not in win_body:
+        print("Verificacao falhou: fila de update silencioso ausente.", file=sys.stderr)
+        return 1
+    if "DeskRudder: watcher de update silencioso" not in win_body:
+        print("Verificacao falhou: watcher de update silencioso nao iniciado no servico.", file=sys.stderr)
+        return 1
+    if "pending_update.txt" not in win_body:
+        print("Verificacao falhou: caminho pending_update.txt ausente.", file=sys.stderr)
+        return 1
+
+    remote_body = (src / "src" / "ui" / "remote.rs").read_text(encoding="utf-8")
+    if "DeskRudder: spawning file-transfer without password" not in remote_body:
+        print("Verificacao falhou: transfer_file sem fallback de senha.", file=sys.stderr)
+        return 1
 
     print(">> OK")
     return 0

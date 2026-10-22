@@ -30,11 +30,18 @@ Importante: **não** gravar `CLIENT_VERSION` no `Cargo.toml` principal. Se o pee
 
 Canal de atualização: o Release publica `version.json`; o cliente compara e mostra o banner **Atualização disponível**.
 
-Ao clicar em **Atualizar agora**:
+Ao clicar em **Atualizar agora** (versão DeskRudder **1.0.9+**):
 
 1. Baixa o `.exe` estável para a pasta temporária  
-2. Pede elevação (UAC) e roda com `--update`  
-3. Substitui os arquivos em `DeskRudder\Acesso Remoto` e **reabre** o app (e a bandeja)
+2. **Preferência silenciosa (postos instalados):** grava o caminho em `%PUBLIC%\DeskRudder\pending_update.txt`; o serviço Windows (`--service`, SYSTEM) aplica com `--update` **sem UAC** — necessário em PDV sem monitor/operador  
+3. Se o serviço não estiver rodando, cai no UAC (`runas`) como antes  
+4. Substitui os arquivos em `DeskRudder\Acesso Remoto` e **reabre** o app (e a bandeja)  
+
+A sessão remota **pode cair** durante a troca de arquivos — o banner avisa.
+
+### Transferência de arquivo
+
+No posto, `enable-file-transfer` fica **Y** por padrão; no atendente, `enable-file-copy-paste` também. Para copiar arquivos com mais estabilidade, use o menu **Transferir arquivo** da sessão (janela própria), em vez de só colar pelo clipboard — em alguns PCs o copy-paste de arquivo pode derrubar a conexão.
 
 ## Como obter o `.exe` (equipe)
 
