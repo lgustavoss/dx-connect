@@ -185,10 +185,10 @@ function acharExeRemoto() {
 }
 
 /**
- * Abre sessão remota via URL deskrudder:// (senha na query).
- * O instalador DeskRudder registra esse esquema (APP_NAME); rustdesk:// abre o cliente oficial.
- * Com o .exe instalado, passa a URL como argumento (evita flags --connect/--password
- * que diferem entre builds Sciter); senão usa o protocolo registrado no Windows.
+ * Abre sessão remota no DeskRudder Acesso Remoto (Sciter).
+ * O cliente instalado só trata `--connect ID [senha]`. O URI deskrudder://
+ * (que o RustDesk Flutter oficial aceita) era ignorado — o processo saía
+ * com "Wrong command". rustdesk:// continua apontando ao RustDesk oficial.
  * @returns {{ ok: boolean, modo?: string, erro?: string }}
  */
 function conectarRemoto(id, senha) {
@@ -197,6 +197,8 @@ function conectarRemoto(id, senha) {
     return { ok: false, erro: 'ID de acesso remoto inválido.' }
   }
   const senhaLimpa = senha != null ? String(senha).trim() : ''
+  const args = ['--connect', digitos]
+  if (senhaLimpa) args.push(senhaLimpa)
   const params = new URLSearchParams()
   if (senhaLimpa) params.set('password', senhaLimpa)
   const consulta = params.toString()
@@ -205,7 +207,7 @@ function conectarRemoto(id, senha) {
   const exe = acharExeRemoto()
   if (exe) {
     try {
-      const filho = spawn(exe, [url], { detached: true, stdio: 'ignore' })
+      const filho = spawn(exe, args, { detached: true, stdio: 'ignore' })
       filho.unref()
       return { ok: true, modo: 'exe' }
     } catch (err) {

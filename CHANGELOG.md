@@ -5,6 +5,15 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### DeskRudder
+
+#### Correções
+
+- Acesso remoto: o clique no computador volta a abrir o **DeskRudder Acesso Remoto**. Depois que o painel passou a usar `deskrudder://` (em vez de `rustdesk://`), o Chrome ignorava o clique sintético e o cliente Sciter só entendia `--connect` — o Windows entregava o link e o app saía sem conectar. O `rustdesk://` antigo abria o RustDesk oficial (Flutter), que aceita o URI
+- Acesso remoto: cliente controle **1.0.8** passa a aceitar `deskrudder://connection/new/{id}` (vira `--connect` com a senha)
+- Acesso remoto: textos do app (atendente e posto) com acentos corretos no aviso de atualização e no rótulo de versão — o Sciter no Windows não lê UTF-8 no `.tis` (versão 1.0.8)
+- App desktop: a frota abre o Acesso Remoto com `--connect` ID/senha, o formato que o cliente já entendia
+
 ## [26.10.007] - 2026-10-21
 
 ### DeskRudder

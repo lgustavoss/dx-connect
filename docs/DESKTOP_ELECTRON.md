@@ -20,7 +20,7 @@ O app desktop é uma janela Electron que carrega o **painel web da instância** 
 | Alerta da fila com a janela fechada | Para ao fechar | Continua se a bandeja estiver ligada (Setup ou menu depois; sem throttling e autoplay liberado) |
 | Contador de pendências | Título da aba | Tooltip da bandeja + piscar na barra de tarefas |
 | Uma instância | — | Segundo clique no atalho reabre a janela |
-| Acesso remoto na frota | `deskrudder://` (precisa do DeskRudder Acesso Remoto instalado) | Prefere `DeskRudder.exe` em `Program Files (x86)\DeskRudder\Acesso Remoto` |
+| Acesso remoto na frota | `deskrudder://` (cliente controle 1.0.8+; precisa estar instalado) | Abre `DeskRudder.exe --connect ID [senha]` em `Program Files (x86)\DeskRudder\Acesso Remoto` |
 | Cache após deploy | Depende do navegador / SW | Limpa cache + desregistra SW ao abrir; menu **Recarregar painel** |
 
 ## Código
@@ -123,7 +123,7 @@ O shell embute Chromium (como o Chrome). Se o consumo ficar inaceitável no uso 
 | 11 | Menu da bandeja → Sair | Encerra o app e para os alertas |
 | 12 | Botão direito numa imagem do chat → Copiar | Imagem colável no Paint/WhatsApp; em texto selecionado copia o texto |
 | 13 | Deploy novo no servidor | Melhorias aparecem após abrir o app ou **Recarregar painel** (sem reinstalar o Setup) |
-| 14 | Frota → Conectar (com remoto instalado) | Abre janela **DeskRudder - Acesso Remoto** com ID/senha (via `deskrudder://` no `.exe` local) |
+| 14 | Frota → Conectar (com remoto instalado) | Abre janela **DeskRudder - Acesso Remoto** com ID/senha (`--connect`; o URI `deskrudder://` no navegador precisa do cliente 1.0.8+) |
 | 15 | Navegador no PC | Não sugere «Instale o app» (PWA); no celular continua sugerindo |
 | 16 | Setup com remoto no vendor | UAC → painel + `--silent-install` do controle (se falhar, assistente normal) |
 | 17 | `/app/download` após workflow Desktop (ou `publicar-setup`) + Nginx | Baixa `DeskRudder-Setup.exe` sem mostrar URL do repositório |
