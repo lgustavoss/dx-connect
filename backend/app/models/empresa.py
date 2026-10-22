@@ -46,6 +46,7 @@ class Empresa(Base):
     ativo = Column(Boolean, default=True)
     # NFS-e na emissão (lote 3); fatura copia o snapshot (#364)
     emite_nfse = Column(Boolean, nullable=False, default=True)
+    versao_pdv = Column(String(80), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

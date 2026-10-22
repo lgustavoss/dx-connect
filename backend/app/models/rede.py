@@ -12,6 +12,7 @@ class Rede(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False, index=True)
     nome = Column(String(255), nullable=False)
     login_retaguarda = Column(String(120), nullable=True)
+    versao_retaguarda = Column(String(80), nullable=True)
     ativo = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

@@ -1451,6 +1451,15 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
                   ))}
               </p>
             )}
+            {(ticket.versao_pdv?.trim() || ticket.versao_retaguarda?.trim()) && (
+              <p className="mt-0.5 truncate text-[11px] text-slate-500 sm:text-xs dark:text-slate-400">
+                {ticket.versao_pdv?.trim() ? `PDV ${ticket.versao_pdv.trim()}` : null}
+                {ticket.versao_pdv?.trim() && ticket.versao_retaguarda?.trim() ? (
+                  <span className="mx-1 text-slate-400 dark:text-slate-500">·</span>
+                ) : null}
+                {ticket.versao_retaguarda?.trim() ? `Retaguarda ${ticket.versao_retaguarda.trim()}` : null}
+              </p>
+            )}
 
             {triagemInbound && (
               <div
@@ -2231,7 +2240,7 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
                       Abrir filhos em massa (por empresa da rede)
                     </p>
                     <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                      Cria um ticket filho para cada empresa selecionada — útil para rollouts ou tarefas iguais em toda a rede.
+                      Empresas novas da rede, ou que ficaram de fora na abertura, podem receber um ticket filho aqui.
                     </p>
                     <div className="mt-3">
                       <TicketFilhosMassaPanel

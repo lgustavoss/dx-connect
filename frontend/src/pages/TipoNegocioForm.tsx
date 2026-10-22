@@ -131,6 +131,7 @@ export function TipoNegocioForm() {
                 checked={ativo}
                 onCheckedChange={setAtivo}
                 label="Tipo ativo"
+                description="Não dá para desativar se alguma empresa ativa ainda usa este tipo. Empresas inativas não impedem."
                 showStatusPill
                 statusOnText="Ativo"
                 statusOffText="Inativo"

@@ -53,7 +53,7 @@ import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { Switch } from '../components/ui/Switch'
-import { CheckboxField } from '../components/ui/CheckboxField'
+import { CheckboxField, CheckboxOptionList } from '../components/ui/CheckboxField'
 import { SemPermissao } from './SemPermissao'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
@@ -164,6 +164,7 @@ export function RedeDetalhe() {
   const [respLegalEstado, setRespLegalEstado] = useState('')
   const [respLegalCep, setRespLegalCep] = useState('')
   const [ativoEmpresa, setAtivoEmpresa] = useState(true)
+  const [versaoPdvEmpresa, setVersaoPdvEmpresa] = useState('')
   const [savingEmpresa, setSavingEmpresa] = useState(false)
   const [loadingCnpjEmpresa, setLoadingCnpjEmpresa] = useState(false)
 
@@ -185,6 +186,8 @@ export function RedeDetalhe() {
   const [ativoFuncionario, setAtivoFuncionario] = useState(true)
   const [empresaIdFuncionario, setEmpresaIdFuncionario] = useState<number | ''>('')
   const [empresaIdsFuncionario, setEmpresaIdsFuncionario] = useState<number[]>([])
+  const [vinculoAberto, setVinculoAberto] = useState(true)
+  const [dadosFuncionarioAberto, setDadosFuncionarioAberto] = useState(true)
   const [senhaPortalFuncionario, setSenhaPortalFuncionario] = useState('')
   const [mostrarSenhaPortalFuncionario, setMostrarSenhaPortalFuncionario] = useState(false)
   const [mustChangePasswordFuncionario, setMustChangePasswordFuncionario] = useState(true)
@@ -492,6 +495,7 @@ export function RedeDetalhe() {
     setRespLegalEstado('')
     setRespLegalCep('')
     setAtivoEmpresa(true)
+    setVersaoPdvEmpresa('')
     setAbaModalEmpresa('geral')
     setModalEmpresa(true)
   }
@@ -530,6 +534,7 @@ export function RedeDetalhe() {
     setRespLegalEstado((e.resp_legal_estado ?? '').toUpperCase().slice(0, 2))
     setRespLegalCep(maskCep(e.resp_legal_cep ?? ''))
     setAtivoEmpresa(e.ativo)
+    setVersaoPdvEmpresa(e.versao_pdv ?? '')
     setAbaModalEmpresa('geral')
     setModalEmpresa(true)
   }
@@ -609,6 +614,7 @@ export function RedeDetalhe() {
         resp_legal_estado: respLegalEstado.trim() || null,
         resp_legal_cep: respLegalCep.replace(/\D/g, '') || null,
         ativo: ativoEmpresa,
+        versao_pdv: versaoPdvEmpresa.trim() || null,
       }
       if (editingEmpresaId) {
         await empresas.update(editingEmpresaId, payload)
@@ -659,6 +665,8 @@ export function RedeDetalhe() {
     setEditingFuncionarioId(f.id)
     setModoFuncionario('edit')
     preencherFormFuncionario(f)
+    setVinculoAberto(true)
+    setDadosFuncionarioAberto(true)
     setAba('funcionarios')
     setModalFuncionario(true)
   }
@@ -676,6 +684,8 @@ export function RedeDetalhe() {
     setMustChangePasswordFuncionario(true)
     setPortalHabilitadoFuncionario(false)
     setNotificarEmailPortalFuncionario(true)
+    setVinculoAberto(true)
+    setDadosFuncionarioAberto(true)
     setAba('funcionarios')
     setModalFuncionario(true)
   }
@@ -1005,6 +1015,10 @@ export function RedeDetalhe() {
                       <p className="text-sm text-slate-900 dark:text-slate-100">{tipoNegocioNomeEmpresa || '—'}</p>
                     </div>
                     <div>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Versão do PDV</p>
+                      <p className="text-sm text-slate-900 dark:text-slate-100">{versaoPdvEmpresa || '—'}</p>
+                    </div>
+                    <div>
                       <p className="text-xs font-medium text-slate-500 dark:text-slate-400">CNPJ / CPF</p>
                       <p className="text-sm break-all text-slate-900 dark:text-slate-100">{cnpjCpfEmpresa || '—'}</p>
                     </div>
@@ -1283,6 +1297,13 @@ export function RedeDetalhe() {
                     includeEmpty
                     emptyLabel="Selecione"
                     placeholder="Selecione"
+                  />
+                  <Input
+                    label="Versão do PDV"
+                    value={versaoPdvEmpresa}
+                    onChange={(e) => setVersaoPdvEmpresa(e.target.value)}
+                    placeholder="Ex.: 4.2.1"
+                    maxLength={80}
                   />
                 </FormSection>
 
@@ -1666,7 +1687,15 @@ export function RedeDetalhe() {
               </p>
               <form onSubmit={handleSubmitFuncionario}>
                 <div className="space-y-6">
-                  <FormSection title="Dados do funcionário">
+                  <FormSection
+                    title={
+                      dadosFuncionarioAberto || !nomeFuncionario.trim()
+                        ? 'Dados do funcionário'
+                        : `Dados do funcionário · ${nomeFuncionario.trim()}`
+                    }
+                    expanded={dadosFuncionarioAberto}
+                    onToggle={() => setDadosFuncionarioAberto((v) => !v)}
+                  >
                     <Input
                       label="Nome *"
                       value={nomeFuncionario}
@@ -1698,7 +1727,17 @@ export function RedeDetalhe() {
                   </FormSection>
 
                   {tipoFuncionario !== 'socio' && (
-                    <FormSection title="Vínculo">
+                    <FormSection
+                      title={
+                        vinculoAberto
+                          ? 'Vínculo'
+                          : tipoFuncionario === 'supervisor' && empresaIdsFuncionario.length > 0
+                            ? `Vínculo · ${empresaIdsFuncionario.length} ${empresaIdsFuncionario.length === 1 ? 'empresa' : 'empresas'}`
+                            : 'Vínculo'
+                      }
+                      expanded={vinculoAberto}
+                      onToggle={() => setVinculoAberto((v) => !v)}
+                    >
                       {tipoFuncionario === 'colaborador' && (
                         <SelectComPesquisa
                           id="rede-detalhe-func-empresa"
@@ -1720,17 +1759,20 @@ export function RedeDetalhe() {
                           {empresasDaRedeParaVinculo.length === 0 ? (
                             <p className="text-sm text-slate-500 dark:text-slate-400">Nenhuma empresa ativa nesta rede.</p>
                           ) : (
-                            <div className="flex max-h-44 flex-wrap gap-2 overflow-auto rounded-xl border border-slate-200 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/40">
-                              {empresasDaRedeParaVinculo.map((e) => (
-                                <CheckboxField
-                                  key={e.id}
-                                  checked={empresaIdsFuncionario.includes(e.id)}
-                                  onChange={() => toggleEmpresaFuncionario(e.id)}
-                                >
-                                  {e.nome}
-                                </CheckboxField>
-                              ))}
-                            </div>
+                            <CheckboxOptionList>
+                              {[...empresasDaRedeParaVinculo]
+                                .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+                                .map((e) => (
+                                  <CheckboxField
+                                    key={e.id}
+                                    variant="inline"
+                                    checked={empresaIdsFuncionario.includes(e.id)}
+                                    onChange={() => toggleEmpresaFuncionario(e.id)}
+                                  >
+                                    {e.nome}
+                                  </CheckboxField>
+                                ))}
+                            </CheckboxOptionList>
                           )}
                         </div>
                       )}

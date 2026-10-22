@@ -71,6 +71,7 @@ function aplicarEmpresaNoFormulario(e: Empresas.Empresa, setters: {
   setRespLegalCep: (v: string) => void
   setAtivo: (v: boolean) => void
   setEmiteNfse: (v: boolean) => void
+  setVersaoPdv: (v: string) => void
 }) {
   setters.setRedeId(e.rede_id)
   setters.setTipoNegocioId(e.tipo_negocio_id ?? '')
@@ -105,6 +106,7 @@ function aplicarEmpresaNoFormulario(e: Empresas.Empresa, setters: {
   setters.setRespLegalCep(e.resp_legal_cep ? maskCep(e.resp_legal_cep.replace(/\D/g, '')) : '')
   setters.setAtivo(e.ativo)
   setters.setEmiteNfse(e.emite_nfse !== false)
+  setters.setVersaoPdv(e.versao_pdv ?? '')
 }
 
 export function EmpresaForm() {
@@ -151,6 +153,7 @@ export function EmpresaForm() {
   const [respLegalCep, setRespLegalCep] = useState('')
   const [ativo, setAtivo] = useState(true)
   const [emiteNfse, setEmiteNfse] = useState(true)
+  const [versaoPdv, setVersaoPdv] = useState('')
   const [saving, setSaving] = useState(false)
   const [loadingCnpj, setLoadingCnpj] = useState(false)
   const [forbidden, setForbidden] = useState(false)
@@ -238,6 +241,7 @@ export function EmpresaForm() {
           setRespLegalCep,
           setAtivo,
           setEmiteNfse,
+          setVersaoPdv,
         })
       })
       .catch((err) => {
@@ -341,6 +345,7 @@ export function EmpresaForm() {
         resp_legal_cep: respLegalCep.replace(/\D/g, '') || null,
         ativo,
         emite_nfse: emiteNfse,
+        versao_pdv: versaoPdv.trim() || null,
       }
       if (isEdit && !Number.isNaN(empresaId)) {
         await apiEmpresas.update(empresaId, payload)
@@ -424,6 +429,19 @@ export function EmpresaForm() {
                       placeholder="Selecione"
                     />
                   </div>
+                </FormSection>
+
+                <FormSection
+                  title="Versão do PDV"
+                  description="Versão do programa de caixa instalado neste posto. Vale para todos os PDVs da empresa."
+                >
+                  <Input
+                    label="Versão do PDV"
+                    value={versaoPdv}
+                    onChange={(e) => setVersaoPdv(e.target.value)}
+                    placeholder="Ex.: 4.2.1"
+                    maxLength={80}
+                  />
                 </FormSection>
 
               <FormSection title="Documento e nomes" description={EMPRESA_SECAO_DOCUMENTO_NOMES}>

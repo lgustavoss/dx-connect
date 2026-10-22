@@ -2458,6 +2458,7 @@ export namespace Redes {
     id: number;
     nome: string;
     login_retaguarda?: string | null;
+    versao_retaguarda?: string | null;
     ativo: boolean;
     created_at?: string | null;
     updated_at?: string | null;
@@ -2468,11 +2469,13 @@ export namespace Redes {
   export interface Create {
     nome: string;
     login_retaguarda?: string | null;
+    versao_retaguarda?: string | null;
     ativo?: boolean;
   }
   export interface Update {
     nome?: string;
     login_retaguarda?: string | null;
+    versao_retaguarda?: string | null;
     ativo?: boolean;
   }
 }
@@ -2524,6 +2527,7 @@ export namespace Empresas {
     resp_legal_cep: string | null;
     ativo: boolean;
     emite_nfse?: boolean;
+    versao_pdv?: string | null;
     created_at?: string | null;
     updated_at?: string | null;
   }
@@ -2580,6 +2584,7 @@ export namespace Empresas {
     resp_legal_cep?: string | null;
     ativo?: boolean;
     emite_nfse?: boolean;
+    versao_pdv?: string | null;
   }
   export interface Update {
     rede_id?: number;
@@ -2616,6 +2621,7 @@ export namespace Empresas {
     resp_legal_cep?: string | null;
     ativo?: boolean;
     emite_nfse?: boolean;
+    versao_pdv?: string | null;
   }
 }
 
@@ -4271,6 +4277,8 @@ export const empresaPdvs = {
     api<EmpresaPdv.Item>(`/empresas/${empresaId}/pdvs/${pdvId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   revelarCredencial: (empresaId: number, pdvId: number) =>
     api<EmpresaPdv.Credencial>(`/empresas/${empresaId}/pdvs/${pdvId}/credencial`),
+  revelarCredencialAcesso: (empresaId: number, pdvId: number, acessoId: number) =>
+    api<EmpresaPdv.Credencial>(`/empresas/${empresaId}/pdvs/${pdvId}/acessos/${acessoId}/credencial`),
 };
 
 export const rustdeskPeers = {
@@ -4311,6 +4319,7 @@ export namespace RustdeskFrota {
     pdv_codigo: string
     pdv_ativo: boolean
     tipo_acesso_remoto_nome?: string | null
+    versao_pdv?: string | null
   }
   export interface Peer {
     rustdesk_id: string
@@ -4379,6 +4388,23 @@ export namespace EmpresaPdv {
     items: Item[]
     total: number
     empresa_nome: string
+    versao_pdv?: string | null
+  }
+  export interface Acesso {
+    id: number
+    tipo_acesso_remoto_id?: number | null
+    tipo_acesso_remoto_nome?: string | null
+    acesso_remoto_id?: string | null
+    tem_senha_remota: boolean
+    pode_conectar: boolean
+    rustdesk_visto?: boolean
+    rustdesk_online?: boolean | null
+  }
+  export interface AcessoWrite {
+    id?: number | null
+    tipo_acesso_remoto_id?: number | null
+    acesso_remoto_id?: string | null
+    acesso_remoto_senha?: string | null
   }
   export interface Item {
     id: number;
@@ -4396,6 +4422,7 @@ export namespace EmpresaPdv {
     tem_senha_remota: boolean;
     rustdesk_visto?: boolean;
     rustdesk_online?: boolean | null;
+    acessos?: Acesso[];
     created_at?: string | null;
     updated_at?: string | null;
   }
@@ -4409,6 +4436,7 @@ export namespace EmpresaPdv {
     acesso_remoto_senha?: string | null;
     observacoes?: string | null;
     ativo?: boolean;
+    acessos?: AcessoWrite[];
   }
   export interface Update {
     codigo?: string;
@@ -4420,6 +4448,7 @@ export namespace EmpresaPdv {
     acesso_remoto_senha?: string | null;
     observacoes?: string | null;
     ativo?: boolean;
+    acessos?: AcessoWrite[];
   }
   export interface Credencial {
     acesso_remoto_senha: string;
@@ -4673,6 +4702,8 @@ export namespace Tickets {
     rede_id?: number | null;
     empresa_nome?: string | null;
     rede_nome?: string;
+    versao_pdv?: string | null;
+    versao_retaguarda?: string | null;
     coordenacao_rede?: boolean;
     setor_nome?: string;
     status_nome?: string;

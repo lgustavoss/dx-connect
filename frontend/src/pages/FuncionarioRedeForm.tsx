@@ -8,7 +8,7 @@ import { Input } from '../components/ui/Input'
 import { SelectComPesquisa } from '../components/ui/SelectComPesquisa'
 import { Select } from '../components/ui/Select'
 import { Switch } from '../components/ui/Switch'
-import { CheckboxField } from '../components/ui/CheckboxField'
+import { CheckboxField, CheckboxOptionList } from '../components/ui/CheckboxField'
 import { useToast } from '../components/ui/Toast'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { FormSection } from '../components/ui/FormSection'
@@ -24,6 +24,20 @@ type Escopo = FuncionariosRede.EscopoEmpresas
 function redePadraoRecente(list: Redes.Rede[]) {
   const sorted = [...list].sort((a, b) => (Date.parse(b.created_at ?? '') || 0) - (Date.parse(a.created_at ?? '') || 0))
   return sorted[0]?.id ?? ''
+}
+
+function tituloEscopoEmpresas(aberto: boolean, escopo: Escopo, selecionadas: number) {
+  if (aberto) return 'Escopo de empresas'
+  if (escopo === 'all') return 'Escopo de empresas · todas da rede'
+  if (selecionadas <= 0) return 'Escopo de empresas'
+  if (selecionadas === 1) return 'Escopo de empresas · 1 selecionada'
+  return `Escopo de empresas · ${selecionadas} selecionadas`
+}
+
+function tituloDadosFuncionario(aberto: boolean, nome: string) {
+  const n = nome.trim()
+  if (aberto || !n) return 'Dados do funcionário'
+  return `Dados do funcionário · ${n}`
 }
 
 export function FuncionarioRedeForm() {
@@ -50,6 +64,8 @@ export function FuncionarioRedeForm() {
   const [telefone, setTelefone] = useState('')
   const [tipo, setTipo] = useState<Tipo>('colaborador')
   const [escopoEmpresas, setEscopoEmpresas] = useState<Escopo>('selected')
+  const [escopoAberto, setEscopoAberto] = useState(true)
+  const [dadosAberto, setDadosAberto] = useState(true)
   const [ativo, setAtivo] = useState(true)
   const [redeId, setRedeId] = useState<number | ''>('')
   const [empresaId, setEmpresaId] = useState<number | ''>('')
@@ -274,7 +290,7 @@ export function FuncionarioRedeForm() {
   }
 
   return (
-    <div ref={topoRef} className="mx-auto w-full min-w-0 max-w-5xl space-y-6 pb-10">
+    <div ref={topoRef} className="mx-auto h-fit w-full min-w-0 max-w-5xl space-y-6 pb-10">
       <div className="flex items-center justify-between gap-3">
         <VoltarButton onClick={voltarAnterior} />
       </div>
@@ -282,7 +298,11 @@ export function FuncionarioRedeForm() {
       <Card title={isEdit ? 'Editar funcionário' : 'Novo funcionário'}>
         <form onSubmit={handleSubmit}>
           <div className="space-y-6">
-            <FormSection title="Dados do funcionário">
+            <FormSection
+              title={tituloDadosFuncionario(dadosAberto, nome)}
+              expanded={dadosAberto}
+              onToggle={() => setDadosAberto((v) => !v)}
+            >
               <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
               <Input
                 label="E-mail (opcional)"
@@ -334,7 +354,15 @@ export function FuncionarioRedeForm() {
               />
             </FormSection>
 
-            <FormSection title="Escopo de empresas">
+            <FormSection
+              title={tituloEscopoEmpresas(
+                escopoAberto,
+                escopoEmpresas,
+                tipo === 'colaborador' ? (empresaId ? 1 : 0) : empresaIds.length,
+              )}
+              expanded={escopoAberto}
+              onToggle={() => setEscopoAberto((v) => !v)}
+            >
               <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
                 <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
                   <input
@@ -354,7 +382,10 @@ export function FuncionarioRedeForm() {
                     type="radio"
                     name="escopo-empresas"
                     checked={escopoEmpresas === 'selected'}
-                    onChange={() => setEscopoEmpresas('selected')}
+                    onChange={() => {
+                      setEscopoEmpresas('selected')
+                      setEscopoAberto(true)
+                    }}
                   />
                   Selecionar empresas
                 </label>
@@ -385,13 +416,20 @@ export function FuncionarioRedeForm() {
                       ) : empresasDaRede.length === 0 ? (
                         <p className="text-sm text-slate-500 dark:text-slate-400">Nenhuma empresa ativa nesta rede.</p>
                       ) : (
-                        <div className="flex max-h-44 flex-wrap gap-2 overflow-auto rounded-xl border border-slate-200 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/40">
-                          {empresasDaRede.map((e) => (
-                            <CheckboxField key={e.id} checked={empresaIds.includes(e.id)} onChange={() => toggleEmpresa(e.id)}>
-                              {e.nome}
-                            </CheckboxField>
-                          ))}
-                        </div>
+                        <CheckboxOptionList>
+                          {[...empresasDaRede]
+                            .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+                            .map((e) => (
+                              <CheckboxField
+                                key={e.id}
+                                variant="inline"
+                                checked={empresaIds.includes(e.id)}
+                                onChange={() => toggleEmpresa(e.id)}
+                              >
+                                {e.nome}
+                              </CheckboxField>
+                            ))}
+                        </CheckboxOptionList>
                       )}
                     </>
                   )}

@@ -340,3 +340,72 @@ def test_lembrete_repete_ate_o_autor_confirmar(client, auth_headers, db_session,
     db_session.commit()
     assert reivindicar_lembretes_vencidos(db_session) == []
     assert seed_base["comercial"].id == row.autor_id
+
+
+def test_desativar_estagio_funil_em_uso_retorna_409(client, auth_headers, seed_base):
+    h = auth_headers["comercial"]
+    criado = client.post(
+        "/v1/crm/leads",
+        headers=h,
+        json={"nome": "Posto Beta", "telefone": "11988887777"},
+    )
+    assert criado.status_code == 201, criado.text
+    estagio_id = criado.json()["estagio_id"]
+
+    r = client.patch(
+        f"/v1/crm/funil-estagios/{estagio_id}",
+        headers=auth_headers["admin"],
+        json={"ativo": False},
+    )
+    assert r.status_code == 409, r.text
+    detail = r.json()["detail"].lower()
+    assert "1 lead" in detail
+    assert "1 negociação" in detail
+
+
+def test_desativar_estagio_funil_perdido_ok(client, auth_headers, seed_base):
+    h = auth_headers["comercial"]
+    criado = client.post(
+        "/v1/crm/leads",
+        headers=h,
+        json={"nome": "Posto Perdido", "telefone": "11977776666"},
+    )
+    assert criado.status_code == 201, criado.text
+    neg_id = criado.json()["negociacao_ativa_id"]
+    estagios = client.get("/v1/crm/funil-estagios", headers=auth_headers["admin"])
+    assert estagios.status_code == 200, estagios.text
+    perdido = next(e for e in estagios.json() if e["slug"] == "perdido")
+
+    perd = client.post(
+        f"/v1/crm/negociacoes/{neg_id}/mover-estagio",
+        headers=h,
+        json={"estagio_slug": "perdido", "nota": "Sem retorno"},
+    )
+    assert perd.status_code == 200, perd.text
+    assert perd.json()["ativa"] is False
+
+    r = client.patch(
+        f"/v1/crm/funil-estagios/{perdido['id']}",
+        headers=auth_headers["admin"],
+        json={"ativo": False},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["ativo"] is False
+
+
+def test_desativar_estagio_funil_sem_lead_ok(client, auth_headers):
+    novo = client.post(
+        "/v1/crm/funil-estagios",
+        headers=auth_headers["admin"],
+        json={"slug": "estagio-teste-inativar", "nome": "Teste inativar", "ordem": 99, "tipo": "aberto"},
+    )
+    assert novo.status_code == 201, novo.text
+    estagio_id = novo.json()["id"]
+
+    r = client.patch(
+        f"/v1/crm/funil-estagios/{estagio_id}",
+        headers=auth_headers["admin"],
+        json={"ativo": False},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["ativo"] is False

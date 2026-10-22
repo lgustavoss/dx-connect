@@ -77,3 +77,18 @@ export function CheckboxField({
     </label>
   )
 }
+
+/**
+ * Lista de opções, uma por linha, todas visíveis — #1239 / #S202610-0017.
+ */
+export function CheckboxOptionList({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return (
+    <div
+      className={`contain-layout overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/40 ${className}`.trim()}
+    >
+      <div className="flex flex-col divide-y divide-slate-200 dark:divide-slate-800 [&>label]:w-full [&>label]:rounded-none [&>label]:border-0 [&>label]:px-3.5 [&>label]:py-2.5 [&>label]:hover:bg-slate-50 dark:[&>label]:hover:bg-slate-800/50">
+        {children}
+      </div>
+    </div>
+  )
+}

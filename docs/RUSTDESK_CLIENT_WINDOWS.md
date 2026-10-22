@@ -21,10 +21,12 @@ Há **duas** versões envolvidas:
 
 | O quê | Onde | Muda quando |
 |-------|------|-------------|
-| **Versão DeskRudder** (`CLIENT_VERSION`, ex.: `1.0.0`) | Aparece no app, na instalação e no aviso de update | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION` e gera um build novo |
-| **Tag RustDesk** (ex.: `1.5.0`) | Base do código open-source no workflow | Só quando escolhemos uma tag mais nova do upstream no Actions |
+| **Versão DeskRudder** (`CLIENT_VERSION`, ex.: `1.0.6`) | UI («Versão …»), instalação e aviso de update (`DESKRUDDER_CLIENT_VERSION`) | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION` e gera um build novo |
+| **Tag RustDesk** (ex.: `1.5.0`) | `Cargo.toml` → `crate::VERSION` anunciada ao peer (protocolo / modo de teclado) | Só quando escolhemos uma tag mais nova do upstream no Actions |
 
 A tag `1.5.0` **não sobe sozinha** a cada build — é a base do RustDesk. O que o posto precisa olhar é a **versão DeskRudder**.
+
+Importante: **não** gravar `CLIENT_VERSION` no `Cargo.toml` principal. Se o peer anunciar `1.0.x` (abaixo de 1.2.0), o modo mapa de teclado some e atalhos do PDV (ex. tecla **D**) deixam de funcionar.
 
 Canal de atualização: o Release publica `version.json`; o cliente compara e mostra o banner **Atualização disponível**.
 
@@ -66,7 +68,7 @@ Fonte: `deploy/rustdesk-client/server.config.json`
 ## O que o CI faz
 
 1. Clona [rustdesk/rustdesk](https://github.com/rustdesk/rustdesk) (tag escolhida)
-2. Aplica `deploy/rustdesk-client/scripts/apply_branding.py` (nome DeskRudder, host/chave em `RENDEZVOUS_SERVERS` + `PROD_RENDEZVOUS_SERVER`, ícones e PNG do Sciter em `get_icon()`, modo só-recebe, UI com logo e atalho **DeskRudder - Acesso Remoto**)
+2. Aplica `deploy/rustdesk-client/scripts/apply_branding.py` (nome DeskRudder, host/chave em `RENDEZVOUS_SERVERS` + `PROD_RENDEZVOUS_SERVER`, ícones e PNG do Sciter em `get_icon()`, modo só-recebe no posto / só-controla no atendente, UI com logo e atalho **DeskRudder - Acesso Remoto**)
 3. Compila o cliente Windows (UI Sciter), renomeia o binário para `DeskRudder.exe` (necessário para o Windows reconhecer a instalação) e empacota o portable
 4. Publica o artefato `DeskRudder-AcessoRemoto-*.exe` e atualiza o Release `acesso-remoto-windows` (link do painel)
 
@@ -93,6 +95,16 @@ Para acesso estável no posto:
 1. Clique no lápis ao lado da senha
 2. **Definir senha permanente** e escolha uma senha da equipe
 3. Em **Usar senha permanente** (ou «ambas»), o refresh da senha de uso único deixa de impedir o acesso
+
+## Comportamento do cliente (atendente)
+
+O instalador de **controle** (`DeskRudder-AcessoRemoto-Controle.exe`, embutido no Setup do painel) é o PC que **inicia** a sessão:
+
+- Painel para controlar outro computador (ID do posto + Conectar)
+- Sem ID/senha deste PC — o atendente não é acessado e **não se registra** no servidor (`is_outgoing_only`)
+- Por isso o notebook do atendente **não aparece** na frota como computador sem vínculo
+- Quem já se registrou com o build antigo fica offline na frota — exclua na tela Acesso remoto
+- Atalho e pasta iguais ao do posto (`DeskRudder - Acesso Remoto` / `DeskRudder\Acesso Remoto`)
 
 ## Pasta no repo
 

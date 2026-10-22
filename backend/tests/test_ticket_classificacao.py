@@ -206,3 +206,208 @@ def test_crud_catalogos_admin(client, seed_base, auth_headers, db_session):
         json={"nome": "X", "slug": "x", "ordem": 1},
     )
     assert r_forbidden.status_code == 403
+
+
+def _ticket_aberto_com_motivo(client, auth_headers, seed_base, motivo_id: int):
+    t = _create_ticket(client, auth_headers, seed_base)
+    r = client.patch(
+        f"/v1/tickets/{t['id']}",
+        headers=auth_headers["admin"],
+        json={"motivo_id": motivo_id},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["fechado_em"] is None
+    return r.json()
+
+
+def _ticket_encerrado_com_motivo(client, auth_headers, seed_base, db_session, motivo_id: int):
+    fechado = _ensure_status_fechado(db_session)
+    t = _create_ticket(client, auth_headers, seed_base)
+    r = client.patch(
+        f"/v1/tickets/{t['id']}",
+        headers=auth_headers["admin"],
+        json={"status_id": fechado.id, "motivo_id": motivo_id},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["fechado_em"] is not None
+    return r.json()
+
+
+def _chat_com_demanda(db_session, *, estado: str, natureza_id: int, motivo_id: int, protocolo: str):
+    from app.models.whatsapp_chat import WhatsappChat
+    from app.models.whatsapp_chat_demanda import WhatsappChatDemanda
+
+    chat = WhatsappChat(
+        protocolo=protocolo,
+        wa_id="5511999000001",
+        cliente_nome="Cliente",
+        estado=estado,
+    )
+    db_session.add(chat)
+    db_session.flush()
+    db_session.add(
+        WhatsappChatDemanda(
+            chat_id=chat.id,
+            natureza_id=natureza_id,
+            motivo_id=motivo_id,
+            desfecho="resolvido_sessao",
+        )
+    )
+    db_session.commit()
+    return chat
+
+
+def test_desativar_motivo_com_ticket_aberto_retorna_409(client, seed_base, auth_headers, db_session):
+    cat = _seed_classificacao(db_session)
+    _ticket_aberto_com_motivo(client, auth_headers, seed_base, cat["falha_pdv"].id)
+
+    r = client.patch(
+        f"/v1/ticket-motivos/{cat['falha_pdv'].id}",
+        headers=auth_headers["admin"],
+        json={"ativo": False},
+    )
+    assert r.status_code == 409, r.text
+    assert "1 ticket em aberto" in r.json()["detail"]
+
+
+def test_desativar_motivo_com_ticket_encerrado_ok(client, seed_base, auth_headers, db_session):
+    cat = _seed_classificacao(db_session)
+    _ticket_encerrado_com_motivo(client, auth_headers, seed_base, db_session, cat["falha_pdv"].id)
+
+    r = client.patch(
+        f"/v1/ticket-motivos/{cat['falha_pdv'].id}",
+        headers=auth_headers["admin"],
+        json={"ativo": False},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["ativo"] is False
+
+
+def test_desativar_motivo_com_chat_aberto_retorna_409(client, auth_headers, db_session):
+    cat = _seed_classificacao(db_session)
+    _chat_com_demanda(
+        db_session,
+        estado="em_atendimento",
+        natureza_id=cat["erro"].id,
+        motivo_id=cat["falha_pdv"].id,
+        protocolo="WPP-MOTIVO-ABERTO",
+    )
+
+    r = client.patch(
+        f"/v1/ticket-motivos/{cat['falha_pdv'].id}",
+        headers=auth_headers["admin"],
+        json={"ativo": False},
+    )
+    assert r.status_code == 409, r.text
+    assert "1 chat em aberto" in r.json()["detail"]
+
+
+def test_desativar_motivo_com_chat_encerrado_ok(client, auth_headers, db_session):
+    cat = _seed_classificacao(db_session)
+    _chat_com_demanda(
+        db_session,
+        estado="encerrado",
+        natureza_id=cat["erro"].id,
+        motivo_id=cat["falha_pdv"].id,
+        protocolo="WPP-MOTIVO-ENCERRADO",
+    )
+
+    r = client.patch(
+        f"/v1/ticket-motivos/{cat['falha_pdv'].id}",
+        headers=auth_headers["admin"],
+        json={"ativo": False},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["ativo"] is False
+
+
+def test_desativar_natureza_com_ticket_aberto_retorna_409(client, seed_base, auth_headers, db_session):
+    cat = _seed_classificacao(db_session)
+    _ticket_aberto_com_motivo(client, auth_headers, seed_base, cat["falha_pdv"].id)
+
+    r = client.patch(
+        f"/v1/ticket-naturezas/{cat['erro'].id}",
+        headers=auth_headers["admin"],
+        json={"ativo": False},
+    )
+    assert r.status_code == 409, r.text
+    detail = r.json()["detail"]
+    assert "2 motivos" in detail
+    assert "1 ticket em aberto" in detail
+
+
+def test_desativar_natureza_so_com_ticket_encerrado_ok(client, seed_base, auth_headers, db_session):
+    cat = _seed_classificacao(db_session)
+    _ticket_encerrado_com_motivo(client, auth_headers, seed_base, db_session, cat["falha_pdv"].id)
+    for mot in (cat["falha_pdv"], cat["outros"]):
+        r_m = client.patch(
+            f"/v1/ticket-motivos/{mot.id}",
+            headers=auth_headers["admin"],
+            json={"ativo": False},
+        )
+        assert r_m.status_code == 200, r_m.text
+
+    r = client.patch(
+        f"/v1/ticket-naturezas/{cat['erro'].id}",
+        headers=auth_headers["admin"],
+        json={"ativo": False},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["ativo"] is False
+
+
+def test_desativar_natureza_so_com_motivos_retorna_409(client, auth_headers, db_session):
+    cat = _seed_classificacao(db_session)
+
+    r = client.patch(
+        f"/v1/ticket-naturezas/{cat['duvida'].id}",
+        headers=auth_headers["admin"],
+        json={"ativo": False},
+    )
+    assert r.status_code == 409, r.text
+    assert "1 motivo" in r.json()["detail"]
+
+
+def test_desativar_natureza_depois_de_inativar_motivos_ok(client, auth_headers, db_session):
+    cat = _seed_classificacao(db_session)
+    r_m = client.patch(
+        f"/v1/ticket-motivos/{cat['operacional'].id}",
+        headers=auth_headers["admin"],
+        json={"ativo": False},
+    )
+    assert r_m.status_code == 200, r_m.text
+
+    r = client.patch(
+        f"/v1/ticket-naturezas/{cat['duvida'].id}",
+        headers=auth_headers["admin"],
+        json={"ativo": False},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["ativo"] is False
+
+
+def test_desativar_natureza_sem_motivo_ok(client, auth_headers, db_session):
+    from app.models.ticket_classificacao import TicketNatureza
+
+    vazia = TicketNatureza(nome="Vazia", slug="vazia-inativar", ordem=90, ativo=True)
+    db_session.add(vazia)
+    db_session.commit()
+
+    r = client.patch(
+        f"/v1/ticket-naturezas/{vazia.id}",
+        headers=auth_headers["admin"],
+        json={"ativo": False},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["ativo"] is False
+
+
+def test_desativar_motivo_sem_uso_ok(client, seed_base, auth_headers, db_session):
+    cat = _seed_classificacao(db_session)
+    r = client.patch(
+        f"/v1/ticket-motivos/{cat['outros'].id}",
+        headers=auth_headers["admin"],
+        json={"ativo": False},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["ativo"] is False
