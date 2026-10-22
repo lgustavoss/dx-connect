@@ -298,6 +298,7 @@ def _vinculo_de(row: EmpresaPdv, tipo_nome: str | None = None) -> dict:
         "pdv_codigo": row.codigo,
         "pdv_ativo": bool(row.ativo),
         "tipo_acesso_remoto_nome": tipo_nome,
+        "versao_pdv": empresa.versao_pdv if empresa else None,
     }
 
 

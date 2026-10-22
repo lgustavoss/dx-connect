@@ -182,7 +182,7 @@ function formatarQuando(iso?: string | null) {
 }
 
 function textoBuscaVinculo(v: RustdeskFrota.Vinculo, extra = '') {
-  return [v.rede_nome, v.empresa_nome, v.rotulo_nome, v.pdv_codigo, extra].filter(Boolean).join(' ')
+  return [v.rede_nome, v.empresa_nome, v.rotulo_nome, v.pdv_codigo, v.versao_pdv, extra].filter(Boolean).join(' ')
 }
 
 function resumoVinculo(v: RustdeskFrota.Vinculo) {
@@ -214,6 +214,7 @@ function LinhaVinculo({ v }: { v: RustdeskFrota.Vinculo }) {
         <span>
           {rotulo} {v.pdv_codigo}
         </span>
+        {v.versao_pdv?.trim() ? <span> · PDV {v.versao_pdv.trim()}</span> : null}
         {!v.pdv_ativo ? <span> · inativo</span> : null}
       </div>
     </div>

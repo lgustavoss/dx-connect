@@ -13,6 +13,7 @@ class RustdeskVinculoRead(BaseModel):
     pdv_codigo: str
     pdv_ativo: bool
     tipo_acesso_remoto_nome: str | None = None
+    versao_pdv: str | None = None
 
 
 class RustdeskPeerRead(BaseModel):

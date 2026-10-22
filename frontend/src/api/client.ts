@@ -2458,6 +2458,7 @@ export namespace Redes {
     id: number;
     nome: string;
     login_retaguarda?: string | null;
+    versao_retaguarda?: string | null;
     ativo: boolean;
     created_at?: string | null;
     updated_at?: string | null;
@@ -2468,11 +2469,13 @@ export namespace Redes {
   export interface Create {
     nome: string;
     login_retaguarda?: string | null;
+    versao_retaguarda?: string | null;
     ativo?: boolean;
   }
   export interface Update {
     nome?: string;
     login_retaguarda?: string | null;
+    versao_retaguarda?: string | null;
     ativo?: boolean;
   }
 }
@@ -2524,6 +2527,7 @@ export namespace Empresas {
     resp_legal_cep: string | null;
     ativo: boolean;
     emite_nfse?: boolean;
+    versao_pdv?: string | null;
     created_at?: string | null;
     updated_at?: string | null;
   }
@@ -2580,6 +2584,7 @@ export namespace Empresas {
     resp_legal_cep?: string | null;
     ativo?: boolean;
     emite_nfse?: boolean;
+    versao_pdv?: string | null;
   }
   export interface Update {
     rede_id?: number;
@@ -2616,6 +2621,7 @@ export namespace Empresas {
     resp_legal_cep?: string | null;
     ativo?: boolean;
     emite_nfse?: boolean;
+    versao_pdv?: string | null;
   }
 }
 
@@ -4313,6 +4319,7 @@ export namespace RustdeskFrota {
     pdv_codigo: string
     pdv_ativo: boolean
     tipo_acesso_remoto_nome?: string | null
+    versao_pdv?: string | null
   }
   export interface Peer {
     rustdesk_id: string
@@ -4381,6 +4388,7 @@ export namespace EmpresaPdv {
     items: Item[]
     total: number
     empresa_nome: string
+    versao_pdv?: string | null
   }
   export interface Acesso {
     id: number
@@ -4694,6 +4702,8 @@ export namespace Tickets {
     rede_id?: number | null;
     empresa_nome?: string | null;
     rede_nome?: string;
+    versao_pdv?: string | null;
+    versao_retaguarda?: string | null;
     coordenacao_rede?: boolean;
     setor_nome?: string;
     status_nome?: string;

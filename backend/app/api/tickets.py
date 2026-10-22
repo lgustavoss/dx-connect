@@ -402,6 +402,11 @@ def _ticket_para_read(t: Ticket, db: Session | None = None, *, sla_estado: str |
         rede_id=rede_id_out,
         empresa_nome=t.empresa.nome if t.empresa else None,
         rede_nome=rede_nome_out,
+        versao_pdv=(t.empresa.versao_pdv if t.empresa else None) or None,
+        versao_retaguarda=(
+            (t.rede.versao_retaguarda if t.rede is not None else None)
+            or (t.empresa.rede.versao_retaguarda if t.empresa is not None and t.empresa.rede is not None else None)
+        ),
         coordenacao_rede=ticket_e_coordenacao_rede(t),
         setor_nome=t.setor.nome if t.setor else None,
         status_nome=t.status.nome if t.status else None,

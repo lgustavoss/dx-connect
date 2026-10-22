@@ -130,6 +130,7 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel, onF
   const podeVer = temPermissao(user, 'pdv.acessos.ver') || temPermissao(user, 'empresas.editar')
   const podeEditar = temPermissao(user, 'empresas.editar')
   const [items, setItems] = useState<EmpresaPdv.Item[]>([])
+  const [versaoPdv, setVersaoPdv] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [rotulos, setRotulos] = useState<PdvCatalogo.Item[]>([])
   const [tipos, setTipos] = useState<PdvCatalogo.Item[]>([])
@@ -152,6 +153,7 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel, onF
       .list(empresaId, { incluir_inativos: true })
       .then((r) => {
         setItems(r.items)
+        setVersaoPdv(r.versao_pdv?.trim() ? r.versao_pdv : null)
         onEmpresaNome?.(r.empresa_nome)
       })
       .catch((err) => {
@@ -686,6 +688,12 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel, onF
         <p className="text-sm text-slate-500 dark:text-slate-400">
           PDVs desta empresa. Clique na linha para ver os acessos remotos. O código (ex.: 001) identifica o PDV
           (único por empresa).
+          {versaoPdv ? (
+            <>
+              {' '}
+              Versão do PDV: <span className="font-medium text-slate-700 dark:text-slate-200">{versaoPdv}</span>.
+            </>
+          ) : null}
         </p>
         {podeEditar ? (
           <Button type="button" onClick={abrirNovo}>

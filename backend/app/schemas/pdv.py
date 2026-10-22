@@ -109,6 +109,7 @@ class ListaPdvsEmpresa(BaseModel):
     items: list[EmpresaPdvRead]
     total: int
     empresa_nome: str
+    versao_pdv: str | None = None
 
 
 class EmpresaPdvCredencialRead(BaseModel):
