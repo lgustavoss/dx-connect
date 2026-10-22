@@ -4680,6 +4680,34 @@
           "text": "Acesso remoto: conectar no painel abre o **DeskRudder Acesso Remoto**, e não o RustDesk oficial"
         }
       ]
+    },
+    {
+      "version": "26.10.008",
+      "version_display": "v26.10.008",
+      "date": "2026-10-22",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: o clique no computador volta a abrir o **DeskRudder Acesso Remoto**. Depois que o painel passou a usar `deskrudder://` (em vez de `rustdesk://`), o Chrome ignorava o clique sintético e o cliente Sciter só entendia `--connect` — o Windows entregava o link e o app saía sem conectar. O `rustdesk://` antigo abria o RustDesk oficial (Flutter), que aceita o URI"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: cliente controle **1.0.8** passa a aceitar `deskrudder://connection/new/{id}` (vira `--connect` com a senha)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: textos do app (atendente e posto) com acentos corretos no aviso de atualização e no rótulo de versão — o Sciter no Windows não lê UTF-8 no `.tis` (versão 1.0.8)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "App desktop: a frota abre o Acesso Remoto com `--connect` ID/senha, o formato que o cliente já entendia"
+        }
+      ]
     }
   ]
 }
