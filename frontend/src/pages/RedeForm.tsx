@@ -29,6 +29,7 @@ export function RedeForm() {
   const [redeInexistente, setRedeInexistente] = useState<{ detalhe?: string } | null>(null)
   const [nome, setNome] = useState('')
   const [loginRetaguarda, setLoginRetaguarda] = useState('')
+  const [versaoRetaguarda, setVersaoRetaguarda] = useState('')
   const [ativo, setAtivo] = useState(true)
 
   useEffect(() => {
@@ -48,6 +49,7 @@ export function RedeForm() {
         if (cancelled) return
         setNome(r.nome)
         setLoginRetaguarda(r.login_retaguarda ?? '')
+        setVersaoRetaguarda(r.versao_retaguarda ?? '')
         setAtivo(r.ativo)
       })
       .catch((err) => {
@@ -80,14 +82,15 @@ export function RedeForm() {
       return
     }
     const lr = loginRetaguarda.trim() || null
+    const vr = versaoRetaguarda.trim() || null
     setSaving(true)
     try {
       let r: Redes.Rede
       if (isEdit && !Number.isNaN(redeId)) {
-        r = await redes.update(redeId, { nome: n, login_retaguarda: lr, ativo })
+        r = await redes.update(redeId, { nome: n, login_retaguarda: lr, versao_retaguarda: vr, ativo })
         toast.showSuccess('Rede atualizada.')
       } else {
-        r = await redes.create({ nome: n, login_retaguarda: lr, ativo })
+        r = await redes.create({ nome: n, login_retaguarda: lr, versao_retaguarda: vr, ativo })
         toast.showSuccess('Rede cadastrada.')
       }
       navigate(`/redes/${r.id}`, { replace: true })
@@ -147,6 +150,13 @@ export function RedeForm() {
                 value={loginRetaguarda}
                 onChange={(e) => setLoginRetaguarda(e.target.value)}
                 placeholder="Ex.: duplex_admin"
+              />
+              <Input
+                label="Versão do retaguarda"
+                value={versaoRetaguarda}
+                onChange={(e) => setVersaoRetaguarda(e.target.value)}
+                placeholder="Ex.: 8.1"
+                maxLength={80}
               />
             </FormSection>
 

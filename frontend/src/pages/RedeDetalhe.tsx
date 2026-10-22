@@ -164,6 +164,7 @@ export function RedeDetalhe() {
   const [respLegalEstado, setRespLegalEstado] = useState('')
   const [respLegalCep, setRespLegalCep] = useState('')
   const [ativoEmpresa, setAtivoEmpresa] = useState(true)
+  const [versaoPdvEmpresa, setVersaoPdvEmpresa] = useState('')
   const [savingEmpresa, setSavingEmpresa] = useState(false)
   const [loadingCnpjEmpresa, setLoadingCnpjEmpresa] = useState(false)
 
@@ -494,6 +495,7 @@ export function RedeDetalhe() {
     setRespLegalEstado('')
     setRespLegalCep('')
     setAtivoEmpresa(true)
+    setVersaoPdvEmpresa('')
     setAbaModalEmpresa('geral')
     setModalEmpresa(true)
   }
@@ -532,6 +534,7 @@ export function RedeDetalhe() {
     setRespLegalEstado((e.resp_legal_estado ?? '').toUpperCase().slice(0, 2))
     setRespLegalCep(maskCep(e.resp_legal_cep ?? ''))
     setAtivoEmpresa(e.ativo)
+    setVersaoPdvEmpresa(e.versao_pdv ?? '')
     setAbaModalEmpresa('geral')
     setModalEmpresa(true)
   }
@@ -611,6 +614,7 @@ export function RedeDetalhe() {
         resp_legal_estado: respLegalEstado.trim() || null,
         resp_legal_cep: respLegalCep.replace(/\D/g, '') || null,
         ativo: ativoEmpresa,
+        versao_pdv: versaoPdvEmpresa.trim() || null,
       }
       if (editingEmpresaId) {
         await empresas.update(editingEmpresaId, payload)
@@ -1011,6 +1015,10 @@ export function RedeDetalhe() {
                       <p className="text-sm text-slate-900 dark:text-slate-100">{tipoNegocioNomeEmpresa || '—'}</p>
                     </div>
                     <div>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Versão do PDV</p>
+                      <p className="text-sm text-slate-900 dark:text-slate-100">{versaoPdvEmpresa || '—'}</p>
+                    </div>
+                    <div>
                       <p className="text-xs font-medium text-slate-500 dark:text-slate-400">CNPJ / CPF</p>
                       <p className="text-sm break-all text-slate-900 dark:text-slate-100">{cnpjCpfEmpresa || '—'}</p>
                     </div>
@@ -1289,6 +1297,13 @@ export function RedeDetalhe() {
                     includeEmpty
                     emptyLabel="Selecione"
                     placeholder="Selecione"
+                  />
+                  <Input
+                    label="Versão do PDV"
+                    value={versaoPdvEmpresa}
+                    onChange={(e) => setVersaoPdvEmpresa(e.target.value)}
+                    placeholder="Ex.: 4.2.1"
+                    maxLength={80}
                   />
                 </FormSection>
 

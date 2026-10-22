@@ -164,6 +164,8 @@ class TicketRead(BaseModel):
     coordenacao_rede: bool = False
     empresa_nome: str | None = None
     rede_nome: str | None = None
+    versao_pdv: str | None = None
+    versao_retaguarda: str | None = None
     setor_nome: str | None = None
     status_nome: str | None = None
     atendente_nome: str | None = None

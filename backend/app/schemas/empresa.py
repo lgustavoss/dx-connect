@@ -1,5 +1,12 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from datetime import datetime
+
+
+def _texto_opcional(v: object) -> object:
+    if isinstance(v, str):
+        s = v.strip()
+        return s or None
+    return v
 
 
 class EmpresaBase(BaseModel):
@@ -37,6 +44,12 @@ class EmpresaBase(BaseModel):
     resp_legal_cep: str | None = None
     ativo: bool = True
     emite_nfse: bool = True
+    versao_pdv: str | None = Field(default=None, max_length=80)
+
+    @field_validator("versao_pdv", mode="before")
+    @classmethod
+    def _versao_pdv_vazia(cls, v: object) -> object:
+        return _texto_opcional(v)
 
 
 class EmpresaCreate(EmpresaBase):
@@ -78,6 +91,12 @@ class EmpresaUpdate(BaseModel):
     resp_legal_cep: str | None = None
     ativo: bool | None = None
     emite_nfse: bool | None = None
+    versao_pdv: str | None = Field(default=None, max_length=80)
+
+    @field_validator("versao_pdv", mode="before")
+    @classmethod
+    def _versao_pdv_vazia(cls, v: object) -> object:
+        return _texto_opcional(v)
 
 
 class EmpresaRead(EmpresaBase):

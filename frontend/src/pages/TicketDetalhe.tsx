@@ -1451,6 +1451,15 @@ export function TicketDetalhe({ ticketIdProp, onVoltar }: TicketDetalheProps = {
                   ))}
               </p>
             )}
+            {(ticket.versao_pdv?.trim() || ticket.versao_retaguarda?.trim()) && (
+              <p className="mt-0.5 truncate text-[11px] text-slate-500 sm:text-xs dark:text-slate-400">
+                {ticket.versao_pdv?.trim() ? `PDV ${ticket.versao_pdv.trim()}` : null}
+                {ticket.versao_pdv?.trim() && ticket.versao_retaguarda?.trim() ? (
+                  <span className="mx-1 text-slate-400 dark:text-slate-500">·</span>
+                ) : null}
+                {ticket.versao_retaguarda?.trim() ? `Retaguarda ${ticket.versao_retaguarda.trim()}` : null}
+              </p>
+            )}
 
             {triagemInbound && (
               <div

@@ -9,6 +9,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Empresas e redes (#S202610-0015): o cadastro da empresa guarda a versão do PDV; o da rede, a versão do retaguarda. As versões aparecem na aba PDVs, no Acesso remoto e no detalhe do ticket.
 - Empresas → PDVs (#S202610-0014): dá para ver o detalhe do PDV sem editar; um PDV pode ter vários acessos remotos. **Conectar** só no DeskRudder — nos outros (AnyDesk, TeamViewer etc.) o atendente copia ID e senha e abre o programa. Na lista ficam só código, rótulo, papel e TEF; ID, senha e status vão no detalhe (clique copia ID/senha; Online/Offline ao lado do DeskRudder). Consulta, cadastro e edição abrem na própria tela, sem popup.
 - Empresas → PDVs: o tipo de acesso remoto da frota passa a se chamar **DeskRudder** (nomes antigos RustDesk / Acesso remoto continuam reconhecidos)
 - Empresas → PDVs: o ícone de computador abre a conexão de acesso remoto (com a senha do cadastro), como na tela Acesso remoto

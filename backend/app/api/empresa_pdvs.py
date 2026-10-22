@@ -168,7 +168,12 @@ def listar_pdvs(
         q = q.filter(EmpresaPdv.ativo.is_(True))
     rows = q.order_by(EmpresaPdv.codigo.asc(), EmpresaPdv.id.asc()).all()
     mapa = mapa_online(db)
-    return ListaPdvsEmpresa(items=[_to_read(r, mapa) for r in rows], total=len(rows), empresa_nome=emp.nome)
+    return ListaPdvsEmpresa(
+        items=[_to_read(r, mapa) for r in rows],
+        total=len(rows),
+        empresa_nome=emp.nome,
+        versao_pdv=emp.versao_pdv,
+    )
 
 
 @router.post("/{empresa_id}/pdvs", response_model=EmpresaPdvRead, status_code=201)
