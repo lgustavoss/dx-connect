@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { urlConexaoDeskRudder } from './acessoRemotoUrl.mjs'
+import { rotuloSessaoVinculo, urlConexaoDeskRudder } from './acessoRemotoUrl.mjs'
 
 describe('urlConexaoDeskRudder', () => {
   it('monta o protocolo DeskRudder com ID sem espaços', () => {
@@ -14,8 +14,36 @@ describe('urlConexaoDeskRudder', () => {
     )
   })
 
-  it('usa o caminho connection/new que o cliente Sciter 1.0.8 traduz para --connect', () => {
+  it('usa o caminho connection/new que o cliente Sciter traduz para --connect', () => {
     const url = urlConexaoDeskRudder('142577854', 'abc')
     assert.match(url, /^deskrudder:\/\/connection\/new\/142577854\?password=abc$/)
+  })
+
+  it('inclui name= com o rótulo da sessão (vinculo)', () => {
+    const url = urlConexaoDeskRudder('1998377577', 'x', 'Posto Farol · SERVIDOR 001')
+    assert.equal(
+      url,
+      'deskrudder://connection/new/1998377577?password=x&name=Posto+Farol+%C2%B7+SERVIDOR+001',
+    )
+  })
+})
+
+describe('rotuloSessaoVinculo', () => {
+  it('monta a linha de baixo do vínculo (rede · rótulo código)', () => {
+    assert.equal(
+      rotuloSessaoVinculo({
+        rede_nome: 'Posto Farol',
+        rotulo_nome: 'SERVIDOR',
+        pdv_codigo: '001',
+      }),
+      'Posto Farol · SERVIDOR 001',
+    )
+  })
+
+  it('omite rede quando vazia', () => {
+    assert.equal(
+      rotuloSessaoVinculo({ rotulo_nome: 'PDV', pdv_codigo: '02' }),
+      'PDV 02',
+    )
   })
 })

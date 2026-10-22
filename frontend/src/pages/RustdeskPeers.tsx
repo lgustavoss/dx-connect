@@ -24,7 +24,7 @@ import {
   iniciarDownloadInstaladorWindows,
   urlDownloadInstaladorNaInstancia,
 } from '../lib/rustdeskInstaller'
-import { senhaDoPdv } from '../lib/acessoRemotoConectar'
+import { rotuloSessaoVinculo, senhaDoPdv } from '../lib/acessoRemotoConectar'
 import { isDeskRudderDesktop } from '../lib/deskrudderDesktop'
 import { BotaoConectarRemoto } from '../components/BotaoConectarRemoto'
 
@@ -521,6 +521,11 @@ export function RustdeskPeers() {
                       <div className="inline-flex items-center justify-end gap-0.5">
                         <BotaoConectarRemoto
                           rustdeskId={peer.rustdesk_id}
+                          tituloSessao={
+                            peer.vinculos.length === 1
+                              ? rotuloSessaoVinculo(peer.vinculos[0])
+                              : undefined
+                          }
                           carregarSenha={
                             peer.vinculos.length === 1
                               ? () => senhaDoPdv(peer.vinculos[0].empresa_id, peer.vinculos[0].pdv_id, toast)

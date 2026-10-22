@@ -15,6 +15,8 @@ type CacheSenha = { pronta: boolean } & ResultadoSenha
 
 type Props = {
   rustdeskId: string
+  /** Rótulo da sessão na janela do atendente (ex.: «Posto Farol · SERVIDOR 001»). */
+  tituloSessao?: string | null
   carregarSenha?: () => Promise<ResultadoSenha>
   onAviso?: () => void
   title?: string
@@ -27,6 +29,7 @@ type Props = {
 /** Conectar: link real `deskrudder://` — clique sintético em âncora criada via JS o Chrome ignora. */
 export function BotaoConectarRemoto({
   rustdeskId,
+  tituloSessao,
   carregarSenha,
   onAviso,
   title = 'Conectar',
@@ -77,7 +80,7 @@ export function BotaoConectarRemoto({
       try {
         onAviso?.()
         const r = await garantirSenha()
-        await conectarAcessoRemoto(rustdeskId, r.senha, toast, r.avisou)
+        await conectarAcessoRemoto(rustdeskId, r.senha, toast, r.avisou, tituloSessao)
       } finally {
         setAbrindo(false)
       }
@@ -97,7 +100,11 @@ export function BotaoConectarRemoto({
     // Senha já no cache (hover/pointerdown): o href do React pode estar atrasado.
     // Atualiza o alvo no próprio gesto e deixa o Chrome seguir o <a>.
     if (cacheRef.current.pronta) {
-      e.currentTarget.href = urlConexaoDeskRudder(rustdeskId, cacheRef.current.senha)
+      e.currentTarget.href = urlConexaoDeskRudder(
+        rustdeskId,
+        cacheRef.current.senha,
+        tituloSessao,
+      )
       toastNativo(cacheRef.current)
       return
     }
@@ -105,7 +112,7 @@ export function BotaoConectarRemoto({
     abrirViaJs()
   }
 
-  const href = urlConexaoDeskRudder(rustdeskId, senha)
+  const href = urlConexaoDeskRudder(rustdeskId, senha, tituloSessao)
   const base = variant === 'botao' ? BOTAO_CLASS : ICONE_CLASS
   const rotulo = ariaLabel ?? title
   const conteudo =

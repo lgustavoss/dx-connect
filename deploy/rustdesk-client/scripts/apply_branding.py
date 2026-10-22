@@ -1508,16 +1508,7 @@ fn deskrudder_set_titlebar_dark(hwnd: isize, dark: bool) {
     print("  index.tis: tema escuro + titlebar DWM", flush=True)
 
 
-def patch_sciter_uri_connect(ui_rs: Path) -> None:
-    """Sciter so aceita --connect ID [senha]. O Windows entrega deskrudder:// e o app saia."""
-    text = ui_rs.read_text(encoding="utf-8")
-    if "deskrudder_connect_args_from_uri" in text:
-        print("  ui.rs: deskrudder:// ja vira --connect", flush=True)
-        return
-    start_fn = "pub fn start(args: &mut [String]) {\n"
-    if start_fn not in text:
-        raise SystemExit("pub fn start nao encontrado em ui.rs")
-    helpers = '''fn deskrudder_percent_decode(s: &str) -> String {
+_URI_CONNECT_HELPERS = '''fn deskrudder_percent_decode(s: &str) -> String {
     let s = s.replace('+', " ");
     let b = s.as_bytes();
     let mut out = Vec::with_capacity(b.len());
@@ -1546,20 +1537,64 @@ fn deskrudder_connect_args_from_uri(uri: &str) -> Option<Vec<String>> {
         return None;
     }
     let mut args = vec!["--connect".to_string(), id.to_string()];
+    let mut password = String::new();
+    let mut title: Option<String> = None;
     for pair in query.split('&') {
         if let Some(raw) = pair.strip_prefix("password=") {
             let pass = deskrudder_percent_decode(raw);
             if !pass.is_empty() {
-                args.push(pass);
+                password = pass;
+            }
+        } else if let Some(raw) = pair.strip_prefix("name=") {
+            let t = deskrudder_percent_decode(raw);
+            if !t.is_empty() {
+                title = Some(t);
             }
         }
+    }
+    if !password.is_empty() {
+        args.push(password);
+    } else if title.is_some() {
+        // Placeholder: o parser de --connect consome o 3o arg como senha.
+        args.push(String::new());
+    }
+    if let Some(t) = title {
+        args.push("--title".to_string());
+        args.push(t);
     }
     Some(args)
 }
 
 '''
+
+
+def patch_sciter_uri_connect(ui_rs: Path) -> None:
+    """Sciter so aceita --connect ID [senha]. O Windows entrega deskrudder:// e o app saia."""
+    text = ui_rs.read_text(encoding="utf-8")
+    start_fn = "pub fn start(args: &mut [String]) {\n"
+    if "deskrudder_connect_args_from_uri" in text:
+        if 'strip_prefix("name=")' in text:
+            print("  ui.rs: deskrudder:// ja vira --connect (com name=)", flush=True)
+        else:
+            import re as _re
+
+            text2, n = _re.subn(
+                r"fn deskrudder_percent_decode\(s: &str\) -> String \{.*?\n\}\n\n"
+                r"fn deskrudder_connect_args_from_uri\(uri: &str\) -> Option<Vec<String>> \{.*?\n\}\n\n",
+                _URI_CONNECT_HELPERS,
+                text,
+                count=1,
+                flags=_re.S,
+            )
+            if n < 1 or 'strip_prefix("name=")' not in text2:
+                raise SystemExit("falha ao atualizar deskrudder_connect_args_from_uri com name=")
+            ui_rs.write_text(text2, encoding="utf-8")
+            print("  ui.rs: deskrudder:// --connect + name=/--title", flush=True)
+        return
+    if start_fn not in text:
+        raise SystemExit("pub fn start nao encontrado em ui.rs")
     inject = (
-        helpers
+        _URI_CONNECT_HELPERS
         + start_fn
         + """    // DeskRudder: o handler Windows passa deskrudder://connection/new/{id}?password=
     // O Sciter so trata --connect ID [senha]; URI solta cai em "Wrong command" e o processo sai.
@@ -1575,6 +1610,215 @@ fn deskrudder_connect_args_from_uri(uri: &str) -> Option<Vec<String>> {
     )
     ui_rs.write_text(text.replace(start_fn, inject, 1), encoding="utf-8")
     print("  ui.rs: deskrudder://connection/new/{id} -> --connect", flush=True)
+
+
+def patch_remote_session_title(ui_rs: Path) -> None:
+    """--connect ID [senha] [--title ROTULO]: titlebar + alias do peer (toolbar)."""
+    text = ui_rs.read_text(encoding="utf-8")
+    if "deskrudder_session_title_from_args" in text:
+        print("  ui.rs: --title de sessao ja patchado", flush=True)
+        return
+    old = """        let id = id.to_owned();
+        let pass = iter.next().unwrap_or(&"".to_owned()).clone();
+        let args: Vec<String> = iter.map(|x| x.clone()).collect();
+        frame.set_title(&id);
+"""
+    new = """        let id = id.to_owned();
+        let pass_raw = iter.next().unwrap_or(&"".to_owned()).clone();
+        let mut rest: Vec<String> = iter.map(|x| x.clone()).collect();
+        let (pass, mut args) = if pass_raw == "--title" {
+            let mut a = vec!["--title".to_string()];
+            a.append(&mut rest);
+            ("".to_string(), a)
+        } else {
+            (pass_raw, rest)
+        };
+        let mut title = id.clone();
+        if let Some(i) = args.iter().position(|x| x == "--title") {
+            if i + 1 < args.len() {
+                let t = args[i + 1].clone();
+                if !t.is_empty() {
+                    title = t;
+                }
+                args.drain(i..=i + 1);
+            } else {
+                args.remove(i);
+            }
+        }
+        // Alias do peer: header.tis usa get_option('alias') || get_id().
+        {
+            use hbb_common::config::PeerConfig;
+            let mut cfg = PeerConfig::load(&id);
+            cfg.options.insert("alias".to_owned(), title.clone());
+            cfg.store(&id);
+        }
+        frame.set_title(&title);
+"""
+    if old not in text:
+        raise SystemExit("bloco set_title(&id) do --connect nao encontrado em ui.rs")
+    text = text.replace(old, new, 1)
+    # Marca para idempotencia
+    text = text.replace(
+        "frame.set_title(&title);\n",
+        "frame.set_title(&title); // deskrudder_session_title_from_args\n",
+        1,
+    )
+    ui_rs.write_text(text, encoding="utf-8")
+    print("  ui.rs: --connect --title -> titlebar + alias", flush=True)
+
+
+def patch_remote_dark_theme(
+    remote_rs: Path, remote_tis: Path, common_css: Path, header_css: Path
+) -> None:
+    """Sessao remota: tema escuro + barra de titulo DWM (igual index)."""
+    # Metodos no handler da sessao Sciter
+    if remote_rs.is_file():
+        text = remote_rs.read_text(encoding="utf-8")
+        if "fn is_system_dark_theme" not in text:
+            methods = """
+    fn is_system_dark_theme(&self) -> bool {
+        #[cfg(windows)]
+        {
+            use winreg::enums::*;
+            use winreg::RegKey;
+            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+            if let Ok(key) = hkcu.open_subkey(
+                r"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+            ) {
+                let light: u32 = key.get_value("AppsUseLightTheme").unwrap_or(1);
+                return light == 0;
+            }
+            false
+        }
+        #[cfg(not(windows))]
+        {
+            false
+        }
+    }
+
+    fn set_titlebar_dark(&self, dark: bool) {
+        #[cfg(windows)]
+        {
+            let hwnd = *super::DESKRUDDER_MAIN_HWND.lock().unwrap();
+            super::deskrudder_set_titlebar_dark(hwnd, dark);
+        }
+    }
+"""
+            # Inserir antes do dispatch ou apos get_icon
+            anchor = "    pub fn get_icon(&self) -> String {\n        super::get_icon()\n    }"
+            if anchor not in text:
+                raise SystemExit("get_icon em remote.rs nao encontrado para tema")
+            text = text.replace(anchor, anchor + methods, 1)
+            # Expor no dispatch_script_call
+            if "fn is_system_dark_theme();" not in text:
+                disp = "        fn get_local_option(String);\n"
+                if disp not in text:
+                    raise SystemExit("dispatch get_local_option nao encontrado")
+                text = text.replace(
+                    disp,
+                    disp
+                    + "        fn is_system_dark_theme();\n"
+                    + "        fn set_titlebar_dark(bool);\n",
+                    1,
+                )
+            remote_rs.write_text(text, encoding="utf-8")
+            print("  remote.rs: is_system_dark_theme + set_titlebar_dark", flush=True)
+        else:
+            print("  remote.rs: tema escuro ja presente", flush=True)
+
+        # DESKRUDDER_MAIN_HWND e deskrudder_set_titlebar_dark precisam ser pub(crate)
+        # — patch em ui.rs se ainda privados
+    # remote.tis: aplicar tema no ready
+    if remote_tis.is_file():
+        rt = remote_tis.read_text(encoding="utf-8")
+        if "deskrudder_apply_remote_theme" not in rt:
+            theme_fn = """
+function deskrudder_apply_remote_theme() {
+    var opt = handler.get_local_option("allow-darktheme");
+    var dark;
+    if (opt == "Y") dark = true;
+    else if (opt == "N") dark = false;
+    else {
+        try { dark = handler.is_system_dark_theme(); } catch(e) { dark = false; }
+    }
+    self.attributes.toggleClass("darktheme", dark);
+    try { handler.set_titlebar_dark(dark); } catch(e) {}
+}
+
+"""
+            old_ready = "function self.ready() {\n"
+            if old_ready not in rt:
+                raise SystemExit("self.ready nao encontrado em remote.tis")
+            rt = rt.replace(
+                old_ready,
+                theme_fn + old_ready + "    deskrudder_apply_remote_theme();\n",
+                1,
+            )
+            remote_tis.write_text(rt, encoding="utf-8")
+            print("  remote.tis: tema escuro na sessao", flush=True)
+
+    dark_header_css = """
+/* DeskRemote: barra da sessao remota no tema escuro */
+html.darktheme header {
+  background: #252525;
+  color: #f3f3f3;
+}
+html.darktheme header #screens {
+  background: #333;
+  color: #f3f3f3;
+}
+html.darktheme header .remote-id {
+  color: #f3f3f3;
+}
+html.darktheme header span:hover,
+html.darktheme header #screen:hover {
+  background: #444;
+}
+html.darktheme header span:active,
+html.darktheme header #screen:active {
+  background: #555;
+}
+"""
+    if header_css.is_file():
+        hc = header_css.read_text(encoding="utf-8")
+        if "DeskRemote: barra da sessao" not in hc:
+            header_css.write_text(hc.rstrip() + "\n" + dark_header_css, encoding="utf-8")
+            print("  header.css: darktheme na toolbar remota", flush=True)
+    if common_css.is_file():
+        cc = common_css.read_text(encoding="utf-8")
+        if "html.darktheme header {" not in cc:
+            # common.css ja define header { background: white } — reforca dark
+            common_css.write_text(
+                cc.rstrip()
+                + "\n\nhtml.darktheme header {\n  background: #252525;\n  color: #f3f3f3;\n}\n",
+                encoding="utf-8",
+            )
+            print("  common.css: header darktheme", flush=True)
+
+
+def patch_titlebar_symbols_visible(ui_rs: Path) -> None:
+    """Torna DESKRUDDER_MAIN_HWND / deskrudder_set_titlebar_dark acessiveis em remote.rs."""
+    text = ui_rs.read_text(encoding="utf-8")
+    changed = False
+    if "static ref DESKRUDDER_MAIN_HWND: Mutex<isize>" in text and \
+            "pub(crate) static ref DESKRUDDER_MAIN_HWND" not in text:
+        text = text.replace(
+            "static ref DESKRUDDER_MAIN_HWND: Mutex<isize>",
+            "pub(crate) static ref DESKRUDDER_MAIN_HWND: Mutex<isize>",
+            1,
+        )
+        changed = True
+    if "fn deskrudder_set_titlebar_dark(hwnd: isize, dark: bool)" in text and \
+            "pub(crate) fn deskrudder_set_titlebar_dark" not in text:
+        text = text.replace(
+            "fn deskrudder_set_titlebar_dark(hwnd: isize, dark: bool)",
+            "pub(crate) fn deskrudder_set_titlebar_dark(hwnd: isize, dark: bool)",
+            1,
+        )
+        changed = True
+    if changed:
+        ui_rs.write_text(text, encoding="utf-8")
+        print("  ui.rs: simbolos titlebar pub(crate)", flush=True)
 
 
 def main() -> int:
@@ -1637,10 +1881,15 @@ def main() -> int:
     )
     patch_portable_metadata(src / "libs" / "portable" / "Cargo.toml")
 
-    png_128 = brand / "128x128.png"
-    if not png_128.is_file():
-        png_128 = brand / "deskrudder-128.png"
-    patch_sciter_window_icon(src / "src" / "ui.rs", png_128)
+    # Ícone da janela/titlebar: D simplificado (arte completa some em 16–32px).
+    png_icon = brand / "deskrudder-32.png"
+    if not png_icon.is_file():
+        png_icon = brand / "32x32.png"
+    if not png_icon.is_file():
+        png_icon = brand / "128x128.png"
+    if not png_icon.is_file():
+        png_icon = brand / "deskrudder-128.png"
+    patch_sciter_window_icon(src / "src" / "ui.rs", png_icon)
     patch_window_display_name(src / "src" / "ui.rs")
     patch_powered_by(src / "src" / "lang")
 
@@ -1670,7 +1919,15 @@ def main() -> int:
     patch_website_urls(index_tis, install_tis)
     patch_install_path(windows_rs, install_tis)
     patch_system_dark_theme(ui_rs, index_tis)
+    patch_titlebar_symbols_visible(ui_rs)
     patch_sciter_uri_connect(ui_rs)
+    patch_remote_session_title(ui_rs)
+    patch_remote_dark_theme(
+        src / "src" / "ui" / "remote.rs",
+        src / "src" / "ui" / "remote.tis",
+        src / "src" / "ui" / "common.css",
+        src / "src" / "ui" / "header.css",
+    )
     patch_install_version_label(install_tis)
 
     # Sanity: chave, host e servidor de produto presentes
@@ -1700,9 +1957,9 @@ def main() -> int:
         return 1
 
     ui_body = ui_rs.read_text(encoding="utf-8")
-    our_b64 = base64.b64encode(png_128.read_bytes()).decode("ascii")
+    our_b64 = base64.b64encode(png_icon.read_bytes()).decode("ascii")
     if our_b64 not in ui_body:
-        print("Verificacao falhou: get_icon() sem PNG DeskRudder.", file=sys.stderr)
+        print("Verificacao falhou: get_icon() sem PNG DeskRemote.", file=sys.stderr)
         return 1
     if f'frame.set_title("{PRODUCT_DISPLAY_NAME}");' not in ui_body:
         print(
@@ -1722,8 +1979,22 @@ def main() -> int:
     if "deskrudder_connect_args_from_uri" not in ui_body:
         print("Verificacao falhou: parser deskrudder:// ausente em ui.rs.", file=sys.stderr)
         return 1
+    if 'strip_prefix("name=")' not in ui_body:
+        print("Verificacao falhou: URI sem name= (titulo da sessao).", file=sys.stderr)
+        return 1
+    if "deskrudder_session_title_from_args" not in ui_body:
+        print("Verificacao falhou: --title da sessao ausente em ui.rs.", file=sys.stderr)
+        return 1
     if "DwmSetWindowAttribute" not in ui_body:
         print("Verificacao falhou: DWM titlebar ausente.", file=sys.stderr)
+        return 1
+    remote_rs_body = (src / "src" / "ui" / "remote.rs").read_text(encoding="utf-8")
+    if "fn is_system_dark_theme" not in remote_rs_body:
+        print("Verificacao falhou: tema escuro ausente em remote.rs.", file=sys.stderr)
+        return 1
+    remote_tis_body = (src / "src" / "ui" / "remote.tis").read_text(encoding="utf-8")
+    if "deskrudder_apply_remote_theme" not in remote_tis_body:
+        print("Verificacao falhou: tema da sessao remota ausente.", file=sys.stderr)
         return 1
 
     index_body = index_tis.read_text(encoding="utf-8")

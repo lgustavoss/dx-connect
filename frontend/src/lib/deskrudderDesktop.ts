@@ -13,7 +13,11 @@ export type RemotoConectarResultado = {
 
 type DeskRudderDesktopBridge = {
   remotoStatus: () => Promise<RemotoStatus>
-  conectarRemoto: (id: string, senha?: string | null) => Promise<RemotoConectarResultado>
+  conectarRemoto: (
+    id: string,
+    senha?: string | null,
+    tituloSessao?: string | null,
+  ) => Promise<RemotoConectarResultado>
   recarregarPainel: () => Promise<{ ok: boolean }>
 }
 
@@ -30,7 +34,8 @@ export function isDeskRudderDesktop(): boolean {
 export async function conectarRemotoPreferindoDesktop(
   id: string,
   senha?: string | null,
+  tituloSessao?: string | null,
 ): Promise<RemotoConectarResultado | null> {
   if (!window.deskrudderDesktop) return null
-  return window.deskrudderDesktop.conectarRemoto(id, senha)
+  return window.deskrudderDesktop.conectarRemoto(id, senha, tituloSessao)
 }
