@@ -1821,6 +1821,193 @@ def patch_titlebar_symbols_visible(ui_rs: Path) -> None:
         print("  ui.rs: simbolos titlebar pub(crate)", flush=True)
 
 
+def patch_windows_single_instance(windows_rs: Path) -> None:
+    """Mutex + foco: atalho/painel nao abre varias janelas iguais."""
+    if not windows_rs.is_file():
+        raise SystemExit(f"Falta {windows_rs}")
+    text = windows_rs.read_text(encoding="utf-8")
+    if "deskrudder_try_lock_main_instance" in text:
+        print("  windows.rs: single-instance ja presente", flush=True)
+        return
+    # Inserir perto do mutex do tray (mesmo padrao CreateMutexW).
+    anchor = "pub fn try_lock_tray_single_instance() -> bool {"
+    if anchor not in text:
+        raise SystemExit("try_lock_tray_single_instance nao encontrado")
+    block = r'''
+/// DeskRemote: uma unica janela principal (atalho da area de trabalho).
+pub fn deskrudder_try_lock_main_instance() -> bool {
+    use winapi::um::{
+        errhandlingapi::{GetLastError, SetLastError},
+        synchapi::CreateMutexW,
+    };
+    let name = wide_string(&format!("Local\\{}_main_ui", crate::get_app_name()));
+    unsafe {
+        SetLastError(0);
+        let handle = CreateMutexW(null_mut(), FALSE, name.as_ptr());
+        let last_error = GetLastError();
+        if !handle.is_null() {
+            if last_error == ERROR_ALREADY_EXISTS {
+                CloseHandle(handle);
+                return false;
+            }
+            return true;
+        }
+        if last_error == ERROR_ACCESS_DENIED {
+            return false;
+        }
+        true
+    }
+}
+
+/// DeskRemote: uma unica janela de sessao por ID remoto.
+pub fn deskrudder_try_lock_session_instance(id: &str) -> bool {
+    use winapi::um::{
+        errhandlingapi::{GetLastError, SetLastError},
+        synchapi::CreateMutexW,
+    };
+    let safe: String = id.chars().filter(|c| c.is_ascii_alphanumeric()).collect();
+    if safe.is_empty() {
+        return true;
+    }
+    let name = wide_string(&format!("Local\\{}_session_{}", crate::get_app_name(), safe));
+    unsafe {
+        SetLastError(0);
+        let handle = CreateMutexW(null_mut(), FALSE, name.as_ptr());
+        let last_error = GetLastError();
+        if !handle.is_null() {
+            if last_error == ERROR_ALREADY_EXISTS {
+                CloseHandle(handle);
+                return false;
+            }
+            return true;
+        }
+        if last_error == ERROR_ACCESS_DENIED {
+            return false;
+        }
+        true
+    }
+}
+
+/// Traz para frente a primeira janela cujo titulo bata exatamente.
+pub fn deskrudder_try_focus_window_by_titles(titles: &[&str]) -> bool {
+    use winapi::um::winuser::{FindWindowW, IsIconic, SetForegroundWindow, ShowWindow, SW_RESTORE};
+    unsafe {
+        for title in titles {
+            if title.is_empty() {
+                continue;
+            }
+            let wtitle = wide_string(title);
+            let hwnd = FindWindowW(std::ptr::null(), wtitle.as_ptr());
+            if hwnd.is_null() {
+                continue;
+            }
+            if IsIconic(hwnd) != 0 {
+                ShowWindow(hwnd, SW_RESTORE);
+            }
+            SetForegroundWindow(hwnd);
+            return true;
+        }
+    }
+    false
+}
+
+'''
+    text = text.replace(anchor, block + anchor, 1)
+    windows_rs.write_text(text, encoding="utf-8")
+    print("  windows.rs: single-instance main + session", flush=True)
+
+
+def patch_ui_single_instance(ui_rs: Path) -> None:
+    """Chama o mutex no start() da UI Sciter (main e --connect)."""
+    text = ui_rs.read_text(encoding="utf-8")
+    if "deskrudder_enforce_single_instance" in text:
+        print("  ui.rs: single-instance ja ligado", flush=True)
+        return
+    helper = f'''
+fn deskrudder_enforce_single_instance(args: &[String]) -> bool {{
+    // true = continuar; false = ja ha instancia (sair).
+    #[cfg(windows)]
+    {{
+        use crate::platform::windows::{{
+            deskrudder_try_focus_window_by_titles, deskrudder_try_lock_main_instance,
+            deskrudder_try_lock_session_instance,
+        }};
+        if args.is_empty() {{
+            if !deskrudder_try_lock_main_instance() {{
+                let _ = deskrudder_try_focus_window_by_titles(&[
+                    "{PRODUCT_DISPLAY_NAME}",
+                    "DeskRudder",
+                ]);
+                return false;
+            }}
+            return true;
+        }}
+        let cmd = args[0].as_str();
+        if matches!(
+            cmd,
+            "--connect" | "--file-transfer" | "--port-forward" | "--rdp" | "--view-camera"
+        ) && args.len() > 1
+        {{
+            let id = args[1].as_str();
+            let mut title = id.to_string();
+            if let Some(i) = args.iter().position(|x| x == "--title") {{
+                if i + 1 < args.len() && !args[i + 1].is_empty() {{
+                    title = args[i + 1].clone();
+                }}
+            }}
+            if !deskrudder_try_lock_session_instance(id) {{
+                let _ = deskrudder_try_focus_window_by_titles(&[title.as_str(), id]);
+                return false;
+            }}
+        }}
+    }}
+    true
+}}
+
+'''
+    # Inserir antes de pub fn start
+    start_fn = "pub fn start(args: &mut [String]) {\n"
+    if start_fn not in text:
+        raise SystemExit("pub fn start nao encontrado para single-instance")
+    if "fn deskrudder_enforce_single_instance" not in text:
+        text = text.replace(start_fn, helper + start_fn, 1)
+
+    # Apos o bloco URI, antes do macos dock — ou no inicio do start apos URI
+    uri_end = """        return;
+    }
+    #[cfg(target_os = "macos")]
+    crate::platform::delegate::show_dock();
+"""
+    inject = """        return;
+    }
+    // DeskRemote: uma janela principal / uma sessao por ID.
+    if !deskrudder_enforce_single_instance(args) {
+        return;
+    }
+    #[cfg(target_os = "macos")]
+    crate::platform::delegate::show_dock();
+"""
+    if "deskrudder_enforce_single_instance(args)" in text:
+        pass
+    elif uri_end in text:
+        text = text.replace(uri_end, inject, 1)
+    else:
+        # Sem bloco URI (ordem de patches): inserir no comeco de start
+        old = start_fn
+        new = (
+            start_fn
+            + """    if !deskrudder_enforce_single_instance(args) {
+        return;
+    }
+"""
+        )
+        if "deskrudder_enforce_single_instance(args)" not in text:
+            text = text.replace(old, new, 1)
+
+    ui_rs.write_text(text, encoding="utf-8")
+    print("  ui.rs: single-instance no start()", flush=True)
+
+
 def main() -> int:
     here = Path(__file__).resolve().parent.parent
     ap = argparse.ArgumentParser(description=__doc__)
@@ -1928,6 +2115,8 @@ def main() -> int:
         src / "src" / "ui" / "common.css",
         src / "src" / "ui" / "header.css",
     )
+    patch_windows_single_instance(windows_rs)
+    patch_ui_single_instance(ui_rs)
     patch_install_version_label(install_tis)
 
     # Sanity: chave, host e servidor de produto presentes
@@ -1984,6 +2173,22 @@ def main() -> int:
         return 1
     if "deskrudder_session_title_from_args" not in ui_body:
         print("Verificacao falhou: --title da sessao ausente em ui.rs.", file=sys.stderr)
+        return 1
+    if "deskrudder_enforce_single_instance" not in ui_body:
+        print("Verificacao falhou: single-instance ausente em ui.rs.", file=sys.stderr)
+        return 1
+    if "deskrudder_enforce_single_instance(args)" not in ui_body:
+        print("Verificacao falhou: single-instance nao chamado em start().", file=sys.stderr)
+        return 1
+    windows_body = windows_rs.read_text(encoding="utf-8")
+    if "deskrudder_try_lock_main_instance" not in windows_body:
+        print("Verificacao falhou: mutex da janela principal ausente.", file=sys.stderr)
+        return 1
+    if "deskrudder_try_lock_session_instance" not in windows_body:
+        print("Verificacao falhou: mutex da sessao por ID ausente.", file=sys.stderr)
+        return 1
+    if "deskrudder_try_focus_window_by_titles" not in windows_body:
+        print("Verificacao falhou: foco da janela existente ausente.", file=sys.stderr)
         return 1
     if "DwmSetWindowAttribute" not in ui_body:
         print("Verificacao falhou: DWM titlebar ausente.", file=sys.stderr)

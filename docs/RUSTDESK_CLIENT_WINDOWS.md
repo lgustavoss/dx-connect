@@ -87,6 +87,7 @@ O instalador é pensado para o PC que **vai ser acessado** (PDV / posto):
 - Painel direito só com a logo DeskRudder (sem «Controle um computador remoto»)
 - Conexões de saída bloqueadas (`is_incoming_only`)
 - Atalho na Área de Trabalho / menu Iniciar: **DeskRemote** (o `.exe` instalado continua `DeskRudder.exe`)
+- Uma só janela principal: segundo clique no atalho foca a janela já aberta (mutex de sessão Windows)
 - Pasta de instalação: `C:\Program Files (x86)\DeskRudder\Acesso Remoto` (mantida por compatibilidade; outros apps DeskRudder podem ficar em pastas irmãs)
 - Link «Desenvolvido por DeskRudder» → https://deskrudder.com.br/
 - Tema escuro segue o Windows (conteúdo + barra de título) se a opção não foi fixada no menu (⋮ → Tema escuro)
@@ -112,6 +113,7 @@ O instalador de **controle** (`DeskRudder-AcessoRemoto-Controle.exe`, embutido n
 - Por isso o notebook do atendente **não aparece** na frota como computador sem vínculo
 - Quem já se registrou com o build antigo fica offline na frota — exclua na tela Acesso remoto
 - Atalho e pasta iguais ao do posto (`DeskRemote` / `DeskRudder\Acesso Remoto`)
+- Uma só janela principal no atalho; reconectar no mesmo ID remoto foca a sessão já aberta (ainda sem abas — ver #1248)
 
 ## Pasta no repo
 
@@ -139,7 +141,7 @@ Builds antigos gravavam `rustdesk.exe` em `Program Files (x86)\DeskRudder` e o a
 
 - macOS / Linux / Android  
 - Assinatura Authenticode (pode entrar depois)  
-- UI Flutter moderna (o CI atual usa o build Sciter x86, estável no Actions)  
+- UI Flutter moderna / sessões em abas (#1248; o CI atual usa o build Sciter x86, estável no Actions)  
 - Hospedar o `.exe` fora do GitHub (CDN próprio), se o Release deixar de bastar
 
 ## Referências
