@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { urlConexaoDeskRudder } from './acessoRemotoUrl.ts'
+import { urlConexaoDeskRudder } from './acessoRemotoUrl.mjs'
 
 describe('urlConexaoDeskRudder', () => {
   it('monta o protocolo DeskRudder com ID sem espaços', () => {

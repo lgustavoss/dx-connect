@@ -1,6 +1,6 @@
 import { ApiError, empresaPdvs } from '../api/client'
 import { conectarRemotoPreferindoDesktop } from './deskrudderDesktop'
-import { urlConexaoDeskRudder } from './acessoRemotoUrl'
+import { urlConexaoDeskRudder } from './acessoRemotoUrl.mjs'
 
 export { urlConexaoDeskRudder }
 
