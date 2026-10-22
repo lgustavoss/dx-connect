@@ -856,13 +856,15 @@ def patch_update_banner(index_tis: Path) -> None:
         "    }\n"
         "}\n"
     )
+    # index.tis do RustDesk e ASCII-only; UTF-8 no Sciter Windows vira mojibake.
+    # Mesmo padrao de "Versao" (sem acento) usado no restante da UI host.
     new = (
         "class UpdateMe: Reactor.Component {\n"
         "    function render() {\n"
         "        return <div .install-me>\n"
-        "            <div>Atualização disponível</div>\n"
-        "            <div>Há uma versão mais nova do DeskRudder Acesso Remoto "
-        "({handler.get_new_version()}). A sua é {handler.get_version()}.</div>\n"
+        "            <div>Atualizacao disponivel</div>\n"
+        "            <div>Ha uma versao mais nova do DeskRudder Acesso Remoto "
+        "({handler.get_new_version()}). A sua e {handler.get_version()}.</div>\n"
         "            <div #install-me.link>Atualizar agora</div>\n"
         '            <div #download-percent style="display:none; padding-top: 1em;" />\n'
         "        </div>;\n"
@@ -877,7 +879,7 @@ def patch_update_banner(index_tis: Path) -> None:
         "        };\n"
         "        var onerror = function(err) {\n"
         '            msgbox("custom-error", "Erro no download", '
-        '"Não foi possível baixar a atualização. Tente de novo ou baixe pelo painel.");\n'
+        '"Nao foi possivel baixar a atualizacao. Tente de novo ou baixe pelo painel.");\n'
         "        };\n"
         "        var onprogress = function(loaded, total) {\n"
         "            if (!total) total = 5 * 1024 * 1024;\n"
@@ -1301,7 +1303,7 @@ def main() -> int:
     if "deskrudder.com.br" not in index_body:
         print("Verificacao falhou: website DeskRudder ausente.", file=sys.stderr)
         return 1
-    if "Atualização disponível" not in index_body:
+    if "Atualizacao disponivel" not in index_body:
         print("Verificacao falhou: banner de atualizacao ausente.", file=sys.stderr)
         return 1
     if "Atualizar agora" not in index_body or "Instalando..." not in index_body:

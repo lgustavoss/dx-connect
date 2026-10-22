@@ -32,6 +32,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Tickets (#S202610-0013): ao abrir um chamado de coordenação de rede, o sistema cria um ticket filho para cada empresa ativa (até 100 por vez; o restante no detalhe do chamado)
 - Acesso remoto do atendente: o app deixa de mostrar ID/senha deste PC e não entra mais na frota como computador sem vínculo (versão 1.0.6). Quem já apareceu fica offline — dá para excluir na tela Acesso remoto
 - Acesso remoto: atalhos de teclado do PDV (ex. tecla **D** para baixar venda) voltam a funcionar — o **modo mapa** volta a aparecer na sessão (versão 1.0.6)
+- Acesso remoto: aviso de atualização sem caracteres estranhos no lugar dos acentos (versão 1.0.7)
 - Acesso remoto: conectar no painel abre o **DeskRudder Acesso Remoto**, e não o RustDesk oficial
 - Empresas → PDVs: o selo Online/Offline passa a usar o mesmo sinal da tela Acesso remoto (antes podia ficar Offline com o computador ligado)
 - App Windows: ícone na barra de tarefas deixa de aparecer todo branco (ICO com vários tamanhos no Setup)
