@@ -24,9 +24,9 @@ import {
   iniciarDownloadInstaladorWindows,
   urlDownloadInstaladorNaInstancia,
 } from '../lib/rustdeskInstaller'
-import { conectarAcessoRemoto, senhaDoPdv } from '../lib/acessoRemotoConectar'
+import { senhaDoPdv } from '../lib/acessoRemotoConectar'
 import { isDeskRudderDesktop } from '../lib/deskrudderDesktop'
-import { IconeConectarRemoto } from '../components/IconeConectarRemoto'
+import { BotaoConectarRemoto } from '../components/BotaoConectarRemoto'
 
 const FILTROS: { id: RustdeskFrota.Filtro; rotulo: string }[] = [
   { id: 'todos', rotulo: 'Todos' },
@@ -363,21 +363,6 @@ export function RustdeskPeers() {
     }
   }
 
-  async function conectar(peer: RustdeskFrota.Peer) {
-    const unico = peer.vinculos.length === 1 ? peer.vinculos[0] : null
-    let senha: string | null = null
-    let avisou = false
-    if (unico) {
-      const r = await senhaDoPdv(unico.empresa_id, unico.pdv_id, toast)
-      senha = r.senha
-      avisou = r.avisou
-    } else if (peer.vinculos.length > 1) {
-      toast.showWarning('Este ID está em mais de um PDV. A senha não foi preenchida.')
-      avisou = true
-    }
-    await conectarAcessoRemoto(peer.rustdesk_id, senha, toast, avisou)
-  }
-
   function pedirDesvincular(rustdeskId: string, v: RustdeskFrota.Vinculo) {
     const id = formatarIdRustdesk(rustdeskId)
     setAcaoPendente({
@@ -534,9 +519,22 @@ export function RustdeskPeers() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="inline-flex items-center justify-end gap-0.5">
-                        <BotaoIcone title="Conectar" onClick={() => void conectar(peer)}>
-                          <IconeConectarRemoto />
-                        </BotaoIcone>
+                        <BotaoConectarRemoto
+                          rustdeskId={peer.rustdesk_id}
+                          carregarSenha={
+                            peer.vinculos.length === 1
+                              ? () => senhaDoPdv(peer.vinculos[0].empresa_id, peer.vinculos[0].pdv_id, toast)
+                              : undefined
+                          }
+                          onAviso={
+                            peer.vinculos.length > 1
+                              ? () =>
+                                  toast.showWarning(
+                                    'Este ID está em mais de um PDV. A senha não foi preenchida.',
+                                  )
+                              : undefined
+                          }
+                        />
                         {podeVincular ? (
                           <>
                           {peer.vinculos.length === 0 ? (

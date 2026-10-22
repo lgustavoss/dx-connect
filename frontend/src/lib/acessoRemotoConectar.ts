@@ -1,27 +1,19 @@
 import { ApiError, empresaPdvs } from '../api/client'
 import { conectarRemotoPreferindoDesktop } from './deskrudderDesktop'
+import { urlConexaoDeskRudder } from './acessoRemotoUrl'
+
+export { urlConexaoDeskRudder }
 
 type ToastMin = {
   showSuccess: (msg: string) => void
   showWarning: (msg: string) => void
 }
 
-/** Protocolo do instalador DeskRudder (APP_NAME), não o rustdesk:// do cliente oficial. */
-export function urlConexaoDeskRudder(id: string, senha?: string | null) {
-  const digitos = id.replace(/\s+/g, '')
-  const params = new URLSearchParams()
-  if (senha?.trim()) params.set('password', senha.trim())
-  const consulta = params.toString()
-  return `deskrudder://connection/new/${digitos}${consulta ? `?${consulta}` : ''}`
-}
-
 export function abrirClienteRustdesk(id: string, senha?: string | null) {
-  const link = document.createElement('a')
-  link.href = urlConexaoDeskRudder(id, senha)
-  link.rel = 'noreferrer'
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
+  const url = urlConexaoDeskRudder(id, senha)
+  // Chrome/Edge ignoram clique sintético em <a> para protocolo customizado
+  // (e rel=noreferrer também bloqueia). Navegação de topo usa o gesto do usuário.
+  window.location.assign(url)
 }
 
 /** Abre o cliente de acesso remoto (app DeskRudder no desktop, ou protocolo no navegador). */
