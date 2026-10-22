@@ -65,8 +65,8 @@ export function BotaoConectarRemoto({
     if (!cache.avisou) {
       toast.showSuccess(
         cache.senha
-          ? 'Acesso remoto aberto com o ID e a senha do cadastro (janela DeskRudder - Acesso Remoto).'
-          : 'Acesso remoto aberto com este ID (janela DeskRudder - Acesso Remoto).',
+          ? 'Acesso remoto aberto com o ID e a senha do cadastro (janela DeskRemote).'
+          : 'Acesso remoto aberto com este ID (janela DeskRemote).',
       )
     }
   }

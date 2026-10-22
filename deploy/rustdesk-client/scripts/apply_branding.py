@@ -23,9 +23,11 @@ import shutil
 import sys
 from pathlib import Path
 
-# Nome do atalho na Area de Trabalho / menu Iniciar (APP_NAME do exe continua DeskRudder).
-SHORTCUT_DISPLAY_NAME = "DeskRudder - Acesso Remoto"
+# Nome do produto na UI / atalho (APP_NAME do exe continua DeskRudder para nao quebrar instalacao).
+PRODUCT_DISPLAY_NAME = "DeskRemote"
+SHORTCUT_DISPLAY_NAME = PRODUCT_DISPLAY_NAME
 # Pasta sob Program Files (x86): DeskRudder\Acesso Remoto (outros instaladores irao ao lado).
+# Mantida por compatibilidade com is_installed() / update dos PCs ja implantados.
 INSTALL_DIR_RELATIVE = r"DeskRudder\Acesso Remoto"
 WEBSITE_URL = "https://deskrudder.com.br/"
 # Canais de atualizacao (Release GitHub).
@@ -59,7 +61,7 @@ HOST_WINDOW_MIN_HEIGHT_INSTALLED = 480
 # mojibake (Atualização → AtualizaÃ§Ã£o). Markup usa entidades HTML; strings
 # TIS usam \uXXXX. O Python-fonte pode (e deve) ter acentos em UTF-8.
 COPY_BANNER_TITULO = "Atualização disponível"
-COPY_BANNER_CORPO_ANTES = "Há uma versão mais nova do DeskRudder Acesso Remoto "
+COPY_BANNER_CORPO_ANTES = f"Há uma versão mais nova do {PRODUCT_DISPLAY_NAME} "
 COPY_BANNER_CORPO_SUA = "A sua é "
 COPY_BANNER_CTA = "Atualizar agora"
 COPY_BANNER_INSTALANDO = "Aplicando atualização (a sessão remota pode cair)..."
@@ -237,13 +239,13 @@ def patch_portable_metadata(cargo_toml: Path) -> None:
     text = re.sub(r'(?m)^ProductName = ".*"$', 'ProductName = "DeskRudder"', text, count=1)
     text = re.sub(
         r'(?m)^FileDescription = ".*"$',
-        'FileDescription = "DeskRudder Acesso Remoto"',
+        f'FileDescription = "{PRODUCT_DISPLAY_NAME}"',
         text,
         count=1,
     )
     text = re.sub(
         r'(?m)^description = ".*"$',
-        'description = "DeskRudder Acesso Remoto"',
+        f'description = "{PRODUCT_DISPLAY_NAME}"',
         text,
         count=1,
     )
@@ -338,7 +340,7 @@ def patch_incoming_only(config_rs: Path) -> None:
     )
     new = (
         "pub fn is_incoming_only() -> bool {\n"
-        "    // DeskRudder Acesso Remoto: build so para ser acessado remotamente.\n"
+        "    // DeskRemote: build so para ser acessado remotamente.\n"
         "    true\n"
         "}"
     )
@@ -362,7 +364,7 @@ def patch_outgoing_only(config_rs: Path) -> None:
     )
     new = (
         "pub fn is_outgoing_only() -> bool {\n"
-        "    // DeskRudder Acesso Remoto: build so para controlar outros PCs.\n"
+        "    // DeskRemote: build so para controlar outros PCs.\n"
         "    true\n"
         "}"
     )
@@ -480,8 +482,9 @@ def patch_host_only_ui(index_tis: Path, branding: Path) -> None:
                 {incoming_only && <div .right-pane>
                     <div .right-content style="flow:vertical;size:*;vertical-align:middle;horizontal-align:center;padding:1.5em;">
                         <img src={deskrudder_host_logo} style="display:block;width:48%;max-width:300px;min-width:140px;height:width(100%);margin:0 *;" />
-                        <div .title style="margin-top:1em;text-align:center;">DeskRudder</div>
-                        <div .lighter-text style="text-align:center;margin-top:0.35em;">Acesso Remoto</div>
+                        <div .title style="margin-top:1em;text-align:center;">"""
+        + PRODUCT_DISPLAY_NAME
+        + """</div>
                         <div .lighter-text style="text-align:center;margin-top:0.6em;">"""
         + sciter_html(COPY_HOST_VERSAO)
         + """ {handler.get_version()}</div>
@@ -560,7 +563,7 @@ def patch_host_only_ui(index_tis: Path, branding: Path) -> None:
     )
 
 def patch_shortcut_display_name(windows_rs: Path) -> None:
-    """Atalho da Area de Trabalho / menu Iniciar: DeskRudder - Acesso Remoto."""
+    """Atalho da Area de Trabalho / menu Iniciar: DeskRemote."""
     if not windows_rs.is_file():
         raise SystemExit(f"Falta {windows_rs}")
     text = windows_rs.read_text(encoding="utf-8")
@@ -816,7 +819,7 @@ def patch_update_check(common_rs: Path) -> None:
     }
 }"""
     new = f"""pub fn check_software_update() {{
-    // DeskRudder Acesso Remoto: canal proprio (version.json no Release GitHub).
+    // DeskRemote: canal proprio (version.json no Release GitHub).
     std::thread::spawn(move || allow_err!(do_check_deskrudder_update()));
 }}
 
@@ -1636,17 +1639,17 @@ def main() -> int:
         print("Verificacao falhou: PROD_RENDEZVOUS_SERVER sem host.", file=sys.stderr)
         return 1
     if profile == "posto":
-        if "DeskRudder Acesso Remoto: build so para ser acessado" not in body:
+        if "DeskRemote: build so para ser acessado" not in body:
             print("Verificacao falhou: is_incoming_only nao patchado.", file=sys.stderr)
             return 1
-        if "DeskRudder Acesso Remoto: build so para controlar" in body:
+        if "DeskRemote: build so para controlar" in body:
             print("Verificacao falhou: profile posto nao deve forcar outgoing_only.", file=sys.stderr)
             return 1
     elif profile == "controle":
-        if "DeskRudder Acesso Remoto: build so para controlar" not in body:
+        if "DeskRemote: build so para controlar" not in body:
             print("Verificacao falhou: is_outgoing_only nao patchado.", file=sys.stderr)
             return 1
-        if "DeskRudder Acesso Remoto: build so para ser acessado" in body:
+        if "DeskRemote: build so para ser acessado" in body:
             print("Verificacao falhou: profile controle nao deve forcar incoming_only.", file=sys.stderr)
             return 1
     else:
@@ -1670,8 +1673,11 @@ def main() -> int:
 
     index_body = index_tis.read_text(encoding="utf-8")
     if profile == "posto":
-        if "Acesso Remoto</div>" not in index_body or "deskrudder_host_logo" not in index_body:
-            print("Verificacao falhou: UI host-only sem logo.", file=sys.stderr)
+        if (
+            f">{PRODUCT_DISPLAY_NAME}</div>" not in index_body
+            or "deskrudder_host_logo" not in index_body
+        ):
+            print("Verificacao falhou: UI host-only sem logo/DeskRemote.", file=sys.stderr)
             return 1
         if "data:image/png;base64," not in index_body:
             print("Verificacao falhou: logo host sem data URI.", file=sys.stderr)
@@ -1777,7 +1783,7 @@ def main() -> int:
 
     win_body = windows_rs.read_text(encoding="utf-8")
     if SHORTCUT_DISPLAY_NAME not in win_body:
-        print("Verificacao falhou: atalho sem nome DeskRudder - Acesso Remoto.", file=sys.stderr)
+        print(f"Verificacao falhou: atalho sem nome {PRODUCT_DISPLAY_NAME}.", file=sys.stderr)
         return 1
     if r"DeskRudder\\Acesso Remoto" not in win_body and "DeskRudder\\\\Acesso Remoto" not in win_body:
         # Fonte: "{}\\DeskRudder\\Acesso Remoto" -> Python ve "{}\\DeskRudder\\Acesso Remoto"

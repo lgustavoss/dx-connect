@@ -75,7 +75,7 @@ Fonte: `deploy/rustdesk-client/server.config.json`
 ## O que o CI faz
 
 1. Clona [rustdesk/rustdesk](https://github.com/rustdesk/rustdesk) (tag escolhida)
-2. Aplica `deploy/rustdesk-client/scripts/apply_branding.py` (nome DeskRudder, host/chave em `RENDEZVOUS_SERVERS` + `PROD_RENDEZVOUS_SERVER`, ícones e PNG do Sciter em `get_icon()`, modo só-recebe no posto / só-controla no atendente, UI com logo e atalho **DeskRudder - Acesso Remoto**)
+2. Aplica `deploy/rustdesk-client/scripts/apply_branding.py` (nome DeskRudder no exe, marca **DeskRemote** na UI, host/chave em `RENDEZVOUS_SERVERS` + `PROD_RENDEZVOUS_SERVER`, ícones e PNG do Sciter em `get_icon()`, modo só-recebe no posto / só-controla no atendente)
 3. Compila o cliente Windows (UI Sciter), renomeia o binário para `DeskRudder.exe` (necessário para o Windows reconhecer a instalação) e empacota o portable
 4. Publica o artefato `DeskRudder-AcessoRemoto-*.exe` e atualiza o Release `acesso-remoto-windows` (link do painel)
 
@@ -86,8 +86,8 @@ O instalador é pensado para o PC que **vai ser acessado** (PDV / posto):
 - Painel esquerdo com ID e senha; barra inferior de status (ex.: Pronto)
 - Painel direito só com a logo DeskRudder (sem «Controle um computador remoto»)
 - Conexões de saída bloqueadas (`is_incoming_only`)
-- Atalho na Área de Trabalho / menu Iniciar: **DeskRudder - Acesso Remoto** (o `.exe` instalado continua `DeskRudder.exe`)
-- Pasta de instalação: `C:\Program Files (x86)\DeskRudder\Acesso Remoto` (outros apps DeskRudder podem ficar em pastas irmãs)
+- Atalho na Área de Trabalho / menu Iniciar: **DeskRemote** (o `.exe` instalado continua `DeskRudder.exe`)
+- Pasta de instalação: `C:\Program Files (x86)\DeskRudder\Acesso Remoto` (mantida por compatibilidade; outros apps DeskRudder podem ficar em pastas irmãs)
 - Link «Desenvolvido por DeskRudder» → https://deskrudder.com.br/
 - Tema escuro segue o Windows (conteúdo + barra de título) se a opção não foi fixada no menu (⋮ → Tema escuro)
 - Logo do painel usa arte em alta resolução com fundo transparente (`ui-logo-512.png`) — sem placa opaca no tema escuro nem no claro; tamanho acompanha a janela
@@ -111,7 +111,7 @@ O instalador de **controle** (`DeskRudder-AcessoRemoto-Controle.exe`, embutido n
 - Sem ID/senha deste PC — o atendente não é acessado e **não se registra** no servidor (`is_outgoing_only`)
 - Por isso o notebook do atendente **não aparece** na frota como computador sem vínculo
 - Quem já se registrou com o build antigo fica offline na frota — exclua na tela Acesso remoto
-- Atalho e pasta iguais ao do posto (`DeskRudder - Acesso Remoto` / `DeskRudder\Acesso Remoto`)
+- Atalho e pasta iguais ao do posto (`DeskRemote` / `DeskRudder\Acesso Remoto`)
 
 ## Pasta no repo
 

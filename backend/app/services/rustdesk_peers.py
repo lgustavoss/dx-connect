@@ -56,7 +56,7 @@ def normalizar_id_remoto(valor: str | None) -> str | None:
     return compacto.casefold()
 
 
-_NOME_TIPO_HOSPEDADO = "DeskRudder"
+_NOME_TIPO_HOSPEDADO = "DeskRemote"
 _NOMES_TIPO_ANTIGOS = frozenset({"rustdesk", "acessoremoto"})
 
 
@@ -66,18 +66,26 @@ def _compactar_nome_tipo(nome: str | None) -> str:
     return "".join(nome.split()).casefold()
 
 
+def _nome_e_tipo_frota(compacto: str) -> bool:
+    return (
+        compacto in _NOMES_TIPO_ANTIGOS
+        or compacto.startswith("deskrudder")
+        or compacto.startswith("deskremote")
+    )
+
+
 def _nome_e_rustdesk(nome: str | None) -> bool:
     compacto = _compactar_nome_tipo(nome)
     if not compacto:
         return False
-    return compacto in _NOMES_TIPO_ANTIGOS or compacto.startswith("deskrudder")
+    return _nome_e_tipo_frota(compacto)
 
 
 def _alinhar_nome_tipo_hospedado(row: PdvTipoAcessoRemoto, tipos: list[PdvTipoAcessoRemoto]) -> None:
     if _compactar_nome_tipo(row.nome) not in _NOMES_TIPO_ANTIGOS:
         return
     if any(
-        _compactar_nome_tipo(outro.nome).startswith("deskrudder")
+        _nome_e_tipo_frota(_compactar_nome_tipo(outro.nome))
         for outro in tipos
         if outro.id != row.id
     ):
@@ -144,7 +152,7 @@ class AgentErro(Exception):
 
 
 def configuracao_cliente() -> dict:
-    """Valores que o DeskRudder Acesso Remoto cola em Configurações → Rede. A chave é pública."""
+    """Valores que o DeskRemote cola em Configurações → Rede. A chave é pública."""
     servidor_id = (settings.RUSTDESK_ID_SERVER or "").strip()
     servidor_relay = (settings.RUSTDESK_RELAY_SERVER or "").strip()
     chave = (settings.RUSTDESK_PUBLIC_KEY or "").strip()
