@@ -11,19 +11,27 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.config import settings
 from app.core.audit import registrar_audit
 from app.models.atendente import Atendente
 from app.models.empresa import Empresa
-from app.models.empresa_pdv import EmpresaPdv, PdvTipoAcessoRemoto
+from app.models.empresa_pdv import EmpresaPdv, EmpresaPdvAcessoRemoto, PdvTipoAcessoRemoto
 from app.models.rustdesk_peer import RustdeskPeer
+from app.services.empresa_pdv_acessos import (
+    MAX_ACESSOS_REMOTOS,
+    acessos_ordenados,
+    garantir_filho_legado,
+    sincronizar_colunas_pdv,
+    tipo_permite_conectar,
+)
 
 _CARREGAR_PDV = (
     joinedload(EmpresaPdv.empresa).joinedload(Empresa.rede),
     joinedload(EmpresaPdv.rotulo),
     joinedload(EmpresaPdv.tipo_acesso_remoto),
+    selectinload(EmpresaPdv.acessos_remotos).joinedload(EmpresaPdvAcessoRemoto.tipo_acesso_remoto),
 )
 
 _sync_lock = threading.Lock()
@@ -48,10 +56,33 @@ def normalizar_id_remoto(valor: str | None) -> str | None:
     return compacto.casefold()
 
 
-def _nome_e_rustdesk(nome: str | None) -> bool:
+_NOME_TIPO_HOSPEDADO = "DeskRudder"
+_NOMES_TIPO_ANTIGOS = frozenset({"rustdesk", "acessoremoto"})
+
+
+def _compactar_nome_tipo(nome: str | None) -> str:
     if not nome:
+        return ""
+    return "".join(nome.split()).casefold()
+
+
+def _nome_e_rustdesk(nome: str | None) -> bool:
+    compacto = _compactar_nome_tipo(nome)
+    if not compacto:
         return False
-    return "".join(nome.split()).casefold() in {"rustdesk", "acessoremoto"}
+    return compacto in _NOMES_TIPO_ANTIGOS or compacto.startswith("deskrudder")
+
+
+def _alinhar_nome_tipo_hospedado(row: PdvTipoAcessoRemoto, tipos: list[PdvTipoAcessoRemoto]) -> None:
+    if _compactar_nome_tipo(row.nome) not in _NOMES_TIPO_ANTIGOS:
+        return
+    if any(
+        _compactar_nome_tipo(outro.nome).startswith("deskrudder")
+        for outro in tipos
+        if outro.id != row.id
+    ):
+        return
+    row.nome = _NOME_TIPO_HOSPEDADO
 
 
 def _limite_online() -> timedelta:
@@ -113,7 +144,7 @@ class AgentErro(Exception):
 
 
 def configuracao_cliente() -> dict:
-    """Valores que o RustDesk do PDV cola em Configurações → Rede. A chave é pública."""
+    """Valores que o DeskRudder Acesso Remoto cola em Configurações → Rede. A chave é pública."""
     servidor_id = (settings.RUSTDESK_ID_SERVER or "").strip()
     servidor_relay = (settings.RUSTDESK_RELAY_SERVER or "").strip()
     chave = (settings.RUSTDESK_PUBLIC_KEY or "").strip()
@@ -228,25 +259,35 @@ def _aplicar_snapshot(db: Session, payload: dict) -> None:
     db.commit()
 
 
+def _pares_acesso(row: EmpresaPdv) -> list[tuple[str | None, str | None]]:
+    acessos = acessos_ordenados(row)
+    if acessos:
+        return [
+            (a.acesso_remoto_id, a.tipo_acesso_remoto.nome if a.tipo_acesso_remoto else None)
+            for a in acessos
+        ]
+    return [(row.acesso_remoto_id, row.tipo_acesso_remoto.nome if row.tipo_acesso_remoto else None)]
+
+
 def _vinculos_por_id(db: Session) -> dict[str, list[dict]]:
-    rows = (
-        db.query(EmpresaPdv)
-        .options(*_CARREGAR_PDV)
-        .filter(EmpresaPdv.acesso_remoto_id.isnot(None))
-        .all()
-    )
+    rows = db.query(EmpresaPdv).options(*_CARREGAR_PDV).all()
     indice: dict[str, list[dict]] = {}
     for row in rows:
-        chave = normalizar_id_remoto(row.acesso_remoto_id)
-        if not chave:
-            continue
-        indice.setdefault(chave, []).append(_vinculo_de(row))
+        vistos: set[str] = set()
+        for rid, nome in _pares_acesso(row):
+            chave = normalizar_id_remoto(rid)
+            if not chave or chave in vistos:
+                continue
+            vistos.add(chave)
+            indice.setdefault(chave, []).append(_vinculo_de(row, tipo_nome=nome))
     return indice
 
 
-def _vinculo_de(row: EmpresaPdv) -> dict:
+def _vinculo_de(row: EmpresaPdv, tipo_nome: str | None = None) -> dict:
     empresa = row.empresa
     rede = empresa.rede if empresa else None
+    if tipo_nome is None:
+        tipo_nome = row.tipo_acesso_remoto.nome if row.tipo_acesso_remoto else None
     return {
         "empresa_id": row.empresa_id,
         "empresa_nome": empresa.nome if empresa else "",
@@ -256,27 +297,29 @@ def _vinculo_de(row: EmpresaPdv) -> dict:
         "pdv_id": row.id,
         "pdv_codigo": row.codigo,
         "pdv_ativo": bool(row.ativo),
-        "tipo_acesso_remoto_nome": row.tipo_acesso_remoto.nome if row.tipo_acesso_remoto else None,
+        "tipo_acesso_remoto_nome": tipo_nome,
+        "versao_pdv": empresa.versao_pdv if empresa else None,
     }
 
 
 def _pdvs_nao_vistos(db: Session, ids_servidor: set[str]) -> list[dict]:
-    rows = (
-        db.query(EmpresaPdv)
-        .options(*_CARREGAR_PDV)
-        .filter(EmpresaPdv.ativo.is_(True), EmpresaPdv.acesso_remoto_id.isnot(None))
-        .all()
-    )
+    rows = db.query(EmpresaPdv).options(*_CARREGAR_PDV).filter(EmpresaPdv.ativo.is_(True)).all()
     ausentes: list[dict] = []
+    vistos_pdv_id: set[tuple[int, str]] = set()
     for row in rows:
-        if not _nome_e_rustdesk(row.tipo_acesso_remoto.nome if row.tipo_acesso_remoto else None):
-            continue
-        chave = normalizar_id_remoto(row.acesso_remoto_id)
-        if not chave or chave in ids_servidor:
-            continue
-        item = _vinculo_de(row)
-        item["acesso_remoto_id"] = row.acesso_remoto_id
-        ausentes.append(item)
+        for rid, nome in _pares_acesso(row):
+            if not tipo_permite_conectar(nome) and not _nome_e_rustdesk(nome):
+                continue
+            chave = normalizar_id_remoto(rid)
+            if not chave or chave in ids_servidor:
+                continue
+            marca = (row.id, chave)
+            if marca in vistos_pdv_id:
+                continue
+            vistos_pdv_id.add(marca)
+            item = _vinculo_de(row, tipo_nome=nome)
+            item["acesso_remoto_id"] = rid
+            ausentes.append(item)
     ausentes.sort(key=lambda item: (item["rede_nome"].casefold(), item["empresa_nome"].casefold(), item["pdv_codigo"]))
     return ausentes
 
@@ -324,15 +367,23 @@ def listar(db: Session, filtro: str) -> dict:
 
 def garantir_tipo_rustdesk(db: Session) -> PdvTipoAcessoRemoto:
     tipos = db.query(PdvTipoAcessoRemoto).order_by(PdvTipoAcessoRemoto.id.asc()).all()
-    ativo = next((row for row in tipos if row.ativo and _nome_e_rustdesk(row.nome)), None)
+    ativo = next(
+        (row for row in tipos if row.ativo and _compactar_nome_tipo(row.nome).startswith("deskrudder")),
+        None,
+    )
+    if not ativo:
+        ativo = next((row for row in tipos if row.ativo and _nome_e_rustdesk(row.nome)), None)
     if ativo:
+        _alinhar_nome_tipo_hospedado(ativo, tipos)
+        db.flush()
         return ativo
     inativo = next((row for row in tipos if _nome_e_rustdesk(row.nome)), None)
     if inativo:
         inativo.ativo = True
+        _alinhar_nome_tipo_hospedado(inativo, tipos)
         db.flush()
         return inativo
-    criado = PdvTipoAcessoRemoto(nome="Acesso remoto", ativo=True, ordem_exibicao=0)
+    criado = PdvTipoAcessoRemoto(nome=_NOME_TIPO_HOSPEDADO, ativo=True, ordem_exibicao=0)
     db.add(criado)
     db.flush()
     return criado
@@ -359,15 +410,43 @@ def vincular(
     )
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PDV não encontrado.")
-    atual = normalizar_id_remoto(row.acesso_remoto_id)
-    if atual and atual != chave and not confirmar_substituicao:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Este PDV já está com o ID {row.acesso_remoto_id}. Confirme para trocar para {chave}.",
-        )
+    garantir_filho_legado(db, row)
+    acessos = acessos_ordenados(row)
+    deskrudder = [
+        a
+        for a in acessos
+        if tipo_permite_conectar(a.tipo_acesso_remoto.nome if a.tipo_acesso_remoto else None)
+        or _nome_e_rustdesk(a.tipo_acesso_remoto.nome if a.tipo_acesso_remoto else None)
+    ]
+    ja_tem = next((a for a in acessos if normalizar_id_remoto(a.acesso_remoto_id) == chave), None)
     tipo = garantir_tipo_rustdesk(db)
-    row.acesso_remoto_id = chave
-    row.tipo_acesso_remoto_id = tipo.id
+    if ja_tem is None:
+        alvo = deskrudder[0] if deskrudder else None
+        atual = normalizar_id_remoto(alvo.acesso_remoto_id) if alvo else None
+        if atual and atual != chave and not confirmar_substituicao:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Este PDV já está com o ID {alvo.acesso_remoto_id}. Confirme para trocar para {chave}.",
+            )
+        if alvo is not None:
+            alvo.acesso_remoto_id = chave
+            alvo.tipo_acesso_remoto_id = tipo.id
+        else:
+            if len(acessos) >= MAX_ACESSOS_REMOTOS:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Máximo de {MAX_ACESSOS_REMOTOS} acessos remotos por PDV.",
+                )
+            row.acessos_remotos.append(
+                EmpresaPdvAcessoRemoto(
+                    tipo_acesso_remoto_id=tipo.id,
+                    acesso_remoto_id=chave,
+                    ordem_exibicao=len(acessos),
+                    tipo_acesso_remoto=tipo,
+                )
+            )
+            db.flush()
+    sincronizar_colunas_pdv(row)
     registrar_audit(
         db,
         "empresa_pdv",
@@ -399,9 +478,15 @@ def desvincular(db: Session, rustdesk_id: str, pdv_id: int, atendente: Atendente
     )
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PDV não encontrado.")
-    if normalizar_id_remoto(row.acesso_remoto_id) != chave:
+    garantir_filho_legado(db, row)
+    alvo = next((a for a in acessos_ordenados(row) if normalizar_id_remoto(a.acesso_remoto_id) == chave), None)
+    if alvo is None and normalizar_id_remoto(row.acesso_remoto_id) != chave:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Este PDV não está com este ID.")
-    row.acesso_remoto_id = None
+    if alvo is not None:
+        alvo.acesso_remoto_id = None
+    else:
+        row.acesso_remoto_id = None
+    sincronizar_colunas_pdv(row)
     registrar_audit(
         db,
         "empresa_pdv",

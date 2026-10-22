@@ -11,11 +11,21 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Empresas e redes (#S202610-0015): o cadastro da empresa guarda a versão do PDV; o da rede, a versão do retaguarda. As versões aparecem na aba PDVs, no Acesso remoto e no detalhe do ticket.
+- Empresas → PDVs (#S202610-0014): dá para ver o detalhe do PDV sem editar; um PDV pode ter vários acessos remotos. **Conectar** só no DeskRudder — nos outros (AnyDesk, TeamViewer etc.) o atendente copia ID e senha e abre o programa. Na lista ficam só código, rótulo, papel e TEF; ID, senha e status vão no detalhe (clique copia ID/senha; Online/Offline ao lado do DeskRudder). Consulta, cadastro e edição abrem na própria tela, sem popup.
+- Empresas → PDVs: o tipo de acesso remoto da frota passa a se chamar **DeskRudder** (nomes antigos RustDesk / Acesso remoto continuam reconhecidos)
 - Empresas → PDVs: o ícone de computador abre a conexão de acesso remoto (com a senha do cadastro), como na tela Acesso remoto
 - App Windows: o Setup pergunta se deve **iniciar com o Windows** e se deve **manter na bandeja** (alertas com o painel fechado); cria atalho **DeskRudder** na área de trabalho além do Acesso Remoto. Depois dá para ligar ou desligar no menu **DeskRudder** da janela (sem reinstalar)
 
 #### Correções
 
+- Funcionários (#S202610-0017): ao selecionar as empresas na edição, a lista mostra todas, uma por linha; dá para expandir ou recolher os blocos de dados e de escopo, e some o espaço vazio enorme embaixo do formulário
+- Catálogos (#S202610-0016): não dá para desativar item ainda em uso — rótulo e tipo de acesso de PDV, tipo de negócio (só empresa ativa), natureza (motivo ativo, ou ticket/chat em aberto) e motivo de ticket (só em aberto; encerrados não travam), e estágio do funil (lead ou negociação em aberto; perdidos não travam). A tela avisa o que ainda está vinculado
+- Tickets (#S202610-0013): ao abrir um chamado de coordenação de rede, o sistema cria um ticket filho para cada empresa ativa (até 100 por vez; o restante no detalhe do chamado)
+- Acesso remoto do atendente: o app deixa de mostrar ID/senha deste PC e não entra mais na frota como computador sem vínculo (versão 1.0.6). Quem já apareceu fica offline — dá para excluir na tela Acesso remoto
+- Acesso remoto: atalhos de teclado do PDV (ex. tecla **D** para baixar venda) voltam a funcionar — o **modo mapa** volta a aparecer na sessão (versão 1.0.6)
+- Acesso remoto: aviso de atualização sem caracteres estranhos no lugar dos acentos (versão 1.0.7)
+- Acesso remoto: conectar no painel abre o **DeskRudder Acesso Remoto**, e não o RustDesk oficial
 - Empresas → PDVs: o selo Online/Offline passa a usar o mesmo sinal da tela Acesso remoto (antes podia ficar Offline com o computador ligado)
 - App Windows: ícone na barra de tarefas deixa de aparecer todo branco (ICO com vários tamanhos no Setup)
 - Acesso remoto: no painel, **Baixar instalador Windows** inicia o download sem abrir a tela intermediária «Baixando o instalador…» (o link curto para o posto continua igual)

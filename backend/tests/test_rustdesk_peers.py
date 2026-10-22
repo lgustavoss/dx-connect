@@ -192,22 +192,36 @@ def test_vincular_exige_editar_empresa_e_confirma_substituicao(client, auth_head
     pdv = (
         client.get(f"/v1/empresas/{base['empresa'].id}/pdvs", headers=auth_headers["admin"]).json()["items"]
     )
-    alvo = next(item for item in pdv if item["codigo"] == "004")
+    anydesk = next(item for item in pdv if item["codigo"] == "004")
+    acrescenta = client.post(
+        "/v1/rustdesk/peers/555000555/vincular",
+        headers=auth_headers["admin"],
+        json={"pdv_id": anydesk["id"]},
+    )
+    assert acrescenta.status_code == 200, acrescenta.text
+    assert acrescenta.json()["acesso_remoto_id"] == "555000555"
+    detalhe = client.get(f"/v1/empresas/{base['empresa'].id}/pdvs", headers=auth_headers["admin"]).json()
+    pdv004 = next(item for item in detalhe["items"] if item["codigo"] == "004")
+    ids = {a["acesso_remoto_id"] for a in pdv004["acessos"]}
+    assert "888" in ids
+    assert "555000555" in ids
+
+    rust = next(item for item in pdv if item["codigo"] == "001")
     conflito = client.post(
         "/v1/rustdesk/peers/555000555/vincular",
         headers=auth_headers["admin"],
-        json={"pdv_id": alvo["id"]},
+        json={"pdv_id": rust["id"]},
     )
     assert conflito.status_code == 409, conflito.text
 
     ok = client.post(
         "/v1/rustdesk/peers/555000555/vincular",
         headers=auth_headers["admin"],
-        json={"pdv_id": alvo["id"], "confirmar_substituicao": True},
+        json={"pdv_id": rust["id"], "confirmar_substituicao": True},
     )
     assert ok.status_code == 200, ok.text
     assert ok.json()["acesso_remoto_id"] == "555000555"
-    assert ok.json()["tipo_acesso_remoto_nome"] == "RustDesk"
+    assert ok.json()["tipo_acesso_remoto_nome"] == "DeskRudder"
 
 
 def test_sincronizar_substitui_cache(db_session, monkeypatch):
@@ -334,3 +348,35 @@ def test_desvincular_e_excluir_offline(client, auth_headers, seed_base, base, mo
     assert chamadas == ["999000111"]
     depois = client.get("/v1/rustdesk/peers", headers=auth_headers["admin"]).json()
     assert "999000111" not in {item["rustdesk_id"] for item in depois["items"]}
+
+
+@pytest.mark.parametrize(
+    "nome, esperado",
+    [
+        ("DeskRudder", True),
+        ("DeskRudder Acesso Remoto", True),
+        ("RustDesk", True),
+        ("Acesso remoto", True),
+        ("AnyDesk", False),
+        ("TeamViewer", False),
+        (None, False),
+        ("", False),
+    ],
+)
+def test_nome_tipo_hospedado_reconhece_deskrudder(nome, esperado):
+    assert svc._nome_e_rustdesk(nome) is esperado
+
+
+def test_garantir_tipo_cria_deskrudder(db_session, seed_base):
+    tipo = svc.garantir_tipo_rustdesk(db_session)
+    assert tipo.nome == "DeskRudder"
+    assert tipo.ativo is True
+
+
+def test_garantir_tipo_mantem_nome_longo(db_session, seed_base):
+    existente = PdvTipoAcessoRemoto(nome="DeskRudder Acesso Remoto", ativo=True, ordem_exibicao=0)
+    db_session.add(existente)
+    db_session.flush()
+    tipo = svc.garantir_tipo_rustdesk(db_session)
+    assert tipo.id == existente.id
+    assert tipo.nome == "DeskRudder Acesso Remoto"

@@ -146,6 +146,9 @@ export function Redes() {
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 sm:px-6 dark:text-slate-400">
                     Retaguarda
                   </th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 sm:px-6 dark:text-slate-400">
+                    Versão do retaguarda
+                  </th>
                   <CabecalhoOrdenavel
                     coluna="ativo"
                     rotulo="Situação"
@@ -181,6 +184,9 @@ export function Redes() {
                     </td>
                     <td className="max-w-[14rem] truncate px-4 py-3.5 font-mono text-xs text-slate-600 sm:px-6 dark:text-slate-400" title={r.login_retaguarda ?? undefined}>
                       {r.login_retaguarda?.trim() ? r.login_retaguarda : '—'}
+                    </td>
+                    <td className="max-w-[10rem] truncate px-4 py-3.5 font-mono text-xs text-slate-600 sm:px-6 dark:text-slate-400" title={r.versao_retaguarda ?? undefined}>
+                      {r.versao_retaguarda?.trim() ? r.versao_retaguarda : '—'}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3.5 sm:px-6">
                       {r.ativo ? (

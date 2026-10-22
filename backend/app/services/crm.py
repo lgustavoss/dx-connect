@@ -26,6 +26,7 @@ from app.models.crm import (
     CrmNegociacaoCnpjLinha,
     FunilEstagio,
 )
+from app.services.catalogo_vinculos import garantir_estagio_funil_pode_desativar
 from app.schemas.comercial_custo import CustoTefOverride
 from app.schemas.crm import (
     CrmAtividadeCreate,
@@ -117,6 +118,11 @@ def criar_estagio(db: Session, data: FunilEstagioCreate) -> FunilEstagio:
 
 def atualizar_estagio(db: Session, row: FunilEstagio, data: FunilEstagioUpdate) -> FunilEstagio:
     payload = data.model_dump(exclude_unset=True)
+    if payload.get("ativo") is False and row.ativo:
+        try:
+            garantir_estagio_funil_pode_desativar(db, row.id)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
     if "tipo" in payload:
         tipo = str(payload["tipo"]).strip().lower()
         if tipo not in FUNIL_TIPOS:

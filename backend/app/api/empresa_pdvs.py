@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.services.audit_operacional import audit_view_credential
 from app.core.audit import registrar_audit
@@ -9,17 +9,25 @@ from app.database import get_db
 from app.models import Empresa
 from app.models.atendente import Atendente
 from app.services.permissao_grupos import tem_permissao
-from app.models.empresa_pdv import EmpresaPdv, PdvRotulo, PdvTipoAcessoRemoto
+from app.models.empresa_pdv import EmpresaPdv, EmpresaPdvAcessoRemoto, PdvRotulo, PdvTipoAcessoRemoto
 from app.schemas.pdv import (
+    EmpresaPdvAcessoRead,
+    EmpresaPdvAcessoWrite,
     EmpresaPdvCreate,
     EmpresaPdvCredencialRead,
     EmpresaPdvRead,
     EmpresaPdvUpdate,
     ListaPdvsEmpresa,
 )
+from app.services.empresa_pdv_acessos import (
+    acessos_ordenados,
+    aplicar_acessos,
+    garantir_filho_legado,
+    tipo_permite_conectar,
+)
 from app.services.empresa_pdv_rules import validar_papel_principal_auxiliar
 from app.services.rustdesk_peers import mapa_online, normalizar_id_remoto
-from app.services.secret_box import decrypt_str, encrypt_str
+from app.services.secret_box import decrypt_str
 
 router = APIRouter(prefix="/empresas", tags=["empresa-pdvs"])
 
@@ -47,9 +55,50 @@ def _empresa_para_leitura_pdv(db: Session, atendente: Atendente, empresa_id: int
     return emp
 
 
+def _carregar_pdv():
+    return (
+        joinedload(EmpresaPdv.rotulo),
+        joinedload(EmpresaPdv.tipo_acesso_remoto),
+        selectinload(EmpresaPdv.acessos_remotos).joinedload(EmpresaPdvAcessoRemoto.tipo_acesso_remoto),
+    )
+
+
+def _to_read_acesso(acesso: EmpresaPdvAcessoRemoto, mapa: dict[str, bool | None]) -> EmpresaPdvAcessoRead:
+    chave = normalizar_id_remoto(acesso.acesso_remoto_id)
+    tipo_nome = acesso.tipo_acesso_remoto.nome if acesso.tipo_acesso_remoto else None
+    integrar = tipo_permite_conectar(tipo_nome)
+    visto = bool(integrar and chave and chave in mapa)
+    return EmpresaPdvAcessoRead(
+        id=acesso.id,
+        tipo_acesso_remoto_id=acesso.tipo_acesso_remoto_id,
+        tipo_acesso_remoto_nome=tipo_nome,
+        acesso_remoto_id=acesso.acesso_remoto_id,
+        tem_senha_remota=bool(acesso.acesso_remoto_senha_cifrada),
+        pode_conectar=bool(integrar and (acesso.acesso_remoto_id or "").strip()),
+        rustdesk_visto=visto,
+        rustdesk_online=mapa[chave] if visto and chave else None,
+    )
+
+
 def _to_read(row: EmpresaPdv, mapa: dict[str, bool | None]) -> EmpresaPdvRead:
-    chave = normalizar_id_remoto(row.acesso_remoto_id)
-    visto = bool(chave and chave in mapa)
+    acessos = [_to_read_acesso(a, mapa) for a in acessos_ordenados(row)]
+    principal = next((a for a in acessos if a.pode_conectar), None) or (acessos[0] if acessos else None)
+    if principal is not None:
+        tipo_id = principal.tipo_acesso_remoto_id
+        tipo_nome = principal.tipo_acesso_remoto_nome
+        rid = principal.acesso_remoto_id
+        tem_senha = principal.tem_senha_remota
+        visto = principal.rustdesk_visto
+        online = principal.rustdesk_online
+    else:
+        chave = normalizar_id_remoto(row.acesso_remoto_id)
+        tipo_nome = row.tipo_acesso_remoto.nome if row.tipo_acesso_remoto else None
+        integrar = tipo_permite_conectar(tipo_nome)
+        tipo_id = row.tipo_acesso_remoto_id
+        rid = row.acesso_remoto_id
+        tem_senha = bool(row.acesso_remoto_senha_cifrada)
+        visto = bool(integrar and chave and chave in mapa)
+        online = mapa[chave] if visto and chave else None
     return EmpresaPdvRead(
         id=row.id,
         empresa_id=row.empresa_id,
@@ -58,16 +107,30 @@ def _to_read(row: EmpresaPdv, mapa: dict[str, bool | None]) -> EmpresaPdvRead:
         rotulo_nome=row.rotulo.nome if row.rotulo else None,
         papel=row.papel,
         usa_tef=bool(row.usa_tef),
-        tipo_acesso_remoto_id=row.tipo_acesso_remoto_id,
-        tipo_acesso_remoto_nome=row.tipo_acesso_remoto.nome if row.tipo_acesso_remoto else None,
-        acesso_remoto_id=row.acesso_remoto_id,
+        tipo_acesso_remoto_id=tipo_id,
+        tipo_acesso_remoto_nome=tipo_nome,
+        acesso_remoto_id=rid,
         observacoes=row.observacoes,
         ativo=bool(row.ativo),
-        tem_senha_remota=bool(row.acesso_remoto_senha_cifrada),
+        tem_senha_remota=tem_senha,
         rustdesk_visto=visto,
-        rustdesk_online=mapa[chave] if visto and chave else None,
+        rustdesk_online=online,
+        acessos=acessos,
         created_at=row.created_at,
         updated_at=row.updated_at,
+    )
+
+
+def _acesso_legado_write(data: EmpresaPdvCreate | EmpresaPdvUpdate) -> EmpresaPdvAcessoWrite | None:
+    tipo_id = getattr(data, "tipo_acesso_remoto_id", None)
+    rid = getattr(data, "acesso_remoto_id", None)
+    senha = getattr(data, "acesso_remoto_senha", None)
+    if tipo_id is None and not (rid or "").strip() and not (senha or "").strip():
+        return None
+    return EmpresaPdvAcessoWrite(
+        tipo_acesso_remoto_id=tipo_id,
+        acesso_remoto_id=(rid or "").strip() or None,
+        acesso_remoto_senha=senha,
     )
 
 
@@ -98,14 +161,19 @@ def listar_pdvs(
     emp = _empresa_para_leitura_pdv(db, atendente, empresa_id)
     q = (
         db.query(EmpresaPdv)
-        .options(joinedload(EmpresaPdv.rotulo), joinedload(EmpresaPdv.tipo_acesso_remoto))
+        .options(*_carregar_pdv())
         .filter(EmpresaPdv.empresa_id == empresa_id)
     )
     if not incluir_inativos:
         q = q.filter(EmpresaPdv.ativo.is_(True))
     rows = q.order_by(EmpresaPdv.codigo.asc(), EmpresaPdv.id.asc()).all()
     mapa = mapa_online(db)
-    return ListaPdvsEmpresa(items=[_to_read(r, mapa) for r in rows], total=len(rows), empresa_nome=emp.nome)
+    return ListaPdvsEmpresa(
+        items=[_to_read(r, mapa) for r in rows],
+        total=len(rows),
+        empresa_nome=emp.nome,
+        versao_pdv=emp.versao_pdv,
+    )
 
 
 @router.post("/{empresa_id}/pdvs", response_model=EmpresaPdvRead, status_code=201)
@@ -120,35 +188,29 @@ def criar_pdv(
     codigo = data.codigo.strip()
     if db.query(EmpresaPdv).filter(EmpresaPdv.empresa_id == empresa_id, EmpresaPdv.codigo == codigo).first():
         raise HTTPException(status_code=400, detail="Já existe um PDV com este código nesta empresa.")
-    senha_cifrada = None
-    if data.acesso_remoto_senha and data.acesso_remoto_senha.strip():
-        senha_cifrada = encrypt_str(data.acesso_remoto_senha.strip())
     row = EmpresaPdv(
         empresa_id=empresa_id,
         codigo=codigo,
         rotulo_id=data.rotulo_id,
         papel=data.papel,
         usa_tef=data.usa_tef,
-        tipo_acesso_remoto_id=data.tipo_acesso_remoto_id,
-        acesso_remoto_id=(data.acesso_remoto_id or "").strip() or None,
-        acesso_remoto_senha_cifrada=senha_cifrada,
         observacoes=(data.observacoes or "").strip() or None,
         ativo=data.ativo,
     )
     db.add(row)
     db.flush()
     try:
+        if data.acessos is not None:
+            aplicar_acessos(db, row, data.acessos)
+        else:
+            legado = _acesso_legado_write(data)
+            aplicar_acessos(db, row, [legado] if legado else [])
         validar_papel_principal_auxiliar(db, empresa_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     registrar_audit(db, "empresa_pdv", row.id, "create", atendente.id)
     db.commit()
-    row = (
-        db.query(EmpresaPdv)
-        .options(joinedload(EmpresaPdv.rotulo), joinedload(EmpresaPdv.tipo_acesso_remoto))
-        .filter(EmpresaPdv.id == row.id)
-        .first()
-    )
+    row = db.query(EmpresaPdv).options(*_carregar_pdv()).filter(EmpresaPdv.id == row.id).first()
     return _to_read(row, mapa_online(db))
 
 
@@ -163,7 +225,7 @@ def atualizar_pdv(
     _empresa_or_404(db, empresa_id)
     row = (
         db.query(EmpresaPdv)
-        .options(joinedload(EmpresaPdv.rotulo), joinedload(EmpresaPdv.tipo_acesso_remoto))
+        .options(*_carregar_pdv())
         .filter(EmpresaPdv.id == pdv_id, EmpresaPdv.empresa_id == empresa_id)
         .first()
     )
@@ -171,6 +233,9 @@ def atualizar_pdv(
         raise HTTPException(status_code=404, detail="PDV não encontrado")
     payload = data.model_dump(exclude_unset=True)
     senha = payload.pop("acesso_remoto_senha", None)
+    acessos_in = payload.pop("acessos", None)
+    payload.pop("tipo_acesso_remoto_id", None)
+    payload.pop("acesso_remoto_id", None)
     if "codigo" in payload:
         codigo = (payload["codigo"] or "").strip()
         if not codigo:
@@ -187,23 +252,50 @@ def atualizar_pdv(
         if conflito:
             raise HTTPException(status_code=400, detail="Já existe um PDV com este código nesta empresa.")
         payload["codigo"] = codigo
-    if "acesso_remoto_id" in payload and payload["acesso_remoto_id"] is not None:
-        payload["acesso_remoto_id"] = (payload["acesso_remoto_id"] or "").strip() or None
     if "observacoes" in payload and payload["observacoes"] is not None:
         payload["observacoes"] = (payload["observacoes"] or "").strip() or None
     _validar_refs(db, data, empresa_id)
     for k, v in payload.items():
         setattr(row, k, v)
-    if senha is not None:
-        row.acesso_remoto_senha_cifrada = encrypt_str(senha.strip()) if senha.strip() else None
-    db.flush()
     try:
+        if acessos_in is not None:
+            aplicar_acessos(db, row, data.acessos or [])
+        elif any(
+            getattr(data, campo) is not None
+            for campo in ("tipo_acesso_remoto_id", "acesso_remoto_id", "acesso_remoto_senha")
+            if campo in data.model_fields_set
+        ):
+            garantir_filho_legado(db, row)
+            filhos = acessos_ordenados(row)
+            legado = EmpresaPdvAcessoWrite(
+                id=filhos[0].id if filhos else None,
+                tipo_acesso_remoto_id=(
+                    data.tipo_acesso_remoto_id
+                    if "tipo_acesso_remoto_id" in data.model_fields_set
+                    else (filhos[0].tipo_acesso_remoto_id if filhos else None)
+                ),
+                acesso_remoto_id=(
+                    data.acesso_remoto_id
+                    if "acesso_remoto_id" in data.model_fields_set
+                    else (filhos[0].acesso_remoto_id if filhos else None)
+                ),
+                acesso_remoto_senha=senha,
+            )
+            extras = [
+                EmpresaPdvAcessoWrite(
+                    id=a.id,
+                    tipo_acesso_remoto_id=a.tipo_acesso_remoto_id,
+                    acesso_remoto_id=a.acesso_remoto_id,
+                )
+                for a in filhos[1:]
+            ]
+            aplicar_acessos(db, row, [legado, *extras])
         validar_papel_principal_auxiliar(db, empresa_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     registrar_audit(db, "empresa_pdv", row.id, "update", atendente.id)
     db.commit()
-    db.refresh(row)
+    row = db.query(EmpresaPdv).options(*_carregar_pdv()).filter(EmpresaPdv.id == row.id).first()
     return _to_read(row, mapa_online(db))
 
 
@@ -215,15 +307,60 @@ def revelar_credencial(
     atendente: Atendente = Depends(exigir_alguma_permissao("pdv.acessos.ver", "empresas.editar")),
 ):
     _empresa_para_leitura_pdv(db, atendente, empresa_id)
-    row = db.query(EmpresaPdv).filter(EmpresaPdv.id == pdv_id, EmpresaPdv.empresa_id == empresa_id).first()
+    row = (
+        db.query(EmpresaPdv)
+        .options(*_carregar_pdv())
+        .filter(EmpresaPdv.id == pdv_id, EmpresaPdv.empresa_id == empresa_id)
+        .first()
+    )
     if not row:
         raise HTTPException(status_code=404, detail="PDV não encontrado")
-    if not row.acesso_remoto_senha_cifrada:
+    acesso = next((a for a in acessos_ordenados(row) if a.acesso_remoto_senha_cifrada), None)
+    cifrada = acesso.acesso_remoto_senha_cifrada if acesso else row.acesso_remoto_senha_cifrada
+    if not cifrada:
         raise HTTPException(status_code=404, detail="Este PDV não possui senha cadastrada.")
     try:
-        senha = decrypt_str(row.acesso_remoto_senha_cifrada)
+        senha = decrypt_str(cifrada)
     except Exception as e:
         raise HTTPException(status_code=500, detail="Não foi possível decifrar a credencial.") from e
     audit_view_credential(db, pdv_id=row.id, empresa_id=empresa_id, atendente_id=atendente.id)
+    db.commit()
+    return EmpresaPdvCredencialRead(acesso_remoto_senha=senha)
+
+
+@router.get("/{empresa_id}/pdvs/{pdv_id}/acessos/{acesso_id}/credencial", response_model=EmpresaPdvCredencialRead)
+def revelar_credencial_acesso(
+    empresa_id: int,
+    pdv_id: int,
+    acesso_id: int,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_alguma_permissao("pdv.acessos.ver", "empresas.editar")),
+):
+    _empresa_para_leitura_pdv(db, atendente, empresa_id)
+    acesso = (
+        db.query(EmpresaPdvAcessoRemoto)
+        .join(EmpresaPdv, EmpresaPdv.id == EmpresaPdvAcessoRemoto.pdv_id)
+        .filter(
+            EmpresaPdvAcessoRemoto.id == acesso_id,
+            EmpresaPdv.id == pdv_id,
+            EmpresaPdv.empresa_id == empresa_id,
+        )
+        .first()
+    )
+    if not acesso:
+        raise HTTPException(status_code=404, detail="Acesso remoto não encontrado")
+    if not acesso.acesso_remoto_senha_cifrada:
+        raise HTTPException(status_code=404, detail="Este acesso não possui senha cadastrada.")
+    try:
+        senha = decrypt_str(acesso.acesso_remoto_senha_cifrada)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Não foi possível decifrar a credencial.") from e
+    audit_view_credential(
+        db,
+        pdv_id=pdv_id,
+        empresa_id=empresa_id,
+        atendente_id=atendente.id,
+        campo=f"acesso_remoto_senha:{acesso_id}",
+    )
     db.commit()
     return EmpresaPdvCredencialRead(acesso_remoto_senha=senha)

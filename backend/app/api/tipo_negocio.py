@@ -11,6 +11,7 @@ from app.schemas.tipo_negocio import TipoNegocioCreate, TipoNegocioUpdate, TipoN
 from app.schemas.lista_paginada import ListaPaginada
 from app.core.auth import obter_atendente_atual, exigir_permissao
 from app.core.audit import registrar_audit
+from app.services.catalogo_vinculos import garantir_tipo_negocio_pode_desativar
 
 router = APIRouter(prefix="/tipos-negocio", tags=["tipos-negocio"])
 
@@ -88,7 +89,13 @@ def atualizar(
     t = db.query(TipoNegocio).filter(TipoNegocio.id == tipo_id).first()
     if not t:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tipo de negócio não encontrado")
-    for k, v in data.model_dump(exclude_unset=True).items():
+    payload = data.model_dump(exclude_unset=True)
+    if payload.get("ativo") is False and t.ativo:
+        try:
+            garantir_tipo_negocio_pode_desativar(db, tipo_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    for k, v in payload.items():
         setattr(t, k, v)
     registrar_audit(db, "tipo_negocio", tipo_id, "update", atendente.id)
     db.commit()

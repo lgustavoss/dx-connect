@@ -9,6 +9,7 @@ from app.core.ordenacao_lista import OrdemLista, expr_ordem
 from app.database import get_db
 from app.models.atendente import Atendente
 from app.models.empresa_pdv import PdvRotulo, PdvTipoAcessoRemoto
+from app.services.empresa_pdv_rules import garantir_rotulo_pode_desativar, garantir_tipo_acesso_pode_desativar
 from app.schemas.lista_paginada import ListaPaginada
 from app.schemas.pdv import (
     PdvRotuloCreate,
@@ -90,7 +91,13 @@ def atualizar_rotulo(
     row = db.query(PdvRotulo).filter(PdvRotulo.id == rotulo_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Rótulo não encontrado")
-    for k, v in data.model_dump(exclude_unset=True).items():
+    payload = data.model_dump(exclude_unset=True)
+    if payload.get("ativo") is False and row.ativo:
+        try:
+            garantir_rotulo_pode_desativar(db, rotulo_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    for k, v in payload.items():
         setattr(row, k, v)
     registrar_audit(db, "pdv_rotulo", row.id, "update", atendente.id)
     db.commit()
@@ -137,7 +144,13 @@ def atualizar_tipo_acesso(
     row = db.query(PdvTipoAcessoRemoto).filter(PdvTipoAcessoRemoto.id == tipo_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Tipo de acesso remoto não encontrado")
-    for k, v in data.model_dump(exclude_unset=True).items():
+    payload = data.model_dump(exclude_unset=True)
+    if payload.get("ativo") is False and row.ativo:
+        try:
+            garantir_tipo_acesso_pode_desativar(db, tipo_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    for k, v in payload.items():
         setattr(row, k, v)
     registrar_audit(db, "pdv_tipo_acesso_remoto", row.id, "update", atendente.id)
     db.commit()
