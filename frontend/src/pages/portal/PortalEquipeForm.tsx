@@ -5,7 +5,7 @@ import { mensagemFalhaParaToast } from '../../api/errorMessage'
 import { usePortalAuth } from '../../contexts/PortalAuthContext'
 import { useToast } from '../../components/ui/Toast'
 import { Switch } from '../../components/ui/Switch'
-import { CheckboxField } from '../../components/ui/CheckboxField'
+import { CheckboxField, CheckboxOptionList } from '../../components/ui/CheckboxField'
 import {
   PortalPageHeader,
   portalInputClass,
@@ -324,13 +324,20 @@ export function PortalEquipeForm() {
                 </select>
               </PortalField>
             ) : (
-              <div className="flex max-h-44 flex-wrap gap-2 overflow-auto rounded-lg border border-slate-200 bg-slate-50/50 p-3">
-                {empresas.map((e) => (
-                  <CheckboxField key={e.id} checked={empresaIds.includes(e.id)} onChange={() => toggleEmpresa(e.id)}>
-                    {e.nome}
-                  </CheckboxField>
-                ))}
-              </div>
+              <CheckboxOptionList>
+                {[...empresas]
+                  .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+                  .map((e) => (
+                    <CheckboxField
+                      key={e.id}
+                      variant="inline"
+                      checked={empresaIds.includes(e.id)}
+                      onChange={() => toggleEmpresa(e.id)}
+                    >
+                      {e.nome}
+                    </CheckboxField>
+                  ))}
+              </CheckboxOptionList>
             )}
           </PortalFormBlock>
         ) : null}

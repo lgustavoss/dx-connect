@@ -53,7 +53,7 @@ import { CabecalhoOrdenavel } from '../components/ui/CabecalhoOrdenavel'
 import { useOrdenacaoLista } from '../hooks/useOrdenacaoLista'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
 import { Switch } from '../components/ui/Switch'
-import { CheckboxField } from '../components/ui/CheckboxField'
+import { CheckboxField, CheckboxOptionList } from '../components/ui/CheckboxField'
 import { SemPermissao } from './SemPermissao'
 import { interpretarFalhaCarregamento, mensagemFalhaParaToast } from '../api/errorMessage'
 import { CarregamentoFalhou } from '../components/ui/CarregamentoFalhou'
@@ -185,6 +185,8 @@ export function RedeDetalhe() {
   const [ativoFuncionario, setAtivoFuncionario] = useState(true)
   const [empresaIdFuncionario, setEmpresaIdFuncionario] = useState<number | ''>('')
   const [empresaIdsFuncionario, setEmpresaIdsFuncionario] = useState<number[]>([])
+  const [vinculoAberto, setVinculoAberto] = useState(true)
+  const [dadosFuncionarioAberto, setDadosFuncionarioAberto] = useState(true)
   const [senhaPortalFuncionario, setSenhaPortalFuncionario] = useState('')
   const [mostrarSenhaPortalFuncionario, setMostrarSenhaPortalFuncionario] = useState(false)
   const [mustChangePasswordFuncionario, setMustChangePasswordFuncionario] = useState(true)
@@ -659,6 +661,8 @@ export function RedeDetalhe() {
     setEditingFuncionarioId(f.id)
     setModoFuncionario('edit')
     preencherFormFuncionario(f)
+    setVinculoAberto(true)
+    setDadosFuncionarioAberto(true)
     setAba('funcionarios')
     setModalFuncionario(true)
   }
@@ -676,6 +680,8 @@ export function RedeDetalhe() {
     setMustChangePasswordFuncionario(true)
     setPortalHabilitadoFuncionario(false)
     setNotificarEmailPortalFuncionario(true)
+    setVinculoAberto(true)
+    setDadosFuncionarioAberto(true)
     setAba('funcionarios')
     setModalFuncionario(true)
   }
@@ -1666,7 +1672,15 @@ export function RedeDetalhe() {
               </p>
               <form onSubmit={handleSubmitFuncionario}>
                 <div className="space-y-6">
-                  <FormSection title="Dados do funcionário">
+                  <FormSection
+                    title={
+                      dadosFuncionarioAberto || !nomeFuncionario.trim()
+                        ? 'Dados do funcionário'
+                        : `Dados do funcionário · ${nomeFuncionario.trim()}`
+                    }
+                    expanded={dadosFuncionarioAberto}
+                    onToggle={() => setDadosFuncionarioAberto((v) => !v)}
+                  >
                     <Input
                       label="Nome *"
                       value={nomeFuncionario}
@@ -1698,7 +1712,17 @@ export function RedeDetalhe() {
                   </FormSection>
 
                   {tipoFuncionario !== 'socio' && (
-                    <FormSection title="Vínculo">
+                    <FormSection
+                      title={
+                        vinculoAberto
+                          ? 'Vínculo'
+                          : tipoFuncionario === 'supervisor' && empresaIdsFuncionario.length > 0
+                            ? `Vínculo · ${empresaIdsFuncionario.length} ${empresaIdsFuncionario.length === 1 ? 'empresa' : 'empresas'}`
+                            : 'Vínculo'
+                      }
+                      expanded={vinculoAberto}
+                      onToggle={() => setVinculoAberto((v) => !v)}
+                    >
                       {tipoFuncionario === 'colaborador' && (
                         <SelectComPesquisa
                           id="rede-detalhe-func-empresa"
@@ -1720,17 +1744,20 @@ export function RedeDetalhe() {
                           {empresasDaRedeParaVinculo.length === 0 ? (
                             <p className="text-sm text-slate-500 dark:text-slate-400">Nenhuma empresa ativa nesta rede.</p>
                           ) : (
-                            <div className="flex max-h-44 flex-wrap gap-2 overflow-auto rounded-xl border border-slate-200 bg-slate-50/40 p-3 dark:border-slate-800 dark:bg-slate-800/40">
-                              {empresasDaRedeParaVinculo.map((e) => (
-                                <CheckboxField
-                                  key={e.id}
-                                  checked={empresaIdsFuncionario.includes(e.id)}
-                                  onChange={() => toggleEmpresaFuncionario(e.id)}
-                                >
-                                  {e.nome}
-                                </CheckboxField>
-                              ))}
-                            </div>
+                            <CheckboxOptionList>
+                              {[...empresasDaRedeParaVinculo]
+                                .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+                                .map((e) => (
+                                  <CheckboxField
+                                    key={e.id}
+                                    variant="inline"
+                                    checked={empresaIdsFuncionario.includes(e.id)}
+                                    onChange={() => toggleEmpresaFuncionario(e.id)}
+                                  >
+                                    {e.nome}
+                                  </CheckboxField>
+                                ))}
+                            </CheckboxOptionList>
                           )}
                         </div>
                       )}
