@@ -109,15 +109,19 @@ jobs:
           TAG="desktop-windows"
           TITLE="DeskRudder App Atendente ${VER} (Windows)"
           NOTES="Setup **${VER}** do atendente (painel + Acesso Remoto). Link amigável: \`/app/download\`. Remoto embutido vem do Release acesso-remoto-controle-windows."
+          VERSION_JSON="$STABLE_DIR/version.json"
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/DeskRudder-Setup.exe"
+          node -e "require('fs').writeFileSync(process.argv[1], JSON.stringify({ version: process.argv[2], download_url: process.argv[3] }, null, 2) + '\n')" \
+            "$VERSION_JSON" "$VER" "$DOWNLOAD_URL"
           if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$STABLE" \
+            gh release upload "$TAG" "$STABLE" "$VERSION_JSON" \
               --repo "${{ github.repository }}" --clobber
             gh release edit "$TAG" \
               --repo "${{ github.repository }}" \
               --title "$TITLE" \
               --notes "$NOTES"
           else
-            gh release create "$TAG" "$STABLE" \
+            gh release create "$TAG" "$STABLE" "$VERSION_JSON" \
               --repo "${{ github.repository }}" \
               --title "$TITLE" \
               --notes "$NOTES" \
