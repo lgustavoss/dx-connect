@@ -144,6 +144,8 @@ jobs:
             --profile controle \
             --ui flutter
           test -f rustdesk/flutter/windows/runner/resources/app_icon.ico
+          test -f rustdesk/flutter/assets/icon.png
+          test ! -f rustdesk/flutter/assets/icon.svg
           test -f rustdesk/res/icon.png
 
       - name: Export cache env
