@@ -214,6 +214,9 @@ jobs:
         working-directory: rustdesk
         run: |
           set -euo pipefail
+          # apply_branding sobe libs/portable para CLIENT_VERSION_FLUTTER (2.x.x);
+          # o build.py chama `cargo build --locked` e o lock do tag 1.5.0 fica stale.
+          cargo update -p rustdesk-portable-packer
           python3 ./build.py --portable --flutter --skip-portable-pack --hwcodec --vram
           test -d ./flutter/build/windows/x64/runner/Release
           rm -rf ./DeskRemoteRelease
