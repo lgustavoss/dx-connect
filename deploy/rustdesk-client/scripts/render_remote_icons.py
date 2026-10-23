@@ -3,27 +3,23 @@
 
 Fonte: branding/icon-source-final.jpg (master) ou icon-source-official.png (já com alpha).
 
-JPEG em fundo preto (WhatsApp/export) vira PNG RGBA. PNG com alpha nos cantos é reusado.
+JPEG em fundo preto (ChatGPT/export) vira PNG RGBA. PNG com alpha nos cantos é reusado.
 
-- 48px+: arte completa (D + atendente + nuvem ainda lê)
-- 16–32px (titlebar/tray): mark «D» sólido — a cena 3D vira borrão nesses pixels
+Todos os tamanhos usam a arte completa (D + atendente + globo + nuvem).
 """
 
 from __future__ import annotations
 
+import time
 from collections import deque
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageFilter
 
 BRANDING = Path(__file__).resolve().parent.parent / "branding"
 KIT_DIR = BRANDING / "kit-1253"
 FINAL_JPG = BRANDING / "icon-source-final.jpg"
 DEFAULT_SOURCE = FINAL_JPG if FINAL_JPG.is_file() else BRANDING / "icon-source-official.png"
-
-# Vermelho da arte DeskRemote (D metalico).
-_BRAND_RED = (220, 28, 42, 255)
-_BRAND_RED_DARK = (140, 12, 24, 255)
 
 
 def _corner_luma(im: Image.Image) -> int:
@@ -46,7 +42,8 @@ def _knockout_black_background(rgb: Image.Image) -> Image.Image:
             pele = r >= 85 and 45 <= g <= 210 and 30 <= b <= 190 and r > b
             claro = mn >= 130 and mx - mn <= 55
             globo = mx >= 85 and mn >= 35 and mx - mn <= 45
-            if vermelho or pele or claro or globo:
+            azul = b >= 50 and b >= r + 10
+            if vermelho or pele or claro or globo or azul:
                 sp[x, y] = 255  # type: ignore[index]
     # Dilata a semente para cobrir cabelo, camisa e notebook pretos.
     protegido = seed.filter(ImageFilter.MaxFilter(31)).filter(ImageFilter.MaxFilter(21))
@@ -59,6 +56,8 @@ def _knockout_black_background(rgb: Image.Image) -> Image.Image:
     def eh_fundo(r: int, g: int, b: int) -> bool:
         mx = max(r, g, b)
         if r >= 48 and r >= g + 14:
+            return False
+        if b >= 40 and b >= r + 10:
             return False
         return mx <= 38
 
@@ -313,6 +312,14 @@ def _mark_without_text(im: Image.Image) -> Image.Image:
     return _crop_pad_square(crop, pad_ratio=0.08)
 
 
+def _feather_alpha(im: Image.Image, radius: float = 1.15) -> Image.Image:
+    """Suaviza o contorno binário do knockout (anti-alias nas bordas)."""
+    rgba = im.convert("RGBA")
+    red, green, blue, alpha = rgba.split()
+    soft = alpha.filter(ImageFilter.GaussianBlur(radius=radius))
+    return Image.merge("RGBA", (red, green, blue, soft))
+
+
 def _fit_square(im: Image.Image, size: int) -> Image.Image:
     fitted = im.copy()
     fitted.thumbnail((size, size), Image.Resampling.LANCZOS)
@@ -325,59 +332,34 @@ def _fit_square(im: Image.Image, size: int) -> Image.Image:
     return out
 
 
-def _simplified_d_mark(size: int) -> Image.Image:
-    """«D» sólido legível na titlebar/bandeja (16–32px)."""
-    scale = 8
-    canvas = size * scale
-    img = Image.new("RGBA", (canvas, canvas), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
-    cx = cy = canvas // 2
-
-    if size >= 24:
-        glow_r = int(canvas * 0.40)
-        for i in range(5, 0, -1):
-            a = int(36 * i / 5)
-            rr = glow_r + i * scale
-            draw.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=(220, 28, 42, a))
-
-    font = None
-    for path in (
-        r"C:\Windows\Fonts\arialbd.ttf",
-        r"C:\Windows\Fonts\segoeuib.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
-    ):
-        try:
-            font = ImageFont.truetype(path, int(canvas * 0.82))
-            break
-        except OSError:
-            continue
-
-    if font is None:
-        raise SystemExit("Fonte bold nao encontrada para mark D da titlebar")
-
-    text = "D"
-    bbox = draw.textbbox((0, 0), text, font=font)
-    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    x = (canvas - tw) // 2 - bbox[0]
-    y = (canvas - th) // 2 - bbox[1] - int(canvas * 0.03)
-    draw.text((x + scale, y + scale), text, font=font, fill=_BRAND_RED_DARK)
-    draw.text((x, y), text, font=font, fill=_BRAND_RED)
-
-    out = img.resize((size, size), Image.Resampling.LANCZOS)
-    if size <= 32:
-        out = out.filter(ImageFilter.UnsharpMask(radius=0.5, percent=140, threshold=1))
-    return out
-
-
 def _ui_logo(full: Image.Image, size: int) -> Image.Image:
     """Arte completa com fundo transparente para o painel host (dark e light)."""
     return _fit_square(full, size)
 
 
+def _write_image(im: Image.Image, path: Path, **kwargs) -> None:
+    """Grava com retries: o Explorer/Cursor no Windows trava PNG no meio do lote."""
+    tmp = path.with_name(f"{path.stem}.__tmp__{path.suffix}")
+    last: OSError | None = None
+    for attempt in range(10):
+        try:
+            im.save(tmp, **kwargs)
+            tmp.replace(path)
+            return
+        except OSError as exc:
+            last = exc
+            time.sleep(0.15 * (attempt + 1))
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+    raise last or OSError(f"falha ao gravar {path}")
+
+
 def _save_ico(path: Path, frames: list[Image.Image], sizes: list[tuple[int, int]]) -> None:
-    frames[-1].save(path, format="ICO", sizes=sizes, append_images=frames[:-1])
+    _write_image(
+        frames[-1], path, format="ICO", sizes=sizes, append_images=frames[:-1]
+    )
 
 
 def write_kit_1253(kit: Path, icon_for, full: Image.Image) -> None:
@@ -395,34 +377,34 @@ def write_kit_1253(kit: Path, icon_for, full: Image.Image) -> None:
     for name in folders:
         (kit / name).mkdir(parents=True, exist_ok=True)
 
-    icon_for(16).save(kit / "01_titlebar" / "titlebar-16.png")
-    icon_for(24).save(kit / "01_titlebar" / "titlebar-24.png")
-    icon_for(32).save(kit / "01_titlebar" / "titlebar-32.png")
+    _write_image(icon_for(16), kit / "01_titlebar" / "titlebar-16.png")
+    _write_image(icon_for(24), kit / "01_titlebar" / "titlebar-24.png")
+    _write_image(icon_for(32), kit / "01_titlebar" / "titlebar-32.png")
 
-    icon_for(32).save(kit / "02_tray" / "tray-32.png")
-    icon_for(32).save(kit / "02_tray" / "tray.ico", format="ICO", sizes=[(32, 32)])
+    _write_image(icon_for(32), kit / "02_tray" / "tray-32.png")
+    _write_image(icon_for(32), kit / "02_tray" / "tray.ico", format="ICO", sizes=[(32, 32)])
 
-    icon_for(16).save(kit / "03_taskbar" / "taskbar-16.png")
-    icon_for(32).save(kit / "03_taskbar" / "taskbar-32.png")
-    icon_for(48).save(kit / "03_taskbar" / "taskbar-48.png")
-    icon_for(64).save(kit / "03_taskbar" / "taskbar-64.png")
-    icon_for(256).save(kit / "03_taskbar" / "taskbar-256.png")
+    _write_image(icon_for(16), kit / "03_taskbar" / "taskbar-16.png")
+    _write_image(icon_for(32), kit / "03_taskbar" / "taskbar-32.png")
+    _write_image(icon_for(48), kit / "03_taskbar" / "taskbar-48.png")
+    _write_image(icon_for(64), kit / "03_taskbar" / "taskbar-64.png")
+    _write_image(icon_for(256), kit / "03_taskbar" / "taskbar-256.png")
 
     ico_sizes = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
     frames = [icon_for(iw) for iw, _ih in ico_sizes]
     _save_ico(kit / "04_app_ico" / "app-icon.ico", frames, ico_sizes)
 
-    _ui_logo(full, 256).save(kit / "05_ui_logo" / "ui-logo-256.png")
-    _ui_logo(full, 512).save(kit / "05_ui_logo" / "ui-logo-512.png")
+    _write_image(_ui_logo(full, 256), kit / "05_ui_logo" / "ui-logo-256.png")
+    _write_image(_ui_logo(full, 512), kit / "05_ui_logo" / "ui-logo-512.png")
 
-    icon_for(128).save(kit / "06_ui_icon" / "ui-icon-128.png")
-    icon_for(128).save(kit / "06_ui_icon" / "ui-icon-128@2x.png")
+    _write_image(icon_for(128), kit / "06_ui_icon" / "ui-icon-128.png")
+    _write_image(icon_for(128), kit / "06_ui_icon" / "ui-icon-128@2x.png")
 
-    _ui_logo(full, 1024).save(kit / "07_flutter_res" / "res-icon-1024.png")
-    _ui_logo(full, 1024).save(kit / "07_flutter_res" / "res-mac-icon-1024.png")
-    icon_for(32).save(kit / "07_flutter_res" / "res-32.png")
-    icon_for(64).save(kit / "07_flutter_res" / "res-64.png")
-    icon_for(128).save(kit / "07_flutter_res" / "res-128.png")
+    _write_image(_ui_logo(full, 1024), kit / "07_flutter_res" / "res-icon-1024.png")
+    _write_image(_ui_logo(full, 1024), kit / "07_flutter_res" / "res-mac-icon-1024.png")
+    _write_image(icon_for(32), kit / "07_flutter_res" / "res-32.png")
+    _write_image(icon_for(64), kit / "07_flutter_res" / "res-64.png")
+    _write_image(icon_for(128), kit / "07_flutter_res" / "res-128.png")
 
     _save_ico(kit / "08_flutter_runner" / "flutter-app-icon.ico", frames, ico_sizes)
     print(f">> kit #1253 em {kit}")
@@ -435,20 +417,14 @@ def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     raw = Image.open(source)
     rgba = _to_rgba_transparent(raw)
-    full = _crop_pad_square(rgba, pad_ratio=0.04)
+    full = _feather_alpha(_crop_pad_square(rgba, pad_ratio=0.04))
 
-    full.save(out_dir / "icon-source-1024.png")
-    rgba.save(out_dir / "icon-source-official.png")
+    _write_image(full, out_dir / "icon-source-1024.png")
+    _write_image(rgba, out_dir / "icon-source-official.png")
 
-    simple: dict[int, Image.Image] = {}
     full_fit: dict[int, Image.Image] = {}
 
     def icon_for(size: int) -> Image.Image:
-        # Abaixo de 40px a cena 3D vira mancha; D sólido lê na titlebar.
-        if size <= 32:
-            if size not in simple:
-                simple[size] = _simplified_d_mark(size)
-            return simple[size]
         if size not in full_fit:
             full_fit[size] = _fit_square(full, size)
         return full_fit[size]
@@ -467,15 +443,15 @@ def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
         "icon.png": 256,
     }
     for name, size in mapping.items():
-        icon_for(size).save(out_dir / name)
+        _write_image(icon_for(size), out_dir / name)
 
-    _ui_logo(full, 512).save(out_dir / "ui-logo-512.png")
-    _ui_logo(full, 256).save(out_dir / "ui-logo-256.png")
+    _write_image(_ui_logo(full, 512), out_dir / "ui-logo-512.png")
+    _write_image(_ui_logo(full, 256), out_dir / "ui-logo-256.png")
 
     ico_sizes = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
     frames = [icon_for(iw) for iw, _ih in ico_sizes]
     _save_ico(out_dir / "icon.ico", frames, ico_sizes)
-    icon_for(32).save(out_dir / "tray-icon.ico", format="ICO", sizes=[(32, 32)])
+    _write_image(icon_for(32), out_dir / "tray-icon.ico", format="ICO", sizes=[(32, 32)])
     write_kit_1253(KIT_DIR, icon_for, full)
     print(f">> icones gerados de {source.name} em {out_dir}")
 
