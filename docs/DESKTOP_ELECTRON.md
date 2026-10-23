@@ -17,6 +17,7 @@ O app desktop é uma janela Electron que carrega o **painel web da instância** 
 |---------|-----|---------|
 | Ícone na bandeja | Não | Sim; fechar a janela só esconde (se a bandeja estiver ligada) |
 | Iniciar com o Windows | Só pelo Edge (`edge://apps`) | Pergunta **no Setup** + menu **DeskRudder** da janela (e da bandeja) |
+| Versão do app / atualizar | — | Menu **DeskRudder** → **Sobre** (versão do Electron, não a CalVer do painel). **Verificar atualizações** consulta `version.json` do Release `desktop-windows`; **Atualizar agora** baixa o Setup |
 | Alerta da fila com a janela fechada | Para ao fechar | Continua se a bandeja estiver ligada (Setup ou menu depois; sem throttling e autoplay liberado) |
 | Contador de pendências | Título da aba | Tooltip da bandeja + piscar na barra de tarefas |
 | Uma instância | — | Segundo clique no atalho reabre a janela |
@@ -25,14 +26,15 @@ O app desktop é uma janela Electron que carrega o **painel web da instância** 
 
 ## Código
 
-- `desktop/src/main.cjs` — janela, bandeja, conta (slug), cache do painel, lançar remoto
+- `desktop/src/main.cjs` — janela, bandeja, conta (slug), cache do painel, lançar remoto, Sobre e atualização do Setup
+- `desktop/src/versao.cjs` — comparar versão do app com `version.json` do Release `desktop-windows`
 - `desktop/src/preload.cjs` — `deskrudder` (conta) + `deskrudderDesktop` (remoto / recarregar)
 - `desktop/src/conta.html` + `conta.js` — primeiro acesso / trocar empresa
 - `desktop/build/` — ícones e laterais do NSIS; `installer-remoto.nsh` (prefs, atalho do painel, instala o cliente controle)
 - `desktop/scripts/gerar_icon_ico.py` — regenera `icon.ico` multi-tamanho a partir de `icon.png` (barra de tarefas)
 - `desktop/vendor/remoto-controle/` — colocar `DeskRudder-AcessoRemoto-Controle.exe` antes do `dist` (ver `vendor/README.md`)
 
-Configuração do usuário fica em `%APPDATA%\DeskRudder\config.json` (`slug`, `autostartPerguntado`, `avisoBandejaMostrado`, `alertasNaBandeja`, …). O Setup grava `installer-prefs.json` em `DeskRudder\Painel\` (lido na 1ª abertura). Sessão e `localStorage` do painel ficam em AppData.
+Configuração do usuário fica em `%APPDATA%\DeskRudder\config.json` (`slug`, `autostartPerguntado`, `avisoBandejaMostrado`, `alertasNaBandeja`, `atualizacaoAvisada`, …). O Setup grava `installer-prefs.json` em `DeskRudder\Painel\` (lido na 1ª abertura). Sessão e `localStorage` do painel ficam em AppData.
 
 ## Desenvolvimento
 
@@ -85,7 +87,7 @@ Saída local: `desktop/release/DeskRudder-Setup-{versão}.exe` (NSIS **por máqu
 
 O assistente pergunta: **iniciar com o Windows** e **manter na bandeja / alertar com o painel fechado** (defaults Sim). Depois dá para mudar no menu **DeskRudder** da janela, sem reinstalar. Garante atalho **DeskRudder** na área de trabalho (além do atalho do Acesso Remoto) e abre o painel ao concluir.
 
-Versão do shell em `desktop/package.json`. O cliente remoto tem versão própria (`deploy/rustdesk-client/CLIENT_VERSION`) e banner de update no Release `acesso-remoto-controle-windows`.
+Versão do shell em `desktop/package.json` (é essa que o menu **Sobre** mostra). O workflow publica também `version.json` no Release `desktop-windows` para o app saber se há Setup mais novo. O cliente remoto tem versão própria (`deploy/rustdesk-client/CLIENT_VERSION`) e banner de update no Release `acesso-remoto-controle-windows`.
 
 ### Link no painel (`/app/download`)
 
@@ -127,3 +129,5 @@ O shell embute Chromium (como o Chrome). Se o consumo ficar inaceitável no uso 
 | 15 | Navegador no PC | Não sugere «Instale o app» (PWA); no celular continua sugerindo |
 | 16 | Setup com remoto no vendor | UAC → painel + `--silent-install` do controle (se falhar, assistente normal) |
 | 17 | `/app/download` após workflow Desktop (ou `publicar-setup`) + Nginx | Baixa `DeskRudder-Setup.exe` sem mostrar URL do repositório |
+| 18 | Menu DeskRudder → Sobre | Mostra a versão do app (`desktop/package.json`), não a CalVer do painel |
+| 19 | Menu DeskRudder → Verificar atualizações (com `version.json` no Release) | Se o Setup publicado for mais novo: aviso + **Atualizar agora** baixa o instalador e abre o assistente |
