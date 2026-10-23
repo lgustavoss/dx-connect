@@ -456,6 +456,7 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel, onF
                           variant="botao"
                           className="mt-1"
                           rustdeskId={acesso.acesso_remoto_id}
+                          tituloSessao={`${detalhe.rotulo_nome?.trim() || 'Equipamento'} ${detalhe.codigo}`.trim()}
                           carregarSenha={() =>
                             senhaDoAcesso(empresaId, detalhe.id, acesso.id > 0 ? acesso.id : null, toast)
                           }
@@ -727,7 +728,8 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel, onF
                         {conectar?.acesso_remoto_id ? (
                           <BotaoConectarRemoto
                             rustdeskId={conectar.acesso_remoto_id}
-                            title="Conectar no DeskRudder"
+                            tituloSessao={`${row.rotulo_nome?.trim() || 'Equipamento'} ${row.codigo}`.trim()}
+                            title="Conectar no DeskRemote"
                             ariaLabel={`Conectar ao PDV ${row.codigo}`}
                             carregarSenha={() =>
                               senhaDoAcesso(

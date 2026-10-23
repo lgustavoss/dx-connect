@@ -1,16 +1,20 @@
 import { ApiError, empresaPdvs } from '../api/client'
 import { conectarRemotoPreferindoDesktop } from './deskrudderDesktop'
-import { urlConexaoDeskRudder } from './acessoRemotoUrl.mjs'
+import { rotuloSessaoVinculo, urlConexaoDeskRudder } from './acessoRemotoUrl.mjs'
 
-export { urlConexaoDeskRudder }
+export { rotuloSessaoVinculo, urlConexaoDeskRudder }
 
 type ToastMin = {
   showSuccess: (msg: string) => void
   showWarning: (msg: string) => void
 }
 
-export function abrirClienteRustdesk(id: string, senha?: string | null) {
-  const url = urlConexaoDeskRudder(id, senha)
+export function abrirClienteRustdesk(
+  id: string,
+  senha?: string | null,
+  tituloSessao?: string | null,
+) {
+  const url = urlConexaoDeskRudder(id, senha, tituloSessao)
   // Chrome/Edge ignoram clique sintético em <a> para protocolo customizado
   // (e rel=noreferrer também bloqueia). Navegação de topo usa o gesto do usuário.
   window.location.assign(url)
@@ -22,8 +26,9 @@ export async function conectarAcessoRemoto(
   senha: string | null,
   toast: ToastMin,
   avisou = false,
+  tituloSessao?: string | null,
 ): Promise<void> {
-  const viaDesktop = await conectarRemotoPreferindoDesktop(rustdeskId, senha)
+  const viaDesktop = await conectarRemotoPreferindoDesktop(rustdeskId, senha, tituloSessao)
   if (viaDesktop) {
     if (!viaDesktop.ok) {
       toast.showWarning(viaDesktop.erro || 'Não foi possível abrir o acesso remoto neste computador.')
@@ -39,7 +44,7 @@ export async function conectarAcessoRemoto(
       }
     }
   } else {
-    abrirClienteRustdesk(rustdeskId, senha)
+    abrirClienteRustdesk(rustdeskId, senha, tituloSessao)
   }
   if (!avisou) {
     toast.showSuccess(

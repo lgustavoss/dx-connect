@@ -191,16 +191,23 @@ function acharExeRemoto() {
  * com "Wrong command". rustdesk:// continua apontando ao RustDesk oficial.
  * @returns {{ ok: boolean, modo?: string, erro?: string }}
  */
-function conectarRemoto(id, senha) {
+function conectarRemoto(id, senha, tituloSessao) {
   const digitos = String(id || '').replace(/\s+/g, '')
   if (!/^\d{6,}$/.test(digitos)) {
     return { ok: false, erro: 'ID de acesso remoto inválido.' }
   }
   const senhaLimpa = senha != null ? String(senha).trim() : ''
+  const titulo = tituloSessao != null ? String(tituloSessao).trim() : ''
   const args = ['--connect', digitos]
   if (senhaLimpa) args.push(senhaLimpa)
+  if (titulo) {
+    // Sem senha, o Sciter trata o próximo token como senha — usa placeholder vazio.
+    if (!senhaLimpa) args.push('')
+    args.push('--title', titulo)
+  }
   const params = new URLSearchParams()
   if (senhaLimpa) params.set('password', senhaLimpa)
+  if (titulo) params.set('name', titulo)
   const consulta = params.toString()
   const url = `deskrudder://connection/new/${digitos}${consulta ? `?${consulta}` : ''}`
 
@@ -221,7 +228,7 @@ function conectarRemoto(id, senha) {
     return {
       ok: false,
       erro:
-        'Não foi possível abrir o acesso remoto. Confira se o DeskRudder Acesso Remoto (controle) está instalado.',
+        'Não foi possível abrir o acesso remoto. Confira se o DeskRemote (controle) está instalado.',
     }
   }
   return { ok: true, modo: 'protocolo' }
@@ -255,11 +262,11 @@ ipcMain.handle('remoto:status', (event) => {
   return { instalado: Boolean(acharExeRemoto()), caminho: acharExeRemoto() }
 })
 
-ipcMain.handle('remoto:conectar', (event, id, senha) => {
+ipcMain.handle('remoto:conectar', (event, id, senha, tituloSessao) => {
   if (!origemPermitidaPainel(event.senderFrame?.url)) {
     return { ok: false, erro: 'Origem não permitida.' }
   }
-  return conectarRemoto(id, senha)
+  return conectarRemoto(id, senha, tituloSessao)
 })
 
 ipcMain.handle('painel:recarregar', async (event) => {
