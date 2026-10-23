@@ -560,6 +560,45 @@ def apply_flutter_recent_limit_text(text: str) -> str:
     return text.replace(_FLUTTER_PEERS_LIMIT, _FLUTTER_PEERS_LIMIT_10, 1)
 
 
+_FLUTTER_PEER_ID_LABEL = "peer.alias.isEmpty ? formatID(peer.id) : peer.alias"
+
+# Titulo do tile (lista): so este contexto vira displayName.
+_FLUTTER_PEER_TILE_ID = (
+    "                        Expanded(\n"
+    "                            child: Text(\n"
+    f"                          {_FLUTTER_PEER_ID_LABEL},\n"
+    "                          overflow: TextOverflow.ellipsis,\n"
+    "                          style: Theme.of(context).textTheme.titleSmall,\n"
+    "                        )),\n"
+    "                      ]).marginOnly(top: isPortrait ? 0 : 2),"
+)
+
+_FLUTTER_PEER_TILE_NAME = """                        Expanded(
+                            child: Text(
+                          displayName,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        )),
+                      ]).marginOnly(top: isPortrait ? 0 : 2),"""
+
+# Barra inferior do cartao (grid): vinculo no topo, maquina aqui; nunca o ID.
+_FLUTTER_PEER_CARD_ID = (
+    "                            child: Text(\n"
+    f"                          {_FLUTTER_PEER_ID_LABEL},\n"
+    "                          overflow: TextOverflow.ellipsis,\n"
+    "                          style: Theme.of(context).textTheme.titleSmall,\n"
+    "                        )),\n"
+    "                      ]).paddingSymmetric(vertical: 8)),"
+)
+
+_FLUTTER_PEER_CARD_SUB = """                            child: Text(
+                          displaySub,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        )),
+                      ]).paddingSymmetric(vertical: 8)),"""
+
+
 def apply_flutter_peer_card_text(text: str) -> str:
     if "DeskRemote: nome do vinculo" in text:
         return text
@@ -569,10 +608,12 @@ def apply_flutter_peer_card_text(text: str) -> str:
             f"flutter peer_card: bloco username@hostname encontrado {n}x (esperado 2)"
         )
     text = text.replace(_FLUTTER_PEER_NAME, _FLUTTER_PEER_NAME_ALIAS)
-    old_id = "peer.alias.isEmpty ? formatID(peer.id) : peer.alias"
-    if old_id not in text:
-        raise SystemExit("flutter peer_card: formatID(id)/alias nao encontrado")
-    text = text.replace(old_id, "displayName")
+    if _FLUTTER_PEER_TILE_ID not in text:
+        raise SystemExit("flutter peer_card: titulo do tile (ID/alias) nao encontrado")
+    text = text.replace(_FLUTTER_PEER_TILE_ID, _FLUTTER_PEER_TILE_NAME, 1)
+    if _FLUTTER_PEER_CARD_ID not in text:
+        raise SystemExit("flutter peer_card: barra inferior do cartao nao encontrada")
+    text = text.replace(_FLUTTER_PEER_CARD_ID, _FLUTTER_PEER_CARD_SUB, 1)
     old_top = """                                      child: Text(
                                         name,
                                         style: const TextStyle(
@@ -595,22 +636,8 @@ def apply_flutter_peer_card_text(text: str) -> str:
     if old_sub not in text:
         raise SystemExit("flutter peer_card: subtitulo do tile nao encontrado")
     text = text.replace(old_sub, new_sub, 1)
-    # Barra inferior do cartao: maquina quando ha vinculo; senao o nome (nunca o ID).
-    old_bottom = """                            child: Text(
-                          displayName,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleSmall,
-                        )),
-                      ]).paddingSymmetric(vertical: 8)),"""
-    new_bottom = """                            child: Text(
-                          displaySub,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleSmall,
-                        )),
-                      ]).paddingSymmetric(vertical: 8)),"""
-    if old_bottom not in text:
-        raise SystemExit("flutter peer_card: barra inferior do cartao nao encontrada")
-    return text.replace(old_bottom, new_bottom, 1)
+    # Menus (Excluir etc.) continuam com formatID — displayName nao existe na classe.
+    return text
 
 
 def apply_flutter_logo_size_text(text: str) -> str:
@@ -802,6 +829,8 @@ def _selftest_flutter_recent_ui() -> None:
     fixture = (
         _FLUTTER_PEER_NAME
         + _FLUTTER_PEER_NAME
+        + _FLUTTER_PEER_TILE_ID
+        + _FLUTTER_PEER_CARD_ID
         + """                                      child: Text(
                                         name,
                                         style: const TextStyle(
@@ -810,21 +839,18 @@ def _selftest_flutter_recent_ui() -> None:
                                 child: Text(
                                   name,
                                   style: isPortrait ? null : greyStyle,
-                            child: Text(
-                          peer.alias.isEmpty ? formatID(peer.id) : peer.alias,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleSmall,
-                        )),
-                      ]).paddingSymmetric(vertical: 8)),
-                            child: Text(
-                          peer.alias.isEmpty ? formatID(peer.id) : peer.alias,
+            '${translate('Delete')} "${peer.alias.isEmpty ? formatID(peer.id) : peer.alias}"?');
 """
     )
     out = apply_flutter_peer_card_text(fixture)
     if "displayName" not in out:
         raise SystemExit("selftest flutter: displayName ausente no cartao")
-    if "peer.alias.isEmpty ? formatID(peer.id) : peer.alias" in out:
+    if _FLUTTER_PEER_TILE_ID in out or _FLUTTER_PEER_CARD_ID in out:
         raise SystemExit("selftest flutter: ID ainda no rotulo do cartao")
+    if _FLUTTER_PEER_ID_LABEL not in out:
+        raise SystemExit("selftest flutter: formatID do menu Excluir foi removido")
+    if "displayName" in out.split("Delete")[-1]:
+        raise SystemExit("selftest flutter: displayName vazou para o menu Excluir")
     if apply_flutter_peer_card_text(out) != out:
         raise SystemExit("selftest flutter: cartao nao e idempotente")
 

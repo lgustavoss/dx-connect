@@ -74,6 +74,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - DeskRemote Flutter: logo no topo do painel; só a aba Sessões recentes (10 últimas), com o nome do vínculo no lugar do ID
 - DeskRemote: Sciter de produção continua na linha **1.x.x**; o Flutter do atendente começa em **2.0.0** (Release e update separados)
 - DeskRemote Flutter: CI atualiza o `Cargo.lock` depois de gravar a versão 2.x.x no packer (`cargo build --locked`)
+- DeskRemote Flutter: o nome do vínculo no cartão não quebra o menu Excluir (`displayName` só no layout)
 - App Atendente Setup: `electron-builder` no CI usa `--publish never` (Release via `gh`); evita falha «Cannot detect repository»
 - Download `/app/download` e `/acesso-remoto/download`: redirect imediato no `index.html` (antes do SPA) quando o Nginx ainda não tem o 302; link de reserva na tela intermediária
 
