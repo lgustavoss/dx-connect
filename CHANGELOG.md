@@ -28,7 +28,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
-- Acesso remoto: clicar várias vezes no atalho da área de trabalho **reusa a janela já aberta** em vez de abrir várias; reconectar no mesmo ID traz a sessão existente para frente (versão 1.0.14)
+- Acesso remoto (#S202610-0018): clicar várias vezes no atalho ou na barra de tarefas **reusa a janela já aberta** em vez de abrir várias; reconectar no mesmo ID traz a sessão existente para frente (versão 1.0.14)
 - Acesso remoto (atendente): a sessão mostra o **rótulo do vínculo** (ex.: «Posto Farol · SERVIDOR 001») na barra e no título; a toolbar acompanha o tema escuro; ícone da janela usa o D legível (versão 1.0.13)
 - Acesso remoto: barra de título e menu Sobre mostram **DeskRemote** (antes DeskRudder); ícone pequeno da janela/bandeja vira um **D** vermelho legível (versão 1.0.12)
 - Acesso remoto: logo e ícones do **DeskRemote** atualizados com a arte oficial (D + atendente + nuvem), fundo transparente e glow preservado (versão 1.0.11)
