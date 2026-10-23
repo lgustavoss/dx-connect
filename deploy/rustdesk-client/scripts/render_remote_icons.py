@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""Gera icones do cliente Windows a partir da arte oficial de Acesso Remoto.
+"""Gera icones do cliente Windows a partir da arte oficial DeskRemote.
 
-Fonte padrao: branding/icon-source-official.png
+Fonte: branding/icon-source-final.jpg (master) ou icon-source-official.png (já com alpha).
 
-Preferivel: PNG com alpha real (export do Figma/Photoshop).
-JPEG com xadrez de “transparencia” achatado e suportado de forma best-effort.
+JPEG em fundo preto (WhatsApp/export) vira PNG RGBA. PNG com alpha nos cantos é reusado.
 
-- tamanhos grandes (128+): arte completa
-- ui-logo 256/512: arte completa (painel host)
-- 16/32/48/64/tray e frames ICO <= 64: mark «D» simplificado (legivel na titlebar)
+- 48px+: arte completa (D + atendente + nuvem ainda lê)
+- 16–32px (titlebar/tray): mark «D» sólido — a cena 3D vira borrão nesses pixels
 """
 
 from __future__ import annotations
@@ -19,20 +17,92 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 BRANDING = Path(__file__).resolve().parent.parent / "branding"
-DEFAULT_SOURCE = BRANDING / "icon-source-official.png"
+KIT_DIR = BRANDING / "kit-1253"
+FINAL_JPG = BRANDING / "icon-source-final.jpg"
+DEFAULT_SOURCE = FINAL_JPG if FINAL_JPG.is_file() else BRANDING / "icon-source-official.png"
 
 # Vermelho da arte DeskRemote (D metalico).
 _BRAND_RED = (220, 28, 42, 255)
 _BRAND_RED_DARK = (140, 12, 24, 255)
 
 
+def _corner_luma(im: Image.Image) -> int:
+    rgb = im.convert("RGB")
+    r, g, b = rgb.getpixel((0, 0))
+    return max(r, g, b)
+
+
+def _knockout_black_background(rgb: Image.Image) -> Image.Image:
+    """Fundo preto (arte nova) → alpha, sem comer camisa/cabelo/globo."""
+    w, h = rgb.size
+    px = rgb.load()
+    seed = Image.new("L", (w, h), 0)
+    sp = seed.load()
+    for y in range(h):
+        for x in range(w):
+            r, g, b = px[x, y]  # type: ignore[misc]
+            mx, mn = max(r, g, b), min(r, g, b)
+            vermelho = r >= 55 and r >= g + 18 and r >= b + 18
+            pele = r >= 85 and 45 <= g <= 210 and 30 <= b <= 190 and r > b
+            claro = mn >= 130 and mx - mn <= 55
+            globo = mx >= 85 and mn >= 35 and mx - mn <= 45
+            if vermelho or pele or claro or globo:
+                sp[x, y] = 255  # type: ignore[index]
+    # Dilata a semente para cobrir cabelo, camisa e notebook pretos.
+    protegido = seed.filter(ImageFilter.MaxFilter(31)).filter(ImageFilter.MaxFilter(21))
+    gp = protegido.load()
+
+    alpha = [[255] * w for _ in range(h)]
+    seen = [[False] * w for _ in range(h)]
+    q: deque[tuple[int, int]] = deque()
+
+    def eh_fundo(r: int, g: int, b: int) -> bool:
+        mx = max(r, g, b)
+        if r >= 48 and r >= g + 14:
+            return False
+        return mx <= 38
+
+    def tenta(x: int, y: int) -> None:
+        if seen[y][x] or gp[x, y] > 0:  # type: ignore[index]
+            return
+        r, g, b = px[x, y]  # type: ignore[misc]
+        if not eh_fundo(r, g, b):
+            return
+        seen[y][x] = True
+        alpha[y][x] = 0
+        q.append((x, y))
+
+    for x in range(w):
+        tenta(x, 0)
+        tenta(x, h - 1)
+    for y in range(h):
+        tenta(0, y)
+        tenta(w - 1, y)
+    while q:
+        x, y = q.popleft()
+        for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < w and 0 <= ny < h:
+                tenta(nx, ny)
+
+    rgba = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    out = rgba.load()
+    for y in range(h):
+        for x in range(w):
+            r, g, b = px[x, y]  # type: ignore[misc]
+            out[x, y] = (r, g, b, 255 if alpha[y][x] else 0)  # type: ignore[index]
+    return rgba
+
+
 def _to_rgba_transparent(im: Image.Image) -> Image.Image:
-    """Remove fundo branco ou xadrez JPEG; preserva pele e brancos internos."""
+    """Remove fundo branco, xadrez JPEG ou preto; preserva pele e brancos internos."""
     if im.mode == "RGBA":
         # Reusa alpha se ja parece util (cantos transparentes)
         a0 = im.getpixel((0, 0))[3]
         if a0 == 0:
             return im
+    if _corner_luma(im) <= 48:
+        return _knockout_black_background(im.convert("RGB"))
 
     rgb = im.convert("RGB")
     w, h = rgb.size
@@ -256,11 +326,7 @@ def _fit_square(im: Image.Image, size: int) -> Image.Image:
 
 
 def _simplified_d_mark(size: int) -> Image.Image:
-    """«D» solido legivel na titlebar/taskbar (16–48px).
-
-    A arte completa vira um borrão vermelho nesses tamanhos; o mark geometrico
-    mantem a identidade DeskRemote sem o personagem/globo.
-    """
+    """«D» sólido legível na titlebar/bandeja (16–32px)."""
     scale = 8
     canvas = size * scale
     img = Image.new("RGBA", (canvas, canvas), (0, 0, 0, 0))
@@ -276,6 +342,8 @@ def _simplified_d_mark(size: int) -> Image.Image:
 
     font = None
     for path in (
+        r"C:\Windows\Fonts\arialbd.ttf",
+        r"C:\Windows\Fonts\segoeuib.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
         "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
@@ -308,6 +376,58 @@ def _ui_logo(full: Image.Image, size: int) -> Image.Image:
     return _fit_square(full, size)
 
 
+def _save_ico(path: Path, frames: list[Image.Image], sizes: list[tuple[int, int]]) -> None:
+    frames[-1].save(path, format="ICO", sizes=sizes, append_images=frames[:-1])
+
+
+def write_kit_1253(kit: Path, icon_for, full: Image.Image) -> None:
+    """Pastas da issue #1253 (titlebar, tray, taskbar, ico, ui-logo, flutter)."""
+    folders = {
+        "01_titlebar": None,
+        "02_tray": None,
+        "03_taskbar": None,
+        "04_app_ico": None,
+        "05_ui_logo": None,
+        "06_ui_icon": None,
+        "07_flutter_res": None,
+        "08_flutter_runner": None,
+    }
+    for name in folders:
+        (kit / name).mkdir(parents=True, exist_ok=True)
+
+    icon_for(16).save(kit / "01_titlebar" / "titlebar-16.png")
+    icon_for(24).save(kit / "01_titlebar" / "titlebar-24.png")
+    icon_for(32).save(kit / "01_titlebar" / "titlebar-32.png")
+
+    icon_for(32).save(kit / "02_tray" / "tray-32.png")
+    icon_for(32).save(kit / "02_tray" / "tray.ico", format="ICO", sizes=[(32, 32)])
+
+    icon_for(16).save(kit / "03_taskbar" / "taskbar-16.png")
+    icon_for(32).save(kit / "03_taskbar" / "taskbar-32.png")
+    icon_for(48).save(kit / "03_taskbar" / "taskbar-48.png")
+    icon_for(64).save(kit / "03_taskbar" / "taskbar-64.png")
+    icon_for(256).save(kit / "03_taskbar" / "taskbar-256.png")
+
+    ico_sizes = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
+    frames = [icon_for(iw) for iw, _ih in ico_sizes]
+    _save_ico(kit / "04_app_ico" / "app-icon.ico", frames, ico_sizes)
+
+    _ui_logo(full, 256).save(kit / "05_ui_logo" / "ui-logo-256.png")
+    _ui_logo(full, 512).save(kit / "05_ui_logo" / "ui-logo-512.png")
+
+    icon_for(128).save(kit / "06_ui_icon" / "ui-icon-128.png")
+    icon_for(128).save(kit / "06_ui_icon" / "ui-icon-128@2x.png")
+
+    _ui_logo(full, 1024).save(kit / "07_flutter_res" / "res-icon-1024.png")
+    _ui_logo(full, 1024).save(kit / "07_flutter_res" / "res-mac-icon-1024.png")
+    icon_for(32).save(kit / "07_flutter_res" / "res-32.png")
+    icon_for(64).save(kit / "07_flutter_res" / "res-64.png")
+    icon_for(128).save(kit / "07_flutter_res" / "res-128.png")
+
+    _save_ico(kit / "08_flutter_runner" / "flutter-app-icon.ico", frames, ico_sizes)
+    print(f">> kit #1253 em {kit}")
+
+
 def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
     if not source.is_file():
         raise SystemExit(f"Arte fonte nao encontrada: {source}")
@@ -320,12 +440,12 @@ def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
     full.save(out_dir / "icon-source-1024.png")
     rgba.save(out_dir / "icon-source-official.png")
 
-    # Cache de marks simplificados e full
     simple: dict[int, Image.Image] = {}
     full_fit: dict[int, Image.Image] = {}
 
     def icon_for(size: int) -> Image.Image:
-        if size <= 64:
+        # Abaixo de 40px a cena 3D vira mancha; D sólido lê na titlebar.
+        if size <= 32:
             if size not in simple:
                 simple[size] = _simplified_d_mark(size)
             return simple[size]
@@ -338,6 +458,7 @@ def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
         "deskrudder-32.png": 32,
         "deskrudder-48.png": 48,
         "deskrudder-64.png": 64,
+        "64x64.png": 64,
         "deskrudder-128.png": 128,
         "deskrudder-256.png": 256,
         "32x32.png": 32,
@@ -348,19 +469,14 @@ def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
     for name, size in mapping.items():
         icon_for(size).save(out_dir / name)
 
-    # Painel host: arte completa (nao o D simplificado)
     _ui_logo(full, 512).save(out_dir / "ui-logo-512.png")
     _ui_logo(full, 256).save(out_dir / "ui-logo-256.png")
 
     ico_sizes = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
     frames = [icon_for(iw) for iw, _ih in ico_sizes]
-    frames[-1].save(
-        out_dir / "icon.ico",
-        format="ICO",
-        sizes=ico_sizes,
-        append_images=frames[:-1],
-    )
+    _save_ico(out_dir / "icon.ico", frames, ico_sizes)
     icon_for(32).save(out_dir / "tray-icon.ico", format="ICO", sizes=[(32, 32)])
+    write_kit_1253(KIT_DIR, icon_for, full)
     print(f">> icones gerados de {source.name} em {out_dir}")
 
 
