@@ -1,30 +1,32 @@
 # Cliente Windows DeskRudder (acesso remoto)
 
-Há **três workflows** no Actions (nomes na UI):
+Há **quatro workflows** no Actions (nomes na UI):
 
 | Workflow | Artefato | Release | Uso |
 |----------|----------|---------|-----|
 | **Acesso Remoto Cliente (Windows)** | `DeskRudder-AcessoRemoto.exe` | `acesso-remoto-windows` | PC do **posto** — só recebe |
 | **Acesso Remoto Atendente (Windows)** | `DeskRudder-AcessoRemoto-Controle.exe` | `acesso-remoto-controle-windows` | Remoto do **atendente** (frota) |
 | **App Atendente Setup (Windows)** | `DeskRudder-Setup.exe` | `desktop-windows` | Painel + embute o remoto atendente já publicado |
+| **Acesso Remoto Atendente Flutter (spike)** | `DeskRudder-AcessoRemoto-Controle-Flutter.exe` | `acesso-remoto-controle-flutter-windows` | UI Flutter x64 do atendente — **não** substitui o Sciter |
 
 Assim o Setup do painel fica rápido; o build longo do RustDesk só roda quando o remoto muda.
 
 **Cliente — o que o posto recebe:**  
 `DeskRudder-AcessoRemoto-<versão>.exe` com marca DeskRudder e servidor Duplex (`31.97.160.79` + chave).
 
-Cliente e atendente usam o **mesmo** `deploy/rustdesk-client/branding/`. Ao trocar a arte: regenere os ICO/PNG, suba `CLIENT_VERSION` e rode **Acesso Remoto Cliente** e **Acesso Remoto Atendente** para os dois Releases receberem a mesma marca.
+Cliente e atendente usam o **mesmo** `deploy/rustdesk-client/branding/` (e `kit-1253/` para Flutter). Ao trocar a arte: regenere com `render_remote_icons.py`, suba a versão do canal (`CLIENT_VERSION` no Sciter, `CLIENT_VERSION_FLUTTER` no Flutter) e rode os workflows de remoto.
 
 ## Versão (importante)
 
-Há **duas** versões envolvidas:
+Há **três** números envolvidos:
 
 | O quê | Onde | Muda quando |
 |-------|------|-------------|
-| **Versão DeskRudder** (`CLIENT_VERSION`, ex.: `1.0.6`) | UI («Versão …»), instalação e aviso de update (`DESKRUDDER_CLIENT_VERSION`) | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION` e gera um build novo |
+| **Sciter (produção)** (`CLIENT_VERSION`, linha **1.x.x**, ex.: `1.0.14`) | UI, instalação e update dos Releases `acesso-remoto-windows` e `acesso-remoto-controle-windows` | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION` e gera o build Sciter |
+| **Flutter (spike atendente)** (`CLIENT_VERSION_FLUTTER`, linha **2.x.x**, ex.: `2.0.0`) | UI Flutter e update do Release `acesso-remoto-controle-flutter-windows` | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION_FLUTTER` e gera o spike Flutter |
 | **Tag RustDesk** (ex.: `1.5.0`) | `Cargo.toml` → `crate::VERSION` anunciada ao peer (protocolo / modo de teclado) | Só quando escolhemos uma tag mais nova do upstream no Actions |
 
-A tag `1.5.0` **não sobe sozinha** a cada build — é a base do RustDesk. O que o posto precisa olhar é a **versão DeskRudder**.
+A linha **1.x.x fica no Sciter**; o Flutter **não** reutiliza esse número — começa em **2.0.0** para não misturar instalador nem canal de update. A tag `1.5.0` **não sobe sozinha** a cada build — é a base do RustDesk.
 
 Importante: **não** gravar `CLIENT_VERSION` no `Cargo.toml` principal. Se o peer anunciar `1.0.x` (abaixo de 1.2.0), o modo mapa de teclado some e atalhos do PDV (ex. tecla **D**) deixam de funcionar.
 
@@ -90,6 +92,7 @@ O instalador é pensado para o PC que **vai ser acessado** (PDV / posto):
 - Uma só janela principal: segundo clique no atalho foca a janela já aberta (mutex de sessão Windows)
 - Pasta de instalação: `C:\Program Files (x86)\DeskRudder\Acesso Remoto` (mantida por compatibilidade; outros apps DeskRudder podem ficar em pastas irmãs)
 - Link «Desenvolvido por DeskRudder» → https://deskrudder.com.br/
+- No Flutter, a marca fica no **rodapé** do painel esquerdo, com a versão DeskRudder (`CLIENT_VERSION_FLUTTER`, linha 2.x.x) abaixo; no Sciter a posição segue o upstream
 - Tema escuro segue o Windows (conteúdo + barra de título) se a opção não foi fixada no menu (⋮ → Tema escuro)
 - Logo do painel usa arte em alta resolução com fundo transparente (`ui-logo-512.png`) — sem placa opaca no tema escuro nem no claro; tamanho acompanha a janela
 - Janela inicial ~760×720 (antes de instalar) para o botão **Instalar** do cartão UAC ficar visível
@@ -115,11 +118,15 @@ O instalador de **controle** (`DeskRudder-AcessoRemoto-Controle.exe`, embutido n
 - Atalho e pasta iguais ao do posto (`DeskRemote` / `DeskRudder\Acesso Remoto`)
 - Uma só janela principal no atalho; reconectar no mesmo ID remoto foca a sessão já aberta (ainda sem abas — ver #1248)
 
+No spike **Flutter**, a home do atendente mostra a logo DeskRemote no topo do painel, o texto de edição personalizada, só a aba **Sessões recentes** (10 últimas) e o **nome do vínculo** (o `name=` do `deskrudder://`) no cartão — sem o ID numérico.
+
 ## Pasta no repo
 
 | Caminho | Função |
 |---------|--------|
 | `deploy/rustdesk-client/server.config.json` | Host e chave |
+| `deploy/rustdesk-client/CLIENT_VERSION` | Versão Sciter (produção, **1.x.x**) |
+| `deploy/rustdesk-client/CLIENT_VERSION_FLUTTER` | Versão Flutter do atendente (**2.x.x**) |
 | `deploy/rustdesk-client/branding/` | Arte oficial + `icon.ico`/tray/PNGs — regenerar com `scripts/render_remote_icons.py` |
 | `deploy/rustdesk-client/scripts/apply_branding.py` | Patch no clone |
 | `deploy/rustdesk-client/scripts/encode_config.py` | Gera/decodifica string de import (debug) |

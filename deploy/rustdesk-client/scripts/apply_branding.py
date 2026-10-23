@@ -11,6 +11,10 @@ nome do atalho Windows, canal de update (version.json).
 Profiles (--profile):
   posto     — incoming-only + UI host (PDV)
   controle  — atendente outgoing-only (controla outros, sem ID na frota)
+
+UI (--ui):
+  sciter    — producao 1.x.x (CLIENT_VERSION)
+  flutter   — spike atendente 2.x.x (CLIENT_VERSION_FLUTTER); canal de update paralelo
 """
 
 from __future__ import annotations
@@ -33,8 +37,10 @@ WEBSITE_URL = "https://deskrudder.com.br/"
 # Canais de atualizacao (Release GitHub).
 RELEASE_TAG_POSTO = "acesso-remoto-windows"
 RELEASE_TAG_CONTROLE = "acesso-remoto-controle-windows"
+RELEASE_TAG_CONTROLE_FLUTTER = "acesso-remoto-controle-flutter-windows"
 INSTALLER_NAME_POSTO = "DeskRudder-AcessoRemoto.exe"
 INSTALLER_NAME_CONTROLE = "DeskRudder-AcessoRemoto-Controle.exe"
+INSTALLER_NAME_CONTROLE_FLUTTER = "DeskRudder-AcessoRemoto-Controle-Flutter.exe"
 
 # Preenchidos em main() conforme --profile.
 UPDATE_VERSION_JSON_URL = (
@@ -110,10 +116,13 @@ def _selftest_sciter_copy() -> None:
         raise SystemExit("selftest: string TIS do erro ainda tem UTF-8 literal")
 
 
-def configurar_canal_update(profile: str) -> None:
-    """Define URLs de version.json / download conforme posto (so-recebe) ou controle."""
+def configurar_canal_update(profile: str, ui: str = "sciter") -> None:
+    """Define URLs de version.json / download conforme posto, controle Sciter ou Flutter."""
     global UPDATE_VERSION_JSON_URL, DOWNLOAD_INSTALLER_URL, UPDATE_RELEASE_TAG
-    if profile == "controle":
+    if ui == "flutter":
+        tag = RELEASE_TAG_CONTROLE_FLUTTER
+        nome = INSTALLER_NAME_CONTROLE_FLUTTER
+    elif profile == "controle":
         tag = RELEASE_TAG_CONTROLE
         nome = INSTALLER_NAME_CONTROLE
     else:
@@ -128,11 +137,58 @@ def configurar_canal_update(profile: str) -> None:
     )
 
 
-def load_client_version(path: Path) -> str:
+def load_client_version(path: Path, ui: str = "sciter") -> str:
     ver = path.read_text(encoding="utf-8").strip()
     if not re.fullmatch(r"\d+\.\d+\.\d+", ver):
         raise SystemExit(f"CLIENT_VERSION invalida em {path}: {ver!r} (use X.Y.Z)")
+    major = int(ver.split(".", 1)[0])
+    if ui == "flutter" and major < 2:
+        raise SystemExit(
+            f"Flutter deve usar versao 2.x.x (arquivo {path.name}={ver!r}); "
+            "1.x.x fica no Sciter de producao"
+        )
+    if ui == "sciter" and major >= 2:
+        raise SystemExit(
+            f"Sciter deve usar versao 1.x.x (arquivo {path.name}={ver!r}); "
+            "2.x.x e do Flutter"
+        )
     return ver
+
+
+def _selftest_client_version_linhas() -> None:
+    """Sciter = 1.x.x; Flutter = 2.x.x — canais separados."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        d = Path(tmp)
+        sciter = d / "CLIENT_VERSION"
+        flutter = d / "CLIENT_VERSION_FLUTTER"
+        sciter.write_text("1.0.14\n", encoding="utf-8")
+        flutter.write_text("2.0.0\n", encoding="utf-8")
+        if load_client_version(sciter, "sciter") != "1.0.14":
+            raise SystemExit("selftest: Sciter 1.0.14")
+        if load_client_version(flutter, "flutter") != "2.0.0":
+            raise SystemExit("selftest: Flutter 2.0.0")
+        try:
+            load_client_version(sciter, "flutter")
+        except SystemExit:
+            pass
+        else:
+            raise SystemExit("selftest: Flutter nao deve aceitar 1.x.x")
+        try:
+            load_client_version(flutter, "sciter")
+        except SystemExit:
+            pass
+        else:
+            raise SystemExit("selftest: Sciter nao deve aceitar 2.x.x")
+    configurar_canal_update("controle", "flutter")
+    if UPDATE_RELEASE_TAG != RELEASE_TAG_CONTROLE_FLUTTER:
+        raise SystemExit("selftest: canal Flutter nao aponta para tag paralela")
+    if INSTALLER_NAME_CONTROLE_FLUTTER not in DOWNLOAD_INSTALLER_URL:
+        raise SystemExit("selftest: download Flutter com nome errado")
+    configurar_canal_update("controle", "sciter")
+    if UPDATE_RELEASE_TAG != RELEASE_TAG_CONTROLE:
+        raise SystemExit("selftest: canal Sciter controle invertido")
 
 def load_server(cfg_path: Path) -> tuple[str, str]:
     data = json.loads(cfg_path.read_text(encoding="utf-8"))
@@ -181,6 +237,642 @@ def copy_icons(brand: Path, src: Path) -> None:
     if not tray.is_file() and (res / "icon.ico").is_file():
         shutil.copy2(res / "icon.ico", tray)
         print("  icon tray-icon.ico (fallback icon.ico)")
+
+    copy_flutter_icons(brand, src)
+
+
+def copy_flutter_icons(brand: Path, src: Path) -> None:
+    """Ícones do kit #1253 no Flutter (res/ 1024 + runner Windows)."""
+    kit = brand / "kit-1253"
+    res = src / "res"
+    res.mkdir(parents=True, exist_ok=True)
+
+    src_1024 = kit / "07_flutter_res" / "res-icon-1024.png"
+    if not src_1024.is_file():
+        src_1024 = brand / "icon-source-1024.png"
+    if src_1024.is_file():
+        shutil.copy2(src_1024, res / "icon.png")
+        print("  flutter res/icon.png (1024)")
+    mac = kit / "07_flutter_res" / "res-mac-icon-1024.png"
+    if mac.is_file():
+        shutil.copy2(mac, res / "mac-icon.png")
+        print("  flutter res/mac-icon.png (1024)")
+
+    for kit_name, dst_name in (
+        ("res-32.png", "32x32.png"),
+        ("res-64.png", "64x64.png"),
+        ("res-128.png", "128x128.png"),
+    ):
+        p = kit / "07_flutter_res" / kit_name
+        if p.is_file():
+            shutil.copy2(p, res / dst_name)
+            print(f"  flutter res/{dst_name}")
+
+    assets = src / "flutter" / "assets"
+    if assets.is_dir():
+        logo = kit / "05_ui_logo" / "ui-logo-512.png"
+        if not logo.is_file():
+            logo = brand / "ui-logo-512.png"
+        if logo.is_file():
+            for name in ("logo.png", "logo_dark.png", "logo_light.png"):
+                shutil.copy2(logo, assets / name)
+            print("  flutter assets/logo.png (ui-logo-512)", flush=True)
+
+    runner = src / "flutter" / "windows" / "runner" / "resources"
+    if not runner.is_dir():
+        return
+    ico = kit / "08_flutter_runner" / "flutter-app-icon.ico"
+    if not ico.is_file():
+        ico = brand / "icon.ico"
+    if ico.is_file():
+        shutil.copy2(ico, runner / "app_icon.ico")
+        print("  flutter runner app_icon.ico")
+
+
+# Painel esquerdo Flutter 1.5.0 (desktop_home_page.dart): marca no topo.
+_FLUTTER_HOME_POWERED_TOP = """      if (bind.isCustomClient())
+        Align(
+          alignment: Alignment.center,
+          child: loadPowered(context),
+        ),
+"""
+
+# Engrenagem do modo so-controla, colada no canto inferior.
+_FLUTTER_HOME_SETTINGS = """            if (isOutgoingOnly)
+              Positioned(
+                bottom: 6,
+                left: 12,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: InkWell(
+                    child: Obx(
+                      () => Icon(
+                        Icons.settings,
+                        color: _editHover.value
+                            ? textColor
+                            : Colors.grey.withOpacity(0.5),
+                        size: 22,
+                      ),
+                    ),
+                    onTap: () => {
+                      if (DesktopSettingPage.tabKeys.isNotEmpty)
+                        {
+                          DesktopSettingPage.switch2page(
+                              DesktopSettingPage.tabKeys[0])
+                        }
+                    },
+                    onHover: (value) => _editHover.value = value,
+                  ),
+                ),
+              )
+"""
+
+_FLUTTER_HOME_FOOTER_MARKER = "// DeskRemote: marca e versao no rodape do painel esquerdo."
+
+# loadPowered no rodape + versao (get_version / CLIENT_VERSION) + engrenagem.
+_FLUTTER_HOME_FOOTER = """            """ + _FLUTTER_HOME_FOOTER_MARKER + """
+            Positioned(
+              left: 8,
+              right: 8,
+              bottom: 8,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (bind.isCustomClient())
+                    Align(
+                      alignment: Alignment.center,
+                      child: loadPowered(context),
+                    ),
+                  FutureBuilder<String>(
+                    future: bind.mainGetVersion(),
+                    builder: (context, snap) {
+                      final v = (snap.data ?? '').trim();
+                      if (v.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      return Opacity(
+                        opacity: 0.5,
+                        child: Text(
+                          '${translate("Version")} $v',
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(fontSize: 10),
+                        ),
+                      ).marginOnly(top: 2, bottom: 4);
+                    },
+                  ),
+                  if (isOutgoingOnly)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: InkWell(
+                        child: Obx(
+                          () => Icon(
+                            Icons.settings,
+                            color: _editHover.value
+                                ? textColor
+                                : Colors.grey.withOpacity(0.5),
+                            size: 22,
+                          ),
+                        ),
+                        onTap: () => {
+                          if (DesktopSettingPage.tabKeys.isNotEmpty)
+                            {
+                              DesktopSettingPage.switch2page(
+                                  DesktopSettingPage.tabKeys[0])
+                            }
+                        },
+                        onHover: (value) => _editHover.value = value,
+                      ),
+                    ),
+                ],
+              ),
+            )
+"""
+
+_FLUTTER_HOME_SCROLL = """                SingleChildScrollView(
+                  controller: _leftPaneScrollController,
+                  child: Column(
+"""
+
+_FLUTTER_HOME_SCROLL_PADDED = """                SingleChildScrollView(
+                  controller: _leftPaneScrollController,
+                  padding: const EdgeInsets.only(bottom: 64),
+                  child: Column(
+"""
+
+
+def apply_flutter_home_footer_text(text: str) -> str:
+    """Move 'Desenvolvido por' para o rodape e acrescenta a versao."""
+    if _FLUTTER_HOME_FOOTER_MARKER in text:
+        return text
+    if _FLUTTER_HOME_POWERED_TOP not in text:
+        raise SystemExit(
+            "flutter desktop_home_page: bloco loadPowered no topo nao encontrado"
+        )
+    if _FLUTTER_HOME_SETTINGS not in text:
+        raise SystemExit(
+            "flutter desktop_home_page: engrenagem outgoing-only nao encontrada"
+        )
+    text = text.replace(_FLUTTER_HOME_POWERED_TOP, "", 1)
+    text = text.replace(_FLUTTER_HOME_SETTINGS, _FLUTTER_HOME_FOOTER, 1)
+    if _FLUTTER_HOME_SCROLL in text:
+        text = text.replace(_FLUTTER_HOME_SCROLL, _FLUTTER_HOME_SCROLL_PADDED, 1)
+    return text
+
+
+def patch_flutter_home_footer(home_dart: Path) -> None:
+    """Flutter: marca no rodape do painel esquerdo + versao atual."""
+    if not home_dart.is_file():
+        return
+    text = home_dart.read_text(encoding="utf-8")
+    text2 = apply_flutter_home_footer_text(text)
+    if text2 == text:
+        print("  flutter home: rodape ja patchado", flush=True)
+        return
+    home_dart.write_text(text2, encoding="utf-8")
+    print("  flutter home: Desenvolvido por + versao no rodape", flush=True)
+
+
+def patch_flutter_powered_url(common_dart: Path) -> None:
+    """Link do 'Desenvolvido por' no Flutter -> site DeskRudder."""
+    if not common_dart.is_file():
+        return
+    text = common_dart.read_text(encoding="utf-8")
+    old = "launchUrl(Uri.parse('https://rustdesk.com'));"
+    url = WEBSITE_URL.rstrip("/")
+    new = f"launchUrl(Uri.parse('{url}'));"
+    if new in text:
+        print("  flutter loadPowered URL ja patchado", flush=True)
+        return
+    if old not in text:
+        raise SystemExit(f"flutter loadPowered URL nao encontrado em {common_dart}")
+    common_dart.write_text(text.replace(old, new, 1), encoding="utf-8")
+    print(f"  flutter loadPowered URL -> {url}", flush=True)
+
+
+def _selftest_flutter_home_footer() -> None:
+    sample = (
+        "      buildTip(context),\n"
+        + _FLUTTER_HOME_POWERED_TOP
+        + "      Align(child: loadLogo()),\n"
+        + _FLUTTER_HOME_SCROLL
+        + "                    key: _childKey,\n"
+        + _FLUTTER_HOME_SETTINGS
+        + "          ],\n"
+    )
+    out = apply_flutter_home_footer_text(sample)
+    if _FLUTTER_HOME_FOOTER_MARKER not in out:
+        raise SystemExit("selftest flutter: marcador do rodape ausente")
+    if "mainGetVersion()" not in out:
+        raise SystemExit("selftest flutter: versao ausente no rodape")
+    if _FLUTTER_HOME_POWERED_TOP in out:
+        raise SystemExit("selftest flutter: Desenvolvido por ainda no topo")
+    if out.count("loadPowered(context)") != 1:
+        raise SystemExit("selftest flutter: loadPowered deveria aparecer 1 vez")
+    if out.find("loadPowered(context)") > out.find("mainGetVersion()"):
+        raise SystemExit("selftest flutter: versao deve ficar abaixo da marca")
+    if "EdgeInsets.only(bottom: 64)" not in out:
+        raise SystemExit("selftest flutter: padding do scroll ausente")
+    # Idempotente.
+    out2 = apply_flutter_home_footer_text(out)
+    if out2 != out:
+        raise SystemExit("selftest flutter: patch do rodape nao e idempotente")
+    _selftest_flutter_recent_ui()
+
+
+_FLUTTER_TABS_ENABLED = """  List<bool> isEnabled = List.from([
+    true,
+    true,
+    !isWeb && bind.mainGetLocalOption(key: "disable-discovery-panel") != "Y",
+    !(bind.isDisableAb() || bind.isDisableAccount()),
+    !(bind.isDisableGroupPanel() || bind.isDisableAccount()),
+  ]);
+"""
+
+_FLUTTER_TABS_RECENT_ONLY = """  List<bool> isEnabled = List.from([
+    true, // DeskRemote: so Sessoes recentes
+    false,
+    false,
+    false,
+    false,
+  ]);
+"""
+
+_FLUTTER_PEERS_LIMIT = """            var peers = snapshot.data!;
+            if (peers.length > 1000) peers = peers.sublist(0, 1000);
+"""
+
+_FLUTTER_PEERS_LIMIT_10 = """            var peers = snapshot.data!;
+            // DeskRemote: 10 ultimas sessoes recentes.
+            final maxPeers =
+                widget.peers.loadEvent == LoadEvent.recent ? 10 : 1000;
+            if (peers.length > maxPeers) peers = peers.sublist(0, maxPeers);
+"""
+
+_FLUTTER_PEER_NAME = """    final name = hideUsernameOnCard == true
+        ? peer.hostname
+        : '${peer.username}${peer.username.isNotEmpty && peer.hostname.isNotEmpty ? '@' : ''}${peer.hostname}';
+"""
+
+_FLUTTER_PEER_NAME_ALIAS = """    final name = hideUsernameOnCard == true
+        ? peer.hostname
+        : '${peer.username}${peer.username.isNotEmpty && peer.hostname.isNotEmpty ? '@' : ''}${peer.hostname}';
+    // DeskRemote: nome do vinculo (alias) no lugar do ID.
+    final displayName = peer.alias.isNotEmpty ? peer.alias : name;
+    final displaySub = peer.alias.isNotEmpty ? name : '';
+"""
+
+_FLUTTER_YOUR_DESKTOP_IF = """              if (!isOutgoingOnly)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    translate("Your Desktop"),
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+"""
+
+_FLUTTER_YOUR_DESKTOP_ALWAYS = """              Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    translate("Your Desktop"),
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+"""
+
+
+def apply_flutter_recent_tabs_text(text: str) -> str:
+    if "DeskRemote: so Sessoes recentes" in text:
+        return text
+    if _FLUTTER_TABS_ENABLED not in text:
+        raise SystemExit("flutter peer_tab_model: isEnabled nao encontrado")
+    return text.replace(_FLUTTER_TABS_ENABLED, _FLUTTER_TABS_RECENT_ONLY, 1)
+
+
+def apply_flutter_recent_limit_text(text: str) -> str:
+    if "DeskRemote: 10 ultimas sessoes recentes" in text:
+        return text
+    if _FLUTTER_PEERS_LIMIT not in text:
+        raise SystemExit("flutter peers_view: limite 1000 nao encontrado")
+    return text.replace(_FLUTTER_PEERS_LIMIT, _FLUTTER_PEERS_LIMIT_10, 1)
+
+
+def apply_flutter_peer_card_text(text: str) -> str:
+    if "DeskRemote: nome do vinculo" in text:
+        return text
+    n = text.count(_FLUTTER_PEER_NAME)
+    if n < 2:
+        raise SystemExit(
+            f"flutter peer_card: bloco username@hostname encontrado {n}x (esperado 2)"
+        )
+    text = text.replace(_FLUTTER_PEER_NAME, _FLUTTER_PEER_NAME_ALIAS)
+    old_id = "peer.alias.isEmpty ? formatID(peer.id) : peer.alias"
+    if old_id not in text:
+        raise SystemExit("flutter peer_card: formatID(id)/alias nao encontrado")
+    text = text.replace(old_id, "displayName")
+    old_top = """                                      child: Text(
+                                        name,
+                                        style: const TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 12),"""
+    new_top = """                                      child: Text(
+                                        displayName,
+                                        style: const TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 12),"""
+    if old_top not in text:
+        raise SystemExit("flutter peer_card: titulo branco do cartao nao encontrado")
+    text = text.replace(old_top, new_top, 1)
+    old_sub = """                                child: Text(
+                                  name,
+                                  style: isPortrait ? null : greyStyle,"""
+    new_sub = """                                child: Text(
+                                  displaySub.isNotEmpty ? displaySub : '',
+                                  style: isPortrait ? null : greyStyle,"""
+    if old_sub not in text:
+        raise SystemExit("flutter peer_card: subtitulo do tile nao encontrado")
+    text = text.replace(old_sub, new_sub, 1)
+    # Barra inferior do cartao: maquina quando ha vinculo; senao o nome (nunca o ID).
+    old_bottom = """                            child: Text(
+                          displayName,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        )),
+                      ]).paddingSymmetric(vertical: 8)),"""
+    new_bottom = """                            child: Text(
+                          displaySub,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        )),
+                      ]).paddingSymmetric(vertical: 8)),"""
+    if old_bottom not in text:
+        raise SystemExit("flutter peer_card: barra inferior do cartao nao encontrada")
+    return text.replace(old_bottom, new_bottom, 1)
+
+
+def apply_flutter_logo_size_text(text: str) -> str:
+    if "DeskRemote: logo do painel" in text:
+        return text
+    old = """          return Container(
+            constraints: BoxConstraints(maxWidth: 300, maxHeight: 60),
+            child: image,
+          ).marginOnly(left: 12, right: 12, top: 12);"""
+    new = """          return Container(
+            // DeskRemote: logo do painel esquerdo.
+            constraints: BoxConstraints(maxWidth: 176, maxHeight: 96),
+            child: image,
+          ).marginOnly(left: 12, right: 12, top: 16);"""
+    if old not in text:
+        raise SystemExit("flutter common.dart: tamanho do loadLogo nao encontrado")
+    return text.replace(old, new, 1)
+
+
+def apply_flutter_connect_title_text(text: str) -> str:
+    if "DeskRemote: alias do vinculo" in text:
+        return text
+    old_vars = """  String? password;
+  String? switchUuid;
+  bool? forceRelay;
+"""
+    new_vars = """  String? password;
+  String? switchUuid;
+  bool? forceRelay;
+  String? title;
+"""
+    if old_vars not in text:
+        raise SystemExit("flutter common.dart: variaveis do handleUriLink nao encontradas")
+    text = text.replace(old_vars, new_vars, 1)
+    old_pw = """      case '--password':
+        password = args[i + 1];
+        i++;
+        break;
+      case '--switch_uuid':
+"""
+    new_pw = """      case '--password':
+        password = args[i + 1];
+        i++;
+        break;
+      case '--title':
+        title = args[i + 1];
+        i++;
+        break;
+      case '--switch_uuid':
+"""
+    if old_pw not in text:
+        raise SystemExit("flutter common.dart: --password do handleUriLink nao encontrado")
+    text = text.replace(old_pw, new_pw, 1)
+    old_call = """      case UriLinkType.remoteDesktop:
+        Future.delayed(Duration.zero, () {
+          rustDeskWinManager.newRemoteDesktop(id!,
+              password: password,
+              switchUuid: switchUuid,
+              forceRelay: forceRelay);
+        });
+"""
+    new_call = """      case UriLinkType.remoteDesktop:
+        Future.delayed(Duration.zero, () {
+          // DeskRemote: alias do vinculo (name= do deskrudder://).
+          if (title != null && title.isNotEmpty) {
+            bind.mainSetPeerAlias(id: id!, alias: title);
+          }
+          rustDeskWinManager.newRemoteDesktop(id!,
+              password: password,
+              switchUuid: switchUuid,
+              forceRelay: forceRelay);
+        });
+"""
+    if old_call not in text:
+        raise SystemExit("flutter common.dart: newRemoteDesktop nao encontrado")
+    text = text.replace(old_call, new_call, 1)
+    old_q = """    if (password != null) args.addAll(['--password', password]);
+    String? switch_uuid = param["switch_uuid"];
+"""
+    new_q = """    if (password != null) args.addAll(['--password', password]);
+    String? titleName = param["name"];
+    if (titleName != null && titleName.isNotEmpty) {
+      args.addAll(['--title', titleName]);
+    }
+    String? switch_uuid = param["switch_uuid"];
+"""
+    if old_q not in text:
+        raise SystemExit("flutter common.dart: query password->args nao encontrado")
+    return text.replace(old_q, new_q, 1)
+
+
+def apply_flutter_core_main_title_text(text: str) -> str:
+    if "DeskRemote: --title vira name=" in text:
+        return text
+    old = """            "--password" => {
+                if let Some(password) = args.next() {
+                    param_array.push(format!("password={password}"));
+                }
+            }
+            "--relay" => {
+                param_array.push(format!("relay=true"));
+            }
+"""
+    new = """            "--password" => {
+                if let Some(password) = args.next() {
+                    param_array.push(format!("password={password}"));
+                }
+            }
+            "--title" => {
+                // DeskRemote: --title vira name= no uni-link (alias do vinculo).
+                if let Some(title) = args.next() {
+                    if let Some(ref peer_id) = id {
+                        let mut cfg = hbb_common::config::PeerConfig::load(peer_id);
+                        cfg.options.insert("alias".to_owned(), title.clone());
+                        cfg.store(peer_id);
+                    }
+                    let encoded = title
+                        .replace('%', "%25")
+                        .replace('&', "%26")
+                        .replace('=', "%3D")
+                        .replace('?', "%3F")
+                        .replace(' ', "%20");
+                    param_array.push(format!("name={encoded}"));
+                }
+            }
+            "--relay" => {
+                param_array.push(format!("relay=true"));
+            }
+"""
+    if old not in text:
+        raise SystemExit("core_main.rs: --password do invoke_new_connection nao encontrado")
+    return text.replace(old, new, 1)
+
+
+def patch_flutter_deskremote_ui(src: Path) -> None:
+    """Logo, so Recentes (10), nome do vinculo no cartao, alias via name=."""
+    home = src / "flutter" / "lib" / "desktop" / "pages" / "desktop_home_page.dart"
+    common = src / "flutter" / "lib" / "common.dart"
+    tabs = src / "flutter" / "lib" / "models" / "peer_tab_model.dart"
+    peers = src / "flutter" / "lib" / "common" / "widgets" / "peers_view.dart"
+    card = src / "flutter" / "lib" / "common" / "widgets" / "peer_card.dart"
+    core_main = src / "src" / "core_main.rs"
+    if not common.is_file():
+        return
+
+    def _apply(path: Path, fn, label: str) -> None:
+        text = path.read_text(encoding="utf-8")
+        text2 = fn(text)
+        if text2 != text:
+            path.write_text(text2, encoding="utf-8")
+            print(f"  flutter {label}", flush=True)
+        else:
+            print(f"  flutter {label} (ja patchado)", flush=True)
+
+    _apply(common, apply_flutter_logo_size_text, "logo maior no painel")
+    _apply(common, apply_flutter_connect_title_text, "name=/--title -> alias")
+    if home.is_file():
+        def _home(t: str) -> str:
+            if _FLUTTER_YOUR_DESKTOP_IF in t:
+                return t.replace(
+                    _FLUTTER_YOUR_DESKTOP_IF, _FLUTTER_YOUR_DESKTOP_ALWAYS, 1
+                )
+            if 'translate("Your Desktop")' in t:
+                return t
+            raise SystemExit("flutter home: titulo Seu Computador nao encontrado")
+
+        _apply(home, _home, "Seu Computador abaixo da logo")
+    if tabs.is_file():
+        _apply(tabs, apply_flutter_recent_tabs_text, "so aba Sessoes recentes")
+    if peers.is_file():
+        _apply(peers, apply_flutter_recent_limit_text, "10 ultimas sessoes")
+    if card.is_file():
+        _apply(card, apply_flutter_peer_card_text, "cartao pelo nome do vinculo")
+    if core_main.is_file():
+        _apply(core_main, apply_flutter_core_main_title_text, "core_main --title")
+
+
+def _selftest_flutter_recent_ui() -> None:
+    tabs = apply_flutter_recent_tabs_text(_FLUTTER_TABS_ENABLED)
+    if "so Sessoes recentes" not in tabs or tabs.count("false") < 4:
+        raise SystemExit("selftest flutter: abas extras nao ocultas")
+    if apply_flutter_recent_tabs_text(tabs) != tabs:
+        raise SystemExit("selftest flutter: abas nao e idempotente")
+
+    limit = apply_flutter_recent_limit_text(_FLUTTER_PEERS_LIMIT)
+    if "maxPeers" not in limit or "10" not in limit:
+        raise SystemExit("selftest flutter: limite 10 ausente")
+
+    fixture = (
+        _FLUTTER_PEER_NAME
+        + _FLUTTER_PEER_NAME
+        + """                                      child: Text(
+                                        name,
+                                        style: const TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 12),
+                                child: Text(
+                                  name,
+                                  style: isPortrait ? null : greyStyle,
+                            child: Text(
+                          peer.alias.isEmpty ? formatID(peer.id) : peer.alias,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        )),
+                      ]).paddingSymmetric(vertical: 8)),
+                            child: Text(
+                          peer.alias.isEmpty ? formatID(peer.id) : peer.alias,
+"""
+    )
+    out = apply_flutter_peer_card_text(fixture)
+    if "displayName" not in out:
+        raise SystemExit("selftest flutter: displayName ausente no cartao")
+    if "peer.alias.isEmpty ? formatID(peer.id) : peer.alias" in out:
+        raise SystemExit("selftest flutter: ID ainda no rotulo do cartao")
+    if apply_flutter_peer_card_text(out) != out:
+        raise SystemExit("selftest flutter: cartao nao e idempotente")
+
+    logo = apply_flutter_logo_size_text(
+        """          return Container(
+            constraints: BoxConstraints(maxWidth: 300, maxHeight: 60),
+            child: image,
+          ).marginOnly(left: 12, right: 12, top: 12);"""
+    )
+    if "maxHeight: 96" not in logo:
+        raise SystemExit("selftest flutter: logo sem altura nova")
+
+    uri = apply_flutter_connect_title_text(
+        """  String? password;
+  String? switchUuid;
+  bool? forceRelay;
+      case '--password':
+        password = args[i + 1];
+        i++;
+        break;
+      case '--switch_uuid':
+      case UriLinkType.remoteDesktop:
+        Future.delayed(Duration.zero, () {
+          rustDeskWinManager.newRemoteDesktop(id!,
+              password: password,
+              switchUuid: switchUuid,
+              forceRelay: forceRelay);
+        });
+    if (password != null) args.addAll(['--password', password]);
+    String? switch_uuid = param["switch_uuid"];
+"""
+    )
+    if "mainSetPeerAlias" not in uri or 'param["name"]' not in uri:
+        raise SystemExit("selftest flutter: alias do vinculo ausente no uni-link")
+
+    core = apply_flutter_core_main_title_text(
+        """            "--password" => {
+                if let Some(password) = args.next() {
+                    param_array.push(format!("password={password}"));
+                }
+            }
+            "--relay" => {
+                param_array.push(format!("relay=true"));
+            }
+"""
+    )
+    if "name={encoded}" not in core:
+        raise SystemExit("selftest flutter: core_main --title ausente")
 
 
 def patch_sciter_window_icon(ui_rs: Path, png_128: Path) -> None:
@@ -2027,8 +2719,9 @@ def main() -> int:
     ap.add_argument(
         "--client-version",
         type=Path,
-        default=here / "CLIENT_VERSION",
-        help="Arquivo com versao DeskRudder X.Y.Z",
+        default=None,
+        help="Arquivo com versao DeskRudder X.Y.Z "
+        "(padrao: CLIENT_VERSION no Sciter, CLIENT_VERSION_FLUTTER no Flutter)",
     )
     ap.add_argument(
         "--profile",
@@ -2036,26 +2729,45 @@ def main() -> int:
         default="posto",
         help="posto=so-recebe (PDV); controle=atendente (pode iniciar sessao)",
     )
+    ap.add_argument(
+        "--ui",
+        choices=("sciter", "flutter"),
+        default="sciter",
+        help="sciter=producao 1.x.x; flutter=spike atendente 2.x.x",
+    )
     args = ap.parse_args()
     _selftest_sciter_copy()
+    _selftest_flutter_home_footer()
+    _selftest_client_version_linhas()
     src = args.rustdesk_src.resolve()
     if not (src / ".git").exists() and not (src / "Cargo.toml").is_file():
         print(f"Nao parece um clone rustdesk: {src}", file=sys.stderr)
         return 1
 
     profile: str = args.profile
-    configurar_canal_update(profile)
+    ui: str = args.ui
+    if ui == "flutter" and profile != "controle":
+        print(
+            "Flutter spike so existe no profile controle (atendente).",
+            file=sys.stderr,
+        )
+        return 1
+    configurar_canal_update(profile, ui)
 
     host, key = load_server(args.config.resolve())
     brand = args.branding.resolve()
-    client_version = load_client_version(args.client_version.resolve())
+    version_file = args.client_version or (
+        here / ("CLIENT_VERSION_FLUTTER" if ui == "flutter" else "CLIENT_VERSION")
+    )
+    client_version = load_client_version(version_file.resolve(), ui)
     print(f">> Branding DeskRudder em {src}")
     print(f"   profile={profile}")
+    print(f"   ui={ui}")
     print(f"   host={host}")
     print(f"   client_version={client_version}")
     print(f"   update={UPDATE_VERSION_JSON_URL}")
 
-    copy_icons(brand, src)
+    copy_icons(brand, src)  # inclui copy_flutter_icons quando o clone tem Flutter
     patch_cargo_bundle_name(src / "Cargo.toml")
     common_rs = src / "src" / "common.rs"
     ui_interface_rs = src / "src" / "ui_interface.rs"
@@ -2079,6 +2791,11 @@ def main() -> int:
     patch_sciter_window_icon(src / "src" / "ui.rs", png_icon)
     patch_window_display_name(src / "src" / "ui.rs")
     patch_powered_by(src / "src" / "lang")
+    patch_flutter_powered_url(src / "flutter" / "lib" / "common.dart")
+    patch_flutter_home_footer(
+        src / "flutter" / "lib" / "desktop" / "pages" / "desktop_home_page.dart"
+    )
+    patch_flutter_deskremote_ui(src)
 
     cfg_rs = src / "libs" / "hbb_common" / "src" / "config.rs"
     if not cfg_rs.is_file():
@@ -2335,6 +3052,70 @@ def main() -> int:
     if "DeskRudder: spawning file-transfer without password" not in remote_body:
         print("Verificacao falhou: transfer_file sem fallback de senha.", file=sys.stderr)
         return 1
+
+    flutter_home = (
+        src / "flutter" / "lib" / "desktop" / "pages" / "desktop_home_page.dart"
+    )
+    flutter_common = src / "flutter" / "lib" / "common.dart"
+    if flutter_home.is_file():
+        home_body = flutter_home.read_text(encoding="utf-8")
+        if _FLUTTER_HOME_FOOTER_MARKER not in home_body:
+            print(
+                "Verificacao falhou: rodape Flutter (marca + versao) ausente.",
+                file=sys.stderr,
+            )
+            return 1
+        if "mainGetVersion()" not in home_body:
+            print("Verificacao falhou: versao Flutter ausente no rodape.", file=sys.stderr)
+            return 1
+        if _FLUTTER_HOME_POWERED_TOP in home_body:
+            print(
+                "Verificacao falhou: Desenvolvido por ainda no topo do Flutter.",
+                file=sys.stderr,
+            )
+            return 1
+    if flutter_common.is_file():
+        common_dart = flutter_common.read_text(encoding="utf-8")
+        if WEBSITE_URL.rstrip("/") not in common_dart:
+            print(
+                "Verificacao falhou: loadPowered Flutter sem deskrudder.com.br.",
+                file=sys.stderr,
+            )
+            return 1
+        if "DeskRemote: logo do painel" not in common_dart:
+            print("Verificacao falhou: logo Flutter sem tamanho de painel.", file=sys.stderr)
+            return 1
+        if "DeskRemote: alias do vinculo" not in common_dart:
+            print("Verificacao falhou: alias do vinculo ausente no Flutter.", file=sys.stderr)
+            return 1
+        flutter_assets = src / "flutter" / "assets" / "logo.png"
+        if not flutter_assets.is_file():
+            print("Verificacao falhou: flutter/assets/logo.png ausente.", file=sys.stderr)
+            return 1
+    flutter_tabs = src / "flutter" / "lib" / "models" / "peer_tab_model.dart"
+    if flutter_tabs.is_file():
+        tabs_body = flutter_tabs.read_text(encoding="utf-8")
+        if "DeskRemote: so Sessoes recentes" not in tabs_body:
+            print("Verificacao falhou: Flutter ainda mostra abas extras.", file=sys.stderr)
+            return 1
+    flutter_peers = src / "flutter" / "lib" / "common" / "widgets" / "peers_view.dart"
+    if flutter_peers.is_file():
+        peers_body = flutter_peers.read_text(encoding="utf-8")
+        if "DeskRemote: 10 ultimas sessoes recentes" not in peers_body:
+            print("Verificacao falhou: limite de 10 sessoes Flutter ausente.", file=sys.stderr)
+            return 1
+    flutter_card = src / "flutter" / "lib" / "common" / "widgets" / "peer_card.dart"
+    if flutter_card.is_file():
+        card_body = flutter_card.read_text(encoding="utf-8")
+        if "DeskRemote: nome do vinculo" not in card_body:
+            print("Verificacao falhou: cartao Flutter ainda mostra ID.", file=sys.stderr)
+            return 1
+    core_main_body_path = src / "src" / "core_main.rs"
+    if core_main_body_path.is_file() and (src / "flutter" / "lib" / "common.dart").is_file():
+        core_body = core_main_body_path.read_text(encoding="utf-8")
+        if "DeskRemote: --title vira name=" not in core_body:
+            print("Verificacao falhou: core_main sem --title do vinculo.", file=sys.stderr)
+            return 1
 
     print(">> OK")
     return 0
