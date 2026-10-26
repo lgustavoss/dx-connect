@@ -8,6 +8,7 @@ import {
   type Atendentes,
 } from '../api/client'
 import { revogarWebPushNoLogout } from '../hooks/useWebPush'
+import { limparSessaoDeskRemote, salvarSessaoDeskRemote } from '../lib/deskrudderDesktop'
 
 interface AuthContextValue {
   user: Atendentes.Atendente | null
@@ -55,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // 401 em /me: o api() já redireciona e limpa tokens; não limpar de novo evita corrida com Strict Mode.
       if (e instanceof ApiError && e.status === 403) {
         clearAuthToken()
+        limparSessaoDeskRemote()
       }
     } finally {
       if (seq === refreshSeq.current) {
@@ -77,9 +79,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (persistir) {
       localStorage.setItem('token', res.access_token)
       if (res.refresh_token) localStorage.setItem('refresh_token', res.refresh_token)
+      salvarSessaoDeskRemote(res.access_token, res.refresh_token)
     } else {
       sessionStorage.setItem('token', res.access_token)
       if (res.refresh_token) sessionStorage.setItem('refresh_token', res.refresh_token)
+      limparSessaoDeskRemote()
     }
     await refreshUser()
   }, [refreshUser])
@@ -90,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (finished) return
       finished = true
       clearAuthToken()
+      limparSessaoDeskRemote()
       setUser(null)
     }
     const timer = window.setTimeout(done, 2500)

@@ -1380,6 +1380,55 @@ def apply_flutter_main_show_title_text(text: str) -> str:
     return text.replace(_FLUTTER_MAIN_TAB, _FLUTTER_MAIN_TAB_NEW, 1)
 
 
+_FLUTTER_AUTH_IMPORT = "import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';\n"
+_FLUTTER_AUTH_IMPORT_NEW = (
+    "import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';\n"
+    "import 'package:flutter_hbb/deskremote/auth_gate.dart';\n"
+)
+
+_FLUTTER_HOME_PAGE_CHILD = """        page: DesktopHomePage(
+          key: const ValueKey(kTabLabelHomePage),
+        )));
+"""
+
+_FLUTTER_HOME_PAGE_GATED = """        page: DeskRemoteAuthGate(
+          // DeskRemote: Recentes/Conectar exigem login DeskRudder.
+          child: DesktopHomePage(
+            key: const ValueKey(kTabLabelHomePage),
+          ),
+        )));
+"""
+
+_FLUTTER_OVERLAY_DIR = Path(__file__).resolve().parent.parent / "flutter-overlay"
+
+
+def copy_flutter_auth_overlay(src: Path) -> None:
+    origin = _FLUTTER_OVERLAY_DIR / "lib" / "deskremote"
+    dest = src / "flutter" / "lib" / "deskremote"
+    if not origin.is_dir():
+        raise SystemExit(f"overlay deskremote ausente: {origin}")
+    dest.mkdir(parents=True, exist_ok=True)
+    copiados = 0
+    for f in sorted(origin.glob("*.dart")):
+        shutil.copy2(f, dest / f.name)
+        copiados += 1
+        print(f"  flutter overlay {f.name}", flush=True)
+    if copiados < 2:
+        raise SystemExit("overlay deskremote incompleto (sessao + auth_gate)")
+
+
+def apply_flutter_auth_gate_text(text: str) -> str:
+    if "DeskRemote: Recentes/Conectar exigem login DeskRudder" in text:
+        return text
+    if _FLUTTER_AUTH_IMPORT_NEW not in text:
+        if _FLUTTER_AUTH_IMPORT not in text:
+            raise SystemExit("flutter desktop_tab_page: import home nao encontrado")
+        text = text.replace(_FLUTTER_AUTH_IMPORT, _FLUTTER_AUTH_IMPORT_NEW, 1)
+    if _FLUTTER_HOME_PAGE_CHILD not in text:
+        raise SystemExit("flutter desktop_tab_page: DesktopHomePage da home nao encontrado")
+    return text.replace(_FLUTTER_HOME_PAGE_CHILD, _FLUTTER_HOME_PAGE_GATED, 1)
+
+
 def apply_flutter_core_main_cold_start_text(text: str) -> str:
     if "DeskRemote: no frio, entrega o uni-link" in text:
         return text
@@ -1537,6 +1586,7 @@ def patch_flutter_deskremote_ui(src: Path, host: str = "", key: str = "") -> Non
     core_main = src / "src" / "core_main.rs"
     if not common.is_file():
         return
+    copy_flutter_auth_overlay(src)
 
     def _apply(path: Path, fn, label: str) -> None:
         text = path.read_text(encoding="utf-8")
@@ -1588,6 +1638,7 @@ def patch_flutter_deskremote_ui(src: Path, host: str = "", key: str = "") -> Non
         _apply(consts_dart, apply_flutter_tabbar_height_text, "barra 36px para o ico")
     if main_tab.is_file():
         _apply(main_tab, apply_flutter_main_show_title_text, "home com nome na barra")
+        _apply(main_tab, apply_flutter_auth_gate_text, "login DeskRudder na home")
     if multi_win.is_file():
         _apply(multi_win, apply_flutter_session_window_title_text, "title na janela da sessao")
     if remote_tab.is_file():
@@ -1907,6 +1958,27 @@ def _selftest_flutter_recent_ui() -> None:
         raise SystemExit("selftest flutter: remote_tab_page sem titulo do vinculo")
     if apply_flutter_remote_tab_title_text(remote) != remote:
         raise SystemExit("selftest flutter: remote_tab_page titulo nao e idempotente")
+
+    overlay = _FLUTTER_OVERLAY_DIR / "lib" / "deskremote"
+    if not (overlay / "sessao.dart").is_file() or not (overlay / "auth_gate.dart").is_file():
+        raise SystemExit("selftest flutter: overlay de login ausente")
+    sessao_overlay = (overlay / "sessao.dart").read_text(encoding="utf-8")
+    if "https://api-$slug." not in sessao_overlay:
+        raise SystemExit("selftest flutter: API do login deve ser api-{slug}")
+    if "https://$slug.$kDeskRemoteApex/v1" in sessao_overlay:
+        raise SystemExit("selftest flutter: API do login ainda aponta ao host do painel")
+    if "deveDescartarSessao" not in sessao_overlay:
+        raise SystemExit("selftest flutter: erro de rede nao deve apagar a sessao")
+    gate_overlay = (overlay / "auth_gate.dart").read_text(encoding="utf-8")
+    if "_naoHerdarAposSair" not in gate_overlay:
+        raise SystemExit("selftest flutter: Sair deve impedir herdar a sessao do Electron")
+    gate = apply_flutter_auth_gate_text(
+        _FLUTTER_AUTH_IMPORT + _FLUTTER_HOME_PAGE_CHILD
+    )
+    if "DeskRemoteAuthGate" not in gate or "login DeskRudder" not in gate:
+        raise SystemExit("selftest flutter: auth gate ausente na home")
+    if apply_flutter_auth_gate_text(gate) != gate:
+        raise SystemExit("selftest flutter: auth gate nao e idempotente")
 
 
 def patch_sciter_window_icon(ui_rs: Path, png_128: Path) -> None:
@@ -4213,6 +4285,21 @@ def main() -> int:
         main_tab_body = flutter_main_tab.read_text(encoding="utf-8")
         if "showTitle: true" not in main_tab_body:
             print("Verificacao falhou: home Flutter sem nome na barra.", file=sys.stderr)
+            return 1
+        if "DeskRemote: Recentes/Conectar exigem login DeskRudder" not in main_tab_body:
+            print("Verificacao falhou: login DeskRudder ausente na home Flutter.", file=sys.stderr)
+            return 1
+        overlay_sessao = src / "flutter" / "lib" / "deskremote" / "sessao.dart"
+        overlay_gate = src / "flutter" / "lib" / "deskremote" / "auth_gate.dart"
+        if not overlay_sessao.is_file() or not overlay_gate.is_file():
+            print("Verificacao falhou: dart de login DeskRemote ausente no clone.", file=sys.stderr)
+            return 1
+        overlay_sessao_txt = overlay_sessao.read_text(encoding="utf-8")
+        if "https://api-$slug." not in overlay_sessao_txt:
+            print("Verificacao falhou: login Flutter nao usa api-{slug}.", file=sys.stderr)
+            return 1
+        if "https://$slug.$kDeskRemoteApex/v1" in overlay_sessao_txt:
+            print("Verificacao falhou: login Flutter ainda chama o host do painel.", file=sys.stderr)
             return 1
     flutter_multi = src / "flutter" / "lib" / "utils" / "multi_window_manager.dart"
     if flutter_multi.is_file():
