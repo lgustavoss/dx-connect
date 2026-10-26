@@ -271,19 +271,18 @@ def copy_flutter_icons(brand: Path, src: Path) -> None:
 
     assets = src / "flutter" / "assets"
     if assets.is_dir():
-        # Painel esquerdo: arte 1024 (o Flutter reduz com FilterQuality.high).
-        logo = kit / "07_flutter_res" / "res-icon-1024.png"
-        if not logo.is_file():
-            logo = kit / "05_ui_logo" / "ui-logo-512.png"
+        # Painel esquerdo: 512 LANCZOS (1024 no Flutter 96px virava quadradinho).
+        logo = kit / "05_ui_logo" / "ui-logo-512.png"
         if not logo.is_file():
             logo = brand / "ui-logo-512.png"
+        if not logo.is_file():
+            logo = kit / "07_flutter_res" / "res-icon-1024.png"
         if logo.is_file():
             for name in ("logo.png", "logo_dark.png", "logo_light.png"):
                 shutil.copy2(logo, assets / name)
             print(f"  flutter assets/logo.png ({logo.name})", flush=True)
 
-        # A barra superior Flutter desenha loadIcon(16) a partir de assets/icon.png.
-        # 128px da arte completa reduz melhor que o D simplificado.
+        # Barra de título: ico com borda branca (128 → loadIcon(24) com FilterQuality.high).
         mark = kit / "06_ui_icon" / "ui-icon-128.png"
         if not mark.is_file():
             mark = kit / "01_titlebar" / "titlebar-32.png"
@@ -562,6 +561,43 @@ _FLUTTER_YOUR_DESKTOP_ALWAYS = """              Align(
                 ),
 """
 
+_FLUTTER_LOAD_LOGO_ALIGN = """      Align(
+        alignment: Alignment.center,
+        child: loadLogo(),
+      ),
+"""
+
+_FLUTTER_LOAD_LOGO_NAMED = """      Align(
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            loadLogo(),
+            // DeskRemote: nome do app abaixo da logo.
+            Padding(
+              padding: const EdgeInsets.only(top: 6, bottom: 2),
+              child: Text(
+                'DeskRemote',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                    ),
+              ),
+            ),
+          ],
+        ),
+      ),
+"""
+
+
+def apply_flutter_logo_app_name_text(text: str) -> str:
+    if "DeskRemote: nome do app abaixo da logo" in text:
+        return text
+    if _FLUTTER_LOAD_LOGO_ALIGN not in text:
+        raise SystemExit("flutter desktop_home_page: Align loadLogo nao encontrado")
+    return text.replace(_FLUTTER_LOAD_LOGO_ALIGN, _FLUTTER_LOAD_LOGO_NAMED, 1)
+
 
 def apply_flutter_recent_tabs_text(text: str) -> str:
     if "DeskRemote: so Sessoes recentes" in text:
@@ -668,15 +704,67 @@ _FLUTTER_LOGO_IMAGE = """          final image = Image.asset(
           );"""
 
 _FLUTTER_LOGO_IMAGE_HQ = """          final image = Image.asset(
-            // DeskRemote: nitidez ao reduzir a arte 1024.
+            // DeskRemote: nitidez ao reduzir a arte (cache 2x o tamanho na tela).
             asset,
             fit: BoxFit.contain,
             filterQuality: FilterQuality.high,
             isAntiAlias: true,
+            cacheWidth: 320,
+            gaplessPlayback: true,
             errorBuilder: (ctx, error, stackTrace) {
               return Container();
             },
           );"""
+
+
+_FLUTTER_LOAD_ICON = """Widget loadIcon(double size) {
+  return Image.asset('assets/icon.png',
+      width: size,
+      height: size,
+      errorBuilder: (ctx, error, stackTrace) => SvgPicture.asset(
+            'assets/icon.svg',
+            width: size,
+            height: size,
+          ));
+}
+"""
+
+_FLUTTER_LOAD_ICON_NEW = """Widget loadIcon(double size) {
+  return Image.asset('assets/icon.png',
+      // DeskRemote: ico com borda branca nítida na barra de título.
+      width: size,
+      height: size,
+      filterQuality: FilterQuality.high,
+      isAntiAlias: true,
+      errorBuilder: (ctx, error, stackTrace) => SvgPicture.asset(
+            'assets/icon.svg',
+            width: size,
+            height: size,
+          ));
+}
+"""
+
+_FLUTTER_TITLEBAR_ICON_16 = """                          child: loadIcon(16),
+"""
+
+_FLUTTER_TITLEBAR_ICON_24 = """                          child: loadIcon(24), // DeskRemote: ico com borda na barra
+"""
+
+
+def apply_flutter_load_icon_hq_text(text: str) -> str:
+    if "DeskRemote: ico com borda branca nítida na barra de título" in text:
+        return text
+    if _FLUTTER_LOAD_ICON not in text:
+        raise SystemExit("flutter common.dart: loadIcon nao encontrado")
+    return text.replace(_FLUTTER_LOAD_ICON, _FLUTTER_LOAD_ICON_NEW, 1)
+
+
+def apply_flutter_titlebar_icon_size_text(text: str) -> str:
+    if "DeskRemote: ico com borda na barra" in text:
+        return text
+    if _FLUTTER_TITLEBAR_ICON_16 not in text:
+        raise SystemExit("flutter tabbar_widget: loadIcon(16) nao encontrado")
+    return text.replace(_FLUTTER_TITLEBAR_ICON_16, _FLUTTER_TITLEBAR_ICON_24, 1)
 
 
 def apply_flutter_logo_size_text(text: str) -> str:
@@ -687,9 +775,9 @@ def apply_flutter_logo_size_text(text: str) -> str:
           ).marginOnly(left: 12, right: 12, top: 12);"""
         new = """          return Container(
             // DeskRemote: logo do painel esquerdo.
-            constraints: BoxConstraints(maxWidth: 176, maxHeight: 96),
+            constraints: BoxConstraints(maxWidth: 160, maxHeight: 160),
             child: image,
-          ).marginOnly(left: 12, right: 12, top: 16);"""
+          ).marginOnly(left: 16, right: 16, top: 16);"""
         if old not in text:
             raise SystemExit("flutter common.dart: tamanho do loadLogo nao encontrado")
         text = text.replace(old, new, 1)
@@ -705,10 +793,13 @@ _FLUTTER_TABBAR_TITLE = """                            child: const Text(
                               style: TextStyle(fontSize: 13),
                             ).marginOnly(left: 2))"""
 
-_FLUTTER_TABBAR_TITLE_NEW = """                            child: const Text(
+_FLUTTER_TABBAR_TITLE_NEW = """                            child: Text(
                               // DeskRemote: titulo da barra customizada.
                               "DeskRemote",
-                              style: TextStyle(fontSize: 13),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
                             ).marginOnly(left: 2))"""
 
 
@@ -956,15 +1047,16 @@ def apply_flutter_connect_title_text(text: str) -> str:
         });
 """
     new_call = """      case UriLinkType.remoteDesktop:
-        Future.delayed(Duration.zero, () {
+        Future.delayed(Duration.zero, () async {
           // DeskRemote: alias do vinculo (name= do deskrudder://).
           if (title != null && title.isNotEmpty) {
-            bind.mainSetPeerAlias(id: id!, alias: title);
+            await bind.mainSetPeerAlias(id: id!, alias: title);
           }
           rustDeskWinManager.newRemoteDesktop(id!,
               password: password,
               switchUuid: switchUuid,
-              forceRelay: forceRelay);
+              forceRelay: forceRelay,
+              title: title);
         });
 """
     if old_call not in text:
@@ -1010,12 +1102,17 @@ def apply_flutter_core_main_title_text(text: str) -> str:
                         cfg.options.insert("alias".to_owned(), title.clone());
                         cfg.store(peer_id);
                     }
-                    let encoded = title
-                        .replace('%', "%25")
-                        .replace('&', "%26")
-                        .replace('=', "%3D")
-                        .replace('?', "%3F")
-                        .replace(' ', "%20");
+                    let encoded = {
+                        let mut out = String::new();
+                        for b in title.as_bytes() {
+                            match b {
+                                b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9'
+                                | b'-' | b'_' | b'.' | b'~' => out.push(*b as char),
+                                _ => out.push_str(&format!("%{:02X}", b)),
+                            }
+                        }
+                        out
+                    };
                     param_array.push(format!("name={encoded}"));
                 }
             }
@@ -1098,7 +1195,12 @@ _FLUTTER_TAB_GETTER_NEW = """  static RxString tablabelGetter(String peerId) {
     // DeskRemote: aba reage a alias e a usuario@host apos o peer_info.
     final alias = bind.mainGetPeerOptionSync(id: peerId, key: 'alias');
     final label = getDesktopTabLabel(peerId, alias);
-    PeerStringOption.init(peerId, 'tabLabel', () => label);
+    final tag = PeerStringOption.tag(peerId, 'tabLabel');
+    if (!Get.isRegistered<RxString>(tag: tag)) {
+      PeerStringOption.init(peerId, 'tabLabel', () => label);
+    } else if (alias.trim().isNotEmpty) {
+      PeerStringOption.find(peerId, 'tabLabel').value = label;
+    }
     return PeerStringOption.find(peerId, 'tabLabel');
   }
 """
@@ -1136,8 +1238,14 @@ _FLUTTER_PEER_INFO_HOST_NEW = """    _pi.username = evt['username'];
       final alias = bind.mainGetPeerOptionSync(id: peerId, key: 'alias');
       final tabName = getDesktopTabLabel(peerId, alias);
       final rxTabLabel = PeerStringOption.find(peerId, 'tabLabel');
-      if (rxTabLabel.value != tabName) {
-        rxTabLabel.value = tabName;
+      final current = rxTabLabel.value.trim();
+      final looksLikeId = current.isEmpty ||
+          current == peerId ||
+          current.startsWith('$peerId@');
+      if (alias.trim().isNotEmpty || looksLikeId) {
+        if (rxTabLabel.value != tabName) {
+          rxTabLabel.value = tabName;
+        }
       }
     } catch (_) {}
 """
@@ -1179,6 +1287,188 @@ def apply_flutter_core_main_password_text(text: str) -> str:
     return text.replace(_FLUTTER_CORE_POS_PASSWORD, _FLUTTER_CORE_POS_PASSWORD_NEW, 1)
 
 
+_FLUTTER_SHOW_TITLE_FALSE = """    this.showLogo = true,
+    this.showTitle = false,
+"""
+
+_FLUTTER_SHOW_TITLE_TRUE = """    this.showLogo = true,
+    this.showTitle = true, // DeskRemote: nome do app na barra (claro e escuro).
+"""
+
+_FLUTTER_MAIN_TAB = """            body: DesktopTab(
+              controller: tabController,
+"""
+
+_FLUTTER_MAIN_TAB_NEW = """            body: DesktopTab(
+              controller: tabController,
+              showTitle: true,
+"""
+
+_FLUTTER_COLD_START = (
+    "        return if res { None } else { Some(Vec::new()) };"
+)
+
+_FLUTTER_COLD_START_NEW = """        // DeskRemote: no frio, entrega o uni-link ao Flutter (name= do vinculo).
+        return if res { None } else { Some(vec![uni_links]) };
+"""
+
+
+def apply_flutter_show_title_text(text: str) -> str:
+    if "DeskRemote: nome do app na barra" in text:
+        return text
+    if _FLUTTER_SHOW_TITLE_FALSE not in text:
+        raise SystemExit("flutter tabbar_widget: showTitle default nao encontrado")
+    return text.replace(_FLUTTER_SHOW_TITLE_FALSE, _FLUTTER_SHOW_TITLE_TRUE, 1)
+
+
+def apply_flutter_main_show_title_text(text: str) -> str:
+    if "showTitle: true" in text:
+        return text
+    if _FLUTTER_MAIN_TAB not in text:
+        raise SystemExit("flutter desktop_tab_page: DesktopTab da home nao encontrado")
+    return text.replace(_FLUTTER_MAIN_TAB, _FLUTTER_MAIN_TAB_NEW, 1)
+
+
+def apply_flutter_core_main_cold_start_text(text: str) -> str:
+    if "DeskRemote: no frio, entrega o uni-link" in text:
+        return text
+    if _FLUTTER_COLD_START not in text:
+        raise SystemExit("core_main.rs: retorno vazio do invoke_new_connection nao encontrado")
+    return text.replace(_FLUTTER_COLD_START, _FLUTTER_COLD_START_NEW, 1)
+
+
+def apply_flutter_session_window_title_text(text: str) -> str:
+    if "DeskRemote: title na janela da sessao" in text:
+        return text
+    old_rd = """  Future<MultiWindowCallResult> newRemoteDesktop(
+    String remoteId, {
+    String? password,
+    bool? isSharedPassword,
+    String? switchUuid,
+    bool? forceRelay,
+  }) async {
+    return await newSession(
+      WindowType.RemoteDesktop,
+      kWindowEventNewRemoteDesktop,
+      remoteId,
+      _remoteDesktopWindows,
+      password: password,
+      forceRelay: forceRelay,
+      switchUuid: switchUuid,
+      isSharedPassword: isSharedPassword,
+    );
+  }
+"""
+    new_rd = """  Future<MultiWindowCallResult> newRemoteDesktop(
+    String remoteId, {
+    String? password,
+    bool? isSharedPassword,
+    String? switchUuid,
+    bool? forceRelay,
+    String? title,
+  }) async {
+    return await newSession(
+      WindowType.RemoteDesktop,
+      kWindowEventNewRemoteDesktop,
+      remoteId,
+      _remoteDesktopWindows,
+      password: password,
+      forceRelay: forceRelay,
+      switchUuid: switchUuid,
+      isSharedPassword: isSharedPassword,
+      title: title,
+    );
+  }
+"""
+    if old_rd not in text:
+        raise SystemExit("flutter multi_window_manager: newRemoteDesktop nao encontrado")
+    text = text.replace(old_rd, new_rd, 1)
+    old_sess = """    String? isSharedPassword,
+    String? connToken,
+  }) async {
+    var params = {
+      "type": type.index,
+      "id": remoteId,
+      "password": password,
+      "forceRelay": forceRelay
+    };
+"""
+    new_sess = """    String? isSharedPassword,
+    String? connToken,
+    String? title,
+  }) async {
+    var params = {
+      "type": type.index,
+      "id": remoteId,
+      "password": password,
+      "forceRelay": forceRelay
+    };
+"""
+    if old_sess not in text:
+        raise SystemExit("flutter multi_window_manager: newSession signature nao encontrada")
+    text = text.replace(old_sess, new_sess, 1)
+    old_tok = """    if (connToken != null) {
+      params['connToken'] = connToken;
+    }
+    final msg = jsonEncode(params);
+"""
+    new_tok = """    if (connToken != null) {
+      params['connToken'] = connToken;
+    }
+    // DeskRemote: title na janela da sessao (vinculo do painel).
+    if (title != null && title.isNotEmpty) {
+      params['title'] = title;
+    }
+    final msg = jsonEncode(params);
+"""
+    if old_tok not in text:
+        raise SystemExit("flutter multi_window_manager: connToken params nao encontrado")
+    return text.replace(old_tok, new_tok, 1)
+
+
+def apply_flutter_remote_tab_title_text(text: str) -> str:
+    if "DeskRemote: titulo do vinculo na aba" in text:
+        return text
+    old_ctor = """    if (peerId != null) {
+      ConnectionTypeState.init(peerId!);
+      tabController.onSelected = (id) {
+"""
+    new_ctor = """    if (peerId != null) {
+      // DeskRemote: titulo do vinculo na aba (params da janela).
+      final rawTitle = params['title'];
+      final sessionTitle = rawTitle is String ? rawTitle.trim() : '';
+      if (sessionTitle.isNotEmpty) {
+        bind.mainSetPeerAlias(id: peerId!, alias: sessionTitle);
+        PeerStringOption.init(peerId!, 'tabLabel', () => sessionTitle);
+      }
+      ConnectionTypeState.init(peerId!);
+      tabController.onSelected = (id) {
+"""
+    if old_ctor not in text:
+        raise SystemExit("flutter remote_tab_page: init peerId nao encontrado")
+    text = text.replace(old_ctor, new_ctor, 1)
+    old_h = """      ConnectionTypeState.init(id);
+      tabController.add(TabInfo(
+        key: id,
+        label: id,
+"""
+    new_h = """      ConnectionTypeState.init(id);
+      final handlerTitle = args['title'];
+      final handlerSessionTitle =
+          handlerTitle is String ? handlerTitle.trim() : '';
+      if (handlerSessionTitle.isNotEmpty) {
+        bind.mainSetPeerAlias(id: id, alias: handlerSessionTitle);
+        PeerStringOption.init(id, 'tabLabel', () => handlerSessionTitle);
+      }
+      tabController.add(TabInfo(
+        key: id,
+        label: id,
+"""
+    if old_h not in text:
+        raise SystemExit("flutter remote_tab_page: handler NewRemoteDesktop nao encontrado")
+    return text.replace(old_h, new_h, 1)
+
+
 def patch_flutter_deskremote_ui(src: Path, host: str = "", key: str = "") -> None:
     """Logo, so Recentes (10), nome do vinculo no cartao, alias via name=."""
     home = src / "flutter" / "lib" / "desktop" / "pages" / "desktop_home_page.dart"
@@ -1188,6 +1478,9 @@ def patch_flutter_deskremote_ui(src: Path, host: str = "", key: str = "") -> Non
     card = src / "flutter" / "lib" / "common" / "widgets" / "peer_card.dart"
     tabbar = src / "flutter" / "lib" / "desktop" / "widgets" / "tabbar_widget.dart"
     settings = src / "flutter" / "lib" / "desktop" / "pages" / "desktop_setting_page.dart"
+    main_tab = src / "flutter" / "lib" / "desktop" / "pages" / "desktop_tab_page.dart"
+    remote_tab = src / "flutter" / "lib" / "desktop" / "pages" / "remote_tab_page.dart"
+    multi_win = src / "flutter" / "lib" / "utils" / "multi_window_manager.dart"
     core_main = src / "src" / "core_main.rs"
     if not common.is_file():
         return
@@ -1203,6 +1496,7 @@ def patch_flutter_deskremote_ui(src: Path, host: str = "", key: str = "") -> Non
 
     model_dart = src / "flutter" / "lib" / "models" / "model.dart"
     _apply(common, apply_flutter_logo_size_text, "logo maior no painel")
+    _apply(common, apply_flutter_load_icon_hq_text, "ico nitido na barra de titulo")
     _apply(common, apply_flutter_connect_title_text, "name=/--title -> alias")
     _apply(common, apply_flutter_session_tab_label_text, "aba da sessao sem ID")
     if host and key:
@@ -1222,6 +1516,7 @@ def patch_flutter_deskremote_ui(src: Path, host: str = "", key: str = "") -> Non
             raise SystemExit("flutter home: titulo Seu Computador nao encontrado")
 
         _apply(home, _home, "Seu Computador abaixo da logo")
+        _apply(home, apply_flutter_logo_app_name_text, "DeskRemote abaixo da logo")
     if tabs.is_file():
         _apply(tabs, apply_flutter_recent_tabs_text, "so aba Sessoes recentes")
     if peers.is_file():
@@ -1230,7 +1525,15 @@ def patch_flutter_deskremote_ui(src: Path, host: str = "", key: str = "") -> Non
         _apply(card, apply_flutter_peer_card_text, "cartao pelo nome do vinculo")
     if tabbar.is_file():
         _apply(tabbar, apply_flutter_tabbar_text, "titulo DeskRemote na barra")
+        _apply(tabbar, apply_flutter_show_title_text, "exibe nome na barra")
+        _apply(tabbar, apply_flutter_titlebar_icon_size_text, "ico 24px na barra")
         _apply(tabbar, apply_flutter_session_tab_getter_text, "aba reativa ao vinculo")
+    if main_tab.is_file():
+        _apply(main_tab, apply_flutter_main_show_title_text, "home com nome na barra")
+    if multi_win.is_file():
+        _apply(multi_win, apply_flutter_session_window_title_text, "title na janela da sessao")
+    if remote_tab.is_file():
+        _apply(remote_tab, apply_flutter_remote_tab_title_text, "aba da sessao com vinculo")
     if model_dart.is_file():
         _apply(model_dart, apply_flutter_peer_info_tab_text, "peer_info atualiza aba")
     if settings.is_file():
@@ -1244,6 +1547,7 @@ def patch_flutter_deskremote_ui(src: Path, host: str = "", key: str = "") -> Non
     if core_main.is_file():
         _apply(core_main, apply_flutter_core_main_title_text, "core_main --title")
         _apply(core_main, apply_flutter_core_main_password_text, "core_main senha posicional")
+        _apply(core_main, apply_flutter_core_main_cold_start_text, "core_main uni-link no frio")
     patch_flutter_runner_rc(src / "flutter" / "windows" / "runner" / "Runner.rc")
 
 
@@ -1294,18 +1598,40 @@ def _selftest_flutter_recent_ui() -> None:
             child: image,
           ).marginOnly(left: 12, right: 12, top: 12);"""
     )
-    if "maxHeight: 96" not in logo:
+    if "maxHeight: 160" not in logo:
         raise SystemExit("selftest flutter: logo sem altura nova")
+    if "cacheWidth: 320" not in logo:
+        raise SystemExit("selftest flutter: logo sem cacheWidth")
     if "FilterQuality.high" not in logo:
         raise SystemExit("selftest flutter: logo sem FilterQuality.high")
     if apply_flutter_logo_size_text(logo) != logo:
         raise SystemExit("selftest flutter: logo nao e idempotente")
 
+    named = apply_flutter_logo_app_name_text(_FLUTTER_LOAD_LOGO_ALIGN)
+    if "DeskRemote: nome do app abaixo da logo" not in named:
+        raise SystemExit("selftest flutter: nome DeskRemote abaixo da logo ausente")
+    if apply_flutter_logo_app_name_text(named) != named:
+        raise SystemExit("selftest flutter: nome abaixo da logo nao e idempotente")
+
     tab = apply_flutter_tabbar_text(_FLUTTER_TABBAR_TITLE)
     if "DeskRemote" not in tab or "RustDesk" in tab:
         raise SystemExit("selftest flutter: titulo da barra ainda RustDesk")
+    if "onSurface" not in tab:
+        raise SystemExit("selftest flutter: titulo da barra sem cor do tema")
     if apply_flutter_tabbar_text(tab) != tab:
         raise SystemExit("selftest flutter: tabbar nao e idempotente")
+
+    load_icon = apply_flutter_load_icon_hq_text(_FLUTTER_LOAD_ICON)
+    if "FilterQuality.high" not in load_icon:
+        raise SystemExit("selftest flutter: loadIcon sem FilterQuality.high")
+    if apply_flutter_load_icon_hq_text(load_icon) != load_icon:
+        raise SystemExit("selftest flutter: loadIcon nao e idempotente")
+
+    bar_icon = apply_flutter_titlebar_icon_size_text(_FLUTTER_TITLEBAR_ICON_16)
+    if "loadIcon(24)" not in bar_icon:
+        raise SystemExit("selftest flutter: barra de titulo ainda em 16px")
+    if apply_flutter_titlebar_icon_size_text(bar_icon) != bar_icon:
+        raise SystemExit("selftest flutter: loadIcon(24) nao e idempotente")
 
     about_src = (
         _FLUTTER_ABOUT_TITLE
@@ -1380,6 +1706,8 @@ def _selftest_flutter_recent_ui() -> None:
     )
     if "mainSetPeerAlias" not in uri or 'param["name"]' not in uri:
         raise SystemExit("selftest flutter: alias do vinculo ausente no uni-link")
+    if "title: title" not in uri:
+        raise SystemExit("selftest flutter: title nao vai para a janela da sessao")
 
     core = apply_flutter_core_main_title_text(
         """            "--password" => {
@@ -1408,6 +1736,8 @@ def _selftest_flutter_recent_ui() -> None:
     )
     if getter.count("PeerStringOption.find") < 2:
         raise SystemExit("selftest flutter: tablabelGetter nao usa PeerStringOption")
+    if "Get.isRegistered" not in getter:
+        raise SystemExit("selftest flutter: tablabelGetter sobrescreve o vinculo")
     if apply_flutter_session_tab_getter_text(getter) != getter:
         raise SystemExit("selftest flutter: tablabelGetter nao e idempotente")
 
@@ -1422,6 +1752,78 @@ def _selftest_flutter_recent_ui() -> None:
         raise SystemExit("selftest flutter: senha posicional ausente")
     if apply_flutter_core_main_password_text(pwd) != pwd:
         raise SystemExit("selftest flutter: senha posicional nao e idempotente")
+
+    show = apply_flutter_show_title_text(_FLUTTER_SHOW_TITLE_FALSE)
+    if "showTitle = true" not in show:
+        raise SystemExit("selftest flutter: showTitle continua false")
+    if apply_flutter_show_title_text(show) != show:
+        raise SystemExit("selftest flutter: showTitle nao e idempotente")
+
+    home_tab = apply_flutter_main_show_title_text(_FLUTTER_MAIN_TAB)
+    if "showTitle: true" not in home_tab:
+        raise SystemExit("selftest flutter: home sem showTitle")
+    if apply_flutter_main_show_title_text(home_tab) != home_tab:
+        raise SystemExit("selftest flutter: home showTitle nao e idempotente")
+
+    cold = apply_flutter_core_main_cold_start_text(_FLUTTER_COLD_START)
+    if "Some(vec![uni_links])" not in cold:
+        raise SystemExit("selftest flutter: uni-link no frio ausente")
+    if apply_flutter_core_main_cold_start_text(cold) != cold:
+        raise SystemExit("selftest flutter: uni-link no frio nao e idempotente")
+
+    win = apply_flutter_session_window_title_text(
+        """  Future<MultiWindowCallResult> newRemoteDesktop(
+    String remoteId, {
+    String? password,
+    bool? isSharedPassword,
+    String? switchUuid,
+    bool? forceRelay,
+  }) async {
+    return await newSession(
+      WindowType.RemoteDesktop,
+      kWindowEventNewRemoteDesktop,
+      remoteId,
+      _remoteDesktopWindows,
+      password: password,
+      forceRelay: forceRelay,
+      switchUuid: switchUuid,
+      isSharedPassword: isSharedPassword,
+    );
+  }
+    String? isSharedPassword,
+    String? connToken,
+  }) async {
+    var params = {
+      "type": type.index,
+      "id": remoteId,
+      "password": password,
+      "forceRelay": forceRelay
+    };
+    if (connToken != null) {
+      params['connToken'] = connToken;
+    }
+    final msg = jsonEncode(params);
+"""
+    )
+    if "params['title']" not in win or "title: title" not in win:
+        raise SystemExit("selftest flutter: title da sessao ausente no newSession")
+    if apply_flutter_session_window_title_text(win) != win:
+        raise SystemExit("selftest flutter: title da sessao nao e idempotente")
+
+    remote = apply_flutter_remote_tab_title_text(
+        """    if (peerId != null) {
+      ConnectionTypeState.init(peerId!);
+      tabController.onSelected = (id) {
+      ConnectionTypeState.init(id);
+      tabController.add(TabInfo(
+        key: id,
+        label: id,
+"""
+    )
+    if "titulo do vinculo na aba" not in remote:
+        raise SystemExit("selftest flutter: remote_tab_page sem titulo do vinculo")
+    if apply_flutter_remote_tab_title_text(remote) != remote:
+        raise SystemExit("selftest flutter: remote_tab_page titulo nao e idempotente")
 
 
 def patch_sciter_window_icon(ui_rs: Path, png_128: Path) -> None:
@@ -3623,6 +4025,9 @@ def main() -> int:
         if "mainGetVersion()" not in home_body:
             print("Verificacao falhou: versao Flutter ausente no rodape.", file=sys.stderr)
             return 1
+        if "DeskRemote: nome do app abaixo da logo" not in home_body:
+            print("Verificacao falhou: nome DeskRemote ausente abaixo da logo.", file=sys.stderr)
+            return 1
         if _FLUTTER_HOME_POWERED_TOP in home_body:
             print(
                 "Verificacao falhou: Desenvolvido por ainda no topo do Flutter.",
@@ -3642,6 +4047,15 @@ def main() -> int:
             return 1
         if "FilterQuality.high" not in common_dart:
             print("Verificacao falhou: logo Flutter sem FilterQuality.high.", file=sys.stderr)
+            return 1
+        if "cacheWidth: 320" not in common_dart:
+            print("Verificacao falhou: logo Flutter sem cacheWidth 320.", file=sys.stderr)
+            return 1
+        if "maxHeight: 160" not in common_dart:
+            print("Verificacao falhou: logo Flutter ainda pequena no painel.", file=sys.stderr)
+            return 1
+        if "DeskRemote: ico com borda branca nítida na barra de título" not in common_dart:
+            print("Verificacao falhou: loadIcon da barra sem nitidez.", file=sys.stderr)
             return 1
         if "DeskRemote: alias do vinculo" not in common_dart:
             print("Verificacao falhou: alias do vinculo ausente no Flutter.", file=sys.stderr)
@@ -3690,8 +4104,32 @@ def main() -> int:
         if "DeskRemote: titulo da barra customizada" not in tabbar_body:
             print("Verificacao falhou: titulo da barra Flutter ainda RustDesk.", file=sys.stderr)
             return 1
+        if "DeskRemote: nome do app na barra" not in tabbar_body:
+            print("Verificacao falhou: showTitle da barra Flutter ainda false.", file=sys.stderr)
+            return 1
+        if "loadIcon(24)" not in tabbar_body:
+            print("Verificacao falhou: ico da barra de titulo ainda 16px.", file=sys.stderr)
+            return 1
         if "DeskRemote: aba reage a alias" not in tabbar_body:
             print("Verificacao falhou: tablabelGetter Flutter nao reage ao vinculo.", file=sys.stderr)
+            return 1
+    flutter_main_tab = src / "flutter" / "lib" / "desktop" / "pages" / "desktop_tab_page.dart"
+    if flutter_main_tab.is_file():
+        main_tab_body = flutter_main_tab.read_text(encoding="utf-8")
+        if "showTitle: true" not in main_tab_body:
+            print("Verificacao falhou: home Flutter sem nome na barra.", file=sys.stderr)
+            return 1
+    flutter_multi = src / "flutter" / "lib" / "utils" / "multi_window_manager.dart"
+    if flutter_multi.is_file():
+        multi_body = flutter_multi.read_text(encoding="utf-8")
+        if "DeskRemote: title na janela da sessao" not in multi_body:
+            print("Verificacao falhou: newSession sem title do vinculo.", file=sys.stderr)
+            return 1
+    flutter_remote = src / "flutter" / "lib" / "desktop" / "pages" / "remote_tab_page.dart"
+    if flutter_remote.is_file():
+        remote_body = flutter_remote.read_text(encoding="utf-8")
+        if "DeskRemote: titulo do vinculo na aba" not in remote_body:
+            print("Verificacao falhou: aba remota sem titulo do vinculo.", file=sys.stderr)
             return 1
     flutter_model = src / "flutter" / "lib" / "models" / "model.dart"
     if flutter_model.is_file():
@@ -3736,6 +4174,9 @@ def main() -> int:
             return 1
         if "DeskRemote: senha posicional" not in core_body:
             print("Verificacao falhou: core_main sem senha posicional do Electron.", file=sys.stderr)
+            return 1
+        if "DeskRemote: no frio, entrega o uni-link" not in core_body:
+            print("Verificacao falhou: core_main nao entrega uni-link no frio.", file=sys.stderr)
             return 1
 
     print(">> OK")

@@ -23,7 +23,7 @@ Há **três** números envolvidos:
 | O quê | Onde | Muda quando |
 |-------|------|-------------|
 | **Sciter (produção)** (`CLIENT_VERSION`, linha **1.x.x**, ex.: `1.0.14`) | UI, instalação e update dos Releases `acesso-remoto-windows` e `acesso-remoto-controle-windows` | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION` e gera o build Sciter |
-| **Flutter (spike atendente)** (`CLIENT_VERSION_FLUTTER`, linha **2.x.x**, ex.: `2.0.1`) | UI Flutter e update do Release `acesso-remoto-controle-flutter-windows` | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION_FLUTTER` e gera o spike Flutter |
+| **Flutter (spike atendente)** (`CLIENT_VERSION_FLUTTER`, linha **2.x.x**, ex.: `2.0.2`) | UI Flutter e update do Release `acesso-remoto-controle-flutter-windows` | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION_FLUTTER` e gera o spike Flutter |
 | **Tag RustDesk** (ex.: `1.5.0`) | `Cargo.toml` → `crate::VERSION` anunciada ao peer (protocolo / modo de teclado) | Só quando escolhemos uma tag mais nova do upstream no Actions |
 
 A linha **1.x.x fica no Sciter**; o Flutter **não** reutiliza esse número — começa em **2.0.0** para não misturar instalador nem canal de update. A tag `1.5.0` **não sobe sozinha** a cada build — é a base do RustDesk.
@@ -93,7 +93,7 @@ O instalador é pensado para o PC que **vai ser acessado** (PDV / posto):
 - Pasta de instalação: `C:\Program Files (x86)\DeskRudder\Acesso Remoto` (mantida por compatibilidade; outros apps DeskRudder podem ficar em pastas irmãs)
 - Link «Desenvolvido por DeskRudder» → https://deskrudder.com.br/
 - No Flutter, a marca fica no **rodapé** do painel esquerdo, com a versão DeskRudder (`CLIENT_VERSION_FLUTTER`, linha 2.x.x) abaixo; no Sciter a posição segue o upstream
-- Flutter (2.0.1+): ícone da barra e da janela usam a arte oficial (D + atendente); Sobre o **DeskRemote** (site DeskRudder, copyright DeskRudder, sem privacidade do RustDesk); Rede mostra o servidor Duplex mesmo com os campos custom vazios; a aba da sessão usa o vínculo (ou usuário@host), não o ID numérico
+- Flutter (2.0.2+): o nome **DeskRemote** aparece na barra de título (tema claro e escuro) e abaixo da logo do painel; ao conectar pelo painel, a aba da sessão usa o rótulo do vínculo; ícone da barra de tarefas e da barra de título tem contorno branco (D, personagem e notebook visíveis no tema escuro); logo do painel maior e mais nítida; Sobre o **DeskRemote** (site DeskRudder, copyright DeskRudder, sem privacidade do RustDesk); Rede mostra o servidor Duplex mesmo com os campos custom vazios
 - Tema escuro segue o Windows (conteúdo + barra de título) se a opção não foi fixada no menu (⋮ → Tema escuro)
 - Logo do painel usa arte em alta resolução com fundo transparente (`ui-logo-512.png`) — sem placa opaca no tema escuro nem no claro; tamanho acompanha a janela
 - Janela inicial ~760×720 (antes de instalar) para o botão **Instalar** do cartão UAC ficar visível
