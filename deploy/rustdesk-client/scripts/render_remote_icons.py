@@ -504,12 +504,20 @@ def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
     _write_image(full, out_dir / "icon-source-1024.png")
     _write_image(rgba, out_dir / "icon-source-official.png")
 
-    full_fit: dict[int, Image.Image] = {}
+    outlined_fit: dict[int, Image.Image] = {}
+    sciter_fit: dict[int, Image.Image] = {}
 
     def icon_for(size: int) -> Image.Image:
-        if size not in full_fit:
-            full_fit[size] = _fit_square(icon_master, size)
-        return full_fit[size]
+        """Flutter / kit-1253: halo branco (taskbar e barra de titulo)."""
+        if size not in outlined_fit:
+            outlined_fit[size] = _fit_square(icon_master, size)
+        return outlined_fit[size]
+
+    def sciter_icon(size: int) -> Image.Image:
+        """Sciter 1.x de producao: sem halo extra, para o posto nao mudar no rebuild."""
+        if size not in sciter_fit:
+            sciter_fit[size] = _fit_square(full, size)
+        return sciter_fit[size]
 
     mapping = {
         "deskrudder-16.png": 16,
@@ -525,15 +533,15 @@ def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
         "icon.png": 256,
     }
     for name, size in mapping.items():
-        _write_image(icon_for(size), out_dir / name)
+        _write_image(sciter_icon(size), out_dir / name)
 
     _write_image(_ui_logo(full, 512), out_dir / "ui-logo-512.png")
     _write_image(_ui_logo(full, 256), out_dir / "ui-logo-256.png")
 
     ico_sizes = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
-    frames = [icon_for(iw) for iw, _ih in ico_sizes]
-    _save_ico(out_dir / "icon.ico", frames, ico_sizes)
-    _save_png_ico(out_dir / "tray-icon.ico", [icon_for(32)])
+    sciter_frames = [sciter_icon(iw) for iw, _ih in ico_sizes]
+    _save_ico(out_dir / "icon.ico", sciter_frames, ico_sizes)
+    _save_png_ico(out_dir / "tray-icon.ico", [sciter_icon(32)])
     write_kit_1253(KIT_DIR, icon_for, full)
     probe = icon_for(32)
     box = _content_bbox(probe, 20)

@@ -561,6 +561,36 @@ _FLUTTER_YOUR_DESKTOP_ALWAYS = """              Align(
                 ),
 """
 
+_FLUTTER_PANE_WIDTH = """        width: isIncomingOnly ? 280.0 : 200.0,
+"""
+
+_FLUTTER_PANE_WIDTH_NEW = """        width: isIncomingOnly ? 280.0 : 224.0, // DeskRemote: logo 160 + nome
+"""
+
+_FLUTTER_TABBAR_H = "const kDesktopRemoteTabBarHeight = 28.0;"
+
+_FLUTTER_TABBAR_H_NEW = (
+    "const kDesktopRemoteTabBarHeight = 36.0; "
+    "// DeskRemote: ico 24px + nome na barra"
+)
+
+
+def apply_flutter_pane_width_text(text: str) -> str:
+    if "DeskRemote: logo 160 + nome" in text:
+        return text
+    if _FLUTTER_PANE_WIDTH not in text:
+        raise SystemExit("flutter desktop_home_page: largura do painel 200 nao encontrada")
+    return text.replace(_FLUTTER_PANE_WIDTH, _FLUTTER_PANE_WIDTH_NEW, 1)
+
+
+def apply_flutter_tabbar_height_text(text: str) -> str:
+    if "DeskRemote: ico 24px + nome na barra" in text:
+        return text
+    if _FLUTTER_TABBAR_H not in text:
+        raise SystemExit("flutter consts.dart: kDesktopRemoteTabBarHeight nao encontrado")
+    return text.replace(_FLUTTER_TABBAR_H, _FLUTTER_TABBAR_H_NEW, 1)
+
+
 _FLUTTER_LOAD_LOGO_ALIGN = """      Align(
         alignment: Alignment.center,
         child: loadLogo(),
@@ -1002,6 +1032,27 @@ def patch_flutter_runner_rc(path: Path) -> None:
         raise SystemExit(f"LegalCopyright nao encontrado em {path}")
     path.write_text(text, encoding="utf-8")
     print("  flutter Runner.rc: produto/copyright DeskRudder", flush=True)
+
+
+def apply_flutter_inapp_alias_text(text: str) -> str:
+    if "DeskRemote: reusa alias do vinculo" in text:
+        return text
+    old = """    await rustDeskWinManager.newRemoteDesktop(id,
+        password: password,
+        isSharedPassword: isSharedPassword,
+        forceRelay: forceRelay);
+"""
+    new = """    // DeskRemote: reusa alias do vinculo (painel) ao conectar pelo ID/cartao.
+    final alias = bind.mainGetPeerOptionSync(id: id, key: 'alias').trim();
+    await rustDeskWinManager.newRemoteDesktop(id,
+        password: password,
+        isSharedPassword: isSharedPassword,
+        forceRelay: forceRelay,
+        title: alias.isEmpty ? null : alias);
+"""
+    if old not in text:
+        raise SystemExit("flutter common.dart: connectMainDesktop newRemoteDesktop nao encontrado")
+    return text.replace(old, new, 1)
 
 
 def apply_flutter_connect_title_text(text: str) -> str:
@@ -1498,6 +1549,7 @@ def patch_flutter_deskremote_ui(src: Path, host: str = "", key: str = "") -> Non
     _apply(common, apply_flutter_logo_size_text, "logo maior no painel")
     _apply(common, apply_flutter_load_icon_hq_text, "ico nitido na barra de titulo")
     _apply(common, apply_flutter_connect_title_text, "name=/--title -> alias")
+    _apply(common, apply_flutter_inapp_alias_text, "alias no Conectar do Flutter")
     _apply(common, apply_flutter_session_tab_label_text, "aba da sessao sem ID")
     if host and key:
         _apply(
@@ -1517,17 +1569,21 @@ def patch_flutter_deskremote_ui(src: Path, host: str = "", key: str = "") -> Non
 
         _apply(home, _home, "Seu Computador abaixo da logo")
         _apply(home, apply_flutter_logo_app_name_text, "DeskRemote abaixo da logo")
+        _apply(home, apply_flutter_pane_width_text, "painel esquerdo 224px")
     if tabs.is_file():
         _apply(tabs, apply_flutter_recent_tabs_text, "so aba Sessoes recentes")
     if peers.is_file():
         _apply(peers, apply_flutter_recent_limit_text, "10 ultimas sessoes")
     if card.is_file():
         _apply(card, apply_flutter_peer_card_text, "cartao pelo nome do vinculo")
+    consts_dart = src / "flutter" / "lib" / "consts.dart"
     if tabbar.is_file():
         _apply(tabbar, apply_flutter_tabbar_text, "titulo DeskRemote na barra")
         _apply(tabbar, apply_flutter_show_title_text, "exibe nome na barra")
         _apply(tabbar, apply_flutter_titlebar_icon_size_text, "ico 24px na barra")
         _apply(tabbar, apply_flutter_session_tab_getter_text, "aba reativa ao vinculo")
+    if consts_dart.is_file():
+        _apply(consts_dart, apply_flutter_tabbar_height_text, "barra 36px para o ico")
     if main_tab.is_file():
         _apply(main_tab, apply_flutter_main_show_title_text, "home com nome na barra")
     if multi_win.is_file():
@@ -1612,6 +1668,30 @@ def _selftest_flutter_recent_ui() -> None:
         raise SystemExit("selftest flutter: nome DeskRemote abaixo da logo ausente")
     if apply_flutter_logo_app_name_text(named) != named:
         raise SystemExit("selftest flutter: nome abaixo da logo nao e idempotente")
+
+    pane = apply_flutter_pane_width_text(_FLUTTER_PANE_WIDTH)
+    if "224.0" not in pane:
+        raise SystemExit("selftest flutter: painel esquerdo ainda 200px")
+    if apply_flutter_pane_width_text(pane) != pane:
+        raise SystemExit("selftest flutter: largura do painel nao e idempotente")
+
+    bar_h = apply_flutter_tabbar_height_text(_FLUTTER_TABBAR_H)
+    if "36.0" not in bar_h:
+        raise SystemExit("selftest flutter: altura da barra ainda 28px")
+    if apply_flutter_tabbar_height_text(bar_h) != bar_h:
+        raise SystemExit("selftest flutter: altura da barra nao e idempotente")
+
+    inapp = apply_flutter_inapp_alias_text(
+        """    await rustDeskWinManager.newRemoteDesktop(id,
+        password: password,
+        isSharedPassword: isSharedPassword,
+        forceRelay: forceRelay);
+"""
+    )
+    if "reusa alias do vinculo" not in inapp:
+        raise SystemExit("selftest flutter: Conectar do Flutter sem alias")
+    if apply_flutter_inapp_alias_text(inapp) != inapp:
+        raise SystemExit("selftest flutter: alias in-app nao e idempotente")
 
     tab = apply_flutter_tabbar_text(_FLUTTER_TABBAR_TITLE)
     if "DeskRemote" not in tab or "RustDesk" in tab:
@@ -4028,6 +4108,9 @@ def main() -> int:
         if "DeskRemote: nome do app abaixo da logo" not in home_body:
             print("Verificacao falhou: nome DeskRemote ausente abaixo da logo.", file=sys.stderr)
             return 1
+        if "DeskRemote: logo 160 + nome" not in home_body:
+            print("Verificacao falhou: painel esquerdo Flutter ainda 200px.", file=sys.stderr)
+            return 1
         if _FLUTTER_HOME_POWERED_TOP in home_body:
             print(
                 "Verificacao falhou: Desenvolvido por ainda no topo do Flutter.",
@@ -4059,6 +4142,9 @@ def main() -> int:
             return 1
         if "DeskRemote: alias do vinculo" not in common_dart:
             print("Verificacao falhou: alias do vinculo ausente no Flutter.", file=sys.stderr)
+            return 1
+        if "DeskRemote: reusa alias do vinculo" not in common_dart:
+            print("Verificacao falhou: Conectar do Flutter nao reusa o alias.", file=sys.stderr)
             return 1
         if "DeskRemote: vinculo (alias) ou usuario@host na aba" not in common_dart:
             print("Verificacao falhou: aba da sessao Flutter ainda usa o ID.", file=sys.stderr)
@@ -4109,6 +4195,12 @@ def main() -> int:
             return 1
         if "loadIcon(24)" not in tabbar_body:
             print("Verificacao falhou: ico da barra de titulo ainda 16px.", file=sys.stderr)
+            return 1
+    flutter_consts = src / "flutter" / "lib" / "consts.dart"
+    if flutter_consts.is_file():
+        consts_body = flutter_consts.read_text(encoding="utf-8")
+        if "DeskRemote: ico 24px + nome na barra" not in consts_body:
+            print("Verificacao falhou: altura da barra Flutter ainda 28px.", file=sys.stderr)
             return 1
         if "DeskRemote: aba reage a alias" not in tabbar_body:
             print("Verificacao falhou: tablabelGetter Flutter nao reage ao vinculo.", file=sys.stderr)
