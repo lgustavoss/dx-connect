@@ -325,8 +325,8 @@ String _soDigitosId(String id) => id.replaceAll(RegExp(r'\D'), '');
 Future<String?> buscarRotuloVinculoDeskRemote(String rustdeskId) async {
   final alvo = _soDigitosId(rustdeskId);
   if (alvo.isEmpty) return null;
-  var sessao = lerSessaoDeskRemote();
-  if (sessao == null) return null;
+  final inicial = lerSessaoDeskRemote();
+  if (inicial == null) return null;
 
   Future<Map<String, dynamic>> listar(DeskRemoteSessao s) => _httpJson(
         uri: urlApi(s.slug, '/rustdesk/peers').replace(
@@ -338,6 +338,9 @@ Future<String?> buscarRotuloVinculoDeskRemote(String rustdeskId) async {
 
   try {
     return await () async {
+      // Tipo não nulo aqui: o Dart não promove `DeskRemoteSessao?` capturado
+      // num closure (o build 2.1.1 falhou nisso).
+      DeskRemoteSessao sessao = inicial;
       Map<String, dynamic> json;
       try {
         json = await listar(sessao);
