@@ -27,14 +27,15 @@ O app desktop é uma janela Electron que carrega o **painel web da instância** 
 ## Código
 
 - `desktop/src/main.cjs` — janela, bandeja, conta (slug), cache do painel, lançar remoto, Sobre e atualização do Setup
+- `desktop/src/sessaoDeskRemote.cjs` — slug da origem do painel e corpo do `deskremote-sessao.json`
 - `desktop/src/versao.cjs` — comparar versão do app com `version.json` do Release `desktop-windows`
-- `desktop/src/preload.cjs` — `deskrudder` (conta) + `deskrudderDesktop` (remoto / recarregar)
+- `desktop/src/preload.cjs` — `deskrudder` (conta) + `deskrudderDesktop` (remoto / recarregar / sessão DeskRemote)
 - `desktop/src/conta.html` + `conta.js` — primeiro acesso / trocar empresa
 - `desktop/build/` — ícones e laterais do NSIS; `installer-remoto.nsh` (prefs, atalho do painel, instala o cliente controle)
 - `desktop/scripts/gerar_icon_ico.py` — regenera `icon.ico` multi-tamanho a partir de `icon.png` (barra de tarefas)
 - `desktop/vendor/remoto-controle/` — colocar `DeskRudder-AcessoRemoto-Controle.exe` antes do `dist` (ver `vendor/README.md`)
 
-Configuração do usuário fica em `%APPDATA%\DeskRudder\config.json` (`slug`, `autostartPerguntado`, `avisoBandejaMostrado`, `alertasNaBandeja`, `atualizacaoAvisada`, …). O Setup grava `installer-prefs.json` em `DeskRudder\Painel\` (lido na 1ª abertura). Sessão e `localStorage` do painel ficam em AppData.
+Configuração do usuário fica em `%APPDATA%\DeskRudder\config.json` (`slug`, `autostartPerguntado`, `avisoBandejaMostrado`, `alertasNaBandeja`, `atualizacaoAvisada`, …). O Setup grava `installer-prefs.json` em `DeskRudder\Painel\` (lido na 1ª abertura). Sessão e `localStorage` do painel ficam em AppData. Login **com “lembrar-me”** no painel Electron também grava `%APPDATA%\DeskRudder\deskremote-sessao.json` para o atalho do DeskRemote Flutter herdar a sessão (#1274); login só nesta sessão e **Sair** apagam esse arquivo. O IPC `sessao:salvar` só aceita origem `https://{slug}.deskrudder.com.br` (não a tela `file:` de conta). Setup antigo (sem esse IPC) não herda — precisa atualizar o App Atendente.
 
 ## Desenvolvimento
 

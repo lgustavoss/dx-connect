@@ -22,5 +22,12 @@ if (isFile || isPainel) {
     conectarRemoto: (id, senha, tituloSessao) =>
       ipcRenderer.invoke('remoto:conectar', id, senha, tituloSessao),
     recarregarPainel: () => ipcRenderer.invoke('painel:recarregar'),
+    limparSessao: () => ipcRenderer.invoke('sessao:limpar'),
+    ...(isPainel
+      ? {
+          salvarSessao: (accessToken, refreshToken) =>
+            ipcRenderer.invoke('sessao:salvar', accessToken, refreshToken),
+        }
+      : {}),
   })
 }

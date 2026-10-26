@@ -10,6 +10,11 @@ const {
   urlSetupGithub,
   urlVersionJson,
 } = require('./versao.cjs')
+const {
+  slugDaOrigemPainel,
+  montarCorpoSessao,
+  origemPainelHttpsInstancia,
+} = require('./sessaoDeskRemote.cjs')
 
 const APP_ID = 'br.com.deskrudder.desktop'
 const APEX = 'deskrudder.com.br'
@@ -57,6 +62,27 @@ function carregarIconeApp() {
 
 function caminhoConfig() {
   return path.join(app.getPath('userData'), 'config.json')
+}
+
+function caminhoSessaoDeskRemote() {
+  return path.join(app.getPath('userData'), 'deskremote-sessao.json')
+}
+
+function salvarSessaoDeskRemote(slug, accessToken, refreshToken) {
+  const corpo = montarCorpoSessao(slug, accessToken, refreshToken)
+  if (!corpo) return { ok: false }
+  fs.mkdirSync(path.dirname(caminhoSessaoDeskRemote()), { recursive: true })
+  fs.writeFileSync(caminhoSessaoDeskRemote(), `${JSON.stringify(corpo)}\n`, 'utf8')
+  return { ok: true }
+}
+
+function limparSessaoDeskRemote() {
+  try {
+    if (fs.existsSync(caminhoSessaoDeskRemote())) fs.unlinkSync(caminhoSessaoDeskRemote())
+  } catch {
+    /* ignore */
+  }
+  return { ok: true }
 }
 
 /**
@@ -289,6 +315,21 @@ ipcMain.handle('painel:recarregar', async (event) => {
   await limparCacheDoPainel()
   if (janela) janela.webContents.reloadIgnoringCache()
   return { ok: true }
+})
+
+ipcMain.handle('sessao:salvar', (event, accessToken, refreshToken) => {
+  const url = event.senderFrame?.url
+  if (!origemPainelHttpsInstancia(url)) return { ok: false }
+  const slug = slugDaOrigemPainel(url)
+  if (!slug) return { ok: false }
+  return salvarSessaoDeskRemote(slug, accessToken, refreshToken)
+})
+
+ipcMain.handle('sessao:limpar', (event) => {
+  if (!origemPermitidaPainel(event.senderFrame?.url) && !event.senderFrame?.url?.startsWith('file:')) {
+    return { ok: false }
+  }
+  return limparSessaoDeskRemote()
 })
 
 // ── Janela ──────────────────────────────────────────────────────────────────

@@ -121,6 +121,8 @@ O instalador de **controle** (`DeskRudder-AcessoRemoto-Controle.exe`, embutido n
 
 No spike **Flutter**, a home do atendente mostra a logo DeskRemote no topo do painel, o texto de edição personalizada, só a aba **Sessões recentes** (10 últimas) e o **nome do vínculo** (o `name=` do `deskrudder://`) no cartão — sem o ID numérico.
 
+A partir da **2.1.0**, Recentes e o campo de ID exigem login com a **mesma conta do DeskRudder** (identificador + e-mail + senha). Quem já entrou no app Electron neste PC **com “lembrar-me”** não precisa digitar de novo: a sessão fica em `%APPDATA%\DeskRudder\deskremote-sessao.json` (o mesmo JWT do `localStorage` do painel). Login só nesta sessão do navegador/Electron **não** grava o arquivo. Herdar a sessão exige um Setup do painel que já grave esse arquivo — Setup antigo não herda. Conectar pelo painel (`--connect` / `deskrudder://`) **não** pede login de propósito: a sessão remota abre direto, como hoje. **Sair** no DeskRemote apaga o arquivo: a próxima abertura pede login de novo (mesmo que o DeskRudder ainda esteja aberto). **Sair** no DeskRudder também apaga. A permissão continua `rustdesk.monitorar`. O Sciter de produção permanece **1.0.14**. A aba Vinculados (frota do sistema) fica para um lote seguinte.
+
 ## Pasta no repo
 
 | Caminho | Função |
@@ -130,6 +132,7 @@ No spike **Flutter**, a home do atendente mostra a logo DeskRemote no topo do pa
 | `deploy/rustdesk-client/CLIENT_VERSION_FLUTTER` | Versão Flutter do atendente (**2.x.x**) |
 | `deploy/rustdesk-client/branding/` | Arte oficial + `icon.ico`/tray/PNGs — regenerar com `scripts/render_remote_icons.py` |
 | `deploy/rustdesk-client/scripts/apply_branding.py` | Patch no clone |
+| `deploy/rustdesk-client/flutter-overlay/` | Login do atendente (copiado para o clone Flutter) |
 | `deploy/rustdesk-client/scripts/encode_config.py` | Gera/decodifica string de import (debug) |
 | `.github/workflows/rustdesk-deskrudder-windows.yml` | Build do `.exe` |
 

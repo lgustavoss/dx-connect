@@ -15,7 +15,8 @@
     "dist": "electron-builder --win nsis --publish never",
     "dist:dir": "electron-builder --win dir --publish never",
     "baixar-remoto": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/baixar-remoto-controle.ps1",
-    "publicar-setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/publicar-setup-release.ps1"
+    "publicar-setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/publicar-setup-release.ps1",
+    "test": "node --test src/sessaoDeskRemote.test.cjs"
   },
   "build": {
     "appId": "br.com.deskrudder.desktop",
