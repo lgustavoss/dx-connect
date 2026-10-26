@@ -183,7 +183,7 @@ Future<Map<String, dynamic>> _httpJson({
 }) async {
   final client = HttpClient();
   client.connectionTimeout = const Duration(seconds: 20);
-  client.userAgent = 'DeskRemote/2.1.0';
+  client.userAgent = 'DeskRemote/2.1.1';
   try {
     final req = method == 'GET'
         ? await client.getUrl(uri)
@@ -302,6 +302,73 @@ Future<DeskRemoteSessao?> renovarSessaoDeskRemote(DeskRemoteSessao sessao) async
       refreshToken: novoRefresh.isEmpty ? refresh : novoRefresh,
       email: sessao.email,
     );
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Mesmo formato de `rotuloSessaoVinculo` no painel (`acessoRemotoUrl.mjs`).
+/// Ex.: Posto Farol · SERVIDOR 001
+String rotuloSessaoVinculo(Map<String, dynamic> vinculo) {
+  final rotulo = (vinculo['rotulo_nome'] ?? '').toString().trim();
+  final nome = rotulo.isEmpty ? 'Equipamento' : rotulo;
+  final codigo = (vinculo['pdv_codigo'] ?? '').toString().trim();
+  final base = codigo.isEmpty ? nome : '$nome $codigo';
+  final rede = (vinculo['rede_nome'] ?? '').toString().trim();
+  return rede.isEmpty ? base : '$rede · $base';
+}
+
+String _soDigitosId(String id) => id.replaceAll(RegExp(r'\D'), '');
+
+/// Rótulo do vínculo na frota (um PDV). Sem sessão, sem permissão ou ID
+/// repetido: `null` — a aba cai no alias/`name=` ou em usuário@host.
+Future<String?> buscarRotuloVinculoDeskRemote(String rustdeskId) async {
+  final alvo = _soDigitosId(rustdeskId);
+  if (alvo.isEmpty) return null;
+  var sessao = lerSessaoDeskRemote();
+  if (sessao == null) return null;
+
+  Future<Map<String, dynamic>> listar(DeskRemoteSessao s) => _httpJson(
+        uri: urlApi(s.slug, '/rustdesk/peers').replace(
+          queryParameters: const {'filtro': 'vinculado'},
+        ),
+        method: 'GET',
+        bearer: s.accessToken,
+      );
+
+  try {
+    return await () async {
+      Map<String, dynamic> json;
+      try {
+        json = await listar(sessao);
+      } on DeskRemoteAuthErro catch (e) {
+        if (e.status != 401) return null;
+        final nova = await renovarSessaoDeskRemote(sessao);
+        if (nova == null) return null;
+        gravarSessaoDeskRemote(nova);
+        sessao = nova;
+        json = await listar(sessao);
+      }
+      final items = json['items'];
+      if (items is! List) return null;
+      for (final raw in items) {
+        if (raw is! Map) continue;
+        final peer = Map<String, dynamic>.from(raw);
+        if (_soDigitosId((peer['rustdesk_id'] ?? '').toString()) != alvo) {
+          continue;
+        }
+        final vinculos = peer['vinculos'];
+        if (vinculos is! List || vinculos.length != 1) return null;
+        final primeiro = vinculos.first;
+        if (primeiro is! Map) return null;
+        final rotulo =
+            rotuloSessaoVinculo(Map<String, dynamic>.from(primeiro)).trim();
+        return rotulo.isEmpty ? null : rotulo;
+      }
+      return null;
+    }()
+        // A aba da sessão é outro engine: o título só entra nos params da janela.
+        .timeout(const Duration(seconds: 5), onTimeout: () => null);
   } catch (_) {
     return null;
   }

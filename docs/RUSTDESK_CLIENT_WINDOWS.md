@@ -23,7 +23,7 @@ Há **três** números envolvidos:
 | O quê | Onde | Muda quando |
 |-------|------|-------------|
 | **Sciter (produção)** (`CLIENT_VERSION`, linha **1.x.x**, ex.: `1.0.14`) | UI, instalação e update dos Releases `acesso-remoto-windows` e `acesso-remoto-controle-windows` | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION` e gera o build Sciter |
-| **Flutter (spike atendente)** (`CLIENT_VERSION_FLUTTER`, linha **2.x.x**, ex.: `2.0.2`) | UI Flutter e update do Release `acesso-remoto-controle-flutter-windows` | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION_FLUTTER` e gera o spike Flutter |
+| **Flutter (spike atendente)** (`CLIENT_VERSION_FLUTTER`, linha **2.x.x**, ex.: `2.1.1`) | UI Flutter e update do Release `acesso-remoto-controle-flutter-windows` | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION_FLUTTER` e gera o spike Flutter |
 | **Tag RustDesk** (ex.: `1.5.0`) | `Cargo.toml` → `crate::VERSION` anunciada ao peer (protocolo / modo de teclado) | Só quando escolhemos uma tag mais nova do upstream no Actions |
 
 A linha **1.x.x fica no Sciter**; o Flutter **não** reutiliza esse número — começa em **2.0.0** para não misturar instalador nem canal de update. A tag `1.5.0` **não sobe sozinha** a cada build — é a base do RustDesk.
@@ -119,9 +119,11 @@ O instalador de **controle** (`DeskRudder-AcessoRemoto-Controle.exe`, embutido n
 - Atalho e pasta iguais ao do posto (`DeskRemote` / `DeskRudder\Acesso Remoto`)
 - Uma só janela principal no atalho; reconectar no mesmo ID remoto foca a sessão já aberta (ainda sem abas — ver #1248)
 
-No spike **Flutter**, a home do atendente mostra a logo DeskRemote no topo do painel, o texto de edição personalizada, só a aba **Sessões recentes** (10 últimas) e o **nome do vínculo** (o `name=` do `deskrudder://`) no cartão — sem o ID numérico.
+No spike **Flutter**, a home do atendente mostra a logo DeskRemote no topo do painel, o texto de edição personalizada, só a aba **Sessões recentes** (10 últimas) e o **nome do vínculo** no cartão — sem o ID numérico.
 
 A partir da **2.1.0**, Recentes e o campo de ID exigem login com a **mesma conta do DeskRudder** (identificador + e-mail + senha). Quem já entrou no app Electron neste PC **com “lembrar-me”** não precisa digitar de novo: a sessão fica em `%APPDATA%\DeskRudder\deskremote-sessao.json` (o mesmo JWT do `localStorage` do painel). Login só nesta sessão do navegador/Electron **não** grava o arquivo. Herdar a sessão exige um Setup do painel que já grave esse arquivo — Setup antigo não herda. Conectar pelo painel (`--connect` / `deskrudder://`) **não** pede login de propósito: a sessão remota abre direto, como hoje. **Sair** no DeskRemote apaga o arquivo: a próxima abertura pede login de novo (mesmo que o DeskRudder ainda esteja aberto). **Sair** no DeskRudder também apaga. A permissão continua `rustdesk.monitorar`. O Sciter de produção permanece **1.0.14**. A aba Vinculados (frota do sistema) fica para um lote seguinte.
+
+A partir da **2.1.1**, a aba da sessão usa o rótulo do vínculo (ex. `Posto Farol · SERVIDOR 001`) nesta ordem: `name=` / `--title` do painel; senão, busca na frota (`GET /v1/rustdesk/peers`) com a sessão DeskRudder; senão, usuário@host. O painel em produção antigo ainda não manda `name=` — por isso a busca na API. Sem sessão e sem `name=`, o ID pode aparecer até o hostname chegar.
 
 ## Pasta no repo
 

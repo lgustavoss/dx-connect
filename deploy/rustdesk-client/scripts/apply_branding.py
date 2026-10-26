@@ -1034,15 +1034,26 @@ def patch_flutter_runner_rc(path: Path) -> None:
     print("  flutter Runner.rc: produto/copyright DeskRudder", flush=True)
 
 
-def apply_flutter_inapp_alias_text(text: str) -> str:
-    if "DeskRemote: reusa alias do vinculo" in text:
+def apply_flutter_common_vinculo_import_text(text: str) -> str:
+    if "package:flutter_hbb/deskremote/sessao.dart" in text:
         return text
-    old = """    await rustDeskWinManager.newRemoteDesktop(id,
+    old = "import 'package:flutter_hbb/utils/multi_window_manager.dart';\n"
+    if old not in text:
+        raise SystemExit("flutter common.dart: import multi_window_manager nao encontrado")
+    return text.replace(
+        old,
+        old + "import 'package:flutter_hbb/deskremote/sessao.dart';\n",
+        1,
+    )
+
+
+_FLUTTER_INAPP_ALIAS_UPSTREAM = """    await rustDeskWinManager.newRemoteDesktop(id,
         password: password,
         isSharedPassword: isSharedPassword,
         forceRelay: forceRelay);
 """
-    new = """    // DeskRemote: reusa alias do vinculo (painel) ao conectar pelo ID/cartao.
+
+_FLUTTER_INAPP_ALIAS_OLD = """    // DeskRemote: reusa alias do vinculo (painel) ao conectar pelo ID/cartao.
     final alias = bind.mainGetPeerOptionSync(id: id, key: 'alias').trim();
     await rustDeskWinManager.newRemoteDesktop(id,
         password: password,
@@ -1050,33 +1061,71 @@ def apply_flutter_inapp_alias_text(text: str) -> str:
         forceRelay: forceRelay,
         title: alias.isEmpty ? null : alias);
 """
-    if old not in text:
-        raise SystemExit("flutter common.dart: connectMainDesktop newRemoteDesktop nao encontrado")
-    return text.replace(old, new, 1)
+
+_FLUTTER_INAPP_ALIAS_NEW = """    // DeskRemote: busca vinculo na API no Conectar (Recentes/ID).
+    var alias = bind.mainGetPeerOptionSync(id: id, key: 'alias').trim();
+    if (alias.isEmpty) {
+      alias = (await buscarRotuloVinculoDeskRemote(id))?.trim() ?? '';
+      if (alias.isNotEmpty) {
+        await bind.mainSetPeerAlias(id: id, alias: alias);
+      }
+    }
+    await rustDeskWinManager.newRemoteDesktop(id,
+        password: password,
+        isSharedPassword: isSharedPassword,
+        forceRelay: forceRelay,
+        title: alias.isEmpty ? null : alias);
+"""
 
 
-def apply_flutter_connect_title_text(text: str) -> str:
-    if "DeskRemote: alias do vinculo" in text:
+def _rotulo_sessao_vinculo(vinculo: dict) -> str:
+    """Espelho de rotuloSessaoVinculo (Dart + acessoRemotoUrl.mjs)."""
+    rotulo = str(vinculo.get("rotulo_nome") or "").strip() or "Equipamento"
+    codigo = str(vinculo.get("pdv_codigo") or "").strip()
+    base = f"{rotulo} {codigo}" if codigo else rotulo
+    rede = str(vinculo.get("rede_nome") or "").strip()
+    return f"{rede} · {base}" if rede else base
+
+
+_FLUTTER_ROTULO_SESSAO_FN = """String rotuloSessaoVinculo(Map<String, dynamic> vinculo) {
+  final rotulo = (vinculo['rotulo_nome'] ?? '').toString().trim();
+  final nome = rotulo.isEmpty ? 'Equipamento' : rotulo;
+  final codigo = (vinculo['pdv_codigo'] ?? '').toString().trim();
+  final base = codigo.isEmpty ? nome : '$nome $codigo';
+  final rede = (vinculo['rede_nome'] ?? '').toString().trim();
+  return rede.isEmpty ? base : '$rede · $base';
+}"""
+
+
+def apply_flutter_inapp_alias_text(text: str) -> str:
+    if "DeskRemote: busca vinculo na API no Conectar" in text:
         return text
-    old_vars = """  String? password;
+    if _FLUTTER_INAPP_ALIAS_OLD in text:
+        return text.replace(_FLUTTER_INAPP_ALIAS_OLD, _FLUTTER_INAPP_ALIAS_NEW, 1)
+    if _FLUTTER_INAPP_ALIAS_UPSTREAM not in text:
+        raise SystemExit("flutter common.dart: connectMainDesktop newRemoteDesktop nao encontrado")
+    return text.replace(_FLUTTER_INAPP_ALIAS_UPSTREAM, _FLUTTER_INAPP_ALIAS_NEW, 1)
+
+
+_FLUTTER_HANDLE_URI_VARS = """  String? password;
   String? switchUuid;
   bool? forceRelay;
 """
-    new_vars = """  String? password;
+
+_FLUTTER_HANDLE_URI_VARS_TITLE = """  String? password;
   String? switchUuid;
   bool? forceRelay;
   String? title;
 """
-    if old_vars not in text:
-        raise SystemExit("flutter common.dart: variaveis do handleUriLink nao encontradas")
-    text = text.replace(old_vars, new_vars, 1)
-    old_pw = """      case '--password':
+
+_FLUTTER_HANDLE_URI_PW = """      case '--password':
         password = args[i + 1];
         i++;
         break;
       case '--switch_uuid':
 """
-    new_pw = """      case '--password':
+
+_FLUTTER_HANDLE_URI_PW_TITLE = """      case '--password':
         password = args[i + 1];
         i++;
         break;
@@ -1086,9 +1135,20 @@ def apply_flutter_connect_title_text(text: str) -> str:
         break;
       case '--switch_uuid':
 """
-    if old_pw not in text:
-        raise SystemExit("flutter common.dart: --password do handleUriLink nao encontrado")
-    text = text.replace(old_pw, new_pw, 1)
+
+
+def apply_flutter_connect_title_text(text: str) -> str:
+    if "DeskRemote: busca vinculo na API se o painel nao mandou name=" in text:
+        return text
+    # Só o bloco do handleUriLink — um String? title; solto no arquivo não conta.
+    if _FLUTTER_HANDLE_URI_VARS_TITLE not in text:
+        if _FLUTTER_HANDLE_URI_VARS not in text:
+            raise SystemExit("flutter common.dart: variaveis do handleUriLink nao encontradas")
+        text = text.replace(_FLUTTER_HANDLE_URI_VARS, _FLUTTER_HANDLE_URI_VARS_TITLE, 1)
+    if _FLUTTER_HANDLE_URI_PW_TITLE not in text:
+        if _FLUTTER_HANDLE_URI_PW not in text:
+            raise SystemExit("flutter common.dart: --password do handleUriLink nao encontrado")
+        text = text.replace(_FLUTTER_HANDLE_URI_PW, _FLUTTER_HANDLE_URI_PW_TITLE, 1)
     old_call = """      case UriLinkType.remoteDesktop:
         Future.delayed(Duration.zero, () {
           rustDeskWinManager.newRemoteDesktop(id!,
@@ -1097,7 +1157,7 @@ def apply_flutter_connect_title_text(text: str) -> str:
               forceRelay: forceRelay);
         });
 """
-    new_call = """      case UriLinkType.remoteDesktop:
+    old_call_alias = """      case UriLinkType.remoteDesktop:
         Future.delayed(Duration.zero, () async {
           // DeskRemote: alias do vinculo (name= do deskrudder://).
           if (title != null && title.isNotEmpty) {
@@ -1110,9 +1170,32 @@ def apply_flutter_connect_title_text(text: str) -> str:
               title: title);
         });
 """
-    if old_call not in text:
+    new_call = """      case UriLinkType.remoteDesktop:
+        Future.delayed(Duration.zero, () async {
+          // DeskRemote: busca vinculo na API se o painel nao mandou name=.
+          // Espera até 5s: a aba é outro engine e o título só entra nos params.
+          var tituloSessao = title?.trim();
+          if (tituloSessao == null || tituloSessao.isEmpty) {
+            tituloSessao = await buscarRotuloVinculoDeskRemote(id!);
+          }
+          if (tituloSessao != null && tituloSessao.isNotEmpty) {
+            await bind.mainSetPeerAlias(id: id!, alias: tituloSessao);
+          }
+          rustDeskWinManager.newRemoteDesktop(id!,
+              password: password,
+              switchUuid: switchUuid,
+              forceRelay: forceRelay,
+              title: tituloSessao);
+        });
+"""
+    if old_call_alias in text:
+        text = text.replace(old_call_alias, new_call, 1)
+    elif old_call in text:
+        text = text.replace(old_call, new_call, 1)
+    else:
         raise SystemExit("flutter common.dart: newRemoteDesktop nao encontrado")
-    text = text.replace(old_call, new_call, 1)
+    if 'param["name"]' in text:
+        return text
     old_q = """    if (password != null) args.addAll(['--password', password]);
     String? switch_uuid = param["switch_uuid"];
 """
@@ -1600,6 +1683,7 @@ def patch_flutter_deskremote_ui(src: Path, host: str = "", key: str = "") -> Non
     model_dart = src / "flutter" / "lib" / "models" / "model.dart"
     _apply(common, apply_flutter_logo_size_text, "logo maior no painel")
     _apply(common, apply_flutter_load_icon_hq_text, "ico nitido na barra de titulo")
+    _apply(common, apply_flutter_common_vinculo_import_text, "import busca vinculo")
     _apply(common, apply_flutter_connect_title_text, "name=/--title -> alias")
     _apply(common, apply_flutter_inapp_alias_text, "alias no Conectar do Flutter")
     _apply(common, apply_flutter_session_tab_label_text, "aba da sessao sem ID")
@@ -1741,10 +1825,13 @@ def _selftest_flutter_recent_ui() -> None:
         forceRelay: forceRelay);
 """
     )
-    if "reusa alias do vinculo" not in inapp:
-        raise SystemExit("selftest flutter: Conectar do Flutter sem alias")
+    if "busca vinculo na API no Conectar" not in inapp:
+        raise SystemExit("selftest flutter: Conectar do Flutter sem busca na API")
     if apply_flutter_inapp_alias_text(inapp) != inapp:
         raise SystemExit("selftest flutter: alias in-app nao e idempotente")
+    inapp_old = apply_flutter_inapp_alias_text(_FLUTTER_INAPP_ALIAS_OLD)
+    if "busca vinculo na API no Conectar" not in inapp_old:
+        raise SystemExit("selftest flutter: patch antigo do Conectar nao atualiza")
 
     tab = apply_flutter_tabbar_text(_FLUTTER_TABBAR_TITLE)
     if "DeskRemote" not in tab or "RustDesk" in tab:
@@ -1839,8 +1926,40 @@ def _selftest_flutter_recent_ui() -> None:
     )
     if "mainSetPeerAlias" not in uri or 'param["name"]' not in uri:
         raise SystemExit("selftest flutter: alias do vinculo ausente no uni-link")
-    if "title: title" not in uri:
+    if "buscarRotuloVinculoDeskRemote" not in uri or "title: tituloSessao" not in uri:
         raise SystemExit("selftest flutter: title nao vai para a janela da sessao")
+    if apply_flutter_connect_title_text(uri) != uri:
+        raise SystemExit("selftest flutter: uni-link title nao e idempotente")
+    if "Espera até 5s" not in uri:
+        raise SystemExit("selftest flutter: espera da API sem comentario na janela")
+    stray_title = (
+        "  String? title;\n"
+        "      case '--title':\n"
+        + _FLUTTER_HANDLE_URI_VARS
+        + _FLUTTER_HANDLE_URI_PW
+        + """      case UriLinkType.remoteDesktop:
+        Future.delayed(Duration.zero, () {
+          rustDeskWinManager.newRemoteDesktop(id!,
+              password: password,
+              switchUuid: switchUuid,
+              forceRelay: forceRelay);
+        });
+    if (password != null) args.addAll(['--password', password]);
+    String? switch_uuid = param["switch_uuid"];
+"""
+    )
+    stray_patched = apply_flutter_connect_title_text(stray_title)
+    if _FLUTTER_HANDLE_URI_VARS_TITLE not in stray_patched:
+        raise SystemExit("selftest flutter: String? title; solto pulou o handleUriLink")
+    if "buscarRotuloVinculoDeskRemote" not in stray_patched:
+        raise SystemExit("selftest flutter: title solto impediu a busca do vinculo")
+    imp = apply_flutter_common_vinculo_import_text(
+        "import 'package:flutter_hbb/utils/multi_window_manager.dart';\n"
+    )
+    if "deskremote/sessao.dart" not in imp:
+        raise SystemExit("selftest flutter: common.dart sem import da busca de vinculo")
+    if apply_flutter_common_vinculo_import_text(imp) != imp:
+        raise SystemExit("selftest flutter: import vinculo nao e idempotente")
 
     core = apply_flutter_core_main_title_text(
         """            "--password" => {
@@ -1969,6 +2088,30 @@ def _selftest_flutter_recent_ui() -> None:
         raise SystemExit("selftest flutter: API do login ainda aponta ao host do painel")
     if "deveDescartarSessao" not in sessao_overlay:
         raise SystemExit("selftest flutter: erro de rede nao deve apagar a sessao")
+    if "buscarRotuloVinculoDeskRemote" not in sessao_overlay:
+        raise SystemExit("selftest flutter: busca do vinculo na frota ausente")
+    if "/rustdesk/peers" not in sessao_overlay:
+        raise SystemExit("selftest flutter: busca do vinculo sem GET /rustdesk/peers")
+    if "rotuloSessaoVinculo" not in sessao_overlay:
+        raise SystemExit("selftest flutter: rotuloSessaoVinculo ausente no overlay")
+    if _FLUTTER_ROTULO_SESSAO_FN.replace("\r\n", "\n") not in sessao_overlay.replace(
+        "\r\n", "\n"
+    ):
+        raise SystemExit("selftest flutter: formula do rotulo divergiu do painel")
+    if "Posto Farol · SERVIDOR 001" not in sessao_overlay:
+        raise SystemExit("selftest flutter: exemplo Posto Farol ausente no rotulo")
+    if _rotulo_sessao_vinculo(
+        {"rede_nome": "Posto Farol", "rotulo_nome": "SERVIDOR", "pdv_codigo": "001"}
+    ) != "Posto Farol · SERVIDOR 001":
+        raise SystemExit("selftest flutter: rotulo Posto Farol · SERVIDOR 001")
+    if _rotulo_sessao_vinculo({"rotulo_nome": "PDV", "pdv_codigo": "02"}) != "PDV 02":
+        raise SystemExit("selftest flutter: rotulo sem rede divergiu")
+    if _rotulo_sessao_vinculo({}) != "Equipamento":
+        raise SystemExit("selftest flutter: rotulo vazio deve ser Equipamento")
+    if "Duration(seconds: 5)" not in sessao_overlay:
+        raise SystemExit("selftest flutter: busca do vinculo sem timeout curto")
+    if "outro engine" not in sessao_overlay:
+        raise SystemExit("selftest flutter: timeout sem explicar a espera na aba")
     gate_overlay = (overlay / "auth_gate.dart").read_text(encoding="utf-8")
     if "_naoHerdarAposSair" not in gate_overlay:
         raise SystemExit("selftest flutter: Sair deve impedir herdar a sessao do Electron")
@@ -4215,11 +4358,14 @@ def main() -> int:
         if "DeskRemote: ico com borda branca nítida na barra de título" not in common_dart:
             print("Verificacao falhou: loadIcon da barra sem nitidez.", file=sys.stderr)
             return 1
-        if "DeskRemote: alias do vinculo" not in common_dart:
+        if "deskremote/sessao.dart" not in common_dart:
+            print("Verificacao falhou: common.dart sem import da busca de vinculo.", file=sys.stderr)
+            return 1
+        if "DeskRemote: busca vinculo na API se o painel nao mandou name=" not in common_dart:
             print("Verificacao falhou: alias do vinculo ausente no Flutter.", file=sys.stderr)
             return 1
-        if "DeskRemote: reusa alias do vinculo" not in common_dart:
-            print("Verificacao falhou: Conectar do Flutter nao reusa o alias.", file=sys.stderr)
+        if "DeskRemote: busca vinculo na API no Conectar" not in common_dart:
+            print("Verificacao falhou: Conectar do Flutter nao busca o vinculo.", file=sys.stderr)
             return 1
         if "DeskRemote: vinculo (alias) ou usuario@host na aba" not in common_dart:
             print("Verificacao falhou: aba da sessao Flutter ainda usa o ID.", file=sys.stderr)
@@ -4300,6 +4446,9 @@ def main() -> int:
             return 1
         if "https://$slug.$kDeskRemoteApex/v1" in overlay_sessao_txt:
             print("Verificacao falhou: login Flutter ainda chama o host do painel.", file=sys.stderr)
+            return 1
+        if "buscarRotuloVinculoDeskRemote" not in overlay_sessao_txt:
+            print("Verificacao falhou: busca do vinculo na frota ausente no overlay.", file=sys.stderr)
             return 1
     flutter_multi = src / "flutter" / "lib" / "utils" / "multi_window_manager.dart"
     if flutter_multi.is_file():
