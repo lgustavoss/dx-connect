@@ -567,10 +567,10 @@ _FLUTTER_PANE_WIDTH = """        width: isIncomingOnly ? 280.0 : 200.0,
 _FLUTTER_PANE_WIDTH_NEW = """        width: isIncomingOnly ? 280.0 : 224.0, // DeskRemote: logo 160 + nome
 """
 
-_FLUTTER_TABBAR_H = "const kDesktopRemoteTabBarHeight = 28.0;"
+_FLUTTER_TABBAR_H = "const double kDesktopRemoteTabBarHeight = 28.0;"
 
 _FLUTTER_TABBAR_H_NEW = (
-    "const kDesktopRemoteTabBarHeight = 36.0; "
+    "const double kDesktopRemoteTabBarHeight = 36.0; "
     "// DeskRemote: ico 24px + nome na barra"
 )
 
