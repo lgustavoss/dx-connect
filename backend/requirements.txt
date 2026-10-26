@@ -1,7 +1,7 @@
 # Necessário para `Form()` / `UploadFile` (envio de mídia WhatsApp, etc.).
 python-multipart==0.0.32
 fastapi==0.143.3
-starlette==1.8.0
+starlette==1.9.0
 uvicorn[standard]==0.54.0
 gunicorn==26.2.0
 sqlalchemy==2.0.54
