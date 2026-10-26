@@ -12,6 +12,7 @@ type Props = {
   total: number
   pageSize?: number
   onPageChange: (page: number) => void
+  /** Bloqueia só a paginação. O campo de busca permanece editável para não perder o foco (#S202610-0019). */
   disabled?: boolean
   extra?: React.ReactNode
 }
@@ -32,14 +33,16 @@ export function BarraBuscaPaginacao({
   const fim = Math.min(page * pageSize, total)
 
   return (
-    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+    <div
+      className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between"
+      aria-busy={disabled || undefined}
+    >
       <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-2xl sm:flex-row sm:items-end">
         <input
           type="search"
           value={busca}
           onChange={(e) => onBuscaChange(e.target.value)}
           placeholder={placeholder}
-          disabled={disabled}
           className={`${INPUT_FIELD_CLASS} min-h-[2.5rem] text-sm`}
           aria-label="Buscar na listagem"
         />
