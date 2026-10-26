@@ -10,8 +10,10 @@ Todos os tamanhos usam a arte completa (D + atendente + globo + nuvem).
 
 from __future__ import annotations
 
+import struct
 import time
 from collections import deque
+from io import BytesIO
 from pathlib import Path
 
 from PIL import Image, ImageFilter
@@ -262,6 +264,41 @@ def _crop_pad_square(im: Image.Image, pad_ratio: float = 0.06) -> Image.Image:
     return out
 
 
+def _dilate_alpha(alpha: Image.Image, pixels: int) -> Image.Image:
+    """Expande o canal alfa em `pixels` (MaxFilter em passos ímpares)."""
+    out = alpha
+    remaining = max(0, pixels)
+    while remaining > 0:
+        step = min(remaining, 25)
+        out = out.filter(ImageFilter.MaxFilter(step * 2 + 1))
+        remaining -= step
+    return out
+
+
+def _add_silhouette_outline(
+    im: Image.Image,
+    width_ratio: float = 0.05,
+    color: tuple[int, int, int, int] = (248, 250, 252, 255),
+) -> Image.Image:
+    """Halo branco no recorte — o D e o personagem leem na taskbar escura.
+
+    O DeskRudder do painel usa o mesmo truque (`deskrudder-pwa-512-outline`).
+    Sem isso, cabelo/notebook/globo pretos somem no fundo da barra.
+    """
+    rgba = im.convert("RGBA")
+    width_px = max(3, int(round(min(rgba.size) * width_ratio)))
+    extra = width_px + 2
+    canvas = Image.new("RGBA", (rgba.width + 2 * extra, rgba.height + 2 * extra), (0, 0, 0, 0))
+    canvas.paste(rgba, (extra, extra), rgba)
+    dilated = _dilate_alpha(canvas.split()[-1], width_px)
+    dilated = dilated.filter(ImageFilter.GaussianBlur(radius=0.8))
+    ring = Image.new("RGBA", canvas.size, color)
+    base = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    base.paste(ring, (0, 0), dilated)
+    base.alpha_composite(canvas)
+    return _crop_pad_square(base, pad_ratio=0.012)
+
+
 def _drop_small_components(im: Image.Image, min_pixels: int = 400) -> Image.Image:
     """Remove fragmentos soltos (ex.: topo de letras do wordmark)."""
     w, h = im.size
@@ -327,14 +364,22 @@ def _fit_square(im: Image.Image, size: int) -> Image.Image:
     ox = (size - fitted.width) // 2
     oy = (size - fitted.height) // 2
     out.paste(fitted, (ox, oy), fitted)
-    if size <= 48:
-        out = out.filter(ImageFilter.UnsharpMask(radius=0.6, percent=120, threshold=2))
+    if size <= 64:
+        out = out.filter(ImageFilter.UnsharpMask(radius=0.85, percent=165, threshold=1))
     return out
 
 
+def _soften_jpeg_blocks(im: Image.Image) -> Image.Image:
+    """SMOOTH no RGB para esconder blocos 8x8 do JPEG; alfa intacto."""
+    rgba = im.convert("RGBA")
+    red, green, blue, alpha = rgba.split()
+    rgb = Image.merge("RGB", (red, green, blue)).filter(ImageFilter.SMOOTH_MORE)
+    return Image.merge("RGBA", (*rgb.split(), alpha))
+
+
 def _ui_logo(full: Image.Image, size: int) -> Image.Image:
-    """Arte completa com fundo transparente para o painel host (dark e light)."""
-    return _fit_square(full, size)
+    """Arte completa, LANCZOS + SMOOTH — painel do atendente sem quadradinhos."""
+    return _fit_square(_soften_jpeg_blocks(full), size)
 
 
 def _write_image(im: Image.Image, path: Path, **kwargs) -> None:
@@ -356,10 +401,42 @@ def _write_image(im: Image.Image, path: Path, **kwargs) -> None:
     raise last or OSError(f"falha ao gravar {path}")
 
 
+def _png_bytes(im: Image.Image) -> bytes:
+    buf = BytesIO()
+    im.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _save_png_ico(path: Path, frames: list[Image.Image]) -> None:
+    """ICO com PNG embutido (igual ao DeskRudder Electron) — Windows lê 16/24/32/48."""
+    blobs = [_png_bytes(frame) for frame in frames]
+    n = len(frames)
+    offset = 6 + 16 * n
+    cabeca = struct.pack("<HHH", 0, 1, n)
+    entradas = bytearray()
+    for img, blob in zip(frames, blobs, strict=True):
+        w, h = img.size
+        wb = 0 if w >= 256 else w
+        hb = 0 if h >= 256 else h
+        entradas += struct.pack("<BBBBHHII", wb, hb, 0, 0, 1, 32, len(blob), offset)
+        offset += len(blob)
+    tmp = path.with_name(f"{path.stem}.__tmp__{path.suffix}")
+    tmp.write_bytes(cabeca + bytes(entradas) + b"".join(blobs))
+    last: OSError | None = None
+    for attempt in range(10):
+        try:
+            tmp.replace(path)
+            return
+        except OSError as exc:
+            last = exc
+            time.sleep(0.15 * (attempt + 1))
+    raise last or OSError(f"falha ao gravar {path}")
+
+
 def _save_ico(path: Path, frames: list[Image.Image], sizes: list[tuple[int, int]]) -> None:
-    _write_image(
-        frames[-1], path, format="ICO", sizes=sizes, append_images=frames[:-1]
-    )
+    if len(frames) != len(sizes):
+        raise SystemExit(f"ICO {path.name}: {len(frames)} frames vs {len(sizes)} tamanhos")
+    _save_png_ico(path, frames)
 
 
 def write_kit_1253(kit: Path, icon_for, full: Image.Image) -> None:
@@ -382,15 +459,16 @@ def write_kit_1253(kit: Path, icon_for, full: Image.Image) -> None:
     _write_image(icon_for(32), kit / "01_titlebar" / "titlebar-32.png")
 
     _write_image(icon_for(32), kit / "02_tray" / "tray-32.png")
-    _write_image(icon_for(32), kit / "02_tray" / "tray.ico", format="ICO", sizes=[(32, 32)])
+    _save_png_ico(kit / "02_tray" / "tray.ico", [icon_for(32)])
 
     _write_image(icon_for(16), kit / "03_taskbar" / "taskbar-16.png")
+    _write_image(icon_for(24), kit / "03_taskbar" / "taskbar-24.png")
     _write_image(icon_for(32), kit / "03_taskbar" / "taskbar-32.png")
     _write_image(icon_for(48), kit / "03_taskbar" / "taskbar-48.png")
     _write_image(icon_for(64), kit / "03_taskbar" / "taskbar-64.png")
     _write_image(icon_for(256), kit / "03_taskbar" / "taskbar-256.png")
 
-    ico_sizes = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
+    ico_sizes = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
     frames = [icon_for(iw) for iw, _ih in ico_sizes]
     _save_ico(kit / "04_app_ico" / "app-icon.ico", frames, ico_sizes)
 
@@ -417,17 +495,29 @@ def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     raw = Image.open(source)
     rgba = _to_rgba_transparent(raw)
-    full = _feather_alpha(_crop_pad_square(rgba, pad_ratio=0.04))
+    tight = _crop_pad_square(rgba, pad_ratio=0.02)
+    # Painel: arte completa, recorte curto (sem halo grosso).
+    full = _feather_alpha(tight, radius=0.8)
+    # Taskbar/ICO: halo branco + recorte curto, como o ícone do DeskRudder.
+    icon_master = _add_silhouette_outline(tight, width_ratio=0.05)
 
     _write_image(full, out_dir / "icon-source-1024.png")
     _write_image(rgba, out_dir / "icon-source-official.png")
 
-    full_fit: dict[int, Image.Image] = {}
+    outlined_fit: dict[int, Image.Image] = {}
+    sciter_fit: dict[int, Image.Image] = {}
 
     def icon_for(size: int) -> Image.Image:
-        if size not in full_fit:
-            full_fit[size] = _fit_square(full, size)
-        return full_fit[size]
+        """Flutter / kit-1253: halo branco (taskbar e barra de titulo)."""
+        if size not in outlined_fit:
+            outlined_fit[size] = _fit_square(icon_master, size)
+        return outlined_fit[size]
+
+    def sciter_icon(size: int) -> Image.Image:
+        """Sciter 1.x de producao: sem halo extra, para o posto nao mudar no rebuild."""
+        if size not in sciter_fit:
+            sciter_fit[size] = _fit_square(full, size)
+        return sciter_fit[size]
 
     mapping = {
         "deskrudder-16.png": 16,
@@ -443,17 +533,22 @@ def write_branding(out_dir: Path, source: Path = DEFAULT_SOURCE) -> None:
         "icon.png": 256,
     }
     for name, size in mapping.items():
-        _write_image(icon_for(size), out_dir / name)
+        _write_image(sciter_icon(size), out_dir / name)
 
     _write_image(_ui_logo(full, 512), out_dir / "ui-logo-512.png")
     _write_image(_ui_logo(full, 256), out_dir / "ui-logo-256.png")
 
-    ico_sizes = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
-    frames = [icon_for(iw) for iw, _ih in ico_sizes]
-    _save_ico(out_dir / "icon.ico", frames, ico_sizes)
-    _write_image(icon_for(32), out_dir / "tray-icon.ico", format="ICO", sizes=[(32, 32)])
+    ico_sizes = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
+    sciter_frames = [sciter_icon(iw) for iw, _ih in ico_sizes]
+    _save_ico(out_dir / "icon.ico", sciter_frames, ico_sizes)
+    _save_png_ico(out_dir / "tray-icon.ico", [sciter_icon(32)])
     write_kit_1253(KIT_DIR, icon_for, full)
-    print(f">> icones gerados de {source.name} em {out_dir}")
+    probe = icon_for(32)
+    box = _content_bbox(probe, 20)
+    fill = ((box[2] - box[0]) * (box[3] - box[1])) / (32 * 32)
+    if fill < 0.78:
+        raise SystemExit(f"taskbar 32px muito vazio (fill={fill:.2%})")
+    print(f">> icones gerados de {source.name} em {out_dir} (taskbar 32 fill={fill:.0%})")
 
 
 def main() -> int:
