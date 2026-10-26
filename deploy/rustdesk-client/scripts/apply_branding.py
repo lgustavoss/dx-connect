@@ -1434,7 +1434,8 @@ def apply_flutter_session_window_title_text(text: str) -> str:
     if old_rd not in text:
         raise SystemExit("flutter multi_window_manager: newRemoteDesktop nao encontrado")
     text = text.replace(old_rd, new_rd, 1)
-    old_sess = """    String? isSharedPassword,
+    old_sess = """    bool? isRDP,
+    bool? isSharedPassword,
     String? connToken,
   }) async {
     var params = {
@@ -1444,7 +1445,8 @@ def apply_flutter_session_window_title_text(text: str) -> str:
       "forceRelay": forceRelay
     };
 """
-    new_sess = """    String? isSharedPassword,
+    new_sess = """    bool? isRDP,
+    bool? isSharedPassword,
     String? connToken,
     String? title,
   }) async {
@@ -1870,7 +1872,8 @@ def _selftest_flutter_recent_ui() -> None:
       isSharedPassword: isSharedPassword,
     );
   }
-    String? isSharedPassword,
+    bool? isRDP,
+    bool? isSharedPassword,
     String? connToken,
   }) async {
     var params = {
