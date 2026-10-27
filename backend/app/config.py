@@ -103,6 +103,9 @@ class Settings(BaseSettings):
     # O hbbs trata o computador como inacessível após 30s sem o registro do cliente.
     RUSTDESK_ONLINE_SECONDS: int = 45
     RUSTDESK_SYNC_MIN_INTERVAL_SECONDS: int = 30
+    # Host público da API (ex.: api-cliente.deskrudder.com.br). Vazio = deriva de CLIENT_APP_HOST.
+    PUBLIC_API_HOST: str | None = None
+    DESKREMOTE_INSTALL_TOKEN_EXPIRE_HOURS: int = 72
 
     # Control-plane comercial DeskRudder (painel de licenças / SaaS).
     # True só na instância deskrudder.com.br — False nas instâncias dos clientes.

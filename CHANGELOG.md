@@ -9,6 +9,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Empresas → PDVs: quem edita a empresa gera um **QR e um link de instalação** do DeskRemote, de uso único, ligados àquele computador. A senha cadastrada não aparece no QR — o aplicativo aplica sozinho. Se a senha mudar no painel, o PDV atualiza sem alguém conectar
+- DeskRemote no PDV (versão 2.0, Flutter): instalador genérico, sem servidor de um cliente só. No primeiro uso cola o link do painel; depois mostra só ID e status, e não deixa trocar a senha no computador
 - App Windows: no menu **DeskRudder** (janela e bandeja) dá para abrir **Sobre** com a versão do aplicativo e **atualizar** quando houver uma versão mais recente
 - Empresas e redes (#S202610-0015): o cadastro da empresa guarda a versão do PDV; o da rede, a versão do retaguarda. As versões aparecem na aba PDVs, no Acesso remoto e no detalhe do ticket.
 - Empresas → PDVs (#S202610-0014): dá para ver o detalhe do PDV sem editar; um PDV pode ter vários acessos remotos. **Conectar** só no DeskRudder — nos outros (AnyDesk, TeamViewer etc.) o atendente copia ID e senha e abre o programa. Na lista ficam só código, rótulo, papel e TEF; ID, senha e status vão no detalhe (clique copia ID/senha; Online/Offline ao lado do DeskRudder). Consulta, cadastro e edição abrem na própria tela, sem popup.
@@ -70,6 +72,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Interno
 
+- DeskRemote cliente Flutter **2.0.0** (#1252 / #1283): token de instalação, credencial do computador, sync de senha, workflow `acesso-remoto-windows-flutter` (não sobrescreve o Sciter `acesso-remoto-windows`)
 - DeskRemote: kit de arte (#1253) e spike Flutter do atendente (Actions paralelo; Sciter 1.0.14 continua em produção)
 - DeskRemote Flutter: «Desenvolvido por DeskRudder» no rodapé do painel esquerdo, com a versão atual logo abaixo
 - DeskRemote Flutter: logo no topo do painel; só a aba Sessões recentes (10 últimas), com o nome do vínculo no lugar do ID

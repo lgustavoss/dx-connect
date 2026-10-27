@@ -4286,6 +4286,11 @@ export const empresaPdvs = {
     api<EmpresaPdv.Credencial>(`/empresas/${empresaId}/pdvs/${pdvId}/credencial`),
   revelarCredencialAcesso: (empresaId: number, pdvId: number, acessoId: number) =>
     api<EmpresaPdv.Credencial>(`/empresas/${empresaId}/pdvs/${pdvId}/acessos/${acessoId}/credencial`),
+  gerarTokenDeskRemote: (empresaId: number, pdvId: number, acessoId?: number | null) =>
+    api<EmpresaPdv.TokenInstalacao>(`/empresas/${empresaId}/pdvs/${pdvId}/deskremote/token`, {
+      method: 'POST',
+      body: JSON.stringify({ acesso_id: acessoId ?? null }),
+    }),
 };
 
 export const rustdeskPeers = {
@@ -4459,6 +4464,13 @@ export namespace EmpresaPdv {
   }
   export interface Credencial {
     acesso_remoto_senha: string;
+  }
+  export interface TokenInstalacao {
+    url: string
+    expira_em: string
+    pdv_id: number
+    acesso_id: number
+    rotulo: string
   }
 }
 

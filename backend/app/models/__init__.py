@@ -54,6 +54,7 @@ from app.models.business_calendar import BusinessCalendar
 from app.models.sla_policy import SlaPolicy
 from app.models.sla_alerta_emitido import SlaAlertaEmitido
 from app.models.empresa_pdv import EmpresaPdv, EmpresaPdvAcessoRemoto, PdvRotulo, PdvTipoAcessoRemoto
+from app.models.deskremote_enroll import DeskremoteDispositivo, DeskremoteInstallToken
 from app.models.rustdesk_peer import RustdeskPeer
 from app.models.kb import KbArticle, KbArticleFeedbackVote, KbArticleMotivoLink, KbArticleVersion, KbCategory, KbPortalSettings
 from app.models.portal_chat import PortalChat, PortalChatRead as PortalChatReadRow, PortalMensagem
@@ -172,6 +173,8 @@ __all__ = [
     "PdvTipoAcessoRemoto",
     "EmpresaPdv",
     "EmpresaPdvAcessoRemoto",
+    "DeskremoteInstallToken",
+    "DeskremoteDispositivo",
     "RustdeskPeer",
     "KbCategory",
     "KbArticle",

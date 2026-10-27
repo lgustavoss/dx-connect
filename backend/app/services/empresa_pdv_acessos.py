@@ -78,7 +78,10 @@ def aplicar_acessos(db: Session, pdv: EmpresaPdv, itens: list[EmpresaPdvAcessoWr
             acesso.acesso_remoto_id = rid
             acesso.ordem_exibicao = ordem
             if senha is not None:
-                acesso.acesso_remoto_senha_cifrada = encrypt_str(senha.strip()) if senha.strip() else None
+                nova = encrypt_str(senha.strip()) if senha.strip() else None
+                if senha.strip():
+                    acesso.senha_versao = int(acesso.senha_versao or 0) + 1
+                acesso.acesso_remoto_senha_cifrada = nova
             vistos.add(acesso.id)
             continue
         cifrada = encrypt_str(senha.strip()) if senha and senha.strip() else None
@@ -88,6 +91,7 @@ def aplicar_acessos(db: Session, pdv: EmpresaPdv, itens: list[EmpresaPdvAcessoWr
             tipo_acesso_remoto_id=tipo.id if tipo else None,
             acesso_remoto_id=rid,
             acesso_remoto_senha_cifrada=cifrada,
+            senha_versao=1,
             ordem_exibicao=ordem,
         )
         if tipo is not None:

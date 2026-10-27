@@ -1,29 +1,31 @@
 # Cliente Windows DeskRudder (acesso remoto)
 
-Há **quatro workflows** no Actions (nomes na UI):
+Há **cinco workflows** no Actions (nomes na UI):
 
 | Workflow | Artefato | Release | Uso |
 |----------|----------|---------|-----|
-| **Acesso Remoto Cliente (Windows)** | `DeskRudder-AcessoRemoto.exe` | `acesso-remoto-windows` | PC do **posto** — só recebe |
+| **Acesso Remoto Cliente (Windows)** | `DeskRudder-AcessoRemoto.exe` | `acesso-remoto-windows` | PC do **cliente** (Sciter, produção) — só recebe |
 | **Acesso Remoto Atendente (Windows)** | `DeskRudder-AcessoRemoto-Controle.exe` | `acesso-remoto-controle-windows` | Remoto do **atendente** (frota) |
 | **App Atendente Setup (Windows)** | `DeskRudder-Setup.exe` | `desktop-windows` | Painel + embute o remoto atendente já publicado |
 | **Acesso Remoto Atendente Flutter (spike)** | `DeskRudder-AcessoRemoto-Controle-Flutter.exe` | `acesso-remoto-controle-flutter-windows` | UI Flutter x64 do atendente — **não** substitui o Sciter |
+| **Acesso Remoto Cliente Flutter (spike)** | `DeskRudder-AcessoRemoto-Flutter.exe` | `acesso-remoto-windows-flutter` | UI Flutter x64 do cliente, instalador **genérico** — **não** substitui o Sciter |
 
 Assim o Setup do painel fica rápido; o build longo do RustDesk só roda quando o remoto muda.
 
 **Cliente — o que o posto recebe:**  
 `DeskRudder-AcessoRemoto-<versão>.exe` com marca DeskRudder e servidor Duplex (`31.97.160.79` + chave).
 
-Cliente e atendente usam o **mesmo** `deploy/rustdesk-client/branding/` (e `kit-1253/` para Flutter). Ao trocar a arte: regenere com `render_remote_icons.py`, suba a versão do canal (`CLIENT_VERSION` no Sciter, `CLIENT_VERSION_FLUTTER` no Flutter) e rode os workflows de remoto.
+Cliente e atendente usam o **mesmo** `deploy/rustdesk-client/branding/` (e `kit-1253/` para Flutter). Ao trocar a arte: regenere com `render_remote_icons.py`, suba a versão do canal (`CLIENT_VERSION` no Sciter, `CLIENT_VERSION_FLUTTER` no Flutter do atendente, `CLIENT_VERSION_FLUTTER_CLIENTE` no Flutter do cliente) e rode os workflows de remoto.
 
 ## Versão (importante)
 
-Há **três** números envolvidos:
+Há **quatro** números envolvidos:
 
 | O quê | Onde | Muda quando |
 |-------|------|-------------|
 | **Sciter (produção)** (`CLIENT_VERSION`, linha **1.x.x**, ex.: `1.0.14`) | UI, instalação e update dos Releases `acesso-remoto-windows` e `acesso-remoto-controle-windows` | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION` e gera o build Sciter |
 | **Flutter (spike atendente)** (`CLIENT_VERSION_FLUTTER`, linha **2.x.x**, ex.: `2.2.0`) | UI Flutter e update do Release `acesso-remoto-controle-flutter-windows` | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION_FLUTTER` e gera o spike Flutter |
+| **Flutter (spike cliente)** (`CLIENT_VERSION_FLUTTER_CLIENTE`, linha **2.x.x**, ex.: `2.0.0`) | UI Flutter e update do Release `acesso-remoto-windows-flutter` | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION_FLUTTER_CLIENTE` e gera o spike do cliente |
 | **Tag RustDesk** (ex.: `1.5.0`) | `Cargo.toml` → `crate::VERSION` anunciada ao peer (protocolo / modo de teclado) | Só quando escolhemos uma tag mais nova do upstream no Actions |
 
 A linha **1.x.x fica no Sciter**; o Flutter **não** reutiliza esse número — começa em **2.0.0** para não misturar instalador nem canal de update. A tag `1.5.0` **não sobe sozinha** a cada build — é a base do RustDesk.
@@ -100,13 +102,23 @@ O instalador é pensado para o PC que **vai ser acessado** (PDV / posto):
 
 ### Senha (uso único × permanente)
 
-Por padrão o app usa **senha de uso único** (muda se alguém clicar no ícone de atualizar). **Não há senha permanente pré-configurada.**
+No **Sciter de produção**, o app usa **senha de uso único** por padrão (muda se alguém clicar no ícone de atualizar). **Não há senha permanente pré-configurada.**
 
-Para acesso estável no posto:
+Para acesso estável no posto (Sciter):
 
 1. Clique no lápis ao lado da senha
 2. **Definir senha permanente** e escolha uma senha da equipe
 3. Em **Usar senha permanente** (ou «ambas»), o refresh da senha de uso único deixa de impedir o acesso
+
+No **spike Flutter do cliente (2.0.0)**, a senha permanente **vem do painel**. Não dá para editar no app: quem tem `empresas.editar` gera um QR/link na ficha do PDV; o DeskRemote resgata o token, aplica o servidor da instância e a senha cadastrada, e devolve o ID. Se a senha mudar no cadastro, o PC aplica sozinho na próxima consulta (cerca de 2 minutos, ou ao ligar).
+
+### Token de instalação (cliente Flutter)
+
+1. Cadastre o PDV com senha DeskRemote.
+2. Na ficha do PDV, **Gerar QR e link** (uso único, ~72 h). A senha **não** vai no QR.
+3. No PC, instale `DeskRudder-AcessoRemoto-Flutter.exe` (Release `acesso-remoto-windows-flutter`) e cole o link.
+4. O app chama `POST /v1/deskremote/enroll` na API da instância (`api-{slug}.deskrudder.com.br`), grava a credencial em `%APPDATA%\DeskRudder\deskremote-dispositivo.json` e confirma o ID.
+5. Gerar de novo no mesmo PDV invalida o link anterior; o próximo resgate substitui o computador vinculado.
 
 ## Comportamento do cliente (atendente)
 
@@ -132,11 +144,13 @@ A partir da **2.1.1**, a aba da sessão usa o rótulo do vínculo (ex. `Posto Fa
 | `deploy/rustdesk-client/server.config.json` | Host e chave |
 | `deploy/rustdesk-client/CLIENT_VERSION` | Versão Sciter (produção, **1.x.x**) |
 | `deploy/rustdesk-client/CLIENT_VERSION_FLUTTER` | Versão Flutter do atendente (**2.x.x**) |
+| `deploy/rustdesk-client/CLIENT_VERSION_FLUTTER_CLIENTE` | Versão Flutter do cliente (**2.x.x**, começa em 2.0.0) |
 | `deploy/rustdesk-client/branding/` | Arte oficial + `icon.ico`/tray/PNGs — regenerar com `scripts/render_remote_icons.py` |
 | `deploy/rustdesk-client/scripts/apply_branding.py` | Patch no clone |
-| `deploy/rustdesk-client/flutter-overlay/` | Login do atendente (copiado para o clone Flutter) |
+| `deploy/rustdesk-client/flutter-overlay/` | Login do atendente + token/sync do cliente (copiado para o clone Flutter) |
 | `deploy/rustdesk-client/scripts/encode_config.py` | Gera/decodifica string de import (debug) |
-| `.github/workflows/rustdesk-deskrudder-windows.yml` | Build do `.exe` |
+| `.github/workflows/rustdesk-deskrudder-windows.yml` | Build Sciter do cliente |
+| `.github/workflows/acesso-remoto-cliente-flutter-windows.yml` | Spike Flutter do cliente (token + instalador genérico) |
 
 ## Licença
 
