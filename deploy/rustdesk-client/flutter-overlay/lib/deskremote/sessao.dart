@@ -183,7 +183,7 @@ Future<Map<String, dynamic>> _httpJson({
 }) async {
   final client = HttpClient();
   client.connectionTimeout = const Duration(seconds: 20);
-  client.userAgent = 'DeskRemote/2.1.1';
+  client.userAgent = 'DeskRemote/2.2.0';
   try {
     final req = method == 'GET'
         ? await client.getUrl(uri)
@@ -320,6 +320,147 @@ String rotuloSessaoVinculo(Map<String, dynamic> vinculo) {
 
 String _soDigitosId(String id) => id.replaceAll(RegExp(r'\D'), '');
 
+class DeskRemoteFrotaItem {
+  const DeskRemoteFrotaItem({
+    required this.rustdeskId,
+    required this.rotulo,
+    this.online,
+    this.hostname,
+    this.empresaId,
+    this.pdvId,
+    this.idRepetido = false,
+    this.rotulosVinculos = const [],
+  });
+
+  final String rustdeskId;
+  final String rotulo;
+  final bool? online;
+  final String? hostname;
+  final int? empresaId;
+  final int? pdvId;
+  final bool idRepetido;
+  final List<String> rotulosVinculos;
+}
+
+Future<Map<String, dynamic>> _listarPeersVinculados(DeskRemoteSessao s) {
+  return _httpJson(
+    uri: urlApi(s.slug, '/rustdesk/peers').replace(
+      queryParameters: const {'filtro': 'vinculado'},
+    ),
+    method: 'GET',
+    bearer: s.accessToken,
+  );
+}
+
+DeskRemoteFrotaItem? _itemDaFrota(Map<String, dynamic> peer) {
+  final id = _soDigitosId((peer['rustdesk_id'] ?? '').toString());
+  if (id.isEmpty) return null;
+  final vinculos = peer['vinculos'];
+  final rotulos = <String>[];
+  int? empresaId;
+  int? pdvId;
+  if (vinculos is List) {
+    for (final raw in vinculos) {
+      if (raw is! Map) continue;
+      final mapa = Map<String, dynamic>.from(raw);
+      final nome = rotuloSessaoVinculo(mapa).trim();
+      if (nome.isNotEmpty) rotulos.add(nome);
+    }
+    if (vinculos.length == 1 && vinculos.first is Map) {
+      final unico = Map<String, dynamic>.from(vinculos.first as Map);
+      empresaId = int.tryParse((unico['empresa_id'] ?? '').toString());
+      pdvId = int.tryParse((unico['pdv_id'] ?? '').toString());
+    }
+  }
+  final hostname = (peer['hostname'] ?? '').toString().trim();
+  final repetido = peer['id_repetido'] == true ||
+      (vinculos is List && vinculos.length > 1);
+  // ID em vários PDVs: não inventar um rótulo único (o do primeiro PDV).
+  final rotulo = repetido
+      ? (hostname.isEmpty ? 'Computador em vários PDVs' : hostname)
+      : (rotulos.isEmpty
+          ? (hostname.isEmpty ? id : hostname)
+          : rotulos.first);
+  return DeskRemoteFrotaItem(
+    rustdeskId: id,
+    rotulo: rotulo,
+    online: peer['online'] is bool ? peer['online'] as bool : null,
+    hostname: hostname.isEmpty ? null : hostname,
+    empresaId: empresaId,
+    pdvId: pdvId,
+    idRepetido: repetido,
+    rotulosVinculos: rotulos,
+  );
+}
+
+/// Frota do sistema (PDVs vinculados). Exige sessão DeskRudder.
+Future<List<DeskRemoteFrotaItem>> listarFrotaVinculadaDeskRemote() async {
+  final inicial = lerSessaoDeskRemote();
+  if (inicial == null) {
+    throw DeskRemoteAuthErro('Entre com a conta DeskRudder para ver a frota.');
+  }
+  DeskRemoteSessao sessao = inicial;
+  Map<String, dynamic> json;
+  try {
+    json = await _listarPeersVinculados(sessao);
+  } on DeskRemoteAuthErro catch (e) {
+    if (e.status != 401) rethrow;
+    final nova = await renovarSessaoDeskRemote(sessao);
+    if (nova == null) rethrow;
+    gravarSessaoDeskRemote(nova);
+    sessao = nova;
+    json = await _listarPeersVinculados(sessao);
+  }
+  final items = json['items'];
+  if (items is! List) return const [];
+  final out = <DeskRemoteFrotaItem>[];
+  for (final raw in items) {
+    if (raw is! Map) continue;
+    final item = _itemDaFrota(Map<String, dynamic>.from(raw));
+    if (item != null) out.add(item);
+  }
+  return out;
+}
+
+/// Senha do cadastro do PDV. 404/403 = sem senha ou sem permissão.
+Future<String?> senhaPdvDeskRemote({
+  required int empresaId,
+  required int pdvId,
+}) async {
+  final inicial = lerSessaoDeskRemote();
+  if (inicial == null) return null;
+  Future<String?> pedir(DeskRemoteSessao s) async {
+    try {
+      final json = await _httpJson(
+        uri: urlApi(s.slug, '/empresas/$empresaId/pdvs/$pdvId/credencial'),
+        method: 'GET',
+        bearer: s.accessToken,
+      );
+      final senha = (json['acesso_remoto_senha'] ?? '').toString().trim();
+      return senha.isEmpty ? null : senha;
+    } on DeskRemoteAuthErro catch (e) {
+      if (e.status == 401) rethrow;
+      return null;
+    }
+  }
+
+  try {
+    return await pedir(inicial);
+  } on DeskRemoteAuthErro catch (e) {
+    if (e.status != 401) return null;
+    final nova = await renovarSessaoDeskRemote(inicial);
+    if (nova == null) return null;
+    gravarSessaoDeskRemote(nova);
+    try {
+      return await pedir(nova);
+    } catch (_) {
+      return null;
+    }
+  } catch (_) {
+    return null;
+  }
+}
+
 /// Rótulo do vínculo na frota (um PDV). Sem sessão, sem permissão ou ID
 /// repetido: `null` — a aba cai no alias/`name=` ou em usuário@host.
 Future<String?> buscarRotuloVinculoDeskRemote(String rustdeskId) async {
@@ -328,14 +469,6 @@ Future<String?> buscarRotuloVinculoDeskRemote(String rustdeskId) async {
   final inicial = lerSessaoDeskRemote();
   if (inicial == null) return null;
 
-  Future<Map<String, dynamic>> listar(DeskRemoteSessao s) => _httpJson(
-        uri: urlApi(s.slug, '/rustdesk/peers').replace(
-          queryParameters: const {'filtro': 'vinculado'},
-        ),
-        method: 'GET',
-        bearer: s.accessToken,
-      );
-
   try {
     return await () async {
       // Tipo não nulo aqui: o Dart não promove `DeskRemoteSessao?` capturado
@@ -343,14 +476,14 @@ Future<String?> buscarRotuloVinculoDeskRemote(String rustdeskId) async {
       DeskRemoteSessao sessao = inicial;
       Map<String, dynamic> json;
       try {
-        json = await listar(sessao);
+        json = await _listarPeersVinculados(sessao);
       } on DeskRemoteAuthErro catch (e) {
         if (e.status != 401) return null;
         final nova = await renovarSessaoDeskRemote(sessao);
         if (nova == null) return null;
         gravarSessaoDeskRemote(nova);
         sessao = nova;
-        json = await listar(sessao);
+        json = await _listarPeersVinculados(sessao);
       }
       final items = json['items'];
       if (items is! List) return null;

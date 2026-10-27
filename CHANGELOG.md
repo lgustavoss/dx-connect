@@ -76,6 +76,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - DeskRemote: Sciter de produção continua na linha **1.x.x**; o Flutter do atendente começa em **2.0.0** (Release e update separados)
 - DeskRemote Flutter: CI atualiza o `Cargo.lock` depois de gravar a versão 2.x.x no packer (`cargo build --locked`)
 - DeskRemote Flutter: o nome do vínculo no cartão não quebra o menu Excluir (`displayName` só no layout)
+- DeskRemote Flutter **2.2.0**: na home, a aba **Vinculados** lista a frota do sistema (nome do vínculo e Online/Offline); o clique conecta, com a senha do cadastro quando a conta puder revelá-la (#1281)
 - DeskRemote Flutter **2.1.1**: ao conectar pelo painel num computador com vínculo, a aba mostra o nome (ex. Posto Farol · SERVIDOR 001) e não o ID — mesmo se o painel antigo não mandar o rótulo; basta estar logado no DeskRemote (#1276)
 - DeskRemote Flutter **2.1.1**: o build volta a compilar — o Dart recusava sessão nula ao buscar o rótulo do vínculo
 - DeskRemote Flutter **2.1.0**: a home (Recentes e Conectar) pede o mesmo login do DeskRudder; se o atendente já entrou no app Electron neste PC com “lembrar-me”, o atalho não pergunta de novo; Conectar pelo painel segue sem pedir senha; **Sair** no DeskRemote não reloga sozinho (#1274)
