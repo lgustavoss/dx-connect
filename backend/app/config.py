@@ -269,7 +269,7 @@ class Settings(BaseSettings):
 def _database_url_exige_ssl(database_url: str) -> bool:
     """True se a URL PostgreSQL indica TLS (sslmode ou ssl=true na query)."""
     u = database_url.strip().lower()
-    if not u.startswith(("postgresql://", "postgres://")):
+    if not (u.startswith("postgres://") or u.startswith("postgresql")):
         return False
     if "sslmode=require" in u or "sslmode=verify-full" in u or "sslmode=verify-ca" in u:
         return True
