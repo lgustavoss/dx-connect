@@ -197,6 +197,14 @@ Future<void> travarSenhaPermanenteDeskRemote() async {
   await bind.mainSetOption(key: 'verification-method', value: 'use-permanent-password');
 }
 
+/// RustDesk 1.5.0 só expõe `mainSetPermanentPasswordWithResult` (não `mainSetPermanentPassword`).
+Future<void> _gravarSenhaPermanenteDeskRemote(String senha) async {
+  final ok = await bind.mainSetPermanentPasswordWithResult(password: senha);
+  if (!ok) {
+    throw DeskRemoteEnrollErro('Não foi possível gravar a senha neste computador. Tente de novo.');
+  }
+}
+
 Future<void> aplicarServidorESenhaDeskRemote({
   required String servidorId,
   required String relay,
@@ -205,7 +213,7 @@ Future<void> aplicarServidorESenhaDeskRemote({
 }) async {
   await aplicarServidorDeskRemote(servidorId: servidorId, relay: relay, chave: chave);
   await travarSenhaPermanenteDeskRemote();
-  await bind.mainSetPermanentPassword(password: senha);
+  await _gravarSenhaPermanenteDeskRemote(senha);
 }
 
 Future<String> idLocalDeskRemote() async {
@@ -280,7 +288,7 @@ Future<void> sincronizarSenhaDeskRemote() async {
   );
   await travarSenhaPermanenteDeskRemote();
   if (senha.isNotEmpty) {
-    await bind.mainSetPermanentPassword(password: senha);
+    await _gravarSenhaPermanenteDeskRemote(senha);
   }
   var rustdeskId = (json['rustdesk_id'] ?? atual.rustdeskId)?.toString();
   if (rustdeskId != null && rustdeskId.trim().isEmpty) rustdeskId = null;
