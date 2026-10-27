@@ -72,6 +72,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Interno
 
+- Deploy: as migrations voltam a correr no Postgres — o SQLAlchemy 2.1 passou a pedir o driver psycopg 3 em `postgresql://`, e o projeto usa psycopg2
 - DeskRemote cliente Flutter **2.0.0** (#1252 / #1283): token de instalação, credencial do computador, sync de senha, workflow `acesso-remoto-windows-flutter` (não sobrescreve o Sciter `acesso-remoto-windows`)
 - DeskRemote: kit de arte (#1253) e spike Flutter do atendente (Actions paralelo; Sciter 1.0.14 continua em produção)
 - DeskRemote Flutter: «Desenvolvido por DeskRudder» no rodapé do painel esquerdo, com a versão atual logo abaixo

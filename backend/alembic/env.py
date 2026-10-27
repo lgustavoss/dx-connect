@@ -5,12 +5,12 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from alembic import context
 
-from app.database import Base
+from app.database import Base, database_url_psycopg2
 from app.config import settings
 from app.models import *  # noqa: F401, F403 - carrega todos os models para o autogenerate
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+config.set_main_option("sqlalchemy.url", database_url_psycopg2(settings.DATABASE_URL))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -33,7 +33,7 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     configuration = config.get_section(config.config_ini_section, {})
-    configuration["sqlalchemy.url"] = settings.DATABASE_URL
+    configuration["sqlalchemy.url"] = database_url_psycopg2(settings.DATABASE_URL)
     connectable = engine_from_config(
         configuration,
         prefix="sqlalchemy.",
