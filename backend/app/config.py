@@ -266,10 +266,19 @@ class Settings(BaseSettings):
         return self.ENVIRONMENT == "production"
 
 
+def _database_url_e_postgres(database_url: str) -> bool:
+    """True se o scheme é Postgres (`postgres://`, `postgresql://` ou `postgresql+driver://`)."""
+    u = database_url.strip().lower()
+    if "://" not in u:
+        return False
+    scheme = u.split("://", 1)[0]
+    return scheme in ("postgres", "postgresql") or scheme.startswith("postgresql+")
+
+
 def _database_url_exige_ssl(database_url: str) -> bool:
     """True se a URL PostgreSQL indica TLS (sslmode ou ssl=true na query)."""
     u = database_url.strip().lower()
-    if not (u.startswith("postgres://") or u.startswith("postgresql")):
+    if not _database_url_e_postgres(u):
         return False
     if "sslmode=require" in u or "sslmode=verify-full" in u or "sslmode=verify-ca" in u:
         return True
