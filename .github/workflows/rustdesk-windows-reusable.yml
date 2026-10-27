@@ -1,5 +1,5 @@
 # Build interno do cliente RustDesk DeskRudder (não aparece como botão principal).
-# Chamado por: Acesso Remoto Cliente | Acesso Remoto Atendente
+# Chamado por: DeskRemote Cliente v1 | DeskRemote Atendente v1
 
 name: _RustDesk Windows (reusable)
 
@@ -191,7 +191,7 @@ jobs:
             SRC="dist/DeskRudder-AcessoRemoto-${CLIENT_VER}.exe"
             STABLE="dist/DeskRudder-AcessoRemoto.exe"
             TITLE="DeskRudder Acesso Remoto (cliente) ${CLIENT_VER}"
-            NOTES="Remoto **cliente/PDV** ${CLIENT_VER} (base RustDesk ${RD_VER}). Só-recebe. Link /acesso-remoto/download."
+            NOTES="Remoto **cliente/PDV** Sciter ${CLIENT_VER} (base RustDesk ${RD_VER}). Só-recebe. Canal v1; o painel baixa o Flutter 2.0 em acesso-remoto-windows-flutter."
           fi
           VERSION_JSON="dist/version.json"
           test -f "$SRC"

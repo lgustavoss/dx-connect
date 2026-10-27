@@ -13,7 +13,7 @@ server {
 
     # Download do instalador Windows sem login no painel.
     location = /acesso-remoto/download {
-        return 302 https://github.com/lgustavoss/dx-connect/releases/download/acesso-remoto-windows/DeskRudder-AcessoRemoto.exe;
+        return 302 https://github.com/lgustavoss/dx-connect/releases/download/acesso-remoto-windows-flutter/DeskRudder-AcessoRemoto-Flutter.exe;
     }
 
     # Setup DeskRudder (atendente) — link amigável /app/download.

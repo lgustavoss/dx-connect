@@ -104,6 +104,6 @@ remoto_ui:
   Goto remoto_fim
 remoto_ausente:
   DetailPrint "Aviso: instalador do Acesso Remoto nao encontrado em $0"
-  MessageBox MB_OK|MB_ICONEXCLAMATION "O painel foi instalado, mas o Acesso Remoto nao veio no pacote.$\r$\nBaixe o DeskRudder-AcessoRemoto-Controle.exe no Release acesso-remoto-controle-windows ou rode o script desktop/scripts/baixar-remoto-controle.ps1 antes do npm run dist."
+  MessageBox MB_OK|MB_ICONEXCLAMATION "O painel foi instalado, mas o Acesso Remoto nao veio no pacote.$\r$\nRode o workflow DeskRemote Atendente v2 e depois DeskRudder Painel v1, ou o script desktop/scripts/baixar-remoto-controle.ps1 antes do npm run dist."
 remoto_fim:
 !macroend
