@@ -19,7 +19,15 @@ if (isFile) {
 if (isFile || isPainel) {
   contextBridge.exposeInMainWorld('deskrudderDesktop', {
     remotoStatus: () => ipcRenderer.invoke('remoto:status'),
-    conectarRemoto: (id, senha) => ipcRenderer.invoke('remoto:conectar', id, senha),
+    conectarRemoto: (id, senha, tituloSessao) =>
+      ipcRenderer.invoke('remoto:conectar', id, senha, tituloSessao),
     recarregarPainel: () => ipcRenderer.invoke('painel:recarregar'),
+    limparSessao: () => ipcRenderer.invoke('sessao:limpar'),
+    ...(isPainel
+      ? {
+          salvarSessao: (accessToken, refreshToken) =>
+            ipcRenderer.invoke('sessao:salvar', accessToken, refreshToken),
+        }
+      : {}),
   })
 }

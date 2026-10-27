@@ -221,7 +221,7 @@ def test_vincular_exige_editar_empresa_e_confirma_substituicao(client, auth_head
     )
     assert ok.status_code == 200, ok.text
     assert ok.json()["acesso_remoto_id"] == "555000555"
-    assert ok.json()["tipo_acesso_remoto_nome"] == "DeskRudder"
+    assert ok.json()["tipo_acesso_remoto_nome"] == "DeskRemote"
 
 
 def test_sincronizar_substitui_cache(db_session, monkeypatch):
@@ -353,6 +353,7 @@ def test_desvincular_e_excluir_offline(client, auth_headers, seed_base, base, mo
 @pytest.mark.parametrize(
     "nome, esperado",
     [
+        ("DeskRemote", True),
         ("DeskRudder", True),
         ("DeskRudder Acesso Remoto", True),
         ("RustDesk", True),
@@ -367,9 +368,9 @@ def test_nome_tipo_hospedado_reconhece_deskrudder(nome, esperado):
     assert svc._nome_e_rustdesk(nome) is esperado
 
 
-def test_garantir_tipo_cria_deskrudder(db_session, seed_base):
+def test_garantir_tipo_cria_deskremote(db_session, seed_base):
     tipo = svc.garantir_tipo_rustdesk(db_session)
-    assert tipo.nome == "DeskRudder"
+    assert tipo.nome == "DeskRemote"
     assert tipo.ativo is True
 
 

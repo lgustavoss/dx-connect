@@ -2,6 +2,19 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, dialog, shell, ipcMain, net
 const path = require('node:path')
 const fs = require('node:fs')
 const { spawn } = require('node:child_process')
+const {
+  SETUP_NAME,
+  compararVersao,
+  downloadUrlPermitida,
+  parseVersionJson,
+  urlSetupGithub,
+  urlVersionJson,
+} = require('./versao.cjs')
+const {
+  slugDaOrigemPainel,
+  montarCorpoSessao,
+  origemPainelHttpsInstancia,
+} = require('./sessaoDeskRemote.cjs')
 
 const APP_ID = 'br.com.deskrudder.desktop'
 const APEX = 'deskrudder.com.br'
@@ -12,6 +25,8 @@ const ICONE_PNG = path.join(__dirname, '..', 'build', 'icon.png')
 const CONTA_HTML = path.join(__dirname, 'conta.html')
 const UA_DESKTOP = ' DeskRudderDesktop/1'
 const PREFS_INSTALADOR = 'installer-prefs.json'
+const INTERVALO_VERIFICAR_MS = 6 * 60 * 60 * 1000
+const ATRASO_PRIMEIRA_VERIFICACAO_MS = 20_000
 
 // Alerta da fila (alerta.mp3 em loop) precisa tocar com a janela escondida na bandeja.
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
@@ -29,6 +44,9 @@ let saindo = false
 let ultimaContagem = 0
 /** Fechar a janela esconde na bandeja (true) ou encerra o app (false). */
 let alertasNaBandeja = true
+/** @type {{ version: string, download_url: string } | null} */
+let infoAtualizacao = null
+let verificandoAtualizacao = false
 
 /** Ícone do .exe empacotado (barra de tarefas) com fallback para PNG. */
 function carregarIconeApp() {
@@ -44,6 +62,27 @@ function carregarIconeApp() {
 
 function caminhoConfig() {
   return path.join(app.getPath('userData'), 'config.json')
+}
+
+function caminhoSessaoDeskRemote() {
+  return path.join(app.getPath('userData'), 'deskremote-sessao.json')
+}
+
+function salvarSessaoDeskRemote(slug, accessToken, refreshToken) {
+  const corpo = montarCorpoSessao(slug, accessToken, refreshToken)
+  if (!corpo) return { ok: false }
+  fs.mkdirSync(path.dirname(caminhoSessaoDeskRemote()), { recursive: true })
+  fs.writeFileSync(caminhoSessaoDeskRemote(), `${JSON.stringify(corpo)}\n`, 'utf8')
+  return { ok: true }
+}
+
+function limparSessaoDeskRemote() {
+  try {
+    if (fs.existsSync(caminhoSessaoDeskRemote())) fs.unlinkSync(caminhoSessaoDeskRemote())
+  } catch {
+    /* ignore */
+  }
+  return { ok: true }
 }
 
 /**
@@ -92,7 +131,7 @@ function aplicarPrefsInstaladorSeNecessario() {
   return true
 }
 
-/** @returns {{ slug?: string, autostartPerguntado?: boolean, avisoBandejaMostrado?: boolean, alertasNaBandeja?: boolean, prefsInstaladorAplicadas?: boolean }} */
+/** @returns {{ slug?: string, autostartPerguntado?: boolean, avisoBandejaMostrado?: boolean, alertasNaBandeja?: boolean, prefsInstaladorAplicadas?: boolean, atualizacaoAvisada?: string }} */
 function lerConfig() {
   try {
     return JSON.parse(fs.readFileSync(caminhoConfig(), 'utf8'))
@@ -191,16 +230,23 @@ function acharExeRemoto() {
  * com "Wrong command". rustdesk:// continua apontando ao RustDesk oficial.
  * @returns {{ ok: boolean, modo?: string, erro?: string }}
  */
-function conectarRemoto(id, senha) {
+function conectarRemoto(id, senha, tituloSessao) {
   const digitos = String(id || '').replace(/\s+/g, '')
   if (!/^\d{6,}$/.test(digitos)) {
     return { ok: false, erro: 'ID de acesso remoto inválido.' }
   }
   const senhaLimpa = senha != null ? String(senha).trim() : ''
+  const titulo = tituloSessao != null ? String(tituloSessao).trim() : ''
   const args = ['--connect', digitos]
   if (senhaLimpa) args.push(senhaLimpa)
+  if (titulo) {
+    // Sem senha, o Sciter trata o próximo token como senha — usa placeholder vazio.
+    if (!senhaLimpa) args.push('')
+    args.push('--title', titulo)
+  }
   const params = new URLSearchParams()
   if (senhaLimpa) params.set('password', senhaLimpa)
+  if (titulo) params.set('name', titulo)
   const consulta = params.toString()
   const url = `deskrudder://connection/new/${digitos}${consulta ? `?${consulta}` : ''}`
 
@@ -221,7 +267,7 @@ function conectarRemoto(id, senha) {
     return {
       ok: false,
       erro:
-        'Não foi possível abrir o acesso remoto. Confira se o DeskRudder Acesso Remoto (controle) está instalado.',
+        'Não foi possível abrir o acesso remoto. Confira se o DeskRemote (controle) está instalado.',
     }
   }
   return { ok: true, modo: 'protocolo' }
@@ -255,11 +301,11 @@ ipcMain.handle('remoto:status', (event) => {
   return { instalado: Boolean(acharExeRemoto()), caminho: acharExeRemoto() }
 })
 
-ipcMain.handle('remoto:conectar', (event, id, senha) => {
+ipcMain.handle('remoto:conectar', (event, id, senha, tituloSessao) => {
   if (!origemPermitidaPainel(event.senderFrame?.url)) {
     return { ok: false, erro: 'Origem não permitida.' }
   }
-  return conectarRemoto(id, senha)
+  return conectarRemoto(id, senha, tituloSessao)
 })
 
 ipcMain.handle('painel:recarregar', async (event) => {
@@ -269,6 +315,21 @@ ipcMain.handle('painel:recarregar', async (event) => {
   await limparCacheDoPainel()
   if (janela) janela.webContents.reloadIgnoringCache()
   return { ok: true }
+})
+
+ipcMain.handle('sessao:salvar', (event, accessToken, refreshToken) => {
+  const url = event.senderFrame?.url
+  if (!origemPainelHttpsInstancia(url)) return { ok: false }
+  const slug = slugDaOrigemPainel(url)
+  if (!slug) return { ok: false }
+  return salvarSessaoDeskRemote(slug, accessToken, refreshToken)
+})
+
+ipcMain.handle('sessao:limpar', (event) => {
+  if (!origemPermitidaPainel(event.senderFrame?.url) && !event.senderFrame?.url?.startsWith('file:')) {
+    return { ok: false }
+  }
+  return limparSessaoDeskRemote()
 })
 
 // ── Janela ──────────────────────────────────────────────────────────────────
@@ -412,6 +473,205 @@ function definirAutostart(ativo) {
   app.setLoginItemSettings({ openAtLogin: ativo, args: [ARG_OCULTO] })
 }
 
+function versaoAtualApp() {
+  return String(app.getVersion() || '0.0.0')
+}
+
+function haAtualizacao() {
+  return Boolean(infoAtualizacao && compararVersao(infoAtualizacao.version, versaoAtualApp()) > 0)
+}
+
+function urlSetupNaInstancia() {
+  const { slug } = lerConfig()
+  if (!slug) return null
+  return `https://${slug}.${APEX}/app/download`
+}
+
+function janelaDoDialogo() {
+  return janela && !janela.isDestroyed() ? janela : undefined
+}
+
+async function buscarInfoAtualizacao() {
+  const res = await net.fetch(urlVersionJson(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': `DeskRudderDesktop/${versaoAtualApp()}`,
+      'Cache-Control': 'no-cache',
+    },
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const parsed = parseVersionJson(await res.json())
+  if (!parsed) throw new Error('version.json inválido')
+  return parsed
+}
+
+async function verificarAtualizacao({ silencioso } = {}) {
+  if (verificandoAtualizacao) return
+  verificandoAtualizacao = true
+  sincronizarMenus()
+  try {
+    infoAtualizacao = await buscarInfoAtualizacao()
+    const nova = haAtualizacao()
+    sincronizarMenus()
+    if (!nova) {
+      if (!silencioso) {
+        await dialog.showMessageBox(janelaDoDialogo(), {
+          type: 'info',
+          buttons: ['OK'],
+          defaultId: 0,
+          title: 'DeskRudder',
+          message: 'O app já está atualizado',
+          detail: `Versão instalada: ${versaoAtualApp()}.`,
+        })
+      }
+      return
+    }
+    const versaoNova = infoAtualizacao.version
+    if (silencioso) {
+      const cfg = lerConfig()
+      if (cfg.atualizacaoAvisada !== versaoNova && bandeja) {
+        bandeja.displayBalloon({
+          iconType: 'info',
+          title: 'Atualização do DeskRudder',
+          content: `A versão ${versaoNova} está disponível. Menu DeskRudder → Atualizar agora.`,
+        })
+        salvarConfig({ atualizacaoAvisada: versaoNova })
+      }
+      return
+    }
+    const { response } = await dialog.showMessageBox(janelaDoDialogo(), {
+      type: 'info',
+      buttons: ['Atualizar agora', 'Agora não'],
+      defaultId: 0,
+      cancelId: 1,
+      title: 'DeskRudder',
+      message: `Há uma versão nova do app (${versaoNova})`,
+      detail: `Você está na ${versaoAtualApp()}. A atualização abre o instalador e pode fechar o DeskRudder.`,
+    })
+    if (response === 0) await baixarEInstalarAtualizacao({ confirmar: false })
+  } catch (err) {
+    console.warn('DeskRudder: falha ao verificar atualização', err)
+    if (!silencioso) {
+      await dialog.showMessageBox(janelaDoDialogo(), {
+        type: 'warning',
+        buttons: ['OK'],
+        defaultId: 0,
+        title: 'DeskRudder',
+        message: 'Não foi possível verificar atualizações',
+        detail: 'Confira a internet e tente de novo. Também dá para baixar o app em Sobre, no painel.',
+      })
+    }
+  } finally {
+    verificandoAtualizacao = false
+    sincronizarMenus()
+  }
+}
+
+async function baixarEInstalarAtualizacao({ confirmar } = {}) {
+  mostrarJanela()
+  if (confirmar !== false) {
+    const versaoNova = infoAtualizacao?.version
+    const { response } = await dialog.showMessageBox(janelaDoDialogo(), {
+      type: 'question',
+      buttons: ['Atualizar', 'Cancelar'],
+      defaultId: 0,
+      cancelId: 1,
+      title: 'DeskRudder',
+      message: versaoNova ? `Instalar a versão ${versaoNova}?` : 'Baixar e instalar a atualização?',
+      detail: 'O instalador abre em seguida e o DeskRudder pode fechar.',
+    })
+    if (response !== 0) return
+  }
+  if (bandeja) {
+    bandeja.displayBalloon({
+      iconType: 'info',
+      title: 'Atualizando o DeskRudder',
+      content: 'Baixando o instalador. O assistente abre em seguida.',
+    })
+  }
+  const candidatos = [
+    urlSetupNaInstancia(),
+    infoAtualizacao?.download_url,
+    urlSetupGithub(),
+  ].filter((u) => typeof u === 'string' && downloadUrlPermitida(u))
+  if (!candidatos.length) {
+    await dialog.showMessageBox(janelaDoDialogo(), {
+      type: 'warning',
+      buttons: ['OK'],
+      title: 'DeskRudder',
+      message: 'Não foi possível baixar a atualização',
+      detail: 'Tente de novo ou baixe o app em Sobre, no painel.',
+    })
+    return
+  }
+
+  const dest = path.join(app.getPath('temp'), SETUP_NAME)
+  let gravou = false
+  for (const url of candidatos) {
+    try {
+      const res = await net.fetch(url, {
+        method: 'GET',
+        headers: { 'User-Agent': `DeskRudderDesktop/${versaoAtualApp()}` },
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const buf = Buffer.from(await res.arrayBuffer())
+      if (buf.length < 1_000_000) throw new Error('arquivo pequeno demais')
+      fs.writeFileSync(dest, buf)
+      gravou = true
+      break
+    } catch (err) {
+      console.warn('DeskRudder: falha ao baixar Setup', url, err)
+    }
+  }
+  if (!gravou) {
+    await dialog.showMessageBox(janelaDoDialogo(), {
+      type: 'warning',
+      buttons: ['OK'],
+      title: 'DeskRudder',
+      message: 'Não foi possível baixar a atualização',
+      detail: 'Tente de novo ou baixe o app em Sobre, no painel.',
+    })
+    return
+  }
+
+  try {
+    const filho = spawn(dest, [], { detached: true, stdio: 'ignore' })
+    filho.unref()
+  } catch (err) {
+    console.warn('DeskRudder: falha ao abrir Setup', err)
+    await dialog.showMessageBox(janelaDoDialogo(), {
+      type: 'warning',
+      buttons: ['OK'],
+      title: 'DeskRudder',
+      message: 'Não foi possível abrir o instalador',
+      detail: `O arquivo ficou em ${dest}. Abra-o manualmente se precisar.`,
+    })
+    return
+  }
+  saindo = true
+  app.quit()
+}
+
+async function mostrarSobre() {
+  mostrarJanela()
+  const atual = versaoAtualApp()
+  const nova = haAtualizacao() ? infoAtualizacao.version : null
+  const botoes = nova ? ['Atualizar agora', 'Fechar'] : ['Fechar']
+  const { response } = await dialog.showMessageBox(janelaDoDialogo(), {
+    type: 'info',
+    buttons: botoes,
+    defaultId: 0,
+    cancelId: botoes.length - 1,
+    title: 'Sobre o DeskRudder',
+    message: 'DeskRudder',
+    detail: nova
+      ? `Versão do aplicativo: ${atual}\nNova versão disponível: ${nova}\n\nEsta é a versão do app Windows. A versão do painel (Release Notes) fica em Sobre, no menu lateral.`
+      : `Versão do aplicativo: ${atual}\n\nEsta é a versão do app Windows. A versão do painel (Release Notes) fica em Sobre, no menu lateral.`,
+  })
+  if (nova && response === 0) await baixarEInstalarAtualizacao({ confirmar: false })
+}
+
 function sincronizarMenus() {
   montarMenuBandeja()
   montarMenuJanela()
@@ -440,6 +700,47 @@ function itemAlertasNaBandeja() {
   }
 }
 
+function itensMenuApp({ incluirAbrir } = {}) {
+  const itens = []
+  if (incluirAbrir) {
+    itens.push({ label: 'Abrir DeskRudder', click: mostrarJanela }, { type: 'separator' })
+  }
+  itens.push(
+    itemIniciarComWindows(),
+    itemAlertasNaBandeja(),
+    { type: 'separator' },
+    {
+      label: 'Recarregar painel',
+      click: async () => {
+        await limparCacheDoPainel()
+        janela?.webContents.reloadIgnoringCache()
+      },
+    },
+    { label: 'Trocar empresa…', click: () => void trocarEmpresa() },
+    { type: 'separator' },
+    {
+      label: verificandoAtualizacao ? 'Verificando atualizações…' : 'Verificar atualizações',
+      enabled: !verificandoAtualizacao,
+      click: () => void verificarAtualizacao({ silencioso: false }),
+    },
+    {
+      label: haAtualizacao() ? `Atualizar agora (${infoAtualizacao?.version})` : 'Atualizar agora',
+      visible: haAtualizacao(),
+      click: () => void baixarEInstalarAtualizacao(),
+    },
+    { label: 'Sobre', click: () => void mostrarSobre() },
+    { type: 'separator' },
+    {
+      label: 'Sair',
+      click: () => {
+        saindo = true
+        app.quit()
+      },
+    },
+  )
+  return itens
+}
+
 function definirAlertasNaBandeja(ativo) {
   alertasNaBandeja = Boolean(ativo)
   salvarConfig({ alertasNaBandeja })
@@ -458,27 +759,7 @@ function montarMenuJanela() {
     Menu.buildFromTemplate([
       {
         label: 'DeskRudder',
-        submenu: [
-          itemIniciarComWindows(),
-          itemAlertasNaBandeja(),
-          { type: 'separator' },
-          {
-            label: 'Recarregar painel',
-            click: async () => {
-              await limparCacheDoPainel()
-              janela?.webContents.reloadIgnoringCache()
-            },
-          },
-          { label: 'Trocar empresa…', click: () => void trocarEmpresa() },
-          { type: 'separator' },
-          {
-            label: 'Sair',
-            click: () => {
-              saindo = true
-              app.quit()
-            },
-          },
-        ],
+        submenu: itensMenuApp(),
       },
     ]),
   )
@@ -486,31 +767,7 @@ function montarMenuJanela() {
 
 function montarMenuBandeja() {
   if (!bandeja) return
-  bandeja.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: 'Abrir DeskRudder', click: mostrarJanela },
-      { type: 'separator' },
-      itemIniciarComWindows(),
-      itemAlertasNaBandeja(),
-      { type: 'separator' },
-      {
-        label: 'Recarregar painel',
-        click: async () => {
-          await limparCacheDoPainel()
-          janela?.webContents.reloadIgnoringCache()
-        },
-      },
-      { label: 'Trocar empresa…', click: () => void trocarEmpresa() },
-      { type: 'separator' },
-      {
-        label: 'Sair',
-        click: () => {
-          saindo = true
-          app.quit()
-        },
-      },
-    ]),
-  )
+  bandeja.setContextMenu(Menu.buildFromTemplate(itensMenuApp({ incluirAbrir: true })))
 }
 
 function destruirBandeja() {
@@ -589,4 +846,6 @@ app.whenReady().then(() => {
   if (!iniciarOculto && !tinhaPrefsSetup) {
     janela?.webContents.once('did-finish-load', () => void perguntarAutostartSeNecessario())
   }
+  setTimeout(() => void verificarAtualizacao({ silencioso: true }), ATRASO_PRIMEIRA_VERIFICACAO_MS)
+  setInterval(() => void verificarAtualizacao({ silencioso: true }), INTERVALO_VERIFICAR_MS)
 })

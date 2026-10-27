@@ -24,7 +24,7 @@ import {
   iniciarDownloadInstaladorWindows,
   urlDownloadInstaladorNaInstancia,
 } from '../lib/rustdeskInstaller'
-import { senhaDoPdv } from '../lib/acessoRemotoConectar'
+import { rotuloSessaoVinculo, senhaDoPdv } from '../lib/acessoRemotoConectar'
 import { isDeskRudderDesktop } from '../lib/deskrudderDesktop'
 import { BotaoConectarRemoto } from '../components/BotaoConectarRemoto'
 
@@ -119,7 +119,7 @@ function PainelDownloadInstalador({ onCopiar }: { onCopiar: (texto: string, suce
         <Button
           type="button"
           variant="secondary"
-          title="Baixar DeskRudder Acesso Remoto para Windows"
+          title="Baixar DeskRemote para Windows"
           onClick={() => iniciarDownloadInstaladorWindows()}
         >
           Baixar instalador Windows
@@ -141,7 +141,7 @@ function PainelConfiguracao({
   if (!config.configurado) {
     return (
       <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-300">
-        Os dados para colar no DeskRudder Acesso Remoto ainda não foram informados nesta instância.
+        Os dados para colar no DeskRemote ainda não foram informados nesta instância.
       </p>
     )
   }
@@ -149,9 +149,9 @@ function PainelConfiguracao({
     <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/40">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="max-w-3xl">
-          <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Configuração do DeskRudder Acesso Remoto</h2>
+          <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Configuração do DeskRemote</h2>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            No computador do cliente, abra o DeskRudder Acesso Remoto em Configurações e depois Rede. Cole cada valor no
+            No computador do cliente, abra o DeskRemote em Configurações e depois Rede. Cole cada valor no
             campo com o mesmo nome. O servidor de API fica em branco.
           </p>
         </div>
@@ -416,7 +416,7 @@ export function RustdeskPeers() {
           role="status"
           className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
         >
-          O DeskRudder Acesso Remoto (controle) não foi encontrado neste PC. Reinstale o{' '}
+          O DeskRemote (controle) não foi encontrado neste PC. Reinstale o{' '}
           <strong className="font-semibold">DeskRudder Setup</strong> do atendente (com elevação) ou coloque o
           cliente controle em{' '}
           <code className="rounded bg-amber-100/80 px-1 dark:bg-amber-900/50">
@@ -521,6 +521,11 @@ export function RustdeskPeers() {
                       <div className="inline-flex items-center justify-end gap-0.5">
                         <BotaoConectarRemoto
                           rustdeskId={peer.rustdesk_id}
+                          tituloSessao={
+                            peer.vinculos.length === 1
+                              ? rotuloSessaoVinculo(peer.vinculos[0])
+                              : undefined
+                          }
                           carregarSenha={
                             peer.vinculos.length === 1
                               ? () => senhaDoPdv(peer.vinculos[0].empresa_id, peer.vinculos[0].pdv_id, toast)

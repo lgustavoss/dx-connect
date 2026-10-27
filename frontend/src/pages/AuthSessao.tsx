@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { clearAuthToken } from '../api/client'
 import { PageLoading } from '../components/ui/PageLoading'
+import { limparSessaoDeskRemote, salvarSessaoDeskRemote } from '../lib/deskrudderDesktop'
 import { isMarketingHost } from '../lib/marketingHost'
 
 const TOKEN_KEY = 'token'
@@ -43,6 +44,11 @@ export function AuthSessao() {
     const store = lembrar ? localStorage : sessionStorage
     store.setItem(TOKEN_KEY, access)
     if (refresh) store.setItem(REFRESH_TOKEN_KEY, refresh)
+    if (lembrar) {
+      salvarSessaoDeskRemote(access, refresh)
+    } else {
+      limparSessaoDeskRemote()
+    }
 
     // Full reload para o AuthProvider ler os tokens no boot.
     window.location.replace('/')

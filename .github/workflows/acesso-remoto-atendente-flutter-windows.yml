@@ -1,0 +1,294 @@
+# Spike Flutter x64 do ATENDENTE (DeskRemote).
+# Não substitui o Sciter em produção (Release acesso-remoto-controle-windows).
+#
+# Actions → «Acesso Remoto Atendente Flutter (spike)» → Run workflow
+# Artefato: DeskRudder-AcessoRemoto-Controle-Flutter.exe
+# Release opcional: acesso-remoto-controle-flutter-windows (tag paralela)
+#
+# Branding: deploy/rustdesk-client/branding/kit-1253 (issue #1253)
+# Duração típica: 40–90 min.
+
+name: Acesso Remoto Atendente Flutter (spike)
+
+on:
+  workflow_dispatch:
+    inputs:
+      rustdesk_ref:
+        description: "Tag do rustdesk/rustdesk"
+        required: true
+        default: "1.5.0"
+        type: choice
+        options:
+          - "1.5.0"
+      publish_release:
+        description: "Publicar tag paralela flutter (não sobrescreve o Sciter)"
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: acesso-remoto-atendente-flutter-windows
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  LLVM_VERSION: "15.0.6"
+  RUST_VERSION: "1.75"
+  FLUTTER_VERSION: "3.24.5"
+  CARGO_EXPAND_VERSION: "1.0.95"
+  FLUTTER_RUST_BRIDGE_VERSION: "1.80.1"
+  VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VERSION: ${{ inputs.rustdesk_ref }}
+  PROFILE: controle
+
+jobs:
+  bridge:
+    name: flutter-rust-bridge
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout RustDesk
+        uses: actions/checkout@v5
+        with:
+          repository: rustdesk/rustdesk
+          ref: ${{ inputs.rustdesk_ref }}
+          submodules: recursive
+
+      - name: Instalar dependências
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y clang cmake gcc g++ libclang-dev libgtk-3-dev \
+            llvm-dev nasm ninja-build pkg-config
+
+      - name: Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: rustfmt
+
+      - name: Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.22.3"
+          cache: true
+
+      - name: Gerar bridge
+        run: |
+          cargo install cargo-expand --version "${CARGO_EXPAND_VERSION}" --locked
+          cargo install flutter_rust_bridge_codegen --version "${FLUTTER_RUST_BRIDGE_VERSION}" --features uuid --locked
+          sed -i -e 's/extended_text: 14.0.0/extended_text: 13.0.0/g' flutter/pubspec.yaml
+          (cd flutter && flutter pub get)
+          flutter_rust_bridge_codegen \
+            --rust-input ./src/flutter_ffi.rs \
+            --dart-output ./flutter/lib/generated_bridge.dart \
+            --c-output ./flutter/macos/Runner/bridge_generated.h
+          cp ./flutter/macos/Runner/bridge_generated.h ./flutter/ios/Runner/bridge_generated.h
+
+      - name: Upload bridge
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridge-artifact
+          path: |
+            ./src/bridge_generated.rs
+            ./src/bridge_generated.io.rs
+            ./flutter/lib/generated_bridge.dart
+            ./flutter/lib/generated_bridge.freezed.dart
+            ./flutter/macos/Runner/bridge_generated.h
+            ./flutter/ios/Runner/bridge_generated.h
+
+  build:
+    name: Flutter Windows x64 (atendente)
+    needs: bridge
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: bash
+    outputs:
+      client_version: ${{ steps.ver.outputs.client_version }}
+    steps:
+      - name: Checkout DX Connect
+        uses: actions/checkout@v5
+        with:
+          path: dx-connect
+
+      - name: Checkout RustDesk
+        uses: actions/checkout@v5
+        with:
+          repository: rustdesk/rustdesk
+          ref: ${{ inputs.rustdesk_ref }}
+          submodules: recursive
+          path: rustdesk
+
+      - name: Restore bridge
+        uses: actions/download-artifact@v4
+        with:
+          name: bridge-artifact
+          path: rustdesk
+
+      - name: Aplicar marca DeskRemote + servidor Duplex
+        id: ver
+        env:
+          PYTHONUTF8: "1"
+          PYTHONIOENCODING: utf-8
+        run: |
+          CLIENT_VER="$(tr -d '[:space:]' < dx-connect/deploy/rustdesk-client/CLIENT_VERSION_FLUTTER)"
+          echo "CLIENT_VERSION=${CLIENT_VER}" >> "$GITHUB_ENV"
+          echo "client_version=${CLIENT_VER}" >> "$GITHUB_OUTPUT"
+          python3 dx-connect/deploy/rustdesk-client/scripts/apply_branding.py rustdesk \
+            --config dx-connect/deploy/rustdesk-client/server.config.json \
+            --branding dx-connect/deploy/rustdesk-client/branding \
+            --client-version dx-connect/deploy/rustdesk-client/CLIENT_VERSION_FLUTTER \
+            --profile controle \
+            --ui flutter
+          test -f rustdesk/flutter/windows/runner/resources/app_icon.ico
+          test -f rustdesk/flutter/assets/icon.png
+          test ! -f rustdesk/flutter/assets/icon.svg
+          test -f rustdesk/res/icon.png
+
+      - name: Export cache env
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: LLVM
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: ${{ env.LLVM_VERSION }}
+
+      - name: Flutter ${{ env.FLUTTER_VERSION }}
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          architecture: x64
+
+      - name: Engine custom rustdesk + patch 3.24
+        working-directory: rustdesk
+        run: |
+          set -euo pipefail
+          flutter doctor -v
+          flutter precache --windows
+          FLUTTER_ROOT="$(dirname "$(dirname "$(which flutter)")")"
+          ENGINE="${FLUTTER_ROOT}/bin/cache/artifacts/engine/windows-x64-release"
+          mkdir -p "$ENGINE"
+          curl -LJ -o /tmp/windows-x64-release.zip \
+            https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip
+          python3 -m zipfile -e /tmp/windows-x64-release.zip /tmp/rd-engine
+          cp -rf /tmp/rd-engine/. "$ENGINE/"
+          PATCH=".github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff"
+          if [[ -f "$PATCH" ]]; then
+            cp "$PATCH" "$FLUTTER_ROOT/"
+            (cd "$FLUTTER_ROOT" && git apply "$(basename "$PATCH")" || true)
+          fi
+
+      - name: Rust 1.75 x64
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+          components: rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rustdesk
+          prefix-key: deskrudder-flutter-x64-controle
+
+      - name: vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Dependências vcpkg (x64-windows-static)
+        working-directory: rustdesk
+        env:
+          VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
+        run: |
+          "$VCPKG_ROOT/vcpkg" install --triplet x64-windows-static --x-install-root="$VCPKG_ROOT/installed"
+
+      - name: Build Flutter + portable
+        working-directory: rustdesk
+        run: |
+          set -euo pipefail
+          # apply_branding sobe libs/portable para CLIENT_VERSION_FLUTTER (2.x.x);
+          # o build.py chama `cargo build --locked` e o lock do tag 1.5.0 fica stale.
+          cargo update -p rustdesk-portable-packer
+          python3 ./build.py --portable --flutter --skip-portable-pack --hwcodec --vram
+          test -d ./flutter/build/windows/x64/runner/Release
+          rm -rf ./DeskRemoteRelease
+          mv ./flutter/build/windows/x64/runner/Release ./DeskRemoteRelease
+          if [[ -f ./DeskRemoteRelease/rustdesk.exe ]]; then
+            mv ./DeskRemoteRelease/rustdesk.exe ./DeskRemoteRelease/DeskRudder.exe
+          fi
+          test -f ./DeskRemoteRelease/DeskRudder.exe
+
+          curl -LJ -o ./usbmmidd_v2.zip \
+            https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip
+          python3 -m zipfile -e usbmmidd_v2.zip .
+          rm -rf ./usbmmidd_v2/Win32 ./usbmmidd_v2/deviceinstaller64.exe \
+            ./usbmmidd_v2/deviceinstaller.exe ./usbmmidd_v2/usbmmidd.bat || true
+          cp -rf ./usbmmidd_v2 ./DeskRemoteRelease/usbmmidd_v2 || true
+
+          sed -i '/dpiAware/d' res/manifest.xml || true
+          pushd ./libs/portable
+          python3 -m pip install -r requirements.txt
+          python3 ./generate.py -f ../../DeskRemoteRelease/ -o . -e ../../DeskRemoteRelease/DeskRudder.exe
+          popd
+
+          mkdir -p ../dist
+          CLIENT_VER="${CLIENT_VERSION:?}"
+          OUT="DeskRudder-AcessoRemoto-Controle-Flutter-${CLIENT_VER}.exe"
+          mv ./target/release/rustdesk-portable-packer.exe "../dist/${OUT}"
+          echo "Built ../dist/${OUT}"
+          ls -lh ../dist/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeskRudder-AcessoRemoto-controle-flutter-windows
+          path: dist/DeskRudder-AcessoRemoto-Controle-Flutter-*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publicar Release paralelo (não é o Sciter)
+        if: ${{ inputs.publish_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          CLIENT_VER="${{ steps.ver.outputs.client_version }}"
+          RD_VER="${VERSION:-1.5.0}"
+          TAG="acesso-remoto-controle-flutter-windows"
+          SRC="dist/DeskRudder-AcessoRemoto-Controle-Flutter-${CLIENT_VER}.exe"
+          STABLE="dist/DeskRudder-AcessoRemoto-Controle-Flutter.exe"
+          test -f "$SRC"
+          cp -f "$SRC" "$STABLE"
+          VERSION_JSON="dist/version.json"
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/$(basename "$STABLE")"
+          python3 - <<PY
+          import json
+          from pathlib import Path
+          Path("${VERSION_JSON}").write_text(json.dumps({
+              "version": "${CLIENT_VER}",
+              "rustdesk_base": "${RD_VER}",
+              "profile": "controle",
+              "ui": "flutter",
+              "download_url": "${DOWNLOAD_URL}",
+          }, indent=2) + "\n", encoding="utf-8")
+          PY
+          TITLE="DeskRemote Flutter (atendente) ${CLIENT_VER} — spike"
+          NOTES="Spike Flutter x64 do atendente **${CLIENT_VER}**. Não substitui o Sciter (\`acesso-remoto-controle-windows\`). Arte kit #1253."
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$STABLE" "$VERSION_JSON" \
+              --repo "${{ github.repository }}" --clobber
+            gh release edit "$TAG" --repo "${{ github.repository }}" --title "$TITLE" --notes "$NOTES"
+          else
+            gh release create "$TAG" "$STABLE" "$VERSION_JSON" \
+              --repo "${{ github.repository }}" --title "$TITLE" --notes "$NOTES" --latest=false --prerelease
+          fi
