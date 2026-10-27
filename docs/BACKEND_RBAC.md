@@ -19,6 +19,9 @@ Os grupos de permissão (`/v1/permissao-grupos`, #S202609-0024) são a origem do
 | Prefixo | Quem acessa |
 |---------|-------------|
 | `/v1/auth/*` | Público (login / refresh). |
+| `POST /v1/deskremote/enroll` | Público autenticado pelo **token de instalação** (uso único). Rate limit por IP. |
+| `GET /v1/deskremote/dispositivo/config` e `POST /v1/deskremote/dispositivo/id` | Público autenticado pela **credencial do computador** (Bearer). Rate limit por IP. |
+| `POST /v1/empresas/{id}/pdvs/{id}/deskremote/token` | `empresas.editar` |
 
 ## Só administrador (`exigir_admin` → 403 para não admin)
 

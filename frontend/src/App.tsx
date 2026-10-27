@@ -34,6 +34,7 @@ import { RedeForm } from './pages/RedeForm'
 import { Empresas } from './pages/Empresas'
 import { RustdeskPeers } from './pages/RustdeskPeers'
 import { AcessoRemotoDownload } from './pages/AcessoRemotoDownload'
+import { DeskRemoteInstalar } from './pages/DeskRemoteInstalar'
 import { DesktopDownload } from './pages/DesktopDownload'
 import { EmpresaForm } from './pages/EmpresaForm'
 import { EmpresaDetalhe } from './pages/EmpresaDetalhe'
@@ -300,6 +301,7 @@ function AppRoutes() {
       <Route path="/redefinir-senha" element={<RedefinirSenha />} />
       <Route path="/avaliar-ticket" element={<AvaliarTicket />} />
       <Route path="/acesso-remoto/download" element={<AcessoRemotoDownload />} />
+      <Route path="/deskremote/instalar/:token" element={<DeskRemoteInstalar />} />
       <Route path="/app/download" element={<DesktopDownload />} />
       <Route path="/kb" element={<KbPublicLayout />}>
         <Route index element={<KbPublicHome />} />

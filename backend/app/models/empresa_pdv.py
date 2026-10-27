@@ -69,6 +69,7 @@ class EmpresaPdvAcessoRemoto(Base):
     tipo_acesso_remoto_id = Column(Integer, ForeignKey("pdv_tipos_acesso_remoto.id"), nullable=True)
     acesso_remoto_id = Column(String(255), nullable=True)
     acesso_remoto_senha_cifrada = Column(Text, nullable=True)
+    senha_versao = Column(Integer, default=1, nullable=False)
     ordem_exibicao = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

@@ -19,6 +19,7 @@ import { temPermissao } from '../lib/permissoes'
 import { formatarIdRustdesk, tipoHospedadoNoServidor } from '../lib/rustdeskId'
 import { senhaDoAcesso } from '../lib/acessoRemotoConectar'
 import { BotaoConectarRemoto } from './BotaoConectarRemoto'
+import { DeskRemoteTokenInstalacao } from './DeskRemoteTokenInstalacao'
 
 const MAX_ACESSOS = 10
 
@@ -466,6 +467,9 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel, onF
                           O painel não abre o {nome}. Clique no ID e na senha para copiar e cole no programa.
                         </p>
                       )}
+                      {podeEditar && tipoHospedadoNoServidor(acesso.tipo_acesso_remoto_nome) ? (
+                        <DeskRemoteTokenInstalacao empresaId={empresaId} pdvId={detalhe.id} acesso={acesso} />
+                      ) : null}
                     </div>
                   )
                 })}

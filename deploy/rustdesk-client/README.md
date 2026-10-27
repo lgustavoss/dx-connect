@@ -8,6 +8,7 @@
 | **Acesso Remoto Atendente (Windows)** | `controle` | `acesso-remoto-controle-windows` |
 | **App Atendente Setup (Windows)** | Electron (+ baixa o Release controle) | `desktop-windows` |
 | **Acesso Remoto Atendente Flutter (spike)** | Flutter x64 do atendente | `acesso-remoto-controle-flutter-windows` (não substitui o Sciter) |
+| **Acesso Remoto Cliente Flutter (spike)** | Flutter x64 do cliente (genérico + token) | `acesso-remoto-windows-flutter` (não substitui o Sciter) |
 
 Atalho **DeskRemote**; pasta `DeskRudder\Acesso Remoto` (compatibilidade).  
 Docs: [`docs/RUSTDESK_CLIENT_WINDOWS.md`](../../docs/RUSTDESK_CLIENT_WINDOWS.md), Setup: [`docs/DESKTOP_ELECTRON.md`](../../docs/DESKTOP_ELECTRON.md).
@@ -22,8 +23,9 @@ Docs: [`docs/RUSTDESK_CLIENT_WINDOWS.md`](../../docs/RUSTDESK_CLIENT_WINDOWS.md)
 | `scripts/render_remote_icons.py` | Regenera PNGs/ICO a partir da arte oficial |
 | `CLIENT_VERSION` | Sciter de produção — linha **1.x.x** |
 | `CLIENT_VERSION_FLUTTER` | Spike Flutter do atendente — linha **2.x.x** (canal de update separado) |
+| `CLIENT_VERSION_FLUTTER_CLIENTE` | Spike Flutter do cliente — linha **2.x.x** (começa em 2.0.0; canal separado) |
 | `scripts/apply_branding.py` | Patch no RustDesk antes do build (`--profile posto\|controle`; `--ui sciter\|flutter`) |
 | `scripts/encode_config.py` | Debug da string `--config` |
 | `windows/Install-DeskRudderRemote.ps1` | Legado / emergência (oficial + config) — **não** é o fluxo principal |
 
-Cliente e atendente usam a mesma pasta `branding/`. Depois de atualizar a arte: regenerar com `render_remote_icons.py`, subir a versão do canal (`CLIENT_VERSION` no Sciter, `CLIENT_VERSION_FLUTTER` no Flutter) e rodar o workflow correspondente.
+Cliente e atendente usam a mesma pasta `branding/`. Depois de atualizar a arte: regenerar com `render_remote_icons.py`, subir a versão do canal (`CLIENT_VERSION` no Sciter, `CLIENT_VERSION_FLUTTER` no Flutter do atendente, `CLIENT_VERSION_FLUTTER_CLIENTE` no Flutter do cliente) e rodar o workflow correspondente.

@@ -14,7 +14,7 @@ Profiles (--profile):
 
 UI (--ui):
   sciter    — producao 1.x.x (CLIENT_VERSION)
-  flutter   — spike atendente 2.x.x (CLIENT_VERSION_FLUTTER); canal de update paralelo
+  flutter   — spike 2.x.x (atendente: CLIENT_VERSION_FLUTTER; cliente: CLIENT_VERSION_FLUTTER_CLIENTE)
 """
 
 from __future__ import annotations
@@ -39,9 +39,13 @@ COPYRIGHT_LINE = "Copyright © 2026 DeskRudder"
 RELEASE_TAG_POSTO = "acesso-remoto-windows"
 RELEASE_TAG_CONTROLE = "acesso-remoto-controle-windows"
 RELEASE_TAG_CONTROLE_FLUTTER = "acesso-remoto-controle-flutter-windows"
+RELEASE_TAG_POSTO_FLUTTER = "acesso-remoto-windows-flutter"
 INSTALLER_NAME_POSTO = "DeskRudder-AcessoRemoto.exe"
 INSTALLER_NAME_CONTROLE = "DeskRudder-AcessoRemoto-Controle.exe"
 INSTALLER_NAME_CONTROLE_FLUTTER = "DeskRudder-AcessoRemoto-Controle-Flutter.exe"
+INSTALLER_NAME_POSTO_FLUTTER = "DeskRudder-AcessoRemoto-Flutter.exe"
+HOST_FLUTTER_CLIENTE_PENDENTE = "deskremote.invalid"
+KEY_FLUTTER_CLIENTE_PENDENTE = "pendente-token"
 
 # Preenchidos em main() conforme --profile.
 UPDATE_VERSION_JSON_URL = (
@@ -120,7 +124,10 @@ def _selftest_sciter_copy() -> None:
 def configurar_canal_update(profile: str, ui: str = "sciter") -> None:
     """Define URLs de version.json / download conforme posto, controle Sciter ou Flutter."""
     global UPDATE_VERSION_JSON_URL, DOWNLOAD_INSTALLER_URL, UPDATE_RELEASE_TAG
-    if ui == "flutter":
+    if ui == "flutter" and profile == "posto":
+        tag = RELEASE_TAG_POSTO_FLUTTER
+        nome = INSTALLER_NAME_POSTO_FLUTTER
+    elif ui == "flutter":
         tag = RELEASE_TAG_CONTROLE_FLUTTER
         nome = INSTALLER_NAME_CONTROLE_FLUTTER
     elif profile == "controle":
@@ -187,6 +194,11 @@ def _selftest_client_version_linhas() -> None:
         raise SystemExit("selftest: canal Flutter nao aponta para tag paralela")
     if INSTALLER_NAME_CONTROLE_FLUTTER not in DOWNLOAD_INSTALLER_URL:
         raise SystemExit("selftest: download Flutter com nome errado")
+    configurar_canal_update("posto", "flutter")
+    if UPDATE_RELEASE_TAG != RELEASE_TAG_POSTO_FLUTTER:
+        raise SystemExit("selftest: canal Flutter cliente nao aponta para tag paralela")
+    if INSTALLER_NAME_POSTO_FLUTTER not in DOWNLOAD_INSTALLER_URL:
+        raise SystemExit("selftest: download Flutter cliente com nome errado")
     configurar_canal_update("controle", "sciter")
     if UPDATE_RELEASE_TAG != RELEASE_TAG_CONTROLE:
         raise SystemExit("selftest: canal Sciter controle invertido")
@@ -1637,6 +1649,19 @@ _FLUTTER_HOME_PAGE_GATED = """        page: DeskRemoteAuthGate(
         )));
 """
 
+_FLUTTER_ENROLL_IMPORT_NEW = (
+    "import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';\n"
+    "import 'package:flutter_hbb/deskremote/enroll_gate.dart';\n"
+)
+
+_FLUTTER_HOME_PAGE_ENROLLED = """        page: DeskRemoteEnrollGate(
+          // DeskRemote: cliente so abre depois do token de instalacao.
+          child: DesktopHomePage(
+            key: const ValueKey(kTabLabelHomePage),
+          ),
+        )));
+"""
+
 _FLUTTER_OVERLAY_DIR = Path(__file__).resolve().parent.parent / "flutter-overlay"
 
 
@@ -1652,10 +1677,16 @@ def copy_flutter_auth_overlay(src: Path) -> None:
         copiados += 1
         print(f"  flutter overlay {f.name}", flush=True)
     nomes = {p.name for p in origin.glob("*.dart")}
-    if not {"sessao.dart", "auth_gate.dart", "vinculados.dart"} <= nomes:
-        raise SystemExit("overlay deskremote incompleto (sessao + auth_gate + vinculados)")
-    if copiados < 3:
-        raise SystemExit("overlay deskremote incompleto (esperados 3 dart)")
+    if not {
+        "sessao.dart",
+        "auth_gate.dart",
+        "vinculados.dart",
+        "enroll.dart",
+        "enroll_gate.dart",
+    } <= nomes:
+        raise SystemExit("overlay deskremote incompleto (login + enroll)")
+    if copiados < 5:
+        raise SystemExit("overlay deskremote incompleto (esperados 5 dart)")
 
 
 def apply_flutter_auth_gate_text(text: str) -> str:
@@ -1668,6 +1699,49 @@ def apply_flutter_auth_gate_text(text: str) -> str:
     if _FLUTTER_HOME_PAGE_CHILD not in text:
         raise SystemExit("flutter desktop_tab_page: DesktopHomePage da home nao encontrado")
     return text.replace(_FLUTTER_HOME_PAGE_CHILD, _FLUTTER_HOME_PAGE_GATED, 1)
+
+
+def apply_flutter_lock_password_text(text: str) -> str:
+    """Cliente posto: senha permanente so muda no painel (#1283)."""
+    if "DeskRemote: senha permanente so muda no painel" in text:
+        return text
+    old = "bool isChangePermanentPasswordDisabled() =>"
+    if old not in text:
+        raise SystemExit("flutter common.dart: isChangePermanentPasswordDisabled nao encontrado")
+    return text.replace(
+        old,
+        "bool isChangePermanentPasswordDisabled() =>\n"
+        "    // DeskRemote: senha permanente so muda no painel.\n"
+        "    true ||",
+        1,
+    )
+
+
+def apply_flutter_hide_password_edit_text(text: str) -> str:
+    """Remove o lapis de senha na home do cliente."""
+    if "DeskRemote: senha permanente so no painel" in text:
+        return text
+    new_text, n = re.subn(
+        r"if \(!bind\.isDisableSettings\(\)\)(\s+InkWell\(\s+child: Tooltip\(\s+message: translate\('Change Password'\),)",
+        r"if (!bind.isDisableSettings() && false /* DeskRemote: senha permanente so no painel */)\1",
+        text,
+        count=1,
+    )
+    if n < 1:
+        raise SystemExit("flutter home: lapis Change Password nao encontrado")
+    return new_text
+
+
+def apply_flutter_enroll_gate_text(text: str) -> str:
+    if "DeskRemote: cliente so abre depois do token de instalacao" in text:
+        return text
+    if _FLUTTER_ENROLL_IMPORT_NEW not in text:
+        if _FLUTTER_AUTH_IMPORT not in text:
+            raise SystemExit("flutter desktop_tab_page: import home nao encontrado")
+        text = text.replace(_FLUTTER_AUTH_IMPORT, _FLUTTER_ENROLL_IMPORT_NEW, 1)
+    if _FLUTTER_HOME_PAGE_CHILD not in text:
+        raise SystemExit("flutter desktop_tab_page: DesktopHomePage da home nao encontrado")
+    return text.replace(_FLUTTER_HOME_PAGE_CHILD, _FLUTTER_HOME_PAGE_ENROLLED, 1)
 
 
 def apply_flutter_core_main_cold_start_text(text: str) -> str:
@@ -1812,8 +1886,10 @@ def apply_flutter_remote_tab_title_text(text: str) -> str:
     return text.replace(old_h, new_h, 1)
 
 
-def patch_flutter_deskremote_ui(src: Path, host: str = "", key: str = "") -> None:
-    """Logo, Recentes + Vinculados, nome do vinculo no cartao, alias via name=."""
+def patch_flutter_deskremote_ui(
+    src: Path, host: str = "", key: str = "", profile: str = "controle"
+) -> None:
+    """Logo, Recentes + Vinculados (atendente) ou token de instalacao (cliente)."""
     home = src / "flutter" / "lib" / "desktop" / "pages" / "desktop_home_page.dart"
     common = src / "flutter" / "lib" / "common.dart"
     tabs = src / "flutter" / "lib" / "models" / "peer_tab_model.dart"
@@ -1840,17 +1916,20 @@ def patch_flutter_deskremote_ui(src: Path, host: str = "", key: str = "") -> Non
 
     model_dart = src / "flutter" / "lib" / "models" / "model.dart"
     _apply(common, apply_flutter_logo_size_text, "logo maior no painel")
+    if profile == "posto":
+        _apply(common, apply_flutter_lock_password_text, "senha permanente so no painel")
     _apply(common, apply_flutter_load_icon_hq_text, "ico nitido na barra de titulo")
-    _apply(common, apply_flutter_common_vinculo_import_text, "import busca vinculo")
-    _apply(common, apply_flutter_connect_title_text, "name=/--title -> alias")
-    _apply(common, apply_flutter_inapp_alias_text, "alias no Conectar do Flutter")
-    _apply(common, apply_flutter_session_tab_label_text, "aba da sessao sem ID")
-    if host and key:
-        _apply(
-            common,
-            lambda t: apply_flutter_server_defaults_text(t, host, key),
-            "servidor Duplex no formulario",
-        )
+    if profile != "posto":
+        _apply(common, apply_flutter_common_vinculo_import_text, "import busca vinculo")
+        _apply(common, apply_flutter_connect_title_text, "name=/--title -> alias")
+        _apply(common, apply_flutter_inapp_alias_text, "alias no Conectar do Flutter")
+        _apply(common, apply_flutter_session_tab_label_text, "aba da sessao sem ID")
+        if host and key:
+            _apply(
+                common,
+                lambda t: apply_flutter_server_defaults_text(t, host, key),
+                "servidor Duplex no formulario",
+            )
     if home.is_file():
         def _home(t: str) -> str:
             if _FLUTTER_YOUR_DESKTOP_IF in t:
@@ -1864,43 +1943,51 @@ def patch_flutter_deskremote_ui(src: Path, host: str = "", key: str = "") -> Non
         _apply(home, _home, "Seu Computador abaixo da logo")
         _apply(home, apply_flutter_logo_app_name_text, "DeskRemote abaixo da logo")
         _apply(home, apply_flutter_pane_width_text, "painel esquerdo 224px")
-    if tabs.is_file():
-        _apply(tabs, apply_flutter_recent_tabs_text, "abas Recentes e Vinculados")
-        _apply(tabs, apply_flutter_tab_names_text, "rotulo aba Vinculados")
-        _apply(tabs, apply_flutter_tab_icons_text, "icone aba Vinculados")
-    peer_tab_page = src / "flutter" / "lib" / "common" / "widgets" / "peer_tab_page.dart"
-    if peer_tab_page.is_file():
-        _apply(peer_tab_page, apply_flutter_vinculados_tab_page_text, "view aba Vinculados")
-    if peers.is_file():
-        _apply(peers, apply_flutter_recent_limit_text, "10 ultimas sessoes")
-    if card.is_file():
-        _apply(card, apply_flutter_peer_card_text, "cartao pelo nome do vinculo")
+        if profile == "posto":
+            _apply(home, apply_flutter_hide_password_edit_text, "sem editar senha permanente")
+    if profile != "posto":
+        if tabs.is_file():
+            _apply(tabs, apply_flutter_recent_tabs_text, "abas Recentes e Vinculados")
+            _apply(tabs, apply_flutter_tab_names_text, "rotulo aba Vinculados")
+            _apply(tabs, apply_flutter_tab_icons_text, "icone aba Vinculados")
+        peer_tab_page = src / "flutter" / "lib" / "common" / "widgets" / "peer_tab_page.dart"
+        if peer_tab_page.is_file():
+            _apply(peer_tab_page, apply_flutter_vinculados_tab_page_text, "view aba Vinculados")
+        if peers.is_file():
+            _apply(peers, apply_flutter_recent_limit_text, "10 ultimas sessoes")
+        if card.is_file():
+            _apply(card, apply_flutter_peer_card_text, "cartao pelo nome do vinculo")
     consts_dart = src / "flutter" / "lib" / "consts.dart"
     if tabbar.is_file():
         _apply(tabbar, apply_flutter_tabbar_text, "titulo DeskRemote na barra")
         _apply(tabbar, apply_flutter_show_title_text, "exibe nome na barra")
         _apply(tabbar, apply_flutter_titlebar_icon_size_text, "ico 24px na barra")
-        _apply(tabbar, apply_flutter_session_tab_getter_text, "aba reativa ao vinculo")
+        if profile != "posto":
+            _apply(tabbar, apply_flutter_session_tab_getter_text, "aba reativa ao vinculo")
     if consts_dart.is_file():
         _apply(consts_dart, apply_flutter_tabbar_height_text, "barra 36px para o ico")
     if main_tab.is_file():
         _apply(main_tab, apply_flutter_main_show_title_text, "home com nome na barra")
-        _apply(main_tab, apply_flutter_auth_gate_text, "login DeskRudder na home")
-    if multi_win.is_file():
-        _apply(multi_win, apply_flutter_session_window_title_text, "title na janela da sessao")
-    if remote_tab.is_file():
-        _apply(remote_tab, apply_flutter_remote_tab_title_text, "aba da sessao com vinculo")
-    if model_dart.is_file():
-        _apply(model_dart, apply_flutter_peer_info_tab_text, "peer_info atualiza aba")
+        if profile == "posto":
+            _apply(main_tab, apply_flutter_enroll_gate_text, "token de instalacao na home")
+        else:
+            _apply(main_tab, apply_flutter_auth_gate_text, "login DeskRudder na home")
+    if profile != "posto":
+        if multi_win.is_file():
+            _apply(multi_win, apply_flutter_session_window_title_text, "title na janela da sessao")
+        if remote_tab.is_file():
+            _apply(remote_tab, apply_flutter_remote_tab_title_text, "aba da sessao com vinculo")
+        if model_dart.is_file():
+            _apply(model_dart, apply_flutter_peer_info_tab_text, "peer_info atualiza aba")
     if settings.is_file():
         _apply(settings, apply_flutter_about_text, "tela Sobre")
-        if host:
+        if host and profile != "posto":
             _apply(
                 settings,
                 lambda t: apply_flutter_network_text(t, host),
                 "Rede mostra host Duplex",
             )
-    if core_main.is_file():
+    if profile != "posto" and core_main.is_file():
         _apply(core_main, apply_flutter_core_main_title_text, "core_main --title")
         _apply(core_main, apply_flutter_core_main_password_text, "core_main senha posicional")
         _apply(core_main, apply_flutter_core_main_cold_start_text, "core_main uni-link no frio")
@@ -2268,6 +2355,40 @@ def _selftest_flutter_recent_ui() -> None:
     overlay = _FLUTTER_OVERLAY_DIR / "lib" / "deskremote"
     if not (overlay / "sessao.dart").is_file() or not (overlay / "auth_gate.dart").is_file():
         raise SystemExit("selftest flutter: overlay de login ausente")
+    if not (overlay / "enroll.dart").is_file() or not (overlay / "enroll_gate.dart").is_file():
+        raise SystemExit("selftest flutter: overlay de instalacao do cliente ausente")
+    enroll_overlay = (overlay / "enroll.dart").read_text(encoding="utf-8")
+    if "deskremote/enroll" not in enroll_overlay:
+        raise SystemExit("selftest flutter: resgate do token ausente")
+    if "deskremote.invalid" in enroll_overlay:
+        raise SystemExit("selftest flutter: overlay de enroll nao deve embutir host")
+    if "mainSetPermanentPassword" not in enroll_overlay:
+        raise SystemExit("selftest flutter: enroll nao aplica senha permanente")
+    if "mainSetOption" not in enroll_overlay:
+        raise SystemExit("selftest flutter: enroll nao trava verification-method")
+    if "travarSenhaPermanenteDeskRemote" not in enroll_overlay:
+        raise SystemExit("selftest flutter: sync nao retrava senha permanente")
+    lock_pw = apply_flutter_lock_password_text(
+        "bool isChangePermanentPasswordDisabled() =>\n    bind.mainGetBuildinOption(key: kOptionDisableChangePermanentPassword) ==\n        'Y';\n"
+    )
+    if "DeskRemote: senha permanente so muda no painel" not in lock_pw:
+        raise SystemExit("selftest flutter: lock da senha permanente ausente")
+    if apply_flutter_lock_password_text(lock_pw) != lock_pw:
+        raise SystemExit("selftest flutter: lock da senha nao e idempotente")
+    hide_pw = apply_flutter_hide_password_edit_text(
+        "if (!bind.isDisableSettings())\n                    InkWell(\n                      child: Tooltip(\n                        message: translate('Change Password'),\n"
+    )
+    if "DeskRemote: senha permanente so no painel" not in hide_pw:
+        raise SystemExit("selftest flutter: lapis de senha ainda visivel")
+    if apply_flutter_hide_password_edit_text(hide_pw) != hide_pw:
+        raise SystemExit("selftest flutter: hide password nao e idempotente")
+    enroll_gate = apply_flutter_enroll_gate_text(
+        _FLUTTER_AUTH_IMPORT + _FLUTTER_HOME_PAGE_CHILD
+    )
+    if "DeskRemoteEnrollGate" not in enroll_gate or "token de instalacao" not in enroll_gate:
+        raise SystemExit("selftest flutter: enroll gate ausente na home")
+    if apply_flutter_enroll_gate_text(enroll_gate) != enroll_gate:
+        raise SystemExit("selftest flutter: enroll gate nao e idempotente")
     sessao_overlay = (overlay / "sessao.dart").read_text(encoding="utf-8")
     if "https://api-$slug." not in sessao_overlay:
         raise SystemExit("selftest flutter: API do login deve ser api-{slug}")
@@ -4175,7 +4296,7 @@ def main() -> int:
         "--ui",
         choices=("sciter", "flutter"),
         default="sciter",
-        help="sciter=producao 1.x.x; flutter=spike atendente 2.x.x",
+        help="sciter=producao 1.x.x; flutter=spike 2.x.x (atendente ou cliente)",
     )
     args = ap.parse_args()
     _selftest_sciter_copy()
@@ -4188,19 +4309,18 @@ def main() -> int:
 
     profile: str = args.profile
     ui: str = args.ui
-    if ui == "flutter" and profile != "controle":
-        print(
-            "Flutter spike so existe no profile controle (atendente).",
-            file=sys.stderr,
-        )
-        return 1
     configurar_canal_update(profile, ui)
 
     host, key = load_server(args.config.resolve())
     brand = args.branding.resolve()
-    version_file = args.client_version or (
-        here / ("CLIENT_VERSION_FLUTTER" if ui == "flutter" else "CLIENT_VERSION")
-    )
+    if args.client_version:
+        version_file = args.client_version
+    elif ui == "flutter" and profile == "posto":
+        version_file = here / "CLIENT_VERSION_FLUTTER_CLIENTE"
+    elif ui == "flutter":
+        version_file = here / "CLIENT_VERSION_FLUTTER"
+    else:
+        version_file = here / "CLIENT_VERSION"
     client_version = load_client_version(version_file.resolve(), ui)
     print(f">> Branding DeskRudder em {src}")
     print(f"   profile={profile}")
@@ -4237,13 +4357,16 @@ def main() -> int:
     patch_flutter_home_footer(
         src / "flutter" / "lib" / "desktop" / "pages" / "desktop_home_page.dart"
     )
-    patch_flutter_deskremote_ui(src, host, key)
+    patch_flutter_deskremote_ui(src, host, key, profile)
 
     cfg_rs = src / "libs" / "hbb_common" / "src" / "config.rs"
     if not cfg_rs.is_file():
         print(f"Falta {cfg_rs} (submodule hbb_common?).", file=sys.stderr)
         return 1
-    patch_config_rs(cfg_rs, host, key)
+    cfg_host, cfg_key = (host, key)
+    if ui == "flutter" and profile == "posto":
+        cfg_host, cfg_key = HOST_FLUTTER_CLIENTE_PENDENTE, KEY_FLUTTER_CLIENTE_PENDENTE
+    patch_config_rs(cfg_rs, cfg_host, cfg_key)
     if profile == "posto":
         patch_incoming_only(cfg_rs)
     elif profile == "controle":
@@ -4280,12 +4403,23 @@ def main() -> int:
 
     # Sanity: chave, host e servidor de produto presentes
     body = cfg_rs.read_text(encoding="utf-8")
-    if host not in body or key not in body or "DeskRudder" not in body:
+    if "DeskRudder" not in body:
         print("Verificacao falhou apos patch.", file=sys.stderr)
         return 1
-    if f'RwLock::new("{host}".to_owned())' not in body:
-        print("Verificacao falhou: PROD_RENDEZVOUS_SERVER sem host.", file=sys.stderr)
-        return 1
+    if ui == "flutter" and profile == "posto":
+        if HOST_FLUTTER_CLIENTE_PENDENTE not in body or KEY_FLUTTER_CLIENTE_PENDENTE not in body:
+            print("Verificacao falhou: cliente Flutter sem placeholder de servidor.", file=sys.stderr)
+            return 1
+        if host in body:
+            print("Verificacao falhou: cliente Flutter nao deve embutir o servidor da Duplex.", file=sys.stderr)
+            return 1
+    else:
+        if host not in body or key not in body:
+            print("Verificacao falhou apos patch.", file=sys.stderr)
+            return 1
+        if f'RwLock::new("{host}".to_owned())' not in body:
+            print("Verificacao falhou: PROD_RENDEZVOUS_SERVER sem host.", file=sys.stderr)
+            return 1
     if profile == "posto":
         if "DeskRemote: build so para ser acessado" not in body:
             print("Verificacao falhou: is_incoming_only nao patchado.", file=sys.stderr)
@@ -4545,24 +4679,25 @@ def main() -> int:
         if "DeskRemote: ico com borda branca nítida na barra de título" not in common_dart:
             print("Verificacao falhou: loadIcon da barra sem nitidez.", file=sys.stderr)
             return 1
-        if "deskremote/sessao.dart" not in common_dart:
-            print("Verificacao falhou: common.dart sem import da busca de vinculo.", file=sys.stderr)
-            return 1
-        if "DeskRemote: busca vinculo na API se o painel nao mandou name=" not in common_dart:
-            print("Verificacao falhou: alias do vinculo ausente no Flutter.", file=sys.stderr)
-            return 1
-        if "DeskRemote: busca vinculo na API no Conectar" not in common_dart:
-            print("Verificacao falhou: Conectar do Flutter nao busca o vinculo.", file=sys.stderr)
-            return 1
-        if "DeskRemote: vinculo (alias) ou usuario@host na aba" not in common_dart:
-            print("Verificacao falhou: aba da sessao Flutter ainda usa o ID.", file=sys.stderr)
-            return 1
-        if "DeskRemote: servidor Duplex" not in common_dart:
-            print("Verificacao falhou: fallback Duplex ausente no Flutter.", file=sys.stderr)
-            return 1
-        if f'"{host}"' not in common_dart or f'"{key}"' not in common_dart:
-            print("Verificacao falhou: host/key Duplex ausentes no Flutter.", file=sys.stderr)
-            return 1
+        if profile != "posto":
+            if "deskremote/sessao.dart" not in common_dart:
+                print("Verificacao falhou: common.dart sem import da busca de vinculo.", file=sys.stderr)
+                return 1
+            if "DeskRemote: busca vinculo na API se o painel nao mandou name=" not in common_dart:
+                print("Verificacao falhou: alias do vinculo ausente no Flutter.", file=sys.stderr)
+                return 1
+            if "DeskRemote: busca vinculo na API no Conectar" not in common_dart:
+                print("Verificacao falhou: Conectar do Flutter nao busca o vinculo.", file=sys.stderr)
+                return 1
+            if "DeskRemote: vinculo (alias) ou usuario@host na aba" not in common_dart:
+                print("Verificacao falhou: aba da sessao Flutter ainda usa o ID.", file=sys.stderr)
+                return 1
+            if "DeskRemote: servidor Duplex" not in common_dart:
+                print("Verificacao falhou: fallback Duplex ausente no Flutter.", file=sys.stderr)
+                return 1
+            if f'"{host}"' not in common_dart or f'"{key}"' not in common_dart:
+                print("Verificacao falhou: host/key Duplex ausentes no Flutter.", file=sys.stderr)
+                return 1
         flutter_assets = src / "flutter" / "assets" / "logo.png"
         if not flutter_assets.is_file():
             print("Verificacao falhou: flutter/assets/logo.png ausente.", file=sys.stderr)
@@ -4575,7 +4710,7 @@ def main() -> int:
             print("Verificacao falhou: flutter/assets/icon.svg RustDesk ainda presente.", file=sys.stderr)
             return 1
     flutter_tabs = src / "flutter" / "lib" / "models" / "peer_tab_model.dart"
-    if flutter_tabs.is_file():
+    if profile != "posto" and flutter_tabs.is_file():
         tabs_body = flutter_tabs.read_text(encoding="utf-8")
         if "DeskRemote: Recentes e Vinculados" not in tabs_body:
             print("Verificacao falhou: Flutter ainda nao mostra Recentes+Vinculados.", file=sys.stderr)
@@ -4584,7 +4719,7 @@ def main() -> int:
             print("Verificacao falhou: rotulo Vinculados ausente nas abas.", file=sys.stderr)
             return 1
     flutter_peer_tab = src / "flutter" / "lib" / "common" / "widgets" / "peer_tab_page.dart"
-    if flutter_peer_tab.is_file():
+    if profile != "posto" and flutter_peer_tab.is_file():
         peer_tab_body = flutter_peer_tab.read_text(encoding="utf-8")
         if "DeskRemoteVinculadosView" not in peer_tab_body:
             print("Verificacao falhou: aba Vinculados nao substitui Favoritos.", file=sys.stderr)
@@ -4593,13 +4728,13 @@ def main() -> int:
             print("Verificacao falhou: busca do RustDesk ainda aparece em Vinculados.", file=sys.stderr)
             return 1
     flutter_peers = src / "flutter" / "lib" / "common" / "widgets" / "peers_view.dart"
-    if flutter_peers.is_file():
+    if profile != "posto" and flutter_peers.is_file():
         peers_body = flutter_peers.read_text(encoding="utf-8")
         if "DeskRemote: 10 ultimas sessoes recentes" not in peers_body:
             print("Verificacao falhou: limite de 10 sessoes Flutter ausente.", file=sys.stderr)
             return 1
     flutter_card = src / "flutter" / "lib" / "common" / "widgets" / "peer_card.dart"
-    if flutter_card.is_file():
+    if profile != "posto" and flutter_card.is_file():
         card_body = flutter_card.read_text(encoding="utf-8")
         if "DeskRemote: nome do vinculo" not in card_body:
             print("Verificacao falhou: cartao Flutter ainda mostra ID.", file=sys.stderr)
@@ -4622,7 +4757,7 @@ def main() -> int:
         if "DeskRemote: ico 24px + nome na barra" not in consts_body:
             print("Verificacao falhou: altura da barra Flutter ainda 28px.", file=sys.stderr)
             return 1
-        if "DeskRemote: aba reage a alias" not in tabbar_body:
+        if profile != "posto" and "DeskRemote: aba reage a alias" not in tabbar_body:
             print("Verificacao falhou: tablabelGetter Flutter nao reage ao vinculo.", file=sys.stderr)
             return 1
     flutter_main_tab = src / "flutter" / "lib" / "desktop" / "pages" / "desktop_tab_page.dart"
@@ -4631,42 +4766,66 @@ def main() -> int:
         if "showTitle: true" not in main_tab_body:
             print("Verificacao falhou: home Flutter sem nome na barra.", file=sys.stderr)
             return 1
-        if "DeskRemote: Recentes/Conectar exigem login DeskRudder" not in main_tab_body:
-            print("Verificacao falhou: login DeskRudder ausente na home Flutter.", file=sys.stderr)
-            return 1
-        overlay_sessao = src / "flutter" / "lib" / "deskremote" / "sessao.dart"
-        overlay_gate = src / "flutter" / "lib" / "deskremote" / "auth_gate.dart"
-        overlay_vinc = src / "flutter" / "lib" / "deskremote" / "vinculados.dart"
-        if not overlay_sessao.is_file() or not overlay_gate.is_file() or not overlay_vinc.is_file():
-            print("Verificacao falhou: dart DeskRemote (login/vinculados) ausente no clone.", file=sys.stderr)
-            return 1
-        overlay_sessao_txt = overlay_sessao.read_text(encoding="utf-8")
-        if "https://api-$slug." not in overlay_sessao_txt:
-            print("Verificacao falhou: login Flutter nao usa api-{slug}.", file=sys.stderr)
-            return 1
-        if "https://$slug.$kDeskRemoteApex/v1" in overlay_sessao_txt:
-            print("Verificacao falhou: login Flutter ainda chama o host do painel.", file=sys.stderr)
-            return 1
-        if "buscarRotuloVinculoDeskRemote" not in overlay_sessao_txt:
-            print("Verificacao falhou: busca do vinculo na frota ausente no overlay.", file=sys.stderr)
-            return 1
-        if "listarFrotaVinculadaDeskRemote" not in overlay_sessao_txt:
-            print("Verificacao falhou: listagem da frota Vinculados ausente no overlay.", file=sys.stderr)
-            return 1
+        if profile == "posto":
+            if "DeskRemote: cliente so abre depois do token de instalacao" not in main_tab_body:
+                print("Verificacao falhou: token de instalacao ausente na home Flutter.", file=sys.stderr)
+                return 1
+            overlay_enroll = src / "flutter" / "lib" / "deskremote" / "enroll.dart"
+            overlay_enroll_gate = src / "flutter" / "lib" / "deskremote" / "enroll_gate.dart"
+            if not overlay_enroll.is_file() or not overlay_enroll_gate.is_file():
+                print("Verificacao falhou: dart DeskRemote (enroll) ausente no clone.", file=sys.stderr)
+                return 1
+            enroll_txt = overlay_enroll.read_text(encoding="utf-8")
+            if "mainSetPermanentPassword" not in enroll_txt:
+                print("Verificacao falhou: enroll sem senha permanente.", file=sys.stderr)
+                return 1
+            if flutter_common.is_file():
+                common_lock = flutter_common.read_text(encoding="utf-8")
+                if "DeskRemote: senha permanente so muda no painel" not in common_lock:
+                    print("Verificacao falhou: common.dart ainda permite editar senha.", file=sys.stderr)
+                    return 1
+            if flutter_home.is_file():
+                home_lock = flutter_home.read_text(encoding="utf-8")
+                if "DeskRemote: senha permanente so no painel" not in home_lock:
+                    print("Verificacao falhou: home Flutter ainda tem lapis de senha.", file=sys.stderr)
+                    return 1
+        else:
+            if "DeskRemote: Recentes/Conectar exigem login DeskRudder" not in main_tab_body:
+                print("Verificacao falhou: login DeskRudder ausente na home Flutter.", file=sys.stderr)
+                return 1
+            overlay_sessao = src / "flutter" / "lib" / "deskremote" / "sessao.dart"
+            overlay_gate = src / "flutter" / "lib" / "deskremote" / "auth_gate.dart"
+            overlay_vinc = src / "flutter" / "lib" / "deskremote" / "vinculados.dart"
+            if not overlay_sessao.is_file() or not overlay_gate.is_file() or not overlay_vinc.is_file():
+                print("Verificacao falhou: dart DeskRemote (login/vinculados) ausente no clone.", file=sys.stderr)
+                return 1
+            overlay_sessao_txt = overlay_sessao.read_text(encoding="utf-8")
+            if "https://api-$slug." not in overlay_sessao_txt:
+                print("Verificacao falhou: login Flutter nao usa api-{slug}.", file=sys.stderr)
+                return 1
+            if "https://$slug.$kDeskRemoteApex/v1" in overlay_sessao_txt:
+                print("Verificacao falhou: login Flutter ainda chama o host do painel.", file=sys.stderr)
+                return 1
+            if "buscarRotuloVinculoDeskRemote" not in overlay_sessao_txt:
+                print("Verificacao falhou: busca do vinculo na frota ausente no overlay.", file=sys.stderr)
+                return 1
+            if "listarFrotaVinculadaDeskRemote" not in overlay_sessao_txt:
+                print("Verificacao falhou: listagem da frota Vinculados ausente no overlay.", file=sys.stderr)
+                return 1
     flutter_multi = src / "flutter" / "lib" / "utils" / "multi_window_manager.dart"
-    if flutter_multi.is_file():
+    if profile != "posto" and flutter_multi.is_file():
         multi_body = flutter_multi.read_text(encoding="utf-8")
         if "DeskRemote: title na janela da sessao" not in multi_body:
             print("Verificacao falhou: newSession sem title do vinculo.", file=sys.stderr)
             return 1
     flutter_remote = src / "flutter" / "lib" / "desktop" / "pages" / "remote_tab_page.dart"
-    if flutter_remote.is_file():
+    if profile != "posto" and flutter_remote.is_file():
         remote_body = flutter_remote.read_text(encoding="utf-8")
         if "DeskRemote: titulo do vinculo na aba" not in remote_body:
             print("Verificacao falhou: aba remota sem titulo do vinculo.", file=sys.stderr)
             return 1
     flutter_model = src / "flutter" / "lib" / "models" / "model.dart"
-    if flutter_model.is_file():
+    if profile != "posto" and flutter_model.is_file():
         model_body = flutter_model.read_text(encoding="utf-8")
         if "DeskRemote: atualiza a aba quando chega usuario/host" not in model_body:
             print("Verificacao falhou: peer_info Flutter nao atualiza a aba.", file=sys.stderr)
@@ -4691,7 +4850,7 @@ def main() -> int:
         if WEBSITE_URL.rstrip("/") not in settings_body:
             print("Verificacao falhou: website do Sobre sem deskrudder.com.br.", file=sys.stderr)
             return 1
-        if "DeskRemote: host Duplex na Rede" not in settings_body:
+        if profile != "posto" and "DeskRemote: host Duplex na Rede" not in settings_body:
             print("Verificacao falhou: host Duplex nao aparece em Rede.", file=sys.stderr)
             return 1
     flutter_rc = src / "flutter" / "windows" / "runner" / "Runner.rc"
@@ -4701,7 +4860,11 @@ def main() -> int:
             print("Verificacao falhou: Runner.rc sem copyright DeskRudder.", file=sys.stderr)
             return 1
     core_main_body_path = src / "src" / "core_main.rs"
-    if core_main_body_path.is_file() and (src / "flutter" / "lib" / "common.dart").is_file():
+    if (
+        profile != "posto"
+        and core_main_body_path.is_file()
+        and (src / "flutter" / "lib" / "common.dart").is_file()
+    ):
         core_body = core_main_body_path.read_text(encoding="utf-8")
         if "DeskRemote: --title vira name=" not in core_body:
             print("Verificacao falhou: core_main sem --title do vinculo.", file=sys.stderr)
