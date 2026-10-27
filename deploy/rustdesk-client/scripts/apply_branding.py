@@ -518,6 +518,15 @@ _FLUTTER_TABS_RECENT_ONLY = """  List<bool> isEnabled = List.from([
   ]);
 """
 
+_FLUTTER_TABS_RECENT_AND_VINC = """  List<bool> isEnabled = List.from([
+    true, // DeskRemote: Recentes e Vinculados
+    true, // DeskRemote: aba Vinculados (frota)
+    false,
+    false,
+    false,
+  ]);
+"""
+
 _FLUTTER_PEERS_LIMIT = """            var peers = snapshot.data!;
             if (peers.length > 1000) peers = peers.sublist(0, 1000);
 """
@@ -630,11 +639,157 @@ def apply_flutter_logo_app_name_text(text: str) -> str:
 
 
 def apply_flutter_recent_tabs_text(text: str) -> str:
-    if "DeskRemote: so Sessoes recentes" in text:
+    if "DeskRemote: Recentes e Vinculados" in text:
         return text
+    if "DeskRemote: so Sessoes recentes" in text:
+        if _FLUTTER_TABS_RECENT_ONLY not in text:
+            raise SystemExit("flutter peer_tab_model: patch antigo Recentes nao encontrado")
+        return text.replace(_FLUTTER_TABS_RECENT_ONLY, _FLUTTER_TABS_RECENT_AND_VINC, 1)
     if _FLUTTER_TABS_ENABLED not in text:
         raise SystemExit("flutter peer_tab_model: isEnabled nao encontrado")
-    return text.replace(_FLUTTER_TABS_ENABLED, _FLUTTER_TABS_RECENT_ONLY, 1)
+    return text.replace(_FLUTTER_TABS_ENABLED, _FLUTTER_TABS_RECENT_AND_VINC, 1)
+
+
+_FLUTTER_TAB_NAMES = """  static const List<String> tabNames = [
+    'Recent sessions',
+    'Favorites',
+    'Discovered',
+    'Address book',
+    'Accessible devices',
+  ];
+"""
+
+_FLUTTER_TAB_NAMES_NEW = """  static const List<String> tabNames = [
+    'Sessões recentes',
+    'Vinculados', // DeskRemote: frota do sistema
+    'Discovered',
+    'Address book',
+    'Accessible devices',
+  ];
+"""
+
+_FLUTTER_TAB_ICONS = """  static const List<IconData> icons = [
+    Icons.access_time_filled,
+    Icons.star,
+    Icons.explore,
+    IconFont.addressBook,
+    IconFont.deviceGroupFill,
+  ];
+"""
+
+_FLUTTER_TAB_ICONS_NEW = """  static const List<IconData> icons = [
+    Icons.access_time_filled,
+    Icons.link, // DeskRemote: Vinculados
+    Icons.explore,
+    IconFont.addressBook,
+    IconFont.deviceGroupFill,
+  ];
+"""
+
+_FLUTTER_PEER_TAB_IMPORT = "import 'package:flutter_hbb/common/widgets/peers_view.dart';\n"
+
+_FLUTTER_PEER_TAB_IMPORT_NEW = (
+    _FLUTTER_PEER_TAB_IMPORT + "import 'package:flutter_hbb/deskremote/vinculados.dart';\n"
+)
+
+_FLUTTER_FAV_VIEW = """    _TabEntry(FavoritePeersView(
+      menuPadding: _menuPadding(),
+    )),
+"""
+
+_FLUTTER_FAV_VIEW_NEW = (
+    "    _TabEntry(const DeskRemoteVinculadosView()), "
+    "// DeskRemote: aba Vinculados (frota)\n"
+)
+
+_FLUTTER_SEARCH_LAND = "      const PeerSearchBar().marginOnly(right: 13),\n"
+
+_FLUTTER_SEARCH_LAND_NEW = """      Offstage(
+        // DeskRemote: busca do RustDesk nao filtra Vinculados.
+        offstage: model.currentTab == PeerTabIndex.fav.index,
+        child: const PeerSearchBar().marginOnly(right: 13),
+      ),
+"""
+
+_FLUTTER_SEARCH_PORT = """    List<Widget> actions = [
+      const PeerSearchBar(),
+"""
+
+_FLUTTER_SEARCH_PORT_NEW = """    List<Widget> actions = [
+      if (model.currentTab != PeerTabIndex.fav.index) const PeerSearchBar(),
+"""
+
+_FLUTTER_VIEW_SWITCH = "      _createPeerViewTypeSwitch(context),\n"
+
+_FLUTTER_VIEW_SWITCH_NEW = """      Offstage(
+        offstage: model.currentTab == PeerTabIndex.fav.index, // DeskRemote: Vinculados
+        child: _createPeerViewTypeSwitch(context),
+      ),
+"""
+
+_FLUTTER_SORT_OFF = """      Offstage(
+        offstage: model.currentTab == PeerTabIndex.recent.index,
+        child: PeerSortDropdown(),
+      ),
+"""
+
+_FLUTTER_SORT_OFF_NEW = """      Offstage(
+        offstage: model.currentTab == PeerTabIndex.recent.index ||
+            model.currentTab == PeerTabIndex.fav.index, // DeskRemote: Vinculados
+        child: PeerSortDropdown(),
+      ),
+"""
+
+_FLUTTER_SORT_PORT = (
+    "      if (model.currentTab != PeerTabIndex.recent.index) PeerSortDropdown(),\n"
+)
+
+_FLUTTER_SORT_PORT_NEW = """      if (model.currentTab != PeerTabIndex.recent.index &&
+          model.currentTab != PeerTabIndex.fav.index)
+        PeerSortDropdown(),
+"""
+
+
+def apply_flutter_tab_names_text(text: str) -> str:
+    if "DeskRemote: frota do sistema" in text:
+        return text
+    if _FLUTTER_TAB_NAMES not in text:
+        raise SystemExit("flutter peer_tab_model: tabNames nao encontrado")
+    return text.replace(_FLUTTER_TAB_NAMES, _FLUTTER_TAB_NAMES_NEW, 1)
+
+
+def apply_flutter_tab_icons_text(text: str) -> str:
+    if "DeskRemote: Vinculados" in text and "Icons.link" in text:
+        return text
+    if _FLUTTER_TAB_ICONS not in text:
+        raise SystemExit("flutter peer_tab_model: icons da aba nao encontrado")
+    return text.replace(_FLUTTER_TAB_ICONS, _FLUTTER_TAB_ICONS_NEW, 1)
+
+
+def apply_flutter_vinculados_tab_page_text(text: str) -> str:
+    if "DeskRemoteVinculadosView" not in text:
+        if _FLUTTER_PEER_TAB_IMPORT_NEW not in text:
+            if _FLUTTER_PEER_TAB_IMPORT not in text:
+                raise SystemExit("flutter peer_tab_page: import peers_view nao encontrado")
+            text = text.replace(_FLUTTER_PEER_TAB_IMPORT, _FLUTTER_PEER_TAB_IMPORT_NEW, 1)
+        if _FLUTTER_FAV_VIEW not in text:
+            raise SystemExit("flutter peer_tab_page: FavoritePeersView nao encontrado")
+        text = text.replace(_FLUTTER_FAV_VIEW, _FLUTTER_FAV_VIEW_NEW, 1)
+    if "DeskRemote: busca do RustDesk nao filtra Vinculados" in text:
+        return text
+    if _FLUTTER_SEARCH_LAND not in text:
+        raise SystemExit("flutter peer_tab_page: PeerSearchBar landscape nao encontrado")
+    text = text.replace(_FLUTTER_SEARCH_LAND, _FLUTTER_SEARCH_LAND_NEW, 1)
+    if _FLUTTER_SEARCH_PORT not in text:
+        raise SystemExit("flutter peer_tab_page: PeerSearchBar portrait nao encontrado")
+    text = text.replace(_FLUTTER_SEARCH_PORT, _FLUTTER_SEARCH_PORT_NEW, 1)
+    if _FLUTTER_VIEW_SWITCH in text:
+        text = text.replace(_FLUTTER_VIEW_SWITCH, _FLUTTER_VIEW_SWITCH_NEW, 1)
+    if _FLUTTER_SORT_OFF in text:
+        text = text.replace(_FLUTTER_SORT_OFF, _FLUTTER_SORT_OFF_NEW, 1)
+    if _FLUTTER_SORT_PORT in text:
+        text = text.replace(_FLUTTER_SORT_PORT, _FLUTTER_SORT_PORT_NEW, 1)
+    return text
 
 
 def apply_flutter_recent_limit_text(text: str) -> str:
@@ -1496,8 +1651,11 @@ def copy_flutter_auth_overlay(src: Path) -> None:
         shutil.copy2(f, dest / f.name)
         copiados += 1
         print(f"  flutter overlay {f.name}", flush=True)
-    if copiados < 2:
-        raise SystemExit("overlay deskremote incompleto (sessao + auth_gate)")
+    nomes = {p.name for p in origin.glob("*.dart")}
+    if not {"sessao.dart", "auth_gate.dart", "vinculados.dart"} <= nomes:
+        raise SystemExit("overlay deskremote incompleto (sessao + auth_gate + vinculados)")
+    if copiados < 3:
+        raise SystemExit("overlay deskremote incompleto (esperados 3 dart)")
 
 
 def apply_flutter_auth_gate_text(text: str) -> str:
@@ -1655,7 +1813,7 @@ def apply_flutter_remote_tab_title_text(text: str) -> str:
 
 
 def patch_flutter_deskremote_ui(src: Path, host: str = "", key: str = "") -> None:
-    """Logo, so Recentes (10), nome do vinculo no cartao, alias via name=."""
+    """Logo, Recentes + Vinculados, nome do vinculo no cartao, alias via name=."""
     home = src / "flutter" / "lib" / "desktop" / "pages" / "desktop_home_page.dart"
     common = src / "flutter" / "lib" / "common.dart"
     tabs = src / "flutter" / "lib" / "models" / "peer_tab_model.dart"
@@ -1707,7 +1865,12 @@ def patch_flutter_deskremote_ui(src: Path, host: str = "", key: str = "") -> Non
         _apply(home, apply_flutter_logo_app_name_text, "DeskRemote abaixo da logo")
         _apply(home, apply_flutter_pane_width_text, "painel esquerdo 224px")
     if tabs.is_file():
-        _apply(tabs, apply_flutter_recent_tabs_text, "so aba Sessoes recentes")
+        _apply(tabs, apply_flutter_recent_tabs_text, "abas Recentes e Vinculados")
+        _apply(tabs, apply_flutter_tab_names_text, "rotulo aba Vinculados")
+        _apply(tabs, apply_flutter_tab_icons_text, "icone aba Vinculados")
+    peer_tab_page = src / "flutter" / "lib" / "common" / "widgets" / "peer_tab_page.dart"
+    if peer_tab_page.is_file():
+        _apply(peer_tab_page, apply_flutter_vinculados_tab_page_text, "view aba Vinculados")
     if peers.is_file():
         _apply(peers, apply_flutter_recent_limit_text, "10 ultimas sessoes")
     if card.is_file():
@@ -1746,10 +1909,34 @@ def patch_flutter_deskremote_ui(src: Path, host: str = "", key: str = "") -> Non
 
 def _selftest_flutter_recent_ui() -> None:
     tabs = apply_flutter_recent_tabs_text(_FLUTTER_TABS_ENABLED)
-    if "so Sessoes recentes" not in tabs or tabs.count("false") < 4:
-        raise SystemExit("selftest flutter: abas extras nao ocultas")
+    if "Recentes e Vinculados" not in tabs or tabs.count("false") != 3:
+        raise SystemExit("selftest flutter: Recentes+Vinculados nao aplicados")
     if apply_flutter_recent_tabs_text(tabs) != tabs:
         raise SystemExit("selftest flutter: abas nao e idempotente")
+    tabs_old = apply_flutter_recent_tabs_text(_FLUTTER_TABS_RECENT_ONLY)
+    if "Recentes e Vinculados" not in tabs_old:
+        raise SystemExit("selftest flutter: upgrade Recentes-only falhou")
+    names = apply_flutter_tab_names_text(_FLUTTER_TAB_NAMES)
+    if "Vinculados" not in names:
+        raise SystemExit("selftest flutter: nome Vinculados ausente")
+    icons = apply_flutter_tab_icons_text(_FLUTTER_TAB_ICONS)
+    if "Icons.link" not in icons:
+        raise SystemExit("selftest flutter: icone Vinculados ausente")
+    page = apply_flutter_vinculados_tab_page_text(
+        _FLUTTER_PEER_TAB_IMPORT
+        + _FLUTTER_FAV_VIEW
+        + _FLUTTER_SEARCH_LAND
+        + _FLUTTER_SEARCH_PORT
+        + _FLUTTER_VIEW_SWITCH
+        + _FLUTTER_SORT_OFF
+        + _FLUTTER_SORT_PORT
+    )
+    if "DeskRemoteVinculadosView" not in page:
+        raise SystemExit("selftest flutter: view Vinculados ausente")
+    if "busca do RustDesk nao filtra Vinculados" not in page:
+        raise SystemExit("selftest flutter: busca RustDesk ainda visivel em Vinculados")
+    if apply_flutter_vinculados_tab_page_text(page) != page:
+        raise SystemExit("selftest flutter: tab page Vinculados nao e idempotente")
 
     limit = apply_flutter_recent_limit_text(_FLUTTER_PEERS_LIMIT)
     if "maxPeers" not in limit or "10" not in limit:
@@ -4390,8 +4577,20 @@ def main() -> int:
     flutter_tabs = src / "flutter" / "lib" / "models" / "peer_tab_model.dart"
     if flutter_tabs.is_file():
         tabs_body = flutter_tabs.read_text(encoding="utf-8")
-        if "DeskRemote: so Sessoes recentes" not in tabs_body:
-            print("Verificacao falhou: Flutter ainda mostra abas extras.", file=sys.stderr)
+        if "DeskRemote: Recentes e Vinculados" not in tabs_body:
+            print("Verificacao falhou: Flutter ainda nao mostra Recentes+Vinculados.", file=sys.stderr)
+            return 1
+        if "Vinculados" not in tabs_body:
+            print("Verificacao falhou: rotulo Vinculados ausente nas abas.", file=sys.stderr)
+            return 1
+    flutter_peer_tab = src / "flutter" / "lib" / "common" / "widgets" / "peer_tab_page.dart"
+    if flutter_peer_tab.is_file():
+        peer_tab_body = flutter_peer_tab.read_text(encoding="utf-8")
+        if "DeskRemoteVinculadosView" not in peer_tab_body:
+            print("Verificacao falhou: aba Vinculados nao substitui Favoritos.", file=sys.stderr)
+            return 1
+        if "busca do RustDesk nao filtra Vinculados" not in peer_tab_body:
+            print("Verificacao falhou: busca do RustDesk ainda aparece em Vinculados.", file=sys.stderr)
             return 1
     flutter_peers = src / "flutter" / "lib" / "common" / "widgets" / "peers_view.dart"
     if flutter_peers.is_file():
@@ -4437,8 +4636,9 @@ def main() -> int:
             return 1
         overlay_sessao = src / "flutter" / "lib" / "deskremote" / "sessao.dart"
         overlay_gate = src / "flutter" / "lib" / "deskremote" / "auth_gate.dart"
-        if not overlay_sessao.is_file() or not overlay_gate.is_file():
-            print("Verificacao falhou: dart de login DeskRemote ausente no clone.", file=sys.stderr)
+        overlay_vinc = src / "flutter" / "lib" / "deskremote" / "vinculados.dart"
+        if not overlay_sessao.is_file() or not overlay_gate.is_file() or not overlay_vinc.is_file():
+            print("Verificacao falhou: dart DeskRemote (login/vinculados) ausente no clone.", file=sys.stderr)
             return 1
         overlay_sessao_txt = overlay_sessao.read_text(encoding="utf-8")
         if "https://api-$slug." not in overlay_sessao_txt:
@@ -4449,6 +4649,9 @@ def main() -> int:
             return 1
         if "buscarRotuloVinculoDeskRemote" not in overlay_sessao_txt:
             print("Verificacao falhou: busca do vinculo na frota ausente no overlay.", file=sys.stderr)
+            return 1
+        if "listarFrotaVinculadaDeskRemote" not in overlay_sessao_txt:
+            print("Verificacao falhou: listagem da frota Vinculados ausente no overlay.", file=sys.stderr)
             return 1
     flutter_multi = src / "flutter" / "lib" / "utils" / "multi_window_manager.dart"
     if flutter_multi.is_file():
