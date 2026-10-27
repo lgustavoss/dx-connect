@@ -19,6 +19,7 @@ import { temPermissao } from '../lib/permissoes'
 import { formatarIdRustdesk, tipoHospedadoNoServidor } from '../lib/rustdeskId'
 import { senhaDoAcesso } from '../lib/acessoRemotoConectar'
 import { BotaoConectarRemoto } from './BotaoConectarRemoto'
+import { DeskRemoteTokenInstalacao } from './DeskRemoteTokenInstalacao'
 
 const MAX_ACESSOS = 10
 
@@ -456,6 +457,7 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel, onF
                           variant="botao"
                           className="mt-1"
                           rustdeskId={acesso.acesso_remoto_id}
+                          tituloSessao={`${detalhe.rotulo_nome?.trim() || 'Equipamento'} ${detalhe.codigo}`.trim()}
                           carregarSenha={() =>
                             senhaDoAcesso(empresaId, detalhe.id, acesso.id > 0 ? acesso.id : null, toast)
                           }
@@ -465,6 +467,9 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel, onF
                           O painel não abre o {nome}. Clique no ID e na senha para copiar e cole no programa.
                         </p>
                       )}
+                      {podeEditar && tipoHospedadoNoServidor(acesso.tipo_acesso_remoto_nome) ? (
+                        <DeskRemoteTokenInstalacao empresaId={empresaId} pdvId={detalhe.id} acesso={acesso} />
+                      ) : null}
                     </div>
                   )
                 })}
@@ -727,7 +732,8 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel, onF
                         {conectar?.acesso_remoto_id ? (
                           <BotaoConectarRemoto
                             rustdeskId={conectar.acesso_remoto_id}
-                            title="Conectar no DeskRudder"
+                            tituloSessao={`${row.rotulo_nome?.trim() || 'Equipamento'} ${row.codigo}`.trim()}
+                            title="Conectar no DeskRemote"
                             ariaLabel={`Conectar ao PDV ${row.codigo}`}
                             carregarSenha={() =>
                               senhaDoAcesso(

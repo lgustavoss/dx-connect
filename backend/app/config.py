@@ -96,13 +96,16 @@ class Settings(BaseSettings):
     # Agente ao lado do hbbs (RustDesk gratuito). Vazio = a tela lista só o cache local.
     RUSTDESK_AGENT_URL: str | None = None
     RUSTDESK_AGENT_TOKEN: str | None = None
-    # Dados públicos que o DeskRudder Acesso Remoto do PDV cola em Configurações, na aba Rede.
+    # Dados públicos que o DeskRemote do PDV cola em Configurações, na aba Rede.
     RUSTDESK_ID_SERVER: str | None = None
     RUSTDESK_RELAY_SERVER: str | None = None
     RUSTDESK_PUBLIC_KEY: str | None = None
     # O hbbs trata o computador como inacessível após 30s sem o registro do cliente.
     RUSTDESK_ONLINE_SECONDS: int = 45
     RUSTDESK_SYNC_MIN_INTERVAL_SECONDS: int = 30
+    # Host público da API (ex.: api-cliente.deskrudder.com.br). Vazio = deriva de CLIENT_APP_HOST.
+    PUBLIC_API_HOST: str | None = None
+    DESKREMOTE_INSTALL_TOKEN_EXPIRE_HOURS: int = 72
 
     # Control-plane comercial DeskRudder (painel de licenças / SaaS).
     # True só na instância deskrudder.com.br — False nas instâncias dos clientes.

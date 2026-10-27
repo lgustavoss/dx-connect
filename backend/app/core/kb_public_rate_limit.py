@@ -82,6 +82,40 @@ def check_saas_trial_rate_limit(request: Request) -> None:
         bucket.append(now)
 
 
+_MAX_DESKREMOTE_ENROLL_PER_HOUR_PER_IP = 20
+_MAX_DESKREMOTE_SYNC_PER_MINUTE_PER_IP = 60
+_enroll_buckets: dict[str, list[float]] = defaultdict(list)
+_sync_buckets: dict[str, list[float]] = defaultdict(list)
+
+
+def check_deskremote_enroll_rate_limit(request: Request) -> None:
+    ip = client_ip(request)
+    now = time.monotonic()
+    with _lock:
+        bucket = _enroll_buckets[ip]
+        bucket[:] = [t for t in bucket if now - t < 3600]
+        if len(bucket) >= _MAX_DESKREMOTE_ENROLL_PER_HOUR_PER_IP:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Muitas tentativas de instalação. Aguarde e tente de novo.",
+            )
+        bucket.append(now)
+
+
+def check_deskremote_sync_rate_limit(request: Request) -> None:
+    ip = client_ip(request)
+    now = time.monotonic()
+    with _lock:
+        bucket = _sync_buckets[ip]
+        bucket[:] = [t for t in bucket if now - t < 60]
+        if len(bucket) >= _MAX_DESKREMOTE_SYNC_PER_MINUTE_PER_IP:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Muitas consultas deste computador. Aguarde um minuto.",
+            )
+        bucket.append(now)
+
+
 def check_saas_contato_rate_limit(request: Request) -> None:
     ip = client_ip(request)
     now = time.monotonic()

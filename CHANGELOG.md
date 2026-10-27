@@ -5,6 +5,41 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### DeskRudder
+
+#### Melhorias
+
+- Empresas → PDVs: quem edita a empresa gera um **QR e um link de instalação** do DeskRemote, de uso único, ligados àquele computador. A senha cadastrada não aparece no QR — o aplicativo aplica sozinho. Se a senha mudar no painel, o PDV atualiza sem alguém conectar
+- DeskRemote no PDV (versão 2.0, Flutter): instalador genérico, sem servidor de um cliente só. No primeiro uso cola o link do painel; depois mostra só ID e status, e não deixa trocar a senha no computador
+- App Windows: no menu **DeskRudder** (janela e bandeja) dá para abrir **Sobre** com a versão do aplicativo e **atualizar** quando houver uma versão mais recente
+
+#### Correções
+
+- Empresas (#S202610-0019): na busca, o campo deixa de travar quando a lista recarrega — dá para continuar digitando depois de uma pausa
+- Acesso remoto (#S202610-0018): clicar várias vezes no atalho ou na barra de tarefas **reusa a janela já aberta** em vez de abrir várias; reconectar no mesmo ID traz a sessão existente para frente (versão 1.0.14)
+- Acesso remoto (atendente): a sessão mostra o **rótulo do vínculo** (ex.: «Posto Farol · SERVIDOR 001») na barra e no título; a toolbar acompanha o tema escuro; ícone da janela usa o D legível (versão 1.0.13)
+- Acesso remoto: barra de título e menu Sobre mostram **DeskRemote** (antes DeskRudder); ícone pequeno da janela/bandeja vira um **D** vermelho legível (versão 1.0.12)
+- Acesso remoto: logo e ícones do **DeskRemote** atualizados com a arte oficial (D + atendente + nuvem), fundo transparente e glow preservado (versão 1.0.11)
+- Acesso remoto: o produto passa a se chamar **DeskRemote** na janela, no atalho e nos textos do painel (versão 1.0.10). O tipo da frota no cadastro também; nomes antigos (DeskRudder / RustDesk) continuam reconhecidos. Pasta e `.exe` no Windows seguem iguais para não quebrar quem já instalou
+- Acesso remoto: dá para **atualizar o posto à distância** sem alguém na frente do PC (versão 1.0.9) — o app enfileira o instalador e o serviço Windows aplica com `--update` sem pedir UAC; a sessão remota pode cair enquanto o app troca os arquivos
+- Acesso remoto: transferência de arquivo fica ligada por padrão no posto e no atendente; o menu **Transferir arquivo** usa a senha da sessão quando der (versão 1.0.9)
+
+#### Interno
+
+- DeskRemote cliente Flutter **2.0.0** (#1252 / #1283): token de instalação, credencial do computador, sync de senha, workflow `acesso-remoto-windows-flutter` (não sobrescreve o Sciter `acesso-remoto-windows`)
+- DeskRemote: kit de arte (#1253) e spike Flutter do atendente (Actions paralelo; Sciter 1.0.14 continua em produção)
+- DeskRemote Flutter: «Desenvolvido por DeskRudder» no rodapé do painel esquerdo, com a versão atual logo abaixo
+- DeskRemote Flutter: logo no topo do painel; só a aba Sessões recentes (10 últimas), com o nome do vínculo no lugar do ID
+- DeskRemote: Sciter de produção continua na linha **1.x.x**; o Flutter do atendente começa em **2.0.0** (Release e update separados)
+- DeskRemote Flutter: CI atualiza o `Cargo.lock` depois de gravar a versão 2.x.x no packer (`cargo build --locked`)
+- DeskRemote Flutter: o nome do vínculo no cartão não quebra o menu Excluir (`displayName` só no layout)
+- DeskRemote Flutter **2.2.0**: na home, a aba **Vinculados** lista a frota do sistema (nome do vínculo e Online/Offline); o clique conecta, com a senha do cadastro quando a conta puder revelá-la (#1281)
+- DeskRemote Flutter **2.1.1**: ao conectar pelo painel num computador com vínculo, a aba mostra o nome (ex. Posto Farol · SERVIDOR 001) e não o ID — mesmo se o painel antigo não mandar o rótulo; basta estar logado no DeskRemote (#1276)
+- DeskRemote Flutter **2.1.1**: o build volta a compilar — o Dart recusava sessão nula ao buscar o rótulo do vínculo
+- DeskRemote Flutter **2.1.0**: a home (Recentes e Conectar) pede o mesmo login do DeskRudder; se o atendente já entrou no app Electron neste PC com “lembrar-me”, o atalho não pergunta de novo; Conectar pelo painel segue sem pedir senha; **Sair** no DeskRemote não reloga sozinho (#1274)
+- DeskRemote Flutter **2.0.2**: o nome **DeskRemote** aparece na barra de título (tema claro e escuro) e abaixo da logo do painel; ao conectar pelo painel ou pelo ID/cartão (se o alias já existir), a aba da sessão mostra o rótulo do vínculo; ícone da barra de tarefas e da barra de título com contorno branco (só no Flutter; Sciter do posto permanece 1.0.14); logo do painel maior e mais nítida
+- DeskRemote Flutter **2.0.1**: ícone da barra é o D vermelho (não o do RustDesk); logo do painel mais nítida; Sobre o **DeskRemote** desenvolvido pela DeskRudder; site deskrudder.com.br; copyright DeskRudder; sem declaração de privacidade do RustDesk; Rede mostra o servidor Duplex; a aba da sessão mostra o vínculo (ou usuário@host), não o ID; arte oficial em todos os ícones (sem o D simplificado)
+
 ## [26.10.008] - 2026-10-22
 
 ### DeskRudder

@@ -30,17 +30,28 @@ New-Item -ItemType Directory -Force -Path $stableDir | Out-Null
 $stable = Join-Path $stableDir "DeskRudder-Setup.exe"
 Copy-Item -LiteralPath $SetupPath -Destination $stable -Force
 
+if (-not $ver) {
+  $ver = (Get-Content (Join-Path $root "package.json") -Raw | ConvertFrom-Json).version
+}
+$downloadUrl = "https://github.com/$Repo/releases/download/$Tag/DeskRudder-Setup.exe"
+$versionJson = Join-Path $stableDir "version.json"
+$json = (@{
+  version = $ver
+  download_url = $downloadUrl
+} | ConvertTo-Json) + "`n"
+[System.IO.File]::WriteAllText($versionJson, $json)
+
 $notes = @"
-DeskRudder Setup para Windows (atendente).
+DeskRudder Setup para Windows (atendente) **$ver**.
 
 Link amigavel na instancia: ``https://{slug}.deskrudder.com.br/app/download``
 "@
 
 if (gh release view $Tag --repo $Repo 2>$null) {
-  gh release upload $Tag $stable --repo $Repo --clobber
-  gh release edit $Tag --repo $Repo --title "DeskRudder Setup Windows" --notes $notes
+  gh release upload $Tag $stable $versionJson --repo $Repo --clobber
+  gh release edit $Tag --repo $Repo --title "DeskRudder App Atendente $ver (Windows)" --notes $notes
 } else {
-  gh release create $Tag $stable --repo $Repo --title "DeskRudder Setup Windows" --notes $notes --latest=false
+  gh release create $Tag $stable $versionJson --repo $Repo --title "DeskRudder App Atendente $ver (Windows)" --notes $notes --latest=false
 }
 
 Write-Host "Publicado: https://github.com/$Repo/releases/download/$Tag/DeskRudder-Setup.exe"

@@ -2,6 +2,7 @@ import { mensagemErroApi } from './errorMessage'
 import { isCapacitorNative } from '../lib/capacitorNative'
 import { clientApiOrigin, readRememberedAccount } from '../lib/marketingHost'
 import { isMultiTenantMode, resolveTenantIdFromHostname } from '../lib/tenant'
+import { limparSessaoDeskRemote, salvarSessaoDeskRemote } from '../lib/deskrudderDesktop'
 
 function bakedApiUrl(): string | undefined {
   const url = import.meta.env.VITE_API_URL as string | undefined
@@ -89,11 +90,17 @@ export function persistAuthTokens(tokens: { access_token: string; refresh_token?
   const inLocal = Boolean(localStorage.getItem(TOKEN_KEY) || localStorage.getItem(REFRESH_TOKEN_KEY))
   clearAuthToken()
   setTokens(tokens, inLocal)
+  if (inLocal) {
+    salvarSessaoDeskRemote(tokens.access_token, tokens.refresh_token)
+  } else {
+    limparSessaoDeskRemote()
+  }
 }
 
 /** Invalida sessão e força novo login (evita voltar com «Back» para páginas autenticadas). */
 export function invalidateSessionAndRedirectToLogin(): void {
   clearAuthToken()
+  limparSessaoDeskRemote()
   const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`
   const qs = returnTo && returnTo !== '/login' ? `?returnTo=${encodeURIComponent(returnTo)}` : ''
   window.location.replace(`/login${qs}`)
@@ -4279,6 +4286,11 @@ export const empresaPdvs = {
     api<EmpresaPdv.Credencial>(`/empresas/${empresaId}/pdvs/${pdvId}/credencial`),
   revelarCredencialAcesso: (empresaId: number, pdvId: number, acessoId: number) =>
     api<EmpresaPdv.Credencial>(`/empresas/${empresaId}/pdvs/${pdvId}/acessos/${acessoId}/credencial`),
+  gerarTokenDeskRemote: (empresaId: number, pdvId: number, acessoId?: number | null) =>
+    api<EmpresaPdv.TokenInstalacao>(`/empresas/${empresaId}/pdvs/${pdvId}/deskremote/token`, {
+      method: 'POST',
+      body: JSON.stringify({ acesso_id: acessoId ?? null }),
+    }),
 };
 
 export const rustdeskPeers = {
@@ -4452,6 +4464,13 @@ export namespace EmpresaPdv {
   }
   export interface Credencial {
     acesso_remoto_senha: string;
+  }
+  export interface TokenInstalacao {
+    url: string
+    expira_em: string
+    pdv_id: number
+    acesso_id: number
+    rotulo: string
   }
 }
 

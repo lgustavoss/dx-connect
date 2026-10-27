@@ -150,3 +150,18 @@ jobs:
         if: needs.changes.outputs.frontend != 'true'
         working-directory: .
         run: echo "Sem alterações de frontend — npm ci/build omitidos."
+
+  desktop:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+
+      - name: Testes da sessão DeskRemote
+        run: npm test
