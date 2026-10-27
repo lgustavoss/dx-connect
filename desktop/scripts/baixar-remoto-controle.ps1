@@ -1,19 +1,19 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Baixa DeskRudder-AcessoRemoto-Controle.exe do Release GitHub para embutir no Setup.
+  Baixa o DeskRemote Atendente v2 e grava como DeskRudder-AcessoRemoto-Controle.exe (nome que o Setup espera).
 #>
 [CmdletBinding()]
 param(
   [string]$Repo = "lgustavoss/dx-connect",
-  [string]$Tag = "acesso-remoto-controle-windows",
-  [string]$Asset = "DeskRudder-AcessoRemoto-Controle.exe"
+  [string]$Tag = "acesso-remoto-controle-flutter-windows",
+  [string]$Asset = "DeskRudder-AcessoRemoto-Controle-Flutter.exe"
 )
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $destDir = Join-Path $root "vendor\remoto-controle"
-$dest = Join-Path $destDir $Asset
+$dest = Join-Path $destDir "DeskRudder-AcessoRemoto-Controle.exe"
 New-Item -ItemType Directory -Force -Path $destDir | Out-Null
 
 $url = "https://github.com/$Repo/releases/download/$Tag/$Asset"

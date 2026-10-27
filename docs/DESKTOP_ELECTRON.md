@@ -61,14 +61,14 @@ Três workflows no Actions (nomes na UI):
 
 | Actions (nome) | Quando rodar | Arquivo / Release |
 |----------------|--------------|-------------------|
-| **Acesso Remoto Cliente (Windows)** | Atualizar remoto do **posto** | `DeskRudder-AcessoRemoto.exe` |
-| **Acesso Remoto Atendente (Windows)** | Atualizar remoto do **atendente** (~40–90 min) | `…-Controle.exe` |
-| **App Atendente Setup (Windows)** | Atualizar **painel** + embutir o remoto já publicado (rápido) | `DeskRudder-Setup.exe` |
+| **DeskRemote Cliente v2** | Atualizar remoto do **posto** (Flutter 2.0) | `…-Flutter.exe` |
+| **DeskRemote Atendente v2** | Atualizar remoto do **atendente** Flutter (~40–90 min) | `…-Controle-Flutter.exe` |
+| **DeskRudder Painel v1** | Atualizar **painel** + embutir o Atendente v2 (rápido) | `DeskRudder-Setup.exe` |
 
 Fluxo típico do atendente:
 
-1. (Só se o remoto mudou ou é a 1.ª vez) **Acesso Remoto Atendente (Windows)** — obrigatório na 1.0.6 (atendente sem ID na frota)
-2. **App Atendente Setup (Windows)** → Release `desktop-windows` / `/app/download` — abre o DeskRemote (não o RustDesk)
+1. (Só se o remoto mudou ou é a 1.ª vez) **DeskRemote Atendente v2**
+2. **DeskRudder Painel v1** → Release `desktop-windows` / `/app/download` — embute o DeskRemote 2.0 (não o RustDesk)
 
 Workflows: [desktop](../.github/workflows/desktop-deskrudder-windows.yml) · [remoto atendente](../.github/workflows/acesso-remoto-atendente-windows.yml)
 
@@ -88,7 +88,7 @@ Saída local: `desktop/release/DeskRudder-Setup-{versão}.exe` (NSIS **por máqu
 
 O assistente pergunta: **iniciar com o Windows** e **manter na bandeja / alertar com o painel fechado** (defaults Sim). Depois dá para mudar no menu **DeskRudder** da janela, sem reinstalar. Garante atalho **DeskRudder** na área de trabalho (além do atalho do Acesso Remoto) e abre o painel ao concluir.
 
-Versão do shell em `desktop/package.json` (é essa que o menu **Sobre** mostra). O workflow publica também `version.json` no Release `desktop-windows` para o app saber se há Setup mais novo. O cliente remoto Sciter tem versão própria (`deploy/rustdesk-client/CLIENT_VERSION`, linha **1.x.x**) e banner de update no Release `acesso-remoto-controle-windows`. O spike Flutter do atendente usa `CLIENT_VERSION_FLUTTER` (**2.x.x**) e o Release `acesso-remoto-controle-flutter-windows`. O spike Flutter do cliente usa `CLIENT_VERSION_FLUTTER_CLIENTE` (**2.0.0**) e o Release `acesso-remoto-windows-flutter`.
+Versão do shell em `desktop/package.json` (é essa que o menu **Sobre** mostra). O workflow publica também `version.json` no Release `desktop-windows` para o app saber se há Setup mais novo. O cliente remoto Sciter tem versão própria (`deploy/rustdesk-client/CLIENT_VERSION`, linha **1.x.x**) e banner de update no Release `acesso-remoto-controle-windows`. O DeskRemote Atendente v2 usa `CLIENT_VERSION_FLUTTER` (**2.x.x**) e o Release `acesso-remoto-controle-flutter-windows`. O DeskRemote Cliente v2 usa `CLIENT_VERSION_FLUTTER_CLIENTE` (**2.0.0**) e o Release `acesso-remoto-windows-flutter`.
 
 ### Link no painel (`/app/download`)
 
@@ -96,7 +96,7 @@ Depois do workflow Desktop (ou `publicar-setup`):
 
 `https://{slug}.deskrudder.com.br/app/download`
 
-Nas instâncias: incluir no Nginx o `location = /app/download` (veja `deploy/clients/_template/nginx.site.conf.example`). Sem isso, o SPA em `/app/download` ainda redireciona.
+Nas instâncias: incluir no Nginx o `location = /app/download` e o 302 de `/acesso-remoto/download` para o Flutter 2.0 (veja `deploy/clients/_template/nginx.site.conf.example`). Sem a location, o SPA ainda redireciona. O deploy (`alinhar-nginx-deskremote-v2.sh`) tenta atualizar o 302 antigo do Sciter nos sites já no ar.
 
 No painel: **Sobre** → Baixar app Windows (e no login, em desktop).
 

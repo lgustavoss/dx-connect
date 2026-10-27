@@ -4,11 +4,11 @@
 
 | Workflow (Actions) | Profile | Release |
 |--------------------|---------|---------|
-| **Acesso Remoto Cliente (Windows)** | `posto` | `acesso-remoto-windows` |
-| **Acesso Remoto Atendente (Windows)** | `controle` | `acesso-remoto-controle-windows` |
-| **App Atendente Setup (Windows)** | Electron (+ baixa o Release controle) | `desktop-windows` |
-| **Acesso Remoto Atendente Flutter (spike)** | Flutter x64 do atendente | `acesso-remoto-controle-flutter-windows` (não substitui o Sciter) |
-| **Acesso Remoto Cliente Flutter (spike)** | Flutter x64 do cliente (genérico + token) | `acesso-remoto-windows-flutter` (não substitui o Sciter) |
+| **DeskRemote Cliente v1** | `posto` Sciter | `acesso-remoto-windows` |
+| **DeskRemote Atendente v1** | `controle` Sciter | `acesso-remoto-controle-windows` |
+| **DeskRudder Painel v1** | Electron (+ baixa o Atendente v2) | `desktop-windows` |
+| **DeskRemote Atendente v2** | Flutter x64 do atendente | `acesso-remoto-controle-flutter-windows` |
+| **DeskRemote Cliente v2** | Flutter x64 do cliente (download do painel) | `acesso-remoto-windows-flutter` |
 
 Atalho **DeskRemote**; pasta `DeskRudder\Acesso Remoto` (compatibilidade).  
 Docs: [`docs/RUSTDESK_CLIENT_WINDOWS.md`](../../docs/RUSTDESK_CLIENT_WINDOWS.md), Setup: [`docs/DESKTOP_ELECTRON.md`](../../docs/DESKTOP_ELECTRON.md).

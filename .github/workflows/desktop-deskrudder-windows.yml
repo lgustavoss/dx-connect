@@ -2,13 +2,13 @@
 # Rápido: só monta o Electron e baixa o remoto já publicado.
 #
 # Pré-requisito (1.ª vez ou ao atualizar o remoto):
-#   Actions → «Acesso Remoto Atendente (Windows)»
+#   Actions → «DeskRemote Atendente v2»
 #
-# Actions → «App Atendente Setup (Windows)» → Run workflow
+# Actions → «DeskRudder Painel v1» → Run workflow
 # Resultado: Release desktop-windows / DeskRudder-Setup.exe (link /app/download)
 # Duração típica: poucos minutos.
 
-name: App Atendente Setup (Windows)
+name: DeskRudder Painel v1
 
 on:
   workflow_dispatch:
@@ -52,15 +52,17 @@ jobs:
           set -euo pipefail
           DEST="desktop/vendor/remoto-controle"
           mkdir -p "$DEST"
+          SRC="DeskRudder-AcessoRemoto-Controle-Flutter.exe"
           ASSET="DeskRudder-AcessoRemoto-Controle.exe"
-          if ! gh release download acesso-remoto-controle-windows \
+          if ! gh release download acesso-remoto-controle-flutter-windows \
             --repo "${{ github.repository }}" \
-            --pattern "$ASSET" \
+            --pattern "$SRC" \
             --dir "$DEST" \
             --clobber; then
-            echo "::error::Falta o Release acesso-remoto-controle-windows. Rode antes o workflow «Acesso Remoto Atendente (Windows)» (só quando o remoto mudar). Depois rode de novo este Setup."
+            echo "::error::Falta o Release acesso-remoto-controle-flutter-windows. Rode antes o workflow «DeskRemote Atendente v2» (com publicar release). Depois rode de novo o DeskRudder Painel v1."
             exit 1
           fi
+          mv -f "$DEST/$SRC" "$DEST/$ASSET"
           ls -lh "$DEST/$ASSET"
 
       - name: Instalar dependências Electron
@@ -112,7 +114,7 @@ jobs:
           cp -f "$SRC" "$STABLE"
           TAG="desktop-windows"
           TITLE="DeskRudder App Atendente ${VER} (Windows)"
-          NOTES="Setup **${VER}** do atendente (painel + Acesso Remoto). Link amigável: \`/app/download\`. Remoto embutido vem do Release acesso-remoto-controle-windows."
+          NOTES="Setup **${VER}** do atendente (painel + DeskRemote 2.0). Link amigável: \`/app/download\`. Remoto embutido vem do Release acesso-remoto-controle-flutter-windows."
           VERSION_JSON="$STABLE_DIR/version.json"
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/DeskRudder-Setup.exe"
           node -e "require('fs').writeFileSync(process.argv[1], JSON.stringify({ version: process.argv[2], download_url: process.argv[3] }, null, 2) + '\n')" \

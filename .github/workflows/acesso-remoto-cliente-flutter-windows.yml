@@ -1,15 +1,15 @@
-# Spike Flutter x64 do CLIENTE (DeskRemote, profile posto).
-# Não substitui o Sciter em produção (Release acesso-remoto-windows).
+# DeskRemote Cliente v2 (Flutter, profile posto) — download do painel.
+# O Sciter v1 continua no Release acesso-remoto-windows (canal antigo).
 #
-# Actions → «Acesso Remoto Cliente Flutter (spike)» → Run workflow
+# Actions → «DeskRemote Cliente v2» → Run workflow
 # Artefato: DeskRudder-AcessoRemoto-Flutter.exe
-# Release opcional: acesso-remoto-windows-flutter (tag paralela)
+# Release: acesso-remoto-windows-flutter (`/acesso-remoto/download`)
 #
 # Instalador genérico: servidor e senha vêm do token de instalação (#1283).
 # Branding: deploy/rustdesk-client/branding/kit-1253 (issue #1253)
 # Duração típica: 40–90 min.
 
-name: Acesso Remoto Cliente Flutter (spike)
+name: DeskRemote Cliente v2
 
 on:
   workflow_dispatch:
@@ -22,9 +22,9 @@ on:
         options:
           - "1.5.0"
       publish_release:
-        description: "Publicar tag paralela flutter (não sobrescreve o Sciter)"
+        description: "Publicar Release (link /acesso-remoto/download). Deixe ligado."
         required: true
-        default: false
+        default: true
         type: boolean
 
 concurrency:
@@ -257,7 +257,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publicar Release paralelo (não é o Sciter)
+      - name: Publicar Release (download do painel)
         if: ${{ inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -283,13 +283,13 @@ jobs:
               "download_url": "${DOWNLOAD_URL}",
           }, indent=2) + "\n", encoding="utf-8")
           PY
-          TITLE="DeskRemote Flutter (cliente) ${CLIENT_VER} — spike"
-          NOTES="Spike Flutter x64 do cliente **${CLIENT_VER}**. Instalador genérico (token de instalação). Não substitui o Sciter (\`acesso-remoto-windows\`). Arte kit #1253."
+          TITLE="DeskRemote Cliente v2 ${CLIENT_VER}"
+          NOTES="DeskRemote **${CLIENT_VER}** (Flutter). Instalador genérico + token. Link \`/acesso-remoto/download\`. Sciter v1 permanece em \`acesso-remoto-windows\`."
           if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             gh release upload "$TAG" "$STABLE" "$VERSION_JSON" \
               --repo "${{ github.repository }}" --clobber
-            gh release edit "$TAG" --repo "${{ github.repository }}" --title "$TITLE" --notes "$NOTES"
+            gh release edit "$TAG" --repo "${{ github.repository }}" --title "$TITLE" --notes "$NOTES" --prerelease=false
           else
             gh release create "$TAG" "$STABLE" "$VERSION_JSON" \
-              --repo "${{ github.repository }}" --title "$TITLE" --notes "$NOTES" --latest=false --prerelease
+              --repo "${{ github.repository }}" --title "$TITLE" --notes "$NOTES" --latest=false
           fi

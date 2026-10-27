@@ -1,12 +1,12 @@
 # Instalador do Acesso Remoto para o PC do CLIENTE (posto/PDV) — só recebe conexão.
 #
-# Actions → «Acesso Remoto Cliente (Windows)» → Run workflow
+# Actions → «DeskRemote Cliente v1» → Run workflow
 # Resultado: Release acesso-remoto-windows / DeskRudder-AcessoRemoto.exe
 # Branding: mesma pasta deploy/rustdesk-client/branding/ que o workflow do atendente.
 # Após mudar a arte: subir CLIENT_VERSION e rodar Cliente + Atendente.
 # Duração típica: 40–90 min (1.ª vez).
 
-name: Acesso Remoto Cliente (Windows)
+name: DeskRemote Cliente v1
 
 on:
   workflow_dispatch:
