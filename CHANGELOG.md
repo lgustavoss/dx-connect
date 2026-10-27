@@ -33,6 +33,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
+- DeskRemote 2.0 do posto: o instalador volta a gravar a senha do painel — o build Flutter quebrava ao chamar um método que o RustDesk 1.5.0 não tem
 - Empresas (#S202610-0019): na busca, o campo deixa de travar quando a lista recarrega — dá para continuar digitando depois de uma pausa
 - Acesso remoto (#S202610-0018): clicar várias vezes no atalho ou na barra de tarefas **reusa a janela já aberta** em vez de abrir várias; reconectar no mesmo ID traz a sessão existente para frente (versão 1.0.14)
 - Acesso remoto (atendente): a sessão mostra o **rótulo do vínculo** (ex.: «Posto Farol · SERVIDOR 001») na barra e no título; a toolbar acompanha o tema escuro; ícone da janela usa o D legível (versão 1.0.13)
