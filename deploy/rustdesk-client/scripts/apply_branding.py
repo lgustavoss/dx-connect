@@ -1362,8 +1362,10 @@ def _rotulo_sessao_vinculo(vinculo: dict) -> str:
     rotulo = str(vinculo.get("rotulo_nome") or "").strip() or "Equipamento"
     codigo = str(vinculo.get("pdv_codigo") or "").strip()
     base = f"{rotulo} {codigo}" if codigo else rotulo
-    rede = str(vinculo.get("rede_nome") or "").strip()
-    return f"{rede} · {base}" if rede else base
+    empresa = str(vinculo.get("empresa_nome") or "").strip()
+    if not empresa:
+        empresa = str(vinculo.get("rede_nome") or "").strip()
+    return f"{empresa} · {base}" if empresa else base
 
 
 _FLUTTER_ROTULO_SESSAO_FN = """String rotuloSessaoVinculo(Map<String, dynamic> vinculo) {
@@ -1371,8 +1373,11 @@ _FLUTTER_ROTULO_SESSAO_FN = """String rotuloSessaoVinculo(Map<String, dynamic> v
   final nome = rotulo.isEmpty ? 'Equipamento' : rotulo;
   final codigo = (vinculo['pdv_codigo'] ?? '').toString().trim();
   final base = codigo.isEmpty ? nome : '$nome $codigo';
-  final rede = (vinculo['rede_nome'] ?? '').toString().trim();
-  return rede.isEmpty ? base : '$rede · $base';
+  var empresa = (vinculo['empresa_nome'] ?? '').toString().trim();
+  if (empresa.isEmpty) {
+    empresa = (vinculo['rede_nome'] ?? '').toString().trim();
+  }
+  return empresa.isEmpty ? base : '$empresa · $base';
 }"""
 
 
@@ -2553,14 +2558,23 @@ def _selftest_flutter_recent_ui() -> None:
         "\r\n", "\n"
     ):
         raise SystemExit("selftest flutter: formula do rotulo divergiu do painel")
-    if "Posto Farol · SERVIDOR 001" not in sessao_overlay:
-        raise SystemExit("selftest flutter: exemplo Posto Farol ausente no rotulo")
+    if "Auto Posto Expresso Medalha · SERVIDOR 001" not in sessao_overlay:
+        raise SystemExit("selftest flutter: exemplo empresa ausente no rotulo")
+    if _rotulo_sessao_vinculo(
+        {
+            "empresa_nome": "Auto Posto Expresso Medalha",
+            "rede_nome": "Rede Expresso",
+            "rotulo_nome": "SERVIDOR",
+            "pdv_codigo": "001",
+        }
+    ) != "Auto Posto Expresso Medalha · SERVIDOR 001":
+        raise SystemExit("selftest flutter: rotulo deve preferir empresa, nao rede")
     if _rotulo_sessao_vinculo(
         {"rede_nome": "Posto Farol", "rotulo_nome": "SERVIDOR", "pdv_codigo": "001"}
     ) != "Posto Farol · SERVIDOR 001":
-        raise SystemExit("selftest flutter: rotulo Posto Farol · SERVIDOR 001")
+        raise SystemExit("selftest flutter: rotulo cai na rede se empresa vier vazia")
     if _rotulo_sessao_vinculo({"rotulo_nome": "PDV", "pdv_codigo": "02"}) != "PDV 02":
-        raise SystemExit("selftest flutter: rotulo sem rede divergiu")
+        raise SystemExit("selftest flutter: rotulo sem empresa nem rede divergiu")
     if _rotulo_sessao_vinculo({}) != "Equipamento":
         raise SystemExit("selftest flutter: rotulo vazio deve ser Equipamento")
     if "Duration(seconds: 5)" not in sessao_overlay:
