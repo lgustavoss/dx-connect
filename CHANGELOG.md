@@ -13,16 +13,19 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - DeskRemote do atendente: a lista Vinculados e a aba da sessão mostram o **nome da empresa** (não o da rede) — ex. «Auto Posto Expresso Medalha · SERVIDOR 001»
 - Acesso remoto Sciter **1.0.14**: canal v1 **congelado** (sem builds novos). Download e Setup seguem no Flutter 2.x; PCs 32-bit ficam no 1.0.14
 - Empresas → PDVs: só o tipo **DeskRemote** abre a sessão, gera QR e entra na frota (Online/Offline). RustDesk, DeskRudder e os demais ficam iguais ao AnyDesk — o atendente copia ID e senha
+- DeskRemote no PDV (**2.1.0**): quando há versão nova, o app mostra **Atualizar agora** e baixa o instalador do Release (sem ir ao site do RustDesk)
+- DeskRemote no PDV (**2.1.0**): desinstalar apaga pasta, atalho, dados do app (`AppData` do DeskRemote), `ProgramData` e `Public` — não precisa apagar pastas na mão para instalar de novo
 
 #### Correções
 
-- DeskRemote no PDV (**2.0.1**): depois de colar o link de instalação, o app reconecta no servidor da conta — deixa de ficar parado em «Conectando à rede do DeskRudder…»
-- DeskRemote no PDV: o texto **Desenvolvido por DeskRudder** deixa de ficar por cima do status «Conectando à rede…»
+- DeskRemote no PDV (**2.1.0**): o servidor da conta é gravado no mediador (não numa opção local) — deixa de ficar parado em «Conectando à rede do DeskRudder…»
+- DeskRemote no PDV: na primeira abertura aparece a tela normal para clicar em **Instalar**; o link do painel só é pedido depois que o app já está no sistema
+- DeskRemote no PDV (**2.0.1**): rodapé «Desenvolvido por DeskRudder» deixa de ficar por cima do status «Conectando à rede…»
 
 #### Interno / Infra
 
 - DeskRemote Atendente v2: o 2.3.0 só existe depois de gerar o Release no Actions (na `main`) e embutir no **DeskRudder Painel v1** — o merge sozinho não publica o `.exe`
-- DeskRemote Cliente v2: o **2.0.1** só existe depois de gerar o Release no Actions (na `main`) — o link `/acesso-remoto/download` passa a servir esse `.exe`
+- DeskRemote Cliente v2: o **2.1.0** só existe depois de gerar o Release no Actions (na `main`) — o link `/acesso-remoto/download` passa a servir esse `.exe`
 
 ## [26.10.009] - 2026-10-27
 

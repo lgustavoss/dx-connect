@@ -2,8 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hbb/deskremote/enroll.dart';
+import 'package:flutter_hbb/models/platform_model.dart';
 
-/// Cobre a home do cliente: só mostra ID/status depois do token de instalação.
+/// Cobre a home do cliente: pede o token depois do Instalar (UAC).
 class DeskRemoteEnrollGate extends StatefulWidget {
   const DeskRemoteEnrollGate({Key? key, required this.child}) : super(key: key);
 
@@ -18,6 +19,7 @@ class _DeskRemoteEnrollGateState extends State<DeskRemoteEnrollGate> {
   bool _pronto = false;
   String? _erro;
   Timer? _sync;
+  Timer? _esperaInstalar;
 
   @override
   void initState() {
@@ -28,12 +30,53 @@ class _DeskRemoteEnrollGateState extends State<DeskRemoteEnrollGate> {
   @override
   void dispose() {
     _sync?.cancel();
+    _esperaInstalar?.cancel();
     super.dispose();
+  }
+
+  bool _instaladoNoSistema() {
+    try {
+      return bind.mainIsInstalled();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _esperarInstalacao() {
+    _esperaInstalar?.cancel();
+    _esperaInstalar = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (!mounted || lerDispositivoDeskRemote() != null) {
+        _esperaInstalar?.cancel();
+        return;
+      }
+      if (_instaladoNoSistema()) {
+        _esperaInstalar?.cancel();
+        if (mounted) {
+          setState(() {
+            _verificando = false;
+            _pronto = false;
+            _erro = null;
+          });
+        }
+      }
+    });
   }
 
   Future<void> _boot() async {
     final salvo = lerDispositivoDeskRemote();
     if (salvo == null) {
+      // Sem token: primeiro mostra a home (cartão Instalar / UAC).
+      // O link do painel só entra depois que o app está no sistema.
+      if (!_instaladoNoSistema()) {
+        if (mounted) {
+          setState(() {
+            _verificando = false;
+            _pronto = true;
+          });
+        }
+        _esperarInstalacao();
+        return;
+      }
       if (mounted) {
         setState(() {
           _verificando = false;
@@ -90,6 +133,7 @@ class _DeskRemoteEnrollGateState extends State<DeskRemoteEnrollGate> {
   }
 
   Future<void> _instalar(String link) async {
+    _esperaInstalar?.cancel();
     setState(() {
       _verificando = true;
       _erro = null;
@@ -190,7 +234,7 @@ class _DeskRemoteInstalarPageState extends State<_DeskRemoteInstalarPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Cole o link de instalação gerado no painel DeskRudder. A senha deste computador vem do cadastro do PDV.',
+                  'Cole o link gerado no painel DeskRudder. A senha deste computador vem do cadastro do PDV.',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurface.withOpacity(0.7),
