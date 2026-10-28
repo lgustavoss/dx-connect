@@ -11,10 +11,17 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 - DeskRemote do atendente (**2.3.0**): depois do login, o app usa o servidor de acesso remoto **daquela conta** — o instalador deixa de nascer só com o servidor da Duplex. Conectar pelo painel aplica o servidor se houver sessão; senão, reusa o último gravado neste PC
 - Acesso remoto Sciter **1.0.14**: canal v1 **congelado** (sem builds novos). Download e Setup seguem no Flutter 2.x; PCs 32-bit ficam no 1.0.14
+- Empresas → PDVs: só o tipo **DeskRemote** abre a sessão, gera QR e entra na frota (Online/Offline). RustDesk, DeskRudder e os demais ficam iguais ao AnyDesk — o atendente copia ID e senha
+
+#### Correções
+
+- DeskRemote no PDV (**2.0.1**): depois de colar o link de instalação, o app reconecta no servidor da conta — deixa de ficar parado em «Conectando à rede do DeskRudder…»
+- DeskRemote no PDV: o texto **Desenvolvido por DeskRudder** deixa de ficar por cima do status «Conectando à rede…»
 
 #### Interno / Infra
 
 - DeskRemote Atendente v2: o 2.3.0 só existe depois de gerar o Release no Actions (na `main`) e embutir no **DeskRudder Painel v1** — o merge sozinho não publica o `.exe`
+- DeskRemote Cliente v2: o **2.0.1** só existe depois de gerar o Release no Actions (na `main`) — o link `/acesso-remoto/download` passa a servir esse `.exe`
 
 ## [26.10.009] - 2026-10-27
 

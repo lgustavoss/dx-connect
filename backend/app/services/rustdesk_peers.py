@@ -57,7 +57,6 @@ def normalizar_id_remoto(valor: str | None) -> str | None:
 
 
 _NOME_TIPO_HOSPEDADO = "DeskRemote"
-_NOMES_TIPO_ANTIGOS = frozenset({"rustdesk", "acessoremoto"})
 
 
 def _compactar_nome_tipo(nome: str | None) -> str:
@@ -67,11 +66,8 @@ def _compactar_nome_tipo(nome: str | None) -> str:
 
 
 def _nome_e_tipo_frota(compacto: str) -> bool:
-    return (
-        compacto in _NOMES_TIPO_ANTIGOS
-        or compacto.startswith("deskrudder")
-        or compacto.startswith("deskremote")
-    )
+    """Frota / Online / vínculo no hbbs: só o tipo DeskRemote."""
+    return compacto.startswith("deskremote")
 
 
 def _nome_e_rustdesk(nome: str | None) -> bool:
@@ -79,18 +75,6 @@ def _nome_e_rustdesk(nome: str | None) -> bool:
     if not compacto:
         return False
     return _nome_e_tipo_frota(compacto)
-
-
-def _alinhar_nome_tipo_hospedado(row: PdvTipoAcessoRemoto, tipos: list[PdvTipoAcessoRemoto]) -> None:
-    if _compactar_nome_tipo(row.nome) not in _NOMES_TIPO_ANTIGOS:
-        return
-    if any(
-        _nome_e_tipo_frota(_compactar_nome_tipo(outro.nome))
-        for outro in tipos
-        if outro.id != row.id
-    ):
-        return
-    row.nome = _NOME_TIPO_HOSPEDADO
 
 
 def _limite_online() -> timedelta:
@@ -375,20 +359,13 @@ def listar(db: Session, filtro: str) -> dict:
 
 def garantir_tipo_rustdesk(db: Session) -> PdvTipoAcessoRemoto:
     tipos = db.query(PdvTipoAcessoRemoto).order_by(PdvTipoAcessoRemoto.id.asc()).all()
-    ativo = next(
-        (row for row in tipos if row.ativo and _compactar_nome_tipo(row.nome).startswith("deskrudder")),
-        None,
-    )
-    if not ativo:
-        ativo = next((row for row in tipos if row.ativo and _nome_e_rustdesk(row.nome)), None)
+    ativo = next((row for row in tipos if row.ativo and _nome_e_rustdesk(row.nome)), None)
     if ativo:
-        _alinhar_nome_tipo_hospedado(ativo, tipos)
         db.flush()
         return ativo
     inativo = next((row for row in tipos if _nome_e_rustdesk(row.nome)), None)
     if inativo:
         inativo.ativo = True
-        _alinhar_nome_tipo_hospedado(inativo, tipos)
         db.flush()
         return inativo
     criado = PdvTipoAcessoRemoto(nome=_NOME_TIPO_HOSPEDADO, ativo=True, ordem_exibicao=0)

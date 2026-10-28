@@ -414,7 +414,7 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel, onF
               ? `Acessos remotos · ${acessos.length}`
               : 'Acessos remotos'
           }
-          description="DeskRudder abre direto do painel. Nos outros programas, clique no ID e na senha para copiar."
+          description="DeskRemote abre direto do painel. Nos outros programas, clique no ID e na senha para copiar."
           expanded={acessosAbertos}
           onToggle={() => setAcessosAbertos((v) => !v)}
         >
@@ -554,7 +554,7 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel, onF
 
         <FormSection
           title="Acessos remotos"
-          description="DeskRudder abre direto do painel. Nos outros programas, o atendente copia o ID e a senha."
+          description="DeskRemote abre direto do painel. Nos outros programas, o atendente copia o ID e a senha."
           action={
             acessosForm.length < MAX_ACESSOS ? (
               <Button type="button" variant="secondary" onClick={() => setAcessosForm((lista) => [...lista, emptyAcesso()])}>

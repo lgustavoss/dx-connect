@@ -2,8 +2,27 @@ import pytest
 
 from app.models import Empresa, Rede, Ticket
 from app.models.empresa_pdv import EmpresaPdv, PdvRotulo, PdvTipoAcessoRemoto
+from app.services.empresa_pdv_acessos import tipo_permite_conectar
 from app.services.empresa_pdv_rules import validar_papel_principal_auxiliar
 from app.services.secret_box import decrypt_str, encrypt_str
+
+
+@pytest.mark.parametrize(
+    "nome, esperado",
+    [
+        ("DeskRemote", True),
+        ("DeskRemote Flutter", True),
+        ("DeskRudder", False),
+        ("DeskRudder Acesso Remoto", False),
+        ("Acesso remoto", False),
+        ("RustDesk", False),
+        ("AnyDesk", False),
+        (None, False),
+        ("", False),
+    ],
+)
+def test_tipo_permite_conectar_so_deskremote(nome, esperado):
+    assert tipo_permite_conectar(nome) is esperado
 
 
 @pytest.fixture
@@ -235,7 +254,7 @@ def test_api_atualizar_codigo_pdv(client, auth_headers, seed_base, pdv_catalogo)
 def test_criar_pdv_varios_acessos_e_conectar_so_deskrudder(client, auth_headers, seed_base, pdv_catalogo, db_session):
     from app.models.empresa_pdv import PdvTipoAcessoRemoto
 
-    desk = PdvTipoAcessoRemoto(nome="DeskRudder", ativo=True, ordem_exibicao=2)
+    desk = PdvTipoAcessoRemoto(nome="DeskRemote", ativo=True, ordem_exibicao=2)
     db_session.add(desk)
     db_session.commit()
     emp = seed_base["empresa"]
@@ -268,7 +287,7 @@ def test_criar_pdv_varios_acessos_e_conectar_so_deskrudder(client, auth_headers,
     assert anydesk["pode_conectar"] is False
     assert deskr["pode_conectar"] is True
     assert body["acesso_remoto_id"] == "123456789"
-    assert body["tipo_acesso_remoto_nome"] == "DeskRudder"
+    assert body["tipo_acesso_remoto_nome"] == "DeskRemote"
 
     cred_any = client.get(
         f"/v1/empresas/{emp.id}/pdvs/{body['id']}/acessos/{anydesk['id']}/credencial",
@@ -283,6 +302,38 @@ def test_criar_pdv_varios_acessos_e_conectar_so_deskrudder(client, auth_headers,
     )
     assert cred_desk.status_code == 200
     assert cred_desk.json()["acesso_remoto_senha"] == "senha-desk"
+
+
+@pytest.mark.parametrize("nome_tipo", ["RustDesk", "DeskRudder", "Acesso remoto", "AnyDesk"])
+def test_criar_pdv_tipo_externo_nao_abre_no_painel(
+    nome_tipo, client, auth_headers, seed_base, pdv_catalogo, db_session
+):
+    from app.models.empresa_pdv import PdvTipoAcessoRemoto
+
+    tipo = PdvTipoAcessoRemoto(nome=nome_tipo, ativo=True, ordem_exibicao=3)
+    db_session.add(tipo)
+    db_session.commit()
+    emp = seed_base["empresa"]
+    r = client.post(
+        f"/v1/empresas/{emp.id}/pdvs",
+        headers=auth_headers["admin"],
+        json={
+            "codigo": f"021-{nome_tipo[:4]}",
+            "rotulo_id": pdv_catalogo["rotulo"].id,
+            "papel": "principal",
+            "acessos": [
+                {
+                    "tipo_acesso_remoto_id": tipo.id,
+                    "acesso_remoto_id": "519442868",
+                    "acesso_remoto_senha": "senha-rd",
+                }
+            ],
+        },
+    )
+    assert r.status_code == 201, r.text
+    acesso = r.json()["acessos"][0]
+    assert acesso["pode_conectar"] is False
+    assert acesso["tipo_acesso_remoto_nome"] == nome_tipo
 
 
 def test_criar_pdv_legado_vira_filho(client, auth_headers, seed_base, pdv_catalogo):

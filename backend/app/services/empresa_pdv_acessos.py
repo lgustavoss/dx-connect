@@ -12,15 +12,13 @@ MAX_ACESSOS_REMOTOS = 10
 
 
 def tipo_permite_conectar(nome: str | None) -> bool:
-    """Só DeskRemote (e nomes antigos da frota) abre o cliente integrado."""
+    """Só o tipo **DeskRemote** abre o cliente integrado (Conectar + QR).
+
+    Nomes antigos (DeskRudder, Acesso remoto) e o app oficial RustDesk
+    ficam iguais aos demais: copiar ID e senha.
+    """
     compacto = "".join((nome or "").split()).casefold()
-    if not compacto:
-        return False
-    return (
-        compacto in {"rustdesk", "acessoremoto"}
-        or compacto.startswith("deskrudder")
-        or compacto.startswith("deskremote")
-    )
+    return compacto.startswith("deskremote")
 
 
 def acessos_ordenados(pdv: EmpresaPdv) -> list[EmpresaPdvAcessoRemoto]:

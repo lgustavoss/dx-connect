@@ -42,7 +42,7 @@ def pdv_catalogo(db_session):
 @pytest.fixture
 def base(db_session, seed_base, pdv_catalogo):
     emp = seed_base["empresa"]
-    tipo = PdvTipoAcessoRemoto(nome="RustDesk", ativo=True, ordem_exibicao=2)
+    tipo = PdvTipoAcessoRemoto(nome="DeskRemote", ativo=True, ordem_exibicao=2)
     db_session.add(tipo)
     db_session.flush()
     agora = datetime.now(timezone.utc)
@@ -372,17 +372,18 @@ def test_desvincular_e_excluir_offline(client, auth_headers, seed_base, base, mo
     "nome, esperado",
     [
         ("DeskRemote", True),
-        ("DeskRudder", True),
-        ("DeskRudder Acesso Remoto", True),
-        ("RustDesk", True),
-        ("Acesso remoto", True),
+        ("DeskRemote Flutter", True),
+        ("DeskRudder", False),
+        ("DeskRudder Acesso Remoto", False),
+        ("Acesso remoto", False),
+        ("RustDesk", False),
         ("AnyDesk", False),
         ("TeamViewer", False),
         (None, False),
         ("", False),
     ],
 )
-def test_nome_tipo_hospedado_reconhece_deskrudder(nome, esperado):
+def test_nome_tipo_hospedado_so_deskremote(nome, esperado):
     assert svc._nome_e_rustdesk(nome) is esperado
 
 
@@ -393,9 +394,18 @@ def test_garantir_tipo_cria_deskremote(db_session, seed_base):
 
 
 def test_garantir_tipo_mantem_nome_longo(db_session, seed_base):
-    existente = PdvTipoAcessoRemoto(nome="DeskRudder Acesso Remoto", ativo=True, ordem_exibicao=0)
+    existente = PdvTipoAcessoRemoto(nome="DeskRemote Acesso Remoto", ativo=True, ordem_exibicao=0)
     db_session.add(existente)
     db_session.flush()
     tipo = svc.garantir_tipo_rustdesk(db_session)
     assert tipo.id == existente.id
-    assert tipo.nome == "DeskRudder Acesso Remoto"
+    assert tipo.nome == "DeskRemote Acesso Remoto"
+
+
+def test_garantir_tipo_nao_reusa_deskrudder(db_session, seed_base):
+    legado = PdvTipoAcessoRemoto(nome="DeskRudder", ativo=True, ordem_exibicao=0)
+    db_session.add(legado)
+    db_session.flush()
+    tipo = svc.garantir_tipo_rustdesk(db_session)
+    assert tipo.id != legado.id
+    assert tipo.nome == "DeskRemote"
