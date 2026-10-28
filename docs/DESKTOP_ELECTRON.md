@@ -88,7 +88,7 @@ Saída local: `desktop/release/DeskRudder-Setup-{versão}.exe` (NSIS **por máqu
 
 O assistente pergunta: **iniciar com o Windows** e **manter na bandeja / alertar com o painel fechado** (defaults Sim). Depois dá para mudar no menu **DeskRudder** da janela, sem reinstalar. Garante atalho **DeskRudder** na área de trabalho (além do atalho do Acesso Remoto) e abre o painel ao concluir.
 
-Versão do shell em `desktop/package.json` (é essa que o menu **Sobre** mostra). O workflow publica também `version.json` no Release `desktop-windows` para o app saber se há Setup mais novo. O cliente remoto Sciter tem versão própria (`deploy/rustdesk-client/CLIENT_VERSION`, linha **1.x.x**) e banner de update no Release `acesso-remoto-controle-windows`. O DeskRemote Atendente v2 usa `CLIENT_VERSION_FLUTTER` (**2.x.x**) e o Release `acesso-remoto-controle-flutter-windows`. O DeskRemote Cliente v2 usa `CLIENT_VERSION_FLUTTER_CLIENTE` (**2.0.0**) e o Release `acesso-remoto-windows-flutter`.
+Versão do shell em `desktop/package.json` (é essa que o menu **Sobre** mostra). O workflow publica também `version.json` no Release `desktop-windows` para o app saber se há Setup mais novo. O cliente remoto Sciter (**congelado em 1.0.14**, `CLIENT_VERSION`) permanece nos Releases v1. O DeskRemote Atendente v2 usa `CLIENT_VERSION_FLUTTER` (**2.x.x**, 2.3.0+ puxa o servidor da conta) e o Release `acesso-remoto-controle-flutter-windows`. O DeskRemote Cliente v2 usa `CLIENT_VERSION_FLUTTER_CLIENTE` e o Release `acesso-remoto-windows-flutter`.
 
 ### Link no painel (`/app/download`)
 

@@ -1,5 +1,5 @@
 # DeskRemote Atendente v2 (Flutter) — embutido no DeskRudder Painel v1.
-# O Sciter v1 continua no Release acesso-remoto-controle-windows (canal antigo).
+# Sciter v1 (1.0.14) está congelado em acesso-remoto-controle-windows.
 #
 # Actions → «DeskRemote Atendente v2» → Run workflow
 # Artefato: DeskRudder-AcessoRemoto-Controle-Flutter.exe
@@ -283,7 +283,7 @@ jobs:
           }, indent=2) + "\n", encoding="utf-8")
           PY
           TITLE="DeskRemote Atendente v2 ${CLIENT_VER}"
-          NOTES="DeskRemote **${CLIENT_VER}** (Flutter, controle). O DeskRudder Painel v1 embute este Release. Sciter v1 permanece em \`acesso-remoto-controle-windows\`."
+          NOTES="DeskRemote **${CLIENT_VER}** (Flutter, controle). O DeskRudder Painel v1 embute este Release. Sciter 1.0.14 está congelado em \`acesso-remoto-controle-windows\`."
           if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             gh release upload "$TAG" "$STABLE" "$VERSION_JSON" \
               --repo "${{ github.repository }}" --clobber

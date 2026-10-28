@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Aplica marca DeskRudder + servidor Duplex num clone do rustdesk.
+"""Aplica marca DeskRudder + servidor (Sciter/Duplex; Flutter puxa da instância) num clone do rustdesk.
 
 Nao renomeia o crate `rustdesk` no Cargo (evita quebrar scripts de build).
 O CI deve renomear o binario para DeskRudder.exe apos o cargo build — o
@@ -14,7 +14,7 @@ Profiles (--profile):
 
 UI (--ui):
   sciter    — producao 1.x.x (CLIENT_VERSION)
-  flutter   — spike 2.x.x (atendente: CLIENT_VERSION_FLUTTER; cliente: CLIENT_VERSION_FLUTTER_CLIENTE)
+  flutter   — 2.x.x (atendente: CLIENT_VERSION_FLUTTER; cliente: CLIENT_VERSION_FLUTTER_CLIENTE)
 """
 
 from __future__ import annotations
@@ -44,6 +44,8 @@ INSTALLER_NAME_POSTO = "DeskRudder-AcessoRemoto.exe"
 INSTALLER_NAME_CONTROLE = "DeskRudder-AcessoRemoto-Controle.exe"
 INSTALLER_NAME_CONTROLE_FLUTTER = "DeskRudder-AcessoRemoto-Controle-Flutter.exe"
 INSTALLER_NAME_POSTO_FLUTTER = "DeskRudder-AcessoRemoto-Flutter.exe"
+# Flutter (cliente e atendente): sem hbbs da Duplex no binário. O app puxa
+# o servidor da instância (token no cliente; login no atendente).
 HOST_FLUTTER_CLIENTE_PENDENTE = "deskremote.invalid"
 KEY_FLUTTER_CLIENTE_PENDENTE = "pendente-token"
 
@@ -1264,14 +1266,31 @@ _FLUTTER_ROTULO_SESSAO_FN = """String rotuloSessaoVinculo(Map<String, dynamic> v
 }"""
 
 
+_FLUTTER_INAPP_SERVIDOR = (
+    "    // DeskRemote: aplica o servidor da instancia no Conectar.\n"
+    "    await aplicarServidorDaContaDeskRemote(silencioso: true);\n"
+)
+
+_FLUTTER_INAPP_ALIAS_COM_SERVIDOR = (
+    _FLUTTER_INAPP_SERVIDOR + _FLUTTER_INAPP_ALIAS_NEW
+)
+
+
 def apply_flutter_inapp_alias_text(text: str) -> str:
-    if "DeskRemote: busca vinculo na API no Conectar" in text:
+    if "DeskRemote: aplica o servidor da instancia no Conectar" in text:
         return text
+    if "DeskRemote: busca vinculo na API no Conectar" in text:
+        return text.replace(
+            "    // DeskRemote: busca vinculo na API no Conectar (Recentes/ID).\n",
+            _FLUTTER_INAPP_SERVIDOR
+            + "    // DeskRemote: busca vinculo na API no Conectar (Recentes/ID).\n",
+            1,
+        )
     if _FLUTTER_INAPP_ALIAS_OLD in text:
-        return text.replace(_FLUTTER_INAPP_ALIAS_OLD, _FLUTTER_INAPP_ALIAS_NEW, 1)
+        return text.replace(_FLUTTER_INAPP_ALIAS_OLD, _FLUTTER_INAPP_ALIAS_COM_SERVIDOR, 1)
     if _FLUTTER_INAPP_ALIAS_UPSTREAM not in text:
         raise SystemExit("flutter common.dart: connectMainDesktop newRemoteDesktop nao encontrado")
-    return text.replace(_FLUTTER_INAPP_ALIAS_UPSTREAM, _FLUTTER_INAPP_ALIAS_NEW, 1)
+    return text.replace(_FLUTTER_INAPP_ALIAS_UPSTREAM, _FLUTTER_INAPP_ALIAS_COM_SERVIDOR, 1)
 
 
 _FLUTTER_HANDLE_URI_VARS = """  String? password;
@@ -1305,8 +1324,18 @@ _FLUTTER_HANDLE_URI_PW_TITLE = """      case '--password':
 
 
 def apply_flutter_connect_title_text(text: str) -> str:
-    if "DeskRemote: busca vinculo na API se o painel nao mandou name=" in text:
+    if "DeskRemote: aplica o servidor da instancia antes de conectar" in text:
         return text
+    if "DeskRemote: busca vinculo na API se o painel nao mandou name=" in text:
+        text = text.replace(
+            "          // DeskRemote: busca vinculo na API se o painel nao mandou name=.\n",
+            "          // DeskRemote: aplica o servidor da instancia antes de conectar.\n"
+            "          await aplicarServidorDaContaDeskRemote(silencioso: true);\n"
+            "          // DeskRemote: busca vinculo na API se o painel nao mandou name=.\n",
+            1,
+        )
+        if 'param["name"]' in text:
+            return text
     # Só o bloco do handleUriLink — um String? title; solto no arquivo não conta.
     if _FLUTTER_HANDLE_URI_VARS_TITLE not in text:
         if _FLUTTER_HANDLE_URI_VARS not in text:
@@ -1339,6 +1368,8 @@ def apply_flutter_connect_title_text(text: str) -> str:
 """
     new_call = """      case UriLinkType.remoteDesktop:
         Future.delayed(Duration.zero, () async {
+          // DeskRemote: aplica o servidor da instancia antes de conectar.
+          await aplicarServidorDaContaDeskRemote(silencioso: true);
           // DeskRemote: busca vinculo na API se o painel nao mandou name=.
           // Espera até 5s: a aba é outro engine e o título só entra nos params.
           var tituloSessao = title?.trim();
@@ -1355,12 +1386,13 @@ def apply_flutter_connect_title_text(text: str) -> str:
               title: tituloSessao);
         });
 """
-    if old_call_alias in text:
-        text = text.replace(old_call_alias, new_call, 1)
-    elif old_call in text:
-        text = text.replace(old_call, new_call, 1)
-    else:
-        raise SystemExit("flutter common.dart: newRemoteDesktop nao encontrado")
+    if "DeskRemote: aplica o servidor da instancia antes de conectar" not in text:
+        if old_call_alias in text:
+            text = text.replace(old_call_alias, new_call, 1)
+        elif old_call in text:
+            text = text.replace(old_call, new_call, 1)
+        else:
+            raise SystemExit("flutter common.dart: newRemoteDesktop nao encontrado")
     if 'param["name"]' in text:
         return text
     old_q = """    if (password != null) args.addAll(['--password', password]);
@@ -1924,12 +1956,6 @@ def patch_flutter_deskremote_ui(
         _apply(common, apply_flutter_connect_title_text, "name=/--title -> alias")
         _apply(common, apply_flutter_inapp_alias_text, "alias no Conectar do Flutter")
         _apply(common, apply_flutter_session_tab_label_text, "aba da sessao sem ID")
-        if host and key:
-            _apply(
-                common,
-                lambda t: apply_flutter_server_defaults_text(t, host, key),
-                "servidor Duplex no formulario",
-            )
     if home.is_file():
         def _home(t: str) -> str:
             if _FLUTTER_YOUR_DESKTOP_IF in t:
@@ -1981,12 +2007,6 @@ def patch_flutter_deskremote_ui(
             _apply(model_dart, apply_flutter_peer_info_tab_text, "peer_info atualiza aba")
     if settings.is_file():
         _apply(settings, apply_flutter_about_text, "tela Sobre")
-        if host and profile != "posto":
-            _apply(
-                settings,
-                lambda t: apply_flutter_network_text(t, host),
-                "Rede mostra host Duplex",
-            )
     if profile != "posto" and core_main.is_file():
         _apply(core_main, apply_flutter_core_main_title_text, "core_main --title")
         _apply(core_main, apply_flutter_core_main_password_text, "core_main senha posicional")
@@ -2101,11 +2121,18 @@ def _selftest_flutter_recent_ui() -> None:
     )
     if "busca vinculo na API no Conectar" not in inapp:
         raise SystemExit("selftest flutter: Conectar do Flutter sem busca na API")
+    if "aplicarServidorDaContaDeskRemote" not in inapp:
+        raise SystemExit("selftest flutter: Conectar sem aplicar servidor da instancia")
     if apply_flutter_inapp_alias_text(inapp) != inapp:
         raise SystemExit("selftest flutter: alias in-app nao e idempotente")
     inapp_old = apply_flutter_inapp_alias_text(_FLUTTER_INAPP_ALIAS_OLD)
     if "busca vinculo na API no Conectar" not in inapp_old:
         raise SystemExit("selftest flutter: patch antigo do Conectar nao atualiza")
+    if "aplicarServidorDaContaDeskRemote" not in inapp_old:
+        raise SystemExit("selftest flutter: patch antigo do Conectar sem servidor")
+    inapp_mid = apply_flutter_inapp_alias_text(_FLUTTER_INAPP_ALIAS_NEW)
+    if "aplica o servidor da instancia no Conectar" not in inapp_mid:
+        raise SystemExit("selftest flutter: Conectar 2.2.0 nao ganha servidor da instancia")
 
     tab = apply_flutter_tabbar_text(_FLUTTER_TABBAR_TITLE)
     if "DeskRemote" not in tab or "RustDesk" in tab:
@@ -2202,6 +2229,8 @@ def _selftest_flutter_recent_ui() -> None:
         raise SystemExit("selftest flutter: alias do vinculo ausente no uni-link")
     if "buscarRotuloVinculoDeskRemote" not in uri or "title: tituloSessao" not in uri:
         raise SystemExit("selftest flutter: title nao vai para a janela da sessao")
+    if "aplicarServidorDaContaDeskRemote" not in uri:
+        raise SystemExit("selftest flutter: --connect sem aplicar servidor da instancia")
     if apply_flutter_connect_title_text(uri) != uri:
         raise SystemExit("selftest flutter: uni-link title nao e idempotente")
     if "Espera até 5s" not in uri:
@@ -2400,6 +2429,12 @@ def _selftest_flutter_recent_ui() -> None:
         raise SystemExit("selftest flutter: busca do vinculo na frota ausente")
     if "/rustdesk/peers" not in sessao_overlay:
         raise SystemExit("selftest flutter: busca do vinculo sem GET /rustdesk/peers")
+    if "/rustdesk/configuracao" not in sessao_overlay:
+        raise SystemExit("selftest flutter: atendente sem GET /rustdesk/configuracao")
+    if "aplicarServidorDaContaDeskRemote" not in sessao_overlay:
+        raise SystemExit("selftest flutter: aplicar servidor da conta ausente")
+    if "deskremote.invalid" in sessao_overlay or "31.97.160.79" in sessao_overlay:
+        raise SystemExit("selftest flutter: overlay de sessao nao deve embutir host")
     if "rotuloSessaoVinculo" not in sessao_overlay:
         raise SystemExit("selftest flutter: rotuloSessaoVinculo ausente no overlay")
     if _FLUTTER_ROTULO_SESSAO_FN.replace("\r\n", "\n") not in sessao_overlay.replace(
@@ -2423,6 +2458,12 @@ def _selftest_flutter_recent_ui() -> None:
     gate_overlay = (overlay / "auth_gate.dart").read_text(encoding="utf-8")
     if "_naoHerdarAposSair" not in gate_overlay:
         raise SystemExit("selftest flutter: Sair deve impedir herdar a sessao do Electron")
+    if "aplicarServidorDaContaDeskRemote" not in gate_overlay:
+        raise SystemExit("selftest flutter: login sem aplicar servidor da instancia")
+    if "naoTentarDeNovo" not in gate_overlay:
+        raise SystemExit("selftest flutter: conta sem servidor nao deve ficar em loop")
+    if "_pararPoll" not in gate_overlay:
+        raise SystemExit("selftest flutter: login deve parar o poll se o servidor nao estiver configurado")
     gate = apply_flutter_auth_gate_text(
         _FLUTTER_AUTH_IMPORT + _FLUTTER_HOME_PAGE_CHILD
     )
@@ -4296,7 +4337,7 @@ def main() -> int:
         "--ui",
         choices=("sciter", "flutter"),
         default="sciter",
-        help="sciter=producao 1.x.x; flutter=spike 2.x.x (atendente ou cliente)",
+        help="sciter=v1 congelado 1.x.x; flutter=2.x.x (atendente ou cliente)",
     )
     args = ap.parse_args()
     _selftest_sciter_copy()
@@ -4364,7 +4405,7 @@ def main() -> int:
         print(f"Falta {cfg_rs} (submodule hbb_common?).", file=sys.stderr)
         return 1
     cfg_host, cfg_key = (host, key)
-    if ui == "flutter" and profile == "posto":
+    if ui == "flutter":
         cfg_host, cfg_key = HOST_FLUTTER_CLIENTE_PENDENTE, KEY_FLUTTER_CLIENTE_PENDENTE
     patch_config_rs(cfg_rs, cfg_host, cfg_key)
     if profile == "posto":
@@ -4406,12 +4447,12 @@ def main() -> int:
     if "DeskRudder" not in body:
         print("Verificacao falhou apos patch.", file=sys.stderr)
         return 1
-    if ui == "flutter" and profile == "posto":
+    if ui == "flutter":
         if HOST_FLUTTER_CLIENTE_PENDENTE not in body or KEY_FLUTTER_CLIENTE_PENDENTE not in body:
-            print("Verificacao falhou: cliente Flutter sem placeholder de servidor.", file=sys.stderr)
+            print("Verificacao falhou: Flutter sem placeholder de servidor.", file=sys.stderr)
             return 1
         if host in body:
-            print("Verificacao falhou: cliente Flutter nao deve embutir o servidor da Duplex.", file=sys.stderr)
+            print("Verificacao falhou: Flutter nao deve embutir o servidor da Duplex.", file=sys.stderr)
             return 1
     else:
         if host not in body or key not in body:
@@ -4689,14 +4730,14 @@ def main() -> int:
             if "DeskRemote: busca vinculo na API no Conectar" not in common_dart:
                 print("Verificacao falhou: Conectar do Flutter nao busca o vinculo.", file=sys.stderr)
                 return 1
+            if "DeskRemote: aplica o servidor da instancia" not in common_dart:
+                print("Verificacao falhou: Flutter nao aplica o servidor da instancia.", file=sys.stderr)
+                return 1
             if "DeskRemote: vinculo (alias) ou usuario@host na aba" not in common_dart:
                 print("Verificacao falhou: aba da sessao Flutter ainda usa o ID.", file=sys.stderr)
                 return 1
-            if "DeskRemote: servidor Duplex" not in common_dart:
-                print("Verificacao falhou: fallback Duplex ausente no Flutter.", file=sys.stderr)
-                return 1
-            if f'"{host}"' not in common_dart or f'"{key}"' not in common_dart:
-                print("Verificacao falhou: host/key Duplex ausentes no Flutter.", file=sys.stderr)
+            if "DeskRemote: servidor Duplex" in common_dart or f'"{host}"' in common_dart:
+                print("Verificacao falhou: Flutter do atendente ainda embute o servidor da Duplex.", file=sys.stderr)
                 return 1
         flutter_assets = src / "flutter" / "assets" / "logo.png"
         if not flutter_assets.is_file():
@@ -4812,6 +4853,19 @@ def main() -> int:
             if "listarFrotaVinculadaDeskRemote" not in overlay_sessao_txt:
                 print("Verificacao falhou: listagem da frota Vinculados ausente no overlay.", file=sys.stderr)
                 return 1
+            if "/rustdesk/configuracao" not in overlay_sessao_txt:
+                print("Verificacao falhou: overlay sem GET /rustdesk/configuracao.", file=sys.stderr)
+                return 1
+            if "aplicarServidorDaContaDeskRemote" not in overlay_sessao_txt:
+                print("Verificacao falhou: overlay sem aplicar servidor da instancia.", file=sys.stderr)
+                return 1
+            overlay_gate_txt = overlay_gate.read_text(encoding="utf-8")
+            if "aplicarServidorDaContaDeskRemote" not in overlay_gate_txt:
+                print("Verificacao falhou: login Flutter sem aplicar servidor da instancia.", file=sys.stderr)
+                return 1
+            if "_pararPoll" not in overlay_gate_txt:
+                print("Verificacao falhou: login Flutter nao para o poll sem servidor.", file=sys.stderr)
+                return 1
     flutter_multi = src / "flutter" / "lib" / "utils" / "multi_window_manager.dart"
     if profile != "posto" and flutter_multi.is_file():
         multi_body = flutter_multi.read_text(encoding="utf-8")
@@ -4850,8 +4904,8 @@ def main() -> int:
         if WEBSITE_URL.rstrip("/") not in settings_body:
             print("Verificacao falhou: website do Sobre sem deskrudder.com.br.", file=sys.stderr)
             return 1
-        if profile != "posto" and "DeskRemote: host Duplex na Rede" not in settings_body:
-            print("Verificacao falhou: host Duplex nao aparece em Rede.", file=sys.stderr)
+        if "DeskRemote: host Duplex na Rede" in settings_body:
+            print("Verificacao falhou: Flutter ainda mostra o host da Duplex em Rede.", file=sys.stderr)
             return 1
     flutter_rc = src / "flutter" / "windows" / "runner" / "Runner.rc"
     if flutter_rc.is_file():

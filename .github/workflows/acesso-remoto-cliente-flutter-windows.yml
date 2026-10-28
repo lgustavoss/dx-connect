@@ -1,5 +1,5 @@
 # DeskRemote Cliente v2 (Flutter, profile posto) — download do painel.
-# O Sciter v1 continua no Release acesso-remoto-windows (canal antigo).
+# Sciter v1 (1.0.14) está congelado em acesso-remoto-windows.
 #
 # Actions → «DeskRemote Cliente v2» → Run workflow
 # Artefato: DeskRudder-AcessoRemoto-Flutter.exe
@@ -284,7 +284,7 @@ jobs:
           }, indent=2) + "\n", encoding="utf-8")
           PY
           TITLE="DeskRemote Cliente v2 ${CLIENT_VER}"
-          NOTES="DeskRemote **${CLIENT_VER}** (Flutter). Instalador genérico + token. Link \`/acesso-remoto/download\`. Sciter v1 permanece em \`acesso-remoto-windows\`."
+          NOTES="DeskRemote **${CLIENT_VER}** (Flutter). Instalador genérico + token. Link \`/acesso-remoto/download\`. Sciter 1.0.14 está congelado em \`acesso-remoto-windows\`."
           if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             gh release upload "$TAG" "$STABLE" "$VERSION_JSON" \
               --repo "${{ github.repository }}" --clobber

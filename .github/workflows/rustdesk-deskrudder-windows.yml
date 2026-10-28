@@ -1,10 +1,9 @@
-# Instalador do Acesso Remoto para o PC do CLIENTE (posto/PDV) — só recebe conexão.
+# DeskRemote Cliente v1 (Sciter) — CONGELADO em 1.0.14.
+# Canal de produção é o Flutter 2.x («DeskRemote Cliente v2»).
+# Só rode para hotfix 32-bit, com confirmar=gerar-sciter.
 #
 # Actions → «DeskRemote Cliente v1» → Run workflow
 # Resultado: Release acesso-remoto-windows / DeskRudder-AcessoRemoto.exe
-# Branding: mesma pasta deploy/rustdesk-client/branding/ que o workflow do atendente.
-# Após mudar a arte: subir CLIENT_VERSION e rodar Cliente + Atendente.
-# Duração típica: 40–90 min (1.ª vez).
 
 name: DeskRemote Cliente v1
 
@@ -19,6 +18,11 @@ on:
         options:
           - "1.5.0"
           - "1.4.9"
+      confirmar:
+        description: "Sciter 1.0.14 está congelado. Para hotfix 32-bit, digite gerar-sciter"
+        required: true
+        type: string
+        default: ""
 
 concurrency:
   group: acesso-remoto-cliente-windows
@@ -28,8 +32,18 @@ permissions:
   contents: write
 
 jobs:
+  guard:
+    name: Sciter congelado
+    runs-on: ubuntu-latest
+    steps:
+      - name: Recusar build v1
+        if: ${{ inputs.confirmar != 'gerar-sciter' }}
+        run: |
+          echo "::error::Sciter 1.0.14 está congelado. O canal de produção é o Flutter 2.x. Para hotfix 32-bit, rode de novo com confirmar=gerar-sciter."
+          exit 1
   build:
     name: Instalador cliente (posto)
+    needs: guard
     uses: ./.github/workflows/rustdesk-windows-reusable.yml
     with:
       profile: posto

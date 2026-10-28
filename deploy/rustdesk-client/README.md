@@ -4,8 +4,8 @@
 
 | Workflow (Actions) | Profile | Release |
 |--------------------|---------|---------|
-| **DeskRemote Cliente v1** | `posto` Sciter | `acesso-remoto-windows` |
-| **DeskRemote Atendente v1** | `controle` Sciter | `acesso-remoto-controle-windows` |
+| **DeskRemote Cliente v1** | `posto` Sciter **congelado 1.0.14** | `acesso-remoto-windows` |
+| **DeskRemote Atendente v1** | `controle` Sciter **congelado 1.0.14** | `acesso-remoto-controle-windows` |
 | **DeskRudder Painel v1** | Electron (+ baixa o Atendente v2) | `desktop-windows` |
 | **DeskRemote Atendente v2** | Flutter x64 do atendente | `acesso-remoto-controle-flutter-windows` |
 | **DeskRemote Cliente v2** | Flutter x64 do cliente (download do painel) | `acesso-remoto-windows-flutter` |
@@ -21,9 +21,9 @@ Docs: [`docs/RUSTDESK_CLIENT_WINDOWS.md`](../../docs/RUSTDESK_CLIENT_WINDOWS.md)
 | `branding/icon-source-official.png` | Arte-fonte PNG com alpha (DeskRemote) |
 | `branding/kit-1253/` | Kit por local de uso (titlebar, tray, taskbar, ico, Flutter) — issue #1253 |
 | `scripts/render_remote_icons.py` | Regenera PNGs/ICO a partir da arte oficial |
-| `CLIENT_VERSION` | Sciter de produção — linha **1.x.x** |
-| `CLIENT_VERSION_FLUTTER` | Spike Flutter do atendente — linha **2.x.x** (canal de update separado) |
-| `CLIENT_VERSION_FLUTTER_CLIENTE` | Spike Flutter do cliente — linha **2.x.x** (começa em 2.0.0; canal separado) |
+| `CLIENT_VERSION` | Sciter **congelado** em **1.0.14** (hotfix 32-bit) |
+| `CLIENT_VERSION_FLUTTER` | Flutter do atendente — linha **2.x.x** (2.3.0+ puxa o servidor da conta) |
+| `CLIENT_VERSION_FLUTTER_CLIENTE` | Flutter do cliente — linha **2.x.x** (canal separado) |
 | `scripts/apply_branding.py` | Patch no RustDesk antes do build (`--profile posto\|controle`; `--ui sciter\|flutter`) |
 | `scripts/encode_config.py` | Debug da string `--config` |
 | `windows/Install-DeskRudderRemote.ps1` | Legado / emergência (oficial + config) — **não** é o fluxo principal |
