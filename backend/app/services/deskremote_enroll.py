@@ -22,7 +22,7 @@ from app.services.empresa_pdv_acessos import (
     tipo_permite_conectar,
 )
 from app.services.password_reset import _public_app_origin
-from app.services.rustdesk_peers import garantir_tipo_rustdesk, normalizar_id_remoto
+from app.services.rustdesk_peers import garantir_tipo_rustdesk, marcar_visto_enroll, normalizar_id_remoto
 from app.services.secret_box import decrypt_str
 
 MSG_TOKEN_INVALIDO = "Este link de instalação não é válido ou já foi usado. Gere um novo no painel."
@@ -266,6 +266,7 @@ def resgatar(db: Session, raw_token: str, rustdesk_id: str | None) -> dict:
     if rustdesk_id and rustdesk_id.strip():
         id_gravado = _gravar_id(db, pdv, acesso, rustdesk_id)
         dispositivo.rustdesk_id = id_gravado
+        marcar_visto_enroll(db, id_gravado, dispositivo.last_seen_at)
     db.add(dispositivo)
     token.used_at = _agora()
     registrar_audit(
@@ -322,6 +323,7 @@ def confirmar_id(db: Session, raw_device: str, rustdesk_id: str) -> dict:
     chave = _gravar_id(db, pdv, acesso, rustdesk_id)
     dispositivo.rustdesk_id = chave
     dispositivo.last_seen_at = _agora()
+    marcar_visto_enroll(db, chave, dispositivo.last_seen_at)
     registrar_audit(
         db,
         "empresa_pdv",
@@ -363,6 +365,8 @@ def sync_config(db: Session, raw_device: str) -> dict:
             payload={"acesso_id": acesso.id, "senha_versao": versao},
         )
     dispositivo.last_seen_at = _agora()
+    if dispositivo.rustdesk_id:
+        marcar_visto_enroll(db, dispositivo.rustdesk_id, dispositivo.last_seen_at)
     db.commit()
     return {
         "senha_versao": versao,

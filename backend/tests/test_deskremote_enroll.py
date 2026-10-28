@@ -1,6 +1,8 @@
 from app.config import settings
-from app.models.empresa_pdv import PdvRotulo, PdvTipoAcessoRemoto
 from app.models.audit_log import AuditLog
+from app.models.empresa_pdv import PdvRotulo, PdvTipoAcessoRemoto
+from app.models.rustdesk_peer import RustdeskPeer
+from app.services import rustdesk_peers as rustdesk_svc
 
 
 def _servidor(monkeypatch):
@@ -149,6 +151,12 @@ def test_confirmar_id_depois_e_sync_senha(client, auth_headers, seed_base, db_se
     conf = client.post("/v1/deskremote/dispositivo/id", headers=h, json={"rustdesk_id": "111222333"})
     assert conf.status_code == 200, conf.text
     assert conf.json()["rustdesk_id"] == "111222333"
+    selo = client.get(f"/v1/empresas/{emp_id}/pdvs", headers=auth_headers["admin"])
+    assert selo.status_code == 200, selo.text
+    ficha = selo.json()["items"][0]
+    assert ficha["acesso_remoto_id"] == "111222333"
+    assert ficha["rustdesk_visto"] is True
+    assert ficha["rustdesk_online"] is True
     sync1 = client.get("/v1/deskremote/dispositivo/config", headers=h)
     assert sync1.status_code == 200
     assert sync1.json()["senha"] is None
@@ -264,3 +272,26 @@ def test_dispositivo_revogado_nao_sincroniza(client, auth_headers, seed_base, db
     assert r.status_code == 401
     lista = client.get(f"/v1/empresas/{emp_id}/pdvs", headers=auth_headers["admin"])
     assert lista.json()["items"][0]["acesso_remoto_id"] == "2"
+
+
+def test_sync_hbbs_nao_apaga_id_do_enroll(client, auth_headers, seed_base, db_session, monkeypatch):
+    _servidor(monkeypatch)
+    pdv, emp_id, _ = _pdv_deskremote(client, auth_headers, seed_base, db_session)
+    gerado = client.post(
+        f"/v1/empresas/{emp_id}/pdvs/{pdv['id']}/deskremote/token",
+        headers=auth_headers["admin"],
+        json={},
+    )
+    token = gerado.json()["url"].rsplit("/", 1)[-1]
+    assert client.post("/v1/deskremote/enroll", json={"token": token, "rustdesk_id": "1998377577"}).status_code == 200
+    assert db_session.query(RustdeskPeer).filter_by(rustdesk_id="1998377577").one_or_none() is not None
+    monkeypatch.setattr(settings, "RUSTDESK_AGENT_URL", "http://agente")
+    monkeypatch.setattr(settings, "RUSTDESK_AGENT_TOKEN", "segredo")
+    rustdesk_svc._ultimo_sync_mono = 0
+    monkeypatch.setattr(rustdesk_svc, "obter_snapshot", lambda: {"observando_log": True, "peers": []})
+    rustdesk_svc.sincronizar(db_session, forcar=True)
+    assert db_session.query(RustdeskPeer).filter_by(rustdesk_id="1998377577").one_or_none() is not None
+    selo = client.get(f"/v1/empresas/{emp_id}/pdvs", headers=auth_headers["admin"])
+    ficha = selo.json()["items"][0]
+    assert ficha["rustdesk_visto"] is True
+    assert ficha["rustdesk_online"] is True

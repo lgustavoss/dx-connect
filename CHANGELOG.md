@@ -18,6 +18,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
+- Empresas → PDVs: depois do link de instalação do DeskRemote, o selo deixa de ficar em **Fora do servidor** — o painel passa a reconhecer o ID que o computador confirmou (Online enquanto o app estiver ativo)
 - DeskRemote no PDV (**2.1.1**): depois de **Instalar**, a janela volta a abrir — a 2.1.0 apagava a pasta temporária do próprio instalador e o app ficava sem a interface
 - DeskRemote no PDV (**2.1.0**): o servidor da conta é gravado no mediador (não numa opção local) — deixa de ficar parado em «Conectando à rede do DeskRudder…»
 - DeskRemote no PDV: na primeira abertura aparece a tela normal para clicar em **Instalar**; o link do painel só é pedido depois que o app já está no sistema

@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from app.config import settings
 from app.core.audit import registrar_audit
 from app.models.atendente import Atendente
+from app.models.deskremote_enroll import DeskremoteDispositivo
 from app.models.empresa import Empresa
 from app.models.empresa_pdv import EmpresaPdv, EmpresaPdvAcessoRemoto, PdvTipoAcessoRemoto
 from app.models.rustdesk_peer import RustdeskPeer
@@ -99,6 +100,24 @@ def calcular_online(last_seen: datetime | None, monitoramento: bool | None = Non
     return recente
 
 
+def _limite_dispositivo() -> timedelta:
+    """O cliente DeskRemote consulta a API a cada ~2 min; folga além do UDP do hbbs (45s)."""
+    return timedelta(seconds=max(settings.RUSTDESK_ONLINE_SECONDS, 180))
+
+
+def marcar_visto_enroll(db: Session, rustdesk_id: str, last_seen: datetime | None = None) -> None:
+    """Garante o ID na frota quando o PDV confirma o vínculo, mesmo sem linha ainda no SQLite do hbbs."""
+    chave = normalizar_id_remoto(rustdesk_id)
+    if not chave:
+        return
+    row = db.query(RustdeskPeer).filter(RustdeskPeer.rustdesk_id == chave).first()
+    if row is None:
+        row = RustdeskPeer(rustdesk_id=chave)
+        db.add(row)
+    if last_seen is not None:
+        row.last_seen = last_seen
+
+
 def mapa_online(db: Session) -> dict[str, bool | None]:
     """Online/offline atual (sincroniza o cache do hbbs, igual à tela de acesso remoto)."""
     sincronizar(db)
@@ -107,6 +126,24 @@ def mapa_online(db: Session) -> dict[str, bool | None]:
         chave = normalizar_id_remoto(row.rustdesk_id)
         if chave:
             mapa[chave] = calcular_online(row.last_seen)
+    agora = datetime.now(timezone.utc)
+    dispositivos = (
+        db.query(DeskremoteDispositivo)
+        .filter(
+            DeskremoteDispositivo.revoked_at.is_(None),
+            DeskremoteDispositivo.rustdesk_id.isnot(None),
+        )
+        .all()
+    )
+    for dispositivo in dispositivos:
+        chave = normalizar_id_remoto(dispositivo.rustdesk_id)
+        if not chave:
+            continue
+        if chave not in mapa:
+            mapa[chave] = False
+        visto_em = dispositivo.last_seen_at
+        if visto_em is not None and agora - _como_utc(visto_em) <= _limite_dispositivo():
+            mapa[chave] = True
     return mapa
 
 
@@ -245,8 +282,21 @@ def _aplicar_snapshot(db: Session, payload: dict) -> None:
         row.ip = _truncar(item.get("ip"), 64)
         if observando:
             row.last_seen = _parse_last_seen(item.get("last_seen"))
+    protegidos = {
+        chave
+        for chave in (
+            normalizar_id_remoto(d.rustdesk_id)
+            for d in db.query(DeskremoteDispositivo)
+            .filter(
+                DeskremoteDispositivo.revoked_at.is_(None),
+                DeskremoteDispositivo.rustdesk_id.isnot(None),
+            )
+            .all()
+        )
+        if chave
+    }
     for rid, row in list(existentes.items()):
-        if rid not in vistos:
+        if rid not in vistos and rid not in protegidos:
             db.delete(row)
     db.commit()
 
