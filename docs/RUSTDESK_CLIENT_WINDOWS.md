@@ -27,7 +27,7 @@ Há **quatro** números envolvidos:
 |-------|------|-------------|
 | **Sciter (congelado)** (`CLIENT_VERSION` = **1.0.14**) | Releases v1 `acesso-remoto-windows` e `acesso-remoto-controle-windows` | Sem builds novos. Hotfix 32-bit: Actions v1 com `confirmar=gerar-sciter` |
 | **Flutter (atendente v2)** (`CLIENT_VERSION_FLUTTER`, linha **2.x.x**, ex.: `2.3.0`) | UI Flutter e update do Release `acesso-remoto-controle-flutter-windows` | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION_FLUTTER` e gera o **DeskRemote Atendente v2** |
-| **Flutter (cliente v2)** (`CLIENT_VERSION_FLUTTER_CLIENTE`, linha **2.x.x**, ex.: `2.1.0`) | UI Flutter e update do Release `acesso-remoto-windows-flutter` | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION_FLUTTER_CLIENTE` e gera o **DeskRemote Cliente v2** |
+| **Flutter (cliente v2)** (`CLIENT_VERSION_FLUTTER_CLIENTE`, linha **2.x.x**, ex.: `2.1.1`) | UI Flutter e update do Release `acesso-remoto-windows-flutter` | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION_FLUTTER_CLIENTE` e gera o **DeskRemote Cliente v2** |
 | **Tag RustDesk** (ex.: `1.5.0`) | `Cargo.toml` → `crate::VERSION` anunciada ao peer (protocolo / modo de teclado) | Só quando escolhemos uma tag mais nova do upstream no Actions |
 
 A linha **1.x.x fica no Sciter (congelada em 1.0.14)**; o Flutter **não** reutiliza esse número — começa em **2.0.0** para não misturar instalador nem canal de update. A tag `1.5.0` **não sobe sozinha** a cada build — é a base do RustDesk.
@@ -55,7 +55,9 @@ O desinstalador (2.1.0+) remove:
 - Atalhos da área de trabalho e do menu Iniciar
 - Serviço Windows, regras de firewall e chaves de registro
 - `%APPDATA%\DeskRudder\deskremote-dispositivo.json`, `deskremote-sessao.json`, configs e logs do DeskRemote (`RustDesk.toml` / `DeskRudder.toml`)
-- `%LOCALAPPDATA%\DeskRudder`, `%PROGRAMDATA%\DeskRudder`, `%PUBLIC%\DeskRudder` (fila de update)
+- `%PROGRAMDATA%\DeskRudder`, `%PUBLIC%\DeskRudder` (fila de update)
+
+Não apaga `%LOCALAPPDATA%\DeskRudder`: o **Instalar** copia a interface de lá; se apagar no meio da instalação, a janela deixa de abrir (bug da 2.1.0, corrigido na 2.1.1).
 
 Não apaga o resto do `%APPDATA%\DeskRudder` (login do painel Electron no mesmo PC, se existir). Para reinstalar limpo no PDV, **Desinstalar** no app ou em Aplicativos do Windows basta — não precisa apagar pastas na mão.
 
@@ -118,6 +120,7 @@ O instalador é pensado para o PC que **vai ser acessado** (PDV / posto):
 - No Flutter, a marca fica no **rodapé** do painel esquerdo, com a versão DeskRudder (`CLIENT_VERSION_FLUTTER`, linha 2.x.x) abaixo; no Sciter a posição segue o upstream
 - Flutter (2.0.2+): o nome **DeskRemote** aparece na barra de título (tema claro e escuro) e abaixo da logo do painel; ao conectar pelo painel ou pelo ID já conhecido, a aba da sessão usa o rótulo do vínculo; ícone da barra de tarefas e da barra de título tem contorno branco **só no Flutter** (o Sciter do posto continua na arte 1.0.14); logo do painel maior e mais nítida; Sobre o **DeskRemote** (site DeskRudder, copyright DeskRudder, sem privacidade do RustDesk). A partir da **2.3.0** (atendente), Rede mostra o servidor da conta após o login — não o da Duplex compilado
 - Flutter cliente **2.1.0+**: banner **Atualizar agora** na home; desinstalador limpa pasta, AppData do DeskRemote, ProgramData e Public
+- Flutter cliente **2.1.1**: o Instalar não apaga mais `%LOCALAPPDATA%\DeskRudder` (pasta de extração) — a janela abre depois de instalar
 - Tema escuro segue o Windows (conteúdo + barra de título) se a opção não foi fixada no menu (⋮ → Tema escuro)
 - Logo do painel usa arte em alta resolução com fundo transparente (`ui-logo-512.png`) — sem placa opaca no tema escuro nem no claro; tamanho acompanha a janela
 - Janela inicial ~760×720 (antes de instalar) para o botão **Instalar** do cartão UAC ficar visível

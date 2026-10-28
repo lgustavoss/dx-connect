@@ -678,6 +678,10 @@ def _selftest_uninstall_completo() -> None:
             raise SystemExit("selftest uninstall: ProgramData nao e removido")
         if "%PUBLIC%\\\\DeskRudder" not in out:
             raise SystemExit("selftest uninstall: Public nao e removido")
+        if "%LOCALAPPDATA%" in out:
+            raise SystemExit(
+                "selftest uninstall: nao pode apagar LocalAppData — o Instalar faz XCOPY de la"
+            )
         patch_uninstall_completo(p)
         if p.read_text(encoding="utf-8") != out:
             raise SystemExit("selftest uninstall: patch nao e idempotente")
@@ -3270,7 +3274,8 @@ def patch_uninstall_completo(windows_rs: Path) -> None:
     old = 'if exist \\"{path}\\" rd /s /q \\"{path}\\"'
     extra_rs = (
         'if exist \\"{path}\\" rd /s /q \\"{path}\\"\n'
-        "    rem DeskRudder: limpa dados do usuario (sem apagar o painel Electron, se existir).\n"
+        "    rem DeskRudder: limpa dados do usuario. Nao apagar LocalAppData: o instalador\n"
+        "    rem roda get_uninstall antes do XCOPY, e a pasta extraida fica em LocalAppData.\n"
         '    if exist \\"%APPDATA%\\\\DeskRudder\\\\deskremote-dispositivo.json\\" del /f /q \\"%APPDATA%\\\\DeskRudder\\\\deskremote-dispositivo.json\\"\n'
         '    if exist \\"%APPDATA%\\\\DeskRudder\\\\deskremote-sessao.json\\" del /f /q \\"%APPDATA%\\\\DeskRudder\\\\deskremote-sessao.json\\"\n'
         '    if exist \\"%APPDATA%\\\\DeskRudder\\\\DeskRudder.toml\\" del /f /q \\"%APPDATA%\\\\DeskRudder\\\\DeskRudder.toml\\"\n'
@@ -3280,7 +3285,6 @@ def patch_uninstall_completo(windows_rs: Path) -> None:
         '    if exist \\"%APPDATA%\\\\DeskRudder\\\\*.toml\\" del /f /q \\"%APPDATA%\\\\DeskRudder\\\\*.toml\\"\n'
         '    if exist \\"%APPDATA%\\\\DeskRudder\\\\config\\" rd /s /q \\"%APPDATA%\\\\DeskRudder\\\\config\\"\n'
         '    if exist \\"%APPDATA%\\\\DeskRudder\\\\logs\\" rd /s /q \\"%APPDATA%\\\\DeskRudder\\\\logs\\"\n'
-        '    if exist \\"%LOCALAPPDATA%\\\\DeskRudder\\" rd /s /q \\"%LOCALAPPDATA%\\\\DeskRudder\\"\n'
         '    if exist \\"%PROGRAMDATA%\\\\DeskRudder\\" rd /s /q \\"%PROGRAMDATA%\\\\DeskRudder\\"\n'
         '    if exist \\"%PUBLIC%\\\\DeskRudder\\" rd /s /q \\"%PUBLIC%\\\\DeskRudder\\"\n'
         '    rd /q \\"{path}\\\\..\\"'

@@ -18,6 +18,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Correções
 
+- DeskRemote no PDV (**2.1.1**): depois de **Instalar**, a janela volta a abrir — a 2.1.0 apagava a pasta temporária do próprio instalador e o app ficava sem a interface
 - DeskRemote no PDV (**2.1.0**): o servidor da conta é gravado no mediador (não numa opção local) — deixa de ficar parado em «Conectando à rede do DeskRudder…»
 - DeskRemote no PDV: na primeira abertura aparece a tela normal para clicar em **Instalar**; o link do painel só é pedido depois que o app já está no sistema
 - DeskRemote no PDV (**2.0.1**): rodapé «Desenvolvido por DeskRudder» deixa de ficar por cima do status «Conectando à rede…»
@@ -25,7 +26,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 #### Interno / Infra
 
 - DeskRemote Atendente v2: o 2.3.0 só existe depois de gerar o Release no Actions (na `main`) e embutir no **DeskRudder Painel v1** — o merge sozinho não publica o `.exe`
-- DeskRemote Cliente v2: o **2.1.0** só existe depois de gerar o Release no Actions (na `main`) — o link `/acesso-remoto/download` passa a servir esse `.exe`
+- DeskRemote Cliente v2: o **2.1.1** só existe depois de gerar o Release no Actions (na `main`) — o link `/acesso-remoto/download` passa a servir esse `.exe`
 
 ## [26.10.009] - 2026-10-27
 
