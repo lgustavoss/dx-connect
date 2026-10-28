@@ -5,6 +5,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+## [26.10.009] - 2026-10-27
+
 ### DeskRudder
 
 #### Melhorias
@@ -27,7 +29,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Acesso remoto: dá para **atualizar o posto à distância** sem alguém na frente do PC (versão 1.0.9) — o app enfileira o instalador e o serviço Windows aplica com `--update` sem pedir UAC; a sessão remota pode cair enquanto o app troca os arquivos
 - Acesso remoto: transferência de arquivo fica ligada por padrão no posto e no atendente; o menu **Transferir arquivo** usa a senha da sessão quando der (versão 1.0.9)
 
-#### Interno
+#### Interno / Infra
 
 - Actions: os builds passam a se chamar **DeskRemote Cliente v1/v2**, **DeskRemote Atendente v1/v2** e **DeskRudder Painel v1**
 - Deploy: o 302 de `/acesso-remoto/download` nas instâncias já no ar passa para o DeskRemote 2.0 (Nginx)
