@@ -2362,7 +2362,7 @@ def _selftest_flutter_recent_ui() -> None:
         raise SystemExit("selftest flutter: resgate do token ausente")
     if "deskremote.invalid" in enroll_overlay:
         raise SystemExit("selftest flutter: overlay de enroll nao deve embutir host")
-    if "mainSetPermanentPassword" not in enroll_overlay:
+    if "mainSetPermanentPasswordWithResult" not in enroll_overlay:
         raise SystemExit("selftest flutter: enroll nao aplica senha permanente")
     if "mainSetOption" not in enroll_overlay:
         raise SystemExit("selftest flutter: enroll nao trava verification-method")
@@ -4776,7 +4776,7 @@ def main() -> int:
                 print("Verificacao falhou: dart DeskRemote (enroll) ausente no clone.", file=sys.stderr)
                 return 1
             enroll_txt = overlay_enroll.read_text(encoding="utf-8")
-            if "mainSetPermanentPassword" not in enroll_txt:
+            if "mainSetPermanentPasswordWithResult" not in enroll_txt:
                 print("Verificacao falhou: enroll sem senha permanente.", file=sys.stderr)
                 return 1
             if flutter_common.is_file():

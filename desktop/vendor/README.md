@@ -6,8 +6,8 @@ O Setup do atendente (`npm run dist` ou o workflow **Desktop DeskRudder Windows*
 
 ## Como obter
 
-1. Actions → **Acesso Remoto Atendente (Windows)** (quando o remoto mudar)  
-2. Actions → **App Atendente Setup (Windows)** (a cada update do painel — rápido)
+1. Actions → **DeskRemote Atendente v2** (quando o remoto mudar)  
+2. Actions → **DeskRudder Painel v1** (a cada update do painel — rápido)
 
 Dev local: `npm run baixar-remoto` se o Release controle já existir.
 

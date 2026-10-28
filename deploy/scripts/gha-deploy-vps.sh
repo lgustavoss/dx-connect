@@ -129,6 +129,11 @@ echo "==> Deploy branch/ref: $REF"
 git fetch origin
 git checkout "$REF"
 git reset --hard "origin/$REF"
+# 302 /acesso-remoto/download nas instâncias já no ar (Sciter v1 → Flutter v2).
+if [ -f deploy/scripts/alinhar-nginx-deskremote-v2.sh ]; then
+  bash deploy/scripts/alinhar-nginx-deskremote-v2.sh \
+    || echo "::warning::alinhar-nginx-deskremote-v2 falhou (deploy continua)."
+fi
 REMOTE_SCRIPT
 
 ssh_rsync_release() {

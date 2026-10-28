@@ -1,14 +1,14 @@
-# Spike Flutter x64 do ATENDENTE (DeskRemote).
-# Não substitui o Sciter em produção (Release acesso-remoto-controle-windows).
+# DeskRemote Atendente v2 (Flutter) — embutido no DeskRudder Painel v1.
+# O Sciter v1 continua no Release acesso-remoto-controle-windows (canal antigo).
 #
-# Actions → «Acesso Remoto Atendente Flutter (spike)» → Run workflow
+# Actions → «DeskRemote Atendente v2» → Run workflow
 # Artefato: DeskRudder-AcessoRemoto-Controle-Flutter.exe
-# Release opcional: acesso-remoto-controle-flutter-windows (tag paralela)
+# Release: acesso-remoto-controle-flutter-windows
 #
 # Branding: deploy/rustdesk-client/branding/kit-1253 (issue #1253)
 # Duração típica: 40–90 min.
 
-name: Acesso Remoto Atendente Flutter (spike)
+name: DeskRemote Atendente v2
 
 on:
   workflow_dispatch:
@@ -21,9 +21,9 @@ on:
         options:
           - "1.5.0"
       publish_release:
-        description: "Publicar tag paralela flutter (não sobrescreve o Sciter)"
+        description: "Publicar Release (o Painel v1 baixa daqui). Deixe ligado."
         required: true
-        default: false
+        default: true
         type: boolean
 
 concurrency:
@@ -256,7 +256,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publicar Release paralelo (não é o Sciter)
+      - name: Publicar Release (embutido no Painel v1)
         if: ${{ inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -282,13 +282,13 @@ jobs:
               "download_url": "${DOWNLOAD_URL}",
           }, indent=2) + "\n", encoding="utf-8")
           PY
-          TITLE="DeskRemote Flutter (atendente) ${CLIENT_VER} — spike"
-          NOTES="Spike Flutter x64 do atendente **${CLIENT_VER}**. Não substitui o Sciter (\`acesso-remoto-controle-windows\`). Arte kit #1253."
+          TITLE="DeskRemote Atendente v2 ${CLIENT_VER}"
+          NOTES="DeskRemote **${CLIENT_VER}** (Flutter, controle). O DeskRudder Painel v1 embute este Release. Sciter v1 permanece em \`acesso-remoto-controle-windows\`."
           if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             gh release upload "$TAG" "$STABLE" "$VERSION_JSON" \
               --repo "${{ github.repository }}" --clobber
-            gh release edit "$TAG" --repo "${{ github.repository }}" --title "$TITLE" --notes "$NOTES"
+            gh release edit "$TAG" --repo "${{ github.repository }}" --title "$TITLE" --notes "$NOTES" --prerelease=false
           else
             gh release create "$TAG" "$STABLE" "$VERSION_JSON" \
-              --repo "${{ github.repository }}" --title "$TITLE" --notes "$NOTES" --latest=false --prerelease
+              --repo "${{ github.repository }}" --title "$TITLE" --notes "$NOTES" --latest=false
           fi

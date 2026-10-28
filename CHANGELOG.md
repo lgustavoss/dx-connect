@@ -9,12 +9,15 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- Acesso remoto: **Baixar instalador Windows** e o link `/acesso-remoto/download` passam a baixar o DeskRemote **2.0** (Flutter)
+- App Windows: o Setup (`/app/download`) embute o DeskRemote **2.0** do atendente
 - Empresas → PDVs: quem edita a empresa gera um **QR e um link de instalação** do DeskRemote, de uso único, ligados àquele computador. A senha cadastrada não aparece no QR — o aplicativo aplica sozinho. Se a senha mudar no painel, o PDV atualiza sem alguém conectar
 - DeskRemote no PDV (versão 2.0, Flutter): instalador genérico, sem servidor de um cliente só. No primeiro uso cola o link do painel; depois mostra só ID e status, e não deixa trocar a senha no computador
 - App Windows: no menu **DeskRudder** (janela e bandeja) dá para abrir **Sobre** com a versão do aplicativo e **atualizar** quando houver uma versão mais recente
 
 #### Correções
 
+- DeskRemote 2.0 do posto: o instalador volta a gravar a senha do painel — o build Flutter quebrava ao chamar um método que o RustDesk 1.5.0 não tem
 - Empresas (#S202610-0019): na busca, o campo deixa de travar quando a lista recarrega — dá para continuar digitando depois de uma pausa
 - Acesso remoto (#S202610-0018): clicar várias vezes no atalho ou na barra de tarefas **reusa a janela já aberta** em vez de abrir várias; reconectar no mesmo ID traz a sessão existente para frente (versão 1.0.14)
 - Acesso remoto (atendente): a sessão mostra o **rótulo do vínculo** (ex.: «Posto Farol · SERVIDOR 001») na barra e no título; a toolbar acompanha o tema escuro; ícone da janela usa o D legível (versão 1.0.13)
@@ -26,6 +29,9 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Interno
 
+- Actions: os builds passam a se chamar **DeskRemote Cliente v1/v2**, **DeskRemote Atendente v1/v2** e **DeskRudder Painel v1**
+- Deploy: o 302 de `/acesso-remoto/download` nas instâncias já no ar passa para o DeskRemote 2.0 (Nginx)
+- Deploy: as migrations voltam a correr no Postgres — SQLAlchemy volta para 2.0.54; engine e Alembic forçam `postgresql+psycopg2://` se o 2.1 voltar
 - DeskRemote cliente Flutter **2.0.0** (#1252 / #1283): token de instalação, credencial do computador, sync de senha, workflow `acesso-remoto-windows-flutter` (não sobrescreve o Sciter `acesso-remoto-windows`)
 - DeskRemote: kit de arte (#1253) e spike Flutter do atendente (Actions paralelo; Sciter 1.0.14 continua em produção)
 - DeskRemote Flutter: «Desenvolvido por DeskRudder» no rodapé do painel esquerdo, com a versão atual logo abaixo
