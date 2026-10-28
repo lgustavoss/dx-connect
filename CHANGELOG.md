@@ -5,6 +5,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+## [26.10.010] - 2026-10-28
+
 ### DeskRudder
 
 #### Melhorias
