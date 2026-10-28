@@ -83,6 +83,7 @@ class _DeskRemoteAuthGateState extends State<DeskRemoteAuthGate> {
         }
         return;
       }
+      await aplicarServidorDaContaDeskRemote();
       if (mounted) {
         setState(() {
           _verificando = false;
@@ -91,6 +92,17 @@ class _DeskRemoteAuthGateState extends State<DeskRemoteAuthGate> {
         });
       }
     } on DeskRemoteAuthErro catch (e) {
+      if (e.naoTentarDeNovo) {
+        _pararPoll();
+        if (mounted) {
+          setState(() {
+            _verificando = false;
+            _autenticado = false;
+            _erro = e.mensagem;
+          });
+        }
+        return;
+      }
       if (!e.ehRede) {
         final renovada = await renovarSessaoDeskRemote(sessao);
         if (renovada != null) {
@@ -104,6 +116,7 @@ class _DeskRemoteAuthGateState extends State<DeskRemoteAuthGate> {
             }
             if (temPermissaoAcessoRemoto(me)) {
               gravarSessaoDeskRemote(renovada);
+              await aplicarServidorDaContaDeskRemote();
               if (mounted) {
                 setState(() {
                   _verificando = false;
@@ -123,6 +136,9 @@ class _DeskRemoteAuthGateState extends State<DeskRemoteAuthGate> {
             }
             return;
           } on DeskRemoteAuthErro catch (e2) {
+            if (e2.naoTentarDeNovo) {
+              _pararPoll();
+            }
             if (e2.deveDescartarSessao) {
               limparSessaoDeskRemote();
             }
@@ -192,6 +208,7 @@ class _DeskRemoteAuthGateState extends State<DeskRemoteAuthGate> {
         );
       }
       gravarSessaoDeskRemote(sessao);
+      await aplicarServidorDaContaDeskRemote();
       if (mounted) {
         setState(() {
           _verificando = false;
@@ -200,6 +217,9 @@ class _DeskRemoteAuthGateState extends State<DeskRemoteAuthGate> {
         });
       }
     } on DeskRemoteAuthErro catch (e) {
+      if (e.naoTentarDeNovo) {
+        _pararPoll();
+      }
       if (mounted) {
         setState(() {
           _verificando = false;
@@ -218,11 +238,15 @@ class _DeskRemoteAuthGateState extends State<DeskRemoteAuthGate> {
     }
   }
 
+  void _pararPoll() {
+    _poll?.cancel();
+    _poll = null;
+  }
+
   void _sair() {
     // DeskRemote: Sair explícito — não relogar pelo poll da sessão do Electron.
     _naoHerdarAposSair = true;
-    _poll?.cancel();
-    _poll = null;
+    _pararPoll();
     limparSessaoDeskRemote();
     setState(() {
       _autenticado = false;

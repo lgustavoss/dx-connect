@@ -117,6 +117,24 @@ def test_configuracao_para_colar_no_cliente(client, auth_headers, monkeypatch):
     assert corpo["chave"] == "chave-publica-de-teste"
 
 
+def test_configuracao_403_sem_monitorar(client, auth_headers, seed_base):
+    # Atendente sem grupo herda o pacote operacional (inclui rustdesk.monitorar).
+    grupo = client.post(
+        "/v1/permissao-grupos",
+        headers=auth_headers["admin"],
+        json={"nome": "Sem acesso remoto", "permissoes": ["tickets.ver"]},
+    )
+    assert grupo.status_code == 201, grupo.text
+    patch = client.patch(
+        f"/v1/atendentes/{seed_base['a1'].id}",
+        headers=auth_headers["admin"],
+        json={"grupo_ids": [grupo.json()["id"]]},
+    )
+    assert patch.status_code == 200, patch.text
+    r = client.get("/v1/rustdesk/configuracao", headers=auth_headers["a1"])
+    assert r.status_code == 403, r.text
+
+
 def test_lista_cruza_pdv_e_marca_online(client, auth_headers, base):
     r = client.get("/v1/rustdesk/peers", headers=auth_headers["admin"])
     assert r.status_code == 200, r.text
