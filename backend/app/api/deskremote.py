@@ -15,6 +15,7 @@ from app.schemas.deskremote import (
     DeskremoteSyncOut,
     DeskremoteTokenCreate,
     DeskremoteTokenCriado,
+    DeskremoteTokenStatus,
 )
 from app.services import deskremote_enroll as svc
 
@@ -54,6 +55,21 @@ def gerar_token_instalacao(
         acesso_id=(body.acesso_id if body else None),
         atendente=atendente,
     )
+
+
+@router.get(
+    "/empresas/{empresa_id}/pdvs/{pdv_id}/deskremote/token/{token_id}",
+    response_model=DeskremoteTokenStatus,
+)
+def status_token_instalacao(
+    empresa_id: int,
+    pdv_id: int,
+    token_id: int,
+    db: Session = Depends(get_db),
+    _atendente: Atendente = Depends(exigir_permissao("empresas.editar")),
+):
+    _empresa_or_404(db, empresa_id)
+    return svc.status_token(db, empresa_id=empresa_id, pdv_id=pdv_id, token_id=token_id)
 
 
 @router.post("/deskremote/enroll", response_model=DeskremoteEnrollOut)

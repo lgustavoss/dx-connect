@@ -8,11 +8,20 @@ class DeskremoteTokenCreate(BaseModel):
 
 
 class DeskremoteTokenCriado(BaseModel):
+    id: int
     url: str
     expira_em: datetime
     pdv_id: int
     acesso_id: int
     rotulo: str
+
+
+class DeskremoteTokenStatus(BaseModel):
+    id: int
+    usado: bool
+    vinculado: bool
+    rustdesk_id: str | None = None
+    expirado: bool
 
 
 class DeskremoteEnrollIn(BaseModel):
