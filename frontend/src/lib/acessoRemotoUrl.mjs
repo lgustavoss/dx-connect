@@ -9,12 +9,12 @@ export function urlConexaoDeskRudder(id, senha, tituloSessao) {
   return `deskrudder://connection/new/${digitos}${consulta ? `?${consulta}` : ''}`
 }
 
-/** Rótulo da sessão = linha de baixo do vínculo na frota (rede · rótulo código). */
+/** Rótulo da sessão = empresa · rótulo código (não o nome da rede). */
 export function rotuloSessaoVinculo(v) {
   if (!v) return ''
   const rotulo = String(v.rotulo_nome || '').trim() || 'Equipamento'
   const codigo = String(v.pdv_codigo || '').trim()
   const base = codigo ? `${rotulo} ${codigo}` : rotulo
-  const rede = String(v.rede_nome || '').trim()
-  return rede ? `${rede} · ${base}` : base
+  const empresa = String(v.empresa_nome || '').trim() || String(v.rede_nome || '').trim()
+  return empresa ? `${empresa} · ${base}` : base
 }

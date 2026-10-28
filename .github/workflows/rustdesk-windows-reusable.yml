@@ -1,4 +1,5 @@
-# Build interno do cliente RustDesk DeskRudder (não aparece como botão principal).
+# Build interno Sciter (v1). Os disparadores v1 estão congelados em 1.0.14 —
+# só hotfix 32-bit (confirmar=gerar-sciter nos workflows Cliente/Atendente v1).
 # Chamado por: DeskRemote Cliente v1 | DeskRemote Atendente v1
 
 name: _RustDesk Windows (reusable)

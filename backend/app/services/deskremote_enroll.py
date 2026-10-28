@@ -22,7 +22,7 @@ from app.services.empresa_pdv_acessos import (
     tipo_permite_conectar,
 )
 from app.services.password_reset import _public_app_origin
-from app.services.rustdesk_peers import garantir_tipo_rustdesk, normalizar_id_remoto
+from app.services.rustdesk_peers import garantir_tipo_rustdesk, marcar_visto_enroll, normalizar_id_remoto
 from app.services.secret_box import decrypt_str
 
 MSG_TOKEN_INVALIDO = "Este link de instalação não é válido ou já foi usado. Gere um novo no painel."
@@ -193,11 +193,45 @@ def gerar_token(
     db.commit()
     db.refresh(row)
     return {
+        "id": row.id,
         "url": url_instalacao(raw),
         "expira_em": row.expires_at,
         "pdv_id": pdv.id,
         "acesso_id": acesso.id,
         "rotulo": _rotulo_pdv(pdv),
+    }
+
+
+def status_token(db: Session, empresa_id: int, pdv_id: int, token_id: int) -> dict:
+    pdv = _carregar_pdv(db, empresa_id, pdv_id)
+    row = (
+        db.query(DeskremoteInstallToken)
+        .filter(DeskremoteInstallToken.id == token_id, DeskremoteInstallToken.pdv_id == pdv.id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Link de instalação não encontrado")
+    usado = row.used_at is not None
+    expirado = (not usado) and _aware(row.expires_at) <= _agora()
+    rustdesk_id = None
+    if usado:
+        disp = (
+            db.query(DeskremoteDispositivo)
+            .filter(
+                DeskremoteDispositivo.acesso_id == row.acesso_id,
+                DeskremoteDispositivo.revoked_at.is_(None),
+            )
+            .order_by(DeskremoteDispositivo.id.desc())
+            .first()
+        )
+        if disp and disp.rustdesk_id:
+            rustdesk_id = disp.rustdesk_id
+    return {
+        "id": row.id,
+        "usado": usado,
+        "vinculado": bool(rustdesk_id),
+        "rustdesk_id": rustdesk_id,
+        "expirado": expirado,
     }
 
 
@@ -266,6 +300,7 @@ def resgatar(db: Session, raw_token: str, rustdesk_id: str | None) -> dict:
     if rustdesk_id and rustdesk_id.strip():
         id_gravado = _gravar_id(db, pdv, acesso, rustdesk_id)
         dispositivo.rustdesk_id = id_gravado
+        marcar_visto_enroll(db, id_gravado, dispositivo.last_seen_at)
     db.add(dispositivo)
     token.used_at = _agora()
     registrar_audit(
@@ -322,6 +357,7 @@ def confirmar_id(db: Session, raw_device: str, rustdesk_id: str) -> dict:
     chave = _gravar_id(db, pdv, acesso, rustdesk_id)
     dispositivo.rustdesk_id = chave
     dispositivo.last_seen_at = _agora()
+    marcar_visto_enroll(db, chave, dispositivo.last_seen_at)
     registrar_audit(
         db,
         "empresa_pdv",
@@ -363,6 +399,8 @@ def sync_config(db: Session, raw_device: str) -> dict:
             payload={"acesso_id": acesso.id, "senha_versao": versao},
         )
     dispositivo.last_seen_at = _agora()
+    if dispositivo.rustdesk_id:
+        marcar_visto_enroll(db, dispositivo.rustdesk_id, dispositivo.last_seen_at)
     db.commit()
     return {
         "senha_versao": versao,

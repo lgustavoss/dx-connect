@@ -1,19 +1,21 @@
 # Cliente Windows DeskRudder (acesso remoto)
 
+**Vocabulário:** **atendente** = quem inicia a sessão; **cliente** = PC atendido. «Posto» é só um tipo de cliente do piloto DuplexSoft.
+
 Há **cinco workflows** no Actions (nomes na UI):
 
 | Workflow | Artefato | Release | Uso |
 |----------|----------|---------|-----|
-| **DeskRemote Cliente v1** | `DeskRudder-AcessoRemoto.exe` | `acesso-remoto-windows` | Sciter (canal antigo) |
-| **DeskRemote Atendente v1** | `DeskRudder-AcessoRemoto-Controle.exe` | `acesso-remoto-controle-windows` | Sciter (canal antigo) |
+| **DeskRemote Cliente v1** | `DeskRudder-AcessoRemoto.exe` | `acesso-remoto-windows` | Sciter **congelado em 1.0.14** (32-bit / fallback) |
+| **DeskRemote Atendente v1** | `DeskRudder-AcessoRemoto-Controle.exe` | `acesso-remoto-controle-windows` | Sciter **congelado em 1.0.14** (32-bit / fallback) |
 | **DeskRudder Painel v1** | `DeskRudder-Setup.exe` | `desktop-windows` | Painel + embute o DeskRemote Atendente **v2** |
 | **DeskRemote Atendente v2** | `DeskRudder-AcessoRemoto-Controle-Flutter.exe` | `acesso-remoto-controle-flutter-windows` | Remoto Flutter do atendente (embutido no Setup) |
 | **DeskRemote Cliente v2** | `DeskRudder-AcessoRemoto-Flutter.exe` | `acesso-remoto-windows-flutter` | PC do **cliente** — `/acesso-remoto/download` |
 
 Assim o Setup do painel fica rápido; o build longo do RustDesk só roda quando o remoto muda.
 
-**Cliente — o que o posto recebe:**  
-`DeskRudder-AcessoRemoto-<versão>.exe` com marca DeskRudder e servidor Duplex (`31.97.160.79` + chave).
+**Cliente Flutter 2.0 — o que o PC atendido recebe:**  
+instalador genérico (`DeskRudder-AcessoRemoto-Flutter.exe`). Servidor e senha vêm do token de instalação (QR/link no PDV), não do binário.
 
 Cliente e atendente usam o **mesmo** `deploy/rustdesk-client/branding/` (e `kit-1253/` para Flutter). Ao trocar a arte: regenere com `render_remote_icons.py`, suba a versão do canal (`CLIENT_VERSION` no Sciter, `CLIENT_VERSION_FLUTTER` no Flutter do atendente, `CLIENT_VERSION_FLUTTER_CLIENTE` no Flutter do cliente) e rode os workflows de remoto.
 
@@ -23,12 +25,12 @@ Há **quatro** números envolvidos:
 
 | O quê | Onde | Muda quando |
 |-------|------|-------------|
-| **Sciter (produção)** (`CLIENT_VERSION`, linha **1.x.x**, ex.: `1.0.14`) | UI, instalação e update dos Releases `acesso-remoto-windows` e `acesso-remoto-controle-windows` | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION` e gera o build Sciter |
-| **Flutter (atendente v2)** (`CLIENT_VERSION_FLUTTER`, linha **2.x.x**, ex.: `2.2.0`) | UI Flutter e update do Release `acesso-remoto-controle-flutter-windows` | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION_FLUTTER` e gera o **DeskRemote Atendente v2** |
-| **Flutter (cliente v2)** (`CLIENT_VERSION_FLUTTER_CLIENTE`, linha **2.x.x**, ex.: `2.0.0`) | UI Flutter e update do Release `acesso-remoto-windows-flutter` | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION_FLUTTER_CLIENTE` e gera o **DeskRemote Cliente v2** |
+| **Sciter (congelado)** (`CLIENT_VERSION` = **1.0.14**) | Releases v1 `acesso-remoto-windows` e `acesso-remoto-controle-windows` | Sem builds novos. Hotfix 32-bit: Actions v1 com `confirmar=gerar-sciter` |
+| **Flutter (atendente v2)** (`CLIENT_VERSION_FLUTTER`, linha **2.x.x**, ex.: `2.3.0`) | UI Flutter e update do Release `acesso-remoto-controle-flutter-windows` | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION_FLUTTER` e gera o **DeskRemote Atendente v2** |
+| **Flutter (cliente v2)** (`CLIENT_VERSION_FLUTTER_CLIENTE`, linha **2.x.x**, ex.: `2.1.1`) | UI Flutter e update do Release `acesso-remoto-windows-flutter` | A equipe sobe o número em `deploy/rustdesk-client/CLIENT_VERSION_FLUTTER_CLIENTE` e gera o **DeskRemote Cliente v2** |
 | **Tag RustDesk** (ex.: `1.5.0`) | `Cargo.toml` → `crate::VERSION` anunciada ao peer (protocolo / modo de teclado) | Só quando escolhemos uma tag mais nova do upstream no Actions |
 
-A linha **1.x.x fica no Sciter**; o Flutter **não** reutiliza esse número — começa em **2.0.0** para não misturar instalador nem canal de update. A tag `1.5.0` **não sobe sozinha** a cada build — é a base do RustDesk.
+A linha **1.x.x fica no Sciter (congelada em 1.0.14)**; o Flutter **não** reutiliza esse número — começa em **2.0.0** para não misturar instalador nem canal de update. A tag `1.5.0` **não sobe sozinha** a cada build — é a base do RustDesk.
 
 Importante: **não** gravar `CLIENT_VERSION` no `Cargo.toml` principal. Se o peer anunciar `1.0.x` (abaixo de 1.2.0), o modo mapa de teclado some e atalhos do PDV (ex. tecla **D**) deixam de funcionar.
 
@@ -43,20 +45,36 @@ Ao clicar em **Atualizar agora** (versão DeskRudder **1.0.9+**):
 
 A sessão remota **pode cair** durante a troca de arquivos — o banner avisa.
 
+No **DeskRemote Cliente v2 (2.1.0+)**, o mesmo `version.json` dispara o cartão **Atualizar agora** na home Flutter (o RustDesk esconde o aviso em cliente customizado). O botão baixa `DeskRudder-AcessoRemoto-Flutter.exe` do Release e aplica `--update` (fila silenciosa SYSTEM ou UAC).
+
+### Desinstalação
+
+O desinstalador (2.1.0+) remove:
+
+- Pasta `DeskRudder\Acesso Remoto` em Program Files (e a pasta `DeskRudder` se ficar vazia)
+- Atalhos da área de trabalho e do menu Iniciar
+- Serviço Windows, regras de firewall e chaves de registro
+- `%APPDATA%\DeskRudder\deskremote-dispositivo.json`, `deskremote-sessao.json`, configs e logs do DeskRemote (`RustDesk.toml` / `DeskRudder.toml`)
+- `%PROGRAMDATA%\DeskRudder`, `%PUBLIC%\DeskRudder` (fila de update)
+
+Não apaga `%LOCALAPPDATA%\DeskRudder`: o **Instalar** copia a interface de lá; se apagar no meio da instalação, a janela deixa de abrir (bug da 2.1.0, corrigido na 2.1.1).
+
+Não apaga o resto do `%APPDATA%\DeskRudder` (login do painel Electron no mesmo PC, se existir). Para reinstalar limpo no PDV, **Desinstalar** no app ou em Aplicativos do Windows basta — não precisa apagar pastas na mão.
+
 ### Transferência de arquivo
 
 No posto, `enable-file-transfer` fica **Y** por padrão; no atendente, `enable-file-copy-paste` também. Para copiar arquivos com mais estabilidade, use o menu **Transferir arquivo** da sessão (janela própria), em vez de só colar pelo clipboard — em alguns PCs o copy-paste de arquivo pode derrubar a conexão.
 
 ## Como obter o `.exe` (equipe)
 
-Ordem para o **2.0** no painel (senão o download 404 e o Setup falha):
+Subir `CLIENT_VERSION_FLUTTER` no git **não** publica o instalador. Depois do merge na `main`:
 
-1. **DeskRemote Cliente v2** — **Publicar Release** ligado (tag RustDesk `1.5.0`, ~40–90 min)
-2. **DeskRemote Atendente v2** — **Publicar Release** ligado
+1. **DeskRemote Cliente v2** — **Publicar Release** ligado (tag RustDesk `1.5.0`, ~40–90 min) — só se o cliente Flutter mudou
+2. **DeskRemote Atendente v2** — **Publicar Release** ligado (gera o **2.3.0** deste lote)
 3. **DeskRudder Painel v1** — embute o atendente v2 em `/app/download`
 4. Só então o deploy do painel (`/release-staging`)
 
-O workflow precisa estar na branch padrão (`main`). **Posto:** `/acesso-remoto/download`. Detalhe do Setup: [`DESKTOP_ELECTRON.md`](DESKTOP_ELECTRON.md).
+O workflow precisa estar na branch padrão (`main`). **Cliente (PC atendido):** `/acesso-remoto/download`. Detalhe do Setup: [`DESKTOP_ELECTRON.md`](DESKTOP_ELECTRON.md).
 
 URL curta na instância (sem login — Nginx redireciona; o SPA também cobre se o Nginx ainda não tiver a regra):
 
@@ -70,21 +88,23 @@ URL do arquivo no GitHub (destino do redirect):
 
 Workflow do download: `.github/workflows/acesso-remoto-cliente-flutter-windows.yml`
 
-## Servidor embutido
+## Servidor
 
-| Campo | Valor |
-|-------|--------|
-| ID Server / Relay | `31.97.160.79` |
-| Key (pública) | `kEoYK77jUT92KWnj1XmqYRgIRKv4VkGNMjFjm33HtjI=` |
+O **Sciter 1.0.14** e o `server.config.json` ainda embutem o hbbs da Duplex (`31.97.160.79` + chave pública). Isso vale só para o canal v1 congelado.
 
-Fonte: `deploy/rustdesk-client/server.config.json`
+No **Flutter 2.x** o binário **não** nasce com esse host:
+
+- **Cliente:** o token de instalação devolve o servidor da instância (`RUSTDESK_*` no `.env`).
+- **Atendente (2.3.0+):** depois do login (ou da sessão herdada do Electron), o app chama `GET /v1/rustdesk/configuracao` (`rustdesk.monitorar`) e grava ID/relay/chave. `--connect` / `deskrudder://` aplica o servidor se houver sessão; senão, reusa o último gravado neste PC. Primeira conexão pelo Chrome sem nunca ter entrado no DeskRemote: abrir o app e entrar uma vez.
+
+Fonte Sciter: `deploy/rustdesk-client/server.config.json`.
 
 ## O que o CI faz
 
 1. Clona [rustdesk/rustdesk](https://github.com/rustdesk/rustdesk) (tag escolhida)
-2. Aplica `deploy/rustdesk-client/scripts/apply_branding.py` (nome DeskRudder no exe, marca **DeskRemote** na UI, host/chave em `RENDEZVOUS_SERVERS` + `PROD_RENDEZVOUS_SERVER`, ícones e PNG do Sciter em `get_icon()`, modo só-recebe no posto / só-controla no atendente)
-3. Compila o cliente Windows (UI Sciter), renomeia o binário para `DeskRudder.exe` (necessário para o Windows reconhecer a instalação) e empacota o portable
-4. Publica o artefato `DeskRudder-AcessoRemoto-*.exe` e atualiza o Release `acesso-remoto-windows` (link do painel)
+2. Aplica `deploy/rustdesk-client/scripts/apply_branding.py` (marca **DeskRemote**, ícones, modo só-recebe no cliente / só-controla no atendente). No **Sciter**, embute o hbbs da Duplex. No **Flutter**, o binário fica genérico (`deskremote.invalid`) e o app puxa o servidor da instância
+3. Compila o Windows (Sciter v1 congelado, ou Flutter 2.x), renomeia o binário para `DeskRudder.exe` e empacota o portable
+4. Publica o artefato e atualiza o Release do canal (`acesso-remoto-windows-flutter` no cliente 2.x; `acesso-remoto-controle-flutter-windows` no atendente 2.x)
 
 ## Comportamento do cliente (postos)
 
@@ -98,14 +118,16 @@ O instalador é pensado para o PC que **vai ser acessado** (PDV / posto):
 - Pasta de instalação: `C:\Program Files (x86)\DeskRudder\Acesso Remoto` (mantida por compatibilidade; outros apps DeskRudder podem ficar em pastas irmãs)
 - Link «Desenvolvido por DeskRudder» → https://deskrudder.com.br/
 - No Flutter, a marca fica no **rodapé** do painel esquerdo, com a versão DeskRudder (`CLIENT_VERSION_FLUTTER`, linha 2.x.x) abaixo; no Sciter a posição segue o upstream
-- Flutter (2.0.2+): o nome **DeskRemote** aparece na barra de título (tema claro e escuro) e abaixo da logo do painel; ao conectar pelo painel ou pelo ID já conhecido, a aba da sessão usa o rótulo do vínculo; ícone da barra de tarefas e da barra de título tem contorno branco **só no Flutter** (o Sciter do posto continua na arte 1.0.14); logo do painel maior e mais nítida; Sobre o **DeskRemote** (site DeskRudder, copyright DeskRudder, sem privacidade do RustDesk); Rede mostra o servidor Duplex mesmo com os campos custom vazios
+- Flutter (2.0.2+): o nome **DeskRemote** aparece na barra de título (tema claro e escuro) e abaixo da logo do painel; ao conectar pelo painel ou pelo ID já conhecido, a aba da sessão usa o rótulo do vínculo; ícone da barra de tarefas e da barra de título tem contorno branco **só no Flutter** (o Sciter do posto continua na arte 1.0.14); logo do painel maior e mais nítida; Sobre o **DeskRemote** (site DeskRudder, copyright DeskRudder, sem privacidade do RustDesk). A partir da **2.3.0** (atendente), Rede mostra o servidor da conta após o login — não o da Duplex compilado
+- Flutter cliente **2.1.0+**: banner **Atualizar agora** na home; desinstalador limpa pasta, AppData do DeskRemote, ProgramData e Public
+- Flutter cliente **2.1.1**: o Instalar não apaga mais `%LOCALAPPDATA%\DeskRudder` (pasta de extração) — a janela abre depois de instalar
 - Tema escuro segue o Windows (conteúdo + barra de título) se a opção não foi fixada no menu (⋮ → Tema escuro)
 - Logo do painel usa arte em alta resolução com fundo transparente (`ui-logo-512.png`) — sem placa opaca no tema escuro nem no claro; tamanho acompanha a janela
 - Janela inicial ~760×720 (antes de instalar) para o botão **Instalar** do cartão UAC ficar visível
 
 ### Senha (uso único × permanente)
 
-No **Sciter de produção**, o app usa **senha de uso único** por padrão (muda se alguém clicar no ícone de atualizar). **Não há senha permanente pré-configurada.**
+No **Sciter 1.0.14 (congelado)**, o app usa **senha de uso único** por padrão (muda se alguém clicar no ícone de atualizar). **Não há senha permanente pré-configurada.**
 
 Para acesso estável no posto (Sciter):
 
@@ -119,7 +141,7 @@ No **DeskRemote Cliente v2**, a senha permanente **vem do painel**. Não dá par
 
 1. Cadastre o PDV com senha DeskRemote.
 2. Na ficha do PDV, **Gerar QR e link** (uso único, ~72 h). A senha **não** vai no QR.
-3. No PC, instale `DeskRudder-AcessoRemoto-Flutter.exe` (Release `acesso-remoto-windows-flutter`) e cole o link.
+3. No PC, abra `DeskRudder-AcessoRemoto-Flutter.exe` (Release `acesso-remoto-windows-flutter`), clique em **Instalar** (UAC) e **depois** cole o link.
 4. O app chama `POST /v1/deskremote/enroll` na API da instância (`api-{slug}.deskrudder.com.br`), grava a credencial em `%APPDATA%\DeskRudder\deskremote-dispositivo.json` e confirma o ID.
 5. Gerar de novo no mesmo PDV invalida o link anterior; o próximo resgate substitui o computador vinculado.
 
@@ -132,28 +154,29 @@ O instalador de **controle** (`DeskRudder-AcessoRemoto-Controle.exe`, embutido n
 - Por isso o notebook do atendente **não aparece** na frota como computador sem vínculo
 - Quem já se registrou com o build antigo fica offline na frota — exclua na tela Acesso remoto
 - Atalho e pasta iguais ao do posto (`DeskRemote` / `DeskRudder\Acesso Remoto`)
-- Uma só janela principal no atalho; reconectar no mesmo ID remoto foca a sessão já aberta (ainda sem abas — ver #1248)
+- Uma só janela principal no atalho; reconectar no mesmo ID remoto foca a sessão já aberta (Sciter v1 não tem abas)
 
-No **DeskRemote Atendente v2**, a home mostra a logo DeskRemote no topo do painel, o texto de edição personalizada, as abas **Sessões recentes** (10 últimas) e **Vinculados** (frota do sistema) e o **nome do vínculo** no cartão — sem o ID numérico.
+No **DeskRemote Atendente v2**, a home mostra a logo DeskRemote no topo do painel, o texto de edição personalizada, as abas **Sessões recentes** (10 últimas) e **Vinculados** (frota do sistema) e o **nome do vínculo** no cartão — sem o ID numérico. A partir da **2.3.0**, o servidor de acesso remoto vem da conta (não do instalador).
 
-A partir da **2.1.0**, Recentes e o campo de ID exigem login com a **mesma conta do DeskRudder** (identificador + e-mail + senha). Quem já entrou no app Electron neste PC **com “lembrar-me”** não precisa digitar de novo: a sessão fica em `%APPDATA%\DeskRudder\deskremote-sessao.json` (o mesmo JWT do `localStorage` do painel). Login só nesta sessão do navegador/Electron **não** grava o arquivo. Herdar a sessão exige um Setup do painel que já grave esse arquivo — Setup antigo não herda. Conectar pelo painel (`--connect` / `deskrudder://`) **não** pede login de propósito: a sessão remota abre direto, como hoje. **Sair** no DeskRemote apaga o arquivo: a próxima abertura pede login de novo (mesmo que o DeskRudder ainda esteja aberto). **Sair** no DeskRudder também apaga. A permissão continua `rustdesk.monitorar`. O Sciter de produção permanece **1.0.14**. A partir da **2.2.0**, a aba **Vinculados** lista os computadores com PDV ligado (`GET /v1/rustdesk/peers?filtro=vinculado`): rótulo, Online/Offline e clique para conectar (tenta a senha do cadastro se a conta tiver `pdv.acessos.ver` ou `empresas.editar`). A busca é da própria aba (a do RustDesk some nela). Se o mesmo ID estiver em vários PDVs, o item usa o hostname e lista os vínculos — não inventa um rótulo único.
+A partir da **2.1.0**, Recentes e o campo de ID exigem login com a **mesma conta do DeskRudder** (identificador + e-mail + senha). Quem já entrou no app Electron neste PC **com “lembrar-me”** não precisa digitar de novo: a sessão fica em `%APPDATA%\DeskRudder\deskremote-sessao.json` (o mesmo JWT do `localStorage` do painel). Login só nesta sessão do navegador/Electron **não** grava o arquivo. Herdar a sessão exige um Setup do painel que já grave esse arquivo — Setup antigo não herda. Conectar pelo painel (`--connect` / `deskrudder://`) **não** pede login de propósito: a sessão remota abre direto, como hoje. **Sair** no DeskRemote apaga o arquivo: a próxima abertura pede login de novo (mesmo que o DeskRudder ainda esteja aberto). **Sair** no DeskRudder também apaga. A permissão continua `rustdesk.monitorar`. O Sciter **1.0.14 está congelado**. A partir da **2.2.0**, a aba **Vinculados** lista os computadores com PDV ligado (`GET /v1/rustdesk/peers?filtro=vinculado`): rótulo, Online/Offline e clique para conectar (tenta a senha do cadastro se a conta tiver `pdv.acessos.ver` ou `empresas.editar`). A busca é da própria aba (a do RustDesk some nela). Se o mesmo ID estiver em vários PDVs, o item usa o hostname e lista os vínculos — não inventa um rótulo único.
 
-A partir da **2.1.1**, a aba da sessão usa o rótulo do vínculo (ex. `Posto Farol · SERVIDOR 001`) nesta ordem: `name=` / `--title` do painel; senão, busca na frota (`GET /v1/rustdesk/peers`) com a sessão DeskRudder; senão, usuário@host. O painel em produção antigo ainda não manda `name=` — por isso a busca na API. Sem sessão e sem `name=`, o ID pode aparecer até o hostname chegar.
+A partir da **2.1.1**, a aba da sessão usa o rótulo do vínculo (ex. `Auto Posto Expresso Medalha · SERVIDOR 001`, **nome da empresa** + equipamento) nesta ordem: `name=` / `--title` do painel; senão, busca na frota (`GET /v1/rustdesk/peers`) com a sessão DeskRudder; senão, usuário@host. O painel em produção antigo ainda não manda `name=` — por isso a busca na API. Sem sessão e sem `name=`, o ID pode aparecer até o hostname chegar.
 
 ## Pasta no repo
 
 | Caminho | Função |
 |---------|--------|
 | `deploy/rustdesk-client/server.config.json` | Host e chave |
-| `deploy/rustdesk-client/CLIENT_VERSION` | Versão Sciter (produção, **1.x.x**) |
+| `deploy/rustdesk-client/CLIENT_VERSION` | Versão Sciter (**congelada em 1.0.14**) |
 | `deploy/rustdesk-client/CLIENT_VERSION_FLUTTER` | Versão Flutter do atendente (**2.x.x**) |
 | `deploy/rustdesk-client/CLIENT_VERSION_FLUTTER_CLIENTE` | Versão Flutter do cliente (**2.x.x**, começa em 2.0.0) |
 | `deploy/rustdesk-client/branding/` | Arte oficial + `icon.ico`/tray/PNGs — regenerar com `scripts/render_remote_icons.py` |
 | `deploy/rustdesk-client/scripts/apply_branding.py` | Patch no clone |
 | `deploy/rustdesk-client/flutter-overlay/` | Login do atendente + token/sync do cliente (copiado para o clone Flutter) |
 | `deploy/rustdesk-client/scripts/encode_config.py` | Gera/decodifica string de import (debug) |
-| `.github/workflows/rustdesk-deskrudder-windows.yml` | Build Sciter do cliente |
-| `.github/workflows/acesso-remoto-cliente-flutter-windows.yml` | Spike Flutter do cliente (token + instalador genérico) |
+| `.github/workflows/rustdesk-deskrudder-windows.yml` | Build Sciter do cliente (**congelado**; hotfix: `confirmar=gerar-sciter`) |
+| `.github/workflows/acesso-remoto-atendente-windows.yml` | Build Sciter do atendente (**congelado**) |
+| `.github/workflows/acesso-remoto-cliente-flutter-windows.yml` | Flutter do cliente (token + instalador genérico) |
 
 ## Licença
 
@@ -171,7 +194,7 @@ Builds antigos gravavam `rustdesk.exe` em `Program Files (x86)\DeskRudder` e o a
 
 - macOS / Linux / Android  
 - Assinatura Authenticode (pode entrar depois)  
-- UI Flutter moderna / sessões em abas (#1248; o CI atual usa o build Sciter x86, estável no Actions)  
+- PCs 32-bit no Flutter (ficam no Sciter 1.0.14 congelado)  
 - Hospedar o `.exe` fora do GitHub (CDN próprio), se o Release deixar de bastar
 
 ## Referências

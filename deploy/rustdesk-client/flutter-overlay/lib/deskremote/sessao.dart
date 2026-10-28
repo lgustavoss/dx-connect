@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter_hbb/deskremote/enroll.dart';
+
 /// Sessão do atendente compartilhada com o Electron
 /// (`%APPDATA%/DeskRudder/deskremote-sessao.json`).
 ///
@@ -62,10 +64,16 @@ class DeskRemoteSessao {
 }
 
 class DeskRemoteAuthErro implements Exception {
-  DeskRemoteAuthErro(this.mensagem, {this.status, this.ehRede = false});
+  DeskRemoteAuthErro(
+    this.mensagem, {
+    this.status,
+    this.ehRede = false,
+    this.naoTentarDeNovo = false,
+  });
   final String mensagem;
   final int? status;
   final bool ehRede;
+  final bool naoTentarDeNovo;
 
   /// Token inválido: apaga o arquivo. Rede / 5xx mantêm a sessão para tentar de novo.
   bool get deveDescartarSessao => !ehRede && status == 401;
@@ -183,7 +191,7 @@ Future<Map<String, dynamic>> _httpJson({
 }) async {
   final client = HttpClient();
   client.connectionTimeout = const Duration(seconds: 20);
-  client.userAgent = 'DeskRemote/2.2.0';
+  client.userAgent = 'DeskRemote/2.3.0';
   try {
     final req = method == 'GET'
         ? await client.getUrl(uri)
@@ -308,14 +316,17 @@ Future<DeskRemoteSessao?> renovarSessaoDeskRemote(DeskRemoteSessao sessao) async
 }
 
 /// Mesmo formato de `rotuloSessaoVinculo` no painel (`acessoRemotoUrl.mjs`).
-/// Ex.: Posto Farol · SERVIDOR 001
+/// Ex.: Auto Posto Expresso Medalha · SERVIDOR 001
 String rotuloSessaoVinculo(Map<String, dynamic> vinculo) {
   final rotulo = (vinculo['rotulo_nome'] ?? '').toString().trim();
   final nome = rotulo.isEmpty ? 'Equipamento' : rotulo;
   final codigo = (vinculo['pdv_codigo'] ?? '').toString().trim();
   final base = codigo.isEmpty ? nome : '$nome $codigo';
-  final rede = (vinculo['rede_nome'] ?? '').toString().trim();
-  return rede.isEmpty ? base : '$rede · $base';
+  var empresa = (vinculo['empresa_nome'] ?? '').toString().trim();
+  if (empresa.isEmpty) {
+    empresa = (vinculo['rede_nome'] ?? '').toString().trim();
+  }
+  return empresa.isEmpty ? base : '$empresa · $base';
 }
 
 String _soDigitosId(String id) => id.replaceAll(RegExp(r'\D'), '');
@@ -507,5 +518,70 @@ Future<String?> buscarRotuloVinculoDeskRemote(String rustdeskId) async {
         .timeout(const Duration(seconds: 5), onTimeout: () => null);
   } catch (_) {
     return null;
+  }
+}
+
+Future<Map<String, dynamic>> _lerConfiguracaoServidor(DeskRemoteSessao s) {
+  return _httpJson(
+    uri: urlApi(s.slug, '/rustdesk/configuracao'),
+    method: 'GET',
+    bearer: s.accessToken,
+  );
+}
+
+Future<void> _aplicarServidorComSessao(DeskRemoteSessao sessao) async {
+  final json = await _lerConfiguracaoServidor(sessao);
+  if (json['configurado'] != true) {
+    throw DeskRemoteAuthErro(
+      'Acesso remoto não configurado nesta conta.',
+      naoTentarDeNovo: true,
+    );
+  }
+  final servidorId = (json['servidor_id'] ?? '').toString().trim();
+  final relay = (json['servidor_relay'] ?? '').toString().trim();
+  final chave = (json['chave'] ?? '').toString().trim();
+  if (servidorId.isEmpty || chave.isEmpty) {
+    throw DeskRemoteAuthErro(
+      'Acesso remoto não configurado nesta conta.',
+      naoTentarDeNovo: true,
+    );
+  }
+  await aplicarServidorDeskRemote(
+    servidorId: servidorId,
+    relay: relay.isEmpty ? servidorId : relay,
+    chave: chave,
+  );
+}
+
+/// Grava o hbbs/hbbr da instância (não o servidor compilado no binário).
+///
+/// [silencioso] (`--connect` sem sessão, ou falha de rede): segue com o último
+/// servidor gravado neste PC. No login da home, deixe `false` para avisar.
+Future<void> aplicarServidorDaContaDeskRemote({bool silencioso = false}) async {
+  final inicial = lerSessaoDeskRemote();
+  if (inicial == null) {
+    if (silencioso) return;
+    throw DeskRemoteAuthErro(
+      'Entre com a conta DeskRudder para definir o servidor de acesso remoto.',
+    );
+  }
+  try {
+    await _aplicarServidorComSessao(inicial);
+  } on DeskRemoteAuthErro catch (e) {
+    if (e.status == 401) {
+      final nova = await renovarSessaoDeskRemote(inicial);
+      if (nova != null) {
+        gravarSessaoDeskRemote(nova);
+        try {
+          await _aplicarServidorComSessao(nova);
+          return;
+        } on DeskRemoteAuthErro {
+          if (silencioso) return;
+          rethrow;
+        }
+      }
+    }
+    if (silencioso) return;
+    rethrow;
   }
 }

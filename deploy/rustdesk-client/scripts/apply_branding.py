@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Aplica marca DeskRudder + servidor Duplex num clone do rustdesk.
+"""Aplica marca DeskRudder + servidor (Sciter/Duplex; Flutter puxa da instância) num clone do rustdesk.
 
 Nao renomeia o crate `rustdesk` no Cargo (evita quebrar scripts de build).
 O CI deve renomear o binario para DeskRudder.exe apos o cargo build — o
@@ -14,7 +14,7 @@ Profiles (--profile):
 
 UI (--ui):
   sciter    — producao 1.x.x (CLIENT_VERSION)
-  flutter   — spike 2.x.x (atendente: CLIENT_VERSION_FLUTTER; cliente: CLIENT_VERSION_FLUTTER_CLIENTE)
+  flutter   — 2.x.x (atendente: CLIENT_VERSION_FLUTTER; cliente: CLIENT_VERSION_FLUTTER_CLIENTE)
 """
 
 from __future__ import annotations
@@ -44,6 +44,8 @@ INSTALLER_NAME_POSTO = "DeskRudder-AcessoRemoto.exe"
 INSTALLER_NAME_CONTROLE = "DeskRudder-AcessoRemoto-Controle.exe"
 INSTALLER_NAME_CONTROLE_FLUTTER = "DeskRudder-AcessoRemoto-Controle-Flutter.exe"
 INSTALLER_NAME_POSTO_FLUTTER = "DeskRudder-AcessoRemoto-Flutter.exe"
+# Flutter (cliente e atendente): sem hbbs da Duplex no binário. O app puxa
+# o servidor da instância (token no cliente; login no atendente).
 HOST_FLUTTER_CLIENTE_PENDENTE = "deskremote.invalid"
 KEY_FLUTTER_CLIENTE_PENDENTE = "pendente-token"
 
@@ -358,9 +360,12 @@ _FLUTTER_HOME_SETTINGS = """            if (isOutgoingOnly)
 """
 
 _FLUTTER_HOME_FOOTER_MARKER = "// DeskRemote: marca e versao no rodape do painel esquerdo."
+_FLUTTER_INCOMING_STATUS_MARKER = "// DeskRemote: marca acima do status da rede."
 
 # loadPowered no rodape + versao (get_version / CLIENT_VERSION) + engrenagem.
+# Só no atendente (outgoing): no cliente o status da rede fica no fluxo do painel.
 _FLUTTER_HOME_FOOTER = """            """ + _FLUTTER_HOME_FOOTER_MARKER + """
+            if (isOutgoingOnly)
             Positioned(
               left: 8,
               right: 8,
@@ -432,24 +437,107 @@ _FLUTTER_HOME_SCROLL_PADDED = """                SingleChildScrollView(
                   child: Column(
 """
 
+# Trecho literal do rustdesk 1.5.0 (flutter/lib/desktop/pages/desktop_home_page.dart).
+_FLUTTER_INCOMING_STATUS_OLD = """        OnlineStatusWidget(
+          onSvcStatusChanged: () {
+            if (isInHomePage()) {
+              Future.delayed(Duration(milliseconds: 300), () {
+                _updateWindowSize();
+              });
+            }
+          },
+        ).marginOnly(bottom: 6, right: 6)"""
+
+_FLUTTER_INCOMING_STATUS_RE = re.compile(
+    r"(?P<indent>[ \t]*)OnlineStatusWidget\(\s*"
+    r"onSvcStatusChanged:\s*\(\)\s*\{\s*"
+    r"if\s*\(isInHomePage\(\)\)\s*\{\s*"
+    r"Future\.delayed\(Duration\(milliseconds:\s*300\),\s*\(\)\s*\{\s*"
+    r"_updateWindowSize\(\);\s*"
+    r"\}\);\s*"
+    r"\}\s*"
+    r"\},\s*"
+    r"\)\.marginOnly\(bottom:\s*6,\s*right:\s*6\)",
+    re.DOTALL,
+)
+
+_FLUTTER_INCOMING_STATUS_NEW = (
+    "        "
+    + _FLUTTER_INCOMING_STATUS_MARKER
+    + """
+        if (bind.isCustomClient())
+          Align(
+            alignment: Alignment.center,
+            child: loadPowered(context),
+          ),
+        FutureBuilder<String>(
+          future: bind.mainGetVersion(),
+          builder: (context, snap) {
+            final v = (snap.data ?? '').trim();
+            if (v.isEmpty) {
+              return const SizedBox.shrink();
+            }
+            return Opacity(
+              opacity: 0.5,
+              child: Text(
+                '${translate("Version")} $v',
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(fontSize: 10),
+              ),
+            ).marginOnly(top: 2, bottom: 8);
+          },
+        ),
+        OnlineStatusWidget(
+          onSvcStatusChanged: () {
+            if (isInHomePage()) {
+              Future.delayed(Duration(milliseconds: 300), () {
+                _updateWindowSize();
+              });
+            }
+          },
+        ).marginOnly(bottom: 6, right: 6, top: 4)"""
+)
+
 
 def apply_flutter_home_footer_text(text: str) -> str:
-    """Move 'Desenvolvido por' para o rodape e acrescenta a versao."""
-    if _FLUTTER_HOME_FOOTER_MARKER in text:
+    """Move 'Desenvolvido por' para o rodape e deixa o status da rede abaixo."""
+    if _FLUTTER_HOME_FOOTER_MARKER in text and _FLUTTER_INCOMING_STATUS_MARKER in text:
         return text
-    if _FLUTTER_HOME_POWERED_TOP not in text:
-        raise SystemExit(
-            "flutter desktop_home_page: bloco loadPowered no topo nao encontrado"
-        )
-    if _FLUTTER_HOME_SETTINGS not in text:
-        raise SystemExit(
-            "flutter desktop_home_page: engrenagem outgoing-only nao encontrada"
-        )
-    text = text.replace(_FLUTTER_HOME_POWERED_TOP, "", 1)
-    text = text.replace(_FLUTTER_HOME_SETTINGS, _FLUTTER_HOME_FOOTER, 1)
-    if _FLUTTER_HOME_SCROLL in text:
-        text = text.replace(_FLUTTER_HOME_SCROLL, _FLUTTER_HOME_SCROLL_PADDED, 1)
+    if _FLUTTER_HOME_FOOTER_MARKER not in text:
+        if _FLUTTER_HOME_POWERED_TOP not in text:
+            raise SystemExit(
+                "flutter desktop_home_page: bloco loadPowered no topo nao encontrado"
+            )
+        if _FLUTTER_HOME_SETTINGS not in text:
+            raise SystemExit(
+                "flutter desktop_home_page: engrenagem outgoing-only nao encontrada"
+            )
+        text = text.replace(_FLUTTER_HOME_POWERED_TOP, "", 1)
+        text = text.replace(_FLUTTER_HOME_SETTINGS, _FLUTTER_HOME_FOOTER, 1)
+        if _FLUTTER_HOME_SCROLL in text:
+            text = text.replace(_FLUTTER_HOME_SCROLL, _FLUTTER_HOME_SCROLL_PADDED, 1)
+    if _FLUTTER_INCOMING_STATUS_MARKER not in text:
+        text = _aplicar_status_incoming(text)
     return text
+
+
+def _aplicar_status_incoming(text: str) -> str:
+    if _FLUTTER_INCOMING_STATUS_OLD in text:
+        return text.replace(_FLUTTER_INCOMING_STATUS_OLD, _FLUTTER_INCOMING_STATUS_NEW, 1)
+    achado = _FLUTTER_INCOMING_STATUS_RE.search(text)
+    if not achado:
+        raise SystemExit(
+            "flutter desktop_home_page: OnlineStatusWidget do cliente nao encontrado"
+        )
+    indent = achado.group("indent")
+    linhas = _FLUTTER_INCOMING_STATUS_NEW.strip("\n").splitlines()
+    base = min((len(ln) - len(ln.lstrip(" ")) for ln in linhas if ln.strip()), default=8)
+    rel = [ln[base:] if ln.startswith(" " * base) else ln.lstrip() for ln in linhas]
+    novo = "\n".join((indent + ln) if ln else ln for ln in rel)
+    return text[: achado.start()] + novo + text[achado.end() :]
 
 
 def patch_flutter_home_footer(home_dart: Path) -> None:
@@ -483,6 +571,15 @@ def patch_flutter_powered_url(common_dart: Path) -> None:
 
 
 def _selftest_flutter_home_footer() -> None:
+    # Recorte do rustdesk 1.5.0 (desktop_home_page.dart, incoming-only).
+    trecho_150 = (
+        "    if (isIncomingOnly) {\n"
+        "      children.addAll([\n"
+        "        Divider(),\n"
+        + _FLUTTER_INCOMING_STATUS_OLD
+        + "\n      ]);\n"
+        "    }\n"
+    )
     sample = (
         "      buildTip(context),\n"
         + _FLUTTER_HOME_POWERED_TOP
@@ -491,25 +588,103 @@ def _selftest_flutter_home_footer() -> None:
         + "                    key: _childKey,\n"
         + _FLUTTER_HOME_SETTINGS
         + "          ],\n"
+        + trecho_150
     )
     out = apply_flutter_home_footer_text(sample)
     if _FLUTTER_HOME_FOOTER_MARKER not in out:
         raise SystemExit("selftest flutter: marcador do rodape ausente")
+    if _FLUTTER_INCOMING_STATUS_MARKER not in out:
+        raise SystemExit("selftest flutter: marca acima do status da rede ausente")
+    if "if (isOutgoingOnly)" not in out:
+        raise SystemExit("selftest flutter: rodape overlay deve ser so do atendente")
     if "mainGetVersion()" not in out:
         raise SystemExit("selftest flutter: versao ausente no rodape")
     if _FLUTTER_HOME_POWERED_TOP in out:
         raise SystemExit("selftest flutter: Desenvolvido por ainda no topo")
-    if out.count("loadPowered(context)") != 1:
-        raise SystemExit("selftest flutter: loadPowered deveria aparecer 1 vez")
-    if out.find("loadPowered(context)") > out.find("mainGetVersion()"):
-        raise SystemExit("selftest flutter: versao deve ficar abaixo da marca")
+    if out.count("loadPowered(context)") != 2:
+        raise SystemExit("selftest flutter: loadPowered no atendente e no cliente")
+    if _FLUTTER_INCOMING_STATUS_MARKER not in out or "OnlineStatusWidget(" not in out:
+        raise SystemExit("selftest flutter: status da rede deve ficar abaixo da marca")
+    if out.find(_FLUTTER_INCOMING_STATUS_MARKER) > out.find("OnlineStatusWidget("):
+        raise SystemExit("selftest flutter: Desenvolvido por deve vir antes de Conectando")
     if "EdgeInsets.only(bottom: 64)" not in out:
         raise SystemExit("selftest flutter: padding do scroll ausente")
-    # Idempotente.
     out2 = apply_flutter_home_footer_text(out)
     if out2 != out:
         raise SystemExit("selftest flutter: patch do rodape nao e idempotente")
+    _selftest_flutter_update_card()
+    _selftest_uninstall_completo()
+    # Indentação diferente da 1.5.0: cai no regex, não no replace literal.
+    variante = "\n".join(("  " + ln) if ln else ln for ln in _FLUTTER_INCOMING_STATUS_OLD.splitlines())
+    if _FLUTTER_INCOMING_STATUS_OLD in variante:
+        raise SystemExit("selftest flutter: variante deveria divergir do literal 1.5.0")
+    if not _FLUTTER_INCOMING_STATUS_RE.search(variante):
+        raise SystemExit("selftest flutter: regex nao reconhece OnlineStatusWidget com outro indent")
+    via_re = _aplicar_status_incoming(variante)
+    if _FLUTTER_INCOMING_STATUS_MARKER not in via_re:
+        raise SystemExit("selftest flutter: fallback regex nao inseriu a marca acima do status")
     _selftest_flutter_recent_ui()
+
+
+def _selftest_flutter_update_card() -> None:
+    configurar_canal_update("posto", "flutter")
+    sample = (
+        _FLUTTER_UPDATE_CARD_OLD
+        + "\n      final isToUpdate = (isWindows || isMacOS) && bind.mainIsInstalled();\n"
+        "      String btnText = isToUpdate ? 'Update' : 'Download';\n"
+        "      GestureTapCallback onPressed = () async {\n"
+        "        final Uri url = Uri.parse('https://rustdesk.com/download');\n"
+        "        await launchUrl(url);\n"
+        "      };\n"
+        "      if (isToUpdate) {\n"
+        "        onPressed = () {\n"
+        "          handleUpdate(updateUrl);\n"
+        "        };\n"
+        "      }\n"
+        "class DesktopHomePage extends StatefulWidget {\n"
+    )
+    out = apply_flutter_update_card_text(sample)
+    if "DeskRemote: canal proprio (version.json)" not in out:
+        raise SystemExit("selftest flutter: banner de update nao aparece no custom client")
+    if "handleUpdate(updateUrl)" in out:
+        raise SystemExit("selftest flutter: banner ainda usa handleUpdate do rustdesk.com")
+    if "_deskRemoteBaixarAtualizacao" not in out:
+        raise SystemExit("selftest flutter: helper de download do Release ausente")
+    if INSTALLER_NAME_POSTO_FLUTTER not in out:
+        raise SystemExit("selftest flutter: URL do .exe Flutter cliente ausente no banner")
+    if COPY_BANNER_CTA not in out:
+        raise SystemExit("selftest flutter: CTA Atualizar agora ausente")
+    if apply_flutter_update_card_text(out) != out:
+        raise SystemExit("selftest flutter: banner de update nao e idempotente")
+
+
+def _selftest_uninstall_completo() -> None:
+    import tempfile
+
+    sample = (
+        '    if exist \\"{path}\\" rd /s /q \\"{path}\\"\n'
+        '    if exist \\"{start_menu}\\" rd /s /q \\"{start_menu}\\"\n'
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Path(tmp) / "windows.rs"
+        p.write_text(sample, encoding="utf-8")
+        patch_uninstall_completo(p)
+        out = p.read_text(encoding="utf-8")
+        if "deskremote-dispositivo.json" not in out:
+            raise SystemExit("selftest uninstall: json do dispositivo nao e removido")
+        if "*.toml" not in out:
+            raise SystemExit("selftest uninstall: configs toml nao sao removidas")
+        if "%PROGRAMDATA%\\\\DeskRudder" not in out:
+            raise SystemExit("selftest uninstall: ProgramData nao e removido")
+        if "%PUBLIC%\\\\DeskRudder" not in out:
+            raise SystemExit("selftest uninstall: Public nao e removido")
+        if "%LOCALAPPDATA%" in out:
+            raise SystemExit(
+                "selftest uninstall: nao pode apagar LocalAppData — o Instalar faz XCOPY de la"
+            )
+        patch_uninstall_completo(p)
+        if p.read_text(encoding="utf-8") != out:
+            raise SystemExit("selftest uninstall: patch nao e idempotente")
 
 
 _FLUTTER_TABS_ENABLED = """  List<bool> isEnabled = List.from([
@@ -1250,8 +1425,10 @@ def _rotulo_sessao_vinculo(vinculo: dict) -> str:
     rotulo = str(vinculo.get("rotulo_nome") or "").strip() or "Equipamento"
     codigo = str(vinculo.get("pdv_codigo") or "").strip()
     base = f"{rotulo} {codigo}" if codigo else rotulo
-    rede = str(vinculo.get("rede_nome") or "").strip()
-    return f"{rede} · {base}" if rede else base
+    empresa = str(vinculo.get("empresa_nome") or "").strip()
+    if not empresa:
+        empresa = str(vinculo.get("rede_nome") or "").strip()
+    return f"{empresa} · {base}" if empresa else base
 
 
 _FLUTTER_ROTULO_SESSAO_FN = """String rotuloSessaoVinculo(Map<String, dynamic> vinculo) {
@@ -1259,19 +1436,39 @@ _FLUTTER_ROTULO_SESSAO_FN = """String rotuloSessaoVinculo(Map<String, dynamic> v
   final nome = rotulo.isEmpty ? 'Equipamento' : rotulo;
   final codigo = (vinculo['pdv_codigo'] ?? '').toString().trim();
   final base = codigo.isEmpty ? nome : '$nome $codigo';
-  final rede = (vinculo['rede_nome'] ?? '').toString().trim();
-  return rede.isEmpty ? base : '$rede · $base';
+  var empresa = (vinculo['empresa_nome'] ?? '').toString().trim();
+  if (empresa.isEmpty) {
+    empresa = (vinculo['rede_nome'] ?? '').toString().trim();
+  }
+  return empresa.isEmpty ? base : '$empresa · $base';
 }"""
 
 
+_FLUTTER_INAPP_SERVIDOR = (
+    "    // DeskRemote: aplica o servidor da instancia no Conectar.\n"
+    "    await aplicarServidorDaContaDeskRemote(silencioso: true);\n"
+)
+
+_FLUTTER_INAPP_ALIAS_COM_SERVIDOR = (
+    _FLUTTER_INAPP_SERVIDOR + _FLUTTER_INAPP_ALIAS_NEW
+)
+
+
 def apply_flutter_inapp_alias_text(text: str) -> str:
-    if "DeskRemote: busca vinculo na API no Conectar" in text:
+    if "DeskRemote: aplica o servidor da instancia no Conectar" in text:
         return text
+    if "DeskRemote: busca vinculo na API no Conectar" in text:
+        return text.replace(
+            "    // DeskRemote: busca vinculo na API no Conectar (Recentes/ID).\n",
+            _FLUTTER_INAPP_SERVIDOR
+            + "    // DeskRemote: busca vinculo na API no Conectar (Recentes/ID).\n",
+            1,
+        )
     if _FLUTTER_INAPP_ALIAS_OLD in text:
-        return text.replace(_FLUTTER_INAPP_ALIAS_OLD, _FLUTTER_INAPP_ALIAS_NEW, 1)
+        return text.replace(_FLUTTER_INAPP_ALIAS_OLD, _FLUTTER_INAPP_ALIAS_COM_SERVIDOR, 1)
     if _FLUTTER_INAPP_ALIAS_UPSTREAM not in text:
         raise SystemExit("flutter common.dart: connectMainDesktop newRemoteDesktop nao encontrado")
-    return text.replace(_FLUTTER_INAPP_ALIAS_UPSTREAM, _FLUTTER_INAPP_ALIAS_NEW, 1)
+    return text.replace(_FLUTTER_INAPP_ALIAS_UPSTREAM, _FLUTTER_INAPP_ALIAS_COM_SERVIDOR, 1)
 
 
 _FLUTTER_HANDLE_URI_VARS = """  String? password;
@@ -1305,8 +1502,18 @@ _FLUTTER_HANDLE_URI_PW_TITLE = """      case '--password':
 
 
 def apply_flutter_connect_title_text(text: str) -> str:
-    if "DeskRemote: busca vinculo na API se o painel nao mandou name=" in text:
+    if "DeskRemote: aplica o servidor da instancia antes de conectar" in text:
         return text
+    if "DeskRemote: busca vinculo na API se o painel nao mandou name=" in text:
+        text = text.replace(
+            "          // DeskRemote: busca vinculo na API se o painel nao mandou name=.\n",
+            "          // DeskRemote: aplica o servidor da instancia antes de conectar.\n"
+            "          await aplicarServidorDaContaDeskRemote(silencioso: true);\n"
+            "          // DeskRemote: busca vinculo na API se o painel nao mandou name=.\n",
+            1,
+        )
+        if 'param["name"]' in text:
+            return text
     # Só o bloco do handleUriLink — um String? title; solto no arquivo não conta.
     if _FLUTTER_HANDLE_URI_VARS_TITLE not in text:
         if _FLUTTER_HANDLE_URI_VARS not in text:
@@ -1339,6 +1546,8 @@ def apply_flutter_connect_title_text(text: str) -> str:
 """
     new_call = """      case UriLinkType.remoteDesktop:
         Future.delayed(Duration.zero, () async {
+          // DeskRemote: aplica o servidor da instancia antes de conectar.
+          await aplicarServidorDaContaDeskRemote(silencioso: true);
           // DeskRemote: busca vinculo na API se o painel nao mandou name=.
           // Espera até 5s: a aba é outro engine e o título só entra nos params.
           var tituloSessao = title?.trim();
@@ -1355,12 +1564,13 @@ def apply_flutter_connect_title_text(text: str) -> str:
               title: tituloSessao);
         });
 """
-    if old_call_alias in text:
-        text = text.replace(old_call_alias, new_call, 1)
-    elif old_call in text:
-        text = text.replace(old_call, new_call, 1)
-    else:
-        raise SystemExit("flutter common.dart: newRemoteDesktop nao encontrado")
+    if "DeskRemote: aplica o servidor da instancia antes de conectar" not in text:
+        if old_call_alias in text:
+            text = text.replace(old_call_alias, new_call, 1)
+        elif old_call in text:
+            text = text.replace(old_call, new_call, 1)
+        else:
+            raise SystemExit("flutter common.dart: newRemoteDesktop nao encontrado")
     if 'param["name"]' in text:
         return text
     old_q = """    if (password != null) args.addAll(['--password', password]);
@@ -1732,6 +1942,80 @@ def apply_flutter_hide_password_edit_text(text: str) -> str:
     return new_text
 
 
+_FLUTTER_UPDATE_CARD_OLD = """    if (!bind.isCustomClient() &&
+        updateUrl.isNotEmpty &&
+        !isCardClosed &&
+        bind.mainUriPrefixSync().contains('rustdesk')) {"""
+
+_FLUTTER_UPDATE_HELPER_MARKER = "// DeskRemote: baixa o .exe do Release e aplica --update."
+
+
+def apply_flutter_update_card_text(text: str) -> str:
+    """Mostra o banner de atualizacao no Flutter (o upstream esconde em custom client)."""
+    if "DeskRemote: canal proprio (version.json)" in text:
+        return text
+    if _FLUTTER_UPDATE_CARD_OLD not in text:
+        raise SystemExit("flutter home: condicao do banner de update nao encontrada")
+    text = text.replace(
+        _FLUTTER_UPDATE_CARD_OLD,
+        "    // DeskRemote: canal proprio (version.json), mesmo sendo custom client.\n"
+        "    if (updateUrl.isNotEmpty && !isCardClosed) {",
+        1,
+    )
+    old_press = """        onPressed = () {
+          handleUpdate(updateUrl);
+        };"""
+    new_press = """        onPressed = () {
+          // DeskRemote: URL do .exe no Release (nao rustdesk.com / tag).
+          _deskRemoteBaixarAtualizacao();
+        };"""
+    if old_press not in text:
+        raise SystemExit("flutter home: handleUpdate do banner nao encontrado")
+    text = text.replace(old_press, new_press, 1)
+    old_to_update = (
+        "      final isToUpdate = (isWindows || isMacOS) && bind.mainIsInstalled();\n"
+        "      String btnText = isToUpdate ? 'Update' : 'Download';"
+    )
+    new_to_update = (
+        "      final isToUpdate = true;\n"
+        f"      String btnText = '{COPY_BANNER_CTA}';"
+    )
+    if old_to_update not in text:
+        raise SystemExit("flutter home: isToUpdate do banner nao encontrado")
+    text = text.replace(old_to_update, new_to_update, 1)
+    if _FLUTTER_UPDATE_HELPER_MARKER not in text:
+        helper = (
+            f"{_FLUTTER_UPDATE_HELPER_MARKER}\n"
+            "void _deskRemoteBaixarAtualizacao() {\n"
+            f"  const exeUrl = '{DOWNLOAD_INSTALLER_URL}';\n"
+            "  final downloadId = SimpleWrapper('');\n"
+            "  final onCanceled = SimpleWrapper(() {});\n"
+            "  gFFI.dialogManager.dismissAll();\n"
+            "  gFFI.dialogManager.show((setState, close, context) {\n"
+            "    return CustomAlertDialog(\n"
+            f"      title: Text('{COPY_BANNER_BAIXANDO}'),\n"
+            "      content: UpdateProgress(exeUrl, exeUrl, downloadId, onCanceled)\n"
+            "          .marginSymmetric(horizontal: 8)\n"
+            "          .paddingOnly(top: 12),\n"
+            "      actions: [\n"
+            "        dialogButton(translate('Cancel'), onPressed: () async {\n"
+            "          onCanceled.value();\n"
+            "          await bind.mainSetCommon(\n"
+            "              key: 'cancel-downloader', value: downloadId.value);\n"
+            "          close();\n"
+            "        }, isOutline: true),\n"
+            "      ],\n"
+            "    );\n"
+            "  });\n"
+            "}\n\n"
+        )
+        anchor = "class DesktopHomePage extends StatefulWidget {"
+        if anchor not in text:
+            raise SystemExit("flutter home: class DesktopHomePage nao encontrada para o helper de update")
+        text = text.replace(anchor, helper + anchor, 1)
+    return text
+
+
 def apply_flutter_enroll_gate_text(text: str) -> str:
     if "DeskRemote: cliente so abre depois do token de instalacao" in text:
         return text
@@ -1924,12 +2208,6 @@ def patch_flutter_deskremote_ui(
         _apply(common, apply_flutter_connect_title_text, "name=/--title -> alias")
         _apply(common, apply_flutter_inapp_alias_text, "alias no Conectar do Flutter")
         _apply(common, apply_flutter_session_tab_label_text, "aba da sessao sem ID")
-        if host and key:
-            _apply(
-                common,
-                lambda t: apply_flutter_server_defaults_text(t, host, key),
-                "servidor Duplex no formulario",
-            )
     if home.is_file():
         def _home(t: str) -> str:
             if _FLUTTER_YOUR_DESKTOP_IF in t:
@@ -1943,6 +2221,7 @@ def patch_flutter_deskremote_ui(
         _apply(home, _home, "Seu Computador abaixo da logo")
         _apply(home, apply_flutter_logo_app_name_text, "DeskRemote abaixo da logo")
         _apply(home, apply_flutter_pane_width_text, "painel esquerdo 224px")
+        _apply(home, apply_flutter_update_card_text, "banner de atualizacao")
         if profile == "posto":
             _apply(home, apply_flutter_hide_password_edit_text, "sem editar senha permanente")
     if profile != "posto":
@@ -1981,12 +2260,6 @@ def patch_flutter_deskremote_ui(
             _apply(model_dart, apply_flutter_peer_info_tab_text, "peer_info atualiza aba")
     if settings.is_file():
         _apply(settings, apply_flutter_about_text, "tela Sobre")
-        if host and profile != "posto":
-            _apply(
-                settings,
-                lambda t: apply_flutter_network_text(t, host),
-                "Rede mostra host Duplex",
-            )
     if profile != "posto" and core_main.is_file():
         _apply(core_main, apply_flutter_core_main_title_text, "core_main --title")
         _apply(core_main, apply_flutter_core_main_password_text, "core_main senha posicional")
@@ -2101,11 +2374,18 @@ def _selftest_flutter_recent_ui() -> None:
     )
     if "busca vinculo na API no Conectar" not in inapp:
         raise SystemExit("selftest flutter: Conectar do Flutter sem busca na API")
+    if "aplicarServidorDaContaDeskRemote" not in inapp:
+        raise SystemExit("selftest flutter: Conectar sem aplicar servidor da instancia")
     if apply_flutter_inapp_alias_text(inapp) != inapp:
         raise SystemExit("selftest flutter: alias in-app nao e idempotente")
     inapp_old = apply_flutter_inapp_alias_text(_FLUTTER_INAPP_ALIAS_OLD)
     if "busca vinculo na API no Conectar" not in inapp_old:
         raise SystemExit("selftest flutter: patch antigo do Conectar nao atualiza")
+    if "aplicarServidorDaContaDeskRemote" not in inapp_old:
+        raise SystemExit("selftest flutter: patch antigo do Conectar sem servidor")
+    inapp_mid = apply_flutter_inapp_alias_text(_FLUTTER_INAPP_ALIAS_NEW)
+    if "aplica o servidor da instancia no Conectar" not in inapp_mid:
+        raise SystemExit("selftest flutter: Conectar 2.2.0 nao ganha servidor da instancia")
 
     tab = apply_flutter_tabbar_text(_FLUTTER_TABBAR_TITLE)
     if "DeskRemote" not in tab or "RustDesk" in tab:
@@ -2202,6 +2482,8 @@ def _selftest_flutter_recent_ui() -> None:
         raise SystemExit("selftest flutter: alias do vinculo ausente no uni-link")
     if "buscarRotuloVinculoDeskRemote" not in uri or "title: tituloSessao" not in uri:
         raise SystemExit("selftest flutter: title nao vai para a janela da sessao")
+    if "aplicarServidorDaContaDeskRemote" not in uri:
+        raise SystemExit("selftest flutter: --connect sem aplicar servidor da instancia")
     if apply_flutter_connect_title_text(uri) != uri:
         raise SystemExit("selftest flutter: uni-link title nao e idempotente")
     if "Espera até 5s" not in uri:
@@ -2364,6 +2646,12 @@ def _selftest_flutter_recent_ui() -> None:
         raise SystemExit("selftest flutter: overlay de enroll nao deve embutir host")
     if "mainSetPermanentPasswordWithResult" not in enroll_overlay:
         raise SystemExit("selftest flutter: enroll nao aplica senha permanente")
+    if "mainStartService" not in enroll_overlay or "mainGetConnectStatus" not in enroll_overlay:
+        raise SystemExit("selftest flutter: enroll nao reconecta o hbbs depois de aplicar o servidor")
+    if "mainSetOption(key: 'custom-rendezvous-server'" not in enroll_overlay:
+        raise SystemExit("selftest flutter: hbbs deve ir em mainSetOption (nao LocalOption)")
+    if "mainSetLocalOption(key: 'custom-rendezvous-server'" in enroll_overlay:
+        raise SystemExit("selftest flutter: hbbs nao pode ficar so em LocalOption")
     if "mainSetOption" not in enroll_overlay:
         raise SystemExit("selftest flutter: enroll nao trava verification-method")
     if "travarSenhaPermanenteDeskRemote" not in enroll_overlay:
@@ -2389,6 +2677,9 @@ def _selftest_flutter_recent_ui() -> None:
         raise SystemExit("selftest flutter: enroll gate ausente na home")
     if apply_flutter_enroll_gate_text(enroll_gate) != enroll_gate:
         raise SystemExit("selftest flutter: enroll gate nao e idempotente")
+    enroll_gate_overlay = (overlay / "enroll_gate.dart").read_text(encoding="utf-8")
+    if "mainIsInstalled" not in enroll_gate_overlay:
+        raise SystemExit("selftest flutter: enroll gate deve esperar o Instalar do Windows")
     sessao_overlay = (overlay / "sessao.dart").read_text(encoding="utf-8")
     if "https://api-$slug." not in sessao_overlay:
         raise SystemExit("selftest flutter: API do login deve ser api-{slug}")
@@ -2400,20 +2691,35 @@ def _selftest_flutter_recent_ui() -> None:
         raise SystemExit("selftest flutter: busca do vinculo na frota ausente")
     if "/rustdesk/peers" not in sessao_overlay:
         raise SystemExit("selftest flutter: busca do vinculo sem GET /rustdesk/peers")
+    if "/rustdesk/configuracao" not in sessao_overlay:
+        raise SystemExit("selftest flutter: atendente sem GET /rustdesk/configuracao")
+    if "aplicarServidorDaContaDeskRemote" not in sessao_overlay:
+        raise SystemExit("selftest flutter: aplicar servidor da conta ausente")
+    if "deskremote.invalid" in sessao_overlay or "31.97.160.79" in sessao_overlay:
+        raise SystemExit("selftest flutter: overlay de sessao nao deve embutir host")
     if "rotuloSessaoVinculo" not in sessao_overlay:
         raise SystemExit("selftest flutter: rotuloSessaoVinculo ausente no overlay")
     if _FLUTTER_ROTULO_SESSAO_FN.replace("\r\n", "\n") not in sessao_overlay.replace(
         "\r\n", "\n"
     ):
         raise SystemExit("selftest flutter: formula do rotulo divergiu do painel")
-    if "Posto Farol · SERVIDOR 001" not in sessao_overlay:
-        raise SystemExit("selftest flutter: exemplo Posto Farol ausente no rotulo")
+    if "Auto Posto Expresso Medalha · SERVIDOR 001" not in sessao_overlay:
+        raise SystemExit("selftest flutter: exemplo empresa ausente no rotulo")
+    if _rotulo_sessao_vinculo(
+        {
+            "empresa_nome": "Auto Posto Expresso Medalha",
+            "rede_nome": "Rede Expresso",
+            "rotulo_nome": "SERVIDOR",
+            "pdv_codigo": "001",
+        }
+    ) != "Auto Posto Expresso Medalha · SERVIDOR 001":
+        raise SystemExit("selftest flutter: rotulo deve preferir empresa, nao rede")
     if _rotulo_sessao_vinculo(
         {"rede_nome": "Posto Farol", "rotulo_nome": "SERVIDOR", "pdv_codigo": "001"}
     ) != "Posto Farol · SERVIDOR 001":
-        raise SystemExit("selftest flutter: rotulo Posto Farol · SERVIDOR 001")
+        raise SystemExit("selftest flutter: rotulo cai na rede se empresa vier vazia")
     if _rotulo_sessao_vinculo({"rotulo_nome": "PDV", "pdv_codigo": "02"}) != "PDV 02":
-        raise SystemExit("selftest flutter: rotulo sem rede divergiu")
+        raise SystemExit("selftest flutter: rotulo sem empresa nem rede divergiu")
     if _rotulo_sessao_vinculo({}) != "Equipamento":
         raise SystemExit("selftest flutter: rotulo vazio deve ser Equipamento")
     if "Duration(seconds: 5)" not in sessao_overlay:
@@ -2423,6 +2729,12 @@ def _selftest_flutter_recent_ui() -> None:
     gate_overlay = (overlay / "auth_gate.dart").read_text(encoding="utf-8")
     if "_naoHerdarAposSair" not in gate_overlay:
         raise SystemExit("selftest flutter: Sair deve impedir herdar a sessao do Electron")
+    if "aplicarServidorDaContaDeskRemote" not in gate_overlay:
+        raise SystemExit("selftest flutter: login sem aplicar servidor da instancia")
+    if "naoTentarDeNovo" not in gate_overlay:
+        raise SystemExit("selftest flutter: conta sem servidor nao deve ficar em loop")
+    if "_pararPoll" not in gate_overlay:
+        raise SystemExit("selftest flutter: login deve parar o poll se o servidor nao estiver configurado")
     gate = apply_flutter_auth_gate_text(
         _FLUTTER_AUTH_IMPORT + _FLUTTER_HOME_PAGE_CHILD
     )
@@ -2949,6 +3261,39 @@ def patch_shortcut_display_name(windows_rs: Path) -> None:
 
     windows_rs.write_text(text, encoding="utf-8")
     print(f"  windows.rs: atalho/DisplayName -> {name}", flush=True)
+
+
+def patch_uninstall_completo(windows_rs: Path) -> None:
+    """Desinstalar tambem limpa AppData/ProgramData/Public do DeskRemote."""
+    if not windows_rs.is_file():
+        raise SystemExit(f"Falta {windows_rs}")
+    text = windows_rs.read_text(encoding="utf-8")
+    if "deskremote-dispositivo.json" in text:
+        print("  windows.rs: uninstall completo ja presente", flush=True)
+        return
+    old = 'if exist \\"{path}\\" rd /s /q \\"{path}\\"'
+    extra_rs = (
+        'if exist \\"{path}\\" rd /s /q \\"{path}\\"\n'
+        "    rem DeskRudder: limpa dados do usuario. Nao apagar LocalAppData: o instalador\n"
+        "    rem roda get_uninstall antes do XCOPY, e a pasta extraida fica em LocalAppData.\n"
+        '    if exist \\"%APPDATA%\\\\DeskRudder\\\\deskremote-dispositivo.json\\" del /f /q \\"%APPDATA%\\\\DeskRudder\\\\deskremote-dispositivo.json\\"\n'
+        '    if exist \\"%APPDATA%\\\\DeskRudder\\\\deskremote-sessao.json\\" del /f /q \\"%APPDATA%\\\\DeskRudder\\\\deskremote-sessao.json\\"\n'
+        '    if exist \\"%APPDATA%\\\\DeskRudder\\\\DeskRudder.toml\\" del /f /q \\"%APPDATA%\\\\DeskRudder\\\\DeskRudder.toml\\"\n'
+        '    if exist \\"%APPDATA%\\\\DeskRudder\\\\DeskRudder2.toml\\" del /f /q \\"%APPDATA%\\\\DeskRudder\\\\DeskRudder2.toml\\"\n'
+        '    if exist \\"%APPDATA%\\\\DeskRudder\\\\RustDesk.toml\\" del /f /q \\"%APPDATA%\\\\DeskRudder\\\\RustDesk.toml\\"\n'
+        '    if exist \\"%APPDATA%\\\\DeskRudder\\\\RustDesk2.toml\\" del /f /q \\"%APPDATA%\\\\DeskRudder\\\\RustDesk2.toml\\"\n'
+        '    if exist \\"%APPDATA%\\\\DeskRudder\\\\*.toml\\" del /f /q \\"%APPDATA%\\\\DeskRudder\\\\*.toml\\"\n'
+        '    if exist \\"%APPDATA%\\\\DeskRudder\\\\config\\" rd /s /q \\"%APPDATA%\\\\DeskRudder\\\\config\\"\n'
+        '    if exist \\"%APPDATA%\\\\DeskRudder\\\\logs\\" rd /s /q \\"%APPDATA%\\\\DeskRudder\\\\logs\\"\n'
+        '    if exist \\"%PROGRAMDATA%\\\\DeskRudder\\" rd /s /q \\"%PROGRAMDATA%\\\\DeskRudder\\"\n'
+        '    if exist \\"%PUBLIC%\\\\DeskRudder\\" rd /s /q \\"%PUBLIC%\\\\DeskRudder\\"\n'
+        '    rd /q \\"{path}\\\\..\\"'
+    )
+    if old not in text:
+        raise SystemExit("windows.rs: rd do path de uninstall nao encontrado")
+    text = text.replace(old, extra_rs, 1)
+    windows_rs.write_text(text, encoding="utf-8")
+    print("  windows.rs: uninstall limpa AppData/ProgramData/Public", flush=True)
 
 
 def patch_website_urls(index_tis: Path, install_tis: Path) -> None:
@@ -4296,7 +4641,7 @@ def main() -> int:
         "--ui",
         choices=("sciter", "flutter"),
         default="sciter",
-        help="sciter=producao 1.x.x; flutter=spike 2.x.x (atendente ou cliente)",
+        help="sciter=v1 congelado 1.x.x; flutter=2.x.x (atendente ou cliente)",
     )
     args = ap.parse_args()
     _selftest_sciter_copy()
@@ -4364,7 +4709,7 @@ def main() -> int:
         print(f"Falta {cfg_rs} (submodule hbb_common?).", file=sys.stderr)
         return 1
     cfg_host, cfg_key = (host, key)
-    if ui == "flutter" and profile == "posto":
+    if ui == "flutter":
         cfg_host, cfg_key = HOST_FLUTTER_CLIENTE_PENDENTE, KEY_FLUTTER_CLIENTE_PENDENTE
     patch_config_rs(cfg_rs, cfg_host, cfg_key)
     if profile == "posto":
@@ -4378,6 +4723,7 @@ def main() -> int:
     if profile == "posto":
         patch_host_only_ui(index_tis, brand)
     patch_shortcut_display_name(windows_rs)
+    patch_uninstall_completo(windows_rs)
     # UpdateMe antes do patch de URLs (ele ainda contem rustdesk.com no upstream).
     patch_update_check(common_rs)
     patch_update_banner(index_tis)
@@ -4406,12 +4752,12 @@ def main() -> int:
     if "DeskRudder" not in body:
         print("Verificacao falhou apos patch.", file=sys.stderr)
         return 1
-    if ui == "flutter" and profile == "posto":
+    if ui == "flutter":
         if HOST_FLUTTER_CLIENTE_PENDENTE not in body or KEY_FLUTTER_CLIENTE_PENDENTE not in body:
-            print("Verificacao falhou: cliente Flutter sem placeholder de servidor.", file=sys.stderr)
+            print("Verificacao falhou: Flutter sem placeholder de servidor.", file=sys.stderr)
             return 1
         if host in body:
-            print("Verificacao falhou: cliente Flutter nao deve embutir o servidor da Duplex.", file=sys.stderr)
+            print("Verificacao falhou: Flutter nao deve embutir o servidor da Duplex.", file=sys.stderr)
             return 1
     else:
         if host not in body or key not in body:
@@ -4623,6 +4969,12 @@ def main() -> int:
     if "pending_update.txt" not in win_body:
         print("Verificacao falhou: caminho pending_update.txt ausente.", file=sys.stderr)
         return 1
+    if "deskremote-dispositivo.json" not in win_body:
+        print("Verificacao falhou: uninstall nao limpa AppData do DeskRemote.", file=sys.stderr)
+        return 1
+    if "%PROGRAMDATA%\\\\DeskRudder" not in win_body:
+        print("Verificacao falhou: uninstall nao limpa ProgramData.", file=sys.stderr)
+        return 1
 
     remote_body = (src / "src" / "ui" / "remote.rs").read_text(encoding="utf-8")
     if "DeskRudder: spawning file-transfer without password" not in remote_body:
@@ -4655,6 +5007,15 @@ def main() -> int:
                 "Verificacao falhou: Desenvolvido por ainda no topo do Flutter.",
                 file=sys.stderr,
             )
+            return 1
+        if "DeskRemote: canal proprio (version.json)" not in home_body:
+            print(
+                "Verificacao falhou: banner de atualizacao Flutter ainda escondido no custom client.",
+                file=sys.stderr,
+            )
+            return 1
+        if "_deskRemoteBaixarAtualizacao" not in home_body:
+            print("Verificacao falhou: download do Release Flutter ausente.", file=sys.stderr)
             return 1
     if flutter_common.is_file():
         common_dart = flutter_common.read_text(encoding="utf-8")
@@ -4689,14 +5050,14 @@ def main() -> int:
             if "DeskRemote: busca vinculo na API no Conectar" not in common_dart:
                 print("Verificacao falhou: Conectar do Flutter nao busca o vinculo.", file=sys.stderr)
                 return 1
+            if "DeskRemote: aplica o servidor da instancia" not in common_dart:
+                print("Verificacao falhou: Flutter nao aplica o servidor da instancia.", file=sys.stderr)
+                return 1
             if "DeskRemote: vinculo (alias) ou usuario@host na aba" not in common_dart:
                 print("Verificacao falhou: aba da sessao Flutter ainda usa o ID.", file=sys.stderr)
                 return 1
-            if "DeskRemote: servidor Duplex" not in common_dart:
-                print("Verificacao falhou: fallback Duplex ausente no Flutter.", file=sys.stderr)
-                return 1
-            if f'"{host}"' not in common_dart or f'"{key}"' not in common_dart:
-                print("Verificacao falhou: host/key Duplex ausentes no Flutter.", file=sys.stderr)
+            if "DeskRemote: servidor Duplex" in common_dart or f'"{host}"' in common_dart:
+                print("Verificacao falhou: Flutter do atendente ainda embute o servidor da Duplex.", file=sys.stderr)
                 return 1
         flutter_assets = src / "flutter" / "assets" / "logo.png"
         if not flutter_assets.is_file():
@@ -4779,6 +5140,9 @@ def main() -> int:
             if "mainSetPermanentPasswordWithResult" not in enroll_txt:
                 print("Verificacao falhou: enroll sem senha permanente.", file=sys.stderr)
                 return 1
+            if "mainSetOption(key: 'custom-rendezvous-server'" not in enroll_txt:
+                print("Verificacao falhou: enroll sem mainSetOption do hbbs.", file=sys.stderr)
+                return 1
             if flutter_common.is_file():
                 common_lock = flutter_common.read_text(encoding="utf-8")
                 if "DeskRemote: senha permanente so muda no painel" not in common_lock:
@@ -4811,6 +5175,19 @@ def main() -> int:
                 return 1
             if "listarFrotaVinculadaDeskRemote" not in overlay_sessao_txt:
                 print("Verificacao falhou: listagem da frota Vinculados ausente no overlay.", file=sys.stderr)
+                return 1
+            if "/rustdesk/configuracao" not in overlay_sessao_txt:
+                print("Verificacao falhou: overlay sem GET /rustdesk/configuracao.", file=sys.stderr)
+                return 1
+            if "aplicarServidorDaContaDeskRemote" not in overlay_sessao_txt:
+                print("Verificacao falhou: overlay sem aplicar servidor da instancia.", file=sys.stderr)
+                return 1
+            overlay_gate_txt = overlay_gate.read_text(encoding="utf-8")
+            if "aplicarServidorDaContaDeskRemote" not in overlay_gate_txt:
+                print("Verificacao falhou: login Flutter sem aplicar servidor da instancia.", file=sys.stderr)
+                return 1
+            if "_pararPoll" not in overlay_gate_txt:
+                print("Verificacao falhou: login Flutter nao para o poll sem servidor.", file=sys.stderr)
                 return 1
     flutter_multi = src / "flutter" / "lib" / "utils" / "multi_window_manager.dart"
     if profile != "posto" and flutter_multi.is_file():
@@ -4850,8 +5227,8 @@ def main() -> int:
         if WEBSITE_URL.rstrip("/") not in settings_body:
             print("Verificacao falhou: website do Sobre sem deskrudder.com.br.", file=sys.stderr)
             return 1
-        if profile != "posto" and "DeskRemote: host Duplex na Rede" not in settings_body:
-            print("Verificacao falhou: host Duplex nao aparece em Rede.", file=sys.stderr)
+        if "DeskRemote: host Duplex na Rede" in settings_body:
+            print("Verificacao falhou: Flutter ainda mostra o host da Duplex em Rede.", file=sys.stderr)
             return 1
     flutter_rc = src / "flutter" / "windows" / "runner" / "Runner.rc"
     if flutter_rc.is_file():

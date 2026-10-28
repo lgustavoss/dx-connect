@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { ApiError, empresaPdvs, type EmpresaPdv } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
@@ -6,16 +6,95 @@ import { useToast } from './ui/Toast'
 import { Button } from './ui/Button'
 import { IconCopy } from './ui/IconCopy'
 
+const POLL_MS = 2000
+const FALHAS_ANTES_DO_TOAST = 3
+
+type Espera = 'aguardando' | 'expirado' | 'falha' | 'falha_parada'
+
 type Props = {
   empresaId: number
   pdvId: number
   acesso: EmpresaPdv.Acesso
+  onVinculado?: () => void
 }
 
-export function DeskRemoteTokenInstalacao({ empresaId, pdvId, acesso }: Props) {
+export function DeskRemoteTokenInstalacao({ empresaId, pdvId, acesso, onVinculado }: Props) {
   const toast = useToast()
   const [gerando, setGerando] = useState(false)
   const [criado, setCriado] = useState<EmpresaPdv.TokenInstalacao | null>(null)
+  const [espera, setEspera] = useState<Espera>('aguardando')
+  const onVinculadoRef = useRef(onVinculado)
+  onVinculadoRef.current = onVinculado
+
+  useEffect(() => {
+    if (!criado?.id) return
+    let cancelado = false
+    let avisou = false
+    let parou = false
+    let timer = 0
+    let falhasSeguidas = 0
+    let tostouFalha = false
+    setEspera('aguardando')
+
+    const parar = () => {
+      parou = true
+      if (timer) window.clearInterval(timer)
+    }
+
+    const consultar = async () => {
+      if (cancelado || avisou || parou) return
+      try {
+        const s = await empresaPdvs.statusTokenDeskRemote(empresaId, pdvId, criado.id)
+        if (cancelado || avisou || parou) return
+        falhasSeguidas = 0
+        if (s.vinculado) {
+          avisou = true
+          parar()
+          setCriado(null)
+          toast.showSuccess('DeskRemote vinculado com sucesso.')
+          onVinculadoRef.current?.()
+          return
+        }
+        if (s.expirado) {
+          parar()
+          setEspera('expirado')
+          toast.showWarning('Este link de instalação expirou. Gere um novo.')
+          return
+        }
+        setEspera('aguardando')
+      } catch (err) {
+        if (cancelado || avisou || parou) return
+        const status = err instanceof ApiError ? err.status : 0
+        if (status === 404) {
+          parar()
+          setEspera('expirado')
+          toast.showWarning(
+            mensagemFalhaParaToast(err, 'Este link de instalação não foi encontrado. Gere um novo.'),
+          )
+          return
+        }
+        if (status === 401 || status === 403) {
+          parar()
+          setEspera('falha_parada')
+          toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível conferir se o DeskRemote vinculou.'))
+          return
+        }
+        falhasSeguidas += 1
+        setEspera('falha')
+        if (!tostouFalha && falhasSeguidas >= FALHAS_ANTES_DO_TOAST) {
+          tostouFalha = true
+          toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível conferir se o DeskRemote vinculou.'))
+        }
+      }
+    }
+
+    void consultar()
+    timer = window.setInterval(() => void consultar(), POLL_MS)
+    return () => {
+      cancelado = true
+      parar()
+    }
+  }, [criado?.id, empresaId, pdvId, toast])
 
   async function gerar() {
     setGerando(true)
@@ -70,6 +149,19 @@ export function DeskRemoteTokenInstalacao({ empresaId, pdvId, acesso }: Props) {
           <p className="text-xs text-slate-500">
             Válido até {new Date(criado.expira_em).toLocaleString('pt-BR')}. Cada instalação pede um link novo.
           </p>
+          {espera === 'expirado' ? (
+            <p className="text-xs text-amber-800 dark:text-amber-200">Este link expirou. Gere um novo.</p>
+          ) : espera === 'falha' || espera === 'falha_parada' ? (
+            <p className="text-xs text-amber-800 dark:text-amber-200">
+              {espera === 'falha'
+                ? 'Não foi possível conferir o vínculo. Tentando de novo…'
+                : 'Não foi possível conferir o vínculo. Atualize a página e tente de novo.'}
+            </p>
+          ) : (
+            <p className="text-xs text-cyan-800 dark:text-cyan-200">
+              Aguardando o DeskRemote neste computador. Quando o vínculo concluir, o QR some sozinho.
+            </p>
+          )}
         </div>
       ) : (
         <Button type="button" onClick={() => void gerar()} disabled={gerando || !acesso.tem_senha_remota}>

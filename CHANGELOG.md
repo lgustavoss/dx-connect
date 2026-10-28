@@ -5,6 +5,31 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### DeskRudder
+
+#### Melhorias
+
+- DeskRemote do atendente (**2.3.0**): depois do login, o app usa o servidor de acesso remoto **daquela conta** — o instalador deixa de nascer só com o servidor da Duplex. Conectar pelo painel aplica o servidor se houver sessão; senão, reusa o último gravado neste PC
+- DeskRemote do atendente: a lista Vinculados e a aba da sessão mostram o **nome da empresa** (não o da rede) — ex. «Auto Posto Expresso Medalha · SERVIDOR 001»
+- Acesso remoto Sciter **1.0.14**: canal v1 **congelado** (sem builds novos). Download e Setup seguem no Flutter 2.x; PCs 32-bit ficam no 1.0.14
+- Empresas → PDVs: só o tipo **DeskRemote** abre a sessão, gera QR e entra na frota (Online/Offline). RustDesk, DeskRudder e os demais ficam iguais ao AnyDesk — o atendente copia ID e senha
+- Empresas → PDVs: quando o DeskRemote usa o link e o vínculo conclui, o QR some e o painel confirma **vinculado com sucesso**
+- DeskRemote no PDV (**2.1.0**): quando há versão nova, o app mostra **Atualizar agora** e baixa o instalador do Release (sem ir ao site do RustDesk)
+- DeskRemote no PDV (**2.1.0**): desinstalar apaga pasta, atalho, dados do app (`AppData` do DeskRemote), `ProgramData` e `Public` — não precisa apagar pastas na mão para instalar de novo
+
+#### Correções
+
+- Empresas → PDVs: depois do link de instalação do DeskRemote, o selo deixa de ficar em **Fora do servidor** — o painel passa a reconhecer o ID que o computador confirmou (Online enquanto o app estiver ativo)
+- DeskRemote no PDV (**2.1.1**): depois de **Instalar**, a janela volta a abrir — a 2.1.0 apagava a pasta temporária do próprio instalador e o app ficava sem a interface
+- DeskRemote no PDV (**2.1.0**): o servidor da conta é gravado no mediador (não numa opção local) — deixa de ficar parado em «Conectando à rede do DeskRudder…»
+- DeskRemote no PDV: na primeira abertura aparece a tela normal para clicar em **Instalar**; o link do painel só é pedido depois que o app já está no sistema
+- DeskRemote no PDV (**2.0.1**): rodapé «Desenvolvido por DeskRudder» deixa de ficar por cima do status «Conectando à rede…»
+
+#### Interno / Infra
+
+- DeskRemote Atendente v2: o 2.3.0 só existe depois de gerar o Release no Actions (na `main`) e embutir no **DeskRudder Painel v1** — o merge sozinho não publica o `.exe`
+- DeskRemote Cliente v2: o **2.1.1** só existe depois de gerar o Release no Actions (na `main`) — o link `/acesso-remoto/download` passa a servir esse `.exe`
+
 ## [26.10.009] - 2026-10-27
 
 ### DeskRudder

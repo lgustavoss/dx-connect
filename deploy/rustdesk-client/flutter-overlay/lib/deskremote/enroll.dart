@@ -181,15 +181,55 @@ Future<Map<String, dynamic>> _httpJson({
   }
 }
 
+String _opcaoServidorDeskRemote(String key) {
+  try {
+    return bind.mainGetOptionSync(key: key).toString().trim();
+  } catch (_) {
+    return '';
+  }
+}
+
 Future<void> aplicarServidorDeskRemote({
   required String servidorId,
   required String relay,
   required String chave,
 }) async {
   if (servidorId.isEmpty || chave.isEmpty) return;
-  await bind.mainSetLocalOption(key: 'custom-rendezvous-server', value: servidorId);
-  await bind.mainSetLocalOption(key: 'relay-server', value: relay);
-  await bind.mainSetLocalOption(key: 'key', value: chave);
+  final atualId = _opcaoServidorDeskRemote('custom-rendezvous-server');
+  final atualRelay = _opcaoServidorDeskRemote('relay-server');
+  final atualChave = _opcaoServidorDeskRemote('key');
+  final mudou = atualId != servidorId || atualRelay != relay || atualChave != chave;
+  // Config do mediador (hbbs), via IPC — LocalOption não chega no serviço Windows.
+  await bind.mainSetOption(key: 'custom-rendezvous-server', value: servidorId);
+  await bind.mainSetOption(key: 'relay-server', value: relay);
+  await bind.mainSetOption(key: 'key', value: chave);
+  var precisa = mudou;
+  if (!precisa) {
+    precisa = !await _servidorDeskRemotePronto();
+  }
+  if (precisa) await _reconectarServidorDeskRemote();
+}
+
+Future<bool> _servidorDeskRemotePronto() async {
+  try {
+    final decoded = jsonDecode(await bind.mainGetConnectStatus());
+    return decoded is Map && decoded['status_num'] == 1;
+  } catch (_) {
+    return false;
+  }
+}
+
+Future<void> _reconectarServidorDeskRemote() async {
+  try {
+    await bind.mainStopService();
+  } catch (_) {}
+  try {
+    await bind.mainStartService();
+  } catch (_) {}
+  for (var i = 0; i < 20; i++) {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    if (await _servidorDeskRemotePronto()) return;
+  }
 }
 
 Future<void> travarSenhaPermanenteDeskRemote() async {
