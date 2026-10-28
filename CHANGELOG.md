@@ -5,6 +5,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+## [26.10.009] - 2026-10-27
+
 ### DeskRudder
 
 #### Melhorias
@@ -14,22 +16,6 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Empresas → PDVs: quem edita a empresa gera um **QR e um link de instalação** do DeskRemote, de uso único, ligados àquele computador. A senha cadastrada não aparece no QR — o aplicativo aplica sozinho. Se a senha mudar no painel, o PDV atualiza sem alguém conectar
 - DeskRemote no PDV (versão 2.0, Flutter): instalador genérico, sem servidor de um cliente só. No primeiro uso cola o link do painel; depois mostra só ID e status, e não deixa trocar a senha no computador
 - App Windows: no menu **DeskRudder** (janela e bandeja) dá para abrir **Sobre** com a versão do aplicativo e **atualizar** quando houver uma versão mais recente
-- Empresas e redes (#S202610-0015): o cadastro da empresa guarda a versão do PDV; o da rede, a versão do retaguarda. As versões aparecem na aba PDVs, no Acesso remoto e no detalhe do ticket.
-- Empresas → PDVs (#S202610-0014): dá para ver o detalhe do PDV sem editar; um PDV pode ter vários acessos remotos. **Conectar** só no DeskRudder — nos outros (AnyDesk, TeamViewer etc.) o atendente copia ID e senha e abre o programa. Na lista ficam só código, rótulo, papel e TEF; ID, senha e status vão no detalhe (clique copia ID/senha; Online/Offline ao lado do DeskRudder). Consulta, cadastro e edição abrem na própria tela, sem popup.
-- Empresas → PDVs: o tipo de acesso remoto da frota passa a se chamar **DeskRudder** (nomes antigos RustDesk / Acesso remoto continuam reconhecidos)
-- Empresas → PDVs: o ícone de computador abre a conexão de acesso remoto (com a senha do cadastro), como na tela Acesso remoto
-- App Windows: o Setup pergunta se deve **iniciar com o Windows** e se deve **manter na bandeja** (alertas com o painel fechado); cria atalho **DeskRudder** na área de trabalho além do Acesso Remoto. Depois dá para ligar ou desligar no menu **DeskRudder** da janela (sem reinstalar)
-- App desktop do atendente: Setup com elevação embute o Acesso Remoto (controle); a frota abre o cliente local com a senha do cadastro; menu **Recarregar painel** limpa cache após deploy
-- App Windows: painel instala em `DeskRudder\Painel` (Program Files x86), ao lado de `DeskRudder\Acesso Remoto`
-- App Windows: download pelo painel (Sobre) e link amigável `/app/download` na instância (Setup direto no domínio do cliente)
-- App Windows: workflow **Desktop DeskRudder Windows** no Actions gera o Setup (Electron + remoto controle) e publica o Release `desktop-windows`
-- Acesso remoto: build **controle** (atendente) no Actions (`profile=controle`), Release e update em `acesso-remoto-controle-windows`, separado do instalador só-recebe do posto
-- No PC, o navegador deixa de sugerir «Instale o app» (PWA); no celular o convite de instalação continua
-- Tickets (#S202610-0012): na tela Natureza e motivo, os motivos ficam agrupados por natureza, com expandir e recolher
-- Acesso remoto: link curto `/acesso-remoto/download` no domínio da instância para o posto baixar o instalador Windows sem entrar no painel, com botão de copiar na tela da frota
-- Acesso remoto: na mesma tela da frota, os dados do servidor (ID, relay e chave) para colar no RustDesk ao configurar o computador do cliente
-- Ponto (#1137): o supervisor do setor aprova ou recusa ajuste de ponto só das pessoas dos próprios setores. Quem administra o ponto da equipe continua vendo todos
-- Acesso remoto: instalador Windows **DeskRudder** (um `.exe` com servidor Duplex e marca) gerado no GitHub Actions — ver `docs/RUSTDESK_CLIENT_WINDOWS.md`
 
 #### Correções
 
@@ -42,38 +28,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Acesso remoto: o produto passa a se chamar **DeskRemote** na janela, no atalho e nos textos do painel (versão 1.0.10). O tipo da frota no cadastro também; nomes antigos (DeskRudder / RustDesk) continuam reconhecidos. Pasta e `.exe` no Windows seguem iguais para não quebrar quem já instalou
 - Acesso remoto: dá para **atualizar o posto à distância** sem alguém na frente do PC (versão 1.0.9) — o app enfileira o instalador e o serviço Windows aplica com `--update` sem pedir UAC; a sessão remota pode cair enquanto o app troca os arquivos
 - Acesso remoto: transferência de arquivo fica ligada por padrão no posto e no atendente; o menu **Transferir arquivo** usa a senha da sessão quando der (versão 1.0.9)
-- Acesso remoto: o clique no computador volta a abrir o **DeskRudder Acesso Remoto**. Depois que o painel passou a usar `deskrudder://` (em vez de `rustdesk://`), o Chrome ignorava o clique sintético e o cliente Sciter só entendia `--connect` — o Windows entregava o link e o app saía sem conectar. O `rustdesk://` antigo abria o RustDesk oficial (Flutter), que aceita o URI
-- Acesso remoto: cliente controle **1.0.8** passa a aceitar `deskrudder://connection/new/{id}` (vira `--connect` com a senha)
-- Acesso remoto: textos do app (atendente e posto) com acentos corretos no aviso de atualização e no rótulo de versão — o Sciter no Windows não lê UTF-8 no `.tis` (versão 1.0.8)
-- App desktop: a frota abre o Acesso Remoto com `--connect` ID/senha, o formato que o cliente já entendia
-- Funcionários (#S202610-0017): ao selecionar as empresas na edição, a lista mostra todas, uma por linha; dá para expandir ou recolher os blocos de dados e de escopo, e some o espaço vazio enorme embaixo do formulário
-- Catálogos (#S202610-0016): não dá para desativar item ainda em uso — rótulo e tipo de acesso de PDV, tipo de negócio (só empresa ativa), natureza (motivo ativo, ou ticket/chat em aberto) e motivo de ticket (só em aberto; encerrados não travam), e estágio do funil (lead ou negociação em aberto; perdidos não travam). A tela avisa o que ainda está vinculado
-- Tickets (#S202610-0013): ao abrir um chamado de coordenação de rede, o sistema cria um ticket filho para cada empresa ativa (até 100 por vez; o restante no detalhe do chamado)
-- Acesso remoto do atendente: o app deixa de mostrar ID/senha deste PC e não entra mais na frota como computador sem vínculo (versão 1.0.6). Quem já apareceu fica offline — dá para excluir na tela Acesso remoto
-- Acesso remoto: atalhos de teclado do PDV (ex. tecla **D** para baixar venda) voltam a funcionar — o **modo mapa** volta a aparecer na sessão (versão 1.0.6)
-- Acesso remoto: aviso de atualização sem caracteres estranhos no lugar dos acentos (versão 1.0.7)
-- Acesso remoto: conectar no painel abre o **DeskRudder Acesso Remoto**, e não o RustDesk oficial
-- Empresas → PDVs: o selo Online/Offline passa a usar o mesmo sinal da tela Acesso remoto (antes podia ficar Offline com o computador ligado)
-- App Windows: ícone na barra de tarefas deixa de aparecer todo branco (ICO com vários tamanhos no Setup)
-- Acesso remoto: no painel, **Baixar instalador Windows** inicia o download sem abrir a tela intermediária «Baixando o instalador…» (o link curto para o posto continua igual)
-- App Windows: em Sobre (e no login), **Baixar app Windows** inicia o download sem sair da tela (o link `/app/download` continua para compartilhar)
-- Links `/app/download` e `/acesso-remoto/download`: o download do `.exe` inicia de imediato (sem ficar parado na tela «Baixando…»)
-- Actions: **Acesso Remoto Cliente**, **Acesso Remoto Atendente** e **App Atendente Setup** (Setup rápido reaproveita o Release do remoto)
-- Acesso remoto: o instalador Windows ganha ícone próprio (duas setas em sentidos opostos, separado do app do painel) na barra de título, na taskbar e na bandeja — deixa de usar o ícone do RustDesk embutido na UI Sciter
-- Acesso remoto: após instalar, o app deixa de pedir instalação de novo (binário `DeskRudder.exe`) e some o aviso de «configure seu próprio servidor» — o servidor Duplex já vem embutido
-- Acesso remoto: ícone e arte do instalador Windows passam a usar a marca oficial «DeskRudder Acesso Remoto»
-- Acesso remoto: botão **Baixar instalador Windows** na tela da frota — baixa o DeskRudder Acesso Remoto já com o servidor da equipe
-- Acesso remoto: instalador Windows fica só para ser acessado (ID/senha + status + logo), sem painel para controlar outro PC; atalho **DeskRudder - Acesso Remoto**
-- Acesso remoto: janela inicial maior (botão Instalar visível), link para deskrudder.com.br, pasta `DeskRudder\Acesso Remoto` e tema escuro alinhado ao Windows
-- Acesso remoto: versão DeskRudder visível no app e na instalação; aviso quando há atualização no Release (`version.json`)
-- Acesso remoto: **Atualizar agora** baixa e instala sozinho (com UAC) e reabre o app — sem precisar abrir o navegador
-- Acesso remoto: logo do painel com mais nitidez; barra de título escura acompanha o tema do Windows
-- Acesso remoto: logo e ícones do instalador Windows regenerados a partir da arte oficial sem fundo (versão 1.0.2)
-- Acesso remoto: arte oficial PNG com transparência real — mesma marca no instalador do posto e no do atendente (versão 1.0.3)
-- Acesso remoto: logo do painel host sem quadrado cinza — fundo transparente no tema escuro e no claro (versão 1.0.4)
-- Acesso remoto: janela inicial maior (botão Instalar visível) e logo central que acompanha o tamanho da janela (versão 1.0.5)
 
-#### Interno
+#### Interno / Infra
 
 - Actions: os builds passam a se chamar **DeskRemote Cliente v1/v2**, **DeskRemote Atendente v1/v2** e **DeskRudder Painel v1**
 - Deploy: o 302 de `/acesso-remoto/download` nas instâncias já no ar passa para o DeskRemote 2.0 (Nginx)
@@ -91,8 +47,104 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - DeskRemote Flutter **2.1.0**: a home (Recentes e Conectar) pede o mesmo login do DeskRudder; se o atendente já entrou no app Electron neste PC com “lembrar-me”, o atalho não pergunta de novo; Conectar pelo painel segue sem pedir senha; **Sair** no DeskRemote não reloga sozinho (#1274)
 - DeskRemote Flutter **2.0.2**: o nome **DeskRemote** aparece na barra de título (tema claro e escuro) e abaixo da logo do painel; ao conectar pelo painel ou pelo ID/cartão (se o alias já existir), a aba da sessão mostra o rótulo do vínculo; ícone da barra de tarefas e da barra de título com contorno branco (só no Flutter; Sciter do posto permanece 1.0.14); logo do painel maior e mais nítida
 - DeskRemote Flutter **2.0.1**: ícone da barra é o D vermelho (não o do RustDesk); logo do painel mais nítida; Sobre o **DeskRemote** desenvolvido pela DeskRudder; site deskrudder.com.br; copyright DeskRudder; sem declaração de privacidade do RustDesk; Rede mostra o servidor Duplex; a aba da sessão mostra o vínculo (ou usuário@host), não o ID; arte oficial em todos os ícones (sem o D simplificado)
+
+## [26.10.008] - 2026-10-22
+
+### DeskRudder
+
+#### Correções
+
+- Acesso remoto: o clique no computador volta a abrir o **DeskRudder Acesso Remoto**. Depois que o painel passou a usar `deskrudder://` (em vez de `rustdesk://`), o Chrome ignorava o clique sintético e o cliente Sciter só entendia `--connect` — o Windows entregava o link e o app saía sem conectar. O `rustdesk://` antigo abria o RustDesk oficial (Flutter), que aceita o URI
+- Acesso remoto: cliente controle **1.0.8** passa a aceitar `deskrudder://connection/new/{id}` (vira `--connect` com a senha)
+- Acesso remoto: textos do app (atendente e posto) com acentos corretos no aviso de atualização e no rótulo de versão — o Sciter no Windows não lê UTF-8 no `.tis` (versão 1.0.8)
+- App desktop: a frota abre o Acesso Remoto com `--connect` ID/senha, o formato que o cliente já entendia
+
+## [26.10.007] - 2026-10-21
+
+### DeskRudder
+
+#### Melhorias
+
+- Empresas e redes (#S202610-0015): o cadastro da empresa guarda a versão do PDV; o da rede, a versão do retaguarda. As versões aparecem na aba PDVs, no Acesso remoto e no detalhe do ticket.
+- Empresas → PDVs (#S202610-0014): dá para ver o detalhe do PDV sem editar; um PDV pode ter vários acessos remotos. **Conectar** só no DeskRudder — nos outros (AnyDesk, TeamViewer etc.) o atendente copia ID e senha e abre o programa. Na lista ficam só código, rótulo, papel e TEF; ID, senha e status vão no detalhe (clique copia ID/senha; Online/Offline ao lado do DeskRudder). Consulta, cadastro e edição abrem na própria tela, sem popup.
+- Empresas → PDVs: o tipo de acesso remoto da frota passa a se chamar **DeskRudder** (nomes antigos RustDesk / Acesso remoto continuam reconhecidos)
+
+#### Correções
+
+- Funcionários (#S202610-0017): ao selecionar as empresas na edição, a lista mostra todas, uma por linha; dá para expandir ou recolher os blocos de dados e de escopo, e some o espaço vazio enorme embaixo do formulário
+- Catálogos (#S202610-0016): não dá para desativar item ainda em uso — rótulo e tipo de acesso de PDV, tipo de negócio (só empresa ativa), natureza (motivo ativo, ou ticket/chat em aberto) e motivo de ticket (só em aberto; encerrados não travam), e estágio do funil (lead ou negociação em aberto; perdidos não travam). A tela avisa o que ainda está vinculado
+- Tickets (#S202610-0013): ao abrir um chamado de coordenação de rede, o sistema cria um ticket filho para cada empresa ativa (até 100 por vez; o restante no detalhe do chamado)
+- Acesso remoto do atendente: o app deixa de mostrar ID/senha deste PC e não entra mais na frota como computador sem vínculo (versão 1.0.6). Quem já apareceu fica offline — dá para excluir na tela Acesso remoto
+- Acesso remoto: atalhos de teclado do PDV (ex. tecla **D** para baixar venda) voltam a funcionar — o **modo mapa** volta a aparecer na sessão (versão 1.0.6)
+- Acesso remoto: aviso de atualização sem caracteres estranhos no lugar dos acentos (versão 1.0.7)
+- Acesso remoto: conectar no painel abre o **DeskRudder Acesso Remoto**, e não o RustDesk oficial
+
+## [26.10.006] - 2026-10-21
+
+### DeskRudder
+
+#### Melhorias
+
+- Empresas → PDVs: o ícone de computador abre a conexão de acesso remoto (com a senha do cadastro), como na tela Acesso remoto
+- App Windows: o Setup pergunta se deve **iniciar com o Windows** e se deve **manter na bandeja** (alertas com o painel fechado); cria atalho **DeskRudder** na área de trabalho além do Acesso Remoto. Depois dá para ligar ou desligar no menu **DeskRudder** da janela (sem reinstalar)
+
+#### Correções
+
+- Empresas → PDVs: o selo Online/Offline passa a usar o mesmo sinal da tela Acesso remoto (antes podia ficar Offline com o computador ligado)
+- App Windows: ícone na barra de tarefas deixa de aparecer todo branco (ICO com vários tamanhos no Setup)
+- Acesso remoto: no painel, **Baixar instalador Windows** inicia o download sem abrir a tela intermediária «Baixando o instalador…» (o link curto para o posto continua igual)
+- App Windows: em Sobre (e no login), **Baixar app Windows** inicia o download sem sair da tela (o link `/app/download` continua para compartilhar)
+- Links `/app/download` e `/acesso-remoto/download`: o download do `.exe` inicia de imediato (sem ficar parado na tela «Baixando…»)
+- Actions: **Acesso Remoto Cliente**, **Acesso Remoto Atendente** e **App Atendente Setup** (Setup rápido reaproveita o Release do remoto)
+- Acesso remoto: logo e ícones do instalador Windows regenerados a partir da arte oficial sem fundo (versão 1.0.2)
+- Acesso remoto: arte oficial PNG com transparência real — mesma marca no instalador do posto e no do atendente (versão 1.0.3)
+- Acesso remoto: logo do painel host sem quadrado cinza — fundo transparente no tema escuro e no claro (versão 1.0.4)
+- Acesso remoto: janela inicial maior (botão Instalar visível) e logo central que acompanha o tamanho da janela (versão 1.0.5)
+
+#### Interno / Infra
+
 - App Atendente Setup: `electron-builder` no CI usa `--publish never` (Release via `gh`); evita falha «Cannot detect repository»
 - Download `/app/download` e `/acesso-remoto/download`: redirect imediato no `index.html` (antes do SPA) quando o Nginx ainda não tem o 302; link de reserva na tela intermediária
+
+## [26.10.005] - 2026-10-20
+
+### DeskRudder
+
+#### Melhorias
+
+- App desktop do atendente: Setup com elevação embute o Acesso Remoto (controle); a frota abre o cliente local com a senha do cadastro; menu **Recarregar painel** limpa cache após deploy
+- App Windows: painel instala em `DeskRudder\Painel` (Program Files x86), ao lado de `DeskRudder\Acesso Remoto`
+- App Windows: download pelo painel (Sobre) e link amigável `/app/download` na instância (Setup direto no domínio do cliente)
+- App Windows: workflow **Desktop DeskRudder Windows** no Actions gera o Setup (Electron + remoto controle) e publica o Release `desktop-windows`
+- Acesso remoto: build **controle** (atendente) no Actions (`profile=controle`), Release e update em `acesso-remoto-controle-windows`, separado do instalador só-recebe do posto
+- No PC, o navegador deixa de sugerir «Instale o app» (PWA); no celular o convite de instalação continua
+
+#### Correções
+
+- Acesso remoto: logo do painel com mais nitidez; barra de título escura acompanha o tema do Windows
+
+## [26.10.004] - 2026-10-19
+
+### DeskRudder
+
+#### Melhorias
+
+- Tickets (#S202610-0012): na tela Natureza e motivo, os motivos ficam agrupados por natureza, com expandir e recolher
+- Acesso remoto: link curto `/acesso-remoto/download` no domínio da instância para o posto baixar o instalador Windows sem entrar no painel, com botão de copiar na tela da frota
+- Acesso remoto: na mesma tela da frota, os dados do servidor (ID, relay e chave) para colar no RustDesk ao configurar o computador do cliente
+- Ponto (#1137): o supervisor do setor aprova ou recusa ajuste de ponto só das pessoas dos próprios setores. Quem administra o ponto da equipe continua vendo todos
+- Acesso remoto: instalador Windows **DeskRudder** (um `.exe` com servidor Duplex e marca) gerado no GitHub Actions — ver `docs/RUSTDESK_CLIENT_WINDOWS.md`
+
+#### Correções
+
+- Acesso remoto: o instalador Windows ganha ícone próprio (duas setas em sentidos opostos, separado do app do painel) na barra de título, na taskbar e na bandeja — deixa de usar o ícone do RustDesk embutido na UI Sciter
+- Acesso remoto: após instalar, o app deixa de pedir instalação de novo (binário `DeskRudder.exe`) e some o aviso de «configure seu próprio servidor» — o servidor Duplex já vem embutido
+- Acesso remoto: ícone e arte do instalador Windows passam a usar a marca oficial «DeskRudder Acesso Remoto»
+- Acesso remoto: botão **Baixar instalador Windows** na tela da frota — baixa o DeskRudder Acesso Remoto já com o servidor da equipe
+- Acesso remoto: instalador Windows fica só para ser acessado (ID/senha + status + logo), sem painel para controlar outro PC; atalho **DeskRudder - Acesso Remoto**
+- Acesso remoto: janela inicial maior (botão Instalar visível), link para deskrudder.com.br, pasta `DeskRudder\Acesso Remoto` e tema escuro alinhado ao Windows
+- Acesso remoto: versão DeskRudder visível no app e na instalação; aviso quando há atualização no Release (`version.json`)
+- Acesso remoto: **Atualizar agora** baixa e instala sozinho (com UAC) e reabre o app — sem precisar abrir o navegador
 
 ## [26.10.003] - 2026-10-19
 

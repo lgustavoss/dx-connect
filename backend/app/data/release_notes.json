@@ -1,71 +1,161 @@
 {
-  "current_version": "26.09.003",
-  "current_version_display": "v26.09.003",
+  "current_version": "26.10.009",
+  "current_version_display": "v26.10.009",
   "current": {
-    "version": "26.09.003",
-    "version_display": "v26.09.003",
-    "date": "2026-09-27",
+    "version": "26.10.009",
+    "version_display": "v26.10.009",
+    "date": "2026-10-27",
     "status": "published",
     "changes": [
       {
-        "product": "saas",
+        "product": "deskrudder",
         "category": "melhorias",
-        "text": "Fila de solicitações (#881): o painel mostra quem mudou o status e por qual canal"
-      },
-      {
-        "product": "saas",
-        "category": "melhorias",
-        "text": "Fila de solicitações (#1099): o complemento escrito pelo autor do pedido aparece no painel"
+        "text": "Acesso remoto: **Baixar instalador Windows** e o link `/acesso-remoto/download` passam a baixar o DeskRemote **2.0** (Flutter)"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "Minhas solicitações (#881): a resposta da equipe aparece como **Desenvolvedor**"
+        "text": "App Windows: o Setup (`/app/download`) embute o DeskRemote **2.0** do atendente"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "WhatsApp (#1102): abrir um atendimento pelo histórico não entra na mesa; voltar restaura a lista com o filtro"
+        "text": "Empresas → PDVs: quem edita a empresa gera um **QR e um link de instalação** do DeskRemote, de uso único, ligados àquele computador. A senha cadastrada não aparece no QR — o aplicativo aplica sozinho. Se a senha mudar no painel, o PDV atualiza sem alguém conectar"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "WhatsApp (#1105): na conversa, dá para ver o atendimento anterior do mesmo cliente e voltar sem sair do chat atual"
+        "text": "DeskRemote no PDV (versão 2.0, Flutter): instalador genérico, sem servidor de um cliente só. No primeiro uso cola o link do painel; depois mostra só ID e status, e não deixa trocar a senha no computador"
       },
       {
         "product": "deskrudder",
         "category": "melhorias",
-        "text": "Barra superior (#1106): atalho de chats mostra quantos estão na lista Atendendo; o sino avisa só de tickets"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "WhatsApp (#1104): ao transferir, o cliente recebe no WhatsApp o novo atendente e o setor; o aviso continua no histórico do atendente"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Tickets (#1101): a lista deixa de cortar o texto na borda; em tela estreita a tabela rola na horizontal"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "CRM (#1097): o campo de nome da rede não trata o WebPosto como o único tipo de cliente"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "CRM (#1100): na lista de leads, o estágio fica na mesma linha dos outros filtros"
-      },
-      {
-        "product": "deskrudder",
-        "category": "melhorias",
-        "text": "Minhas solicitações (#1099): o autor complementa o próprio pedido"
+        "text": "App Windows: no menu **DeskRudder** (janela e bandeja) dá para abrir **Sobre** com a versão do aplicativo e **atualizar** quando houver uma versão mais recente"
       },
       {
         "product": "deskrudder",
         "category": "correcoes",
-        "text": "WhatsApp (#1103): o botão de fechar a imagem ampliada volta a funcionar, também com zoom"
+        "text": "DeskRemote 2.0 do posto: o instalador volta a gravar a senha do painel — o build Flutter quebrava ao chamar um método que o RustDesk 1.5.0 não tem"
+      },
+      {
+        "product": "deskrudder",
+        "category": "correcoes",
+        "text": "Empresas (#S202610-0019): na busca, o campo deixa de travar quando a lista recarrega — dá para continuar digitando depois de uma pausa"
+      },
+      {
+        "product": "deskrudder",
+        "category": "correcoes",
+        "text": "Acesso remoto (#S202610-0018): clicar várias vezes no atalho ou na barra de tarefas **reusa a janela já aberta** em vez de abrir várias; reconectar no mesmo ID traz a sessão existente para frente (versão 1.0.14)"
+      },
+      {
+        "product": "deskrudder",
+        "category": "correcoes",
+        "text": "Acesso remoto (atendente): a sessão mostra o **rótulo do vínculo** (ex.: «Posto Farol · SERVIDOR 001») na barra e no título; a toolbar acompanha o tema escuro; ícone da janela usa o D legível (versão 1.0.13)"
+      },
+      {
+        "product": "deskrudder",
+        "category": "correcoes",
+        "text": "Acesso remoto: barra de título e menu Sobre mostram **DeskRemote** (antes DeskRudder); ícone pequeno da janela/bandeja vira um **D** vermelho legível (versão 1.0.12)"
+      },
+      {
+        "product": "deskrudder",
+        "category": "correcoes",
+        "text": "Acesso remoto: logo e ícones do **DeskRemote** atualizados com a arte oficial (D + atendente + nuvem), fundo transparente e glow preservado (versão 1.0.11)"
+      },
+      {
+        "product": "deskrudder",
+        "category": "correcoes",
+        "text": "Acesso remoto: o produto passa a se chamar **DeskRemote** na janela, no atalho e nos textos do painel (versão 1.0.10). O tipo da frota no cadastro também; nomes antigos (DeskRudder / RustDesk) continuam reconhecidos. Pasta e `.exe` no Windows seguem iguais para não quebrar quem já instalou"
+      },
+      {
+        "product": "deskrudder",
+        "category": "correcoes",
+        "text": "Acesso remoto: dá para **atualizar o posto à distância** sem alguém na frente do PC (versão 1.0.9) — o app enfileira o instalador e o serviço Windows aplica com `--update` sem pedir UAC; a sessão remota pode cair enquanto o app troca os arquivos"
+      },
+      {
+        "product": "deskrudder",
+        "category": "correcoes",
+        "text": "Acesso remoto: transferência de arquivo fica ligada por padrão no posto e no atendente; o menu **Transferir arquivo** usa a senha da sessão quando der (versão 1.0.9)"
+      },
+      {
+        "product": "deskrudder",
+        "category": "interno",
+        "text": "Actions: os builds passam a se chamar **DeskRemote Cliente v1/v2**, **DeskRemote Atendente v1/v2** e **DeskRudder Painel v1**"
+      },
+      {
+        "product": "deskrudder",
+        "category": "interno",
+        "text": "Deploy: o 302 de `/acesso-remoto/download` nas instâncias já no ar passa para o DeskRemote 2.0 (Nginx)"
+      },
+      {
+        "product": "deskrudder",
+        "category": "interno",
+        "text": "Deploy: as migrations voltam a correr no Postgres — SQLAlchemy volta para 2.0.54; engine e Alembic forçam `postgresql+psycopg2://` se o 2.1 voltar"
+      },
+      {
+        "product": "deskrudder",
+        "category": "interno",
+        "text": "DeskRemote cliente Flutter **2.0.0** (#1252 / #1283): token de instalação, credencial do computador, sync de senha, workflow `acesso-remoto-windows-flutter` (não sobrescreve o Sciter `acesso-remoto-windows`)"
+      },
+      {
+        "product": "deskrudder",
+        "category": "interno",
+        "text": "DeskRemote: kit de arte (#1253) e spike Flutter do atendente (Actions paralelo; Sciter 1.0.14 continua em produção)"
+      },
+      {
+        "product": "deskrudder",
+        "category": "interno",
+        "text": "DeskRemote Flutter: «Desenvolvido por DeskRudder» no rodapé do painel esquerdo, com a versão atual logo abaixo"
+      },
+      {
+        "product": "deskrudder",
+        "category": "interno",
+        "text": "DeskRemote Flutter: logo no topo do painel; só a aba Sessões recentes (10 últimas), com o nome do vínculo no lugar do ID"
+      },
+      {
+        "product": "deskrudder",
+        "category": "interno",
+        "text": "DeskRemote: Sciter de produção continua na linha **1.x.x**; o Flutter do atendente começa em **2.0.0** (Release e update separados)"
+      },
+      {
+        "product": "deskrudder",
+        "category": "interno",
+        "text": "DeskRemote Flutter: CI atualiza o `Cargo.lock` depois de gravar a versão 2.x.x no packer (`cargo build --locked`)"
+      },
+      {
+        "product": "deskrudder",
+        "category": "interno",
+        "text": "DeskRemote Flutter: o nome do vínculo no cartão não quebra o menu Excluir (`displayName` só no layout)"
+      },
+      {
+        "product": "deskrudder",
+        "category": "interno",
+        "text": "DeskRemote Flutter **2.2.0**: na home, a aba **Vinculados** lista a frota do sistema (nome do vínculo e Online/Offline); o clique conecta, com a senha do cadastro quando a conta puder revelá-la (#1281)"
+      },
+      {
+        "product": "deskrudder",
+        "category": "interno",
+        "text": "DeskRemote Flutter **2.1.1**: ao conectar pelo painel num computador com vínculo, a aba mostra o nome (ex. Posto Farol · SERVIDOR 001) e não o ID — mesmo se o painel antigo não mandar o rótulo; basta estar logado no DeskRemote (#1276)"
+      },
+      {
+        "product": "deskrudder",
+        "category": "interno",
+        "text": "DeskRemote Flutter **2.1.1**: o build volta a compilar — o Dart recusava sessão nula ao buscar o rótulo do vínculo"
+      },
+      {
+        "product": "deskrudder",
+        "category": "interno",
+        "text": "DeskRemote Flutter **2.1.0**: a home (Recentes e Conectar) pede o mesmo login do DeskRudder; se o atendente já entrou no app Electron neste PC com “lembrar-me”, o atalho não pergunta de novo; Conectar pelo painel segue sem pedir senha; **Sair** no DeskRemote não reloga sozinho (#1274)"
+      },
+      {
+        "product": "deskrudder",
+        "category": "interno",
+        "text": "DeskRemote Flutter **2.0.2**: o nome **DeskRemote** aparece na barra de título (tema claro e escuro) e abaixo da logo do painel; ao conectar pelo painel ou pelo ID/cartão (se o alias já existir), a aba da sessão mostra o rótulo do vínculo; ícone da barra de tarefas e da barra de título com contorno branco (só no Flutter; Sciter do posto permanece 1.0.14); logo do painel maior e mais nítida"
+      },
+      {
+        "product": "deskrudder",
+        "category": "interno",
+        "text": "DeskRemote Flutter **2.0.1**: ícone da barra é o D vermelho (não o do RustDesk); logo do painel mais nítida; Sobre o **DeskRemote** desenvolvido pela DeskRudder; site deskrudder.com.br; copyright DeskRudder; sem declaração de privacidade do RustDesk; Rede mostra o servidor Duplex; a aba da sessão mostra o vínculo (ou usuário@host), não o ID; arte oficial em todos os ícones (sem o D simplificado)"
       }
     ]
   },
@@ -3866,6 +3956,1074 @@
           "product": "deskrudder",
           "category": "correcoes",
           "text": "WhatsApp (#1103): o botão de fechar a imagem ampliada volta a funcionar, também com zoom"
+        }
+      ]
+    },
+    {
+      "version": "26.09.004",
+      "version_display": "v26.09.004",
+      "date": "2026-09-27",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp (#1102): abrir um atendimento pelo histórico deixa de derrubar a tela"
+        }
+      ]
+    },
+    {
+      "version": "26.09.005",
+      "version_display": "v26.09.005",
+      "date": "2026-09-29",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "PDV (#1142 / #S202609-0029): no cadastro e edição, ícone de olho para ver a senha de acesso remoto ao digitar"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Funcionário da rede: ícone de olho também na senha do portal do cliente"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: fechamento da equipe carrega o resumo em uma só chamada (preparado para equipes maiores)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Atendentes: opção «Exigir troca de senha no próximo login» (já existia no fluxo de login); ao definir senha nova, a exigência fica ligada por padrão"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: no cadastro do atendente, abas Dados e Ponto; removidos tolerância de atraso e teto de HE WhatsApp (ajuste vai ao banco; WhatsApp exige jornada aberta)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: ajuda do ponto atualizada (falta × folga × déficit, fechamento e feriados recorrentes); botão discreto «Ajuda» com texto distinto para colaborador e admin"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: feriado da instância pode marcar «repetir todos os anos» (mesmo dia/mês vale automaticamente nos anos seguintes)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: aba Configurações mais compacta — interruptores modernos, campos em grade e menos largura desperdiçada"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: calendário destaca falta com «Converter em folga (banco)» e mostra déficit parcial automático (−Xh no banco)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: fechamento e espelho PDF/Excel/folha RH com saldo inicial, crédito e débito do banco e faltas não abonadas (p/ desconto em folha)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: removida a auditoria técnica da equipe — o calendário e o histórico de solicitações bastam no dia a dia"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: calendário do mês começa no domingo; na correção de horário, a fila mostra anterior → novo"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: na equipe, o admin só aprova/rejeita pedidos do colaborador (sem ajuste manual nem dia convocado); fila e histórico de solicitações redesenhados"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: tela Ponto da equipe em abas (Hoje, Espelho, Ajustes, Fechamento e Configurações), com aviso de pedidos pendentes"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: aba Espelho na equipe — calendário e cards de um colaborador; exportar (CSV, PDF, Excel, folha RH) só dessa pessoa no mês"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: aba Ajustes com filtro de colaborador e mês (fila + histórico do período)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: clicar no nome do mês abre o seletor de calendário (Ajustes e Espelho)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: fechamento mensal com texto explicando o que o Fechar mês faz; reabrir pede motivo na tela (sem prompt do navegador)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: no fechamento, resumo da equipe no mês (OK/alerta/faltas/ciência) com Ver espelho e PDF por colaborador"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: relatório PDF/Excel mensal — colaborador no cabeçalho, uma linha por dia, horários sem data repetida, duração em horas (ex.: 7h55) e pausa entre turnos"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: espelho de fechamento sem ajustes admin; calendário completo com feriado, folga (sábado/domingo) e falta"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: espelho PDF com logo da empresa, título centralizado, colaborador em destaque e «Gerado em» no rodapé"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: logo do espelho/PDF sem margem branca excessiva (recorte automático no upload e na geração)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: configurações — jornada diária em horas; removidos fecho automático e teto mensal de HE; nota legal sobre banco negativo entre meses"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: falta integral não debita o banco (evita dupla penalidade com desconto salarial); déficit parcial e folga (banco) continuam abatendo horas"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: ao aprovar solicitação de ajuste não pede mais motivo; rejeição abre campo na tela. Pedidos de inclusão/correção/folga aceitam anexo (PDF ou imagem, ex. atestado)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: avisos de atraso ou “saída prevista” saíram do banner — déficit parcial desconta no banco; falta integral não; folga concedida (acordo) não conta como falta e desconta a carga do dia no banco após aprovação"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: Meu ponto em duas abas — Operação (bater ponto, ciência do espelho e solicitações com filtro) e Espelho do mês (cards e calendário do mês selecionado)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: solicitação de inclusão ou correção a partir do clique no dia do calendário"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#1138): nas configurações, o admin define se o excesso vai para banco, pagamento ou misto (ex.: 2h no banco e o restante pago); o espelho e a folha mostram HE a pagar"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: o indicador da barra superior (Fora do ponto / Trabalhando) abre o registro rápido sem sair da tela atual"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: Meu ponto mostra o resumo do mês em cards (dias, horas, faltas e banco), no modelo do app de referência"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#1135): o colaborador pede inclusão ou correção de batida; o administrador aprova e o sistema aplica o ajuste"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#1135): saíram da tela os pedidos de hora extra, justificativa, cobertura de plantão e férias/folga — para hora além da jornada, basta manter o ponto em aberto"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#1132): o banco credita o excesso além da jornada e debita o que faltar (atraso/falta), conforme a política da empresa"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#1133): um único botão de bater ponto; o período sem saída fica em aberto e a batida do dia seguinte não fecha o dia anterior"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "App para Windows (#1130): o DeskRudder fica no ícone da bandeja como o WhatsApp — fechar a janela não encerra os alertas da fila, o contador de pendências aparece no ícone e dá para abrir junto com o computador (o app pergunta na primeira vez); o instalador mostra a logo do DeskRudder e uma imagem do painel (#S202609-0027)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "CRM (#1098): o histórico da negociação mostra quem escreveu a nota e o horário; o autor pode corrigir por 5 minutos e marcar um lembrete de reunião, que fica na tela até a pessoa fechar o aviso"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Minhas solicitações (#1125): a lista mostra, em coluna, a versão em que o pedido concluído ficou disponível"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Sobre (#1126): a introdução deixa de falar de melhorias de DevOps"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Minhas solicitações (#1127): a lista abre nas pendentes, mostra quem abriu o pedido e aceita mais de um status ao mesmo tempo"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp (#1135): fora do horário previsto, pegar chat novo exige ponto em aberto no dia (sem pedido de hora extra)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp (#1122): no atendimento anterior, áudio, vídeo, imagem e arquivos disponíveis podem ser abertos"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp (#1123): no modo escuro, o botão de ver o atendimento anterior continua legível com o mouse em cima"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Chat (#S202609-0025): o painel de emoji e figurinha deixa de fechar sozinho — clicar num emoji insere na mensagem e a aba Figurinha abre normalmente"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp (#S202609-0025): figurinha recebida aparece no tamanho de figurinha e não abre mais como imagem ampliada"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp (#1139): ao enviar, o campo de mensagem limpa na hora e a mensagem aparece como «enviando» — dá para digitar a próxima sem esperar, o texto novo não some mais e, se o envio falhar, a mensagem fica na conversa com a opção de tentar de novo; quando o WhatsApp demora a responder, a mensagem não é mais enviada em dobro ao cliente"
+        }
+      ]
+    },
+    {
+      "version": "26.10.001",
+      "version_display": "v26.10.001",
+      "date": "2026-10-01",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Minhas solicitações: ao publicar uma versão, a coluna da versão em que o pedido ficou disponível volta a ser preenchida"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "PDV (#1142 / #S202609-0029): no cadastro e edição, ícone de olho para ver a senha de acesso remoto ao digitar"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Funcionário da rede: ícone de olho também na senha do portal do cliente"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: fechamento da equipe carrega o resumo em uma só chamada (preparado para equipes maiores)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Atendentes: opção «Exigir troca de senha no próximo login» (já existia no fluxo de login); ao definir senha nova, a exigência fica ligada por padrão"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: no cadastro do atendente, abas Dados e Ponto; removidos tolerância de atraso e teto de HE WhatsApp (ajuste vai ao banco)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: na jornada semanal do atendente, dá para informar início e fim do intervalo. As horas previstas descontam esse intervalo (8h–18h com almoço de 1h = 9h). Sem o intervalo preenchido e salvo, a meta continua a janela inteira"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: ajuste que deixaria duas entradas em aberto no mesmo dia é recusado; entrada, saída do almoço e retorno continuam válidos"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: na solicitação de inclusão, a data do dia aparece junto com o horário"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: o colaborador exclui a própria solicitação enquanto ela ainda está pendente"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: Meu ponto carrega o calendário e o banco do mês com menos consultas"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: ajuda do ponto atualizada (falta × folga × déficit, fechamento e feriados recorrentes); botão discreto «Ajuda» com texto distinto para colaborador e admin"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: feriado da instância pode marcar «repetir todos os anos» (mesmo dia/mês vale automaticamente nos anos seguintes)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: aba Configurações mais compacta — interruptores modernos, campos em grade e menos largura desperdiçada"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: calendário destaca falta com «Converter em folga (banco)» e mostra déficit parcial automático (−Xh no banco)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: fechamento e espelho PDF/Excel/folha RH com saldo inicial, crédito e débito do banco e faltas não abonadas (p/ desconto em folha)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: removida a auditoria técnica da equipe — o calendário e o histórico de solicitações bastam no dia a dia"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: calendário do mês começa no domingo; na correção de horário, a fila mostra anterior → novo"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: na equipe, o admin só aprova/rejeita pedidos do colaborador (sem ajuste manual nem dia convocado); fila e histórico de solicitações redesenhados"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: tela Ponto da equipe em abas (Hoje, Espelho, Ajustes, Fechamento e Configurações), com aviso de pedidos pendentes"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: aba Espelho na equipe — calendário e cards de um colaborador; exportar (CSV, PDF, Excel, folha RH) só dessa pessoa no mês"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: aba Ajustes com filtro de colaborador e mês (fila + histórico do período)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: clicar no nome do mês abre o seletor de calendário (Ajustes e Espelho)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: fechamento mensal com texto explicando o que o Fechar mês faz; reabrir pede motivo na tela (sem prompt do navegador)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: no fechamento, resumo da equipe no mês (OK/alerta/faltas/ciência) com Ver espelho e PDF por colaborador"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: relatório PDF/Excel mensal — colaborador no cabeçalho, uma linha por dia, horários sem data repetida, duração em horas (ex.: 7h55) e pausa entre turnos"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: espelho de fechamento sem ajustes admin; calendário completo com feriado, folga (sábado/domingo) e falta"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: espelho PDF com logo da empresa, título centralizado, colaborador em destaque e «Gerado em» no rodapé"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: logo do espelho/PDF sem margem branca excessiva (recorte automático no upload e na geração)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: configurações — jornada diária em horas; removidos fecho automático e teto mensal de HE; nota legal sobre banco negativo entre meses"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: falta integral não debita o banco (evita dupla penalidade com desconto salarial); déficit parcial e folga (banco) continuam abatendo horas"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: ao aprovar solicitação de ajuste não pede mais motivo; rejeição abre campo na tela. Pedidos de inclusão/correção/folga aceitam anexo (PDF ou imagem, ex. atestado)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: avisos de atraso ou “saída prevista” saíram do banner — déficit parcial desconta no banco; falta integral não; folga concedida (acordo) não conta como falta e desconta a carga do dia no banco após aprovação"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: Meu ponto em duas abas — Operação (bater ponto, ciência do espelho e solicitações com filtro) e Espelho do mês (cards e calendário do mês selecionado)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: solicitação de inclusão ou correção a partir do clique no dia do calendário"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#1138): nas configurações, o admin define se o excesso vai para banco, pagamento ou misto (ex.: 2h no banco e o restante pago); o espelho e a folha mostram HE a pagar"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: o indicador da barra superior (Fora do ponto / Trabalhando) abre o registro rápido sem sair da tela atual"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto: Meu ponto mostra o resumo do mês em cards (dias, horas, faltas e banco), no modelo do app de referência"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#1135): o colaborador pede inclusão ou correção de batida; o administrador aprova e o sistema aplica o ajuste"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#1135): saíram da tela os pedidos de hora extra, justificativa, cobertura de plantão e férias/folga — para hora além da jornada, basta manter o ponto em aberto"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#1132): o banco credita o excesso além da jornada e debita o que faltar (atraso/falta), conforme a política da empresa"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#1133): um único botão de bater ponto; o período sem saída fica em aberto e a batida do dia seguinte não fecha o dia anterior"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "App para Windows (#1130): o DeskRudder fica no ícone da bandeja como o WhatsApp — fechar a janela não encerra os alertas da fila, o contador de pendências aparece no ícone e dá para abrir junto com o computador (o app pergunta na primeira vez); o instalador mostra a logo do DeskRudder e uma imagem do painel (#S202609-0027)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "CRM (#1098): o histórico da negociação mostra quem escreveu a nota e o horário; o autor pode corrigir por 5 minutos e marcar um lembrete de reunião, que fica na tela até a pessoa fechar o aviso"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Minhas solicitações (#1125): a lista mostra, em coluna, a versão em que o pedido concluído ficou disponível"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Sobre (#1126): a introdução deixa de falar de melhorias de DevOps"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Minhas solicitações (#1127): a lista abre nas pendentes, mostra quem abriu o pedido e aceita mais de um status ao mesmo tempo"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp: depois do horário previsto, quem continua no atendimento pode pegar chat. A hora extra se acerta depois com o gerente — o sistema não impede o atendimento"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Ponto: os dois períodos do dia (manhã e tarde) entram no tempo trabalhado; a meta desconta o intervalo quando ele está preenchido"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp (#1122): no atendimento anterior, áudio, vídeo, imagem e arquivos disponíveis podem ser abertos"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp (#1123): no modo escuro, o botão de ver o atendimento anterior continua legível com o mouse em cima"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp (#1102): abrir um atendimento pelo histórico deixa de derrubar a tela"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Chat (#S202609-0025): o painel de emoji e figurinha deixa de fechar sozinho — clicar num emoji insere na mensagem e a aba Figurinha abre normalmente"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp (#S202609-0025): figurinha recebida aparece no tamanho de figurinha e não abre mais como imagem ampliada"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "WhatsApp (#1139): ao enviar, o campo de mensagem limpa na hora e a mensagem aparece como «enviando» — dá para digitar a próxima sem esperar, o texto novo não some mais e, se o envio falhar, a mensagem fica na conversa com a opção de tentar de novo; quando o WhatsApp demora a responder, a mensagem não é mais enviada em dobro ao cliente"
+        }
+      ]
+    },
+    {
+      "version": "26.10.002",
+      "version_display": "v26.10.002",
+      "date": "2026-10-15",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Equipe (#S202609-0024): grupos de permissão no lugar do perfil fixo. Cada ação é marcada à parte (só o acesso total liga tudo). O clique no grupo abre a consulta, com as permissões e as pessoas vinculadas — dá para incluir ou tirar alguém dali. Criar ou editar uma empresa, por exemplo, também marca visualizar. O menu, as rotas e os botões de criar, editar e excluir seguem a mesma permissão da API. Ver os PDVs e o código de acesso remoto é uma permissão à parte, incluída em quem atende: dá para ver a empresa sem ver esses códigos. Na tela só de PDVs aparece o nome da empresa, e o código remoto fica nas redes que já tiveram ticket no setor de quem atende. O funil e a lista completa de contratos também seguem a permissão marcada"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "CRM (#S202610-0004): ao abrir os leads, a tela volta na última escolha da pessoa (lista ou kanban)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Chat (#S202609-0030): os botões Atender e Transferir ficam do mesmo tamanho"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ajuda (#1096 / #S202609-0005): dá para marcar vários artigos ou várias categorias e excluir de uma vez, com confirmação"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Chat WhatsApp (#S202610-0001): cada atendente tem sua galeria de figurinhas. Na conversa, «Adicionar às figurinhas» salva uma figurinha recebida, e na aba Figurinha basta clicar para enviar. As figurinhas de um atendente não aparecem para os outros"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Chat WhatsApp (#S202610-0002): na imagem ampliada, botão «Copiar imagem» ao lado de «Baixar imagem»; no app Windows, o clique com o botão direito em imagem ou texto selecionado mostra «Copiar»"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "CRM (#1176): o contrato usa a ficha da empresa. O cadastro é feito uma vez na negociação e o PDF já gerado não muda se a ficha for corrigida depois. A empresa só é gravada com o cadastro completo. Enquanto o contrato não estiver assinado, dá para corrigir e gerar de novo. Depois da assinatura aquele documento não muda: a alteração (por exemplo um módulo) vira um contrato novo, no mesmo modelo, e o CNPJ da linha permanece o da empresa. Ao marcar assinado, dá para escolher se abre o ticket de implantação. A fatura mensal usa o contrato assinado mais recente daquele CNPJ"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Chat (#S202610-0008): o aviso de inatividade sai sozinho quando o tempo da conversa acaba, mesmo quando quase não houve troca de mensagens"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Chat (#S202610-0007): o alerta sonoro de chat aguardando toca em qualquer tela. Depois que a pessoa usa o sistema uma vez, o toque sai sozinho quando um cliente chama, mesmo se ela tiver se afastado do computador"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "CRM (#S202610-0005): no contrato comercial, os campos da mesma linha ficam alinhados — o texto de ajuda fica embaixo do campo e não empurra o vizinho"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Tickets (#S202610-0003): na lista de chamados abertos, a coluna Responsável mostra o atendente e a coluna SLA mostra o prazo"
+        }
+      ]
+    },
+    {
+      "version": "26.10.003",
+      "version_display": "v26.10.003",
+      "date": "2026-10-19",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Acesso remoto (#1184): lista dos computadores que usam o servidor da equipe, com online ou offline, e vínculo do ID a um PDV. Quem ainda não tem PDV aparece para vincular. Dá para desvincular um ID trocado, excluir do servidor um computador offline que não será mais usado e abrir a conexão neste computador. No cadastro do PDV, o ID mostra se o computador está online"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Chat (#S202610-0006): dá para vincular a conversa a uma negociação do CRM antes de existir empresa. Quando a empresa dessa negociação é cadastrada, o contato passa a ficar nela"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Tickets (#S202610-0011): ao fechar um ticket, Cancelar fica neutro e só o botão que confirma o fechamento continua vermelho"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Chat (#S202610-0009): no modo escuro, o nome do setor continua legível ao passar o mouse quando se inicia a conversa"
+        }
+      ]
+    },
+    {
+      "version": "26.10.004",
+      "version_display": "v26.10.004",
+      "date": "2026-10-19",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Tickets (#S202610-0012): na tela Natureza e motivo, os motivos ficam agrupados por natureza, com expandir e recolher"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Acesso remoto: link curto `/acesso-remoto/download` no domínio da instância para o posto baixar o instalador Windows sem entrar no painel, com botão de copiar na tela da frota"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Acesso remoto: na mesma tela da frota, os dados do servidor (ID, relay e chave) para colar no RustDesk ao configurar o computador do cliente"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Ponto (#1137): o supervisor do setor aprova ou recusa ajuste de ponto só das pessoas dos próprios setores. Quem administra o ponto da equipe continua vendo todos"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Acesso remoto: instalador Windows **DeskRudder** (um `.exe` com servidor Duplex e marca) gerado no GitHub Actions — ver `docs/RUSTDESK_CLIENT_WINDOWS.md`"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: o instalador Windows ganha ícone próprio (duas setas em sentidos opostos, separado do app do painel) na barra de título, na taskbar e na bandeja — deixa de usar o ícone do RustDesk embutido na UI Sciter"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: após instalar, o app deixa de pedir instalação de novo (binário `DeskRudder.exe`) e some o aviso de «configure seu próprio servidor» — o servidor Duplex já vem embutido"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: ícone e arte do instalador Windows passam a usar a marca oficial «DeskRudder Acesso Remoto»"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: botão **Baixar instalador Windows** na tela da frota — baixa o DeskRudder Acesso Remoto já com o servidor da equipe"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: instalador Windows fica só para ser acessado (ID/senha + status + logo), sem painel para controlar outro PC; atalho **DeskRudder - Acesso Remoto**"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: janela inicial maior (botão Instalar visível), link para deskrudder.com.br, pasta `DeskRudder\\Acesso Remoto` e tema escuro alinhado ao Windows"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: versão DeskRudder visível no app e na instalação; aviso quando há atualização no Release (`version.json`)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: **Atualizar agora** baixa e instala sozinho (com UAC) e reabre o app — sem precisar abrir o navegador"
+        }
+      ]
+    },
+    {
+      "version": "26.10.005",
+      "version_display": "v26.10.005",
+      "date": "2026-10-20",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "App desktop do atendente: Setup com elevação embute o Acesso Remoto (controle); a frota abre o cliente local com a senha do cadastro; menu **Recarregar painel** limpa cache após deploy"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "App Windows: painel instala em `DeskRudder\\Painel` (Program Files x86), ao lado de `DeskRudder\\Acesso Remoto`"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "App Windows: download pelo painel (Sobre) e link amigável `/app/download` na instância (Setup direto no domínio do cliente)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "App Windows: workflow **Desktop DeskRudder Windows** no Actions gera o Setup (Electron + remoto controle) e publica o Release `desktop-windows`"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Acesso remoto: build **controle** (atendente) no Actions (`profile=controle`), Release e update em `acesso-remoto-controle-windows`, separado do instalador só-recebe do posto"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "No PC, o navegador deixa de sugerir «Instale o app» (PWA); no celular o convite de instalação continua"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: logo do painel com mais nitidez; barra de título escura acompanha o tema do Windows"
+        }
+      ]
+    },
+    {
+      "version": "26.10.006",
+      "version_display": "v26.10.006",
+      "date": "2026-10-21",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Empresas → PDVs: o ícone de computador abre a conexão de acesso remoto (com a senha do cadastro), como na tela Acesso remoto"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "App Windows: o Setup pergunta se deve **iniciar com o Windows** e se deve **manter na bandeja** (alertas com o painel fechado); cria atalho **DeskRudder** na área de trabalho além do Acesso Remoto. Depois dá para ligar ou desligar no menu **DeskRudder** da janela (sem reinstalar)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Empresas → PDVs: o selo Online/Offline passa a usar o mesmo sinal da tela Acesso remoto (antes podia ficar Offline com o computador ligado)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "App Windows: ícone na barra de tarefas deixa de aparecer todo branco (ICO com vários tamanhos no Setup)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: no painel, **Baixar instalador Windows** inicia o download sem abrir a tela intermediária «Baixando o instalador…» (o link curto para o posto continua igual)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "App Windows: em Sobre (e no login), **Baixar app Windows** inicia o download sem sair da tela (o link `/app/download` continua para compartilhar)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Links `/app/download` e `/acesso-remoto/download`: o download do `.exe` inicia de imediato (sem ficar parado na tela «Baixando…»)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Actions: **Acesso Remoto Cliente**, **Acesso Remoto Atendente** e **App Atendente Setup** (Setup rápido reaproveita o Release do remoto)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: logo e ícones do instalador Windows regenerados a partir da arte oficial sem fundo (versão 1.0.2)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: arte oficial PNG com transparência real — mesma marca no instalador do posto e no do atendente (versão 1.0.3)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: logo do painel host sem quadrado cinza — fundo transparente no tema escuro e no claro (versão 1.0.4)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: janela inicial maior (botão Instalar visível) e logo central que acompanha o tamanho da janela (versão 1.0.5)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "App Atendente Setup: `electron-builder` no CI usa `--publish never` (Release via `gh`); evita falha «Cannot detect repository»"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "Download `/app/download` e `/acesso-remoto/download`: redirect imediato no `index.html` (antes do SPA) quando o Nginx ainda não tem o 302; link de reserva na tela intermediária"
+        }
+      ]
+    },
+    {
+      "version": "26.10.007",
+      "version_display": "v26.10.007",
+      "date": "2026-10-21",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Empresas e redes (#S202610-0015): o cadastro da empresa guarda a versão do PDV; o da rede, a versão do retaguarda. As versões aparecem na aba PDVs, no Acesso remoto e no detalhe do ticket."
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Empresas → PDVs (#S202610-0014): dá para ver o detalhe do PDV sem editar; um PDV pode ter vários acessos remotos. **Conectar** só no DeskRudder — nos outros (AnyDesk, TeamViewer etc.) o atendente copia ID e senha e abre o programa. Na lista ficam só código, rótulo, papel e TEF; ID, senha e status vão no detalhe (clique copia ID/senha; Online/Offline ao lado do DeskRudder). Consulta, cadastro e edição abrem na própria tela, sem popup."
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Empresas → PDVs: o tipo de acesso remoto da frota passa a se chamar **DeskRudder** (nomes antigos RustDesk / Acesso remoto continuam reconhecidos)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Funcionários (#S202610-0017): ao selecionar as empresas na edição, a lista mostra todas, uma por linha; dá para expandir ou recolher os blocos de dados e de escopo, e some o espaço vazio enorme embaixo do formulário"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Catálogos (#S202610-0016): não dá para desativar item ainda em uso — rótulo e tipo de acesso de PDV, tipo de negócio (só empresa ativa), natureza (motivo ativo, ou ticket/chat em aberto) e motivo de ticket (só em aberto; encerrados não travam), e estágio do funil (lead ou negociação em aberto; perdidos não travam). A tela avisa o que ainda está vinculado"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Tickets (#S202610-0013): ao abrir um chamado de coordenação de rede, o sistema cria um ticket filho para cada empresa ativa (até 100 por vez; o restante no detalhe do chamado)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto do atendente: o app deixa de mostrar ID/senha deste PC e não entra mais na frota como computador sem vínculo (versão 1.0.6). Quem já apareceu fica offline — dá para excluir na tela Acesso remoto"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: atalhos de teclado do PDV (ex. tecla **D** para baixar venda) voltam a funcionar — o **modo mapa** volta a aparecer na sessão (versão 1.0.6)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: aviso de atualização sem caracteres estranhos no lugar dos acentos (versão 1.0.7)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: conectar no painel abre o **DeskRudder Acesso Remoto**, e não o RustDesk oficial"
+        }
+      ]
+    },
+    {
+      "version": "26.10.008",
+      "version_display": "v26.10.008",
+      "date": "2026-10-22",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: o clique no computador volta a abrir o **DeskRudder Acesso Remoto**. Depois que o painel passou a usar `deskrudder://` (em vez de `rustdesk://`), o Chrome ignorava o clique sintético e o cliente Sciter só entendia `--connect` — o Windows entregava o link e o app saía sem conectar. O `rustdesk://` antigo abria o RustDesk oficial (Flutter), que aceita o URI"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: cliente controle **1.0.8** passa a aceitar `deskrudder://connection/new/{id}` (vira `--connect` com a senha)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: textos do app (atendente e posto) com acentos corretos no aviso de atualização e no rótulo de versão — o Sciter no Windows não lê UTF-8 no `.tis` (versão 1.0.8)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "App desktop: a frota abre o Acesso Remoto com `--connect` ID/senha, o formato que o cliente já entendia"
+        }
+      ]
+    },
+    {
+      "version": "26.10.009",
+      "version_display": "v26.10.009",
+      "date": "2026-10-27",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Acesso remoto: **Baixar instalador Windows** e o link `/acesso-remoto/download` passam a baixar o DeskRemote **2.0** (Flutter)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "App Windows: o Setup (`/app/download`) embute o DeskRemote **2.0** do atendente"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Empresas → PDVs: quem edita a empresa gera um **QR e um link de instalação** do DeskRemote, de uso único, ligados àquele computador. A senha cadastrada não aparece no QR — o aplicativo aplica sozinho. Se a senha mudar no painel, o PDV atualiza sem alguém conectar"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "DeskRemote no PDV (versão 2.0, Flutter): instalador genérico, sem servidor de um cliente só. No primeiro uso cola o link do painel; depois mostra só ID e status, e não deixa trocar a senha no computador"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "App Windows: no menu **DeskRudder** (janela e bandeja) dá para abrir **Sobre** com a versão do aplicativo e **atualizar** quando houver uma versão mais recente"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "DeskRemote 2.0 do posto: o instalador volta a gravar a senha do painel — o build Flutter quebrava ao chamar um método que o RustDesk 1.5.0 não tem"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Empresas (#S202610-0019): na busca, o campo deixa de travar quando a lista recarrega — dá para continuar digitando depois de uma pausa"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto (#S202610-0018): clicar várias vezes no atalho ou na barra de tarefas **reusa a janela já aberta** em vez de abrir várias; reconectar no mesmo ID traz a sessão existente para frente (versão 1.0.14)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto (atendente): a sessão mostra o **rótulo do vínculo** (ex.: «Posto Farol · SERVIDOR 001») na barra e no título; a toolbar acompanha o tema escuro; ícone da janela usa o D legível (versão 1.0.13)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: barra de título e menu Sobre mostram **DeskRemote** (antes DeskRudder); ícone pequeno da janela/bandeja vira um **D** vermelho legível (versão 1.0.12)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: logo e ícones do **DeskRemote** atualizados com a arte oficial (D + atendente + nuvem), fundo transparente e glow preservado (versão 1.0.11)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: o produto passa a se chamar **DeskRemote** na janela, no atalho e nos textos do painel (versão 1.0.10). O tipo da frota no cadastro também; nomes antigos (DeskRudder / RustDesk) continuam reconhecidos. Pasta e `.exe` no Windows seguem iguais para não quebrar quem já instalou"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: dá para **atualizar o posto à distância** sem alguém na frente do PC (versão 1.0.9) — o app enfileira o instalador e o serviço Windows aplica com `--update` sem pedir UAC; a sessão remota pode cair enquanto o app troca os arquivos"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Acesso remoto: transferência de arquivo fica ligada por padrão no posto e no atendente; o menu **Transferir arquivo** usa a senha da sessão quando der (versão 1.0.9)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "Actions: os builds passam a se chamar **DeskRemote Cliente v1/v2**, **DeskRemote Atendente v1/v2** e **DeskRudder Painel v1**"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "Deploy: o 302 de `/acesso-remoto/download` nas instâncias já no ar passa para o DeskRemote 2.0 (Nginx)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "Deploy: as migrations voltam a correr no Postgres — SQLAlchemy volta para 2.0.54; engine e Alembic forçam `postgresql+psycopg2://` se o 2.1 voltar"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "DeskRemote cliente Flutter **2.0.0** (#1252 / #1283): token de instalação, credencial do computador, sync de senha, workflow `acesso-remoto-windows-flutter` (não sobrescreve o Sciter `acesso-remoto-windows`)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "DeskRemote: kit de arte (#1253) e spike Flutter do atendente (Actions paralelo; Sciter 1.0.14 continua em produção)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "DeskRemote Flutter: «Desenvolvido por DeskRudder» no rodapé do painel esquerdo, com a versão atual logo abaixo"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "DeskRemote Flutter: logo no topo do painel; só a aba Sessões recentes (10 últimas), com o nome do vínculo no lugar do ID"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "DeskRemote: Sciter de produção continua na linha **1.x.x**; o Flutter do atendente começa em **2.0.0** (Release e update separados)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "DeskRemote Flutter: CI atualiza o `Cargo.lock` depois de gravar a versão 2.x.x no packer (`cargo build --locked`)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "DeskRemote Flutter: o nome do vínculo no cartão não quebra o menu Excluir (`displayName` só no layout)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "DeskRemote Flutter **2.2.0**: na home, a aba **Vinculados** lista a frota do sistema (nome do vínculo e Online/Offline); o clique conecta, com a senha do cadastro quando a conta puder revelá-la (#1281)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "DeskRemote Flutter **2.1.1**: ao conectar pelo painel num computador com vínculo, a aba mostra o nome (ex. Posto Farol · SERVIDOR 001) e não o ID — mesmo se o painel antigo não mandar o rótulo; basta estar logado no DeskRemote (#1276)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "DeskRemote Flutter **2.1.1**: o build volta a compilar — o Dart recusava sessão nula ao buscar o rótulo do vínculo"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "DeskRemote Flutter **2.1.0**: a home (Recentes e Conectar) pede o mesmo login do DeskRudder; se o atendente já entrou no app Electron neste PC com “lembrar-me”, o atalho não pergunta de novo; Conectar pelo painel segue sem pedir senha; **Sair** no DeskRemote não reloga sozinho (#1274)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "DeskRemote Flutter **2.0.2**: o nome **DeskRemote** aparece na barra de título (tema claro e escuro) e abaixo da logo do painel; ao conectar pelo painel ou pelo ID/cartão (se o alias já existir), a aba da sessão mostra o rótulo do vínculo; ícone da barra de tarefas e da barra de título com contorno branco (só no Flutter; Sciter do posto permanece 1.0.14); logo do painel maior e mais nítida"
+        },
+        {
+          "product": "deskrudder",
+          "category": "interno",
+          "text": "DeskRemote Flutter **2.0.1**: ícone da barra é o D vermelho (não o do RustDesk); logo do painel mais nítida; Sobre o **DeskRemote** desenvolvido pela DeskRudder; site deskrudder.com.br; copyright DeskRudder; sem declaração de privacidade do RustDesk; Rede mostra o servidor Duplex; a aba da sessão mostra o vínculo (ou usuário@host), não o ID; arte oficial em todos os ícones (sem o D simplificado)"
         }
       ]
     }
