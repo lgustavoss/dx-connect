@@ -100,6 +100,39 @@ def test_gerar_token_sem_senha(client, auth_headers, seed_base, db_session, monk
     assert "senha" in r.json()["detail"].lower()
 
 
+def test_gerar_token_tipo_rustdesk_oficial(client, auth_headers, seed_base, db_session, monkeypatch):
+    _servidor(monkeypatch)
+    rot = PdvRotulo(nome="PDV", ativo=True, ordem_exibicao=1)
+    tipo = PdvTipoAcessoRemoto(nome="RustDesk", ativo=True, ordem_exibicao=1)
+    db_session.add_all([rot, tipo])
+    db_session.commit()
+    emp = seed_base["empresa"]
+    criado = client.post(
+        f"/v1/empresas/{emp.id}/pdvs",
+        headers=auth_headers["admin"],
+        json={
+            "codigo": "002-rd",
+            "rotulo_id": rot.id,
+            "papel": "principal",
+            "acessos": [
+                {
+                    "tipo_acesso_remoto_id": tipo.id,
+                    "acesso_remoto_id": "519442868",
+                    "acesso_remoto_senha": "senha-rd",
+                }
+            ],
+        },
+    )
+    assert criado.status_code == 201, criado.text
+    r = client.post(
+        f"/v1/empresas/{emp.id}/pdvs/{criado.json()['id']}/deskremote/token",
+        headers=auth_headers["admin"],
+        json={"acesso_id": criado.json()["acessos"][0]["id"]},
+    )
+    assert r.status_code == 400
+    assert "deskremote" in r.json()["detail"].casefold()
+
+
 def test_confirmar_id_depois_e_sync_senha(client, auth_headers, seed_base, db_session, monkeypatch):
     _servidor(monkeypatch)
     pdv, emp_id, tipo_id = _pdv_deskremote(client, auth_headers, seed_base, db_session)

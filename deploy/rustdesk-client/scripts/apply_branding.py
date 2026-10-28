@@ -360,9 +360,12 @@ _FLUTTER_HOME_SETTINGS = """            if (isOutgoingOnly)
 """
 
 _FLUTTER_HOME_FOOTER_MARKER = "// DeskRemote: marca e versao no rodape do painel esquerdo."
+_FLUTTER_INCOMING_STATUS_MARKER = "// DeskRemote: marca acima do status da rede."
 
 # loadPowered no rodape + versao (get_version / CLIENT_VERSION) + engrenagem.
+# Só no atendente (outgoing): no cliente o status da rede fica no fluxo do painel.
 _FLUTTER_HOME_FOOTER = """            """ + _FLUTTER_HOME_FOOTER_MARKER + """
+            if (isOutgoingOnly)
             Positioned(
               left: 8,
               right: 8,
@@ -434,24 +437,107 @@ _FLUTTER_HOME_SCROLL_PADDED = """                SingleChildScrollView(
                   child: Column(
 """
 
+# Trecho literal do rustdesk 1.5.0 (flutter/lib/desktop/pages/desktop_home_page.dart).
+_FLUTTER_INCOMING_STATUS_OLD = """        OnlineStatusWidget(
+          onSvcStatusChanged: () {
+            if (isInHomePage()) {
+              Future.delayed(Duration(milliseconds: 300), () {
+                _updateWindowSize();
+              });
+            }
+          },
+        ).marginOnly(bottom: 6, right: 6)"""
+
+_FLUTTER_INCOMING_STATUS_RE = re.compile(
+    r"(?P<indent>[ \t]*)OnlineStatusWidget\(\s*"
+    r"onSvcStatusChanged:\s*\(\)\s*\{\s*"
+    r"if\s*\(isInHomePage\(\)\)\s*\{\s*"
+    r"Future\.delayed\(Duration\(milliseconds:\s*300\),\s*\(\)\s*\{\s*"
+    r"_updateWindowSize\(\);\s*"
+    r"\}\);\s*"
+    r"\}\s*"
+    r"\},\s*"
+    r"\)\.marginOnly\(bottom:\s*6,\s*right:\s*6\)",
+    re.DOTALL,
+)
+
+_FLUTTER_INCOMING_STATUS_NEW = (
+    "        "
+    + _FLUTTER_INCOMING_STATUS_MARKER
+    + """
+        if (bind.isCustomClient())
+          Align(
+            alignment: Alignment.center,
+            child: loadPowered(context),
+          ),
+        FutureBuilder<String>(
+          future: bind.mainGetVersion(),
+          builder: (context, snap) {
+            final v = (snap.data ?? '').trim();
+            if (v.isEmpty) {
+              return const SizedBox.shrink();
+            }
+            return Opacity(
+              opacity: 0.5,
+              child: Text(
+                '${translate("Version")} $v',
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(fontSize: 10),
+              ),
+            ).marginOnly(top: 2, bottom: 8);
+          },
+        ),
+        OnlineStatusWidget(
+          onSvcStatusChanged: () {
+            if (isInHomePage()) {
+              Future.delayed(Duration(milliseconds: 300), () {
+                _updateWindowSize();
+              });
+            }
+          },
+        ).marginOnly(bottom: 6, right: 6, top: 4)"""
+)
+
 
 def apply_flutter_home_footer_text(text: str) -> str:
-    """Move 'Desenvolvido por' para o rodape e acrescenta a versao."""
-    if _FLUTTER_HOME_FOOTER_MARKER in text:
+    """Move 'Desenvolvido por' para o rodape e deixa o status da rede abaixo."""
+    if _FLUTTER_HOME_FOOTER_MARKER in text and _FLUTTER_INCOMING_STATUS_MARKER in text:
         return text
-    if _FLUTTER_HOME_POWERED_TOP not in text:
-        raise SystemExit(
-            "flutter desktop_home_page: bloco loadPowered no topo nao encontrado"
-        )
-    if _FLUTTER_HOME_SETTINGS not in text:
-        raise SystemExit(
-            "flutter desktop_home_page: engrenagem outgoing-only nao encontrada"
-        )
-    text = text.replace(_FLUTTER_HOME_POWERED_TOP, "", 1)
-    text = text.replace(_FLUTTER_HOME_SETTINGS, _FLUTTER_HOME_FOOTER, 1)
-    if _FLUTTER_HOME_SCROLL in text:
-        text = text.replace(_FLUTTER_HOME_SCROLL, _FLUTTER_HOME_SCROLL_PADDED, 1)
+    if _FLUTTER_HOME_FOOTER_MARKER not in text:
+        if _FLUTTER_HOME_POWERED_TOP not in text:
+            raise SystemExit(
+                "flutter desktop_home_page: bloco loadPowered no topo nao encontrado"
+            )
+        if _FLUTTER_HOME_SETTINGS not in text:
+            raise SystemExit(
+                "flutter desktop_home_page: engrenagem outgoing-only nao encontrada"
+            )
+        text = text.replace(_FLUTTER_HOME_POWERED_TOP, "", 1)
+        text = text.replace(_FLUTTER_HOME_SETTINGS, _FLUTTER_HOME_FOOTER, 1)
+        if _FLUTTER_HOME_SCROLL in text:
+            text = text.replace(_FLUTTER_HOME_SCROLL, _FLUTTER_HOME_SCROLL_PADDED, 1)
+    if _FLUTTER_INCOMING_STATUS_MARKER not in text:
+        text = _aplicar_status_incoming(text)
     return text
+
+
+def _aplicar_status_incoming(text: str) -> str:
+    if _FLUTTER_INCOMING_STATUS_OLD in text:
+        return text.replace(_FLUTTER_INCOMING_STATUS_OLD, _FLUTTER_INCOMING_STATUS_NEW, 1)
+    achado = _FLUTTER_INCOMING_STATUS_RE.search(text)
+    if not achado:
+        raise SystemExit(
+            "flutter desktop_home_page: OnlineStatusWidget do cliente nao encontrado"
+        )
+    indent = achado.group("indent")
+    linhas = _FLUTTER_INCOMING_STATUS_NEW.strip("\n").splitlines()
+    base = min((len(ln) - len(ln.lstrip(" ")) for ln in linhas if ln.strip()), default=8)
+    rel = [ln[base:] if ln.startswith(" " * base) else ln.lstrip() for ln in linhas]
+    novo = "\n".join((indent + ln) if ln else ln for ln in rel)
+    return text[: achado.start()] + novo + text[achado.end() :]
 
 
 def patch_flutter_home_footer(home_dart: Path) -> None:
@@ -485,6 +571,15 @@ def patch_flutter_powered_url(common_dart: Path) -> None:
 
 
 def _selftest_flutter_home_footer() -> None:
+    # Recorte do rustdesk 1.5.0 (desktop_home_page.dart, incoming-only).
+    trecho_150 = (
+        "    if (isIncomingOnly) {\n"
+        "      children.addAll([\n"
+        "        Divider(),\n"
+        + _FLUTTER_INCOMING_STATUS_OLD
+        + "\n      ]);\n"
+        "    }\n"
+    )
     sample = (
         "      buildTip(context),\n"
         + _FLUTTER_HOME_POWERED_TOP
@@ -493,24 +588,39 @@ def _selftest_flutter_home_footer() -> None:
         + "                    key: _childKey,\n"
         + _FLUTTER_HOME_SETTINGS
         + "          ],\n"
+        + trecho_150
     )
     out = apply_flutter_home_footer_text(sample)
     if _FLUTTER_HOME_FOOTER_MARKER not in out:
         raise SystemExit("selftest flutter: marcador do rodape ausente")
+    if _FLUTTER_INCOMING_STATUS_MARKER not in out:
+        raise SystemExit("selftest flutter: marca acima do status da rede ausente")
+    if "if (isOutgoingOnly)" not in out:
+        raise SystemExit("selftest flutter: rodape overlay deve ser so do atendente")
     if "mainGetVersion()" not in out:
         raise SystemExit("selftest flutter: versao ausente no rodape")
     if _FLUTTER_HOME_POWERED_TOP in out:
         raise SystemExit("selftest flutter: Desenvolvido por ainda no topo")
-    if out.count("loadPowered(context)") != 1:
-        raise SystemExit("selftest flutter: loadPowered deveria aparecer 1 vez")
-    if out.find("loadPowered(context)") > out.find("mainGetVersion()"):
-        raise SystemExit("selftest flutter: versao deve ficar abaixo da marca")
+    if out.count("loadPowered(context)") != 2:
+        raise SystemExit("selftest flutter: loadPowered no atendente e no cliente")
+    if _FLUTTER_INCOMING_STATUS_MARKER not in out or "OnlineStatusWidget(" not in out:
+        raise SystemExit("selftest flutter: status da rede deve ficar abaixo da marca")
+    if out.find(_FLUTTER_INCOMING_STATUS_MARKER) > out.find("OnlineStatusWidget("):
+        raise SystemExit("selftest flutter: Desenvolvido por deve vir antes de Conectando")
     if "EdgeInsets.only(bottom: 64)" not in out:
         raise SystemExit("selftest flutter: padding do scroll ausente")
-    # Idempotente.
     out2 = apply_flutter_home_footer_text(out)
     if out2 != out:
         raise SystemExit("selftest flutter: patch do rodape nao e idempotente")
+    # Indentação diferente da 1.5.0: cai no regex, não no replace literal.
+    variante = "\n".join(("  " + ln) if ln else ln for ln in _FLUTTER_INCOMING_STATUS_OLD.splitlines())
+    if _FLUTTER_INCOMING_STATUS_OLD in variante:
+        raise SystemExit("selftest flutter: variante deveria divergir do literal 1.5.0")
+    if not _FLUTTER_INCOMING_STATUS_RE.search(variante):
+        raise SystemExit("selftest flutter: regex nao reconhece OnlineStatusWidget com outro indent")
+    via_re = _aplicar_status_incoming(variante)
+    if _FLUTTER_INCOMING_STATUS_MARKER not in via_re:
+        raise SystemExit("selftest flutter: fallback regex nao inseriu a marca acima do status")
     _selftest_flutter_recent_ui()
 
 
@@ -2393,6 +2503,8 @@ def _selftest_flutter_recent_ui() -> None:
         raise SystemExit("selftest flutter: overlay de enroll nao deve embutir host")
     if "mainSetPermanentPasswordWithResult" not in enroll_overlay:
         raise SystemExit("selftest flutter: enroll nao aplica senha permanente")
+    if "mainStartService" not in enroll_overlay or "mainGetConnectStatus" not in enroll_overlay:
+        raise SystemExit("selftest flutter: enroll nao reconecta o hbbs depois de aplicar o servidor")
     if "mainSetOption" not in enroll_overlay:
         raise SystemExit("selftest flutter: enroll nao trava verification-method")
     if "travarSenhaPermanenteDeskRemote" not in enroll_overlay:

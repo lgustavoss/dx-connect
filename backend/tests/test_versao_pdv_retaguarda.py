@@ -78,7 +78,7 @@ def test_ticket_pdvs_e_acesso_remoto_mostram_versao(client, auth_headers, seed_b
     emp.versao_pdv = "10.0.2"
     rede.versao_retaguarda = "2024.08"
     rot = PdvRotulo(nome="Caixa", ativo=True, ordem_exibicao=1)
-    tipo = PdvTipoAcessoRemoto(nome="DeskRudder", ativo=True, ordem_exibicao=1)
+    tipo = PdvTipoAcessoRemoto(nome="DeskRemote", ativo=True, ordem_exibicao=1)
     db_session.add_all([rot, tipo])
     db_session.flush()
     db_session.add(

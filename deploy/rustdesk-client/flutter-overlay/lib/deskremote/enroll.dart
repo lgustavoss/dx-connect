@@ -187,9 +187,42 @@ Future<void> aplicarServidorDeskRemote({
   required String chave,
 }) async {
   if (servidorId.isEmpty || chave.isEmpty) return;
+  final atualId = (await bind.mainGetLocalOption(key: 'custom-rendezvous-server')).trim();
+  final atualRelay = (await bind.mainGetLocalOption(key: 'relay-server')).trim();
+  final atualChave = (await bind.mainGetLocalOption(key: 'key')).trim();
+  final mudou = atualId != servidorId || atualRelay != relay || atualChave != chave;
   await bind.mainSetLocalOption(key: 'custom-rendezvous-server', value: servidorId);
   await bind.mainSetLocalOption(key: 'relay-server', value: relay);
   await bind.mainSetLocalOption(key: 'key', value: chave);
+  // O binário Flutter nasce sem hbbs real; sem reiniciar o serviço o
+  // mediador continua no placeholder e a home fica em «Conectando…».
+  var precisa = mudou;
+  if (!precisa) {
+    precisa = !await _servidorDeskRemotePronto();
+  }
+  if (precisa) await _reconectarServidorDeskRemote();
+}
+
+Future<bool> _servidorDeskRemotePronto() async {
+  try {
+    final decoded = jsonDecode(await bind.mainGetConnectStatus());
+    return decoded is Map && decoded['status_num'] == 1;
+  } catch (_) {
+    return false;
+  }
+}
+
+Future<void> _reconectarServidorDeskRemote() async {
+  try {
+    await bind.mainStopService();
+  } catch (_) {}
+  try {
+    await bind.mainStartService();
+  } catch (_) {}
+  for (var i = 0; i < 20; i++) {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    if (await _servidorDeskRemotePronto()) return;
+  }
 }
 
 Future<void> travarSenhaPermanenteDeskRemote() async {
