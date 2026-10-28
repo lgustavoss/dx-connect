@@ -612,6 +612,8 @@ def _selftest_flutter_home_footer() -> None:
     out2 = apply_flutter_home_footer_text(out)
     if out2 != out:
         raise SystemExit("selftest flutter: patch do rodape nao e idempotente")
+    _selftest_flutter_update_card()
+    _selftest_uninstall_completo()
     # Indentação diferente da 1.5.0: cai no regex, não no replace literal.
     variante = "\n".join(("  " + ln) if ln else ln for ln in _FLUTTER_INCOMING_STATUS_OLD.splitlines())
     if _FLUTTER_INCOMING_STATUS_OLD in variante:
@@ -622,6 +624,63 @@ def _selftest_flutter_home_footer() -> None:
     if _FLUTTER_INCOMING_STATUS_MARKER not in via_re:
         raise SystemExit("selftest flutter: fallback regex nao inseriu a marca acima do status")
     _selftest_flutter_recent_ui()
+
+
+def _selftest_flutter_update_card() -> None:
+    configurar_canal_update("posto", "flutter")
+    sample = (
+        _FLUTTER_UPDATE_CARD_OLD
+        + "\n      final isToUpdate = (isWindows || isMacOS) && bind.mainIsInstalled();\n"
+        "      String btnText = isToUpdate ? 'Update' : 'Download';\n"
+        "      GestureTapCallback onPressed = () async {\n"
+        "        final Uri url = Uri.parse('https://rustdesk.com/download');\n"
+        "        await launchUrl(url);\n"
+        "      };\n"
+        "      if (isToUpdate) {\n"
+        "        onPressed = () {\n"
+        "          handleUpdate(updateUrl);\n"
+        "        };\n"
+        "      }\n"
+        "class DesktopHomePage extends StatefulWidget {\n"
+    )
+    out = apply_flutter_update_card_text(sample)
+    if "DeskRemote: canal proprio (version.json)" not in out:
+        raise SystemExit("selftest flutter: banner de update nao aparece no custom client")
+    if "handleUpdate(updateUrl)" in out:
+        raise SystemExit("selftest flutter: banner ainda usa handleUpdate do rustdesk.com")
+    if "_deskRemoteBaixarAtualizacao" not in out:
+        raise SystemExit("selftest flutter: helper de download do Release ausente")
+    if INSTALLER_NAME_POSTO_FLUTTER not in out:
+        raise SystemExit("selftest flutter: URL do .exe Flutter cliente ausente no banner")
+    if COPY_BANNER_CTA not in out:
+        raise SystemExit("selftest flutter: CTA Atualizar agora ausente")
+    if apply_flutter_update_card_text(out) != out:
+        raise SystemExit("selftest flutter: banner de update nao e idempotente")
+
+
+def _selftest_uninstall_completo() -> None:
+    import tempfile
+
+    sample = (
+        '    if exist \\"{path}\\" rd /s /q \\"{path}\\"\n'
+        '    if exist \\"{start_menu}\\" rd /s /q \\"{start_menu}\\"\n'
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Path(tmp) / "windows.rs"
+        p.write_text(sample, encoding="utf-8")
+        patch_uninstall_completo(p)
+        out = p.read_text(encoding="utf-8")
+        if "deskremote-dispositivo.json" not in out:
+            raise SystemExit("selftest uninstall: json do dispositivo nao e removido")
+        if "*.toml" not in out:
+            raise SystemExit("selftest uninstall: configs toml nao sao removidas")
+        if "%PROGRAMDATA%\\\\DeskRudder" not in out:
+            raise SystemExit("selftest uninstall: ProgramData nao e removido")
+        if "%PUBLIC%\\\\DeskRudder" not in out:
+            raise SystemExit("selftest uninstall: Public nao e removido")
+        patch_uninstall_completo(p)
+        if p.read_text(encoding="utf-8") != out:
+            raise SystemExit("selftest uninstall: patch nao e idempotente")
 
 
 _FLUTTER_TABS_ENABLED = """  List<bool> isEnabled = List.from([
@@ -1879,6 +1938,80 @@ def apply_flutter_hide_password_edit_text(text: str) -> str:
     return new_text
 
 
+_FLUTTER_UPDATE_CARD_OLD = """    if (!bind.isCustomClient() &&
+        updateUrl.isNotEmpty &&
+        !isCardClosed &&
+        bind.mainUriPrefixSync().contains('rustdesk')) {"""
+
+_FLUTTER_UPDATE_HELPER_MARKER = "// DeskRemote: baixa o .exe do Release e aplica --update."
+
+
+def apply_flutter_update_card_text(text: str) -> str:
+    """Mostra o banner de atualizacao no Flutter (o upstream esconde em custom client)."""
+    if "DeskRemote: canal proprio (version.json)" in text:
+        return text
+    if _FLUTTER_UPDATE_CARD_OLD not in text:
+        raise SystemExit("flutter home: condicao do banner de update nao encontrada")
+    text = text.replace(
+        _FLUTTER_UPDATE_CARD_OLD,
+        "    // DeskRemote: canal proprio (version.json), mesmo sendo custom client.\n"
+        "    if (updateUrl.isNotEmpty && !isCardClosed) {",
+        1,
+    )
+    old_press = """        onPressed = () {
+          handleUpdate(updateUrl);
+        };"""
+    new_press = """        onPressed = () {
+          // DeskRemote: URL do .exe no Release (nao rustdesk.com / tag).
+          _deskRemoteBaixarAtualizacao();
+        };"""
+    if old_press not in text:
+        raise SystemExit("flutter home: handleUpdate do banner nao encontrado")
+    text = text.replace(old_press, new_press, 1)
+    old_to_update = (
+        "      final isToUpdate = (isWindows || isMacOS) && bind.mainIsInstalled();\n"
+        "      String btnText = isToUpdate ? 'Update' : 'Download';"
+    )
+    new_to_update = (
+        "      final isToUpdate = true;\n"
+        f"      String btnText = '{COPY_BANNER_CTA}';"
+    )
+    if old_to_update not in text:
+        raise SystemExit("flutter home: isToUpdate do banner nao encontrado")
+    text = text.replace(old_to_update, new_to_update, 1)
+    if _FLUTTER_UPDATE_HELPER_MARKER not in text:
+        helper = (
+            f"{_FLUTTER_UPDATE_HELPER_MARKER}\n"
+            "void _deskRemoteBaixarAtualizacao() {\n"
+            f"  const exeUrl = '{DOWNLOAD_INSTALLER_URL}';\n"
+            "  final downloadId = SimpleWrapper('');\n"
+            "  final onCanceled = SimpleWrapper(() {});\n"
+            "  gFFI.dialogManager.dismissAll();\n"
+            "  gFFI.dialogManager.show((setState, close, context) {\n"
+            "    return CustomAlertDialog(\n"
+            f"      title: Text('{COPY_BANNER_BAIXANDO}'),\n"
+            "      content: UpdateProgress(exeUrl, exeUrl, downloadId, onCanceled)\n"
+            "          .marginSymmetric(horizontal: 8)\n"
+            "          .paddingOnly(top: 12),\n"
+            "      actions: [\n"
+            "        dialogButton(translate('Cancel'), onPressed: () async {\n"
+            "          onCanceled.value();\n"
+            "          await bind.mainSetCommon(\n"
+            "              key: 'cancel-downloader', value: downloadId.value);\n"
+            "          close();\n"
+            "        }, isOutline: true),\n"
+            "      ],\n"
+            "    );\n"
+            "  });\n"
+            "}\n\n"
+        )
+        anchor = "class DesktopHomePage extends StatefulWidget {"
+        if anchor not in text:
+            raise SystemExit("flutter home: class DesktopHomePage nao encontrada para o helper de update")
+        text = text.replace(anchor, helper + anchor, 1)
+    return text
+
+
 def apply_flutter_enroll_gate_text(text: str) -> str:
     if "DeskRemote: cliente so abre depois do token de instalacao" in text:
         return text
@@ -2084,6 +2217,7 @@ def patch_flutter_deskremote_ui(
         _apply(home, _home, "Seu Computador abaixo da logo")
         _apply(home, apply_flutter_logo_app_name_text, "DeskRemote abaixo da logo")
         _apply(home, apply_flutter_pane_width_text, "painel esquerdo 224px")
+        _apply(home, apply_flutter_update_card_text, "banner de atualizacao")
         if profile == "posto":
             _apply(home, apply_flutter_hide_password_edit_text, "sem editar senha permanente")
     if profile != "posto":
@@ -2510,6 +2644,10 @@ def _selftest_flutter_recent_ui() -> None:
         raise SystemExit("selftest flutter: enroll nao aplica senha permanente")
     if "mainStartService" not in enroll_overlay or "mainGetConnectStatus" not in enroll_overlay:
         raise SystemExit("selftest flutter: enroll nao reconecta o hbbs depois de aplicar o servidor")
+    if "mainSetOption(key: 'custom-rendezvous-server'" not in enroll_overlay:
+        raise SystemExit("selftest flutter: hbbs deve ir em mainSetOption (nao LocalOption)")
+    if "mainSetLocalOption(key: 'custom-rendezvous-server'" in enroll_overlay:
+        raise SystemExit("selftest flutter: hbbs nao pode ficar so em LocalOption")
     if "mainSetOption" not in enroll_overlay:
         raise SystemExit("selftest flutter: enroll nao trava verification-method")
     if "travarSenhaPermanenteDeskRemote" not in enroll_overlay:
@@ -2535,6 +2673,9 @@ def _selftest_flutter_recent_ui() -> None:
         raise SystemExit("selftest flutter: enroll gate ausente na home")
     if apply_flutter_enroll_gate_text(enroll_gate) != enroll_gate:
         raise SystemExit("selftest flutter: enroll gate nao e idempotente")
+    enroll_gate_overlay = (overlay / "enroll_gate.dart").read_text(encoding="utf-8")
+    if "mainIsInstalled" not in enroll_gate_overlay:
+        raise SystemExit("selftest flutter: enroll gate deve esperar o Instalar do Windows")
     sessao_overlay = (overlay / "sessao.dart").read_text(encoding="utf-8")
     if "https://api-$slug." not in sessao_overlay:
         raise SystemExit("selftest flutter: API do login deve ser api-{slug}")
@@ -3116,6 +3257,39 @@ def patch_shortcut_display_name(windows_rs: Path) -> None:
 
     windows_rs.write_text(text, encoding="utf-8")
     print(f"  windows.rs: atalho/DisplayName -> {name}", flush=True)
+
+
+def patch_uninstall_completo(windows_rs: Path) -> None:
+    """Desinstalar tambem limpa AppData/ProgramData/Public do DeskRemote."""
+    if not windows_rs.is_file():
+        raise SystemExit(f"Falta {windows_rs}")
+    text = windows_rs.read_text(encoding="utf-8")
+    if "deskremote-dispositivo.json" in text:
+        print("  windows.rs: uninstall completo ja presente", flush=True)
+        return
+    old = 'if exist \\"{path}\\" rd /s /q \\"{path}\\"'
+    extra_rs = (
+        'if exist \\"{path}\\" rd /s /q \\"{path}\\"\n'
+        "    rem DeskRudder: limpa dados do usuario (sem apagar o painel Electron, se existir).\n"
+        '    if exist \\"%APPDATA%\\\\DeskRudder\\\\deskremote-dispositivo.json\\" del /f /q \\"%APPDATA%\\\\DeskRudder\\\\deskremote-dispositivo.json\\"\n'
+        '    if exist \\"%APPDATA%\\\\DeskRudder\\\\deskremote-sessao.json\\" del /f /q \\"%APPDATA%\\\\DeskRudder\\\\deskremote-sessao.json\\"\n'
+        '    if exist \\"%APPDATA%\\\\DeskRudder\\\\DeskRudder.toml\\" del /f /q \\"%APPDATA%\\\\DeskRudder\\\\DeskRudder.toml\\"\n'
+        '    if exist \\"%APPDATA%\\\\DeskRudder\\\\DeskRudder2.toml\\" del /f /q \\"%APPDATA%\\\\DeskRudder\\\\DeskRudder2.toml\\"\n'
+        '    if exist \\"%APPDATA%\\\\DeskRudder\\\\RustDesk.toml\\" del /f /q \\"%APPDATA%\\\\DeskRudder\\\\RustDesk.toml\\"\n'
+        '    if exist \\"%APPDATA%\\\\DeskRudder\\\\RustDesk2.toml\\" del /f /q \\"%APPDATA%\\\\DeskRudder\\\\RustDesk2.toml\\"\n'
+        '    if exist \\"%APPDATA%\\\\DeskRudder\\\\*.toml\\" del /f /q \\"%APPDATA%\\\\DeskRudder\\\\*.toml\\"\n'
+        '    if exist \\"%APPDATA%\\\\DeskRudder\\\\config\\" rd /s /q \\"%APPDATA%\\\\DeskRudder\\\\config\\"\n'
+        '    if exist \\"%APPDATA%\\\\DeskRudder\\\\logs\\" rd /s /q \\"%APPDATA%\\\\DeskRudder\\\\logs\\"\n'
+        '    if exist \\"%LOCALAPPDATA%\\\\DeskRudder\\" rd /s /q \\"%LOCALAPPDATA%\\\\DeskRudder\\"\n'
+        '    if exist \\"%PROGRAMDATA%\\\\DeskRudder\\" rd /s /q \\"%PROGRAMDATA%\\\\DeskRudder\\"\n'
+        '    if exist \\"%PUBLIC%\\\\DeskRudder\\" rd /s /q \\"%PUBLIC%\\\\DeskRudder\\"\n'
+        '    rd /q \\"{path}\\\\..\\"'
+    )
+    if old not in text:
+        raise SystemExit("windows.rs: rd do path de uninstall nao encontrado")
+    text = text.replace(old, extra_rs, 1)
+    windows_rs.write_text(text, encoding="utf-8")
+    print("  windows.rs: uninstall limpa AppData/ProgramData/Public", flush=True)
 
 
 def patch_website_urls(index_tis: Path, install_tis: Path) -> None:
@@ -4545,6 +4719,7 @@ def main() -> int:
     if profile == "posto":
         patch_host_only_ui(index_tis, brand)
     patch_shortcut_display_name(windows_rs)
+    patch_uninstall_completo(windows_rs)
     # UpdateMe antes do patch de URLs (ele ainda contem rustdesk.com no upstream).
     patch_update_check(common_rs)
     patch_update_banner(index_tis)
@@ -4790,6 +4965,12 @@ def main() -> int:
     if "pending_update.txt" not in win_body:
         print("Verificacao falhou: caminho pending_update.txt ausente.", file=sys.stderr)
         return 1
+    if "deskremote-dispositivo.json" not in win_body:
+        print("Verificacao falhou: uninstall nao limpa AppData do DeskRemote.", file=sys.stderr)
+        return 1
+    if "%PROGRAMDATA%\\\\DeskRudder" not in win_body:
+        print("Verificacao falhou: uninstall nao limpa ProgramData.", file=sys.stderr)
+        return 1
 
     remote_body = (src / "src" / "ui" / "remote.rs").read_text(encoding="utf-8")
     if "DeskRudder: spawning file-transfer without password" not in remote_body:
@@ -4822,6 +5003,15 @@ def main() -> int:
                 "Verificacao falhou: Desenvolvido por ainda no topo do Flutter.",
                 file=sys.stderr,
             )
+            return 1
+        if "DeskRemote: canal proprio (version.json)" not in home_body:
+            print(
+                "Verificacao falhou: banner de atualizacao Flutter ainda escondido no custom client.",
+                file=sys.stderr,
+            )
+            return 1
+        if "_deskRemoteBaixarAtualizacao" not in home_body:
+            print("Verificacao falhou: download do Release Flutter ausente.", file=sys.stderr)
             return 1
     if flutter_common.is_file():
         common_dart = flutter_common.read_text(encoding="utf-8")
@@ -4945,6 +5135,9 @@ def main() -> int:
             enroll_txt = overlay_enroll.read_text(encoding="utf-8")
             if "mainSetPermanentPasswordWithResult" not in enroll_txt:
                 print("Verificacao falhou: enroll sem senha permanente.", file=sys.stderr)
+                return 1
+            if "mainSetOption(key: 'custom-rendezvous-server'" not in enroll_txt:
+                print("Verificacao falhou: enroll sem mainSetOption do hbbs.", file=sys.stderr)
                 return 1
             if flutter_common.is_file():
                 common_lock = flutter_common.read_text(encoding="utf-8")
