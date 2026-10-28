@@ -193,11 +193,45 @@ def gerar_token(
     db.commit()
     db.refresh(row)
     return {
+        "id": row.id,
         "url": url_instalacao(raw),
         "expira_em": row.expires_at,
         "pdv_id": pdv.id,
         "acesso_id": acesso.id,
         "rotulo": _rotulo_pdv(pdv),
+    }
+
+
+def status_token(db: Session, empresa_id: int, pdv_id: int, token_id: int) -> dict:
+    pdv = _carregar_pdv(db, empresa_id, pdv_id)
+    row = (
+        db.query(DeskremoteInstallToken)
+        .filter(DeskremoteInstallToken.id == token_id, DeskremoteInstallToken.pdv_id == pdv.id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Link de instalação não encontrado")
+    usado = row.used_at is not None
+    expirado = (not usado) and _aware(row.expires_at) <= _agora()
+    rustdesk_id = None
+    if usado:
+        disp = (
+            db.query(DeskremoteDispositivo)
+            .filter(
+                DeskremoteDispositivo.acesso_id == row.acesso_id,
+                DeskremoteDispositivo.revoked_at.is_(None),
+            )
+            .order_by(DeskremoteDispositivo.id.desc())
+            .first()
+        )
+        if disp and disp.rustdesk_id:
+            rustdesk_id = disp.rustdesk_id
+    return {
+        "id": row.id,
+        "usado": usado,
+        "vinculado": bool(rustdesk_id),
+        "rustdesk_id": rustdesk_id,
+        "expirado": expirado,
     }
 
 

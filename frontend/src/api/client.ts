@@ -4291,6 +4291,8 @@ export const empresaPdvs = {
       method: 'POST',
       body: JSON.stringify({ acesso_id: acessoId ?? null }),
     }),
+  statusTokenDeskRemote: (empresaId: number, pdvId: number, tokenId: number) =>
+    api<EmpresaPdv.TokenStatus>(`/empresas/${empresaId}/pdvs/${pdvId}/deskremote/token/${tokenId}`),
 };
 
 export const rustdeskPeers = {
@@ -4466,11 +4468,19 @@ export namespace EmpresaPdv {
     acesso_remoto_senha: string;
   }
   export interface TokenInstalacao {
+    id: number
     url: string
     expira_em: string
     pdv_id: number
     acesso_id: number
     rotulo: string
+  }
+  export interface TokenStatus {
+    id: number
+    usado: boolean
+    vinculado: boolean
+    rustdesk_id?: string | null
+    expirado: boolean
   }
 }
 

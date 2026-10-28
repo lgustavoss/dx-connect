@@ -166,6 +166,20 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel, onF
       .finally(() => setLoading(false))
   }, [empresaId, onEmpresaNome, onIndisponivel, toast])
 
+  const recarregarPdvAberto = useCallback(() => {
+    empresaPdvs
+      .list(empresaId, { incluir_inativos: true })
+      .then((r) => {
+        setItems(r.items)
+        setVersaoPdv(r.versao_pdv?.trim() ? r.versao_pdv : null)
+        setDetalhe((atual) => {
+          if (!atual) return atual
+          return r.items.find((i) => i.id === atual.id) ?? atual
+        })
+      })
+      .catch(() => {})
+  }, [empresaId])
+
   useEffect(() => {
     if (!podeVer) {
       setLoading(false)
@@ -468,7 +482,12 @@ export function EmpresaPdvsPanel({ empresaId, onEmpresaNome, onIndisponivel, onF
                         </p>
                       )}
                       {podeEditar && tipoHospedadoNoServidor(acesso.tipo_acesso_remoto_nome) ? (
-                        <DeskRemoteTokenInstalacao empresaId={empresaId} pdvId={detalhe.id} acesso={acesso} />
+                        <DeskRemoteTokenInstalacao
+                          empresaId={empresaId}
+                          pdvId={detalhe.id}
+                          acesso={acesso}
+                          onVinculado={recarregarPdvAberto}
+                        />
                       ) : null}
                     </div>
                   )

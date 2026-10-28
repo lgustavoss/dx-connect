@@ -64,6 +64,81 @@ def test_gerar_token_e_resgatar(client, auth_headers, seed_base, db_session, mon
     assert de_novo.status_code == 400
 
 
+def test_status_token_aguarda_id_depois_do_enroll(client, auth_headers, seed_base, db_session, monkeypatch):
+    _servidor(monkeypatch)
+    pdv, emp_id, _ = _pdv_deskremote(client, auth_headers, seed_base, db_session)
+    gerado = client.post(
+        f"/v1/empresas/{emp_id}/pdvs/{pdv['id']}/deskremote/token",
+        headers=auth_headers["admin"],
+        json={},
+    )
+    assert gerado.status_code == 200, gerado.text
+    token_id = gerado.json()["id"]
+    url_status = f"/v1/empresas/{emp_id}/pdvs/{pdv['id']}/deskremote/token/{token_id}"
+    pendente = client.get(url_status, headers=auth_headers["admin"])
+    assert pendente.status_code == 200, pendente.text
+    assert pendente.json()["usado"] is False
+    assert pendente.json()["vinculado"] is False
+    assert pendente.json()["expirado"] is False
+    token = gerado.json()["url"].rsplit("/", 1)[-1]
+    enroll = client.post("/v1/deskremote/enroll", json={"token": token})
+    assert enroll.status_code == 200, enroll.text
+    apos_enroll = client.get(url_status, headers=auth_headers["admin"])
+    assert apos_enroll.json()["usado"] is True
+    assert apos_enroll.json()["vinculado"] is False
+    conf = client.post(
+        "/v1/deskremote/dispositivo/id",
+        headers={"Authorization": f"Bearer {enroll.json()['dispositivo_token']}"},
+        json={"rustdesk_id": "1998377577"},
+    )
+    assert conf.status_code == 200, conf.text
+    apos_id = client.get(url_status, headers=auth_headers["admin"])
+    assert apos_id.json()["vinculado"] is True
+    assert apos_id.json()["rustdesk_id"] == "1998377577"
+
+
+def test_status_token_vinculado_no_enroll_com_id(client, auth_headers, seed_base, db_session, monkeypatch):
+    _servidor(monkeypatch)
+    pdv, emp_id, _ = _pdv_deskremote(client, auth_headers, seed_base, db_session)
+    gerado = client.post(
+        f"/v1/empresas/{emp_id}/pdvs/{pdv['id']}/deskremote/token",
+        headers=auth_headers["admin"],
+        json={},
+    )
+    token_id = gerado.json()["id"]
+    token = gerado.json()["url"].rsplit("/", 1)[-1]
+    assert client.post("/v1/deskremote/enroll", json={"token": token, "rustdesk_id": "555666777"}).status_code == 200
+    r = client.get(
+        f"/v1/empresas/{emp_id}/pdvs/{pdv['id']}/deskremote/token/{token_id}",
+        headers=auth_headers["admin"],
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["usado"] is True
+    assert r.json()["vinculado"] is True
+    assert r.json()["rustdesk_id"] == "555666777"
+
+
+def test_status_token_403_sem_editar_e_404(client, auth_headers, seed_base, db_session, monkeypatch):
+    _servidor(monkeypatch)
+    pdv, emp_id, _ = _pdv_deskremote(client, auth_headers, seed_base, db_session)
+    gerado = client.post(
+        f"/v1/empresas/{emp_id}/pdvs/{pdv['id']}/deskremote/token",
+        headers=auth_headers["admin"],
+        json={},
+    )
+    token_id = gerado.json()["id"]
+    negado = client.get(
+        f"/v1/empresas/{emp_id}/pdvs/{pdv['id']}/deskremote/token/{token_id}",
+        headers=auth_headers["a1"],
+    )
+    assert negado.status_code == 403
+    ausente = client.get(
+        f"/v1/empresas/{emp_id}/pdvs/{pdv['id']}/deskremote/token/999999",
+        headers=auth_headers["admin"],
+    )
+    assert ausente.status_code == 404
+
+
 def test_gerar_token_403_sem_editar(client, auth_headers, seed_base, db_session, monkeypatch):
     _servidor(monkeypatch)
     pdv, emp_id, _ = _pdv_deskremote(client, auth_headers, seed_base, db_session)
@@ -229,6 +304,14 @@ def test_token_expirado_recusa(client, auth_headers, seed_base, db_session, monk
     r = client.post("/v1/deskremote/enroll", json={"token": token})
     assert r.status_code == 400
     assert "válido" in r.json()["detail"].lower() or "usado" in r.json()["detail"].lower()
+    status = client.get(
+        f"/v1/empresas/{emp_id}/pdvs/{pdv['id']}/deskremote/token/{gerado.json()['id']}",
+        headers=auth_headers["admin"],
+    )
+    assert status.status_code == 200, status.text
+    assert status.json()["expirado"] is True
+    assert status.json()["usado"] is False
+    assert status.json()["vinculado"] is False
 
 
 def test_origem_api_publica_mapeia_slug(monkeypatch):
