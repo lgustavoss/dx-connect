@@ -316,14 +316,17 @@ Future<DeskRemoteSessao?> renovarSessaoDeskRemote(DeskRemoteSessao sessao) async
 }
 
 /// Mesmo formato de `rotuloSessaoVinculo` no painel (`acessoRemotoUrl.mjs`).
-/// Ex.: Posto Farol · SERVIDOR 001
+/// Ex.: Auto Posto Expresso Medalha · SERVIDOR 001
 String rotuloSessaoVinculo(Map<String, dynamic> vinculo) {
   final rotulo = (vinculo['rotulo_nome'] ?? '').toString().trim();
   final nome = rotulo.isEmpty ? 'Equipamento' : rotulo;
   final codigo = (vinculo['pdv_codigo'] ?? '').toString().trim();
   final base = codigo.isEmpty ? nome : '$nome $codigo';
-  final rede = (vinculo['rede_nome'] ?? '').toString().trim();
-  return rede.isEmpty ? base : '$rede · $base';
+  var empresa = (vinculo['empresa_nome'] ?? '').toString().trim();
+  if (empresa.isEmpty) {
+    empresa = (vinculo['rede_nome'] ?? '').toString().trim();
+  }
+  return empresa.isEmpty ? base : '$empresa · $base';
 }
 
 String _soDigitosId(String id) => id.replaceAll(RegExp(r'\D'), '');

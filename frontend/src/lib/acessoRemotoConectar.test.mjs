@@ -29,7 +29,19 @@ describe('urlConexaoDeskRudder', () => {
 })
 
 describe('rotuloSessaoVinculo', () => {
-  it('monta a linha de baixo do vínculo (rede · rótulo código)', () => {
+  it('monta empresa · rótulo código (ignora o nome da rede)', () => {
+    assert.equal(
+      rotuloSessaoVinculo({
+        empresa_nome: 'AUTO POSTO EXPRESSO MEDALHA',
+        rede_nome: 'Rede Expresso',
+        rotulo_nome: 'SERVIDOR',
+        pdv_codigo: '001',
+      }),
+      'AUTO POSTO EXPRESSO MEDALHA · SERVIDOR 001',
+    )
+  })
+
+  it('cai na rede se a empresa vier vazia', () => {
     assert.equal(
       rotuloSessaoVinculo({
         rede_nome: 'Posto Farol',
@@ -40,7 +52,7 @@ describe('rotuloSessaoVinculo', () => {
     )
   })
 
-  it('omite rede quando vazia', () => {
+  it('omite prefixo quando empresa e rede vêm vazias', () => {
     assert.equal(
       rotuloSessaoVinculo({ rotulo_nome: 'PDV', pdv_codigo: '02' }),
       'PDV 02',
