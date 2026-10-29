@@ -601,7 +601,7 @@ export function ConfigComercialCustos({ embedded = false }: { embedded?: boolean
             total={itensTotal}
             onPageChange={setItensPage}
             disabled={itensLoading}
-            extra={<FiltroInativos incluirInativos={incluirInativos} onChange={setIncluirInativos} />}
+            juntoPaginacao={<FiltroInativos incluirInativos={incluirInativos} onChange={setIncluirInativos} />}
           />
           {itensLoading ? (
             <p className="py-8 text-center text-sm text-slate-500">Carregando…</p>

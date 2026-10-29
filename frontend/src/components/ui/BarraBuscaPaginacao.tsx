@@ -14,7 +14,10 @@ type Props = {
   onPageChange: (page: number) => void
   /** Bloqueia só a paginação. O campo de busca permanece editável para não perder o foco (#S202610-0019). */
   disabled?: boolean
+  /** Campo à direita da busca (ex.: filtro de natureza). Em tela larga, 30% do espaço restante; a busca fica com 70%. */
   extra?: React.ReactNode
+  /** Permanece colado à paginação em qualquer largura (ex.: Ativos/Todos). */
+  juntoPaginacao?: React.ReactNode
 }
 
 export function BarraBuscaPaginacao({
@@ -27,31 +30,18 @@ export function BarraBuscaPaginacao({
   onPageChange,
   disabled,
   extra,
+  juntoPaginacao,
 }: Props) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const inicio = total === 0 ? 0 : (page - 1) * pageSize + 1
   const fim = Math.min(page * pageSize, total)
+  const temExtra = extra != null
 
-  return (
-    <div
-      className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between"
-      aria-busy={disabled || undefined}
-    >
-      <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-2xl sm:flex-row sm:items-end">
-        <input
-          type="search"
-          value={busca}
-          onChange={(e) => onBuscaChange(e.target.value)}
-          placeholder={placeholder}
-          className={`${INPUT_FIELD_CLASS} min-h-[2.5rem] text-sm`}
-          aria-label="Buscar na listagem"
-        />
-        {extra}
-      </div>
-      <div className="flex min-h-[2.5rem] flex-wrap items-center justify-end gap-2 text-sm text-slate-600 dark:text-slate-300">
-        <span className="whitespace-nowrap">
-          {total > 0 ? `${inicio}–${fim} de ${total}` : '0 resultados'}
-        </span>
+  const paginacao = (
+    <div className="flex min-h-[2.5rem] max-w-full flex-wrap items-center justify-end gap-2 text-sm text-slate-600 dark:text-slate-300">
+      {juntoPaginacao}
+      <div className="flex shrink-0 flex-nowrap items-center gap-2">
+        <span className="whitespace-nowrap">{total > 0 ? `${inicio}–${fim} de ${total}` : '0 resultados'}</span>
         <Button
           type="button"
           variant="secondary"
@@ -61,7 +51,7 @@ export function BarraBuscaPaginacao({
         >
           Anterior
         </Button>
-        <span className="tabular-nums">
+        <span className="whitespace-nowrap tabular-nums">
           {page} / {totalPages}
         </span>
         <Button
@@ -73,6 +63,33 @@ export function BarraBuscaPaginacao({
         >
           Próxima
         </Button>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="@container mb-4" aria-busy={disabled || undefined}>
+      <div
+        className={
+          temExtra
+            ? 'grid grid-cols-1 items-center gap-2 @[52rem]:grid-cols-[minmax(0,7fr)_minmax(8rem,3fr)_auto] @[52rem]:gap-x-2'
+            : 'grid grid-cols-1 items-center gap-2 @[32rem]:grid-cols-[minmax(0,1fr)_auto] @[32rem]:gap-x-2'
+        }
+      >
+        <div className="min-w-0">
+          <input
+            type="search"
+            value={busca}
+            onChange={(e) => onBuscaChange(e.target.value)}
+            placeholder={placeholder}
+            className={`${INPUT_FIELD_CLASS} min-h-[2.5rem] text-sm`}
+            aria-label="Buscar na listagem"
+          />
+        </div>
+        {temExtra ? <div className="min-w-0">{extra}</div> : null}
+        <div className={temExtra ? 'flex justify-end @[52rem]:justify-self-end' : 'flex justify-end @[32rem]:justify-self-end'}>
+          {paginacao}
+        </div>
       </div>
     </div>
   )
