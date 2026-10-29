@@ -9,6 +9,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- CRM: o cartão no Kanban mostra a **última nota** e o **próximo lembrete**; criar lead começa por nome e telefone; no detalhe as anotações ficam sempre visíveis, com abas Cliente e Comercial (#S202610-0022)
 - Sobre: o histórico de versões mostra **3 por vez**, com Anterior/Próxima — a página deixa de listar todas as CalVer de uma vez (#S202610-0021)
 - Listagens (empresas, redes, equipe, status, catálogos…): **Ativos/Todos** fica colado na paginação, no mesmo padrão da aba Motivos
 - App desktop: clique direito numa palavra sublinhada sugere a correção e permite adicionar ao dicionário (#S202610-0024)

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useEventStream } from '../contexts/EventStreamContext'
 import {
   ApiError,
@@ -25,7 +25,10 @@ import { IconTrash } from '../components/ui/IconTrash'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { useToast } from '../components/ui/Toast'
+import { useAuth } from '../contexts/AuthContext'
 import { useVoltarAnterior } from '../hooks/useVoltarAnterior'
+import { formatDateTime } from '../lib/formatDateTime'
+import { temPermissao } from '../lib/permissoes'
 import { SemPermissao } from './SemPermissao'
 import { CrmPropostaCard } from '../components/crm/CrmPropostaCard'
 import { CrmContratoCard } from '../components/crm/CrmContratoCard'
@@ -61,6 +64,8 @@ const CONTRATO_STATUS_LABEL: Record<string, string> = {
 
 const CONTRATO_ATIVO = new Set(['rascunho', 'enviado', 'assinado'])
 
+type AbaDetalhe = 'cliente' | 'comercial'
+
 function rotuloItemCusto(item: ComercialCustos.Item): string {
   const tipo = TIPO_CUSTO_LABEL[item.tipo] || null
   return tipo ? `${item.nome} · ${tipo}` : item.nome
@@ -80,13 +85,6 @@ function margemBaixa(linha: Crm.Linha): boolean {
   if (margem < 0) return true
   if (valor > 0 && margem / valor < 0.1) return true
   return false
-}
-
-function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 const JANELA_EDICAO_MS = 5 * 60 * 1000
@@ -135,9 +133,13 @@ export function CrmNegociacaoDetalhe() {
   const { id } = useParams<{ id: string }>()
   const negociacaoId = id ? parseInt(id, 10) : NaN
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const voltar = useVoltarAnterior('/crm/leads')
   const toast = useToast()
+  const { user } = useAuth()
   const { subscribe } = useEventStream()
+  const podeEditarLead = temPermissao(user, 'crm.editar')
+  const aba: AbaDetalhe = searchParams.get('aba') === 'comercial' ? 'comercial' : 'cliente'
 
   const [loading, setLoading] = useState(true)
   const [forbidden, setForbidden] = useState(false)
@@ -166,10 +168,15 @@ export function CrmNegociacaoDetalhe() {
   const [savingEdit, setSavingEdit] = useState(false)
   const [agoraMs, setAgoraMs] = useState(() => Date.now())
   const loadedOnceRef = useRef(false)
+  const [leadNome, setLeadNome] = useState('')
+  const [leadTelefone, setLeadTelefone] = useState('')
+  const [leadEmail, setLeadEmail] = useState('')
+  const [leadEmpresa, setLeadEmpresa] = useState('')
+  const [leadOrigem, setLeadOrigem] = useState('')
+  const [savingLead, setSavingLead] = useState(false)
 
   const [propostaAberta, setPropostaAberta] = useState(false)
   const [contratoAberto, setContratoAberto] = useState(true)
-  const [historicoAberto, setHistoricoAberto] = useState(true)
   const docInitRef = useRef(false)
   const [propostaBadge, setPropostaBadge] = useState<string | null>(null)
   const [contratoBadge, setContratoBadge] = useState<string | null>(null)
@@ -197,6 +204,11 @@ export function CrmNegociacaoDetalhe() {
         crmNegociacoes.listAtividades(negociacaoId, { limit: 50, offset: 0 }),
       ])
       setLead(l)
+      setLeadNome(l.nome || '')
+      setLeadTelefone(l.telefone || '')
+      setLeadEmail(l.email || '')
+      setLeadEmpresa(l.empresa_texto || '')
+      setLeadOrigem(l.origem || '')
       setEstagios(funil)
       setAtividades(acts.items)
       loadedOnceRef.current = true
@@ -217,10 +229,9 @@ export function CrmNegociacaoDetalhe() {
   }, [load])
 
   useEffect(() => {
-    if (!historicoAberto) return
     const timer = window.setInterval(() => setAgoraMs(Date.now()), 15000)
     return () => window.clearInterval(timer)
-  }, [historicoAberto])
+  }, [])
 
   useEffect(() => {
     return subscribe('crm.lembrete', (payload) => {
@@ -245,7 +256,6 @@ export function CrmNegociacaoDetalhe() {
         docInitRef.current = true
         setPropostaAberta(!contrato)
         setContratoAberto(true)
-        setHistoricoAberto(false)
       }
     } catch {
       setPropostaBadge(null)
@@ -432,6 +442,52 @@ export function CrmNegociacaoDetalhe() {
     }
   }
 
+  async function saveLead() {
+    if (!lead || !podeEditarLead) return
+    const payload = {
+      nome: leadNome.trim(),
+      telefone: leadTelefone.trim() || null,
+      email: leadEmail.trim() || null,
+      empresa_texto: leadEmpresa.trim() || null,
+      origem: leadOrigem.trim() || null,
+    }
+    if (!payload.nome) {
+      toast.showWarning('Informe o nome do contato.')
+      setLeadNome(lead.nome)
+      return
+    }
+    if (
+      payload.nome === lead.nome &&
+      payload.telefone === (lead.telefone || null) &&
+      payload.email === (lead.email || null) &&
+      payload.empresa_texto === (lead.empresa_texto || null) &&
+      payload.origem === (lead.origem || null)
+    ) {
+      return
+    }
+    setSavingLead(true)
+    try {
+      const atual = await crmLeads.update(lead.id, payload)
+      setLead(atual)
+      setLeadNome(atual.nome || '')
+      setLeadTelefone(atual.telefone || '')
+      setLeadEmail(atual.email || '')
+      setLeadEmpresa(atual.empresa_texto || '')
+      setLeadOrigem(atual.origem || '')
+    } catch (err) {
+      toast.showError(mensagemFalhaParaToast(err, 'Não foi possível salvar os dados do contato.'))
+    } finally {
+      setSavingLead(false)
+    }
+  }
+
+  function setAba(proxima: AbaDetalhe) {
+    const next = new URLSearchParams(searchParams)
+    if (proxima === 'cliente') next.delete('aba')
+    else next.set('aba', proxima)
+    setSearchParams(next, { replace: true })
+  }
+
   if (loading) {
     return (
       <div className="mx-auto w-full min-w-0 max-w-5xl pb-10">
@@ -461,6 +517,21 @@ export function CrmNegociacaoDetalhe() {
     )
   }
 
+  const tabBtn = (id: AbaDetalhe, rotulo: string) => (
+    <button
+      type="button"
+      onClick={() => setAba(id)}
+      aria-current={aba === id ? 'page' : undefined}
+      className={
+        aba === id
+          ? 'border-b-2 border-sky-500 px-3 py-2.5 text-sm font-semibold text-slate-900 dark:border-sky-400 dark:text-white'
+          : 'border-b-2 border-transparent px-3 py-2.5 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+      }
+    >
+      {rotulo}
+    </button>
+  )
+
   return (
     <div className="mx-auto w-full min-w-0 max-w-5xl space-y-4 pb-10">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -480,47 +551,7 @@ export function CrmNegociacaoDetalhe() {
           Estágio: <span className="font-medium">{neg.estagio_nome || '—'}</span>
           {!neg.ativa ? ' · encerrada' : null}
         </p>
-        <div className="mt-3 max-w-lg">
-          <Input
-            label="Nome da rede"
-            value={nomeBase}
-            onChange={(e) => setNomeBase(e.target.value)}
-            onBlur={() => void saveNomeBase()}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                void saveNomeBase()
-              }
-            }}
-            placeholder="Ex.: Rede Postos Norte"
-            disabled={linhasAssinadas.size > 0 || savingNomeBase || !neg.ativa}
-            hint={
-              linhasAssinadas.size > 0
-                ? 'Bloqueado após o contrato assinado — este nome é o da rede no cadastro.'
-                : 'Opcional. Nome da rede do cliente, mesmo sem um sistema específico. Salvo ao sair do campo.'
-            }
-          />
-        </div>
       </div>
-
-      <Card title="Chats vinculados">
-        {(neg.chats || []).length === 0 ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">Nenhum chat vinculado a esta negociação.</p>
-        ) : (
-          <ul className="space-y-2">
-            {(neg.chats || []).map((chat) => (
-              <li key={chat.id}>
-                <Link
-                  to={`/whatsapp/c/${chat.id}`}
-                  className="text-sm font-medium text-violet-700 hover:underline dark:text-violet-300"
-                >
-                  {chat.cliente_nome || chat.wa_id} · {chat.protocolo}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
 
       <Card title="Avançar estágio">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -554,6 +585,209 @@ export function CrmNegociacaoDetalhe() {
         </p>
       </Card>
 
+      <Card title="Anotações">
+        <form onSubmit={handleAddNota} className="mb-4 flex flex-col gap-3">
+          <Input
+            label="Nova nota"
+            value={notaTexto}
+            onChange={(e) => setNotaTexto(e.target.value)}
+            placeholder="Tentativa de contato, reunião marcada…"
+          />
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <Input
+                id="lembrete-nota-nova"
+                label="Lembrete de reunião"
+                type="datetime-local"
+                value={lembreteNota}
+                onChange={(e) => setLembreteNota(e.target.value)}
+                hint="Opcional. Avisa você na data e hora escolhidas."
+              />
+            </div>
+            <Button type="submit" disabled={savingNota || !notaTexto.trim()}>
+              {savingNota ? 'Salvando…' : 'Adicionar'}
+            </Button>
+          </div>
+        </form>
+        {atividades.length === 0 ? (
+          <p className="text-sm text-slate-500">Sem atividades ainda.</p>
+        ) : (
+          <ul className="space-y-3">
+            {atividades.map((a) => {
+              const editavel = podeEditarNota(a, agoraMs)
+              const editando = editandoId === a.id
+              return (
+                <li
+                  key={a.id}
+                  className="border-l-2 border-slate-200 pl-3 dark:border-slate-700"
+                >
+                  <div className="flex flex-wrap items-baseline gap-2 text-xs text-slate-500">
+                    <span className="font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                      {TIPO_ATIVIDADE_LABEL[a.tipo] || a.tipo}
+                    </span>
+                    <span>{a.autor_nome || '—'}</span>
+                    <span>{formatDateTime(a.created_at)}</span>
+                    {a.updated_at ? <span>· editada</span> : null}
+                  </div>
+                  {editando ? (
+                    <form
+                      className="mt-2 space-y-2"
+                      onSubmit={(e) => {
+                        e.preventDefault()
+                        void salvarEdicaoNota(a.id)
+                      }}
+                    >
+                      <Input
+                        id={`nota-texto-${a.id}`}
+                        label="Texto"
+                        value={editTexto}
+                        onChange={(ev) => setEditTexto(ev.target.value)}
+                      />
+                      <Input
+                        id={`lembrete-nota-${a.id}`}
+                        label="Lembrete de reunião"
+                        type="datetime-local"
+                        value={editLembrete}
+                        onChange={(ev) => setEditLembrete(ev.target.value)}
+                        hint="Deixe em branco para remover o lembrete."
+                      />
+                      <div className="flex gap-2">
+                        <Button type="submit" disabled={savingEdit || !editTexto.trim()}>
+                          {savingEdit ? 'Salvando…' : 'Salvar'}
+                        </Button>
+                        <Button type="button" variant="secondary" onClick={() => setEditandoId(null)}>
+                          Cancelar
+                        </Button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      <p className="mt-0.5 text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap">{a.texto}</p>
+                      {a.lembrete_em ? (
+                        <p className="mt-1 text-xs text-slate-500">
+                          Lembrete: {formatDateTime(a.lembrete_em)}
+                          {a.lembrete_disparado_em ? ' · avisado' : ''}
+                        </p>
+                      ) : null}
+                      {editavel ? (
+                        <button
+                          type="button"
+                          className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+                          onClick={() => {
+                            setEditandoId(a.id)
+                            setEditTexto(a.texto)
+                            setEditLembrete(paraInputLocal(a.lembrete_em))
+                          }}
+                        >
+                          <IconPencil className="size-3.5" />
+                          Editar
+                        </button>
+                      ) : null}
+                    </>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </Card>
+
+      <div className="border-b border-slate-200 dark:border-slate-800">
+        <nav className="-mb-px flex gap-1" aria-label="Seções da negociação">
+          {tabBtn('cliente', 'Cliente')}
+          {tabBtn('comercial', 'Comercial')}
+        </nav>
+      </div>
+
+      {aba === 'cliente' ? (
+        <>
+          <Card title="Dados do contato">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input
+                label="Nome"
+                value={leadNome}
+                onChange={(e) => setLeadNome(e.target.value)}
+                onBlur={() => void saveLead()}
+                disabled={!podeEditarLead || savingLead || !neg.ativa}
+                required
+              />
+              <Input
+                label="Telefone"
+                value={leadTelefone}
+                onChange={(e) => setLeadTelefone(e.target.value)}
+                onBlur={() => void saveLead()}
+                disabled={!podeEditarLead || savingLead || !neg.ativa}
+              />
+              <Input
+                label="E-mail"
+                type="email"
+                value={leadEmail}
+                onChange={(e) => setLeadEmail(e.target.value)}
+                onBlur={() => void saveLead()}
+                disabled={!podeEditarLead || savingLead || !neg.ativa}
+              />
+              <Input
+                label="Empresa / prospecto"
+                value={leadEmpresa}
+                onChange={(e) => setLeadEmpresa(e.target.value)}
+                onBlur={() => void saveLead()}
+                disabled={!podeEditarLead || savingLead || !neg.ativa}
+              />
+              <Input
+                label="Origem"
+                value={leadOrigem}
+                onChange={(e) => setLeadOrigem(e.target.value)}
+                onBlur={() => void saveLead()}
+                placeholder="WhatsApp, indicação…"
+                disabled={!podeEditarLead || savingLead || !neg.ativa}
+              />
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              Preencha à medida que a conversa avançar. Os dados são salvos ao sair do campo.
+            </p>
+          </Card>
+          <Card title="Nome da rede">
+            <Input
+              label="Nome da rede"
+              value={nomeBase}
+              onChange={(e) => setNomeBase(e.target.value)}
+              onBlur={() => void saveNomeBase()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  void saveNomeBase()
+                }
+              }}
+              placeholder="Ex.: Rede Postos Norte"
+              disabled={linhasAssinadas.size > 0 || savingNomeBase || !neg.ativa}
+              hint={
+                linhasAssinadas.size > 0
+                  ? 'Bloqueado após o contrato assinado — este nome é o da rede no cadastro.'
+                  : 'Opcional. Nome da rede do cliente, mesmo sem um sistema específico. Salvo ao sair do campo.'
+              }
+            />
+          </Card>
+          <Card title="Chats vinculados">
+            {(neg.chats || []).length === 0 ? (
+              <p className="text-sm text-slate-500 dark:text-slate-400">Nenhum chat vinculado a esta negociação.</p>
+            ) : (
+              <ul className="space-y-2">
+                {(neg.chats || []).map((chat) => (
+                  <li key={chat.id}>
+                    <Link
+                      to={`/whatsapp/c/${chat.id}`}
+                      className="text-sm font-medium text-violet-700 hover:underline dark:text-violet-300"
+                    >
+                      {chat.cliente_nome || chat.wa_id} · {chat.protocolo}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </>
+      ) : (
+        <>
       <Card title="Linhas por CNPJ">
         <div className="mb-3 flex justify-end">
           <Button onClick={openCreateLinha}>
@@ -670,118 +904,8 @@ export function CrmNegociacaoDetalhe() {
       >
         <CrmContratoCard negociacao={neg} lead={lead} onChanged={handleDocsChanged} embedded />
       </CollapsibleCard>
-
-      <CollapsibleCard
-        title="Histórico"
-        badge={atividades.length > 0 ? String(atividades.length) : null}
-        open={historicoAberto}
-        onOpenChange={setHistoricoAberto}
-      >
-        <form onSubmit={handleAddNota} className="mb-4 flex flex-col gap-3">
-          <Input
-            label="Nova nota"
-            value={notaTexto}
-            onChange={(e) => setNotaTexto(e.target.value)}
-            placeholder="Tentativa de contato, reunião marcada…"
-          />
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-            <div className="flex-1">
-              <Input
-                id="lembrete-nota-nova"
-                label="Lembrete de reunião"
-                type="datetime-local"
-                value={lembreteNota}
-                onChange={(e) => setLembreteNota(e.target.value)}
-                hint="Opcional. Avisa você na data e hora escolhidas."
-              />
-            </div>
-            <Button type="submit" disabled={savingNota || !notaTexto.trim()}>
-              {savingNota ? 'Salvando…' : 'Adicionar'}
-            </Button>
-          </div>
-        </form>
-        {atividades.length === 0 ? (
-          <p className="text-sm text-slate-500">Sem atividades ainda.</p>
-        ) : (
-          <ul className="space-y-3">
-            {atividades.map((a) => {
-              const editavel = podeEditarNota(a, agoraMs)
-              const editando = editandoId === a.id
-              return (
-                <li
-                  key={a.id}
-                  className="border-l-2 border-slate-200 pl-3 dark:border-slate-700"
-                >
-                  <div className="flex flex-wrap items-baseline gap-2 text-xs text-slate-500">
-                    <span className="font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                      {TIPO_ATIVIDADE_LABEL[a.tipo] || a.tipo}
-                    </span>
-                    <span>{a.autor_nome || '—'}</span>
-                    <span>{formatDateTime(a.created_at)}</span>
-                    {a.updated_at ? <span>· editada</span> : null}
-                  </div>
-                  {editando ? (
-                    <form
-                      className="mt-2 space-y-2"
-                      onSubmit={(e) => {
-                        e.preventDefault()
-                        void salvarEdicaoNota(a.id)
-                      }}
-                    >
-                      <Input
-                        id={`nota-texto-${a.id}`}
-                        label="Texto"
-                        value={editTexto}
-                        onChange={(ev) => setEditTexto(ev.target.value)}
-                      />
-                      <Input
-                        id={`lembrete-nota-${a.id}`}
-                        label="Lembrete de reunião"
-                        type="datetime-local"
-                        value={editLembrete}
-                        onChange={(ev) => setEditLembrete(ev.target.value)}
-                        hint="Deixe em branco para remover o lembrete."
-                      />
-                      <div className="flex gap-2">
-                        <Button type="submit" disabled={savingEdit || !editTexto.trim()}>
-                          {savingEdit ? 'Salvando…' : 'Salvar'}
-                        </Button>
-                        <Button type="button" variant="secondary" onClick={() => setEditandoId(null)}>
-                          Cancelar
-                        </Button>
-                      </div>
-                    </form>
-                  ) : (
-                    <>
-                      <p className="mt-0.5 text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap">{a.texto}</p>
-                      {a.lembrete_em ? (
-                        <p className="mt-1 text-xs text-slate-500">
-                          Lembrete: {formatDateTime(a.lembrete_em)}
-                          {a.lembrete_disparado_em ? ' · avisado' : ''}
-                        </p>
-                      ) : null}
-                      {editavel ? (
-                        <button
-                          type="button"
-                          className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
-                          onClick={() => {
-                            setEditandoId(a.id)
-                            setEditTexto(a.texto)
-                            setEditLembrete(paraInputLocal(a.lembrete_em))
-                          }}
-                        >
-                          <IconPencil className="size-3.5" />
-                          Editar
-                        </button>
-                      ) : null}
-                    </>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </CollapsibleCard>
+        </>
+      )}
 
       {linhaModal ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">

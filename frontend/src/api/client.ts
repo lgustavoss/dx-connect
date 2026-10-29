@@ -4077,6 +4077,9 @@ export namespace Crm {
     perdido_em?: string | null;
     ativo: boolean;
     negociacao_ativa_id?: number | null;
+    ultima_nota?: string | null;
+    ultima_nota_em?: string | null;
+    proximo_lembrete_em?: string | null;
     created_at?: string | null;
     updated_at?: string | null;
   }

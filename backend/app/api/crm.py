@@ -98,7 +98,7 @@ def listar_leads(
         ator_id=atendente.id,
         ativo=ativo,
     )
-    return ListaPaginada(items=[CrmLeadRead(**svc.lead_to_read(db, r)) for r in rows], total=total)
+    return ListaPaginada(items=[CrmLeadRead(**p) for p in svc.leads_to_read(db, rows)], total=total)
 
 
 @router.post("/leads", response_model=CrmLeadRead, status_code=201)
@@ -111,7 +111,7 @@ def criar_lead(
     registrar_audit(db, "crm_lead", lead.id, "create", atendente.id)
     db.commit()
     lead = svc.obter_lead(db, lead.id)
-    return CrmLeadRead(**svc.lead_to_read(db, lead))
+    return CrmLeadRead(**svc.leads_to_read(db, [lead])[0])
 
 
 @router.get("/leads/{lead_id}", response_model=CrmLeadRead)
@@ -121,7 +121,7 @@ def obter_lead(
     _: Atendente = Depends(exigir_permissao("crm.ver")),
 ):
     lead = svc.obter_lead(db, lead_id)
-    return CrmLeadRead(**svc.lead_to_read(db, lead))
+    return CrmLeadRead(**svc.leads_to_read(db, [lead])[0])
 
 
 @router.patch("/leads/{lead_id}", response_model=CrmLeadRead)
@@ -136,7 +136,7 @@ def atualizar_lead(
     registrar_audit(db, "crm_lead", lead.id, "update", atendente.id)
     db.commit()
     lead = svc.obter_lead(db, lead.id)
-    return CrmLeadRead(**svc.lead_to_read(db, lead))
+    return CrmLeadRead(**svc.leads_to_read(db, [lead])[0])
 
 
 @router.get("/negociacoes", response_model=ListaPaginada[CrmNegociacaoRead])
