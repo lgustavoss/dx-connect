@@ -4944,6 +4944,49 @@
           "text": "DeskRemote Cliente v2: o **2.1.1** só existe depois de gerar o Release no Actions (na `main`) — o link `/acesso-remoto/download` passa a servir esse `.exe`"
         }
       ]
+    },
+    {
+      "version": "26.10.011",
+      "version_display": "v26.10.011",
+      "date": "2026-10-29",
+      "status": "published",
+      "changes": [
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "CRM: o cartão no Kanban mostra a **última nota** e o **próximo lembrete**; criar lead começa por nome e telefone; no detalhe as anotações ficam sempre visíveis, com abas Cliente e Comercial (#S202610-0022)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Sobre: o histórico de versões mostra **3 por vez**, com Anterior/Próxima — a página deixa de listar todas as CalVer de uma vez (#S202610-0021)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "Listagens (empresas, redes, equipe, status, catálogos…): **Ativos/Todos** fica colado na paginação, no mesmo padrão da aba Motivos"
+        },
+        {
+          "product": "deskrudder",
+          "category": "melhorias",
+          "text": "App desktop: clique direito numa palavra sublinhada sugere a correção e permite adicionar ao dicionário (#S202610-0024)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Configurações → Natureza e motivo: a aba **Motivos** volta a abrir (pedia 200 itens; a API aceita no máximo 100), lista **20 por vez** e junta busca, natureza e Ativos/Todos na mesma barra (#S202610-0020)"
+        },
+        {
+          "product": "deskrudder",
+          "category": "correcoes",
+          "text": "Chat: ao terminar o áudio, a barra chega ao fim — deixa de sobrar um pedaço vazio (#S202610-0023)"
+        },
+        {
+          "product": "saas",
+          "category": "melhorias",
+          "text": "Usuários: **Ativos/Todos** fica colado na paginação, no mesmo padrão das listagens do produto"
+        }
+      ]
     }
   ]
 }
