@@ -123,6 +123,43 @@ def test_fluxo_lead_negociacao_estagio_e_cnpj(client, auth_headers, seed_base):
     assert lead2.json()["perdido_em"] is not None
 
 
+def test_lista_lead_traz_ultima_nota_e_proximo_lembrete(client, auth_headers):
+    h = auth_headers["comercial"]
+    r = client.post(
+        "/v1/crm/leads",
+        headers=h,
+        json={"nome": "Posto Andamento", "telefone": "11988887777"},
+    )
+    assert r.status_code == 201, r.text
+    lead = r.json()
+    assert lead["ultima_nota"] is None
+    assert lead["proximo_lembrete_em"] is None
+    neg_id = lead["negociacao_ativa_id"]
+
+    quando = (datetime.now(timezone.utc) + timedelta(hours=3)).isoformat()
+    nota = client.post(
+        f"/v1/crm/negociacoes/{neg_id}/atividades",
+        headers=h,
+        json={
+            "tipo": "nota",
+            "texto": "Entrei em contato e ficou agendado um novo contato.",
+            "lembrete_em": quando,
+        },
+    )
+    assert nota.status_code == 201, nota.text
+
+    lst = client.get("/v1/crm/leads", headers=h, params={"q": "Posto Andamento"})
+    assert lst.status_code == 200, lst.text
+    item = next(i for i in lst.json()["items"] if i["id"] == lead["id"])
+    assert item["ultima_nota"] == "Entrei em contato e ficou agendado um novo contato."
+    assert item["ultima_nota_em"] is not None
+    assert item["proximo_lembrete_em"] is not None
+
+    got = client.get(f"/v1/crm/leads/{lead['id']}", headers=h)
+    assert got.status_code == 200
+    assert got.json()["ultima_nota"].startswith("Entrei em contato")
+
+
 def test_admin_ve_todas_e_filtro_so_minhas(client, auth_headers, seed_base):
     h_com = auth_headers["comercial"]
     h_adm = auth_headers["admin"]

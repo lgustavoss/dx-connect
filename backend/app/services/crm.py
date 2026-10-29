@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi import HTTPException
-from sqlalchemy import or_, update
+from sqlalchemy import func, or_, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.atendente import Atendente
@@ -228,6 +228,80 @@ def _assert_responsavel_comercial(db: Session, responsavel_id: int) -> Atendente
     return a
 
 
+ULTIMA_NOTA_MAX = 120
+
+
+def _recortar_nota(texto: str | None) -> str | None:
+    t = (texto or "").strip()
+    if not t:
+        return None
+    if len(t) > ULTIMA_NOTA_MAX:
+        return t[: ULTIMA_NOTA_MAX - 1] + "…"
+    return t
+
+
+def resumos_andamento(db: Session, negociacao_ids: list[int]) -> dict[int, dict]:
+    """Última nota (não mudança de estágio) e próximo lembrete por negociação."""
+    ids = list({i for i in negociacao_ids if i})
+    vazio = {"ultima_nota": None, "ultima_nota_em": None, "proximo_lembrete_em": None}
+    out: dict[int, dict] = {i: dict(vazio) for i in ids}
+    if not ids:
+        return out
+    sub_nota = (
+        db.query(
+            CrmNegociacaoAtividade.negociacao_id,
+            func.max(CrmNegociacaoAtividade.id).label("max_id"),
+        )
+        .filter(
+            CrmNegociacaoAtividade.negociacao_id.in_(ids),
+            CrmNegociacaoAtividade.tipo.in_(TIPOS_NOTA_EDITAVEIS),
+        )
+        .group_by(CrmNegociacaoAtividade.negociacao_id)
+        .subquery()
+    )
+    for row in (
+        db.query(CrmNegociacaoAtividade)
+        .join(sub_nota, CrmNegociacaoAtividade.id == sub_nota.c.max_id)
+        .all()
+    ):
+        out[row.negociacao_id]["ultima_nota"] = _recortar_nota(row.texto)
+        out[row.negociacao_id]["ultima_nota_em"] = row.created_at
+    agora = datetime.now(timezone.utc)
+    for nid, prox in (
+        db.query(
+            CrmNegociacaoAtividade.negociacao_id,
+            func.min(CrmNegociacaoAtividade.lembrete_em),
+        )
+        .filter(
+            CrmNegociacaoAtividade.negociacao_id.in_(ids),
+            CrmNegociacaoAtividade.lembrete_em.isnot(None),
+            CrmNegociacaoAtividade.lembrete_em >= agora,
+            CrmNegociacaoAtividade.lembrete_disparado_em.is_(None),
+        )
+        .group_by(CrmNegociacaoAtividade.negociacao_id)
+        .all()
+    ):
+        out[nid]["proximo_lembrete_em"] = prox
+    return out
+
+
+def anexar_andamento(db: Session, payloads: list[dict]) -> None:
+    ids = [p["negociacao_ativa_id"] for p in payloads if p.get("negociacao_ativa_id")]
+    resumos = resumos_andamento(db, ids)
+    vazio = {"ultima_nota": None, "ultima_nota_em": None, "proximo_lembrete_em": None}
+    for p in payloads:
+        extra = resumos.get(p.get("negociacao_ativa_id")) or vazio
+        p["ultima_nota"] = extra["ultima_nota"]
+        p["ultima_nota_em"] = extra["ultima_nota_em"]
+        p["proximo_lembrete_em"] = extra["proximo_lembrete_em"]
+
+
+def leads_to_read(db: Session, leads: list[CrmLead]) -> list[dict]:
+    payloads = [lead_to_read(db, r) for r in leads]
+    anexar_andamento(db, payloads)
+    return payloads
+
+
 def lead_to_read(db: Session, lead: CrmLead) -> dict:
     est = lead.estagio
     neg = _negociacao_ativa_do_lead(db, lead.id)
@@ -246,6 +320,9 @@ def lead_to_read(db: Session, lead: CrmLead) -> dict:
         "perdido_em": lead.perdido_em,
         "ativo": lead.ativo,
         "negociacao_ativa_id": neg.id if neg else None,
+        "ultima_nota": None,
+        "ultima_nota_em": None,
+        "proximo_lembrete_em": None,
         "created_at": lead.created_at,
         "updated_at": lead.updated_at,
     }
