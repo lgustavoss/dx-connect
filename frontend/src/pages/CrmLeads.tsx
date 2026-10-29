@@ -13,12 +13,14 @@ import { coletarTodasPaginas } from '../api/collectPages'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
+import { CheckboxField } from '../components/ui/CheckboxField'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { IconPencil } from '../components/ui/IconPencil'
 import { BarraBuscaPaginacao, PAGE_SIZE_PADRAO } from '../components/ui/BarraBuscaPaginacao'
 import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../contexts/AuthContext'
+import { formatDateTime } from '../lib/formatDateTime'
 import { temPermissao } from '../lib/permissoes'
 import { SemPermissao } from './SemPermissao'
 
@@ -99,6 +101,7 @@ export function CrmLeads() {
   const [notas, setNotas] = useState('')
   const [responsavelId, setResponsavelId] = useState<number | ''>('')
   const [responsaveis, setResponsaveis] = useState<Atendentes.Atendente[]>([])
+  const [maisDados, setMaisDados] = useState(false)
   const loadGenRef = useRef(0)
 
   useEffect(() => {
@@ -268,6 +271,7 @@ export function CrmLeads() {
     setOrigem('')
     setNotas('')
     setResponsavelId(user?.id ?? '')
+    setMaisDados(false)
     setModalOpen(true)
   }
 
@@ -286,7 +290,8 @@ export function CrmLeads() {
         empresa_texto: empresaTexto.trim() || null,
         origem: origem.trim() || null,
         notas: notas.trim() || null,
-        responsavel_id: responsavelId === '' ? undefined : Number(responsavelId),
+        responsavel_id:
+          isAdmin && typeof responsavelId === 'number' ? responsavelId : (user?.id ?? undefined),
         criar_negociacao: true,
       })
       toast.showSuccess('Lead criada.')
@@ -475,53 +480,36 @@ export function CrmLeads() {
               placeholder="Buscar por nome, telefone, e-mail…"
               page={page}
               total={total}
+              pageSize={PAGE_SIZE_PADRAO}
               onPageChange={setPage}
               disabled={loading}
               extra={
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                  <fieldset className="flex flex-wrap items-center gap-x-4 gap-y-2 border-0 p-0">
-                    <legend className="sr-only">Estágio</legend>
-                    <span className="text-sm text-slate-500 dark:text-slate-400">Estágio</span>
-                    <label className="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                      <input
-                        type="radio"
-                        name="filtro-estagio-lead"
-                        checked={estagioId === ''}
-                        onChange={() => setEstagioId('')}
-                        className="size-4 border-slate-300"
-                      />
-                      Todas
-                      {Object.values(contagens).length > 0
-                        ? ` (${Object.values(contagens).reduce((a, b) => a + b, 0)})`
-                        : ''}
-                    </label>
-                    {estagios.map((e) => (
-                      <label
-                        key={e.id}
-                        className="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300"
-                      >
-                        <input
-                          type="radio"
-                          name="filtro-estagio-lead"
-                          checked={estagioId === e.id}
-                          onChange={() => setEstagioId(e.id)}
-                          className="size-4 border-slate-300"
-                        />
-                        {e.nome}
-                        {contagens[e.id] != null ? ` (${contagens[e.id]})` : ''}
-                      </label>
-                    ))}
-                  </fieldset>
-                  <label className="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                    <input
-                      type="checkbox"
-                      checked={soMinhas}
-                      onChange={(ev) => setSoMinhas(ev.target.checked)}
-                      className="size-4 rounded border-slate-300"
-                    />
-                    Só as minhas
-                  </label>
-                </div>
+                <Select
+                  value={estagioId}
+                  onChange={(v) => setEstagioId(v === '' ? '' : Number(v))}
+                  options={estagios.map((e) => ({
+                    value: e.id,
+                    label: contagens[e.id] != null ? `${e.nome} (${contagens[e.id]})` : e.nome,
+                  }))}
+                  includeEmpty
+                  emptyLabel={
+                    Object.values(contagens).length > 0
+                      ? `Todos os estágios (${Object.values(contagens).reduce((a, b) => a + b, 0)})`
+                      : 'Todos os estágios'
+                  }
+                  aria-label="Filtrar por estágio"
+                  className="w-full"
+                />
+              }
+              juntoPaginacao={
+                <CheckboxField
+                  variant="chip"
+                  checked={soMinhas}
+                  onChange={(ev) => setSoMinhas(ev.target.checked)}
+                  className="whitespace-nowrap px-2.5 py-1.5"
+                >
+                  Só as minhas
+                </CheckboxField>
               }
             />
 
@@ -531,12 +519,13 @@ export function CrmLeads() {
               <p className="text-slate-500 dark:text-slate-400">Nenhuma lead encontrada.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px] text-left text-sm">
+                <table className="w-full min-w-[800px] text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
                       <th className="px-3 py-2 font-medium text-slate-600 dark:text-slate-300">Lead</th>
                       <th className="px-3 py-2 font-medium text-slate-600 dark:text-slate-300">Estágio</th>
                       <th className="px-3 py-2 font-medium text-slate-600 dark:text-slate-300">Contato</th>
+                      <th className="px-3 py-2 font-medium text-slate-600 dark:text-slate-300">Andamento</th>
                       <th className="px-3 py-2 font-medium text-slate-600 dark:text-slate-300">Criada</th>
                       <th className="px-3 py-2 font-medium text-slate-600 dark:text-slate-300" />
                     </tr>
@@ -559,6 +548,18 @@ export function CrmLeads() {
                         <td className="px-3 py-2.5 text-slate-600 dark:text-slate-400">
                           <div>{lead.telefone || '—'}</div>
                           <div className="text-xs">{lead.email || ''}</div>
+                        </td>
+                        <td className="max-w-[16rem] px-3 py-2.5 text-slate-600 dark:text-slate-400">
+                          {lead.ultima_nota ? (
+                            <div className="line-clamp-2 text-xs">{lead.ultima_nota}</div>
+                          ) : (
+                            <div className="text-xs text-slate-400">Sem notas</div>
+                          )}
+                          {lead.proximo_lembrete_em ? (
+                            <div className="mt-0.5 text-[11px] font-medium text-cyan-700 dark:text-cyan-300">
+                              Próximo: {formatDateTime(lead.proximo_lembrete_em)}
+                            </div>
+                          ) : null}
                         </td>
                         <td className="px-3 py-2.5 text-slate-500">{formatDate(lead.created_at)}</td>
                         <td className="px-3 py-2.5 text-right">
@@ -587,15 +588,14 @@ export function CrmLeads() {
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500 dark:border-slate-600 dark:bg-slate-900/50 dark:text-slate-100"
               />
             </div>
-            <label className="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-              <input
-                type="checkbox"
-                checked={soMinhas}
-                onChange={(ev) => setSoMinhas(ev.target.checked)}
-                className="size-4 rounded border-slate-300"
-              />
+            <CheckboxField
+              variant="chip"
+              checked={soMinhas}
+              onChange={(ev) => setSoMinhas(ev.target.checked)}
+              className="whitespace-nowrap px-2.5 py-1.5"
+            >
               Só as minhas
-            </label>
+            </CheckboxField>
             {moving || reorderingCols ? (
               <span className="text-xs text-slate-500">Atualizando…</span>
             ) : null}
@@ -745,6 +745,16 @@ export function CrmLeads() {
                               {lead.telefone ? <span>{lead.telefone}</span> : null}
                               {lead.origem ? <span>· {lead.origem}</span> : null}
                             </div>
+                            {lead.ultima_nota ? (
+                              <p className="mt-2 line-clamp-2 text-xs text-slate-600 dark:text-slate-300">
+                                {lead.ultima_nota}
+                              </p>
+                            ) : null}
+                            {lead.proximo_lembrete_em ? (
+                              <p className="mt-1 text-[11px] font-medium text-cyan-700 dark:text-cyan-300">
+                                Próximo: {formatDateTime(lead.proximo_lembrete_em)}
+                              </p>
+                            ) : null}
                             <div className="mt-1 text-[11px] text-slate-400">{formatDate(lead.created_at)}</div>
                           </button>
                         ))
@@ -766,29 +776,43 @@ export function CrmLeads() {
             <form onSubmit={handleCreate} className="mt-4 space-y-3">
               <Input label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
               <Input label="Telefone" value={telefone} onChange={(e) => setTelefone(e.target.value)} />
-              <Input label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-              <Input
-                label="Empresa / prospecto"
-                value={empresaTexto}
-                onChange={(e) => setEmpresaTexto(e.target.value)}
-              />
-              <Input
-                label="Origem"
-                value={origem}
-                onChange={(e) => setOrigem(e.target.value)}
-                placeholder="WhatsApp, indicação…"
-              />
-              <Input label="Observações" value={notas} onChange={(e) => setNotas(e.target.value)} />
-              {isAdmin && responsaveis.length > 0 ? (
-                <Select
-                  label="Responsável"
-                  value={responsavelId === '' ? '' : String(responsavelId)}
-                  onChange={(v) => setResponsavelId(v === '' ? '' : Number(v))}
-                  options={[
-                    { value: '', label: 'Eu (usuário atual)' },
-                    ...responsaveis.map((a) => ({ value: String(a.id), label: a.nome })),
-                  ]}
-                />
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Responsável: {user?.nome || 'você'} (quem está cadastrando).
+              </p>
+              <button
+                type="button"
+                onClick={() => setMaisDados((v) => !v)}
+                className="text-sm font-medium text-cyan-700 hover:underline dark:text-cyan-300"
+              >
+                {maisDados ? 'Ocultar dados opcionais' : 'Mais dados (opcional)'}
+              </button>
+              {maisDados ? (
+                <>
+                  <Input label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                  <Input
+                    label="Empresa / prospecto"
+                    value={empresaTexto}
+                    onChange={(e) => setEmpresaTexto(e.target.value)}
+                  />
+                  <Input
+                    label="Origem"
+                    value={origem}
+                    onChange={(e) => setOrigem(e.target.value)}
+                    placeholder="WhatsApp, indicação…"
+                  />
+                  <Input label="Observações" value={notas} onChange={(e) => setNotas(e.target.value)} />
+                  {isAdmin && responsaveis.length > 0 ? (
+                    <Select
+                      label="Responsável"
+                      value={String(responsavelId || user?.id || '')}
+                      onChange={(v) => setResponsavelId(v === '' ? (user?.id ?? '') : Number(v))}
+                      options={responsaveis.map((a) => ({
+                        value: String(a.id),
+                        label: a.id === user?.id ? `${a.nome} (você)` : a.nome,
+                      }))}
+                    />
+                  ) : null}
+                </>
               ) : null}
               <div className="flex flex-wrap justify-end gap-2 pt-2">
                 <Button type="button" variant="cancel" onClick={() => setModalOpen(false)} disabled={saving}>

@@ -5,6 +5,26 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### DeskRudder
+
+#### Melhorias
+
+- CRM: o cartão no Kanban mostra a **última nota** e o **próximo lembrete**; criar lead começa por nome e telefone; no detalhe as anotações ficam sempre visíveis, com abas Cliente e Comercial (#S202610-0022)
+- Sobre: o histórico de versões mostra **3 por vez**, com Anterior/Próxima — a página deixa de listar todas as CalVer de uma vez (#S202610-0021)
+- Listagens (empresas, redes, equipe, status, catálogos…): **Ativos/Todos** fica colado na paginação, no mesmo padrão da aba Motivos
+- App desktop: clique direito numa palavra sublinhada sugere a correção e permite adicionar ao dicionário (#S202610-0024)
+
+#### Correções
+
+- Configurações → Natureza e motivo: a aba **Motivos** volta a abrir (pedia 200 itens; a API aceita no máximo 100), lista **20 por vez** e junta busca, natureza e Ativos/Todos na mesma barra (#S202610-0020)
+- Chat: ao terminar o áudio, a barra chega ao fim — deixa de sobrar um pedaço vazio (#S202610-0023)
+
+### SaaS Control Plane
+
+#### Melhorias
+
+- Usuários: **Ativos/Todos** fica colado na paginação, no mesmo padrão das listagens do produto
+
 ## [26.10.010] - 2026-10-28
 
 ### DeskRudder

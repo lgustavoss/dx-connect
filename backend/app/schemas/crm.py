@@ -86,6 +86,9 @@ class CrmLeadRead(BaseModel):
     perdido_em: datetime | None = None
     ativo: bool
     negociacao_ativa_id: int | None = None
+    ultima_nota: str | None = None
+    ultima_nota_em: datetime | None = None
+    proximo_lembrete_em: datetime | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

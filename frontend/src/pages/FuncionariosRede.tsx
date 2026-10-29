@@ -123,7 +123,7 @@ export function FuncionariosRede() {
           total={total}
           onPageChange={setPage}
           disabled={loading}
-          extra={
+          juntoPaginacao={
             <FiltroInativos
               incluirInativos={incluirInativos}
               onChange={(v) => {

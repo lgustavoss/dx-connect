@@ -124,6 +124,8 @@ export type ReleaseNotesViewProps = {
 /** Lista compartilhada de versão + histórico (#674 / #920). */
 
 const PREVIEW_MINHAS = 5
+/** Histórico paginado para a página inicial não listar todas as CalVer (#S202610-0021). */
+const HISTORICO_POR_PAGINA = 3
 export function ReleaseNotesView({
   backTo,
   backLabel = 'Voltar',
@@ -141,7 +143,15 @@ export function ReleaseNotesView({
   const navigate = useNavigate()
   const [minhas, setMinhas] = useState<SolicitacoesMelhoria.ListaItem[]>([])
   const [loadingMinhas, setLoadingMinhas] = useState(showSugestoesCta)
+  const [paginaHistorico, setPaginaHistorico] = useState(1)
   const pastReleases = (notes?.releases ?? []).filter((r) => r.version !== notes?.current?.version)
+  const historicoOrdenado = pastReleases.slice().reverse()
+  const totalPaginasHistorico = Math.max(1, Math.ceil(historicoOrdenado.length / HISTORICO_POR_PAGINA))
+  const paginaHistoricoSafe = Math.min(paginaHistorico, totalPaginasHistorico)
+  const historicoPagina = historicoOrdenado.slice(
+    (paginaHistoricoSafe - 1) * HISTORICO_POR_PAGINA,
+    paginaHistoricoSafe * HISTORICO_POR_PAGINA,
+  )
 
   useEffect(() => {
     if (!showSugestoesCta) return
@@ -162,6 +172,10 @@ export function ReleaseNotesView({
       cancelled = true
     }
   }, [showSugestoesCta])
+
+  useEffect(() => {
+    setPaginaHistorico(1)
+  }, [notes?.current?.version, pastReleases.length])
 
   if (loading) {
     return (
@@ -267,19 +281,45 @@ export function ReleaseNotesView({
         </p>
       )}
 
-      {pastReleases.length > 0 ? (
+      {historicoOrdenado.length > 0 ? (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Histórico</h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            Atualizações publicadas em versões anteriores, do mais recente ao mais antigo.
-          </p>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Histórico</h2>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Atualizações publicadas em versões anteriores, do mais recente ao mais antigo.
+              </p>
+            </div>
+            {historicoOrdenado.length > HISTORICO_POR_PAGINA ? (
+              <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                <span className="tabular-nums">
+                  {paginaHistoricoSafe} / {totalPaginasHistorico}
+                </span>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={paginaHistoricoSafe <= 1}
+                  onClick={() => setPaginaHistorico((p) => Math.max(1, p - 1))}
+                  className="px-2 py-1 text-xs"
+                >
+                  Anterior
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={paginaHistoricoSafe >= totalPaginasHistorico}
+                  onClick={() => setPaginaHistorico((p) => Math.min(totalPaginasHistorico, p + 1))}
+                  className="px-2 py-1 text-xs"
+                >
+                  Próxima
+                </Button>
+              </div>
+            ) : null}
+          </div>
           <div className="space-y-4">
-            {pastReleases
-              .slice()
-              .reverse()
-              .map((release) => (
-                <ReleaseBlock key={release.version} release={release} showProductTags={showProductTags} />
-              ))}
+            {historicoPagina.map((release) => (
+              <ReleaseBlock key={release.version} release={release} showProductTags={showProductTags} />
+            ))}
           </div>
         </section>
       ) : null}

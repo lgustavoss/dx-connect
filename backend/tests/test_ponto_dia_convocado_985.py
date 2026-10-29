@@ -5,6 +5,17 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 
 from app.services.escala import PONTO_TZ
+from app.services.ponto_relatorio import nome_feriado_br
+
+
+def _futuro_util() -> date:
+    """Próximo dia útil que não é feriado nacional (Finados 2/11 quebrava o +4 dias)."""
+    d = date.today() + timedelta(days=1)
+    for _ in range(21):
+        if d.weekday() < 5 and not nome_feriado_br(d):
+            return d
+        d += timedelta(days=1)
+    return d
 
 
 def _folga_total(client, headers, atendente_id: int):
@@ -119,7 +130,7 @@ def test_convocado_cancelar_reverte_calendario(client, seed_base, auth_headers):
     user = auth_headers["a1"]
     a1 = seed_base["a1"]
     assert _folga_total(client, admin, a1.id).status_code == 200
-    futuro = date.today() + timedelta(days=4)
+    futuro = _futuro_util()
     criado = client.post(
         "/v1/ponto/convocados/conceder",
         headers=admin,
