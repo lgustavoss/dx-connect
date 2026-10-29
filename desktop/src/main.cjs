@@ -15,6 +15,7 @@ const {
   montarCorpoSessao,
   origemPainelHttpsInstancia,
 } = require('./sessaoDeskRemote.cjs')
+const { itensMenuContexto, idiomasCorretor } = require('./menuContexto.cjs')
 
 const APP_ID = 'br.com.deskrudder.desktop'
 const APEX = 'deskrudder.com.br'
@@ -406,6 +407,12 @@ function criarJanela(iniciarOculto) {
   janela.on('page-title-updated', (_e, titulo) => atualizarContagem(titulo))
 
   const wc = janela.webContents
+  try {
+    const idiomas = idiomasCorretor(wc.session.availableSpellCheckerLanguages || [])
+    if (idiomas.length) wc.session.setSpellCheckerLanguages(idiomas)
+  } catch {
+    /* Chromium sem dicionário neste SO — o sublinhado nativo segue o padrão do sistema */
+  }
   wc.setWindowOpenHandler(({ url }) => {
     if (hostDaInstancia(url)) return { action: 'allow' }
     if (/^(https?|mailto|tel):/i.test(url)) void shell.openExternal(url)
@@ -422,15 +429,25 @@ function criarJanela(iniciarOculto) {
     void janela?.loadFile(CONTA_HTML, { query: { erro: 'conexao' } })
   })
   wc.on('context-menu', (_e, params) => {
-    const temImagem = params.mediaType === 'image' && params.hasImageContents
-    const temTexto = params.selectionText.trim().length > 0
-    if (!temImagem && !temTexto) return
-    Menu.buildFromTemplate([
-      {
-        label: 'Copiar',
+    const itens = itensMenuContexto(params).map((item) => {
+      if (item.role === 'separador') return { type: 'separator' }
+      if (item.role === 'sugestao') {
+        return { label: item.label, click: () => wc.replaceMisspelling(item.label) }
+      }
+      if (item.role === 'dicionario') {
+        return {
+          label: item.label,
+          click: () => wc.session.addWordToSpellCheckerDictionary(params.misspelledWord),
+        }
+      }
+      const temImagem = params.mediaType === 'image' && params.hasImageContents
+      return {
+        label: item.label,
         click: () => (temImagem ? wc.copyImageAt(params.x, params.y) : wc.copy()),
-      },
-    ]).popup({ window: janela })
+      }
+    })
+    if (!itens.length) return
+    Menu.buildFromTemplate(itens).popup({ window: janela })
   })
   wc.on('before-input-event', (_e, input) => {
     if (input.type !== 'keyDown') return

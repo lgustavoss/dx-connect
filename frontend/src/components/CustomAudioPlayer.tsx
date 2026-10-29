@@ -4,6 +4,10 @@ interface CustomAudioPlayerProps {
   src: string
 }
 
+function tempoValido(t: number): boolean {
+  return Number.isFinite(t) && t > 0
+}
+
 export function CustomAudioPlayer({ src }: CustomAudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -12,28 +16,47 @@ export function CustomAudioPlayer({ src }: CustomAudioPlayerProps) {
   const [speed, setSpeed] = useState(1)
 
   useEffect(() => {
+    setIsPlaying(false)
+    setDuration(0)
+    setCurrentTime(0)
+
     const audio = new Audio(src)
     audioRef.current = audio
 
-    const onTimeUpdate = () => setCurrentTime(audio.currentTime)
-    const onLoadedMetadata = () => setDuration(audio.duration || 0)
-    const onEnded = () => setIsPlaying(false)
+    const aplicarDuracao = () => {
+      if (tempoValido(audio.duration)) setDuration(audio.duration)
+    }
+    const onTimeUpdate = () => {
+      setCurrentTime(audio.currentTime)
+      aplicarDuracao()
+    }
+    const onEnded = () => {
+      const fim = tempoValido(audio.duration) ? audio.duration : audio.currentTime
+      if (tempoValido(fim)) {
+        setDuration(fim)
+        setCurrentTime(fim)
+      }
+      setIsPlaying(false)
+    }
 
     audio.addEventListener('timeupdate', onTimeUpdate)
-    audio.addEventListener('loadedmetadata', onLoadedMetadata)
+    audio.addEventListener('loadedmetadata', aplicarDuracao)
+    audio.addEventListener('durationchange', aplicarDuracao)
     audio.addEventListener('ended', onEnded)
 
-    if (audio.readyState >= 1) {
-      setDuration(audio.duration || 0)
-    }
+    if (audio.readyState >= 1) aplicarDuracao()
 
     return () => {
       audio.pause()
       audio.removeEventListener('timeupdate', onTimeUpdate)
-      audio.removeEventListener('loadedmetadata', onLoadedMetadata)
+      audio.removeEventListener('loadedmetadata', aplicarDuracao)
+      audio.removeEventListener('durationchange', aplicarDuracao)
       audio.removeEventListener('ended', onEnded)
     }
   }, [src])
+
+  const maxBarra = tempoValido(duration) ? duration : 0
+  const valorBarra = maxBarra > 0 ? Math.min(currentTime, maxBarra) : 0
 
   const togglePlay = () => {
     if (!audioRef.current) return
@@ -93,14 +116,16 @@ export function CustomAudioPlayer({ src }: CustomAudioPlayerProps) {
         <input
           type="range"
           min={0}
-          max={duration || 100}
-          value={currentTime}
+          max={maxBarra > 0 ? maxBarra : 1}
+          step="any"
+          value={valorBarra}
           onChange={handleProgressChange}
-          className="w-full h-1 bg-slate-300 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-600 focus:outline-none"
+          disabled={maxBarra <= 0}
+          className="w-full h-1 bg-slate-300 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-600 focus:outline-none disabled:cursor-default"
         />
         <div className="flex justify-between text-[9px] text-slate-500 font-mono">
           <span>{formatTime(currentTime)}</span>
-          <span>{formatTime(duration)}</span>
+          <span>{tempoValido(duration) ? formatTime(duration) : '—'}</span>
         </div>
       </div>
 
