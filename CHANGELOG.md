@@ -16,6 +16,12 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 - Configurações → Natureza e motivo: a aba **Motivos** volta a abrir (pedia 200 itens; a API aceita no máximo 100), lista **20 por vez** e junta busca, natureza e Ativos/Todos na mesma barra (#S202610-0020)
 
+### SaaS Control Plane
+
+#### Melhorias
+
+- Usuários: **Ativos/Todos** fica colado na paginação, no mesmo padrão das listagens do produto
+
 ## [26.10.010] - 2026-10-28
 
 ### DeskRudder
