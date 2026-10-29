@@ -402,6 +402,15 @@ def test_desativar_natureza_sem_motivo_ok(client, auth_headers, db_session):
     assert r.json()["ativo"] is False
 
 
+def test_listar_motivos_rejeita_limit_acima_do_maximo(client, auth_headers, db_session):
+    """A aba Motivos do painel precisa pedir no máximo 100 — 200 era 422 (#S202610-0020)."""
+    _seed_classificacao(db_session)
+    demais = client.get("/v1/ticket-motivos?limit=200", headers=auth_headers["admin"])
+    assert demais.status_code == 422
+    ok = client.get("/v1/ticket-motivos?limit=100", headers=auth_headers["admin"])
+    assert ok.status_code == 200, ok.text
+
+
 def test_desativar_motivo_sem_uso_ok(client, seed_base, auth_headers, db_session):
     cat = _seed_classificacao(db_session)
     r = client.patch(

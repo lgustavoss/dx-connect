@@ -260,7 +260,7 @@ export function ConfigPdvCatalogos({ embedded = false }: { embedded?: boolean })
           total={total}
           onPageChange={setPage}
           disabled={loading}
-          extra={<FiltroInativos incluirInativos={incluirInativos} onChange={setIncluirInativos} />}
+          juntoPaginacao={<FiltroInativos incluirInativos={incluirInativos} onChange={setIncluirInativos} />}
         />
 
         {loading ? (

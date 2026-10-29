@@ -21,8 +21,6 @@ type Aba = 'naturezas' | 'motivos'
 type NaturezaForm = TicketClassificacao.NaturezaCreate
 type MotivoForm = TicketClassificacao.MotivoCreate
 
-const MOTIVOS_LIMITE = 200
-
 const emptyNatureza = (): NaturezaForm => ({ nome: '', slug: '', ordem: 0, ativo: true })
 const emptyMotivo = (naturezaId: number): MotivoForm => ({
   natureza_id: naturezaId,
@@ -112,8 +110,8 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
         incluir_inativos: incluirInativos,
         busca: debouncedBusca || undefined,
         natureza_id: filtroNaturezaId === '' ? undefined : Number(filtroNaturezaId),
-        offset: 0,
-        limit: MOTIVOS_LIMITE,
+        offset: (page - 1) * PAGE_SIZE_PADRAO,
+        limit: PAGE_SIZE_PADRAO,
       })
       .then(({ items, total: t }) => {
         setMotivos(items)
@@ -172,14 +170,11 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
 
   useEffect(() => {
     if (aba !== 'motivos') return
-    if (filtroNaturezaId !== '') {
-      setAbertas([Number(filtroNaturezaId)])
-      return
-    }
-    if (debouncedBusca) {
-      setAbertas(gruposMotivo.map((g) => g.naturezaId))
-    }
-  }, [aba, debouncedBusca, filtroNaturezaId, gruposMotivo])
+    const ids = gruposMotivo.map((g) => g.naturezaId)
+    setAbertas((atual) =>
+      atual.length === ids.length && atual.every((id, i) => id === ids[i]) ? atual : ids,
+    )
+  }, [aba, gruposMotivo])
 
   function abrirNovo() {
     setEditId(null)
@@ -311,39 +306,25 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
           busca={busca}
           onBuscaChange={setBusca}
           placeholder={aba === 'naturezas' ? 'Buscar natureza…' : 'Buscar motivo…'}
-          page={aba === 'naturezas' ? page : 1}
+          page={page}
           total={total}
-          pageSize={aba === 'motivos' ? Math.max(total, 1) : PAGE_SIZE_PADRAO}
+          pageSize={PAGE_SIZE_PADRAO}
           onPageChange={setPage}
           disabled={loading}
           extra={
-            <div className="flex flex-wrap items-center gap-3">
-              {aba === 'motivos' ? (
-                <>
-                  <Select
-                    value={filtroNaturezaId}
-                    onChange={(v) => setFiltroNaturezaId(v === '' ? '' : Number(v))}
-                    options={catalogoNaturezas.map((n) => ({ value: n.id, label: n.nome }))}
-                    includeEmpty
-                    emptyLabel="Todas as naturezas"
-                    aria-label="Filtrar por natureza"
-                  />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    disabled={gruposMotivo.length === 0}
-                    onClick={() => setAbertas(gruposMotivo.map((g) => g.naturezaId))}
-                  >
-                    Expandir todas
-                  </Button>
-                  <Button type="button" variant="secondary" disabled={abertas.length === 0} onClick={() => setAbertas([])}>
-                    Recolher todas
-                  </Button>
-                </>
-              ) : null}
-              <FiltroInativos incluirInativos={incluirInativos} onChange={setIncluirInativos} />
-            </div>
+            aba === 'motivos' ? (
+              <Select
+                value={filtroNaturezaId}
+                onChange={(v) => setFiltroNaturezaId(v === '' ? '' : Number(v))}
+                options={catalogoNaturezas.map((n) => ({ value: n.id, label: n.nome }))}
+                includeEmpty
+                emptyLabel="Todas as naturezas"
+                aria-label="Filtrar por natureza"
+                className="w-full"
+              />
+            ) : undefined
           }
+          juntoPaginacao={<FiltroInativos incluirInativos={incluirInativos} onChange={setIncluirInativos} />}
         />
 
         {loading ? (
@@ -387,13 +368,7 @@ export function TicketNaturezaMotivoPage({ embedded = false }: { embedded?: bool
         ) : gruposMotivo.length === 0 ? (
           <p className="py-10 text-center text-sm text-slate-500">Nenhum motivo cadastrado.</p>
         ) : (
-          <div className="space-y-2 p-2 sm:p-3">
-            {total > MOTIVOS_LIMITE ? (
-              <p className="px-2 text-xs text-slate-500 dark:text-slate-400">
-                Mostrando os primeiros {MOTIVOS_LIMITE} de {total} motivos. Use a busca ou o filtro por natureza para
-                afinar.
-              </p>
-            ) : null}
+          <div className="space-y-2">
             {gruposMotivo.map((grupo) => {
               const aberta = abertas.includes(grupo.naturezaId)
               return (

@@ -103,7 +103,7 @@ export function SaasUsuarios() {
           total={total}
           onPageChange={setPage}
           disabled={loading}
-          extra={<FiltroInativos incluirInativos={incluirInativos} onChange={setIncluirInativos} />}
+          juntoPaginacao={<FiltroInativos incluirInativos={incluirInativos} onChange={setIncluirInativos} />}
         />
         {loading ? (
           <p className="text-slate-500 dark:text-slate-400">Carregando...</p>
