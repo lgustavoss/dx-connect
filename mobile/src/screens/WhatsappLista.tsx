@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Pressable,
@@ -9,43 +9,93 @@ import {
   View,
 } from 'react-native'
 import { useRouter } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { ApiError, type WhatsappChat, whatsapp } from '../api/client'
+import { useAuth } from '../auth/AuthContext'
+import { Avatar } from '../components/Avatar'
+import { EmptyState } from '../components/EmptyState'
+import { Icon } from '../components/Icon'
+import { SegTabs } from '../components/SegTabs'
+import { StatusChip } from '../components/StatusChip'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
 import { colors } from '../lib/brand'
-import { horaCurta, nomeDoChat, rotuloEstado } from '../lib/format'
+import { horaCurta, nomeDoChat } from '../lib/format'
 
-type Aba = 'fila' | 'meus' | 'recentes'
+type Aba = 'fila' | 'atendendo' | 'recentes'
+
+const PAGINA_RECENTES = 10
 
 export function WhatsappLista() {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
+  const { me } = useAuth()
   const [aba, setAba] = useState<Aba>('fila')
   const [fila, setFila] = useState<WhatsappChat[]>([])
   const [meus, setMeus] = useState<WhatsappChat[]>([])
   const [recentes, setRecentes] = useState<WhatsappChat[]>([])
+  const [recentesTotal, setRecentesTotal] = useState(0)
   const [erro, setErro] = useState<string | null>(null)
   const [aCarregar, setACarregar] = useState(true)
   const [aAtualizar, setAAtualizar] = useState(false)
+  const [aCarregarMais, setACarregarMais] = useState(false)
+  const geracao = useRef(0)
+  const recentesLimitRef = useRef(PAGINA_RECENTES)
 
   const carregar = useCallback(async (silencioso = false) => {
-    if (!silencioso) setACarregar(true)
+    const id = ++geracao.current
+    if (!silencioso) {
+      setACarregar(true)
+      recentesLimitRef.current = PAGINA_RECENTES
+    }
     try {
-      const [f, m, r] = await Promise.all([
-        whatsapp.fila(),
-        whatsapp.meus(),
-        whatsapp.encerrados().catch(() => ({ items: [] as WhatsappChat[] })),
-      ])
+      const filaMeus = Promise.all([whatsapp.fila(), whatsapp.meus()])
+      const encerradosP = silencioso
+        ? null
+        : whatsapp
+            .encerrados(0, PAGINA_RECENTES)
+            .catch(() => ({ items: [] as WhatsappChat[], total: 0 }))
+      const [f, m] = await filaMeus
+      const r = encerradosP ? await encerradosP : null
+      if (id !== geracao.current) return
       setFila(f)
       setMeus(m)
-      setRecentes(r.items || [])
+      if (r) {
+        const itens = r.items || []
+        setRecentes(itens)
+        setRecentesTotal(r.total ?? itens.length)
+        recentesLimitRef.current = itens.length
+      }
       setErro(null)
     } catch (e) {
-      setErro(e instanceof ApiError ? e.message : 'Não foi possível carregar os chats.')
+      if (id !== geracao.current) return
+      if (!silencioso) {
+        setErro(e instanceof ApiError ? e.message : 'Não foi possível carregar os chats.')
+      }
     } finally {
-      setACarregar(false)
-      setAAtualizar(false)
+      if (!silencioso) setACarregar(false)
+      if (id === geracao.current) setAAtualizar(false)
     }
   }, [])
+
+  const carregarMaisRecentes = useCallback(async () => {
+    if (aCarregarMais) return
+    setACarregarMais(true)
+    try {
+      const r = await whatsapp.encerrados(recentes.length, PAGINA_RECENTES)
+      const extra = r.items || []
+      setRecentes((prev) => {
+        const next = [...prev, ...extra]
+        recentesLimitRef.current = next.length
+        return next
+      })
+      setRecentesTotal(r.total ?? recentes.length + extra.length)
+    } catch (e) {
+      setErro(e instanceof ApiError ? e.message : 'Não foi possível carregar mais chats.')
+    } finally {
+      setACarregarMais(false)
+    }
+  }, [aCarregarMais, recentes.length])
 
   useEffect(() => {
     void carregar()
@@ -56,145 +106,224 @@ export function WhatsappLista() {
   }, [carregar])
   useRealtimeRefresh(refreshSilencioso, true)
 
-  const lista = aba === 'fila' ? fila : aba === 'meus' ? meus : recentes
+  const { comigo, outros, mostrarSecoes } = useMemo(() => {
+    const uid = me?.id
+    const comigoLista = meus.filter((c) => c.atendente_id === uid)
+    const outrosLista = meus.filter((c) => c.atendente_id !== uid)
+    return {
+      comigo: comigoLista,
+      outros: outrosLista,
+      mostrarSecoes: outrosLista.length > 0,
+    }
+  }, [meus, me?.id])
+
+  const lista = aba === 'fila' ? fila : aba === 'atendendo' ? meus : recentes
   const vazio =
     aba === 'fila'
       ? 'Ninguém à espera na fila.'
-      : aba === 'meus'
-        ? 'Você não tem chats em atendimento.'
+      : aba === 'atendendo'
+        ? 'Nenhum chat em atendimento.'
         : 'Ainda não há chats encerrados visíveis.'
 
   return (
-    <View style={styles.root}>
-      <View style={styles.segs}>
-        <Seg titulo="Fila" activo={aba === 'fila'} badge={fila.length} onPress={() => setAba('fila')} />
-        <Seg titulo="Meus" activo={aba === 'meus'} badge={meus.length} onPress={() => setAba('meus')} />
-        <Seg titulo="Recentes" activo={aba === 'recentes'} badge={recentes.length} onPress={() => setAba('recentes')} />
-      </View>
+    <View style={[styles.root, { paddingTop: insets.top }]}>
+      <SegTabs
+        ativo={aba}
+        onChange={(id) => setAba(id as Aba)}
+        itens={[
+          { id: 'fila', titulo: 'Fila', badge: fila.length },
+          { id: 'atendendo', titulo: 'Atendendo', badge: meus.length },
+          { id: 'recentes', titulo: 'Recentes' },
+        ]}
+      />
       {erro ? <Text style={styles.erro}>{erro}</Text> : null}
-      {aCarregar && lista.length === 0 ? (
-        <ActivityIndicator style={{ marginTop: 32 }} color={colors.teal} />
+      {aCarregar && fila.length === 0 && meus.length === 0 && recentes.length === 0 ? (
+        <ActivityIndicator style={{ marginTop: 40 }} color={colors.teal} />
       ) : (
         <ScrollView
+          contentContainerStyle={lista.length === 0 ? styles.scrollVazio : styles.scrollLista}
           refreshControl={
-            <RefreshControl refreshing={aAtualizar} onRefresh={() => { setAAtualizar(true); void carregar() }} />
+            <RefreshControl
+              refreshing={aAtualizar}
+              onRefresh={() => {
+                setAAtualizar(true)
+                void carregar()
+              }}
+            />
           }
         >
-          {lista.length === 0 ? <Text style={styles.vazio}>{vazio}</Text> : null}
-          {lista.map((chat) => (
-            <Pressable
-              key={chat.id}
-              style={styles.item}
-              onPress={() => router.push(`/conversa/${chat.id}`)}
-            >
-              <View style={styles.avatar}>
-                <Text style={styles.avatarTxt}>{iniciais(nomeDoChat(chat))}</Text>
-              </View>
-              <View style={styles.meio}>
-                <Text style={styles.nome} numberOfLines={1}>
-                  {nomeDoChat(chat)}
-                </Text>
-                <Text style={styles.meta} numberOfLines={1}>
-                  {chat.empresa_nome || chat.protocolo}
-                  {chat.setor_nome ? ` · ${chat.setor_nome}` : ''}
-                </Text>
-              </View>
-              <View style={styles.dir}>
-                <Text style={styles.hora}>{horaCurta(chat.atendimento_inicio_at || chat.created_at)}</Text>
-                {chat.nao_lidas_count ? (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeTxt}>{chat.nao_lidas_count}</Text>
-                  </View>
-                ) : (
-                  <Text style={styles.estado}>{rotuloEstado(chat.estado)}</Text>
-                )}
-              </View>
-            </Pressable>
-          ))}
+          {aba === 'atendendo' && mostrarSecoes ? (
+            <>
+              {comigo.length > 0 ? (
+                <>
+                  <Text style={styles.secao}>Comigo ({comigo.length})</Text>
+                  {comigo.map((chat) => (
+                    <ChatLinha key={chat.id} chat={chat} destacado onPress={() => router.push(`/conversa/${chat.id}`)} />
+                  ))}
+                </>
+              ) : null}
+              <Text style={styles.secao}>Outros atendentes ({outros.length})</Text>
+              {outros.map((chat) => (
+                <ChatLinha
+                  key={chat.id}
+                  chat={chat}
+                  mostrarResponsavel
+                  onPress={() => router.push(`/conversa/${chat.id}`)}
+                />
+              ))}
+            </>
+          ) : lista.length === 0 ? (
+            <EmptyState icone="chatbubbles-outline" titulo={vazio} />
+          ) : (
+            <>
+              {lista.map((chat) => (
+                <ChatLinha key={chat.id} chat={chat} onPress={() => router.push(`/conversa/${chat.id}`)} />
+              ))}
+              {aba === 'recentes' && recentes.length < recentesTotal ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Ver mais chats recentes"
+                  style={styles.verMais}
+                  onPress={() => void carregarMaisRecentes()}
+                  disabled={aCarregarMais}
+                >
+                  {aCarregarMais ? (
+                    <ActivityIndicator color={colors.teal} />
+                  ) : (
+                    <Text style={styles.verMaisTxt}>Ver mais</Text>
+                  )}
+                </Pressable>
+              ) : null}
+            </>
+          )}
         </ScrollView>
       )}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Nova conversa"
+        style={styles.fab}
+        onPress={() => router.push('/chat-novo')}
+      >
+        <Icon name="add" size={28} color={colors.white} />
+      </Pressable>
     </View>
   )
 }
 
-function Seg({
-  titulo,
-  activo,
-  badge,
+function ChatLinha({
+  chat,
   onPress,
+  mostrarResponsavel,
+  destacado,
 }: {
-  titulo: string
-  activo: boolean
-  badge: number
+  chat: WhatsappChat
   onPress: () => void
+  mostrarResponsavel?: boolean
+  destacado?: boolean
 }) {
+  const nome = nomeDoChat(chat)
   return (
-    <Pressable onPress={onPress} style={[styles.seg, activo && styles.segOn]}>
-      <Text style={[styles.segTxt, activo && styles.segTxtOn]}>
-        {titulo}
-        {badge > 0 ? ` (${badge})` : ''}
-      </Text>
+    <Pressable accessibilityRole="button" style={[styles.item, destacado && styles.itemMeu]} onPress={onPress}>
+      <Avatar nome={nome} fotoUrl={chat.foto_perfil_url} />
+      <View style={styles.meio}>
+        <Text style={styles.nome} numberOfLines={1}>
+          {nome}
+        </Text>
+        <Text style={styles.meta} numberOfLines={1}>
+          {mostrarResponsavel
+            ? chat.atendente_nome || 'Outro atendente'
+            : chat.empresa_nome || chat.protocolo}
+          {chat.setor_nome ? ` · ${chat.setor_nome}` : ''}
+        </Text>
+      </View>
+      <View style={styles.dir}>
+        <Text style={styles.hora}>{horaCurta(chat.atendimento_inicio_at || chat.created_at)}</Text>
+        {chat.nao_lidas_count ? (
+          <View style={styles.badge}>
+            <Text style={styles.badgeTxt}>{chat.nao_lidas_count}</Text>
+          </View>
+        ) : (
+          <StatusChip estado={chat.estado} />
+        )}
+      </View>
     </Pressable>
   )
 }
 
-function iniciais(nome: string): string {
-  const partes = nome.split(/\s+/).filter(Boolean)
-  const a = partes[0]?.[0] || '?'
-  const b = partes.length > 1 ? partes[partes.length - 1][0] : ''
-  return (a + b).toUpperCase()
-}
-
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.deck },
-  segs: { flexDirection: 'row', padding: 12, gap: 8 },
-  seg: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: colors.white,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
+  scrollVazio: { flexGrow: 1, paddingBottom: 88 },
+  scrollLista: { paddingBottom: 88 },
+  secao: {
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 4,
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.muted,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
-  segOn: { backgroundColor: colors.navy, borderColor: colors.navy },
-  segTxt: { fontWeight: '700', color: colors.navyMid },
-  segTxtOn: { color: colors.white },
-  erro: { color: colors.danger, backgroundColor: colors.dangerBg, marginHorizontal: 12, padding: 10, borderRadius: 8 },
-  vazio: { textAlign: 'center', color: colors.muted, marginTop: 40, paddingHorizontal: 24 },
+  erro: {
+    color: colors.danger,
+    backgroundColor: colors.dangerBg,
+    marginHorizontal: 16,
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 12,
+  },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 16,
+    marginHorizontal: 12,
+    marginTop: 8,
+    paddingHorizontal: 14,
     paddingVertical: 12,
     backgroundColor: colors.white,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    borderRadius: 16,
   },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.navy,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarTxt: { color: colors.white, fontWeight: '700' },
-  meio: { flex: 1, minWidth: 0 },
+  itemMeu: { borderLeftWidth: 3, borderLeftColor: colors.teal },
+  meio: { flex: 1, minWidth: 0, gap: 3 },
   nome: { fontSize: 16, fontWeight: '600', color: colors.text },
-  meta: { fontSize: 13, color: colors.muted, marginTop: 2 },
-  dir: { alignItems: 'flex-end', gap: 4 },
-  hora: { fontSize: 12, color: colors.muted },
-  estado: { fontSize: 11, color: colors.tealDark },
+  meta: { fontSize: 13, color: colors.muted },
+  dir: { alignItems: 'flex-end', gap: 6 },
+  hora: { fontSize: 11, color: colors.muted, fontWeight: '500' },
   badge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: colors.teal,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 6,
   },
   badgeTxt: { color: colors.white, fontSize: 11, fontWeight: '700' },
+  verMais: {
+    marginHorizontal: 12,
+    marginTop: 12,
+    marginBottom: 8,
+    paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  verMaisTxt: { fontSize: 15, fontWeight: '700', color: colors.tealDark },
+  fab: {
+    position: 'absolute',
+    right: 18,
+    bottom: 18,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.teal,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#0B2D4A',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+  },
 })

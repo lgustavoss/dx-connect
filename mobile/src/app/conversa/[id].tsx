@@ -1,7 +1,8 @@
 import { Stack } from 'expo-router'
 
+import { BotaoVoltar } from '../../components/BotaoVoltar'
+import { headerClaro } from '../../lib/brand'
 import { WhatsappConversa } from '../../screens/WhatsappConversa'
-import { colors } from '../../lib/brand'
 
 export default function ConversaPage() {
   return (
@@ -9,11 +10,12 @@ export default function ConversaPage() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: 'Conversa',
-          headerBackTitle: 'WhatsApp',
-          headerStyle: { backgroundColor: colors.navy },
-          headerTintColor: colors.white,
-          headerTitleStyle: { fontWeight: '700' },
+          title: '',
+          headerBackVisible: false,
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+          headerLeft: () => <BotaoVoltar fallback="/chat" />,
+          ...headerClaro,
         }}
       />
       <WhatsappConversa />

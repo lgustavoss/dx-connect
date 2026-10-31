@@ -12,7 +12,7 @@ import {
 
 import { ApiError } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
-import { APP_NAME, APP_TAGLINE, colors } from '../lib/brand'
+import { APP_NAME, APP_TAGLINE, colors, radius } from '../lib/brand'
 import { DEFAULT_SLUG } from '../lib/instance'
 
 export function LoginScreen() {
@@ -48,9 +48,14 @@ export function LoginScreen() {
       style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={styles.card}>
+      <View style={styles.marcaWrap}>
+        <View style={styles.logo}>
+          <Text style={styles.logoTxt}>D</Text>
+        </View>
         <Text style={styles.marca}>{APP_NAME}</Text>
         <Text style={styles.tag}>{APP_TAGLINE}</Text>
+      </View>
+      <View style={styles.card}>
         <Text style={styles.label}>Instância</Text>
         <TextInput
           autoCapitalize="none"
@@ -102,7 +107,7 @@ export function LoginScreen() {
         </Pressable>
         {Platform.OS === 'web' ? (
           <Text style={styles.avisoWeb}>
-            O preview no navegador usa um proxy local para a API. No celular (Expo Go) o app fala direto com a instância.
+            O preview no navegador usa um proxy local para a API. No celular o app fala direto com a instância.
           </Text>
         ) : null}
       </View>
@@ -117,67 +122,57 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 24,
   },
+  marcaWrap: { alignItems: 'center', marginBottom: 28, gap: 8 },
+  logo: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: colors.teal,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  logoTxt: { color: colors.white, fontSize: 30, fontWeight: '800' },
+  marca: { fontSize: 26, fontWeight: '700', color: colors.white, letterSpacing: -0.4 },
+  tag: { color: 'rgba(255,255,255,0.7)', fontSize: 15 },
   card: {
     backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 24,
+    borderRadius: radius.lg,
+    padding: 22,
     gap: 8,
-  },
-  marca: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: colors.navy,
-  },
-  tag: {
-    color: colors.muted,
-    marginBottom: 12,
   },
   label: {
     fontSize: 13,
     fontWeight: '600',
     color: colors.navyMid,
-    marginTop: 4,
+    marginTop: 6,
   },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
+    borderRadius: radius.md,
+    paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
     color: colors.text,
     backgroundColor: colors.deck,
   },
-  hint: {
-    fontSize: 12,
-    color: colors.muted,
-  },
+  hint: { fontSize: 12, color: colors.muted },
   erro: {
     color: colors.danger,
     backgroundColor: colors.dangerBg,
     padding: 10,
-    borderRadius: 8,
+    borderRadius: radius.md,
     marginTop: 8,
   },
   botao: {
     backgroundColor: colors.teal,
-    borderRadius: 10,
+    borderRadius: radius.md,
     paddingVertical: 14,
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: 14,
   },
-  botaoOff: {
-    opacity: 0.7,
-  },
-  botaoTxt: {
-    color: colors.white,
-    fontWeight: '700',
-    fontSize: 16,
-  },
-  avisoWeb: {
-    fontSize: 12,
-    color: colors.muted,
-    marginTop: 8,
-    lineHeight: 18,
-  },
+  botaoOff: { opacity: 0.7 },
+  botaoTxt: { color: colors.white, fontWeight: '700', fontSize: 16 },
+  avisoWeb: { fontSize: 12, color: colors.muted, marginTop: 8, lineHeight: 18 },
 })

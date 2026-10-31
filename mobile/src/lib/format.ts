@@ -25,6 +25,13 @@ export function rotuloEstado(estado: string): string {
   return estado
 }
 
+export function iniciais(nome: string): string {
+  const partes = nome.split(/\s+/).filter(Boolean)
+  const a = partes[0]?.[0] || '?'
+  const b = partes.length > 1 ? partes[partes.length - 1][0] : ''
+  return (a + b).toUpperCase()
+}
+
 const ROTULO_SEM_LEGENDA =
   /^(?:\[\s*[^\]]+\s*\]:\s*)?\[(Imagem|Áudio|Audio|Vídeo|Video|Documento|Figurinha|Contacto|Contato|Localização)(\s+enviad[oa])?\]$/i
 

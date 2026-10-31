@@ -12,6 +12,7 @@
     },
     "android": {
       "package": "br.com.deskrudder.atendimento",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#0B2D4A",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -30,7 +31,15 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "O DeskRudder usa a galeria para enviar fotos no WhatsApp."
+          "photosPermission": "O DeskRudder usa a galeria para enviar fotos no chat."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#0B2D4A",
+          "defaultChannel": "deskrudder"
         }
       ]
     ]

@@ -3,12 +3,14 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import {
   ApiError,
   type AtendenteMe,
+  atendentes,
   atendentesMe,
   clearSessionAndSlug,
   getStoredSlug,
   loginNaInstancia,
 } from '../api/client'
 import { DEFAULT_SLUG, normalizeSlug, pingHealth } from '../lib/instance'
+import { registrarDispositivo, revogarDispositivo } from '../lib/push'
 
 type AuthState = {
   ready: boolean
@@ -18,6 +20,7 @@ type AuthState = {
 
 type AuthContextValue = AuthState & {
   entrar: (slug: string, email: string, senha: string) => Promise<void>
+  trocarSenha: (senhaAtual: string, senhaNova: string) => Promise<void>
   sair: () => Promise<void>
 }
 
@@ -39,7 +42,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (stored && !cancelled) setSlug(stored)
         if (stored) {
           const perfil = await atendentesMe()
-          if (!cancelled) setMe(perfil)
+          if (!cancelled) {
+            setMe(perfil)
+            void registrarDispositivo()
+          }
         }
       } catch {
         if (!cancelled) setMe(null)
@@ -64,17 +70,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const perfil = await atendentesMe()
     setSlug(normalized)
     setMe(perfil)
+    void registrarDispositivo()
+  }, [])
+
+  const trocarSenha = useCallback(async (senhaAtual: string, senhaNova: string) => {
+    const atualizado = await atendentes.trocarSenha(senhaAtual, senhaNova)
+    setMe(atualizado)
   }, [])
 
   const sair = useCallback(async () => {
+    await revogarDispositivo()
     await clearSessionAndSlug()
     setMe(null)
     setSlug(DEFAULT_SLUG)
   }, [])
 
   const value = useMemo(
-    () => ({ ready, slug, me, entrar, sair }),
-    [ready, slug, me, entrar, sair],
+    () => ({ ready, slug, me, entrar, trocarSenha, sair }),
+    [ready, slug, me, entrar, trocarSenha, sair],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

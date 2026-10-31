@@ -35,6 +35,8 @@ export type AtendenteMe = {
   role: string
   ativo: boolean
   must_change_password: boolean
+  setor_ids?: number[]
+  permissoes?: string[]
 }
 
 function mensagemDeErro(body: unknown, fallback: string): string {
@@ -204,6 +206,14 @@ export function atendentesMe() {
   return api<AtendenteMe>('/atendentes/me')
 }
 
+export const atendentes = {
+  trocarSenha: (senhaAtual: string, senhaNova: string) =>
+    api<AtendenteMe>('/atendentes/me/trocar-senha', {
+      method: 'POST',
+      body: JSON.stringify({ senha_atual: senhaAtual, senha_nova: senhaNova }),
+    }),
+}
+
 export async function getAccessToken(): Promise<string | null> {
   return storageGet(KEY_ACCESS)
 }
@@ -225,6 +235,8 @@ export type WhatsappChat = {
   empresa_id?: number | null
   empresa_nome?: string | null
   funcionario_nome?: string | null
+  foto_perfil_url?: string | null
+  ticket_ids?: number[]
   nao_lidas_count?: number
   created_at?: string | null
   atendimento_inicio_at?: string | null
@@ -247,8 +259,10 @@ export type WhatsappMensagem = {
 export const whatsapp = {
   fila: () => api<WhatsappChat[]>('/whatsapp/chats/fila'),
   meus: () => api<WhatsappChat[]>('/whatsapp/chats/meus'),
-  encerrados: () =>
-    api<{ items: WhatsappChat[]; total: number }>('/whatsapp/chats/encerrados?limit=30&offset=0'),
+  encerrados: (offset = 0, limit = 10) =>
+    api<{ items: WhatsappChat[]; total: number }>(
+      `/whatsapp/chats/encerrados${qs({ limit, offset })}`,
+    ),
   get: (id: number) => api<WhatsappChat>(`/whatsapp/chats/${id}`),
   mensagens: (id: number) => api<WhatsappMensagem[]>(`/whatsapp/chats/${id}/mensagens`),
   assumir: (id: number) => api<WhatsappChat>(`/whatsapp/chats/${id}/assumir`, { method: 'POST' }),
@@ -280,4 +294,115 @@ export const whatsapp = {
     form.append('file', { uri: file.uri, name: file.name, type: file.type } as unknown as Blob)
     return api<WhatsappMensagem>(`/whatsapp/chats/${id}/mensagens/midia`, { method: 'POST', body: form })
   },
+  abrirTicket: (
+    id: number,
+    data: { empresa_id: number; setor_id: number; assunto: string; descricao?: string | null },
+  ) =>
+    api<WhatsappChat>(`/whatsapp/chats/${id}/abrir-ticket`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  contatos: (busca: string) =>
+    api<{ items: WhatsappContato[]; total: number }>(
+      `/whatsapp/chats/contatos${qs({ busca, limit: 12, offset: 0 })}`,
+    ),
+  iniciar: (data: {
+    funcionario_id?: number
+    telefone?: string
+    mensagem_inicial?: string
+    empresa_id?: number
+    setor_id?: number
+  }) =>
+    api<WhatsappChat>('/whatsapp/chats/iniciar', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+}
+
+export type WhatsappContato = {
+  id: number
+  nome: string
+  email?: string | null
+  telefone?: string | null
+  tipo: string
+  empresas?: { id: number; nome: string }[]
+  rede_nome?: string | null
+}
+
+export type SetorResumo = { id: number; nome: string; ativo?: boolean }
+
+export const setores = {
+  listar: () =>
+    api<{ items: SetorResumo[]; total: number }>('/setores?incluir_inativos=false&limit=100&offset=0'),
+}
+
+function qs(params: Record<string, string | number | boolean | undefined>): string {
+  const p = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined) continue
+    p.set(k, String(v))
+  }
+  const s = p.toString()
+  return s ? `?${s}` : ''
+}
+
+export type Ticket = {
+  id: number
+  protocolo: string
+  assunto: string
+  descricao?: string | null
+  empresa_id?: number | null
+  empresa_nome?: string | null
+  setor_id: number
+  setor_nome?: string | null
+  status_nome?: string | null
+  atendente_id?: number | null
+  atendente_nome?: string | null
+  fechado_em?: string | null
+  created_at?: string | null
+  fila_desde_at?: string | null
+}
+
+export type TicketLista = { items: Ticket[]; total: number }
+
+export type TicketMensagem = {
+  id: number
+  ticket_id: number
+  atendente_id?: number | null
+  atendente_nome?: string | null
+  autor_externo?: string | null
+  tipo: string
+  corpo: string
+  created_at?: string | null
+}
+
+export const tickets = {
+  fila: () =>
+    api<TicketLista>(
+      `/tickets${qs({ situacao: 'abertos', sem_responsavel: true, limit: 50, offset: 0 })}`,
+    ),
+  meus: () =>
+    api<TicketLista>(`/tickets${qs({ situacao: 'abertos', meus: true, limit: 50, offset: 0 })}`),
+  get: (id: number) => api<Ticket>(`/tickets/${id}`),
+  mensagens: (id: number) => api<TicketMensagem[]>(`/tickets/${id}/mensagens`),
+  assumir: (id: number, atendenteId: number) =>
+    api<Ticket>(`/tickets/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ atendente_id: atendenteId }),
+    }),
+  enviar: (id: number, corpo: string, tipo: 'publico' | 'interno') =>
+    api<TicketMensagem>(`/tickets/${id}/mensagens`, {
+      method: 'POST',
+      body: JSON.stringify({ corpo, tipo, notificar_cliente_por_email: false }),
+    }),
+}
+
+export const dispositivos = {
+  registrar: (token: string, plataforma = 'android') =>
+    api<{ id: number; token: string; plataforma: string }>('/dispositivos', {
+      method: 'POST',
+      body: JSON.stringify({ token, plataforma }),
+    }),
+  apagarPorToken: (token: string) =>
+    api<void>(`/dispositivos${qs({ token })}`, { method: 'DELETE' }),
 }

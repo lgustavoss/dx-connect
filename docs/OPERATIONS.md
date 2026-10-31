@@ -109,7 +109,21 @@ O subscribe corre no browser em `https://{slug}.…`. `CORS_ORIGINS` tem de incl
 
 App Capacitor Android (#735 / #736): origem do WebView `https://localhost`. Cada instância (`api-{slug}`) precisa desse valor em `CORS_ORIGINS` do **`client.env` no VPS** (não basta o default do `config.py` se o env já define CORS). Recriar o contentor da API depois de gravar.
 
-O APK Android (#737) **não usa Firebase**. Os alertas com a app fechada reutilizam o mesmo par VAPID e o worker `web-push-outbox`. Não há variável FCM extra no `client.env`.
+O APK Capacitor legado (#737) **não usa Firebase**. Os alertas com a app fechada reutilizam o mesmo par VAPID e o worker `web-push-outbox`.
+
+## FCM (app companion Expo) — #1315
+
+Variável **por stack** do cliente (mesmo JSON de conta de serviço DeskRudder em todas as instâncias):
+
+- `FCM_SERVICE_ACCOUNT_JSON` — JSON da conta de serviço Firebase/Google **numa linha**. Vazio = push no celular desligado.
+
+Tokens FCM ficam na tabela `dispositivos` da Postgres da instância. Fila: `fcm_outbox`. O worker é o mesmo thread `web-push-outbox`.
+
+`GET /health` → `integrations.fcm`: `configured` se o JSON for válido (`project_id`, `client_email`, `private_key`); `missing` = envio FCM desligado. **Não** altera o status `degraded` do `/health/ready`.
+
+O app Expo registra o token em `POST /v1/dispositivos` após o login e revoga em `DELETE /v1/dispositivos?token=` no logout. O `mobile/google-services.json` é versionado e entra no build; sem ele no APK o registro no aparelho falha em silêncio.
+
+Falhas do worker: `fcm_outbox_send_retry`, `fcm_outbox_send_failed_permanent`, `fcm_dispositivo_expirado` (410/404).
 
 Com a app **minimizada** mas ainda em memória (#823): o frontend também emite Notification local / re-alerta periódico da fila (além do push por evento). Matriz completo em `docs/MOBILE_CAPACITOR.md`.
 

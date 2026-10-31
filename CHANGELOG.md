@@ -10,7 +10,19 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 #### Melhorias
 
 - App no celular: o atendente entra com a instância e a mesma conta do painel; vê a fila, os chats dele e os recentes; assume, responde em texto e encerra (#1311, #1314)
-- App no celular: no chat WhatsApp dá para ver e enviar foto, áudio e documento (#1316)
+- App no celular: no primeiro acesso, quando a senha ainda é a provisória definida pelo administrador, o app pede para criar uma nova senha antes de continuar (#1313)
+- App no celular: no chat dá para ver e enviar foto, áudio e documento (#1316)
+- App no celular: fila de tickets sem responsável e os tickets do atendente; dá para assumir, responder e abrir chamado a partir do chat (#1317)
+- App no celular: com o app fechado, o celular avisa de chat na fila, mensagem nova e ticket; tocar na notificação abre o chat ou o chamado certo (#1315)
+- App no celular: visual mais limpo — ícones nas abas, avatares nas listas, botão de enviar redondo e conversas com bolhas mais leves
+- App no celular: a aba de conversas se chama **Chat** (WhatsApp, chat do site e outros canais no mesmo lugar); em ticket e conversa dá para voltar pela seta
+- App no celular: as abas não repetem o título no topo — sobra espaço na tela pequena
+- App no celular: em conversa, ticket e nova conversa dá para voltar arrastando da esquerda para a direita
+- App no celular: o perfil não mostra o endereço do servidor
+- App no celular: Recentes começa com os **10 últimos**; **Ver mais** carrega mais 10, sem o número ao lado da aba
+- App no celular: o chat mostra a **foto do contato**, como no painel; se não houver foto, aparece a inicial
+- App no celular: em Atendendo o gestor vê os chats **Comigo** e os de **outros atendentes** (só acompanha, sem falar no lugar do responsável)
+- App no celular: dá para **iniciar uma conversa** pelo botão +, com número ou contato da rede; se a pessoa vê mais de um setor, escolhe qual entra na assinatura
 - Painel web: **PWA descontinuada** — deixa de pedir instalação na tela inicial; o atendimento no celular segue no app Expo (#1311)
 - CRM: o cartão no Kanban mostra a **última nota** e o **próximo lembrete**; criar lead começa por nome e telefone; no detalhe as anotações ficam sempre visíveis, com abas Cliente e Comercial (#S202610-0022)
 - Sobre: o histórico de versões mostra **3 por vez**, com Anterior/Próxima — a página deixa de listar todas as CalVer de uma vez (#S202610-0021)

@@ -1,5 +1,5 @@
 import { WhatsappLista } from '../../screens/WhatsappLista'
 
-export default function WhatsappTab() {
+export default function ChatTab() {
   return <WhatsappLista />
 }

@@ -5,6 +5,6 @@ import { LoginScreen } from '../screens/LoginScreen'
 
 export default function Index() {
   const { me } = useAuth()
-  if (me) return <Redirect href="/whatsapp" />
+  if (me) return <Redirect href={me.must_change_password ? '/trocar-senha' : '/chat'} />
   return <LoginScreen />
 }
