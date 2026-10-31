@@ -32,14 +32,14 @@ Confirme que a branch **não** é `main`/`staging`. Se for, avise para usar `/in
 
 ## Executar testes (só o que o diff toca)
 
-Mesma regra do GitHub Actions (`scripts/ci_detect_changes.py`): pytest do backend **não** corre em PR só de frontend, e `npm run build` **não** corre em PR só de backend.
+Mesma regra do GitHub Actions (`scripts/ci_detect_changes.py`): pytest do backend **não** corre em PR só de frontend, `npm run build` **não** corre em PR só de backend, e o typecheck do Expo **não** corre se o diff não toca `mobile/`.
 
 ```bash
 git fetch origin
 python scripts/ci_detect_changes.py --base origin/main --include-working-tree
 ```
 
-Interprete `backend=true` / `frontend=true` e execute **apenas** o que aplicar:
+Interprete `backend=true` / `frontend=true` / `mobile=true` e execute **apenas** o que aplicar:
 
 ```bash
 # se backend=true
@@ -47,14 +47,18 @@ docker compose run --rm --no-deps backend pytest -q
 
 # se frontend=true
 cd frontend && npm run build
+
+# se mobile=true
+cd mobile && npm run typecheck
 ```
 
 - `backend=false` → **não** rode pytest; no relatório: `pytest: omitido (diff sem backend/scripts/CI)`
 - `frontend=false` → **não** rode `npm run build`; no relatório: `npm run build: omitido (diff sem frontend/CI)`
-- Os dois `true` → rode os dois
-- Os dois `false` (só docs/Cursor) → não rode testes pesados; diga isso no relatório
+- `mobile=false` → **não** rode tsc do Expo; no relatório: `mobile tsc: omitido (diff sem mobile/CI)`
+- Vários `true` → rode os que aplicarem
+- Todos `false` (só docs/Cursor) → não rode testes pesados; diga isso no relatório
 
-Se o script falhar (sem `origin/main`), assuma os dois `true`.
+Se o script falhar (sem `origin/main`), assuma os três `true`.
 
 Se algum teste **executado** falhar, corrija antes de concluir a revisão.
 
@@ -78,6 +82,7 @@ Após mudar `backend/requirements-dev.txt`, faça `docker compose build backend`
 ## Testes executados
 - pytest: [passou / falhou / omitido — motivo]
 - npm run build: [passou / falhou / omitido — motivo]
+- mobile tsc: [passou / falhou / omitido — motivo]
 ```
 
 Se revisão OK, sugira:

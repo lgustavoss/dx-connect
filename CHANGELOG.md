@@ -9,6 +9,9 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- App no celular: o atendente entra com a instância e a mesma conta do painel; vê a fila, os chats dele e os recentes; assume, responde em texto e encerra (#1311, #1314)
+- App no celular: no chat WhatsApp dá para ver e enviar foto, áudio e documento (#1316)
+- Painel web: **PWA descontinuada** — deixa de pedir instalação na tela inicial; o atendimento no celular segue no app Expo (#1311)
 - CRM: o cartão no Kanban mostra a **última nota** e o **próximo lembrete**; criar lead começa por nome e telefone; no detalhe as anotações ficam sempre visíveis, com abas Cliente e Comercial (#S202610-0022)
 - Sobre: o histórico de versões mostra **3 por vez**, com Anterior/Próxima — a página deixa de listar todas as CalVer de uma vez (#S202610-0021)
 - Listagens (empresas, redes, equipe, status, catálogos…): **Ativos/Todos** fica colado na paginação, no mesmo padrão da aba Motivos

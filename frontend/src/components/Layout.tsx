@@ -13,7 +13,6 @@ import { useTheme } from '../contexts/ThemeContext'
 import { isCapacitorNative } from '../lib/capacitorNative'
 import { AlertaDesktopPermissaoBanner } from './AlertaDesktopPermissaoBanner'
 import { AlertaFilaAudioBanner } from './AlertaFilaAudioBanner'
-import { PwaInstallBanner } from './PwaInstallBanner'
 import { WebPushOptInBanner } from './WebPushOptInBanner'
 import { PontoAlertasBanner } from './PontoAlertasBanner'
 import { PontoHeaderChip } from './PontoHeaderChip'
@@ -50,7 +49,7 @@ function LayoutInner() {
 
   const notificacoesEnabled = Boolean(user && !user.must_change_password)
   useAlertaFilaSemResponsavel(notificacoesEnabled)
-  useWebPushSession(notificacoesEnabled)
+  useWebPushSession(notificacoesEnabled && isCapacitorNative())
 
   useEffect(() => {
     setChatInternoAlertUserId(user?.id ?? null)
@@ -220,10 +219,11 @@ function LayoutInner() {
           </Link>
         </header>
 
-        {notificacoesEnabled && !isCapacitorNative() && !ocultarHeaderMobile ? <PwaInstallBanner enabled /> : null}
         {notificacoesEnabled && !ocultarHeaderMobile ? <AlertaDesktopPermissaoBanner enabled /> : null}
         {notificacoesEnabled && !ocultarHeaderMobile ? <AlertaFilaAudioBanner enabled /> : null}
-        {notificacoesEnabled && !ocultarHeaderMobile ? <WebPushOptInBanner enabled /> : null}
+        {isCapacitorNative() && notificacoesEnabled && !ocultarHeaderMobile ? (
+          <WebPushOptInBanner enabled />
+        ) : null}
         <PontoAlertasBanner />
 
         <main className="min-h-0 min-w-0 w-full flex-1 overflow-hidden">

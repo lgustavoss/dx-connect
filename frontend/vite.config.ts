@@ -27,7 +27,8 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       VitePWA({
-        disable: capacitorNative,
+        // PWA descontinuada (#1311): o caminho mobile é o companion Expo, não instalar o painel.
+        disable: true,
         strategies: 'injectManifest',
         srcDir: 'src',
         filename: 'sw.ts',
@@ -44,7 +45,7 @@ export default defineConfig(({ mode }) => {
         manifest: {
           name: 'DeskRudder',
           short_name: 'DeskRudder',
-          description: 'Atendimento no telemóvel — chats WhatsApp e tickets, no endereço da sua instância.',
+          description: 'Atendimento no celular — chats WhatsApp e tickets, no endereço da sua instância.',
           lang: 'pt-BR',
           start_url: '/',
           scope: '/',

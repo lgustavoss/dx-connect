@@ -16,7 +16,7 @@ Guia para desenvolvimento assistido por IA no Cursor (time 2–3 devs).
 | Rule | Quando |
 |------|--------|
 | `project-core` | Sempre |
-| `pt-br` | Sempre — português do Brasil (UI, chat, MCP, mensagem ao cliente) |
+| `pt-br` | Sempre — português do Brasil (você; UI, chat, Expo, CHANGELOG, MCP) |
 | `planning-github-source` | Sempre — planos/decisões no GitHub, sem `.md` locais de rascunho |
 | `backend-fastapi` | Arquivos em `backend/**` |
 | `frontend-react` | Arquivos em `frontend/**` |

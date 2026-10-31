@@ -2,6 +2,19 @@
 
 Documento para equipes/ferramentas que **não têm acesso ao GitHub**. Descreve stack, APIs, telas e MVP sugerido.
 
+## Dois artefatos (não misturar)
+
+| Artefato | O que é | Onde |
+|----------|---------|------|
+| **Painel no celular** | APK **Capacitor** legado (WebView do SPA) — a **PWA foi descontinuada** | `frontend/` — [MOBILE_CAPACITOR.md](MOBILE_CAPACITOR.md) |
+| **Companion Expo (caminho atual)** | App nativo **só chat WhatsApp + inbox de tickets** | `mobile/` — épico **#1311** |
+
+O companion **não** é um segundo backend: chama a mesma FastAPI (`https://api-{slug}.deskrudder.com.br`). Login com slug (pré-preenchido `duplexsoft`) + a mesma conta do painel.
+
+UX de chats reais: **Expo Go** contra a API DuplexSoft. `npx expo start --web` no Cursor serve para o esqueleto (login/abas); a API de produção bloqueia CORS no browser.
+
+Filhas: #1312 andaime · #1313 login · #1314 chat texto · #1315 push FCM · #1316 mídia · #1317 tickets.
+
 ---
 
 ## 1. Correção importante sobre o backend
@@ -137,10 +150,10 @@ Sistema de **helpdesk** para **redes de postos/empresas**:
 | Fase | Stack |
 |------|--------|
 | Feito | **PWA** no frontend React (mesmo `/v1`, mesma origem do painel) — L0–L5 |
-| Feito | **Capacitor Android**: 1 APK + Conta → `api-{slug}` (mesmo painel mobile web + UnifiedPush/VAPID) — L6.1–L6.3 |
-| Feito (docs) | Listing Play + privacidade — `docs/MOBILE_STORE_RELEASE.md` (#739); upload AAB = conta Google (ops) |
-| Follow-up | **iOS** Capacitor + APNs — #738 (Mac + Apple Developer) |
-| Não na v1 | React Native / Flutter |
+| Feito | **Capacitor Android**: 1 APK + Conta → `api-{slug}` (painel completo em WebView + UnifiedPush) — L6.1–L6.3 |
+| Em curso | **Companion Expo** (`mobile/`) — só WhatsApp + tickets, UX nativa — épico #1311 |
+| Feito (docs) | Listing Play do Capacitor — `docs/MOBILE_STORE_RELEASE.md` (#739) |
+| Follow-up | **iOS** Capacitor + APNs — #738; iOS do companion Expo depois do Android |
 
 **Install (híbrido C):** PWA por `{slug}`; nas lojas **1 app** Android + campo Conta → `api-{slug}` (sem PWA global `app.`).  
 **Infra:** 1 VPS; **novo container/stack por cliente**.
@@ -376,13 +389,13 @@ OpenAPI completo: `{API_URL}/docs`
 
 ## 9. Abordagem técnica mobile
 
-O projecto web já é **React + TypeScript**. Ordem fechada no épico #689:
+O projeto web já é **React + TypeScript**. Há **dois** caminhos, de propósito:
 
 | Fase | Abordagem |
 |------|-----------|
-| **PWA no SPA actual** | Reutiliza o painel; instalável em `https://{slug}.…`; API `/v1` na mesma instância |
-| **Capacitor (lojas)** | Android na `main` (Conta → `api-{slug}` + push UnifiedPush); listing Play → #739 / `MOBILE_STORE_RELEASE.md`; iOS → #738 |
-| React Native / Flutter | **Fora da v1** |
+| **PWA no SPA atual** | Descontinuada — o caminho no celular é o companion Expo |
+| **Capacitor (lojas)** | Painel completo em WebView — Android na `main`; listing Play → #739; iOS → #738 |
+| **Companion Expo (#1311)** | React Native em `mobile/` — só WhatsApp + tickets, UX de messenger |
 
 Como construir o APK, validar e gerar AAB: **`docs/MOBILE_CAPACITOR.md`**. Listing e privacidade da loja: **`docs/MOBILE_STORE_RELEASE.md`** (#739).
 

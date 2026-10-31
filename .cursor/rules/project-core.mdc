@@ -30,7 +30,7 @@ docker compose run --rm --no-deps backend pytest -q
 docker compose up -d --build   # só se Dockerfile ou requirements mudaram
 ```
 
-**Não rode pytest do backend** se o diff vs `origin/main` (e working tree) não toca `backend/`, `scripts/` ou `.github/workflows/ci.yml`. **Não rode `npm run build`** se não toca `frontend/` nem o workflow de CI. Use `python scripts/ci_detect_changes.py --base origin/main --include-working-tree` (igual ao GitHub Actions e ao `/revisar-e-testar`).
+**Não rode pytest do backend** se o diff vs `origin/main` (e working tree) não toca `backend/`, `scripts/` ou `.github/workflows/ci.yml`. **Não rode `npm run build`** se não toca `frontend/` nem o workflow de CI. **Não rode `npx tsc --noEmit` no `mobile/`** se não toca `mobile/` nem o workflow de CI. Use `python scripts/ci_detect_changes.py --base origin/main --include-working-tree` (igual ao GitHub Actions e ao `/revisar-e-testar`).
 
 Frontend em dev: `npm run dev` na pasta `frontend/` (proxy `/api` → `:8000`). Use `/subir-local` para subir tudo.
 
@@ -47,3 +47,4 @@ Frontend em dev: `npm run dev` na pasta `frontend/` (proxy `/api` → `:8000`). 
 - [ ] Se houve migration: `alembic heads` com um único head
 - [ ] Se afeta tempo real: evento SSE **após commit** no banco
 - [ ] Frontend builda (`npm run build`) se tocou em `frontend/`
+- [ ] App Expo typecheck (`npm run typecheck` em `mobile/`) se tocou em `mobile/`

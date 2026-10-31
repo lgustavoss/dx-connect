@@ -20,6 +20,12 @@ frontend/public/_debug-*.png
 desktop/node_modules
 desktop/release
 
+# Companion Expo (mobile/)
+mobile/node_modules
+mobile/.expo
+mobile/dist
+mobile/web-build
+
 # Python
 **/__pycache__/
 
