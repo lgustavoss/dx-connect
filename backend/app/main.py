@@ -69,6 +69,7 @@ from app.api import (
     saas_setores,
     saas_alertas,
     web_push,
+    dispositivos,
     solicitacoes_melhoria,
 )
 from app.config import settings
@@ -302,6 +303,7 @@ async def lifespan(app: FastAPI):
 
     def web_push_outbox_loop() -> None:
         from app.database import SessionLocal
+        from app.services.fcm_outbox import process_fila_fcm_reminders, process_pending_fcm
         from app.services.web_push_outbox import process_fila_web_push_reminders, process_pending_web_push
 
         interval = max(3, settings.WEB_PUSH_WORKER_INTERVAL_SECONDS)
@@ -310,12 +312,22 @@ async def lifespan(app: FastAPI):
                 process_fila_web_push_reminders()
             except Exception as e:
                 logger.warning("Worker Web Push lembrete fila: %s", e)
+            try:
+                process_fila_fcm_reminders()
+            except Exception as e:
+                logger.warning("Worker FCM lembrete fila: %s", e)
             db = SessionLocal()
             try:
                 process_pending_web_push(db, limit=40)
                 db.commit()
             except Exception as e:
                 logger.warning("Worker Web Push outbox: %s", e)
+                db.rollback()
+            try:
+                process_pending_fcm(db, limit=40)
+                db.commit()
+            except Exception as e:
+                logger.warning("Worker FCM outbox: %s", e)
                 db.rollback()
             finally:
                 db.close()
@@ -698,6 +710,7 @@ app.include_router(events.router, prefix=API_V1_PREFIX)
 app.include_router(presenca.router, prefix=API_V1_PREFIX)
 app.include_router(ponto.router, prefix=API_V1_PREFIX)
 app.include_router(web_push.router, prefix=API_V1_PREFIX)
+app.include_router(dispositivos.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_settings.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_chats.router, prefix=API_V1_PREFIX)
 app.include_router(whatsapp_figurinhas.router, prefix=API_V1_PREFIX)

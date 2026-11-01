@@ -1,11 +1,13 @@
 ---
-description: Português do Brasil em UI, chat, MCP e mensagens ao cliente
+description: Português do Brasil em UI, chat, MCP, docs e CHANGELOG
 alwaysApply: true
 ---
 
 # Português do Brasil (pt-BR)
 
-Toda copy do produto, chat do agente, issue GitHub, docs novas e **mensagem ao cliente** (painel ou MCP `comentar_solicitacao` com `publico_cliente=true`) usa **português do Brasil**. Não use português de Portugal.
+**Sempre** pt-BR: chat do agente, UI (painel, Expo `mobile/`, desktop), erros, CHANGELOG `[Unreleased]`, docs novas, issues GitHub e mensagem ao cliente. Mesmo se o pedido vier em inglês. Não use português de Portugal.
+
+Tratamento: **você** (Preencha, Use, Entre de novo) — não tu (Preenche, Usa, Entra).
 
 ## Vocabulário — evitar → usar
 
@@ -22,9 +24,11 @@ Toda copy do produto, chat do agente, issue GitHub, docs novas e **mensagem ao c
 | telemóvel | celular |
 | aceite (adj.: pedido aceite) | aceito |
 | guardar (persistir) | salvar |
+| ligar a (conectar) | conectar |
+| defeito (por defeito) | padrão |
 
-## Mensagem que o cliente lê
+## Produto e CHANGELOG
 
-- Sem GitHub, `issue #N`, «acompanhamento interno» ou jargão de ops.
-- Isso vai em **nota interna** (`publico_cliente=false`).
-- MCP: se o ops não pediu falar com o cliente, comente **interno**.
+- UI **não** mostra GitHub, `issue #N` nem jargão de lote interno.
+- CHANGELOG em linguagem para o usuário final — sem proxy CORS, pasta `mobile/` ou detalhe de CI.
+- Mensagem que o cliente lê: só pt-BR, sem ops. Nota interna = `publico_cliente=false`.

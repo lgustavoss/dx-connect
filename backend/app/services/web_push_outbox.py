@@ -55,6 +55,8 @@ def enfileirar_para_atendentes(
     url_path: str,
     corpo: str | None = None,
     exclude_atendente_id: int | None = None,
+    chat_id: int | None = None,
+    ticket_id: int | None = None,
 ) -> None:
     """Abre sessão própria para não interferir no commit do chamador (emit pós-commit)."""
     if not vapid_configurado():
@@ -72,6 +74,12 @@ def enfileirar_para_atendentes(
         "url_path": url_path,
         "corpo": (corpo or "").strip() or None,
     }
+    if chat_id is not None:
+        payload_base["chat_id"] = int(chat_id)
+        payload_base["deep_link"] = f"/conversa/{int(chat_id)}"
+    if ticket_id is not None:
+        payload_base["ticket_id"] = int(ticket_id)
+        payload_base["deep_link"] = f"/ticket/{int(ticket_id)}"
     now = _utcnow()
     db = SessionLocal()
     try:

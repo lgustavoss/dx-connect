@@ -9,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.services.fcm import fcm_configurado
 from app.services.system_release import resolve_app_version
 
 
@@ -41,7 +42,12 @@ def integrations_status() -> dict[str, Any]:
         "evolution_whatsapp": "configured" if evolution else "missing",
         "ticket_closed_webhook": "configured" if bool((settings.TICKET_CLOSED_WEBHOOK_URL or "").strip()) else "missing",
         "web_push": "configured" if bool((settings.WEB_PUSH_VAPID_PUBLIC_KEY or "").strip() and (settings.WEB_PUSH_VAPID_PRIVATE_KEY or "").strip()) else "missing",
+        "fcm": "configured" if fcm_configurado() else "missing",
     }
+
+
+# FCM no celular é opcional (#1315): missing não deve degradar /health/ready nem o alerta SaaS.
+INTEGRACOES_OPCIONAIS = frozenset({"fcm"})
 
 
 def build_health_payload(*, capabilities: dict[str, bool]) -> dict[str, Any]:
@@ -69,7 +75,11 @@ def build_readiness_payload(*, db: Session, capabilities: dict[str, bool]) -> tu
         return base, 503
 
     integrations = base.get("integrations") or {}
-    if any(v in ("missing", "partial") for v in integrations.values()):
+    if any(
+        v in ("missing", "partial")
+        for k, v in integrations.items()
+        if k not in INTEGRACOES_OPCIONAIS
+    ):
         base["status"] = "degraded"
     else:
         base["status"] = "ok"

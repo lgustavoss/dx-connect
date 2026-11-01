@@ -87,6 +87,8 @@ class Settings(BaseSettings):
     WEB_PUSH_WORKER_INTERVAL_SECONDS: int = 5
     # Reaviso push enquanto houver chats na fila (app fechada). 0 = desliga.
     WEB_PUSH_FILA_REMIND_MINUTES: int = 2
+    # FCM HTTP v1 (#1315). JSON da conta de serviço Google, numa linha. Vazio = push no celular desligado.
+    FCM_SERVICE_ACCOUNT_JSON: str | None = None
     # Tentativas HTTP para Evolution API (falhas transitórias).
     EVOLUTION_HTTP_MAX_ATTEMPTS: int = 3
     WHATSAPP_INACTIVITY_WORKER_INTERVAL_SECONDS: int = 60

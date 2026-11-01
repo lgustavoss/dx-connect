@@ -31,7 +31,7 @@ def test_convocado_folga_gera_falta_e_esperado(client, seed_base, auth_headers):
     user = auth_headers["a1"]
     a1 = seed_base["a1"]
     assert _folga_total(client, admin, a1.id).status_code == 200
-    amanha = date.today() + timedelta(days=1)
+    amanha = _futuro_util()
     r = client.post(
         "/v1/ponto/convocados/conceder",
         headers=admin,

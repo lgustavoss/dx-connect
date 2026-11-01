@@ -2,10 +2,17 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import { bindCapacitorBackButton } from './lib/capacitorNative'
-import { suppressDesktopPwaInstallPrompt } from './lib/pwaInstallPolicy'
 
 bindCapacitorBackButton()
-suppressDesktopPwaInstallPrompt()
+
+/** PWA descontinuada: tira service workers antigos (install + Web Push no browser). */
+function unregisterLegacyPwa(): void {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
+  void navigator.serviceWorker.getRegistrations().then((regs) => {
+    for (const reg of regs) void reg.unregister()
+  })
+}
+unregisterLegacyPwa()
 
 const root = createRoot(document.getElementById('root')!)
 
