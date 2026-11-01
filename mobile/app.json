@@ -3,10 +3,10 @@
     "name": "DeskRudder",
     "slug": "deskrudder-atendimento",
     "scheme": "deskrudder",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true
     },
@@ -14,7 +14,7 @@
       "package": "br.com.deskrudder.atendimento",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "backgroundColor": "#0B2D4A",
+        "backgroundColor": "#F1F5F9",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -37,7 +37,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
+          "icon": "./assets/notification-icon.png",
           "color": "#0B2D4A",
           "defaultChannel": "deskrudder"
         }
