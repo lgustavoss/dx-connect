@@ -5,6 +5,12 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+### DeskRudder
+
+#### Interno / Infra
+
+- CI: o workflow do app Android passa a gerar **APK de release assinado** (instala e roda sem Metro) junto do `.aab` que a Play Store vai receber; o APK de debug continua disponível escolhendo `variant=debug`
+
 ## [26.11.001] - 2026-11-01
 
 ### DeskRudder
