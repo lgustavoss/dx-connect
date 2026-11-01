@@ -51,7 +51,7 @@ jobs:
           java-version: "17"
 
       - name: Cache do Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Conferir google-services.json
         run: test -f google-services.json
