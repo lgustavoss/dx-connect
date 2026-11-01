@@ -12,6 +12,7 @@
     },
     "android": {
       "package": "br.com.deskrudder.atendimento",
+      "versionCode": 1,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#F1F5F9",
@@ -28,6 +29,7 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      "./plugins/withReleaseSigning",
       [
         "expo-image-picker",
         {

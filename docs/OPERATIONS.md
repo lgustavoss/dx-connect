@@ -125,7 +125,11 @@ O app Expo registra o token em `POST /v1/dispositivos` após o login e revoga em
 
 O push respeita as preferências de `GET/PATCH /v1/notificacoes/preferencias` (os mesmos flags do Web Push). Registrar um aparelho novo liga `push_habilitado`; o switch do Perfil no app desliga/religa. `push_fila` controla só os avisos de fila (eventos `chat.fila`/`ticket.fila`/lembrete), mensagens continuam chegando.
 
-APK de teste sem conta Expo: Actions → «DeskRudder Mobile Android» → Run workflow (artifact `DeskRudder-Mobile-android` + Release `mobile-android`, arquivo `DeskRudder-Mobile.apk`). O workflow roda `expo prebuild` + `assembleDebug` no runner e usa o `google-services.json` versionado.
+APK/AAB sem conta Expo: Actions → «DeskRudder Mobile Android» → Run workflow.
+- `variant=release` (padrão): APK **assinado** com a keystore do projeto, roda sem Metro, mais o `.aab` que a Play Store vai usar. Artifact `DeskRudder-Mobile-release`; o Release `mobile-android` recebe `DeskRudder-Mobile.apk` e `DeskRudder-Mobile.aab`.
+- `variant=debug`: APK de desenvolvimento (carrega o JS pelo Metro e fica preso à rede local) para testar sem instalar por cima do release.
+
+Assinatura: o workflow decodifica `ANDROID_KEYSTORE_BASE64` no runner e exporta `ANDROID_KEYSTORE_PATH/PASSWORD`, `ANDROID_KEY_ALIAS` e `ANDROID_KEY_PASSWORD`; o plugin `mobile/plugins/withReleaseSigning.js` aplica isso no `android/app/build.gradle` do prebuild. A keystore e as senhas estão em `C:\Users\Luis Gustavo\Downloads\deskrudder-mobile-release.keystore` e `deskrudder-mobile-release-credentials.txt` (fora do git) — **guardar em local seguro**: perder a chave impede atualizar o app publicado. Para a Play Store, subir o `.aab` e incrementar `expo.android.versionCode` em `mobile/app.json` a cada envio.
 
 Falhas do worker: `fcm_outbox_send_retry`, `fcm_outbox_send_failed_permanent`, `fcm_dispositivo_expirado` (404/410; 400 `INVALID_ARGUMENT` e 403 `SENDER_ID_MISMATCH` também descartam o token).
 
