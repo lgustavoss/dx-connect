@@ -21,22 +21,22 @@ def test_frontend_only_nao_dispara_backend():
             "frontend/src/index.css",
         ]
     )
-    assert result == {"backend": False, "frontend": True}
+    assert result == {"backend": False, "frontend": True, "mobile": False}
 
 
 def test_backend_only_nao_dispara_frontend():
     result = classify(["backend/app/api/tickets.py", "backend/tests/test_health.py"])
-    assert result == {"backend": True, "frontend": False}
+    assert result == {"backend": True, "frontend": False, "mobile": False}
 
 
-def test_ci_yml_dispara_os_dois():
+def test_ci_yml_dispara_os_tres():
     result = classify([".github/workflows/ci.yml"])
-    assert result == {"backend": True, "frontend": True}
+    assert result == {"backend": True, "frontend": True, "mobile": True}
 
 
 def test_scripts_dispara_backend():
     result = classify(["scripts/ci_detect_changes.py"])
-    assert result == {"backend": True, "frontend": False}
+    assert result == {"backend": True, "frontend": False, "mobile": False}
 
 
 def test_docs_e_cursor_nao_disparam_jobs_pesados():
@@ -47,11 +47,19 @@ def test_docs_e_cursor_nao_disparam_jobs_pesados():
             "CHANGELOG.md",
         ]
     )
-    assert result == {"backend": False, "frontend": False}
+    assert result == {"backend": False, "frontend": False, "mobile": False}
 
 
 def test_format_result():
-    assert format_result({"backend": True, "frontend": False}) == "backend=true\nfrontend=false"
+    assert (
+        format_result({"backend": True, "frontend": False, "mobile": False})
+        == "backend=true\nfrontend=false\nmobile=false"
+    )
+
+
+def test_mobile_only_nao_dispara_frontend_nem_backend():
+    result = classify(["mobile/src/screens/LoginScreen.tsx", "mobile/package.json"])
+    assert result == {"backend": False, "frontend": False, "mobile": True}
 
 
 def test_path_matches_normaliza_barra():

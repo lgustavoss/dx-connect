@@ -11,6 +11,29 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
+- App no celular: o atendente entra com a instância e a mesma conta do painel; vê a fila, os chats dele e os recentes; assume, responde em texto e encerra (#1311, #1314)
+- App no celular: no primeiro acesso, quando a senha ainda é a provisória definida pelo administrador, o app pede para criar uma nova senha antes de continuar (#1313)
+- App no celular: no chat dá para ver e enviar foto, áudio e documento (#1316)
+- App no celular: fila de tickets sem responsável e os tickets do atendente; dá para assumir, responder e abrir chamado a partir do chat (#1317)
+- App no celular: com o app fechado, o celular avisa de chat na fila, mensagem nova e ticket; tocar na notificação abre o chat ou o chamado certo (#1315)
+- App no celular: no **Perfil** dá para desligar as notificações do aparelho e os avisos de fila; o push respeita as mesmas preferências do painel
+- App no celular: visual mais limpo — ícones nas abas, avatares nas listas, botão de enviar redondo e conversas com bolhas mais leves
+- App no celular: a aba de conversas se chama **Chat** (WhatsApp, chat do site e outros canais no mesmo lugar); em ticket e conversa dá para voltar pela seta
+- App no celular: as abas não repetem o título no topo — sobra espaço na tela pequena
+- App no celular: em conversa, ticket e nova conversa dá para voltar arrastando da esquerda para a direita
+- App no celular: o perfil não mostra o endereço do servidor
+- App no celular: **login no padrão do painel web** — mesmo fundo, logo e cartão; a tela não mostra mais o endereço da API
+- App no celular: **ícone próprio na tela inicial** (símbolo DeskRudder; antes era o ícone padrão do Expo), com versão monocromática para os temas do Android
+- App no celular: Recentes começa com os **10 últimos**; **Ver mais** carrega mais 10, sem o número ao lado da aba
+- App no celular: o chat mostra a **foto do contato**, como no painel; se não houver foto, aparece a inicial
+- App no celular: em Atendendo o gestor vê os chats **Comigo** e os de **outros atendentes** (só acompanha, sem falar no lugar do responsável)
+- App no celular: dá para **iniciar uma conversa** pelo botão +, com número ou contato da rede; se a pessoa vê mais de um setor, escolhe qual entra na assinatura
+- App no celular: **tema claro/escuro** (ou igual ao sistema) no Perfil, com as mesmas cores do painel web
+- App no celular: o teclado não cobre mais o campo de mensagem nem os campos do login; com o teclado aberto, a última mensagem continua visível
+- App no celular: conversas e tickets trocam de aba deslizando (Fila/Atendendo/Recentes e Fila/Meus)
+- App no celular: no topo da conversa aparecem só o nome e a empresa; tocar no nome abre os dados do contato e o menu ⋮ reúne vincular empresa, registrar demanda, abrir ticket e encerrar
+- App no celular: tocar na foto abre em tela cheia (arrastar para baixo fecha); o tempo até o encerramento por inatividade fica no topo e o menu permite pausar/retomar
+- Painel web: **PWA descontinuada** — deixa de pedir instalação na tela inicial; o atendimento no celular segue no app Expo (#1311)
 - CRM: o cartão no Kanban mostra a **última nota** e o **próximo lembrete**; criar lead começa por nome e telefone; no detalhe as anotações ficam sempre visíveis, com abas Cliente e Comercial (#S202610-0022)
 - Sobre: o histórico de versões mostra **3 por vez**, com Anterior/Próxima — a página deixa de listar todas as CalVer de uma vez (#S202610-0021)
 - Listagens (empresas, redes, equipe, status, catálogos…): **Ativos/Todos** fica colado na paginação, no mesmo padrão da aba Motivos
@@ -20,6 +43,11 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 - Configurações → Natureza e motivo: a aba **Motivos** volta a abrir (pedia 200 itens; a API aceita no máximo 100), lista **20 por vez** e junta busca, natureza e Ativos/Todos na mesma barra (#S202610-0020)
 - Chat: ao terminar o áudio, a barra chega ao fim — deixa de sobrar um pedaço vazio (#S202610-0023)
+
+#### Interno / Infra
+
+- CI: workflow **DeskRudder Mobile Android** gera o APK de teste no Actions (artifact + Release `mobile-android`, link estável `/releases/download/mobile-android/DeskRudder-Mobile.apk`), sem conta Expo
+- Push FCM: worker envia fora da transação, grava o resultado linha a linha, descarta token inválido (404/410, 400 `INVALID_ARGUMENT`, 403 `SENDER_ID_MISMATCH`), reenvia com backoff e enfileira o lembrete de fila no aparelho
 
 ### SaaS Control Plane
 

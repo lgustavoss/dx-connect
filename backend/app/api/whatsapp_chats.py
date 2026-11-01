@@ -667,6 +667,11 @@ def _chat_read(
     solicitada = bool(getattr(c, "avaliacao_solicitada", False)) if revelar_avaliacao else False
     func = getattr(c, "funcionario_rede", None)
     emp = getattr(c, "empresa", None)
+    rede_nome = None
+    if func is not None and getattr(func, "rede", None) is not None:
+        rede_nome = func.rede.nome
+    elif emp is not None and getattr(emp, "rede", None) is not None:
+        rede_nome = emp.rede.nome
     nao_lidas = 0
     last_seen: datetime | None = None
     last_seen_msg: int | None = None
@@ -695,6 +700,7 @@ def _chat_read(
         funcionario_tipo=func.tipo if func else None,
         empresa_id=getattr(c, "empresa_id", None),
         empresa_nome=_empresa_nome_exibicao(emp),
+        rede_nome=rede_nome,
         negociacao_id=getattr(c, "negociacao_id", None),
         negociacao_titulo=c.negociacao.titulo if getattr(c, "negociacao", None) else None,
         negociacao_lead_nome=(

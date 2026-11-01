@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Classifica o diff: pytest backend e/ou build frontend (CI e /revisar-e-testar)."""
+"""Classifica o diff: pytest backend, build frontend e/ou tsc mobile (CI e /revisar-e-testar)."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# Alterar o workflow de CI reexecuta os dois jobs (o YAML é a definição deles).
+# Alterar o workflow de CI reexecuta os jobs pesados (o YAML é a definição deles).
 BACKEND_MARKERS = (
     "backend/",
     "scripts/",
@@ -19,6 +19,10 @@ BACKEND_MARKERS = (
 )
 FRONTEND_MARKERS = (
     "frontend/",
+    ".github/workflows/ci.yml",
+)
+MOBILE_MARKERS = (
+    "mobile/",
     ".github/workflows/ci.yml",
 )
 
@@ -46,6 +50,7 @@ def classify(paths: list[str]) -> dict[str, bool]:
     return {
         "backend": any(path_matches(p, BACKEND_MARKERS) for p in normalized),
         "frontend": any(path_matches(p, FRONTEND_MARKERS) for p in normalized),
+        "mobile": any(path_matches(p, MOBILE_MARKERS) for p in normalized),
     }
 
 
@@ -68,7 +73,7 @@ def git_changed_files(*, base: str, head: str, two_dot: bool, include_working_tr
 
 def format_result(result: dict[str, bool]) -> str:
     return "\n".join(
-        f"{key}={'true' if result[key] else 'false'}" for key in ("backend", "frontend")
+        f"{key}={'true' if result[key] else 'false'}" for key in ("backend", "frontend", "mobile")
     )
 
 
@@ -89,36 +94,36 @@ def _is_zero_sha(value: str | None) -> bool:
 def classify_from_github_env() -> dict[str, bool]:
     event = os.environ.get("GITHUB_EVENT_NAME", "")
     if event == "workflow_dispatch":
-        return {"backend": True, "frontend": True}
+        return {"backend": True, "frontend": True, "mobile": True}
 
     if event == "pull_request":
         base = os.environ.get("PR_BASE_SHA") or ""
         head = os.environ.get("GITHUB_SHA") or "HEAD"
         if _is_zero_sha(base):
-            return {"backend": True, "frontend": True}
+            return {"backend": True, "frontend": True, "mobile": True}
         return classify(git_changed_files(base=base, head=head, two_dot=False, include_working_tree=False))
 
     if event == "push":
         before = os.environ.get("BEFORE") or ""
         head = os.environ.get("GITHUB_SHA") or "HEAD"
         if _is_zero_sha(before):
-            return {"backend": True, "frontend": True}
+            return {"backend": True, "frontend": True, "mobile": True}
         return classify(git_changed_files(base=before, head=head, two_dot=True, include_working_tree=False))
 
     raise SystemExit(f"Evento GitHub não suportado: {event!r}")
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="Diz se o diff exige pytest backend e/ou build frontend")
+    ap = argparse.ArgumentParser(description="Diz se o diff exige pytest backend, build frontend e/ou tsc mobile")
     ap.add_argument("--base", default="origin/main", help="Ref base (uso local / três pontos)")
     ap.add_argument("--head", default="HEAD")
     ap.add_argument("--include-working-tree", action="store_true", help="Inclui staged, unstaged e untracked")
     ap.add_argument("--github-output", action="store_true", help="Escreve GITHUB_OUTPUT (Actions)")
-    ap.add_argument("--all", action="store_true", help="Força backend e frontend")
+    ap.add_argument("--all", action="store_true", help="Força backend, frontend e mobile")
     args = ap.parse_args(argv)
 
     if args.all:
-        result = {"backend": True, "frontend": True}
+        result = {"backend": True, "frontend": True, "mobile": True}
     elif args.github_output:
         result = classify_from_github_env()
     else:

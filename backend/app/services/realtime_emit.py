@@ -217,6 +217,12 @@ def _enfileirar_web_push(**kwargs) -> None:
         enfileirar_para_atendentes(**kwargs)
     except Exception:
         logger.exception("Web Push: falha ao enfileirar")
+    try:
+        from app.services.fcm_outbox import enfileirar_para_atendentes as enfileirar_fcm
+
+        enfileirar_fcm(**kwargs)
+    except Exception:
+        logger.exception("FCM: falha ao enfileirar")
 
 
 def emit_chat_mensagem(
@@ -244,6 +250,7 @@ def emit_chat_mensagem(
                 url_path="/chat/atendendo",
                 corpo=str((mensagem_payload or {}).get("corpo") or "Nova mensagem")[:180],
                 exclude_atendente_id=exclude_atendente_id,
+                chat_id=chat.id,
             )
 
 
@@ -275,6 +282,7 @@ def emit_chat_fila(
             titulo="Cliente na fila WhatsApp",
             url_path="/chat/espera",
             corpo=str(nome)[:180],
+            chat_id=chat.id,
         )
 
 
@@ -302,6 +310,7 @@ def emit_ticket_mensagem(
             url_path="/tickets",
             corpo=str((mensagem_payload or {}).get("corpo") or ticket.assunto or "Nova mensagem")[:180],
             exclude_atendente_id=exclude_atendente_id,
+            ticket_id=ticket.id,
         )
 
 
@@ -323,6 +332,7 @@ def emit_ticket_fila(db: Session, ticket: Ticket) -> None:
         titulo="Chamado na fila",
         url_path="/tickets",
         corpo=str(ticket.protocolo or ticket.assunto or "")[:180],
+        ticket_id=ticket.id,
     )
 
 

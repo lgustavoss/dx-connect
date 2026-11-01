@@ -79,7 +79,7 @@ Melhorias de estabilidade e alinhamento com o painel web. Actualize para manter 
 8. [ ] Smoke no dispositivo: checklist 11 itens em `MOBILE_CAPACITOR.md`.
 9. [ ] Confirmar push (VAPID na instância + UnifiedPush) com app fechada.
 
-Keystore e `google-services.json` (se algum dia necessário) **fora do git**.
+Keystore **fora do git**. O `mobile/google-services.json` do app Expo é **versionado** — é configuração pública do Firebase, sem segredo.
 
 ---
 

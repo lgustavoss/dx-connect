@@ -1,7 +1,7 @@
 # CI: lint básico, auditoria de dependências e build do frontend.
 # Não substitui revisão humana nem SAST completo; complementa Dependabot.
 #
-# Jobs backend/frontend sempre reportam check (branch protection).
+# Jobs backend/frontend/mobile sempre reportam check (branch protection).
 # Passos pesados só correm se o diff tocar nesse lado — ver scripts/ci_detect_changes.py.
 
 name: CI
@@ -26,12 +26,13 @@ jobs:
     outputs:
       backend: ${{ steps.detect.outputs.backend }}
       frontend: ${{ steps.detect.outputs.frontend }}
+      mobile: ${{ steps.detect.outputs.mobile }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: Classificar diff (backend / frontend)
+      - name: Classificar diff (backend / frontend / mobile)
         id: detect
         env:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
@@ -150,6 +151,36 @@ jobs:
         if: needs.changes.outputs.frontend != 'true'
         working-directory: .
         run: echo "Sem alterações de frontend — npm ci/build omitidos."
+
+  mobile:
+    needs: changes
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs.mobile == 'true'
+
+      - uses: actions/setup-node@v7
+        if: needs.changes.outputs.mobile == 'true'
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Instalar dependências
+        if: needs.changes.outputs.mobile == 'true'
+        run: npm ci
+
+      - name: Typecheck
+        if: needs.changes.outputs.mobile == 'true'
+        run: npm run typecheck
+
+      - name: Mobile omitido (diff sem mobile/CI)
+        if: needs.changes.outputs.mobile != 'true'
+        working-directory: .
+        run: echo "Sem alterações de mobile — tsc omitido."
 
   desktop:
     runs-on: ubuntu-latest

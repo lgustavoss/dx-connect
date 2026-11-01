@@ -26,7 +26,27 @@ def test_health_liveness(client):
     assert "capabilities" in body
     assert "integrations" in body
     assert "web_push" in body["integrations"]
+    assert "fcm" in body["integrations"]
     assert "environment" in body
+
+
+def test_health_ready_nao_degrada_so_por_fcm(client, db_session, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.health_checks.integrations_status",
+        lambda: {
+            "email_outbound": "configured",
+            "email_inbound": "configured",
+            "evolution_whatsapp": "configured",
+            "ticket_closed_webhook": "configured",
+            "web_push": "configured",
+            "fcm": "missing",
+        },
+    )
+    r = client.get("/health/ready")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "ok"
+    assert body["integrations"]["fcm"] == "missing"
 
 
 def test_health_ready_ok(client, db_session):
