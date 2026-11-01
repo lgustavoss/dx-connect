@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -6,9 +6,19 @@ import { notificacoes, type NotificacoesPreferencias } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import { Avatar } from '../../components/Avatar'
 import { Icon } from '../../components/Icon'
-import { colors, radius } from '../../lib/brand'
+import { radius, type Cores } from '../../lib/brand'
+import { useCores, useTema, type PreferenciaTema } from '../../lib/tema'
+
+const OPCOES_APARENCIA: { id: PreferenciaTema; titulo: string; icone: 'sunny-outline' | 'moon-outline' | 'phone-portrait-outline' }[] = [
+  { id: 'light', titulo: 'Claro', icone: 'sunny-outline' },
+  { id: 'dark', titulo: 'Escuro', icone: 'moon-outline' },
+  { id: 'system', titulo: 'Sistema', icone: 'phone-portrait-outline' },
+]
 
 export default function PerfilScreen() {
+  const styles = usarEstilos()
+  const cores = useCores()
+  const { preferencia, definir } = useTema()
   const insets = useSafeAreaInsets()
   const { me, slug, sair } = useAuth()
   const [prefs, setPrefs] = useState<NotificacoesPreferencias | null>(null)
@@ -82,11 +92,11 @@ export default function PerfilScreen() {
               value={pushLigado}
               disabled={salvando}
               onValueChange={(valor) => void salvar({ push_habilitado: valor })}
-              trackColor={{ true: colors.teal, false: colors.border }}
-              thumbColor={colors.white}
+              trackColor={{ true: cores.teal, false: cores.border }}
+              thumbColor={cores.sobre}
             />
           ) : (
-            <ActivityIndicator color={colors.teal} />
+            <ActivityIndicator color={cores.teal} />
           )}
         </View>
         <View style={styles.separador} />
@@ -100,11 +110,35 @@ export default function PerfilScreen() {
             value={prefs?.push_fila ?? true}
             disabled={!pushLigado || salvando}
             onValueChange={(valor) => void salvar({ push_fila: valor })}
-            trackColor={{ true: colors.teal, false: colors.border }}
-            thumbColor={colors.white}
+            trackColor={{ true: cores.teal, false: cores.border }}
+            thumbColor={cores.sobre}
           />
         </View>
         {erro ? <Text style={styles.erro}>{erro}</Text> : null}
+      </View>
+
+      <View style={styles.cardAparencia}>
+        <Text style={styles.prefTitulo}>Aparência</Text>
+        <Text style={styles.prefAjuda}>
+          Claro, escuro ou igual ao sistema — mesmas cores do painel web.
+        </Text>
+        <View style={styles.aparenciaOpcoes}>
+          {OPCOES_APARENCIA.map((opcao) => {
+            const ativo = preferencia === opcao.id
+            return (
+              <Pressable
+                key={opcao.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Tema ${opcao.titulo}`}
+                style={[styles.aparenciaOpcao, ativo && styles.aparenciaOpcaoAtiva]}
+                onPress={() => definir(opcao.id)}
+              >
+                <Icon name={opcao.icone} size={18} color={ativo ? cores.sobre : cores.muted} />
+                <Text style={[styles.aparenciaTxt, ativo && styles.aparenciaTxtAtiva]}>{opcao.titulo}</Text>
+              </Pressable>
+            )
+          })}
+        </View>
       </View>
 
       <Pressable
@@ -113,60 +147,93 @@ export default function PerfilScreen() {
         style={styles.botao}
         onPress={() => void sair()}
       >
-        <Icon name="log-out-outline" size={20} color={colors.danger} />
+        <Icon name="log-out-outline" size={20} color={cores.danger} />
         <Text style={styles.botaoTxt}>Sair e trocar instância</Text>
       </Pressable>
     </View>
   )
 }
 
-const styles = StyleSheet.create({
-  box: { flex: 1, backgroundColor: colors.deck, padding: 20, gap: 16 },
-  card: {
-    backgroundColor: colors.white,
-    borderRadius: radius.lg,
-    paddingVertical: 28,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    gap: 8,
-  },
-  cardPreferencias: {
-    backgroundColor: colors.white,
-    borderRadius: radius.lg,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  linha: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-  },
-  textos: { flex: 1, gap: 2 },
-  prefTitulo: { fontSize: 15, fontWeight: '600', color: colors.navy },
-  prefAjuda: { fontSize: 13, color: colors.muted },
-  separador: { height: 1, backgroundColor: colors.border },
-  erro: { color: colors.danger, fontSize: 13, paddingBottom: 10 },
-  titulo: { fontSize: 22, fontWeight: '700', color: colors.navy, marginTop: 8 },
-  email: { fontSize: 15, color: colors.muted },
-  pills: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  pill: {
-    backgroundColor: colors.tealSoft,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: radius.full,
-  },
-  pillTxt: { fontSize: 13, fontWeight: '600', color: colors.tealDark },
-  botao: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.white,
-    borderRadius: radius.md,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: colors.dangerBg,
-  },
-  botaoTxt: { color: colors.danger, fontWeight: '700', fontSize: 15 },
-})
+
+function usarEstilos() {
+  const cores = useCores()
+  return useMemo(() => criarEstilos(cores), [cores])
+}
+
+function criarEstilos(cores: Cores) {
+  return StyleSheet.create({
+    box: { flex: 1, backgroundColor: cores.deck, padding: 20, gap: 16 },
+    card: {
+      backgroundColor: cores.white,
+      borderRadius: radius.lg,
+      paddingVertical: 28,
+      paddingHorizontal: 20,
+      alignItems: 'center',
+      gap: 8,
+    },
+    cardPreferencias: {
+      backgroundColor: cores.white,
+      borderRadius: radius.lg,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+    },
+    linha: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingVertical: 12,
+    },
+    textos: { flex: 1, gap: 2 },
+    prefTitulo: { fontSize: 15, fontWeight: '600', color: cores.navy },
+    prefAjuda: { fontSize: 13, color: cores.muted },
+    separador: { height: 1, backgroundColor: cores.border },
+    erro: { color: cores.danger, fontSize: 13, paddingBottom: 10 },
+    titulo: { fontSize: 22, fontWeight: '700', color: cores.navy, marginTop: 8 },
+    email: { fontSize: 15, color: cores.muted },
+    pills: { flexDirection: 'row', gap: 8, marginTop: 8 },
+    pill: {
+      backgroundColor: cores.tealSoft,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: radius.full,
+    },
+    pillTxt: { fontSize: 13, fontWeight: '600', color: cores.tealDark },
+    botao: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: cores.white,
+      borderRadius: radius.md,
+      paddingVertical: 14,
+      borderWidth: 1,
+      borderColor: cores.dangerBg,
+    },
+    botaoTxt: { color: cores.danger, fontWeight: '700', fontSize: 15 },
+    cardAparencia: {
+      backgroundColor: cores.white,
+      borderRadius: radius.lg,
+      paddingHorizontal: 16,
+      paddingTop: 16,
+      paddingBottom: 12,
+      gap: 4,
+    },
+    aparenciaOpcoes: { flexDirection: 'row', gap: 8, marginTop: 10 },
+    aparenciaOpcao: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 10,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: cores.border,
+      backgroundColor: cores.deck,
+    },
+    aparenciaOpcaoAtiva: { backgroundColor: cores.teal, borderColor: cores.teal },
+    aparenciaTxt: { fontSize: 13, fontWeight: '600', color: cores.muted },
+    aparenciaTxtAtiva: { color: cores.sobre },
+
+  })
+}

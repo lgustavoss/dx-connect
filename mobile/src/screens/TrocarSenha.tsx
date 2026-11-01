@@ -1,9 +1,7 @@
 import { useRouter } from 'expo-router'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,9 +12,13 @@ import {
 
 import { ApiError } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
-import { colors, radius } from '../lib/brand'
+import { TelaTeclado } from '../components/TelaTeclado'
+import { radius, type Cores } from '../lib/brand'
+import { useCores } from '../lib/tema'
 
 export function TrocarSenhaScreen() {
+  const styles = usarEstilos()
+  const cores = useCores()
   const router = useRouter()
   const { me, trocarSenha, sair } = useAuth()
   const [senhaAtual, setSenhaAtual] = useState('')
@@ -68,10 +70,7 @@ export function TrocarSenhaScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <TelaTeclado style={styles.root}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
           <Text style={styles.titulo}>Defina uma nova senha</Text>
@@ -86,7 +85,7 @@ export function TrocarSenhaScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             placeholder="••••••••"
-            placeholderTextColor={colors.muted}
+            placeholderTextColor={cores.muted}
             style={styles.input}
             value={senhaAtual}
             onChangeText={setSenhaAtual}
@@ -99,7 +98,7 @@ export function TrocarSenhaScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             placeholder="••••••••"
-            placeholderTextColor={colors.muted}
+            placeholderTextColor={cores.muted}
             style={styles.input}
             value={senhaNova}
             onChangeText={setSenhaNova}
@@ -113,7 +112,7 @@ export function TrocarSenhaScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             placeholder="••••••••"
-            placeholderTextColor={colors.muted}
+            placeholderTextColor={cores.muted}
             style={styles.input}
             value={confirma}
             onChangeText={setConfirma}
@@ -131,7 +130,7 @@ export function TrocarSenhaScreen() {
             disabled={aSalvar}
           >
             {aSalvar ? (
-              <ActivityIndicator color={colors.white} />
+              <ActivityIndicator color={cores.sobre} />
             ) : (
               <Text style={styles.botaoTxt}>Salvar e continuar</Text>
             )}
@@ -148,49 +147,58 @@ export function TrocarSenhaScreen() {
           </Pressable>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </TelaTeclado>
   )
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.deck },
-  scroll: { padding: 20, paddingBottom: 40 },
-  card: {
-    backgroundColor: colors.white,
-    borderRadius: radius.lg,
-    padding: 22,
-    gap: 6,
-  },
-  titulo: { fontSize: 22, fontWeight: '700', color: colors.navy },
-  subtitulo: { fontSize: 15, lineHeight: 21, color: colors.muted, marginBottom: 12 },
-  label: { fontSize: 13, fontWeight: '600', color: colors.navyMid, marginTop: 6 },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: colors.text,
-    backgroundColor: colors.deck,
-  },
-  hint: { fontSize: 12, color: colors.muted },
-  erro: {
-    color: colors.danger,
-    backgroundColor: colors.dangerBg,
-    padding: 10,
-    borderRadius: radius.md,
-    marginTop: 10,
-  },
-  botao: {
-    backgroundColor: colors.teal,
-    borderRadius: radius.md,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  botaoOff: { opacity: 0.7 },
-  botaoTxt: { color: colors.white, fontWeight: '700', fontSize: 16 },
-  botaoSair: { alignItems: 'center', paddingVertical: 12, marginTop: 4 },
-  botaoSairTxt: { color: colors.danger, fontSize: 14, fontWeight: '600' },
-})
+
+function usarEstilos() {
+  const cores = useCores()
+  return useMemo(() => criarEstilos(cores), [cores])
+}
+
+function criarEstilos(cores: Cores) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: cores.deck },
+    scroll: { padding: 20, paddingBottom: 40 },
+    card: {
+      backgroundColor: cores.white,
+      borderRadius: radius.lg,
+      padding: 22,
+      gap: 6,
+    },
+    titulo: { fontSize: 22, fontWeight: '700', color: cores.navy },
+    subtitulo: { fontSize: 15, lineHeight: 21, color: cores.muted, marginBottom: 12 },
+    label: { fontSize: 13, fontWeight: '600', color: cores.navyMid, marginTop: 6 },
+    input: {
+      borderWidth: 1,
+      borderColor: cores.border,
+      borderRadius: radius.md,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontSize: 16,
+      color: cores.text,
+      backgroundColor: cores.deck,
+    },
+    hint: { fontSize: 12, color: cores.muted },
+    erro: {
+      color: cores.danger,
+      backgroundColor: cores.dangerBg,
+      padding: 10,
+      borderRadius: radius.md,
+      marginTop: 10,
+    },
+    botao: {
+      backgroundColor: cores.teal,
+      borderRadius: radius.md,
+      paddingVertical: 14,
+      alignItems: 'center',
+      marginTop: 16,
+    },
+    botaoOff: { opacity: 0.7 },
+    botaoTxt: { color: cores.sobre, fontWeight: '700', fontSize: 16 },
+    botaoSair: { alignItems: 'center', paddingVertical: 12, marginTop: 4 },
+    botaoSairTxt: { color: cores.danger, fontSize: 14, fontWeight: '600' },
+
+  })
+}

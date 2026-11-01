@@ -222,6 +222,8 @@ export async function apiOrigin(): Promise<string> {
   return originOrThrow()
 }
 
+export type WhatsappEmpresaOpcao = { id: number; nome: string; rede_id?: number | null }
+
 export type WhatsappChat = {
   id: number
   protocolo: string
@@ -234,13 +236,32 @@ export type WhatsappChat = {
   atendente_nome?: string | null
   empresa_id?: number | null
   empresa_nome?: string | null
+  rede_nome?: string | null
+  funcionario_rede_id?: number | null
   funcionario_nome?: string | null
+  funcionario_email?: string | null
+  funcionario_tipo?: string | null
+  empresas_opcoes?: WhatsappEmpresaOpcao[]
   foto_perfil_url?: string | null
   ticket_ids?: number[]
   nao_lidas_count?: number
+  inatividade_pausada?: boolean
+  inatividade_retomada_em?: string | null
   created_at?: string | null
   atendimento_inicio_at?: string | null
 }
+
+export type WhatsappNatureza = { id: number; nome: string }
+
+export type WhatsappDemanda = {
+  id: number
+  natureza_id: number
+  natureza_nome?: string | null
+  descricao_curta?: string | null
+  created_at?: string | null
+}
+
+export type WhatsappInatividadeConfig = { ativa: boolean; avisoMin: number; posAvisoMin: number }
 
 export type WhatsappMensagem = {
   id: number
@@ -317,6 +338,36 @@ export const whatsapp = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  definirEmpresa: (id: number, empresaId: number) =>
+    api<WhatsappChat>(`/whatsapp/chats/${id}/empresa-contexto`, {
+      method: 'POST',
+      body: JSON.stringify({ empresa_id: empresaId }),
+    }),
+  naturezas: () =>
+    api<{ items: WhatsappNatureza[]; total: number }>(
+      `/ticket-naturezas${qs({ incluir_inativos: false, limit: 50, offset: 0 })}`,
+    ),
+  registrarDemanda: (id: number, data: { natureza_id: number; descricao_curta?: string }) =>
+    api<WhatsappDemanda>(`/whatsapp/chats/${id}/demandas`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  pausarInatividade: (id: number) =>
+    api<WhatsappChat>(`/whatsapp/chats/${id}/inatividade/pausar`, { method: 'POST' }),
+  retomarInatividade: (id: number) =>
+    api<WhatsappChat>(`/whatsapp/chats/${id}/inatividade/retomar`, { method: 'POST' }),
+  configInatividade: async (): Promise<WhatsappInatividadeConfig> => {
+    const r = await api<{
+      inativ_encerramento_ativa?: boolean
+      inativ_aviso_minutos?: number | null
+      inativ_encerramento_apos_aviso_minutos?: number | null
+    }>('/settings/whatsapp')
+    return {
+      ativa: Boolean(r.inativ_encerramento_ativa),
+      avisoMin: Math.max(1, Number(r.inativ_aviso_minutos ?? 15)),
+      posAvisoMin: Math.max(1, Number(r.inativ_encerramento_apos_aviso_minutos ?? 5)),
+    }
+  },
 }
 
 export type WhatsappContato = {

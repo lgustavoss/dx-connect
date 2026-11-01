@@ -1,8 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,9 +12,13 @@ import { useRouter } from 'expo-router'
 
 import { ApiError, type SetorResumo, type WhatsappContato, setores, whatsapp } from '../api/client'
 import { FaixaGestoVoltar } from '../components/FaixaGestoVoltar'
-import { colors, radius } from '../lib/brand'
+import { TelaTeclado } from '../components/TelaTeclado'
+import { radius, type Cores } from '../lib/brand'
+import { useCores } from '../lib/tema'
 
 export function ChatNovo() {
+  const styles = usarEstilos()
+  const cores = useCores()
   const router = useRouter()
   const [busca, setBusca] = useState('')
   const [contato, setContato] = useState<WhatsappContato | null>(null)
@@ -111,10 +113,7 @@ export function ChatNovo() {
 
   return (
     <View style={styles.root}>
-    <KeyboardAvoidingView
-      style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <TelaTeclado>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <Text style={styles.hint}>
           Comece pelo número ou pelo nome do contato. A primeira mensagem é opcional.
@@ -145,13 +144,13 @@ export function ChatNovo() {
             value={busca}
             onChangeText={setBusca}
             placeholder="Nome, empresa ou 5511999999999"
-            placeholderTextColor={colors.muted}
+            placeholderTextColor={cores.muted}
             autoCapitalize="none"
             autoCorrect={false}
             editable={!aEnviar}
           />
         )}
-        {!contato && aBuscar ? <ActivityIndicator color={colors.teal} style={{ marginTop: 8 }} /> : null}
+        {!contato && aBuscar ? <ActivityIndicator color={cores.teal} style={{ marginTop: 8 }} /> : null}
         {!contato
           ? contatos.map((c) => (
               <Pressable
@@ -177,7 +176,7 @@ export function ChatNovo() {
             <Text style={styles.label}>Setor</Text>
             <Text style={styles.hint}>O setor escolhido entra na assinatura enviada ao cliente.</Text>
             {aCarregarSetores ? (
-              <ActivityIndicator color={colors.teal} />
+              <ActivityIndicator color={cores.teal} />
             ) : erroSetores ? (
               <Text style={styles.erro}>Não foi possível carregar os setores.</Text>
             ) : (
@@ -205,7 +204,7 @@ export function ChatNovo() {
           value={mensagem}
           onChangeText={setMensagem}
           placeholder="Ex.: Olá, retorno sobre a sua demanda…"
-          placeholderTextColor={colors.muted}
+          placeholderTextColor={cores.muted}
           multiline
           editable={!aEnviar}
         />
@@ -218,79 +217,88 @@ export function ChatNovo() {
           disabled={aEnviar}
         >
           {aEnviar ? (
-            <ActivityIndicator color={colors.white} />
+            <ActivityIndicator color={cores.sobre} />
           ) : (
             <Text style={styles.botaoTxt}>Iniciar conversa</Text>
           )}
         </Pressable>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </TelaTeclado>
     <FaixaGestoVoltar fallback="/chat" />
     </View>
   )
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.deck },
-  scroll: { padding: 20, paddingBottom: 40 },
-  hint: { fontSize: 13, color: colors.muted, lineHeight: 18, marginBottom: 8 },
-  label: { fontSize: 13, fontWeight: '600', color: colors.navyMid, marginBottom: 6 },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: colors.text,
-    backgroundColor: colors.white,
-  },
-  area: { minHeight: 88, textAlignVertical: 'top' },
-  contatoOn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.white,
-    borderRadius: radius.md,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.tealSoft,
-  },
-  contatoNome: { fontSize: 15, fontWeight: '600', color: colors.text },
-  contatoMeta: { fontSize: 13, color: colors.muted, marginTop: 2 },
-  trocar: { color: colors.teal, fontWeight: '700', fontSize: 13 },
-  sugestao: {
-    backgroundColor: colors.white,
-    borderRadius: radius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginTop: 8,
-  },
-  setor: {
-    backgroundColor: colors.white,
-    borderRadius: radius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  setorOn: { backgroundColor: colors.navy, borderColor: colors.navy },
-  setorTxt: { fontSize: 15, fontWeight: '600', color: colors.text },
-  setorTxtOn: { color: colors.white },
-  erro: {
-    color: colors.danger,
-    backgroundColor: colors.dangerBg,
-    padding: 10,
-    borderRadius: radius.md,
-    marginTop: 12,
-  },
-  botao: {
-    backgroundColor: colors.teal,
-    borderRadius: radius.md,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 18,
-  },
-  botaoOff: { opacity: 0.7 },
-  botaoTxt: { color: colors.white, fontWeight: '700', fontSize: 16 },
-})
+
+function usarEstilos() {
+  const cores = useCores()
+  return useMemo(() => criarEstilos(cores), [cores])
+}
+
+function criarEstilos(cores: Cores) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: cores.deck },
+    scroll: { padding: 20, paddingBottom: 40 },
+    hint: { fontSize: 13, color: cores.muted, lineHeight: 18, marginBottom: 8 },
+    label: { fontSize: 13, fontWeight: '600', color: cores.navyMid, marginBottom: 6 },
+    input: {
+      borderWidth: 1,
+      borderColor: cores.border,
+      borderRadius: radius.md,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontSize: 16,
+      color: cores.text,
+      backgroundColor: cores.white,
+    },
+    area: { minHeight: 88, textAlignVertical: 'top' },
+    contatoOn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      backgroundColor: cores.white,
+      borderRadius: radius.md,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: cores.tealSoft,
+    },
+    contatoNome: { fontSize: 15, fontWeight: '600', color: cores.text },
+    contatoMeta: { fontSize: 13, color: cores.muted, marginTop: 2 },
+    trocar: { color: cores.teal, fontWeight: '700', fontSize: 13 },
+    sugestao: {
+      backgroundColor: cores.white,
+      borderRadius: radius.md,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      marginTop: 8,
+    },
+    setor: {
+      backgroundColor: cores.white,
+      borderRadius: radius.md,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderWidth: 1,
+      borderColor: cores.border,
+    },
+    setorOn: { backgroundColor: cores.navy, borderColor: cores.navy },
+    setorTxt: { fontSize: 15, fontWeight: '600', color: cores.text },
+    setorTxtOn: { color: cores.sobre },
+    erro: {
+      color: cores.danger,
+      backgroundColor: cores.dangerBg,
+      padding: 10,
+      borderRadius: radius.md,
+      marginTop: 12,
+    },
+    botao: {
+      backgroundColor: cores.teal,
+      borderRadius: radius.md,
+      paddingVertical: 14,
+      alignItems: 'center',
+      marginTop: 18,
+    },
+    botaoOff: { opacity: 0.7 },
+    botaoTxt: { color: cores.sobre, fontWeight: '700', fontSize: 16 },
+
+  })
+}

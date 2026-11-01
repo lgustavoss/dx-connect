@@ -1,9 +1,11 @@
 import { Stack } from 'expo-router'
 
-import { headerClaro } from '../lib/brand'
+import { headerTema } from '../lib/brand'
+import { useCores } from '../lib/tema'
 import { TrocarSenhaScreen } from '../screens/TrocarSenha'
 
 export default function TrocarSenhaPage() {
+  const cores = useCores()
   return (
     <>
       <Stack.Screen
@@ -12,7 +14,7 @@ export default function TrocarSenhaPage() {
           title: 'Trocar senha',
           headerBackVisible: false,
           gestureEnabled: false,
-          ...headerClaro,
+          ...headerTema(cores),
         }}
       />
       <TrocarSenhaScreen />
