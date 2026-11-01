@@ -5,6 +5,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
+## [26.11.001] - 2026-11-01
+
 ### DeskRudder
 
 #### Melhorias
@@ -33,7 +35,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - App no celular: tocar na foto abre em tela cheia (arrastar para baixo fecha); o tempo até o encerramento por inatividade fica no topo e o menu permite pausar/retomar
 - Painel web: **PWA descontinuada** — deixa de pedir instalação na tela inicial; o atendimento no celular segue no app Expo (#1311)
 
-#### Interno
+#### Interno / Infra
 
 - CI: workflow **DeskRudder Mobile Android** gera o APK de teste no Actions (artifact + Release `mobile-android`, link estável `/releases/download/mobile-android/DeskRudder-Mobile.apk`), sem conta Expo
 - Push FCM: worker envia fora da transação, grava o resultado linha a linha, descarta token inválido (404/410, 400 `INVALID_ARGUMENT`, 403 `SENDER_ID_MISMATCH`), reenvia com backoff e enfileira o lembrete de fila no aparelho
