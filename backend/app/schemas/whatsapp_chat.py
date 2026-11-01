@@ -77,6 +77,7 @@ class WhatsappChatRead(BaseModel):
     funcionario_tipo: str | None = None
     empresa_id: int | None = None
     empresa_nome: str | None = None
+    rede_nome: str | None = None
     negociacao_id: int | None = None
     negociacao_titulo: str | None = None
     negociacao_lead_nome: str | None = None
