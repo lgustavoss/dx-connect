@@ -1,9 +1,13 @@
+import { useMemo } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 
-import { colors, radius } from '../lib/brand'
+import { type Cores, radius } from '../lib/brand'
 import { rotuloEstado } from '../lib/format'
+import { useCores } from '../lib/tema'
 
 export function StatusChip({ estado }: { estado: string }) {
+  const cores = useCores()
+  const styles = useMemo(() => criarEstilos(cores), [cores])
   const fila = estado === 'aguardando_atendente'
   const encerrado = estado === 'encerrado'
   return (
@@ -15,16 +19,18 @@ export function StatusChip({ estado }: { estado: string }) {
   )
 }
 
-const styles = StyleSheet.create({
-  chip: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: radius.full,
-    backgroundColor: colors.tealSoft,
-  },
-  fila: { backgroundColor: colors.warningBg },
-  encerrado: { backgroundColor: '#EEF1F5' },
-  txt: { fontSize: 11, fontWeight: '600', color: colors.tealDark },
-  txtFila: { color: colors.warning },
-  txtEncerrado: { color: colors.muted },
-})
+function criarEstilos(cores: Cores) {
+  return StyleSheet.create({
+    chip: {
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: radius.full,
+      backgroundColor: cores.tealSoft,
+    },
+    fila: { backgroundColor: cores.warningBg },
+    encerrado: { backgroundColor: cores.deck },
+    txt: { fontSize: 11, fontWeight: '600', color: cores.tealDark },
+    txtFila: { color: cores.warning },
+    txtEncerrado: { color: cores.muted },
+  })
+}

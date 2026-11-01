@@ -1,9 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   FlatList,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -16,11 +14,16 @@ import { ApiError, type Ticket, type TicketMensagem, tickets } from '../api/clie
 import { useAuth } from '../auth/AuthContext'
 import { FaixaGestoVoltar } from '../components/FaixaGestoVoltar'
 import { Icon } from '../components/Icon'
+import { TelaTeclado } from '../components/TelaTeclado'
+import { useAlturaTeclado } from '../hooks/useAlturaTeclado'
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh'
-import { colors, radius } from '../lib/brand'
+import { radius, type Cores } from '../lib/brand'
+import { useCores } from '../lib/tema'
 import { horaCurta } from '../lib/format'
 
 export function TicketDetalhe() {
+  const styles = usarEstilos()
+  const cores = useCores()
   const { id: idParam } = useLocalSearchParams<{ id: string }>()
   const ticketId = Number(idParam)
   const navigation = useNavigation()
@@ -28,6 +31,14 @@ export function TicketDetalhe() {
   const listRef = useRef<FlatList<TicketMensagem>>(null)
   const inflight = useRef<Promise<void> | null>(null)
   const colarNoFim = useRef(true)
+  const alturaTeclado = useAlturaTeclado()
+  useEffect(() => {
+    if (alturaTeclado <= 0 || !colarNoFim.current) return
+    const id = requestAnimationFrame(() => {
+      listRef.current?.scrollToEnd({ animated: false })
+    })
+    return () => cancelAnimationFrame(id)
+  }, [alturaTeclado])
   const [ticket, setTicket] = useState<Ticket | null>(null)
   const [mensagens, setMensagens] = useState<TicketMensagem[]>([])
   const [texto, setTexto] = useState('')
@@ -111,7 +122,7 @@ export function TicketDetalhe() {
   if (aCarregar && !ticket) {
     return (
       <View style={styles.centro}>
-        <ActivityIndicator color={colors.teal} />
+        <ActivityIndicator color={cores.teal} />
         <FaixaGestoVoltar fallback="/tickets" />
       </View>
     )
@@ -119,11 +130,7 @@ export function TicketDetalhe() {
 
   return (
     <View style={styles.root}>
-    <KeyboardAvoidingView
-      style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={88}
-    >
+    <TelaTeclado offset={88} corRodape={cores.white} folga={22}>
       {erro ? <Text style={styles.erro}>{erro}</Text> : null}
       {ticket ? (
         <View style={styles.cabecalho}>
@@ -149,7 +156,7 @@ export function TicketDetalhe() {
             disabled={aAssumir}
           >
             {aAssumir ? (
-              <ActivityIndicator color={colors.white} />
+              <ActivityIndicator color={cores.sobre} />
             ) : (
               <Text style={styles.botaoAssumirTxt}>Assumir</Text>
             )}
@@ -161,12 +168,17 @@ export function TicketDetalhe() {
         data={mensagens}
         keyExtractor={(m) => String(m.id)}
         contentContainerStyle={styles.lista}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         onScroll={(e) => {
           const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent
           colarNoFim.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - 120
         }}
         scrollEventThrottle={16}
         onContentSizeChange={() => {
+          if (colarNoFim.current) listRef.current?.scrollToEnd({ animated: false })
+        }}
+        onLayout={() => {
           if (colarNoFim.current) listRef.current?.scrollToEnd({ animated: false })
         }}
         renderItem={({ item }) => <Bolha msg={item} />}
@@ -182,7 +194,7 @@ export function TicketDetalhe() {
             <Icon
               name={interno ? 'lock-closed-outline' : 'globe-outline'}
               size={16}
-              color={interno ? colors.warning : colors.muted}
+              color={interno ? cores.warning : cores.muted}
             />
             <Text style={[styles.toggleTxt, interno && styles.toggleOn]}>
               {interno ? 'Nota interna (só a equipe vê)' : 'Resposta pública'}
@@ -192,7 +204,7 @@ export function TicketDetalhe() {
             <TextInput
               style={styles.input}
               placeholder={interno ? 'Nota interna' : 'Mensagem'}
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={cores.muted}
               value={texto}
               onChangeText={setTexto}
               multiline
@@ -206,7 +218,7 @@ export function TicketDetalhe() {
               onPress={() => void enviar()}
               disabled={!texto.trim() || aEnviar}
             >
-              <Icon name="send" size={18} color={colors.white} />
+              <Icon name="send" size={18} color={cores.sobre} />
             </Pressable>
           </View>
         </View>
@@ -219,13 +231,14 @@ export function TicketDetalhe() {
               : 'Só o responsável pode enviar.'}
         </Text>
       )}
-    </KeyboardAvoidingView>
+    </TelaTeclado>
     <FaixaGestoVoltar fallback="/tickets" />
     </View>
   )
 }
 
 function Bolha({ msg }: { msg: TicketMensagem }) {
+  const styles = usarEstilos()
   const interno = msg.tipo === 'interno'
   const outbound = Boolean(msg.atendente_id) && !msg.autor_externo
   return (
@@ -253,102 +266,111 @@ function Bolha({ msg }: { msg: TicketMensagem }) {
   )
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.chatBg },
-  centro: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.deck },
-  erro: { color: colors.danger, backgroundColor: colors.dangerBg, margin: 8, padding: 10, borderRadius: radius.md },
-  cabecalho: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: colors.white,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  assunto: { fontSize: 16, fontWeight: '700', color: colors.text },
-  meta: { fontSize: 13, color: colors.muted, marginTop: 4 },
-  barraFila: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    margin: 12,
-    padding: 14,
-    backgroundColor: colors.warningBg,
-    borderRadius: radius.md,
-    gap: 12,
-  },
-  barraFilaTitulo: { color: colors.warning, fontWeight: '700', fontSize: 14 },
-  barraFilaTxt: { color: colors.warning, fontSize: 13, marginTop: 2 },
-  botaoAssumir: {
-    backgroundColor: colors.teal,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: radius.full,
-    minWidth: 96,
-    alignItems: 'center',
-  },
-  botaoAssumirTxt: { color: colors.white, fontWeight: '700' },
-  lista: { padding: 12, paddingBottom: 24 },
-  bolhaWrap: { marginBottom: 6, maxWidth: '82%' },
-  bolhaWrapIn: { alignSelf: 'flex-start' },
-  bolhaWrapOut: { alignSelf: 'flex-end' },
-  bolha: { borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
-  bolhaIn: { backgroundColor: colors.white, borderBottomLeftRadius: 4 },
-  bolhaOut: { backgroundColor: colors.teal, borderBottomRightRadius: 4 },
-  bolhaInterno: { backgroundColor: colors.warningBg, borderBottomLeftRadius: 4 },
-  autor: { fontSize: 11, color: colors.muted, marginBottom: 2 },
-  autorOut: { color: colors.white, opacity: 0.85 },
-  autorInterno: { fontSize: 11, color: colors.warning, fontWeight: '700', marginBottom: 2 },
-  corpo: { fontSize: 16, lineHeight: 22 },
-  corpoIn: { color: colors.text },
-  corpoOut: { color: colors.white },
-  corpoInterno: { color: '#78350F' },
-  horaBolha: { fontSize: 11, marginTop: 4, alignSelf: 'flex-end' },
-  horaIn: { color: colors.muted },
-  horaOut: { color: colors.white, opacity: 0.85 },
-  toggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    backgroundColor: colors.white,
-  },
-  toggleTxt: { fontSize: 13, color: colors.muted, fontWeight: '600' },
-  toggleOn: { color: colors.warning },
-  composer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-    padding: 10,
-    backgroundColor: colors.white,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-  },
-  input: {
-    flex: 1,
-    minHeight: 40,
-    maxHeight: 120,
-    borderWidth: 0,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: colors.text,
-    backgroundColor: colors.deck,
-  },
-  enviar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.teal,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  enviarOff: { opacity: 0.4 },
-  avisoComposer: {
-    textAlign: 'center',
-    color: colors.muted,
-    padding: 14,
-    backgroundColor: colors.white,
-  },
-})
+
+function usarEstilos() {
+  const cores = useCores()
+  return useMemo(() => criarEstilos(cores), [cores])
+}
+
+function criarEstilos(cores: Cores) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: cores.chatBg },
+    centro: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: cores.deck },
+    erro: { color: cores.danger, backgroundColor: cores.dangerBg, margin: 8, padding: 10, borderRadius: radius.md },
+    cabecalho: {
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      backgroundColor: cores.white,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: cores.border,
+    },
+    assunto: { fontSize: 16, fontWeight: '700', color: cores.text },
+    meta: { fontSize: 13, color: cores.muted, marginTop: 4 },
+    barraFila: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      margin: 12,
+      padding: 14,
+      backgroundColor: cores.warningBg,
+      borderRadius: radius.md,
+      gap: 12,
+    },
+    barraFilaTitulo: { color: cores.warning, fontWeight: '700', fontSize: 14 },
+    barraFilaTxt: { color: cores.warning, fontSize: 13, marginTop: 2 },
+    botaoAssumir: {
+      backgroundColor: cores.teal,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: radius.full,
+      minWidth: 96,
+      alignItems: 'center',
+    },
+    botaoAssumirTxt: { color: cores.sobre, fontWeight: '700' },
+    lista: { padding: 12, paddingBottom: 24 },
+    bolhaWrap: { marginBottom: 6, maxWidth: '82%' },
+    bolhaWrapIn: { alignSelf: 'flex-start' },
+    bolhaWrapOut: { alignSelf: 'flex-end' },
+    bolha: { borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
+    bolhaIn: { backgroundColor: cores.bolhaIn, borderBottomLeftRadius: 4 },
+    bolhaOut: { backgroundColor: cores.teal, borderBottomRightRadius: 4 },
+    bolhaInterno: { backgroundColor: cores.warningBg, borderBottomLeftRadius: 4 },
+    autor: { fontSize: 11, color: cores.muted, marginBottom: 2 },
+    autorOut: { color: cores.sobre, opacity: 0.85 },
+    autorInterno: { fontSize: 11, color: cores.warning, fontWeight: '700', marginBottom: 2 },
+    corpo: { fontSize: 16, lineHeight: 22 },
+    corpoIn: { color: cores.text },
+    corpoOut: { color: cores.sobre },
+    corpoInterno: { color: cores.avisoTexto },
+    horaBolha: { fontSize: 11, marginTop: 4, alignSelf: 'flex-end' },
+    horaIn: { color: cores.muted },
+    horaOut: { color: cores.sobre, opacity: 0.85 },
+    toggle: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 14,
+      paddingTop: 10,
+      backgroundColor: cores.white,
+    },
+    toggleTxt: { fontSize: 13, color: cores.muted, fontWeight: '600' },
+    toggleOn: { color: cores.warning },
+    composer: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      gap: 8,
+      padding: 10,
+      backgroundColor: cores.white,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: cores.border,
+    },
+    input: {
+      flex: 1,
+      minHeight: 40,
+      maxHeight: 120,
+      borderWidth: 0,
+      borderRadius: 20,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      fontSize: 16,
+      color: cores.text,
+      backgroundColor: cores.deck,
+    },
+    enviar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: cores.teal,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    enviarOff: { opacity: 0.4 },
+    avisoComposer: {
+      textAlign: 'center',
+      color: cores.muted,
+      padding: 14,
+      backgroundColor: cores.white,
+    },
+
+  })
+}

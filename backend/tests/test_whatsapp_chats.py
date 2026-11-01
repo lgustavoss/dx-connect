@@ -725,6 +725,7 @@ def test_vincular_funcionario_no_chat(client, seed_base, auth_headers, db_sessio
     assert body["funcionario_nome"] == func["nome"]
     assert body["empresa_id"] == seed_base["empresa"].id
     assert body["empresa_nome"]
+    assert body["rede_nome"] == seed_base["rede"].nome
 
     get_r = client.get(f"/v1/whatsapp/chats/{cid}", headers=auth_headers["a1"])
     assert get_r.status_code == 200

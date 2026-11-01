@@ -2,11 +2,12 @@ import { Pressable, StyleSheet } from 'react-native'
 import { useRouter, type Href } from 'expo-router'
 
 import { voltarOuSubstituir } from '../hooks/useGestoVoltar'
-import { colors } from '../lib/brand'
+import { useCores } from '../lib/tema'
 import { Icon } from './Icon'
 
 export function BotaoVoltar({ fallback }: { fallback: Href }) {
   const router = useRouter()
+  const cores = useCores()
   return (
     <Pressable
       accessibilityRole="button"
@@ -15,7 +16,7 @@ export function BotaoVoltar({ fallback }: { fallback: Href }) {
       style={styles.botao}
       onPress={() => voltarOuSubstituir(router, fallback)}
     >
-      <Icon name="chevron-back" size={26} color={colors.navy} />
+      <Icon name="chevron-back" size={26} color={cores.navy} />
     </Pressable>
   )
 }

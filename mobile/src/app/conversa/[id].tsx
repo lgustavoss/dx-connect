@@ -1,10 +1,12 @@
 import { Stack } from 'expo-router'
 
 import { BotaoVoltar } from '../../components/BotaoVoltar'
-import { headerClaro } from '../../lib/brand'
+import { headerTema } from '../../lib/brand'
+import { useCores } from '../../lib/tema'
 import { WhatsappConversa } from '../../screens/WhatsappConversa'
 
 export default function ConversaPage() {
+  const cores = useCores()
   return (
     <>
       <Stack.Screen
@@ -15,7 +17,7 @@ export default function ConversaPage() {
           gestureEnabled: true,
           fullScreenGestureEnabled: true,
           headerLeft: () => <BotaoVoltar fallback="/chat" />,
-          ...headerClaro,
+          ...headerTema(cores),
         }}
       />
       <WhatsappConversa />

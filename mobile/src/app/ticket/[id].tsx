@@ -1,10 +1,12 @@
 import { Stack } from 'expo-router'
 
 import { BotaoVoltar } from '../../components/BotaoVoltar'
-import { headerClaro } from '../../lib/brand'
+import { headerTema } from '../../lib/brand'
+import { useCores } from '../../lib/tema'
 import { TicketDetalhe } from '../../screens/TicketDetalhe'
 
 export default function TicketPage() {
+  const cores = useCores()
   return (
     <>
       <Stack.Screen
@@ -15,7 +17,7 @@ export default function TicketPage() {
           gestureEnabled: true,
           fullScreenGestureEnabled: true,
           headerLeft: () => <BotaoVoltar fallback="/tickets" />,
-          ...headerClaro,
+          ...headerTema(cores),
         }}
       />
       <TicketDetalhe />

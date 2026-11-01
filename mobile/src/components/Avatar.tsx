@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Image, StyleSheet, Text, View } from 'react-native'
 
-import { AVATAR_PALETA, colors } from '../lib/brand'
+import { AVATAR_PALETA } from '../lib/brand'
 import { iniciais } from '../lib/format'
+import { useCores } from '../lib/tema'
 
 function corDoNome(nome: string): string {
   let h = 0
@@ -19,6 +20,7 @@ export function Avatar({
   fotoUrl?: string | null
   size?: number
 }) {
+  const cores = useCores()
   const [falhou, setFalhou] = useState(false)
   const bg = corDoNome(nome || '?')
   if (fotoUrl && !falhou) {
@@ -27,7 +29,7 @@ export function Avatar({
         accessibilityLabel={nome}
         source={{ uri: fotoUrl }}
         onError={() => setFalhou(true)}
-        style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.border }}
+        style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: cores.border }}
       />
     )
   }
@@ -39,12 +41,12 @@ export function Avatar({
         { width: size, height: size, borderRadius: size / 2, backgroundColor: bg },
       ]}
     >
-      <Text style={[styles.txt, { fontSize: size * 0.34 }]}>{iniciais(nome)}</Text>
+      <Text style={[styles.txt, { color: cores.sobre, fontSize: size * 0.34 }]}>{iniciais(nome)}</Text>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
   box: { alignItems: 'center', justifyContent: 'center' },
-  txt: { color: colors.white, fontWeight: '700', letterSpacing: 0.3 },
+  txt: { fontWeight: '700', letterSpacing: 0.3 },
 })

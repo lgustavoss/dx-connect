@@ -1,8 +1,9 @@
-import { createElement, useEffect, useState } from 'react'
+import { createElement, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Image, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 
 import { whatsapp } from '../api/client'
-import { colors } from '../lib/brand'
+import { type Cores } from '../lib/brand'
+import { useCores } from '../lib/tema'
 import { getMidiaUrl, resolveMidiaUrl } from '../lib/midiaCache'
 
 export function eTipoImagem(tipo?: string | null): boolean {
@@ -43,6 +44,8 @@ type Props = {
 }
 
 export function WhatsappMidia({ chatId, mensagemId, tipo, disponivel, nome, caption, outbound }: Props) {
+  const styles = usarEstilos()
+  const cores = useCores()
   const [url, setUrl] = useState<string | null>(() => getMidiaUrl(chatId, mensagemId))
   const [erro, setErro] = useState<string | null>(null)
   const [aCarregar, setACarregar] = useState(!url && disponivel !== false)
@@ -66,7 +69,7 @@ export function WhatsappMidia({ chatId, mensagemId, tipo, disponivel, nome, capt
     }
   }, [chatId, mensagemId, url, disponivel])
 
-  const cor = outbound ? colors.white : colors.text
+  const cor = outbound ? cores.sobre : cores.text
   const captionEl = caption?.trim() ? (
     <Text style={[styles.caption, { color: cor }]}>{caption.trim()}</Text>
   ) : null
@@ -75,7 +78,7 @@ export function WhatsappMidia({ chatId, mensagemId, tipo, disponivel, nome, capt
     return <Text style={[styles.aviso, { color: cor }]}>Mídia expirada</Text>
   }
   if (aCarregar) {
-    return <ActivityIndicator color={outbound ? colors.white : colors.teal} style={{ marginVertical: 8 }} />
+    return <ActivityIndicator color={outbound ? cores.sobre : cores.teal} style={{ marginVertical: 8 }} />
   }
   if (erro || !url) {
     return <Text style={[styles.aviso, { color: cor }]}>{erro || 'Mídia indisponível'}</Text>
@@ -131,9 +134,18 @@ export function WhatsappMidia({ chatId, mensagemId, tipo, disponivel, nome, capt
   )
 }
 
-const styles = StyleSheet.create({
-  img: { width: 220, height: 220, borderRadius: 8, backgroundColor: '#00000022' },
-  caption: { marginTop: 6, fontSize: 15, lineHeight: 20 },
-  aviso: { fontSize: 14, fontStyle: 'italic', marginVertical: 4 },
-  link: { fontSize: 15, fontWeight: '700', textDecorationLine: 'underline', marginVertical: 4 },
-})
+
+function usarEstilos() {
+  const cores = useCores()
+  return useMemo(() => criarEstilos(cores), [cores])
+}
+
+function criarEstilos(cores: Cores) {
+  return StyleSheet.create({
+    img: { width: 220, height: 220, borderRadius: 8, backgroundColor: '#00000022' },
+    caption: { marginTop: 6, fontSize: 15, lineHeight: 20 },
+    aviso: { fontSize: 14, fontStyle: 'italic', marginVertical: 4 },
+    link: { fontSize: 15, fontWeight: '700', textDecorationLine: 'underline', marginVertical: 4 },
+
+  })
+}

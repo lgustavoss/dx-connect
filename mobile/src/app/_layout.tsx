@@ -1,17 +1,24 @@
 import { router, Stack, usePathname } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useEffect } from 'react'
-import { ActivityIndicator, View } from 'react-native'
+import { ActivityIndicator, LogBox, View } from 'react-native'
 
 import { AuthProvider, useAuth } from '../auth/AuthContext'
-import { colors } from '../lib/brand'
 import { escutarAberturaNotificacao, instalarHandlerNotificacao } from '../lib/push'
 import { RealtimeProvider } from '../lib/realtime'
+import { TemaProvider, useTema } from '../lib/tema'
+
+// A mídia do chat é baixada com `response.blob()`. O fetch do Expo avisa em
+// __DEV__ que, sem o pacote nativo `expo-blob`, esse caminho copia os bytes em
+// base64. O aviso não muda o comportamento do app e vai para o DevTools; aqui
+// escondemos só a tarja "Open debugger to view warnings" que cobria a tela.
+LogBox.ignoreLogs(['Open debugger to view warnings.'])
 
 instalarHandlerNotificacao()
 
 function RootNav() {
   const { ready, me } = useAuth()
+  const { cores, tema } = useTema()
   const pathname = usePathname()
   useEffect(() => escutarAberturaNotificacao(), [])
 
@@ -25,14 +32,14 @@ function RootNav() {
 
   if (!ready) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.navy }}>
-        <ActivityIndicator color={colors.white} />
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: cores.marca }}>
+        <ActivityIndicator color={cores.sobre} />
       </View>
     )
   }
   return (
     <>
-      <StatusBar style={me ? 'dark' : 'light'} />
+      <StatusBar style={tema === 'dark' || !me ? 'light' : 'dark'} />
       <RealtimeProvider ativo={Boolean(me)}>
         <Stack
           screenOptions={{
@@ -49,8 +56,10 @@ function RootNav() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <RootNav />
-    </AuthProvider>
+    <TemaProvider>
+      <AuthProvider>
+        <RootNav />
+      </AuthProvider>
+    </TemaProvider>
   )
 }

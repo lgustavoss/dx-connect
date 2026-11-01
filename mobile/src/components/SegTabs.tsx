@@ -1,6 +1,8 @@
+import { useMemo } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 
-import { colors, radius } from '../lib/brand'
+import { type Cores, radius } from '../lib/brand'
+import { useCores } from '../lib/tema'
 
 export type SegItem = { id: string; titulo: string; badge?: number }
 
@@ -13,6 +15,8 @@ export function SegTabs({
   ativo: string
   onChange: (id: string) => void
 }) {
+  const cores = useCores()
+  const styles = useMemo(() => criarEstilos(cores), [cores])
   return (
     <View style={styles.trilha}>
       {itens.map((item) => {
@@ -40,39 +44,41 @@ export function SegTabs({
   )
 }
 
-const styles = StyleSheet.create({
-  trilha: {
-    flexDirection: 'row',
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 4,
-    padding: 4,
-    borderRadius: radius.xl,
-    backgroundColor: '#E8EDF2',
-    gap: 4,
-  },
-  seg: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    borderRadius: radius.lg,
-  },
-  segOn: { backgroundColor: colors.white },
-  txt: { fontSize: 13, fontWeight: '600', color: colors.muted },
-  txtOn: { color: colors.navy },
-  badge: {
-    minWidth: 18,
-    height: 18,
-    paddingHorizontal: 5,
-    borderRadius: 9,
-    backgroundColor: '#D5DEE7',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeOn: { backgroundColor: colors.tealSoft },
-  badgeTxt: { fontSize: 11, fontWeight: '700', color: colors.muted },
-  badgeTxtOn: { color: colors.tealDark },
-})
+function criarEstilos(cores: Cores) {
+  return StyleSheet.create({
+    trilha: {
+      flexDirection: 'row',
+      marginHorizontal: 16,
+      marginTop: 12,
+      marginBottom: 4,
+      padding: 4,
+      borderRadius: radius.xl,
+      backgroundColor: cores.chatBg,
+      gap: 4,
+    },
+    seg: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 8,
+      borderRadius: radius.lg,
+    },
+    segOn: { backgroundColor: cores.white },
+    txt: { fontSize: 13, fontWeight: '600', color: cores.muted },
+    txtOn: { color: cores.navy },
+    badge: {
+      minWidth: 18,
+      height: 18,
+      paddingHorizontal: 5,
+      borderRadius: 9,
+      backgroundColor: cores.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    badgeOn: { backgroundColor: cores.tealSoft },
+    badgeTxt: { fontSize: 11, fontWeight: '700', color: cores.muted },
+    badgeTxtOn: { color: cores.tealDark },
+  })
+}
