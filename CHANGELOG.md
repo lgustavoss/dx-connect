@@ -5,8 +5,6 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ## [Unreleased]
 
-## [26.10.011] - 2026-10-29
-
 ### DeskRudder
 
 #### Melhorias
@@ -34,6 +32,18 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - App no celular: no topo da conversa aparecem só o nome e a empresa; tocar no nome abre os dados do contato e o menu ⋮ reúne vincular empresa, registrar demanda, abrir ticket e encerrar
 - App no celular: tocar na foto abre em tela cheia (arrastar para baixo fecha); o tempo até o encerramento por inatividade fica no topo e o menu permite pausar/retomar
 - Painel web: **PWA descontinuada** — deixa de pedir instalação na tela inicial; o atendimento no celular segue no app Expo (#1311)
+
+#### Interno
+
+- CI: workflow **DeskRudder Mobile Android** gera o APK de teste no Actions (artifact + Release `mobile-android`, link estável `/releases/download/mobile-android/DeskRudder-Mobile.apk`), sem conta Expo
+- Push FCM: worker envia fora da transação, grava o resultado linha a linha, descarta token inválido (404/410, 400 `INVALID_ARGUMENT`, 403 `SENDER_ID_MISMATCH`), reenvia com backoff e enfileira o lembrete de fila no aparelho
+
+## [26.10.011] - 2026-10-29
+
+### DeskRudder
+
+#### Melhorias
+
 - CRM: o cartão no Kanban mostra a **última nota** e o **próximo lembrete**; criar lead começa por nome e telefone; no detalhe as anotações ficam sempre visíveis, com abas Cliente e Comercial (#S202610-0022)
 - Sobre: o histórico de versões mostra **3 por vez**, com Anterior/Próxima — a página deixa de listar todas as CalVer de uma vez (#S202610-0021)
 - Listagens (empresas, redes, equipe, status, catálogos…): **Ativos/Todos** fica colado na paginação, no mesmo padrão da aba Motivos
@@ -43,11 +53,6 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 - Configurações → Natureza e motivo: a aba **Motivos** volta a abrir (pedia 200 itens; a API aceita no máximo 100), lista **20 por vez** e junta busca, natureza e Ativos/Todos na mesma barra (#S202610-0020)
 - Chat: ao terminar o áudio, a barra chega ao fim — deixa de sobrar um pedaço vazio (#S202610-0023)
-
-#### Interno / Infra
-
-- CI: workflow **DeskRudder Mobile Android** gera o APK de teste no Actions (artifact + Release `mobile-android`, link estável `/releases/download/mobile-android/DeskRudder-Mobile.apk`), sem conta Expo
-- Push FCM: worker envia fora da transação, grava o resultado linha a linha, descarta token inválido (404/410, 400 `INVALID_ARGUMENT`, 403 `SENDER_ID_MISMATCH`), reenvia com backoff e enfileira o lembrete de fila no aparelho
 
 ### SaaS Control Plane
 
