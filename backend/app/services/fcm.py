@@ -17,6 +17,10 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 _TOKEN_CACHE: tuple[str, float] | None = None
+# Falha de OAuth não é cacheada por token: evita repetir a chamada a cada dispositivo
+# na mesma passada do worker (o worker divide a thread com o Web Push).
+_TOKEN_FALHA_ATE: float = 0.0
+_TOKEN_FALHA_SEGUNDOS = 60.0
 
 
 def fcm_configurado() -> bool:
@@ -44,10 +48,12 @@ def _conta() -> dict[str, Any] | None:
 
 
 def _access_token() -> str | None:
-    global _TOKEN_CACHE
+    global _TOKEN_CACHE, _TOKEN_FALHA_ATE
     now = time.time()
     if _TOKEN_CACHE and _TOKEN_CACHE[1] > now + 60:
         return _TOKEN_CACHE[0]
+    if _TOKEN_FALHA_ATE > now:
+        return None
     info = _conta()
     if not info:
         return None
@@ -80,13 +86,17 @@ def _access_token() -> str | None:
             data = json.loads(resp.read().decode())
     except urllib.error.HTTPError as exc:
         logger.warning("FCM OAuth HTTP %s", exc.code)
+        _TOKEN_FALHA_ATE = now + _TOKEN_FALHA_SEGUNDOS
         return None
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         logger.warning("FCM OAuth falhou: %s", exc)
+        _TOKEN_FALHA_ATE = now + _TOKEN_FALHA_SEGUNDOS
         return None
     token = str(data.get("access_token") or "")
     if not token:
+        _TOKEN_FALHA_ATE = now + _TOKEN_FALHA_SEGUNDOS
         return None
+    _TOKEN_FALHA_ATE = 0.0
     _TOKEN_CACHE = (token, now + 50 * 60)
     return token
 

@@ -303,7 +303,7 @@ async def lifespan(app: FastAPI):
 
     def web_push_outbox_loop() -> None:
         from app.database import SessionLocal
-        from app.services.fcm_outbox import process_pending_fcm
+        from app.services.fcm_outbox import process_fila_fcm_reminders, process_pending_fcm
         from app.services.web_push_outbox import process_fila_web_push_reminders, process_pending_web_push
 
         interval = max(3, settings.WEB_PUSH_WORKER_INTERVAL_SECONDS)
@@ -312,6 +312,10 @@ async def lifespan(app: FastAPI):
                 process_fila_web_push_reminders()
             except Exception as e:
                 logger.warning("Worker Web Push lembrete fila: %s", e)
+            try:
+                process_fila_fcm_reminders()
+            except Exception as e:
+                logger.warning("Worker FCM lembrete fila: %s", e)
             db = SessionLocal()
             try:
                 process_pending_web_push(db, limit=40)

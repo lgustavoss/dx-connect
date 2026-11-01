@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.models.atendente_notificacao import AtendenteNotificacaoPreferencias
 from app.models.dispositivo import Dispositivo
 
 PLATAFORMAS = frozenset({"android"})
@@ -26,33 +27,39 @@ def registrar(db: Session, atendente_id: int, *, token: str, plataforma: str) ->
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Plataforma inválida.")
     existente = db.query(Dispositivo).filter(Dispositivo.token == token).first()
     if existente:
-        if existente.atendente_id != atendente_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Este token pertence a outro usuário.",
-            )
-        existente.plataforma = plat
-        db.add(existente)
-        db.commit()
-        db.refresh(existente)
-        return existente
+        if existente.atendente_id == atendente_id:
+            existente.plataforma = plat
+            db.add(existente)
+            db.commit()
+            db.refresh(existente)
+            return existente
+        # O token passa a valer para o aparelho que acabou de logar: reaproveitar
+        # cobre logout sem rede + login de outro atendente no mesmo celular.
+        db.delete(existente)
+        db.flush()
     row = Dispositivo(atendente_id=atendente_id, token=token, plataforma=plat)
     db.add(row)
+    _ativar_push_no_novo_dispositivo(db, atendente_id)
     db.commit()
     db.refresh(row)
     return row
 
 
-def remover_por_token(db: Session, atendente_id: int, token: str) -> None:
-    row = (
-        db.query(Dispositivo)
-        .filter(Dispositivo.atendente_id == atendente_id, Dispositivo.token == token.strip())
+def _ativar_push_no_novo_dispositivo(db: Session, atendente_id: int) -> None:
+    """
+    Registrar o primeiro aparelho conta como opt-in do push (#1315): sem isso a
+    preferência nasce desligada e o FCM nunca entrega. Desligar depois é pelo
+    PATCH /notificacoes/preferencias (switch no Perfil do app).
+    """
+    prefs = (
+        db.query(AtendenteNotificacaoPreferencias)
+        .filter(AtendenteNotificacaoPreferencias.atendente_id == atendente_id)
         .first()
     )
-    if row is None:
-        return
-    db.delete(row)
-    db.commit()
+    if prefs is None:
+        db.add(AtendenteNotificacaoPreferencias(atendente_id=atendente_id, push_habilitado=True))
+    elif not bool(prefs.push_habilitado):
+        prefs.push_habilitado = True
 
 
 def remover(db: Session, atendente_id: int, dispositivo_id: int) -> None:

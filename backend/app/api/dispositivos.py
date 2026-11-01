@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.core.auth import obter_atendente_atual
@@ -34,14 +34,4 @@ def apagar(
     atendente: Atendente = Depends(obter_atendente_atual),
 ):
     svc.remover(db, atendente.id, dispositivo_id)
-    return None
-
-
-@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
-def apagar_por_token(
-    token: str = Query(..., min_length=8),
-    db: Session = Depends(get_db),
-    atendente: Atendente = Depends(obter_atendente_atual),
-):
-    svc.remover_por_token(db, atendente.id, token)
     return None
