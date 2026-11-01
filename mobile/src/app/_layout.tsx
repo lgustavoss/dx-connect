@@ -6,6 +6,7 @@ import { ActivityIndicator, View } from 'react-native'
 import { AuthProvider, useAuth } from '../auth/AuthContext'
 import { colors } from '../lib/brand'
 import { escutarAberturaNotificacao, instalarHandlerNotificacao } from '../lib/push'
+import { RealtimeProvider } from '../lib/realtime'
 
 instalarHandlerNotificacao()
 
@@ -32,14 +33,16 @@ function RootNav() {
   return (
     <>
       <StatusBar style={me ? 'dark' : 'light'} />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          animation: 'slide_from_right',
-          gestureEnabled: true,
-          fullScreenGestureEnabled: true,
-        }}
-      />
+      <RealtimeProvider ativo={Boolean(me)}>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: 'slide_from_right',
+            gestureEnabled: true,
+            fullScreenGestureEnabled: true,
+          }}
+        />
+      </RealtimeProvider>
     </>
   )
 }

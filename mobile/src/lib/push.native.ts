@@ -6,6 +6,7 @@ import { dispositivos } from '../api/client'
 import { storageDelete, storageGet, storageSet } from './storage'
 
 const KEY_TOKEN = 'fcm_token'
+const KEY_DISPOSITIVO = 'dispositivo_id'
 
 let lastResponseConsumida = false
 
@@ -69,8 +70,9 @@ export async function registrarDispositivo(): Promise<void> {
     const token = await Notifications.getDevicePushTokenAsync()
     const valor = typeof token.data === 'string' ? token.data : null
     if (!valor) return
-    await dispositivos.registrar(valor, 'android')
+    const row = await dispositivos.registrar(valor, 'android')
     await storageSet(KEY_TOKEN, valor)
+    await storageSet(KEY_DISPOSITIVO, String(row.id))
   } catch {
     /* emulador sem Play ou Firebase ainda sem google-services.json */
   }
@@ -78,11 +80,12 @@ export async function registrarDispositivo(): Promise<void> {
 
 export async function revogarDispositivo(): Promise<void> {
   try {
-    const token = await storageGet(KEY_TOKEN)
-    if (token) await dispositivos.apagarPorToken(token)
+    const id = await storageGet(KEY_DISPOSITIVO)
+    if (id) await dispositivos.apagar(Number(id))
   } catch {
     /* sessão já inválida */
   } finally {
+    await storageDelete(KEY_DISPOSITIVO)
     await storageDelete(KEY_TOKEN)
   }
 }

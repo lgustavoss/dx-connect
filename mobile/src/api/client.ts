@@ -397,12 +397,27 @@ export const tickets = {
     }),
 }
 
+export type DispositivoRow = { id: number; token: string; plataforma: string }
+
 export const dispositivos = {
   registrar: (token: string, plataforma = 'android') =>
-    api<{ id: number; token: string; plataforma: string }>('/dispositivos', {
+    api<DispositivoRow>('/dispositivos', {
       method: 'POST',
       body: JSON.stringify({ token, plataforma }),
     }),
-  apagarPorToken: (token: string) =>
-    api<void>(`/dispositivos${qs({ token })}`, { method: 'DELETE' }),
+  apagar: (id: number) => api<void>(`/dispositivos/${id}`, { method: 'DELETE' }),
+}
+
+export type NotificacoesPreferencias = {
+  push_habilitado: boolean
+  push_fila: boolean
+}
+
+export const notificacoes = {
+  preferencias: () => api<NotificacoesPreferencias>('/notificacoes/preferencias'),
+  atualizar: (patch: Partial<NotificacoesPreferencias>) =>
+    api<NotificacoesPreferencias>('/notificacoes/preferencias', {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
 }

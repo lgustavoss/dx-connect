@@ -1,25 +1,13 @@
 import { useEffect } from 'react'
 
-import { consumeEventStream } from '../api/eventStream'
+import { useRealtimeAssinar } from '../lib/realtime'
 
-const POLL_MS = 6000
-
-/** Polling de segurança + SSE quando a tela está em foco. */
+/** Recebe o sinal único de atualização (SSE + polling) do RealtimeProvider. */
 export function useRealtimeRefresh(refresh: () => void, enabled: boolean) {
-  useEffect(() => {
-    if (!enabled) return
-    const id = setInterval(refresh, POLL_MS)
-    return () => clearInterval(id)
-  }, [refresh, enabled])
+  const assinar = useRealtimeAssinar()
 
   useEffect(() => {
-    if (!enabled) return
-    const ac = new AbortController()
-    void consumeEventStream(() => {
-      refresh()
-    }, ac.signal).catch(() => {
-      /* polling cobre */
-    })
-    return () => ac.abort()
-  }, [refresh, enabled])
+    if (!enabled || !assinar) return
+    return assinar(refresh)
+  }, [assinar, enabled, refresh])
 }

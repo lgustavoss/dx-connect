@@ -41,7 +41,8 @@
           "color": "#0B2D4A",
           "defaultChannel": "deskrudder"
         }
-      ]
+      ],
+      "expo-font"
     ]
   }
 }

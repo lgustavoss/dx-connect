@@ -14,6 +14,7 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - App no celular: no chat dá para ver e enviar foto, áudio e documento (#1316)
 - App no celular: fila de tickets sem responsável e os tickets do atendente; dá para assumir, responder e abrir chamado a partir do chat (#1317)
 - App no celular: com o app fechado, o celular avisa de chat na fila, mensagem nova e ticket; tocar na notificação abre o chat ou o chamado certo (#1315)
+- App no celular: no **Perfil** dá para desligar as notificações do aparelho e os avisos de fila; o push respeita as mesmas preferências do painel
 - App no celular: visual mais limpo — ícones nas abas, avatares nas listas, botão de enviar redondo e conversas com bolhas mais leves
 - App no celular: a aba de conversas se chama **Chat** (WhatsApp, chat do site e outros canais no mesmo lugar); em ticket e conversa dá para voltar pela seta
 - App no celular: as abas não repetem o título no topo — sobra espaço na tela pequena
@@ -33,6 +34,11 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 - Configurações → Natureza e motivo: a aba **Motivos** volta a abrir (pedia 200 itens; a API aceita no máximo 100), lista **20 por vez** e junta busca, natureza e Ativos/Todos na mesma barra (#S202610-0020)
 - Chat: ao terminar o áudio, a barra chega ao fim — deixa de sobrar um pedaço vazio (#S202610-0023)
+
+#### Interno / Infra
+
+- CI: workflow **DeskRudder Mobile Android** gera o APK de teste no Actions (artifact + Release `mobile-android`, link estável `/releases/download/mobile-android/DeskRudder-Mobile.apk`), sem conta Expo
+- Push FCM: worker envia fora da transação, grava o resultado linha a linha, descarta token inválido (404/410, 400 `INVALID_ARGUMENT`, 403 `SENDER_ID_MISMATCH`), reenvia com backoff e enfileira o lembrete de fila no aparelho
 
 ### SaaS Control Plane
 
