@@ -1,0 +1,44 @@
+# ==============================================================================
+# .cursorignore - DX-CONNECT
+# Evita consumo excessivo de tokens ignorando pastas de build, caches e binários
+# ==============================================================================
+
+# Artefatos da pasta Desktop (Builds de Apps Desktop)
+desktop/dist/
+desktop/build/
+desktop/out/
+desktop/release/
+desktop/bin/
+desktop/.meteor/
+*.exe
+*.dmg
+*.app
+*.deb
+*.rpm
+
+# Artefatos do Frontend (React + Vite)
+frontend/dist/
+frontend/build/
+frontend/.vite/
+frontend/node_modules/
+
+# Artefatos e Ambientes do Backend (FastAPI / Python)
+backend/__pycache__/
+backend/.pytest_cache/
+backend/.htmlcov/
+backend/.coverage
+backend/.venv/
+backend/venv/
+backend/env/
+.egg-info/
+*.egg
+
+# Caches Globais do Sistema e Infraestrutura
+.git/
+.github/
+node_modules/
+.docker/
+docker/volumes/
+*.log
+.DS_Store
+Thumbs.db
