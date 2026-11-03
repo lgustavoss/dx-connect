@@ -48,6 +48,7 @@ PROBES = [
     ("faturamento.ver", "GET", "/v1/faturamento/faturas"),
     ("faturamento.gerar", "POST", "/v1/faturamento/faturas"),
     ("faturamento.aprovar", "POST", "/v1/faturamento/faturas/999999/aprovar"),
+    ("faturamento.politica", "PATCH", "/v1/faturamento/politica"),
     ("redes.ver", "GET", "/v1/redes"),
     ("redes.criar", "POST", "/v1/redes"),
     ("redes.editar", "PATCH", "/v1/redes/999999"),
