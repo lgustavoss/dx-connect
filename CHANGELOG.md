@@ -7,6 +7,15 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 ### DeskRudder
 
+#### Melhorias
+
+- Faturamento: depois de aprovar, o financeiro anexa o **PDF do boleto** e da **NFS-e** (quando a empresa emite nota), com linha digitável e número da nota — dá para baixar de novo (2ª via) e filtrar quem emite ou não NFS-e
+- Faturamento: ao aprovar a fatura nasce um **título a receber** (em aberto / vencido / pago); a baixa é manual, na aba A receber — sem envio por e-mail do DeskRudder (banco e prefeitura já avisam o cliente)
+
+#### Correções
+
+- Ticket aberto pelo chat: a busca da empresa pelo **CNPJ** volta a funcionar — aceita o número com ou sem pontuação e também para quem não tem acesso ao cadastro de empresas (#S202611-0001)
+
 #### Interno / Infra
 
 - CI: o workflow do app Android passa a gerar **APK de release assinado** (instala e roda sem Metro) junto do `.aab` que a Play Store vai receber; o APK de debug continua disponível escolhendo `variant=debug`
@@ -52,8 +61,6 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 
 #### Melhorias
 
-- Faturamento: depois de aprovar, o financeiro anexa o **PDF do boleto** e da **NFS-e** (quando a empresa emite nota), com linha digitável e número da nota — dá para baixar de novo (2ª via) e filtrar quem emite ou não NFS-e
-- Faturamento: ao aprovar a fatura nasce um **título a receber** (em aberto / vencido / pago); a baixa é manual, na aba A receber — sem envio por e-mail do DeskRudder (banco e prefeitura já avisam o cliente)
 - CRM: o cartão no Kanban mostra a **última nota** e o **próximo lembrete**; criar lead começa por nome e telefone; no detalhe as anotações ficam sempre visíveis, com abas Cliente e Comercial (#S202610-0022)
 - Sobre: o histórico de versões mostra **3 por vez**, com Anterior/Próxima — a página deixa de listar todas as CalVer de uma vez (#S202610-0021)
 - Listagens (empresas, redes, equipe, status, catálogos…): **Ativos/Todos** fica colado na paginação, no mesmo padrão da aba Motivos

@@ -3,6 +3,8 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 export interface ItemSelectPesquisa {
   id: number
   label: string
+  /** Texto extra para a busca (ex.: CNPJ sem máscara). Não aparece na lista. */
+  detalhe?: string
   /** ISO ou string parseável para ordenar “mais recente primeiro” */
   createdAt?: string | null
 }
@@ -14,6 +16,25 @@ function parseTime(iso?: string | null): number {
   if (!iso) return 0
   const t = Date.parse(iso)
   return Number.isNaN(t) ? 0 : t
+}
+
+function soDigitos(valor: string): string {
+  return valor.replace(/\D/g, '')
+}
+
+/**
+ * Casa o termo digitado com o rótulo (e o detalhe) do item.
+ * Também compara por dígitos: `65.305.802/0001-70` casa com `65305802000170`
+ * e vice-versa, porque o CNPJ é gravado sem máscara (#S202611-0001).
+ */
+export function itemCasaBusca(item: ItemSelectPesquisa, termo: string): boolean {
+  const q = termo.trim().toLowerCase()
+  if (!q) return true
+  const alvo = `${item.label} ${item.detalhe ?? ''}`.toLowerCase()
+  if (alvo.includes(q)) return true
+  const digitosTermo = soDigitos(q)
+  if (digitosTermo.length < 3) return false
+  return soDigitos(alvo).includes(digitosTermo)
 }
 
 interface SelectComPesquisaProps {
@@ -34,6 +55,16 @@ interface SelectComPesquisaProps {
    * para a caixa não ficar cortada nem desproporcional.
    */
   menuPlacement?: 'absolute' | 'inline'
+  /**
+   * Busca no servidor. Quando informado, ao digitar o componente para de filtrar
+   * `items` e usa o resultado desta função (com debounce). Serve para catálogos
+   * grandes ou quando o item não traz o dado pesquisado no rótulo.
+   */
+  onSearch?: (termo: string) => Promise<ItemSelectPesquisa[]>
+  /** Tempo de espera antes de chamar `onSearch` (ms). */
+  searchDebounceMs?: number
+  /** Tamanho mínimo do termo para disparar `onSearch`. */
+  minSearchLength?: number
 }
 
 export function SelectComPesquisa({
@@ -48,10 +79,17 @@ export function SelectComPesquisa({
   hint = 'Sem digitar: últimos cadastros. Digite para filtrar.',
   id: domId,
   menuPlacement = 'absolute',
+  onSearch,
+  searchDebounceMs = 300,
+  minSearchLength = 2,
 }: SelectComPesquisaProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [remotos, setRemotos] = useState<ItemSelectPesquisa[] | null>(null)
+  const [buscando, setBuscando] = useState(false)
+  const [rotuloEscolhido, setRotuloEscolhido] = useState<string | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
+  const buscaSeq = useRef(0)
   const listId = domId ? `${domId}-listbox` : undefined
 
   const sorted = useMemo(
@@ -60,14 +98,68 @@ export function SelectComPesquisa({
   )
 
   const displayed = useMemo(() => {
-    const q = query.trim().toLowerCase()
+    const q = query.trim()
     if (!q) {
       return sorted.slice(0, recentCount)
     }
-    return sorted.filter((it) => it.label.toLowerCase().includes(q)).slice(0, MAX_MATCHES)
-  }, [sorted, query, recentCount])
+    if (onSearch && remotos) {
+      return remotos.slice(0, MAX_MATCHES)
+    }
+    return sorted.filter((it) => itemCasaBusca(it, q)).slice(0, MAX_MATCHES)
+  }, [sorted, query, recentCount, onSearch, remotos])
 
-  const selectedLabel = value !== '' ? items.find((i) => i.id === value)?.label ?? '' : ''
+  const selectedLabel =
+    value !== ''
+      ? items.find((i) => i.id === value)?.label ??
+        remotos?.find((i) => i.id === value)?.label ??
+        rotuloEscolhido ??
+        ''
+      : ''
+
+  useEffect(() => {
+    if (!open) {
+      setQuery('')
+      setRemotos(null)
+      setBuscando(false)
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (value === '') setRotuloEscolhido(null)
+  }, [value])
+
+  // Busca no servidor: debounce + descarte de resposta fora de ordem.
+  useEffect(() => {
+    if (!open || !onSearch) return
+    const termo = query.trim()
+    if (termo.length < minSearchLength) {
+      setRemotos(null)
+      setBuscando(false)
+      return
+    }
+    const seq = ++buscaSeq.current
+    let cancelado = false
+    setBuscando(true)
+    const timer = window.setTimeout(() => {
+      onSearch(termo)
+        .then((lista) => {
+          if (cancelado || seq !== buscaSeq.current) return
+          setRemotos(lista)
+        })
+        .catch(() => {
+          if (cancelado || seq !== buscaSeq.current) return
+          setRemotos(null)
+        })
+        .finally(() => {
+          if (cancelado || seq !== buscaSeq.current) return
+          setBuscando(false)
+        })
+    }, searchDebounceMs)
+    return () => {
+      cancelado = true
+      window.clearTimeout(timer)
+    }
+  }, [open, onSearch, query, minSearchLength, searchDebounceMs])
 
   useEffect(() => {
     if (!open) return
@@ -125,10 +217,14 @@ export function SelectComPesquisa({
             autoFocus
             aria-label={`Buscar em ${label}`}
           />
-          <p className="px-3 py-1.5 text-xs text-slate-400 dark:text-slate-500">{hint}</p>
+          <p className="px-3 py-1.5 text-xs text-slate-400 dark:text-slate-500">
+            {buscando ? 'Buscando…' : hint}
+          </p>
           <ul className="dx-scrollbar max-h-56 overflow-y-auto py-1">
             {displayed.length === 0 ? (
-              <li className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">Nenhum resultado.</li>
+              <li className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">
+                {buscando ? 'Buscando…' : 'Nenhum resultado.'}
+              </li>
             ) : (
               displayed.map((it) => (
                 <li key={it.id} role="none">
@@ -139,6 +235,7 @@ export function SelectComPesquisa({
                     className={`mx-1 w-[calc(100%-0.5rem)] rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/80 ${value === it.id ? 'bg-slate-100/90 font-medium text-slate-900 dark:bg-slate-800 dark:text-slate-100' : 'text-slate-700 dark:text-slate-300'}`}
                     onClick={() => {
                       onChange(it.id)
+                      setRotuloEscolhido(it.label)
                       setOpen(false)
                       setQuery('')
                     }}
