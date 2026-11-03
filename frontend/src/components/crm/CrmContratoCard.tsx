@@ -18,6 +18,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { temPermissao } from '../../lib/permissoes'
 import { maskCnpjCpf } from '../../utils/maskCnpjCpf'
 import { CrmDadosFiscaisFields } from './CrmDadosFiscaisFields'
+import { CobrancaContrato } from '../faturamento/CobrancaContrato'
 import {
   emptyFiscal,
   fiscaisDaEmpresa,
@@ -101,7 +102,7 @@ type Props = {
 export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded = false }: Props) {
   const toast = useToast()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, isFinanceiroOuAdmin } = useAuth()
   const podeEmitir = temPermissao(user, 'contratos.emitir')
   const podeCancelarContrato = temPermissao(user, 'contratos.cancelar')
   const linhas = negociacao.linhas || []
@@ -729,6 +730,20 @@ export function CrmContratoCard({ negociacao, lead = null, onChanged, embedded =
                   {exibirProtocolo(preview.implantacao_ticket_protocolo || String(preview.implantacao_ticket_id))}
                 </Link>
               </p>
+            ) : null}
+            {preview.status === 'assinado' || preview.status === 'cancelado' ? (
+              <CobrancaContrato
+                contrato={preview}
+                podeEditar={
+                  preview.status === 'assinado' &&
+                  (podeEmitir || isFinanceiroOuAdmin || temPermissao(user, 'faturamento.gerar'))
+                }
+                onUpdated={(atual) => {
+                  setPreview(atual)
+                  setContratos((prev) => prev.map((c) => (c.id === atual.id ? atual : c)))
+                  onChanged()
+                }}
+              />
             ) : null}
           </div>
           <iframe

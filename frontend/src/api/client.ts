@@ -3708,6 +3708,17 @@ export namespace ComercialContrato {
     fidelidade_meses: number;
     setup_valor?: string | number | null;
     setup_isento: boolean;
+    primeira_venda_pdv?: string | null;
+    primeira_venda_pdv_por_id?: number | null;
+    primeira_venda_pdv_por_nome?: string | null;
+    primeira_venda_pdv_em?: string | null;
+    setup_momento?: 'assinatura' | 'data_combinada' | 'primeira_mensalidade' | 'isento' | string | null;
+    setup_data_combinada?: string | null;
+    dia_vencimento_override?: number | null;
+    inicio_mensalidade_override?: string | null;
+    dia_vencimento_efetivo?: number | null;
+    inicio_mensalidade_efetivo?: string | null;
+    aguardando_motivo?: string | null;
     deslocamento_cliente: boolean;
     alimentacao_cliente: boolean;
     hospedagem_cliente: boolean;
@@ -3758,6 +3769,13 @@ export namespace ComercialContrato {
     abrir_ticket_implantacao?: boolean;
     referencia_externa?: string | null;
   }
+  export interface CobrancaUpdate {
+    primeira_venda_pdv?: string | null;
+    dia_vencimento_override?: number | null;
+    inicio_mensalidade_override?: string | null;
+    setup_momento?: 'assinatura' | 'data_combinada' | 'primeira_mensalidade' | 'isento' | null;
+    setup_data_combinada?: string | null;
+  }
   export interface Politica {
     reajuste_percentual: string | number;
     reajuste_rotulo: string;
@@ -3798,6 +3816,8 @@ export namespace Faturamento {
     competencia: string;
     valor: string | number;
     vencimento: string;
+    periodo_inicio?: string | null;
+    periodo_fim?: string | null;
     emite_nfse: boolean;
     status: string;
     rejeicao_motivo: string | null;
@@ -3814,12 +3834,15 @@ export namespace Faturamento {
   }
   export interface Titulo {
     id: number;
-    fatura_id: number;
+    fatura_id: number | null;
     contrato_id: number;
     empresa_id: number | null;
     empresa_nome: string | null;
+    rede_id?: number | null;
+    rede_nome?: string | null;
     cnpj: string | null;
     razao_social: string | null;
+    tipo?: 'mensalidade' | 'implantacao' | string;
     competencia: string;
     valor: string | number;
     vencimento: string;
@@ -3839,16 +3862,61 @@ export namespace Faturamento {
     cnpj: string | null;
     razao_social: string | null;
     valor_mensalidade: string | number;
+    dia_vencimento?: number | null;
+    inicio_mensalidade?: string | null;
+    aguardando_motivo?: string | null;
+    rede_id?: number | null;
+    rede_nome?: string | null;
+  }
+  export interface ResumoFaixa {
+    chave: string;
+    label: string;
+    quantidade: number;
+    valor: string | number;
+  }
+  export interface ResumoAReceber {
+    competencia: string;
+    total_aberto: string | number;
+    total_vencido: string | number;
+    quantidade_titulos: number;
+    faixas: ResumoFaixa[];
+    previsao_mes: {
+      competencia: string;
+      titulos: string | number;
+      mensalidades_ativas: string | number;
+      total: string | number;
+    };
   }
   export interface GerarCompetenciaOut {
     competencia: string;
     criadas: number;
     existentes: number;
     reabertas: number;
+    aguardando?: number;
   }
+  export type GatilhoFaturamento =
+    | 'data_inicio'
+    | 'dias_apos_assinatura'
+    | 'dias_apos_marco'
+    | 'ticket_implantacao_fechado';
+  export interface Politica {
+    dia_vencimento: number;
+    gatilho: GatilhoFaturamento;
+    gatilho_dias: number;
+    proporcional_primeira_fatura: boolean;
+  }
+  export type PoliticaUpdate = Partial<Politica>;
 }
 
 export const faturamento = {
+  politica: {
+    get: () => api<Faturamento.Politica>('/faturamento/politica'),
+    patch: (data: Faturamento.PoliticaUpdate) =>
+      api<Faturamento.Politica>('/faturamento/politica', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+  },
   listFaturas: (params?: { competencia?: string; status?: string; emite_nfse?: boolean }) =>
     api<Faturamento.Fatura[]>(withParams('/faturamento/faturas', params)),
   obterFatura: (id: number) => api<Faturamento.Fatura>(`/faturamento/faturas/${id}`),
@@ -3866,6 +3934,11 @@ export const faturamento = {
     api<Faturamento.Fatura>(`/faturamento/faturas/${id}/rejeitar`, {
       method: 'POST',
       body: JSON.stringify({ motivo }),
+    }),
+  cancelarFatura: (id: number, motivo?: string) =>
+    api<Faturamento.Fatura>(`/faturamento/faturas/${id}/cancelar`, {
+      method: 'POST',
+      body: JSON.stringify({ motivo: motivo?.trim() || null }),
     }),
   atualizarDocumentos: (
     id: number,
@@ -3887,8 +3960,44 @@ export const faturamento = {
   },
   removerAnexo: (id: number, anexoId: number) =>
     api<Faturamento.Fatura>(`/faturamento/faturas/${id}/anexos/${anexoId}`, { method: 'DELETE' }),
-  listTitulos: (params?: { competencia?: string; status?: string }) =>
-    api<Faturamento.Titulo[]>(withParams('/faturamento/titulos', params)),
+  listTitulos: (params?: {
+    competencia?: string;
+    status?: string;
+    rede_id?: number;
+    empresa_id?: number;
+    tipo?: string;
+  }) => api<Faturamento.Titulo[]>(withParams('/faturamento/titulos', params)),
+  resumoAReceber: (params?: {
+    competencia?: string;
+    rede_id?: number;
+    empresa_id?: number;
+    tipo?: string;
+  }) => api<Faturamento.ResumoAReceber>(withParams('/faturamento/a-receber/resumo', params)),
+  exportarTitulosCsv: async (params?: {
+    competencia?: string;
+    status?: string;
+    rede_id?: number;
+    empresa_id?: number;
+    tipo?: string;
+  }) => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
+    }
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}${withParams('/faturamento/titulos/export.csv', params)}`;
+    const res = await fetch(url, { headers });
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin();
+      throw new ApiError('Sessão expirada ou inválida.', 401, {});
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody);
+    }
+    return res.blob();
+  },
   baixarTitulo: (
     id: number,
     data?: { pago_em?: string; valor_pago?: number | string; observacao?: string },
@@ -3896,6 +4005,16 @@ export const faturamento = {
     api<Faturamento.Titulo>(`/faturamento/titulos/${id}/baixar`, {
       method: 'POST',
       body: JSON.stringify(data ?? {}),
+    }),
+  cancelarTitulo: (id: number, motivo?: string) =>
+    api<Faturamento.Titulo>(`/faturamento/titulos/${id}/cancelar`, {
+      method: 'POST',
+      body: JSON.stringify({ motivo: motivo?.trim() || null }),
+    }),
+  estornarTitulo: (id: number, motivo?: string) =>
+    api<Faturamento.Titulo>(`/faturamento/titulos/${id}/estornar`, {
+      method: 'POST',
+      body: JSON.stringify({ motivo: motivo?.trim() || null }),
     }),
 };
 
@@ -3981,6 +4100,11 @@ export const comercialContratos = {
     }),
   cancelar: (id: number) =>
     api<ComercialContrato.Contrato>(`/comercial/contratos/${id}/cancelar`, { method: 'POST' }),
+  atualizarCobranca: (id: number, data: ComercialContrato.CobrancaUpdate) =>
+    api<ComercialContrato.Contrato>(`/comercial/contratos/${id}/cobranca`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
   anexarPdfAssinado: (id: number, file: File, referenciaExterna?: string) => {
     const fd = new FormData()
     fd.append('arquivo', file)

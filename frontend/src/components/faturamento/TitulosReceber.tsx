@@ -14,6 +14,11 @@ const STATUS_LABEL: Record<string, string> = {
   cancelado: 'Cancelado',
 }
 
+const TIPO_LABEL: Record<string, string> = {
+  mensalidade: 'Mensalidade',
+  implantacao: 'Implantação',
+}
+
 function formatMoney(v: string | number): string {
   const n = typeof v === 'number' ? v : Number(v)
   if (Number.isNaN(n)) return String(v)
@@ -50,6 +55,32 @@ export function TitulosReceber({
   const [observacao, setObservacao] = useState('')
   const [pagoEm, setPagoEm] = useState(() => new Date().toISOString().slice(0, 10))
   const [saving, setSaving] = useState(false)
+  const [acao, setAcao] = useState<{ tipo: 'cancelar' | 'estornar'; id: number } | null>(null)
+  const [motivoAcao, setMotivoAcao] = useState('')
+  const [savingAcao, setSavingAcao] = useState(false)
+
+  async function confirmarAcao() {
+    if (acao == null) return
+    setSavingAcao(true)
+    try {
+      const atual =
+        acao.tipo === 'cancelar'
+          ? await faturamento.cancelarTitulo(acao.id, motivoAcao)
+          : await faturamento.estornarTitulo(acao.id, motivoAcao)
+      onAtualizado(atual)
+      toast.showSuccess(
+        acao.tipo === 'cancelar'
+          ? 'Título cancelado. A fatura correspondente também foi cancelada.'
+          : 'Baixa estornada: o título voltou para em aberto.',
+      )
+      setAcao(null)
+      setMotivoAcao('')
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível concluir a ação.'))
+    } finally {
+      setSavingAcao(false)
+    }
+  }
 
   async function confirmarBaixa() {
     if (baixaId == null) return
@@ -97,6 +128,34 @@ export function TitulosReceber({
         </Card>
       ) : null}
 
+      {acao != null ? (
+        <Card className="space-y-3 border-red-200 dark:border-red-900/60">
+          <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+            {acao.tipo === 'cancelar' ? 'Cancelar título' : 'Estornar baixa do título'}
+          </p>
+          <p className="text-xs text-slate-500">
+            {acao.tipo === 'cancelar'
+              ? 'Título em aberto/vencido sai do A receber e a fatura correspondente é cancelada. Título pago precisa de estorno antes.'
+              : 'O título volta para em aberto e os dados da baixa são limpos. Use quando o pagamento não se confirmou.'}
+          </p>
+          <textarea
+            className={TEXTAREA_FIELD_CLASS}
+            rows={2}
+            value={motivoAcao}
+            onChange={(e) => setMotivoAcao(e.target.value)}
+            placeholder="Motivo (opcional)"
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => void confirmarAcao()} variant="danger" disabled={savingAcao} loading={savingAcao}>
+              Confirmar
+            </Button>
+            <Button variant="cancel" onClick={() => setAcao(null)}>
+              Voltar
+            </Button>
+          </div>
+        </Card>
+      ) : null}
+
       <Card>
         {loading ? (
           <p className="text-sm text-slate-500">Carregando títulos…</p>
@@ -108,6 +167,7 @@ export function TitulosReceber({
               <thead>
                 <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700">
                   <th className="px-4 py-3 font-medium">Cliente</th>
+                  <th className="px-4 py-3 font-medium">Tipo</th>
                   <th className="px-4 py-3 font-medium">Competência</th>
                   <th className="px-4 py-3 font-medium">Valor</th>
                   <th className="px-4 py-3 font-medium">Vencimento</th>
@@ -129,6 +189,11 @@ export function TitulosReceber({
                         </Link>
                       ) : null}
                     </td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                        {TIPO_LABEL[t.tipo || 'mensalidade'] || t.tipo}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 tabular-nums">{t.competencia}</td>
                     <td className="px-4 py-3 tabular-nums">{formatMoney(t.valor)}</td>
                     <td className="px-4 py-3">{formatDate(t.vencimento)}</td>
@@ -141,20 +206,45 @@ export function TitulosReceber({
                       ) : null}
                     </td>
                     <td className="px-4 py-3">
-                      {podeBaixar && (t.status === 'aberto' || t.status === 'vencido') ? (
-                        <Button
-                          variant="secondary"
-                          onClick={() => {
-                            setBaixaId(t.id)
-                            setObservacao('')
-                            setPagoEm(new Date().toISOString().slice(0, 10))
-                          }}
-                        >
-                          Dar baixa
-                        </Button>
-                      ) : (
-                        <span className="text-xs text-slate-400">—</span>
-                      )}
+                      <div className="flex flex-wrap gap-2">
+                        {podeBaixar && (t.status === 'aberto' || t.status === 'vencido') ? (
+                          <Button
+                            variant="secondary"
+                            onClick={() => {
+                              setBaixaId(t.id)
+                              setObservacao('')
+                              setPagoEm(new Date().toISOString().slice(0, 10))
+                            }}
+                          >
+                            Dar baixa
+                          </Button>
+                        ) : null}
+                        {podeBaixar && t.status === 'pago' ? (
+                          <Button
+                            variant="ghost"
+                            onClick={() => {
+                              setAcao({ tipo: 'estornar', id: t.id })
+                              setMotivoAcao('')
+                            }}
+                          >
+                            Estornar baixa
+                          </Button>
+                        ) : null}
+                        {podeBaixar && (t.status === 'aberto' || t.status === 'vencido') ? (
+                          <Button
+                            variant="ghost"
+                            onClick={() => {
+                              setAcao({ tipo: 'cancelar', id: t.id })
+                              setMotivoAcao('')
+                            }}
+                          >
+                            Cancelar
+                          </Button>
+                        ) : null}
+                        {!podeBaixar || !['aberto', 'vencido', 'pago'].includes(t.status) ? (
+                          <span className="text-xs text-slate-400">—</span>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}

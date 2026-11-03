@@ -6,6 +6,7 @@ import {
 } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { FaturaDocumentos } from '../components/faturamento/FaturaDocumentos'
+import { ResumoAReceberCards } from '../components/faturamento/ResumoAReceberCards'
 import { TitulosReceber } from '../components/faturamento/TitulosReceber'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -25,6 +26,11 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 const STATUS_FILTROS = ['', 'aguardando_aprovacao', 'aprovada', 'rejeitada'] as const
+
+const MOTIVO_AGUARDANDO: Record<string, string> = {
+  aguardando_primeira_venda: 'aguardando a primeira venda no PDV',
+  aguardando_fechamento_implantacao: 'aguardando o fechamento do ticket de implantação',
+}
 
 function competenciaAtual(): string {
   const d = new Date()
@@ -75,6 +81,8 @@ export function Faturamento() {
   const [contratoId, setContratoId] = useState<number | ''>('')
   const [rejeitarId, setRejeitarId] = useState<number | null>(null)
   const [motivo, setMotivo] = useState('')
+  const [cancelarId, setCancelarId] = useState<number | null>(null)
+  const [motivoCancelamento, setMotivoCancelamento] = useState('')
   const [savingId, setSavingId] = useState<number | null>(null)
   const [emiteNfse, setEmiteNfse] = useState<'' | 'sim' | 'nao'>('')
   const [detalheId, setDetalheId] = useState<number | null>(null)
@@ -82,6 +90,11 @@ export function Faturamento() {
   const [titulos, setTitulos] = useState<Faturamento.Titulo[]>([])
   const [tituloStatus, setTituloStatus] = useState('')
   const [loadingTitulos, setLoadingTitulos] = useState(false)
+  const [resumo, setResumo] = useState<Faturamento.ResumoAReceber | null>(null)
+  const [redeId, setRedeId] = useState<number | ''>('')
+  const [empresaId, setEmpresaId] = useState<number | ''>('')
+  const [tipoTitulo, setTipoTitulo] = useState('')
+  const [exportandoCsv, setExportandoCsv] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -111,23 +124,39 @@ export function Faturamento() {
 
   const loadTitulos = useCallback(() => {
     setLoadingTitulos(true)
-    faturamento
-      .listTitulos({
-        competencia: competencia || undefined,
-        status: tituloStatus || undefined,
+    const params = {
+      competencia: competencia || undefined,
+      status: tituloStatus || undefined,
+      rede_id: redeId === '' ? undefined : Number(redeId),
+      empresa_id: empresaId === '' ? undefined : Number(empresaId),
+      tipo: tipoTitulo || undefined,
+    }
+    Promise.all([
+      faturamento.listTitulos(params),
+      faturamento.resumoAReceber({
+        competencia: params.competencia,
+        rede_id: params.rede_id,
+        empresa_id: params.empresa_id,
+        tipo: params.tipo,
+      }),
+    ])
+      .then(([lista, res]) => {
+        setTitulos(lista)
+        setResumo(res)
       })
-      .then(setTitulos)
       .catch((err) => {
         if (err instanceof ApiError && err.status === 403) {
           setForbidden(true)
           setTitulos([])
+          setResumo(null)
           return
         }
         toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível carregar os títulos.'))
         setTitulos([])
+        setResumo(null)
       })
       .finally(() => setLoadingTitulos(false))
-  }, [competencia, tituloStatus, toast])
+  }, [competencia, tituloStatus, redeId, empresaId, tipoTitulo, toast])
 
   useEffect(() => {
     if (aba === 'receber') loadTitulos()
@@ -146,10 +175,13 @@ export function Faturamento() {
     () =>
       contratos.map((c) => ({
         value: c.id,
-        label: `${c.razao_social || c.empresa_nome || `Contrato #${c.id}`} — ${formatMoney(c.valor_mensalidade)}`,
+        label: `${c.razao_social || c.empresa_nome || `Contrato #${c.id}`} — ${formatMoney(c.valor_mensalidade)}${
+          c.aguardando_motivo ? ' · aguardando marco' : ''
+        }`,
       })),
     [contratos],
   )
+  const aguardandoMarco = useMemo(() => contratos.filter((c) => c.aguardando_motivo), [contratos])
 
   async function gerarMes() {
     setGerando(true)
@@ -157,10 +189,12 @@ export function Faturamento() {
       const r = await faturamento.gerarCompetencia({ competencia: competencia || undefined })
       const novas = r.criadas
       const reabertas = r.reabertas ?? 0
-      if (novas || reabertas) {
+      const aguardando = r.aguardando ?? 0
+      if (novas || reabertas || aguardando) {
         const partes = [
           novas ? `${novas} nova(s)` : null,
           reabertas ? `${reabertas} rejeitada(s) reaberta(s)` : null,
+          aguardando ? `${aguardando} aguardando marco (primeira venda/implantação)` : null,
         ].filter(Boolean)
         toast.showSuccess(`${partes.join(', ')} em ${r.competencia}.`)
       } else {
@@ -225,6 +259,62 @@ export function Faturamento() {
       toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível rejeitar.'))
     } finally {
       setSavingId(null)
+    }
+  }
+
+  async function confirmarCancelamento() {
+    if (cancelarId == null) return
+    setSavingId(cancelarId)
+    try {
+      await faturamento.cancelarFatura(cancelarId, motivoCancelamento)
+      toast.showSuccess('Fatura cancelada. O título não pago foi cancelado junto (se existia).')
+      setCancelarId(null)
+      setMotivoCancelamento('')
+      load()
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível cancelar a fatura.'))
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  const redeOptions = useMemo(() => {
+    const mapa = new Map<number, string>()
+    for (const c of contratos) {
+      if (c.rede_id) mapa.set(c.rede_id, c.rede_nome || `Rede #${c.rede_id}`)
+    }
+    return [...mapa.entries()].map(([value, label]) => ({ value, label }))
+  }, [contratos])
+
+  const empresaOptions = useMemo(() => {
+    const mapa = new Map<number, string>()
+    for (const c of contratos) {
+      if (c.empresa_id) mapa.set(c.empresa_id, c.razao_social || c.empresa_nome || `Empresa #${c.empresa_id}`)
+    }
+    return [...mapa.entries()].map(([value, label]) => ({ value, label }))
+  }, [contratos])
+
+  async function exportarCsv() {
+    setExportandoCsv(true)
+    try {
+      const blob = await faturamento.exportarTitulosCsv({
+        competencia: competencia || undefined,
+        status: tituloStatus || undefined,
+        rede_id: redeId === '' ? undefined : Number(redeId),
+        empresa_id: empresaId === '' ? undefined : Number(empresaId),
+        tipo: tipoTitulo || undefined,
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `a-receber-${competencia || 'todos'}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.showSuccess('CSV do A receber exportado.')
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível exportar o CSV.'))
+    } finally {
+      setExportandoCsv(false)
     }
   }
 
@@ -298,7 +388,7 @@ export function Faturamento() {
                 Gerar fatura
               </Button>
               <Button onClick={gerarMes} disabled={gerando} loading={gerando}>
-                Gerar faturas do mês
+                Reabrir rejeitadas do mês
               </Button>
             </>
           ) : null}
@@ -307,8 +397,9 @@ export function Faturamento() {
         </div>
         {aba === 'faturas' ? (
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          O job automático cria faturas novas da competência (não reabre rejeitadas). «Gerar faturas do mês»
-          também reabre as rejeitadas desta competência. Vencimento: dia 10 do mês seguinte.
+          O job automático cria as faturas da competência. «Reabrir rejeitadas do mês» reabre as rejeitadas (e cria
+          as que faltarem). Vencimento e início da mensalidade seguem a política de faturamento da instância
+          (Configurações → Financeiro) e o override do contrato.
         </p>
         ) : (
         <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -318,8 +409,69 @@ export function Faturamento() {
         </div>
       </Card>
 
+      {aba === 'faturas' && aguardandoMarco.length > 0 ? (
+        <Card className="border-amber-200 bg-amber-50/70 dark:border-amber-900/60 dark:bg-amber-950/30">
+          <p className="text-sm font-medium text-amber-950 dark:text-amber-100">
+            {aguardandoMarco.length} contrato(s) com mensalidade aguardando marco
+          </p>
+          <p className="mt-1 text-xs text-amber-900/80 dark:text-amber-100/80">
+            O gatilho da instância depende de um marco que ainda não aconteceu. A fatura não nasce até a data ser
+            informada no contrato (aba Contratos → cobrança do contrato assinado).
+          </p>
+          <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-amber-950 dark:text-amber-100">
+            {aguardandoMarco.map((c) => (
+              <li key={c.id}>
+                {c.razao_social || c.empresa_nome || `Contrato #${c.id}`}
+                {c.aguardando_motivo ? ` — ${MOTIVO_AGUARDANDO[c.aguardando_motivo] || c.aguardando_motivo}` : ''}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+
       {aba === 'receber' ? (
         <>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="w-44">
+              <Select
+                label="Rede"
+                value={redeId}
+                onChange={(v) => {
+                  setRedeId(v === '' ? '' : Number(v))
+                  setEmpresaId('')
+                }}
+                options={redeOptions}
+                includeEmpty
+                emptyLabel="Todas as redes"
+              />
+            </div>
+            <div className="w-56">
+              <Select
+                label="Empresa"
+                value={empresaId}
+                onChange={(v) => setEmpresaId(v === '' ? '' : Number(v))}
+                options={empresaOptions}
+                includeEmpty
+                emptyLabel="Todas as empresas"
+              />
+            </div>
+            <div className="w-40">
+              <Select
+                label="Tipo"
+                value={tipoTitulo}
+                onChange={(v) => setTipoTitulo(String(v))}
+                options={[
+                  { value: 'mensalidade', label: 'Mensalidade' },
+                  { value: 'implantacao', label: 'Implantação' },
+                ]}
+                includeEmpty
+                emptyLabel="Todos os tipos"
+              />
+            </div>
+            <Button variant="secondary" onClick={() => void exportarCsv()} disabled={exportandoCsv} loading={exportandoCsv}>
+              Exportar CSV
+            </Button>
+          </div>
           <div className="flex flex-wrap gap-2">
             {(
               [
@@ -327,6 +479,7 @@ export function Faturamento() {
                 ['aberto', 'Em aberto'],
                 ['vencido', 'Vencidos'],
                 ['pago', 'Pagos'],
+                ['cancelado', 'Cancelados'],
               ] as const
             ).map(([valor, label]) => (
               <button
@@ -343,12 +496,14 @@ export function Faturamento() {
               </button>
             ))}
           </div>
+          <ResumoAReceberCards resumo={resumo} loading={loadingTitulos} />
           <TitulosReceber
             titulos={titulos}
             loading={loadingTitulos}
             podeBaixar={podeAprovar}
             onAtualizado={(atual) => {
               setTitulos((prev) => prev.map((x) => (x.id === atual.id ? atual : x)))
+              loadTitulos()
             }}
           />
         </>
@@ -423,6 +578,39 @@ export function Faturamento() {
         </Card>
       ) : null}
 
+      {cancelarId != null ? (
+        <Card className="space-y-3 border-red-200 dark:border-red-900/60">
+          <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+            Cancelar fatura #{cancelarId}
+          </p>
+          <p className="text-xs text-slate-500">
+            A fatura sai da conferência e o título a receber não pago é cancelado junto. Se o título já foi pago,
+            estorne a baixa antes. Use na rescisão para não deixar título do mês em aberto.
+          </p>
+          <textarea
+            className={TEXTAREA_FIELD_CLASS}
+            rows={2}
+            value={motivoCancelamento}
+            onChange={(e) => setMotivoCancelamento(e.target.value)}
+            placeholder="Motivo (opcional): rescisão, erro de valor…"
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={confirmarCancelamento} variant="danger" disabled={savingId === cancelarId}>
+              Confirmar cancelamento
+            </Button>
+            <Button
+              variant="cancel"
+              onClick={() => {
+                setCancelarId(null)
+                setMotivoCancelamento('')
+              }}
+            >
+              Voltar
+            </Button>
+          </div>
+        </Card>
+      ) : null}
+
       {faturaDetalhe ? (
         <FaturaDocumentos
           key={faturaDetalhe.id}
@@ -449,6 +637,7 @@ export function Faturamento() {
                   <th className="px-4 py-3 font-medium">Competência</th>
                   <th className="px-4 py-3 font-medium">Valor</th>
                   <th className="px-4 py-3 font-medium">Vencimento</th>
+                  <th className="px-4 py-3 font-medium">Período coberto</th>
                   <th className="px-4 py-3 font-medium">NFS-e</th>
                   <th className="px-4 py-3 font-medium">Documentos</th>
                   <th className="px-4 py-3 font-medium">A receber</th>
@@ -468,6 +657,11 @@ export function Faturamento() {
                     <td className="px-4 py-3 tabular-nums">{f.competencia}</td>
                     <td className="px-4 py-3 tabular-nums">{formatMoney(f.valor)}</td>
                     <td className="px-4 py-3">{formatDate(f.vencimento)}</td>
+                    <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
+                      {f.periodo_inicio && f.periodo_fim
+                        ? `${formatDate(f.periodo_inicio)} – ${formatDate(f.periodo_fim)}`
+                        : '—'}
+                    </td>
                     <td className="px-4 py-3">{f.emite_nfse ? 'Sim' : 'Não'}</td>
                     <td className="px-4 py-3">
                       {f.status === 'aprovada' ? (
@@ -523,6 +717,18 @@ export function Faturamento() {
                         <Button variant="ghost" onClick={() => setDetalheId(f.id)}>
                           Documentos
                         </Button>
+                        {podeAprovar && f.status !== 'cancelada' ? (
+                          <Button
+                            variant="ghost"
+                            disabled={savingId === f.id}
+                            onClick={() => {
+                              setCancelarId(f.id)
+                              setMotivoCancelamento('')
+                            }}
+                          >
+                            Cancelar
+                          </Button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

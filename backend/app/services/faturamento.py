@@ -4,14 +4,21 @@ from __future__ import annotations
 
 import calendar
 import re
-from datetime import date, datetime, timezone
-from decimal import Decimal
+from datetime import date, datetime, timedelta, timezone
+from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.comercial_contrato import CONTRATO_ASSINADO, Contrato
+from app.models.comercial_contrato import (
+    CONTRATO_ASSINADO,
+    SETUP_MOMENTO_ASSINATURA,
+    SETUP_MOMENTO_DATA_COMBINADA,
+    SETUP_MOMENTO_ISENTO,
+    SETUP_MOMENTO_PRIMEIRA_MENSALIDADE,
+    Contrato,
+)
 from app.models.crm import CrmNegociacaoCnpjLinha
 from app.models.empresa import Empresa
 from app.models.atendente import Atendente
@@ -20,17 +27,29 @@ from app.models.faturamento import (
     ANEXO_NFSE_PDF,
     ANEXO_TIPOS,
     ANEXO_TIPOS_NFSE,
+    DIA_VENCIMENTO_MAX,
+    DIA_VENCIMENTO_MIN,
     FATURA_AGUARDANDO,
     FATURA_APROVADA,
     FATURA_CANCELADA,
     FATURA_REJEITADA,
+    GATILHO_DATA_INICIO,
+    GATILHO_DIAS_APOS_ASSINATURA,
+    GATILHO_DIAS_APOS_MARCO,
+    GATILHO_OPCOES,
+    GATILHO_TICKET_IMPLANTACAO_FECHADO,
     TITULO_ABERTO,
+    TITULO_CANCELADO,
     TITULO_PAGO,
     TITULO_STATUS_FILTRO,
+    TITULO_TIPO_IMPLANTACAO,
+    TITULO_TIPO_MENSALIDADE,
+    TITULO_TIPOS,
     TITULO_VENCIDO,
     VENCIMENTO_DIA_PADRAO,
     Fatura,
     FaturaAnexo,
+    FaturamentoPolitica,
     TituloReceber,
 )
 from app.services import faturamento_anexo_storage as anexo_storage
@@ -55,16 +74,89 @@ def validar_competencia(valor: str | None) -> str:
     return f"{ano:04d}-{mes:02d}"
 
 
-def vencimento_da_competencia(competencia: str) -> date:
-    """Dia 10 do mês seguinte à competência (fatura de agosto vence em 10/09)."""
+def vencimento_da_competencia(competencia: str, dia: int = VENCIMENTO_DIA_PADRAO) -> date:
+    """Dia D do mês seguinte à competência (fatura de agosto vence em 10/09 por padrão).
+
+    `dia` vem da política da instância (ou do override do contrato), nunca solto no job (#1339).
+    """
     ano, mes = (int(p) for p in competencia.split("-"))
     if mes == 12:
         ano, mes = ano + 1, 1
     else:
         mes += 1
     ultimo = calendar.monthrange(ano, mes)[1]
-    dia = min(VENCIMENTO_DIA_PADRAO, ultimo)
-    return date(ano, mes, dia)
+    return date(ano, mes, min(max(dia, DIA_VENCIMENTO_MIN), min(DIA_VENCIMENTO_MAX, ultimo)))
+
+
+def garantir_politica(db: Session) -> FaturamentoPolitica:
+    """Singleton da política de faturamento; semente = perfil atual (dia 10, data_inicio)."""
+    row = db.query(FaturamentoPolitica).order_by(FaturamentoPolitica.id.asc()).first()
+    if row:
+        return row
+    row = FaturamentoPolitica(
+        id=1,
+        dia_vencimento=VENCIMENTO_DIA_PADRAO,
+        gatilho=GATILHO_DATA_INICIO,
+        gatilho_dias=0,
+        proporcional_primeira_fatura=False,
+    )
+    db.add(row)
+    db.flush()
+    return row
+
+
+def atualizar_politica(db: Session, data) -> FaturamentoPolitica:
+    row = garantir_politica(db)
+    payload = data.model_dump(exclude_unset=True)
+    if payload.get("dia_vencimento") is not None:
+        dia = int(payload["dia_vencimento"])
+        if dia < DIA_VENCIMENTO_MIN or dia > DIA_VENCIMENTO_MAX:
+            raise HTTPException(status_code=400, detail="Dia de vencimento deve ficar entre 1 e 28.")
+        row.dia_vencimento = dia
+    if payload.get("gatilho") is not None:
+        gatilho = str(payload["gatilho"]).strip()
+        if gatilho not in GATILHO_OPCOES:
+            raise HTTPException(status_code=400, detail="Gatilho de mensalidade inválido.")
+        row.gatilho = gatilho
+    if payload.get("gatilho_dias") is not None:
+        row.gatilho_dias = int(payload["gatilho_dias"])
+    if payload.get("proporcional_primeira_fatura") is not None:
+        row.proporcional_primeira_fatura = bool(payload["proporcional_primeira_fatura"])
+    db.flush()
+    return row
+
+
+def politica_para_read(db: Session) -> dict:
+    row = garantir_politica(db)
+    return {
+        "dia_vencimento": row.dia_vencimento,
+        "gatilho": row.gatilho or GATILHO_DATA_INICIO,
+        "gatilho_dias": int(row.gatilho_dias or 0),
+        "proporcional_primeira_fatura": bool(row.proporcional_primeira_fatura),
+    }
+
+
+def dia_vencimento_do_contrato(db: Session, contrato: Contrato, *, politica: FaturamentoPolitica | None = None) -> int:
+    """Override do contrato (negociação) vence a política da instância; fallback dia 10."""
+    override = getattr(contrato, "dia_vencimento_override", None)
+    if override is not None and DIA_VENCIMENTO_MIN <= int(override) <= DIA_VENCIMENTO_MAX:
+        return int(override)
+    pol = politica or garantir_politica(db)
+    dia = int(pol.dia_vencimento or VENCIMENTO_DIA_PADRAO)
+    if dia < DIA_VENCIMENTO_MIN or dia > DIA_VENCIMENTO_MAX:
+        return VENCIMENTO_DIA_PADRAO
+    return dia
+
+
+def vencimento_da_fatura(
+    db: Session,
+    contrato: Contrato,
+    competencia: str,
+    *,
+    politica: FaturamentoPolitica | None = None,
+) -> date:
+    return vencimento_da_competencia(competencia, dia_vencimento_do_contrato(db, contrato, politica=politica))
+
 
 
 def _linha_contrato(db: Session, contrato: Contrato) -> CrmNegociacaoCnpjLinha | None:
@@ -111,8 +203,11 @@ def titulo_para_read(db: Session, row: TituloReceber) -> dict:
         "contrato_id": row.contrato_id,
         "empresa_id": row.empresa_id,
         "empresa_nome": empresa.nome if empresa else None,
+        "rede_id": empresa.rede_id if empresa else None,
+        "rede_nome": empresa.rede.nome if empresa and empresa.rede else None,
         "cnpj": linha.cnpj if linha else (empresa.cnpj_cpf if empresa else None),
         "razao_social": (linha.razao_social if linha else None) or (empresa.razao_social if empresa else None),
+        "tipo": row.tipo or TITULO_TIPO_MENSALIDADE,
         "competencia": row.competencia,
         "valor": row.valor,
         "vencimento": row.vencimento,
@@ -135,6 +230,7 @@ def garantir_titulo_da_fatura(db: Session, fatura: Fatura) -> TituloReceber:
         fatura_id=fatura.id,
         contrato_id=fatura.contrato_id,
         empresa_id=fatura.empresa_id,
+        tipo=TITULO_TIPO_MENSALIDADE,
         competencia=fatura.competencia,
         valor=fatura.valor,
         vencimento=fatura.vencimento,
@@ -144,6 +240,83 @@ def garantir_titulo_da_fatura(db: Session, fatura: Fatura) -> TituloReceber:
     db.flush()
     fatura.titulo = row
     return row
+
+
+def _data_do_momento_setup(db: Session, contrato: Contrato) -> date | None:
+    """Data em que a taxa de implantação vira título; None = não vira (isento/indefinido)."""
+    momento = (getattr(contrato, "setup_momento", None) or "").strip()
+    if contrato.setup_isento or momento in ("", SETUP_MOMENTO_ISENTO):
+        return None
+    valor = contrato.setup_valor
+    if valor is None or Decimal(str(valor)) <= 0:
+        return None
+    if momento == SETUP_MOMENTO_ASSINATURA:
+        if contrato.assinado_em is not None:
+            return contrato.assinado_em.date()
+        if contrato.status == CONTRATO_ASSINADO:
+            return contrato.data_inicio
+        return None
+    if momento == SETUP_MOMENTO_DATA_COMBINADA:
+        return contrato.setup_data_combinada
+    if momento == SETUP_MOMENTO_PRIMEIRA_MENSALIDADE:
+        primeira = (
+            db.query(Fatura)
+            .filter(Fatura.contrato_id == contrato.id, Fatura.status == FATURA_APROVADA)
+            .order_by(Fatura.competencia.asc())
+            .first()
+        )
+        if primeira is None:
+            return None
+        if primeira.aprovada_em is not None:
+            return primeira.aprovada_em.date()
+        return primeira.vencimento
+    return None
+
+
+def garantir_titulo_setup(db: Session, contrato: Contrato, *, hoje: date | None = None) -> TituloReceber | None:
+    """Cria (uma única vez) o título de implantação quando o momento definido no contrato chega (#1342)."""
+    existente = (
+        db.query(TituloReceber)
+        .filter(
+            TituloReceber.contrato_id == contrato.id,
+            TituloReceber.tipo == TITULO_TIPO_IMPLANTACAO,
+        )
+        .first()
+    )
+    if existente is not None:
+        return None
+    momento_data = _data_do_momento_setup(db, contrato)
+    if momento_data is None:
+        return None
+    referencia = hoje or _hoje()
+    if momento_data > referencia:
+        return None
+    pol = garantir_politica(db)
+    dia = dia_vencimento_do_contrato(db, contrato, politica=pol)
+    competencia = f"{momento_data.year:04d}-{momento_data.month:02d}"
+    row = TituloReceber(
+        fatura_id=None,
+        contrato_id=contrato.id,
+        empresa_id=contrato.empresa_id,
+        tipo=TITULO_TIPO_IMPLANTACAO,
+        competencia=competencia,
+        valor=Decimal(str(contrato.setup_valor)),
+        vencimento=vencimento_da_competencia(competencia, dia=dia),
+        status=TITULO_ABERTO,
+    )
+    db.add(row)
+    db.flush()
+    return row
+
+
+def garantir_titulos_setup(db: Session, *, hoje: date | None = None) -> int:
+    """Varre os contratos faturáveis e cria os títulos de implantação vencidos (idempotente)."""
+    criados = 0
+    for contrato in _contratos_faturaveis(db):
+        if garantir_titulo_setup(db, contrato, hoje=hoje) is not None:
+            criados += 1
+    return criados
+
 
 
 def documentos_completos(row: Fatura) -> bool:
@@ -172,6 +345,8 @@ def fatura_para_read(db: Session, row: Fatura) -> dict:
         "competencia": row.competencia,
         "valor": row.valor,
         "vencimento": row.vencimento,
+        "periodo_inicio": row.periodo_inicio,
+        "periodo_fim": row.periodo_fim,
         "emite_nfse": bool(row.emite_nfse),
         "status": row.status,
         "rejeicao_motivo": row.rejeicao_motivo,
@@ -212,11 +387,104 @@ def _emite_nfse_empresa(db: Session, empresa_id: int | None) -> bool:
     return bool(getattr(emp, "emite_nfse", True))
 
 
-def _competencia_antes_inicio(contrato: Contrato, competencia: str) -> bool:
-    inicio = contrato.data_inicio
+MOTIVO_AGUARDANDO_PRIMEIRA_VENDA = "aguardando_primeira_venda"
+MOTIVO_AGUARDANDO_IMPLANTACAO = "aguardando_fechamento_implantacao"
+
+
+def _ticket_implantacao_fechado_em(db: Session, contrato_id: int) -> date | None:
+    """Data de fechamento do ticket de implantação do contrato (#1339)."""
+    from app.models.ticket import Ticket
+
+    row = (
+        db.query(Ticket)
+        .filter(Ticket.contrato_id == contrato_id)
+        .order_by(Ticket.id.asc())
+        .first()
+    )
+    if row is None or row.fechado_em is None:
+        return None
+    return row.fechado_em.date()
+
+
+def inicio_da_mensalidade(
+    db: Session,
+    contrato: Contrato,
+    *,
+    politica: FaturamentoPolitica | None = None,
+) -> tuple[date | None, str | None]:
+    """Data em que a mensalidade começa a contar e, se ainda não pode nascer, o motivo.
+
+    Ordem: override do contrato (negociação) > gatilho da instância. Devolve
+    `(None, motivo)` quando o gatilho depende de um marco que ainda não aconteceu —
+    a fatura não nasce e a tela sinaliza em vez de silenciar (#1340).
+    """
+    override = getattr(contrato, "inicio_mensalidade_override", None)
+    if override is not None:
+        return override, None
+    pol = politica or garantir_politica(db)
+    gatilho = pol.gatilho or GATILHO_DATA_INICIO
+    dias = max(int(pol.gatilho_dias or 0), 0)
+    if gatilho == GATILHO_DIAS_APOS_MARCO:
+        marco = getattr(contrato, "primeira_venda_pdv", None)
+        if marco is None:
+            return None, MOTIVO_AGUARDANDO_PRIMEIRA_VENDA
+        base = marco
+    elif gatilho == GATILHO_TICKET_IMPLANTACAO_FECHADO:
+        base = _ticket_implantacao_fechado_em(db, contrato.id)
+        if base is None:
+            return None, MOTIVO_AGUARDANDO_IMPLANTACAO
+    elif gatilho == GATILHO_DIAS_APOS_ASSINATURA:
+        base = contrato.assinado_em.date() if contrato.assinado_em else contrato.data_inicio
+    else:
+        base = contrato.data_inicio
+    if base is None:
+        return None, None
+    return base + timedelta(days=dias), None
+
+
+def _competencia_antes_inicio(inicio: date | None, competencia: str) -> bool:
     if inicio is None:
         return False
     return competencia < f"{inicio.year:04d}-{inicio.month:02d}"
+
+
+def _dia_vencimento_anterior(vencimento: date, dia: int) -> date:
+    """Mesmo dia D do mês anterior ao vencimento (início do ciclo da mensalidade)."""
+    ano, mes = vencimento.year, vencimento.month - 1
+    if mes == 0:
+        ano, mes = ano - 1, 12
+    ultimo = calendar.monthrange(ano, mes)[1]
+    return date(ano, mes, min(dia, ultimo))
+
+
+def _valor_e_periodo_da_fatura(
+    contrato: Contrato,
+    competencia: str,
+    *,
+    inicio: date | None,
+    vencimento: date,
+    dia: int,
+    proporcional: bool,
+) -> tuple[Decimal, date, date]:
+    """Valor e período coberto; primeira fatura proporcional quando a flag está ligada (#1341).
+
+    Convenção: dias corridos do início até o dia anterior ao vencimento, divididos pelos
+    dias do ciclo (do dia D do mês anterior ao vencimento), arredondando com 2 casas.
+    Início no próprio dia D (ou antes do início do ciclo) = fatura cheia.
+    """
+    valor_cheio = Decimal(str(contrato.valor_mensalidade or 0))
+    ciclo_inicio = _dia_vencimento_anterior(vencimento, dia)
+    ciclo_fim = vencimento - timedelta(days=1)
+    primeira = inicio is not None and f"{inicio.year:04d}-{inicio.month:02d}" == competencia
+    if proporcional and primeira:
+        dias_ciclo = (vencimento - ciclo_inicio).days
+        dias = (vencimento - inicio).days
+        if 0 < dias < dias_ciclo:
+            valor = (valor_cheio * Decimal(dias) / Decimal(dias_ciclo)).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            return valor, inicio, vencimento - timedelta(days=1)
+    return valor_cheio, ciclo_inicio, ciclo_fim
 
 
 def _limpar_documentos(db: Session, row: Fatura) -> None:
@@ -229,12 +497,36 @@ def _limpar_documentos(db: Session, row: Fatura) -> None:
     row.nfse_numero = None
 
 
-def _preencher_fatura(db: Session, row: Fatura, contrato: Contrato, competencia: str) -> None:
+def _preencher_fatura(
+    db: Session,
+    row: Fatura,
+    contrato: Contrato,
+    competencia: str,
+    *,
+    politica: FaturamentoPolitica | None = None,
+    inicio: date | None = None,
+) -> None:
+    pol = politica or garantir_politica(db)
+    dia = dia_vencimento_do_contrato(db, contrato, politica=pol)
+    vencimento = vencimento_da_competencia(competencia, dia=dia)
+    inicio_efetivo = inicio
+    if inicio_efetivo is None:
+        inicio_efetivo, _ = inicio_da_mensalidade(db, contrato, politica=pol)
+    valor, periodo_inicio, periodo_fim = _valor_e_periodo_da_fatura(
+        contrato,
+        competencia,
+        inicio=inicio_efetivo,
+        vencimento=vencimento,
+        dia=dia,
+        proporcional=bool(pol.proporcional_primeira_fatura),
+    )
     row.contrato_id = contrato.id
     row.empresa_id = contrato.empresa_id
     row.competencia = competencia
-    row.valor = Decimal(str(contrato.valor_mensalidade or 0))
-    row.vencimento = vencimento_da_competencia(competencia)
+    row.valor = valor
+    row.vencimento = vencimento
+    row.periodo_inicio = periodo_inicio
+    row.periodo_fim = periodo_fim
     row.emite_nfse = _emite_nfse_empresa(db, contrato.empresa_id)
     row.status = FATURA_AGUARDANDO
     row.rejeicao_motivo = None
@@ -287,9 +579,12 @@ def listar_faturas(
 
 def listar_contratos_elegiveis(db: Session) -> list[dict]:
     out: list[dict] = []
+    politica = garantir_politica(db)
     for c in _contratos_faturaveis(db):
         emp = db.query(Empresa).filter(Empresa.id == c.empresa_id).first() if c.empresa_id else None
         linha = _linha_contrato(db, c)
+        inicio, motivo = inicio_da_mensalidade(db, c, politica=politica)
+        rede = getattr(emp, "rede", None) if emp is not None else None
         out.append(
             {
                 "id": c.id,
@@ -298,6 +593,11 @@ def listar_contratos_elegiveis(db: Session) -> list[dict]:
                 "cnpj": linha.cnpj if linha else (emp.cnpj_cpf if emp else None),
                 "razao_social": (linha.razao_social if linha else None) or (emp.razao_social if emp else None),
                 "valor_mensalidade": c.valor_mensalidade,
+                "dia_vencimento": dia_vencimento_do_contrato(db, c, politica=politica),
+                "inicio_mensalidade": inicio,
+                "aguardando_motivo": motivo,
+                "rede_id": emp.rede_id if emp else None,
+                "rede_nome": rede.nome if rede else None,
             }
         )
     return out
@@ -315,7 +615,17 @@ def gerar_fatura_contrato(db: Session, contrato_id: int, competencia: str | None
         raise HTTPException(status_code=404, detail="Contrato não encontrado.")
     if contrato.status != CONTRATO_ASSINADO or not contrato.empresa_id:
         raise HTTPException(status_code=400, detail="Só contratos assinados com empresa vinculada geram fatura.")
-    if _competencia_antes_inicio(contrato, comp):
+    politica = garantir_politica(db)
+    inicio, motivo = inicio_da_mensalidade(db, contrato, politica=politica)
+    if motivo:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                MOTIVO_AGUARDANDO_PRIMEIRA_VENDA: "Mensalidade aguardando a data da primeira venda no PDV.",
+                MOTIVO_AGUARDANDO_IMPLANTACAO: "Mensalidade aguardando o fechamento do ticket de implantação.",
+            }.get(motivo, "Mensalidade ainda não começou."),
+        )
+    if _competencia_antes_inicio(inicio, comp):
         raise HTTPException(status_code=400, detail="Competência anterior ao início do contrato.")
     existente = db.query(Fatura).filter(Fatura.contrato_id == contrato.id, Fatura.competencia == comp).first()
     if existente:
@@ -325,11 +635,11 @@ def gerar_fatura_contrato(db: Session, contrato_id: int, competencia: str | None
             raise HTTPException(status_code=400, detail="Fatura desta competência está cancelada.")
         if existente.status == FATURA_AGUARDANDO:
             return existente, False
-        _preencher_fatura(db, existente, contrato, comp)
+        _preencher_fatura(db, existente, contrato, comp, politica=politica)
         db.flush()
         return existente, False
     row = Fatura()
-    _preencher_fatura(db, row, contrato, comp)
+    _preencher_fatura(db, row, contrato, comp, politica=politica)
     db.add(row)
     db.flush()
     return row, True
@@ -340,20 +650,26 @@ def gerar_competencia(
     competencia: str | None,
     *,
     reabrir_rejeitadas: bool = False,
-) -> tuple[str, int, int, int, int | None]:
+) -> tuple[str, int, int, int, int, int | None]:
     """Gera faturas da competência. O job não reabre rejeitadas; a acção manual sim."""
     comp = validar_competencia(competencia)
+    politica = garantir_politica(db)
     criadas = 0
     existentes = 0
     reabertas = 0
+    aguardando = 0
     audit_id: int | None = None
     for contrato in _contratos_faturaveis(db):
-        if _competencia_antes_inicio(contrato, comp):
+        inicio, motivo = inicio_da_mensalidade(db, contrato, politica=politica)
+        if motivo:
+            aguardando += 1
+            continue
+        if _competencia_antes_inicio(inicio, comp):
             continue
         existente = db.query(Fatura).filter(Fatura.contrato_id == contrato.id, Fatura.competencia == comp).first()
         if existente:
             if reabrir_rejeitadas and existente.status == FATURA_REJEITADA:
-                _preencher_fatura(db, existente, contrato, comp)
+                _preencher_fatura(db, existente, contrato, comp, politica=politica, inicio=inicio)
                 reabertas += 1
                 if audit_id is None:
                     audit_id = existente.id
@@ -361,19 +677,20 @@ def gerar_competencia(
                 existentes += 1
             continue
         row = Fatura()
-        _preencher_fatura(db, row, contrato, comp)
+        _preencher_fatura(db, row, contrato, comp, politica=politica, inicio=inicio)
         db.add(row)
         db.flush()
         criadas += 1
         if audit_id is None:
             audit_id = row.id
+    garantir_titulos_setup(db)
     db.flush()
-    return comp, criadas, existentes, reabertas, audit_id
+    return comp, criadas, existentes, reabertas, aguardando, audit_id
 
 
 def processar_faturamento_mensal(db: Session) -> int:
     """Job: gera faturas novas da competência atual (idempotente; não reabre rejeitadas)."""
-    _, criadas, _, _, _ = gerar_competencia(db, None, reabrir_rejeitadas=False)
+    _, criadas, _, _, _, _ = gerar_competencia(db, None, reabrir_rejeitadas=False)
     return criadas
 
 
@@ -386,6 +703,9 @@ def aprovar_fatura(db: Session, row: Fatura, ator: Atendente) -> Fatura:
     row.rejeicao_motivo = None
     db.flush()
     garantir_titulo_da_fatura(db, row)
+    contrato = row.contrato or db.query(Contrato).filter(Contrato.id == row.contrato_id).first()
+    if contrato is not None:
+        garantir_titulo_setup(db, contrato)
     db.flush()
     return row
 
@@ -402,6 +722,106 @@ def rejeitar_fatura(db: Session, row: Fatura, motivo: str) -> Fatura:
     row.aprovada_em = None
     db.flush()
     return row
+
+
+def cancelar_fatura(db: Session, row: Fatura, *, motivo: str | None = None) -> Fatura:
+    """Cancela a fatura do mês; título não pago vai junto para não deixar zumbi (#1324)."""
+    if row.status == FATURA_CANCELADA:
+        raise HTTPException(status_code=400, detail="Esta fatura já está cancelada.")
+    titulo = row.titulo or db.query(TituloReceber).filter(TituloReceber.fatura_id == row.id).first()
+    if titulo is not None:
+        if titulo.status == TITULO_PAGO:
+            raise HTTPException(
+                status_code=400,
+                detail="O título desta fatura está pago. Estorne a baixa antes de cancelar.",
+            )
+        if titulo.status != TITULO_CANCELADO:
+            titulo.status = TITULO_CANCELADO
+            if motivo:
+                titulo.baixa_observacao = f"Cancelado: {motivo.strip()[:1000]}"
+    row.status = FATURA_CANCELADA
+    row.rejeicao_motivo = None
+    row.aprovada_por_id = None
+    row.aprovada_em = None
+    db.flush()
+    return row
+
+
+def cancelar_titulo(db: Session, row: TituloReceber, *, motivo: str | None = None) -> TituloReceber:
+    """Cancela um título em aberto/vencido. Título pago precisa de estorno antes (#1324)."""
+    efetivo = status_titulo_efetivo(row)
+    if efetivo == TITULO_CANCELADO:
+        raise HTTPException(status_code=400, detail="Este título já está cancelado.")
+    if efetivo == TITULO_PAGO:
+        raise HTTPException(
+            status_code=400,
+            detail="Título pago: estorne a baixa antes de cancelar.",
+        )
+    row.status = TITULO_CANCELADO
+    if motivo:
+        row.baixa_observacao = f"Cancelado: {motivo.strip()[:1000]}"
+    fatura = row.fatura or db.query(Fatura).filter(Fatura.id == row.fatura_id).first() if row.fatura_id else None
+    if fatura is not None and fatura.status != FATURA_CANCELADA:
+        fatura.status = FATURA_CANCELADA
+        fatura.aprovada_por_id = None
+        fatura.aprovada_em = None
+    db.flush()
+    return row
+
+
+def estornar_titulo(db: Session, row: TituloReceber, *, motivo: str | None = None) -> TituloReceber:
+    """Desfaz a baixa: título pago volta para aberto (o dinheiro não deve ter entrado) (#1324)."""
+    if row.status != TITULO_PAGO:
+        raise HTTPException(status_code=400, detail="Só títulos pagos podem ser estornados.")
+    row.status = TITULO_ABERTO
+    row.pago_em = None
+    row.valor_pago = None
+    row.baixado_por_id = None
+    row.baixado_em = None
+    row.baixa_observacao = f"Baixa estornada: {motivo.strip()[:1000]}" if motivo else "Baixa estornada."
+    db.flush()
+    return row
+
+
+def cancelar_pendencias_do_contrato(db: Session, contrato: Contrato, *, desde_competencia: str | None = None) -> dict[str, int]:
+    """Rescisão não deixa fatura/título do mês em aberto (#1324).
+
+    Cancela faturas não pagas da competência atual em diante e títulos não pagos
+    (mensalidade e implantação) do contrato.
+    """
+    comp = validar_competencia(desde_competencia)
+    faturas_canceladas = 0
+    for row in (
+        db.query(Fatura)
+        .filter(Fatura.contrato_id == contrato.id, Fatura.competencia >= comp)
+        .all()
+    ):
+        if row.status == FATURA_CANCELADA:
+            continue
+        titulo = db.query(TituloReceber).filter(TituloReceber.fatura_id == row.id).first()
+        if titulo is not None and titulo.status == TITULO_PAGO:
+            continue
+        if titulo is not None and titulo.status != TITULO_CANCELADO:
+            titulo.status = TITULO_CANCELADO
+        row.status = FATURA_CANCELADA
+        row.rejeicao_motivo = None
+        row.aprovada_por_id = None
+        row.aprovada_em = None
+        faturas_canceladas += 1
+    titulos_cancelados = 0
+    for titulo in (
+        db.query(TituloReceber)
+        .filter(TituloReceber.contrato_id == contrato.id)
+        .all()
+    ):
+        if titulo.status in (TITULO_PAGO, TITULO_CANCELADO):
+            continue
+        if titulo.fatura_id is not None:
+            continue  # já tratado junto da fatura
+        titulo.status = TITULO_CANCELADO
+        titulos_cancelados += 1
+    db.flush()
+    return {"faturas_canceladas": faturas_canceladas, "titulos_cancelados": titulos_cancelados}
 
 
 def _exigir_aprovada(row: Fatura) -> None:
@@ -536,20 +956,27 @@ def obter_titulo(db: Session, titulo_id: int) -> TituloReceber:
     return row
 
 
-def listar_titulos(
+def _filtrar_titulos(
+    q,
     db: Session,
     *,
     competencia: str | None,
     status_filtro: str | None,
-) -> list[TituloReceber]:
-    q = db.query(TituloReceber).options(
-        joinedload(TituloReceber.fatura).joinedload(Fatura.contrato).joinedload(Contrato.linha),
-        joinedload(TituloReceber.fatura).joinedload(Fatura.empresa),
-        joinedload(TituloReceber.empresa),
-        joinedload(TituloReceber.baixado_por),
-    )
+    rede_id: int | None = None,
+    empresa_id: int | None = None,
+    tipo: str | None = None,
+):
     if competencia:
         q = q.filter(TituloReceber.competencia == validar_competencia(competencia))
+    if rede_id is not None:
+        q = q.filter(TituloReceber.empresa_id.in_(db.query(Empresa.id).filter(Empresa.rede_id == rede_id)))
+    if empresa_id is not None:
+        q = q.filter(TituloReceber.empresa_id == empresa_id)
+    tipo_norm = (tipo or "").strip()
+    if tipo_norm:
+        if tipo_norm not in TITULO_TIPOS:
+            raise HTTPException(status_code=400, detail="Tipo de título inválido.")
+        q = q.filter(TituloReceber.tipo == tipo_norm)
     status_norm = (status_filtro or "").strip()
     hoje = _hoje()
     if status_norm:
@@ -561,7 +988,173 @@ def listar_titulos(
             q = q.filter(TituloReceber.status == TITULO_ABERTO, TituloReceber.vencimento >= hoje)
         else:
             q = q.filter(TituloReceber.status == status_norm)
+    return q
+
+
+def listar_titulos(
+    db: Session,
+    *,
+    competencia: str | None,
+    status_filtro: str | None,
+    rede_id: int | None = None,
+    empresa_id: int | None = None,
+    tipo: str | None = None,
+) -> list[TituloReceber]:
+    q = db.query(TituloReceber).options(
+        joinedload(TituloReceber.fatura).joinedload(Fatura.contrato).joinedload(Contrato.linha),
+        joinedload(TituloReceber.fatura).joinedload(Fatura.empresa),
+        joinedload(TituloReceber.empresa),
+        joinedload(TituloReceber.baixado_por),
+    )
+    q = _filtrar_titulos(
+        q,
+        db,
+        competencia=competencia,
+        status_filtro=status_filtro,
+        rede_id=rede_id,
+        empresa_id=empresa_id,
+        tipo=tipo,
+    )
     return q.order_by(TituloReceber.vencimento.asc(), TituloReceber.id.desc()).all()
+
+
+def resumo_a_receber(
+    db: Session,
+    *,
+    competencia: str | None = None,
+    rede_id: int | None = None,
+    empresa_id: int | None = None,
+    tipo: str | None = None,
+) -> dict:
+    """Aging 30/60/90, a vencer e previsão do mês (#375)."""
+    hoje = _hoje()
+    q = db.query(TituloReceber).filter(TituloReceber.status == TITULO_ABERTO)
+    q = _filtrar_titulos(
+        q,
+        db,
+        competencia=competencia,
+        status_filtro=None,
+        rede_id=rede_id,
+        empresa_id=empresa_id,
+        tipo=tipo,
+    )
+    titulos = q.all()
+    faixas = {
+        "a_vencer": {"chave": "a_vencer", "label": "A vencer", "quantidade": 0, "valor": Decimal("0.00")},
+        "vencido_1_30": {"chave": "vencido_1_30", "label": "Vencido 1–30 dias", "quantidade": 0, "valor": Decimal("0.00")},
+        "vencido_31_60": {"chave": "vencido_31_60", "label": "Vencido 31–60 dias", "quantidade": 0, "valor": Decimal("0.00")},
+        "vencido_61_90": {"chave": "vencido_61_90", "label": "Vencido 61–90 dias", "quantidade": 0, "valor": Decimal("0.00")},
+        "vencido_90_mais": {"chave": "vencido_90_mais", "label": "Vencido 90+ dias", "quantidade": 0, "valor": Decimal("0.00")},
+    }
+    total_aberto = Decimal("0.00")
+    total_vencido = Decimal("0.00")
+    for t in titulos:
+        valor = Decimal(str(t.valor or 0))
+        dias = (hoje - t.vencimento).days
+        if dias <= 0:
+            chave = "a_vencer"
+            total_aberto += valor
+        else:
+            total_vencido += valor
+            if dias <= 30:
+                chave = "vencido_1_30"
+            elif dias <= 60:
+                chave = "vencido_31_60"
+            elif dias <= 90:
+                chave = "vencido_61_90"
+            else:
+                chave = "vencido_90_mais"
+        faixas[chave]["quantidade"] += 1
+        faixas[chave]["valor"] += valor
+
+    competencia_mes = competencia_atual(hoje)
+    titulos_mes = sum(
+        (Decimal(str(t.valor or 0)) for t in titulos if t.competencia == competencia_mes),
+        Decimal("0.00"),
+    )
+    contratos = [c for c in _contratos_faturaveis(db)]
+    politica = garantir_politica(db)
+    mensalidades_ativas = Decimal("0.00")
+    for c in contratos:
+        if rede_id is not None or empresa_id is not None:
+            emp = db.query(Empresa).filter(Empresa.id == c.empresa_id).first() if c.empresa_id else None
+            if empresa_id is not None and c.empresa_id != empresa_id:
+                continue
+            if rede_id is not None and (emp is None or emp.rede_id != rede_id):
+                continue
+        inicio, _ = inicio_da_mensalidade(db, c, politica=politica)
+        if inicio is not None and _competencia_antes_inicio(inicio, competencia_mes):
+            continue
+        mensalidades_ativas += Decimal(str(c.valor_mensalidade or 0))
+    return {
+        "competencia": competencia_mes,
+        "total_aberto": total_aberto,
+        "total_vencido": total_vencido,
+        "quantidade_titulos": len(titulos),
+        "faixas": list(faixas.values()),
+        "previsao_mes": {
+            "competencia": competencia_mes,
+            "titulos": titulos_mes,
+            "mensalidades_ativas": mensalidades_ativas,
+            "total": titulos_mes + mensalidades_ativas,
+        },
+    }
+
+
+def titulos_csv(db: Session, *, competencia: str | None, status_filtro: str | None,
+                rede_id: int | None, empresa_id: int | None, tipo: str | None) -> str:
+    """CSV do A receber com os mesmos filtros da lista (#375). Separador ';' para Excel pt-BR."""
+    import csv
+    import io
+
+    rows = listar_titulos(
+        db,
+        competencia=competencia,
+        status_filtro=status_filtro,
+        rede_id=rede_id,
+        empresa_id=empresa_id,
+        tipo=tipo,
+    )
+    hoje = _hoje()
+    buf = io.StringIO()
+    writer = csv.writer(buf, delimiter=";", lineterminator="\r\n")
+    writer.writerow(
+        [
+            "Tipo",
+            "Cliente",
+            "CNPJ",
+            "Rede",
+            "Contrato",
+            "Competência",
+            "Valor",
+            "Vencimento",
+            "Status",
+            "Dias em atraso",
+            "Pago em",
+            "Valor pago",
+        ]
+    )
+    for row in rows:
+        dados = titulo_para_read(db, row)
+        status = dados["status"]
+        atraso = max((hoje - row.vencimento).days, 0) if status == TITULO_VENCIDO else 0
+        writer.writerow(
+            [
+                TITULO_TIPO_IMPLANTACAO if (row.tipo or TITULO_TIPO_MENSALIDADE) == TITULO_TIPO_IMPLANTACAO else TITULO_TIPO_MENSALIDADE,
+                dados.get("razao_social") or dados.get("empresa_nome") or "",
+                dados.get("cnpj") or "",
+                dados.get("rede_nome") or "",
+                row.contrato_id,
+                row.competencia,
+                f"{Decimal(str(row.valor or 0)):.2f}",
+                row.vencimento.isoformat(),
+                status,
+                atraso,
+                row.pago_em.isoformat() if row.pago_em else "",
+                f"{Decimal(str(row.valor_pago)):.2f}" if row.valor_pago is not None else "",
+            ]
+        )
+    return "\ufeff" + buf.getvalue()
 
 
 def baixar_titulo(
