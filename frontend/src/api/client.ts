@@ -3838,6 +3838,8 @@ export namespace Faturamento {
     contrato_id: number;
     empresa_id: number | null;
     empresa_nome: string | null;
+    rede_id?: number | null;
+    rede_nome?: string | null;
     cnpj: string | null;
     razao_social: string | null;
     tipo?: 'mensalidade' | 'implantacao' | string;
@@ -3863,6 +3865,27 @@ export namespace Faturamento {
     dia_vencimento?: number | null;
     inicio_mensalidade?: string | null;
     aguardando_motivo?: string | null;
+    rede_id?: number | null;
+    rede_nome?: string | null;
+  }
+  export interface ResumoFaixa {
+    chave: string;
+    label: string;
+    quantidade: number;
+    valor: string | number;
+  }
+  export interface ResumoAReceber {
+    competencia: string;
+    total_aberto: string | number;
+    total_vencido: string | number;
+    quantidade_titulos: number;
+    faixas: ResumoFaixa[];
+    previsao_mes: {
+      competencia: string;
+      titulos: string | number;
+      mensalidades_ativas: string | number;
+      total: string | number;
+    };
   }
   export interface GerarCompetenciaOut {
     competencia: string;
@@ -3912,6 +3935,11 @@ export const faturamento = {
       method: 'POST',
       body: JSON.stringify({ motivo }),
     }),
+  cancelarFatura: (id: number, motivo?: string) =>
+    api<Faturamento.Fatura>(`/faturamento/faturas/${id}/cancelar`, {
+      method: 'POST',
+      body: JSON.stringify({ motivo: motivo?.trim() || null }),
+    }),
   atualizarDocumentos: (
     id: number,
     data: {
@@ -3932,8 +3960,44 @@ export const faturamento = {
   },
   removerAnexo: (id: number, anexoId: number) =>
     api<Faturamento.Fatura>(`/faturamento/faturas/${id}/anexos/${anexoId}`, { method: 'DELETE' }),
-  listTitulos: (params?: { competencia?: string; status?: string }) =>
-    api<Faturamento.Titulo[]>(withParams('/faturamento/titulos', params)),
+  listTitulos: (params?: {
+    competencia?: string;
+    status?: string;
+    rede_id?: number;
+    empresa_id?: number;
+    tipo?: string;
+  }) => api<Faturamento.Titulo[]>(withParams('/faturamento/titulos', params)),
+  resumoAReceber: (params?: {
+    competencia?: string;
+    rede_id?: number;
+    empresa_id?: number;
+    tipo?: string;
+  }) => api<Faturamento.ResumoAReceber>(withParams('/faturamento/a-receber/resumo', params)),
+  exportarTitulosCsv: async (params?: {
+    competencia?: string;
+    status?: string;
+    rede_id?: number;
+    empresa_id?: number;
+    tipo?: string;
+  }) => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (isMultiTenantMode()) {
+      headers['X-Dx-Tenant-Id'] = String(resolveTenantIdFromHostname());
+    }
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const url = `${apiOrigin()}${API_VERSION_PREFIX}${withParams('/faturamento/titulos/export.csv', params)}`;
+    const res = await fetch(url, { headers });
+    if (res.status === 401) {
+      invalidateSessionAndRedirectToLogin();
+      throw new ApiError('Sessão expirada ou inválida.', 401, {});
+    }
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new ApiError(mensagemErroApi(errBody, res.status), res.status, errBody);
+    }
+    return res.blob();
+  },
   baixarTitulo: (
     id: number,
     data?: { pago_em?: string; valor_pago?: number | string; observacao?: string },
@@ -3941,6 +4005,16 @@ export const faturamento = {
     api<Faturamento.Titulo>(`/faturamento/titulos/${id}/baixar`, {
       method: 'POST',
       body: JSON.stringify(data ?? {}),
+    }),
+  cancelarTitulo: (id: number, motivo?: string) =>
+    api<Faturamento.Titulo>(`/faturamento/titulos/${id}/cancelar`, {
+      method: 'POST',
+      body: JSON.stringify({ motivo: motivo?.trim() || null }),
+    }),
+  estornarTitulo: (id: number, motivo?: string) =>
+    api<Faturamento.Titulo>(`/faturamento/titulos/${id}/estornar`, {
+      method: 'POST',
+      body: JSON.stringify({ motivo: motivo?.trim() || null }),
     }),
 };
 

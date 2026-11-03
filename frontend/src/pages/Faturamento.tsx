@@ -6,6 +6,7 @@ import {
 } from '../api/client'
 import { mensagemFalhaParaToast } from '../api/errorMessage'
 import { FaturaDocumentos } from '../components/faturamento/FaturaDocumentos'
+import { ResumoAReceberCards } from '../components/faturamento/ResumoAReceberCards'
 import { TitulosReceber } from '../components/faturamento/TitulosReceber'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -80,6 +81,8 @@ export function Faturamento() {
   const [contratoId, setContratoId] = useState<number | ''>('')
   const [rejeitarId, setRejeitarId] = useState<number | null>(null)
   const [motivo, setMotivo] = useState('')
+  const [cancelarId, setCancelarId] = useState<number | null>(null)
+  const [motivoCancelamento, setMotivoCancelamento] = useState('')
   const [savingId, setSavingId] = useState<number | null>(null)
   const [emiteNfse, setEmiteNfse] = useState<'' | 'sim' | 'nao'>('')
   const [detalheId, setDetalheId] = useState<number | null>(null)
@@ -87,6 +90,11 @@ export function Faturamento() {
   const [titulos, setTitulos] = useState<Faturamento.Titulo[]>([])
   const [tituloStatus, setTituloStatus] = useState('')
   const [loadingTitulos, setLoadingTitulos] = useState(false)
+  const [resumo, setResumo] = useState<Faturamento.ResumoAReceber | null>(null)
+  const [redeId, setRedeId] = useState<number | ''>('')
+  const [empresaId, setEmpresaId] = useState<number | ''>('')
+  const [tipoTitulo, setTipoTitulo] = useState('')
+  const [exportandoCsv, setExportandoCsv] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -116,23 +124,39 @@ export function Faturamento() {
 
   const loadTitulos = useCallback(() => {
     setLoadingTitulos(true)
-    faturamento
-      .listTitulos({
-        competencia: competencia || undefined,
-        status: tituloStatus || undefined,
+    const params = {
+      competencia: competencia || undefined,
+      status: tituloStatus || undefined,
+      rede_id: redeId === '' ? undefined : Number(redeId),
+      empresa_id: empresaId === '' ? undefined : Number(empresaId),
+      tipo: tipoTitulo || undefined,
+    }
+    Promise.all([
+      faturamento.listTitulos(params),
+      faturamento.resumoAReceber({
+        competencia: params.competencia,
+        rede_id: params.rede_id,
+        empresa_id: params.empresa_id,
+        tipo: params.tipo,
+      }),
+    ])
+      .then(([lista, res]) => {
+        setTitulos(lista)
+        setResumo(res)
       })
-      .then(setTitulos)
       .catch((err) => {
         if (err instanceof ApiError && err.status === 403) {
           setForbidden(true)
           setTitulos([])
+          setResumo(null)
           return
         }
         toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível carregar os títulos.'))
         setTitulos([])
+        setResumo(null)
       })
       .finally(() => setLoadingTitulos(false))
-  }, [competencia, tituloStatus, toast])
+  }, [competencia, tituloStatus, redeId, empresaId, tipoTitulo, toast])
 
   useEffect(() => {
     if (aba === 'receber') loadTitulos()
@@ -238,6 +262,62 @@ export function Faturamento() {
     }
   }
 
+  async function confirmarCancelamento() {
+    if (cancelarId == null) return
+    setSavingId(cancelarId)
+    try {
+      await faturamento.cancelarFatura(cancelarId, motivoCancelamento)
+      toast.showSuccess('Fatura cancelada. O título não pago foi cancelado junto (se existia).')
+      setCancelarId(null)
+      setMotivoCancelamento('')
+      load()
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível cancelar a fatura.'))
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  const redeOptions = useMemo(() => {
+    const mapa = new Map<number, string>()
+    for (const c of contratos) {
+      if (c.rede_id) mapa.set(c.rede_id, c.rede_nome || `Rede #${c.rede_id}`)
+    }
+    return [...mapa.entries()].map(([value, label]) => ({ value, label }))
+  }, [contratos])
+
+  const empresaOptions = useMemo(() => {
+    const mapa = new Map<number, string>()
+    for (const c of contratos) {
+      if (c.empresa_id) mapa.set(c.empresa_id, c.razao_social || c.empresa_nome || `Empresa #${c.empresa_id}`)
+    }
+    return [...mapa.entries()].map(([value, label]) => ({ value, label }))
+  }, [contratos])
+
+  async function exportarCsv() {
+    setExportandoCsv(true)
+    try {
+      const blob = await faturamento.exportarTitulosCsv({
+        competencia: competencia || undefined,
+        status: tituloStatus || undefined,
+        rede_id: redeId === '' ? undefined : Number(redeId),
+        empresa_id: empresaId === '' ? undefined : Number(empresaId),
+        tipo: tipoTitulo || undefined,
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `a-receber-${competencia || 'todos'}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.showSuccess('CSV do A receber exportado.')
+    } catch (err) {
+      toast.showWarning(mensagemFalhaParaToast(err, 'Não foi possível exportar o CSV.'))
+    } finally {
+      setExportandoCsv(false)
+    }
+  }
+
   if (forbidden) {
     return (
       <SemPermissao
@@ -308,7 +388,7 @@ export function Faturamento() {
                 Gerar fatura
               </Button>
               <Button onClick={gerarMes} disabled={gerando} loading={gerando}>
-                Gerar faturas do mês
+                Reabrir rejeitadas do mês
               </Button>
             </>
           ) : null}
@@ -317,9 +397,9 @@ export function Faturamento() {
         </div>
         {aba === 'faturas' ? (
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          O job automático cria faturas novas da competência (não reabre rejeitadas). «Gerar faturas do mês»
-          também reabre as rejeitadas desta competência. Vencimento e início da mensalidade seguem a política de
-          faturamento da instância (Configurações → Financeiro) e o override do contrato.
+          O job automático cria as faturas da competência. «Reabrir rejeitadas do mês» reabre as rejeitadas (e cria
+          as que faltarem). Vencimento e início da mensalidade seguem a política de faturamento da instância
+          (Configurações → Financeiro) e o override do contrato.
         </p>
         ) : (
         <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -351,6 +431,47 @@ export function Faturamento() {
 
       {aba === 'receber' ? (
         <>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="w-44">
+              <Select
+                label="Rede"
+                value={redeId}
+                onChange={(v) => {
+                  setRedeId(v === '' ? '' : Number(v))
+                  setEmpresaId('')
+                }}
+                options={redeOptions}
+                includeEmpty
+                emptyLabel="Todas as redes"
+              />
+            </div>
+            <div className="w-56">
+              <Select
+                label="Empresa"
+                value={empresaId}
+                onChange={(v) => setEmpresaId(v === '' ? '' : Number(v))}
+                options={empresaOptions}
+                includeEmpty
+                emptyLabel="Todas as empresas"
+              />
+            </div>
+            <div className="w-40">
+              <Select
+                label="Tipo"
+                value={tipoTitulo}
+                onChange={(v) => setTipoTitulo(String(v))}
+                options={[
+                  { value: 'mensalidade', label: 'Mensalidade' },
+                  { value: 'implantacao', label: 'Implantação' },
+                ]}
+                includeEmpty
+                emptyLabel="Todos os tipos"
+              />
+            </div>
+            <Button variant="secondary" onClick={() => void exportarCsv()} disabled={exportandoCsv} loading={exportandoCsv}>
+              Exportar CSV
+            </Button>
+          </div>
           <div className="flex flex-wrap gap-2">
             {(
               [
@@ -358,6 +479,7 @@ export function Faturamento() {
                 ['aberto', 'Em aberto'],
                 ['vencido', 'Vencidos'],
                 ['pago', 'Pagos'],
+                ['cancelado', 'Cancelados'],
               ] as const
             ).map(([valor, label]) => (
               <button
@@ -374,12 +496,14 @@ export function Faturamento() {
               </button>
             ))}
           </div>
+          <ResumoAReceberCards resumo={resumo} loading={loadingTitulos} />
           <TitulosReceber
             titulos={titulos}
             loading={loadingTitulos}
             podeBaixar={podeAprovar}
             onAtualizado={(atual) => {
               setTitulos((prev) => prev.map((x) => (x.id === atual.id ? atual : x)))
+              loadTitulos()
             }}
           />
         </>
@@ -449,6 +573,39 @@ export function Faturamento() {
               }}
             >
               Cancelar
+            </Button>
+          </div>
+        </Card>
+      ) : null}
+
+      {cancelarId != null ? (
+        <Card className="space-y-3 border-red-200 dark:border-red-900/60">
+          <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+            Cancelar fatura #{cancelarId}
+          </p>
+          <p className="text-xs text-slate-500">
+            A fatura sai da conferência e o título a receber não pago é cancelado junto. Se o título já foi pago,
+            estorne a baixa antes. Use na rescisão para não deixar título do mês em aberto.
+          </p>
+          <textarea
+            className={TEXTAREA_FIELD_CLASS}
+            rows={2}
+            value={motivoCancelamento}
+            onChange={(e) => setMotivoCancelamento(e.target.value)}
+            placeholder="Motivo (opcional): rescisão, erro de valor…"
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={confirmarCancelamento} variant="danger" disabled={savingId === cancelarId}>
+              Confirmar cancelamento
+            </Button>
+            <Button
+              variant="cancel"
+              onClick={() => {
+                setCancelarId(null)
+                setMotivoCancelamento('')
+              }}
+            >
+              Voltar
             </Button>
           </div>
         </Card>
@@ -560,6 +717,18 @@ export function Faturamento() {
                         <Button variant="ghost" onClick={() => setDetalheId(f.id)}>
                           Documentos
                         </Button>
+                        {podeAprovar && f.status !== 'cancelada' ? (
+                          <Button
+                            variant="ghost"
+                            disabled={savingId === f.id}
+                            onClick={() => {
+                              setCancelarId(f.id)
+                              setMotivoCancelamento('')
+                            }}
+                          >
+                            Cancelar
+                          </Button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

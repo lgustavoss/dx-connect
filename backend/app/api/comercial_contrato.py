@@ -443,6 +443,7 @@ def cancelar_contrato(
             "status": row.status,
             "rescisao": era_assinado,
             "multa_rescisao": payload_multa,
+            "cobranca_cancelada": getattr(row, "pendencias_cobranca_canceladas", None),
         },
     )
     db.commit()

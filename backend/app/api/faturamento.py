@@ -12,6 +12,7 @@ from app.database import get_db
 from app.models.atendente import Atendente
 from app.schemas.faturamento import (
     ContratoElegivelRead,
+    FaturaCancelarIn,
     FaturaDocumentosIn,
     FaturaGerarCompetenciaIn,
     FaturaGerarCompetenciaOut,
@@ -20,7 +21,10 @@ from app.schemas.faturamento import (
     FaturaRejeitarIn,
     FaturamentoPoliticaRead,
     FaturamentoPoliticaUpdate,
+    ResumoAReceberRead,
     TituloBaixaIn,
+    TituloCancelarIn,
+    TituloEstornoIn,
     TituloReceberRead,
 )
 from app.services import faturamento as svc
@@ -171,6 +175,28 @@ def rejeitar_fatura(
     return svc.fatura_para_read(db, svc.obter_fatura(db, row.id))
 
 
+@router.post("/faturas/{fatura_id}/cancelar", response_model=FaturaRead)
+def cancelar_fatura(
+    fatura_id: int,
+    data: FaturaCancelarIn | None = None,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_faturamento("faturamento.aprovar")),
+):
+    """Cancela a fatura do mês e o título não pago (rescisão não deixa zumbi) — #1324."""
+    row = svc.obter_fatura(db, fatura_id)
+    row = svc.cancelar_fatura(db, row, motivo=data.motivo if data else None)
+    registrar_audit(
+        db,
+        "faturamento_fatura",
+        row.id,
+        "update",
+        atendente.id,
+        payload={"status": row.status, "motivo": data.motivo if data else None},
+    )
+    db.commit()
+    return svc.fatura_para_read(db, svc.obter_fatura(db, row.id))
+
+
 @router.patch("/faturas/{fatura_id}/documentos", response_model=FaturaRead)
 def atualizar_documentos(
     fatura_id: int,
@@ -255,11 +281,66 @@ def baixar_anexo(
 def listar_titulos(
     competencia: str | None = Query(None),
     status: str | None = Query(None),
+    rede_id: int | None = Query(None),
+    empresa_id: int | None = Query(None),
+    tipo: str | None = Query(None),
     db: Session = Depends(get_db),
     _: Atendente = Depends(exigir_faturamento("faturamento.ver")),
 ):
-    rows = svc.listar_titulos(db, competencia=competencia, status_filtro=status)
+    rows = svc.listar_titulos(
+        db,
+        competencia=competencia,
+        status_filtro=status,
+        rede_id=rede_id,
+        empresa_id=empresa_id,
+        tipo=tipo,
+    )
     return [svc.titulo_para_read(db, r) for r in rows]
+
+
+@router.get("/a-receber/resumo", response_model=ResumoAReceberRead)
+def resumo_a_receber(
+    competencia: str | None = Query(None),
+    rede_id: int | None = Query(None),
+    empresa_id: int | None = Query(None),
+    tipo: str | None = Query(None),
+    db: Session = Depends(get_db),
+    _: Atendente = Depends(exigir_faturamento("faturamento.ver")),
+):
+    """Aging 30/60/90, a vencer e previsão do mês (#375)."""
+    return svc.resumo_a_receber(
+        db,
+        competencia=competencia,
+        rede_id=rede_id,
+        empresa_id=empresa_id,
+        tipo=tipo,
+    )
+
+
+@router.get("/titulos/export.csv")
+def exportar_titulos_csv(
+    competencia: str | None = Query(None),
+    status: str | None = Query(None),
+    rede_id: int | None = Query(None),
+    empresa_id: int | None = Query(None),
+    tipo: str | None = Query(None),
+    db: Session = Depends(get_db),
+    _: Atendente = Depends(exigir_faturamento("faturamento.ver")),
+):
+    """CSV do A receber com os mesmos filtros da lista (#375)."""
+    conteudo = svc.titulos_csv(
+        db,
+        competencia=competencia,
+        status_filtro=status,
+        rede_id=rede_id,
+        empresa_id=empresa_id,
+        tipo=tipo,
+    )
+    return Response(
+        content=conteudo,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="a-receber.csv"'},
+    )
 
 
 @router.post("/titulos/{titulo_id}/baixar", response_model=TituloReceberRead)
@@ -285,6 +366,50 @@ def baixar_titulo(
         "update",
         atendente.id,
         payload={"status": row.status, "valor_pago": str(row.valor_pago)},
+    )
+    db.commit()
+    return svc.titulo_para_read(db, svc.obter_titulo(db, row.id))
+
+
+@router.post("/titulos/{titulo_id}/cancelar", response_model=TituloReceberRead)
+def cancelar_titulo(
+    titulo_id: int,
+    data: TituloCancelarIn | None = None,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_faturamento("faturamento.aprovar")),
+):
+    """Cancela título em aberto/vencido e a fatura correspondente (se houver) — #1324."""
+    row = svc.obter_titulo(db, titulo_id)
+    row = svc.cancelar_titulo(db, row, motivo=data.motivo if data else None)
+    registrar_audit(
+        db,
+        "faturamento_titulo",
+        row.id,
+        "update",
+        atendente.id,
+        payload={"status": row.status, "motivo": data.motivo if data else None},
+    )
+    db.commit()
+    return svc.titulo_para_read(db, svc.obter_titulo(db, row.id))
+
+
+@router.post("/titulos/{titulo_id}/estornar", response_model=TituloReceberRead)
+def estornar_titulo(
+    titulo_id: int,
+    data: TituloEstornoIn | None = None,
+    db: Session = Depends(get_db),
+    atendente: Atendente = Depends(exigir_faturamento("faturamento.aprovar")),
+):
+    """Desfaz a baixa de um título pago (volta para aberto) — #1324."""
+    row = svc.obter_titulo(db, titulo_id)
+    row = svc.estornar_titulo(db, row, motivo=data.motivo if data else None)
+    registrar_audit(
+        db,
+        "faturamento_titulo",
+        row.id,
+        "update",
+        atendente.id,
+        payload={"status": row.status, "estorno": True, "motivo": data.motivo if data else None},
     )
     db.commit()
     return svc.titulo_para_read(db, svc.obter_titulo(db, row.id))

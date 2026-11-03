@@ -1379,6 +1379,25 @@ def cancelar_contrato(db: Session, row: Contrato, ator: Atendente) -> Contrato:
         )
     )
     db.flush()
+    if era_assinado:
+        # Rescisão não deixa fatura/título do mês em aberto (#1324).
+        from app.services import faturamento as faturamento_svc
+
+        canceladas = faturamento_svc.cancelar_pendencias_do_contrato(db, row)
+        row.pendencias_cobranca_canceladas = canceladas  # lido pela API para auditoria
+        if canceladas["faturas_canceladas"] or canceladas["titulos_cancelados"]:
+            db.add(
+                CrmNegociacaoAtividade(
+                    negociacao_id=linha.negociacao_id,
+                    autor_id=ator.id,
+                    tipo=ATIVIDADE_DOCUMENTO,
+                    texto=(
+                        f"Contrato #{row.id}: {canceladas['faturas_canceladas']} fatura(s) e "
+                        f"{canceladas['titulos_cancelados']} título(s) em aberto cancelados na cobrança."
+                    ),
+                )
+            )
+            db.flush()
     return row
 
 

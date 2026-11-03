@@ -39,10 +39,12 @@ from app.models.faturamento import (
     GATILHO_OPCOES,
     GATILHO_TICKET_IMPLANTACAO_FECHADO,
     TITULO_ABERTO,
+    TITULO_CANCELADO,
     TITULO_PAGO,
     TITULO_STATUS_FILTRO,
     TITULO_TIPO_IMPLANTACAO,
     TITULO_TIPO_MENSALIDADE,
+    TITULO_TIPOS,
     TITULO_VENCIDO,
     VENCIMENTO_DIA_PADRAO,
     Fatura,
@@ -201,6 +203,8 @@ def titulo_para_read(db: Session, row: TituloReceber) -> dict:
         "contrato_id": row.contrato_id,
         "empresa_id": row.empresa_id,
         "empresa_nome": empresa.nome if empresa else None,
+        "rede_id": empresa.rede_id if empresa else None,
+        "rede_nome": empresa.rede.nome if empresa and empresa.rede else None,
         "cnpj": linha.cnpj if linha else (empresa.cnpj_cpf if empresa else None),
         "razao_social": (linha.razao_social if linha else None) or (empresa.razao_social if empresa else None),
         "tipo": row.tipo or TITULO_TIPO_MENSALIDADE,
@@ -580,6 +584,7 @@ def listar_contratos_elegiveis(db: Session) -> list[dict]:
         emp = db.query(Empresa).filter(Empresa.id == c.empresa_id).first() if c.empresa_id else None
         linha = _linha_contrato(db, c)
         inicio, motivo = inicio_da_mensalidade(db, c, politica=politica)
+        rede = getattr(emp, "rede", None) if emp is not None else None
         out.append(
             {
                 "id": c.id,
@@ -591,6 +596,8 @@ def listar_contratos_elegiveis(db: Session) -> list[dict]:
                 "dia_vencimento": dia_vencimento_do_contrato(db, c, politica=politica),
                 "inicio_mensalidade": inicio,
                 "aguardando_motivo": motivo,
+                "rede_id": emp.rede_id if emp else None,
+                "rede_nome": rede.nome if rede else None,
             }
         )
     return out
@@ -715,6 +722,106 @@ def rejeitar_fatura(db: Session, row: Fatura, motivo: str) -> Fatura:
     row.aprovada_em = None
     db.flush()
     return row
+
+
+def cancelar_fatura(db: Session, row: Fatura, *, motivo: str | None = None) -> Fatura:
+    """Cancela a fatura do mês; título não pago vai junto para não deixar zumbi (#1324)."""
+    if row.status == FATURA_CANCELADA:
+        raise HTTPException(status_code=400, detail="Esta fatura já está cancelada.")
+    titulo = row.titulo or db.query(TituloReceber).filter(TituloReceber.fatura_id == row.id).first()
+    if titulo is not None:
+        if titulo.status == TITULO_PAGO:
+            raise HTTPException(
+                status_code=400,
+                detail="O título desta fatura está pago. Estorne a baixa antes de cancelar.",
+            )
+        if titulo.status != TITULO_CANCELADO:
+            titulo.status = TITULO_CANCELADO
+            if motivo:
+                titulo.baixa_observacao = f"Cancelado: {motivo.strip()[:1000]}"
+    row.status = FATURA_CANCELADA
+    row.rejeicao_motivo = None
+    row.aprovada_por_id = None
+    row.aprovada_em = None
+    db.flush()
+    return row
+
+
+def cancelar_titulo(db: Session, row: TituloReceber, *, motivo: str | None = None) -> TituloReceber:
+    """Cancela um título em aberto/vencido. Título pago precisa de estorno antes (#1324)."""
+    efetivo = status_titulo_efetivo(row)
+    if efetivo == TITULO_CANCELADO:
+        raise HTTPException(status_code=400, detail="Este título já está cancelado.")
+    if efetivo == TITULO_PAGO:
+        raise HTTPException(
+            status_code=400,
+            detail="Título pago: estorne a baixa antes de cancelar.",
+        )
+    row.status = TITULO_CANCELADO
+    if motivo:
+        row.baixa_observacao = f"Cancelado: {motivo.strip()[:1000]}"
+    fatura = row.fatura or db.query(Fatura).filter(Fatura.id == row.fatura_id).first() if row.fatura_id else None
+    if fatura is not None and fatura.status != FATURA_CANCELADA:
+        fatura.status = FATURA_CANCELADA
+        fatura.aprovada_por_id = None
+        fatura.aprovada_em = None
+    db.flush()
+    return row
+
+
+def estornar_titulo(db: Session, row: TituloReceber, *, motivo: str | None = None) -> TituloReceber:
+    """Desfaz a baixa: título pago volta para aberto (o dinheiro não deve ter entrado) (#1324)."""
+    if row.status != TITULO_PAGO:
+        raise HTTPException(status_code=400, detail="Só títulos pagos podem ser estornados.")
+    row.status = TITULO_ABERTO
+    row.pago_em = None
+    row.valor_pago = None
+    row.baixado_por_id = None
+    row.baixado_em = None
+    row.baixa_observacao = f"Baixa estornada: {motivo.strip()[:1000]}" if motivo else "Baixa estornada."
+    db.flush()
+    return row
+
+
+def cancelar_pendencias_do_contrato(db: Session, contrato: Contrato, *, desde_competencia: str | None = None) -> dict[str, int]:
+    """Rescisão não deixa fatura/título do mês em aberto (#1324).
+
+    Cancela faturas não pagas da competência atual em diante e títulos não pagos
+    (mensalidade e implantação) do contrato.
+    """
+    comp = validar_competencia(desde_competencia)
+    faturas_canceladas = 0
+    for row in (
+        db.query(Fatura)
+        .filter(Fatura.contrato_id == contrato.id, Fatura.competencia >= comp)
+        .all()
+    ):
+        if row.status == FATURA_CANCELADA:
+            continue
+        titulo = db.query(TituloReceber).filter(TituloReceber.fatura_id == row.id).first()
+        if titulo is not None and titulo.status == TITULO_PAGO:
+            continue
+        if titulo is not None and titulo.status != TITULO_CANCELADO:
+            titulo.status = TITULO_CANCELADO
+        row.status = FATURA_CANCELADA
+        row.rejeicao_motivo = None
+        row.aprovada_por_id = None
+        row.aprovada_em = None
+        faturas_canceladas += 1
+    titulos_cancelados = 0
+    for titulo in (
+        db.query(TituloReceber)
+        .filter(TituloReceber.contrato_id == contrato.id)
+        .all()
+    ):
+        if titulo.status in (TITULO_PAGO, TITULO_CANCELADO):
+            continue
+        if titulo.fatura_id is not None:
+            continue  # já tratado junto da fatura
+        titulo.status = TITULO_CANCELADO
+        titulos_cancelados += 1
+    db.flush()
+    return {"faturas_canceladas": faturas_canceladas, "titulos_cancelados": titulos_cancelados}
 
 
 def _exigir_aprovada(row: Fatura) -> None:
@@ -849,20 +956,27 @@ def obter_titulo(db: Session, titulo_id: int) -> TituloReceber:
     return row
 
 
-def listar_titulos(
+def _filtrar_titulos(
+    q,
     db: Session,
     *,
     competencia: str | None,
     status_filtro: str | None,
-) -> list[TituloReceber]:
-    q = db.query(TituloReceber).options(
-        joinedload(TituloReceber.fatura).joinedload(Fatura.contrato).joinedload(Contrato.linha),
-        joinedload(TituloReceber.fatura).joinedload(Fatura.empresa),
-        joinedload(TituloReceber.empresa),
-        joinedload(TituloReceber.baixado_por),
-    )
+    rede_id: int | None = None,
+    empresa_id: int | None = None,
+    tipo: str | None = None,
+):
     if competencia:
         q = q.filter(TituloReceber.competencia == validar_competencia(competencia))
+    if rede_id is not None:
+        q = q.filter(TituloReceber.empresa_id.in_(db.query(Empresa.id).filter(Empresa.rede_id == rede_id)))
+    if empresa_id is not None:
+        q = q.filter(TituloReceber.empresa_id == empresa_id)
+    tipo_norm = (tipo or "").strip()
+    if tipo_norm:
+        if tipo_norm not in TITULO_TIPOS:
+            raise HTTPException(status_code=400, detail="Tipo de título inválido.")
+        q = q.filter(TituloReceber.tipo == tipo_norm)
     status_norm = (status_filtro or "").strip()
     hoje = _hoje()
     if status_norm:
@@ -874,7 +988,173 @@ def listar_titulos(
             q = q.filter(TituloReceber.status == TITULO_ABERTO, TituloReceber.vencimento >= hoje)
         else:
             q = q.filter(TituloReceber.status == status_norm)
+    return q
+
+
+def listar_titulos(
+    db: Session,
+    *,
+    competencia: str | None,
+    status_filtro: str | None,
+    rede_id: int | None = None,
+    empresa_id: int | None = None,
+    tipo: str | None = None,
+) -> list[TituloReceber]:
+    q = db.query(TituloReceber).options(
+        joinedload(TituloReceber.fatura).joinedload(Fatura.contrato).joinedload(Contrato.linha),
+        joinedload(TituloReceber.fatura).joinedload(Fatura.empresa),
+        joinedload(TituloReceber.empresa),
+        joinedload(TituloReceber.baixado_por),
+    )
+    q = _filtrar_titulos(
+        q,
+        db,
+        competencia=competencia,
+        status_filtro=status_filtro,
+        rede_id=rede_id,
+        empresa_id=empresa_id,
+        tipo=tipo,
+    )
     return q.order_by(TituloReceber.vencimento.asc(), TituloReceber.id.desc()).all()
+
+
+def resumo_a_receber(
+    db: Session,
+    *,
+    competencia: str | None = None,
+    rede_id: int | None = None,
+    empresa_id: int | None = None,
+    tipo: str | None = None,
+) -> dict:
+    """Aging 30/60/90, a vencer e previsão do mês (#375)."""
+    hoje = _hoje()
+    q = db.query(TituloReceber).filter(TituloReceber.status == TITULO_ABERTO)
+    q = _filtrar_titulos(
+        q,
+        db,
+        competencia=competencia,
+        status_filtro=None,
+        rede_id=rede_id,
+        empresa_id=empresa_id,
+        tipo=tipo,
+    )
+    titulos = q.all()
+    faixas = {
+        "a_vencer": {"chave": "a_vencer", "label": "A vencer", "quantidade": 0, "valor": Decimal("0.00")},
+        "vencido_1_30": {"chave": "vencido_1_30", "label": "Vencido 1–30 dias", "quantidade": 0, "valor": Decimal("0.00")},
+        "vencido_31_60": {"chave": "vencido_31_60", "label": "Vencido 31–60 dias", "quantidade": 0, "valor": Decimal("0.00")},
+        "vencido_61_90": {"chave": "vencido_61_90", "label": "Vencido 61–90 dias", "quantidade": 0, "valor": Decimal("0.00")},
+        "vencido_90_mais": {"chave": "vencido_90_mais", "label": "Vencido 90+ dias", "quantidade": 0, "valor": Decimal("0.00")},
+    }
+    total_aberto = Decimal("0.00")
+    total_vencido = Decimal("0.00")
+    for t in titulos:
+        valor = Decimal(str(t.valor or 0))
+        dias = (hoje - t.vencimento).days
+        if dias <= 0:
+            chave = "a_vencer"
+            total_aberto += valor
+        else:
+            total_vencido += valor
+            if dias <= 30:
+                chave = "vencido_1_30"
+            elif dias <= 60:
+                chave = "vencido_31_60"
+            elif dias <= 90:
+                chave = "vencido_61_90"
+            else:
+                chave = "vencido_90_mais"
+        faixas[chave]["quantidade"] += 1
+        faixas[chave]["valor"] += valor
+
+    competencia_mes = competencia_atual(hoje)
+    titulos_mes = sum(
+        (Decimal(str(t.valor or 0)) for t in titulos if t.competencia == competencia_mes),
+        Decimal("0.00"),
+    )
+    contratos = [c for c in _contratos_faturaveis(db)]
+    politica = garantir_politica(db)
+    mensalidades_ativas = Decimal("0.00")
+    for c in contratos:
+        if rede_id is not None or empresa_id is not None:
+            emp = db.query(Empresa).filter(Empresa.id == c.empresa_id).first() if c.empresa_id else None
+            if empresa_id is not None and c.empresa_id != empresa_id:
+                continue
+            if rede_id is not None and (emp is None or emp.rede_id != rede_id):
+                continue
+        inicio, _ = inicio_da_mensalidade(db, c, politica=politica)
+        if inicio is not None and _competencia_antes_inicio(inicio, competencia_mes):
+            continue
+        mensalidades_ativas += Decimal(str(c.valor_mensalidade or 0))
+    return {
+        "competencia": competencia_mes,
+        "total_aberto": total_aberto,
+        "total_vencido": total_vencido,
+        "quantidade_titulos": len(titulos),
+        "faixas": list(faixas.values()),
+        "previsao_mes": {
+            "competencia": competencia_mes,
+            "titulos": titulos_mes,
+            "mensalidades_ativas": mensalidades_ativas,
+            "total": titulos_mes + mensalidades_ativas,
+        },
+    }
+
+
+def titulos_csv(db: Session, *, competencia: str | None, status_filtro: str | None,
+                rede_id: int | None, empresa_id: int | None, tipo: str | None) -> str:
+    """CSV do A receber com os mesmos filtros da lista (#375). Separador ';' para Excel pt-BR."""
+    import csv
+    import io
+
+    rows = listar_titulos(
+        db,
+        competencia=competencia,
+        status_filtro=status_filtro,
+        rede_id=rede_id,
+        empresa_id=empresa_id,
+        tipo=tipo,
+    )
+    hoje = _hoje()
+    buf = io.StringIO()
+    writer = csv.writer(buf, delimiter=";", lineterminator="\r\n")
+    writer.writerow(
+        [
+            "Tipo",
+            "Cliente",
+            "CNPJ",
+            "Rede",
+            "Contrato",
+            "Competência",
+            "Valor",
+            "Vencimento",
+            "Status",
+            "Dias em atraso",
+            "Pago em",
+            "Valor pago",
+        ]
+    )
+    for row in rows:
+        dados = titulo_para_read(db, row)
+        status = dados["status"]
+        atraso = max((hoje - row.vencimento).days, 0) if status == TITULO_VENCIDO else 0
+        writer.writerow(
+            [
+                TITULO_TIPO_IMPLANTACAO if (row.tipo or TITULO_TIPO_MENSALIDADE) == TITULO_TIPO_IMPLANTACAO else TITULO_TIPO_MENSALIDADE,
+                dados.get("razao_social") or dados.get("empresa_nome") or "",
+                dados.get("cnpj") or "",
+                dados.get("rede_nome") or "",
+                row.contrato_id,
+                row.competencia,
+                f"{Decimal(str(row.valor or 0)):.2f}",
+                row.vencimento.isoformat(),
+                status,
+                atraso,
+                row.pago_em.isoformat() if row.pago_em else "",
+                f"{Decimal(str(row.valor_pago)):.2f}" if row.valor_pago is not None else "",
+            ]
+        )
+    return "\ufeff" + buf.getvalue()
 
 
 def baixar_titulo(

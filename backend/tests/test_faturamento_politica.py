@@ -566,3 +566,205 @@ def test_setup_junto_da_primeira_mensalidade(client, auth_headers):
     assert len(setup) == 1
     assert setup[0]["fatura_id"] is None
     assert setup[0]["valor"] == "1500.00"
+
+
+def test_cancelar_fatura_cancela_titulo_nao_pago(client, auth_headers):
+    h_com = auth_headers["comercial"]
+    h_fin = auth_headers["a2"]
+    h_at = auth_headers["a1"]
+    contrato = _assinar_contrato(client, h_com)
+    cid = contrato["id"]
+    comp = _comp(date.today())
+
+    gerar = client.post("/v1/faturamento/faturas", headers=h_fin, json={"contrato_id": cid, "competencia": comp})
+    assert gerar.status_code == 201, gerar.text
+    fid = gerar.json()["id"]
+
+    assert client.post(f"/v1/faturamento/faturas/{fid}/cancelar", headers=h_at, json={}).status_code == 403
+    cancelada = client.post(f"/v1/faturamento/faturas/{fid}/cancelar", headers=h_fin, json={"motivo": "Rescisão no dia 8"})
+    assert cancelada.status_code == 200, cancelada.text
+    assert cancelada.json()["status"] == "cancelada"
+
+    de_novo = client.post(f"/v1/faturamento/faturas/{fid}/cancelar", headers=h_fin, json={})
+    assert de_novo.status_code == 400
+    regerar = client.post("/v1/faturamento/faturas", headers=h_fin, json={"contrato_id": cid, "competencia": comp})
+    assert regerar.status_code == 400
+
+    # Fatura aprovada com título em aberto: cancelar a fatura cancela o título junto.
+    comp2 = _comp(date.today() + timedelta(days=32))
+    gerar2 = client.post("/v1/faturamento/faturas", headers=h_fin, json={"contrato_id": cid, "competencia": comp2})
+    assert gerar2.status_code == 201, gerar2.text
+    fid2 = gerar2.json()["id"]
+    aprova = client.post(f"/v1/faturamento/faturas/{fid2}/aprovar", headers=h_fin)
+    assert aprova.status_code == 200, aprova.text
+    tid = aprova.json()["titulo"]["id"]
+
+    cancela2 = client.post(f"/v1/faturamento/faturas/{fid2}/cancelar", headers=h_fin, json={})
+    assert cancela2.status_code == 200, cancela2.text
+    assert cancela2.json()["status"] == "cancelada"
+    assert cancela2.json()["titulo"]["status_persistido"] == "cancelado"
+
+    # Título pago obriga estorno antes de cancelar.
+    comp3 = _comp(date.today() + timedelta(days=64))
+    gerar3 = client.post("/v1/faturamento/faturas", headers=h_fin, json={"contrato_id": cid, "competencia": comp3})
+    fid3 = gerar3.json()["id"]
+    aprova3 = client.post(f"/v1/faturamento/faturas/{fid3}/aprovar", headers=h_fin)
+    tid3 = aprova3.json()["titulo"]["id"]
+    client.post(f"/v1/faturamento/titulos/{tid3}/baixar", headers=h_fin, json={})
+    bloqueia = client.post(f"/v1/faturamento/faturas/{fid3}/cancelar", headers=h_fin, json={})
+    assert bloqueia.status_code == 400
+    assert "estorne" in bloqueia.json()["detail"].lower()
+
+
+def test_estornar_e_cancelar_titulo(client, auth_headers):
+    h_com = auth_headers["comercial"]
+    h_fin = auth_headers["a2"]
+    contrato = _assinar_contrato(client, h_com)
+    cid = contrato["id"]
+    comp = _comp(date.today())
+    gerar = client.post("/v1/faturamento/faturas", headers=h_fin, json={"contrato_id": cid, "competencia": comp})
+    fid = gerar.json()["id"]
+    aprova = client.post(f"/v1/faturamento/faturas/{fid}/aprovar", headers=h_fin)
+    tid = aprova.json()["titulo"]["id"]
+
+    assert client.post(f"/v1/faturamento/titulos/{tid}/estornar", headers=h_fin, json={}).status_code == 400
+    client.post(f"/v1/faturamento/titulos/{tid}/baixar", headers=h_fin, json={"observacao": "PIX"})
+    estorno = client.post(
+        f"/v1/faturamento/titulos/{tid}/estornar",
+        headers=h_fin,
+        json={"motivo": "PIX devolvido pelo banco"},
+    )
+    assert estorno.status_code == 200, estorno.text
+    assert estorno.json()["status"] in {"aberto", "vencido"}
+    assert estorno.json()["valor_pago"] is None
+    assert estorno.json()["baixado_por_id"] is None
+
+    cancela = client.post(
+        f"/v1/faturamento/titulos/{tid}/cancelar",
+        headers=h_fin,
+        json={"motivo": "Contrato rescindido"},
+    )
+    assert cancela.status_code == 200, cancela.text
+    assert cancela.json()["status"] == "cancelado"
+    fatura = client.get(f"/v1/faturamento/faturas/{fid}", headers=h_fin).json()
+    assert fatura["status"] == "cancelada"
+
+    de_novo = client.post(f"/v1/faturamento/titulos/{tid}/cancelar", headers=h_fin, json={})
+    assert de_novo.status_code == 400
+
+
+def test_rescisao_cancela_faturas_e_titulos_pendentes(client, auth_headers):
+    h_com = auth_headers["comercial"]
+    h_fin = auth_headers["a2"]
+    contrato = _assinar_contrato(client, h_com)
+    cid = contrato["id"]
+    comp = _comp(date.today())
+    gerar = client.post("/v1/faturamento/faturas", headers=h_fin, json={"contrato_id": cid, "competencia": comp})
+    fid = gerar.json()["id"]
+    aprova = client.post(f"/v1/faturamento/faturas/{fid}/aprovar", headers=h_fin)
+    tid = aprova.json()["titulo"]["id"]
+
+    rescisao = client.post(f"/v1/comercial/contratos/{cid}/cancelar", headers=h_com)
+    assert rescisao.status_code == 200, rescisao.text
+    assert rescisao.json()["status"] == "cancelado"
+
+    fatura = client.get(f"/v1/faturamento/faturas/{fid}", headers=h_fin).json()
+    assert fatura["status"] == "cancelada"
+    titulo = client.get("/v1/faturamento/titulos", headers=h_fin, params={"competencia": comp}).json()
+    alvo = next(t for t in titulo if t["id"] == tid)
+    assert alvo["status_persistido"] == "cancelado"
+
+
+def test_resumo_a_receber_aging_e_previsao(client, auth_headers):
+    h_com = auth_headers["comercial"]
+    h_fin = auth_headers["a2"]
+    contrato = _assinar_contrato(client, h_com)
+    cid = contrato["id"]
+    comp = _comp(date.today())
+    gerar = client.post("/v1/faturamento/faturas", headers=h_fin, json={"contrato_id": cid, "competencia": comp})
+    fid = gerar.json()["id"]
+    aprova = client.post(f"/v1/faturamento/faturas/{fid}/aprovar", headers=h_fin)
+    tid_a_vencer = aprova.json()["titulo"]["id"]
+
+    comp2 = _comp(date.today() + timedelta(days=32))
+    gerar2 = client.post("/v1/faturamento/faturas", headers=h_fin, json={"contrato_id": cid, "competencia": comp2})
+    fid2 = gerar2.json()["id"]
+    aprova2 = client.post(f"/v1/faturamento/faturas/{fid2}/aprovar", headers=h_fin)
+    tid_atrasado = aprova2.json()["titulo"]["id"]
+
+    from app.models.faturamento import TituloReceber
+
+    db = SessionLocal()
+    try:
+        row = db.query(TituloReceber).filter(TituloReceber.id == tid_atrasado).one()
+        row.vencimento = date.today() - timedelta(days=45)
+        db.commit()
+    finally:
+        db.close()
+
+    resumo = client.get("/v1/faturamento/a-receber/resumo", headers=h_fin)
+    assert resumo.status_code == 200, resumo.text
+    body = resumo.json()
+    assert body["quantidade_titulos"] >= 2
+    faixas = {f["chave"]: f for f in body["faixas"]}
+    assert faixas["a_vencer"]["quantidade"] >= 1
+    assert faixas["vencido_31_60"]["quantidade"] >= 1
+    assert faixas["vencido_31_60"]["valor"] == "900.00"
+    assert float(body["total_aberto"]) >= 900.0
+    assert float(body["total_vencido"]) >= 900.0
+    assert float(body["previsao_mes"]["mensalidades_ativas"]) >= 900.0
+    assert body["previsao_mes"]["competencia"] == _comp(date.today())
+
+
+def test_filtros_rede_empresa_tipo_e_csv(client, auth_headers):
+    h_com = auth_headers["comercial"]
+    h_fin = auth_headers["a2"]
+    h_at = auth_headers["a1"]
+    contrato = _assinar_contrato_com_setup(client, h_com)
+    cid = contrato["id"]
+    empresa_id = contrato["empresa_id"]
+    rede_id = contrato["rede_id"]
+    assert empresa_id and rede_id
+
+    client.patch(f"/v1/comercial/contratos/{cid}/cobranca", headers=h_com, json={"setup_momento": "assinatura"})
+    gerar = client.post(
+        "/v1/faturamento/faturas", headers=h_fin, json={"contrato_id": cid, "competencia": _comp(date.today())}
+    )
+    assert gerar.status_code == 201, gerar.text
+    client.post(f"/v1/faturamento/faturas/{gerar.json()['id']}/aprovar", headers=h_fin)
+
+    filtrados = client.get(
+        "/v1/faturamento/titulos",
+        headers=h_fin,
+        params={"rede_id": rede_id, "empresa_id": empresa_id},
+    )
+    assert filtrados.status_code == 200, filtrados.text
+    assert filtrados.json()
+    assert all(t["empresa_id"] == empresa_id for t in filtrados.json())
+
+    errado = client.get("/v1/faturamento/titulos", headers=h_fin, params={"rede_id": rede_id + 999})
+    assert errado.status_code == 200
+    assert errado.json() == []
+
+    so_implantacao = client.get("/v1/faturamento/titulos", headers=h_fin, params={"tipo": "implantacao"})
+    assert so_implantacao.status_code == 200, so_implantacao.text
+    assert so_implantacao.json()
+    assert all(t["tipo"] == "implantacao" for t in so_implantacao.json())
+    assert client.get("/v1/faturamento/titulos", headers=h_fin, params={"tipo": "inventado"}).status_code == 400
+
+    csv = client.get("/v1/faturamento/titulos/export.csv", headers=h_fin, params={"tipo": "implantacao"})
+    assert csv.status_code == 200, csv.text
+    assert "text/csv" in csv.headers["content-type"]
+    texto = csv.content.decode("utf-8-sig")
+    linhas = texto.strip().splitlines()
+    assert linhas[0].startswith("Tipo;Cliente;CNPJ")
+    assert "implantacao" in texto
+    assert "1500.00" in texto
+    assert client.get("/v1/faturamento/titulos/export.csv", headers=h_at).status_code == 403
+
+    resumo = client.get("/v1/faturamento/a-receber/resumo", headers=h_fin, params={"rede_id": rede_id})
+    assert resumo.status_code == 200, resumo.text
+    assert resumo.json()["quantidade_titulos"] >= 1
+    errado_resumo = client.get("/v1/faturamento/a-receber/resumo", headers=h_fin, params={"rede_id": rede_id + 999})
+    assert errado_resumo.status_code == 200
+    assert errado_resumo.json()["quantidade_titulos"] == 0

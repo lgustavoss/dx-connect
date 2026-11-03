@@ -112,6 +112,18 @@ class FaturaRejeitarIn(BaseModel):
     motivo: str = Field(..., min_length=3, max_length=2000)
 
 
+class FaturaCancelarIn(BaseModel):
+    motivo: str | None = Field(None, max_length=2000)
+
+
+class TituloCancelarIn(BaseModel):
+    motivo: str | None = Field(None, max_length=2000)
+
+
+class TituloEstornoIn(BaseModel):
+    motivo: str | None = Field(None, max_length=2000)
+
+
 class FaturaDocumentosIn(BaseModel):
     boleto_linha_digitavel: str | None = Field(None, max_length=60)
     boleto_nosso_numero: str | None = Field(None, max_length=40)
@@ -136,3 +148,28 @@ class ContratoElegivelRead(BaseModel):
     dia_vencimento: int | None = None
     inicio_mensalidade: date | None = None
     aguardando_motivo: str | None = None
+    rede_id: int | None = None
+    rede_nome: str | None = None
+
+
+class ResumoFaixaRead(BaseModel):
+    chave: str
+    label: str
+    quantidade: int
+    valor: Decimal
+
+
+class ResumoPrevisaoRead(BaseModel):
+    competencia: str
+    titulos: Decimal
+    mensalidades_ativas: Decimal
+    total: Decimal
+
+
+class ResumoAReceberRead(BaseModel):
+    competencia: str
+    total_aberto: Decimal
+    total_vencido: Decimal
+    quantidade_titulos: int
+    faixas: list[ResumoFaixaRead]
+    previsao_mes: ResumoPrevisaoRead
