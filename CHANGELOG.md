@@ -23,6 +23,8 @@ Versão CalVer (`YY.MM.NNN`) é atribuída automaticamente no deploy de `staging
 - Contratos: **marcar assinado move o funil** para «Contrato assinado» sem checkbox, e o passo «marcar enviado» saiu da tela; a lista mostra qual contrato é **vigente** (o aditivo passa a ser o vigente e o anterior fica como histórico) (#1322)
 - Implantação: ao assinar com o ticket, nascem os **PDVs previstos na linha do contrato** (rascunho PDV-1…) e o cartão vai para «Implantação» no funil, sem clique no Kanban (#1323)
 - Implantação: o item **Cadastrar PDVs** só conclui com o cadastro compatível ou com o desvio registrado na observação; o ticket de implantação deixou de aparecer no **portal do cliente** (#1323)
+- Operação: a **timeline 360 do cliente da carteira** reúne em ordem cronológica os marcos de CRM, implantação e suporte (lead, etapa, proposta, contrato, checklist e chamados), com filtros por categoria e período (#912, #913)
+- Operação: a **carteira da operação** mostra o status de cada cliente (saudável, atenção ou risco) com os sinais objetivos e o critério de cada um — dias sem movimentação, chamados reabertos, implantação parada e tempo do lead à assinatura (#914)
 
 #### Correções
 
